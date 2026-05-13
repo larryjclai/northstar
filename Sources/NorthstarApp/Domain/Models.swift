@@ -62,6 +62,7 @@ final class InvestmentRecord {
     var quantity: Double
     var fee: Double
     var note: String
+    var isReviewed: Bool = false
     var linkedLedgerTransactionID: UUID?
     var asset: PortfolioAsset?
     var linkedAccount: Account?
@@ -79,6 +80,7 @@ final class InvestmentRecord {
         quantity: Double,
         fee: Double = 0,
         note: String = "",
+        isReviewed: Bool = false,
         linkedLedgerTransactionID: UUID? = nil,
         asset: PortfolioAsset? = nil,
         linkedAccount: Account? = nil
@@ -90,6 +92,7 @@ final class InvestmentRecord {
         self.quantity = quantity
         self.fee = fee
         self.note = note
+        self.isReviewed = isReviewed
         self.linkedLedgerTransactionID = linkedLedgerTransactionID
         self.asset = asset
         self.linkedAccount = linkedAccount

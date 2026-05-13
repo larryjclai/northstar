@@ -15,6 +15,16 @@ enum CurrencyFormatters {
         return value < 0 ? "-\(formatted)" : "+\(formatted)"
     }
 
+    static func price(_ value: Double, currencyCode: String = "TWD") -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = currencyCode
+        formatter.maximumFractionDigits = value < 100 ? 2 : 0
+        formatter.minimumFractionDigits = value < 100 ? 2 : 0
+        formatter.locale = Locale(identifier: "zh_Hant_TW")
+        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+    }
+
     static func percent(_ value: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .percent
