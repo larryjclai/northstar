@@ -17,20 +17,28 @@ final class Account {
     var name: String
     var currency: String
     var balance: Double
+    var openingBalance: Double = 0
     @Relationship(deleteRule: .cascade, inverse: \InvestmentRecord.linkedAccount)
     var investmentRecords: [InvestmentRecord] = []
     @Relationship(deleteRule: .cascade, inverse: \LedgerTransaction.account)
     var transactions: [LedgerTransaction] = []
 
-    init(id: UUID = UUID(), name: String, currency: String, balance: Double = 0) {
+    init(
+        id: UUID = UUID(),
+        name: String,
+        currency: String,
+        balance: Double = 0,
+        openingBalance: Double = 0
+    ) {
         self.id = id
         self.name = name
         self.currency = currency
         self.balance = balance
+        self.openingBalance = openingBalance
     }
 
     func recomputeBalance() {
-        balance = transactions.reduce(0) { $0 + $1.amount }
+        balance = openingBalance + transactions.reduce(0) { $0 + $1.amount }
     }
 }
 

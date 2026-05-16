@@ -8,6 +8,9 @@ struct HoldingsView: View {
     @AppStorage(IntentRoutingKeys.baseCurrency) private var baseCurrency: String = BaseCurrencyDefaults.default
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
 
+    @State private var selectedRange: TimeRange = .month
+    @State private var selectedBenchmark: String? = nil
+
     private var tickerSymbols: [String] {
         assets.map(\.ticker).sorted()
     }
@@ -124,7 +127,9 @@ struct HoldingsView: View {
     }
 
     private var investmentsHero: some View {
-        VStack(alignment: .center, spacing: 14) {
+        let trend = currentPortfolioTrend
+        let benchmark = currentBenchmarkSeries
+        return VStack(alignment: .center, spacing: 14) {
             HStack {
                 Spacer()
                 Text(CurrencyFormatters.percent(holdingsReturnBase))
@@ -145,12 +150,16 @@ struct HoldingsView: View {
                 .foregroundStyle(NorthstarTheme.mutedText)
 
             SparklineView(
-                values: portfolioTrend,
-                color: holdingsPnLBase >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk
+                values: trend.values,
+                color: holdingsPnLBase >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk,
+                comparison: benchmark,
+                comparisonColor: NorthstarTheme.accent.opacity(0.85),
+                comparisonLabel: selectedBenchmark.map { BenchmarkCatalog.displayName(for: $0) }
             )
             .frame(height: 134)
 
-            rangeSelector
+            TimeRangeSelector(selected: $selectedRange)
+            BenchmarkPicker(options: BenchmarkCatalog.symbols, selection: $selectedBenchmark)
         }
         .padding(18)
         .frame(maxWidth: .infinity)
@@ -158,20 +167,25 @@ struct HoldingsView: View {
     }
 
     private var rangeSelector: some View {
-        HStack(spacing: 24) {
-            ForEach(["1W", "1M", "3M", "YTD", "1Y", "ALL"], id: \.self) { range in
-                Text(range)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(range == "1M" ? NorthstarTheme.primaryText : NorthstarTheme.mutedText)
-                    .padding(.horizontal, range == "1M" ? 12 : 0)
-                    .padding(.vertical, range == "1M" ? 7 : 0)
-                    .background {
-                        if range == "1M" {
-                            Capsule().fill(NorthstarTheme.accent.opacity(0.28))
-                        }
-                    }
-            }
-        }
+        TimeRangeSelector(selected: $selectedRange)
+    }
+
+    private var currentPortfolioTrend: PortfolioTrend {
+        let full = PortfolioTrendBuilder.build(
+            holdings: holdings,
+            sparklines: priceStore.sparklines,
+            sparklineDates: priceStore.sparklineDates
+        )
+        return PortfolioTrendBuilder.slice(values: full.values, dates: full.dates, range: selectedRange)
+    }
+
+    private var currentBenchmarkSeries: [Double] {
+        guard let symbol = selectedBenchmark,
+              let closes = priceStore.sparklines[symbol],
+              closes.isEmpty == false else { return [] }
+        let dates = priceStore.sparklineDates[symbol] ?? []
+        let sliced = PortfolioTrendBuilder.slice(values: closes, dates: dates, range: selectedRange)
+        return sliced.values
     }
 
     private func investmentAccountsSection(_ snapshots: [HoldingSnapshot]) -> some View {
@@ -279,7 +293,7 @@ struct HoldingsView: View {
                         }
 
                         SparklineView(
-                            values: priceStore.sparklines[selected.ticker] ?? portfolioTrend,
+                            values: priceStore.sparklines[selected.ticker] ?? currentPortfolioTrend.values,
                             color: selected.unrealizedPnL >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk
                         )
                         .frame(height: 150)
@@ -294,25 +308,6 @@ struct HoldingsView: View {
                 holdingsTableSection(Array(holdings.prefix(7)))
             }
             .padding(28)
-        }
-    }
-
-    private var portfolioTrend: [Double] {
-        let series = holdings.compactMap { holding -> [Double]? in
-            guard let closes = priceStore.sparklines[holding.ticker], closes.isEmpty == false else {
-                return nil
-            }
-            return closes.map { $0 * holding.quantity }
-        }
-
-        guard let count = series.map(\.count).min(), count > 1 else {
-            return []
-        }
-
-        return (0..<count).map { index in
-            series.reduce(0) { total, points in
-                total + points[points.count - count + index]
-            }
         }
     }
 

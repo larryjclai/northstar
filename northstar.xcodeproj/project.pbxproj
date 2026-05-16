@@ -27,6 +27,9 @@
 		300000000000000000000018 /* LedgerLinkage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000018 /* LedgerLinkage.swift */; };
 		300000000000000000000019 /* FXRateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000019 /* FXRateStore.swift */; };
 		300000000000000000000020 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000020 /* SettingsView.swift */; };
+		300000000000000000000021 /* TimeRange.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000021 /* TimeRange.swift */; };
+		300000000000000000000022 /* PortfolioTrend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000022 /* PortfolioTrend.swift */; };
+		300000000000000000000023 /* AccountsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000023 /* AccountsView.swift */; };
 		400000000000000000000001 /* NorthstarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000001 /* NorthstarApp.swift */; };
 		400000000000000000000002 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000002 /* Models.swift */; };
 		400000000000000000000003 /* CurrencyFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000003 /* CurrencyFormatters.swift */; };
@@ -47,6 +50,9 @@
 		400000000000000000000018 /* LedgerLinkage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000018 /* LedgerLinkage.swift */; };
 		400000000000000000000019 /* FXRateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000019 /* FXRateStore.swift */; };
 		400000000000000000000020 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000020 /* SettingsView.swift */; };
+		400000000000000000000021 /* TimeRange.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000021 /* TimeRange.swift */; };
+		400000000000000000000022 /* PortfolioTrend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000022 /* PortfolioTrend.swift */; };
+		400000000000000000000023 /* AccountsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000023 /* AccountsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -72,6 +78,9 @@
 		200000000000000000000018 /* LedgerLinkage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/NorthstarApp/Domain/LedgerLinkage.swift"; sourceTree = "<group>"; };
 		200000000000000000000019 /* FXRateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/NorthstarApp/UI/AppState/FXRateStore.swift"; sourceTree = "<group>"; };
 		200000000000000000000020 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/NorthstarApp/UI/Views/SettingsView.swift"; sourceTree = "<group>"; };
+		200000000000000000000021 /* TimeRange.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/NorthstarApp/Domain/TimeRange.swift"; sourceTree = "<group>"; };
+		200000000000000000000022 /* PortfolioTrend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/NorthstarApp/Domain/PortfolioTrend.swift"; sourceTree = "<group>"; };
+		200000000000000000000023 /* AccountsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/NorthstarApp/UI/Views/AccountsView.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -119,6 +128,9 @@
 				200000000000000000000019 /* FXRateStore.swift */,
 				200000000000000000000017 /* CSVImportPreviewView.swift */,
 				200000000000000000000020 /* SettingsView.swift */,
+				200000000000000000000021 /* TimeRange.swift */,
+				200000000000000000000022 /* PortfolioTrend.swift */,
+				200000000000000000000023 /* AccountsView.swift */,
 				200000000000000000000015 /* Assets.xcassets */,
 			);
 			name = Sources;
@@ -225,6 +237,9 @@
 				300000000000000000000018 /* LedgerLinkage.swift in Sources */,
 				300000000000000000000019 /* FXRateStore.swift in Sources */,
 				300000000000000000000020 /* SettingsView.swift in Sources */,
+				300000000000000000000021 /* TimeRange.swift in Sources */,
+				300000000000000000000022 /* PortfolioTrend.swift in Sources */,
+				300000000000000000000023 /* AccountsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -251,6 +266,9 @@
 				400000000000000000000018 /* LedgerLinkage.swift in Sources */,
 				400000000000000000000019 /* FXRateStore.swift in Sources */,
 				400000000000000000000020 /* SettingsView.swift in Sources */,
+				400000000000000000000021 /* TimeRange.swift in Sources */,
+				400000000000000000000022 /* PortfolioTrend.swift in Sources */,
+				400000000000000000000023 /* AccountsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

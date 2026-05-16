@@ -12,12 +12,25 @@ struct MarketQuote: Identifiable, Equatable, Sendable {
     let regularMarketTime: Date?
 }
 
+enum BenchmarkCatalog {
+    static let symbols: [String] = ["0050.TW", "SPY"]
+
+    static func displayName(for symbol: String) -> String {
+        switch symbol.uppercased() {
+        case "0050.TW": return "0050 元大台灣50"
+        case "SPY": return "SPY S&P 500"
+        default: return symbol
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class PriceStore {
     var prices: [String: Double] = [:]
     var quotes: [String: MarketQuote] = [:]
     var sparklines: [String: [Double]] = [:]
+    var sparklineDates: [String: [Date]] = [:]
     var benchmarks: [String: Double] = [:]
     var isRefreshing = false
     var lastUpdated: Date?
@@ -34,13 +47,15 @@ final class PriceStore {
     }
 
     func refresh(tickers: [String], force: Bool = false) async {
-        let symbols = Self.normalizedSymbols(tickers)
-        guard symbols.isEmpty == false else { return }
+        let portfolio = Self.normalizedSymbols(tickers)
+        let benchmarkSymbols = Self.normalizedSymbols(BenchmarkCatalog.symbols)
+        let combined = Array(Set(portfolio + benchmarkSymbols)).sorted()
+        guard combined.isEmpty == false else { return }
 
         if force == false,
            let lastUpdated,
            Date().timeIntervalSince(lastUpdated) < 60,
-           Set(symbols).isSubset(of: Set(quotes.keys)) {
+           Set(combined).isSubset(of: Set(quotes.keys)) {
             return
         }
 
@@ -49,11 +64,12 @@ final class PriceStore {
         defer { isRefreshing = false }
 
         do {
-            let marketData = try await quoteClient.fetchMarketData(symbols: symbols)
+            let marketData = try await quoteClient.fetchMarketData(symbols: combined)
             var nextQuotes = quotes
             var nextPrices = prices
             var nextBenchmarks = benchmarks
             var nextSparklines = sparklines
+            var nextSparklineDates = sparklineDates
 
             for quote in marketData.quotes {
                 nextQuotes[quote.symbol] = quote
@@ -65,10 +81,15 @@ final class PriceStore {
                 nextSparklines[symbol] = points
             }
 
+            for (symbol, dates) in marketData.sparklineDates where dates.isEmpty == false {
+                nextSparklineDates[symbol] = dates
+            }
+
             quotes = nextQuotes
             prices = nextPrices
             benchmarks = nextBenchmarks
             sparklines = nextSparklines
+            sparklineDates = nextSparklineDates
             lastUpdated = .now
         } catch {
             lastError = error.localizedDescription
@@ -87,9 +108,13 @@ final class PriceStore {
 struct YahooMarketData: Sendable {
     let quotes: [MarketQuote]
     let sparklines: [String: [Double]]
+    let sparklineDates: [String: [Date]]
 }
 
 struct YahooFinanceClient: Sendable {
+    var historyRange: String = "1y"
+    var historyInterval: String = "1d"
+
     func fetchMarketData(symbols: [String]) async throws -> YahooMarketData {
         let chartData = await fetchChartData(symbols: symbols)
         let quotes = chartData.map(\.quote)
@@ -97,11 +122,17 @@ struct YahooFinanceClient: Sendable {
             throw YahooFinanceError.noQuotes
         }
 
+        var sparklines: [String: [Double]] = [:]
+        var sparklineDates: [String: [Date]] = [:]
+        for item in chartData {
+            sparklines[item.quote.symbol] = item.closes
+            sparklineDates[item.quote.symbol] = item.dates
+        }
+
         return YahooMarketData(
             quotes: quotes,
-            sparklines: chartData.reduce(into: [:]) { result, item in
-                result[item.quote.symbol] = item.closes
-            }
+            sparklines: sparklines,
+            sparklineDates: sparklineDates
         )
     }
 
@@ -127,8 +158,8 @@ struct YahooFinanceClient: Sendable {
         let encodedSymbol = symbol.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? symbol
         var components = URLComponents(string: "https://query1.finance.yahoo.com/v8/finance/chart/\(encodedSymbol)")
         components?.queryItems = [
-            URLQueryItem(name: "range", value: "1d"),
-            URLQueryItem(name: "interval", value: "5m")
+            URLQueryItem(name: "range", value: historyRange),
+            URLQueryItem(name: "interval", value: historyInterval)
         ]
 
         guard let url = components?.url else {
@@ -140,7 +171,23 @@ struct YahooFinanceClient: Sendable {
             throw YahooFinanceError.noQuote(symbol)
         }
 
-        let closes = result.indicators.quote.first?.close.compactMap { $0 }.filter { $0 > 0 } ?? []
+        let rawCloses = result.indicators.quote.first?.close ?? []
+        let rawTimestamps = result.timestamp ?? []
+
+        var closes: [Double] = []
+        var dates: [Date] = []
+        let pairCount = min(rawCloses.count, rawTimestamps.count)
+        for index in 0..<pairCount {
+            guard let close = rawCloses[index], close > 0 else { continue }
+            closes.append(close)
+            dates.append(Date(timeIntervalSince1970: TimeInterval(rawTimestamps[index])))
+        }
+        // If timestamps missing but closes present (degenerate case), keep closes only.
+        if closes.isEmpty {
+            closes = rawCloses.compactMap { $0 }.filter { $0 > 0 }
+            dates = []
+        }
+
         guard let price = result.meta.regularMarketPrice ?? closes.last else {
             throw YahooFinanceError.noQuote(symbol)
         }
@@ -161,7 +208,7 @@ struct YahooFinanceClient: Sendable {
             regularMarketTime: result.meta.regularMarketTime.map { Date(timeIntervalSince1970: TimeInterval($0)) }
         )
 
-        return YahooChartMarketData(quote: quote, closes: closes)
+        return YahooChartMarketData(quote: quote, closes: closes, dates: dates)
     }
 
     private func decode<T: Decodable>(_ type: T.Type, from url: URL) async throws -> T {
@@ -202,6 +249,7 @@ private enum YahooFinanceError: LocalizedError {
 private struct YahooChartMarketData: Sendable {
     let quote: MarketQuote
     let closes: [Double]
+    let dates: [Date]
 }
 
 private struct YahooChartEnvelope: Decodable {
@@ -215,6 +263,7 @@ private struct YahooChartResponse: Decodable {
 private struct YahooChartResult: Decodable {
     let meta: YahooChartMeta
     let indicators: YahooChartIndicators
+    let timestamp: [Int]?
 }
 
 private struct YahooChartMeta: Decodable {

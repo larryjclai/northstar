@@ -11,6 +11,9 @@ struct DashboardView: View {
     @Query(sort: \InvestmentRecord.date, order: .reverse) private var records: [InvestmentRecord]
     @Query(sort: \Account.name) private var accounts: [Account]
 
+    @State private var selectedRange: TimeRange = .month
+    @State private var selectedBenchmark: String? = nil
+
     private var tickerSymbols: [String] {
         assets.map(\.ticker).sorted()
     }
@@ -198,15 +201,39 @@ struct DashboardView: View {
     }
 
     private var heroCard: some View {
-        DashboardChartCard(
+        let trend = currentPortfolioTrend
+        let benchmark = currentBenchmarkSeries
+        return DashboardChartCard(
             title: "Net Worth",
             actionTitle: "ACCOUNTS",
             value: CurrencyFormatters.money(netWorthBase, currencyCode: baseCurrency),
             detail: CurrencyFormatters.percent(portfolioReturnBase),
             detailPositive: portfolioPnLBase >= 0,
-            values: portfolioTrend,
-            color: portfolioPnLBase >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk
+            values: trend.values,
+            color: portfolioPnLBase >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk,
+            selectedRange: $selectedRange,
+            selectedBenchmark: $selectedBenchmark,
+            benchmarkValues: benchmark,
+            benchmarkOptions: BenchmarkCatalog.symbols
         )
+    }
+
+    private var currentPortfolioTrend: PortfolioTrend {
+        let full = PortfolioTrendBuilder.build(
+            holdings: holdings,
+            sparklines: priceStore.sparklines,
+            sparklineDates: priceStore.sparklineDates
+        )
+        return PortfolioTrendBuilder.slice(values: full.values, dates: full.dates, range: selectedRange)
+    }
+
+    private var currentBenchmarkSeries: [Double] {
+        guard let symbol = selectedBenchmark,
+              let closes = priceStore.sparklines[symbol],
+              closes.isEmpty == false else { return [] }
+        let dates = priceStore.sparklineDates[symbol] ?? []
+        let sliced = PortfolioTrendBuilder.slice(values: closes, dates: dates, range: selectedRange)
+        return sliced.values
     }
 
     private var transactionsToReviewCard: some View {
@@ -409,25 +436,6 @@ struct DashboardView: View {
         .northstarCardSurface()
     }
 
-    private var portfolioTrend: [Double] {
-        let series = holdings.compactMap { holding -> [Double]? in
-            guard let closes = priceStore.sparklines[holding.ticker], closes.isEmpty == false else {
-                return nil
-            }
-            return closes.map { $0 * holding.quantity }
-        }
-
-        guard let count = series.map(\.count).min(), count > 1 else {
-            return []
-        }
-
-        return (0..<count).map { index in
-            series.reduce(0) { total, points in
-                total + points[points.count - count + index]
-            }
-        }
-    }
-
     private var statusText: String {
         if let lastError = priceStore.lastError {
             return "同步失敗：\(lastError)"
@@ -625,7 +633,10 @@ private struct DashboardChartCard: View {
     let detailPositive: Bool
     let values: [Double]
     let color: Color
-    var secondaryColor: Color?
+    @Binding var selectedRange: TimeRange
+    @Binding var selectedBenchmark: String?
+    var benchmarkValues: [Double] = []
+    var benchmarkOptions: [String] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -649,29 +660,100 @@ private struct DashboardChartCard: View {
             }
             .frame(maxWidth: .infinity)
 
-            SparklineView(values: values, color: color)
-                .frame(height: 126)
+            SparklineView(
+                values: values,
+                color: color,
+                comparison: benchmarkValues,
+                comparisonColor: NorthstarTheme.accent.opacity(0.85),
+                comparisonLabel: selectedBenchmark.map { BenchmarkCatalog.displayName(for: $0) }
+            )
+            .frame(height: 126)
 
-            HStack(spacing: 22) {
-                ForEach(["1W", "1M", "3M", "YTD", "1Y", "ALL"], id: \.self) { range in
-                    Text(range)
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(range == "1M" ? NorthstarTheme.primaryText : NorthstarTheme.mutedText)
-                        .padding(.horizontal, range == "1M" ? 12 : 0)
-                        .padding(.vertical, range == "1M" ? 7 : 0)
-                        .background {
-                            if range == "1M" {
-                                Capsule()
-                                    .fill(NorthstarTheme.accent.opacity(0.28))
-                            }
-                        }
-                }
+            TimeRangeSelector(selected: $selectedRange)
+
+            if benchmarkOptions.isEmpty == false {
+                BenchmarkPicker(
+                    options: benchmarkOptions,
+                    selection: $selectedBenchmark
+                )
             }
-            .frame(maxWidth: .infinity)
         }
         .padding(20)
         .frame(maxWidth: .infinity, minHeight: 296, alignment: .topLeading)
         .northstarCardSurface()
+    }
+}
+
+struct TimeRangeSelector: View {
+    @Binding var selected: TimeRange
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(TimeRange.allCases) { range in
+                Button {
+                    selected = range
+                } label: {
+                    Text(range.label)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(range == selected ? NorthstarTheme.primaryText : NorthstarTheme.mutedText)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background {
+                            if range == selected {
+                                Capsule().fill(NorthstarTheme.accent.opacity(0.28))
+                            }
+                        }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+struct BenchmarkPicker: View {
+    let options: [String]
+    @Binding var selection: String?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("BENCHMARK")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(NorthstarTheme.mutedText)
+
+            Button {
+                selection = nil
+            } label: {
+                Text("None")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background {
+                        Capsule()
+                            .fill(selection == nil ? NorthstarTheme.accent.opacity(0.28) : Color.nsSecondarySurface)
+                    }
+                    .foregroundStyle(selection == nil ? NorthstarTheme.primaryText : NorthstarTheme.mutedText)
+            }
+            .buttonStyle(.plain)
+
+            ForEach(options, id: \.self) { symbol in
+                Button {
+                    selection = symbol
+                } label: {
+                    Text(symbol)
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background {
+                            Capsule()
+                                .fill(selection == symbol ? NorthstarTheme.accent.opacity(0.28) : Color.nsSecondarySurface)
+                        }
+                        .foregroundStyle(selection == symbol ? NorthstarTheme.primaryText : NorthstarTheme.mutedText)
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer()
+        }
     }
 }
 
@@ -768,13 +850,28 @@ struct ChangePill: View {
 struct SparklineView: View {
     let values: [Double]
     let color: Color
+    var comparison: [Double] = []
+    var comparisonColor: Color = NorthstarTheme.mutedText
+    var comparisonLabel: String? = nil
 
     var body: some View {
         GeometryReader { proxy in
             if values.count > 1 {
-                let points = normalizedPoints(in: proxy.size)
-                ZStack {
-                    areaPath(points: points, size: proxy.size)
+                let primaryNormalized = normalize(values)
+                let comparisonNormalized: [Double] = comparison.count > 1
+                    ? rebase(comparison, toCount: primaryNormalized.count)
+                    : []
+
+                let combined = primaryNormalized + comparisonNormalized
+                let minValue = combined.min() ?? 0
+                let maxValue = combined.max() ?? 0
+                let range = max(maxValue - minValue, 0.0001)
+
+                let primaryPoints = points(for: primaryNormalized, in: proxy.size, min: minValue, range: range)
+                let comparisonPoints = points(for: comparisonNormalized, in: proxy.size, min: minValue, range: range)
+
+                ZStack(alignment: .topLeading) {
+                    areaPath(points: primaryPoints, size: proxy.size)
                         .fill(
                             LinearGradient(
                                 colors: [color.opacity(0.22), color.opacity(0.02)],
@@ -783,8 +880,28 @@ struct SparklineView: View {
                             )
                         )
 
-                    linePath(points: points)
+                    if comparisonPoints.isEmpty == false {
+                        linePath(points: comparisonPoints)
+                            .stroke(
+                                comparisonColor,
+                                style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round, dash: [4, 4])
+                            )
+                    }
+
+                    linePath(points: primaryPoints)
                         .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+
+                    if let comparisonLabel, comparisonPoints.isEmpty == false {
+                        HStack(spacing: 6) {
+                            Capsule()
+                                .fill(comparisonColor)
+                                .frame(width: 16, height: 2)
+                            Text(comparisonLabel)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(comparisonColor)
+                        }
+                        .padding(6)
+                    }
                 }
             } else {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -798,13 +915,21 @@ struct SparklineView: View {
         }
     }
 
-    private func normalizedPoints(in size: CGSize) -> [CGPoint] {
-        let minValue = values.min() ?? 0
-        let maxValue = values.max() ?? 0
-        let range = max(maxValue - minValue, 0.0001)
-        let step = values.count > 1 ? size.width / CGFloat(values.count - 1) : 0
+    private func normalize(_ series: [Double]) -> [Double] {
+        guard let first = series.first, abs(first) > 0.000001 else { return series }
+        return series.map { $0 / first }
+    }
 
-        return values.enumerated().map { index, value in
+    private func rebase(_ series: [Double], toCount count: Int) -> [Double] {
+        let tail = Array(series.suffix(count))
+        guard let first = tail.first, abs(first) > 0.000001 else { return tail }
+        return tail.map { $0 / first }
+    }
+
+    private func points(for series: [Double], in size: CGSize, min minValue: Double, range: Double) -> [CGPoint] {
+        guard series.count > 1 else { return [] }
+        let step = size.width / CGFloat(series.count - 1)
+        return series.enumerated().map { index, value in
             let x = CGFloat(index) * step
             let y = size.height - (CGFloat((value - minValue) / range) * size.height)
             return CGPoint(x: x, y: y)

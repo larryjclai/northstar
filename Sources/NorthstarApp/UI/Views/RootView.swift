@@ -38,6 +38,12 @@ struct RootView: View {
                 }
                 .tag(NorthstarTab.transactions)
 
+            AccountsView(fxStore: fxStore)
+                .tabItem {
+                    Label("帳戶", systemImage: "creditcard.fill")
+                }
+                .tag(NorthstarTab.accounts)
+
             SettingsView(fxStore: fxStore, priceStore: priceStore)
                 .tabItem {
                     Label("設定", systemImage: "gearshape")
@@ -98,6 +104,8 @@ struct RootView: View {
             HoldingsView(priceStore: priceStore, fxStore: fxStore)
         case .transactions:
             TransactionsView(showAddSheet: $showAddTransactionSheet)
+        case .accounts:
+            AccountsView(fxStore: fxStore)
         case .settings:
             SettingsView(fxStore: fxStore, priceStore: priceStore)
         }
@@ -110,6 +118,8 @@ struct RootView: View {
                 .keyboardShortcut("1", modifiers: .command)
             Button("Transactions") { selectedTab = .transactions }
                 .keyboardShortcut("2", modifiers: .command)
+            Button("Accounts") { selectedTab = .accounts }
+                .keyboardShortcut("3", modifiers: .command)
             Button("Investments") { selectedTab = .holdings }
                 .keyboardShortcut("4", modifiers: .command)
             Button("Settings") { selectedTab = .settings }
@@ -246,6 +256,7 @@ private struct NorthstarSidebar: View {
         VStack(spacing: 8) {
             sidebarButton(.dashboard, title: "Dashboard", icon: "paperplane.fill")
             sidebarButton(.transactions, title: "Transactions", icon: "square.stack.3d.up.fill", badge: pendingReviewCount == 0 ? nil : "\(pendingReviewCount)")
+            sidebarButton(.accounts, title: "Accounts", icon: "creditcard.fill")
             sidebarButton(.holdings, title: "Investments", icon: "chart.bar.fill")
             sidebarButton(.settings, title: "Settings", icon: "gearshape.fill")
         }
