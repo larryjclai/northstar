@@ -22,6 +22,8 @@
 		300000000000000000000013 /* TransactionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000013 /* TransactionsView.swift */; };
 		300000000000000000000014 /* View+PlatformStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000014 /* View+PlatformStyles.swift */; };
 		300000000000000000000015 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000015 /* Assets.xcassets */; };
+		300000000000000000000016 /* InvestmentCSV.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000016 /* InvestmentCSV.swift */; };
+		300000000000000000000017 /* CSVImportPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000017 /* CSVImportPreviewView.swift */; };
 		400000000000000000000001 /* NorthstarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000001 /* NorthstarApp.swift */; };
 		400000000000000000000002 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000002 /* Models.swift */; };
 		400000000000000000000003 /* CurrencyFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000003 /* CurrencyFormatters.swift */; };
@@ -37,6 +39,8 @@
 		400000000000000000000013 /* TransactionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000013 /* TransactionsView.swift */; };
 		400000000000000000000014 /* View+PlatformStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000014 /* View+PlatformStyles.swift */; };
 		400000000000000000000015 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000015 /* Assets.xcassets */; };
+		400000000000000000000016 /* InvestmentCSV.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000016 /* InvestmentCSV.swift */; };
+		400000000000000000000017 /* CSVImportPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000017 /* CSVImportPreviewView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -57,6 +61,8 @@
 		200000000000000000000013 /* TransactionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/NorthstarApp/UI/Views/TransactionsView.swift"; sourceTree = "<group>"; };
 		200000000000000000000014 /* View+PlatformStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/NorthstarApp/UI/Views/View+PlatformStyles.swift"; sourceTree = "<group>"; };
 		200000000000000000000015 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Sources/NorthstarApp/Resources/Assets.xcassets"; sourceTree = "<group>"; };
+		200000000000000000000016 /* InvestmentCSV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/NorthstarApp/Domain/InvestmentCSV.swift"; sourceTree = "<group>"; };
+		200000000000000000000017 /* CSVImportPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/NorthstarApp/UI/Views/CSVImportPreviewView.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -99,6 +105,8 @@
 				200000000000000000000012 /* RootView.swift */,
 				200000000000000000000013 /* TransactionsView.swift */,
 				200000000000000000000014 /* View+PlatformStyles.swift */,
+				200000000000000000000016 /* InvestmentCSV.swift */,
+				200000000000000000000017 /* CSVImportPreviewView.swift */,
 				200000000000000000000015 /* Assets.xcassets */,
 			);
 			name = Sources;
@@ -200,6 +208,8 @@
 				300000000000000000000012 /* RootView.swift in Sources */,
 				300000000000000000000013 /* TransactionsView.swift in Sources */,
 				300000000000000000000014 /* View+PlatformStyles.swift in Sources */,
+				300000000000000000000016 /* InvestmentCSV.swift in Sources */,
+				300000000000000000000017 /* CSVImportPreviewView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -221,6 +231,8 @@
 				400000000000000000000012 /* RootView.swift in Sources */,
 				400000000000000000000013 /* TransactionsView.swift in Sources */,
 				400000000000000000000014 /* View+PlatformStyles.swift in Sources */,
+				400000000000000000000016 /* InvestmentCSV.swift in Sources */,
+				400000000000000000000017 /* CSVImportPreviewView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

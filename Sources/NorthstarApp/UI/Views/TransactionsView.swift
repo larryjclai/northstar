@@ -1,8 +1,8 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 #if os(macOS)
 import AppKit
-import UniformTypeIdentifiers
 #endif
 
 struct TransactionsView: View {
@@ -13,6 +13,11 @@ struct TransactionsView: View {
     }
 }
 
+private struct PendingCSVImport: Identifiable {
+    let id = UUID()
+    let rows: [InvestmentCSVRow]
+}
+
 private struct TransactionsContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \InvestmentRecord.date, order: .reverse) private var records: [InvestmentRecord]
@@ -20,6 +25,10 @@ private struct TransactionsContentView: View {
     @Query(sort: \Account.name) private var accounts: [Account]
     @Binding var showAddSheet: Bool
     @State private var selectedRecordIDs: Set<UUID> = []
+    @State private var editingRecord: InvestmentRecord?
+    @State private var isImporting = false
+    @State private var pendingImport: PendingCSVImport?
+    @State private var importErrorMessage: String?
 
     private var hasRecords: Bool {
         records.isEmpty == false
@@ -39,9 +48,38 @@ private struct TransactionsContentView: View {
             .platformLargeNavigationTitle()
             .toolbar(content: toolbarContent)
             .sheet(isPresented: $showAddSheet) {
-                AddInvestmentRecordView(assets: assets, accounts: accounts)
+                InvestmentRecordEditorView(editing: nil, assets: assets, accounts: accounts)
+            }
+            .sheet(item: $editingRecord) { record in
+                InvestmentRecordEditorView(editing: record, assets: assets, accounts: accounts)
+            }
+            .sheet(item: $pendingImport) { pending in
+                CSVImportPreviewView(
+                    rows: pending.rows,
+                    onCancel: { pendingImport = nil },
+                    onConfirm: { confirmImport(pending.rows) }
+                )
+            }
+            .fileImporter(
+                isPresented: $isImporting,
+                allowedContentTypes: [.commaSeparatedText, .text, .plainText],
+                allowsMultipleSelection: false
+            ) { result in
+                handleImportSelection(result)
+            }
+            .alert("匯入失敗", isPresented: importErrorBinding) {
+                Button("確定", role: .cancel) { importErrorMessage = nil }
+            } message: {
+                Text(importErrorMessage ?? "")
             }
         }
+    }
+
+    private var importErrorBinding: Binding<Bool> {
+        Binding(
+            get: { importErrorMessage != nil },
+            set: { if $0 == false { importErrorMessage = nil } }
+        )
     }
 
     @ViewBuilder
@@ -63,6 +101,11 @@ private struct TransactionsContentView: View {
             }
             .disabled(selectedRecordIDs.isEmpty)
             .keyboardShortcut("r", modifiers: [])
+
+            Button(action: { isImporting = true }) {
+                Label("匯入 CSV", systemImage: "tray.and.arrow.down")
+            }
+            .keyboardShortcut("o", modifiers: .command)
 
             Button(action: exportCSV) {
                 Label("匯出 CSV", systemImage: "square.and.arrow.down")
@@ -99,7 +142,7 @@ private struct TransactionsContentView: View {
                     .foregroundStyle(NorthstarTheme.netWorth)
             }
 
-            Text("買賣、股利、配股與減資會連動持倉成本，讓投資變化成為可追蹤的時間線。")
+            Text("買賣、股利、配股與減資會連動持倉成本，讓投資變化成為可追蹤的時間線。點任意交易可編輯或刪除。")
                 .font(.subheadline)
                 .foregroundStyle(NorthstarTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -114,7 +157,7 @@ private struct TransactionsContentView: View {
             Text("還沒有交易紀錄")
                 .font(.headline)
                 .foregroundStyle(NorthstarTheme.primaryText)
-            Text("新增買入、賣出或股利後，northstar 會在這裡保留可稽核的投資事件。")
+            Text("新增買入、賣出或股利後，northstar 會在這裡保留可稽核的投資事件。也可以從工具列匯入 CSV。")
                 .font(.subheadline)
                 .foregroundStyle(NorthstarTheme.secondaryText)
         }
@@ -146,7 +189,8 @@ private struct TransactionsContentView: View {
             record: record,
             isSelected: selectedRecordIDs.contains(record.id),
             onSelect: { toggleSelection(record) },
-            onReview: { markReviewed(record) }
+            onReview: { markReviewed(record) },
+            onEdit: { editingRecord = record }
         )
     }
 
@@ -156,6 +200,39 @@ private struct TransactionsContentView: View {
             .forEach { $0.isReviewed = true }
         selectedRecordIDs.removeAll()
         try? modelContext.save()
+    }
+
+    private func handleImportSelection(_ result: Result<[URL], Error>) {
+        switch result {
+        case .failure(let error):
+            importErrorMessage = error.localizedDescription
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            let needsScope = url.startAccessingSecurityScopedResource()
+            defer { if needsScope { url.stopAccessingSecurityScopedResource() } }
+
+            do {
+                let data = try Data(contentsOf: url)
+                guard let text = String(data: data, encoding: .utf8) else {
+                    importErrorMessage = "檔案不是 UTF-8 編碼。"
+                    return
+                }
+                let existingIDs = Set(records.map(\.id))
+                let rows = InvestmentCSVParser.parse(text, existingIDs: existingIDs)
+                if rows.isEmpty {
+                    importErrorMessage = "檔案中沒有可解析的資料列。"
+                    return
+                }
+                pendingImport = PendingCSVImport(rows: rows)
+            } catch {
+                importErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func confirmImport(_ rows: [InvestmentCSVRow]) {
+        _ = InvestmentCSVImporter.apply(rows, context: modelContext, assets: assets, accounts: accounts)
+        pendingImport = nil
     }
 
     private func exportCSV() {
@@ -174,10 +251,11 @@ private struct TransactionsContentView: View {
     }
 
     private var csvString: String {
-        let header = "Date,Ticker,Name,Action,Price,Quantity,Fee,Currency,LinkedAccount,Reviewed,Note"
+        let header = InvestmentCSVParser.headerLine
         let rows = records.map { record in
             [
-                csvDate(record.date),
+                record.id.uuidString,
+                CSVText.format(record.date),
                 record.asset?.ticker ?? "",
                 record.asset?.name ?? "",
                 record.action.rawValue,
@@ -189,26 +267,10 @@ private struct TransactionsContentView: View {
                 record.isReviewed ? "true" : "false",
                 record.note
             ]
-            .map(csvEscape)
+            .map(CSVText.escape)
             .joined(separator: ",")
         }
         return ([header] + rows).joined(separator: "\n")
-    }
-
-    private func csvEscape(_ value: String) -> String {
-        let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
-        if escaped.contains(",") || escaped.contains("\"") || escaped.contains("\n") {
-            return "\"\(escaped)\""
-        }
-        return escaped
-    }
-
-    private func csvDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
     }
 }
 
@@ -217,6 +279,7 @@ private struct TransactionRecordCard: View {
     let isSelected: Bool
     let onSelect: () -> Void
     let onReview: () -> Void
+    let onEdit: () -> Void
 
     private var action: InvestmentAction {
         record.action
@@ -231,6 +294,15 @@ private struct TransactionRecordCard: View {
     }
 
     var body: some View {
+        Button(action: onEdit) {
+            cardContent
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .accessibilityHint("點擊以編輯或刪除此交易")
+    }
+
+    private var cardContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 Button(action: onSelect) {
@@ -244,6 +316,7 @@ private struct TransactionRecordCard: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 14)
+                .accessibilityLabel(isSelected ? "取消選取" : "選取此筆")
 
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -375,25 +448,49 @@ extension InvestmentAction {
     }
 }
 
-struct AddInvestmentRecordView: View {
+struct InvestmentRecordEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
+    let editing: InvestmentRecord?
     let assets: [PortfolioAsset]
     let accounts: [Account]
 
-    @State private var date = Date()
-    @State private var action: InvestmentAction = .buy
-    @State private var selectedAssetTicker = ""
+    @State private var date: Date
+    @State private var action: InvestmentAction
+    @State private var selectedAssetTicker: String
     @State private var selectedAccountID: UUID?
     @State private var newTicker = ""
     @State private var newAssetName = ""
     @State private var newAssetCurrency = "TWD"
     @State private var newAccountName = ""
-    @State private var priceText = ""
-    @State private var quantityText = ""
-    @State private var feeText = ""
-    @State private var note = ""
+    @State private var priceText: String
+    @State private var quantityText: String
+    @State private var feeText: String
+    @State private var note: String
+    @State private var showDeleteConfirm = false
+
+    init(editing: InvestmentRecord?, assets: [PortfolioAsset], accounts: [Account]) {
+        self.editing = editing
+        self.assets = assets
+        self.accounts = accounts
+
+        _date = State(initialValue: editing?.date ?? Date())
+        _action = State(initialValue: editing?.action ?? .buy)
+        _selectedAssetTicker = State(initialValue: editing?.asset?.ticker ?? "")
+        _selectedAccountID = State(initialValue: editing?.linkedAccount?.id)
+        _priceText = State(initialValue: editing.map { Self.numberString($0.price) } ?? "")
+        _quantityText = State(initialValue: editing.map { Self.numberString($0.quantity) } ?? "")
+        _feeText = State(initialValue: editing.flatMap { $0.fee == 0 ? nil : Self.numberString($0.fee) } ?? "")
+        _note = State(initialValue: editing?.note ?? "")
+    }
+
+    private static func numberString(_ value: Double) -> String {
+        if value == value.rounded() {
+            return String(Int(value))
+        }
+        return String(value)
+    }
 
     var body: some View {
         NavigationStack {
@@ -402,7 +499,7 @@ struct AddInvestmentRecordView: View {
                     DatePicker("日期", selection: $date, displayedComponents: .date)
                     Picker("動作", selection: $action) {
                         ForEach(InvestmentAction.allCases) { action in
-                            Text(action.rawValue).tag(action)
+                            Text(action.displayTitle).tag(action)
                         }
                     }
                     if assets.isEmpty == false {
@@ -443,21 +540,39 @@ struct AddInvestmentRecordView: View {
                 Section("備註") {
                     TextField("備註", text: $note)
                 }
+
+                if editing != nil {
+                    Section {
+                        Button(role: .destructive) {
+                            showDeleteConfirm = true
+                        } label: {
+                            Label("刪除此交易", systemImage: "trash")
+                        }
+                    }
+                }
             }
             .platformFormStyle()
-            .navigationTitle("新增交易")
+            .navigationTitle(editing == nil ? "新增交易" : "編輯交易")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("儲存") { save() }
+                    Button(editing == nil ? "儲存" : "更新") { save() }
                         .disabled(!canSave)
                 }
             }
+            .alert("確定刪除這筆交易？", isPresented: $showDeleteConfirm) {
+                Button("刪除", role: .destructive, action: deleteRecord)
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("刪除後會重新計算該標的持倉與均價。")
+            }
         }
         .onAppear {
-            if selectedAccountID == nil { selectedAccountID = accounts.first?.id }
+            if editing == nil, selectedAccountID == nil {
+                selectedAccountID = accounts.first?.id
+            }
             activateAppForTextInput()
         }
     }
@@ -488,19 +603,50 @@ struct AddInvestmentRecordView: View {
         let asset = selectedAsset ?? createAsset()
         let linkedAccount = selectedAccount ?? createAccountIfNeeded()
         let fee = Double(feeText) ?? 0
-        let record = InvestmentRecord(
-            date: date,
-            action: action,
-            price: price,
-            quantity: quantity,
-            fee: fee,
-            note: note,
-            asset: asset,
-            linkedAccount: linkedAccount
-        )
-        modelContext.insert(record)
-        PortfolioCalculator.apply(records: asset.records + [record], to: asset)
+
+        if let editing {
+            let oldAsset = editing.asset
+            editing.date = date
+            editing.action = action
+            editing.price = price
+            editing.quantity = quantity
+            editing.fee = fee
+            editing.note = note
+            editing.linkedAccount = linkedAccount
+            editing.asset = asset
+
+            if let oldAsset, oldAsset !== asset {
+                PortfolioCalculator.apply(records: oldAsset.records, to: oldAsset)
+            }
+            PortfolioCalculator.apply(records: asset.records, to: asset)
+        } else {
+            let record = InvestmentRecord(
+                date: date,
+                action: action,
+                price: price,
+                quantity: quantity,
+                fee: fee,
+                note: note,
+                asset: asset,
+                linkedAccount: linkedAccount
+            )
+            modelContext.insert(record)
+            PortfolioCalculator.apply(records: asset.records + [record], to: asset)
+        }
+
         try? modelContext.save()
+        dismiss()
+    }
+
+    private func deleteRecord() {
+        guard let editing else { return }
+        let asset = editing.asset
+        modelContext.delete(editing)
+        try? modelContext.save()
+        if let asset {
+            PortfolioCalculator.apply(records: asset.records, to: asset)
+            try? modelContext.save()
+        }
         dismiss()
     }
 

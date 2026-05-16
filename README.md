@@ -4,12 +4,31 @@ SwiftUI multi-platform MVP for portfolio tracking (iOS, iPadOS, macOS).
 
 ## Current MVP scope
 
-- Dashboard for total assets and unrealized PnL.
-- Holdings list for stocks/ETFs/funds.
-- Transaction list and add transaction flow.
+### Done
+- Dashboard for total assets, unrealized PnL, allocation, accounts, holdings.
+- Holdings view with sparklines, allocation, and macOS dual-pane brokerage detail.
+- Transactions view: list, add, **edit, delete**, mark reviewed, CSV export (with `id`).
+- **CSV import** for investment records: file picker → preview (new / duplicate / error) → confirm.
+- UUID dedupe on import; auto-create missing `PortfolioAsset` / `Account` from CSV rows.
 - Investment actions: `Buy`, `Sell`, `CashDividend`, `StockDividend`, `CapitalReduction`.
-- Cost basis and quantity recalculation logic.
-- Seed sample data for local-first development.
+- Idempotent cost basis recalculation after add / edit / delete / import.
+- Yahoo Finance price + sparkline integration.
+- App Intents shortcuts (open tab, add transaction).
+- macOS sidebar shell + iOS TabView.
+
+### Next up
+- **Cash account linkage**: deduct `Account.balance` on Buy, credit on Sell / CashDividend; build `LedgerTransaction` model and link via `linkedLedgerTransactionID`.
+- Cash account CRUD UI (currently auto-created only).
+
+### Remaining (per PRD)
+- Multi-currency FX rates + user-defined base currency, with converted net worth on Dashboard.
+- Settings screen (base currency, privacy copy).
+- Historical net worth series + working 1W / 1M / 3M / YTD / 1Y / ALL time ranges.
+- Benchmark comparison (0050, SPY) wired into the chart UI (`PriceStore.benchmarks` already stores the data).
+- Fugle API for Taiwan equities (currently Yahoo only).
+- TWSE OpenAPI for post-close dividend / capital-reduction reconciliation.
+- Daily ledger (`Ledger.csv` import per PRD §4 first table).
+- Supabase E2EE sync (Pro tier).
 
 ## Project structure
 
