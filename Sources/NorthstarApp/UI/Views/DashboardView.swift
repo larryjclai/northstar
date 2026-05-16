@@ -10,6 +10,7 @@ struct DashboardView: View {
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
     @Query(sort: \InvestmentRecord.date, order: .reverse) private var records: [InvestmentRecord]
     @Query(sort: \Account.name) private var accounts: [Account]
+    @Query(sort: \LedgerTransaction.date, order: .reverse) private var ledgerTransactions: [LedgerTransaction]
 
     @State private var selectedRange: TimeRange = .month
     @State private var selectedBenchmark: String? = nil
@@ -70,6 +71,15 @@ struct DashboardView: View {
         holdingsValueBase + cashBalanceBase
     }
 
+    private var spendingSummary: SpendingSummary {
+        SpendingSummaryBuilder.build(
+            transactions: ledgerTransactions,
+            baseCurrency: baseCurrency,
+            referenceDate: Date(),
+            convert: { amount, from, to in fxStore.convert(amount, from: from, to: to) }
+        )
+    }
+
     private var portfolioReturnBase: Double {
         holdingsCostBase == 0 ? 0 : (holdingsValueBase - holdingsCostBase) / holdingsCostBase
     }
@@ -107,6 +117,7 @@ struct DashboardView: View {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 420), spacing: 28)], spacing: 28) {
                         heroCard
                         netWorthBreakdownCard
+                        spendingThisMonthCard
                         transactionsToReviewCard
                         recentTransactionsCard
                         allocationDashboardCard
@@ -329,6 +340,107 @@ struct DashboardView: View {
         let dates = priceStore.sparklineDates[symbol] ?? []
         let sliced = PortfolioTrendBuilder.slice(values: closes, dates: dates, range: selectedRange)
         return sliced.values
+    }
+
+    private var spendingThisMonthCard: some View {
+        let summary = spendingSummary
+        let total = summary.totalIncome + summary.totalExpense
+        let incomeRatio: Double = total == 0 ? 0 : summary.totalIncome / total
+
+        return DashboardPanel(title: "Spending This Month", actionTitle: "CASH FLOW") {
+            VStack(alignment: .leading, spacing: 14) {
+                if summary.transactionCount == 0 {
+                    emptyState("本月還沒有收支紀錄")
+                } else {
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("淨額")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(NorthstarTheme.mutedText)
+                            Text(CurrencyFormatters.signedMoney(summary.net, currencyCode: baseCurrency))
+                                .font(.title3.weight(.bold))
+                                .foregroundStyle(summary.net >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk)
+                                .monospacedDigit()
+                        }
+                        Spacer()
+                        Text("\(summary.transactionCount) 筆")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(NorthstarTheme.secondaryText)
+                    }
+
+                    GeometryReader { proxy in
+                        HStack(spacing: 0) {
+                            Rectangle()
+                                .fill(NorthstarTheme.growth)
+                                .frame(width: proxy.size.width * incomeRatio)
+                            Rectangle()
+                                .fill(NorthstarTheme.risk)
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                    }
+                    .frame(height: 8)
+
+                    HStack(spacing: 14) {
+                        spendingLegend(
+                            label: "收入",
+                            amount: summary.totalIncome,
+                            color: NorthstarTheme.growth
+                        )
+                        spendingLegend(
+                            label: "支出",
+                            amount: summary.totalExpense,
+                            color: NorthstarTheme.risk
+                        )
+                        Spacer(minLength: 0)
+                    }
+
+                    if summary.topExpenseCategories.isEmpty == false {
+                        Divider().overlay(Color.nsBorder)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("支出前三類")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(NorthstarTheme.mutedText)
+                            ForEach(Array(summary.topExpenseCategories.enumerated()), id: \.offset) { _, item in
+                                HStack {
+                                    Text(item.category)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(NorthstarTheme.primaryText)
+                                    Spacer()
+                                    Text(CurrencyFormatters.money(item.amount, currencyCode: baseCurrency))
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(NorthstarTheme.primaryText)
+                                        .monospacedDigit()
+                                    if summary.totalExpense > 0 {
+                                        Text(CurrencyFormatters.percent(item.amount / summary.totalExpense))
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(NorthstarTheme.secondaryText)
+                                            .monospacedDigit()
+                                            .frame(width: 56, alignment: .trailing)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func spendingLegend(label: String, amount: Double, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(NorthstarTheme.secondaryText)
+                Text(CurrencyFormatters.money(amount, currencyCode: baseCurrency))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(NorthstarTheme.primaryText)
+                    .monospacedDigit()
+            }
+        }
     }
 
     private var transactionsToReviewCard: some View {
