@@ -9,9 +9,11 @@ struct HoldingDetailView: View {
     @AppStorage(IntentRoutingKeys.baseCurrency) private var baseCurrency: String = BaseCurrencyDefaults.default
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
     @Query(sort: \InvestmentRecord.date, order: .reverse) private var allRecords: [InvestmentRecord]
+    @Query(sort: \Account.name) private var allAccounts: [Account]
 
     @AppStorage(IntentRoutingKeys.holdingDetailTimeRange) private var selectedRange: TimeRange = .threeMonth
     @State private var editingRecord: InvestmentRecord?
+    @State private var showAddSheet = false
 
     private var asset: PortfolioAsset? {
         assets.first(where: { $0.ticker == ticker })
@@ -92,9 +94,26 @@ struct HoldingDetailView: View {
                 .disabled(priceStore.isRefreshing)
                 .accessibilityLabel("更新報價")
             }
+            ToolbarItem {
+                Button {
+                    showAddSheet = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("為此標的新增交易")
+                .keyboardShortcut("n", modifiers: .command)
+            }
         }
         .sheet(item: $editingRecord) { record in
             InvestmentRecordEditorView(editing: record, assets: assets, accounts: linkedAccountsForEditor)
+        }
+        .sheet(isPresented: $showAddSheet) {
+            InvestmentRecordEditorView(
+                editing: nil,
+                assets: assets,
+                accounts: allAccounts,
+                preselectedTicker: ticker
+            )
         }
     }
 

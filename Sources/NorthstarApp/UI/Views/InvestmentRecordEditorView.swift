@@ -26,14 +26,20 @@ struct InvestmentRecordEditorView: View {
     @State private var note: String
     @State private var showDeleteConfirm = false
 
-    init(editing: InvestmentRecord?, assets: [PortfolioAsset], accounts: [Account]) {
+    init(
+        editing: InvestmentRecord?,
+        assets: [PortfolioAsset],
+        accounts: [Account],
+        preselectedTicker: String? = nil
+    ) {
         self.editing = editing
         self.assets = assets
         self.accounts = accounts
 
         _date = State(initialValue: editing?.date ?? Date())
         _action = State(initialValue: editing?.action ?? .buy)
-        _selectedAssetTicker = State(initialValue: editing?.asset?.ticker ?? "")
+        let initialTicker = editing?.asset?.ticker ?? preselectedTicker ?? ""
+        _selectedAssetTicker = State(initialValue: initialTicker)
         _selectedAccountID = State(initialValue: editing?.linkedAccount?.id)
         _priceText = State(initialValue: editing.map { Self.numberString($0.price) } ?? "")
         _quantityText = State(initialValue: editing.map { Self.numberString($0.quantity) } ?? "")
