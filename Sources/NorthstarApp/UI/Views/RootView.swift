@@ -11,15 +11,26 @@ struct RootView: View {
     @AppStorage(IntentRoutingKeys.selectedTab) private var requestedTabRaw = NorthstarTab.dashboard.rawValue
     @AppStorage(IntentRoutingKeys.openAddTransaction) private var requestedAddTransaction = false
     @AppStorage(IntentRoutingKeys.baseCurrency) private var baseCurrency: String = BaseCurrencyDefaults.default
-    @State private var selectedTab: NorthstarTab = .dashboard
+    @SceneStorage("northstar.scene.selectedTab") private var sceneTabRaw: String = NorthstarTab.dashboard.rawValue
     @State private var showAddTransactionSheet = false
     @State private var sidebarSearchText = ""
+
+    private var selectedTab: NorthstarTab {
+        NorthstarTab(rawValue: sceneTabRaw) ?? .dashboard
+    }
+
+    private var selectedTabBinding: Binding<NorthstarTab> {
+        Binding(
+            get: { NorthstarTab(rawValue: sceneTabRaw) ?? .dashboard },
+            set: { sceneTabRaw = $0.rawValue }
+        )
+    }
 
     var body: some View {
         #if os(macOS)
         desktopShell
         #else
-        TabView(selection: $selectedTab) {
+        TabView(selection: selectedTabBinding) {
             DashboardView(priceStore: priceStore, fxStore: fxStore)
                 .tabItem {
                     Label("總覽", systemImage: "chart.xyaxis.line")
@@ -72,7 +83,7 @@ struct RootView: View {
     private var desktopShell: some View {
         NavigationSplitView {
             NorthstarSidebar(
-                selectedTab: $selectedTab,
+                selectedTab: selectedTabBinding,
                 searchText: $sidebarSearchText,
                 accounts: accounts,
                 assets: assets,
@@ -122,17 +133,17 @@ struct RootView: View {
 
     private var shortcutCommands: some View {
         Group {
-            Button("Dashboard") { selectedTab = .dashboard }
+            Button("Dashboard") { sceneTabRaw = NorthstarTab.dashboard.rawValue }
                 .keyboardShortcut("1", modifiers: .command)
-            Button("Transactions") { selectedTab = .transactions }
+            Button("Transactions") { sceneTabRaw = NorthstarTab.transactions.rawValue }
                 .keyboardShortcut("2", modifiers: .command)
-            Button("Accounts") { selectedTab = .accounts }
+            Button("Accounts") { sceneTabRaw = NorthstarTab.accounts.rawValue }
                 .keyboardShortcut("3", modifiers: .command)
-            Button("Investments") { selectedTab = .holdings }
+            Button("Investments") { sceneTabRaw = NorthstarTab.holdings.rawValue }
                 .keyboardShortcut("4", modifiers: .command)
-            Button("Cash Flow") { selectedTab = .cashFlow }
+            Button("Cash Flow") { sceneTabRaw = NorthstarTab.cashFlow.rawValue }
                 .keyboardShortcut("5", modifiers: .command)
-            Button("Settings") { selectedTab = .settings }
+            Button("Settings") { sceneTabRaw = NorthstarTab.settings.rawValue }
                 .keyboardShortcut(",", modifiers: .command)
             Button("Refresh") {
                 Task {
@@ -169,11 +180,11 @@ struct RootView: View {
 
     private func applyRequestedTab() {
         guard let tab = NorthstarTab(rawValue: requestedTabRaw) else { return }
-        selectedTab = tab
+        sceneTabRaw = tab.rawValue
     }
 
     private func openAddTransaction() {
-        selectedTab = .transactions
+        sceneTabRaw = NorthstarTab.transactions.rawValue
         showAddTransactionSheet = true
         requestedAddTransaction = false
     }
