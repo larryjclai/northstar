@@ -13,6 +13,12 @@ enum IntentRoutingKeys {
     static let selectedTab = "northstar.intent.selectedTab"
     static let openAddTransaction = "northstar.intent.openAddTransaction"
     static let baseCurrency = "northstar.baseCurrency"
+
+    static let dashboardTimeRange = "northstar.view.dashboard.timeRange"
+    static let dashboardBenchmark = "northstar.view.dashboard.benchmark"
+    static let holdingsTimeRange = "northstar.view.holdings.timeRange"
+    static let holdingsBenchmark = "northstar.view.holdings.benchmark"
+    static let holdingDetailTimeRange = "northstar.view.holdingDetail.timeRange"
 }
 
 enum BaseCurrencyDefaults {

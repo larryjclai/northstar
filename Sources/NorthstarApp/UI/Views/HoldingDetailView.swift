@@ -10,7 +10,7 @@ struct HoldingDetailView: View {
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
     @Query(sort: \InvestmentRecord.date, order: .reverse) private var allRecords: [InvestmentRecord]
 
-    @State private var selectedRange: TimeRange = .threeMonth
+    @AppStorage(IntentRoutingKeys.holdingDetailTimeRange) private var selectedRange: TimeRange = .threeMonth
     @State private var editingRecord: InvestmentRecord?
 
     private var asset: PortfolioAsset? {

@@ -8,8 +8,17 @@ struct HoldingsView: View {
     @AppStorage(IntentRoutingKeys.baseCurrency) private var baseCurrency: String = BaseCurrencyDefaults.default
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
 
-    @State private var selectedRange: TimeRange = .month
-    @State private var selectedBenchmark: String? = nil
+    @AppStorage(IntentRoutingKeys.holdingsTimeRange) private var selectedRange: TimeRange = .month
+    @AppStorage(IntentRoutingKeys.holdingsBenchmark) private var storedBenchmark: String = ""
+    private var selectedBenchmark: String? {
+        storedBenchmark.isEmpty ? nil : storedBenchmark
+    }
+    private var selectedBenchmarkBinding: Binding<String?> {
+        Binding(
+            get: { storedBenchmark.isEmpty ? nil : storedBenchmark },
+            set: { storedBenchmark = $0 ?? "" }
+        )
+    }
 
     private var tickerSymbols: [String] {
         assets.map(\.ticker).sorted()
@@ -160,7 +169,7 @@ struct HoldingsView: View {
             .frame(height: 134)
 
             TimeRangeSelector(selected: $selectedRange)
-            BenchmarkPicker(options: BenchmarkCatalog.symbols, selection: $selectedBenchmark)
+            BenchmarkPicker(options: BenchmarkCatalog.symbols, selection: selectedBenchmarkBinding)
         }
         .padding(18)
         .frame(maxWidth: .infinity)

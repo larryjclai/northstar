@@ -12,8 +12,17 @@ struct DashboardView: View {
     @Query(sort: \Account.name) private var accounts: [Account]
     @Query(sort: \LedgerTransaction.date, order: .reverse) private var ledgerTransactions: [LedgerTransaction]
 
-    @State private var selectedRange: TimeRange = .month
-    @State private var selectedBenchmark: String? = nil
+    @AppStorage(IntentRoutingKeys.dashboardTimeRange) private var selectedRange: TimeRange = .month
+    @AppStorage(IntentRoutingKeys.dashboardBenchmark) private var storedBenchmark: String = ""
+    private var selectedBenchmark: String? {
+        storedBenchmark.isEmpty ? nil : storedBenchmark
+    }
+    private var selectedBenchmarkBinding: Binding<String?> {
+        Binding(
+            get: { storedBenchmark.isEmpty ? nil : storedBenchmark },
+            set: { storedBenchmark = $0 ?? "" }
+        )
+    }
 
     private var tickerSymbols: [String] {
         assets.map(\.ticker).sorted()
@@ -234,7 +243,7 @@ struct DashboardView: View {
             values: trend.totalValues,
             color: changePositive ? NorthstarTheme.growth : NorthstarTheme.risk,
             selectedRange: $selectedRange,
-            selectedBenchmark: $selectedBenchmark,
+            selectedBenchmark: selectedBenchmarkBinding,
             benchmarkValues: benchmark,
             benchmarkOptions: BenchmarkCatalog.symbols
         )
