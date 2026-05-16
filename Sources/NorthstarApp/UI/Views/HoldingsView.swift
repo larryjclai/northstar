@@ -193,13 +193,18 @@ struct HoldingsView: View {
             SectionHeader(title: "Accounts", trailing: "1M BALANCE CHANGE")
 
             ForEach(snapshots.prefix(3)) { holding in
-                InvestmentAccountRow(
-                    holding: holding,
-                    name: displayName(for: holding.ticker),
-                    currency: currency(for: holding.ticker),
-                    sparkline: priceStore.sparklines[holding.ticker] ?? [],
-                    updatedText: updatedText(for: holding.ticker)
-                )
+                NavigationLink {
+                    HoldingDetailView(ticker: holding.ticker, priceStore: priceStore, fxStore: fxStore)
+                } label: {
+                    InvestmentAccountRow(
+                        holding: holding,
+                        name: displayName(for: holding.ticker),
+                        currency: currency(for: holding.ticker),
+                        sparkline: priceStore.sparklines[holding.ticker] ?? [],
+                        updatedText: updatedText(for: holding.ticker)
+                    )
+                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -241,13 +246,18 @@ struct HoldingsView: View {
             SectionHeader(title: "Holdings", trailing: "LAST PRICE")
 
             ForEach(snapshots) { holding in
-                HoldingTableRow(
-                    holding: holding,
-                    name: displayName(for: holding.ticker),
-                    currency: currency(for: holding.ticker),
-                    sparkline: priceStore.sparklines[holding.ticker] ?? [],
-                    type: assetType(for: holding.ticker)
-                )
+                NavigationLink {
+                    HoldingDetailView(ticker: holding.ticker, priceStore: priceStore, fxStore: fxStore)
+                } label: {
+                    HoldingTableRow(
+                        holding: holding,
+                        name: displayName(for: holding.ticker),
+                        currency: currency(for: holding.ticker),
+                        sparkline: priceStore.sparklines[holding.ticker] ?? [],
+                        type: assetType(for: holding.ticker)
+                    )
+                }
+                .buttonStyle(.plain)
             }
         }
     }

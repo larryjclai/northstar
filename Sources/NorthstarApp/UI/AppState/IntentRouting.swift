@@ -4,6 +4,7 @@ enum NorthstarTab: String, CaseIterable, Hashable {
     case dashboard
     case holdings
     case transactions
+    case cashFlow
     case accounts
     case settings
 }

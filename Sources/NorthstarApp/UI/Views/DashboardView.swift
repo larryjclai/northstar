@@ -106,6 +106,7 @@ struct DashboardView: View {
                     fxWarningBanner
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 420), spacing: 28)], spacing: 28) {
                         heroCard
+                        netWorthBreakdownCard
                         transactionsToReviewCard
                         recentTransactionsCard
                         allocationDashboardCard
@@ -201,16 +202,26 @@ struct DashboardView: View {
     }
 
     private var heroCard: some View {
-        let trend = currentPortfolioTrend
+        let trend = currentNetWorthTrend
         let benchmark = currentBenchmarkSeries
+        let changeText: String
+        let changePositive: Bool
+        if let first = trend.totalValues.first, first > 0, let last = trend.totalValues.last {
+            let delta = (last - first) / first
+            changeText = CurrencyFormatters.percent(delta)
+            changePositive = delta >= 0
+        } else {
+            changeText = "—"
+            changePositive = true
+        }
         return DashboardChartCard(
             title: "Net Worth",
             actionTitle: "ACCOUNTS",
             value: CurrencyFormatters.money(netWorthBase, currencyCode: baseCurrency),
-            detail: CurrencyFormatters.percent(portfolioReturnBase),
-            detailPositive: portfolioPnLBase >= 0,
-            values: trend.values,
-            color: portfolioPnLBase >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk,
+            detail: changeText,
+            detailPositive: changePositive,
+            values: trend.totalValues,
+            color: changePositive ? NorthstarTheme.growth : NorthstarTheme.risk,
             selectedRange: $selectedRange,
             selectedBenchmark: $selectedBenchmark,
             benchmarkValues: benchmark,
@@ -218,13 +229,97 @@ struct DashboardView: View {
         )
     }
 
-    private var currentPortfolioTrend: PortfolioTrend {
-        let full = PortfolioTrendBuilder.build(
+    private var netWorthBreakdownCard: some View {
+        let trend = currentNetWorthTrend
+        return DashboardPanel(title: "Net Worth Breakdown", actionTitle: "TOTALS") {
+            VStack(alignment: .leading, spacing: 14) {
+                breakdownRow(
+                    label: "投資市值",
+                    value: holdingsValueBase,
+                    color: NorthstarTheme.netWorth,
+                    total: netWorthBase
+                )
+                breakdownRow(
+                    label: "現金帳戶",
+                    value: cashBalanceBase,
+                    color: NorthstarTheme.growth,
+                    total: netWorthBase
+                )
+                Divider().overlay(Color.nsBorder)
+                HStack {
+                    Text("合計")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(NorthstarTheme.primaryText)
+                    Spacer()
+                    Text(CurrencyFormatters.money(netWorthBase, currencyCode: baseCurrency))
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(NorthstarTheme.primaryText)
+                        .monospacedDigit()
+                }
+
+                if trend.cashValues.count > 1 || trend.investmentValues.count > 1 {
+                    HStack(spacing: 14) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("現金走勢")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(NorthstarTheme.mutedText)
+                            SparklineView(values: trend.cashValues, color: NorthstarTheme.growth)
+                                .frame(height: 48)
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("投資走勢")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(NorthstarTheme.mutedText)
+                            SparklineView(values: trend.investmentValues, color: NorthstarTheme.netWorth)
+                                .frame(height: 48)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func breakdownRow(label: String, value: Double, color: Color, total: Double) -> some View {
+        let ratio = total == 0 ? 0 : max(0, min(1, value / total))
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(label)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(NorthstarTheme.primaryText)
+                Spacer()
+                Text(CurrencyFormatters.money(value, currencyCode: baseCurrency))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(NorthstarTheme.primaryText)
+                    .monospacedDigit()
+                Text(CurrencyFormatters.percent(ratio))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NorthstarTheme.secondaryText)
+                    .monospacedDigit()
+                    .frame(width: 60, alignment: .trailing)
+            }
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.nsSecondarySurface)
+                    Capsule()
+                        .fill(color)
+                        .frame(width: max(6, proxy.size.width * ratio))
+                }
+            }
+            .frame(height: 7)
+        }
+    }
+
+    private var currentNetWorthTrend: NetWorthTrend {
+        let full = NetWorthTrendBuilder.build(
             holdings: holdings,
+            accounts: accounts,
             sparklines: priceStore.sparklines,
-            sparklineDates: priceStore.sparklineDates
+            sparklineDates: priceStore.sparklineDates,
+            baseCurrency: baseCurrency,
+            tickerCurrency: { ticker in currency(for: ticker) },
+            convert: { value, from, to in fxStore.convert(value, from: from, to: to) }
         )
-        return PortfolioTrendBuilder.slice(values: full.values, dates: full.dates, range: selectedRange)
+        return NetWorthTrendBuilder.slice(full, range: selectedRange)
     }
 
     private var currentBenchmarkSeries: [Double] {

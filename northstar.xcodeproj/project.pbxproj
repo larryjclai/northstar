@@ -30,6 +30,10 @@
 		300000000000000000000021 /* TimeRange.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000021 /* TimeRange.swift */; };
 		300000000000000000000022 /* PortfolioTrend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000022 /* PortfolioTrend.swift */; };
 		300000000000000000000023 /* AccountsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000023 /* AccountsView.swift */; };
+		300000000000000000000024 /* LedgerCategory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000024 /* LedgerCategory.swift */; };
+		300000000000000000000025 /* CashFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000025 /* CashFlowView.swift */; };
+		300000000000000000000026 /* HoldingDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000026 /* HoldingDetailView.swift */; };
+		300000000000000000000027 /* NetWorthTrend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000027 /* NetWorthTrend.swift */; };
 		400000000000000000000001 /* NorthstarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000001 /* NorthstarApp.swift */; };
 		400000000000000000000002 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000002 /* Models.swift */; };
 		400000000000000000000003 /* CurrencyFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000003 /* CurrencyFormatters.swift */; };
@@ -53,6 +57,10 @@
 		400000000000000000000021 /* TimeRange.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000021 /* TimeRange.swift */; };
 		400000000000000000000022 /* PortfolioTrend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000022 /* PortfolioTrend.swift */; };
 		400000000000000000000023 /* AccountsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000023 /* AccountsView.swift */; };
+		400000000000000000000024 /* LedgerCategory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000024 /* LedgerCategory.swift */; };
+		400000000000000000000025 /* CashFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000025 /* CashFlowView.swift */; };
+		400000000000000000000026 /* HoldingDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000026 /* HoldingDetailView.swift */; };
+		400000000000000000000027 /* NetWorthTrend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000027 /* NetWorthTrend.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -81,6 +89,10 @@
 		200000000000000000000021 /* TimeRange.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/NorthstarApp/Domain/TimeRange.swift"; sourceTree = "<group>"; };
 		200000000000000000000022 /* PortfolioTrend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/NorthstarApp/Domain/PortfolioTrend.swift"; sourceTree = "<group>"; };
 		200000000000000000000023 /* AccountsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/NorthstarApp/UI/Views/AccountsView.swift"; sourceTree = "<group>"; };
+		200000000000000000000024 /* LedgerCategory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/NorthstarApp/Domain/LedgerCategory.swift"; sourceTree = "<group>"; };
+		200000000000000000000025 /* CashFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/NorthstarApp/UI/Views/CashFlowView.swift"; sourceTree = "<group>"; };
+		200000000000000000000026 /* HoldingDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/NorthstarApp/UI/Views/HoldingDetailView.swift"; sourceTree = "<group>"; };
+		200000000000000000000027 /* NetWorthTrend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/NorthstarApp/Domain/NetWorthTrend.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -131,6 +143,10 @@
 				200000000000000000000021 /* TimeRange.swift */,
 				200000000000000000000022 /* PortfolioTrend.swift */,
 				200000000000000000000023 /* AccountsView.swift */,
+				200000000000000000000024 /* LedgerCategory.swift */,
+				200000000000000000000025 /* CashFlowView.swift */,
+				200000000000000000000026 /* HoldingDetailView.swift */,
+				200000000000000000000027 /* NetWorthTrend.swift */,
 				200000000000000000000015 /* Assets.xcassets */,
 			);
 			name = Sources;
@@ -240,6 +256,10 @@
 				300000000000000000000021 /* TimeRange.swift in Sources */,
 				300000000000000000000022 /* PortfolioTrend.swift in Sources */,
 				300000000000000000000023 /* AccountsView.swift in Sources */,
+				300000000000000000000024 /* LedgerCategory.swift in Sources */,
+				300000000000000000000025 /* CashFlowView.swift in Sources */,
+				300000000000000000000026 /* HoldingDetailView.swift in Sources */,
+				300000000000000000000027 /* NetWorthTrend.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -269,6 +289,10 @@
 				400000000000000000000021 /* TimeRange.swift in Sources */,
 				400000000000000000000022 /* PortfolioTrend.swift in Sources */,
 				400000000000000000000023 /* AccountsView.swift in Sources */,
+				400000000000000000000024 /* LedgerCategory.swift in Sources */,
+				400000000000000000000025 /* CashFlowView.swift in Sources */,
+				400000000000000000000026 /* HoldingDetailView.swift in Sources */,
+				400000000000000000000027 /* NetWorthTrend.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
