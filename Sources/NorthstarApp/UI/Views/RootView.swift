@@ -7,8 +7,10 @@ struct RootView: View {
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
     @Query(sort: \InvestmentRecord.date, order: .reverse) private var records: [InvestmentRecord]
     @State private var priceStore = PriceStore()
+    @State private var fxStore = FXRateStore()
     @AppStorage(IntentRoutingKeys.selectedTab) private var requestedTabRaw = NorthstarTab.dashboard.rawValue
     @AppStorage(IntentRoutingKeys.openAddTransaction) private var requestedAddTransaction = false
+    @AppStorage(IntentRoutingKeys.baseCurrency) private var baseCurrency: String = BaseCurrencyDefaults.default
     @State private var selectedTab: NorthstarTab = .dashboard
     @State private var showAddTransactionSheet = false
     @State private var sidebarSearchText = ""
@@ -18,13 +20,13 @@ struct RootView: View {
         desktopShell
         #else
         TabView(selection: $selectedTab) {
-            DashboardView(priceStore: priceStore)
+            DashboardView(priceStore: priceStore, fxStore: fxStore)
                 .tabItem {
                     Label("總覽", systemImage: "chart.xyaxis.line")
                 }
                 .tag(NorthstarTab.dashboard)
 
-            HoldingsView(priceStore: priceStore)
+            HoldingsView(priceStore: priceStore, fxStore: fxStore)
                 .tabItem {
                     Label("持倉", systemImage: "briefcase.fill")
                 }
@@ -35,6 +37,12 @@ struct RootView: View {
                     Label("交易", systemImage: "list.bullet.rectangle")
                 }
                 .tag(NorthstarTab.transactions)
+
+            SettingsView(fxStore: fxStore, priceStore: priceStore)
+                .tabItem {
+                    Label("設定", systemImage: "gearshape")
+                }
+                .tag(NorthstarTab.settings)
         }
         .tint(NorthstarTheme.accent)
         .onAppear(perform: handleLaunchRouting)
@@ -85,11 +93,13 @@ struct RootView: View {
     private var selectedContent: some View {
         switch selectedTab {
         case .dashboard:
-            DashboardView(priceStore: priceStore)
+            DashboardView(priceStore: priceStore, fxStore: fxStore)
         case .holdings:
-            HoldingsView(priceStore: priceStore)
+            HoldingsView(priceStore: priceStore, fxStore: fxStore)
         case .transactions:
             TransactionsView(showAddSheet: $showAddTransactionSheet)
+        case .settings:
+            SettingsView(fxStore: fxStore, priceStore: priceStore)
         }
     }
     #endif
@@ -102,11 +112,31 @@ struct RootView: View {
                 .keyboardShortcut("2", modifiers: .command)
             Button("Investments") { selectedTab = .holdings }
                 .keyboardShortcut("4", modifiers: .command)
+            Button("Settings") { selectedTab = .settings }
+                .keyboardShortcut(",", modifiers: .command)
             Button("Refresh") {
-                Task { await priceStore.refresh(tickers: assets.map(\.ticker), force: true) }
+                Task {
+                    await priceStore.refresh(tickers: assets.map(\.ticker), force: true)
+                    await fxStore.refresh(
+                        currencies: portfolioCurrencies,
+                        base: baseCurrency,
+                        force: true
+                    )
+                }
             }
             .keyboardShortcut("r", modifiers: .command)
         }
+    }
+
+    private var portfolioCurrencies: [String] {
+        var seen = Set<String>()
+        var ordered: [String] = []
+        for currency in assets.map(\.currency) + accounts.map(\.currency) {
+            let upper = currency.uppercased()
+            guard upper.isEmpty == false, seen.insert(upper).inserted else { continue }
+            ordered.append(upper)
+        }
+        return ordered
     }
 
     private func handleLaunchRouting() {
@@ -217,6 +247,7 @@ private struct NorthstarSidebar: View {
             sidebarButton(.dashboard, title: "Dashboard", icon: "paperplane.fill")
             sidebarButton(.transactions, title: "Transactions", icon: "square.stack.3d.up.fill", badge: pendingReviewCount == 0 ? nil : "\(pendingReviewCount)")
             sidebarButton(.holdings, title: "Investments", icon: "chart.bar.fill")
+            sidebarButton(.settings, title: "Settings", icon: "gearshape.fill")
         }
     }
 

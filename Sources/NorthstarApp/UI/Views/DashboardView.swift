@@ -4,7 +4,9 @@ import SwiftData
 struct DashboardView: View {
     @Environment(\.modelContext) private var modelContext
     let priceStore: PriceStore
+    let fxStore: FXRateStore
 
+    @AppStorage(IntentRoutingKeys.baseCurrency) private var baseCurrency: String = BaseCurrencyDefaults.default
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
     @Query(sort: \InvestmentRecord.date, order: .reverse) private var records: [InvestmentRecord]
     @Query(sort: \Account.name) private var accounts: [Account]
@@ -21,26 +23,92 @@ struct DashboardView: View {
         PortfolioCalculator.summary(from: holdings)
     }
 
-    private var cashBalanceTotal: Double {
-        accounts.reduce(0) { $0 + $1.balance }
+    private var portfolioCurrencies: [String] {
+        var seen = Set<String>()
+        var ordered: [String] = []
+        for currency in assets.map(\.currency) + accounts.map(\.currency) {
+            let upper = currency.uppercased()
+            guard upper.isEmpty == false, seen.insert(upper).inserted else { continue }
+            ordered.append(upper)
+        }
+        return ordered
     }
 
-    private var netWorthTotal: Double {
-        summary.totalMarketValue + cashBalanceTotal
+    private var holdingsValueBase: Double {
+        holdings.reduce(0) { running, holding in
+            let nativeCurrency = currency(for: holding.ticker)
+            if let converted = fxStore.convert(holding.marketValue, from: nativeCurrency, to: baseCurrency) {
+                return running + converted
+            }
+            return running
+        }
+    }
+
+    private var holdingsCostBase: Double {
+        holdings.reduce(0) { running, holding in
+            let nativeCurrency = currency(for: holding.ticker)
+            if let converted = fxStore.convert(holding.costBasis, from: nativeCurrency, to: baseCurrency) {
+                return running + converted
+            }
+            return running
+        }
+    }
+
+    private var cashBalanceBase: Double {
+        accounts.reduce(0) { running, account in
+            if let converted = fxStore.convert(account.balance, from: account.currency, to: baseCurrency) {
+                return running + converted
+            }
+            return running
+        }
+    }
+
+    private var netWorthBase: Double {
+        holdingsValueBase + cashBalanceBase
+    }
+
+    private var portfolioReturnBase: Double {
+        holdingsCostBase == 0 ? 0 : (holdingsValueBase - holdingsCostBase) / holdingsCostBase
+    }
+
+    private var portfolioPnLBase: Double {
+        holdingsValueBase - holdingsCostBase
+    }
+
+    private var unconvertedCurrencies: [String] {
+        var missing = Set<String>()
+        let base = baseCurrency.uppercased()
+        for holding in holdings {
+            let c = currency(for: holding.ticker).uppercased()
+            if c != base, fxStore.rate(from: c, to: baseCurrency) == nil {
+                missing.insert(c)
+            }
+        }
+        for account in accounts {
+            let c = account.currency.uppercased()
+            if c != base, fxStore.rate(from: c, to: baseCurrency) == nil {
+                missing.insert(c)
+            }
+        }
+        return missing.sorted()
     }
 
     var body: some View {
         let symbols = tickerSymbols
+        let currencies = portfolioCurrencies
 
         NavigationStack {
             ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 420), spacing: 28)], spacing: 28) {
-                    heroCard
-                    transactionsToReviewCard
-                    recentTransactionsCard
-                    allocationDashboardCard
-                    accountsDashboardCard
-                    holdingsDashboardCard
+                LazyVStack(alignment: .leading, spacing: 14) {
+                    fxWarningBanner
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 420), spacing: 28)], spacing: 28) {
+                        heroCard
+                        transactionsToReviewCard
+                        recentTransactionsCard
+                        allocationDashboardCard
+                        accountsDashboardCard
+                        holdingsDashboardCard
+                    }
                 }
                 .padding(28)
             }
@@ -49,20 +117,59 @@ struct DashboardView: View {
             .platformLargeNavigationTitle()
             .toolbar {
                 Button {
-                    Task { await priceStore.refresh(tickers: symbols, force: true) }
+                    Task {
+                        await priceStore.refresh(tickers: symbols, force: true)
+                        await fxStore.refresh(currencies: currencies, base: baseCurrency, force: true)
+                    }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
-                .disabled(priceStore.isRefreshing || symbols.isEmpty)
-                .accessibilityLabel("更新 Yahoo Finance 報價")
+                .disabled((priceStore.isRefreshing || fxStore.isRefreshing) || (symbols.isEmpty && currencies.isEmpty))
+                .accessibilityLabel("更新報價與匯率")
                 .keyboardShortcut("r", modifiers: .command)
             }
             .task(id: symbols) {
                 await priceStore.refresh(tickers: symbols)
             }
+            .task(id: currencies.joined() + baseCurrency) {
+                await fxStore.refresh(currencies: currencies, base: baseCurrency)
+            }
             .refreshable {
                 await priceStore.refresh(tickers: symbols, force: true)
+                await fxStore.refresh(currencies: currencies, base: baseCurrency, force: true)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var fxWarningBanner: some View {
+        let missing = unconvertedCurrencies
+        if missing.isEmpty == false || fxStore.lastError != nil {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(NorthstarTheme.warning)
+                VStack(alignment: .leading, spacing: 4) {
+                    if missing.isEmpty == false {
+                        Text("有 \(missing.count) 種幣別未折算成 \(baseCurrency)：\(missing.joined(separator: ", "))")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(NorthstarTheme.primaryText)
+                        Text("這些資產暫不計入淨資產總和。前往 Settings 立即更新匯率。")
+                            .font(.caption)
+                            .foregroundStyle(NorthstarTheme.secondaryText)
+                    } else if let error = fxStore.lastError {
+                        Text("匯率更新有問題")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(NorthstarTheme.primaryText)
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(NorthstarTheme.secondaryText)
+                    }
+                }
+                Spacer()
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .northstarCardSurface()
         }
     }
 
@@ -94,11 +201,11 @@ struct DashboardView: View {
         DashboardChartCard(
             title: "Net Worth",
             actionTitle: "ACCOUNTS",
-            value: CurrencyFormatters.money(netWorthTotal),
-            detail: CurrencyFormatters.percent(summary.totalUnrealizedReturn),
-            detailPositive: summary.totalUnrealizedPnL >= 0,
+            value: CurrencyFormatters.money(netWorthBase, currencyCode: baseCurrency),
+            detail: CurrencyFormatters.percent(portfolioReturnBase),
+            detailPositive: portfolioPnLBase >= 0,
             values: portfolioTrend,
-            color: summary.totalUnrealizedPnL >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk
+            color: portfolioPnLBase >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk
         )
     }
 
@@ -152,11 +259,12 @@ struct DashboardView: View {
     private var allocationDashboardCard: some View {
         DashboardPanel(title: "Allocation", actionTitle: "INVESTMENTS") {
             VStack(spacing: 14) {
-                if holdings.isEmpty || summary.totalMarketValue == 0 {
+                if holdings.isEmpty || holdingsValueBase == 0 {
                     emptyState("尚無配置資料")
                 } else {
                     ForEach(holdings.prefix(6)) { holding in
-                        let ratio = holding.marketValue / summary.totalMarketValue
+                        let converted = fxStore.convert(holding.marketValue, from: currency(for: holding.ticker), to: baseCurrency) ?? 0
+                        let ratio = converted / holdingsValueBase
                         AllocationSummaryRow(title: holding.ticker, ratio: ratio)
                     }
                 }
@@ -171,16 +279,11 @@ struct DashboardView: View {
                     emptyState("尚未建立現金帳戶")
                 } else {
                     ForEach(accounts) { account in
-                        HStack {
-                            Text(account.name)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(NorthstarTheme.primaryText)
-                            Spacer()
-                            Text(CurrencyFormatters.money(account.balance, currencyCode: account.currency))
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(NorthstarTheme.primaryText)
-                                .monospacedDigit()
-                        }
+                        AccountRow(
+                            account: account,
+                            baseCurrency: baseCurrency,
+                            convertedAmount: fxStore.convert(account.balance, from: account.currency, to: baseCurrency)
+                        )
                     }
                 }
             }
@@ -350,6 +453,43 @@ struct DashboardView: View {
             .font(.subheadline)
             .foregroundStyle(NorthstarTheme.secondaryText)
             .frame(maxWidth: .infinity, minHeight: 84, alignment: .center)
+    }
+}
+
+private struct AccountRow: View {
+    let account: Account
+    let baseCurrency: String
+    let convertedAmount: Double?
+
+    private var isForeign: Bool {
+        account.currency.uppercased() != baseCurrency.uppercased()
+    }
+
+    var body: some View {
+        HStack(alignment: .center) {
+            Text(account.name)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(NorthstarTheme.primaryText)
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(CurrencyFormatters.money(account.balance, currencyCode: account.currency))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(NorthstarTheme.primaryText)
+                    .monospacedDigit()
+                if isForeign {
+                    if let convertedAmount {
+                        Text("≈ \(CurrencyFormatters.money(convertedAmount, currencyCode: baseCurrency))")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(NorthstarTheme.secondaryText)
+                            .monospacedDigit()
+                    } else {
+                        Text("匯率待更新")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(NorthstarTheme.warning)
+                    }
+                }
+            }
+        }
     }
 }
 

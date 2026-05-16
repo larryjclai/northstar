@@ -3,7 +3,9 @@ import SwiftData
 
 struct HoldingsView: View {
     let priceStore: PriceStore
+    let fxStore: FXRateStore
 
+    @AppStorage(IntentRoutingKeys.baseCurrency) private var baseCurrency: String = BaseCurrencyDefaults.default
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
 
     private var tickerSymbols: [String] {
@@ -18,9 +20,44 @@ struct HoldingsView: View {
         PortfolioCalculator.summary(from: holdings)
     }
 
+    private var portfolioCurrencies: [String] {
+        Array(Set(assets.map { $0.currency.uppercased() }))
+            .filter { $0.isEmpty == false }
+            .sorted()
+    }
+
+    private var holdingsValueBase: Double {
+        holdings.reduce(0) { running, holding in
+            let native = currency(for: holding.ticker)
+            if let converted = fxStore.convert(holding.marketValue, from: native, to: baseCurrency) {
+                return running + converted
+            }
+            return running
+        }
+    }
+
+    private var holdingsCostBase: Double {
+        holdings.reduce(0) { running, holding in
+            let native = currency(for: holding.ticker)
+            if let converted = fxStore.convert(holding.costBasis, from: native, to: baseCurrency) {
+                return running + converted
+            }
+            return running
+        }
+    }
+
+    private var holdingsReturnBase: Double {
+        holdingsCostBase == 0 ? 0 : (holdingsValueBase - holdingsCostBase) / holdingsCostBase
+    }
+
+    private var holdingsPnLBase: Double {
+        holdingsValueBase - holdingsCostBase
+    }
+
     var body: some View {
         let symbols = tickerSymbols
         let snapshots = holdings
+        let currencies = portfolioCurrencies
 
         NavigationStack {
             GeometryReader { proxy in
@@ -44,19 +81,26 @@ struct HoldingsView: View {
             .platformLargeNavigationTitle()
             .toolbar {
                 Button {
-                    Task { await priceStore.refresh(tickers: symbols, force: true) }
+                    Task {
+                        await priceStore.refresh(tickers: symbols, force: true)
+                        await fxStore.refresh(currencies: currencies, base: baseCurrency, force: true)
+                    }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
-                .disabled(priceStore.isRefreshing || symbols.isEmpty)
-                .accessibilityLabel("更新 Yahoo Finance 報價")
+                .disabled((priceStore.isRefreshing || fxStore.isRefreshing) || (symbols.isEmpty && currencies.isEmpty))
+                .accessibilityLabel("更新報價與匯率")
                 .keyboardShortcut("r", modifiers: .command)
             }
             .task(id: symbols) {
                 await priceStore.refresh(tickers: symbols)
             }
+            .task(id: currencies.joined() + baseCurrency) {
+                await fxStore.refresh(currencies: currencies, base: baseCurrency)
+            }
             .refreshable {
                 await priceStore.refresh(tickers: symbols, force: true)
+                await fxStore.refresh(currencies: currencies, base: baseCurrency, force: true)
             }
         }
     }
@@ -83,26 +127,26 @@ struct HoldingsView: View {
         VStack(alignment: .center, spacing: 14) {
             HStack {
                 Spacer()
-                Text(CurrencyFormatters.percent(summary.totalUnrealizedReturn))
+                Text(CurrencyFormatters.percent(holdingsReturnBase))
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(summary.totalUnrealizedPnL >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk)
+                    .foregroundStyle(holdingsPnLBase >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk)
                 Image(systemName: "gearshape")
                     .font(.headline)
                     .foregroundStyle(NorthstarTheme.mutedText)
             }
 
-            Text(CurrencyFormatters.money(summary.totalMarketValue))
+            Text(CurrencyFormatters.money(holdingsValueBase, currencyCode: baseCurrency))
                 .font(.system(size: 32, weight: .bold))
                 .foregroundStyle(NorthstarTheme.primaryText)
                 .monospacedDigit()
 
-            Text("live balance estimate")
+            Text("\(baseCurrency) 折算後估值")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(NorthstarTheme.mutedText)
 
             SparklineView(
                 values: portfolioTrend,
-                color: summary.totalUnrealizedPnL >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk
+                color: holdingsPnLBase >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk
             )
             .frame(height: 134)
 

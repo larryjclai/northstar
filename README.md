@@ -15,16 +15,16 @@ SwiftUI multi-platform MVP for portfolio tracking (iOS, iPadOS, macOS).
 - **Cash account linkage via `LedgerTransaction` model**: Buy / Sell / CashDividend create paired ledger entries and recompute `Account.balance`. Currency-mismatch is detected and skipped with an editor warning.
 - One-time backfill on launch for pre-existing investment records.
 - Yahoo Finance price + sparkline integration.
+- **Multi-currency FX via Yahoo (`USDTWD=X` style symbols)** with UserDefaults rate cache that survives offline / weekend / refresh failures. Dashboard, Holdings, and Accounts all render base-currency totals with inline conversions; missing rates trigger a warning banner instead of silent 1:1.
+- **Settings screen**: base currency picker, FX status + per-pair rates + manual refresh, privacy note.
 - App Intents shortcuts (open tab, add transaction).
-- macOS sidebar shell + iOS TabView.
+- macOS sidebar shell + iOS TabView (Dashboard / Transactions / Investments / Settings).
 - Light / dark adaptive color tokens.
 
 ### Next up
-- **Multi-currency FX rates + base currency**: pull rates from Yahoo (`USDTWD=X` style symbols), store user-selected base currency, show converted net worth on Dashboard.
 - Cash account CRUD UI with opening balance (currently auto-created with 0 balance only).
 
 ### Remaining (per PRD)
-- Settings screen (base currency, privacy copy).
 - Historical net worth series + working 1W / 1M / 3M / YTD / 1Y / ALL time ranges.
 - Benchmark comparison (0050, SPY) wired into the chart UI (`PriceStore.benchmarks` already stores the data).
 - Fugle API for Taiwan equities (currently Yahoo only).
