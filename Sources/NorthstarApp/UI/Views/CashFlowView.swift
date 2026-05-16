@@ -1,5 +1,14 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
+#if os(macOS)
+import AppKit
+#endif
+
+private struct PendingLedgerImport: Identifiable {
+    let id = UUID()
+    let rows: [LedgerCSVRow]
+}
 
 struct CashFlowView: View {
     let fxStore: FXRateStore
@@ -15,6 +24,9 @@ struct CashFlowView: View {
     @State private var pendingDelete: LedgerTransaction?
     @State private var searchText: String = ""
     @State private var selectedCategoryFilter: String? = nil
+    @State private var isImporting = false
+    @State private var pendingImport: PendingLedgerImport?
+    @State private var importErrorMessage: String?
 
     private static func startOfMonth(_ date: Date) -> Date {
         let calendar = Calendar(identifier: .gregorian)
@@ -120,6 +132,20 @@ struct CashFlowView: View {
                 selectedCategoryFilter = nil
             }
             .toolbar {
+                ToolbarItemGroup {
+                    Button(action: { isImporting = true }) {
+                        Label("匯入 CSV", systemImage: "tray.and.arrow.down")
+                    }
+                    .disabled(accounts.isEmpty)
+                    .keyboardShortcut("o", modifiers: .command)
+
+                    Button(action: exportCSV) {
+                        Label("匯出 CSV", systemImage: "square.and.arrow.down")
+                    }
+                    .disabled(exportableTransactions.isEmpty)
+                    .keyboardShortcut("e", modifiers: .command)
+                }
+
                 ToolbarItem {
                     Button {
                         showAddSheet = true
@@ -135,6 +161,25 @@ struct CashFlowView: View {
             }
             .sheet(item: $editingTransaction) { txn in
                 CashFlowEditorView(editing: txn, accounts: accounts)
+            }
+            .sheet(item: $pendingImport) { pending in
+                LedgerCSVImportPreviewView(
+                    rows: pending.rows,
+                    onCancel: { pendingImport = nil },
+                    onConfirm: { confirmImport(pending.rows) }
+                )
+            }
+            .fileImporter(
+                isPresented: $isImporting,
+                allowedContentTypes: [.commaSeparatedText, .text, .plainText],
+                allowsMultipleSelection: false
+            ) { result in
+                handleImportSelection(result)
+            }
+            .alert("匯入失敗", isPresented: importErrorBinding) {
+                Button("確定", role: .cancel) { importErrorMessage = nil }
+            } message: {
+                Text(importErrorMessage ?? "")
             }
             .alert(
                 "刪除這筆紀錄？",
@@ -340,6 +385,85 @@ struct CashFlowView: View {
         modelContext.delete(txn)
         account?.recomputeBalance()
         try? modelContext.save()
+    }
+
+    // MARK: - CSV import / export
+
+    private var exportableTransactions: [LedgerTransaction] {
+        transactions.filter { $0.linkedInvestmentRecordID == nil }
+    }
+
+    private var importErrorBinding: Binding<Bool> {
+        Binding(
+            get: { importErrorMessage != nil },
+            set: { if $0 == false { importErrorMessage = nil } }
+        )
+    }
+
+    private func handleImportSelection(_ result: Result<[URL], Error>) {
+        switch result {
+        case .failure(let error):
+            importErrorMessage = error.localizedDescription
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            let needsScope = url.startAccessingSecurityScopedResource()
+            defer { if needsScope { url.stopAccessingSecurityScopedResource() } }
+
+            do {
+                let data = try Data(contentsOf: url)
+                guard let text = String(data: data, encoding: .utf8) else {
+                    importErrorMessage = "檔案不是 UTF-8 編碼。"
+                    return
+                }
+                let existingIDs = Set(transactions.map(\.id))
+                let rows = LedgerCSVParser.parse(text, existingIDs: existingIDs)
+                if rows.isEmpty {
+                    importErrorMessage = "檔案中沒有可解析的資料列。"
+                    return
+                }
+                pendingImport = PendingLedgerImport(rows: rows)
+            } catch {
+                importErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func confirmImport(_ rows: [LedgerCSVRow]) {
+        _ = LedgerCSVImporter.apply(rows, context: modelContext, accounts: accounts)
+        pendingImport = nil
+    }
+
+    private func exportCSV() {
+        #if os(macOS)
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.nameFieldStringValue = "northstar-ledger.csv"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            try csvString.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            NSSound.beep()
+        }
+        #endif
+    }
+
+    private var csvString: String {
+        let header = LedgerCSVParser.headerLine
+        let rows = exportableTransactions.map { txn in
+            [
+                txn.id.uuidString,
+                CSVText.format(txn.date),
+                String(txn.amount),
+                txn.currency,
+                txn.category,
+                txn.note,
+                txn.account?.name ?? ""
+            ]
+            .map(CSVText.escape)
+            .joined(separator: ",")
+        }
+        return ([header] + rows).joined(separator: "\n")
     }
 }
 
