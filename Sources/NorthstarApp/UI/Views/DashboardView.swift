@@ -760,7 +760,8 @@ private struct DashboardChartCard: View {
                 color: color,
                 comparison: benchmarkValues,
                 comparisonColor: NorthstarTheme.accent.opacity(0.85),
-                comparisonLabel: selectedBenchmark.map { BenchmarkCatalog.displayName(for: $0) }
+                comparisonLabel: selectedBenchmark.map { BenchmarkCatalog.displayName(for: $0) },
+                interactive: true
             )
             .frame(height: 126)
 

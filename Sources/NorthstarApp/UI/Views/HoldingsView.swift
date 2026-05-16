@@ -154,7 +154,8 @@ struct HoldingsView: View {
                 color: holdingsPnLBase >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk,
                 comparison: benchmark,
                 comparisonColor: NorthstarTheme.accent.opacity(0.85),
-                comparisonLabel: selectedBenchmark.map { BenchmarkCatalog.displayName(for: $0) }
+                comparisonLabel: selectedBenchmark.map { BenchmarkCatalog.displayName(for: $0) },
+                interactive: true
             )
             .frame(height: 134)
 
@@ -304,7 +305,8 @@ struct HoldingsView: View {
 
                         SparklineView(
                             values: priceStore.sparklines[selected.ticker] ?? currentPortfolioTrend.values,
-                            color: selected.unrealizedPnL >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk
+                            color: selected.unrealizedPnL >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk,
+                            interactive: true
                         )
                         .frame(height: 150)
 

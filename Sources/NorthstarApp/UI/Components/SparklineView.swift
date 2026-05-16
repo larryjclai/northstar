@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 struct SparklineView: View {
     let values: [Double]
@@ -6,109 +7,177 @@ struct SparklineView: View {
     var comparison: [Double] = []
     var comparisonColor: Color = NorthstarTheme.mutedText
     var comparisonLabel: String? = nil
+    var interactive: Bool = false
+
+    @State private var selectedIndex: Int? = nil
 
     var body: some View {
-        GeometryReader { proxy in
-            if values.count > 1 {
-                let primaryNormalized = normalize(values)
-                let comparisonNormalized: [Double] = comparison.count > 1
-                    ? rebase(comparison, toCount: primaryNormalized.count)
-                    : []
+        if values.count > 1 {
+            chart
+        } else {
+            placeholder
+        }
+    }
 
-                let combined = primaryNormalized + comparisonNormalized
-                let minValue = combined.min() ?? 0
-                let maxValue = combined.max() ?? 0
-                let range = max(maxValue - minValue, 0.0001)
+    // MARK: - Chart
 
-                let primaryPoints = points(for: primaryNormalized, in: proxy.size, min: minValue, range: range)
-                let comparisonPoints = points(for: comparisonNormalized, in: proxy.size, min: minValue, range: range)
+    private var chart: some View {
+        let primaryPoints = values.enumerated().map { Point(index: $0.offset, value: $0.element, series: .primary) }
+        let scaledComparison = rebasedComparison()
+        let comparisonPoints = scaledComparison.enumerated().map { Point(index: $0.offset, value: $0.element, series: .comparison) }
+        let combined = primaryPoints + comparisonPoints
+        let minY = combined.map(\.value).min() ?? 0
+        let maxY = combined.map(\.value).max() ?? 0
+        let padding = max((maxY - minY) * 0.08, 0.0001)
 
-                ZStack(alignment: .topLeading) {
-                    areaPath(points: primaryPoints, size: proxy.size)
-                        .fill(
-                            LinearGradient(
-                                colors: [color.opacity(0.22), color.opacity(0.02)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
+        return Chart {
+            ForEach(primaryPoints) { point in
+                AreaMark(
+                    x: .value("Index", point.index),
+                    yStart: .value("Floor", minY - padding),
+                    yEnd: .value("Value", point.value)
+                )
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [color.opacity(0.22), color.opacity(0.02)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                LineMark(
+                    x: .value("Index", point.index),
+                    y: .value("Value", point.value)
+                )
+                .foregroundStyle(color)
+                .lineStyle(StrokeStyle(lineWidth: interactive ? 2.5 : 3, lineCap: .round, lineJoin: .round))
+                .interpolationMethod(.monotone)
+            }
 
-                    if comparisonPoints.isEmpty == false {
-                        linePath(points: comparisonPoints)
-                            .stroke(
-                                comparisonColor,
-                                style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round, dash: [4, 4])
-                            )
-                    }
-
-                    linePath(points: primaryPoints)
-                        .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
-
-                    if let comparisonLabel, comparisonPoints.isEmpty == false {
-                        HStack(spacing: 6) {
-                            Capsule()
-                                .fill(comparisonColor)
-                                .frame(width: 16, height: 2)
-                            Text(comparisonLabel)
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(comparisonColor)
-                        }
-                        .padding(6)
-                    }
+            if comparisonPoints.isEmpty == false {
+                ForEach(comparisonPoints) { point in
+                    LineMark(
+                        x: .value("Index", point.index),
+                        y: .value("Comparison", point.value)
+                    )
+                    .foregroundStyle(comparisonColor)
+                    .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round, dash: [4, 4]))
+                    .interpolationMethod(.monotone)
                 }
-            } else {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.nsSecondarySurface)
-                    .overlay {
-                        Text("等待走勢")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                    }
+            }
+
+            if interactive, let selectedIndex, selectedIndex < values.count {
+                RuleMark(x: .value("Selected", selectedIndex))
+                    .foregroundStyle(NorthstarTheme.mutedText.opacity(0.5))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                PointMark(
+                    x: .value("Selected", selectedIndex),
+                    y: .value("Value", values[selectedIndex])
+                )
+                .foregroundStyle(color)
+                .symbolSize(70)
+            }
+        }
+        .chartYScale(domain: (minY - padding)...(maxY + padding))
+        .chartXAxis(interactive ? .automatic : .hidden)
+        .chartYAxis(interactive ? .automatic : .hidden)
+        .chartPlotStyle { plot in
+            plot.frame(maxWidth: .infinity)
+        }
+        .chartOverlay { proxy in
+            if interactive {
+                GeometryReader { geo in
+                    Rectangle()
+                        .fill(Color.clear)
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { value in
+                                    updateSelection(at: value.location, proxy: proxy, geo: geo)
+                                }
+                                .onEnded { _ in
+                                    selectedIndex = nil
+                                }
+                        )
+                }
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if let comparisonLabel, comparisonPoints.isEmpty == false {
+                HStack(spacing: 6) {
+                    Capsule()
+                        .fill(comparisonColor)
+                        .frame(width: 16, height: 2)
+                    Text(comparisonLabel)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(comparisonColor)
+                }
+                .padding(6)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if interactive, let selectedIndex, selectedIndex < values.count {
+                Text(quickFormat(values[selectedIndex]))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NorthstarTheme.primaryText)
+                    .monospacedDigit()
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color.nsSecondarySurface.opacity(0.9))
+                    )
+                    .padding(6)
             }
         }
     }
 
-    private func normalize(_ series: [Double]) -> [Double] {
-        guard let first = series.first, abs(first) > 0.000001 else { return series }
-        return series.map { $0 / first }
-    }
-
-    private func rebase(_ series: [Double], toCount count: Int) -> [Double] {
-        let tail = Array(series.suffix(count))
-        guard let first = tail.first, abs(first) > 0.000001 else { return tail }
-        return tail.map { $0 / first }
-    }
-
-    private func points(for series: [Double], in size: CGSize, min minValue: Double, range: Double) -> [CGPoint] {
-        guard series.count > 1 else { return [] }
-        let step = size.width / CGFloat(series.count - 1)
-        return series.enumerated().map { index, value in
-            let x = CGFloat(index) * step
-            let y = size.height - (CGFloat((value - minValue) / range) * size.height)
-            return CGPoint(x: x, y: y)
-        }
-    }
-
-    private func linePath(points: [CGPoint]) -> Path {
-        Path { path in
-            guard let first = points.first else { return }
-            path.move(to: first)
-            for point in points.dropFirst() {
-                path.addLine(to: point)
+    private var placeholder: some View {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(Color.nsSecondarySurface)
+            .overlay {
+                Text("等待走勢")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
-        }
     }
 
-    private func areaPath(points: [CGPoint], size: CGSize) -> Path {
-        Path { path in
-            guard let first = points.first, let last = points.last else { return }
-            path.move(to: CGPoint(x: first.x, y: size.height))
-            path.addLine(to: first)
-            for point in points.dropFirst() {
-                path.addLine(to: point)
-            }
-            path.addLine(to: CGPoint(x: last.x, y: size.height))
-            path.closeSubpath()
+    // MARK: - Helpers
+
+    private struct Point: Identifiable {
+        enum Series { case primary, comparison }
+        let index: Int
+        let value: Double
+        let series: Series
+        var id: String { "\(series)-\(index)" }
+    }
+
+    private func rebasedComparison() -> [Double] {
+        guard comparison.count > 1, let first = values.first, let cFirst = comparison.first,
+              abs(cFirst) > 0.000001 else { return [] }
+        let tail = Array(comparison.suffix(values.count))
+        guard let tailFirst = tail.first, abs(tailFirst) > 0.000001 else { return [] }
+        let scale = first / tailFirst
+        return tail.map { $0 * scale }
+    }
+
+    private func updateSelection(at location: CGPoint, proxy: ChartProxy, geo: GeometryProxy) {
+        let origin = geo[proxy.plotAreaFrame].origin
+        let plotX = location.x - origin.x
+        guard let index: Int = proxy.value(atX: plotX) else { return }
+        let clamped = max(0, min(values.count - 1, index))
+        selectedIndex = clamped
+    }
+
+    private func quickFormat(_ value: Double) -> String {
+        let abs = Swift.abs(value)
+        if abs >= 1_000_000 {
+            return String(format: "%.2fM", value / 1_000_000)
+        } else if abs >= 1_000 {
+            return String(format: "%.2fK", value / 1_000)
+        } else if abs >= 1 {
+            return String(format: "%.2f", value)
+        } else {
+            return String(format: "%.4f", value)
         }
     }
 }

@@ -158,7 +158,8 @@ struct HoldingDetailView: View {
 
             SparklineView(
                 values: slicedSparkline,
-                color: (snapshot?.unrealizedPnL ?? 0) >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk
+                color: (snapshot?.unrealizedPnL ?? 0) >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk,
+                interactive: true
             )
             .frame(height: 134)
 
