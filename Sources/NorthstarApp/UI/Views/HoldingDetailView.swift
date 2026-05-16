@@ -56,19 +56,8 @@ struct HoldingDetailView: View {
         return sliced.values
     }
 
-    private var realizedGain: Double {
-        // Sum cash dividends + sell-side realized gains, minus fees, denominated in native currency.
-        records.reduce(0.0) { running, record in
-            switch record.action {
-            case .cashDividend:
-                return running + (record.price * record.quantity) - record.fee
-            case .sell:
-                let gross = record.price * record.quantity - record.fee
-                return running + gross
-            default:
-                return running
-            }
-        }
+    private var realized: RealizedSummary {
+        PortfolioCalculator.realized(records: records)
     }
 
     private var totalInvested: Double {
@@ -200,9 +189,16 @@ struct HoldingDetailView: View {
                 metricRow("市值", CurrencyFormatters.money(snapshot?.marketValue ?? 0, currencyCode: nativeCurrency))
                 Divider().overlay(Color.nsBorder)
                 metricRow("累積買入", CurrencyFormatters.money(totalInvested, currencyCode: nativeCurrency))
-                metricRow("已實現（賣出 + 股利 − 手續費）",
-                          CurrencyFormatters.signedMoney(realizedGain, currencyCode: nativeCurrency),
-                          tint: realizedGain >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk)
+                let r = realized
+                metricRow("已實現賣出損益",
+                          CurrencyFormatters.signedMoney(r.realizedFromSales, currencyCode: nativeCurrency),
+                          tint: r.realizedFromSales >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk)
+                metricRow("股利收入",
+                          CurrencyFormatters.signedMoney(r.dividendIncome, currencyCode: nativeCurrency),
+                          tint: r.dividendIncome >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk)
+                metricRow("已實現合計",
+                          CurrencyFormatters.signedMoney(r.total, currencyCode: nativeCurrency),
+                          tint: r.total >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk)
             }
         }
         .padding(18)

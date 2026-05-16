@@ -114,6 +114,45 @@ final class PortfolioCalculatorTests: XCTestCase {
         XCTAssertEqual(asset.averageCost, 100, accuracy: 0.0001)
     }
 
+    func testRealizedFromSalesUsesAvgCostAtSaleTime() {
+        // Buy 10 @ 100, then 10 @ 200 (avg cost 150). Sell 5 @ 250 with fee 10 → realized = (250-150)*5 - 10 = 490
+        let summary = PortfolioCalculator.realized(records: [
+            record(.buy, 100, 10, day: 1),
+            record(.buy, 200, 10, day: 2),
+            record(.sell, 250, 5, fee: 10, day: 3)
+        ])
+        XCTAssertEqual(summary.realizedFromSales, 490, accuracy: 0.0001)
+        XCTAssertEqual(summary.dividendIncome, 0, accuracy: 0.0001)
+    }
+
+    func testRealizedHandlesPartialSellWithoutDrainingPosition() {
+        // Buy 10 @ 100. Sell 4 @ 150. Sell remaining 6 @ 80 → realized = 4*(150-100) + 6*(80-100) = 200 - 120 = 80
+        let summary = PortfolioCalculator.realized(records: [
+            record(.buy, 100, 10, day: 1),
+            record(.sell, 150, 4, day: 2),
+            record(.sell, 80, 6, day: 3)
+        ])
+        XCTAssertEqual(summary.realizedFromSales, 80, accuracy: 0.0001)
+    }
+
+    func testDividendIncomeAccumulatesNetOfFee() {
+        let summary = PortfolioCalculator.realized(records: [
+            record(.buy, 100, 10, day: 1),
+            record(.cashDividend, 2, 10, fee: 1, day: 2),
+            record(.cashDividend, 3, 10, day: 3)
+        ])
+        XCTAssertEqual(summary.dividendIncome, 49, accuracy: 0.0001)
+        XCTAssertEqual(summary.total, 49, accuracy: 0.0001)
+    }
+
+    func testRealizedIsZeroForBuyOnly() {
+        let summary = PortfolioCalculator.realized(records: [
+            record(.buy, 100, 10, fee: 5, day: 1)
+        ])
+        XCTAssertEqual(summary.realizedFromSales, 0)
+        XCTAssertEqual(summary.dividendIncome, 0)
+    }
+
     func testHoldingsExcludeZeroQuantityAssets() throws {
         let kept = makeAsset(ticker: "K")
         kept.totalQuantity = 5

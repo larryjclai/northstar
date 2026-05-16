@@ -7,6 +7,9 @@ final class FXRateStore {
 
     private(set) var rates: [String: Double] = [:]
     private(set) var rateTimestamps: [String: Date] = [:]
+    /// Daily close history per pair (e.g. "USDTWD" → [(date, rate)]), ascending.
+    /// Source: Yahoo Finance =X tickers fetched alongside spot rates.
+    private(set) var rateHistory: [String: [(Date, Double)]] = [:]
     private(set) var lastUpdated: Date?
     private(set) var lastError: String?
     private(set) var isRefreshing = false
@@ -41,6 +44,44 @@ final class FXRateStore {
         return amount * rate
     }
 
+    /// Returns the rate at-or-before `date`. Falls back to the spot rate if no
+    /// historical sample exists yet, and to inverse-pair history when needed.
+    func rate(from: String, to: String, on date: Date) -> Double? {
+        let f = from.uppercased()
+        let t = to.uppercased()
+        if f == t { return 1.0 }
+
+        if let direct = historicalLookup(pair: Self.key(from: f, to: t), on: date) {
+            return direct
+        }
+        if let inverse = historicalLookup(pair: Self.key(from: t, to: f), on: date), inverse > 0 {
+            return 1.0 / inverse
+        }
+        // Fall back to spot if history is unavailable.
+        return rate(from: f, to: t)
+    }
+
+    func convert(_ amount: Double, from: String, to: String, on date: Date) -> Double? {
+        guard let rate = rate(from: from, to: to, on: date) else { return nil }
+        return amount * rate
+    }
+
+    private func historicalLookup(pair: String, on date: Date) -> Double? {
+        guard let series = rateHistory[pair], series.isEmpty == false else { return nil }
+        // Series is ascending by date — return the latest sample whose date <= target.
+        var best: Double?
+        for (sampleDate, value) in series {
+            if sampleDate <= date {
+                best = value
+            } else {
+                break
+            }
+        }
+        // If target predates all samples, fall back to the earliest known rate
+        // rather than returning nil — assume no FX before recorded history.
+        return best ?? series.first?.1
+    }
+
     func timestamp(from: String, to: String) -> Date? {
         rateTimestamps[Self.key(from: from, to: to)]
             ?? rateTimestamps[Self.key(from: to, to: from)]
@@ -72,6 +113,7 @@ final class FXRateStore {
             for currency in unique {
                 let pairKey = Self.key(from: currency, to: normalizedBase)
                 let target = pairKey
+                let yahooSymbol = "\(target)=X"
                 let quote = data.quotes.first(where: { quote in
                     let cleaned = quote.symbol.uppercased().replacingOccurrences(of: "=X", with: "")
                     return cleaned == target
@@ -82,6 +124,11 @@ final class FXRateStore {
                     rateTimestamps[pairKey] = Date()
                 } else {
                     missing.append(currency)
+                }
+
+                if let closes = data.sparklines[yahooSymbol], let dates = data.sparklineDates[yahooSymbol],
+                   closes.count == dates.count, closes.isEmpty == false {
+                    rateHistory[pairKey] = Array(zip(dates, closes))
                 }
             }
 

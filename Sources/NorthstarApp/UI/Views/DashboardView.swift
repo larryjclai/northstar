@@ -317,7 +317,7 @@ struct DashboardView: View {
             sparklineDates: priceStore.sparklineDates,
             baseCurrency: baseCurrency,
             tickerCurrency: { ticker in currency(for: ticker) },
-            convert: { value, from, to in fxStore.convert(value, from: from, to: to) }
+            convert: { value, from, to, date in fxStore.convert(value, from: from, to: to, on: date) }
         )
         return NetWorthTrendBuilder.slice(full, range: selectedRange)
     }

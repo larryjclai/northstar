@@ -11,10 +11,9 @@ enum NetWorthTrendBuilder {
     /// Build a net-worth value trend = cash account balances (in base currency)
     /// + investment portfolio value (in base currency), aligned to the portfolio sparkline date axis.
     ///
-    /// v1 approximation:
-    ///  - Cash historical balance per account: current balance − sum of transactions strictly after `date`.
-    ///  - All amounts converted at the **current** FX rate (historical FX is not stored). This mirrors the
-    ///    assumption already used by [[portfolio-trend]] (current quantity × historical price).
+    /// v2: historical FX rates are applied when available (via the `convert` closure that takes
+    /// a date); falls back to spot when no history exists. Cash historical balance per account
+    /// = current balance − sum of transactions strictly after `date`.
     static func build(
         holdings: [HoldingSnapshot],
         accounts: [Account],
@@ -22,16 +21,18 @@ enum NetWorthTrendBuilder {
         sparklineDates: [String: [Date]],
         baseCurrency: String,
         tickerCurrency: (String) -> String,
-        convert: (Double, String, String) -> Double?
+        convert: (Double, String, String, Date) -> Double?
     ) -> NetWorthTrend {
-        // Investment series per holding, scaled to current quantity, converted to base.
+        // Investment series per holding, scaled to current quantity, converted to base
+        // using the FX rate at each close's date when historical FX is available.
         let investmentSeries: [(values: [Double], dates: [Date])] = holdings.compactMap { holding in
             guard let closes = sparklines[holding.ticker], closes.isEmpty == false else { return nil }
             let dates = sparklineDates[holding.ticker] ?? []
             let nativeCurrency = tickerCurrency(holding.ticker)
-            let convertedValues = closes.map { close -> Double in
+            let convertedValues = closes.enumerated().map { index, close -> Double in
                 let nativeValue = close * holding.quantity
-                return convert(nativeValue, nativeCurrency, baseCurrency) ?? 0
+                let asOf = index < dates.count ? dates[index] : Date()
+                return convert(nativeValue, nativeCurrency, baseCurrency, asOf) ?? 0
             }
             return (convertedValues, dates)
         }
@@ -63,7 +64,7 @@ enum NetWorthTrendBuilder {
         let cashTotals: [Double] = referenceDates.map { date in
             accounts.reduce(0.0) { running, account in
                 let nativeBalanceAtDate = historicalBalance(account: account, at: date)
-                let converted = convert(nativeBalanceAtDate, account.currency, baseCurrency) ?? 0
+                let converted = convert(nativeBalanceAtDate, account.currency, baseCurrency, date) ?? 0
                 return running + converted
             }
         }

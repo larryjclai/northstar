@@ -26,6 +26,7 @@
 		4711E8168E57B570DF6B2ACE /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8848E4EF76322106A9CF049E /* RootView.swift */; };
 		47CD1A4E99AD12997AADCE14 /* PortfolioCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F985BA585208C2C4D87C652B /* PortfolioCalculator.swift */; };
 		50874A19B59547D3E0AA40DF /* SparklineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B87A170BEC7F432783E6EB5 /* SparklineView.swift */; };
+		540685E9BDFD54C0D32D176E /* CurrencyFormattersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 142E7BE55808D148A324AEE9 /* CurrencyFormattersTests.swift */; };
 		562EB78BB768B0F7087C5C91 /* PriceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE5B628AB656DEBBF4875895 /* PriceStore.swift */; };
 		572590C8E8F7089C3D2A4CCA /* InvestmentRecordEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7356B51D3714F41DD4E0CD76 /* InvestmentRecordEditorView.swift */; };
 		5A1A01AB9B88F638CE91C79F /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F19031E2F4F2D4C6C108A72A /* DashboardView.swift */; };
@@ -101,6 +102,7 @@
 		0B46122484D1277C6C774920 /* TimeRangeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeRangeTests.swift; sourceTree = "<group>"; };
 		0B87A170BEC7F432783E6EB5 /* SparklineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparklineView.swift; sourceTree = "<group>"; };
 		0C85AB0E9883F4E58E498D0F /* LedgerLinkageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerLinkageTests.swift; sourceTree = "<group>"; };
+		142E7BE55808D148A324AEE9 /* CurrencyFormattersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyFormattersTests.swift; sourceTree = "<group>"; };
 		159A14466F06F735C608D234 /* PortfolioTrend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioTrend.swift; sourceTree = "<group>"; };
 		1ABFC0195911ABAA1C55D8B1 /* NorthstarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NorthstarApp.swift; sourceTree = "<group>"; };
 		1DB50A2FED9BE346C68B53A0 /* LedgerCategoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCategoryTests.swift; sourceTree = "<group>"; };
@@ -165,6 +167,7 @@
 		165E19329EFBEC8093D19904 /* NorthstarTests */ = {
 			isa = PBXGroup;
 			children = (
+				142E7BE55808D148A324AEE9 /* CurrencyFormattersTests.swift */,
 				1DB50A2FED9BE346C68B53A0 /* LedgerCategoryTests.swift */,
 				0C85AB0E9883F4E58E498D0F /* LedgerLinkageTests.swift */,
 				8972789965FFBC0AB4C82509 /* NetWorthTrendBuilderTests.swift */,
@@ -462,6 +465,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				540685E9BDFD54C0D32D176E /* CurrencyFormattersTests.swift in Sources */,
 				2D73ADF1FE814306EF64951E /* LedgerCategoryTests.swift in Sources */,
 				737045AEAAFD7D52ED8B2A9F /* LedgerLinkageTests.swift in Sources */,
 				0D189AF6FC96D4DEC7DCAEFA /* NetWorthTrendBuilderTests.swift in Sources */,

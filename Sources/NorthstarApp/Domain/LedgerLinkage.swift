@@ -89,6 +89,48 @@ enum LedgerLinkage {
         account?.recomputeBalance()
     }
 
+    /// A read-only report of records that lack a cash account or ledger linkage.
+    /// `unlinked` records have no linked account at all (no auto cash impact possible);
+    /// `pendingSync` records have an account but never produced a LedgerTransaction —
+    /// usually because the currencies didn't match or the action has no cash effect.
+    struct LinkageReport {
+        let unlinked: [InvestmentRecord]
+        let pendingSync: [InvestmentRecord]
+
+        var hasIssues: Bool {
+            unlinked.isEmpty == false || pendingSync.isEmpty == false
+        }
+    }
+
+    @MainActor
+    static func report(context: ModelContext) -> LinkageReport {
+        let descriptor = FetchDescriptor<InvestmentRecord>()
+        guard let records = try? context.fetch(descriptor) else {
+            return LinkageReport(unlinked: [], pendingSync: [])
+        }
+        let unlinked = records.filter { $0.linkedAccount == nil }
+        let pendingSync = records.filter { record in
+            guard record.linkedAccount != nil else { return false }
+            guard record.linkedLedgerTransactionID == nil else { return false }
+            // If the record's action has a real cash impact, missing linkage is a problem.
+            if case .amount = cashImpact(for: record) {
+                return true
+            }
+            return false
+        }
+        return LinkageReport(unlinked: unlinked, pendingSync: pendingSync)
+    }
+
+    /// Force a fresh syncLedger pass for every record that has an account but no ledger row yet.
+    @MainActor
+    static func resyncPending(context: ModelContext) {
+        let pending = report(context: context).pendingSync
+        for record in pending {
+            syncLedger(for: record, context: context)
+        }
+        try? context.save()
+    }
+
     @MainActor
     static func backfillIfNeeded(context: ModelContext) {
         let storedVersion = UserDefaults.standard.integer(forKey: backfillVersionKey)

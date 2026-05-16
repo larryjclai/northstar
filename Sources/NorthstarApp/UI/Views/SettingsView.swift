@@ -5,9 +5,12 @@ struct SettingsView: View {
     let fxStore: FXRateStore
     let priceStore: PriceStore
 
+    @Environment(\.modelContext) private var modelContext
     @AppStorage(IntentRoutingKeys.baseCurrency) private var baseCurrency: String = BaseCurrencyDefaults.default
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
     @Query(sort: \Account.name) private var accounts: [Account]
+    @Query private var investmentRecords: [InvestmentRecord]
+    @State private var lastReport: LedgerLinkage.LinkageReport = .init(unlinked: [], pendingSync: [])
 
     private var portfolioCurrencies: [String] {
         var seen = Set<String>()
@@ -77,6 +80,10 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("資料健檢") {
+                    linkageHealthRow
+                }
+
                 Section("隱私") {
                     Label("資料儲存在這台裝置", systemImage: "lock.fill")
                         .font(.subheadline)
@@ -92,6 +99,57 @@ struct SettingsView: View {
         }
         .task(id: portfolioCurrencies.joined() + baseCurrency) {
             await fxStore.refresh(currencies: portfolioCurrencies, base: baseCurrency)
+        }
+        .task(id: investmentRecords.count) {
+            lastReport = LedgerLinkage.report(context: modelContext)
+        }
+    }
+
+    @ViewBuilder
+    private var linkageHealthRow: some View {
+        if lastReport.hasIssues == false {
+            Label("投資紀錄與現金帳戶都已連動。", systemImage: "checkmark.seal.fill")
+                .font(.subheadline)
+                .foregroundStyle(NorthstarTheme.growth)
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                if lastReport.unlinked.isEmpty == false {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(lastReport.unlinked.count) 筆投資紀錄沒有連動現金帳戶")
+                                .font(.subheadline.weight(.semibold))
+                            Text("這些紀錄不會影響任何帳戶餘額；前往「交易」幫它們補上扣款帳戶。")
+                                .font(.caption)
+                                .foregroundStyle(NorthstarTheme.secondaryText)
+                        }
+                    } icon: {
+                        Image(systemName: "creditcard.trianglebadge.exclamationmark")
+                            .foregroundStyle(NorthstarTheme.warning)
+                    }
+                }
+                if lastReport.pendingSync.isEmpty == false {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(lastReport.pendingSync.count) 筆紀錄等待重新同步")
+                                .font(.subheadline.weight(.semibold))
+                            Text("通常發生在幣別不符已修正、或邏輯改動之後。可手動觸發一次重新建立 ledger。")
+                                .font(.caption)
+                                .foregroundStyle(NorthstarTheme.secondaryText)
+                        }
+                    } icon: {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .foregroundStyle(NorthstarTheme.warning)
+                    }
+
+                    Button {
+                        LedgerLinkage.resyncPending(context: modelContext)
+                        lastReport = LedgerLinkage.report(context: modelContext)
+                    } label: {
+                        Label("重新同步", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
         }
     }
 
