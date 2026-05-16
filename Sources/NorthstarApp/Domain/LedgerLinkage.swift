@@ -2,6 +2,10 @@ import Foundation
 import SwiftData
 
 enum LedgerLinkage {
+    /// Bump this when the linkage rules change so a one-time re-sync runs on next launch.
+    static let currentBackfillVersion = 1
+    private static let backfillVersionKey = "northstar.ledgerLinkageBackfillVersion"
+
     enum CashImpact {
         case none
         case currencyMismatch
@@ -87,14 +91,21 @@ enum LedgerLinkage {
 
     @MainActor
     static func backfillIfNeeded(context: ModelContext) {
+        let storedVersion = UserDefaults.standard.integer(forKey: backfillVersionKey)
+        if storedVersion >= currentBackfillVersion {
+            return
+        }
+
         let descriptor = FetchDescriptor<InvestmentRecord>()
         guard let records = try? context.fetch(descriptor) else { return }
         let pending = records.filter { $0.linkedLedgerTransactionID == nil && $0.linkedAccount != nil }
-        guard pending.isEmpty == false else { return }
         for record in pending {
             syncLedger(for: record, context: context)
         }
-        try? context.save()
+        if pending.isEmpty == false {
+            try? context.save()
+        }
+        UserDefaults.standard.set(currentBackfillVersion, forKey: backfillVersionKey)
     }
 
     @MainActor

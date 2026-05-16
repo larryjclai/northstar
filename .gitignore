@@ -1,0 +1,18 @@
+## Xcode
+xcuserdata/
+DerivedData/
+*.xcuserstate
+*.swp
+*.swo
+*.DS_Store
+
+## Build outputs
+build/
+.build/
+*.ipa
+*.app
+
+## SPM
+Packages/
+Package.resolved
+.swiftpm/

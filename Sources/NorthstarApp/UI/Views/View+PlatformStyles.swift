@@ -20,6 +20,33 @@ extension View {
     }
 
     @ViewBuilder
+    func platformInlineNavigationTitle() -> some View {
+        #if os(iOS)
+        self.navigationBarTitleDisplayMode(.inline)
+        #else
+        self
+        #endif
+    }
+
+    @ViewBuilder
+    func decimalKeyboard() -> some View {
+        #if os(iOS)
+        self.keyboardType(.decimalPad)
+        #else
+        self
+        #endif
+    }
+
+    @ViewBuilder
+    func platformFormStyle() -> some View {
+        #if os(iOS)
+        self.formStyle(.grouped)
+        #else
+        self
+        #endif
+    }
+
+    @ViewBuilder
     func northstarCardSurface(cornerRadius: CGFloat = 8) -> some View {
         if #available(iOS 26.0, macOS 26.0, *) {
             self

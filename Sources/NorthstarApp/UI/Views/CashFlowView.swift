@@ -544,22 +544,3 @@ struct CashFlowEditorView: View {
     }
 }
 
-private extension View {
-    @ViewBuilder
-    func decimalKeyboard() -> some View {
-        #if os(iOS)
-        self.keyboardType(.decimalPad)
-        #else
-        self
-        #endif
-    }
-
-    @ViewBuilder
-    func platformFormStyle() -> some View {
-        #if os(iOS)
-        self.formStyle(.grouped)
-        #else
-        self
-        #endif
-    }
-}
