@@ -7,21 +7,23 @@ SwiftUI multi-platform MVP for portfolio tracking (iOS, iPadOS, macOS).
 ### Done
 - Dashboard for total assets, unrealized PnL, allocation, accounts, holdings.
 - Holdings view with sparklines, allocation, and macOS dual-pane brokerage detail.
-- Transactions view: list, add, **edit, delete**, mark reviewed, CSV export (with `id`).
-- **CSV import** for investment records: file picker → preview (new / duplicate / error) → confirm.
+- Transactions view: list, add, edit, delete, mark reviewed, CSV export (with `id`).
+- CSV import for investment records: file picker → preview (new / duplicate / error) → confirm.
 - UUID dedupe on import; auto-create missing `PortfolioAsset` / `Account` from CSV rows.
 - Investment actions: `Buy`, `Sell`, `CashDividend`, `StockDividend`, `CapitalReduction`.
 - Idempotent cost basis recalculation after add / edit / delete / import.
+- **Cash account linkage via `LedgerTransaction` model**: Buy / Sell / CashDividend create paired ledger entries and recompute `Account.balance`. Currency-mismatch is detected and skipped with an editor warning.
+- One-time backfill on launch for pre-existing investment records.
 - Yahoo Finance price + sparkline integration.
 - App Intents shortcuts (open tab, add transaction).
 - macOS sidebar shell + iOS TabView.
+- Light / dark adaptive color tokens.
 
 ### Next up
-- **Cash account linkage**: deduct `Account.balance` on Buy, credit on Sell / CashDividend; build `LedgerTransaction` model and link via `linkedLedgerTransactionID`.
-- Cash account CRUD UI (currently auto-created only).
+- **Multi-currency FX rates + base currency**: pull rates from Yahoo (`USDTWD=X` style symbols), store user-selected base currency, show converted net worth on Dashboard.
+- Cash account CRUD UI with opening balance (currently auto-created with 0 balance only).
 
 ### Remaining (per PRD)
-- Multi-currency FX rates + user-defined base currency, with converted net worth on Dashboard.
 - Settings screen (base currency, privacy copy).
 - Historical net worth series + working 1W / 1M / 3M / YTD / 1Y / ALL time ranges.
 - Benchmark comparison (0050, SPY) wired into the chart UI (`PriceStore.benchmarks` already stores the data).

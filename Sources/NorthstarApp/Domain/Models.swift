@@ -19,12 +19,50 @@ final class Account {
     var balance: Double
     @Relationship(deleteRule: .cascade, inverse: \InvestmentRecord.linkedAccount)
     var investmentRecords: [InvestmentRecord] = []
+    @Relationship(deleteRule: .cascade, inverse: \LedgerTransaction.account)
+    var transactions: [LedgerTransaction] = []
 
     init(id: UUID = UUID(), name: String, currency: String, balance: Double = 0) {
         self.id = id
         self.name = name
         self.currency = currency
         self.balance = balance
+    }
+
+    func recomputeBalance() {
+        balance = transactions.reduce(0) { $0 + $1.amount }
+    }
+}
+
+@Model
+final class LedgerTransaction {
+    @Attribute(.unique) var id: UUID
+    var date: Date
+    var amount: Double
+    var currency: String
+    var category: String
+    var note: String
+    var account: Account?
+    var linkedInvestmentRecordID: UUID?
+
+    init(
+        id: UUID = UUID(),
+        date: Date,
+        amount: Double,
+        currency: String,
+        category: String = "",
+        note: String = "",
+        account: Account? = nil,
+        linkedInvestmentRecordID: UUID? = nil
+    ) {
+        self.id = id
+        self.date = date
+        self.amount = amount
+        self.currency = currency
+        self.category = category
+        self.note = note
+        self.account = account
+        self.linkedInvestmentRecordID = linkedInvestmentRecordID
     }
 }
 

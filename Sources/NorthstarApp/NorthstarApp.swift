@@ -25,6 +25,6 @@ struct NorthstarApp: App {
         WindowGroup {
             RootView()
         }
-        .modelContainer(for: [Account.self, PortfolioAsset.self, InvestmentRecord.self], isAutosaveEnabled: true)
+        .modelContainer(for: [Account.self, PortfolioAsset.self, InvestmentRecord.self, LedgerTransaction.self], isAutosaveEnabled: true)
     }
 }

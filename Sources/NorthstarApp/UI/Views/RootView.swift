@@ -114,6 +114,7 @@ struct RootView: View {
         if requestedAddTransaction {
             openAddTransaction()
         }
+        LedgerLinkage.backfillIfNeeded(context: modelContext)
     }
 
     private func applyRequestedTab() {

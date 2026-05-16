@@ -225,6 +225,7 @@ enum InvestmentCSVImporter {
         var outcome = Outcome()
         var affectedAssets: [PortfolioAsset] = []
         var seenAssetIDs = Set<ObjectIdentifier>()
+        var insertedRecords: [InvestmentRecord] = []
 
         for row in rows {
             switch row.status {
@@ -280,6 +281,7 @@ enum InvestmentCSVImporter {
                 linkedAccount: linkedAccount
             )
             context.insert(record)
+            insertedRecords.append(record)
             outcome.inserted += 1
 
             if seenAssetIDs.insert(ObjectIdentifier(asset)).inserted {
@@ -291,6 +293,9 @@ enum InvestmentCSVImporter {
 
         for asset in affectedAssets {
             PortfolioCalculator.apply(records: asset.records, to: asset)
+        }
+        for record in insertedRecords {
+            LedgerLinkage.syncLedger(for: record, context: context)
         }
         try? context.save()
 

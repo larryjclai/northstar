@@ -537,6 +537,10 @@ struct InvestmentRecordEditorView: View {
                         .decimalKeyboard()
                 }
 
+                Section("現金影響") {
+                    cashImpactRow
+                }
+
                 Section("備註") {
                     TextField("備註", text: $note)
                 }
@@ -581,6 +585,82 @@ struct InvestmentRecordEditorView: View {
         hasAssetInput && Double(priceText) != nil && Double(quantityText) != nil
     }
 
+    private var effectiveAssetCurrency: String? {
+        if let selectedAsset {
+            return selectedAsset.currency
+        }
+        let trimmed = newAssetCurrency.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed.uppercased()
+    }
+
+    private var effectiveAccountCurrency: String? {
+        if let selectedAccount {
+            return selectedAccount.currency
+        }
+        let pendingName = newAccountName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard pendingName.isEmpty == false else { return nil }
+        let trimmed = newAssetCurrency.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed.uppercased()
+    }
+
+    private var currentCashImpact: LedgerLinkage.CashImpact {
+        LedgerLinkage.cashImpact(
+            action: action,
+            price: Double(priceText) ?? 0,
+            quantity: Double(quantityText) ?? 0,
+            fee: Double(feeText) ?? 0,
+            assetCurrency: effectiveAssetCurrency,
+            accountCurrency: effectiveAccountCurrency
+        )
+    }
+
+    @ViewBuilder
+    private var cashImpactRow: some View {
+        switch currentCashImpact {
+        case .none:
+            if selectedAccount == nil && newAccountName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Label("未連結扣款帳戶", systemImage: "creditcard")
+                    .foregroundStyle(NorthstarTheme.secondaryText)
+            } else if action == .stockDividend || action == .capitalReduction {
+                Label("此動作不影響現金", systemImage: "info.circle")
+                    .foregroundStyle(NorthstarTheme.secondaryText)
+            } else {
+                Label("填入價格與數量後計算", systemImage: "questionmark.circle")
+                    .foregroundStyle(NorthstarTheme.secondaryText)
+            }
+        case .currencyMismatch:
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("幣別不符，不會自動連動現金")
+                        .font(.subheadline.weight(.semibold))
+                    Text("標的 \(effectiveAssetCurrency ?? "—") · 帳戶 \(effectiveAccountCurrency ?? "—")")
+                        .font(.caption)
+                        .foregroundStyle(NorthstarTheme.secondaryText)
+                }
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(NorthstarTheme.warning)
+            }
+        case .amount(let amount):
+            let currencyCode = effectiveAccountCurrency ?? "TWD"
+            let accountName = selectedAccount?.name
+                ?? newAccountName.trimmingCharacters(in: .whitespacesAndNewlines)
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(amount < 0 ? "將從帳戶扣款" : "將入帳至帳戶")
+                        .font(.subheadline.weight(.semibold))
+                    Text("\(accountName.isEmpty ? "—" : accountName) · \(CurrencyFormatters.signedMoney(amount, currencyCode: currencyCode))")
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(amount < 0 ? NorthstarTheme.risk : NorthstarTheme.growth)
+                }
+            } icon: {
+                Image(systemName: amount < 0 ? "arrow.down.left.circle.fill" : "arrow.up.right.circle.fill")
+                    .foregroundStyle(amount < 0 ? NorthstarTheme.risk : NorthstarTheme.growth)
+            }
+        }
+    }
+
     private var hasAssetInput: Bool {
         selectedAsset != nil || newTicker.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
     }
@@ -606,6 +686,7 @@ struct InvestmentRecordEditorView: View {
 
         if let editing {
             let oldAsset = editing.asset
+            let oldAccount = editing.linkedAccount
             editing.date = date
             editing.action = action
             editing.price = price
@@ -619,6 +700,10 @@ struct InvestmentRecordEditorView: View {
                 PortfolioCalculator.apply(records: oldAsset.records, to: oldAsset)
             }
             PortfolioCalculator.apply(records: asset.records, to: asset)
+            LedgerLinkage.syncLedger(for: editing, context: modelContext)
+            if let oldAccount, oldAccount !== linkedAccount {
+                oldAccount.recomputeBalance()
+            }
         } else {
             let record = InvestmentRecord(
                 date: date,
@@ -632,6 +717,7 @@ struct InvestmentRecordEditorView: View {
             )
             modelContext.insert(record)
             PortfolioCalculator.apply(records: asset.records + [record], to: asset)
+            LedgerLinkage.syncLedger(for: record, context: modelContext)
         }
 
         try? modelContext.save()
@@ -641,6 +727,7 @@ struct InvestmentRecordEditorView: View {
     private func deleteRecord() {
         guard let editing else { return }
         let asset = editing.asset
+        LedgerLinkage.removeLedger(for: editing, context: modelContext)
         modelContext.delete(editing)
         try? modelContext.save()
         if let asset {
