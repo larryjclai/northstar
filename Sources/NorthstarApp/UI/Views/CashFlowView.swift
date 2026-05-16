@@ -13,6 +13,8 @@ struct CashFlowView: View {
     @State private var showAddSheet = false
     @State private var editingTransaction: LedgerTransaction?
     @State private var pendingDelete: LedgerTransaction?
+    @State private var searchText: String = ""
+    @State private var selectedCategoryFilter: String? = nil
 
     private static func startOfMonth(_ date: Date) -> Date {
         let calendar = Calendar(identifier: .gregorian)
@@ -51,9 +53,36 @@ struct CashFlowView: View {
         monthIncomeBase + monthExpenseBase
     }
 
+    private var monthCategories: [String] {
+        let names = monthTransactions.map { $0.category.isEmpty ? "未分類" : $0.category }
+        var seen: Set<String> = []
+        var ordered: [String] = []
+        for name in names where seen.insert(name).inserted {
+            ordered.append(name)
+        }
+        return ordered.sorted()
+    }
+
+    private var filteredMonthTransactions: [LedgerTransaction] {
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return monthTransactions.filter { txn in
+            let displayCategory = txn.category.isEmpty ? "未分類" : txn.category
+            if let selectedCategoryFilter, displayCategory != selectedCategoryFilter {
+                return false
+            }
+            guard trimmed.isEmpty == false else { return true }
+            return displayCategory.lowercased().contains(trimmed)
+                || txn.note.lowercased().contains(trimmed)
+        }
+    }
+
+    private var hasActiveFilter: Bool {
+        selectedCategoryFilter != nil || searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
     private var groupedByDay: [(day: Date, items: [LedgerTransaction])] {
         let calendar = Calendar(identifier: .gregorian)
-        let grouped = Dictionary(grouping: monthTransactions) { txn in
+        let grouped = Dictionary(grouping: filteredMonthTransactions) { txn in
             calendar.startOfDay(for: txn.date)
         }
         return grouped
@@ -67,8 +96,13 @@ struct CashFlowView: View {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     monthHero
                     monthSelector
+                    if monthCategories.isEmpty == false {
+                        categoryFilterStrip
+                    }
                     if monthTransactions.isEmpty {
                         emptyState
+                    } else if filteredMonthTransactions.isEmpty {
+                        filteredEmptyState
                     } else {
                         ForEach(groupedByDay, id: \.day) { group in
                             daySection(group)
@@ -80,6 +114,11 @@ struct CashFlowView: View {
             .northstarScreenBackground()
             .navigationTitle("收支")
             .platformLargeNavigationTitle()
+            .searchable(text: $searchText, prompt: "搜尋分類或備註")
+            .onChange(of: selectedMonth) { _, _ in
+                searchText = ""
+                selectedCategoryFilter = nil
+            }
             .toolbar {
                 ToolbarItem {
                     Button {
@@ -217,6 +256,48 @@ struct CashFlowView: View {
         .northstarCardSurface()
     }
 
+    private var filteredEmptyState: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("找不到符合的紀錄")
+                .font(.headline)
+                .foregroundStyle(NorthstarTheme.primaryText)
+            Text("試試清除分類或搜尋條件。")
+                .font(.subheadline)
+                .foregroundStyle(NorthstarTheme.secondaryText)
+            Button("清除篩選") {
+                searchText = ""
+                selectedCategoryFilter = nil
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .northstarCardSurface()
+    }
+
+    private var categoryFilterStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                CategoryChip(
+                    label: "全部",
+                    isSelected: selectedCategoryFilter == nil,
+                    action: { selectedCategoryFilter = nil }
+                )
+                ForEach(monthCategories, id: \.self) { category in
+                    CategoryChip(
+                        label: category,
+                        isSelected: selectedCategoryFilter == category,
+                        action: {
+                            selectedCategoryFilter = selectedCategoryFilter == category ? nil : category
+                        }
+                    )
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
     private func daySection(_ group: (day: Date, items: [LedgerTransaction])) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(group.day.formatted(.dateTime.year().month(.abbreviated).day().weekday(.abbreviated)))
@@ -259,6 +340,31 @@ struct CashFlowView: View {
         modelContext.delete(txn)
         account?.recomputeBalance()
         try? modelContext.save()
+    }
+}
+
+private struct CategoryChip: View {
+    let label: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(isSelected ? NorthstarTheme.primaryText : NorthstarTheme.secondaryText)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(isSelected ? NorthstarTheme.netWorth.opacity(0.18) : Color.nsSecondarySurface)
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(isSelected ? NorthstarTheme.netWorth : Color.nsBorder, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
 
