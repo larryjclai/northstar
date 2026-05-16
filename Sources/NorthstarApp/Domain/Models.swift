@@ -43,6 +43,44 @@ final class Account {
 }
 
 @Model
+final class RecurringTransaction {
+    @Attribute(.unique) var id: UUID
+    var amount: Double
+    var currency: String
+    var category: String
+    var note: String
+    var dayOfMonth: Int
+    var nextRunDate: Date
+    var isActive: Bool
+    var createdAt: Date
+    var account: Account?
+
+    init(
+        id: UUID = UUID(),
+        amount: Double,
+        currency: String,
+        category: String = "",
+        note: String = "",
+        dayOfMonth: Int,
+        nextRunDate: Date,
+        isActive: Bool = true,
+        createdAt: Date = Date(),
+        account: Account? = nil
+    ) {
+        self.id = id
+        self.amount = amount
+        self.currency = currency
+        self.category = category
+        self.note = note
+        self.dayOfMonth = dayOfMonth
+        self.nextRunDate = nextRunDate
+        self.isActive = isActive
+        self.createdAt = createdAt
+        self.account = account
+    }
+}
+
+@Model
 final class LedgerTransaction {
     @Attribute(.unique) var id: UUID
     var date: Date

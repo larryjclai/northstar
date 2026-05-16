@@ -18,8 +18,11 @@
 		1AF87715CE94A1242512F5D4 /* HoldingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D276F97D640B8735216AA71 /* HoldingsView.swift */; };
 		1CA8251B2195DF774CEED71A /* PortfolioCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F985BA585208C2C4D87C652B /* PortfolioCalculator.swift */; };
 		20D0C0B576419A4F7DE85D7E /* LedgerCategory.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4B999E1016787A3975C6AD1 /* LedgerCategory.swift */; };
+		296EDED90974FACA6C0A3906 /* RecurringScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1254A1BCFF51DD76DABFD60 /* RecurringScheduler.swift */; };
 		2AD84EF44E42D43A88853A33 /* NorthstarAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BF768623EE462322E3770D /* NorthstarAppIntents.swift */; };
 		2D73ADF1FE814306EF64951E /* LedgerCategoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DB50A2FED9BE346C68B53A0 /* LedgerCategoryTests.swift */; };
+		2DD5509422621499387518CD /* RecurringTransactionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4B7A369710DEA339E81237 /* RecurringTransactionsView.swift */; };
+		2E48AF81DB9B016D94089411 /* RecurringScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1254A1BCFF51DD76DABFD60 /* RecurringScheduler.swift */; };
 		3765B8A043E41032EF0BA688 /* InvestmentRecordEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7356B51D3714F41DD4E0CD76 /* InvestmentRecordEditorView.swift */; };
 		3E428059BDCA58482353219F /* AccountsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E499885D0B713A68D2EC2DD3 /* AccountsView.swift */; };
 		3F9490165F3F5891AD8F5012 /* SpendingSummaryBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 544D8C49994DBBC233D42E56 /* SpendingSummaryBuilderTests.swift */; };
@@ -52,6 +55,7 @@
 		801BE3AAFD81A1053D41A25E /* TimeRangeSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4463FD8A1E32DD5BFE0A1DE0 /* TimeRangeSelector.swift */; };
 		84FA38D05EE9238DA9DE1D63 /* LedgerCSV.swift in Sources */ = {isa = PBXBuildFile; fileRef = F943AB55090DA5FC625FDDCE /* LedgerCSV.swift */; };
 		8988573BBAA08660987B3860 /* LedgerCSVImportPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11A500F3B14EF5196A88166 /* LedgerCSVImportPreviewView.swift */; };
+		89C4B09D964996C014075A0E /* RecurringTransactionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4B7A369710DEA339E81237 /* RecurringTransactionsView.swift */; };
 		8B3F7FC98FD306720BCD012F /* TransactionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AF9EB153395C3ED6C141F0F /* TransactionsView.swift */; };
 		8B758A4941FAF5852511E4F9 /* SampleDataBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC351470D8479B88C7ED3B1C /* SampleDataBootstrap.swift */; };
 		8E63FBF7526B0B4D03FAA527 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0419E6C001B5A485EEC19124 /* SettingsView.swift */; };
@@ -87,6 +91,7 @@
 		EA29901BD187DA9565081042 /* HoldingDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 588A9F0BB7FAC547ED92B4BA /* HoldingDetailView.swift */; };
 		EC3F998AA99BCE0D84734D11 /* ChangePill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EF1586974ED25915B021745 /* ChangePill.swift */; };
 		F35843C1349D299EDB98A11C /* CurrencyFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C253A6FB68486187E60EE4E /* CurrencyFormatters.swift */; };
+		F4EDA58A573E91C71C09CA8B /* RecurringSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C85D01BD56B05FDFFB76D2A7 /* RecurringSchedulerTests.swift */; };
 		F773669490EDB157CA6EF865 /* HoldingDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 588A9F0BB7FAC547ED92B4BA /* HoldingDetailView.swift */; };
 		F7F6FF5C23FF1A11F7FDCFD9 /* AccountEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 084A19E9DC771D9B40D9237E /* AccountEditorView.swift */; };
 		F81422761989F50D05D41BC0 /* TimeRange.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2B55D61A66BCDA0698E2CA5 /* TimeRange.swift */; };
@@ -134,12 +139,14 @@
 		8AF9EB153395C3ED6C141F0F /* TransactionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionsView.swift; sourceTree = "<group>"; };
 		95EE5F46590F13D70F5ACFE1 /* Northstar macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Northstar macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		9D30F69FB20AB4CF02F0612F /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		A1254A1BCFF51DD76DABFD60 /* RecurringScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurringScheduler.swift; sourceTree = "<group>"; };
 		A85F96A81D4EE68C825C91FB /* BenchmarkPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchmarkPicker.swift; sourceTree = "<group>"; };
 		ACF176DCA240527594E7233A /* Northstar iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "Northstar iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF40E92C863DB994829BCC55 /* PortfolioTrendBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioTrendBuilderTests.swift; sourceTree = "<group>"; };
 		BA27EB01ED729D20CB86F76F /* InvestmentCSV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvestmentCSV.swift; sourceTree = "<group>"; };
 		C170DEDF6718D5A4DA996856 /* PortfolioCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioCalculatorTests.swift; sourceTree = "<group>"; };
 		C588072739A513DD9F128247 /* LedgerCSVParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCSVParserTests.swift; sourceTree = "<group>"; };
+		C85D01BD56B05FDFFB76D2A7 /* RecurringSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurringSchedulerTests.swift; sourceTree = "<group>"; };
 		CC351470D8479B88C7ED3B1C /* SampleDataBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleDataBootstrap.swift; sourceTree = "<group>"; };
 		CE5B628AB656DEBBF4875895 /* PriceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceStore.swift; sourceTree = "<group>"; };
 		CF78FB0F998F240B025E7DEF /* NetWorthTrend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetWorthTrend.swift; sourceTree = "<group>"; };
@@ -155,6 +162,7 @@
 		F19031E2F4F2D4C6C108A72A /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		F943AB55090DA5FC625FDDCE /* LedgerCSV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCSV.swift; sourceTree = "<group>"; };
 		F985BA585208C2C4D87C652B /* PortfolioCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioCalculator.swift; sourceTree = "<group>"; };
+		FB4B7A369710DEA339E81237 /* RecurringTransactionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurringTransactionsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -187,6 +195,7 @@
 				8972789965FFBC0AB4C82509 /* NetWorthTrendBuilderTests.swift */,
 				C170DEDF6718D5A4DA996856 /* PortfolioCalculatorTests.swift */,
 				AF40E92C863DB994829BCC55 /* PortfolioTrendBuilderTests.swift */,
+				C85D01BD56B05FDFFB76D2A7 /* RecurringSchedulerTests.swift */,
 				544D8C49994DBBC233D42E56 /* SpendingSummaryBuilderTests.swift */,
 				0B46122484D1277C6C774920 /* TimeRangeTests.swift */,
 			);
@@ -246,6 +255,7 @@
 				6D276F97D640B8735216AA71 /* HoldingsView.swift */,
 				7356B51D3714F41DD4E0CD76 /* InvestmentRecordEditorView.swift */,
 				D11A500F3B14EF5196A88166 /* LedgerCSVImportPreviewView.swift */,
+				FB4B7A369710DEA339E81237 /* RecurringTransactionsView.swift */,
 				8848E4EF76322106A9CF049E /* RootView.swift */,
 				0419E6C001B5A485EEC19124 /* SettingsView.swift */,
 				8AF9EB153395C3ED6C141F0F /* TransactionsView.swift */,
@@ -291,6 +301,7 @@
 				CF78FB0F998F240B025E7DEF /* NetWorthTrend.swift */,
 				F985BA585208C2C4D87C652B /* PortfolioCalculator.swift */,
 				159A14466F06F735C608D234 /* PortfolioTrend.swift */,
+				A1254A1BCFF51DD76DABFD60 /* RecurringScheduler.swift */,
 				CC351470D8479B88C7ED3B1C /* SampleDataBootstrap.swift */,
 				D5405C210AB587CB25BC3596 /* SpendingSummary.swift */,
 				E2B55D61A66BCDA0698E2CA5 /* TimeRange.swift */,
@@ -469,6 +480,8 @@
 				1CA8251B2195DF774CEED71A /* PortfolioCalculator.swift in Sources */,
 				DAA75DFCC14E41D332133A1D /* PortfolioTrend.swift in Sources */,
 				792F567CAA8125FCE017E4DF /* PriceStore.swift in Sources */,
+				2E48AF81DB9B016D94089411 /* RecurringScheduler.swift in Sources */,
+				2DD5509422621499387518CD /* RecurringTransactionsView.swift in Sources */,
 				4711E8168E57B570DF6B2ACE /* RootView.swift in Sources */,
 				CBCBD26623464181DD0226C8 /* SampleDataBootstrap.swift in Sources */,
 				C98AC3167773A48FB51264D0 /* SettingsView.swift in Sources */,
@@ -493,6 +506,7 @@
 				0D189AF6FC96D4DEC7DCAEFA /* NetWorthTrendBuilderTests.swift in Sources */,
 				B67ABDF10E9A04DAB6252B92 /* PortfolioCalculatorTests.swift in Sources */,
 				777E1EE225624088B328A55F /* PortfolioTrendBuilderTests.swift in Sources */,
+				F4EDA58A573E91C71C09CA8B /* RecurringSchedulerTests.swift in Sources */,
 				3F9490165F3F5891AD8F5012 /* SpendingSummaryBuilderTests.swift in Sources */,
 				D1F60B387FC1F9B3F08EDE55 /* TimeRangeTests.swift in Sources */,
 			);
@@ -529,6 +543,8 @@
 				47CD1A4E99AD12997AADCE14 /* PortfolioCalculator.swift in Sources */,
 				CBE12842D8C3DD56B84C7A80 /* PortfolioTrend.swift in Sources */,
 				562EB78BB768B0F7087C5C91 /* PriceStore.swift in Sources */,
+				296EDED90974FACA6C0A3906 /* RecurringScheduler.swift in Sources */,
+				89C4B09D964996C014075A0E /* RecurringTransactionsView.swift in Sources */,
 				DD2395529BA4A7B0B9210657 /* RootView.swift in Sources */,
 				8B758A4941FAF5852511E4F9 /* SampleDataBootstrap.swift in Sources */,
 				8E63FBF7526B0B4D03FAA527 /* SettingsView.swift in Sources */,

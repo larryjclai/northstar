@@ -80,6 +80,14 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("自動化") {
+                    NavigationLink {
+                        RecurringTransactionsView()
+                    } label: {
+                        Label("定期交易", systemImage: "arrow.clockwise.circle")
+                    }
+                }
+
                 Section("資料健檢") {
                     linkageHealthRow
                 }

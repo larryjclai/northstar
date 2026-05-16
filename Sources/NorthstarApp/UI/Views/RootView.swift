@@ -176,6 +176,13 @@ struct RootView: View {
             openAddTransaction()
         }
         LedgerLinkage.backfillIfNeeded(context: modelContext)
+        runDueRecurringTransactions()
+    }
+
+    private func runDueRecurringTransactions() {
+        let descriptor = FetchDescriptor<RecurringTransaction>()
+        guard let templates = try? modelContext.fetch(descriptor) else { return }
+        _ = RecurringScheduler.runDue(templates: templates, context: modelContext)
     }
 
     private func applyRequestedTab() {
