@@ -551,6 +551,9 @@ private struct CashFlowRow: View {
                         Label(account.name, systemImage: "creditcard")
                             .labelStyle(.titleAndIcon)
                     }
+                    if transaction.receipt != nil {
+                        Image(systemName: "paperclip")
+                    }
                     if transaction.note.isEmpty == false {
                         Text("· \(transaction.note)")
                     }
@@ -593,6 +596,7 @@ struct CashFlowEditorView: View {
     @State private var customCategoryText: String
     @State private var selectedAccountID: UUID?
     @State private var note: String
+    @State private var receiptData: Data?
 
     init(editing: LedgerTransaction?, accounts: [Account]) {
         self.editing = editing
@@ -610,6 +614,7 @@ struct CashFlowEditorView: View {
         _amountText = State(initialValue: editing.map { Self.numberString(abs($0.amount)) } ?? "")
         _note = State(initialValue: editing?.note ?? "")
         _selectedAccountID = State(initialValue: editing?.account?.id ?? accounts.first?.id)
+        _receiptData = State(initialValue: editing?.receipt)
 
         let suggestions = LedgerCategoryCatalog.suggestions(for: initialType)
         if let existing = editing?.category, existing.isEmpty == false {
@@ -711,6 +716,8 @@ struct CashFlowEditorView: View {
                     TextField("備註（可選）", text: $note)
                 }
 
+                ReceiptAttachmentSection(receipt: $receiptData)
+
                 if isLockedInvestmentLink {
                     Section {
                         Label("此筆由投資交易自動產生，請至「交易」修改。", systemImage: "lock.fill")
@@ -752,6 +759,7 @@ struct CashFlowEditorView: View {
             editing.category = categoryFinal
             editing.note = trimmedNote
             editing.account = account
+            editing.receipt = receiptData
             if let oldAccount, oldAccount !== account {
                 oldAccount.recomputeBalance()
             }
@@ -763,7 +771,8 @@ struct CashFlowEditorView: View {
                 currency: account.currency,
                 category: categoryFinal,
                 note: trimmedNote,
-                account: account
+                account: account,
+                receipt: receiptData
             )
             modelContext.insert(txn)
             account.recomputeBalance()

@@ -90,6 +90,7 @@ final class LedgerTransaction {
     var note: String
     var account: Account?
     var linkedInvestmentRecordID: UUID?
+    @Attribute(.externalStorage) var receipt: Data?
 
     init(
         id: UUID = UUID(),
@@ -99,7 +100,8 @@ final class LedgerTransaction {
         category: String = "",
         note: String = "",
         account: Account? = nil,
-        linkedInvestmentRecordID: UUID? = nil
+        linkedInvestmentRecordID: UUID? = nil,
+        receipt: Data? = nil
     ) {
         self.id = id
         self.date = date
@@ -109,6 +111,7 @@ final class LedgerTransaction {
         self.note = note
         self.account = account
         self.linkedInvestmentRecordID = linkedInvestmentRecordID
+        self.receipt = receipt
     }
 }
 
