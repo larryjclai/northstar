@@ -1,0 +1,134 @@
+{
+  "sourceLanguage" : "zh-Hant",
+  "strings" : {
+    "Dashboard" : {
+      "comment" : "Sidebar / window title for the main overview screen",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Dashboard" }
+        },
+        "zh-Hant" : {
+          "stringUnit" : { "state" : "translated", "value" : "總覽" }
+        }
+      }
+    },
+    "Settings" : {
+      "comment" : "Settings screen title",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Settings" }
+        },
+        "zh-Hant" : {
+          "stringUnit" : { "state" : "translated", "value" : "設定" }
+        }
+      }
+    },
+    "交易" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Transactions" }
+        }
+      }
+    },
+    "持倉" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Holdings" }
+        }
+      }
+    },
+    "收支" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Cash Flow" }
+        }
+      }
+    },
+    "帳戶" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Accounts" }
+        }
+      }
+    },
+    "新增" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Add" }
+        }
+      }
+    },
+    "取消" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Cancel" }
+        }
+      }
+    },
+    "儲存" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Save" }
+        }
+      }
+    },
+    "刪除" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Delete" }
+        }
+      }
+    },
+    "更新" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Update" }
+        }
+      }
+    },
+    "確認匯入" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Confirm Import" }
+        }
+      }
+    },
+    "匯入 CSV" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Import CSV" }
+        }
+      }
+    },
+    "匯出 CSV" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Export CSV" }
+        }
+      }
+    },
+    "定期交易" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Recurring Transactions" }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

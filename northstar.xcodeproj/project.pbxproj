@@ -66,7 +66,9 @@
 		93A435D46A123FEB0E2ABD60 /* LedgerCSVImportPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11A500F3B14EF5196A88166 /* LedgerCSVImportPreviewView.swift */; };
 		9A5E51EAE7560F971A2B0BA1 /* TimeRangeSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4463FD8A1E32DD5BFE0A1DE0 /* TimeRangeSelector.swift */; };
 		9A74CEB59011FD096C6D2EA8 /* HoldingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D276F97D640B8735216AA71 /* HoldingsView.swift */; };
+		A05B1CFE209AC99B43C91281 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = FC0B18DC439F01A6ADABA707 /* Localizable.xcstrings */; };
 		A19B527D3C40AC04B04EC45C /* LedgerLinkage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69C284A88D96E78B8D97DEED /* LedgerLinkage.swift */; };
+		A572BC85D043CC8910388DF7 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = FC0B18DC439F01A6ADABA707 /* Localizable.xcstrings */; };
 		AB677BBD11158A57F7A5D4BE /* NorthstarTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30417D4F4F2DA28BD96FABF8 /* NorthstarTheme.swift */; };
 		ACE3B5990CC0274016558571 /* CurrencyFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C253A6FB68486187E60EE4E /* CurrencyFormatters.swift */; };
 		AF96C81E2277BE5A9B02EFC0 /* LedgerCSVParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C588072739A513DD9F128247 /* LedgerCSVParserTests.swift */; };
@@ -166,6 +168,7 @@
 		F943AB55090DA5FC625FDDCE /* LedgerCSV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCSV.swift; sourceTree = "<group>"; };
 		F985BA585208C2C4D87C652B /* PortfolioCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioCalculator.swift; sourceTree = "<group>"; };
 		FB4B7A369710DEA339E81237 /* RecurringTransactionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurringTransactionsView.swift; sourceTree = "<group>"; };
+		FC0B18DC439F01A6ADABA707 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -209,6 +212,7 @@
 			isa = PBXGroup;
 			children = (
 				7F9D14496EA17072DABC3C59 /* Assets.xcassets */,
+				FC0B18DC439F01A6ADABA707 /* Localizable.xcstrings */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -418,6 +422,7 @@
 			knownRegions = (
 				Base,
 				en,
+				"zh-Hant",
 			);
 			mainGroup = C8646668362A1CFF19FDF7FC;
 			minimizedProjectReferenceProxies = 1;
@@ -439,6 +444,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CC2D728459CE504F3EA47071 /* Assets.xcassets in Resources */,
+				A572BC85D043CC8910388DF7 /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -447,6 +453,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				FBEE3B54B8960DFA23CF1971 /* Assets.xcassets in Resources */,
+				A05B1CFE209AC99B43C91281 /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
