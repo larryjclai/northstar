@@ -77,15 +77,15 @@
 - ✅ TimeRange 切到 ALL 加 footnote「目前以 Yahoo 1 年 history 為上限」。
 - ✅ Dashboard 加一張 **本月敘事卡**：收入 X / 支出 Y / 淨流入 Z / 最大支出類別 W / 投資淨流入 V，把現在散落的卡整合成一句話。
 
-### 4.8 Holdings 列表的排序、篩選與風險提示 — `[新]`
-- 排序維度可選：市值 / 報酬率 / 持股比重 / 名稱 / 最近活動。
-- 篩選：幣別 / 交易所（TW vs US） / 獲利 vs 虧損。
-- **集中度警示**：單一持股佔比 > 30%（threshold 可調）顯示淡色橫條，呼應「方向感」品牌。
+### 4.8 Holdings 列表的排序、篩選與風險提示 — `[新]` ✅
+- ✅ 排序維度可選：市值 / 報酬率 / 持股比重 / 名稱 / 最近活動。
+- ✅ 篩選：幣別 / 交易所（TW vs US） / 獲利 vs 虧損。
+- ✅ **集中度警示**：單一持股佔比 > 30%（threshold 可調）顯示淡色橫條，呼應「方向感」品牌。
 
-### 4.9 Apple 平台原生面 — `[新]`（PRD 第 4 條原則：Native first）
-- **Widget**：淨值（小 / 中）、本月收支（小）、單一持股（中）。
-- **Spotlight 整合**：讓 ledger / investment record 出現在 Spotlight 搜尋。
-- **Local notifications**：定期交易執行當日通知（不是只在啟動時 silent 跑）、月初推送上月結算。
+### 4.9 Apple 平台原生面 — `[新]`（PRD 第 4 條原則：Native first） ✅
+- ✅ **Widget**：淨值（小 / 中）、本月收支（小）、單一持股（中）。
+- ✅ **Spotlight 整合**：讓 ledger / investment record 出現在 Spotlight 搜尋。
+- ✅ **Local notifications**：定期交易執行當日通知（不是只在啟動時 silent 跑）、月初推送上月結算。
 - Live Activity / Watch：列入 backlog，不在 Phase 4 必做。
 
 ### 4.10 iOS layout 收尾 — `[H]`

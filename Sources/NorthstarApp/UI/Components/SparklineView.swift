@@ -207,7 +207,8 @@ struct SparklineView: View {
         geo: GeometryProxy,
         comparisonValues: [Double]
     ) {
-        let origin = geo[proxy.plotAreaFrame].origin
+        guard let plotFrame = proxy.plotFrame else { return }
+        let origin = geo[plotFrame].origin
         let plotX = location.x - origin.x
         guard let index: Int = proxy.value(atX: plotX) else { return }
         let clamped = max(0, min(values.count - 1, index))

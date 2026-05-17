@@ -1,12 +1,73 @@
 import SwiftUI
 import SwiftData
 
+private enum HoldingsSort: String, CaseIterable, Identifiable {
+    case marketValue
+    case returnRate
+    case weight
+    case name
+    case recentActivity
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .marketValue: return "市值"
+        case .returnRate: return "報酬率"
+        case .weight: return "持股比重"
+        case .name: return "名稱"
+        case .recentActivity: return "最近活動"
+        }
+    }
+}
+
+private enum HoldingsCurrencyFilter {
+    static let all = "ALL"
+}
+
+private enum HoldingsExchangeFilter: String, CaseIterable, Identifiable {
+    case all
+    case taiwan
+    case us
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .all: return "全部交易所"
+        case .taiwan: return "台股"
+        case .us: return "美股"
+        }
+    }
+}
+
+private enum HoldingsPerformanceFilter: String, CaseIterable, Identifiable {
+    case all
+    case gain
+    case loss
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .all: return "全部損益"
+        case .gain: return "獲利"
+        case .loss: return "虧損"
+        }
+    }
+}
+
 struct HoldingsView: View {
     let priceStore: PriceStore
     let fxStore: FXRateStore
     let requestAdd: (AddSheetKind) -> Void
 
     @AppStorage(IntentRoutingKeys.baseCurrency) private var baseCurrency: String = BaseCurrencyDefaults.default
+    @AppStorage("northstar.holdings.sort") private var holdingsSortRaw: String = HoldingsSort.marketValue.rawValue
+    @AppStorage("northstar.holdings.currencyFilter") private var currencyFilter: String = HoldingsCurrencyFilter.all
+    @AppStorage("northstar.holdings.exchangeFilter") private var exchangeFilterRaw: String = HoldingsExchangeFilter.all.rawValue
+    @AppStorage("northstar.holdings.performanceFilter") private var performanceFilterRaw: String = HoldingsPerformanceFilter.all.rawValue
+    @AppStorage("northstar.holdings.concentrationThreshold") private var concentrationThreshold: Double = 0.30
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
 
     @AppStorage(IntentRoutingKeys.holdingsTimeRange) private var selectedRange: TimeRange = .month
@@ -29,6 +90,21 @@ struct HoldingsView: View {
         PortfolioCalculator.holdings(assets: assets, prices: priceStore.prices)
     }
 
+    private var holdingsSort: HoldingsSort {
+        get { HoldingsSort(rawValue: holdingsSortRaw) ?? .marketValue }
+        nonmutating set { holdingsSortRaw = newValue.rawValue }
+    }
+
+    private var exchangeFilter: HoldingsExchangeFilter {
+        get { HoldingsExchangeFilter(rawValue: exchangeFilterRaw) ?? .all }
+        nonmutating set { exchangeFilterRaw = newValue.rawValue }
+    }
+
+    private var performanceFilter: HoldingsPerformanceFilter {
+        get { HoldingsPerformanceFilter(rawValue: performanceFilterRaw) ?? .all }
+        nonmutating set { performanceFilterRaw = newValue.rawValue }
+    }
+
     private var summary: PortfolioSummary {
         PortfolioCalculator.summary(from: holdings)
     }
@@ -37,6 +113,10 @@ struct HoldingsView: View {
         Array(Set(assets.map { $0.currency.uppercased() }))
             .filter { $0.isEmpty == false }
             .sorted()
+    }
+
+    private var currencyFilterOptions: [String] {
+        [HoldingsCurrencyFilter.all] + portfolioCurrencies
     }
 
     private var holdingsValueBase: Double {
@@ -67,9 +147,53 @@ struct HoldingsView: View {
         holdingsValueBase - holdingsCostBase
     }
 
+    private var visibleHoldings: [HoldingSnapshot] {
+        let filtered = holdings.filter { holding in
+            let holdingCurrency = currency(for: holding.ticker).uppercased()
+            if currencyFilter != HoldingsCurrencyFilter.all && holdingCurrency != currencyFilter {
+                return false
+            }
+
+            switch exchangeFilter {
+            case .all:
+                break
+            case .taiwan:
+                guard exchange(for: holding) == .taiwan else { return false }
+            case .us:
+                guard exchange(for: holding) == .us else { return false }
+            }
+
+            switch performanceFilter {
+            case .all:
+                return true
+            case .gain:
+                return holding.unrealizedPnL >= 0
+            case .loss:
+                return holding.unrealizedPnL < 0
+            }
+        }
+
+        return filtered.sorted { lhs, rhs in
+            switch holdingsSort {
+            case .marketValue, .weight:
+                return baseMarketValue(for: lhs) > baseMarketValue(for: rhs)
+            case .returnRate:
+                if lhs.unrealizedReturn == rhs.unrealizedReturn { return lhs.ticker < rhs.ticker }
+                return lhs.unrealizedReturn > rhs.unrealizedReturn
+            case .name:
+                let lhsName = displayName(for: lhs.ticker)
+                let rhsName = displayName(for: rhs.ticker)
+                if lhsName == rhsName { return lhs.ticker < rhs.ticker }
+                return lhsName.localizedStandardCompare(rhsName) == .orderedAscending
+            case .recentActivity:
+                return latestActivityDate(for: lhs.ticker) > latestActivityDate(for: rhs.ticker)
+            }
+        }
+    }
+
     var body: some View {
         let symbols = tickerSymbols
-        let snapshots = holdings
+        let snapshots = visibleHoldings
         let currencies = portfolioCurrencies
 
         NavigationStack {
@@ -129,16 +253,109 @@ struct HoldingsView: View {
                 investmentsHero
                 statusBanner
 
-                if snapshots.isEmpty {
+                if holdings.isEmpty {
                     emptyState
                 } else {
-                    investmentAccountsSection(snapshots)
-                    allocationSection(snapshots)
-                    holdingsTableSection(snapshots)
+                    holdingsControls(visibleCount: snapshots.count)
+                    if snapshots.isEmpty {
+                        filteredEmptyState
+                    } else {
+                        investmentAccountsSection(snapshots)
+                        allocationSection(snapshots)
+                        holdingsTableSection(snapshots)
+                    }
                 }
             }
             .padding(28)
         }
+    }
+
+    private func holdingsControls(visibleCount: Int) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("整理持倉")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(NorthstarTheme.primaryText)
+                    Text("顯示 \(visibleCount) / \(holdings.count) 個標的")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(NorthstarTheme.mutedText)
+                }
+
+                Spacer()
+
+                Picker("排序", selection: holdingsSortBinding) {
+                    ForEach(HoldingsSort.allCases) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+            }
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], spacing: 10) {
+                Picker("幣別", selection: $currencyFilter) {
+                    ForEach(currencyFilterOptions, id: \.self) { option in
+                        Text(option == HoldingsCurrencyFilter.all ? "全部幣別" : option).tag(option)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                Picker("交易所", selection: exchangeFilterBinding) {
+                    ForEach(HoldingsExchangeFilter.allCases) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                Picker("損益", selection: performanceFilterBinding) {
+                    ForEach(HoldingsPerformanceFilter.allCases) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("集中度警示門檻", systemImage: "exclamationmark.triangle")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(NorthstarTheme.mutedText)
+                    Spacer()
+                    Text(CurrencyFormatters.percent(concentrationThreshold))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(NorthstarTheme.primaryText)
+                        .monospacedDigit()
+                }
+
+                Slider(value: $concentrationThreshold, in: 0.10...0.60, step: 0.05)
+                    .tint(NorthstarTheme.warning)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .northstarCardSurface()
+    }
+
+    private var holdingsSortBinding: Binding<HoldingsSort> {
+        Binding(
+            get: { holdingsSort },
+            set: { holdingsSort = $0 }
+        )
+    }
+
+    private var exchangeFilterBinding: Binding<HoldingsExchangeFilter> {
+        Binding(
+            get: { exchangeFilter },
+            set: { exchangeFilter = $0 }
+        )
+    }
+
+    private var performanceFilterBinding: Binding<HoldingsPerformanceFilter> {
+        Binding(
+            get: { performanceFilter },
+            set: { performanceFilter = $0 }
+        )
     }
 
     private var investmentsHero: some View {
@@ -230,7 +447,7 @@ struct HoldingsView: View {
             SectionHeader(title: "Allocation", trailing: "BY PERCENTAGE")
 
             ForEach(snapshots.prefix(4)) { holding in
-                let ratio = summary.totalMarketValue == 0 ? 0 : holding.marketValue / summary.totalMarketValue
+                let ratio = portfolioWeight(for: holding)
                 HStack(spacing: 14) {
                     Text(assetType(for: holding.ticker))
                         .font(.subheadline.weight(.semibold))
@@ -262,6 +479,7 @@ struct HoldingsView: View {
             SectionHeader(title: "Holdings", trailing: "LAST PRICE")
 
             ForEach(snapshots) { holding in
+                let weight = portfolioWeight(for: holding)
                 NavigationLink {
                     HoldingDetailView(ticker: holding.ticker, priceStore: priceStore, fxStore: fxStore)
                 } label: {
@@ -270,7 +488,9 @@ struct HoldingsView: View {
                         name: displayName(for: holding.ticker),
                         currency: currency(for: holding.ticker),
                         sparkline: priceStore.sparklines[holding.ticker] ?? [],
-                        type: assetType(for: holding.ticker)
+                        type: assetType(for: holding.ticker),
+                        portfolioWeight: weight,
+                        concentrationThreshold: concentrationThreshold
                     )
                 }
                 .buttonStyle(.plain)
@@ -419,12 +639,48 @@ struct HoldingsView: View {
         .northstarCardSurface()
     }
 
+    private var filteredEmptyState: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("沒有符合篩選條件的持倉")
+                .font(.headline)
+                .foregroundStyle(NorthstarTheme.primaryText)
+            Text("調整幣別、交易所或獲利 / 虧損篩選，就能回到完整清單。")
+                .font(.subheadline)
+                .foregroundStyle(NorthstarTheme.secondaryText)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .northstarCardSurface()
+    }
+
     private func currency(for ticker: String) -> String {
         priceStore.quote(for: ticker)?.currency ?? assets.first(where: { $0.ticker == ticker })?.currency ?? "TWD"
     }
 
     private func displayName(for ticker: String) -> String {
         priceStore.quote(for: ticker)?.name ?? assets.first(where: { $0.ticker == ticker })?.name ?? ticker
+    }
+
+    private func baseMarketValue(for holding: HoldingSnapshot) -> Double {
+        fxStore.convert(holding.marketValue, from: currency(for: holding.ticker), to: baseCurrency) ?? 0
+    }
+
+    private func portfolioWeight(for holding: HoldingSnapshot) -> Double {
+        guard holdingsValueBase > 0 else { return 0 }
+        return baseMarketValue(for: holding) / holdingsValueBase
+    }
+
+    private func latestActivityDate(for ticker: String) -> Date {
+        assets.first(where: { $0.ticker == ticker })?.records.map(\.date).max() ?? .distantPast
+    }
+
+    private func exchange(for holding: HoldingSnapshot) -> HoldingsExchangeFilter {
+        let ticker = holding.ticker.uppercased()
+        let c = currency(for: holding.ticker).uppercased()
+        if ticker.hasSuffix(".TW") || ticker.hasSuffix(".TWO") || c == "TWD" {
+            return .taiwan
+        }
+        return .us
     }
 
     private func updatedText(for ticker: String) -> String {
@@ -504,40 +760,73 @@ private struct HoldingTableRow: View {
     let currency: String
     let sparkline: [Double]
     let type: String
+    let portfolioWeight: Double
+    let concentrationThreshold: Double
 
     private var positive: Bool {
         holding.unrealizedPnL >= 0
     }
 
+    private var isConcentrated: Bool {
+        portfolioWeight >= concentrationThreshold
+    }
+
     var body: some View {
-        HStack(spacing: 14) {
-            Text(holding.ticker)
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(NorthstarTheme.mutedText)
-                .frame(width: 68, alignment: .leading)
-            Text(name)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(NorthstarTheme.primaryText)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Text(type)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(NorthstarTheme.mutedText)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .stroke(Color.nsBorder, lineWidth: 1)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 14) {
+                Text(holding.ticker)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(NorthstarTheme.mutedText)
+                    .frame(width: 68, alignment: .leading)
+                Text(name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(NorthstarTheme.primaryText)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(type)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NorthstarTheme.mutedText)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .stroke(Color.nsBorder, lineWidth: 1)
+                    }
+                SparklineView(values: sparkline, color: positive ? NorthstarTheme.growth : NorthstarTheme.risk)
+                    .frame(width: 82, height: 30)
+                ChangePill(text: CurrencyFormatters.percent(holding.unrealizedReturn), positive: positive)
+                Text(CurrencyFormatters.percent(portfolioWeight))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(isConcentrated ? NorthstarTheme.warning : NorthstarTheme.mutedText)
+                    .monospacedDigit()
+                    .frame(width: 60, alignment: .trailing)
+                Text(CurrencyFormatters.price(holding.marketPrice, currencyCode: currency))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(NorthstarTheme.primaryText)
+                    .monospacedDigit()
+                    .frame(width: 86, alignment: .trailing)
+            }
+
+            if isConcentrated {
+                HStack(spacing: 8) {
+                    GeometryReader { proxy in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(NorthstarTheme.warning.opacity(0.14))
+                            Capsule()
+                                .fill(NorthstarTheme.warning.opacity(0.62))
+                                .frame(width: max(8, proxy.size.width * min(portfolioWeight, 1)))
+                        }
+                    }
+                    .frame(height: 6)
+
+                    Text("集中度偏高")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(NorthstarTheme.warning)
                 }
-            SparklineView(values: sparkline, color: positive ? NorthstarTheme.growth : NorthstarTheme.risk)
-                .frame(width: 82, height: 30)
-            ChangePill(text: CurrencyFormatters.percent(holding.unrealizedReturn), positive: positive)
-            Text(CurrencyFormatters.price(holding.marketPrice, currencyCode: currency))
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(NorthstarTheme.primaryText)
-                .monospacedDigit()
-                .frame(width: 86, alignment: .trailing)
+                .transition(.opacity)
+            }
         }
+        .padding(.vertical, 4)
     }
 }
 

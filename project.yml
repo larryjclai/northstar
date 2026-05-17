@@ -50,11 +50,13 @@ targets:
     deploymentTarget: "17.0"
     sources:
       - path: Sources/NorthstarApp
+      - path: Sources/NorthstarShared
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: Sources/NorthstarApp/Resources/Northstar-iOS.entitlements
         CURRENT_PROJECT_VERSION: 1
         DEVELOPMENT_TEAM: ""
         ENABLE_PREVIEWS: YES
@@ -67,6 +69,9 @@ targets:
         SDKROOT: iphoneos
         SUPPORTED_PLATFORMS: iphoneos iphonesimulator
         TARGETED_DEVICE_FAMILY: "1,2"
+    dependencies:
+      - target: Northstar Widgets
+        embed: true
 
   Northstar macOS:
     type: application
@@ -74,6 +79,7 @@ targets:
     deploymentTarget: "14.0"
     sources:
       - path: Sources/NorthstarApp
+      - path: Sources/NorthstarShared
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -90,6 +96,27 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.northstar.mac
         SDKROOT: macosx
         SUPPORTED_PLATFORMS: macosx
+
+  Northstar Widgets:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Sources/NorthstarWidgets
+      - path: Sources/NorthstarShared
+    settings:
+      base:
+        APPLICATION_EXTENSION_API_ONLY: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: Sources/NorthstarWidgets/NorthstarWidgets.entitlements
+        CURRENT_PROJECT_VERSION: 1
+        DEVELOPMENT_TEAM: ""
+        INFOPLIST_FILE: Sources/NorthstarWidgets/Info.plist
+        MARKETING_VERSION: "1.0"
+        PRODUCT_BUNDLE_IDENTIFIER: com.northstar.ios.widgets
+        SDKROOT: iphoneos
+        SKIP_INSTALL: YES
+        SUPPORTED_PLATFORMS: iphoneos iphonesimulator
 
   NorthstarTests:
     type: bundle.unit-test
@@ -113,6 +140,7 @@ schemes:
     build:
       targets:
         Northstar iOS: all
+        Northstar Widgets: all
     run:
       config: Debug
     archive:

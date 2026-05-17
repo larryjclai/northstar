@@ -7,6 +7,7 @@ struct RootView: View {
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
     @Query(sort: \InvestmentRecord.date, order: .reverse) private var records: [InvestmentRecord]
     @Query(sort: \LedgerTransaction.date, order: .reverse) private var ledgerTransactions: [LedgerTransaction]
+    @Query(sort: \RecurringTransaction.nextRunDate) private var recurringTransactions: [RecurringTransaction]
     @State private var priceStore = PriceStore()
     @State private var fxStore = FXRateStore()
     @AppStorage(IntentRoutingKeys.selectedTab) private var requestedTabRaw = NorthstarTab.dashboard.rawValue
@@ -194,12 +195,34 @@ struct RootView: View {
         consumeRequestedAddKind(requestedAddKindRaw)
         LedgerLinkage.backfillIfNeeded(context: modelContext)
         runDueRecurringTransactions()
+        refreshNativeSurfaces()
     }
 
     private func runDueRecurringTransactions() {
         let descriptor = FetchDescriptor<RecurringTransaction>()
         guard let templates = try? modelContext.fetch(descriptor) else { return }
         _ = RecurringScheduler.runDue(templates: templates, context: modelContext)
+    }
+
+    private func refreshNativeSurfaces() {
+        NativeSurfaceSync.refresh(
+            accounts: accounts,
+            assets: assets,
+            records: records,
+            ledgerTransactions: ledgerTransactions,
+            recurringTemplates: recurringTransactions,
+            holdings: PortfolioCalculator.holdings(assets: assets, prices: priceStore.prices),
+            baseCurrency: baseCurrency,
+            displayName: { ticker in
+                priceStore.quote(for: ticker)?.name ?? assets.first(where: { $0.ticker == ticker })?.name ?? ticker
+            },
+            currency: { ticker in
+                priceStore.quote(for: ticker)?.currency ?? assets.first(where: { $0.ticker == ticker })?.currency ?? "TWD"
+            },
+            convert: { amount, from, to in
+                fxStore.convert(amount, from: from, to: to)
+            }
+        )
     }
 
     private func applyRequestedTab() {
