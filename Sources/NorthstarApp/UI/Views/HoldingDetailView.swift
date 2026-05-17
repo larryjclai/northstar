@@ -70,11 +70,16 @@ struct HoldingDetailView: View {
             }
     }
 
+    private var fifoReplay: (open: [OpenLot], realized: [RealizedLot]) {
+        FIFOCalculator.replay(records: records)
+    }
+
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 18) {
                 heroCard
                 positionMetrics
+                fifoSection
                 transactionsSection
             }
             .padding(20)
@@ -237,6 +242,114 @@ struct HoldingDetailView: View {
                 .foregroundStyle(tint)
                 .monospacedDigit()
         }
+    }
+
+    @ViewBuilder
+    private var fifoSection: some View {
+        let replay = fifoReplay
+        if replay.open.isEmpty && replay.realized.isEmpty {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 18) {
+                if replay.open.isEmpty == false {
+                    openLotsCard(replay.open)
+                }
+                if replay.realized.isEmpty == false {
+                    realizedLotsCard(replay.realized)
+                }
+            }
+        }
+    }
+
+    private func openLotsCard(_ lots: [OpenLot]) -> some View {
+        let marketPrice = priceStore.prices[ticker] ?? asset?.averageCost ?? 0
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("FIFO 持倉批次（\(lots.count)）")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(NorthstarTheme.primaryText)
+                Spacer()
+                Text("依買入順序")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NorthstarTheme.mutedText)
+            }
+
+            ForEach(lots) { lot in
+                let marketValue = marketPrice * lot.quantity
+                let unrealized = marketValue - lot.costBasis
+                let returnRate = lot.costBasis == 0 ? 0 : unrealized / lot.costBasis
+                HStack(alignment: .center, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(lot.acquiredDate.formatted(date: .abbreviated, time: .omitted))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(NorthstarTheme.primaryText)
+                        Text("\(formattedQuantity(lot.quantity)) 股 · 成本 \(CurrencyFormatters.price(lot.costPerShare, currencyCode: nativeCurrency))")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(NorthstarTheme.mutedText)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text(CurrencyFormatters.signedMoney(unrealized, currencyCode: nativeCurrency))
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(unrealized >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk)
+                            .monospacedDigit()
+                        Text(CurrencyFormatters.percent(returnRate))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(NorthstarTheme.secondaryText)
+                            .monospacedDigit()
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .northstarCardSurface()
+    }
+
+    private func realizedLotsCard(_ lots: [RealizedLot]) -> some View {
+        let total = lots.reduce(0.0) { $0 + $1.realizedPnL }
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("FIFO 已實現批次（\(lots.count)）")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(NorthstarTheme.primaryText)
+                Spacer()
+                Text(CurrencyFormatters.signedMoney(total, currencyCode: nativeCurrency))
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(total >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk)
+                    .monospacedDigit()
+            }
+
+            ForEach(lots) { lot in
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text("\(lot.acquiredDate.formatted(date: .abbreviated, time: .omitted)) → \(lot.soldDate.formatted(date: .abbreviated, time: .omitted))")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(NorthstarTheme.primaryText)
+                        Spacer()
+                        Text(CurrencyFormatters.signedMoney(lot.realizedPnL, currencyCode: nativeCurrency))
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(lot.realizedPnL >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk)
+                            .monospacedDigit()
+                    }
+                    Text("\(formattedQuantity(lot.quantity)) 股 · 成本 \(CurrencyFormatters.price(lot.costPerShare, currencyCode: nativeCurrency)) → 出售 \(CurrencyFormatters.price(lot.salePrice, currencyCode: nativeCurrency)) · 持有 \(lot.holdingDays) 天")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(NorthstarTheme.mutedText)
+                }
+                .padding(.vertical, 4)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .northstarCardSurface()
+    }
+
+    private func formattedQuantity(_ value: Double) -> String {
+        if value == value.rounded() {
+            return String(Int(value))
+        }
+        return String(format: "%.2f", value)
     }
 
     private var transactionsSection: some View {
