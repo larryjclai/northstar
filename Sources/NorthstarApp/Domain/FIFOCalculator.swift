@@ -111,6 +111,14 @@ enum FIFOCalculator {
                             : 0
                     }
                 }
+
+            case .stockSplit:
+                let ratio = record.quantity
+                guard ratio > 0 else { continue }
+                for index in lots.indices {
+                    lots[index].quantity *= ratio
+                    lots[index].costPerShare /= ratio
+                }
             }
         }
 

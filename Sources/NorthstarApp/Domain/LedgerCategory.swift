@@ -70,6 +70,13 @@ enum LedgerCategoryCatalog {
     /// Categories used internally for reconciliation.
     static let adjustmentCategories: Set<String> = ["對帳調整"]
 
+    /// Categories that should be excluded from real-income / real-expense totals.
+    /// Investment-linked rows are produced by the linkage engine (not user spending) and
+    /// transfer / FX-exchange rows are internal money movements between the user's own
+    /// accounts — counting either would double-count or fabricate income.
+    static let excludedFromCashFlowTotals: Set<String> = investmentLinkedCategories
+        .union(["轉帳", "對帳調整", "外幣兌換"])
+
     static func suggestions(for type: LedgerEntryType) -> [String] {
         switch type {
         case .income: return incomeCategories

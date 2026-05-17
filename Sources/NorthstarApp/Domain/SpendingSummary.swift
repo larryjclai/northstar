@@ -47,6 +47,9 @@ enum SpendingSummaryBuilder {
 
         for txn in transactions {
             guard txn.linkedInvestmentRecordID == nil else { continue }
+            // Transfers / FX-exchange rows are internal money movements — counting them
+            // would fabricate income on the destination leg and expense on the source.
+            guard LedgerCategoryCatalog.excludedFromCashFlowTotals.contains(txn.category) == false else { continue }
             guard txn.date >= start && txn.date < end else { continue }
             guard let converted = convert(txn.amount, txn.currency, baseCurrency) else { continue }
             count += 1

@@ -69,6 +69,11 @@ enum PortfolioCalculator {
                     avgCost = 0
                 }
                 quantity = newQuantity
+            case .stockSplit:
+                let ratio = record.quantity
+                guard ratio > 0 else { continue }
+                quantity *= ratio
+                avgCost /= ratio
             }
         }
 
@@ -144,6 +149,11 @@ enum PortfolioCalculator {
                     avgCost = 0
                 }
                 quantity = newQuantity
+            case .stockSplit:
+                let ratio = record.quantity
+                guard ratio > 0 else { continue }
+                quantity *= ratio
+                avgCost /= ratio
             }
         }
         return RealizedSummary(realizedFromSales: sales, dividendIncome: dividends)

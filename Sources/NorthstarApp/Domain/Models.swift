@@ -7,8 +7,42 @@ enum InvestmentAction: String, Codable, CaseIterable, Identifiable {
     case cashDividend = "CashDividend"
     case stockDividend = "StockDividend"
     case capitalReduction = "CapitalReduction"
+    case stockSplit = "StockSplit"
 
     var id: String { rawValue }
+}
+
+enum AccountType: String, Codable, CaseIterable, Identifiable {
+    case depository = "Depository"
+    case cash = "Cash"
+    case credit = "Credit"
+    case loan = "Loan"
+    case investment = "Investment"
+    case other = "Other"
+
+    var id: String { rawValue }
+
+    var displayTitle: String {
+        switch self {
+        case .depository: return "儲蓄/活存"
+        case .cash: return "現金"
+        case .credit: return "信用卡"
+        case .loan: return "負債/貸款"
+        case .investment: return "投資"
+        case .other: return "其他"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .depository: return "building.columns.fill"
+        case .cash: return "banknote.fill"
+        case .credit: return "creditcard.fill"
+        case .loan: return "arrow.down.right.circle.fill"
+        case .investment: return "chart.bar.fill"
+        case .other: return "tray.fill"
+        }
+    }
 }
 
 @Model
@@ -18,23 +52,31 @@ final class Account {
     var currency: String
     var balance: Double
     var openingBalance: Double = 0
+    var typeRawValue: String = AccountType.depository.rawValue
     @Relationship(deleteRule: .cascade, inverse: \InvestmentRecord.linkedAccount)
     var investmentRecords: [InvestmentRecord] = []
     @Relationship(deleteRule: .cascade, inverse: \LedgerTransaction.account)
     var transactions: [LedgerTransaction] = []
+
+    var type: AccountType {
+        get { AccountType(rawValue: typeRawValue) ?? .depository }
+        set { typeRawValue = newValue.rawValue }
+    }
 
     init(
         id: UUID = UUID(),
         name: String,
         currency: String,
         balance: Double = 0,
-        openingBalance: Double = 0
+        openingBalance: Double = 0,
+        type: AccountType = .depository
     ) {
         self.id = id
         self.name = name
         self.currency = currency
         self.balance = balance
         self.openingBalance = openingBalance
+        self.typeRawValue = type.rawValue
     }
 
     func recomputeBalance() {
@@ -90,6 +132,12 @@ final class LedgerTransaction {
     var note: String
     var account: Account?
     var linkedInvestmentRecordID: UUID?
+    /// When non-nil, this row is part of a split group: a single user-facing entry that
+    /// the editor stores as N sibling rows sharing the same groupID, date, and account.
+    var groupID: UUID?
+    /// Manual review flag — set by user via bulk action. Distinct from investment records'
+    /// own isReviewed (which mirrors broker reconciliation), so we just keep parallel state.
+    var isReviewed: Bool = false
     @Attribute(.externalStorage) var receipt: Data?
 
     init(
@@ -101,6 +149,8 @@ final class LedgerTransaction {
         note: String = "",
         account: Account? = nil,
         linkedInvestmentRecordID: UUID? = nil,
+        groupID: UUID? = nil,
+        isReviewed: Bool = false,
         receipt: Data? = nil
     ) {
         self.id = id
@@ -111,6 +161,8 @@ final class LedgerTransaction {
         self.note = note
         self.account = account
         self.linkedInvestmentRecordID = linkedInvestmentRecordID
+        self.groupID = groupID
+        self.isReviewed = isReviewed
         self.receipt = receipt
     }
 }

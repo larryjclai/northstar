@@ -36,7 +36,7 @@ enum LedgerLinkage {
         guard let assetCurrency, let accountCurrency else { return .none }
 
         switch action {
-        case .stockDividend, .capitalReduction:
+        case .stockDividend, .capitalReduction, .stockSplit:
             return .none
         case .buy, .sell, .cashDividend:
             break
@@ -52,7 +52,7 @@ enum LedgerLinkage {
         case .buy: signedAmount = -(gross + fee)
         case .sell: signedAmount = gross - fee
         case .cashDividend: signedAmount = gross - fee
-        case .stockDividend, .capitalReduction: signedAmount = 0
+        case .stockDividend, .capitalReduction, .stockSplit: signedAmount = 0
         }
 
         return signedAmount == 0 ? .none : .amount(signedAmount)
@@ -172,6 +172,7 @@ enum LedgerLinkage {
         case .cashDividend: return "股利"
         case .stockDividend: return "配股"
         case .capitalReduction: return "減資"
+        case .stockSplit: return "股票分割"
         }
     }
 
@@ -184,6 +185,7 @@ enum LedgerLinkage {
         case .cashDividend: actionTitle = "現金股利"
         case .stockDividend: actionTitle = "股票股利"
         case .capitalReduction: actionTitle = "減資"
+        case .stockSplit: actionTitle = "股票分割"
         }
         return "\(ticker) \(actionTitle)"
     }

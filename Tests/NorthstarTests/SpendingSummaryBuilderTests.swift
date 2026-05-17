@@ -86,6 +86,24 @@ final class SpendingSummaryBuilderTests: XCTestCase {
         XCTAssertEqual(summary.transactionCount, 1)
     }
 
+    func testExcludesTransferRows() {
+        let ref = ISO8601DateFormatter().date(from: "2026-05-15T00:00:00Z")!
+        let txns = [
+            makeTxn(date: ref, amount: -5_000, category: "轉帳"),
+            makeTxn(date: ref, amount: 5_000, category: "轉帳"),
+            makeTxn(date: ref, amount: -100, category: "伙食")
+        ]
+        let summary = SpendingSummaryBuilder.build(
+            transactions: txns,
+            baseCurrency: "TWD",
+            referenceDate: ref,
+            convert: identityConvert
+        )
+        XCTAssertEqual(summary.totalExpense, 100)
+        XCTAssertEqual(summary.totalIncome, 0)
+        XCTAssertEqual(summary.transactionCount, 1)
+    }
+
     func testExcludesOutsideOfMonth() {
         let inside = ISO8601DateFormatter().date(from: "2026-05-15T00:00:00Z")!
         let outsidePast = ISO8601DateFormatter().date(from: "2026-04-30T00:00:00Z")!
