@@ -13,15 +13,22 @@ struct ReceiptAttachmentSection: View {
     #if !os(macOS)
     @State private var photosItem: PhotosPickerItem? = nil
     #endif
+    @State private var previewing: ReceiptPreviewItem?
 
     var body: some View {
         Section("收據") {
             if let data = receipt, let preview = NorthstarImage(data: data) {
-                preview
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxHeight: 200)
-                    .cornerRadius(10)
+                Button {
+                    previewing = ReceiptPreviewItem(data: data)
+                } label: {
+                    preview
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxHeight: 200)
+                        .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("放大檢視收據")
 
                 Button(role: .destructive) {
                     receipt = nil
@@ -52,6 +59,11 @@ struct ReceiptAttachmentSection: View {
                 Text("收據圖片會以外部儲存附加在這筆紀錄上，僅留存在本機。")
                     .font(.caption)
                     .foregroundStyle(NorthstarTheme.secondaryText)
+            }
+        }
+        .sheet(item: $previewing) { item in
+            ReceiptPreviewView(data: item.data) {
+                previewing = nil
             }
         }
     }

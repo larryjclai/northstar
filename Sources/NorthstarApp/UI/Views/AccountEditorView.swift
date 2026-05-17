@@ -10,12 +10,14 @@ struct AccountEditorView: View {
     @State private var name: String
     @State private var currency: String
     @State private var openingBalanceText: String
+    @State private var type: AccountType
 
     init(editing: Account?) {
         self.editing = editing
         _name = State(initialValue: editing?.name ?? "")
         _currency = State(initialValue: editing?.currency ?? "TWD")
         _openingBalanceText = State(initialValue: editing.map { Self.numberString($0.openingBalance) } ?? "0")
+        _type = State(initialValue: editing?.type ?? .depository)
     }
 
     private static func numberString(_ value: Double) -> String {
@@ -38,6 +40,11 @@ struct AccountEditorView: View {
             Form {
                 Section("基本資訊") {
                     TextField("帳戶名稱(如：玉山活存、嘉信美股)", text: $name)
+                    Picker("類型", selection: $type) {
+                        ForEach(AccountType.allCases) { kind in
+                            Label(kind.displayTitle, systemImage: kind.symbolName).tag(kind)
+                        }
+                    }
                     Picker("幣別", selection: $currency) {
                         ForEach(BaseCurrencyDefaults.supported, id: \.self) { code in
                             Text(code).tag(code)
@@ -75,13 +82,15 @@ struct AccountEditorView: View {
             editing.name = trimmedName
             editing.currency = normalizedCurrency
             editing.openingBalance = opening
+            editing.type = type
             editing.recomputeBalance()
         } else {
             let account = Account(
                 name: trimmedName,
                 currency: normalizedCurrency,
                 balance: opening,
-                openingBalance: opening
+                openingBalance: opening,
+                type: type
             )
             modelContext.insert(account)
         }

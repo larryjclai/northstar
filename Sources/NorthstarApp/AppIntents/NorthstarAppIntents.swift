@@ -5,6 +5,8 @@ enum NorthstarTabIntentOption: String, AppEnum {
     case dashboard
     case holdings
     case transactions
+    case cashFlow
+    case accounts
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation {
         "頁面"
@@ -12,17 +14,21 @@ enum NorthstarTabIntentOption: String, AppEnum {
 
     static var caseDisplayRepresentations: [NorthstarTabIntentOption: DisplayRepresentation] {
         [
-            .dashboard: DisplayRepresentation(title: "總覽"),
-            .holdings: DisplayRepresentation(title: "持倉"),
-            .transactions: DisplayRepresentation(title: "交易")
+            .dashboard:    DisplayRepresentation(title: "總覽"),
+            .holdings:     DisplayRepresentation(title: "持倉"),
+            .transactions: DisplayRepresentation(title: "交易"),
+            .cashFlow:     DisplayRepresentation(title: "收支"),
+            .accounts:     DisplayRepresentation(title: "帳戶")
         ]
     }
 
     var appTab: NorthstarTab {
         switch self {
-        case .dashboard: .dashboard
-        case .holdings: .holdings
+        case .dashboard:    .dashboard
+        case .holdings:     .holdings
         case .transactions: .transactions
+        case .cashFlow:     .cashFlow
+        case .accounts:     .accounts
         }
     }
 }
@@ -41,14 +47,46 @@ struct OpenNorthstarTabIntent: AppIntent {
     }
 }
 
+private func requestAdd(_ kind: AddSheetKind) {
+    UserDefaults.standard.set(kind.landingTab.rawValue, forKey: IntentRoutingKeys.selectedTab)
+    UserDefaults.standard.set(kind.rawValue, forKey: IntentRoutingKeys.openAddKind)
+}
+
 struct AddInvestmentRecordIntent: AppIntent {
-    static var title: LocalizedStringResource { "新增交易" }
-    static var description: IntentDescription { IntentDescription("開啟 app 並進入新增交易。") }
+    static var title: LocalizedStringResource { "新增投資紀錄" }
+    static var description: IntentDescription {
+        IntentDescription("開啟 app 並進入新增買賣、股利、配股或減資紀錄的畫面。")
+    }
     static var openAppWhenRun: Bool { true }
 
     func perform() async throws -> some IntentResult {
-        UserDefaults.standard.set(NorthstarTab.transactions.rawValue, forKey: IntentRoutingKeys.selectedTab)
-        UserDefaults.standard.set(true, forKey: IntentRoutingKeys.openAddTransaction)
+        requestAdd(.investment)
+        return .result()
+    }
+}
+
+struct AddCashTransactionIntent: AppIntent {
+    static var title: LocalizedStringResource { "新增記帳" }
+    static var description: IntentDescription {
+        IntentDescription("開啟 app 並進入新增收入或支出的畫面。")
+    }
+    static var openAppWhenRun: Bool { true }
+
+    func perform() async throws -> some IntentResult {
+        requestAdd(.cashflow)
+        return .result()
+    }
+}
+
+struct AddTransferIntent: AppIntent {
+    static var title: LocalizedStringResource { "新增轉帳" }
+    static var description: IntentDescription {
+        IntentDescription("開啟 app 並進入新增帳戶之間轉帳的畫面。")
+    }
+    static var openAppWhenRun: Bool { true }
+
+    func perform() async throws -> some IntentResult {
+        requestAdd(.transfer)
         return .result()
     }
 }
@@ -71,8 +109,26 @@ struct NorthstarShortcutsProvider: AppShortcutsProvider {
                 "Add investment record in \(.applicationName)",
                 "Create a new trade in \(.applicationName)"
             ],
-            shortTitle: "新增交易",
-            systemImageName: "plus.rectangle.on.rectangle"
+            shortTitle: "新增投資紀錄",
+            systemImageName: "chart.line.uptrend.xyaxis"
+        )
+        AppShortcut(
+            intent: AddCashTransactionIntent(),
+            phrases: [
+                "Add cash transaction in \(.applicationName)",
+                "Log a new expense in \(.applicationName)"
+            ],
+            shortTitle: "新增記帳",
+            systemImageName: "list.bullet.rectangle"
+        )
+        AppShortcut(
+            intent: AddTransferIntent(),
+            phrases: [
+                "Add transfer in \(.applicationName)",
+                "Move money between accounts in \(.applicationName)"
+            ],
+            shortTitle: "新增轉帳",
+            systemImageName: "arrow.left.arrow.right.circle"
         )
     }
 }

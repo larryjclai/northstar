@@ -5,12 +5,16 @@ struct DashboardView: View {
     @Environment(\.modelContext) private var modelContext
     let priceStore: PriceStore
     let fxStore: FXRateStore
+    let requestAdd: (AddSheetKind) -> Void
 
     @AppStorage(IntentRoutingKeys.baseCurrency) private var baseCurrency: String = BaseCurrencyDefaults.default
+    @AppStorage(IntentRoutingKeys.selectedTab) private var requestedTabRaw: String = NorthstarTab.dashboard.rawValue
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
     @Query(sort: \InvestmentRecord.date, order: .reverse) private var records: [InvestmentRecord]
     @Query(sort: \Account.name) private var accounts: [Account]
     @Query(sort: \LedgerTransaction.date, order: .reverse) private var ledgerTransactions: [LedgerTransaction]
+
+    @State private var globalSearchText: String = ""
 
     @AppStorage(IntentRoutingKeys.dashboardTimeRange) private var selectedRange: TimeRange = .month
     @AppStorage(IntentRoutingKeys.dashboardBenchmark) private var storedBenchmark: String = ""
@@ -89,6 +93,33 @@ struct DashboardView: View {
         )
     }
 
+    private var currentMonthRange: (start: Date, end: Date)? {
+        let calendar = Calendar(identifier: .gregorian)
+        let components = calendar.dateComponents([.year, .month], from: Date())
+        guard let start = calendar.date(from: components),
+              let end = calendar.date(byAdding: .month, value: 1, to: start) else {
+            return nil
+        }
+        return (start, end)
+    }
+
+    private var monthlyInvestmentNetInflowBase: Double {
+        guard let range = currentMonthRange else { return 0 }
+
+        return records.reduce(0) { running, record in
+            guard record.date >= range.start, record.date < range.end,
+                  let account = record.linkedAccount,
+                  case .amount(let cashImpact) = LedgerLinkage.cashImpact(for: record),
+                  let convertedCashImpact = fxStore.convert(cashImpact, from: account.currency, to: baseCurrency) else {
+                return running
+            }
+
+            // Cash impact is account-centric (buy = cash out, sell/dividend = cash in).
+            // Invert it so a positive number means net cash moved into investments.
+            return running - convertedCashImpact
+        }
+    }
+
     private var portfolioReturnBase: Double {
         holdingsCostBase == 0 ? 0 : (holdingsValueBase - holdingsCostBase) / holdingsCostBase
     }
@@ -122,16 +153,21 @@ struct DashboardView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
-                    fxWarningBanner
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 420), spacing: 28)], spacing: 28) {
-                        heroCard
-                        netWorthBreakdownCard
-                        spendingThisMonthCard
-                        transactionsToReviewCard
-                        recentTransactionsCard
-                        allocationDashboardCard
-                        accountsDashboardCard
-                        holdingsDashboardCard
+                    if isGlobalSearching {
+                        globalSearchResults
+                    } else {
+                        fxWarningBanner
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 420), spacing: 28)], spacing: 28) {
+                            heroCard
+                            monthlyNarrativeCard
+                            netWorthBreakdownCard
+                            spendingThisMonthCard
+                            transactionsToReviewCard
+                            recentTransactionsCard
+                            allocationDashboardCard
+                            accountsDashboardCard
+                            holdingsDashboardCard
+                        }
                     }
                 }
                 .padding(28)
@@ -139,18 +175,26 @@ struct DashboardView: View {
             .northstarScreenBackground()
             .navigationTitle("Dashboard")
             .platformLargeNavigationTitle()
+            #if !os(macOS)
+            .searchable(text: $globalSearchText, prompt: "搜尋帳戶、持倉、交易或收支")
+            #endif
             .toolbar {
-                Button {
-                    Task {
-                        await priceStore.refresh(tickers: symbols, force: true)
-                        await fxStore.refresh(currencies: currencies, base: baseCurrency, force: true)
+                ToolbarItem {
+                    Button {
+                        Task {
+                            await priceStore.refresh(tickers: symbols, force: true)
+                            await fxStore.refresh(currencies: currencies, base: baseCurrency, force: true)
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
                     }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
+                    .disabled((priceStore.isRefreshing || fxStore.isRefreshing) || (symbols.isEmpty && currencies.isEmpty))
+                    .accessibilityLabel("更新報價與匯率")
+                    .keyboardShortcut("r", modifiers: .command)
                 }
-                .disabled((priceStore.isRefreshing || fxStore.isRefreshing) || (symbols.isEmpty && currencies.isEmpty))
-                .accessibilityLabel("更新報價與匯率")
-                .keyboardShortcut("r", modifiers: .command)
+                ToolbarItem {
+                    AddEntryMenu(primary: AddSheetKind.primary(for: .dashboard), onSelect: requestAdd)
+                }
             }
             .task(id: symbols) {
                 await priceStore.refresh(tickers: symbols)
@@ -163,6 +207,72 @@ struct DashboardView: View {
                 await fxStore.refresh(currencies: currencies, base: baseCurrency, force: true)
             }
         }
+    }
+
+    // MARK: - Global search (iOS)
+
+    private var isGlobalSearching: Bool {
+        globalSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
+    @ViewBuilder
+    private var globalSearchResults: some View {
+        let results = GlobalSearch.search(
+            query: globalSearchText,
+            accounts: accounts,
+            assets: assets,
+            records: records,
+            ledger: ledgerTransactions,
+            holdings: holdings
+        )
+        VStack(alignment: .leading, spacing: 10) {
+            Text("搜尋結果")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(NorthstarTheme.mutedText)
+
+            if results.isEmpty {
+                Text("沒有符合的帳戶、持倉、投資紀錄或收支。")
+                    .font(.subheadline)
+                    .foregroundStyle(NorthstarTheme.secondaryText)
+                    .padding(.vertical, 12)
+            } else {
+                ForEach(results) { result in
+                    globalSearchRow(result)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func globalSearchRow(_ result: GlobalSearch.Result) -> some View {
+        Button {
+            // Tapping a result switches the user to the relevant tab. Deep-linking into
+            // an editor would need IntentRouting plumbing; keep simple for now.
+            requestedTabRaw = result.targetTab.rawValue
+            globalSearchText = ""
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: result.icon)
+                    .foregroundStyle(NorthstarTheme.accent)
+                    .frame(width: 22)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(result.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(NorthstarTheme.primaryText)
+                        .lineLimit(1)
+                    Text(result.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(NorthstarTheme.mutedText)
+                        .lineLimit(1)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .northstarCardSurface()
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
@@ -349,6 +459,77 @@ struct DashboardView: View {
         let dates = priceStore.sparklineDates[symbol] ?? []
         let sliced = PortfolioTrendBuilder.slice(values: closes, dates: dates, range: selectedRange)
         return sliced.values
+    }
+
+    private var monthlyNarrativeCard: some View {
+        let summary = spendingSummary
+        let investmentFlow = monthlyInvestmentNetInflowBase
+        let topExpense = summary.topExpenseCategories.first
+        let netLabel = summary.net >= 0 ? "淨流入" : "淨流出"
+        let investmentLabel = investmentFlow >= 0 ? "投資淨流入" : "投資淨流出"
+        let topExpenseText = topExpense?.category ?? "暫無支出分類"
+
+        return DashboardPanel(title: "本月敘事", actionTitle: "MONTH") {
+            VStack(alignment: .leading, spacing: 16) {
+                if summary.transactionCount == 0 && abs(investmentFlow) < 0.000001 {
+                    emptyState("本月還沒有足夠資料，新增收支或投資紀錄後會自動整理成一句話。")
+                } else {
+                    Text("本月收入 \(CurrencyFormatters.money(summary.totalIncome, currencyCode: baseCurrency))，支出 \(CurrencyFormatters.money(summary.totalExpense, currencyCode: baseCurrency))，\(netLabel) \(CurrencyFormatters.money(abs(summary.net), currencyCode: baseCurrency))；最大支出類別是 \(topExpenseText)，\(investmentLabel) \(CurrencyFormatters.money(abs(investmentFlow), currencyCode: baseCurrency))。")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(NorthstarTheme.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 128), spacing: 10)], spacing: 10) {
+                        narrativeMetric(
+                            "收入",
+                            CurrencyFormatters.money(summary.totalIncome, currencyCode: baseCurrency),
+                            tint: NorthstarTheme.growth
+                        )
+                        narrativeMetric(
+                            "支出",
+                            CurrencyFormatters.money(summary.totalExpense, currencyCode: baseCurrency),
+                            tint: NorthstarTheme.risk
+                        )
+                        narrativeMetric(
+                            netLabel,
+                            CurrencyFormatters.money(abs(summary.net), currencyCode: baseCurrency),
+                            tint: summary.net >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk
+                        )
+                        narrativeMetric(
+                            "最大支出",
+                            topExpenseText,
+                            tint: NorthstarTheme.secondaryText
+                        )
+                        narrativeMetric(
+                            investmentLabel,
+                            CurrencyFormatters.money(abs(investmentFlow), currencyCode: baseCurrency),
+                            tint: investmentFlow >= 0 ? NorthstarTheme.accent : NorthstarTheme.warning
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func narrativeMetric(_ label: String, _ value: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(NorthstarTheme.mutedText)
+            Text(value)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(tint.opacity(0.10))
+        )
     }
 
     private var spendingThisMonthCard: some View {
@@ -900,4 +1081,3 @@ private struct DashboardChartCard: View {
         .northstarCardSurface()
     }
 }
-

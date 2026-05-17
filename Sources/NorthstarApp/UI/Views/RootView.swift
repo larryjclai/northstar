@@ -6,13 +6,14 @@ struct RootView: View {
     @Query(sort: \Account.name) private var accounts: [Account]
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
     @Query(sort: \InvestmentRecord.date, order: .reverse) private var records: [InvestmentRecord]
+    @Query(sort: \LedgerTransaction.date, order: .reverse) private var ledgerTransactions: [LedgerTransaction]
     @State private var priceStore = PriceStore()
     @State private var fxStore = FXRateStore()
     @AppStorage(IntentRoutingKeys.selectedTab) private var requestedTabRaw = NorthstarTab.dashboard.rawValue
-    @AppStorage(IntentRoutingKeys.openAddTransaction) private var requestedAddTransaction = false
+    @AppStorage(IntentRoutingKeys.openAddKind) private var requestedAddKindRaw: String = ""
     @AppStorage(IntentRoutingKeys.baseCurrency) private var baseCurrency: String = BaseCurrencyDefaults.default
     @SceneStorage("northstar.scene.selectedTab") private var sceneTabRaw: String = NorthstarTab.dashboard.rawValue
-    @State private var showAddTransactionSheet = false
+    @State private var pendingAddKind: AddSheetKind?
     @State private var sidebarSearchText = ""
 
     private var selectedTab: NorthstarTab {
@@ -29,27 +30,28 @@ struct RootView: View {
     var body: some View {
         #if os(macOS)
         desktopShell
+            .sheet(item: $pendingAddKind, content: addSheetView)
         #else
         TabView(selection: selectedTabBinding) {
-            DashboardView(priceStore: priceStore, fxStore: fxStore)
+            DashboardView(priceStore: priceStore, fxStore: fxStore, requestAdd: requestAdd)
                 .tabItem {
                     Label("總覽", systemImage: "chart.xyaxis.line")
                 }
                 .tag(NorthstarTab.dashboard)
 
-            HoldingsView(priceStore: priceStore, fxStore: fxStore)
+            HoldingsView(priceStore: priceStore, fxStore: fxStore, requestAdd: requestAdd)
                 .tabItem {
                     Label("持倉", systemImage: "briefcase.fill")
                 }
                 .tag(NorthstarTab.holdings)
 
-            TransactionsView(showAddSheet: $showAddTransactionSheet)
+            TransactionsView(requestAdd: requestAdd)
                 .tabItem {
                     Label("交易", systemImage: "list.bullet.rectangle")
                 }
                 .tag(NorthstarTab.transactions)
 
-            CashFlowView(fxStore: fxStore)
+            CashFlowView(fxStore: fxStore, requestAdd: requestAdd)
                 .tabItem {
                     Label("收支", systemImage: "arrow.left.arrow.right.circle")
                 }
@@ -68,13 +70,13 @@ struct RootView: View {
                 .tag(NorthstarTab.settings)
         }
         .tint(NorthstarTheme.accent)
+        .sheet(item: $pendingAddKind, content: addSheetView)
         .onAppear(perform: handleLaunchRouting)
         .onChange(of: requestedTabRaw) { _, _ in
             applyRequestedTab()
         }
-        .onChange(of: requestedAddTransaction) { _, newValue in
-            guard newValue else { return }
-            openAddTransaction()
+        .onChange(of: requestedAddKindRaw) { _, newValue in
+            consumeRequestedAddKind(newValue)
         }
         #endif
     }
@@ -88,6 +90,7 @@ struct RootView: View {
                 accounts: accounts,
                 assets: assets,
                 records: records,
+                ledgerTransactions: ledgerTransactions,
                 priceStore: priceStore
             )
             .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 340)
@@ -106,9 +109,8 @@ struct RootView: View {
         .onChange(of: requestedTabRaw) { _, _ in
             applyRequestedTab()
         }
-        .onChange(of: requestedAddTransaction) { _, newValue in
-            guard newValue else { return }
-            openAddTransaction()
+        .onChange(of: requestedAddKindRaw) { _, newValue in
+            consumeRequestedAddKind(newValue)
         }
     }
 
@@ -116,13 +118,13 @@ struct RootView: View {
     private var selectedContent: some View {
         switch selectedTab {
         case .dashboard:
-            DashboardView(priceStore: priceStore, fxStore: fxStore)
+            DashboardView(priceStore: priceStore, fxStore: fxStore, requestAdd: requestAdd)
         case .holdings:
-            HoldingsView(priceStore: priceStore, fxStore: fxStore)
+            HoldingsView(priceStore: priceStore, fxStore: fxStore, requestAdd: requestAdd)
         case .transactions:
-            TransactionsView(showAddSheet: $showAddTransactionSheet)
+            TransactionsView(requestAdd: requestAdd)
         case .cashFlow:
-            CashFlowView(fxStore: fxStore)
+            CashFlowView(fxStore: fxStore, requestAdd: requestAdd)
         case .accounts:
             AccountsView(fxStore: fxStore)
         case .settings:
@@ -130,6 +132,23 @@ struct RootView: View {
         }
     }
     #endif
+
+    @ViewBuilder
+    private func addSheetView(for kind: AddSheetKind) -> some View {
+        switch kind {
+        case .investment:
+            InvestmentRecordEditorView(editing: nil, assets: assets, accounts: accounts)
+        case .cashflow:
+            CashFlowEditorView(editing: nil, accounts: accounts, recentTransactions: ledgerTransactions)
+        case .transfer:
+            TransferEditorView(editing: nil, accounts: accounts, recentTransactions: ledgerTransactions)
+        }
+    }
+
+    private func requestAdd(_ kind: AddSheetKind) {
+        sceneTabRaw = kind.landingTab.rawValue
+        pendingAddKind = kind
+    }
 
     private var shortcutCommands: some View {
         Group {
@@ -172,9 +191,7 @@ struct RootView: View {
 
     private func handleLaunchRouting() {
         applyRequestedTab()
-        if requestedAddTransaction {
-            openAddTransaction()
-        }
+        consumeRequestedAddKind(requestedAddKindRaw)
         LedgerLinkage.backfillIfNeeded(context: modelContext)
         runDueRecurringTransactions()
     }
@@ -190,10 +207,10 @@ struct RootView: View {
         sceneTabRaw = tab.rawValue
     }
 
-    private func openAddTransaction() {
-        sceneTabRaw = NorthstarTab.transactions.rawValue
-        showAddTransactionSheet = true
-        requestedAddTransaction = false
+    private func consumeRequestedAddKind(_ raw: String) {
+        guard raw.isEmpty == false, let kind = AddSheetKind(rawValue: raw) else { return }
+        requestAdd(kind)
+        requestedAddKindRaw = ""
     }
 }
 
@@ -205,6 +222,7 @@ private struct NorthstarSidebar: View {
     let accounts: [Account]
     let assets: [PortfolioAsset]
     let records: [InvestmentRecord]
+    let ledgerTransactions: [LedgerTransaction]
     let priceStore: PriceStore
 
     private var holdings: [HoldingSnapshot] {
@@ -225,7 +243,6 @@ private struct NorthstarSidebar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            trafficLights
             searchBox
             if isSearching {
                 searchResults
@@ -247,20 +264,6 @@ private struct NorthstarSidebar: View {
             .frame(width: 0, height: 0)
             .opacity(0)
         }
-    }
-
-    private var trafficLights: some View {
-        HStack(spacing: 8) {
-            Circle().fill(Color.red).frame(width: 12, height: 12)
-            Circle().fill(Color.yellow).frame(width: 12, height: 12)
-            Circle().fill(Color.green).frame(width: 12, height: 12)
-            Spacer()
-            Image(systemName: "arrow.clockwise")
-            Image(systemName: "chevron.left")
-            Image(systemName: "chevron.right")
-        }
-        .font(.caption.weight(.bold))
-        .foregroundStyle(NorthstarTheme.mutedText)
     }
 
     private var searchBox: some View {
@@ -297,68 +300,59 @@ private struct NorthstarSidebar: View {
                 .font(.caption.weight(.bold))
                 .foregroundStyle(NorthstarTheme.mutedText)
 
-            SidebarAccountGroup(
-                title: "Depository",
-                rows: accounts.map { ($0.name, CurrencyFormatters.money($0.balance, currencyCode: $0.currency), NorthstarTheme.risk) }
-            )
-
-            SidebarAccountGroup(
-                title: "Investment",
-                rows: holdings.prefix(4).map {
-                    ($0.ticker, CurrencyFormatters.money($0.marketValue), $0.unrealizedPnL >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk)
+            ForEach(AccountType.allCases) { kind in
+                let group = accounts.filter { $0.type == kind }
+                if group.isEmpty == false {
+                    SidebarAccountGroup(
+                        title: kind.displayTitle,
+                        rows: group.map { account in
+                            (
+                                account.name,
+                                CurrencyFormatters.money(account.balance, currencyCode: account.currency),
+                                account.balance >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk
+                            )
+                        }
+                    )
                 }
-            )
+            }
+
+            if holdings.isEmpty == false {
+                SidebarAccountGroup(
+                    title: "持倉",
+                    rows: holdings.prefix(4).map {
+                        ($0.ticker, CurrencyFormatters.money($0.marketValue), $0.unrealizedPnL >= 0 ? NorthstarTheme.growth : NorthstarTheme.risk)
+                    }
+                )
+            }
         }
     }
 
     private var searchResults: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        let results = GlobalSearch.search(
+            query: searchQuery,
+            accounts: accounts,
+            assets: assets,
+            records: records,
+            ledger: ledgerTransactions,
+            holdings: holdings
+        )
+        return VStack(alignment: .leading, spacing: 16) {
             Text("SEARCH RESULTS")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(NorthstarTheme.mutedText)
 
-            let matchingAccounts = accounts.filter { $0.name.localizedCaseInsensitiveContains(searchQuery) }
-            let matchingHoldings = holdings.filter { holding in
-                holding.ticker.localizedCaseInsensitiveContains(searchQuery)
-                    || (assets.first(where: { $0.ticker == holding.ticker })?.name.localizedCaseInsensitiveContains(searchQuery) ?? false)
-            }
-            let matchingRecords = records.filter { record in
-                (record.asset?.ticker.localizedCaseInsensitiveContains(searchQuery) ?? false)
-                    || (record.asset?.name.localizedCaseInsensitiveContains(searchQuery) ?? false)
-                    || record.action.displayTitle.localizedCaseInsensitiveContains(searchQuery)
-                    || record.note.localizedCaseInsensitiveContains(searchQuery)
-            }
-
-            if matchingAccounts.isEmpty && matchingHoldings.isEmpty && matchingRecords.isEmpty {
-                Text("沒有符合的帳戶、持倉或交易。")
+            if results.isEmpty {
+                Text("沒有符合的帳戶、持倉、投資紀錄或收支。")
                     .font(.subheadline)
                     .foregroundStyle(NorthstarTheme.secondaryText)
                     .padding(.horizontal, 12)
             } else {
-                ForEach(matchingAccounts.prefix(4)) { account in
+                ForEach(results) { result in
                     searchResultButton(
-                        title: account.name,
-                        subtitle: CurrencyFormatters.money(account.balance, currencyCode: account.currency),
-                        icon: "creditcard.fill",
-                        tab: .dashboard
-                    )
-                }
-
-                ForEach(matchingHoldings.prefix(5)) { holding in
-                    searchResultButton(
-                        title: holding.ticker,
-                        subtitle: CurrencyFormatters.money(holding.marketValue),
-                        icon: "chart.bar.fill",
-                        tab: .holdings
-                    )
-                }
-
-                ForEach(matchingRecords.prefix(5)) { record in
-                    searchResultButton(
-                        title: record.asset?.ticker ?? record.action.displayTitle,
-                        subtitle: "\(record.action.displayTitle) · \(record.date.formatted(date: .abbreviated, time: .omitted))",
-                        icon: record.action.symbolName,
-                        tab: .transactions
+                        title: result.title,
+                        subtitle: result.subtitle,
+                        icon: result.icon,
+                        tab: result.targetTab
                     )
                 }
             }

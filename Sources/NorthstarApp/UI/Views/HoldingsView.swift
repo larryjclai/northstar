@@ -4,6 +4,7 @@ import SwiftData
 struct HoldingsView: View {
     let priceStore: PriceStore
     let fxStore: FXRateStore
+    let requestAdd: (AddSheetKind) -> Void
 
     @AppStorage(IntentRoutingKeys.baseCurrency) private var baseCurrency: String = BaseCurrencyDefaults.default
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
@@ -92,17 +93,22 @@ struct HoldingsView: View {
             .navigationTitle("Investments")
             .platformLargeNavigationTitle()
             .toolbar {
-                Button {
-                    Task {
-                        await priceStore.refresh(tickers: symbols, force: true)
-                        await fxStore.refresh(currencies: currencies, base: baseCurrency, force: true)
+                ToolbarItem {
+                    Button {
+                        Task {
+                            await priceStore.refresh(tickers: symbols, force: true)
+                            await fxStore.refresh(currencies: currencies, base: baseCurrency, force: true)
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
                     }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
+                    .disabled((priceStore.isRefreshing || fxStore.isRefreshing) || (symbols.isEmpty && currencies.isEmpty))
+                    .accessibilityLabel("更新報價與匯率")
+                    .keyboardShortcut("r", modifiers: .command)
                 }
-                .disabled((priceStore.isRefreshing || fxStore.isRefreshing) || (symbols.isEmpty && currencies.isEmpty))
-                .accessibilityLabel("更新報價與匯率")
-                .keyboardShortcut("r", modifiers: .command)
+                ToolbarItem {
+                    AddEntryMenu(primary: AddSheetKind.primary(for: .holdings), onSelect: requestAdd)
+                }
             }
             .task(id: symbols) {
                 await priceStore.refresh(tickers: symbols)

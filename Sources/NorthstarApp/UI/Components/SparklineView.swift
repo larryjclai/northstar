@@ -10,6 +10,7 @@ struct SparklineView: View {
     var interactive: Bool = false
 
     @State private var selectedIndex: Int? = nil
+    @State private var selectedSeries: Point.Series = .primary
 
     var body: some View {
         if values.count > 1 {
@@ -69,12 +70,21 @@ struct SparklineView: View {
                 RuleMark(x: .value("Selected", selectedIndex))
                     .foregroundStyle(NorthstarTheme.mutedText.opacity(0.5))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                PointMark(
-                    x: .value("Selected", selectedIndex),
-                    y: .value("Value", values[selectedIndex])
-                )
-                .foregroundStyle(color)
-                .symbolSize(70)
+                if selectedSeries == .comparison, selectedIndex < scaledComparison.count {
+                    PointMark(
+                        x: .value("Selected", selectedIndex),
+                        y: .value("Comparison", scaledComparison[selectedIndex])
+                    )
+                    .foregroundStyle(comparisonColor)
+                    .symbolSize(70)
+                } else {
+                    PointMark(
+                        x: .value("Selected", selectedIndex),
+                        y: .value("Value", values[selectedIndex])
+                    )
+                    .foregroundStyle(color)
+                    .symbolSize(70)
+                }
             }
         }
         .chartYScale(domain: (minY - padding)...(maxY + padding))
@@ -92,10 +102,16 @@ struct SparklineView: View {
                         .gesture(
                             DragGesture(minimumDistance: 0)
                                 .onChanged { value in
-                                    updateSelection(at: value.location, proxy: proxy, geo: geo)
+                                    updateSelection(
+                                        at: value.location,
+                                        proxy: proxy,
+                                        geo: geo,
+                                        comparisonValues: scaledComparison
+                                    )
                                 }
                                 .onEnded { _ in
                                     selectedIndex = nil
+                                    selectedSeries = .primary
                                 }
                         )
                 }
@@ -115,10 +131,10 @@ struct SparklineView: View {
             }
         }
         .overlay(alignment: .topTrailing) {
-            if interactive, let selectedIndex, selectedIndex < values.count {
-                Text(quickFormat(values[selectedIndex]))
+            if interactive, let readout = selectedReadout {
+                Text(readout.text)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(NorthstarTheme.primaryText)
+                    .foregroundStyle(readout.tint)
                     .monospacedDigit()
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
@@ -151,21 +167,71 @@ struct SparklineView: View {
         var id: String { "\(series)-\(index)" }
     }
 
+    private var selectedReadout: (text: String, tint: Color)? {
+        guard let selectedIndex, selectedIndex < values.count else { return nil }
+
+        if selectedSeries == .comparison,
+           let relativeChange = comparisonRelativeChange(at: selectedIndex) {
+            let label = comparisonLabel ?? "Benchmark"
+            return ("\(label) \(signedPercent(relativeChange))", comparisonColor)
+        }
+
+        return (quickFormat(values[selectedIndex]), NorthstarTheme.primaryText)
+    }
+
     private func rebasedComparison() -> [Double] {
-        guard comparison.count > 1, let first = values.first, let cFirst = comparison.first,
-              abs(cFirst) > 0.000001 else { return [] }
-        let tail = Array(comparison.suffix(values.count))
-        guard let tailFirst = tail.first, abs(tailFirst) > 0.000001 else { return [] }
+        let tail = comparisonTail()
+        guard let first = values.first,
+              let tailFirst = tail.first,
+              abs(tailFirst) > 0.000001 else { return [] }
         let scale = first / tailFirst
         return tail.map { $0 * scale }
     }
 
-    private func updateSelection(at location: CGPoint, proxy: ChartProxy, geo: GeometryProxy) {
+    private func comparisonTail() -> [Double] {
+        guard comparison.count > 1, let first = comparison.first, abs(first) > 0.000001 else { return [] }
+        let tail = Array(comparison.suffix(values.count))
+        guard let tailFirst = tail.first, abs(tailFirst) > 0.000001 else { return [] }
+        return tail
+    }
+
+    private func comparisonRelativeChange(at index: Int) -> Double? {
+        let tail = comparisonTail()
+        guard index < tail.count, let first = tail.first, abs(first) > 0.000001 else { return nil }
+        return (tail[index] - first) / first
+    }
+
+    private func updateSelection(
+        at location: CGPoint,
+        proxy: ChartProxy,
+        geo: GeometryProxy,
+        comparisonValues: [Double]
+    ) {
         let origin = geo[proxy.plotAreaFrame].origin
         let plotX = location.x - origin.x
         guard let index: Int = proxy.value(atX: plotX) else { return }
         let clamped = max(0, min(values.count - 1, index))
         selectedIndex = clamped
+        selectedSeries = nearestSeries(
+            atY: location.y - origin.y,
+            index: clamped,
+            proxy: proxy,
+            comparisonValues: comparisonValues
+        )
+    }
+
+    private func nearestSeries(
+        atY plotY: CGFloat,
+        index: Int,
+        proxy: ChartProxy,
+        comparisonValues: [Double]
+    ) -> Point.Series {
+        guard comparisonValues.indices.contains(index),
+              let primaryY = proxy.position(forY: values[index]),
+              let comparisonY = proxy.position(forY: comparisonValues[index]) else {
+            return .primary
+        }
+        return abs(plotY - comparisonY) < abs(plotY - primaryY) ? .comparison : .primary
     }
 
     private func quickFormat(_ value: Double) -> String {
@@ -179,5 +245,10 @@ struct SparklineView: View {
         } else {
             return String(format: "%.4f", value)
         }
+    }
+
+    private func signedPercent(_ value: Double) -> String {
+        let prefix = value >= 0 ? "+" : ""
+        return "\(prefix)\(CurrencyFormatters.percent(value))"
     }
 }

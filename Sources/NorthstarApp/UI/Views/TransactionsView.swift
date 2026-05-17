@@ -6,10 +6,10 @@ import AppKit
 #endif
 
 struct TransactionsView: View {
-    @Binding var showAddSheet: Bool
+    let requestAdd: (AddSheetKind) -> Void
 
     var body: some View {
-        TransactionsContentView(showAddSheet: $showAddSheet)
+        TransactionsContentView(requestAdd: requestAdd)
     }
 }
 
@@ -23,12 +23,14 @@ private struct TransactionsContentView: View {
     @Query(sort: \InvestmentRecord.date, order: .reverse) private var records: [InvestmentRecord]
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
     @Query(sort: \Account.name) private var accounts: [Account]
-    @Binding var showAddSheet: Bool
+    let requestAdd: (AddSheetKind) -> Void
     @State private var selectedRecordIDs: Set<UUID> = []
     @State private var editingRecord: InvestmentRecord?
     @State private var isImporting = false
     @State private var pendingImport: PendingCSVImport?
     @State private var importErrorMessage: String?
+    @State private var isInSelectionMode = false
+    @State private var pendingBulkDelete = false
 
     private var hasRecords: Bool {
         records.isEmpty == false
@@ -47,9 +49,6 @@ private struct TransactionsContentView: View {
             .navigationTitle("交易")
             .platformLargeNavigationTitle()
             .toolbar(content: toolbarContent)
-            .sheet(isPresented: $showAddSheet) {
-                InvestmentRecordEditorView(editing: nil, assets: assets, accounts: accounts)
-            }
             .sheet(item: $editingRecord) { record in
                 InvestmentRecordEditorView(editing: record, assets: assets, accounts: accounts)
             }
@@ -71,6 +70,22 @@ private struct TransactionsContentView: View {
                 Button("確定", role: .cancel) { importErrorMessage = nil }
             } message: {
                 Text(importErrorMessage ?? "")
+            }
+            .alert("刪除選取的紀錄？", isPresented: $pendingBulkDelete) {
+                Button("刪除", role: .destructive, action: performBulkDelete)
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("\(selectedRecordIDs.count) 筆會刪除，相關標的的均價與持倉會自動重算。")
+            }
+            .safeAreaInset(edge: .bottom) {
+                if isInSelectionMode {
+                    bulkActionBar
+                }
+            }
+            .onChange(of: isInSelectionMode) { _, newValue in
+                if newValue == false {
+                    selectedRecordIDs.removeAll()
+                }
             }
         }
     }
@@ -95,31 +110,104 @@ private struct TransactionsContentView: View {
 
     @ToolbarContentBuilder
     private func toolbarContent() -> some ToolbarContent {
-        ToolbarItemGroup {
+        if isInSelectionMode {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("完成") {
+                    isInSelectionMode = false
+                }
+            }
+            ToolbarItemGroup {
+                Button(action: toggleSelectAll) {
+                    Label(
+                        allRecordsSelected ? "全不選" : "選擇全部",
+                        systemImage: allRecordsSelected ? "square" : "checkmark.square"
+                    )
+                }
+                .disabled(records.isEmpty)
+            }
+        } else {
+            ToolbarItemGroup {
+                Button(action: enterSelectionMode) {
+                    Label("選取", systemImage: "checkmark.circle")
+                }
+                .disabled(records.isEmpty)
+
+                Button(action: { isImporting = true }) {
+                    Label("匯入 CSV", systemImage: "tray.and.arrow.down")
+                }
+                .keyboardShortcut("o", modifiers: .command)
+
+                Button(action: exportCSV) {
+                    Label("匯出 CSV", systemImage: "square.and.arrow.down")
+                }
+                .disabled(records.isEmpty)
+                .keyboardShortcut("e", modifiers: .command)
+            }
+
+            ToolbarItem {
+                AddEntryMenu(primary: .investment, onSelect: requestAdd)
+            }
+        }
+    }
+
+    private var bulkActionBar: some View {
+        HStack(spacing: 14) {
+            Text("\(selectedRecordIDs.count) 筆已選取")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(NorthstarTheme.secondaryText)
+            Spacer()
             Button(action: markSelectedReviewed) {
-                Label("標記已審核", systemImage: "checkmark.circle")
+                Label("已審核", systemImage: "checkmark.seal")
             }
             .disabled(selectedRecordIDs.isEmpty)
-            .keyboardShortcut("r", modifiers: [])
 
-            Button(action: { isImporting = true }) {
-                Label("匯入 CSV", systemImage: "tray.and.arrow.down")
+            Button(role: .destructive) {
+                pendingBulkDelete = true
+            } label: {
+                Label("刪除", systemImage: "trash")
             }
-            .keyboardShortcut("o", modifiers: .command)
-
-            Button(action: exportCSV) {
-                Label("匯出 CSV", systemImage: "square.and.arrow.down")
-            }
-            .disabled(records.isEmpty)
-            .keyboardShortcut("e", modifiers: .command)
+            .disabled(selectedRecordIDs.isEmpty)
         }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.thinMaterial)
+    }
 
-        ToolbarItem {
-            Button(action: openAddSheet) {
-                Label("新增", systemImage: "plus")
-            }
-            .keyboardShortcut("n", modifiers: .command)
+    private func enterSelectionMode() {
+        isInSelectionMode = true
+        selectedRecordIDs.removeAll()
+    }
+
+    private var allRecordsSelected: Bool {
+        guard records.isEmpty == false else { return false }
+        return records.allSatisfy { selectedRecordIDs.contains($0.id) }
+    }
+
+    private func toggleSelectAll() {
+        if allRecordsSelected {
+            selectedRecordIDs.removeAll()
+        } else {
+            selectedRecordIDs = Set(records.map(\.id))
         }
+    }
+
+    private func performBulkDelete() {
+        let targets = records.filter { selectedRecordIDs.contains($0.id) }
+        var affectedAssets: Set<PortfolioAsset> = []
+        for record in targets {
+            if let asset = record.asset { affectedAssets.insert(asset) }
+            LedgerLinkage.removeLedger(for: record, context: modelContext)
+            modelContext.delete(record)
+        }
+        try? modelContext.save()
+        for asset in affectedAssets {
+            PortfolioCalculator.apply(records: asset.records, to: asset)
+        }
+        try? modelContext.save()
+        selectedRecordIDs.removeAll()
+        isInSelectionMode = false
     }
 
     private var transactionsHero: some View {
@@ -174,10 +262,6 @@ private struct TransactionsContentView: View {
         }
     }
 
-    private func openAddSheet() {
-        showAddSheet = true
-    }
-
     private func markReviewed(_ record: InvestmentRecord) {
         record.isReviewed = true
         selectedRecordIDs.remove(record.id)
@@ -187,6 +271,7 @@ private struct TransactionsContentView: View {
     private func recordRow(for record: InvestmentRecord) -> some View {
         TransactionRecordCard(
             record: record,
+            isInSelectionMode: isInSelectionMode,
             isSelected: selectedRecordIDs.contains(record.id),
             onSelect: { toggleSelection(record) },
             onReview: { markReviewed(record) },
@@ -276,6 +361,7 @@ private struct TransactionsContentView: View {
 
 private struct TransactionRecordCard: View {
     let record: InvestmentRecord
+    let isInSelectionMode: Bool
     let isSelected: Bool
     let onSelect: () -> Void
     let onReview: () -> Void
@@ -294,29 +380,29 @@ private struct TransactionRecordCard: View {
     }
 
     var body: some View {
-        Button(action: onEdit) {
+        Button(action: handleTap) {
             cardContent
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
-        .accessibilityHint("點擊以編輯或刪除此交易")
+        .accessibilityHint(isInSelectionMode ? "點擊以切換選取" : "點擊以編輯或刪除此交易")
+    }
+
+    private func handleTap() {
+        if isInSelectionMode {
+            onSelect()
+        } else {
+            onEdit()
+        }
     }
 
     private var cardContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
-                Button(action: onSelect) {
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(isSelected ? NorthstarTheme.accent : Color.clear)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                .stroke(isSelected ? NorthstarTheme.accent : Color.nsBorder, lineWidth: 1)
-                        }
-                        .frame(width: 14, height: 14)
+                if isInSelectionMode {
+                    SelectionCheckmark(isSelected: isSelected)
+                        .padding(.top, 14)
                 }
-                .buttonStyle(.plain)
-                .padding(.top, 14)
-                .accessibilityLabel(isSelected ? "取消選取" : "選取此筆")
 
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -351,7 +437,9 @@ private struct TransactionRecordCard: View {
                         Label("Reviewed", systemImage: "checkmark.circle.fill")
                             .font(.caption2.weight(.bold))
                             .foregroundStyle(NorthstarTheme.growth)
-                    } else {
+                    } else if isInSelectionMode == false {
+                        // Hide the inline review button when the user is multi-selecting —
+                        // the bulk "已審核" toolbar action covers it without competing for tap area.
                         Button("Mark reviewed", action: onReview)
                             .font(.caption2.weight(.bold))
                             .buttonStyle(.borderless)
@@ -425,6 +513,7 @@ extension InvestmentAction {
         case .cashDividend: return "現金股利"
         case .stockDividend: return "股票股利"
         case .capitalReduction: return "減資"
+        case .stockSplit: return "股票分割"
         }
     }
 
@@ -435,6 +524,7 @@ extension InvestmentAction {
         case .cashDividend: return "banknote.fill"
         case .stockDividend: return "plus.forwardslash.minus"
         case .capitalReduction: return "scissors"
+        case .stockSplit: return "arrow.triangle.branch"
         }
     }
 
@@ -442,8 +532,52 @@ extension InvestmentAction {
         switch self {
         case .buy: return NorthstarTheme.spending
         case .sell, .cashDividend: return NorthstarTheme.income
-        case .stockDividend: return NorthstarTheme.netWorth
+        case .stockDividend, .stockSplit: return NorthstarTheme.netWorth
         case .capitalReduction: return NorthstarTheme.warning
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .buy:
+            return "以價格 × 數量買進股份，手續費計入成本基礎。"
+        case .sell:
+            return "賣出採 FIFO（先進先出）：先賣最早買進的 lot，已實現損益依各 lot 成本逐筆計算。"
+        case .cashDividend:
+            return "每股現金股息 × 持股數，會匯入連結帳戶（幣別相符時）；不影響持股數量與成本。"
+        case .stockDividend:
+            return "公司以新股配股，新增「零成本」lot；持股數量增加但總成本不變，平均成本因而下降。"
+        case .capitalReduction:
+            return "公司按比例減少在外流通股數；本 app 採「保留總成本」處理：各 lot 股數依比例縮減、每股成本反向放大，使總成本不變。"
+        case .stockSplit:
+            return "公司調整面額；歷史每個 lot 的股數 × 比例、每股成本 ÷ 比例，總成本與市值不變。"
+        }
+    }
+
+    var examplePhrase: String {
+        switch self {
+        case .buy:
+            return "例：600 × 10 股 + 手續費 20 元 → 每股成本 602。"
+        case .sell:
+            return "例：賣 5 股 @ 700，最早 lot 成本 600 → 已實現損益約 500 元（再扣分攤手續費）。"
+        case .cashDividend:
+            return "例：持有 100 股、每股配 4 元 → 入帳 400 元。"
+        case .stockDividend:
+            return "例：持有 100 股 @ 平均 50；配股 10 股 → 110 股、平均成本約 45.45。"
+        case .capitalReduction:
+            return "例：100 股要減 10 股（在數量欄填「10」），原平均 50 → 約 55.56；總成本 5,000 不變。"
+        case .stockSplit:
+            return "例：2:1 分割（比例填 2）；100 股 @ 600 → 200 股 @ 300。"
+        }
+    }
+
+    /// Caveat shown when the app's accounting convention may diverge from broker statements.
+    var brokerCaveat: String? {
+        switch self {
+        case .capitalReduction:
+            return "註：券商常把減資視為「現金退還沖抵成本」，本 app 採「保留總成本」估算，帳上數字可能與券商不同。"
+        default:
+            return nil
         }
     }
 }

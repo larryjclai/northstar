@@ -159,7 +159,7 @@ private struct AccountCard: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(NorthstarTheme.accent.opacity(0.16))
-                    Image(systemName: "creditcard.fill")
+                    Image(systemName: account.type.symbolName)
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(NorthstarTheme.accent)
                 }
@@ -169,7 +169,7 @@ private struct AccountCard: View {
                     Text(account.name)
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(NorthstarTheme.primaryText)
-                    Text(account.currency)
+                    Text("\(account.type.displayTitle) · \(account.currency)")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(NorthstarTheme.secondaryText)
                 }

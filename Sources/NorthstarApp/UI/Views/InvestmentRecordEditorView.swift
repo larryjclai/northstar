@@ -25,6 +25,10 @@ struct InvestmentRecordEditorView: View {
     @State private var feeText: String
     @State private var note: String
     @State private var showDeleteConfirm = false
+    @State private var splitRatioText: String = "2"
+    @State private var enableDRIP: Bool = false
+    @State private var dripPriceText: String = ""
+    @State private var showSymbolPicker = false
 
     init(
         editing: InvestmentRecord?,
@@ -45,6 +49,9 @@ struct InvestmentRecordEditorView: View {
         _quantityText = State(initialValue: editing.map { Self.numberString($0.quantity) } ?? "")
         _feeText = State(initialValue: editing.flatMap { $0.fee == 0 ? nil : Self.numberString($0.fee) } ?? "")
         _note = State(initialValue: editing?.note ?? "")
+        if let editing, editing.action == .stockSplit {
+            _splitRatioText = State(initialValue: Self.numberString(editing.quantity))
+        }
     }
 
     private static func numberString(_ value: Double) -> String {
@@ -64,24 +71,21 @@ struct InvestmentRecordEditorView: View {
                             Text(action.displayTitle).tag(action)
                         }
                     }
-                    if assets.isEmpty == false {
-                        Picker("標的", selection: $selectedAssetTicker) {
-                            Text("新增標的").tag("")
-                            ForEach(assets, id: \.ticker) { asset in
-                                Text("\(asset.ticker) \(asset.name)").tag(asset.ticker)
-                            }
-                        }
-                    }
+                    actionExplanationBlock
+                }
 
-                    if selectedAsset == nil {
-                        TextField("代號，例如 2330.TW", text: $newTicker)
-                        TextField("名稱，例如 台積電", text: $newAssetName)
-                        TextField("幣別，例如 TWD", text: $newAssetCurrency)
+                Section("標的") {
+                    symbolPickerRow
+                    if selectedAsset == nil, newTicker.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                        TextField("名稱（自動帶入，可修改）", text: $newAssetName)
+                        TextField("幣別（自動帶入，可修改）", text: $newAssetCurrency)
                     }
+                }
 
+                Section("扣款帳戶") {
                     if accounts.isEmpty == false {
-                        Picker("扣款帳戶", selection: $selectedAccountID) {
-                            Text("不連結帳戶").tag(Optional<UUID>.none)
+                        Picker("帳戶", selection: $selectedAccountID) {
+                            Text("不連結").tag(Optional<UUID>.none)
                             ForEach(accounts, id: \.id) { account in
                                 Text(account.name).tag(Optional(account.id))
                             }
@@ -90,17 +94,37 @@ struct InvestmentRecordEditorView: View {
                     TextField("新增帳戶名稱（可選）", text: $newAccountName)
                 }
 
-                Section("交易數值") {
-                    TextField("價格", text: $priceText)
-                        .decimalKeyboard()
-                    TextField("數量", text: $quantityText)
-                        .decimalKeyboard()
-                    TextField("手續費", text: $feeText)
-                        .decimalKeyboard()
-                }
+                if action == .stockSplit {
+                    Section("分割比例") {
+                        TextField("每股拆成幾股（例如 2 代表 1→2；0.1 代表 10→1 反向）", text: $splitRatioText)
+                            .decimalKeyboard()
+                    }
+                } else {
+                    Section("交易數值") {
+                        TextField("價格", text: $priceText)
+                            .decimalKeyboard()
+                        TextField("數量", text: $quantityText)
+                            .decimalKeyboard()
+                        TextField("手續費", text: $feeText)
+                            .decimalKeyboard()
+                    }
 
-                Section("現金影響") {
-                    cashImpactRow
+                    Section("現金影響") {
+                        cashImpactRow
+                    }
+
+                    if action == .cashDividend, editing == nil {
+                        Section("股息再投入 (DRIP)") {
+                            Toggle("自動建立買入交易", isOn: $enableDRIP)
+                            if enableDRIP {
+                                TextField("再投入單價", text: $dripPriceText)
+                                    .decimalKeyboard()
+                                Text("會在同一天為此標的建立一筆買入，數量 = (股息 − 手續費) ÷ 單價。")
+                                    .font(.caption)
+                                    .foregroundStyle(NorthstarTheme.secondaryText)
+                            }
+                        }
+                    }
                 }
 
                 Section("備註") {
@@ -134,6 +158,11 @@ struct InvestmentRecordEditorView: View {
             } message: {
                 Text("刪除後會重新計算該標的持倉與均價。")
             }
+            .sheet(isPresented: $showSymbolPicker) {
+                SymbolPickerSheet(localAssets: assets) { picked in
+                    applyPickedSymbol(picked)
+                }
+            }
         }
         .onAppear {
             if editing == nil, selectedAccountID == nil {
@@ -143,8 +172,139 @@ struct InvestmentRecordEditorView: View {
         }
     }
 
+    @ViewBuilder
+    private var actionExplanationBlock: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label {
+                Text(action.explanation)
+                    .font(.caption)
+                    .foregroundStyle(NorthstarTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(NorthstarTheme.accent)
+            }
+            Text(action.examplePhrase)
+                .font(.caption2)
+                .foregroundStyle(NorthstarTheme.mutedText)
+                .fixedSize(horizontal: false, vertical: true)
+            if let caveat = action.brokerCaveat {
+                Label {
+                    Text(caveat)
+                        .font(.caption2)
+                        .foregroundStyle(NorthstarTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(NorthstarTheme.warning)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private var symbolPickerRow: some View {
+        Button {
+            showSymbolPicker = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(NorthstarTheme.accent)
+                if let selectedAsset {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(selectedAsset.ticker)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(NorthstarTheme.primaryText)
+                        Text(selectedAsset.name)
+                            .font(.caption)
+                            .foregroundStyle(NorthstarTheme.secondaryText)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    Text(selectedAsset.currency)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(NorthstarTheme.mutedText)
+                } else if newTicker.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(newTicker.uppercased())
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(NorthstarTheme.primaryText)
+                        if newAssetName.isEmpty == false {
+                            Text(newAssetName)
+                                .font(.caption)
+                                .foregroundStyle(NorthstarTheme.secondaryText)
+                                .lineLimit(1)
+                        }
+                    }
+                    Spacer()
+                    Text(newAssetCurrency)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(NorthstarTheme.mutedText)
+                } else {
+                    Text("選擇代號…")
+                        .foregroundStyle(NorthstarTheme.secondaryText)
+                    Spacer()
+                }
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NorthstarTheme.mutedText)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func applyPickedSymbol(_ picked: SymbolPickerSheet.PickedSymbol) {
+        let symbolUpper = picked.symbol.uppercased()
+        if let existing = assets.first(where: { $0.ticker.caseInsensitiveCompare(symbolUpper) == .orderedSame }) {
+            selectedAssetTicker = existing.ticker
+            newTicker = ""
+            newAssetName = ""
+            newAssetCurrency = existing.currency
+        } else {
+            selectedAssetTicker = ""
+            newTicker = symbolUpper
+            newAssetName = picked.name
+            newAssetCurrency = picked.currency ?? Self.inferredCurrency(symbol: symbolUpper, exchange: picked.exchange)
+        }
+    }
+
+    private static func inferredCurrency(symbol: String, exchange: String?) -> String {
+        let upper = symbol.uppercased()
+        if upper.hasSuffix(".TW") || upper.hasSuffix(".TWO") { return "TWD" }
+        if upper.hasSuffix(".HK") { return "HKD" }
+        if upper.hasSuffix(".T") { return "JPY" }
+        if upper.hasSuffix(".L") { return "GBP" }
+        if upper.hasSuffix(".SS") || upper.hasSuffix(".SZ") { return "CNY" }
+        if upper.hasSuffix(".TO") || upper.hasSuffix(".V") { return "CAD" }
+        if upper.hasSuffix(".AX") { return "AUD" }
+        if upper.hasSuffix(".PA") || upper.hasSuffix(".AS") || upper.hasSuffix(".DE") { return "EUR" }
+        if let exchange {
+            let e = exchange.uppercased()
+            if e.contains("TAIPEI") || e.contains("TAIWAN") { return "TWD" }
+            if e.contains("HONG KONG") || e.contains("HKEX") { return "HKD" }
+            if e.contains("TOKYO") { return "JPY" }
+            if e.contains("LONDON") { return "GBP" }
+            if e.contains("SHANGHAI") || e.contains("SHENZHEN") { return "CNY" }
+            if e.contains("TORONTO") { return "CAD" }
+            if e.contains("PARIS") || e.contains("XETRA") || e.contains("AMSTERDAM") { return "EUR" }
+        }
+        return "USD"
+    }
+
     private var canSave: Bool {
-        hasAssetInput && Double(priceText) != nil && Double(quantityText) != nil
+        guard hasAssetInput else { return false }
+        if action == .stockSplit {
+            guard let ratio = Double(splitRatioText), ratio > 0 else { return false }
+            return true
+        }
+        guard Double(priceText) != nil, Double(quantityText) != nil else { return false }
+        if action == .cashDividend, enableDRIP {
+            guard let dp = Double(dripPriceText), dp > 0 else { return false }
+        }
+        return true
     }
 
     private var effectiveAssetCurrency: String? {
@@ -237,14 +397,27 @@ struct InvestmentRecordEditorView: View {
     }
 
     private func save() {
-        guard
-            let price = Double(priceText),
-            let quantity = Double(quantityText)
-        else { return }
+        let price: Double
+        let quantity: Double
+        let fee: Double
+
+        if action == .stockSplit {
+            guard let ratio = Double(splitRatioText), ratio > 0 else { return }
+            price = 0
+            quantity = ratio
+            fee = 0
+        } else {
+            guard
+                let p = Double(priceText),
+                let q = Double(quantityText)
+            else { return }
+            price = p
+            quantity = q
+            fee = Double(feeText) ?? 0
+        }
 
         let asset = selectedAsset ?? createAsset()
         let linkedAccount = selectedAccount ?? createAccountIfNeeded()
-        let fee = Double(feeText) ?? 0
 
         if let editing {
             let oldAsset = editing.asset
@@ -278,8 +451,32 @@ struct InvestmentRecordEditorView: View {
                 linkedAccount: linkedAccount
             )
             modelContext.insert(record)
-            PortfolioCalculator.apply(records: asset.records + [record], to: asset)
-            LedgerLinkage.syncLedger(for: record, context: modelContext)
+            var newRecords = [record]
+
+            if action == .cashDividend, enableDRIP,
+               let dripPrice = Double(dripPriceText), dripPrice > 0 {
+                let cash = price * quantity - fee
+                if cash > 0 {
+                    let dripQty = cash / dripPrice
+                    let dripRecord = InvestmentRecord(
+                        date: date,
+                        action: .buy,
+                        price: dripPrice,
+                        quantity: dripQty,
+                        fee: 0,
+                        note: "DRIP",
+                        asset: asset,
+                        linkedAccount: linkedAccount
+                    )
+                    modelContext.insert(dripRecord)
+                    newRecords.append(dripRecord)
+                }
+            }
+
+            PortfolioCalculator.apply(records: asset.records + newRecords, to: asset)
+            for r in newRecords {
+                LedgerLinkage.syncLedger(for: r, context: modelContext)
+            }
         }
 
         try? modelContext.save()
