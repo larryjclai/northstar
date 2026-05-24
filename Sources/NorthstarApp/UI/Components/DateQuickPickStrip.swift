@@ -47,25 +47,17 @@ struct DateQuickPickStrip: View {
     }
 
     private func chip(_ option: Option) -> some View {
-        let isSelected = isSame(option.date, date)
-        return Button {
+        // Date chips are transient actions — they set the date but never highlight
+        // as a persistent selection. The actual current date is already shown by the
+        // DatePicker next to the strip, so re-mirroring it on the chip just creates
+        // two competing affordances.
+        Button {
             date = option.date
         } label: {
             Text(option.title)
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .foregroundStyle(isSelected ? Color.nsBackground : NorthstarTheme.primaryText)
-                .background {
-                    Capsule(style: .continuous)
-                        .fill(isSelected ? NorthstarTheme.accent : NorthstarTheme.accent.opacity(0.10))
-                }
+                .northstarChipStyle(.transient)
         }
         .buttonStyle(.plain)
-    }
-
-    private func isSame(_ lhs: Date, _ rhs: Date) -> Bool {
-        Self.calendar.isDate(lhs, inSameDayAs: rhs)
     }
 
     struct Option: Identifiable {

@@ -63,85 +63,129 @@ struct InvestmentRecordEditorView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("基本資訊") {
-                    DatePicker("日期", selection: $date, displayedComponents: .date)
-                    Picker("動作", selection: $action) {
-                        ForEach(InvestmentAction.allCases) { action in
-                            Text(action.displayTitle).tag(action)
+            SheetCardScroll {
+                GlassFormCard("基本資訊") {
+                    FieldRow("日期") {
+                        DatePicker("日期", selection: $date, displayedComponents: .date)
+                            .datePickerStyle(.compact)
+                            .labelsHidden()
+                    }
+                    FieldRow("動作") {
+                        Picker("動作", selection: $action) {
+                            ForEach(InvestmentAction.allCases) { action in
+                                Text(action.displayTitle).tag(action)
+                            }
                         }
+                        .labelsHidden()
                     }
                     actionExplanationBlock
                 }
 
-                Section("標的") {
+                GlassFormCard("標的") {
                     symbolPickerRow
                     if selectedAsset == nil, newTicker.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
-                        TextField("名稱（自動帶入，可修改）", text: $newAssetName)
-                        TextField("幣別（自動帶入，可修改）", text: $newAssetCurrency)
+                        FieldRow("名稱") {
+                            TextField("自動帶入，可修改", text: $newAssetName)
+                                .textFieldStyle(.roundedBorder)
+                        }
+                        FieldRow("幣別") {
+                            TextField("自動帶入，可修改", text: $newAssetCurrency)
+                                .textFieldStyle(.roundedBorder)
+                        }
                     }
                 }
 
-                Section("扣款帳戶") {
+                GlassFormCard("扣款帳戶") {
                     if accounts.isEmpty == false {
-                        Picker("帳戶", selection: $selectedAccountID) {
-                            Text("不連結").tag(Optional<UUID>.none)
-                            ForEach(accounts, id: \.id) { account in
-                                Text(account.name).tag(Optional(account.id))
+                        FieldRow("帳戶") {
+                            Picker("帳戶", selection: $selectedAccountID) {
+                                Text("不連結").tag(Optional<UUID>.none)
+                                ForEach(accounts, id: \.id) { account in
+                                    Text(account.name).tag(Optional(account.id))
+                                }
                             }
+                            .labelsHidden()
                         }
                     }
-                    TextField("新增帳戶名稱（可選）", text: $newAccountName)
+                    FieldRow("新增帳戶") {
+                        TextField("帳戶名稱（可選）", text: $newAccountName)
+                            .textFieldStyle(.roundedBorder)
+                    }
                 }
 
                 if action == .stockSplit {
-                    Section("分割比例") {
-                        TextField("每股拆成幾股（例如 2 代表 1→2；0.1 代表 10→1 反向）", text: $splitRatioText)
+                    GlassFormCard(
+                        "分割比例",
+                        footer: "例如 2 代表 1→2；0.1 代表 10→1 反向。",
+                        tinted: true
+                    ) {
+                        TextField("分割比例", text: $splitRatioText)
+                            .font(.system(size: 32, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
                             .decimalKeyboard()
+                            .textFieldStyle(.plain)
                     }
                 } else {
-                    Section("交易數值") {
-                        TextField("價格", text: $priceText)
-                            .decimalKeyboard()
-                        TextField("數量", text: $quantityText)
-                            .decimalKeyboard()
-                        TextField("手續費", text: $feeText)
-                            .decimalKeyboard()
+                    GlassFormCard("交易數值", tinted: true) {
+                        FieldRow("價格") {
+                            TextField("價格", text: $priceText)
+                                .decimalKeyboard()
+                                .textFieldStyle(.roundedBorder)
+                        }
+                        FieldRow("數量") {
+                            TextField("數量", text: $quantityText)
+                                .decimalKeyboard()
+                                .textFieldStyle(.roundedBorder)
+                        }
+                        FieldRow("手續費") {
+                            TextField("手續費", text: $feeText)
+                                .decimalKeyboard()
+                                .textFieldStyle(.roundedBorder)
+                        }
                     }
 
-                    Section("現金影響") {
+                    GlassFormCard("現金影響") {
                         cashImpactRow
                     }
 
                     if action == .cashDividend, editing == nil {
-                        Section("股息再投入 (DRIP)") {
+                        GlassFormCard(
+                            "股息再投入 (DRIP)",
+                            footer: enableDRIP ? "會在同一天為此標的建立一筆買入，數量 = (股息 − 手續費) ÷ 單價。" : nil
+                        ) {
                             Toggle("自動建立買入交易", isOn: $enableDRIP)
                             if enableDRIP {
-                                TextField("再投入單價", text: $dripPriceText)
-                                    .decimalKeyboard()
-                                Text("會在同一天為此標的建立一筆買入，數量 = (股息 − 手續費) ÷ 單價。")
-                                    .font(.caption)
-                                    .foregroundStyle(NorthstarTheme.secondaryText)
+                                FieldRow("再投入單價") {
+                                    TextField("再投入單價", text: $dripPriceText)
+                                        .decimalKeyboard()
+                                        .textFieldStyle(.roundedBorder)
+                                }
                             }
                         }
                     }
                 }
 
-                Section("備註") {
+                GlassFormCard("備註") {
                     TextField("備註", text: $note)
+                        .textFieldStyle(.roundedBorder)
                 }
 
                 if editing != nil {
-                    Section {
+                    GlassFormCard {
                         Button(role: .destructive) {
                             showDeleteConfirm = true
                         } label: {
                             Label("刪除此交易", systemImage: "trash")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(NorthstarTheme.risk)
                     }
                 }
+
+                DisabledHintBanner(reason: disabledReason)
             }
-            .platformFormStyle()
             .navigationTitle(editing == nil ? "新增交易" : "編輯交易")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -295,16 +339,33 @@ struct InvestmentRecordEditorView: View {
     }
 
     private var canSave: Bool {
-        guard hasAssetInput else { return false }
+        disabledReason == nil
+    }
+
+    private var disabledReason: String? {
+        if hasAssetInput == false {
+            return "請選擇或輸入標的代號"
+        }
         if action == .stockSplit {
-            guard let ratio = Double(splitRatioText), ratio > 0 else { return false }
-            return true
+            guard let ratio = Double(splitRatioText), ratio > 0 else {
+                return "請輸入大於 0 的分割比例"
+            }
+            _ = ratio
+            return nil
         }
-        guard Double(priceText) != nil, Double(quantityText) != nil else { return false }
+        if Double(priceText) == nil {
+            return "請輸入價格"
+        }
+        if Double(quantityText) == nil {
+            return "請輸入數量"
+        }
         if action == .cashDividend, enableDRIP {
-            guard let dp = Double(dripPriceText), dp > 0 else { return false }
+            guard let dp = Double(dripPriceText), dp > 0 else {
+                return "請輸入再投入單價（大於 0）"
+            }
+            _ = dp
         }
-        return true
+        return nil
     }
 
     private var effectiveAssetCurrency: String? {

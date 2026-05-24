@@ -68,6 +68,50 @@ enum RecurringScheduler {
         calendar.date(byAdding: .month, value: 1, to: date)
     }
 
+    /// Fire a template once on demand: insert a LedgerTransaction dated `asOf`
+    /// and advance `nextRunDate` by one month from its current value so the
+    /// schedule doesn't drift. Returns true when the insertion happened.
+    @discardableResult
+    static func runNow(
+        template: RecurringTransaction,
+        context: ModelContext,
+        asOf: Date = Date(),
+        calendar: Calendar = Calendar(identifier: .gregorian)
+    ) -> Bool {
+        guard let account = template.account else { return false }
+
+        let txn = LedgerTransaction(
+            date: asOf,
+            amount: template.amount,
+            currency: template.currency,
+            category: template.category,
+            note: template.note,
+            account: account
+        )
+        context.insert(txn)
+
+        if let next = nextOccurrence(after: template.nextRunDate, calendar: calendar) {
+            template.nextRunDate = next
+        }
+
+        try? context.save()
+        account.recomputeBalance()
+        try? context.save()
+        return true
+    }
+
+    /// Skip the upcoming firing without inserting any transaction by advancing
+    /// `nextRunDate` by one month. Returns true when the date moved.
+    @discardableResult
+    static func skipNext(
+        template: RecurringTransaction,
+        calendar: Calendar = Calendar(identifier: .gregorian)
+    ) -> Bool {
+        guard let next = nextOccurrence(after: template.nextRunDate, calendar: calendar) else { return false }
+        template.nextRunDate = next
+        return true
+    }
+
     /// Compute the first run date for a brand-new template, given its
     /// day-of-month. If today is past that day this month, schedule next
     /// month. Otherwise schedule it for this month.

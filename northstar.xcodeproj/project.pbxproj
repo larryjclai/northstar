@@ -140,6 +140,8 @@
 		FB81D732685C04D9B544C8A7 /* TransferBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FC848F89CAA5B323129296A /* TransferBuilder.swift */; };
 		FBEE3B54B8960DFA23CF1971 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7F9D14496EA17072DABC3C59 /* Assets.xcassets */; };
 		FC616F56E09ECA8BD08DA55A /* ChangePill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EF1586974ED25915B021745 /* ChangePill.swift */; };
+		BEEF000000000000000000A2 /* GlassFormCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEEF000000000000000000A1 /* GlassFormCard.swift */; };
+		BEEF000000000000000000A3 /* GlassFormCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEEF000000000000000000A1 /* GlassFormCard.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -186,6 +188,7 @@
 		1ABFC0195911ABAA1C55D8B1 /* NorthstarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NorthstarApp.swift; sourceTree = "<group>"; };
 		1DB50A2FED9BE346C68B53A0 /* LedgerCategoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCategoryTests.swift; sourceTree = "<group>"; };
 		1EF1586974ED25915B021745 /* ChangePill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangePill.swift; sourceTree = "<group>"; };
+		BEEF000000000000000000A1 /* GlassFormCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassFormCard.swift; sourceTree = "<group>"; };
 		28CDC89031FB5C72D7023766 /* Northstar-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Northstar-iOS.entitlements"; sourceTree = "<group>"; };
 		2B445659ED2F9CBCB47E525D /* ReceiptAttachmentSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptAttachmentSection.swift; sourceTree = "<group>"; };
 		30417D4F4F2DA28BD96FABF8 /* NorthstarTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NorthstarTheme.swift; sourceTree = "<group>"; };
@@ -348,6 +351,7 @@
 				A85F96A81D4EE68C825C91FB /* BenchmarkPicker.swift */,
 				1EF1586974ED25915B021745 /* ChangePill.swift */,
 				8711C6C5672E2F03E441C2A8 /* DateQuickPickStrip.swift */,
+				BEEF000000000000000000A1 /* GlassFormCard.swift */,
 				2B445659ED2F9CBCB47E525D /* ReceiptAttachmentSection.swift */,
 				C19BCF721D9A1752A8FCA84D /* ReceiptPreviewView.swift */,
 				0B87A170BEC7F432783E6EB5 /* SparklineView.swift */,
@@ -638,6 +642,7 @@
 				6D81706C8B804B1C9FE96D6F /* DateQuickPickStrip.swift in Sources */,
 				A77F73DBD6805C549B631B9B /* FIFOCalculator.swift in Sources */,
 				68066BCD6124F269EB691141 /* FXRateStore.swift in Sources */,
+				BEEF000000000000000000A2 /* GlassFormCard.swift in Sources */,
 				1682CFE9815E3A640D2231A6 /* GlobalSearch.swift in Sources */,
 				EA29901BD187DA9565081042 /* HoldingDetailView.swift in Sources */,
 				9A74CEB59011FD096C6D2EA8 /* HoldingsView.swift in Sources */,
@@ -732,6 +737,7 @@
 				53CFA6AE42EF07AA050250A5 /* DateQuickPickStrip.swift in Sources */,
 				5ECEEDBED33EC69CFC9F320B /* FIFOCalculator.swift in Sources */,
 				79277EFD21F9D6643602451C /* FXRateStore.swift in Sources */,
+				BEEF000000000000000000A3 /* GlassFormCard.swift in Sources */,
 				6DF1F2BB2E5F586BFFE8884B /* GlobalSearch.swift in Sources */,
 				F773669490EDB157CA6EF865 /* HoldingDetailView.swift in Sources */,
 				1AF87715CE94A1242512F5D4 /* HoldingsView.swift in Sources */,

@@ -28,38 +28,68 @@ struct AccountEditorView: View {
     }
 
     private var canSave: Bool {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let currencyTrimmed = currency.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty == false
-            && currencyTrimmed.isEmpty == false
-            && Double(openingBalanceText) != nil
+        disabledReason == nil
+    }
+
+    private var disabledReason: String? {
+        if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "請輸入帳戶名稱"
+        }
+        if currency.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "請選擇幣別"
+        }
+        if Double(openingBalanceText) == nil {
+            return "開帳金額需要是數字（可填 0）"
+        }
+        return nil
     }
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("基本資訊") {
-                    TextField("帳戶名稱(如：玉山活存、嘉信美股)", text: $name)
-                    Picker("類型", selection: $type) {
-                        ForEach(AccountType.allCases) { kind in
-                            Label(kind.displayTitle, systemImage: kind.symbolName).tag(kind)
-                        }
+            SheetCardScroll {
+                GlassFormCard("基本資訊") {
+                    FieldRow("帳戶名稱") {
+                        TextField("如：玉山活存、嘉信美股", text: $name)
+                            .textFieldStyle(.roundedBorder)
                     }
-                    Picker("幣別", selection: $currency) {
-                        ForEach(BaseCurrencyDefaults.supported, id: \.self) { code in
-                            Text(code).tag(code)
+                    FieldRow("類型") {
+                        Picker("類型", selection: $type) {
+                            ForEach(AccountType.allCases) { kind in
+                                Label(kind.displayTitle, systemImage: kind.symbolName).tag(kind)
+                            }
                         }
+                        .labelsHidden()
+                    }
+                    FieldRow("幣別") {
+                        Picker("幣別", selection: $currency) {
+                            ForEach(BaseCurrencyDefaults.supported, id: \.self) { code in
+                                Text(code).tag(code)
+                            }
+                        }
+                        .labelsHidden()
                     }
                 }
-                Section("Opening Balance") {
-                    TextField("開帳金額", text: $openingBalanceText)
-                        .decimalKeyboard()
-                    Text("這筆金額代表帳戶起始日的餘額。之後的交易與對帳調整會疊加在此基礎上。")
-                        .font(.caption)
-                        .foregroundStyle(NorthstarTheme.secondaryText)
+
+                GlassFormCard(
+                    "開帳金額",
+                    footer: "這筆金額代表帳戶起始日的餘額。之後的交易與對帳調整會疊加在此基礎上。",
+                    tinted: true
+                ) {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        TextField("0", text: $openingBalanceText)
+                            .font(.system(size: 32, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .decimalKeyboard()
+                            .textFieldStyle(.plain)
+                            .foregroundStyle(NorthstarTheme.primaryText)
+                        Text(currency)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(NorthstarTheme.mutedText)
+                    }
                 }
+
+                DisabledHintBanner(reason: disabledReason)
             }
-            .platformFormStyle()
             .navigationTitle(editing == nil ? "新增帳戶" : "編輯帳戶")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

@@ -3,6 +3,7 @@ import SwiftData
 
 struct AccountsView: View {
     let fxStore: FXRateStore
+    var settingsAction: (() -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Account.name) private var accounts: [Account]
@@ -45,6 +46,15 @@ struct AccountsView: View {
             .navigationTitle("帳戶")
             .platformLargeNavigationTitle()
             .toolbar {
+                if let settingsAction {
+                    ToolbarItem {
+                        Button(action: settingsAction) {
+                            Label("設定", systemImage: "person.crop.circle")
+                        }
+                        .accessibilityLabel("開啟設定")
+                    }
+                }
+
                 ToolbarItem {
                     Button {
                         showAddSheet = true
@@ -244,4 +254,3 @@ private struct AccountCard: View {
         }
     }
 }
-

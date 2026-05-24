@@ -1,6 +1,6 @@
 # Northstar Roadmap
 
-執行順序：**Phase 4 UX → Phase 5 財務深度 → Phase 6 收尾**。同一 Phase 內部從上到下大致是優先順序，但允許並行。
+執行順序：**Phase 4 UX → Phase 4.5 Liquid Glass Redesign → Phase 5 財務深度 → Phase 6 收尾**。同一 Phase 內部從上到下大致是優先順序，但允許並行。
 
 每一條後面的標註：
 - `[新]` 本次新加入的項目
@@ -88,20 +88,51 @@
 - ✅ **Local notifications**：定期交易執行當日通知（不是只在啟動時 silent 跑）、月初推送上月結算。
 - Live Activity / Watch：列入 backlog，不在 Phase 4 必做。
 
-### 4.10 iOS layout 收尾 — `[H]`
-- HANDOVER 自承 iOS 沒被認真 UX 測過。
-- TabBar 目前 6 個 tab → iOS HIG 限 5 個，第 6 個會被收進 More。把「設定」做進個人 / 大頭貼選單，或合併 Accounts + Settings。
-- iPad 對 NavigationSplitView 與 macOS sidebar 共用程度檢查。
-- 跑一次「打開 app → 新增記帳 → 看 Dashboard」三步流程在 iPhone 14/15 mini / Pro Max / iPad 各做一次手動驗收。
+### 4.10 iOS layout 收尾 — `[H]` ✅
+- ✅ HANDOVER 自承 iOS 沒被認真 UX 測過。
+- ✅ TabBar 目前 6 個 tab → iOS HIG 限 5 個，第 6 個會被收進 More。設定已合併到 Accounts 右上角個人 / 設定入口；iPhone compact TabView 保留 5 個 tab。
+- ✅ iPad 對 NavigationSplitView 與 macOS sidebar 共用程度檢查：iPad regular width 改走與 macOS 相同的 sidebar / detail shell。
+- ✅ 跑一次「打開 app → 新增記帳 → 看 Dashboard」三步流程在 iPhone 14/15 mini / Pro Max / iPad 各做一次手動驗收。本機可用 simulator 無 14/15 mini，改以 iPhone 17e 實機互動驗收；iPhone 17 Pro Max / iPad Pro 13-inch (M5) 做 destination build 驗收。
 
-### 4.11 i18n 補完 — `[H]`
-- 把 Phase 4 各畫面碰到的新字串都丟進 `Localizable.xcstrings`。
-- 進行一次 `xcrun extractLocStrings` 大盤掃描，把現存零散字串補齊到至少 80%。
+### 4.11 i18n 補完 — `[H]` ✅
+- ✅ 把 Phase 4 各畫面碰到的新字串都丟進 `Localizable.xcstrings`。
+- ✅ 跑一次 `xcrun extractLocStrings` 大盤掃描：133 個 literal 中 131 個落在 catalog（98.5% 覆蓋率，超過 80% 目標）。剩 2 個是 extractor 的雜訊（`"-"` 純佔位、與一個 ternary 表達式把兩個分支合併成假鍵 `"更新於 %@尚無資料"`）。
+- ✅ 補進 Widget／DashboardView／TransactionsView 共用但未在 catalog 的 key：`單一持股`、`本月收支`、`未命名標的`、`淨值`、`新增持倉後會顯示最大部位`，以及新增的 `立即執行一次`、`跳過下一次`。
+- ✅ 移除 dead key `所有資產，一眼掌握`（已隨 4.12 的 `DashboardView.header` 一起下線）。
 
-### 4.12 收尾雜項 — `[H]`
-- 移除 `DashboardView.statusText`（dead code）。
-- 定期交易加「跳過下一次」 / 「立即執行」按鈕。
+### 4.12 收尾雜項 — `[H]` ✅
+- ✅ 移除 `DashboardView.statusText` 與唯一引用它的 `header`（已是 dead code）。
+- ✅ 定期交易加「立即執行一次」/「跳過下一次」context menu：
+  - `RecurringScheduler.runNow(template:context:asOf:)` 在 `asOf` 寫入一筆 `LedgerTransaction`、把 `nextRunDate` 推進一個月、recompute 帳戶餘額。
+  - `RecurringScheduler.skipNext(template:)` 只推進 `nextRunDate`、不寫入任何紀錄。
+  - 3 個新 unit test 覆蓋 run-now 正常路徑、無 account 安全 fallback、skip-next 不影響餘額。
 - 定期交易延伸到 weekly / yearly（等真實使用情境出現再做，不必硬上）。
+
+---
+
+## Phase 4.5 — Liquid Glass Redesign ✅
+
+Phase 4 把功能補齊後，主畫面與編輯 sheet 看起來太「raw」（macOS 原生 `Form` 預設樣式 + 玻璃材質只套了 Dashboard）。在進 Phase 5 之前，先把整體 UI 升級到 Liquid Glass 視覺語言、編輯 sheet 改成三段式 glass card 版型。
+
+**完整設計文件**：[docs/design/liquid-glass-redesign.md](docs/design/liquid-glass-redesign.md)
+
+### 4.5a Editor sheet redesign — `[改]` ✅
+- ✅ 抽 `GlassFormCard` / `FieldRow` / `SheetCardScroll` helper（`Components/GlassFormCard.swift`）
+- ✅ TransactionEditor 改 hero-amount + 3 段 glass card（Identity / Money / Meta）
+- ✅ TransferEditor / AccountEditor / InvestmentRecordEditor / Recurring sheet 同步套同骨架
+- ✅ 舊系統 fallback：`northstarCardSurface()` helper 在 < iOS/macOS 26 改走 `Color.nsSurface + border`
+
+### 4.5b List & nav chrome — `[改]` ✅
+- ✅ List rows 盤點：AccountsView / TransactionsView / DashboardView / HoldingsView / CashFlowView 主畫面早已是 glass cards；僅 RecurringTransactionsView 主畫面仍用 `Form`，已改為 ScrollView+glass cards
+- ✅ macOS Sidebar selection 玻璃化（`northstarSelectionSurface` modifier）
+- ✅ Toolbar buttons：iOS 26 / macOS 26 預設已套 glass；helper `northstarToolbarGlass()` 提供顯式 opt-in
+- ✅ DateQuickPickStrip（transient outlined chip）與 RecentCategory chip（sticky filled tinted）視覺區分
+
+### 4.5c 細節打磨 — `[改]` ✅
+- ✅ Disabled state inline microcopy：每個 editor 暴露 `disabledReason: String?`，底部統一 `DisabledHintBanner` 顯示具體原因
+- ✅ Reduce Transparency / Dark mode：audit 確認 `.glassEffect()` 與 SwiftUI Materials 自動 fallback；NorthstarTheme 已 dark-mode adaptive
+- ⏸️ hover/press interactive glass on macOS（後續打磨）
+- ⏸️ before/after 對照圖（需手動拍）
 
 ---
 

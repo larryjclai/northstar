@@ -162,4 +162,78 @@ final class RecurringSchedulerTests: XCTestCase {
         let result = RecurringScheduler.initialRunDate(dayOfMonth: 15, asOf: asOf, calendar: calendar)
         XCTAssertEqual(result, date("2026-06-15"))
     }
+
+    func testRunNowInsertsAtAsOfAndAdvancesSchedule() throws {
+        let account = makeAccount()
+        let template = RecurringTransaction(
+            amount: -1_500,
+            currency: "TWD",
+            category: "訂閱",
+            dayOfMonth: 20,
+            nextRunDate: date("2026-05-20"),
+            account: account
+        )
+        context.insert(template)
+
+        let runDay = date("2026-05-10")
+        let ok = RecurringScheduler.runNow(
+            template: template,
+            context: context,
+            asOf: runDay,
+            calendar: calendar
+        )
+
+        XCTAssertTrue(ok)
+        XCTAssertEqual(template.nextRunDate, date("2026-06-20"))
+        XCTAssertEqual(account.balance, -1_500)
+
+        let inserted = try context.fetch(FetchDescriptor<LedgerTransaction>())
+        XCTAssertEqual(inserted.count, 1)
+        XCTAssertEqual(inserted.first?.date, runDay)
+        XCTAssertEqual(inserted.first?.amount, -1_500)
+    }
+
+    func testRunNowSkippedWhenTemplateHasNoAccount() throws {
+        let template = RecurringTransaction(
+            amount: -100,
+            currency: "TWD",
+            category: "訂閱",
+            dayOfMonth: 20,
+            nextRunDate: date("2026-05-20")
+        )
+        context.insert(template)
+
+        let ok = RecurringScheduler.runNow(
+            template: template,
+            context: context,
+            asOf: date("2026-05-10"),
+            calendar: calendar
+        )
+        XCTAssertFalse(ok)
+        XCTAssertEqual(template.nextRunDate, date("2026-05-20"))
+
+        let inserted = try context.fetch(FetchDescriptor<LedgerTransaction>())
+        XCTAssertTrue(inserted.isEmpty)
+    }
+
+    func testSkipNextAdvancesWithoutInserting() throws {
+        let account = makeAccount(balance: 1_000)
+        let template = RecurringTransaction(
+            amount: -500,
+            currency: "TWD",
+            category: "訂閱",
+            dayOfMonth: 15,
+            nextRunDate: date("2026-05-15"),
+            account: account
+        )
+        context.insert(template)
+
+        let ok = RecurringScheduler.skipNext(template: template, calendar: calendar)
+        XCTAssertTrue(ok)
+        XCTAssertEqual(template.nextRunDate, date("2026-06-15"))
+        XCTAssertEqual(account.balance, 1_000)
+
+        let inserted = try context.fetch(FetchDescriptor<LedgerTransaction>())
+        XCTAssertTrue(inserted.isEmpty)
+    }
 }

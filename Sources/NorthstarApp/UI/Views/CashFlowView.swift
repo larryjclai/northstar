@@ -1409,11 +1409,31 @@ struct CashFlowEditorView: View {
     }
 
     private var canSave: Bool {
-        guard selectedAccount != nil else { return false }
-        if isSplit {
-            return splitValidatedLines() != nil
+        disabledReason == nil
+    }
+
+    /// Returns the first unmet save requirement so the editor can surface an inline
+    /// hint instead of a silently disabled Save button.
+    private var disabledReason: String? {
+        if isLockedInvestmentLink {
+            return nil  // toolbar is already explicitly disabled with a separate notice card
         }
-        return resolvedCategory.isEmpty == false && (evaluatedAmount ?? 0) > 0
+        if selectedAccount == nil {
+            return "請先選擇帳戶"
+        }
+        if isSplit {
+            if splitValidatedLines() == nil {
+                return "請完成所有拆分明細"
+            }
+            return nil
+        }
+        if (evaluatedAmount ?? 0) <= 0 {
+            return "輸入金額後即可儲存"
+        }
+        if resolvedCategory.isEmpty {
+            return "請選擇分類"
+        }
+        return nil
     }
 
     /// Returns the evaluated lines if every split row is valid, otherwise nil.
@@ -1444,101 +1464,25 @@ struct CashFlowEditorView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("類型") {
-                    Picker("類型", selection: $entryType) {
-                        ForEach(LedgerEntryType.allCases) { type in
-                            Text(type.displayTitle).tag(type)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .onChange(of: entryType) { _, newValue in
-                        let suggestions = LedgerCategoryCatalog.suggestions(for: newValue)
-                        if suggestions.contains(selectedCategory) == false {
-                            selectedCategory = suggestions.first ?? LedgerCategoryCatalog.custom
-                        }
-                    }
-                }
+            SheetCardScroll {
+                typeSegmentedHero
 
-                Section("基本資訊") {
-                    DateQuickPickStrip(date: $date)
-                    DatePicker("日期", selection: $date, displayedComponents: .date)
+                identityCard
 
-                    if accounts.isEmpty == false {
-                        Picker("帳戶", selection: $selectedAccountID) {
-                            ForEach(accounts, id: \.id) { account in
-                                Text("\(account.name) · \(account.currency)").tag(Optional(account.id))
-                            }
-                        }
-                    }
+                amountCard
 
-                    if isSplit == false {
-                        if recentCategorySuggestions.isEmpty == false {
-                            recentCategoryStrip
-                        }
-
-                        Picker("分類", selection: $selectedCategory) {
-                            ForEach(LedgerCategoryCatalog.suggestions(for: entryType), id: \.self) { category in
-                                Text(category).tag(category)
-                            }
-                            Text(LedgerCategoryCatalog.custom).tag(LedgerCategoryCatalog.custom)
-                        }
-
-                        if selectedCategory == LedgerCategoryCatalog.custom {
-                            TextField("自訂分類", text: $customCategoryText)
-                        }
-                    }
-                }
-
-                Section {
-                    Toggle("拆分明細", isOn: Binding(
-                        get: { isSplit },
-                        set: { toggleSplit(to: $0) }
-                    ))
-                    .disabled(isLockedInvestmentLink)
-                    Text("打開後可以把這筆消費拆成多個分類，例如家樂福一張 1500 元收據拆成「伙食 1000 + 日用品 500」。")
-                        .font(.caption2)
-                        .foregroundStyle(NorthstarTheme.mutedText)
-                }
-
-                if isSplit {
-                    splitLinesSection
-                } else {
-                    Section("金額") {
-                        TextField("金額", text: $amountText)
-                            .decimalKeyboard()
-                        if amountShowsExpressionPreview, let value = evaluatedAmount {
-                            Text("= \(CurrencyFormatters.money(value, currencyCode: selectedAccount?.currency ?? "TWD"))")
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(NorthstarTheme.accent)
-                                .monospacedDigit()
-                        }
-                        Text("可直接輸入算式，例如 120+85+30。")
-                            .font(.caption2)
-                            .foregroundStyle(NorthstarTheme.mutedText)
-                        if let account = selectedAccount {
-                            Text("以 \(account.currency) 記錄。完成後 \(account.name) 餘額會自動更新。")
-                                .font(.caption)
-                                .foregroundStyle(NorthstarTheme.secondaryText)
-                        }
-                    }
-                }
-
-                Section("備註") {
-                    TextField("備註（可選）", text: $note)
-                }
-
-                ReceiptAttachmentSection(receipt: $receiptData)
+                metaCard
 
                 if isLockedInvestmentLink {
-                    Section {
+                    GlassFormCard {
                         Label("此筆由投資交易自動產生，請至「交易」修改。", systemImage: "lock.fill")
                             .font(.caption)
                             .foregroundStyle(NorthstarTheme.warning)
                     }
                 }
+
+                DisabledHintBanner(reason: disabledReason)
             }
-            .platformFormStyle()
             .navigationTitle(editing == nil ? "新增收支" : "編輯收支")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -1553,19 +1497,142 @@ struct CashFlowEditorView: View {
         }
     }
 
-    private var recentCategoryStrip: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("最近用過")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(NorthstarTheme.mutedText)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(recentCategorySuggestions, id: \.self) { category in
-                        recentCategoryChip(category)
+    private var typeSegmentedHero: some View {
+        Picker("類型", selection: $entryType) {
+            ForEach(LedgerEntryType.allCases) { type in
+                Text(type.displayTitle).tag(type)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .onChange(of: entryType) { _, newValue in
+            let suggestions = LedgerCategoryCatalog.suggestions(for: newValue)
+            if suggestions.contains(selectedCategory) == false {
+                selectedCategory = suggestions.first ?? LedgerCategoryCatalog.custom
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var identityCard: some View {
+        GlassFormCard("基本資訊") {
+            if accounts.isEmpty == false {
+                FieldRow("帳戶") {
+                    Picker("帳戶", selection: $selectedAccountID) {
+                        ForEach(accounts, id: \.id) { account in
+                            Text("\(account.name) · \(account.currency)").tag(Optional(account.id))
+                        }
+                    }
+                    .labelsHidden()
+                }
+            }
+
+            FieldRow("日期") {
+                VStack(alignment: .leading, spacing: 8) {
+                    DateQuickPickStrip(date: $date)
+                    DatePicker("日期", selection: $date, displayedComponents: .date)
+                        .datePickerStyle(.compact)
+                        .labelsHidden()
+                }
+            }
+
+            if isSplit == false {
+                if recentCategorySuggestions.isEmpty == false {
+                    FieldRow("最近用過") {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(recentCategorySuggestions, id: \.self) { category in
+                                    recentCategoryChip(category)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
                     }
                 }
-                .padding(.vertical, 2)
+
+                FieldRow("分類") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Picker("分類", selection: $selectedCategory) {
+                            ForEach(LedgerCategoryCatalog.suggestions(for: entryType), id: \.self) { category in
+                                Text(category).tag(category)
+                            }
+                            Text(LedgerCategoryCatalog.custom).tag(LedgerCategoryCatalog.custom)
+                        }
+                        .labelsHidden()
+
+                        if selectedCategory == LedgerCategoryCatalog.custom {
+                            TextField("自訂分類", text: $customCategoryText)
+                                .textFieldStyle(.roundedBorder)
+                        }
+                    }
+                }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var amountCard: some View {
+        GlassFormCard(isSplit ? "拆分明細" : "金額", tinted: true) {
+            if isSplit {
+                splitLinesContent
+            } else {
+                heroAmountField
+                if amountShowsExpressionPreview, let value = evaluatedAmount {
+                    Text("= \(CurrencyFormatters.money(value, currencyCode: selectedAccount?.currency ?? "TWD"))")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(NorthstarTheme.accent)
+                        .monospacedDigit()
+                }
+                Text("可輸入算式，例如 120+85+30。")
+                    .font(.caption2)
+                    .foregroundStyle(NorthstarTheme.mutedText)
+                if let account = selectedAccount, (evaluatedAmount ?? 0) > 0 {
+                    Text("完成後 \(account.name) 餘額會自動更新。")
+                        .font(.caption2)
+                        .foregroundStyle(NorthstarTheme.secondaryText)
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button {
+                    toggleSplit(to: !isSplit)
+                } label: {
+                    Label(
+                        isSplit ? "回到單筆" : "拆分明細",
+                        systemImage: isSplit ? "arrow.uturn.left" : "rectangle.split.3x1"
+                    )
+                    .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(NorthstarTheme.accent)
+                .disabled(isLockedInvestmentLink)
+            }
+        }
+    }
+
+    private var heroAmountField: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            TextField("0", text: $amountText)
+                .font(.system(size: 38, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .decimalKeyboard()
+                .textFieldStyle(.plain)
+                .foregroundStyle(NorthstarTheme.primaryText)
+            Text(selectedAccount?.currency ?? "TWD")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(NorthstarTheme.mutedText)
+        }
+    }
+
+    @ViewBuilder
+    private var metaCard: some View {
+        GlassFormCard("備註與收據") {
+            FieldRow("備註") {
+                TextField("備註（可選）", text: $note)
+                    .textFieldStyle(.roundedBorder)
+            }
+            ReceiptAttachmentSection(receipt: $receiptData)
         }
     }
 
@@ -1575,14 +1642,7 @@ struct CashFlowEditorView: View {
             applyCategoryChip(category)
         } label: {
             Text(category)
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .foregroundStyle(isSelected ? Color.nsBackground : NorthstarTheme.primaryText)
-                .background {
-                    Capsule(style: .continuous)
-                        .fill(isSelected ? NorthstarTheme.accent : NorthstarTheme.accent.opacity(0.10))
-                }
+                .northstarChipStyle(.sticky(isSelected: isSelected))
         }
         .buttonStyle(.plain)
     }
@@ -1616,8 +1676,8 @@ struct CashFlowEditorView: View {
         }
     }
 
-    private var splitLinesSection: some View {
-        Section("拆分明細") {
+    private var splitLinesContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
             splitTotalsBanner
 
             ForEach($splitLines) { $line in
@@ -1629,7 +1689,10 @@ struct CashFlowEditorView: View {
                 splitLines.append(SplitLine(category: initial, amountText: ""))
             } label: {
                 Label("新增明細", systemImage: "plus.circle")
+                    .font(.subheadline.weight(.semibold))
             }
+            .buttonStyle(.borderless)
+            .foregroundStyle(NorthstarTheme.accent)
         }
     }
 

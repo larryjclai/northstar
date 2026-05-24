@@ -307,30 +307,6 @@ struct DashboardView: View {
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("所有資產，一眼掌握")
-                    .font(.title2.bold())
-                    .foregroundStyle(NorthstarTheme.primaryText)
-                Text(statusText)
-                    .font(.subheadline)
-                    .foregroundStyle(NorthstarTheme.secondaryText)
-            }
-
-            Spacer()
-
-            if priceStore.isRefreshing {
-                ProgressView()
-                    .controlSize(.small)
-            } else {
-                Image(systemName: "sparkline")
-                    .font(.title3)
-                    .foregroundStyle(NorthstarTheme.netWorth)
-            }
-        }
-    }
-
     private var heroCard: some View {
         let trend = currentNetWorthTrend
         let benchmark = currentBenchmarkSeries
@@ -831,18 +807,6 @@ struct DashboardView: View {
         .padding(18)
         .frame(maxWidth: .infinity, minHeight: 240, alignment: .topLeading)
         .northstarCardSurface()
-    }
-
-    private var statusText: String {
-        if let lastError = priceStore.lastError {
-            return "同步失敗：\(lastError)"
-        }
-
-        if let lastUpdated = priceStore.lastUpdated {
-            return "Yahoo Finance 已同步 \(lastUpdated.formatted(date: .omitted, time: .shortened))"
-        }
-
-        return priceStore.isRefreshing ? "正在同步 Yahoo Finance 報價" : "等待 Yahoo Finance 報價"
     }
 
     private func displayName(for ticker: String) -> String {

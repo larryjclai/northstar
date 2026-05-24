@@ -3,6 +3,9 @@ import SwiftData
 
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
     @Query(sort: \Account.name) private var accounts: [Account]
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
     @Query(sort: \InvestmentRecord.date, order: .reverse) private var records: [InvestmentRecord]
@@ -15,24 +18,59 @@ struct RootView: View {
     @AppStorage(IntentRoutingKeys.baseCurrency) private var baseCurrency: String = BaseCurrencyDefaults.default
     @SceneStorage("northstar.scene.selectedTab") private var sceneTabRaw: String = NorthstarTab.dashboard.rawValue
     @State private var pendingAddKind: AddSheetKind?
+    @State private var isPresentingSettings = false
     @State private var sidebarSearchText = ""
 
     private var selectedTab: NorthstarTab {
         NorthstarTab(rawValue: sceneTabRaw) ?? .dashboard
     }
 
+    private var selectedContentTab: NorthstarTab {
+        #if os(iOS)
+        if isCompactIOS, selectedTab == .settings {
+            return .accounts
+        }
+        #endif
+        return selectedTab
+    }
+
     private var selectedTabBinding: Binding<NorthstarTab> {
         Binding(
-            get: { NorthstarTab(rawValue: sceneTabRaw) ?? .dashboard },
+            get: { selectedContentTab },
             set: { sceneTabRaw = $0.rawValue }
         )
     }
+
+    #if os(iOS)
+    private var isCompactIOS: Bool {
+        horizontalSizeClass == .compact
+    }
+    #endif
 
     var body: some View {
         #if os(macOS)
         desktopShell
             .sheet(item: $pendingAddKind, content: addSheetView)
         #else
+        iosShell
+            .sheet(item: $pendingAddKind, content: addSheetView)
+            .sheet(isPresented: $isPresentingSettings) {
+                SettingsView(fxStore: fxStore, priceStore: priceStore)
+            }
+        #endif
+    }
+
+    #if os(iOS)
+    @ViewBuilder
+    private var iosShell: some View {
+        if isCompactIOS {
+            compactTabShell
+        } else {
+            regularSplitShell
+        }
+    }
+
+    private var compactTabShell: some View {
         TabView(selection: selectedTabBinding) {
             DashboardView(priceStore: priceStore, fxStore: fxStore, requestAdd: requestAdd)
                 .tabItem {
@@ -58,29 +96,45 @@ struct RootView: View {
                 }
                 .tag(NorthstarTab.cashFlow)
 
-            AccountsView(fxStore: fxStore)
+            AccountsView(fxStore: fxStore, settingsAction: presentSettings)
                 .tabItem {
                     Label("帳戶", systemImage: "creditcard.fill")
                 }
                 .tag(NorthstarTab.accounts)
-
-            SettingsView(fxStore: fxStore, priceStore: priceStore)
-                .tabItem {
-                    Label("設定", systemImage: "gearshape")
-                }
-                .tag(NorthstarTab.settings)
         }
         .tint(NorthstarTheme.accent)
-        .sheet(item: $pendingAddKind, content: addSheetView)
-        .onAppear(perform: handleLaunchRouting)
-        .onChange(of: requestedTabRaw) { _, _ in
-            applyRequestedTab()
-        }
-        .onChange(of: requestedAddKindRaw) { _, newValue in
-            consumeRequestedAddKind(newValue)
-        }
-        #endif
+        .modifier(RootLifecycleModifier(
+            onAppear: handleLaunchRouting,
+            onRequestedTabChange: applyRequestedTab,
+            onRequestedAddKindChange: consumeRequestedAddKind
+        ))
     }
+
+    private var regularSplitShell: some View {
+        NavigationSplitView {
+            NorthstarSidebar(
+                selectedTab: selectedTabBinding,
+                searchText: $sidebarSearchText,
+                accounts: accounts,
+                assets: assets,
+                records: records,
+                ledgerTransactions: ledgerTransactions,
+                priceStore: priceStore
+            )
+            .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 340)
+            .background(Color.nsBackground)
+        } detail: {
+            selectedContent
+                .background(Color.nsBackground)
+        }
+        .tint(NorthstarTheme.accent)
+        .modifier(RootLifecycleModifier(
+            onAppear: handleLaunchRouting,
+            onRequestedTabChange: applyRequestedTab,
+            onRequestedAddKindChange: consumeRequestedAddKind
+        ))
+    }
+    #endif
 
     #if os(macOS)
     private var desktopShell: some View {
@@ -114,10 +168,11 @@ struct RootView: View {
             consumeRequestedAddKind(newValue)
         }
     }
+    #endif
 
     @ViewBuilder
     private var selectedContent: some View {
-        switch selectedTab {
+        switch selectedContentTab {
         case .dashboard:
             DashboardView(priceStore: priceStore, fxStore: fxStore, requestAdd: requestAdd)
         case .holdings:
@@ -127,12 +182,11 @@ struct RootView: View {
         case .cashFlow:
             CashFlowView(fxStore: fxStore, requestAdd: requestAdd)
         case .accounts:
-            AccountsView(fxStore: fxStore)
+            AccountsView(fxStore: fxStore, settingsAction: presentSettings)
         case .settings:
             SettingsView(fxStore: fxStore, priceStore: priceStore)
         }
     }
-    #endif
 
     @ViewBuilder
     private func addSheetView(for kind: AddSheetKind) -> some View {
@@ -149,6 +203,16 @@ struct RootView: View {
     private func requestAdd(_ kind: AddSheetKind) {
         sceneTabRaw = kind.landingTab.rawValue
         pendingAddKind = kind
+    }
+
+    private func presentSettings() {
+        #if os(iOS)
+        if isCompactIOS {
+            isPresentingSettings = true
+            return
+        }
+        #endif
+        sceneTabRaw = NorthstarTab.settings.rawValue
     }
 
     private var shortcutCommands: some View {
@@ -227,6 +291,13 @@ struct RootView: View {
 
     private func applyRequestedTab() {
         guard let tab = NorthstarTab(rawValue: requestedTabRaw) else { return }
+        #if os(iOS)
+        if isCompactIOS, tab == .settings {
+            sceneTabRaw = NorthstarTab.accounts.rawValue
+            isPresentingSettings = true
+            return
+        }
+        #endif
         sceneTabRaw = tab.rawValue
     }
 
@@ -237,7 +308,29 @@ struct RootView: View {
     }
 }
 
-#if os(macOS)
+#if os(iOS)
+private struct RootLifecycleModifier: ViewModifier {
+    let onAppear: () -> Void
+    let onRequestedTabChange: () -> Void
+    let onRequestedAddKindChange: (String) -> Void
+
+    @AppStorage(IntentRoutingKeys.selectedTab) private var requestedTabRaw = NorthstarTab.dashboard.rawValue
+    @AppStorage(IntentRoutingKeys.openAddKind) private var requestedAddKindRaw: String = ""
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear(perform: onAppear)
+            .onChange(of: requestedTabRaw) { _, _ in
+                onRequestedTabChange()
+            }
+            .onChange(of: requestedAddKindRaw) { _, newValue in
+                onRequestedAddKindChange(newValue)
+            }
+    }
+}
+#endif
+
+#if os(macOS) || os(iOS)
 private struct NorthstarSidebar: View {
     @Binding var selectedTab: NorthstarTab
     @Binding var searchText: String
@@ -399,7 +492,8 @@ private struct NorthstarSidebar: View {
     }
 
     private func sidebarButton(_ tab: NorthstarTab, title: String, icon: String, badge: String? = nil) -> some View {
-        Button {
+        let isSelected = selectedTab == tab
+        return Button {
             selectedTab = tab
         } label: {
             HStack(spacing: 12) {
@@ -409,19 +503,14 @@ private struct NorthstarSidebar: View {
                 Spacer()
                 if let badge {
                     Text(badge)
-                        .foregroundStyle(selectedTab == tab ? Color.nsBackground : NorthstarTheme.accent)
+                        .foregroundStyle(isSelected ? Color.nsBackground : NorthstarTheme.accent)
                 }
             }
             .font(.subheadline.weight(.semibold))
-            .foregroundStyle(selectedTab == tab ? Color.nsBackground : NorthstarTheme.primaryText)
+            .foregroundStyle(isSelected ? Color.nsBackground : NorthstarTheme.primaryText)
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
-            .background {
-                if selectedTab == tab {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color(red: 0.38, green: 0.62, blue: 1.00))
-                }
-            }
+            .northstarSelectionSurface(isSelected: isSelected, cornerRadius: 8)
         }
         .buttonStyle(.plain)
     }

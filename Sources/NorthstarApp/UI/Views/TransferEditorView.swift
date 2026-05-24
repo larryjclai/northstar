@@ -121,96 +121,40 @@ struct TransferEditorView: View {
     }
 
     private var canSave: Bool {
-        guard
-            let source = sourceAccount,
-            let destination = destinationAccount,
-            source.id != destination.id,
-            let s = evaluatedSource, s > 0
-        else { return false }
-        if isCrossCurrency {
-            guard let d = evaluatedDestination, d > 0 else { return false }
+        disabledReason == nil
+    }
+
+    private var disabledReason: String? {
+        guard let source = sourceAccount else {
+            return "請選擇來源帳戶"
         }
-        return true
+        guard let destination = destinationAccount else {
+            return "請選擇目標帳戶"
+        }
+        if source.id == destination.id {
+            return "來源與目標帳戶必須不同"
+        }
+        guard let s = evaluatedSource, s > 0 else {
+            return "請輸入來源金額"
+        }
+        if isCrossCurrency {
+            guard let d = evaluatedDestination, d > 0 else {
+                return "跨幣別轉帳請輸入目標金額"
+            }
+            _ = d
+        }
+        _ = s
+        return nil
     }
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("基本資訊") {
-                    DateQuickPickStrip(date: $date)
-                    DatePicker("日期", selection: $date, displayedComponents: .date)
-                }
-
-                Section("帳戶") {
-                    Picker("從", selection: $sourceAccountID) {
-                        ForEach(accounts, id: \.id) { account in
-                            Text("\(account.name) · \(account.currency)").tag(Optional(account.id))
-                        }
-                    }
-                    Picker("到", selection: $destinationAccountID) {
-                        ForEach(accounts, id: \.id) { account in
-                            Text("\(account.name) · \(account.currency)").tag(Optional(account.id))
-                        }
-                    }
-                    if let source = sourceAccount,
-                       let destination = destinationAccount,
-                       source.id == destination.id {
-                        Label("來源與目標帳戶必須不同。", systemImage: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundStyle(NorthstarTheme.warning)
-                    }
-                }
-
-                Section("金額") {
-                    TextField(
-                        "來源金額（\(sourceAccount?.currency ?? "")）",
-                        text: $sourceAmountText
-                    )
-                    .decimalKeyboard()
-                    if sourceShowsExpressionPreview, let value = evaluatedSource {
-                        Text("= \(CurrencyFormatters.money(value, currencyCode: sourceAccount?.currency ?? "TWD"))")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(NorthstarTheme.accent)
-                            .monospacedDigit()
-                    }
-                    if isCrossCurrency {
-                        TextField(
-                            "目標金額（\(destinationAccount?.currency ?? "")）",
-                            text: $destinationAmountText
-                        )
-                        .decimalKeyboard()
-                        if destinationShowsExpressionPreview, let value = evaluatedDestination {
-                            Text("= \(CurrencyFormatters.money(value, currencyCode: destinationAccount?.currency ?? "TWD"))")
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(NorthstarTheme.accent)
-                                .monospacedDigit()
-                        }
-                        if let rate = implicitRate,
-                           let src = sourceAccount,
-                           let dest = destinationAccount {
-                            Text("隱含匯率：1 \(src.currency) ≈ \(rateString(rate)) \(dest.currency)")
-                                .font(.caption)
-                                .foregroundStyle(NorthstarTheme.secondaryText)
-                                .monospacedDigit()
-                        } else {
-                            Text("跨幣別轉帳請填兩個金額；系統會記下隱含匯率。")
-                                .font(.caption2)
-                                .foregroundStyle(NorthstarTheme.mutedText)
-                        }
-                    } else {
-                        Text("同幣別轉帳兩邊金額相同，只需填一次。可輸入算式，例如 1000+500。")
-                            .font(.caption2)
-                            .foregroundStyle(NorthstarTheme.mutedText)
-                    }
-                }
-
-                Section("備註") {
-                    TextField("備註（可選）", text: $note)
-                }
-
-                ReceiptAttachmentSection(receipt: $receiptData)
+            SheetCardScroll {
+                identityCard
+                amountCard
+                metaCard
+                DisabledHintBanner(reason: disabledReason)
             }
-            .platformFormStyle()
             .navigationTitle(editing == nil ? "新增轉帳" : "編輯轉帳")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -221,6 +165,126 @@ struct TransferEditorView: View {
                         .disabled(!canSave)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var identityCard: some View {
+        GlassFormCard("基本資訊") {
+            FieldRow("日期") {
+                VStack(alignment: .leading, spacing: 8) {
+                    DateQuickPickStrip(date: $date)
+                    DatePicker("日期", selection: $date, displayedComponents: .date)
+                        .datePickerStyle(.compact)
+                        .labelsHidden()
+                }
+            }
+
+            FieldRow("從") {
+                Picker("從", selection: $sourceAccountID) {
+                    ForEach(accounts, id: \.id) { account in
+                        Text("\(account.name) · \(account.currency)").tag(Optional(account.id))
+                    }
+                }
+                .labelsHidden()
+            }
+
+            FieldRow("到") {
+                Picker("到", selection: $destinationAccountID) {
+                    ForEach(accounts, id: \.id) { account in
+                        Text("\(account.name) · \(account.currency)").tag(Optional(account.id))
+                    }
+                }
+                .labelsHidden()
+            }
+
+            if let source = sourceAccount,
+               let destination = destinationAccount,
+               source.id == destination.id {
+                Label("來源與目標帳戶必須不同。", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(NorthstarTheme.warning)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var amountCard: some View {
+        GlassFormCard("金額", tinted: true) {
+            heroAmountField(
+                label: "來源金額",
+                text: $sourceAmountText,
+                currency: sourceAccount?.currency
+            )
+            if sourceShowsExpressionPreview, let value = evaluatedSource {
+                Text("= \(CurrencyFormatters.money(value, currencyCode: sourceAccount?.currency ?? "TWD"))")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(NorthstarTheme.accent)
+                    .monospacedDigit()
+            }
+
+            if isCrossCurrency {
+                Divider().padding(.vertical, 4)
+                heroAmountField(
+                    label: "目標金額",
+                    text: $destinationAmountText,
+                    currency: destinationAccount?.currency
+                )
+                if destinationShowsExpressionPreview, let value = evaluatedDestination {
+                    Text("= \(CurrencyFormatters.money(value, currencyCode: destinationAccount?.currency ?? "TWD"))")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(NorthstarTheme.accent)
+                        .monospacedDigit()
+                }
+                if let rate = implicitRate,
+                   let src = sourceAccount,
+                   let dest = destinationAccount {
+                    Text("隱含匯率：1 \(src.currency) ≈ \(rateString(rate)) \(dest.currency)")
+                        .font(.caption)
+                        .foregroundStyle(NorthstarTheme.secondaryText)
+                        .monospacedDigit()
+                } else {
+                    Text("跨幣別轉帳請填兩個金額；系統會記下隱含匯率。")
+                        .font(.caption2)
+                        .foregroundStyle(NorthstarTheme.mutedText)
+                }
+            } else {
+                Text("同幣別轉帳兩邊金額相同，只需填一次。可輸入算式，例如 1000+500。")
+                    .font(.caption2)
+                    .foregroundStyle(NorthstarTheme.mutedText)
+            }
+        }
+    }
+
+    private func heroAmountField(label: String, text: Binding<String>, currency: String?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(NorthstarTheme.mutedText)
+                .textCase(.uppercase)
+                .tracking(0.4)
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                TextField("0", text: text)
+                    .font(.system(size: 32, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .decimalKeyboard()
+                    .textFieldStyle(.plain)
+                    .foregroundStyle(NorthstarTheme.primaryText)
+                Text(currency ?? "TWD")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(NorthstarTheme.mutedText)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var metaCard: some View {
+        GlassFormCard("備註與收據") {
+            FieldRow("備註") {
+                TextField("備註（可選）", text: $note)
+                    .textFieldStyle(.roundedBorder)
+            }
+            ReceiptAttachmentSection(receipt: $receiptData)
         }
     }
 

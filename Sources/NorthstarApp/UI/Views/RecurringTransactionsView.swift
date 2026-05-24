@@ -11,31 +11,40 @@ struct RecurringTransactionsView: View {
     @State private var pendingDelete: RecurringTransaction?
 
     var body: some View {
-        Form {
-            Section {
-                Text("每月固定發生的收入或支出可以在這裡建立模板。下次開啟 App 時，到期的扣款會自動寫入「收支」。")
-                    .font(.caption)
-                    .foregroundStyle(NorthstarTheme.secondaryText)
-            }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 14) {
+                introCard
 
-            if templates.isEmpty {
-                Section {
-                    Text(accounts.isEmpty
-                         ? "請先到「帳戶」分頁新增現金帳戶，才能設定定期交易。"
-                         : "尚未建立任何定期交易，點右上 + 開始。")
-                        .font(.subheadline)
-                        .foregroundStyle(NorthstarTheme.secondaryText)
-                }
-            } else {
-                Section {
+                if templates.isEmpty {
+                    emptyStateCard
+                } else {
                     ForEach(templates) { template in
                         Button {
                             editingTemplate = template
                         } label: {
                             RecurringTemplateRow(template: template)
+                                .padding(16)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .northstarCardSurface()
                         }
                         .buttonStyle(.plain)
                         .contextMenu {
+                            Button {
+                                RecurringScheduler.runNow(template: template, context: modelContext)
+                            } label: {
+                                Label("立即執行一次", systemImage: "bolt.fill")
+                            }
+                            .disabled(template.account == nil)
+
+                            Button {
+                                RecurringScheduler.skipNext(template: template)
+                                try? modelContext.save()
+                            } label: {
+                                Label("跳過下一次", systemImage: "forward.end")
+                            }
+
+                            Divider()
+
                             Button {
                                 template.isActive.toggle()
                                 try? modelContext.save()
@@ -55,8 +64,8 @@ struct RecurringTransactionsView: View {
                     }
                 }
             }
+            .padding(20)
         }
-        .platformFormStyle()
         .northstarScreenBackground()
         .navigationTitle("定期交易")
         .platformInlineNavigationTitle()
@@ -95,6 +104,27 @@ struct RecurringTransactionsView: View {
         } message: {
             Text("已自動寫入的歷史紀錄不會被刪除。")
         }
+    }
+
+    private var introCard: some View {
+        Text("每月固定發生的收入或支出可以在這裡建立模板。下次開啟 App 時，到期的扣款會自動寫入「收支」。")
+            .font(.subheadline)
+            .foregroundStyle(NorthstarTheme.secondaryText)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .northstarCardSurface()
+    }
+
+    private var emptyStateCard: some View {
+        Text(accounts.isEmpty
+             ? "請先到「帳戶」分頁新增現金帳戶，才能設定定期交易。"
+             : "尚未建立任何定期交易，點右上 + 開始。")
+            .font(.subheadline)
+            .foregroundStyle(NorthstarTheme.secondaryText)
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .northstarCardSurface()
     }
 }
 
@@ -224,68 +254,96 @@ struct RecurringTransactionEditorView: View {
     }
 
     private var canSave: Bool {
-        Double(amountText) != nil
-            && selectedAccount != nil
-            && resolvedCategory.isEmpty == false
-            && (Double(amountText) ?? 0) > 0
-            && (1...31).contains(dayOfMonth)
+        disabledReason == nil
+    }
+
+    private var disabledReason: String? {
+        if selectedAccount == nil {
+            return "請選擇帳戶"
+        }
+        if resolvedCategory.isEmpty {
+            return "請選擇分類"
+        }
+        let amount = Double(amountText) ?? 0
+        if amount <= 0 {
+            return "輸入金額後即可儲存"
+        }
+        if (1...31).contains(dayOfMonth) == false {
+            return "扣款日請設定在 1–31 之間"
+        }
+        return nil
     }
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("類型") {
-                    Picker("類型", selection: $entryType) {
-                        ForEach(LedgerEntryType.allCases) { type in
-                            Text(type.displayTitle).tag(type)
-                        }
+            SheetCardScroll {
+                Picker("類型", selection: $entryType) {
+                    ForEach(LedgerEntryType.allCases) { type in
+                        Text(type.displayTitle).tag(type)
                     }
-                    .pickerStyle(.segmented)
-                    .onChange(of: entryType) { _, newValue in
-                        let suggestions = LedgerCategoryCatalog.suggestions(for: newValue)
-                        if suggestions.contains(selectedCategory) == false {
-                            selectedCategory = suggestions.first ?? LedgerCategoryCatalog.custom
-                        }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .onChange(of: entryType) { _, newValue in
+                    let suggestions = LedgerCategoryCatalog.suggestions(for: newValue)
+                    if suggestions.contains(selectedCategory) == false {
+                        selectedCategory = suggestions.first ?? LedgerCategoryCatalog.custom
                     }
                 }
 
-                Section("基本資訊") {
-                    Picker("帳戶", selection: $selectedAccountID) {
-                        ForEach(accounts, id: \.id) { account in
-                            Text("\(account.name) · \(account.currency)").tag(Optional(account.id))
+                GlassFormCard("基本資訊") {
+                    FieldRow("帳戶") {
+                        Picker("帳戶", selection: $selectedAccountID) {
+                            ForEach(accounts, id: \.id) { account in
+                                Text("\(account.name) · \(account.currency)").tag(Optional(account.id))
+                            }
+                        }
+                        .labelsHidden()
+                    }
+                    FieldRow("分類") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Picker("分類", selection: $selectedCategory) {
+                                ForEach(LedgerCategoryCatalog.suggestions(for: entryType), id: \.self) { category in
+                                    Text(category).tag(category)
+                                }
+                                Text(LedgerCategoryCatalog.custom).tag(LedgerCategoryCatalog.custom)
+                            }
+                            .labelsHidden()
+                            if selectedCategory == LedgerCategoryCatalog.custom {
+                                TextField("自訂分類", text: $customCategoryText)
+                                    .textFieldStyle(.roundedBorder)
+                            }
                         }
                     }
-
-                    Picker("分類", selection: $selectedCategory) {
-                        ForEach(LedgerCategoryCatalog.suggestions(for: entryType), id: \.self) { category in
-                            Text(category).tag(category)
-                        }
-                        Text(LedgerCategoryCatalog.custom).tag(LedgerCategoryCatalog.custom)
-                    }
-
-                    if selectedCategory == LedgerCategoryCatalog.custom {
-                        TextField("自訂分類", text: $customCategoryText)
-                    }
-
                     Stepper("每月 \(dayOfMonth) 日", value: $dayOfMonth, in: 1...31)
                     Toggle("啟用", isOn: $isActive)
                 }
 
-                Section("金額") {
-                    TextField("金額", text: $amountText)
-                        .decimalKeyboard()
-                    if let account = selectedAccount {
-                        Text("以 \(account.currency) 記錄。下次到期會自動寫入 \(account.name)。")
-                            .font(.caption)
-                            .foregroundStyle(NorthstarTheme.secondaryText)
+                GlassFormCard(
+                    "金額",
+                    footer: selectedAccount.map { "以 \($0.currency) 記錄。下次到期會自動寫入 \($0.name)。" },
+                    tinted: true
+                ) {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        TextField("0", text: $amountText)
+                            .font(.system(size: 32, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .decimalKeyboard()
+                            .textFieldStyle(.plain)
+                            .foregroundStyle(NorthstarTheme.primaryText)
+                        Text(selectedAccount?.currency ?? "TWD")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(NorthstarTheme.mutedText)
                     }
                 }
 
-                Section("備註") {
+                GlassFormCard("備註") {
                     TextField("備註（可選）", text: $note)
+                        .textFieldStyle(.roundedBorder)
                 }
+
+                DisabledHintBanner(reason: disabledReason)
             }
-            .platformFormStyle()
             .navigationTitle(editing == nil ? "新增定期交易" : "編輯定期交易")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
