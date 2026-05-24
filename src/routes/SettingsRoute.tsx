@@ -167,7 +167,7 @@ export function SettingsRoute() {
                   const pairKey = `${rate.from}|${rate.to || form.primaryCurrency}`;
                   return (
                     <RateRow
-                      key={`${rate.from}-${rate.to}-${index}`}
+                      key={`rate-${index}`}
                       rate={rate}
                       primaryCurrency={form.primaryCurrency}
                       stats={fxStats.get(pairKey)}
@@ -200,7 +200,7 @@ export function SettingsRoute() {
             <div className="grid gap-3">
               {form.categories.map((group, index) => (
                 <CategoryEditor
-                  key={`${group.name}-${index}`}
+                  key={`category-${index}`}
                   group={group}
                   onChange={(next) => setCategory(index, next, setForm)}
                   onDelete={() => setForm((current) => ({ ...current, categories: current.categories.filter((_, rowIndex) => rowIndex !== index) }))}
