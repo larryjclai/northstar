@@ -103,7 +103,18 @@ export const migrations: Migration[] = [
         created_at text not null,
         pushed_at text
       );
+
+      create table if not exists market_quotes (
+        symbol text primary key,
+        name text not null,
+        currency text not null,
+        price real not null,
+        change real not null,
+        change_percent real not null,
+        market_time text,
+        source text not null,
+        updated_at text not null
+      );
     `,
   },
 ];
-

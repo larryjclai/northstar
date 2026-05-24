@@ -1,45 +1,87 @@
 # Northstar Roadmap
 
-## Phase 1 — Tauri Foundation
+This roadmap is organized around shippable local-first milestones. Phase 1-6 make the app genuinely useful offline before Connect, Recovery Kit, and household sync are added.
 
-- Scaffold React + TypeScript + Vite inside Tauri 2.
-- Establish Tailwind v4, Base UI, Phosphor Icons, TanStack Router/Query/Table, Zustand, React Hook Form, Zod, Recharts.
-- Build the first app shell: Dashboard, Holdings, Transactions, Cash Flow, Accounts, Settings.
-- Remove Swift/Xcode active code after archiving it on GitHub.
+## Phase 1 — Local SQLite Foundation ✅
 
-## Phase 2 — Local Data Core
+- Initialize the Tauri SQL plugin with `sqlite:northstar.db`.
+- Run idempotent migrations at app startup.
+- Replace direct seeded data reads with a typed repository boundary.
+- Keep a browser/dev fallback repository so the React app remains testable outside the Tauri shell.
+- Seed demo data only when the local database is empty.
+- Preserve sync-ready fields on all records: `id`, `spaceId`, `revision`, `createdAt`, `updatedAt`, `deletedAt`.
 
-- Wire SQLite through the Tauri SQL plugin.
-- Add migrations and typed repositories.
-- Port Swift domain rules into TypeScript with Vitest coverage.
-- Keep local-only mode fully usable without account login.
+## Phase 2 — Accounts CRUD ✅
 
-## Phase 3 — Market Data
+- Create, edit, and soft-delete accounts.
+- Persist account changes locally.
+- Keep `isSharedToHousehold` in the model, but do not expose real household sharing yet.
+- Recompute account balances after ledger mutations.
 
-- Use Yahoo Finance as the first quote/history/FX provider.
-- Add provider interface so Yahoo can be replaced later.
-- Cache quotes for 60 seconds and FX for 5 minutes.
-- Surface source, last-updated, stale, and error states.
+## Phase 3 — Cash Flow CRUD ✅
 
-## Phase 4 — Connect E2EE
+- Create, edit, and soft-delete ledger transactions.
+- Support income and expense rows.
+- Preserve `groupId` for transfer/split compatibility.
+- Evaluate amount expressions such as `120+85+30`.
+- Recompute affected account balances after writes.
 
-- Add Supabase Auth for identity.
-- Generate Personal Vault Key before sync.
-- Require Recovery Kit confirmation before any cloud-backed feature.
-- Add trusted-device pairing and encrypted key envelopes.
-- Add encrypted record-level sync envelopes.
+## Phase 3.5 — Transfers And Split Rows ✅
 
-## Phase 5 — Household Sharing
+- Add same-currency and cross-currency transfer creation.
+- Store transfer legs as grouped ledger rows.
+- Render transfer groups as a single user-facing cash-flow row.
+- Keep split/group classification in domain logic.
 
-- Add Household Space Key.
-- Invite partner through account invite and pairing flow.
-- Share selected accounts as encrypted household projections.
-- Keep private notes and receipts excluded unless explicitly shared.
+## Phase 4 — Investment Transactions CRUD ✅
 
-## Phase 6 — Plus Capabilities
+- Create, edit, and soft-delete investment records.
+- Create a portfolio asset when a new ticker appears.
+- Recompute holdings after investment mutations.
+- Keep linked cash-account wiring as the next refinement; the data model already supports it.
 
-- Licensed market data.
-- Broker sync where reliable.
-- AI-assisted categorization and insights with provider-included plans.
-- Tax and reporting depth for Taiwan investors.
+## Phase 5 — CSV Import / Export ✅
+
+- Export accounts, ledger transactions, and investment records to CSV.
+- Import ledger and investment records from CSV.
+- Preview rows before committing imports.
+- Report invalid rows with reasons.
+- Recompute balances and holdings after import.
+
+## Phase 6 — Yahoo Market Data UI ✅
+
+- Add refresh actions in Dashboard and Holdings.
+- Use Yahoo Finance as the first replaceable `MarketDataProvider`.
+- Cache quotes locally with source and timestamp.
+- Show source, last updated time, stale/error states.
+- Keep Yahoo as v1-only infrastructure; licensed market data belongs in Connect Plus.
+
+## Phase 7 — Connect Preparation
+
+- Persist a real mutation outbox for all local CRUD writes.
+- Add local device identity and vault metadata.
+- Define encrypted sync envelope serialization.
+- Add crypto abstraction with tests.
+
+## Phase 8 — Recovery Kit
+
+- Generate a Recovery Kit before Connect can be enabled.
+- Store vault key material through Stronghold.
+- Add user confirmation that the Recovery Kit was saved.
+- Block cloud-backed features until recovery is ready.
+
+## Phase 9 — Connect Sync
+
+- Add Supabase Auth.
+- Add Supabase schema, RLS, and Edge Functions.
+- Push/pull encrypted envelopes by cursor.
+- Add conflict review for sensitive financial record conflicts.
+- Use Realtime only as a sync wake-up signal.
+
+## Phase 10 — Household Sharing
+
+- Create Household Spaces with a separate key.
+- Invite a partner through account invite and pairing.
+- Publish selected account projections into household space.
+- Keep private vault records hidden by default.
 
