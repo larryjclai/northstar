@@ -1,0 +1,10 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+.vite/
+target/
+src-tauri/target/
+src-tauri/gen/schemas/
+.DS_Store
+*.log
