@@ -68,14 +68,14 @@ export function AccountsRoute() {
 
   return (
     <div className="mx-auto max-w-6xl p-5 lg:p-8">
-      <PageHeader title="帳戶" description="帳戶資料現在寫入本機 repository；在 Tauri shell 內會走 SQLite，瀏覽器開發模式則用 localStorage fallback。" />
+      <PageHeader title="帳戶" description="管理現金、銀行、信用卡與投資帳戶，讓淨值和收支有可靠基礎。" />
       <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
         <Card title={isEditing ? "編輯帳戶" : "新增帳戶"}>
           <div className="grid gap-3">
             <Field label="名稱">
               <TextInput value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="台幣生活帳戶" />
             </Field>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="幣別">
                 <TextInput value={form.currency} onChange={(event) => setForm({ ...form, currency: event.target.value.toUpperCase() })} />
               </Field>
@@ -141,4 +141,3 @@ export function AccountsRoute() {
     </div>
   );
 }
-

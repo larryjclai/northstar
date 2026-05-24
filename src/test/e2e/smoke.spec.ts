@@ -9,7 +9,7 @@ test("local-first CRUD flows work without runtime errors", async ({ page }) => {
   await page.addInitScript(() => window.localStorage.removeItem("northstar.browserRepository.v1"));
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "財務北極星" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "總覽" })).toBeVisible();
   await expect(page.getByText("Yahoo Finance")).toBeVisible();
 
   await page.getByRole("link", { name: /帳戶/ }).first().click();

@@ -1,8 +1,7 @@
-import { ArrowClockwise, MagnifyingGlass, TrendUp } from "@phosphor-icons/react";
+import { ArrowClockwise, TrendUp } from "@phosphor-icons/react";
 import { ActionButton } from "../components/ActionButton";
 import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
-import { EmptyState } from "../components/EmptyState";
 import { useFinanceData } from "../data/hooks";
 import { useRefreshQuotes } from "../features/market-data/useMarketRefresh";
 
@@ -15,7 +14,7 @@ export function HoldingsRoute() {
 
   return (
     <div className="mx-auto max-w-6xl p-5 lg:p-8">
-      <PageHeader title="持倉" description="持倉會由 investment records 重算；報價可以從 UI 觸發 Yahoo Finance refresh 並寫入本機快取。" />
+      <PageHeader title="持倉" description="追蹤持股數量、平均成本與最新快取報價。" />
       <Card
         title="投資資產"
         action={
@@ -57,10 +56,6 @@ export function HoldingsRoute() {
           })}
         </div>
       </Card>
-      <div className="mt-4">
-        <EmptyState icon={MagnifyingGlass} title="Symbol search boundary ready" body="Yahoo symbol search provider 已建立；ticker picker 會在下一輪產品化。" />
-      </div>
     </div>
   );
 }
-

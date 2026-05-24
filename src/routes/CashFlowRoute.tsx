@@ -98,7 +98,7 @@ export function CashFlowRoute() {
 
   return (
     <div className="mx-auto max-w-6xl p-5 lg:p-8">
-      <PageHeader title="收支" description="收支與轉帳會實際寫入本機 repository，並在每次 mutation 後重算帳戶餘額。" />
+      <PageHeader title="收支" description="記錄收入、支出與轉帳，帳戶餘額會自動更新。" />
       <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
         <Card title="新增收支">
           <div className="mb-3 flex gap-2">
@@ -113,7 +113,7 @@ export function CashFlowRoute() {
                   {accountRows.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                 </SelectInput>
               </Field>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label="日期">
                   <TextInput type="date" value={ledgerForm.date} onChange={(event) => setLedgerForm({ ...ledgerForm, date: event.target.value })} />
                 </Field>
@@ -157,7 +157,7 @@ export function CashFlowRoute() {
                 </SelectInput>
               </Field>
               <Field label="日期"><TextInput type="date" value={transferForm.date} onChange={(event) => setTransferForm({ ...transferForm, date: event.target.value })} /></Field>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label={`來源金額 ${transferForm.sourceCurrency}`}><TextInput type="number" value={transferForm.sourceAmount} onChange={(event) => setTransferForm({ ...transferForm, sourceAmount: Number(event.target.value) })} /></Field>
                 <Field label={`目標金額 ${transferForm.destinationCurrency}`}><TextInput type="number" value={transferForm.destinationAmount ?? ""} onChange={(event) => setTransferForm({ ...transferForm, destinationAmount: Number(event.target.value) })} /></Field>
               </div>
@@ -249,4 +249,3 @@ function groupLedgerRows(rows: LedgerTransaction[]) {
     };
   });
 }
-

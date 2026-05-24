@@ -81,16 +81,16 @@ export function TransactionsRoute() {
 
   return (
     <div className="mx-auto max-w-6xl p-5 lg:p-8">
-      <PageHeader title="投資交易" description="投資交易現在可新增、編輯、刪除並重算 holdings。Ticker 不存在時會自動建立資產。" />
+      <PageHeader title="投資交易" description="記錄買進、賣出、股利與公司行動，持倉會隨交易自動更新。" />
       <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
         <Card title={editingId ? "編輯交易" : "新增交易"}>
           <div className="grid gap-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Ticker"><TextInput value={form.ticker} onChange={(event) => setForm({ ...form, ticker: event.target.value.toUpperCase() })} placeholder="0050.TW" /></Field>
               <Field label="幣別"><TextInput value={form.currency} onChange={(event) => setForm({ ...form, currency: event.target.value.toUpperCase() })} /></Field>
             </div>
             <Field label="名稱"><TextInput value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="元大台灣50" /></Field>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="日期"><TextInput type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></Field>
               <Field label="動作">
                 <SelectInput value={form.action} onChange={(event) => setForm({ ...form, action: event.target.value as InvestmentAction })}>
@@ -98,7 +98,7 @@ export function TransactionsRoute() {
                 </SelectInput>
               </Field>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Field label="價格"><TextInput type="number" value={form.price} onChange={(event) => setForm({ ...form, price: Number(event.target.value) })} /></Field>
               <Field label="數量"><TextInput type="number" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: Number(event.target.value) })} /></Field>
               <Field label="手續費"><TextInput type="number" value={form.fee} onChange={(event) => setForm({ ...form, fee: Number(event.target.value) })} /></Field>
@@ -169,4 +169,3 @@ export function TransactionsRoute() {
     </div>
   );
 }
-

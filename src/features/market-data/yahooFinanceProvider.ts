@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import type { MarketDataProvider, MarketHistoryPoint, MarketQuote, SymbolSearchResult } from "./provider";
 
 interface YahooChartEnvelope {
@@ -98,12 +99,13 @@ export class YahooFinanceProvider implements MarketDataProvider {
   async searchSymbols(query: string): Promise<SymbolSearchResult[]> {
     const trimmed = query.trim();
     if (!trimmed) return [];
-    const url = new URL("https://query1.finance.yahoo.com/v1/finance/search");
-    url.searchParams.set("q", trimmed);
-    url.searchParams.set("quotesCount", "10");
-    url.searchParams.set("newsCount", "0");
+    const searchParams = new URLSearchParams({
+      q: trimmed,
+      quotesCount: "10",
+      newsCount: "0",
+    });
 
-    const envelope = await fetchJson<YahooSearchEnvelope>(url);
+    const envelope = await fetchYahooJson<YahooSearchEnvelope>("/v1/finance/search", searchParams);
     const allowed = new Set(["EQUITY", "ETF", "MUTUALFUND", "INDEX"]);
     return envelope.quotes
       .filter((item) => item.symbol && (!item.quoteType || allowed.has(item.quoteType.toUpperCase())))
@@ -149,10 +151,8 @@ export class YahooFinanceProvider implements MarketDataProvider {
 
   private async fetchChart(symbol: string, range: string, interval: string): Promise<YahooChartResult> {
     const encodedSymbol = encodeURIComponent(symbol);
-    const url = new URL(`https://query1.finance.yahoo.com/v8/finance/chart/${encodedSymbol}`);
-    url.searchParams.set("range", range);
-    url.searchParams.set("interval", interval);
-    const envelope = await fetchJson<YahooChartEnvelope>(url);
+    const searchParams = new URLSearchParams({ range, interval });
+    const envelope = await fetchYahooJson<YahooChartEnvelope>(`/v8/finance/chart/${encodedSymbol}`, searchParams);
     const result = envelope.chart.result?.[0];
     if (!result) {
       throw new Error(envelope.chart.error?.description ?? `Yahoo Finance did not return chart data for ${symbol}.`);
@@ -161,12 +161,22 @@ export class YahooFinanceProvider implements MarketDataProvider {
   }
 }
 
-async function fetchJson<T>(url: URL): Promise<T> {
-  const response = await fetch(url);
+async function fetchYahooJson<T>(path: string, searchParams: URLSearchParams): Promise<T> {
+  const pathAndQuery = `${path}?${searchParams.toString()}`;
+  if (isTauriRuntime()) {
+    const body = await invoke<string>("fetch_yahoo", { pathAndQuery });
+    return JSON.parse(body) as T;
+  }
+
+  const response = await fetch(`/api/yahoo${pathAndQuery}`);
   if (!response.ok) {
     throw new Error(`Yahoo Finance returned HTTP ${response.status}.`);
   }
   return response.json() as Promise<T>;
+}
+
+function isTauriRuntime() {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
 function normalizeSymbol(symbol: string) {

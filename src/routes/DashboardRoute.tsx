@@ -32,8 +32,8 @@ export function DashboardRoute() {
   return (
     <div className="mx-auto max-w-6xl p-5 lg:p-8">
       <PageHeader
-        title="財務北極星"
-        description="Phase 1-6 已把本機資料庫、CRUD、CSV 與 Yahoo refresh 串起來；Connect 仍維持後續階段。"
+        title="總覽"
+        description="檢視現金、投資持倉與本月現金流，所有資料先保存在你的裝置上。"
       />
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
@@ -81,14 +81,14 @@ export function DashboardRoute() {
               <ArrowClockwise size={24} weight="duotone" style={{ color: "var(--ns-accent)" }} />
               <div>
                 <div className="font-semibold">60s quotes / 5m FX</div>
-                <div style={{ color: "var(--ns-muted)" }}>provider layer 具備快取 guard</div>
+                <div style={{ color: "var(--ns-muted)" }}>短時間重複更新會使用快取</div>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <CloudSlash size={24} weight="duotone" style={{ color: "var(--ns-warn)" }} />
               <div>
-                <div className="font-semibold">Local-only first</div>
-                <div style={{ color: "var(--ns-muted)" }}>Connect remains optional and recovery-gated</div>
+                <div className="font-semibold">本機優先</div>
+                <div style={{ color: "var(--ns-muted)" }}>同步功能啟用前會先建立救援金鑰</div>
               </div>
             </div>
             {refreshQuotes.error ? <div style={{ color: "var(--ns-negative)" }}>{refreshQuotes.error.message}</div> : null}
