@@ -1151,19 +1151,28 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   override async saveDailyFxRates(rates: DailyFxRate[]) {
     if (!rates.length) return;
     const updatedAt = nowIso();
-    for (const rate of rates) {
-      const fromCode = rate.from.trim().toUpperCase();
-      const toCode = rate.to.trim().toUpperCase();
-      const date = rate.date.slice(0, 10);
-      const value = Number(rate.rate);
-      if (!fromCode || !toCode || !date || !Number.isFinite(value) || value <= 0) continue;
-      await this.db.execute(
-        `insert into fx_rates (currency_from, currency_to, date, rate, source, updated_at)
-         values ($1,$2,$3,$4,$5,$6)
-         on conflict(currency_from, currency_to, date) do update set rate = excluded.rate, source = excluded.source, updated_at = excluded.updated_at`,
-        [fromCode, toCode, date, value, rate.source || "manual", rate.updatedAt || updatedAt],
-      );
-    }
+    // Normalize and drop invalid rows up front so the chunked INSERT below
+    // can build clean parameter tuples.
+    const normalized = rates
+      .map((rate) => ({
+        from: rate.from.trim().toUpperCase(),
+        to: rate.to.trim().toUpperCase(),
+        date: rate.date.slice(0, 10),
+        rate: Number(rate.rate),
+        source: rate.source || "manual",
+        updatedAt: rate.updatedAt || updatedAt,
+      }))
+      .filter((row) => row.from && row.to && row.date && Number.isFinite(row.rate) && row.rate > 0);
+
+    await this.executeBatchedInsert({
+      rows: normalized,
+      columnsPerRow: 6,
+      buildTuple: (row) => [row.from, row.to, row.date, row.rate, row.source, row.updatedAt],
+      sqlPrefix:
+        `insert into fx_rates (currency_from, currency_to, date, rate, source, updated_at) values `,
+      sqlSuffix:
+        ` on conflict(currency_from, currency_to, date) do update set rate = excluded.rate, source = excluded.source, updated_at = excluded.updated_at`,
+    });
   }
 
   override async getDailyFxRate(from: string, to: string, date: string) {
@@ -1228,17 +1237,75 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   override async saveDailyPrices(prices: DailyPrice[]) {
     if (!prices.length) return;
     const updatedAt = nowIso();
-    for (const price of prices) {
-      const ticker = price.ticker.trim().toUpperCase();
-      const date = price.date.slice(0, 10);
-      const close = Number(price.close);
-      if (!ticker || !date || !Number.isFinite(close) || close <= 0) continue;
-      await this.db.execute(
-        `insert into daily_prices (ticker, date, close, currency, source, updated_at)
-         values ($1,$2,$3,$4,$5,$6)
-         on conflict(ticker, date) do update set close = excluded.close, currency = excluded.currency, source = excluded.source, updated_at = excluded.updated_at`,
-        [ticker, date, close, price.currency || "", price.source || "manual", price.updatedAt || updatedAt],
-      );
+    const normalized = prices
+      .map((price) => ({
+        ticker: price.ticker.trim().toUpperCase(),
+        date: price.date.slice(0, 10),
+        close: Number(price.close),
+        currency: price.currency || "",
+        source: price.source || "manual",
+        updatedAt: price.updatedAt || updatedAt,
+      }))
+      .filter((row) => row.ticker && row.date && Number.isFinite(row.close) && row.close > 0);
+
+    await this.executeBatchedInsert({
+      rows: normalized,
+      columnsPerRow: 6,
+      buildTuple: (row) => [row.ticker, row.date, row.close, row.currency, row.source, row.updatedAt],
+      sqlPrefix:
+        `insert into daily_prices (ticker, date, close, currency, source, updated_at) values `,
+      sqlSuffix:
+        ` on conflict(ticker, date) do update set close = excluded.close, currency = excluded.currency, source = excluded.source, updated_at = excluded.updated_at`,
+    });
+  }
+
+  /**
+   * Insert a large set of rows in chunks. Each chunk is a single
+   * `INSERT INTO ... VALUES (?,?,?,?), (?,?,?,?), ...` statement, which
+   * collapses the dominant cost of bulk import (per-row IPC + per-row fsync)
+   * down to a handful of round-trips for tens of thousands of rows.
+   *
+   * The chunk size is tuned to stay well under SQLite's default 32,766
+   * bound parameter limit. `bind` parameters are written as `$N` to match
+   * the rest of the repository's prepared statements.
+   */
+  private async executeBatchedInsert<TRow>({
+    rows,
+    columnsPerRow,
+    buildTuple,
+    sqlPrefix,
+    sqlSuffix,
+  }: {
+    rows: TRow[];
+    columnsPerRow: number;
+    buildTuple: (row: TRow) => unknown[];
+    sqlPrefix: string;
+    sqlSuffix: string;
+  }) {
+    if (!rows.length) return;
+    const maxParamsPerStatement = 900; // SQLite default cap is 32766; stay safe.
+    const rowsPerChunk = Math.max(1, Math.floor(maxParamsPerStatement / columnsPerRow));
+
+    for (let start = 0; start < rows.length; start += rowsPerChunk) {
+      const chunk = rows.slice(start, start + rowsPerChunk);
+      const tuples: string[] = [];
+      const params: unknown[] = [];
+      let cursor = 1;
+      for (const row of chunk) {
+        const placeholders: string[] = [];
+        for (let i = 0; i < columnsPerRow; i += 1) {
+          placeholders.push(`$${cursor}`);
+          cursor += 1;
+        }
+        tuples.push(`(${placeholders.join(",")})`);
+        const values = buildTuple(row);
+        if (values.length !== columnsPerRow) {
+          throw new Error(`Row tuple width mismatch: expected ${columnsPerRow}, got ${values.length}`);
+        }
+        params.push(...values);
+      }
+      const sql = `${sqlPrefix}${tuples.join(",")}${sqlSuffix}`;
+      await this.db.execute(sql, params);
     }
   }
 
@@ -1391,55 +1458,103 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async importSnapshot(snapshot: RepositorySnapshot) {
-    await this.db.execute("delete from sync_outbox");
-    await this.db.execute("delete from market_quotes");
-    await this.db.execute("delete from fx_rates");
-    await this.db.execute("delete from daily_prices");
-    await this.db.execute("delete from recurring_transactions");
-    await this.db.execute("delete from investment_records");
-    await this.db.execute("delete from ledger_transactions");
-    await this.db.execute("delete from portfolio_assets");
-    await this.db.execute("delete from accounts");
-    await this.db.execute("delete from app_settings");
-    await this.db.execute("delete from financial_goals");
+    // Wrap everything in a single transaction so SQLite skips per-row fsync
+    // (which is the dominant cost) and the whole import either lands or
+    // rolls back. Without this a 60k-row dailyPrices payload would take
+    // many minutes and feel like the app is frozen.
+    const t0 = performance.now();
+    await this.db.execute("BEGIN");
+    try {
+      await this.db.execute("delete from sync_outbox");
+      await this.db.execute("delete from market_quotes");
+      await this.db.execute("delete from fx_rates");
+      await this.db.execute("delete from daily_prices");
+      await this.db.execute("delete from recurring_transactions");
+      await this.db.execute("delete from investment_records");
+      await this.db.execute("delete from ledger_transactions");
+      await this.db.execute("delete from portfolio_assets");
+      await this.db.execute("delete from accounts");
+      await this.db.execute("delete from app_settings");
+      await this.db.execute("delete from financial_goals");
+      console.log("[import] cleared existing tables");
 
-    for (const account of snapshot.accounts) await this.insertAccountRow(account);
-    for (const asset of snapshot.portfolioAssets) await this.insertAssetRow(asset);
-    for (const row of snapshot.investmentRecords) await this.insertInvestmentRow(row);
-    for (const row of snapshot.ledgerTransactions) await this.insertLedgerRow(row);
-    for (const row of snapshot.recurringTransactions) await this.insertRecurringRow(row);
-    if (snapshot.marketQuotes.length) {
-      await this.saveMarketQuotes(snapshot.marketQuotes, snapshot.marketQuotes[0]?.source ?? "import");
-    }
-    if (snapshot.dailyFxRates.length) await this.saveDailyFxRates(snapshot.dailyFxRates);
-    if (snapshot.dailyPrices.length) await this.saveDailyPrices(snapshot.dailyPrices);
-    if (snapshot.financialGoals?.length) {
-      for (const goal of snapshot.financialGoals) {
-        await this.db.execute(
-          `insert into financial_goals (id, space_id, revision, created_at, updated_at, deleted_at, kind, name, currency,
-             annual_spending, withdrawal_rate, expected_annual_return, monthly_contribution, target_amount, start_date)
-           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
-          [
-            goal.id,
-            goal.spaceId,
-            goal.revision,
-            goal.createdAt,
-            goal.updatedAt,
-            goal.deletedAt,
-            goal.kind,
-            goal.name,
-            goal.currency,
-            goal.annualSpending,
-            goal.withdrawalRate,
-            goal.expectedAnnualReturn,
-            goal.monthlyContribution,
-            goal.targetAmount,
-            goal.startDate,
-          ],
-        );
+      for (const account of snapshot.accounts) await this.insertAccountRow(account);
+      console.log(`[import] inserted ${snapshot.accounts.length} accounts`);
+
+      for (const asset of snapshot.portfolioAssets) {
+        // Older backups (pre Phase 2/3) don't carry name_zh, name_en, or
+        // account_id. Coalesce so insertAssetRow's prepared statement sees
+        // explicit nulls instead of undefined.
+        await this.insertAssetRow({
+          ...asset,
+          nameZh: asset.nameZh ?? null,
+          nameEn: asset.nameEn ?? null,
+          accountId: asset.accountId ?? null,
+        });
       }
+      console.log(`[import] inserted ${snapshot.portfolioAssets.length} portfolio_assets`);
+
+      for (const row of snapshot.investmentRecords) await this.insertInvestmentRow(row);
+      console.log(`[import] inserted ${snapshot.investmentRecords.length} investment_records`);
+
+      for (const row of snapshot.ledgerTransactions) await this.insertLedgerRow(row);
+      console.log(`[import] inserted ${snapshot.ledgerTransactions.length} ledger_transactions`);
+
+      for (const row of snapshot.recurringTransactions) await this.insertRecurringRow(row);
+      console.log(`[import] inserted ${snapshot.recurringTransactions.length} recurring_transactions`);
+
+      if (snapshot.marketQuotes.length) {
+        await this.saveMarketQuotes(snapshot.marketQuotes, snapshot.marketQuotes[0]?.source ?? "import");
+        console.log(`[import] saved ${snapshot.marketQuotes.length} market_quotes`);
+      }
+      if (snapshot.dailyFxRates.length) {
+        await this.saveDailyFxRates(snapshot.dailyFxRates);
+        console.log(`[import] saved ${snapshot.dailyFxRates.length} fx_rates`);
+      }
+      if (snapshot.dailyPrices.length) {
+        await this.saveDailyPrices(snapshot.dailyPrices);
+        console.log(`[import] saved ${snapshot.dailyPrices.length} daily_prices`);
+      }
+      if (snapshot.financialGoals?.length) {
+        for (const goal of snapshot.financialGoals) {
+          await this.db.execute(
+            `insert into financial_goals (id, space_id, revision, created_at, updated_at, deleted_at, kind, name, currency,
+               annual_spending, withdrawal_rate, expected_annual_return, monthly_contribution, target_amount, start_date)
+             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+            [
+              goal.id,
+              goal.spaceId,
+              goal.revision,
+              goal.createdAt,
+              goal.updatedAt,
+              goal.deletedAt,
+              goal.kind,
+              goal.name,
+              goal.currency,
+              goal.annualSpending,
+              goal.withdrawalRate,
+              goal.expectedAnnualReturn,
+              goal.monthlyContribution,
+              goal.targetAmount,
+              goal.startDate,
+            ],
+          );
+        }
+        console.log(`[import] inserted ${snapshot.financialGoals.length} financial_goals`);
+      }
+      await this.updateAppSettings(snapshot.settings);
+      await this.db.execute("COMMIT");
+      const elapsed = Math.round(performance.now() - t0);
+      console.log(`[import] complete in ${elapsed}ms`);
+    } catch (error) {
+      try {
+        await this.db.execute("ROLLBACK");
+      } catch {
+        // Ignore rollback failure — the originating error matters more.
+      }
+      console.error("[import] failed, rolled back", error);
+      throw error;
     }
-    await this.updateAppSettings(snapshot.settings);
   }
 
   private async seedSqlite() {

@@ -65,19 +65,35 @@ export function SettingsRoute() {
     if (!window.confirm("匯入會覆蓋目前所有資料，確定要繼續嗎？")) return;
     try {
       setSnapshotBusy(true);
+      setMessage("讀取備份檔…");
+      setSaveTone(null);
       const text = await file.text();
+      setMessage("解析 JSON…");
       const parsed = JSON.parse(text) as RepositorySnapshot;
       if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.accounts)) {
         throw new Error("檔案格式不正確。");
       }
+      const summary = {
+        accounts: parsed.accounts.length,
+        ledger: parsed.ledgerTransactions?.length ?? 0,
+        assets: parsed.portfolioAssets?.length ?? 0,
+        records: parsed.investmentRecords?.length ?? 0,
+        prices: parsed.dailyPrices?.length ?? 0,
+        fx: parsed.dailyFxRates?.length ?? 0,
+      };
+      console.log("[import] parsed backup", summary);
+      setMessage(
+        `寫入資料庫中…（${summary.accounts} 帳戶、${summary.assets} 持倉、${summary.ledger} 筆記帳、${summary.prices} 筆股價）`,
+      );
       const repository = await getFinanceRepository();
       await repository.importSnapshot(parsed);
       await queryClient.invalidateQueries();
       seededRef.current = false;
-      setMessage("已匯入備份。");
+      setMessage(`已匯入備份。(${summary.accounts} 帳戶、${summary.assets} 持倉、${summary.prices} 筆股價)`);
       setSaveTone("success");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "匯入失敗。");
+      console.error("[import] failed", error);
+      setMessage(error instanceof Error ? `匯入失敗：${error.message}` : "匯入失敗。");
       setSaveTone("error");
     } finally {
       setSnapshotBusy(false);
