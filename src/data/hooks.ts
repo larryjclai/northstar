@@ -82,7 +82,10 @@ export function useRepositoryMutation<TInput>(
   const repository = useRepository();
   return useMutation({
     mutationFn: async (input: TInput) => {
-      if (!repository.data) throw new Error("Repository is not ready.");
+      if (repository.error) {
+        throw new Error(`資料庫初始化失敗：${repository.error instanceof Error ? repository.error.message : String(repository.error)}`);
+      }
+      if (!repository.data) throw new Error("資料庫尚未初始化完成，請稍候再試。");
       await action(repository.data, input);
     },
     onSuccess: async () => {

@@ -9,6 +9,7 @@ import {
 } from "@phosphor-icons/react";
 import { Link, Outlet } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { useRepository } from "../data/hooks";
 
 const navItems = [
   { to: "/", label: "總覽", icon: House },
@@ -21,6 +22,8 @@ const navItems = [
 
 export function AppShell() {
   useBlockBrowserBackOnBackspace();
+  const repository = useRepository();
+  const repositoryErrorMessage = repository.error instanceof Error ? repository.error.message : repository.error ? String(repository.error) : null;
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[260px_1fr]">
       <aside className="hidden border-r p-4 lg:block" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
@@ -49,6 +52,19 @@ export function AppShell() {
         </nav>
       </aside>
       <main className="pb-20 lg:pb-0">
+        {repositoryErrorMessage ? (
+          <div
+            role="alert"
+            className="mx-auto mt-4 max-w-6xl rounded-md border px-4 py-3 text-sm"
+            style={{ borderColor: "var(--ns-negative)", color: "var(--ns-negative)", background: "var(--ns-surface)" }}
+          >
+            <div className="font-semibold">資料庫初始化失敗</div>
+            <div className="mt-1 break-all">{repositoryErrorMessage}</div>
+            <div className="mt-2 text-xs" style={{ color: "var(--ns-muted)" }}>
+              請把這段訊息回報；若資料庫已壞，可刪除 ~/Library/Application Support/app.northstar.finance/northstar.db 後重啟。
+            </div>
+          </div>
+        ) : null}
         <Outlet />
       </main>
       <nav className="fixed inset-x-0 bottom-0 grid grid-cols-6 border-t lg:hidden" style={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}>

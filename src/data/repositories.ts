@@ -182,11 +182,16 @@ export function getFinanceRepository(): Promise<FinanceRepository> {
 
 async function createFinanceRepository(): Promise<FinanceRepository> {
   if (isTauriRuntime()) {
-    const mod = await import("@tauri-apps/plugin-sql");
-    const db = await mod.default.load("sqlite:northstar.db");
-    const repository = new TauriSqlFinanceRepository(db);
-    await repository.initialize();
-    return repository;
+    try {
+      const mod = await import("@tauri-apps/plugin-sql");
+      const db = await mod.default.load("sqlite:northstar.db");
+      const repository = new TauriSqlFinanceRepository(db);
+      await repository.initialize();
+      return repository;
+    } catch (error) {
+      console.error("[northstar] SQLite repository init failed:", error);
+      throw error;
+    }
   }
 
   const repository = new BrowserFinanceRepository();
