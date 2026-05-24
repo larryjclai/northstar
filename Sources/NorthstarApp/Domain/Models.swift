@@ -70,6 +70,8 @@ final class LedgerTransaction {
 final class PortfolioAsset {
     @Attribute(.unique) var ticker: String
     var name: String
+    var nameZh: String?
+    var nameEn: String?
     var currency: String
     var totalQuantity: Double
     var averageCost: Double
@@ -79,15 +81,37 @@ final class PortfolioAsset {
     init(
         ticker: String,
         name: String,
+        nameZh: String? = nil,
+        nameEn: String? = nil,
         currency: String,
         totalQuantity: Double = 0,
         averageCost: Double = 0
     ) {
         self.ticker = ticker
         self.name = name
+        self.nameZh = nameZh
+        self.nameEn = nameEn
         self.currency = currency
         self.totalQuantity = totalQuantity
         self.averageCost = averageCost
+    }
+
+    func localizedName(preference: String) -> String {
+        switch preference {
+        case NameLocalePreference.zhHant:
+            return nameZh ?? name
+        case NameLocalePreference.en:
+            return nameEn ?? name
+        default:
+            let lang = Locale.current.language.languageCode?.identifier ?? ""
+            if lang.hasPrefix("zh") {
+                return nameZh ?? name
+            }
+            if lang.hasPrefix("en") {
+                return nameEn ?? name
+            }
+            return name
+        }
     }
 }
 

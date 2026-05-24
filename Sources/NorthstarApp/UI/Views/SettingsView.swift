@@ -6,6 +6,8 @@ struct SettingsView: View {
     let priceStore: PriceStore
 
     @AppStorage(IntentRoutingKeys.baseCurrency) private var baseCurrency: String = BaseCurrencyDefaults.default
+    @AppStorage(IntentRoutingKeys.privacyMode) private var privacyMode: Bool = false
+    @AppStorage(IntentRoutingKeys.preferredNameLocale) private var preferredNameLocale: String = NameLocalePreference.auto
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
     @Query(sort: \Account.name) private var accounts: [Account]
 
@@ -77,7 +79,25 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("顯示") {
+                    Picker("標的名稱語系", selection: $preferredNameLocale) {
+                        Text("跟隨系統").tag(NameLocalePreference.auto)
+                        Text("繁體中文").tag(NameLocalePreference.zhHant)
+                        Text("English").tag(NameLocalePreference.en)
+                    }
+                    Text("新增股票時會用這個語系顯示名稱；缺少對應翻譯時自動使用 Yahoo 回傳的原文。")
+                        .font(.caption)
+                        .foregroundStyle(NorthstarTheme.secondaryText)
+                }
+
                 Section("隱私") {
+                    Toggle(isOn: $privacyMode) {
+                        Label("隱藏金額（截圖模式）", systemImage: privacyMode ? "eye.slash.fill" : "eye.fill")
+                    }
+                    Text("開啟後所有金額會顯示為 ＊＊＊＊＊＊，方便錄影或回報問題。可在頂部工具列快速切換（⌘⇧H）。")
+                        .font(.caption)
+                        .foregroundStyle(NorthstarTheme.secondaryText)
+
                     Label("資料儲存在這台裝置", systemImage: "lock.fill")
                         .font(.subheadline)
                     Text("northstar 是 local-first 設計。投資紀錄、帳戶餘額與分類完全存在本機 SwiftData 中，不會上傳。")

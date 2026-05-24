@@ -5,7 +5,10 @@ struct HoldingsView: View {
     let priceStore: PriceStore
     let fxStore: FXRateStore
 
+    @Environment(\.modelContext) private var modelContext
     @AppStorage(IntentRoutingKeys.baseCurrency) private var baseCurrency: String = BaseCurrencyDefaults.default
+    @AppStorage(IntentRoutingKeys.privacyMode) private var privacyMode: Bool = false
+    @AppStorage(IntentRoutingKeys.preferredNameLocale) private var nameLocale: String = NameLocalePreference.auto
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
 
     private var tickerSymbols: [String] {
@@ -81,6 +84,13 @@ struct HoldingsView: View {
             .platformLargeNavigationTitle()
             .toolbar {
                 Button {
+                    privacyMode.toggle()
+                } label: {
+                    Image(systemName: privacyMode ? "eye.slash" : "eye")
+                }
+                .accessibilityLabel(privacyMode ? "顯示金額" : "隱藏金額")
+
+                Button {
                     Task {
                         await priceStore.refresh(tickers: symbols, force: true)
                         await fxStore.refresh(currencies: currencies, base: baseCurrency, force: true)
@@ -94,6 +104,7 @@ struct HoldingsView: View {
             }
             .task(id: symbols) {
                 await priceStore.refresh(tickers: symbols)
+                AssetNameSync.sync(assets: assets, quotes: priceStore.quotes, context: modelContext)
             }
             .task(id: currencies.joined() + baseCurrency) {
                 await fxStore.refresh(currencies: currencies, base: baseCurrency)
@@ -101,6 +112,7 @@ struct HoldingsView: View {
             .refreshable {
                 await priceStore.refresh(tickers: symbols, force: true)
                 await fxStore.refresh(currencies: currencies, base: baseCurrency, force: true)
+                AssetNameSync.sync(assets: assets, quotes: priceStore.quotes, context: modelContext)
             }
         }
     }
@@ -402,7 +414,10 @@ struct HoldingsView: View {
     }
 
     private func displayName(for ticker: String) -> String {
-        priceStore.quote(for: ticker)?.name ?? assets.first(where: { $0.ticker == ticker })?.name ?? ticker
+        if let asset = assets.first(where: { $0.ticker == ticker }) {
+            return asset.localizedName(preference: nameLocale)
+        }
+        return priceStore.quote(for: ticker)?.name ?? ticker
     }
 
     private func updatedText(for ticker: String) -> String {

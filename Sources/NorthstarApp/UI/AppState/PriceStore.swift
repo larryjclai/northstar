@@ -5,6 +5,8 @@ struct MarketQuote: Identifiable, Equatable, Sendable {
 
     let symbol: String
     let name: String
+    let nameZh: String?
+    let nameEn: String?
     let currency: String
     let regularMarketPrice: Double
     let regularMarketChange: Double
@@ -124,44 +126,75 @@ struct YahooFinanceClient: Sendable {
     }
 
     private func fetchChartData(symbol: String) async throws -> YahooChartMarketData {
-        let encodedSymbol = symbol.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? symbol
-        var components = URLComponents(string: "https://query1.finance.yahoo.com/v8/finance/chart/\(encodedSymbol)")
-        components?.queryItems = [
-            URLQueryItem(name: "range", value: "1d"),
-            URLQueryItem(name: "interval", value: "5m")
-        ]
+        async let zhEnvelope = decodeChart(symbol: symbol, lang: "zh-Hant-TW")
+        async let enEnvelope = decodeChart(symbol: symbol, lang: "en-US")
 
-        guard let url = components?.url else {
-            throw YahooFinanceError.invalidURL
+        let primary: YahooChartResult
+        var nameZh: String?
+        var nameEn: String?
+
+        do {
+            let env = try await zhEnvelope
+            if let result = env.chart.result?.first {
+                primary = result
+                nameZh = result.meta.shortName ?? result.meta.longName
+                if let en = try? await enEnvelope, let r = en.chart.result?.first {
+                    nameEn = r.meta.shortName ?? r.meta.longName
+                }
+            } else {
+                let env2 = try await enEnvelope
+                guard let result = env2.chart.result?.first else {
+                    throw YahooFinanceError.noQuote(symbol)
+                }
+                primary = result
+                nameEn = result.meta.shortName ?? result.meta.longName
+            }
+        } catch {
+            let env2 = try await enEnvelope
+            guard let result = env2.chart.result?.first else {
+                throw error
+            }
+            primary = result
+            nameEn = result.meta.shortName ?? result.meta.longName
         }
 
-        let envelope = try await decode(YahooChartEnvelope.self, from: url)
-        guard let result = envelope.chart.result?.first else {
+        let closes = primary.indicators.quote.first?.close.compactMap { $0 }.filter { $0 > 0 } ?? []
+        guard let price = primary.meta.regularMarketPrice ?? closes.last else {
             throw YahooFinanceError.noQuote(symbol)
         }
 
-        let closes = result.indicators.quote.first?.close.compactMap { $0 }.filter { $0 > 0 } ?? []
-        guard let price = result.meta.regularMarketPrice ?? closes.last else {
-            throw YahooFinanceError.noQuote(symbol)
-        }
-
-        let previousClose = result.meta.previousClose
-            ?? result.meta.chartPreviousClose
+        let previousClose = primary.meta.previousClose
+            ?? primary.meta.chartPreviousClose
             ?? closes.dropLast().last
             ?? price
         let change = price - previousClose
         let changePercent = previousClose == 0 ? 0 : (change / previousClose) * 100
+        let displayName = nameZh ?? nameEn ?? primary.meta.symbol ?? symbol
         let quote = MarketQuote(
-            symbol: result.meta.symbol ?? symbol,
-            name: result.meta.shortName ?? result.meta.longName ?? result.meta.symbol ?? symbol,
-            currency: result.meta.currency ?? "USD",
+            symbol: primary.meta.symbol ?? symbol,
+            name: displayName,
+            nameZh: nameZh,
+            nameEn: nameEn,
+            currency: primary.meta.currency ?? "USD",
             regularMarketPrice: price,
             regularMarketChange: change,
             regularMarketChangePercent: changePercent,
-            regularMarketTime: result.meta.regularMarketTime.map { Date(timeIntervalSince1970: TimeInterval($0)) }
+            regularMarketTime: primary.meta.regularMarketTime.map { Date(timeIntervalSince1970: TimeInterval($0)) }
         )
 
         return YahooChartMarketData(quote: quote, closes: closes)
+    }
+
+    private func decodeChart(symbol: String, lang: String) async throws -> YahooChartEnvelope {
+        let encodedSymbol = symbol.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? symbol
+        var components = URLComponents(string: "https://query1.finance.yahoo.com/v8/finance/chart/\(encodedSymbol)")
+        components?.queryItems = [
+            URLQueryItem(name: "range", value: "1d"),
+            URLQueryItem(name: "interval", value: "5m"),
+            URLQueryItem(name: "lang", value: lang)
+        ]
+        guard let url = components?.url else { throw YahooFinanceError.invalidURL }
+        return try await decode(YahooChartEnvelope.self, from: url)
     }
 
     private func decode<T: Decodable>(_ type: T.Type, from url: URL) async throws -> T {

@@ -7,6 +7,8 @@ struct DashboardView: View {
     let fxStore: FXRateStore
 
     @AppStorage(IntentRoutingKeys.baseCurrency) private var baseCurrency: String = BaseCurrencyDefaults.default
+    @AppStorage(IntentRoutingKeys.privacyMode) private var privacyMode: Bool = false
+    @AppStorage(IntentRoutingKeys.preferredNameLocale) private var nameLocale: String = NameLocalePreference.auto
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
     @Query(sort: \InvestmentRecord.date, order: .reverse) private var records: [InvestmentRecord]
     @Query(sort: \Account.name) private var accounts: [Account]
@@ -117,6 +119,14 @@ struct DashboardView: View {
             .platformLargeNavigationTitle()
             .toolbar {
                 Button {
+                    privacyMode.toggle()
+                } label: {
+                    Image(systemName: privacyMode ? "eye.slash" : "eye")
+                }
+                .accessibilityLabel(privacyMode ? "顯示金額" : "隱藏金額")
+                .keyboardShortcut("h", modifiers: [.command, .shift])
+
+                Button {
                     Task {
                         await priceStore.refresh(tickers: symbols, force: true)
                         await fxStore.refresh(currencies: currencies, base: baseCurrency, force: true)
@@ -130,6 +140,7 @@ struct DashboardView: View {
             }
             .task(id: symbols) {
                 await priceStore.refresh(tickers: symbols)
+                AssetNameSync.sync(assets: assets, quotes: priceStore.quotes, context: modelContext)
             }
             .task(id: currencies.joined() + baseCurrency) {
                 await fxStore.refresh(currencies: currencies, base: baseCurrency)
@@ -137,6 +148,7 @@ struct DashboardView: View {
             .refreshable {
                 await priceStore.refresh(tickers: symbols, force: true)
                 await fxStore.refresh(currencies: currencies, base: baseCurrency, force: true)
+                AssetNameSync.sync(assets: assets, quotes: priceStore.quotes, context: modelContext)
             }
         }
     }
@@ -441,7 +453,10 @@ struct DashboardView: View {
     }
 
     private func displayName(for ticker: String) -> String {
-        priceStore.quote(for: ticker)?.name ?? assets.first(where: { $0.ticker == ticker })?.name ?? ticker
+        if let asset = assets.first(where: { $0.ticker == ticker }) {
+            return asset.localizedName(preference: nameLocale)
+        }
+        return priceStore.quote(for: ticker)?.name ?? ticker
     }
 
     private func currency(for ticker: String) -> String {
@@ -527,6 +542,7 @@ private struct DashboardPanel<Content: View>: View {
 private struct ReviewRecordRow: View {
     let record: InvestmentRecord
     let onReview: () -> Void
+    @AppStorage(IntentRoutingKeys.preferredNameLocale) private var nameLocale: String = NameLocalePreference.auto
 
     var body: some View {
         HStack(spacing: 12) {
@@ -538,7 +554,7 @@ private struct ReviewRecordRow: View {
             .buttonStyle(.plain)
             .accessibilityLabel("標記為已審核")
 
-            Text(record.asset?.name ?? record.asset?.ticker ?? "未命名標的")
+            Text(record.asset?.localizedName(preference: nameLocale) ?? record.asset?.ticker ?? "未命名標的")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(NorthstarTheme.primaryText)
                 .lineLimit(1)

@@ -11,6 +11,7 @@ struct RootView: View {
     @AppStorage(IntentRoutingKeys.selectedTab) private var requestedTabRaw = NorthstarTab.dashboard.rawValue
     @AppStorage(IntentRoutingKeys.openAddTransaction) private var requestedAddTransaction = false
     @AppStorage(IntentRoutingKeys.baseCurrency) private var baseCurrency: String = BaseCurrencyDefaults.default
+    @AppStorage(IntentRoutingKeys.privacyMode) private var privacyMode: Bool = false
     @State private var selectedTab: NorthstarTab = .dashboard
     @State private var showAddTransactionSheet = false
     @State private var sidebarSearchText = ""
@@ -114,6 +115,8 @@ struct RootView: View {
                 .keyboardShortcut("4", modifiers: .command)
             Button("Settings") { selectedTab = .settings }
                 .keyboardShortcut(",", modifiers: .command)
+            Button("Toggle Privacy") { privacyMode.toggle() }
+                .keyboardShortcut("h", modifiers: [.command, .shift])
             Button("Refresh") {
                 Task {
                     await priceStore.refresh(tickers: assets.map(\.ticker), force: true)
@@ -164,6 +167,7 @@ private struct NorthstarSidebar: View {
     @Binding var selectedTab: NorthstarTab
     @Binding var searchText: String
     @FocusState private var searchFocused: Bool
+    @AppStorage(IntentRoutingKeys.privacyMode) private var privacyMode: Bool = false
     let accounts: [Account]
     let assets: [PortfolioAsset]
     let records: [InvestmentRecord]
@@ -217,6 +221,13 @@ private struct NorthstarSidebar: View {
             Circle().fill(Color.yellow).frame(width: 12, height: 12)
             Circle().fill(Color.green).frame(width: 12, height: 12)
             Spacer()
+            Button {
+                privacyMode.toggle()
+            } label: {
+                Image(systemName: privacyMode ? "eye.slash" : "eye")
+            }
+            .buttonStyle(.plain)
+            .help(privacyMode ? "顯示金額" : "隱藏金額")
             Image(systemName: "arrow.clockwise")
             Image(systemName: "chevron.left")
             Image(systemName: "chevron.right")

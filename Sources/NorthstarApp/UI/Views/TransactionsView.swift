@@ -20,6 +20,7 @@ private struct PendingCSVImport: Identifiable {
 
 private struct TransactionsContentView: View {
     @Environment(\.modelContext) private var modelContext
+    @AppStorage(IntentRoutingKeys.privacyMode) private var privacyMode: Bool = false
     @Query(sort: \InvestmentRecord.date, order: .reverse) private var records: [InvestmentRecord]
     @Query(sort: \PortfolioAsset.ticker) private var assets: [PortfolioAsset]
     @Query(sort: \Account.name) private var accounts: [Account]
@@ -96,6 +97,12 @@ private struct TransactionsContentView: View {
     @ToolbarContentBuilder
     private func toolbarContent() -> some ToolbarContent {
         ToolbarItemGroup {
+            Button {
+                privacyMode.toggle()
+            } label: {
+                Label(privacyMode ? "顯示金額" : "隱藏金額", systemImage: privacyMode ? "eye.slash" : "eye")
+            }
+
             Button(action: markSelectedReviewed) {
                 Label("標記已審核", systemImage: "checkmark.circle")
             }

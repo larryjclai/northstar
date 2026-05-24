@@ -1,0 +1,68 @@
+# ─── OS ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Secrets / local data (privacy) ────────────────────
+# Local databases (Tauri SQL plugin, SwiftData, dev fixtures, etc.)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.store
+*.store-shm
+*.store-wal
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Personal data exports / backups
+backup/
+backups/
+*.bak
+
+# ─── Node / web ────────────────────────────────────────
+node_modules/
+dist/
+dist-ssr/
+.vite/
+.cache/
+coverage/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Tests
+test-results/
+playwright-report/
+playwright/.cache/
+
+# ─── Tauri / Rust ──────────────────────────────────────
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# ─── Swift / Xcode (legacy, paused) ────────────────────
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# ─── Editor / IDE ──────────────────────────────────────
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.cursor/
+.fleet/
+
+# ─── Supabase local ────────────────────────────────────
+supabase/.branches/
+supabase/.temp/
