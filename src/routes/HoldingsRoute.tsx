@@ -8,7 +8,7 @@ import { HoldingForm, emptyHoldingDraft } from "../components/HoldingForm";
 import { StatusText } from "../components/StatusText";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { PortfolioAssetDraft } from "../data/repositories";
-import type { PortfolioAsset } from "../domain";
+import { formatNumber, formatPrice, formatQuantity, type PortfolioAsset } from "../domain";
 import { useRefreshDailyPrices, useRefreshQuotes } from "../features/market-data/useMarketRefresh";
 
 export function HoldingsRoute() {
@@ -161,10 +161,10 @@ export function HoldingsRoute() {
                       </div>
                     </div>
                     <div className="tabular text-left sm:text-right">
-                      <div>{asset.totalQuantity.toLocaleString("zh-TW")} 股</div>
-                      <div className="text-sm" style={{ color: "var(--ns-muted)" }}>均價 {asset.averageCost.toFixed(2)}</div>
-                      <div className="text-sm font-semibold">{quote ? `${quote.price.toFixed(2)} ${quote.currency}` : "無報價"}</div>
-                      {marketValue !== null ? <div className="text-sm" style={{ color: "var(--ns-muted)" }}>市值 {marketValue.toLocaleString("zh-TW", { maximumFractionDigits: 0 })}</div> : null}
+                      <div>{formatQuantity(asset.totalQuantity)} 股</div>
+                      <div className="text-sm" style={{ color: "var(--ns-muted)" }}>均價 {formatPrice(asset.averageCost)}</div>
+                      <div className="text-sm font-semibold">{quote ? `${formatPrice(quote.price)} ${quote.currency}` : "無報價"}</div>
+                      {marketValue !== null ? <div className="text-sm" style={{ color: "var(--ns-muted)" }}>市值 {formatNumber(marketValue)}</div> : null}
                       {asset.holdingSource === "manual" ? (
                         <div className="mt-3 flex gap-2 sm:justify-end">
                           <ActionButton variant="secondary" onClick={() => startEdit(asset)}><PencilSimple size={16} />編輯</ActionButton>

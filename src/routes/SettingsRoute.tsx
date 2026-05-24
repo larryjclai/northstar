@@ -1,4 +1,4 @@
-import { ArrowsClockwise, ArrowsLeftRight, CheckCircle, CurrencyCircleDollar, DownloadSimple, Key, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X } from "@phosphor-icons/react";
+import { ArrowsClockwise, ArrowsLeftRight, CheckCircle, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ActionButton } from "../components/ActionButton";
@@ -9,6 +9,7 @@ import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { getFinanceRepository, type RepositorySnapshot } from "../data/repositories";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../domain";
 import { useRefreshFxRates } from "../features/market-data/useMarketRefresh";
+import { useUiPreferences, type NameLocalePreference } from "../state/uiPreferences";
 
 const emptySettings: AppSettings = {
   primaryCurrency: "TWD",
@@ -253,6 +254,7 @@ export function SettingsRoute() {
         </div>
 
         <div className="grid content-start gap-4">
+          <DisplayAndPrivacyCard />
           <Card title="目前設定">
             <SummaryBlock icon={<Tag size={18} />} title="分類" items={form.categories.map((item) => `${item.name} · ${item.children.length} 個子分類`)} />
             <div className="my-4 h-px" style={{ background: "var(--ns-border)" }} />
@@ -452,6 +454,85 @@ function setCategory(index: number, group: CategoryGroup, setForm: Dispatch<SetS
     ...current,
     categories: current.categories.map((item, rowIndex) => rowIndex === index ? group : item),
   }));
+}
+
+function DisplayAndPrivacyCard() {
+  const privacyMode = useUiPreferences((state) => state.privacyMode);
+  const togglePrivacy = useUiPreferences((state) => state.togglePrivacyMode);
+  const nameLocale = useUiPreferences((state) => state.nameLocale);
+  const setNameLocale = useUiPreferences((state) => state.setNameLocale);
+
+  const localeOptions: { value: NameLocalePreference; label: string }[] = [
+    { value: "auto", label: "跟隨系統" },
+    { value: "zh-Hant", label: "繁體中文" },
+    { value: "en", label: "English" },
+  ];
+
+  return (
+    <Card title="顯示與隱私">
+      <div className="space-y-4">
+        <button
+          type="button"
+          onClick={togglePrivacy}
+          aria-pressed={privacyMode}
+          className="flex w-full items-start gap-3 rounded-md border p-3 text-left outline-none transition hover:opacity-90"
+          style={{
+            borderColor: privacyMode ? "var(--ns-accent)" : "var(--ns-border)",
+            background: privacyMode ? "var(--ns-accent-soft)" : "transparent",
+          }}
+        >
+          <div
+            className="grid size-9 shrink-0 place-items-center rounded-md"
+            style={{
+              background: privacyMode ? "var(--ns-accent)" : "var(--ns-surface-strong, var(--ns-surface))",
+              color: privacyMode ? "white" : "var(--ns-muted)",
+            }}
+          >
+            {privacyMode ? <EyeSlash size={18} weight="fill" /> : <Eye size={18} weight="duotone" />}
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-semibold">
+              隱藏金額（截圖模式）
+              <span className="ml-2 text-xs font-normal" style={{ color: "var(--ns-muted)" }}>
+                {privacyMode ? "已開啟" : "已關閉"}
+              </span>
+            </div>
+            <p className="mt-1 text-xs leading-5" style={{ color: "var(--ns-muted)" }}>
+              開啟後所有金額會以 ＊＊＊＊＊＊ 顯示，方便錄影或回報問題。可用 ⌘⇧H 快速切換。
+            </p>
+          </div>
+        </button>
+
+        <Field label="標的名稱語系">
+          <div className="grid grid-cols-3 gap-2">
+            {localeOptions.map((option) => {
+              const active = option.value === nameLocale;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setNameLocale(option.value)}
+                  aria-pressed={active}
+                  className="flex items-center justify-center gap-1 rounded-md border px-2 py-2 text-xs font-medium outline-none transition"
+                  style={{
+                    borderColor: active ? "var(--ns-accent)" : "var(--ns-border)",
+                    background: active ? "var(--ns-accent-soft)" : "transparent",
+                    color: active ? "var(--ns-accent)" : "var(--ns-muted)",
+                  }}
+                >
+                  <Globe size={14} weight={active ? "fill" : "duotone"} />
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </Field>
+        <p className="-mt-2 text-xs leading-5" style={{ color: "var(--ns-muted)" }}>
+          影響股票名稱顯示偏好。缺少對應翻譯時自動使用 Yahoo 回傳的原文。
+        </p>
+      </div>
+    </Card>
+  );
 }
 
 function normalizeForm(form: AppSettings): AppSettings {

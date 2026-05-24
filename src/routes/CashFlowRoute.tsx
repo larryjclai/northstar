@@ -8,7 +8,7 @@ import { StatusText } from "../components/StatusText";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { LedgerDraft, RecurringDraft, TransferDraft } from "../data/repositories";
-import { evaluateAmountExpression } from "../domain";
+import { evaluateAmountExpression, formatNumber } from "../domain";
 import type { LedgerTransaction } from "../domain";
 
 type CashMode = "single" | "transfer";
@@ -281,7 +281,7 @@ export function CashFlowRoute() {
                   <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{group.subtitle}</div>
                 </div>
                 <div className="tabular text-left sm:text-right" style={{ color: group.amount < 0 ? "var(--ns-negative)" : "var(--ns-positive)" }}>
-                  <div>{group.typeLabel} {Math.abs(group.amount).toLocaleString("zh-TW")} {group.currency}</div>
+                  <div>{group.typeLabel} {formatNumber(Math.abs(group.amount))} {group.currency}</div>
                   <div className="mt-2 flex flex-wrap gap-2 sm:justify-end">
                     {group.rows.length === 1 ? (
                       <ActionButton variant="secondary" onClick={() => {
@@ -384,7 +384,7 @@ export function CashFlowRoute() {
                   <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{row.merchant || accountName(row.accountId)} · 下次 {row.nextRunDate} · 每月 {row.dayOfMonth} 日</div>
                 </div>
                 <div className="tabular text-left sm:text-right">
-                  <div>{row.entryType === "income" ? "收入" : "支出"} {Math.abs(row.amount).toLocaleString("zh-TW")} {row.currency}</div>
+                  <div>{row.entryType === "income" ? "收入" : "支出"} {formatNumber(Math.abs(row.amount))} {row.currency}</div>
                   <div className="mt-2 flex flex-wrap gap-2 sm:justify-end">
                     <ActionButton variant="secondary" onClick={() => postRecurring.mutate(row.id)}>產生本期</ActionButton>
                     <ActionButton variant="danger" onClick={() => deleteRecurring.mutate(row.id)}><Trash size={16} />刪除</ActionButton>

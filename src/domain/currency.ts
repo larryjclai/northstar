@@ -60,6 +60,53 @@ export function createFxConverter(
   return { toPrimary, primaryCurrency: primary };
 }
 
+// Module-level flag, kept in sync by `usePrivacySync` (see state/uiPreferences).
+// We deliberately keep it as a plain variable rather than a hook so formatters
+// can be called from any context. Components must subscribe to the zustand
+// store to trigger re-renders; this flag is read at format time.
+let __privacyMaskOn = false;
+const MASKED_TEXT = "＊＊＊＊＊＊";
+const MASKED_PERCENT = "＊＊.＊＊%";
+
+export function setPrivacyMaskOn(value: boolean) {
+  __privacyMaskOn = value;
+}
+
+export function isPrivacyMaskOn() {
+  return __privacyMaskOn;
+}
+
 export function formatMoney(amount: number, currency: string) {
+  if (__privacyMaskOn) return `${currency} ${MASKED_TEXT}`;
   return `${currency} ${amount.toLocaleString("zh-TW", { maximumFractionDigits: 0 })}`;
+}
+
+export function formatNumber(amount: number, options?: Intl.NumberFormatOptions) {
+  if (__privacyMaskOn) return MASKED_TEXT;
+  return amount.toLocaleString("zh-TW", { maximumFractionDigits: 0, ...options });
+}
+
+export function formatSignedMoney(amount: number, currency: string) {
+  if (__privacyMaskOn) return `${currency} ${MASKED_TEXT}`;
+  const sign = amount < 0 ? "-" : "+";
+  return `${sign}${currency} ${Math.abs(amount).toLocaleString("zh-TW", { maximumFractionDigits: 0 })}`;
+}
+
+export function formatPercent(value: number, fractionDigits = 2) {
+  if (__privacyMaskOn) return MASKED_PERCENT;
+  return `${(value * 100).toFixed(fractionDigits)}%`;
+}
+
+export function formatQuantity(amount: number) {
+  if (__privacyMaskOn) return MASKED_TEXT;
+  if (Number.isInteger(amount)) return amount.toLocaleString("zh-TW");
+  return amount.toLocaleString("zh-TW", { maximumFractionDigits: 4 });
+}
+
+export function formatPrice(value: number, fractionDigits = 2) {
+  if (__privacyMaskOn) return MASKED_TEXT;
+  return value.toLocaleString("zh-TW", {
+    maximumFractionDigits: fractionDigits,
+    minimumFractionDigits: fractionDigits,
+  });
 }

@@ -1,6 +1,8 @@
 import {
   Bank,
   ChartLineUp,
+  Eye,
+  EyeSlash,
   GearSix,
   House,
   ListChecks,
@@ -9,6 +11,7 @@ import {
 } from "@phosphor-icons/react";
 import { Link, Outlet } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { usePrivacySync, useUiPreferences } from "../state/uiPreferences";
 
 const navItems = [
   { to: "/", label: "總覽", icon: House },
@@ -21,17 +24,36 @@ const navItems = [
 
 export function AppShell() {
   useBlockBrowserBackOnBackspace();
+  usePrivacySync();
+  usePrivacyShortcut();
+  const privacyMode = useUiPreferences((state) => state.privacyMode);
+  const togglePrivacy = useUiPreferences((state) => state.togglePrivacyMode);
+
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[260px_1fr]">
       <aside className="hidden border-r p-4 lg:block" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
-        <div className="mb-8 flex items-center gap-3">
+        <div className="mb-6 flex items-center gap-3">
           <div className="grid size-10 place-items-center rounded-lg" style={{ background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
             <ChartLineUp size={22} weight="fill" />
           </div>
-          <div>
+          <div className="flex-1">
             <div className="font-semibold">Northstar</div>
             <div className="text-xs" style={{ color: "var(--ns-muted)" }}>投資與現金流</div>
           </div>
+          <button
+            type="button"
+            onClick={togglePrivacy}
+            title={privacyMode ? "顯示金額 (⌘⇧H)" : "隱藏金額 (⌘⇧H)"}
+            aria-label={privacyMode ? "顯示金額" : "隱藏金額"}
+            aria-pressed={privacyMode}
+            className="grid size-9 place-items-center rounded-md outline-none transition hover:opacity-80"
+            style={{
+              background: privacyMode ? "var(--ns-accent-soft)" : "transparent",
+              color: privacyMode ? "var(--ns-accent)" : "var(--ns-muted)",
+            }}
+          >
+            {privacyMode ? <EyeSlash size={18} weight="fill" /> : <Eye size={18} weight="duotone" />}
+          </button>
         </div>
         <nav className="space-y-1">
           {navItems.map((item) => (
@@ -81,6 +103,23 @@ function useBlockBrowserBackOnBackspace() {
     window.addEventListener("keydown", handler, { capture: true });
     return () => window.removeEventListener("keydown", handler, { capture: true });
   }, []);
+}
+
+function usePrivacyShortcut() {
+  const toggle = useUiPreferences((state) => state.togglePrivacyMode);
+  useEffect(() => {
+    function handler(event: KeyboardEvent) {
+      const isToggle =
+        (event.metaKey || event.ctrlKey) &&
+        event.shiftKey &&
+        (event.key === "H" || event.key === "h");
+      if (!isToggle) return;
+      event.preventDefault();
+      toggle();
+    }
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [toggle]);
 }
 
 export function PageHeader({ title, description }: { title: string; description: string }) {

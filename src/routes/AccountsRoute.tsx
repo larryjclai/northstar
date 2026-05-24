@@ -8,7 +8,7 @@ import { StatusText } from "../components/StatusText";
 import { downloadCsv, exportAccountsCsv } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { Account, AccountType } from "../domain";
-import { convertCurrency, formatMoney } from "../domain";
+import { convertCurrency, formatMoney, formatNumber } from "../domain";
 
 type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "isSharedToHousehold">;
 
@@ -157,7 +157,7 @@ export function AccountsRoute() {
                     </div>
                   </div>
                   <div className="tabular text-right font-semibold">
-                    {account.balance.toLocaleString("zh-TW")}
+                    {formatNumber(account.balance)}
                     {converted !== null && appSettings && account.currency !== appSettings.primaryCurrency ? (
                       <div className="text-xs font-normal" style={{ color: "var(--ns-muted)" }}>{formatMoney(converted, appSettings.primaryCurrency)}</div>
                     ) : null}
@@ -167,9 +167,9 @@ export function AccountsRoute() {
                   <div className="mt-3 rounded-md p-3 text-sm" style={{ background: "var(--ns-surface-strong)" }}>
                     <div className="flex justify-between gap-3">
                       <span style={{ color: "var(--ns-muted)" }}>已用額度</span>
-                      <span className="tabular">{Math.max(0, -account.balance).toLocaleString("zh-TW")} / {(account.creditLimit ?? 0).toLocaleString("zh-TW")}</span>
+                      <span className="tabular">{formatNumber(Math.max(0, -account.balance))} / {formatNumber(account.creditLimit ?? 0)}</span>
                     </div>
-                    {groupCredit ? <div className="mt-1 flex justify-between gap-3"><span style={{ color: "var(--ns-muted)" }}>共用額度 {groupCredit.name}</span><span className="tabular">{groupCredit.used.toLocaleString("zh-TW")} / {groupCredit.limit.toLocaleString("zh-TW")}</span></div> : null}
+                    {groupCredit ? <div className="mt-1 flex justify-between gap-3"><span style={{ color: "var(--ns-muted)" }}>共用額度 {groupCredit.name}</span><span className="tabular">{formatNumber(groupCredit.used)} / {formatNumber(groupCredit.limit)}</span></div> : null}
                   </div>
                 ) : null}
                 <div className="mt-4 flex gap-2">

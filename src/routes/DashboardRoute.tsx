@@ -6,7 +6,7 @@ import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { Metric } from "../components/Metric";
 import { useFinanceData } from "../data/hooks";
-import { createFxConverter, formatMoney, type Account, type AppSettings, type DailyFxRate, type LedgerTransaction, type PortfolioAsset } from "../domain";
+import { createFxConverter, formatMoney, formatPrice, formatQuantity, type Account, type AppSettings, type DailyFxRate, type LedgerTransaction, type PortfolioAsset } from "../domain";
 import type { StoredMarketQuote } from "../data/repositories";
 import { useRefreshQuotes } from "../features/market-data/useMarketRefresh";
 
@@ -126,8 +126,8 @@ export function DashboardRoute() {
                       <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{asset.name}</div>
                     </div>
                     <div className="tabular text-right">
-                      <div>{asset.totalQuantity.toLocaleString("zh-TW")}</div>
-                      <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{quote ? `${quote.price.toFixed(2)} ${quote.currency}` : asset.currency}</div>
+                      <div>{formatQuantity(asset.totalQuantity)}</div>
+                      <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{quote ? `${formatPrice(quote.price)} ${quote.currency}` : asset.currency}</div>
                     </div>
                   </div>
                 </div>
