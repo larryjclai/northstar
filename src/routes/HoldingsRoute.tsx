@@ -13,8 +13,9 @@ import { useUiPreferences } from "../state/uiPreferences";
 import { useRefreshDailyPrices, useRefreshQuotes } from "../features/market-data/useMarketRefresh";
 
 export function HoldingsRoute() {
-  const { assets, quotes, dailyPrices } = useFinanceData();
+  const { assets, quotes, dailyPrices, accounts } = useFinanceData();
   const nameLocale = useUiPreferences((state) => state.nameLocale);
+  const accountRows = accounts.data ?? [];
   const [form, setForm] = useState<PortfolioAssetDraft>(emptyHoldingDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
@@ -82,6 +83,7 @@ export function HoldingsRoute() {
       totalQuantity: asset.totalQuantity,
       averageCost: asset.averageCost,
       acquisitionDate: asset.acquisitionDate ?? new Date().toISOString().slice(0, 10),
+      accountId: asset.accountId,
     });
   }
 
@@ -95,6 +97,7 @@ export function HoldingsRoute() {
             onChange={setForm}
             onSubmit={submitHolding}
             submitLabel={editingId ? "儲存持倉" : "新增持倉"}
+            accounts={accountRows}
           />
           {message ? <div className="mt-3"><StatusText>{message}</StatusText></div> : null}
           {editingId ? (

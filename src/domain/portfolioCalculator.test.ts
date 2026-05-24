@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildHoldingPositions } from "./portfolioCalculator";
+import { buildHoldingPositions, buildHoldingPositionsByAccount } from "./portfolioCalculator";
 import type { InvestmentRecord, PortfolioAsset } from "./types";
 
 const manualAsset: PortfolioAsset = {
@@ -18,6 +18,7 @@ const manualAsset: PortfolioAsset = {
   averageCost: 50,
   holdingSource: "manual",
   acquisitionDate: "2026-05-24",
+  accountId: "acct_test",
 };
 
 const transactionAsset: PortfolioAsset = {
@@ -70,5 +71,36 @@ describe("portfolio calculator", () => {
     expect(position.quantity).toBe(2);
     expect(position.costBasis).toBe(900);
     expect(position.unrealizedGain).toBe(100);
+  });
+
+  it("splits transaction holdings by linked account when computing per-account positions", () => {
+    const schwab: InvestmentRecord = { ...buyRecord, id: "inv_schwab", linkedAccountId: "acct_schwab" };
+    const firstrade: InvestmentRecord = {
+      ...buyRecord,
+      id: "inv_first",
+      linkedAccountId: "acct_first",
+      quantity: 3,
+      price: 460,
+    };
+    const positions = buildHoldingPositionsByAccount([transactionAsset], [schwab, firstrade], {
+      QQQ: { symbol: "QQQ", price: 500, currency: "USD" },
+    });
+
+    expect(positions).toHaveLength(2);
+    const schwabPos = positions.find((p) => p.accountId === "acct_schwab")!;
+    const firstradePos = positions.find((p) => p.accountId === "acct_first")!;
+    expect(schwabPos.quantity).toBe(2);
+    expect(schwabPos.marketValue).toBe(1000);
+    expect(firstradePos.quantity).toBe(3);
+    expect(firstradePos.costBasis).toBeCloseTo(1380);
+  });
+
+  it("treats manual holdings as one row per asset/account pair", () => {
+    const positions = buildHoldingPositionsByAccount([manualAsset], [], {
+      "0050.TW": { symbol: "0050.TW", price: 60, currency: "TWD" },
+    });
+    expect(positions).toHaveLength(1);
+    expect(positions[0].accountId).toBe("acct_test");
+    expect(positions[0].quantity).toBe(3000);
   });
 });

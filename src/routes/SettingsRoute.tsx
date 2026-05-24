@@ -9,7 +9,7 @@ import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { getFinanceRepository, type RepositorySnapshot } from "../data/repositories";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../domain";
 import { useRefreshFxRates } from "../features/market-data/useMarketRefresh";
-import { useUiPreferences, type NameLocalePreference } from "../state/uiPreferences";
+import { useUiPreferences, type ClockMode, type NameLocalePreference } from "../state/uiPreferences";
 
 const emptySettings: AppSettings = {
   primaryCurrency: "TWD",
@@ -461,11 +461,18 @@ function DisplayAndPrivacyCard() {
   const togglePrivacy = useUiPreferences((state) => state.togglePrivacyMode);
   const nameLocale = useUiPreferences((state) => state.nameLocale);
   const setNameLocale = useUiPreferences((state) => state.setNameLocale);
+  const clockMode = useUiPreferences((state) => state.clockMode);
+  const setClockMode = useUiPreferences((state) => state.setClockMode);
 
   const localeOptions: { value: NameLocalePreference; label: string }[] = [
     { value: "auto", label: "跟隨系統" },
     { value: "zh-Hant", label: "繁體中文" },
     { value: "en", label: "English" },
+  ];
+
+  const clockOptions: { value: ClockMode; label: string }[] = [
+    { value: "24h", label: "24 小時制" },
+    { value: "12h", label: "AM / PM" },
   ];
 
   return (
@@ -529,6 +536,33 @@ function DisplayAndPrivacyCard() {
         </Field>
         <p className="-mt-2 text-xs leading-5" style={{ color: "var(--ns-muted)" }}>
           影響股票名稱顯示偏好。缺少對應翻譯時自動使用 Yahoo 回傳的原文。
+        </p>
+
+        <Field label="時間制式">
+          <div className="grid grid-cols-2 gap-2">
+            {clockOptions.map((option) => {
+              const active = option.value === clockMode;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setClockMode(option.value)}
+                  aria-pressed={active}
+                  className="flex items-center justify-center gap-1 rounded-md border px-2 py-2 text-xs font-medium outline-none transition"
+                  style={{
+                    borderColor: active ? "var(--ns-accent)" : "var(--ns-border)",
+                    background: active ? "var(--ns-accent-soft)" : "transparent",
+                    color: active ? "var(--ns-accent)" : "var(--ns-muted)",
+                  }}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </Field>
+        <p className="-mt-2 text-xs leading-5" style={{ color: "var(--ns-muted)" }}>
+          影響新增收支時的時間挑選器。在表單上也能即時切換。
         </p>
       </div>
     </Card>

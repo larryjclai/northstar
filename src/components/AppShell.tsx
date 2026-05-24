@@ -5,7 +5,6 @@ import {
   EyeSlash,
   GearSix,
   House,
-  ListChecks,
   Receipt,
   TrendUp,
 } from "@phosphor-icons/react";
@@ -15,8 +14,7 @@ import { usePrivacySync, useUiPreferences } from "../state/uiPreferences";
 
 const navItems = [
   { to: "/", label: "總覽", icon: House },
-  { to: "/holdings", label: "持倉", icon: TrendUp },
-  { to: "/transactions", label: "交易", icon: ListChecks },
+  { to: "/investments", label: "投資", icon: TrendUp },
   { to: "/cash-flow", label: "收支", icon: Receipt },
   { to: "/accounts", label: "帳戶", icon: Bank },
   { to: "/settings", label: "設定", icon: GearSix },
@@ -73,7 +71,7 @@ export function AppShell() {
       <main className="pb-20 lg:pb-0">
         <Outlet />
       </main>
-      <nav className="fixed inset-x-0 bottom-0 grid grid-cols-6 border-t lg:hidden" style={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}>
+      <nav className="fixed inset-x-0 bottom-0 grid grid-cols-5 border-t lg:hidden" style={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}>
         {navItems.map((item) => (
           <Link key={item.to} to={item.to} className="flex flex-col items-center gap-1 px-1 py-2 text-[11px] outline-none" activeProps={{ style: { color: "var(--ns-accent)" } }} inactiveProps={{ style: { color: "var(--ns-muted)" } }}>
             <item.icon size={20} weight="duotone" />

@@ -63,6 +63,15 @@ export interface PortfolioAsset extends SyncFields {
   averageCost: number;
   holdingSource: "manual" | "transactions";
   acquisitionDate: string | null;
+  /**
+   * Brokerage / custodian that holds this asset.
+   *
+   * - For `holdingSource = "manual"` rows this is the snapshot owner; one
+   *   manual row exists per (ticker, accountId) pair.
+   * - For `holdingSource = "transactions"` rows this is null and ownership
+   *   is derived from `InvestmentRecord.linkedAccountId`.
+   */
+  accountId: string | null;
 }
 
 export interface InvestmentRecord extends SyncFields {
@@ -105,6 +114,8 @@ export interface HoldingPosition {
   costBasis: number;
   unrealizedGain: number;
   unrealizedGainPercent: number;
+  /** Brokerage / custodian owning this slice. Null = aggregated / unspecified. */
+  accountId: string | null;
 }
 
 export interface Lot {

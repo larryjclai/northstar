@@ -4,6 +4,7 @@ import { AccountsRoute } from "./AccountsRoute";
 import { CashFlowRoute } from "./CashFlowRoute";
 import { DashboardRoute } from "./DashboardRoute";
 import { HoldingsRoute } from "./HoldingsRoute";
+import { InvestmentsRoute } from "./InvestmentsRoute";
 import { SettingsRoute } from "./SettingsRoute";
 import { TransactionsRoute } from "./TransactionsRoute";
 
@@ -17,6 +18,17 @@ const indexRoute = createRoute({
   component: DashboardRoute,
 });
 
+const investmentsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/investments",
+  component: InvestmentsRoute,
+});
+
+// Old routes kept so existing bookmarks / links keep working, but the new
+// /investments view is the canonical destination. Wrap each one with a thin
+// redirect-like notice instead of removing them outright so power users who
+// rely on the deeper edit UIs (CSV import, full transaction list) can still
+// reach them.
 const holdingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/holdings",
@@ -49,6 +61,7 @@ const settingsRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  investmentsRoute,
   holdingsRoute,
   transactionsRoute,
   cashFlowRoute,
@@ -63,4 +76,3 @@ declare module "@tanstack/react-router" {
     router: typeof router;
   }
 }
-

@@ -1,8 +1,9 @@
 import { CheckCircle } from "@phosphor-icons/react";
-import { Field, TextInput } from "./Field";
+import { Field, SelectInput, TextInput } from "./Field";
 import { ActionButton } from "./ActionButton";
 import { TickerSearchField } from "./TickerSearchField";
 import type { PortfolioAssetDraft } from "../data/repositories";
+import type { Account } from "../domain";
 
 export const emptyHoldingDraft: PortfolioAssetDraft = {
   ticker: "",
@@ -11,6 +12,7 @@ export const emptyHoldingDraft: PortfolioAssetDraft = {
   totalQuantity: 0,
   averageCost: 0,
   acquisitionDate: new Date().toISOString().slice(0, 10),
+  accountId: null,
 };
 
 export function HoldingForm({
@@ -18,12 +20,18 @@ export function HoldingForm({
   onChange,
   onSubmit,
   submitLabel = "新增持倉",
+  accounts = [],
 }: {
   value: PortfolioAssetDraft;
   onChange: (value: PortfolioAssetDraft) => void;
   onSubmit: () => void;
   submitLabel?: string;
+  accounts?: Account[];
 }) {
+  const eligibleAccounts = accounts.filter(
+    (account) => account.deletedAt === null && (account.type === "investment" || account.type === "depository"),
+  );
+
   return (
     <div className="grid gap-3">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
@@ -45,6 +53,19 @@ export function HoldingForm({
       </div>
       <Field label="名稱">
         <TextInput value={value.name} onChange={(event) => onChange({ ...value, name: event.target.value })} placeholder="元大台灣50" />
+      </Field>
+      <Field label="券商 / 帳戶">
+        <SelectInput
+          value={value.accountId ?? ""}
+          onChange={(event) => onChange({ ...value, accountId: event.target.value || null })}
+        >
+          <option value="">— 選擇券商 —</option>
+          {eligibleAccounts.map((account) => (
+            <option key={account.id} value={account.id}>
+              {account.name} ({account.currency})
+            </option>
+          ))}
+        </SelectInput>
       </Field>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Field label="股數">

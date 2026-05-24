@@ -3,6 +3,7 @@ import { ChangeEvent, useMemo, useState } from "react";
 import { ActionButton } from "../components/ActionButton";
 import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
+import { DateTimeField } from "../components/DateTimeField";
 import { Field, SelectInput, TextInput } from "../components/Field";
 import { StatusText } from "../components/StatusText";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
@@ -158,10 +159,12 @@ export function CashFlowRoute() {
                   {accountRows.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                 </SelectInput>
               </Field>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="時間">
-                  <TextInput type="datetime-local" value={ledgerForm.date} onChange={(event) => setLedgerForm({ ...ledgerForm, date: event.target.value })} />
-                </Field>
+              <div className="grid grid-cols-1 gap-3">
+                <DateTimeField
+                  label="時間"
+                  value={ledgerForm.date}
+                  onChange={(value) => setLedgerForm({ ...ledgerForm, date: value })}
+                />
                 <Field label="幣別">
                   <TextInput value={ledgerForm.currency} onChange={(event) => setLedgerForm({ ...ledgerForm, currency: event.target.value.toUpperCase() })} />
                 </Field>
@@ -240,7 +243,11 @@ export function CashFlowRoute() {
                   {accountRows.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                 </SelectInput>
               </Field>
-              <Field label="時間"><TextInput type="datetime-local" value={transferForm.date} onChange={(event) => setTransferForm({ ...transferForm, date: event.target.value })} /></Field>
+              <DateTimeField
+                label="時間"
+                value={transferForm.date}
+                onChange={(value) => setTransferForm({ ...transferForm, date: value })}
+              />
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label={`來源金額 ${transferForm.sourceCurrency}`}><TextInput type="number" value={transferForm.sourceAmount} onChange={(event) => setTransferForm({ ...transferForm, sourceAmount: Number(event.target.value) })} /></Field>
                 <Field label={`目標金額 ${transferForm.destinationCurrency}`}><TextInput type="number" value={transferForm.destinationAmount ?? ""} onChange={(event) => setTransferForm({ ...transferForm, destinationAmount: Number(event.target.value) })} /></Field>

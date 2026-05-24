@@ -87,6 +87,7 @@ export interface PortfolioAssetDraft {
   totalQuantity: number;
   averageCost: number;
   acquisitionDate: string | null;
+  accountId: string | null;
 }
 
 export interface FinanceRepository {
@@ -264,7 +265,62 @@ class BrowserFinanceRepository implements FinanceRepository {
   async initialize() {
     const stored = window.localStorage.getItem(this.storageKey);
     this.data = stored ? normalizeStoredData(JSON.parse(stored) as Partial<RepositoryData>) : createInitialData();
+    this.backfillUnassignedAccountInMemory();
     await this.persist();
+  }
+
+  /**
+   * Mirror of the SQLite Unassigned-account backfill for the browser fallback.
+   * Creates an `未指定` investment account if any manual holding or investment
+   * record lacks an account binding, then points them at it.
+   */
+  protected backfillUnassignedAccountInMemory() {
+    const orphanAssets = this.data.portfolioAssets.some(
+      (asset) => asset.holdingSource === "manual" && !asset.accountId && asset.deletedAt === null,
+    );
+    const orphanRecords = this.data.investmentRecords.some(
+      (record) => !record.linkedAccountId && record.deletedAt === null,
+    );
+    if (!orphanAssets && !orphanRecords) return;
+
+    let unassigned = this.data.accounts.find(
+      (account) => account.type === "investment" && account.name === "未指定" && account.deletedAt === null,
+    );
+    if (!unassigned) {
+      const timestamp = nowIso();
+      unassigned = {
+        id: createId("acct"),
+        spaceId: personalSpace,
+        revision: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        deletedAt: null,
+        name: "未指定",
+        currency: "TWD",
+        openingBalance: 0,
+        balance: 0,
+        type: "investment",
+        creditLimit: null,
+        creditLimitGroup: "",
+        isSharedToHousehold: false,
+      };
+      this.data.accounts.push(unassigned);
+    }
+
+    if (orphanAssets) {
+      this.data.portfolioAssets = this.data.portfolioAssets.map((asset) =>
+        asset.holdingSource === "manual" && !asset.accountId && asset.deletedAt === null
+          ? { ...asset, accountId: unassigned!.id, updatedAt: nowIso() }
+          : asset,
+      );
+    }
+    if (orphanRecords) {
+      this.data.investmentRecords = this.data.investmentRecords.map((record) =>
+        !record.linkedAccountId && record.deletedAt === null
+          ? { ...record, linkedAccountId: unassigned!.id, updatedAt: nowIso() }
+          : record,
+      );
+    }
   }
 
   async listAccounts() {
@@ -659,6 +715,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       averageCost: 0,
       holdingSource: "transactions",
       acquisitionDate: null,
+      accountId: null,
     };
     this.data.portfolioAssets.push(asset);
     return asset;
@@ -699,6 +756,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("portfolio_assets", "acquisition_date", "text");
     await this.ensureSqliteColumn("portfolio_assets", "name_zh", "text");
     await this.ensureSqliteColumn("portfolio_assets", "name_en", "text");
+    await this.ensureSqliteColumn("portfolio_assets", "account_id", "text");
+    await this.backfillUnassignedAccount();
     await this.ensureDefaultSettings();
     const rows = await this.db.select<Array<{ count: number }>>("select count(*) as count from accounts");
     if ((rows[0]?.count ?? 0) === 0) {
@@ -817,12 +876,13 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   override async listPortfolioAssets() {
     const rows = await this.db.select<PortfolioAsset[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
-      ticker, name, name_zh as nameZh, name_en as nameEn, currency, total_quantity as totalQuantity, average_cost as averageCost, holding_source as holdingSource, acquisition_date as acquisitionDate
+      ticker, name, name_zh as nameZh, name_en as nameEn, currency, total_quantity as totalQuantity, average_cost as averageCost, holding_source as holdingSource, acquisition_date as acquisitionDate, account_id as accountId
       from portfolio_assets where deleted_at is null order by ticker`);
     return rows.map((row) => ({
       ...row,
       nameZh: row.nameZh ?? null,
       nameEn: row.nameEn ?? null,
+      accountId: row.accountId ?? null,
     }));
   }
 
@@ -832,8 +892,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   override async updateManualHolding(id: string, input: PortfolioAssetDraft) {
     await this.db.execute(
-      `update portfolio_assets set revision = revision + 1, updated_at = $1, ticker = $2, name = $3, currency = $4, total_quantity = $5, average_cost = $6, acquisition_date = $7 where id = $8 and holding_source = 'manual'`,
-      [nowIso(), input.ticker.trim().toUpperCase(), input.name.trim() || input.ticker.trim().toUpperCase(), input.currency.trim().toUpperCase(), input.totalQuantity, input.averageCost, input.acquisitionDate || null, id],
+      `update portfolio_assets set revision = revision + 1, updated_at = $1, ticker = $2, name = $3, currency = $4, total_quantity = $5, average_cost = $6, acquisition_date = $7, account_id = $8 where id = $9 and holding_source = 'manual'`,
+      [nowIso(), input.ticker.trim().toUpperCase(), input.name.trim() || input.ticker.trim().toUpperCase(), input.currency.trim().toUpperCase(), input.totalQuantity, input.averageCost, input.acquisitionDate || null, input.accountId || null, id],
     );
   }
 
@@ -1215,9 +1275,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   private async insertAssetRow(row: PortfolioAsset) {
     await this.db.execute(
-      `insert into portfolio_assets (id, space_id, revision, created_at, updated_at, deleted_at, ticker, name, name_zh, name_en, currency, total_quantity, average_cost, holding_source, acquisition_date)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
-      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.ticker, row.name, row.nameZh ?? null, row.nameEn ?? null, row.currency, row.totalQuantity, row.averageCost, row.holdingSource, row.acquisitionDate],
+      `insert into portfolio_assets (id, space_id, revision, created_at, updated_at, deleted_at, ticker, name, name_zh, name_en, currency, total_quantity, average_cost, holding_source, acquisition_date, account_id)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.ticker, row.name, row.nameZh ?? null, row.nameEn ?? null, row.currency, row.totalQuantity, row.averageCost, row.holdingSource, row.acquisitionDate, row.accountId ?? null],
     );
   }
 
@@ -1266,6 +1326,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       averageCost: 0,
       holdingSource: "transactions",
       acquisitionDate: null,
+      accountId: null,
     };
     await this.insertAssetRow(asset);
     return asset.id;
@@ -1275,6 +1336,60 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     const rows = await this.db.select<Array<{ name: string }>>(`pragma table_info(${table})`);
     if (rows.some((row) => row.name === column)) return;
     await this.db.execute(`alter table ${table} add column ${column} ${definition}`);
+  }
+
+  /**
+   * Ensure a sentinel "Unassigned" account exists, then point any pre-existing
+   * manual holdings and investment records that lack an account to it.
+   *
+   * Runs every initialize() pass but is idempotent — if every row already has
+   * an account_id, nothing changes.
+   */
+  private async backfillUnassignedAccount() {
+    const orphanAssets = await this.db.select<Array<{ count: number }>>(
+      `select count(*) as count from portfolio_assets
+       where holding_source = 'manual' and account_id is null and deleted_at is null`,
+    );
+    const orphanRecords = await this.db.select<Array<{ count: number }>>(
+      `select count(*) as count from investment_records
+       where linked_account_id is null and deleted_at is null`,
+    );
+    const needsAccount = (orphanAssets[0]?.count ?? 0) > 0 || (orphanRecords[0]?.count ?? 0) > 0;
+    if (!needsAccount) return;
+
+    const accountId = await this.ensureUnassignedAccount();
+
+    if ((orphanAssets[0]?.count ?? 0) > 0) {
+      await this.db.execute(
+        `update portfolio_assets set account_id = $1, updated_at = $2
+         where holding_source = 'manual' and account_id is null and deleted_at is null`,
+        [accountId, nowIso()],
+      );
+    }
+    if ((orphanRecords[0]?.count ?? 0) > 0) {
+      await this.db.execute(
+        `update investment_records set linked_account_id = $1, updated_at = $2
+         where linked_account_id is null and deleted_at is null`,
+        [accountId, nowIso()],
+      );
+      await this.recomputeSqliteAccounts();
+    }
+  }
+
+  private async ensureUnassignedAccount(): Promise<string> {
+    const existing = await this.db.select<Array<{ id: string }>>(
+      `select id from accounts where type = 'investment' and name = '未指定' and deleted_at is null limit 1`,
+    );
+    if (existing[0]?.id) return existing[0].id;
+
+    const id = createId("acct");
+    const timestamp = nowIso();
+    await this.db.execute(
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household)
+       values ($1,$2,1,$3,$3,null,$4,$5,0,0,$6,null,'',0)`,
+      [id, personalSpace, timestamp, "未指定", "TWD", "investment"],
+    );
+    return id;
   }
 
   private async ensureDefaultSettings() {
@@ -1421,6 +1536,7 @@ function normalizePortfolioAsset(asset: PortfolioAsset): PortfolioAsset {
     currency: asset.currency || "TWD",
     holdingSource: asset.holdingSource ?? "transactions",
     acquisitionDate: asset.acquisitionDate ?? null,
+    accountId: asset.accountId ?? null,
   };
 }
 
@@ -1436,6 +1552,7 @@ function manualHoldingFields(input: PortfolioAssetDraft) {
     averageCost: Math.max(0, Number(input.averageCost) || 0),
     holdingSource: "manual" as const,
     acquisitionDate: input.acquisitionDate || null,
+    accountId: input.accountId || null,
   };
 }
 
