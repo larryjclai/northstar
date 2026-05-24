@@ -7,6 +7,7 @@ import { EmptyState } from "../components/EmptyState";
 import { Metric } from "../components/Metric";
 import { useFinanceData } from "../data/hooks";
 import { createFxConverter, formatMoney, formatPrice, formatQuantity, resolveAssetName, type Account, type AppSettings, type DailyFxRate, type LedgerTransaction, type PortfolioAsset } from "../domain";
+import { FireGoalCard } from "../features/goals/FireGoalCard";
 import { useUiPreferences } from "../state/uiPreferences";
 import type { StoredMarketQuote } from "../data/repositories";
 import { useRefreshQuotes } from "../features/market-data/useMarketRefresh";
@@ -53,6 +54,9 @@ export function DashboardRoute() {
         <Card>
           <Metric label="本月淨流入" value={formatMoney(monthlyIncome + monthlyExpense, primaryCurrency)} />
         </Card>
+      </div>
+      <div className="mt-4">
+        <FireGoalCard />
       </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_340px]">
         <Card title="淨值趨勢">

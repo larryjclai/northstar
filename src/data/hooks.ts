@@ -12,6 +12,7 @@ const keys = {
   settings: ["settings"] as const,
   dailyFxRates: ["dailyFxRates"] as const,
   dailyPrices: ["dailyPrices"] as const,
+  financialGoals: ["financialGoals"] as const,
 };
 
 export function useRepository() {
@@ -70,8 +71,25 @@ export function useFinanceData() {
     queryFn: () => repository.data!.listDailyPrices(),
     enabled,
   });
+  const financialGoals = useQuery({
+    queryKey: keys.financialGoals,
+    queryFn: () => repository.data!.listFinancialGoals(),
+    enabled,
+  });
 
-  return { repository, accounts, ledger, assets, investments, recurring, quotes, settings, dailyFxRates, dailyPrices };
+  return {
+    repository,
+    accounts,
+    ledger,
+    assets,
+    investments,
+    recurring,
+    quotes,
+    settings,
+    dailyFxRates,
+    dailyPrices,
+    financialGoals,
+  };
 }
 
 export function useRepositoryMutation<TInput>(

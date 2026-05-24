@@ -159,6 +159,29 @@ export const migrations: Migration[] = [
       create index if not exists idx_daily_prices_ticker_date on daily_prices (ticker, date);
     `,
   },
+  {
+    id: 2,
+    description: "Goals table for FIRE and future custom targets",
+    sql: `
+      create table if not exists financial_goals (
+        id text primary key,
+        space_id text not null,
+        revision integer not null,
+        created_at text not null,
+        updated_at text not null,
+        deleted_at text,
+        kind text not null default 'fire',
+        name text not null,
+        currency text not null,
+        annual_spending real not null default 0,
+        withdrawal_rate real not null default 0.04,
+        expected_annual_return real not null default 0.07,
+        monthly_contribution real not null default 0,
+        target_amount real,
+        start_date text not null
+      );
+    `,
+  },
 ];
 
 export function splitSqlStatements(sql: string): string[] {

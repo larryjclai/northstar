@@ -171,3 +171,23 @@ export interface DailyPrice {
   source: string;
   updatedAt: string;
 }
+
+export type GoalKind = "fire" | "custom";
+
+/**
+ * Financial goal — the first kind we support is FIRE (Financial Independence,
+ * Retire Early). `annualSpending` × (1 / withdrawalRate) is the classic
+ * "25× rule" target if `targetAmount` is not overridden.
+ */
+export interface FinancialGoal extends SyncFields {
+  kind: GoalKind;
+  name: string;
+  currency: CurrencyCode;
+  annualSpending: number;
+  withdrawalRate: number;
+  expectedAnnualReturn: number;
+  monthlyContribution: number;
+  /** Optional override; when null/0 we derive from annualSpending / withdrawalRate. */
+  targetAmount: number | null;
+  startDate: string;
+}

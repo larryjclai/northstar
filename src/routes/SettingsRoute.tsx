@@ -9,6 +9,7 @@ import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { getFinanceRepository, type RepositorySnapshot } from "../data/repositories";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../domain";
 import { useRefreshFxRates } from "../features/market-data/useMarketRefresh";
+import { FireGoalEditor } from "../features/goals/FireGoalEditor";
 import { useUiPreferences, type ClockMode, type NameLocalePreference } from "../state/uiPreferences";
 
 const emptySettings: AppSettings = {
@@ -215,6 +216,8 @@ export function SettingsRoute() {
               </ActionButton>
             </div>
           </Card>
+
+          <FireGoalEditor />
 
           <Card title="商家">
             <div className="flex flex-wrap gap-2">

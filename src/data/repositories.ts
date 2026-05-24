@@ -4,6 +4,8 @@ import type {
   AppSettings,
   DailyFxRate,
   DailyPrice,
+  FinancialGoal,
+  GoalKind,
   InvestmentAction,
   InvestmentRecord,
   LedgerTransaction,
@@ -90,6 +92,18 @@ export interface PortfolioAssetDraft {
   accountId: string | null;
 }
 
+export interface FinancialGoalDraft {
+  kind: GoalKind;
+  name: string;
+  currency: string;
+  annualSpending: number;
+  withdrawalRate: number;
+  expectedAnnualReturn: number;
+  monthlyContribution: number;
+  targetAmount: number | null;
+  startDate: string;
+}
+
 export interface FinanceRepository {
   initialize(): Promise<void>;
   listAccounts(): Promise<Account[]>;
@@ -126,6 +140,9 @@ export interface FinanceRepository {
   listDailyPrices(filter?: { ticker?: string; since?: string }): Promise<DailyPrice[]>;
   saveDailyPrices(prices: DailyPrice[]): Promise<void>;
   getDailyPrice(ticker: string, date: string): Promise<DailyPrice | null>;
+  listFinancialGoals(): Promise<FinancialGoal[]>;
+  upsertFinancialGoal(input: FinancialGoalDraft & { id?: string }): Promise<FinancialGoal>;
+  deleteFinancialGoal(id: string): Promise<void>;
   exportSnapshot(): Promise<RepositorySnapshot>;
   importSnapshot(snapshot: RepositorySnapshot): Promise<void>;
 }
@@ -142,6 +159,7 @@ export interface RepositorySnapshot {
   settings: AppSettings;
   dailyFxRates: DailyFxRate[];
   dailyPrices: DailyPrice[];
+  financialGoals?: FinancialGoal[];
 }
 
 const personalSpace = "space_personal_default";
@@ -172,6 +190,7 @@ interface RepositoryData {
   settings: AppSettings;
   dailyFxRates: DailyFxRate[];
   dailyPrices: DailyPrice[];
+  financialGoals: FinancialGoal[];
 }
 
 let repositoryPromise: Promise<FinanceRepository> | null = null;
@@ -663,6 +682,50 @@ class BrowserFinanceRepository implements FinanceRepository {
     return matches[0] ?? null;
   }
 
+  async listFinancialGoals() {
+    return this.data.financialGoals
+      .filter((goal) => goal.deletedAt === null)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async upsertFinancialGoal(input: FinancialGoalDraft & { id?: string }) {
+    const timestamp = nowIso();
+    if (input.id) {
+      const existing = this.data.financialGoals.find((goal) => goal.id === input.id);
+      if (!existing) throw new Error("找不到要更新的目標。");
+      const next: FinancialGoal = {
+        ...existing,
+        ...goalFieldsFromDraft(input),
+        updatedAt: timestamp,
+        revision: existing.revision + 1,
+      };
+      this.data.financialGoals = this.data.financialGoals.map((goal) =>
+        goal.id === existing.id ? next : goal,
+      );
+      await this.persist();
+      return next;
+    }
+    const goal: FinancialGoal = {
+      id: createId("goal"),
+      spaceId: personalSpace,
+      revision: 1,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      deletedAt: null,
+      ...goalFieldsFromDraft(input),
+    };
+    this.data.financialGoals.push(goal);
+    await this.persist();
+    return goal;
+  }
+
+  async deleteFinancialGoal(id: string) {
+    this.data.financialGoals = this.data.financialGoals.map((goal) =>
+      goal.id === id ? { ...goal, deletedAt: nowIso(), updatedAt: nowIso(), revision: goal.revision + 1 } : goal,
+    );
+    await this.persist();
+  }
+
   async exportSnapshot(): Promise<RepositorySnapshot> {
     return {
       version: 1,
@@ -676,6 +739,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       settings: this.data.settings,
       dailyFxRates: this.data.dailyFxRates,
       dailyPrices: this.data.dailyPrices,
+      financialGoals: this.data.financialGoals,
     };
   }
 
@@ -690,6 +754,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       settings: snapshot.settings,
       dailyFxRates: snapshot.dailyFxRates,
       dailyPrices: snapshot.dailyPrices,
+      financialGoals: snapshot.financialGoals,
     });
     await this.persist();
   }
@@ -1203,8 +1268,101 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     };
   }
 
+  override async listFinancialGoals() {
+    const rows = await this.db.select<Array<{
+      id: string;
+      spaceId: string;
+      revision: number;
+      createdAt: string;
+      updatedAt: string;
+      deletedAt: string | null;
+      kind: string;
+      name: string;
+      currency: string;
+      annualSpending: number;
+      withdrawalRate: number;
+      expectedAnnualReturn: number;
+      monthlyContribution: number;
+      targetAmount: number | null;
+      startDate: string;
+    }>>(
+      `select id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
+       kind, name, currency, annual_spending as annualSpending, withdrawal_rate as withdrawalRate,
+       expected_annual_return as expectedAnnualReturn, monthly_contribution as monthlyContribution,
+       target_amount as targetAmount, start_date as startDate
+       from financial_goals where deleted_at is null order by created_at asc`,
+    );
+    return rows.map((row) => ({
+      ...row,
+      kind: (row.kind === "custom" ? "custom" : "fire") as GoalKind,
+      targetAmount: row.targetAmount ?? null,
+    }));
+  }
+
+  override async upsertFinancialGoal(input: FinancialGoalDraft & { id?: string }) {
+    const timestamp = nowIso();
+    const fields = goalFieldsFromDraft(input);
+    if (input.id) {
+      await this.db.execute(
+        `update financial_goals set revision = revision + 1, updated_at = $1, kind = $2, name = $3, currency = $4,
+         annual_spending = $5, withdrawal_rate = $6, expected_annual_return = $7, monthly_contribution = $8,
+         target_amount = $9, start_date = $10
+         where id = $11`,
+        [
+          timestamp,
+          fields.kind,
+          fields.name,
+          fields.currency,
+          fields.annualSpending,
+          fields.withdrawalRate,
+          fields.expectedAnnualReturn,
+          fields.monthlyContribution,
+          fields.targetAmount,
+          fields.startDate,
+          input.id,
+        ],
+      );
+      const refreshed = await this.listFinancialGoals();
+      const found = refreshed.find((goal) => goal.id === input.id);
+      if (!found) throw new Error("找不到要更新的目標。");
+      return found;
+    }
+    const id = createId("goal");
+    await this.db.execute(
+      `insert into financial_goals (id, space_id, revision, created_at, updated_at, deleted_at, kind, name, currency,
+         annual_spending, withdrawal_rate, expected_annual_return, monthly_contribution, target_amount, start_date)
+       values ($1,$2,1,$3,$3,null,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [
+        id,
+        personalSpace,
+        timestamp,
+        fields.kind,
+        fields.name,
+        fields.currency,
+        fields.annualSpending,
+        fields.withdrawalRate,
+        fields.expectedAnnualReturn,
+        fields.monthlyContribution,
+        fields.targetAmount,
+        fields.startDate,
+      ],
+    );
+    const refreshed = await this.listFinancialGoals();
+    const found = refreshed.find((goal) => goal.id === id);
+    if (!found) throw new Error("目標儲存失敗。");
+    return found;
+  }
+
+  override async deleteFinancialGoal(id: string) {
+    const timestamp = nowIso();
+    await this.db.execute(
+      `update financial_goals set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`,
+      [timestamp, id],
+    );
+  }
+
   override async exportSnapshot(): Promise<RepositorySnapshot> {
-    const [accounts, ledger, assetsList, investments, recurring, quotes, settings, fx, prices] = await Promise.all([
+    const [accounts, ledger, assetsList, investments, recurring, quotes, settings, fx, prices, goals] = await Promise.all([
       this.listAccounts(),
       this.listLedgerTransactions(),
       this.listPortfolioAssets(),
@@ -1214,6 +1372,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       this.getAppSettings(),
       this.listDailyFxRates(),
       this.listDailyPrices(),
+      this.listFinancialGoals(),
     ]);
     return {
       version: 1,
@@ -1227,6 +1386,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       settings,
       dailyFxRates: fx,
       dailyPrices: prices,
+      financialGoals: goals,
     };
   }
 
@@ -1241,6 +1401,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.db.execute("delete from portfolio_assets");
     await this.db.execute("delete from accounts");
     await this.db.execute("delete from app_settings");
+    await this.db.execute("delete from financial_goals");
 
     for (const account of snapshot.accounts) await this.insertAccountRow(account);
     for (const asset of snapshot.portfolioAssets) await this.insertAssetRow(asset);
@@ -1252,6 +1413,32 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     }
     if (snapshot.dailyFxRates.length) await this.saveDailyFxRates(snapshot.dailyFxRates);
     if (snapshot.dailyPrices.length) await this.saveDailyPrices(snapshot.dailyPrices);
+    if (snapshot.financialGoals?.length) {
+      for (const goal of snapshot.financialGoals) {
+        await this.db.execute(
+          `insert into financial_goals (id, space_id, revision, created_at, updated_at, deleted_at, kind, name, currency,
+             annual_spending, withdrawal_rate, expected_annual_return, monthly_contribution, target_amount, start_date)
+           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+          [
+            goal.id,
+            goal.spaceId,
+            goal.revision,
+            goal.createdAt,
+            goal.updatedAt,
+            goal.deletedAt,
+            goal.kind,
+            goal.name,
+            goal.currency,
+            goal.annualSpending,
+            goal.withdrawalRate,
+            goal.expectedAnnualReturn,
+            goal.monthlyContribution,
+            goal.targetAmount,
+            goal.startDate,
+          ],
+        );
+      }
+    }
     await this.updateAppSettings(snapshot.settings);
   }
 
@@ -1430,7 +1617,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 }
 
-function createInitialData() {
+function createInitialData(): RepositoryData {
   return {
     accounts: [...seedAccounts],
     ledgerTransactions: [...seedLedgerTransactions],
@@ -1441,6 +1628,7 @@ function createInitialData() {
     settings: defaultSettings,
     dailyFxRates: [] as DailyFxRate[],
     dailyPrices: [] as DailyPrice[],
+    financialGoals: [],
   };
 }
 
@@ -1471,6 +1659,7 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
     settings: normalizeSettings(data.settings ?? defaultSettings),
     dailyFxRates: data.dailyFxRates ?? [],
     dailyPrices: data.dailyPrices ?? [],
+    financialGoals: data.financialGoals ?? [],
   };
 }
 
@@ -1537,6 +1726,21 @@ function normalizePortfolioAsset(asset: PortfolioAsset): PortfolioAsset {
     holdingSource: asset.holdingSource ?? "transactions",
     acquisitionDate: asset.acquisitionDate ?? null,
     accountId: asset.accountId ?? null,
+  };
+}
+
+function goalFieldsFromDraft(input: FinancialGoalDraft) {
+  return {
+    kind: input.kind === "custom" ? ("custom" as const) : ("fire" as const),
+    name: input.name.trim() || "FIRE 目標",
+    currency: (input.currency || "TWD").toUpperCase(),
+    annualSpending: Math.max(0, Number(input.annualSpending) || 0),
+    withdrawalRate:
+      Number.isFinite(input.withdrawalRate) && input.withdrawalRate > 0 ? input.withdrawalRate : 0.04,
+    expectedAnnualReturn: Number.isFinite(input.expectedAnnualReturn) ? input.expectedAnnualReturn : 0.07,
+    monthlyContribution: Math.max(0, Number(input.monthlyContribution) || 0),
+    targetAmount: input.targetAmount && input.targetAmount > 0 ? input.targetAmount : null,
+    startDate: input.startDate || new Date().toISOString().slice(0, 10),
   };
 }
 
