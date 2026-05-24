@@ -6,7 +6,8 @@ import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { Metric } from "../components/Metric";
 import { useFinanceData } from "../data/hooks";
-import { createFxConverter, formatMoney, formatPrice, formatQuantity, type Account, type AppSettings, type DailyFxRate, type LedgerTransaction, type PortfolioAsset } from "../domain";
+import { createFxConverter, formatMoney, formatPrice, formatQuantity, resolveAssetName, type Account, type AppSettings, type DailyFxRate, type LedgerTransaction, type PortfolioAsset } from "../domain";
+import { useUiPreferences } from "../state/uiPreferences";
 import type { StoredMarketQuote } from "../data/repositories";
 import { useRefreshQuotes } from "../features/market-data/useMarketRefresh";
 
@@ -34,6 +35,7 @@ export function DashboardRoute() {
   const trend = buildNetWorthTrend(accountRows, ledgerRows, assetRows, quoteRows, appSettings, fxHistory);
   const hasAnyData = accountRows.length > 0 || ledgerRows.length > 0 || assetRows.length > 0;
   const hasHoldings = assetRows.some((asset) => asset.totalQuantity > 0);
+  const nameLocale = useUiPreferences((state) => state.nameLocale);
 
   return (
     <div className="mx-auto max-w-6xl p-5 lg:p-8">
@@ -123,7 +125,7 @@ export function DashboardRoute() {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-semibold">{asset.ticker}</div>
-                      <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{asset.name}</div>
+                      <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{resolveAssetName(asset, nameLocale)}</div>
                     </div>
                     <div className="tabular text-right">
                       <div>{formatQuantity(asset.totalQuantity)}</div>

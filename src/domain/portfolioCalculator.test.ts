@@ -11,6 +11,8 @@ const manualAsset: PortfolioAsset = {
   deletedAt: null,
   ticker: "0050.TW",
   name: "元大台灣50",
+  nameZh: "元大台灣50",
+  nameEn: "Yuanta Taiwan 50 ETF",
   currency: "TWD",
   totalQuantity: 3000,
   averageCost: 50,

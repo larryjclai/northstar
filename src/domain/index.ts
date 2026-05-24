@@ -1,4 +1,5 @@
 export * from "./amountExpression";
+export * from "./assetName";
 export * from "./currency";
 export * from "./fifoCalculator";
 export * from "./groupClassifier";

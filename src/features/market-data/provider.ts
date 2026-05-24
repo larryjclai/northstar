@@ -1,6 +1,8 @@
 export interface MarketQuote {
   symbol: string;
   name: string;
+  nameZh: string | null;
+  nameEn: string | null;
   currency: string;
   price: number;
   change: number;

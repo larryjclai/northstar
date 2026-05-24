@@ -56,6 +56,8 @@ export interface LedgerTransaction extends SyncFields {
 export interface PortfolioAsset extends SyncFields {
   ticker: string;
   name: string;
+  nameZh: string | null;
+  nameEn: string | null;
   currency: CurrencyCode;
   totalQuantity: number;
   averageCost: number;

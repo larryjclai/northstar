@@ -501,6 +501,17 @@ class BrowserFinanceRepository implements FinanceRepository {
       next.set(quote.symbol, { ...quote, source, updatedAt });
     }
     this.data.marketQuotes = [...next.values()];
+    // Propagate localized names to any matching portfolio assets so
+    // displayName() can pick zh / en based on user preference later.
+    const bySymbol = new Map(quotes.map((quote) => [quote.symbol.toUpperCase(), quote]));
+    this.data.portfolioAssets = this.data.portfolioAssets.map((asset) => {
+      const match = bySymbol.get(asset.ticker.toUpperCase());
+      if (!match) return asset;
+      const nameZh = match.nameZh ?? asset.nameZh ?? null;
+      const nameEn = match.nameEn ?? asset.nameEn ?? null;
+      if (nameZh === asset.nameZh && nameEn === asset.nameEn) return asset;
+      return { ...asset, nameZh, nameEn };
+    });
     await this.persist();
   }
 
@@ -627,28 +638,29 @@ class BrowserFinanceRepository implements FinanceRepository {
     await this.persist();
   }
 
-  private findOrCreateAsset(input: InvestmentDraft) {
+  private findOrCreateAsset(input: InvestmentDraft): PortfolioAsset {
     const ticker = input.ticker.trim().toUpperCase();
-    let asset = this.data.portfolioAssets.find((item) => item.ticker === ticker && item.deletedAt === null && item.holdingSource === "transactions");
-    if (!asset) {
-      const timestamp = nowIso();
-      asset = {
-        id: createId("asset"),
-        spaceId: personalSpace,
-        revision: 1,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        deletedAt: null,
-        ticker,
-        name: input.name || ticker,
-        currency: input.currency,
-        totalQuantity: 0,
-        averageCost: 0,
-        holdingSource: "transactions",
-        acquisitionDate: null,
-      };
-      this.data.portfolioAssets.push(asset);
-    }
+    const existing = this.data.portfolioAssets.find((item) => item.ticker === ticker && item.deletedAt === null && item.holdingSource === "transactions");
+    if (existing) return existing;
+    const timestamp = nowIso();
+    const asset: PortfolioAsset = {
+      id: createId("asset"),
+      spaceId: personalSpace,
+      revision: 1,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      deletedAt: null,
+      ticker,
+      name: input.name || ticker,
+      nameZh: null,
+      nameEn: null,
+      currency: input.currency,
+      totalQuantity: 0,
+      averageCost: 0,
+      holdingSource: "transactions",
+      acquisitionDate: null,
+    };
+    this.data.portfolioAssets.push(asset);
     return asset;
   }
 
@@ -685,6 +697,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("recurring_transactions", "settlement_status", "text not null default 'settled'");
     await this.ensureSqliteColumn("portfolio_assets", "holding_source", "text not null default 'transactions'");
     await this.ensureSqliteColumn("portfolio_assets", "acquisition_date", "text");
+    await this.ensureSqliteColumn("portfolio_assets", "name_zh", "text");
+    await this.ensureSqliteColumn("portfolio_assets", "name_en", "text");
     await this.ensureDefaultSettings();
     const rows = await this.db.select<Array<{ count: number }>>("select count(*) as count from accounts");
     if ((rows[0]?.count ?? 0) === 0) {
@@ -801,10 +815,15 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async listPortfolioAssets() {
-    return this.db.select<PortfolioAsset[]>(`select
+    const rows = await this.db.select<PortfolioAsset[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
-      ticker, name, currency, total_quantity as totalQuantity, average_cost as averageCost, holding_source as holdingSource, acquisition_date as acquisitionDate
+      ticker, name, name_zh as nameZh, name_en as nameEn, currency, total_quantity as totalQuantity, average_cost as averageCost, holding_source as holdingSource, acquisition_date as acquisitionDate
       from portfolio_assets where deleted_at is null order by ticker`);
+    return rows.map((row) => ({
+      ...row,
+      nameZh: row.nameZh ?? null,
+      nameEn: row.nameEn ?? null,
+    }));
   }
 
   override async createManualHolding(input: PortfolioAssetDraft) {
@@ -928,6 +947,23 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
          source = excluded.source, updated_at = excluded.updated_at`,
         [quote.symbol, quote.name, quote.currency, quote.price, quote.change, quote.changePercent, quote.marketTime, source, updatedAt],
       );
+      // Cache localized names alongside the portfolio_assets row so
+      // resolveDisplayName() can pick the user's preferred locale
+      // without re-hitting the network.
+      if (quote.nameZh) {
+        await this.db.execute(
+          `update portfolio_assets set name_zh = $1, updated_at = $2, revision = revision + 1
+           where upper(ticker) = upper($3) and deleted_at is null`,
+          [quote.nameZh, updatedAt, quote.symbol],
+        );
+      }
+      if (quote.nameEn) {
+        await this.db.execute(
+          `update portfolio_assets set name_en = $1, updated_at = $2, revision = revision + 1
+           where upper(ticker) = upper($3) and deleted_at is null`,
+          [quote.nameEn, updatedAt, quote.symbol],
+        );
+      }
     }
   }
 
@@ -1179,9 +1215,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   private async insertAssetRow(row: PortfolioAsset) {
     await this.db.execute(
-      `insert into portfolio_assets (id, space_id, revision, created_at, updated_at, deleted_at, ticker, name, currency, total_quantity, average_cost, holding_source, acquisition_date)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.ticker, row.name, row.currency, row.totalQuantity, row.averageCost, row.holdingSource, row.acquisitionDate],
+      `insert into portfolio_assets (id, space_id, revision, created_at, updated_at, deleted_at, ticker, name, name_zh, name_en, currency, total_quantity, average_cost, holding_source, acquisition_date)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.ticker, row.name, row.nameZh ?? null, row.nameEn ?? null, row.currency, row.totalQuantity, row.averageCost, row.holdingSource, row.acquisitionDate],
     );
   }
 
@@ -1223,6 +1259,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       deletedAt: null,
       ticker,
       name: input.name || ticker,
+      nameZh: null,
+      nameEn: null,
       currency: input.currency,
       totalQuantity: 0,
       averageCost: 0,
@@ -1378,6 +1416,8 @@ function normalizePortfolioAsset(asset: PortfolioAsset): PortfolioAsset {
     ...asset,
     ticker: asset.ticker.trim().toUpperCase(),
     name: asset.name || asset.ticker,
+    nameZh: asset.nameZh ?? null,
+    nameEn: asset.nameEn ?? null,
     currency: asset.currency || "TWD",
     holdingSource: asset.holdingSource ?? "transactions",
     acquisitionDate: asset.acquisitionDate ?? null,
@@ -1389,6 +1429,8 @@ function manualHoldingFields(input: PortfolioAssetDraft) {
   return {
     ticker,
     name: input.name.trim() || ticker,
+    nameZh: null as string | null,
+    nameEn: null as string | null,
     currency: input.currency.trim().toUpperCase(),
     totalQuantity: Math.max(0, Number(input.totalQuantity) || 0),
     averageCost: Math.max(0, Number(input.averageCost) || 0),

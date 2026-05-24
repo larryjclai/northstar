@@ -1,8 +1,9 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 import { setPrivacyMaskOn } from "../domain/currency";
+import type { NameLocalePreference } from "../domain/assetName";
 
-export type NameLocalePreference = "auto" | "zh-Hant" | "en";
+export type { NameLocalePreference };
 
 export interface UiPreferences {
   privacyMode: boolean;

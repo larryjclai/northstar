@@ -134,29 +134,50 @@ export class YahooFinanceProvider implements MarketDataProvider {
   }
 
   private async fetchQuoteFromChart(symbol: string): Promise<MarketQuote> {
-    const chart = await this.fetchChart(symbol, "1y", "1d");
-    const closes = chart.indicators.quote[0]?.close?.filter((close): close is number => Boolean(close && close > 0)) ?? [];
-    const price = chart.meta.regularMarketPrice ?? closes.at(-1);
+    // Fetch the primary (zh-Hant) chart for price + Chinese name in parallel
+    // with a second English-language chart for the English name. If the
+    // primary fails (e.g. symbol not found in zh-Hant locale) we fall back
+    // to the English chart for price data too.
+    const [zhResult, enResult] = await Promise.allSettled([
+      this.fetchChart(symbol, "1y", "1d", "zh-Hant-TW"),
+      this.fetchChart(symbol, "1y", "1d", "en-US"),
+    ]);
+
+    const primary = pickPrimary(zhResult, enResult);
+    if (!primary) {
+      const reason = zhResult.status === "rejected" ? zhResult.reason : enResult.status === "rejected" ? enResult.reason : null;
+      throw reason instanceof Error ? reason : new Error(`Yahoo Finance did not return a quote for ${symbol}.`);
+    }
+
+    const closes = primary.indicators.quote[0]?.close?.filter((close): close is number => Boolean(close && close > 0)) ?? [];
+    const price = primary.meta.regularMarketPrice ?? closes.at(-1);
     if (!price) throw new Error(`Yahoo Finance did not return a quote for ${symbol}.`);
-    const previousClose = chart.meta.previousClose ?? chart.meta.chartPreviousClose ?? closes.at(-2) ?? price;
+    const previousClose = primary.meta.previousClose ?? primary.meta.chartPreviousClose ?? closes.at(-2) ?? price;
     const change = price - previousClose;
 
+    const nameZh = zhResult.status === "fulfilled" ? extractName(zhResult.value) : null;
+    const nameEn = enResult.status === "fulfilled" ? extractName(enResult.value) : null;
+
     return {
-      symbol: chart.meta.symbol ?? symbol,
-      name: chart.meta.shortName ?? chart.meta.longName ?? chart.meta.symbol ?? symbol,
-      currency: chart.meta.currency ?? "USD",
+      symbol: primary.meta.symbol ?? symbol,
+      name: nameZh ?? nameEn ?? primary.meta.symbol ?? symbol,
+      nameZh,
+      nameEn,
+      currency: primary.meta.currency ?? "USD",
       price,
       change,
       changePercent: previousClose === 0 ? 0 : (change / previousClose) * 100,
-      marketTime: chart.meta.regularMarketTime
-        ? new Date(chart.meta.regularMarketTime * 1000).toISOString()
+      marketTime: primary.meta.regularMarketTime
+        ? new Date(primary.meta.regularMarketTime * 1000).toISOString()
         : null,
     };
   }
 
-  private async fetchChart(symbol: string, range: string, interval: string): Promise<YahooChartResult> {
+  private async fetchChart(symbol: string, range: string, interval: string, lang?: string): Promise<YahooChartResult> {
     const encodedSymbol = encodeURIComponent(symbol);
-    const searchParams = new URLSearchParams({ range, interval });
+    const params: Record<string, string> = { range, interval };
+    if (lang) params.lang = lang;
+    const searchParams = new URLSearchParams(params);
     const envelope = await fetchYahooJson<YahooChartEnvelope>(`/v8/finance/chart/${encodedSymbol}`, searchParams);
     const result = envelope.chart.result?.[0];
     if (!result) {
@@ -164,6 +185,22 @@ export class YahooFinanceProvider implements MarketDataProvider {
     }
     return result;
   }
+}
+
+function pickPrimary(
+  zh: PromiseSettledResult<YahooChartResult>,
+  en: PromiseSettledResult<YahooChartResult>,
+): YahooChartResult | null {
+  // Prefer the zh-Hant response so the cached display name matches Taiwanese
+  // tickers (台積電 not Taiwan Semiconductor). Fall back to English on failure.
+  if (zh.status === "fulfilled" && zh.value.meta.regularMarketPrice !== undefined) return zh.value;
+  if (en.status === "fulfilled") return en.value;
+  if (zh.status === "fulfilled") return zh.value;
+  return null;
+}
+
+function extractName(result: YahooChartResult): string | null {
+  return result.meta.shortName ?? result.meta.longName ?? null;
 }
 
 async function fetchYahooJson<T>(path: string, searchParams: URLSearchParams): Promise<T> {

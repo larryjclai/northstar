@@ -8,11 +8,13 @@ import { HoldingForm, emptyHoldingDraft } from "../components/HoldingForm";
 import { StatusText } from "../components/StatusText";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { PortfolioAssetDraft } from "../data/repositories";
-import { formatNumber, formatPrice, formatQuantity, type PortfolioAsset } from "../domain";
+import { formatNumber, formatPrice, formatQuantity, resolveAssetName, type PortfolioAsset } from "../domain";
+import { useUiPreferences } from "../state/uiPreferences";
 import { useRefreshDailyPrices, useRefreshQuotes } from "../features/market-data/useMarketRefresh";
 
 export function HoldingsRoute() {
   const { assets, quotes, dailyPrices } = useFinanceData();
+  const nameLocale = useUiPreferences((state) => state.nameLocale);
   const [form, setForm] = useState<PortfolioAssetDraft>(emptyHoldingDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
@@ -151,7 +153,7 @@ export function HoldingsRoute() {
                       </div>
                       <div>
                         <div className="font-semibold">{asset.ticker}</div>
-                        <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{asset.name}</div>
+                        <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{resolveAssetName(asset, nameLocale)}</div>
                         <div className="text-xs" style={{ color: "var(--ns-muted)" }}>
                           {asset.holdingSource === "manual" ? "手動持倉" : "交易計算"} · {quote ? `Yahoo Finance · ${new Date(quote.updatedAt).toLocaleString("zh-TW")}` : "尚未更新報價"}
                         </div>
