@@ -1,18 +1,9 @@
-## Xcode
-xcuserdata/
-DerivedData/
-*.xcuserstate
-*.swp
-*.swo
-*.DS_Store
-
-## Build outputs
-build/
-.build/
-*.ipa
-*.app
-
-## SPM
-Packages/
-Package.resolved
-.swiftpm/
+node_modules/
+dist/
+test-results/
+playwright-report/
+.vite/
+target/
+src-tauri/target/
+.DS_Store
+*.log
