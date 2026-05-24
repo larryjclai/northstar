@@ -1,17 +1,30 @@
-import { ChartLineUp, PencilSimple, Trash, UploadSimple } from "@phosphor-icons/react";
+import { ChartLineUp, PencilSimple, PlusCircle, StackSimple, Trash, UploadSimple } from "@phosphor-icons/react";
 import { ChangeEvent, useState } from "react";
 import { ActionButton } from "../components/ActionButton";
 import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
+import { EmptyState } from "../components/EmptyState";
 import { Field, SelectInput, TextInput } from "../components/Field";
+import { HoldingForm, emptyHoldingDraft } from "../components/HoldingForm";
+import { SegmentedControl } from "../components/SegmentedControl";
 import { StatusText } from "../components/StatusText";
+import { TickerSearchField } from "../components/TickerSearchField";
 import { downloadCsv, exportInvestmentCsv, parseInvestmentCsv, type ImportPreview } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import type { InvestmentDraft } from "../data/repositories";
+import type { InvestmentDraft, PortfolioAssetDraft } from "../data/repositories";
 import type { InvestmentAction, InvestmentRecord } from "../domain";
 
 const today = new Date().toISOString().slice(0, 10);
+type EntryMode = "transaction" | "holding";
 const actions: InvestmentAction[] = ["buy", "sell", "cashDividend", "stockDividend", "capitalReduction", "stockSplit"];
+const actionLabels: Record<InvestmentAction, string> = {
+  buy: "買進",
+  sell: "賣出",
+  cashDividend: "現金股利",
+  stockDividend: "股票股利",
+  capitalReduction: "減資",
+  stockSplit: "股票分割",
+};
 
 const emptyInvestment: InvestmentDraft = {
   ticker: "",
@@ -28,14 +41,17 @@ const emptyInvestment: InvestmentDraft = {
 
 export function TransactionsRoute() {
   const { accounts, assets, investments } = useFinanceData();
+  const [mode, setMode] = useState<EntryMode>("transaction");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<InvestmentDraft>(emptyInvestment);
+  const [holdingForm, setHoldingForm] = useState<PortfolioAssetDraft>(emptyHoldingDraft);
   const [preview, setPreview] = useState<ImportPreview<InvestmentDraft> | null>(null);
   const [message, setMessage] = useState("");
   const createRecord = useRepositoryMutation((repository, input: InvestmentDraft) => repository.createInvestmentRecord(input), ["investments", "assets"]);
   const updateRecord = useRepositoryMutation((repository, input: InvestmentDraft & { id: string }) => repository.updateInvestmentRecord(input.id, input), ["investments", "assets"]);
   const deleteRecord = useRepositoryMutation((repository, id: string) => repository.deleteInvestmentRecord(id), ["investments", "assets"]);
   const importRecords = useRepositoryMutation((repository, input: InvestmentDraft[]) => repository.importInvestmentRecords(input), ["investments", "assets"]);
+  const createHolding = useRepositoryMutation((repository, input: PortfolioAssetDraft) => repository.createManualHolding(input), ["assets"]);
 
   const assetRows = assets.data ?? [];
   const recordRows = investments.data ?? [];
@@ -52,6 +68,18 @@ export function TransactionsRoute() {
       setEditingId(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "交易儲存失敗。");
+    }
+  }
+
+  async function submitHolding() {
+    setMessage("");
+    try {
+      if (!holdingForm.ticker.trim()) throw new Error("請輸入 ticker。");
+      await createHolding.mutateAsync(holdingForm);
+      setHoldingForm(emptyHoldingDraft);
+      setMode("transaction");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "持倉儲存失敗。");
     }
   }
 
@@ -81,12 +109,39 @@ export function TransactionsRoute() {
 
   return (
     <div className="mx-auto max-w-6xl p-5 lg:p-8">
-      <PageHeader title="投資交易" description="記錄買進、賣出、股利與公司行動，持倉會隨交易自動更新。" />
+      <PageHeader title="投資交易" description="逐筆記錄買賣與股利，或直接建立現有持倉作為起點。" />
       <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
-        <Card title={editingId ? "編輯交易" : "新增交易"}>
+        <Card title={mode === "holding" ? "直接建立持倉" : editingId ? "編輯交易" : "新增交易"}>
+          <div className="mb-4">
+            <SegmentedControl
+              value={mode}
+              onChange={(nextMode) => { setMode(nextMode); setMessage(""); }}
+              options={[
+                { value: "transaction", label: "逐筆交易", icon: <ChartLineUp size={16} /> },
+                { value: "holding", label: "直接建立持倉", icon: <StackSimple size={16} /> },
+              ]}
+            />
+          </div>
+          {mode === "holding" ? (
+            <div>
+              <HoldingForm value={holdingForm} onChange={setHoldingForm} onSubmit={submitHolding} submitLabel="新增持倉" />
+              {message ? <div className="mt-3"><StatusText>{message}</StatusText></div> : null}
+            </div>
+          ) : (
           <div className="grid gap-3">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Ticker"><TextInput value={form.ticker} onChange={(event) => setForm({ ...form, ticker: event.target.value.toUpperCase() })} placeholder="0050.TW" /></Field>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
+              <Field label="Ticker">
+                <TickerSearchField
+                  value={form.ticker}
+                  onChange={(ticker) => setForm({ ...form, ticker })}
+                  onSelect={(result) => setForm({
+                    ...form,
+                    ticker: result.symbol.toUpperCase(),
+                    name: result.name || result.symbol,
+                    currency: result.currency || form.currency,
+                  })}
+                />
+              </Field>
               <Field label="幣別"><TextInput value={form.currency} onChange={(event) => setForm({ ...form, currency: event.target.value.toUpperCase() })} /></Field>
             </div>
             <Field label="名稱"><TextInput value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="元大台灣50" /></Field>
@@ -94,11 +149,11 @@ export function TransactionsRoute() {
               <Field label="日期"><TextInput type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></Field>
               <Field label="動作">
                 <SelectInput value={form.action} onChange={(event) => setForm({ ...form, action: event.target.value as InvestmentAction })}>
-                  {actions.map((action) => <option key={action} value={action}>{action}</option>)}
+                  {actions.map((action) => <option key={action} value={action}>{actionLabels[action]}</option>)}
                 </SelectInput>
               </Field>
             </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
               <Field label="價格"><TextInput type="number" value={form.price} onChange={(event) => setForm({ ...form, price: Number(event.target.value) })} /></Field>
               <Field label="數量"><TextInput type="number" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: Number(event.target.value) })} /></Field>
               <Field label="手續費"><TextInput type="number" value={form.fee} onChange={(event) => setForm({ ...form, fee: Number(event.target.value) })} /></Field>
@@ -116,6 +171,7 @@ export function TransactionsRoute() {
               {editingId ? <ActionButton variant="secondary" onClick={() => { setEditingId(null); setForm(emptyInvestment); }}>取消</ActionButton> : null}
             </div>
           </div>
+          )}
         </Card>
         <Card
           title="交易紀錄"
@@ -139,22 +195,29 @@ export function TransactionsRoute() {
               </div>
             </div>
           ) : null}
+          {recordRows.length === 0 ? (
+            <EmptyState
+              icon={<PlusCircle size={24} weight="duotone" />}
+              title="還沒有投資交易"
+              description="如果你已有持倉，可以先用左側的直接建立持倉；之後新增買賣紀錄時會自動計算平均成本。"
+            />
+          ) : (
           <div className="space-y-3">
             {recordRows.map((record) => {
               const asset = assetFor(record.assetId);
               return (
                 <div key={record.id} className="rounded-md border p-4" style={{ borderColor: "var(--ns-border)" }}>
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
                       <ChartLineUp size={22} weight="duotone" style={{ color: "var(--ns-accent)" }} />
                       <div>
                         <div className="font-semibold">{asset?.ticker ?? record.assetId}</div>
-                        <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{record.date} · {record.action}</div>
+                        <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{record.date} · {actionLabels[record.action]}</div>
                       </div>
                     </div>
                     <div className="tabular text-right">
                       <div>{record.quantity} × {record.price}</div>
-                      <div className="mt-2 flex justify-end gap-2">
+                      <div className="mt-2 flex flex-wrap justify-start gap-2 sm:justify-end">
                         <ActionButton variant="secondary" onClick={() => startEdit(record)}><PencilSimple size={16} />編輯</ActionButton>
                         <ActionButton variant="danger" onClick={() => deleteRecord.mutate(record.id)}><Trash size={16} />刪除</ActionButton>
                       </div>
@@ -164,6 +227,7 @@ export function TransactionsRoute() {
               );
             })}
           </div>
+          )}
         </Card>
       </div>
     </div>

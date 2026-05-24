@@ -16,6 +16,7 @@ export interface MarketHistoryPoint {
 export interface SymbolSearchResult {
   symbol: string;
   name: string;
+  currency?: string;
   exchange?: string;
   typeLabel?: string;
 }
@@ -36,4 +37,3 @@ export interface MarketCacheEntry<T> {
 export function isFresh(entry: MarketCacheEntry<unknown> | undefined, maxAgeMs: number) {
   return entry !== undefined && Date.now() - entry.updatedAt < maxAgeMs;
 }
-

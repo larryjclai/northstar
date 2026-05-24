@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { MarketDataProvider, MarketHistoryPoint, MarketQuote, SymbolSearchResult } from "./provider";
 
 interface YahooChartEnvelope {
+  northstarError?: string;
   chart: {
     result?: YahooChartResult[];
     error?: { description?: string };
@@ -28,10 +29,12 @@ interface YahooChartResult {
 }
 
 interface YahooSearchEnvelope {
+  northstarError?: string;
   quotes: Array<{
     symbol?: string;
     shortname?: string;
     longname?: string;
+    currency?: string;
     exchange?: string;
     quoteType?: string;
     typeDisp?: string;
@@ -106,12 +109,14 @@ export class YahooFinanceProvider implements MarketDataProvider {
     });
 
     const envelope = await fetchYahooJson<YahooSearchEnvelope>("/v1/finance/search", searchParams);
+    if (envelope.northstarError) throw new Error(envelope.northstarError);
     const allowed = new Set(["EQUITY", "ETF", "MUTUALFUND", "INDEX"]);
     return envelope.quotes
       .filter((item) => item.symbol && (!item.quoteType || allowed.has(item.quoteType.toUpperCase())))
       .map((item) => ({
         symbol: item.symbol ?? "",
         name: item.shortname ?? item.longname ?? item.symbol ?? "",
+        currency: item.currency,
         exchange: item.exchange,
         typeLabel: item.typeDisp ?? item.quoteType,
       }));
@@ -155,7 +160,7 @@ export class YahooFinanceProvider implements MarketDataProvider {
     const envelope = await fetchYahooJson<YahooChartEnvelope>(`/v8/finance/chart/${encodedSymbol}`, searchParams);
     const result = envelope.chart.result?.[0];
     if (!result) {
-      throw new Error(envelope.chart.error?.description ?? `Yahoo Finance did not return chart data for ${symbol}.`);
+      throw new Error(envelope.northstarError ?? envelope.chart.error?.description ?? `Yahoo Finance did not return chart data for ${symbol}.`);
     }
     return result;
   }

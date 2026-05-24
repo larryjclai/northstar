@@ -8,7 +8,7 @@ export interface ImportPreview<T> {
 
 export function exportAccountsCsv(accounts: Account[]) {
   return toCsv(
-    ["id", "name", "currency", "type", "openingBalance", "balance"],
+    ["id", "name", "currency", "type", "openingBalance", "balance", "creditLimit", "creditLimitGroup"],
     accounts.map((account) => ({
       id: account.id,
       name: account.name,
@@ -16,19 +16,25 @@ export function exportAccountsCsv(accounts: Account[]) {
       type: account.type,
       openingBalance: account.openingBalance,
       balance: account.balance,
+      creditLimit: account.creditLimit ?? "",
+      creditLimitGroup: account.creditLimitGroup,
     })),
   );
 }
 
 export function exportLedgerCsv(rows: LedgerTransaction[], accountName: (id: string) => string) {
   return toCsv(
-    ["date", "account", "amount", "currency", "category", "note"],
+    ["date", "account", "entryType", "settlementStatus", "amount", "currency", "category", "subcategory", "merchant", "note"],
     rows.map((row) => ({
       date: row.date,
       account: accountName(row.accountId),
+      entryType: row.entryType,
+      settlementStatus: row.settlementStatus,
       amount: row.amount,
       currency: row.currency,
       category: row.category,
+      subcategory: row.subcategory,
+      merchant: row.merchant,
       note: row.note,
     })),
   );
@@ -58,12 +64,18 @@ export function parseLedgerCsv(text: string, accountIdFor: (nameOrId: string) =>
   return previewRows(text, (row) => {
     const accountId = accountIdFor(required(row, "account"));
     if (!accountId) throw new Error("找不到帳戶");
+    const amount = numberField(row, "amount");
+    const entryType = parseEntryType(row.entryType, amount);
     return {
       date: required(row, "date"),
       accountId,
-      amount: numberField(row, "amount"),
+      amount,
       currency: required(row, "currency").toUpperCase(),
       category: row.category || "",
+      subcategory: row.subcategory || "",
+      merchant: row.merchant || "",
+      entryType,
+      settlementStatus: parseSettlementStatus(row.settlementStatus, entryType),
       note: row.note || "",
     };
   });
@@ -168,3 +180,16 @@ function numberField(row: Record<string, string>, key: string) {
   return value;
 }
 
+function parseEntryType(value: string | undefined, amount: number): LedgerDraft["entryType"] {
+  if (value === "income" || value === "收入") return "income";
+  if (value === "transfer" || value === "轉帳") return "transfer";
+  if (value === "expense" || value === "支出") return "expense";
+  return amount >= 0 ? "income" : "expense";
+}
+
+function parseSettlementStatus(value: string | undefined, entryType: LedgerDraft["entryType"]): LedgerDraft["settlementStatus"] {
+  if (value === "receivable" || value === "應收") return "receivable";
+  if (value === "payable" || value === "應付") return "payable";
+  if (value === "settled" || value === "已收付") return "settled";
+  return entryType === "income" ? "settled" : "settled";
+}

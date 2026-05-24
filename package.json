@@ -1,6 +1,6 @@
 {
   "name": "northstar",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "test:watch": "vitest",
+    "check:tauri": "cd src-tauri && cargo fmt --check && cargo check",
     "tauri": "tauri"
   },
   "dependencies": {

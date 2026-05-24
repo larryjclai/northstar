@@ -31,6 +31,8 @@ export interface Account extends SyncFields {
   openingBalance: number;
   balance: number;
   type: AccountType;
+  creditLimit: number | null;
+  creditLimitGroup: string;
   isSharedToHousehold: boolean;
 }
 
@@ -40,6 +42,10 @@ export interface LedgerTransaction extends SyncFields {
   amount: number;
   currency: CurrencyCode;
   category: string;
+  subcategory: string;
+  merchant: string;
+  entryType: "income" | "expense" | "transfer";
+  settlementStatus: "settled" | "receivable" | "payable";
   note: string;
   linkedInvestmentRecordId: string | null;
   groupId: string | null;
@@ -53,6 +59,8 @@ export interface PortfolioAsset extends SyncFields {
   currency: CurrencyCode;
   totalQuantity: number;
   averageCost: number;
+  holdingSource: "manual" | "transactions";
+  acquisitionDate: string | null;
 }
 
 export interface InvestmentRecord extends SyncFields {
@@ -73,6 +81,10 @@ export interface RecurringTransaction extends SyncFields {
   amount: number;
   currency: CurrencyCode;
   category: string;
+  subcategory: string;
+  merchant: string;
+  entryType: "income" | "expense";
+  settlementStatus: "settled" | "receivable" | "payable";
   note: string;
   dayOfMonth: number;
   nextRunDate: string;
@@ -110,3 +122,39 @@ export interface RealizedLot {
   realizedGain: number;
 }
 
+export interface AppSettings {
+  primaryCurrency: CurrencyCode;
+  categories: CategoryGroup[];
+  merchants: string[];
+  exchangeRates: ExchangeRate[];
+}
+
+export interface CategoryGroup {
+  name: string;
+  children: string[];
+}
+
+export interface ExchangeRate {
+  from: CurrencyCode;
+  to: CurrencyCode;
+  rate: number;
+  updatedAt: string;
+}
+
+export interface DailyFxRate {
+  from: CurrencyCode;
+  to: CurrencyCode;
+  date: string;
+  rate: number;
+  source: string;
+  updatedAt: string;
+}
+
+export interface DailyPrice {
+  ticker: string;
+  date: string;
+  close: number;
+  currency: string;
+  source: string;
+  updatedAt: string;
+}

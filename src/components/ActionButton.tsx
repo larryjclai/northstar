@@ -4,13 +4,15 @@ export function ActionButton({
   children,
   variant = "primary",
   ...props
-}: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" }>) {
+}: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" | "ghost" }>) {
   const styles =
     variant === "primary"
-      ? { background: "var(--ns-accent)", color: "white", borderColor: "var(--ns-accent)" }
+      ? { background: "var(--ns-accent)", color: "var(--ns-on-accent)", borderColor: "var(--ns-accent)" }
       : variant === "danger"
         ? { background: "transparent", color: "var(--ns-negative)", borderColor: "var(--ns-border)" }
-        : { background: "var(--ns-surface-strong)", color: "var(--ns-text)", borderColor: "var(--ns-border)" };
+        : variant === "ghost"
+          ? { background: "transparent", color: "var(--ns-muted)", borderColor: "transparent" }
+          : { background: "var(--ns-surface-strong)", color: "var(--ns-text)", borderColor: "var(--ns-border)" };
 
   return (
     <button

@@ -1,14 +1,26 @@
-import type { Icon } from "@phosphor-icons/react";
+import type { ReactNode } from "react";
 
-export function EmptyState({ icon: IconComponent, title, body }: { icon: Icon; title: string; body: string }) {
+export function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed px-6 py-10 text-center" style={{ borderColor: "var(--ns-border)" }}>
-      <IconComponent size={32} weight="duotone" style={{ color: "var(--ns-accent)" }} />
-      <h3 className="mt-3 text-sm font-semibold">{title}</h3>
-      <p className="mt-1 max-w-sm text-sm" style={{ color: "var(--ns-muted)" }}>
-        {body}
-      </p>
+    <div className="grid min-h-52 place-items-center rounded-lg border border-dashed p-6 text-center" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
+      <div className="max-w-sm">
+        <div className="mx-auto grid size-12 place-items-center rounded-lg" style={{ background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
+          {icon}
+        </div>
+        <h3 className="mt-4 text-lg font-semibold">{title}</h3>
+        <p className="mt-2 text-sm leading-6" style={{ color: "var(--ns-muted)" }}>{description}</p>
+        {action ? <div className="mt-5 flex justify-center">{action}</div> : null}
+      </div>
     </div>
   );
 }
-

@@ -21,6 +21,8 @@ export const migrations: Migration[] = [
         opening_balance real not null,
         balance real not null,
         type text not null,
+        credit_limit real,
+        credit_limit_group text not null default '',
         is_shared_to_household integer not null default 0
       );
 
@@ -36,6 +38,10 @@ export const migrations: Migration[] = [
         amount real not null,
         currency text not null,
         category text not null,
+        subcategory text not null default '',
+        merchant text not null default '',
+        entry_type text not null default 'expense',
+        settlement_status text not null default 'settled',
         note text not null,
         linked_investment_record_id text,
         group_id text,
@@ -54,7 +60,9 @@ export const migrations: Migration[] = [
         name text not null,
         currency text not null,
         total_quantity real not null,
-        average_cost real not null
+        average_cost real not null,
+        holding_source text not null default 'transactions',
+        acquisition_date text
       );
 
       create table if not exists investment_records (
@@ -87,6 +95,10 @@ export const migrations: Migration[] = [
         amount real not null,
         currency text not null,
         category text not null,
+        subcategory text not null default '',
+        merchant text not null default '',
+        entry_type text not null default 'expense',
+        settlement_status text not null default 'settled',
         note text not null,
         day_of_month integer not null,
         next_run_date text not null,
@@ -115,6 +127,43 @@ export const migrations: Migration[] = [
         source text not null,
         updated_at text not null
       );
+
+      create table if not exists app_settings (
+        key text primary key,
+        value text not null,
+        updated_at text not null
+      );
+
+      create table if not exists fx_rates (
+        currency_from text not null,
+        currency_to text not null,
+        date text not null,
+        rate real not null,
+        source text not null,
+        updated_at text not null,
+        primary key (currency_from, currency_to, date)
+      );
+
+      create index if not exists idx_fx_rates_pair_date on fx_rates (currency_from, currency_to, date);
+
+      create table if not exists daily_prices (
+        ticker text not null,
+        date text not null,
+        close real not null,
+        currency text not null default '',
+        source text not null,
+        updated_at text not null,
+        primary key (ticker, date)
+      );
+
+      create index if not exists idx_daily_prices_ticker_date on daily_prices (ticker, date);
     `,
   },
 ];
+
+export function splitSqlStatements(sql: string): string[] {
+  return sql
+    .split(/;\s*(?:\r?\n|$)/)
+    .map((statement) => statement.trim())
+    .filter((statement) => statement.length > 0);
+}

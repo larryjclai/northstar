@@ -37,6 +37,10 @@ export function buildTransfer(input: TransferInput): LedgerTransaction[] {
     deletedAt: null,
     date: input.date,
     category: sameCurrency ? "轉帳" : "外幣兌換",
+    subcategory: sameCurrency ? "帳戶轉移" : "外幣兌換",
+    merchant: "",
+    entryType: "transfer" as const,
+    settlementStatus: "settled" as const,
     note: input.note ?? "",
     linkedInvestmentRecordId: null,
     groupId: input.groupId,
@@ -61,4 +65,3 @@ export function buildTransfer(input: TransferInput): LedgerTransaction[] {
     },
   ];
 }
-

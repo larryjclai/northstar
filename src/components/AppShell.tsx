@@ -8,6 +8,7 @@ import {
   TrendUp,
 } from "@phosphor-icons/react";
 import { Link, Outlet } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 const navItems = [
   { to: "/", label: "總覽", icon: House },
@@ -19,6 +20,7 @@ const navItems = [
 ] as const;
 
 export function AppShell() {
+  useBlockBrowserBackOnBackspace();
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[260px_1fr]">
       <aside className="hidden border-r p-4 lg:block" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
@@ -59,6 +61,26 @@ export function AppShell() {
       </nav>
     </div>
   );
+}
+
+function useBlockBrowserBackOnBackspace() {
+  useEffect(() => {
+    function handler(event: KeyboardEvent) {
+      if (event.key !== "Backspace") return;
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      const tag = target.tagName;
+      const isEditableField =
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        target.isContentEditable;
+      if (isEditableField) return;
+      event.preventDefault();
+    }
+    window.addEventListener("keydown", handler, { capture: true });
+    return () => window.removeEventListener("keydown", handler, { capture: true });
+  }, []);
 }
 
 export function PageHeader({ title, description }: { title: string; description: string }) {

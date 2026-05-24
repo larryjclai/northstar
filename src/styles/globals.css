@@ -2,33 +2,37 @@
 
 :root {
   color-scheme: light;
-  --ns-bg: #f6f4ef;
-  --ns-surface: #fffdf8;
-  --ns-surface-strong: #ffffff;
-  --ns-border: #ddd8cf;
-  --ns-text: #22201c;
-  --ns-muted: #706a60;
-  --ns-accent: #146c5a;
-  --ns-accent-soft: #dceee8;
-  --ns-warn: #9f5a17;
-  --ns-negative: #b94b4b;
-  --ns-positive: #1f7a58;
+  --ns-bg: oklch(96% 0.012 85);
+  --ns-surface: oklch(98.5% 0.008 85);
+  --ns-surface-strong: oklch(100% 0 0);
+  --ns-border: oklch(86% 0.018 80);
+  --ns-text: oklch(24% 0.014 80);
+  --ns-muted: oklch(48% 0.018 80);
+  --ns-accent: oklch(43% 0.085 165);
+  --ns-on-accent: oklch(98% 0.005 85);
+  --ns-accent-soft: oklch(92% 0.04 165);
+  --ns-warn: oklch(54% 0.12 62);
+  --ns-negative: oklch(52% 0.14 28);
+  --ns-positive: oklch(45% 0.105 155);
+  --ns-shadow: 0 1px 2px oklch(35% 0.02 80 / 12%);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --ns-bg: #171714;
-    --ns-surface: #22211d;
-    --ns-surface-strong: #2b2924;
-    --ns-border: #3b3830;
-    --ns-text: #f6f0e4;
-    --ns-muted: #b7ad9d;
-    --ns-accent: #76d0b6;
-    --ns-accent-soft: #17382f;
-    --ns-warn: #e0a35f;
-    --ns-negative: #e17c7c;
-    --ns-positive: #79d0a8;
+    --ns-bg: oklch(20% 0.012 80);
+    --ns-surface: oklch(25% 0.014 80);
+    --ns-surface-strong: oklch(29% 0.014 80);
+    --ns-border: oklch(36% 0.018 80);
+    --ns-text: oklch(93% 0.012 85);
+    --ns-muted: oklch(74% 0.018 80);
+    --ns-accent: oklch(72% 0.08 165);
+    --ns-on-accent: oklch(20% 0.012 165);
+    --ns-accent-soft: oklch(33% 0.045 165);
+    --ns-warn: oklch(73% 0.12 65);
+    --ns-negative: oklch(70% 0.14 28);
+    --ns-positive: oklch(72% 0.105 155);
+    --ns-shadow: 0 1px 2px oklch(8% 0.02 80 / 28%);
   }
 }
 

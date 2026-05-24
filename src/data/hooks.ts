@@ -7,7 +7,11 @@ const keys = {
   ledger: ["ledger"] as const,
   assets: ["assets"] as const,
   investments: ["investments"] as const,
+  recurring: ["recurring"] as const,
   quotes: ["quotes"] as const,
+  settings: ["settings"] as const,
+  dailyFxRates: ["dailyFxRates"] as const,
+  dailyPrices: ["dailyPrices"] as const,
 };
 
 export function useRepository() {
@@ -41,13 +45,33 @@ export function useFinanceData() {
     queryFn: () => repository.data!.listInvestmentRecords(),
     enabled,
   });
+  const recurring = useQuery({
+    queryKey: keys.recurring,
+    queryFn: () => repository.data!.listRecurringTransactions(),
+    enabled,
+  });
   const quotes = useQuery({
     queryKey: keys.quotes,
     queryFn: () => repository.data!.listMarketQuotes(),
     enabled,
   });
+  const settings = useQuery({
+    queryKey: keys.settings,
+    queryFn: () => repository.data!.getAppSettings(),
+    enabled,
+  });
+  const dailyFxRates = useQuery({
+    queryKey: keys.dailyFxRates,
+    queryFn: () => repository.data!.listDailyFxRates(),
+    enabled,
+  });
+  const dailyPrices = useQuery({
+    queryKey: keys.dailyPrices,
+    queryFn: () => repository.data!.listDailyPrices(),
+    enabled,
+  });
 
-  return { repository, accounts, ledger, assets, investments, quotes };
+  return { repository, accounts, ledger, assets, investments, recurring, quotes, settings, dailyFxRates, dailyPrices };
 }
 
 export function useRepositoryMutation<TInput>(
@@ -68,4 +92,3 @@ export function useRepositoryMutation<TInput>(
 }
 
 export const queryKeys = keys;
-

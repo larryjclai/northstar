@@ -1,9 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { seedLedgerTransactions } from "../data/seed";
 import { classifyLedgerGroup } from "./groupClassifier";
 import type { LedgerTransaction } from "./types";
 
-const base = seedLedgerTransactions[0];
+const base: LedgerTransaction = {
+  id: "ledger_base",
+  spaceId: "space_test",
+  revision: 1,
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+  deletedAt: null,
+  accountId: "acct_test",
+  date: "2026-01-01T10:00",
+  amount: -100,
+  currency: "TWD",
+  category: "餐飲",
+  subcategory: "點心",
+  merchant: "咖啡店",
+  entryType: "expense",
+  settlementStatus: "settled",
+  note: "",
+  linkedInvestmentRecordId: null,
+  groupId: null,
+  isReviewed: true,
+  receiptAttachmentId: null,
+};
 
 describe("ledger group classifier", () => {
   it("classifies a single row as singleton", () => {
@@ -26,4 +46,3 @@ describe("ledger group classifier", () => {
     expect(classifyLedgerGroup(rows)).toBe("transfer");
   });
 });
-
