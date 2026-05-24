@@ -19,6 +19,16 @@ import {
 export function FireGoalCard() {
   const { financialGoals, accounts, assets, quotes, settings, dailyFxRates } = useFinanceData();
   const goal = (financialGoals.data ?? []).find((row) => row.kind === "fire") ?? null;
+  const accountRows = accounts.data ?? [];
+  const assetRows = assets.data ?? [];
+  const quoteRows = quotes.data ?? [];
+  const appSettings = settings.data;
+  const fxHistory = dailyFxRates.data ?? [];
+
+  const currentValueInGoalCurrency = useMemo(
+    () => goal ? netWorthIn(goal.currency, accountRows, assetRows, quoteRows, appSettings, fxHistory) : 0,
+    [goal, accountRows, assetRows, quoteRows, appSettings, fxHistory],
+  );
 
   if (!goal) {
     return (
@@ -40,17 +50,6 @@ export function FireGoalCard() {
       </Card>
     );
   }
-
-  const accountRows = accounts.data ?? [];
-  const assetRows = assets.data ?? [];
-  const quoteRows = quotes.data ?? [];
-  const appSettings = settings.data;
-  const fxHistory = dailyFxRates.data ?? [];
-
-  const currentValueInGoalCurrency = useMemo(
-    () => netWorthIn(goal.currency, accountRows, assetRows, quoteRows, appSettings, fxHistory),
-    [goal.currency, accountRows, assetRows, quoteRows, appSettings, fxHistory],
-  );
 
   const targetAmount = resolveTargetAmount(goal);
   const projection = calculateFireProjection({

@@ -163,6 +163,7 @@ export interface RepositorySnapshot {
 }
 
 const personalSpace = "space_personal_default";
+const unassignedAccountName = "未指定";
 const defaultSettings: AppSettings = {
   primaryCurrency: "TWD",
   categories: [
@@ -282,8 +283,8 @@ class BrowserFinanceRepository implements FinanceRepository {
   private data: RepositoryData = createInitialData();
 
   async initialize() {
-    const stored = window.localStorage.getItem(this.storageKey);
-    this.data = stored ? normalizeStoredData(JSON.parse(stored) as Partial<RepositoryData>) : createInitialData();
+    const stored = await loadBrowserRepositoryData(this.storageKey);
+    this.data = stored ? normalizeStoredData(stored) : createInitialData();
     this.backfillUnassignedAccountInMemory();
     await this.persist();
   }
@@ -303,7 +304,7 @@ class BrowserFinanceRepository implements FinanceRepository {
     if (!orphanAssets && !orphanRecords) return;
 
     let unassigned = this.data.accounts.find(
-      (account) => account.type === "investment" && account.name === "未指定" && account.deletedAt === null,
+      (account) => account.type === "investment" && account.name === unassignedAccountName && account.deletedAt === null,
     );
     if (!unassigned) {
       const timestamp = nowIso();
@@ -314,7 +315,7 @@ class BrowserFinanceRepository implements FinanceRepository {
         createdAt: timestamp,
         updatedAt: timestamp,
         deletedAt: null,
-        name: "未指定",
+        name: unassignedAccountName,
         currency: "TWD",
         openingBalance: 0,
         balance: 0,
@@ -792,8 +793,127 @@ class BrowserFinanceRepository implements FinanceRepository {
   }
 
   private async persist() {
-    window.localStorage.setItem(this.storageKey, JSON.stringify(this.data));
+    await persistBrowserRepositoryData(this.storageKey, this.data);
   }
+}
+
+const browserRepositoryDbName = "northstar.browserRepository";
+const browserRepositoryStoreName = "snapshots";
+const browserRepositoryObjectKey = "default";
+
+async function loadBrowserRepositoryData(storageKey: string): Promise<Partial<RepositoryData> | null> {
+  const indexedDbData = await readIndexedDbRepositoryData();
+  if (indexedDbData) return indexedDbData;
+
+  const localStorageData = readLocalStorageRepositoryData(storageKey);
+  if (!localStorageData) return null;
+
+  // Best-effort migration for existing browser users. If IndexedDB is not
+  // available, persistBrowserRepositoryData will continue using localStorage.
+  try {
+    await persistBrowserRepositoryData(storageKey, normalizeStoredData(localStorageData));
+  } catch (error) {
+    console.warn("[repository] could not migrate browser data to IndexedDB", error);
+  }
+  return localStorageData;
+}
+
+async function persistBrowserRepositoryData(storageKey: string, data: RepositoryData) {
+  if (canUseIndexedDb()) {
+    try {
+      await writeIndexedDbRepositoryData(data);
+      removeLocalStorageRepositoryData(storageKey);
+      return;
+    } catch (indexedDbError) {
+      try {
+        writeLocalStorageRepositoryData(storageKey, data);
+        return;
+      } catch (localStorageError) {
+        console.error("[repository] browser persistence failed", { indexedDbError, localStorageError });
+        throw new Error("瀏覽器儲存空間不足，無法寫入這份備份。請使用支援 IndexedDB 的瀏覽器，或改用桌面 App 匯入。");
+      }
+    }
+  }
+
+  try {
+    writeLocalStorageRepositoryData(storageKey, data);
+  } catch (error) {
+    console.error("[repository] localStorage persistence failed", error);
+    throw new Error("瀏覽器 localStorage 空間不足，無法寫入這份備份。請改用支援 IndexedDB 的瀏覽器或桌面 App。");
+  }
+}
+
+function readLocalStorageRepositoryData(storageKey: string): Partial<RepositoryData> | null {
+  const stored = window.localStorage.getItem(storageKey);
+  return stored ? JSON.parse(stored) as Partial<RepositoryData> : null;
+}
+
+function writeLocalStorageRepositoryData(storageKey: string, data: RepositoryData) {
+  window.localStorage.setItem(storageKey, JSON.stringify(data));
+}
+
+function removeLocalStorageRepositoryData(storageKey: string) {
+  try {
+    window.localStorage.removeItem(storageKey);
+  } catch {
+    // Ignore cleanup failures; the IndexedDB copy is already durable.
+  }
+}
+
+function canUseIndexedDb() {
+  return typeof window !== "undefined" && "indexedDB" in window && window.indexedDB !== undefined;
+}
+
+async function readIndexedDbRepositoryData(): Promise<Partial<RepositoryData> | null> {
+  if (!canUseIndexedDb()) return null;
+  try {
+    const db = await openBrowserRepositoryDb();
+    try {
+      return await new Promise<Partial<RepositoryData> | null>((resolve, reject) => {
+        const transaction = db.transaction(browserRepositoryStoreName, "readonly");
+        const request = transaction.objectStore(browserRepositoryStoreName).get(browserRepositoryObjectKey);
+        request.onsuccess = () => resolve((request.result as Partial<RepositoryData> | undefined) ?? null);
+        request.onerror = () => reject(request.error ?? new Error("IndexedDB read failed"));
+        transaction.onerror = () => reject(transaction.error ?? new Error("IndexedDB transaction failed"));
+        transaction.onabort = () => reject(transaction.error ?? new Error("IndexedDB transaction aborted"));
+      });
+    } finally {
+      db.close();
+    }
+  } catch (error) {
+    console.warn("[repository] could not read IndexedDB browser data", error);
+    return null;
+  }
+}
+
+async function writeIndexedDbRepositoryData(data: RepositoryData) {
+  const db = await openBrowserRepositoryDb();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(browserRepositoryStoreName, "readwrite");
+      transaction.objectStore(browserRepositoryStoreName).put(data, browserRepositoryObjectKey);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error("IndexedDB transaction failed"));
+      transaction.onabort = () => reject(transaction.error ?? new Error("IndexedDB transaction aborted"));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+function openBrowserRepositoryDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = window.indexedDB.open(browserRepositoryDbName, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(browserRepositoryStoreName)) {
+        db.createObjectStore(browserRepositoryStoreName);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("IndexedDB open failed"));
+    request.onblocked = () => reject(new Error("IndexedDB upgrade is blocked by another open Northstar tab."));
+  });
 }
 
 class TauriSqlFinanceRepository extends BrowserFinanceRepository {
@@ -1680,7 +1800,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   private async ensureUnassignedAccount(): Promise<string> {
     const existing = await this.db.select<Array<{ id: string }>>(
-      `select id from accounts where type = 'investment' and name = '未指定' and deleted_at is null limit 1`,
+      `select id from accounts where type = 'investment' and name = $1 and deleted_at is null limit 1`,
+      [unassignedAccountName],
     );
     if (existing[0]?.id) return existing[0].id;
 
@@ -1689,7 +1810,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.db.execute(
       `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household)
        values ($1,$2,1,$3,$3,null,$4,$5,0,0,$6,null,'',0)`,
-      [id, personalSpace, timestamp, "未指定", "TWD", "investment"],
+      [id, personalSpace, timestamp, unassignedAccountName, "TWD", "investment"],
     );
     return id;
   }

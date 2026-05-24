@@ -1,5 +1,5 @@
 import { Bank, PencilSimple, Trash } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ActionButton } from "../components/ActionButton";
 import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
@@ -7,7 +7,7 @@ import { Field, SelectInput, TextInput } from "../components/Field";
 import { StatusText } from "../components/StatusText";
 import { downloadCsv, exportAccountsCsv } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import type { Account, AccountType } from "../domain";
+import type { Account, AccountType, AppSettings } from "../domain";
 import { convertCurrency, formatMoney, formatNumber } from "../domain";
 
 type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "isSharedToHousehold">;
@@ -46,6 +46,8 @@ export function AccountsRoute() {
 
   const rows = accounts.data ?? [];
   const appSettings = settings.data;
+  const currencyOptions = useMemo(() => buildConfiguredCurrencyOptions(appSettings), [appSettings]);
+  const selectedCurrency = currencyOptions.includes(form.currency) ? form.currency : currencyOptions[0];
   const isEditing = Boolean(editingId);
   const groupedAccounts = accountTypes.map((type) => ({
     type,
@@ -59,10 +61,11 @@ export function AccountsRoute() {
       return;
     }
     try {
+      const payload = { ...form, currency: selectedCurrency };
       if (editingId) {
-        await updateAccount.mutateAsync({ ...form, id: editingId });
+        await updateAccount.mutateAsync({ ...payload, id: editingId });
       } else {
-        await createAccount.mutateAsync(form);
+        await createAccount.mutateAsync(payload);
       }
       setForm(emptyAccount);
       setEditingId(null);
@@ -95,7 +98,9 @@ export function AccountsRoute() {
             </Field>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="幣別">
-                <TextInput value={form.currency} onChange={(event) => setForm({ ...form, currency: event.target.value.toUpperCase() })} />
+                <SelectInput value={selectedCurrency} onChange={(event) => setForm({ ...form, currency: event.target.value })}>
+                  {currencyOptions.map((currency) => <option key={currency} value={currency}>{currency}</option>)}
+                </SelectInput>
               </Field>
               <Field label="類型">
                 <SelectInput value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value as AccountType })}>
@@ -205,4 +210,12 @@ function calculateCreditGroup(name: string, accounts: Account[]) {
   const used = groupRows.reduce((sum, account) => sum + Math.max(0, -account.balance), 0);
   const limit = Math.max(...groupRows.map((account) => account.creditLimit ?? 0), 0);
   return { name, used, limit };
+}
+
+function buildConfiguredCurrencyOptions(settings: AppSettings | undefined) {
+  const values = [
+    settings?.primaryCurrency ?? "TWD",
+    ...(settings?.exchangeRates.flatMap((rate) => [rate.from, rate.to]) ?? []),
+  ];
+  return [...new Set(values.map((value) => value.trim().toUpperCase()).filter(Boolean))];
 }

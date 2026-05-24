@@ -1,13 +1,17 @@
-import { ArrowsClockwise, Bank, ChartLineUp, ListChecks, PlusCircle } from "@phosphor-icons/react";
+import { ArrowsClockwise, Bank, ChartLineUp, ListChecks, PencilSimple, PlusCircle, X } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ActionButton } from "../components/ActionButton";
 import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
+import { Field, TextInput } from "../components/Field";
+import { HoldingForm } from "../components/HoldingForm";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { StatusText } from "../components/StatusText";
-import { useFinanceData } from "../data/hooks";
+import { useFinanceData, useRepositoryMutation } from "../data/hooks";
+import type { PortfolioAssetDraft } from "../data/repositories";
 import {
   buildHoldingPositionsByAccount,
   createFxConverter,
@@ -17,8 +21,10 @@ import {
   formatQuantity,
   resolveAssetName,
   type Account,
+  type DailyPrice,
   type HoldingPosition,
   type MarketQuote as DomainMarketQuote,
+  type PortfolioAsset,
 } from "../domain";
 import { useRefreshDailyPrices, useRefreshQuotes } from "../features/market-data/useMarketRefresh";
 import { useUiPreferences, type NameLocalePreference } from "../state/uiPreferences";
@@ -35,7 +41,7 @@ const tabOptions: { value: InvestmentTab; label: string; icon: React.ReactNode }
 export function InvestmentsRoute() {
   const [tab, setTab] = useState<InvestmentTab>("holdings");
 
-  const { accounts, assets, investments, quotes, settings, dailyFxRates } = useFinanceData();
+  const { accounts, assets, investments, quotes, settings, dailyFxRates, dailyPrices } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
   const refreshDailyPrices = useRefreshDailyPrices();
   const nameLocale = useUiPreferences((state) => state.nameLocale);
@@ -44,6 +50,7 @@ export function InvestmentsRoute() {
   const assetRows = assets.data ?? [];
   const recordRows = investments.data ?? [];
   const quoteRows = quotes.data ?? [];
+  const dailyPriceRows = dailyPrices.data ?? [];
   const appSettings = settings.data;
   const fxHistory = dailyFxRates.data ?? [];
   const { primaryCurrency, toPrimary } = createFxConverter(appSettings, fxHistory);
@@ -62,7 +69,7 @@ export function InvestmentsRoute() {
 
   const accountMap = useMemo(() => new Map(accountRows.map((account) => [account.id, account])), [accountRows]);
   const investmentAccounts = useMemo(
-    () => accountRows.filter((account) => account.type === "investment" || account.type === "depository"),
+    () => accountRows.filter((account) => account.type === "investment"),
     [accountRows],
   );
 
@@ -124,6 +131,7 @@ export function InvestmentsRoute() {
           positions={positions}
           primaryCurrency={primaryCurrency}
           toPrimary={toPrimary}
+          dailyPrices={dailyPriceRows}
           refreshing={refreshQuotes.isPending || refreshDailyPrices.isPending}
         />
       ) : null}
@@ -131,8 +139,9 @@ export function InvestmentsRoute() {
         <HoldingsTab
           positions={positions}
           accountMap={accountMap}
+          accounts={investmentAccounts}
           nameLocale={nameLocale}
-          assetsByTicker={new Map(assetRows.map((asset) => [asset.ticker.toUpperCase(), asset]))}
+          assetsById={new Map(assetRows.map((asset) => [asset.id, asset]))}
         />
       ) : null}
 
@@ -154,7 +163,7 @@ function AccountsTab({
   accounts: Account[];
   positions: HoldingPosition[];
   primaryCurrency: string;
-  toPrimary: (value: number, currency: string) => number;
+  toPrimary: (value: number, currency: string, asOfDate?: string) => number;
 }) {
   if (accounts.length === 0) {
     return (
@@ -227,13 +236,19 @@ function PerformanceTab({
   positions,
   primaryCurrency,
   toPrimary,
+  dailyPrices,
   refreshing,
 }: {
   positions: HoldingPosition[];
   primaryCurrency: string;
-  toPrimary: (value: number, currency: string) => number;
+  toPrimary: (value: number, currency: string, asOfDate?: string) => number;
+  dailyPrices: DailyPrice[];
   refreshing: boolean;
 }) {
+  const [range, setRange] = useState<PerformanceRange>("1Y");
+  const [customStart, setCustomStart] = useState(() => dateDaysAgo(365));
+  const [customEnd, setCustomEnd] = useState(() => todayDate());
+
   if (positions.length === 0) {
     return (
       <EmptyState
@@ -247,6 +262,14 @@ function PerformanceTab({
   const totalCost = positions.reduce((sum, position) => sum + toPrimary(position.costBasis, position.currency), 0);
   const totalPnL = totalValue - totalCost;
   const returnPct = totalCost === 0 ? 0 : (totalPnL / totalCost) * 100;
+  const trend = buildPerformanceTrend({
+    positions,
+    dailyPrices,
+    toPrimary,
+    range,
+    customStart,
+    customEnd,
+  });
 
   return (
     <div className="grid gap-4">
@@ -265,6 +288,56 @@ function PerformanceTab({
             正在抓取最新報價…
           </div>
         ) : null}
+      </Card>
+      <Card
+        title="績效趨勢"
+        action={
+          <div className="flex flex-wrap gap-2">
+            <SegmentedControl
+              value={range}
+              onChange={setRange}
+              options={performanceRangeOptions.map((option) => ({ value: option, label: option, icon: null }))}
+            />
+          </div>
+        }
+      >
+        {range === "Custom" ? (
+          <div className="mb-4 grid gap-3 sm:grid-cols-2">
+            <Field label="開始">
+              <TextInput type="date" value={customStart} onChange={(event) => setCustomStart(event.target.value)} />
+            </Field>
+            <Field label="結束">
+              <TextInput type="date" value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} />
+            </Field>
+          </div>
+        ) : null}
+        {trend.length > 1 ? (
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trend}>
+                <defs>
+                  <linearGradient id="portfolioPerformance" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="5%" stopColor="var(--ns-accent)" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="var(--ns-accent)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="label" stroke="var(--ns-muted)" minTickGap={24} />
+                <YAxis hide domain={["dataMin", "dataMax"]} />
+                <Tooltip
+                  formatter={(value) => formatMoney(Number(value), primaryCurrency)}
+                  labelFormatter={(_, payload) => payload[0]?.payload?.date ?? ""}
+                />
+                <Area type="monotone" dataKey="value" stroke="var(--ns-accent)" fill="url(#portfolioPerformance)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <EmptyState
+            icon={<ChartLineUp size={24} weight="duotone" />}
+            title="還沒有足夠的歷史股價"
+            description="先用「更新報價」或在持倉頁回補 1Y / 5Y 歷史股價，這裡就會依所選區間畫出投資市值趨勢。"
+          />
+        )}
       </Card>
       <Card title="貢獻度（依市值）">
         <div className="space-y-3">
@@ -295,14 +368,54 @@ function PerformanceTab({
 function HoldingsTab({
   positions,
   accountMap,
+  accounts,
   nameLocale,
-  assetsByTicker,
+  assetsById,
 }: {
   positions: HoldingPosition[];
   accountMap: Map<string, Account>;
+  accounts: Account[];
   nameLocale: NameLocalePreference;
-  assetsByTicker: Map<string, { name: string; nameZh: string | null; nameEn: string | null; ticker: string }>;
+  assetsById: Map<string, PortfolioAsset>;
 }) {
+  const [editingAsset, setEditingAsset] = useState<PortfolioAsset | null>(null);
+  const [editForm, setEditForm] = useState<PortfolioAssetDraft | null>(null);
+  const [message, setMessage] = useState("");
+  const updateHolding = useRepositoryMutation(
+    (repository, input: PortfolioAssetDraft & { id: string }) => repository.updateManualHolding(input.id, input),
+    ["assets"],
+  );
+
+  function startEdit(asset: PortfolioAsset) {
+    setEditingAsset(asset);
+    setEditForm({
+      ticker: asset.ticker,
+      name: asset.name,
+      currency: asset.currency,
+      totalQuantity: asset.totalQuantity,
+      averageCost: asset.averageCost,
+      acquisitionDate: asset.acquisitionDate ?? new Date().toISOString().slice(0, 10),
+      accountId: asset.accountId,
+    });
+    setMessage("");
+  }
+
+  async function submitEdit() {
+    if (!editingAsset || !editForm) return;
+    setMessage("");
+    try {
+      if (editingAsset.holdingSource !== "manual") {
+        throw new Error("交易計算的持倉請到交易明細調整。");
+      }
+      if (!editForm.accountId) throw new Error("請選擇券商 / 帳戶。");
+      await updateHolding.mutateAsync({ ...editForm, id: editingAsset.id });
+      setEditingAsset(null);
+      setEditForm(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "持倉儲存失敗。");
+    }
+  }
+
   if (positions.length === 0) {
     return (
       <EmptyState
@@ -316,66 +429,109 @@ function HoldingsTab({
   const sorted = [...positions].sort((a, b) => b.marketValue - a.marketValue);
 
   return (
-    <Card title={`持倉 (${positions.length})`}>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-sm">
-          <thead>
-            <tr className="text-left text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
-              <th className="py-2">Ticker</th>
-              <th className="py-2">名稱</th>
-              <th className="py-2">券商</th>
-              <th className="py-2 text-right">股數</th>
-              <th className="py-2 text-right">均價</th>
-              <th className="py-2 text-right">現價</th>
-              <th className="py-2 text-right">市值</th>
-              <th className="py-2 text-right">損益</th>
-              <th className="py-2 text-right">報酬率</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((position) => {
-              const account = position.accountId ? accountMap.get(position.accountId) : null;
-              const asset = assetsByTicker.get(position.ticker.toUpperCase()) ?? null;
-              const displayName = asset
-                ? resolveAssetName({ ...asset, ticker: position.ticker }, nameLocale)
-                : position.name;
-              const pnlTone = position.unrealizedGain >= 0 ? "positive" : "negative";
-              return (
-                <tr key={`${position.assetId}-${position.accountId ?? "none"}`} className="border-t" style={{ borderColor: "var(--ns-border)" }}>
-                  <td className="py-3 font-semibold">{position.ticker}</td>
-                  <td className="py-3">{displayName}</td>
-                  <td className="py-3">{account ? account.name : "未指定"}</td>
-                  <td className="py-3 text-right tabular">{formatQuantity(position.quantity)}</td>
-                  <td className="py-3 text-right tabular">{formatPrice(position.averageCost)}</td>
-                  <td className="py-3 text-right tabular">
-                    {position.marketPrice !== null ? formatPrice(position.marketPrice) : "—"}
-                  </td>
-                  <td className="py-3 text-right tabular">
-                    {formatNumber(position.marketValue)} <span style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
-                  </td>
-                  <td
-                    className="py-3 text-right tabular"
-                    style={{ color: pnlTone === "positive" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}
-                  >
-                    {position.unrealizedGain >= 0 ? "+" : ""}{formatNumber(position.unrealizedGain)}
-                  </td>
-                  <td
-                    className="py-3 text-right tabular"
-                    style={{ color: pnlTone === "positive" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}
-                  >
-                    {position.unrealizedGainPercent >= 0 ? "+" : ""}{position.unrealizedGainPercent.toFixed(2)}%
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <div className="mt-4 flex flex-wrap gap-3 text-xs" style={{ color: "var(--ns-muted)" }}>
-        <Link to="/holdings">編輯舊持倉表單</Link>
-        <Link to="/transactions">查看交易明細</Link>
-      </div>
-    </Card>
+    <>
+      <Card title={`持倉 (${positions.length})`}>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[860px] text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
+                <th className="py-2">Ticker</th>
+                <th className="py-2">名稱</th>
+                <th className="py-2">券商</th>
+                <th className="py-2 text-right">股數</th>
+                <th className="py-2 text-right">均價</th>
+                <th className="py-2 text-right">現價</th>
+                <th className="py-2 text-right">市值</th>
+                <th className="py-2 text-right">損益</th>
+                <th className="py-2 text-right">報酬率</th>
+                <th className="py-2 text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((position) => {
+                const account = position.accountId ? accountMap.get(position.accountId) : null;
+                const asset = assetsById.get(position.assetId) ?? null;
+                const displayName = asset
+                  ? resolveAssetName(asset, nameLocale)
+                  : position.name;
+                const pnlTone = position.unrealizedGain >= 0 ? "positive" : "negative";
+                return (
+                  <tr key={`${position.assetId}-${position.accountId ?? "none"}`} className="border-t" style={{ borderColor: "var(--ns-border)" }}>
+                    <td className="py-3 font-semibold">{position.ticker}</td>
+                    <td className="py-3">{displayName}</td>
+                    <td className="py-3">{account ? account.name : "未指定"}</td>
+                    <td className="py-3 text-right tabular">{formatQuantity(position.quantity)}</td>
+                    <td className="py-3 text-right tabular">{formatPrice(position.averageCost)}</td>
+                    <td className="py-3 text-right tabular">
+                      {position.marketPrice !== null ? formatPrice(position.marketPrice) : "—"}
+                    </td>
+                    <td className="py-3 text-right tabular">
+                      {formatNumber(position.marketValue)} <span style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
+                    </td>
+                    <td
+                      className="py-3 text-right tabular"
+                      style={{ color: pnlTone === "positive" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}
+                    >
+                      {position.unrealizedGain >= 0 ? "+" : ""}{formatNumber(position.unrealizedGain)}
+                    </td>
+                    <td
+                      className="py-3 text-right tabular"
+                      style={{ color: pnlTone === "positive" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}
+                    >
+                      {position.unrealizedGainPercent >= 0 ? "+" : ""}{position.unrealizedGainPercent.toFixed(2)}%
+                    </td>
+                    <td className="py-3 text-right">
+                      <ActionButton
+                        variant="ghost"
+                        onClick={() => asset ? startEdit(asset) : undefined}
+                        disabled={!asset || asset.holdingSource !== "manual"}
+                        title={asset?.holdingSource === "transactions" ? "交易計算持倉請到交易明細調整" : "編輯持倉"}
+                      >
+                        <PencilSimple size={16} />編輯
+                      </ActionButton>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-3 text-xs" style={{ color: "var(--ns-muted)" }}>
+          <Link to="/transactions">查看交易明細</Link>
+        </div>
+      </Card>
+      {editingAsset && editForm ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center" onClick={() => setEditingAsset(null)}>
+          <div
+            className="w-full max-w-2xl rounded-lg border shadow-xl"
+            style={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="flex items-center justify-between border-b px-5 py-3" style={{ borderColor: "var(--ns-border)" }}>
+              <h2 className="text-lg font-semibold">編輯持倉</h2>
+              <button
+                type="button"
+                onClick={() => setEditingAsset(null)}
+                className="grid size-8 place-items-center rounded-md outline-none transition hover:opacity-70"
+                aria-label="關閉"
+              >
+                <X size={18} />
+              </button>
+            </header>
+            <div className="max-h-[70vh] overflow-y-auto px-5 pb-5 pt-4">
+              <HoldingForm
+                value={editForm}
+                onChange={setEditForm}
+                onSubmit={submitEdit}
+                submitLabel={updateHolding.isPending ? "儲存中…" : "儲存持倉"}
+                accounts={accounts}
+              />
+              {message ? <div className="mt-3"><StatusText>{message}</StatusText></div> : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -391,4 +547,94 @@ function SummaryCell({ label, value, tone = "neutral" }: { label: string; value:
       <div className="mt-1 tabular text-base font-semibold" style={{ color }}>{value}</div>
     </div>
   );
+}
+
+const performanceRangeOptions = ["1D", "1W", "1M", "1Y", "3Y", "Custom"] as const;
+type PerformanceRange = typeof performanceRangeOptions[number];
+
+function buildPerformanceTrend({
+  positions,
+  dailyPrices,
+  toPrimary,
+  range,
+  customStart,
+  customEnd,
+}: {
+  positions: HoldingPosition[];
+  dailyPrices: DailyPrice[];
+  toPrimary: (value: number, currency: string, asOfDate?: string) => number;
+  range: PerformanceRange;
+  customStart: string;
+  customEnd: string;
+}) {
+  const end = range === "Custom" ? customEnd : todayDate();
+  const start = range === "Custom" ? customStart : rangeStartDate(range, end);
+  if (!start || !end || start > end) return [];
+
+  const tickers = new Set(positions.map((position) => position.ticker.toUpperCase()));
+  const pricesByTicker = new Map<string, DailyPrice[]>();
+  for (const price of dailyPrices) {
+    const ticker = price.ticker.toUpperCase();
+    if (!tickers.has(ticker)) continue;
+    if (price.date < start || price.date > end) continue;
+    const bucket = pricesByTicker.get(ticker) ?? [];
+    bucket.push(price);
+    pricesByTicker.set(ticker, bucket);
+  }
+  for (const [ticker, rows] of pricesByTicker) {
+    pricesByTicker.set(ticker, rows.sort((a, b) => a.date.localeCompare(b.date)));
+  }
+
+  const dates = [...new Set([...pricesByTicker.values()].flat().map((price) => price.date))].sort();
+  return dates.map((date) => {
+    const value = positions.reduce((sum, position) => {
+      const history = pricesByTicker.get(position.ticker.toUpperCase()) ?? [];
+      const price = latestPriceOnOrBefore(history, date);
+      if (!price) return sum;
+      return sum + toPrimary(price.close * position.quantity, price.currency || position.currency, date);
+    }, 0);
+    return {
+      date,
+      label: compactDateLabel(date, range),
+      value,
+    };
+  }).filter((point) => point.value > 0);
+}
+
+function latestPriceOnOrBefore(rows: DailyPrice[], date: string) {
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    if (rows[index].date <= date) return rows[index];
+  }
+  return null;
+}
+
+function rangeStartDate(range: PerformanceRange, end: string) {
+  if (range === "Custom") return end;
+  const days: Record<Exclude<PerformanceRange, "Custom">, number> = {
+    "1D": 1,
+    "1W": 7,
+    "1M": 31,
+    "1Y": 365,
+    "3Y": 365 * 3,
+  };
+  return dateDaysAgo(days[range], end);
+}
+
+function todayDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function dateDaysAgo(days: number, from = todayDate()) {
+  const date = new Date(`${from}T00:00:00`);
+  date.setDate(date.getDate() - days);
+  return date.toISOString().slice(0, 10);
+}
+
+function compactDateLabel(value: string, range: PerformanceRange) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  if (range === "1D" || range === "1W" || range === "1M") {
+    return date.toLocaleDateString("zh-TW", { month: "numeric", day: "numeric" });
+  }
+  return date.toLocaleDateString("zh-TW", { year: "2-digit", month: "numeric" });
 }

@@ -90,6 +90,26 @@ export function CashFlowRoute() {
   const createRecurring = useRepositoryMutation((repository, input: RecurringDraft) => repository.createRecurringTransaction(input), ["recurring"]);
   const deleteRecurring = useRepositoryMutation((repository, id: string) => repository.deleteRecurringTransaction(id), ["recurring"]);
   const postRecurring = useRepositoryMutation((repository, id: string) => repository.postRecurringTransaction(id), ["recurring", "ledger", "accounts"]);
+  const rememberMerchants = useRepositoryMutation(async (repository, input: string[]) => {
+    const nextNames = uniqueClean(input);
+    if (nextNames.length === 0) return;
+    const current = await repository.getAppSettings();
+    const existing = new Set(current.merchants.map((merchant) => merchant.trim()).filter(Boolean));
+    const additions = nextNames.filter((merchant) => !existing.has(merchant));
+    if (additions.length === 0) return;
+    await repository.updateAppSettings({
+      ...current,
+      merchants: [...current.merchants, ...additions],
+    });
+  }, ["settings"]);
+
+  function rememberMerchantNames(names: string[]) {
+    const nextNames = uniqueClean(names);
+    if (nextNames.length === 0) return;
+    void rememberMerchants.mutateAsync(nextNames).catch((error) => {
+      console.warn("[cash-flow] failed to remember merchants", error);
+    });
+  }
 
   function syncAccountDefaults(accountId: string) {
     const account = accountRows.find((item) => item.id === accountId);
@@ -101,6 +121,7 @@ export function CashFlowRoute() {
     try {
       if (!recurringForm.accountId) throw new Error("請選擇帳戶。");
       await createRecurring.mutateAsync(recurringForm);
+      rememberMerchantNames([recurringForm.merchant]);
       setRecurringForm({ ...emptyRecurring, currency: appSettings?.primaryCurrency ?? emptyRecurring.currency });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "週期事件儲存失敗。");
@@ -116,6 +137,7 @@ export function CashFlowRoute() {
       if (!payload.accountId) throw new Error("請選擇帳戶。");
       if (editingId) await updateLedger.mutateAsync({ ...payload, id: editingId });
       else await createLedger.mutateAsync(payload);
+      rememberMerchantNames([payload.merchant]);
       setLedgerForm({ ...emptyLedger, date: toLocalMinute(), currency: appSettings?.primaryCurrency ?? emptyLedger.currency });
       setAmountExpression(String(Math.abs(emptyLedger.amount)));
       setEditingId(null);
@@ -275,7 +297,12 @@ export function CashFlowRoute() {
               <div className="font-semibold">匯入預覽：{preview.valid.length} valid / {preview.invalid.length} invalid</div>
               {preview.invalid.map((item) => <div key={item.row} className="text-sm" style={{ color: "var(--ns-negative)" }}>Row {item.row}: {item.reason}</div>)}
               <div className="mt-3 flex gap-2">
-                <ActionButton onClick={async () => { await importLedger.mutateAsync(preview.valid.map((item) => item.value)); setPreview(null); }}>確認匯入</ActionButton>
+                <ActionButton onClick={async () => {
+                  const rows = preview.valid.map((item) => item.value);
+                  await importLedger.mutateAsync(rows);
+                  rememberMerchantNames(rows.map((row) => row.merchant));
+                  setPreview(null);
+                }}>確認匯入</ActionButton>
                 <ActionButton variant="secondary" onClick={() => setPreview(null)}>取消</ActionButton>
               </div>
             </div>
@@ -439,4 +466,8 @@ function settlementLabel(status: LedgerTransaction["settlementStatus"]) {
 function formatRecordTime(value: string) {
   if (!value.includes("T")) return value;
   return value.replace("T", " ");
+}
+
+function uniqueClean(values: string[]) {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }

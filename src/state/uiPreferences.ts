@@ -65,11 +65,14 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   nameLocale: initial.nameLocale,
   clockMode: initial.clockMode,
   setPrivacyMode(value) {
+    setPrivacyMaskOn(value);
     set({ privacyMode: value });
     persist(snapshot(get()));
   },
   togglePrivacyMode() {
-    set({ privacyMode: !get().privacyMode });
+    const next = !get().privacyMode;
+    setPrivacyMaskOn(next);
+    set({ privacyMode: next });
     persist(snapshot(get()));
   },
   setNameLocale(value) {

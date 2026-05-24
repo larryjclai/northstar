@@ -1,6 +1,5 @@
 import {
   Bank,
-  ChartLineUp,
   Eye,
   EyeSlash,
   GearSix,
@@ -29,11 +28,9 @@ export function AppShell() {
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[260px_1fr]">
-      <aside className="hidden border-r p-4 lg:block" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
+      <aside className="hidden border-r p-4 lg:sticky lg:top-0 lg:block lg:h-screen lg:self-start" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
         <div className="mb-6 flex items-center gap-3">
-          <div className="grid size-10 place-items-center rounded-lg" style={{ background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
-            <ChartLineUp size={22} weight="fill" />
-          </div>
+          <img src="/favicon.svg" alt="" className="size-10 rounded-lg" />
           <div className="flex-1">
             <div className="font-semibold">Northstar</div>
             <div className="text-xs" style={{ color: "var(--ns-muted)" }}>投資與現金流</div>
@@ -68,7 +65,7 @@ export function AppShell() {
           ))}
         </nav>
       </aside>
-      <main className="pb-20 lg:pb-0">
+      <main key={privacyMode ? "privacy-on" : "privacy-off"} className="pb-20 lg:pb-0">
         <Outlet />
       </main>
       <nav className="fixed inset-x-0 bottom-0 grid grid-cols-5 border-t lg:hidden" style={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}>

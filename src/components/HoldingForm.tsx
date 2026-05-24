@@ -29,7 +29,7 @@ export function HoldingForm({
   accounts?: Account[];
 }) {
   const eligibleAccounts = accounts.filter(
-    (account) => account.deletedAt === null && (account.type === "investment" || account.type === "depository"),
+    (account) => account.deletedAt === null && account.type === "investment",
   );
 
   return (
