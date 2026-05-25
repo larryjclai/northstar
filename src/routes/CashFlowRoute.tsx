@@ -4,7 +4,7 @@ import { ActionButton } from "../components/ActionButton";
 import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
 import { DateTimeField } from "../components/DateTimeField";
-import { Field, SelectInput, TextInput } from "../components/Field";
+import { Field, SelectInput, TextAreaInput, TextInput } from "../components/Field";
 import { StatusText } from "../components/StatusText";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -22,6 +22,7 @@ function makeEmptyLedger(timezone: string): LedgerDraft {
   return {
     accountId: "",
     date: nowAsDatetimeLocal(timezone),
+    name: "",
     amount: 100,
     currency: "TWD",
     category: "餐飲",
@@ -111,6 +112,38 @@ export function CashFlowRoute() {
       merchants: [...current.merchants, ...additions],
     });
   }, ["settings"]);
+  const rememberCategories = useRepositoryMutation(async (repository, input: Array<{ category: string; subcategory: string }>) => {
+    const nextItems = input
+      .map((item) => ({ category: item.category.trim(), subcategory: item.subcategory.trim() }))
+      .filter((item) => item.category);
+    if (nextItems.length === 0) return;
+
+    const current = await repository.getAppSettings();
+    const nextCategories = current.categories.map((category) => ({
+      ...category,
+      children: [...category.children],
+    }));
+    let changed = false;
+
+    for (const item of nextItems) {
+      let category = nextCategories.find((candidate) => candidate.name === item.category);
+      if (!category) {
+        category = { name: item.category, children: [] };
+        nextCategories.push(category);
+        changed = true;
+      }
+      if (item.subcategory && !category.children.includes(item.subcategory)) {
+        category.children.push(item.subcategory);
+        changed = true;
+      }
+    }
+
+    if (!changed) return;
+    await repository.updateAppSettings({
+      ...current,
+      categories: nextCategories,
+    });
+  }, ["settings"]);
 
   function rememberMerchantNames(names: string[]) {
     const nextNames = uniqueClean(names);
@@ -142,10 +175,18 @@ export function CashFlowRoute() {
     try {
       const amount = Math.abs(evaluateAmountExpression(amountExpression));
       const signedAmount = ledgerForm.entryType === "expense" ? -amount : amount;
-      const payload = { ...ledgerForm, amount: signedAmount };
+      const payload = {
+        ...ledgerForm,
+        amount: signedAmount,
+        name: ledgerForm.name.trim(),
+        category: ledgerForm.category.trim(),
+        subcategory: ledgerForm.subcategory.trim(),
+        merchant: ledgerForm.merchant.trim(),
+      };
       if (!payload.accountId) throw new Error("請選擇帳戶。");
       if (editingId) await updateLedger.mutateAsync({ ...payload, id: editingId });
       else await createLedger.mutateAsync(payload);
+      await rememberCategories.mutateAsync([{ category: payload.category, subcategory: payload.subcategory }]);
       rememberMerchantNames([payload.merchant]);
       setLedgerForm({ ...emptyLedger, date: nowAsDatetimeLocal(timezone), currency: appSettings?.primaryCurrency ?? emptyLedger.currency });
       setAmountExpression(String(Math.abs(emptyLedger.amount)));
@@ -183,71 +224,120 @@ export function CashFlowRoute() {
             <ActionButton variant={mode === "transfer" ? "primary" : "secondary"} onClick={() => setMode("transfer")}><ArrowsLeftRight size={16} />轉帳</ActionButton>
           </div>
           {mode === "single" ? (
-            <div className="grid gap-3">
+            <div className="grid gap-4">
+              <Field label="名稱">
+                <TextInput
+                  value={ledgerForm.name}
+                  onChange={(event) => setLedgerForm({ ...ledgerForm, name: event.target.value })}
+                  placeholder="例如 晚餐、咖啡、股利"
+                  className="py-3 text-base font-semibold"
+                />
+              </Field>
+
+              <Field label="商家">
+                <TextInput
+                  list="cashflow-merchants"
+                  value={ledgerForm.merchant}
+                  onChange={(event) => setLedgerForm({ ...ledgerForm, merchant: event.target.value })}
+                  placeholder="例如 7-ELEVEN、Lyft"
+                />
+              </Field>
+
+              <div className="grid gap-3 rounded-md border p-3" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface-strong)" }}>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_112px]">
+                  <Field label="金額 / 算式">
+                    <TextInput
+                      value={amountExpression}
+                      onChange={(event) => setAmountExpression(event.target.value)}
+                      placeholder="120+85"
+                      inputMode="decimal"
+                      className="bg-[var(--ns-surface)] text-right text-lg font-semibold tabular"
+                    />
+                  </Field>
+                  <Field label="類型">
+                    <SelectInput
+                      value={ledgerForm.entryType}
+                      onChange={(event) => {
+                        const entryType = event.target.value as LedgerDraft["entryType"];
+                        setLedgerForm({ ...ledgerForm, entryType, settlementStatus: "settled" });
+                      }}
+                      className="bg-[var(--ns-surface)]"
+                    >
+                      <option value="expense">支出</option>
+                      <option value="income">收入</option>
+                    </SelectInput>
+                  </Field>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="分類">
+                  <TextInput
+                    list="cashflow-categories"
+                    value={ledgerForm.category}
+                    onChange={(event) => setLedgerForm({ ...ledgerForm, category: event.target.value })}
+                    placeholder="選擇或輸入分類"
+                  />
+                </Field>
+                <Field label="子分類">
+                  <TextInput
+                    list="cashflow-subcategories"
+                    value={ledgerForm.subcategory}
+                    onChange={(event) => setLedgerForm({ ...ledgerForm, subcategory: event.target.value })}
+                    placeholder="未分類"
+                  />
+                </Field>
+              </div>
+
               <Field label="帳戶">
                 <SelectInput value={ledgerForm.accountId} onChange={(event) => syncAccountDefaults(event.target.value)}>
                   <option value="">選擇帳戶</option>
                   {accountRows.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                 </SelectInput>
               </Field>
-              <div className="grid grid-cols-1 gap-3">
-                <DateTimeField
-                  label="時間"
-                  value={ledgerForm.date}
-                  onChange={(value) => setLedgerForm({ ...ledgerForm, date: value })}
+
+              <DateTimeField
+                label="日期 + 時間"
+                value={ledgerForm.date}
+                onChange={(value) => setLedgerForm({ ...ledgerForm, date: value })}
+              />
+
+              <Field label="備註">
+                <TextAreaInput
+                  value={ledgerForm.note}
+                  onChange={(event) => setLedgerForm({ ...ledgerForm, note: event.target.value })}
+                  rows={3}
+                  placeholder="可留空"
                 />
-                <Field label="幣別">
-                  <TextInput value={ledgerForm.currency} onChange={(event) => setLedgerForm({ ...ledgerForm, currency: event.target.value.toUpperCase() })} />
-                </Field>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[120px_1fr]">
-                <Field label="類型">
-                  <SelectInput value={ledgerForm.entryType} onChange={(event) => {
-                    const entryType = event.target.value as LedgerDraft["entryType"];
-                    setLedgerForm({ ...ledgerForm, entryType, settlementStatus: entryType === "income" ? "settled" : "settled" });
-                  }}>
-                    <option value="expense">支出</option>
-                    <option value="income">收入</option>
-                  </SelectInput>
-                </Field>
-                <Field label="金額 / 算式">
-                  <TextInput value={amountExpression} onChange={(event) => setAmountExpression(event.target.value)} placeholder="120+85" inputMode="decimal" />
-                </Field>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="分類">
-                  <SelectInput value={ledgerForm.category} onChange={(event) => {
-                    const category = event.target.value;
-                    const firstChild = categories.find((item) => item.name === category)?.children[0] ?? "";
-                    setLedgerForm({ ...ledgerForm, category, subcategory: firstChild });
-                  }}>
-                    {categoryNames.map((category) => <option key={category} value={category}>{category}</option>)}
-                  </SelectInput>
-                </Field>
-                <Field label="子分類">
-                  <SelectInput value={ledgerForm.subcategory} onChange={(event) => setLedgerForm({ ...ledgerForm, subcategory: event.target.value })}>
-                    <option value="">未分類</option>
-                    {subcategories.map((subcategory) => <option key={subcategory} value={subcategory}>{subcategory}</option>)}
-                  </SelectInput>
-                </Field>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="商家">
-                  <TextInput list="cashflow-merchants" value={ledgerForm.merchant} onChange={(event) => setLedgerForm({ ...ledgerForm, merchant: event.target.value })} placeholder="例如 全家" />
-                </Field>
-                <Field label="狀態">
-                  <SelectInput value={ledgerForm.settlementStatus} onChange={(event) => setLedgerForm({ ...ledgerForm, settlementStatus: event.target.value as LedgerDraft["settlementStatus"] })}>
-                    <option value="settled">{ledgerForm.entryType === "income" ? "已收款" : "已付款"}</option>
-                    {ledgerForm.entryType === "income" ? <option value="receivable">應收帳款</option> : <option value="payable">應付帳款</option>}
-                  </SelectInput>
-                </Field>
-              </div>
+              </Field>
+
+              <details className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
+                <summary className="cursor-pointer select-none font-medium" style={{ color: "var(--ns-muted)" }}>
+                  進階
+                </summary>
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="幣別">
+                    <TextInput value={ledgerForm.currency} onChange={(event) => setLedgerForm({ ...ledgerForm, currency: event.target.value.toUpperCase() })} />
+                  </Field>
+                  <Field label="狀態">
+                    <SelectInput value={ledgerForm.settlementStatus} onChange={(event) => setLedgerForm({ ...ledgerForm, settlementStatus: event.target.value as LedgerDraft["settlementStatus"] })}>
+                      <option value="settled">{ledgerForm.entryType === "income" ? "已收款" : "已付款"}</option>
+                      {ledgerForm.entryType === "income" ? <option value="receivable">應收帳款</option> : <option value="payable">應付帳款</option>}
+                    </SelectInput>
+                  </Field>
+                </div>
+              </details>
+
               <datalist id="cashflow-merchants">
                 {merchants.map((merchant) => <option key={merchant} value={merchant} />)}
               </datalist>
-              <Field label="備註">
-                <TextInput value={ledgerForm.note} onChange={(event) => setLedgerForm({ ...ledgerForm, note: event.target.value })} />
-              </Field>
+              <datalist id="cashflow-categories">
+                {categoryNames.map((category) => <option key={category} value={category} />)}
+              </datalist>
+              <datalist id="cashflow-subcategories">
+                {subcategories.map((subcategory) => <option key={subcategory} value={subcategory} />)}
+              </datalist>
+
               {message ? <StatusText>{message}</StatusText> : null}
               <div className="flex gap-2">
                 <ActionButton onClick={submitSingle}>{editingId ? "儲存" : "新增"}</ActionButton>
@@ -334,6 +424,7 @@ export function CashFlowRoute() {
                         setLedgerForm({
                           accountId: row.accountId,
                           date: row.date,
+                          name: row.name,
                           amount: row.amount,
                           currency: row.currency,
                           category: row.category,
@@ -457,8 +548,8 @@ function groupLedgerRows(rows: LedgerTransaction[]) {
     return {
       id: first.groupId ?? first.id,
       rows: group,
-      title: isTransfer ? "轉帳 / 換匯" : `${first.category}${first.subcategory ? ` / ${first.subcategory}` : ""}`,
-      subtitle: isTransfer ? `${group[0].currency} → ${group[1].currency} · ${formatRecordTime(first.date)}` : [settlementLabel(first.settlementStatus), formatRecordTime(first.date), first.merchant, first.note || "無備註"].filter(Boolean).join(" · "),
+      title: isTransfer ? "轉帳 / 換匯" : first.name || `${first.category}${first.subcategory ? ` / ${first.subcategory}` : ""}`,
+      subtitle: isTransfer ? `${group[0].currency} → ${group[1].currency} · ${formatRecordTime(first.date)}` : [settlementLabel(first.settlementStatus), formatRecordTime(first.date), `${first.category}${first.subcategory ? ` / ${first.subcategory}` : ""}`, first.merchant, first.note || "無備註"].filter(Boolean).join(" · "),
       amount,
       currency: isTransfer ? group[0].currency : first.currency,
       typeLabel: isTransfer ? "轉帳" : first.entryType === "income" ? "收入" : "支出",

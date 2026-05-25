@@ -36,6 +36,7 @@ export function buildTransfer(input: TransferInput): LedgerTransaction[] {
     updatedAt: input.now,
     deletedAt: null,
     date: input.date,
+    name: sameCurrency ? "轉帳" : "外幣兌換",
     category: sameCurrency ? "轉帳" : "外幣兌換",
     subcategory: sameCurrency ? "帳戶轉移" : "外幣兌換",
     merchant: "",

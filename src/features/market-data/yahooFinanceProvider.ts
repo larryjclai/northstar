@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { MarketDataProvider, MarketHistoryPoint, MarketQuote, SymbolSearchResult } from "./provider";
+import type { AssetType } from "../../domain";
+import type { AssetProfile, MarketDataProvider, MarketHistoryPoint, MarketQuote, SymbolSearchResult } from "./provider";
 
 interface YahooChartEnvelope {
   northstarError?: string;
@@ -39,6 +40,31 @@ interface YahooSearchEnvelope {
     quoteType?: string;
     typeDisp?: string;
   }>;
+}
+
+interface YahooQuoteSummaryEnvelope {
+  northstarError?: string;
+  quoteSummary: {
+    result?: YahooQuoteSummaryResult[];
+    error?: { description?: string };
+  };
+}
+
+interface YahooQuoteSummaryResult {
+  quoteType?: {
+    quoteType?: string;
+  };
+  assetProfile?: {
+    sector?: string;
+    industry?: string;
+  };
+  summaryProfile?: {
+    sector?: string;
+    industry?: string;
+  };
+  fundProfile?: {
+    categoryName?: string;
+  };
 }
 
 const quoteCache = new Map<string, { quote: MarketQuote; updatedAt: number }>();
@@ -119,7 +145,28 @@ export class YahooFinanceProvider implements MarketDataProvider {
         currency: item.currency,
         exchange: item.exchange,
         typeLabel: item.typeDisp ?? item.quoteType,
+        assetType: mapYahooAssetType(item.quoteType),
       }));
+  }
+
+  async fetchAssetProfiles(symbols: string[], onProgress?: (done: number, total: number) => void): Promise<Record<string, AssetProfile>> {
+    const normalized = [...new Set(symbols.map(normalizeSymbol).filter(Boolean))].sort();
+    const result: Record<string, AssetProfile> = {};
+    let done = 0;
+
+    for (let index = 0; index < normalized.length; index += 4) {
+      const chunk = normalized.slice(index, index + 4);
+      const fetched = await Promise.allSettled(chunk.map((symbol) => this.fetchAssetProfile(symbol)));
+      for (const item of fetched) {
+        done += 1;
+        if (item.status === "fulfilled") {
+          result[item.value.symbol] = item.value;
+        }
+        onProgress?.(done, normalized.length);
+      }
+    }
+
+    return result;
   }
 
   async fetchFxRate(from: string, to: string): Promise<MarketQuote> {
@@ -185,6 +232,31 @@ export class YahooFinanceProvider implements MarketDataProvider {
     }
     return result;
   }
+
+  private async fetchAssetProfile(symbol: string): Promise<AssetProfile> {
+    const encodedSymbol = encodeURIComponent(symbol);
+    const searchParams = new URLSearchParams({
+      modules: "assetProfile,summaryProfile,quoteType,fundProfile",
+    });
+    const envelope = await fetchYahooJson<YahooQuoteSummaryEnvelope>(`/v10/finance/quoteSummary/${encodedSymbol}`, searchParams);
+    const result = envelope.quoteSummary.result?.[0];
+    if (!result) {
+      throw new Error(envelope.northstarError ?? envelope.quoteSummary.error?.description ?? `Yahoo Finance did not return profile data for ${symbol}.`);
+    }
+
+    const assetType = mapYahooAssetType(result.quoteType?.quoteType);
+    const equitySector = cleanText(result.assetProfile?.sector) ?? cleanText(result.summaryProfile?.sector);
+    const equityIndustry = cleanText(result.assetProfile?.industry) ?? cleanText(result.summaryProfile?.industry);
+    const fundCategory = cleanText(result.fundProfile?.categoryName);
+    const useFundCategory = assetType === "etf" || assetType === "mutual_fund";
+
+    return {
+      symbol,
+      assetType,
+      sector: useFundCategory ? fundCategory : equitySector ?? fundCategory,
+      industry: useFundCategory ? null : equityIndustry,
+    };
+  }
 }
 
 function pickPrimary(
@@ -201,6 +273,23 @@ function pickPrimary(
 
 function extractName(result: YahooChartResult): string | null {
   return result.meta.shortName ?? result.meta.longName ?? null;
+}
+
+function mapYahooAssetType(value: string | undefined): AssetType | null {
+  const normalized = value?.trim().toUpperCase();
+  if (!normalized) return null;
+  if (normalized === "EQUITY") return "equity";
+  if (normalized === "ETF") return "etf";
+  if (normalized === "MUTUALFUND") return "mutual_fund";
+  if (normalized === "INDEX") return "index";
+  if (normalized === "CRYPTOCURRENCY" || normalized === "CRYPTO") return "crypto";
+  if (normalized === "CURRENCY") return "cash";
+  return "other";
+}
+
+function cleanText(value: string | undefined) {
+  const text = value?.trim();
+  return text || null;
 }
 
 async function fetchYahooJson<T>(path: string, searchParams: URLSearchParams): Promise<T> {
