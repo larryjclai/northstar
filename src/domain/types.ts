@@ -174,15 +174,50 @@ export interface DailyPrice {
 
 export type GoalKind = "fire" | "custom";
 
+export type GoalDisplayMode = "today" | "nominal";
+
 /**
- * Financial goal — the first kind we support is FIRE (Financial Independence,
- * Retire Early). `annualSpending` × (1 / withdrawalRate) is the classic
- * "25× rule" target if `targetAmount` is not overridden.
+ * One line item in the retirement spending breakdown. Mirrors the screenshot's
+ * "Living NT$3,000/mo · Healthcare NT$300/mo" rows. `mustHave` flags items
+ * that we shouldn't trim when projecting a lean / coast FIRE scenario.
+ */
+export interface SpendingItem {
+  id: string;
+  name: string;
+  monthlyAmount: number;
+  mustHave: boolean;
+}
+
+/**
+ * Retirement income line (pensions, Social Security, 勞保). Reserved for v1.1
+ * — the field exists today so backups round-trip even when the UI doesn't
+ * surface it yet.
+ */
+export interface IncomeItem {
+  id: string;
+  name: string;
+  monthlyAmount: number;
+  startAge: number;
+  endAge: number;
+}
+
+/**
+ * Financial goal — currently the headline kind is FIRE (Financial
+ * Independence, Retire Early). Pre-Phase-7 goals carried a single
+ * `expectedAnnualReturn`; we now distinguish pre- vs post-retirement
+ * returns so the projection can compound at growth rates during the
+ * accumulation phase and a more conservative rate during drawdown.
+ *
+ * Legacy fields (`annualSpending`, `withdrawalRate`, `expectedAnnualReturn`,
+ * `targetAmount`) are kept for backward compatibility: old backups load
+ * cleanly, and we still use `withdrawalRate` for the Coast / Lean / Fat
+ * FIRE callouts.
  */
 export interface FinancialGoal extends SyncFields {
   kind: GoalKind;
   name: string;
   currency: CurrencyCode;
+  // Legacy / fallback inputs:
   annualSpending: number;
   withdrawalRate: number;
   expectedAnnualReturn: number;
@@ -190,4 +225,19 @@ export interface FinancialGoal extends SyncFields {
   /** Optional override; when null/0 we derive from annualSpending / withdrawalRate. */
   targetAmount: number | null;
   startDate: string;
+  // Full retirement-projection inputs (all optional — projection helper
+  // fills in defaults when these are null):
+  currentAge: number | null;
+  retirementAge: number | null;
+  planThroughAge: number | null;
+  preRetirementReturn: number | null;
+  postRetirementReturn: number | null;
+  inflationRate: number | null;
+  annualFee: number | null;
+  contributionGrowthRate: number | null;
+  spendingItems: SpendingItem[];
+  incomeItems: IncomeItem[];
+  displayMode: GoalDisplayMode;
+  /** Reserved for v1.1: which account ids feed this goal and at what weight. */
+  accountShareMap: Record<string, number>;
 }

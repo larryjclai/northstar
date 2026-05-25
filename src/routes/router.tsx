@@ -3,6 +3,7 @@ import { AppShell } from "../components/AppShell";
 import { AccountsRoute } from "./AccountsRoute";
 import { CashFlowRoute } from "./CashFlowRoute";
 import { DashboardRoute } from "./DashboardRoute";
+import { GoalsRoute } from "./GoalsRoute";
 import { HoldingsRoute } from "./HoldingsRoute";
 import { InvestmentsRoute } from "./InvestmentsRoute";
 import { SettingsRoute } from "./SettingsRoute";
@@ -59,9 +60,16 @@ const settingsRoute = createRoute({
   component: SettingsRoute,
 });
 
+const goalsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/goals",
+  component: GoalsRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   investmentsRoute,
+  goalsRoute,
   holdingsRoute,
   transactionsRoute,
   cashFlowRoute,

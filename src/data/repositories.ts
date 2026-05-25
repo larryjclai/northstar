@@ -5,12 +5,15 @@ import type {
   DailyFxRate,
   DailyPrice,
   FinancialGoal,
+  GoalDisplayMode,
   GoalKind,
+  IncomeItem,
   InvestmentAction,
   InvestmentRecord,
   LedgerTransaction,
   PortfolioAsset,
   RecurringTransaction,
+  SpendingItem,
 } from "../domain/types";
 import type { MarketQuote } from "../features/market-data";
 import { migrations, splitSqlStatements } from "./migrations";
@@ -102,6 +105,20 @@ export interface FinancialGoalDraft {
   monthlyContribution: number;
   targetAmount: number | null;
   startDate: string;
+  // Phase 7 extensions — all optional so existing callers (CSV importer, old
+  // FireGoalEditor) keep compiling. The repo normalizer fills defaults.
+  currentAge?: number | null;
+  retirementAge?: number | null;
+  planThroughAge?: number | null;
+  preRetirementReturn?: number | null;
+  postRetirementReturn?: number | null;
+  inflationRate?: number | null;
+  annualFee?: number | null;
+  contributionGrowthRate?: number | null;
+  spendingItems?: SpendingItem[];
+  incomeItems?: IncomeItem[];
+  displayMode?: GoalDisplayMode;
+  accountShareMap?: Record<string, number>;
 }
 
 export interface FinanceRepository {
@@ -942,6 +959,21 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("portfolio_assets", "name_zh", "text");
     await this.ensureSqliteColumn("portfolio_assets", "name_en", "text");
     await this.ensureSqliteColumn("portfolio_assets", "account_id", "text");
+    // Retirement-projection extensions for financial_goals. Each one is
+    // optional at the DB level — readers coalesce missing values to the
+    // sane defaults documented in `goalFieldsFromDraft`.
+    await this.ensureSqliteColumn("financial_goals", "current_age", "real");
+    await this.ensureSqliteColumn("financial_goals", "retirement_age", "real");
+    await this.ensureSqliteColumn("financial_goals", "plan_through_age", "real");
+    await this.ensureSqliteColumn("financial_goals", "pre_retirement_return", "real");
+    await this.ensureSqliteColumn("financial_goals", "post_retirement_return", "real");
+    await this.ensureSqliteColumn("financial_goals", "inflation_rate", "real");
+    await this.ensureSqliteColumn("financial_goals", "annual_fee", "real");
+    await this.ensureSqliteColumn("financial_goals", "contribution_growth_rate", "real");
+    await this.ensureSqliteColumn("financial_goals", "spending_items", "text");
+    await this.ensureSqliteColumn("financial_goals", "income_items", "text");
+    await this.ensureSqliteColumn("financial_goals", "display_mode", "text");
+    await this.ensureSqliteColumn("financial_goals", "account_share_map", "text");
     await this.backfillUnassignedAccount();
     await this.ensureDefaultSettings();
     const rows = await this.db.select<Array<{ count: number }>>("select count(*) as count from accounts");
@@ -1472,29 +1504,58 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       monthlyContribution: number;
       targetAmount: number | null;
       startDate: string;
+      currentAge: number | null;
+      retirementAge: number | null;
+      planThroughAge: number | null;
+      preRetirementReturn: number | null;
+      postRetirementReturn: number | null;
+      inflationRate: number | null;
+      annualFee: number | null;
+      contributionGrowthRate: number | null;
+      spendingItems: string | null;
+      incomeItems: string | null;
+      displayMode: string | null;
+      accountShareMap: string | null;
     }>>(
       `select id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
        kind, name, currency, annual_spending as annualSpending, withdrawal_rate as withdrawalRate,
        expected_annual_return as expectedAnnualReturn, monthly_contribution as monthlyContribution,
-       target_amount as targetAmount, start_date as startDate
+       target_amount as targetAmount, start_date as startDate,
+       current_age as currentAge, retirement_age as retirementAge, plan_through_age as planThroughAge,
+       pre_retirement_return as preRetirementReturn, post_retirement_return as postRetirementReturn,
+       inflation_rate as inflationRate, annual_fee as annualFee,
+       contribution_growth_rate as contributionGrowthRate,
+       spending_items as spendingItems, income_items as incomeItems,
+       display_mode as displayMode, account_share_map as accountShareMap
        from financial_goals where deleted_at is null order by created_at asc`,
     );
     return rows.map((row) => ({
       ...row,
       kind: (row.kind === "custom" ? "custom" : "fire") as GoalKind,
       targetAmount: row.targetAmount ?? null,
+      spendingItems: parseJsonArray<SpendingItem>(row.spendingItems),
+      incomeItems: parseJsonArray<IncomeItem>(row.incomeItems),
+      displayMode: (row.displayMode === "nominal" ? "nominal" : "today") as GoalDisplayMode,
+      accountShareMap: parseJsonObject<number>(row.accountShareMap),
     }));
   }
 
   override async upsertFinancialGoal(input: FinancialGoalDraft & { id?: string }) {
     const timestamp = nowIso();
     const fields = goalFieldsFromDraft(input);
+    const spendingJson = JSON.stringify(fields.spendingItems);
+    const incomeJson = JSON.stringify(fields.incomeItems);
+    const accountShareJson = JSON.stringify(fields.accountShareMap);
     if (input.id) {
       await this.db.execute(
         `update financial_goals set revision = revision + 1, updated_at = $1, kind = $2, name = $3, currency = $4,
          annual_spending = $5, withdrawal_rate = $6, expected_annual_return = $7, monthly_contribution = $8,
-         target_amount = $9, start_date = $10
-         where id = $11`,
+         target_amount = $9, start_date = $10,
+         current_age = $11, retirement_age = $12, plan_through_age = $13,
+         pre_retirement_return = $14, post_retirement_return = $15,
+         inflation_rate = $16, annual_fee = $17, contribution_growth_rate = $18,
+         spending_items = $19, income_items = $20, display_mode = $21, account_share_map = $22
+         where id = $23`,
         [
           timestamp,
           fields.kind,
@@ -1506,6 +1567,18 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
           fields.monthlyContribution,
           fields.targetAmount,
           fields.startDate,
+          fields.currentAge,
+          fields.retirementAge,
+          fields.planThroughAge,
+          fields.preRetirementReturn,
+          fields.postRetirementReturn,
+          fields.inflationRate,
+          fields.annualFee,
+          fields.contributionGrowthRate,
+          spendingJson,
+          incomeJson,
+          fields.displayMode,
+          accountShareJson,
           input.id,
         ],
       );
@@ -1517,8 +1590,11 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     const id = createId("goal");
     await this.db.execute(
       `insert into financial_goals (id, space_id, revision, created_at, updated_at, deleted_at, kind, name, currency,
-         annual_spending, withdrawal_rate, expected_annual_return, monthly_contribution, target_amount, start_date)
-       values ($1,$2,1,$3,$3,null,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+         annual_spending, withdrawal_rate, expected_annual_return, monthly_contribution, target_amount, start_date,
+         current_age, retirement_age, plan_through_age, pre_retirement_return, post_retirement_return,
+         inflation_rate, annual_fee, contribution_growth_rate,
+         spending_items, income_items, display_mode, account_share_map)
+       values ($1,$2,1,$3,$3,null,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
       [
         id,
         personalSpace,
@@ -1532,6 +1608,18 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         fields.monthlyContribution,
         fields.targetAmount,
         fields.startDate,
+        fields.currentAge,
+        fields.retirementAge,
+        fields.planThroughAge,
+        fields.preRetirementReturn,
+        fields.postRetirementReturn,
+        fields.inflationRate,
+        fields.annualFee,
+        fields.contributionGrowthRate,
+        spendingJson,
+        incomeJson,
+        fields.displayMode,
+        accountShareJson,
       ],
     );
     const refreshed = await this.listFinancialGoals();
@@ -1639,8 +1727,11 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         for (const goal of snapshot.financialGoals) {
           await this.db.execute(
             `insert into financial_goals (id, space_id, revision, created_at, updated_at, deleted_at, kind, name, currency,
-               annual_spending, withdrawal_rate, expected_annual_return, monthly_contribution, target_amount, start_date)
-             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+               annual_spending, withdrawal_rate, expected_annual_return, monthly_contribution, target_amount, start_date,
+               current_age, retirement_age, plan_through_age, pre_retirement_return, post_retirement_return,
+               inflation_rate, annual_fee, contribution_growth_rate,
+               spending_items, income_items, display_mode, account_share_map)
+             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`,
             [
               goal.id,
               goal.spaceId,
@@ -1657,6 +1748,21 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
               goal.monthlyContribution,
               goal.targetAmount,
               goal.startDate,
+              // Phase-7 extension columns. We coalesce to null for older
+              // snapshots that don't carry these fields so the prepared
+              // statement still gets a valid bind argument.
+              goal.currentAge ?? null,
+              goal.retirementAge ?? null,
+              goal.planThroughAge ?? null,
+              goal.preRetirementReturn ?? null,
+              goal.postRetirementReturn ?? null,
+              goal.inflationRate ?? null,
+              goal.annualFee ?? null,
+              goal.contributionGrowthRate ?? null,
+              JSON.stringify(goal.spendingItems ?? []),
+              JSON.stringify(goal.incomeItems ?? []),
+              goal.displayMode ?? "today",
+              JSON.stringify(goal.accountShareMap ?? {}),
             ],
           );
         }
@@ -1895,7 +2001,32 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
     settings: normalizeSettings(data.settings ?? defaultSettings),
     dailyFxRates: data.dailyFxRates ?? [],
     dailyPrices: data.dailyPrices ?? [],
-    financialGoals: data.financialGoals ?? [],
+    financialGoals: (data.financialGoals ?? []).map(normalizeFinancialGoal),
+  };
+}
+
+/**
+ * Backfill optional retirement-projection fields on goals loaded from an
+ * older snapshot or browser localStorage. Returning the goal as-is would
+ * give us `undefined` for the new keys and break the projection helper's
+ * `null`-aware guard. We keep null-vs-undefined uniform across the whole
+ * surface.
+ */
+function normalizeFinancialGoal(goal: FinancialGoal): FinancialGoal {
+  return {
+    ...goal,
+    currentAge: goal.currentAge ?? null,
+    retirementAge: goal.retirementAge ?? null,
+    planThroughAge: goal.planThroughAge ?? null,
+    preRetirementReturn: goal.preRetirementReturn ?? null,
+    postRetirementReturn: goal.postRetirementReturn ?? null,
+    inflationRate: goal.inflationRate ?? null,
+    annualFee: goal.annualFee ?? null,
+    contributionGrowthRate: goal.contributionGrowthRate ?? null,
+    spendingItems: Array.isArray(goal.spendingItems) ? goal.spendingItems : [],
+    incomeItems: Array.isArray(goal.incomeItems) ? goal.incomeItems : [],
+    displayMode: goal.displayMode === "nominal" ? "nominal" : "today",
+    accountShareMap: goal.accountShareMap && typeof goal.accountShareMap === "object" ? goal.accountShareMap : {},
   };
 }
 
@@ -1977,7 +2108,84 @@ function goalFieldsFromDraft(input: FinancialGoalDraft) {
     monthlyContribution: Math.max(0, Number(input.monthlyContribution) || 0),
     targetAmount: input.targetAmount && input.targetAmount > 0 ? input.targetAmount : null,
     startDate: input.startDate || new Date().toISOString().slice(0, 10),
+    // Phase 7: nullable retirement-projection inputs. Repo layer keeps null
+    // when the caller didn't supply a value; the projection helper itself
+    // owns the default selection so an older record can still be projected.
+    currentAge: optionalNumber(input.currentAge),
+    retirementAge: optionalNumber(input.retirementAge),
+    planThroughAge: optionalNumber(input.planThroughAge),
+    preRetirementReturn: optionalNumber(input.preRetirementReturn),
+    postRetirementReturn: optionalNumber(input.postRetirementReturn),
+    inflationRate: optionalNumber(input.inflationRate),
+    annualFee: optionalNumber(input.annualFee),
+    contributionGrowthRate: optionalNumber(input.contributionGrowthRate),
+    spendingItems: sanitizeSpendingItems(input.spendingItems),
+    incomeItems: sanitizeIncomeItems(input.incomeItems),
+    displayMode: input.displayMode === "nominal" ? ("nominal" as const) : ("today" as const),
+    accountShareMap: sanitizeAccountShareMap(input.accountShareMap),
   };
+}
+
+function optionalNumber(value: number | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  return Number.isFinite(value) ? value : null;
+}
+
+function sanitizeSpendingItems(items: SpendingItem[] | undefined): SpendingItem[] {
+  if (!items || !Array.isArray(items)) return [];
+  return items
+    .filter((item) => item && typeof item.name === "string")
+    .map((item) => ({
+      id: item.id || createId("spending"),
+      name: item.name.trim().slice(0, 80),
+      monthlyAmount: Math.max(0, Number(item.monthlyAmount) || 0),
+      mustHave: item.mustHave !== false,
+    }));
+}
+
+function sanitizeIncomeItems(items: IncomeItem[] | undefined): IncomeItem[] {
+  if (!items || !Array.isArray(items)) return [];
+  return items
+    .filter((item) => item && typeof item.name === "string")
+    .map((item) => ({
+      id: item.id || createId("income"),
+      name: item.name.trim().slice(0, 80),
+      monthlyAmount: Math.max(0, Number(item.monthlyAmount) || 0),
+      startAge: Math.max(0, Math.min(130, Number(item.startAge) || 65)),
+      endAge: Math.max(0, Math.min(130, Number(item.endAge) || 90)),
+    }));
+}
+
+function sanitizeAccountShareMap(map: Record<string, number> | undefined): Record<string, number> {
+  if (!map || typeof map !== "object") return {};
+  const cleaned: Record<string, number> = {};
+  for (const [key, value] of Object.entries(map)) {
+    if (typeof key !== "string" || !key) continue;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) continue;
+    cleaned[key] = Math.max(0, Math.min(1, numeric));
+  }
+  return cleaned;
+}
+
+function parseJsonArray<T>(raw: string | null): T[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseJsonObject<V>(raw: string | null): Record<string, V> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, V>) : {};
+  } catch {
+    return {};
+  }
 }
 
 function manualHoldingFields(input: PortfolioAssetDraft) {

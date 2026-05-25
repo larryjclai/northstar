@@ -182,6 +182,12 @@ export const migrations: Migration[] = [
       );
     `,
   },
+  // NOTE: extension columns for `financial_goals` (retirement projection
+  // inputs) are added via `ensureSqliteColumn` calls inside the SQLite
+  // initialize() routine, not via a sql migration. SQLite's bare
+  // `ALTER TABLE ADD COLUMN` would fail when run a second time, and the
+  // ensure-column helper inspects `pragma table_info` first to stay
+  // idempotent across restarts and reseeds.
 ];
 
 export function splitSqlStatements(sql: string): string[] {

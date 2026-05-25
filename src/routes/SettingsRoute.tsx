@@ -11,8 +11,9 @@ import { getFinanceRepository, type RepositorySnapshot } from "../data/repositor
 import { COMMON_TIMEZONES, isValidTimezone, formatDateTimeInTimezone } from "../domain";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../domain";
 import { useRefreshFxRates } from "../features/market-data/useMarketRefresh";
-import { FireGoalEditor } from "../features/goals/FireGoalEditor";
 import { useUiPreferences, type ClockMode, type NameLocalePreference } from "../state/uiPreferences";
+import { Link } from "@tanstack/react-router";
+import { Target } from "@phosphor-icons/react";
 
 const emptySettings: AppSettings = {
   primaryCurrency: "TWD",
@@ -260,7 +261,20 @@ export function SettingsRoute() {
             </div>
           </Card>
 
-          <FireGoalEditor />
+          <Card title="FIRE 目標">
+            <p className="text-sm" style={{ color: "var(--ns-muted)" }}>
+              已搬到獨立的「目標」分頁，加入了年齡、退休前後報酬率、通膨、支出分項與年度試算表。
+            </p>
+            <div className="mt-3">
+              <Link
+                to="/goals"
+                className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold outline-none transition"
+                style={{ background: "var(--ns-accent)", color: "var(--ns-on-accent, white)" }}
+              >
+                <Target size={16} weight="fill" />前往目標
+              </Link>
+            </div>
+          </Card>
 
           <Card title="商家">
             <div className="flex flex-wrap gap-2">

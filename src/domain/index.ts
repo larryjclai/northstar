@@ -4,6 +4,7 @@ export * from "./currency";
 export * from "./datetime";
 export * from "./fifoCalculator";
 export * from "./fireGoal";
+export * from "./retirementProjection";
 export * from "./groupClassifier";
 export * from "./portfolioCalculator";
 export * from "./transferBuilder";
