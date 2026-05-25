@@ -25,11 +25,12 @@ Northstar 是一個 local-first、隱私優先的個人與家庭財務應用，�
 
 | 工具 | 版本 | 備註 |
 |---|---|---|
-| Node.js | 20 LTS 以上 | 建議用 `nvm` 安裝 |
+| Node.js | 20 LTS 以上 | 建議用 `nvm`（macOS/Linux）或 `nvm-windows` 安裝 |
 | npm | 隨 Node 安裝 | |
 | Rust | stable 1.77+ | `rustup` 安裝即可，Tauri 需要 |
 | Xcode CLT（macOS） | 最新 | `xcode-select --install` |
-| WebView2（Windows） | 最新 | Win10/11 通常已內建 |
+| MSVC Build Tools（Windows） | 2022 | 安裝「使用 C++ 的桌面開發」工作負載 |
+| WebView2（Windows） | 最新 | Win11 內建；Win10 可能要手動裝 Evergreen Bootstrapper |
 | `libwebkit2gtk-4.1`（Linux） | 最新 | Tauri 2 需要 |
 
 詳見 [Tauri 環境需求](https://v2.tauri.app/start/prerequisites/)。
@@ -66,7 +67,11 @@ npm run dev
 npm run tauri build
 ```
 
-產物會在 `src-tauri/target/release/bundle/` 下。macOS 預設輸出 `.app` 與 `.dmg`，未簽章。
+產物會在 `src-tauri/target/release/bundle/` 下。各平台預設輸出：
+
+- **macOS**：`.app` 與 `.dmg`（未簽章 / 未公證）
+- **Windows**：`.msi`（WiX）與 `.exe`（NSIS）（未簽章）
+- **Linux**：`.deb`、`.rpm`、`.AppImage`
 
 ---
 
@@ -99,7 +104,87 @@ npm run tauri build      # 打包桌面 App
 - Schema 還在演進，資料庫結構變更不保證 migration（必要時請刪掉 `northstar.db` 重來）。
 - 匯率 / 報價透過 Yahoo Finance 公開 API，有可能短暫被限流。
 - Connect（雲端同步、家庭共享、附件備份）尚未上線。
-- 還未做應用簽章與公證，macOS 第一次開啟 release 包要從「系統設定 → 隱私權與安全性」放行。
+- 還未做應用簽章與公證：
+  - macOS 第一次開啟 release 包要從「系統設定 → 隱私權與安全性」放行。
+  - Windows 會跳 SmartScreen「未知發行者」警告，需點「其他資訊 → 仍要執行」。
+- **Windows / Linux 支援為「程式碼層級相容」，尚未經過實機驗證**，詳見下方支援計畫。
+
+---
+
+## 平台支援狀態
+
+| 平台 | 開發 (`tauri dev`) | 打包 (`tauri build`) | CI 驗證 | 簽章 |
+|---|---|---|---|---|
+| macOS (Apple Silicon) | ✅ 主力開發環境 | ✅ `.app` / `.dmg` | ❌ | ❌ |
+| macOS (Intel) | ⚠️ 未驗證 | ⚠️ 未驗證 | ❌ | ❌ |
+| **Windows 10/11 (x64)** | ⚠️ 未驗證 | ⚠️ 未驗證 | ❌ | ❌ |
+| Linux (x64) | ⚠️ 未驗證 | ⚠️ 未驗證 | ❌ | — |
+| iOS / Android | ❌ 尚未啟用 | ❌ | ❌ | ❌ |
+
+---
+
+## Windows 支援計畫
+
+Northstar 的 Rust 依賴與前端棧都跨平台，**理論上在 Windows 可直接跑**，但 macOS 以外從未有人實際建置與測試。下面是讓 Windows 變成第一級支援平台的步驟。
+
+### 階段 1 — 本機驗證（必要）
+
+目的：證明在 Windows 機器上能 dev / build / 跑得起來。
+
+1. 在 Windows 10/11 (x64) 機器準備環境：
+   - [Node.js 20 LTS](https://nodejs.org/)
+   - [Rust stable (rustup)](https://rustup.rs/)
+   - **Microsoft Visual Studio Build Tools 2022**（勾選「使用 C++ 的桌面開發」）— Tauri Rust 編譯必備
+   - **WebView2 Runtime**（Win11 內建；Win10 可能要手動裝 [Evergreen Bootstrapper](https://developer.microsoft.com/microsoft-edge/webview2/)）
+   - 啟用 **Developer Mode**（避免 symlink 權限問題）
+2. clone repo → `npm install` → `npm run tauri dev`
+3. 驗收項目：
+   - [ ] App 視窗能開
+   - [ ] SQLite 寫到 `%APPDATA%\app.northstar.finance\northstar.db`
+   - [ ] Stronghold vault 能初始化（Windows 上 `tauri-plugin-stronghold` 走 `%APPDATA%` 路徑，需確認權限）
+   - [ ] Yahoo Finance 匯率 / 報價刷新成功（reqwest TLS）
+   - [ ] CSV 匯入 / 匯出檔案對話框正常（路徑分隔字元）
+   - [ ] `npm run tauri build` 產出 `.msi` 與 `.exe`，安裝後可開啟
+4. 把過程踩到的 bug 開成 issue，標籤 `platform:windows`。
+
+### 階段 2 — CI 自動建置
+
+目的：避免後續開發在不知情下打破 Windows。
+
+1. 新增 `.github/workflows/build.yml`，採用 [tauri-action](https://github.com/tauri-apps/tauri-action) 的 matrix：
+   - `macos-latest`
+   - `windows-latest`
+   - `ubuntu-22.04`
+2. PR 觸發：只跑 `npm run build` + `cargo check`（快）。
+3. push 到 `main` / tag：完整 `tauri build`，把 artifact 上傳。
+4. 加上 cache（`actions/cache` for `~/.cargo` 與 `src-tauri/target`），不然 Windows runner 會很慢。
+
+### 階段 3 — Installer 選型與設定
+
+Tauri 在 Windows 預設同時產出 MSI（WiX）與 NSIS。決策：
+
+- **建議**：保留兩種，預設推 **NSIS**（檔案較小、升級行為較友善、可寫 per-user）；MSI 留給未來企業部署。
+- 在 `tauri.conf.json` `bundle.windows` 加 NSIS 設定（安裝模式、language、installer icon）。
+- 確認 `app.northstar.finance` 這個 identifier 作為 Windows AppUserModelID 沒問題。
+
+### 階段 4 — Code Signing
+
+未簽章的 Windows installer 會跳 SmartScreen 警告，alpha 階段可接受，但 0.2 之前要解決：
+
+- 選項 A：買 **OV code signing 憑證**（~USD 200/年，要累積 reputation 才會繞過 SmartScreen）
+- 選項 B：**EV code signing 憑證**（~USD 400/年，立刻被 SmartScreen 信任，但需要硬體 token / cloud HSM）
+- 把簽章流程整進 CI（GitHub Actions secret + `signtool`），讓 release artifact 自動簽。
+
+### 階段 5 — 發行通道
+
+- 用 GitHub Releases 掛 Windows / macOS artifact，並透過 [tauri-plugin-updater](https://v2.tauri.app/plugin/updater/) 接 auto-update（需要再加一支簽章金鑰）。
+- README 補上 Windows 下載連結與第一次執行的 SmartScreen 指引。
+
+### 不在這個計畫內
+
+- ARM64 Windows（等 0.3 再考慮）
+- Microsoft Store 上架（要先做 MSIX 與 partner center 帳號）
+- 自動 crash report（屬於整體 telemetry 規劃，不限 Windows）
 
 ---
 
