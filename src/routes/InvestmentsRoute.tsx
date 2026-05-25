@@ -340,67 +340,59 @@ function AccountDetail({
           <p className="text-sm" style={{ color: "var(--ns-muted)" }}>此帳戶尚無持倉。</p>
         </Card>
       ) : (
-        <>
-          <Card title="配置">
-            <div className="space-y-3">
-              {sortedPositions.map((position) => {
-                const valueInBase = toPrimary(position.marketValue, position.currency);
-                const ratio = totalForAllocation === 0 ? 0 : valueInBase / totalForAllocation;
-                return (
-                  <div key={`${position.assetId}-allocation`} className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium">{position.ticker}</span>
-                      <span className="tabular">{(ratio * 100).toFixed(1)}%</span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full" style={{ background: "var(--ns-surface-strong)" }}>
-                      <div className="h-full rounded-full" style={{ width: `${ratio * 100}%`, background: "var(--ns-accent)" }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-          <Card title={`持倉明細（${sortedPositions.length}）`}>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-sm">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
-                    <th className="py-2">Ticker</th>
-                    <th className="py-2 text-right">股數</th>
-                    <th className="py-2 text-right">現價</th>
-                    <th className="py-2 text-right">市值</th>
-                    <th className="py-2 text-right">損益</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedPositions.map((position) => {
-                    const pnlTone = position.unrealizedGain >= 0 ? "positive" : "negative";
-                    return (
-                      <tr key={`${position.assetId}-detail`} className="border-t" style={{ borderColor: "var(--ns-border)" }}>
-                        <td className="py-2 font-semibold">{position.ticker}</td>
-                        <td className="py-2 text-right tabular">{formatQuantity(position.quantity)}</td>
-                        <td className="py-2 text-right tabular">
-                          {position.marketPrice !== null ? formatPrice(position.marketPrice) : "—"}
-                        </td>
-                        <td className="py-2 text-right tabular">
-                          {formatNumber(position.marketValue)} <span style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
-                        </td>
-                        <td
-                          className="py-2 text-right tabular"
-                          style={{ color: pnlTone === "positive" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}
-                        >
-                          {position.unrealizedGain >= 0 ? "+" : ""}{formatNumber(position.unrealizedGain)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </>
+        <AllocationCard positions={sortedPositions} totalForAllocation={totalForAllocation} toPrimary={toPrimary} />
       )}
     </div>
+  );
+}
+
+function AllocationCard({
+  positions,
+  totalForAllocation,
+  toPrimary,
+}: {
+  positions: HoldingPosition[];
+  totalForAllocation: number;
+  toPrimary: (value: number, currency: string, asOfDate?: string) => number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const TOP = 10;
+  const hasMore = positions.length > TOP;
+  const visible = expanded || !hasMore ? positions : positions.slice(0, TOP);
+  return (
+    <Card
+      title="庫存分布"
+      action={
+        hasMore ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            className="text-xs font-semibold outline-none transition hover:opacity-80"
+            style={{ color: "var(--ns-accent)" }}
+          >
+            {expanded ? "收合" : `展開全部（${positions.length}）`}
+          </button>
+        ) : null
+      }
+    >
+      <div className="space-y-3">
+        {visible.map((position) => {
+          const valueInBase = toPrimary(position.marketValue, position.currency);
+          const ratio = totalForAllocation === 0 ? 0 : valueInBase / totalForAllocation;
+          return (
+            <div key={`${position.assetId}-allocation`} className="space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="font-medium">{position.ticker}</span>
+                <span className="tabular">{(ratio * 100).toFixed(1)}%</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full" style={{ background: "var(--ns-surface-strong)" }}>
+                <div className="h-full rounded-full" style={{ width: `${ratio * 100}%`, background: "var(--ns-accent)" }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
 
