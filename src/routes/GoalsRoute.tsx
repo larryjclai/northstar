@@ -144,7 +144,7 @@ export function GoalsRoute() {
         description="退休 / FIRE 計畫 — 你的生活、何時離開職場、能撐多久。"
       />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
         <div className="grid gap-4">
           <HeroCard goal={goal} projection={projection} currentValue={currentValue} onSave={saveGoal} />
           <ProjectionChartCard projection={projection} goal={goal} />

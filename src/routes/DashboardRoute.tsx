@@ -6,8 +6,7 @@ import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { Metric } from "../components/Metric";
 import { useFinanceData } from "../data/hooks";
-import { createFxConverter, formatMoney, formatPrice, formatQuantity, resolveAssetName, type Account, type AppSettings, type DailyFxRate, type LedgerTransaction, type PortfolioAsset } from "../domain";
-import { FireGoalCard } from "../features/goals/FireGoalCard";
+import { buildTopHoldingSummaries, calculateAvailableCash, calculateLiabilities, createFxConverter, formatMoney, formatPrice, resolveAssetName, type Account, type AppSettings, type DailyFxRate, type LedgerTransaction, type PortfolioAsset } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import type { StoredMarketQuote } from "../data/repositories";
 import { useRefreshQuotes } from "../features/market-data/useMarketRefresh";
@@ -22,7 +21,8 @@ export function DashboardRoute() {
   const appSettings = settings.data;
   const fxHistory = dailyFxRates.data ?? [];
   const { primaryCurrency, toPrimary } = createFxConverter(appSettings, fxHistory);
-  const cash = accountRows.reduce((sum, account) => sum + toPrimary(account.balance, account.currency), 0);
+  const availableCash = calculateAvailableCash(accountRows, toPrimary);
+  const liabilities = calculateLiabilities(accountRows, toPrimary);
   const monthlyIncome = ledgerRows.filter((row) => row.amount > 0 && !row.groupId && row.settlementStatus === "settled").reduce((sum, row) => sum + toPrimary(row.amount, row.currency, row.date), 0);
   const monthlyExpense = ledgerRows.filter((row) => row.amount < 0 && !row.groupId && row.settlementStatus === "settled").reduce((sum, row) => sum + toPrimary(row.amount, row.currency, row.date), 0);
   const receivable = ledgerRows.filter((row) => row.settlementStatus === "receivable").reduce((sum, row) => sum + toPrimary(Math.abs(row.amount), row.currency, row.date), 0);
@@ -35,7 +35,8 @@ export function DashboardRoute() {
   const lastQuote = [...quoteRows].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
   const trend = buildNetWorthTrend(accountRows, ledgerRows, assetRows, quoteRows, appSettings, fxHistory);
   const hasAnyData = accountRows.length > 0 || ledgerRows.length > 0 || assetRows.length > 0;
-  const hasHoldings = assetRows.some((asset) => asset.totalQuantity > 0);
+  const topHoldings = buildTopHoldingSummaries(assetRows, quoteRows, toPrimary, 5);
+  const hasHoldings = topHoldings.length > 0;
   const nameLocale = useUiPreferences((state) => state.nameLocale);
 
   return (
@@ -44,9 +45,12 @@ export function DashboardRoute() {
         title="總覽"
         description="檢視現金、投資持倉與本月現金流，所有資料先保存在你的裝置上。"
       />
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card>
-          <Metric label="本機現金" value={formatMoney(cash, primaryCurrency)} />
+          <Metric label="可用現金" value={formatMoney(availableCash, primaryCurrency)} />
+        </Card>
+        <Card>
+          <Metric label="負債" value={formatMoney(liabilities, primaryCurrency)} tone={liabilities > 0 ? "negative" : "neutral"} />
         </Card>
         <Card>
           <Metric label="已快取持倉市值" value={marketValue ? formatMoney(marketValue, primaryCurrency) : "待更新"} tone={marketValue ? "positive" : "neutral"} />
@@ -54,9 +58,6 @@ export function DashboardRoute() {
         <Card>
           <Metric label="本月淨流入" value={formatMoney(monthlyIncome + monthlyExpense, primaryCurrency)} />
         </Card>
-      </div>
-      <div className="mt-4">
-        <FireGoalCard />
       </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_340px]">
         <Card title="淨值趨勢">
@@ -85,45 +86,49 @@ export function DashboardRoute() {
             />
           )}
         </Card>
-        <Card
-          title="報價"
-          action={<ActionButton onClick={() => refreshQuotes.mutate(assetRows.map((asset) => asset.ticker))} disabled={refreshQuotes.isPending || assetRows.length === 0}><ArrowClockwise size={16} />更新</ActionButton>}
-        >
-          <div className="space-y-4 text-sm">
-            <div className="flex items-center gap-3">
-              <CurrencyCircleDollar size={24} weight="duotone" style={{ color: "var(--ns-accent)" }} />
-              <div>
-                <div className="font-semibold">Yahoo Finance</div>
-                <div style={{ color: "var(--ns-muted)" }}>{lastQuote ? `更新於 ${new Date(lastQuote.updatedAt).toLocaleString("zh-TW")}` : "尚未更新報價"}</div>
+        <div className="grid gap-4">
+          <Card
+            title="報價"
+            action={<ActionButton onClick={() => refreshQuotes.mutate(assetRows.map((asset) => asset.ticker))} disabled={refreshQuotes.isPending || assetRows.length === 0}><ArrowClockwise size={16} />更新</ActionButton>}
+          >
+            <div className="space-y-4 text-sm">
+              <div className="flex items-center gap-3">
+                <CurrencyCircleDollar size={24} weight="duotone" style={{ color: "var(--ns-accent)" }} />
+                <div>
+                  <div className="font-semibold">Yahoo Finance</div>
+                  <div style={{ color: "var(--ns-muted)" }}>{lastQuote ? `更新於 ${new Date(lastQuote.updatedAt).toLocaleString("zh-TW")}` : "尚未更新報價"}</div>
+                </div>
               </div>
-            </div>
-            <div className="rounded-md border p-3" style={{ borderColor: "var(--ns-border)" }}>
-              <div className="flex justify-between gap-3"><span>應收</span><span className="tabular">{formatMoney(receivable, primaryCurrency)}</span></div>
-              <div className="mt-1 flex justify-between gap-3"><span>應付</span><span className="tabular">{formatMoney(payable, primaryCurrency)}</span></div>
-            </div>
-            <div className="flex items-center gap-3">
-              <ArrowClockwise size={24} weight="duotone" style={{ color: "var(--ns-accent)" }} />
-              <div>
-                <div className="font-semibold">60s quotes / 5m FX</div>
-                <div style={{ color: "var(--ns-muted)" }}>短時間重複更新會使用快取</div>
+              <div className="flex items-center gap-3">
+                <ArrowClockwise size={24} weight="duotone" style={{ color: "var(--ns-accent)" }} />
+                <div>
+                  <div className="font-semibold">60s quotes / 5m FX</div>
+                  <div style={{ color: "var(--ns-muted)" }}>短時間重複更新會使用快取</div>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <CloudSlash size={24} weight="duotone" style={{ color: "var(--ns-warn)" }} />
-              <div>
-                <div className="font-semibold">本機優先</div>
-                <div style={{ color: "var(--ns-muted)" }}>同步功能啟用前會先建立救援金鑰</div>
+              <div className="flex items-center gap-3">
+                <CloudSlash size={24} weight="duotone" style={{ color: "var(--ns-warn)" }} />
+                <div>
+                  <div className="font-semibold">本機優先</div>
+                  <div style={{ color: "var(--ns-muted)" }}>同步功能啟用前會先建立救援金鑰</div>
+                </div>
               </div>
+              {refreshQuotes.error ? <div style={{ color: "var(--ns-negative)" }}>{refreshQuotes.error.message}</div> : null}
             </div>
-            {refreshQuotes.error ? <div style={{ color: "var(--ns-negative)" }}>{refreshQuotes.error.message}</div> : null}
-          </div>
-        </Card>
+          </Card>
+          <Card title="待收付">
+            <div className="grid gap-3 text-sm">
+              <div className="flex justify-between gap-3"><span style={{ color: "var(--ns-muted)" }}>應收</span><span className="tabular font-semibold">{formatMoney(receivable, primaryCurrency)}</span></div>
+              <div className="flex justify-between gap-3"><span style={{ color: "var(--ns-muted)" }}>應付</span><span className="tabular font-semibold">{formatMoney(payable, primaryCurrency)}</span></div>
+            </div>
+          </Card>
+        </div>
       </div>
       {hasHoldings ? (
         <Card title="持倉摘要" action={<PlusCircle size={20} weight="duotone" />}>
           <div className="grid gap-3 md:grid-cols-2">
-            {assetRows.filter((asset) => asset.totalQuantity > 0).map((asset) => {
-              const quote = quoteFor(asset.ticker);
+            {topHoldings.map((row) => {
+              const asset = row.asset;
               return (
                 <div key={asset.id} className="rounded-md border p-4" style={{ borderColor: "var(--ns-border)" }}>
                   <div className="flex items-center justify-between">
@@ -132,8 +137,18 @@ export function DashboardRoute() {
                       <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{resolveAssetName(asset, nameLocale)}</div>
                     </div>
                     <div className="tabular text-right">
-                      <div>{formatQuantity(asset.totalQuantity)}</div>
-                      <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{quote ? `${formatPrice(quote.price)} ${quote.currency}` : asset.currency}</div>
+                      <div>{formatMoney(row.marketValuePrimary, primaryCurrency)}</div>
+                      {row.hasQuote && row.dayChangePrimary !== null && row.dayChangePercent !== null ? (
+                        <div
+                          className="text-sm"
+                          style={{ color: row.dayChangePrimary >= 0 ? "var(--ns-positive)" : "var(--ns-negative)" }}
+                        >
+                          {formatSignedMoney(row.dayChangePrimary, primaryCurrency)} ({row.dayChangePercent >= 0 ? "+" : ""}{row.dayChangePercent.toFixed(2)}%)
+                        </div>
+                      ) : (
+                        <div className="text-sm" style={{ color: "var(--ns-muted)" }}>待更新</div>
+                      )}
+                      <div className="text-xs" style={{ color: "var(--ns-muted)" }}>{row.hasQuote ? `${formatPrice(row.marketValue / asset.totalQuantity)} ${row.currency}` : asset.currency}</div>
                     </div>
                   </div>
                 </div>
@@ -183,4 +198,8 @@ function formatMonth(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value.slice(0, 7);
   return date.toLocaleDateString("zh-TW", { month: "short" });
+}
+
+function formatSignedMoney(value: number, currency: string) {
+  return `${value >= 0 ? "+" : ""}${formatMoney(value, currency)}`;
 }

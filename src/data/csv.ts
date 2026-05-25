@@ -24,10 +24,11 @@ export function exportAccountsCsv(accounts: Account[]) {
 
 export function exportLedgerCsv(rows: LedgerTransaction[], accountName: (id: string) => string) {
   return toCsv(
-    ["date", "account", "entryType", "settlementStatus", "amount", "currency", "category", "subcategory", "merchant", "note"],
+    ["date", "account", "name", "entryType", "settlementStatus", "amount", "currency", "category", "subcategory", "merchant", "note"],
     rows.map((row) => ({
       date: row.date,
       account: accountName(row.accountId),
+      name: row.name,
       entryType: row.entryType,
       settlementStatus: row.settlementStatus,
       amount: row.amount,
@@ -69,6 +70,7 @@ export function parseLedgerCsv(text: string, accountIdFor: (nameOrId: string) =>
     return {
       date: required(row, "date"),
       accountId,
+      name: row.name || row.merchant || row.category || "",
       amount,
       currency: required(row, "currency").toUpperCase(),
       category: row.category || "",

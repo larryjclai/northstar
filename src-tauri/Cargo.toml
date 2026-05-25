@@ -1,6 +1,6 @@
 [package]
 name = "northstar"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 description = "Local-first personal and household finance app"
 authors = ["Northstar"]
 edition = "2021"

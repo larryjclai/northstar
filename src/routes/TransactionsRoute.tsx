@@ -14,6 +14,7 @@ import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { InvestmentDraft, PortfolioAssetDraft } from "../data/repositories";
 import { todayInTimezone } from "../domain";
 import type { InvestmentAction, InvestmentRecord } from "../domain";
+import { YahooFinanceProvider } from "../features/market-data/yahooFinanceProvider";
 import { useUiPreferences } from "../state/uiPreferences";
 
 type EntryMode = "transaction" | "holding";
@@ -39,6 +40,9 @@ function makeEmptyInvestment(timezone: string): InvestmentDraft {
     quantity: 0,
     fee: 0,
     note: "",
+    assetType: null,
+    sector: null,
+    industry: null,
   };
 }
 
@@ -53,21 +57,24 @@ export function TransactionsRoute() {
   const [holdingForm, setHoldingForm] = useState<PortfolioAssetDraft>(emptyHoldingDraft);
   const [preview, setPreview] = useState<ImportPreview<InvestmentDraft> | null>(null);
   const [message, setMessage] = useState("");
-  const createRecord = useRepositoryMutation((repository, input: InvestmentDraft) => repository.createInvestmentRecord(input), ["investments", "assets"]);
-  const updateRecord = useRepositoryMutation((repository, input: InvestmentDraft & { id: string }) => repository.updateInvestmentRecord(input.id, input), ["investments", "assets"]);
-  const deleteRecord = useRepositoryMutation((repository, id: string) => repository.deleteInvestmentRecord(id), ["investments", "assets"]);
-  const importRecords = useRepositoryMutation((repository, input: InvestmentDraft[]) => repository.importInvestmentRecords(input), ["investments", "assets"]);
+  const createRecord = useRepositoryMutation((repository, input: InvestmentDraft) => repository.createInvestmentRecord(input), ["investments", "assets", "accounts", "ledger"]);
+  const updateRecord = useRepositoryMutation((repository, input: InvestmentDraft & { id: string }) => repository.updateInvestmentRecord(input.id, input), ["investments", "assets", "accounts", "ledger"]);
+  const deleteRecord = useRepositoryMutation((repository, id: string) => repository.deleteInvestmentRecord(id), ["investments", "assets", "accounts", "ledger"]);
+  const importRecords = useRepositoryMutation((repository, input: InvestmentDraft[]) => repository.importInvestmentRecords(input), ["investments", "assets", "accounts", "ledger"]);
   const createHolding = useRepositoryMutation((repository, input: PortfolioAssetDraft) => repository.createManualHolding(input), ["assets"]);
 
   const assetRows = assets.data ?? [];
   const recordRows = investments.data ?? [];
   const accountRows = accounts.data ?? [];
+  const investmentAccounts = accountRows.filter((account) => account.deletedAt === null && account.type === "investment");
+  const selectedAccount = investmentAccounts.find((account) => account.id === form.linkedAccountId) ?? null;
   const assetFor = (id: string) => assetRows.find((asset) => asset.id === id);
 
   async function submit() {
     setMessage("");
     try {
       if (!form.ticker.trim()) throw new Error("請輸入 ticker。");
+      if (!form.linkedAccountId) throw new Error("請選擇投資帳戶。");
       if (editingId) await updateRecord.mutateAsync({ ...form, id: editingId });
       else await createRecord.mutateAsync(form);
       setForm(emptyInvestment);
@@ -81,6 +88,7 @@ export function TransactionsRoute() {
     setMessage("");
     try {
       if (!holdingForm.ticker.trim()) throw new Error("請輸入 ticker。");
+      if (!holdingForm.accountId) throw new Error("請選擇券商 / 帳戶。");
       await createHolding.mutateAsync(holdingForm);
       setHoldingForm(emptyHoldingDraft);
       setMode("transaction");
@@ -103,7 +111,42 @@ export function TransactionsRoute() {
       quantity: record.quantity,
       fee: record.fee,
       note: record.note,
+      assetType: asset?.assetType ?? null,
+      sector: asset?.sector ?? null,
+      industry: asset?.industry ?? null,
     });
+  }
+
+  async function enrichHoldingClassification(draft: PortfolioAssetDraft) {
+    try {
+      const provider = new YahooFinanceProvider();
+      const profiles = await provider.fetchAssetProfiles([draft.ticker]);
+      const profile = profiles[draft.ticker.trim().toUpperCase()];
+      if (!profile) throw new Error("No profile");
+      setHoldingForm((current) =>
+        current.ticker.trim().toUpperCase() === draft.ticker.trim().toUpperCase()
+          ? { ...current, assetType: profile.assetType ?? current.assetType, sector: profile.sector ?? current.sector, industry: profile.industry ?? current.industry }
+          : current,
+      );
+    } catch {
+      setMessage("未能取得分類，請手動填入。");
+    }
+  }
+
+  async function enrichTransactionClassification(draft: InvestmentDraft) {
+    try {
+      const provider = new YahooFinanceProvider();
+      const profiles = await provider.fetchAssetProfiles([draft.ticker]);
+      const profile = profiles[draft.ticker.trim().toUpperCase()];
+      if (!profile) throw new Error("No profile");
+      setForm((current) =>
+        current.ticker.trim().toUpperCase() === draft.ticker.trim().toUpperCase()
+          ? { ...current, assetType: profile.assetType ?? current.assetType, sector: profile.sector ?? current.sector, industry: profile.industry ?? current.industry }
+          : current,
+      );
+    } catch {
+      setMessage("未能取得分類，請手動填入。");
+    }
   }
 
   async function handleCsv(event: ChangeEvent<HTMLInputElement>) {
@@ -130,7 +173,14 @@ export function TransactionsRoute() {
           </div>
           {mode === "holding" ? (
             <div>
-              <HoldingForm value={holdingForm} onChange={setHoldingForm} onSubmit={submitHolding} submitLabel="新增持倉" />
+              <HoldingForm
+                value={holdingForm}
+                onChange={setHoldingForm}
+                onSubmit={submitHolding}
+                submitLabel="新增持倉"
+                accounts={investmentAccounts}
+                onTickerSelected={(draft) => void enrichHoldingClassification(draft)}
+              />
               {message ? <div className="mt-3"><StatusText>{message}</StatusText></div> : null}
             </div>
           ) : (
@@ -140,15 +190,26 @@ export function TransactionsRoute() {
                 <TickerSearchField
                   value={form.ticker}
                   onChange={(ticker) => setForm({ ...form, ticker })}
-                  onSelect={(result) => setForm({
-                    ...form,
-                    ticker: result.symbol.toUpperCase(),
-                    name: result.name || result.symbol,
-                    currency: result.currency || form.currency,
-                  })}
+                  onSelect={(result) => {
+                    const next = {
+                      ...form,
+                      ticker: result.symbol.toUpperCase(),
+                      name: result.name || result.symbol,
+                      currency: selectedAccount?.currency ?? form.currency,
+                      assetType: result.assetType ?? form.assetType ?? null,
+                    };
+                    setForm(next);
+                    void enrichTransactionClassification(next);
+                  }}
                 />
               </Field>
-              <Field label="幣別"><TextInput value={form.currency} onChange={(event) => setForm({ ...form, currency: event.target.value.toUpperCase() })} /></Field>
+              <Field label="幣別">
+                <TextInput
+                  value={selectedAccount?.currency ?? form.currency}
+                  disabled={Boolean(selectedAccount)}
+                  onChange={(event) => setForm({ ...form, currency: event.target.value.toUpperCase() })}
+                />
+              </Field>
             </div>
             <Field label="名稱"><TextInput value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="元大台灣50" /></Field>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -165,9 +226,15 @@ export function TransactionsRoute() {
               <Field label="手續費"><TextInput type="number" value={form.fee} onChange={(event) => setForm({ ...form, fee: Number(event.target.value) })} /></Field>
             </div>
             <Field label="連動帳戶">
-              <SelectInput value={form.linkedAccountId ?? ""} onChange={(event) => setForm({ ...form, linkedAccountId: event.target.value || null })}>
-                <option value="">不連動</option>
-                {accountRows.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+              <SelectInput
+                value={form.linkedAccountId ?? ""}
+                onChange={(event) => {
+                  const account = investmentAccounts.find((row) => row.id === event.target.value);
+                  setForm({ ...form, linkedAccountId: event.target.value || null, currency: account?.currency ?? form.currency });
+                }}
+              >
+                <option value="">選擇投資帳戶</option>
+                {investmentAccounts.map((account) => <option key={account.id} value={account.id}>{account.name} ({account.currency})</option>)}
               </SelectInput>
             </Field>
             <Field label="備註"><TextInput value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} /></Field>

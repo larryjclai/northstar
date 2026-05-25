@@ -11,6 +11,7 @@ const base: LedgerTransaction = {
   deletedAt: null,
   accountId: "acct_test",
   date: "2026-01-01T10:00",
+  name: "咖啡",
   amount: -100,
   currency: "TWD",
   category: "餐飲",

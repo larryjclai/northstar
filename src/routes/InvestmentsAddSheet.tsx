@@ -9,6 +9,7 @@ import { TickerSearchField } from "../components/TickerSearchField";
 import { useRepositoryMutation } from "../data/hooks";
 import type { InvestmentDraft, PortfolioAssetDraft } from "../data/repositories";
 import { todayInTimezone, type Account, type InvestmentAction } from "../domain";
+import { YahooFinanceProvider } from "../features/market-data/yahooFinanceProvider";
 import { useUiPreferences } from "../state/uiPreferences";
 
 const actions: InvestmentAction[] = ["buy", "sell", "cashDividend", "stockDividend", "capitalReduction", "stockSplit"];
@@ -35,6 +36,9 @@ function emptyTransactionDraft(timezone: string): InvestmentDraft {
     quantity: 0,
     fee: 0,
     note: "",
+    assetType: null,
+    sector: null,
+    industry: null,
   };
 }
 
@@ -102,6 +106,39 @@ export function HoldingsAddSheet({
   const eligibleAccounts = accounts.filter(
     (account) => account.deletedAt === null && account.type === "investment",
   );
+  const selectedTransactionAccount = eligibleAccounts.find((account) => account.id === transactionForm.linkedAccountId) ?? null;
+
+  async function enrichSnapshotClassification(draft: PortfolioAssetDraft) {
+    try {
+      const provider = new YahooFinanceProvider();
+      const profiles = await provider.fetchAssetProfiles([draft.ticker]);
+      const profile = profiles[draft.ticker.trim().toUpperCase()];
+      if (!profile) throw new Error("No profile");
+      setSnapshotForm((current) =>
+        current.ticker.trim().toUpperCase() === draft.ticker.trim().toUpperCase()
+          ? { ...current, assetType: profile.assetType ?? current.assetType, sector: profile.sector ?? current.sector, industry: profile.industry ?? current.industry }
+          : current,
+      );
+    } catch {
+      setMessage("未能取得分類，請手動填入。");
+    }
+  }
+
+  async function enrichTransactionClassification(draft: InvestmentDraft) {
+    try {
+      const provider = new YahooFinanceProvider();
+      const profiles = await provider.fetchAssetProfiles([draft.ticker]);
+      const profile = profiles[draft.ticker.trim().toUpperCase()];
+      if (!profile) throw new Error("No profile");
+      setTransactionForm((current) =>
+        current.ticker.trim().toUpperCase() === draft.ticker.trim().toUpperCase()
+          ? { ...current, assetType: profile.assetType ?? current.assetType, sector: profile.sector ?? current.sector, industry: profile.industry ?? current.industry }
+          : current,
+      );
+    } catch {
+      setMessage("未能取得分類，請手動填入。");
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center" onClick={onClose}>
@@ -150,6 +187,7 @@ export function HoldingsAddSheet({
                 onSubmit={submitSnapshot}
                 submitLabel={createHolding.isPending ? "儲存中…" : "儲存持倉"}
                 accounts={accounts}
+                onTickerSelected={(draft) => void enrichSnapshotClassification(draft)}
               />
               {message ? <div className="mt-3"><StatusText>{message}</StatusText></div> : null}
             </div>
@@ -160,19 +198,23 @@ export function HoldingsAddSheet({
                   <TickerSearchField
                     value={transactionForm.ticker}
                     onChange={(ticker) => setTransactionForm({ ...transactionForm, ticker })}
-                    onSelect={(result) =>
-                      setTransactionForm({
+                    onSelect={(result) => {
+                      const next = {
                         ...transactionForm,
                         ticker: result.symbol.toUpperCase(),
                         name: result.name || result.symbol,
-                        currency: result.currency || transactionForm.currency,
-                      })
-                    }
+                        currency: selectedTransactionAccount?.currency ?? transactionForm.currency,
+                        assetType: result.assetType ?? transactionForm.assetType ?? null,
+                      };
+                      setTransactionForm(next);
+                      void enrichTransactionClassification(next);
+                    }}
                   />
                 </Field>
                 <Field label="幣別">
                   <TextInput
-                    value={transactionForm.currency}
+                    value={selectedTransactionAccount?.currency ?? transactionForm.currency}
+                    disabled={Boolean(selectedTransactionAccount)}
                     onChange={(event) =>
                       setTransactionForm({ ...transactionForm, currency: event.target.value.toUpperCase() })
                     }
@@ -190,7 +232,11 @@ export function HoldingsAddSheet({
                 <SelectInput
                   value={transactionForm.linkedAccountId ?? ""}
                   onChange={(event) =>
-                    setTransactionForm({ ...transactionForm, linkedAccountId: event.target.value || null })
+                    setTransactionForm({
+                      ...transactionForm,
+                      linkedAccountId: event.target.value || null,
+                      currency: eligibleAccounts.find((account) => account.id === event.target.value)?.currency ?? transactionForm.currency,
+                    })
                   }
                 >
                   <option value="">— 選擇券商 —</option>

@@ -1,3 +1,5 @@
+import type { AssetType } from "../../domain";
+
 export interface MarketQuote {
   symbol: string;
   name: string;
@@ -21,11 +23,20 @@ export interface SymbolSearchResult {
   currency?: string;
   exchange?: string;
   typeLabel?: string;
+  assetType?: AssetType | null;
+}
+
+export interface AssetProfile {
+  symbol: string;
+  assetType: AssetType | null;
+  sector: string | null;
+  industry: string | null;
 }
 
 export interface MarketDataProvider {
   readonly sourceName: string;
   fetchQuotes(symbols: string[]): Promise<Record<string, MarketQuote>>;
+  fetchAssetProfiles(symbols: string[], onProgress?: (done: number, total: number) => void): Promise<Record<string, AssetProfile>>;
   fetchHistory(symbol: string, range?: string, interval?: string): Promise<MarketHistoryPoint[]>;
   searchSymbols(query: string): Promise<SymbolSearchResult[]>;
   fetchFxRate(from: string, to: string): Promise<MarketQuote>;

@@ -16,6 +16,39 @@ export type InvestmentAction =
   | "capitalReduction"
   | "stockSplit";
 
+export type AssetType =
+  | "equity"
+  | "etf"
+  | "mutual_fund"
+  | "index"
+  | "crypto"
+  | "cash"
+  | "other";
+
+export const assetTypeLabels: Record<AssetType, string> = {
+  equity: "股票",
+  etf: "ETF",
+  mutual_fund: "共同基金",
+  index: "指數",
+  crypto: "加密貨幣",
+  cash: "現金",
+  other: "其他",
+};
+
+export const gicsSectors = [
+  "Communication Services",
+  "Consumer Discretionary",
+  "Consumer Staples",
+  "Energy",
+  "Financials",
+  "Health Care",
+  "Industrials",
+  "Information Technology",
+  "Materials",
+  "Real Estate",
+  "Utilities",
+];
+
 export interface SyncFields {
   id: string;
   spaceId: string;
@@ -39,6 +72,7 @@ export interface Account extends SyncFields {
 export interface LedgerTransaction extends SyncFields {
   accountId: string;
   date: string;
+  name: string;
   amount: number;
   currency: CurrencyCode;
   category: string;
@@ -63,6 +97,9 @@ export interface PortfolioAsset extends SyncFields {
   averageCost: number;
   holdingSource: "manual" | "transactions";
   acquisitionDate: string | null;
+  assetType: AssetType | null;
+  sector: string | null;
+  industry: string | null;
   /**
    * Brokerage / custodian that holds this asset.
    *

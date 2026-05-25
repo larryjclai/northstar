@@ -2,6 +2,7 @@ import type Database from "@tauri-apps/plugin-sql";
 import type {
   Account,
   AppSettings,
+  AssetType,
   DailyFxRate,
   DailyPrice,
   FinancialGoal,
@@ -16,6 +17,7 @@ import type {
   SpendingItem,
 } from "../domain/types";
 import type { MarketQuote } from "../features/market-data";
+import { calculateInvestmentAccountQuantity, calculateInvestmentCashDelta, isEffectivelyNegative } from "../domain/investmentCash";
 import { migrations, splitSqlStatements } from "./migrations";
 import {
   seedAccounts,
@@ -33,6 +35,7 @@ export interface StoredMarketQuote extends MarketQuote {
 export interface LedgerDraft {
   accountId: string;
   date: string;
+  name: string;
   amount: number;
   currency: string;
   category: string;
@@ -83,6 +86,9 @@ export interface InvestmentDraft {
   quantity: number;
   fee: number;
   note: string;
+  assetType?: AssetType | null;
+  sector?: string | null;
+  industry?: string | null;
 }
 
 export interface PortfolioAssetDraft {
@@ -93,6 +99,9 @@ export interface PortfolioAssetDraft {
   averageCost: number;
   acquisitionDate: string | null;
   accountId: string | null;
+  assetType?: AssetType | null;
+  sector?: string | null;
+  industry?: string | null;
 }
 
 export interface FinancialGoalDraft {
@@ -136,6 +145,7 @@ export interface FinanceRepository {
   listPortfolioAssets(): Promise<PortfolioAsset[]>;
   createManualHolding(input: PortfolioAssetDraft): Promise<void>;
   updateManualHolding(id: string, input: PortfolioAssetDraft): Promise<void>;
+  updateAssetClassification(id: string, input: Pick<PortfolioAssetDraft, "assetType" | "sector" | "industry">): Promise<void>;
   deleteManualHolding(id: string): Promise<void>;
   listInvestmentRecords(): Promise<InvestmentRecord[]>;
   createInvestmentRecord(input: InvestmentDraft): Promise<void>;
@@ -218,6 +228,12 @@ export function getFinanceRepository(): Promise<FinanceRepository> {
   return repositoryPromise;
 }
 
+export function createMemoryFinanceRepositoryForTests(data: Partial<RepositoryData> = {}): FinanceRepository {
+  const repository = new BrowserFinanceRepository();
+  repository.loadDataForTests(data);
+  return repository;
+}
+
 async function createFinanceRepository(): Promise<FinanceRepository> {
   if (isTauriRuntime()) {
     const mod = await import("@tauri-apps/plugin-sql");
@@ -298,6 +314,12 @@ function recomputeAssets(assets: PortfolioAsset[], records: InvestmentRecord[]) 
 class BrowserFinanceRepository implements FinanceRepository {
   private readonly storageKey = "northstar.browserRepository.v1";
   private data: RepositoryData = createInitialData();
+  private skipPersist = false;
+
+  loadDataForTests(data: Partial<RepositoryData>) {
+    this.skipPersist = true;
+    this.data = normalizeStoredData({ ...createInitialData(), ...data });
+  }
 
   async initialize() {
     const stored = await loadBrowserRepositoryData(this.storageKey);
@@ -440,6 +462,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       createLedgerRow({
         accountId: input.sourceAccountId,
         date: input.date,
+        name: input.sourceCurrency === input.destinationCurrency ? "轉出" : "外幣換出",
         amount: -Math.abs(input.sourceAmount),
         currency: input.sourceCurrency,
         category: input.sourceCurrency === input.destinationCurrency ? "轉帳" : "外幣兌換",
@@ -453,6 +476,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       createLedgerRow({
         accountId: input.destinationAccountId,
         date: input.date,
+        name: input.sourceCurrency === input.destinationCurrency ? "轉入" : "外幣換入",
         amount: input.destinationCurrency === input.sourceCurrency
           ? Math.abs(input.sourceAmount)
           : Math.abs(input.destinationAmount ?? 0),
@@ -492,6 +516,13 @@ class BrowserFinanceRepository implements FinanceRepository {
     await this.persist();
   }
 
+  async updateAssetClassification(id: string, input: Pick<PortfolioAssetDraft, "assetType" | "sector" | "industry">) {
+    this.data.portfolioAssets = this.data.portfolioAssets.map((asset) =>
+      asset.id === id && asset.deletedAt === null ? bump({ ...asset, ...assetClassificationFields(input) }) : asset,
+    );
+    await this.persist();
+  }
+
   async deleteManualHolding(id: string) {
     const hasRecords = this.data.investmentRecords.some((record) => record.assetId === id && record.deletedAt === null);
     if (hasRecords) throw new Error("已有逐筆交易的持倉不能直接刪除。");
@@ -506,33 +537,77 @@ class BrowserFinanceRepository implements FinanceRepository {
   }
 
   async createInvestmentRecord(input: InvestmentDraft) {
+    const existingAsset = this.findTransactionAsset(input);
+    this.validateInvestmentDraft(input, existingAsset?.id);
     const asset = this.findOrCreateAsset(input);
-    this.data.investmentRecords.push(createInvestmentRow(input, asset.id));
+    const record = createInvestmentRow(input, asset.id);
+    const ledger = createInvestmentLedgerRow(input, record.id);
+    if (ledger) {
+      record.linkedLedgerTransactionId = ledger.id;
+      this.data.ledgerTransactions.push(ledger);
+    }
+    this.data.investmentRecords.push(record);
     this.recompute();
     await this.persist();
   }
 
   async updateInvestmentRecord(id: string, input: InvestmentDraft) {
+    const existingRecord = this.data.investmentRecords.find((record) => record.id === id && record.deletedAt === null);
+    if (!existingRecord) throw new Error("找不到投資交易。");
+    const existingAsset = this.findTransactionAsset(input);
+    this.validateInvestmentDraft(input, existingAsset?.id, {
+      excludeRecordId: id,
+      excludeLedgerId: existingRecord.linkedLedgerTransactionId,
+    });
     const asset = this.findOrCreateAsset(input);
+    const ledger = createInvestmentLedgerRow(input, id);
+    let linkedLedgerTransactionId: string | null = existingRecord.linkedLedgerTransactionId;
+    if (linkedLedgerTransactionId) {
+      this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) => {
+        if (row.id !== linkedLedgerTransactionId) return row;
+        return ledger
+          ? bump({ ...row, ...investmentLedgerFields(input, id) })
+          : bump({ ...row, deletedAt: nowIso() });
+      });
+      if (!ledger) linkedLedgerTransactionId = null;
+    } else if (ledger) {
+      linkedLedgerTransactionId = ledger.id;
+      this.data.ledgerTransactions.push(ledger);
+    }
     this.data.investmentRecords = this.data.investmentRecords.map((record) =>
-      record.id === id ? bump({ ...record, ...investmentDraftFields(input), assetId: asset.id }) : record,
+      record.id === id ? bump({ ...record, ...investmentDraftFields(input), assetId: asset.id, linkedLedgerTransactionId }) : record,
     );
     this.recompute();
     await this.persist();
   }
 
   async deleteInvestmentRecord(id: string) {
+    const existingRecord = this.data.investmentRecords.find((record) => record.id === id && record.deletedAt === null);
+    if (!existingRecord) throw new Error("找不到投資交易。");
     this.data.investmentRecords = this.data.investmentRecords.map((record) =>
       record.id === id ? bump({ ...record, deletedAt: nowIso() }) : record,
     );
+    if (existingRecord.linkedLedgerTransactionId) {
+      this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
+        row.id === existingRecord.linkedLedgerTransactionId ? bump({ ...row, deletedAt: nowIso() }) : row,
+      );
+    }
     this.recompute();
     await this.persist();
   }
 
   async importInvestmentRecords(rows: InvestmentDraft[]) {
     for (const row of rows) {
+      const existingAsset = this.findTransactionAsset(row);
+      this.validateInvestmentDraft(row, existingAsset?.id);
       const asset = this.findOrCreateAsset(row);
-      this.data.investmentRecords.push(createInvestmentRow(row, asset.id));
+      const record = createInvestmentRow(row, asset.id);
+      const ledger = createInvestmentLedgerRow(row, record.id);
+      if (ledger) {
+        record.linkedLedgerTransactionId = ledger.id;
+        this.data.ledgerTransactions.push(ledger);
+      }
+      this.data.investmentRecords.push(record);
     }
     this.recompute();
     await this.persist();
@@ -567,6 +642,7 @@ class BrowserFinanceRepository implements FinanceRepository {
     this.data.ledgerTransactions.push(createLedgerRow({
       accountId: recurring.accountId,
       date: `${recurring.nextRunDate}T09:00`,
+      name: recurring.merchant || recurring.category,
       amount: recurring.amount,
       currency: recurring.currency,
       category: recurring.category,
@@ -777,9 +853,14 @@ class BrowserFinanceRepository implements FinanceRepository {
     await this.persist();
   }
 
+  private findTransactionAsset(input: InvestmentDraft): PortfolioAsset | undefined {
+    const ticker = input.ticker.trim().toUpperCase();
+    return this.data.portfolioAssets.find((item) => item.ticker === ticker && item.deletedAt === null && item.holdingSource === "transactions");
+  }
+
   private findOrCreateAsset(input: InvestmentDraft): PortfolioAsset {
     const ticker = input.ticker.trim().toUpperCase();
-    const existing = this.data.portfolioAssets.find((item) => item.ticker === ticker && item.deletedAt === null && item.holdingSource === "transactions");
+    const existing = this.findTransactionAsset(input);
     if (existing) return existing;
     const timestamp = nowIso();
     const asset: PortfolioAsset = {
@@ -798,10 +879,33 @@ class BrowserFinanceRepository implements FinanceRepository {
       averageCost: 0,
       holdingSource: "transactions",
       acquisitionDate: null,
+      ...assetClassificationFields(input),
       accountId: null,
     };
     this.data.portfolioAssets.push(asset);
     return asset;
+  }
+
+  private validateInvestmentDraft(
+    input: InvestmentDraft,
+    assetId: string | undefined,
+    options: { excludeRecordId?: string; excludeLedgerId?: string | null } = {},
+  ) {
+    const account = this.data.accounts.find((row) => row.id === input.linkedAccountId && row.deletedAt === null);
+    if (!account || account.type !== "investment") throw new Error("請選擇投資帳戶。");
+    if (input.currency.trim().toUpperCase() !== account.currency.trim().toUpperCase()) throw new Error("交易幣別必須與投資帳戶一致。");
+
+    if (input.action === "sell") {
+      if (!assetId) throw new Error("賣出股數大於目前庫存。");
+      const available = calculateInvestmentAccountQuantity(this.data.investmentRecords, assetId, account.id, options.excludeRecordId);
+      if (input.quantity > available + 0.000001) throw new Error(`賣出股數大於目前庫存，可賣出 ${available} 股。`);
+    }
+
+    const cashDelta = calculateInvestmentCashDelta(input);
+    if (cashDelta >= 0) return;
+    const baseBalance = computeAccountBalance(account, this.data.ledgerTransactions, options.excludeLedgerId ?? null);
+    const nextBalance = baseBalance + cashDelta;
+    if (isEffectivelyNegative(nextBalance)) throw new Error(`購買力不足，目前餘額 ${formatPlainAmount(baseBalance)} ${account.currency}。`);
   }
 
   private recompute() {
@@ -810,6 +914,7 @@ class BrowserFinanceRepository implements FinanceRepository {
   }
 
   private async persist() {
+    if (this.skipPersist) return;
     await persistBrowserRepositoryData(this.storageKey, this.data);
   }
 }
@@ -945,6 +1050,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       }
     }
     await this.ensureSqliteColumn("ledger_transactions", "merchant", "text not null default ''");
+    await this.ensureSqliteColumn("ledger_transactions", "name", "text not null default ''");
     await this.ensureSqliteColumn("ledger_transactions", "entry_type", "text not null default 'expense'");
     await this.ensureSqliteColumn("ledger_transactions", "subcategory", "text not null default ''");
     await this.ensureSqliteColumn("ledger_transactions", "settlement_status", "text not null default 'settled'");
@@ -959,6 +1065,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("portfolio_assets", "name_zh", "text");
     await this.ensureSqliteColumn("portfolio_assets", "name_en", "text");
     await this.ensureSqliteColumn("portfolio_assets", "account_id", "text");
+    await this.ensureSqliteColumn("portfolio_assets", "asset_type", "text");
+    await this.ensureSqliteColumn("portfolio_assets", "sector", "text");
+    await this.ensureSqliteColumn("portfolio_assets", "industry", "text");
     // Retirement-projection extensions for financial_goals. Each one is
     // optional at the DB level — readers coalesce missing values to the
     // sane defaults documented in `goalFieldsFromDraft`.
@@ -1012,18 +1121,22 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async deleteAccount(id: string) {
-    const linked = await this.db.select<Array<{ count: number }>>(
+    const linkedLedger = await this.db.select<Array<{ count: number }>>(
       `select count(*) as count from ledger_transactions where account_id = $1 and deleted_at is null`,
       [id],
     );
-    if ((linked[0]?.count ?? 0) > 0) throw new Error("已有交易的帳戶不能刪除。");
+    const linkedInvestments = await this.db.select<Array<{ count: number }>>(
+      `select count(*) as count from investment_records where linked_account_id = $1 and deleted_at is null`,
+      [id],
+    );
+    if ((linkedLedger[0]?.count ?? 0) > 0 || (linkedInvestments[0]?.count ?? 0) > 0) throw new Error("已有交易的帳戶不能刪除。");
     await this.db.execute(`update accounts set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`, [nowIso(), id]);
   }
 
   override async listLedgerTransactions() {
     return this.db.select<LedgerTransaction[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
-      account_id as accountId, date, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note,
+      account_id as accountId, date, name, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note,
       linked_investment_record_id as linkedInvestmentRecordId, group_id as groupId,
       is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId
       from ledger_transactions where deleted_at is null order by date desc, created_at desc`);
@@ -1036,8 +1149,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   override async updateLedgerTransaction(id: string, input: LedgerDraft) {
     await this.db.execute(
-      `update ledger_transactions set revision = revision + 1, updated_at = $1, account_id = $2, date = $3, amount = $4, currency = $5, category = $6, subcategory = $7, merchant = $8, entry_type = $9, settlement_status = $10, note = $11, group_id = $12 where id = $13`,
-      [nowIso(), input.accountId, input.date, input.amount, input.currency, input.category, input.subcategory, input.merchant, input.entryType, input.settlementStatus, input.note, input.groupId ?? null, id],
+      `update ledger_transactions set revision = revision + 1, updated_at = $1, account_id = $2, date = $3, name = $4, amount = $5, currency = $6, category = $7, subcategory = $8, merchant = $9, entry_type = $10, settlement_status = $11, note = $12, group_id = $13 where id = $14`,
+      [nowIso(), input.accountId, input.date, input.name, input.amount, input.currency, input.category, input.subcategory, input.merchant, input.entryType, input.settlementStatus, input.note, input.groupId ?? null, id],
     );
     await this.recomputeSqliteAccounts();
   }
@@ -1059,6 +1172,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.insertLedgerRow(createLedgerRow({
       accountId: input.sourceAccountId,
       date: input.date,
+      name: input.sourceCurrency === input.destinationCurrency ? "轉出" : "外幣換出",
       amount: -Math.abs(input.sourceAmount),
       currency: input.sourceCurrency,
       category,
@@ -1072,6 +1186,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.insertLedgerRow(createLedgerRow({
       accountId: input.destinationAccountId,
       date: input.date,
+      name: input.sourceCurrency === input.destinationCurrency ? "轉入" : "外幣換入",
       amount: input.sourceCurrency === input.destinationCurrency ? Math.abs(input.sourceAmount) : Math.abs(input.destinationAmount ?? 0),
       currency: input.destinationCurrency,
       category,
@@ -1093,12 +1208,16 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   override async listPortfolioAssets() {
     const rows = await this.db.select<PortfolioAsset[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
-      ticker, name, name_zh as nameZh, name_en as nameEn, currency, total_quantity as totalQuantity, average_cost as averageCost, holding_source as holdingSource, acquisition_date as acquisitionDate, account_id as accountId
+      ticker, name, name_zh as nameZh, name_en as nameEn, currency, total_quantity as totalQuantity, average_cost as averageCost, holding_source as holdingSource, acquisition_date as acquisitionDate,
+      asset_type as assetType, sector, industry, account_id as accountId
       from portfolio_assets where deleted_at is null order by ticker`);
     return rows.map((row) => ({
       ...row,
       nameZh: row.nameZh ?? null,
       nameEn: row.nameEn ?? null,
+      assetType: row.assetType ?? null,
+      sector: row.sector ?? null,
+      industry: row.industry ?? null,
       accountId: row.accountId ?? null,
     }));
   }
@@ -1108,9 +1227,18 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async updateManualHolding(id: string, input: PortfolioAssetDraft) {
+    const classification = assetClassificationFields(input);
     await this.db.execute(
-      `update portfolio_assets set revision = revision + 1, updated_at = $1, ticker = $2, name = $3, currency = $4, total_quantity = $5, average_cost = $6, acquisition_date = $7, account_id = $8 where id = $9 and holding_source = 'manual'`,
-      [nowIso(), input.ticker.trim().toUpperCase(), input.name.trim() || input.ticker.trim().toUpperCase(), input.currency.trim().toUpperCase(), input.totalQuantity, input.averageCost, input.acquisitionDate || null, input.accountId || null, id],
+      `update portfolio_assets set revision = revision + 1, updated_at = $1, ticker = $2, name = $3, currency = $4, total_quantity = $5, average_cost = $6, acquisition_date = $7, account_id = $8, asset_type = $9, sector = $10, industry = $11 where id = $12 and holding_source = 'manual'`,
+      [nowIso(), input.ticker.trim().toUpperCase(), input.name.trim() || input.ticker.trim().toUpperCase(), input.currency.trim().toUpperCase(), input.totalQuantity, input.averageCost, input.acquisitionDate || null, input.accountId || null, classification.assetType, classification.sector, classification.industry, id],
+    );
+  }
+
+  override async updateAssetClassification(id: string, input: Pick<PortfolioAssetDraft, "assetType" | "sector" | "industry">) {
+    const classification = assetClassificationFields(input);
+    await this.db.execute(
+      `update portfolio_assets set revision = revision + 1, updated_at = $1, asset_type = $2, sector = $3, industry = $4 where id = $5 and deleted_at is null`,
+      [nowIso(), classification.assetType, classification.sector, classification.industry, id],
     );
   }
 
@@ -1135,30 +1263,94 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async createInvestmentRecord(input: InvestmentDraft) {
+    const existingAssetId = await this.findSqliteTransactionAssetId(input);
+    await this.validateSqliteInvestmentDraft(input, existingAssetId);
     const assetId = await this.findOrCreateSqliteAsset(input);
-    await this.insertInvestmentRow(createInvestmentRow(input, assetId));
+    const record = createInvestmentRow(input, assetId);
+    const ledger = createInvestmentLedgerRow(input, record.id);
+    if (ledger) {
+      record.linkedLedgerTransactionId = ledger.id;
+      await this.insertLedgerRow(ledger);
+    }
+    await this.insertInvestmentRow(record);
+    await this.recomputeSqliteAccounts();
     await this.recomputeSqliteAssets();
   }
 
   override async updateInvestmentRecord(id: string, input: InvestmentDraft) {
+    const existingRows = await this.db.select<InvestmentRecord[]>(`select
+      id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
+      asset_id as assetId, linked_account_id as linkedAccountId, date, action, price, quantity, fee, note,
+      is_reviewed as isReviewed, linked_ledger_transaction_id as linkedLedgerTransactionId
+      from investment_records where id = $1 and deleted_at is null`, [id]);
+    const existingRecord = existingRows[0];
+    if (!existingRecord) throw new Error("找不到投資交易。");
+    const existingAssetId = await this.findSqliteTransactionAssetId(input);
+    await this.validateSqliteInvestmentDraft(input, existingAssetId, {
+      excludeRecordId: id,
+      excludeLedgerId: existingRecord.linkedLedgerTransactionId,
+    });
     const assetId = await this.findOrCreateSqliteAsset(input);
+    const ledger = createInvestmentLedgerRow(input, id);
+    let linkedLedgerTransactionId: string | null = existingRecord.linkedLedgerTransactionId;
+    if (linkedLedgerTransactionId) {
+      if (ledger) {
+        const fields = investmentLedgerFields(input, id);
+        await this.db.execute(
+          `update ledger_transactions set revision = revision + 1, updated_at = $1, deleted_at = null, account_id = $2, date = $3, name = $4, amount = $5, currency = $6, category = $7, subcategory = $8, merchant = $9, entry_type = $10, settlement_status = $11, note = $12, linked_investment_record_id = $13, group_id = $14 where id = $15`,
+          [nowIso(), fields.accountId, fields.date, fields.name, fields.amount, fields.currency, fields.category, fields.subcategory, fields.merchant, fields.entryType, fields.settlementStatus, fields.note, fields.linkedInvestmentRecordId, fields.groupId, linkedLedgerTransactionId],
+        );
+      } else {
+        await this.db.execute(
+          `update ledger_transactions set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`,
+          [nowIso(), linkedLedgerTransactionId],
+        );
+        linkedLedgerTransactionId = null;
+      }
+    } else if (ledger) {
+      linkedLedgerTransactionId = ledger.id;
+      await this.insertLedgerRow(ledger);
+    }
     await this.db.execute(
-      `update investment_records set revision = revision + 1, updated_at = $1, asset_id = $2, linked_account_id = $3, date = $4, action = $5, price = $6, quantity = $7, fee = $8, note = $9 where id = $10`,
-      [nowIso(), assetId, input.linkedAccountId ?? null, input.date, input.action, input.price, input.quantity, input.fee, input.note, id],
+      `update investment_records set revision = revision + 1, updated_at = $1, asset_id = $2, linked_account_id = $3, date = $4, action = $5, price = $6, quantity = $7, fee = $8, note = $9, linked_ledger_transaction_id = $10 where id = $11`,
+      [nowIso(), assetId, input.linkedAccountId ?? null, input.date, input.action, input.price, input.quantity, input.fee, input.note, linkedLedgerTransactionId, id],
     );
+    await this.recomputeSqliteAccounts();
     await this.recomputeSqliteAssets();
   }
 
   override async deleteInvestmentRecord(id: string) {
+    const existingRows = await this.db.select<Array<{ linkedLedgerTransactionId: string | null }>>(
+      `select linked_ledger_transaction_id as linkedLedgerTransactionId from investment_records where id = $1 and deleted_at is null`,
+      [id],
+    );
+    const existingRecord = existingRows[0];
+    if (!existingRecord) throw new Error("找不到投資交易。");
     await this.db.execute(`update investment_records set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`, [nowIso(), id]);
+    if (existingRecord.linkedLedgerTransactionId) {
+      await this.db.execute(
+        `update ledger_transactions set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`,
+        [nowIso(), existingRecord.linkedLedgerTransactionId],
+      );
+    }
+    await this.recomputeSqliteAccounts();
     await this.recomputeSqliteAssets();
   }
 
   override async importInvestmentRecords(rows: InvestmentDraft[]) {
     for (const row of rows) {
+      const existingAssetId = await this.findSqliteTransactionAssetId(row);
+      await this.validateSqliteInvestmentDraft(row, existingAssetId);
       const assetId = await this.findOrCreateSqliteAsset(row);
-      await this.insertInvestmentRow(createInvestmentRow(row, assetId));
+      const record = createInvestmentRow(row, assetId);
+      const ledger = createInvestmentLedgerRow(row, record.id);
+      if (ledger) {
+        record.linkedLedgerTransactionId = ledger.id;
+        await this.insertLedgerRow(ledger);
+      }
+      await this.insertInvestmentRow(record);
     }
+    await this.recomputeSqliteAccounts();
     await this.recomputeSqliteAssets();
   }
 
@@ -1194,6 +1386,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.insertLedgerRow(createLedgerRow({
       accountId: recurring.accountId,
       date: `${recurring.nextRunDate}T09:00`,
+      name: recurring.merchant || recurring.category,
       amount: recurring.amount,
       currency: recurring.currency,
       category: recurring.category,
@@ -1697,6 +1890,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
           ...asset,
           nameZh: asset.nameZh ?? null,
           nameEn: asset.nameEn ?? null,
+          assetType: asset.assetType ?? null,
+          sector: asset.sector ?? null,
+          industry: asset.industry ?? null,
           accountId: asset.accountId ?? null,
         });
       }
@@ -1705,7 +1901,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       for (const row of snapshot.investmentRecords) await this.insertInvestmentRow(row);
       console.log(`[import] inserted ${snapshot.investmentRecords.length} investment_records`);
 
-      for (const row of snapshot.ledgerTransactions) await this.insertLedgerRow(row);
+      for (const row of snapshot.ledgerTransactions) {
+        await this.insertLedgerRow({ ...row, name: row.name ?? row.merchant ?? "" });
+      }
       console.log(`[import] inserted ${snapshot.ledgerTransactions.length} ledger_transactions`);
 
       for (const row of snapshot.recurringTransactions) await this.insertRecurringRow(row);
@@ -1803,17 +2001,17 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   private async insertAssetRow(row: PortfolioAsset) {
     await this.db.execute(
-      `insert into portfolio_assets (id, space_id, revision, created_at, updated_at, deleted_at, ticker, name, name_zh, name_en, currency, total_quantity, average_cost, holding_source, acquisition_date, account_id)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.ticker, row.name, row.nameZh ?? null, row.nameEn ?? null, row.currency, row.totalQuantity, row.averageCost, row.holdingSource, row.acquisitionDate, row.accountId ?? null],
+      `insert into portfolio_assets (id, space_id, revision, created_at, updated_at, deleted_at, ticker, name, name_zh, name_en, currency, total_quantity, average_cost, holding_source, acquisition_date, asset_type, sector, industry, account_id)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.ticker, row.name, row.nameZh ?? null, row.nameEn ?? null, row.currency, row.totalQuantity, row.averageCost, row.holdingSource, row.acquisitionDate, row.assetType ?? null, row.sector ?? null, row.industry ?? null, row.accountId ?? null],
     );
   }
 
   private async insertLedgerRow(row: LedgerTransaction) {
     await this.db.execute(
-      `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, date, amount, currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
-      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.accountId, row.date, row.amount, row.currency, row.category, row.subcategory, row.merchant, row.entryType, row.settlementStatus, row.note, row.linkedInvestmentRecordId, row.groupId, Number(row.isReviewed), row.receiptAttachmentId],
+      `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, date, name, amount, currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.accountId, row.date, row.name, row.amount, row.currency, row.category, row.subcategory, row.merchant, row.entryType, row.settlementStatus, row.note, row.linkedInvestmentRecordId, row.groupId, Number(row.isReviewed), row.receiptAttachmentId],
     );
   }
 
@@ -1833,10 +2031,19 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     );
   }
 
+  private async findSqliteTransactionAssetId(input: InvestmentDraft) {
+    const ticker = input.ticker.trim().toUpperCase();
+    const rows = await this.db.select<Array<{ id: string }>>(
+      `select id from portfolio_assets where ticker = $1 and holding_source = 'transactions' and deleted_at is null limit 1`,
+      [ticker],
+    );
+    return rows[0]?.id;
+  }
+
   private async findOrCreateSqliteAsset(input: InvestmentDraft) {
     const ticker = input.ticker.trim().toUpperCase();
-    const rows = await this.db.select<Array<{ id: string }>>(`select id from portfolio_assets where ticker = $1 and holding_source = 'transactions' and deleted_at is null limit 1`, [ticker]);
-    if (rows[0]?.id) return rows[0].id;
+    const existingId = await this.findSqliteTransactionAssetId(input);
+    if (existingId) return existingId;
     const timestamp = nowIso();
     const asset: PortfolioAsset = {
       id: createId("asset"),
@@ -1854,10 +2061,43 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       averageCost: 0,
       holdingSource: "transactions",
       acquisitionDate: null,
+      ...assetClassificationFields(input),
       accountId: null,
     };
     await this.insertAssetRow(asset);
     return asset.id;
+  }
+
+  private async validateSqliteInvestmentDraft(
+    input: InvestmentDraft,
+    assetId: string | undefined,
+    options: { excludeRecordId?: string; excludeLedgerId?: string | null } = {},
+  ) {
+    const accountRows = await this.db.select<Account[]>(`select
+      id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
+      name, currency, opening_balance as openingBalance, balance, type, credit_limit as creditLimit, credit_limit_group as creditLimitGroup, is_shared_to_household as isSharedToHousehold
+      from accounts where id = $1 and deleted_at is null`, [input.linkedAccountId ?? ""]);
+    const account = accountRows[0];
+    if (!account || account.type !== "investment") throw new Error("請選擇投資帳戶。");
+    if (input.currency.trim().toUpperCase() !== account.currency.trim().toUpperCase()) throw new Error("交易幣別必須與投資帳戶一致。");
+
+    if (input.action === "sell") {
+      if (!assetId) throw new Error("賣出股數大於目前庫存。");
+      const records = await this.listInvestmentRecords();
+      const available = calculateInvestmentAccountQuantity(records, assetId, account.id, options.excludeRecordId);
+      if (input.quantity > available + 0.000001) throw new Error(`賣出股數大於目前庫存，可賣出 ${available} 股。`);
+    }
+
+    const cashDelta = calculateInvestmentCashDelta(input);
+    if (cashDelta >= 0) return;
+    const ledgerRows = await this.db.select<LedgerTransaction[]>(`select
+      id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
+      account_id as accountId, date, name, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, linked_investment_record_id as linkedInvestmentRecordId,
+      group_id as groupId, is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId
+      from ledger_transactions where account_id = $1`, [account.id]);
+    const baseBalance = computeAccountBalance(account, ledgerRows, options.excludeLedgerId ?? null);
+    const nextBalance = baseBalance + cashDelta;
+    if (isEffectivelyNegative(nextBalance)) throw new Error(`購買力不足，目前餘額 ${formatPlainAmount(baseBalance)} ${account.currency}。`);
   }
 
   private async ensureSqliteColumn(table: string, column: string, definition: string) {
@@ -1942,7 +2182,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       from accounts`);
     const ledger = await this.db.select<LedgerTransaction[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
-      account_id as accountId, date, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, linked_investment_record_id as linkedInvestmentRecordId,
+      account_id as accountId, date, name, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, linked_investment_record_id as linkedInvestmentRecordId,
       group_id as groupId, is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId from ledger_transactions`);
     for (const account of recomputeAccounts(accounts, ledger)) {
       await this.db.execute(`update accounts set balance = $1 where id = $2`, [account.balance, account.id]);
@@ -1983,6 +2223,7 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
     })),
     ledgerTransactions: (data.ledgerTransactions ?? []).map((row) => ({
       ...row,
+      name: row.name ?? row.merchant ?? "",
       subcategory: row.subcategory ?? "",
       merchant: row.merchant ?? "",
       entryType: row.entryType ?? (row.amount >= 0 ? "income" : "expense"),
@@ -2092,6 +2333,9 @@ function normalizePortfolioAsset(asset: PortfolioAsset): PortfolioAsset {
     currency: asset.currency || "TWD",
     holdingSource: asset.holdingSource ?? "transactions",
     acquisitionDate: asset.acquisitionDate ?? null,
+    assetType: normalizeAssetType(asset.assetType),
+    sector: cleanOptionalText(asset.sector),
+    industry: cleanOptionalText(asset.industry),
     accountId: asset.accountId ?? null,
   };
 }
@@ -2200,8 +2444,28 @@ function manualHoldingFields(input: PortfolioAssetDraft) {
     averageCost: Math.max(0, Number(input.averageCost) || 0),
     holdingSource: "manual" as const,
     acquisitionDate: input.acquisitionDate || null,
+    ...assetClassificationFields(input),
     accountId: input.accountId || null,
   };
+}
+
+function assetClassificationFields(input: Pick<PortfolioAssetDraft, "assetType" | "sector" | "industry">) {
+  return {
+    assetType: normalizeAssetType(input.assetType),
+    sector: cleanOptionalText(input.sector),
+    industry: cleanOptionalText(input.industry),
+  };
+}
+
+function normalizeAssetType(value: unknown): AssetType | null {
+  const normalized = String(value ?? "").trim();
+  const allowed: AssetType[] = ["equity", "etf", "mutual_fund", "index", "crypto", "cash", "other"];
+  return allowed.includes(normalized as AssetType) ? (normalized as AssetType) : null;
+}
+
+function cleanOptionalText(value: unknown) {
+  const text = String(value ?? "").trim();
+  return text || null;
 }
 
 function createManualHoldingRow(input: PortfolioAssetDraft): PortfolioAsset {
@@ -2228,6 +2492,7 @@ function createLedgerRow(input: LedgerDraft): LedgerTransaction {
     deletedAt: null,
     accountId: input.accountId,
     date: input.date,
+    name: input.name,
     amount: input.amount,
     currency: input.currency,
     category: input.category,
@@ -2240,6 +2505,50 @@ function createLedgerRow(input: LedgerDraft): LedgerTransaction {
     groupId: input.groupId ?? null,
     isReviewed: false,
     receiptAttachmentId: null,
+  };
+}
+
+function createInvestmentLedgerRow(input: InvestmentDraft, investmentRecordId: string): LedgerTransaction | null {
+  const amount = calculateInvestmentCashDelta(input);
+  if (amount === 0) return null;
+  const timestamp = nowIso();
+  return {
+    id: createId("ledger"),
+    spaceId: personalSpace,
+    revision: 1,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    deletedAt: null,
+    isReviewed: false,
+    receiptAttachmentId: null,
+    ...investmentLedgerFields(input, investmentRecordId),
+  };
+}
+
+function investmentLedgerFields(input: InvestmentDraft, investmentRecordId: string) {
+  const amount = calculateInvestmentCashDelta(input);
+  const ticker = input.ticker.trim().toUpperCase();
+  const actionLabels: Partial<Record<InvestmentAction, string>> = {
+    buy: "買進",
+    sell: "賣出",
+    cashDividend: "現金股利",
+    capitalReduction: "減資",
+  };
+  const subcategory = input.action === "cashDividend" ? "股利" : actionLabels[input.action] ?? "投資";
+  return {
+    accountId: input.linkedAccountId!,
+    date: input.date,
+    name: `${ticker} ${actionLabels[input.action] ?? "投資"}`,
+    amount,
+    currency: input.currency.trim().toUpperCase(),
+    category: "投資",
+    subcategory,
+    merchant: "",
+    entryType: amount >= 0 ? ("income" as const) : ("expense" as const),
+    settlementStatus: "settled" as const,
+    note: input.note,
+    linkedInvestmentRecordId: investmentRecordId,
+    groupId: null as string | null,
   };
 }
 
@@ -2293,4 +2602,22 @@ function investmentDraftFields(input: InvestmentDraft) {
     fee: input.fee,
     note: input.note,
   };
+}
+
+function computeAccountBalance(account: Account, ledgerRows: LedgerTransaction[], excludeLedgerId: string | null) {
+  const total = ledgerRows
+    .filter((row) =>
+      row.deletedAt === null &&
+      row.settlementStatus === "settled" &&
+      row.accountId === account.id &&
+      row.id !== excludeLedgerId
+    )
+    .reduce((sum, row) => sum + row.amount, 0);
+  return account.openingBalance + total;
+}
+
+function formatPlainAmount(value: number) {
+  return new Intl.NumberFormat("zh-TW", {
+    maximumFractionDigits: 2,
+  }).format(value);
 }

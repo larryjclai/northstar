@@ -10,9 +10,11 @@ import { Field, TextInput } from "../components/Field";
 import { HoldingForm } from "../components/HoldingForm";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { StatusText } from "../components/StatusText";
+import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { PortfolioAssetDraft } from "../data/repositories";
 import {
+  assetTypeLabels,
   buildHoldingPositionsByAccount,
   createFxConverter,
   formatMoney,
@@ -27,7 +29,7 @@ import {
   type MarketQuote as DomainMarketQuote,
   type PortfolioAsset,
 } from "../domain";
-import { useRefreshDailyPrices, useRefreshQuotes } from "../features/market-data/useMarketRefresh";
+import { useBackfillAssetProfiles, useRefreshDailyPrices, useRefreshQuotes } from "../features/market-data/useMarketRefresh";
 import { useUiPreferences, type NameLocalePreference } from "../state/uiPreferences";
 import { HoldingsAddSheet } from "./InvestmentsAddSheet";
 
@@ -45,7 +47,9 @@ export function InvestmentsRoute() {
   const { accounts, assets, investments, quotes, settings, dailyFxRates, dailyPrices } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
   const refreshDailyPrices = useRefreshDailyPrices();
+  const backfillAssetProfiles = useBackfillAssetProfiles();
   const nameLocale = useUiPreferences((state) => state.nameLocale);
+  const toast = useToast();
 
   const accountRows = accounts.data ?? [];
   const assetRows = assets.data ?? [];
@@ -97,6 +101,40 @@ export function InvestmentsRoute() {
     }
   }
 
+  async function backfillClassifications() {
+    setStatusMessage("");
+    const candidates = assetRows.filter((asset) => asset.ticker.trim() && !asset.assetType);
+    if (candidates.length === 0) {
+      toast.info("沒有需要回補的持倉");
+      setStatusMessage("所有持倉都已有類型資料。");
+      return;
+    }
+    const confirmed = window.confirm(`將透過 Yahoo Finance 回補 ${candidates.length} 筆持倉分類，可能會發出數十次查詢。要繼續嗎？`);
+    if (!confirmed) return;
+
+    const progressId = toast.info("回補分類中", { description: `0 / ${candidates.length}`, durationMs: 0 });
+    try {
+      const result = await backfillAssetProfiles.mutateAsync({
+        onProgress: (done, total) => {
+          setStatusMessage(`回補分類中 ${done} / ${total}…`);
+        },
+      });
+      toast.dismiss(progressId);
+      if (result.failed.length) {
+        toast.warning("部分分類未取得", { description: `已更新 ${result.updated} / ${result.total} 筆。`, detail: result.failed.join("\n") });
+        setStatusMessage(`已回補 ${result.updated} / ${result.total} 筆分類，部分 ticker 需要手動填入。`);
+      } else {
+        toast.success(`已回補 ${result.updated} 筆分類`);
+        setStatusMessage(`已回補 ${result.updated} 筆分類。`);
+      }
+    } catch (error) {
+      toast.dismiss(progressId);
+      const message = error instanceof Error ? error.message : "分類回補失敗。";
+      toast.error("分類回補失敗", { description: message });
+      setStatusMessage(message);
+    }
+  }
+
   function changeTab(next: InvestmentTab) {
     setTab(next);
   }
@@ -111,6 +149,11 @@ export function InvestmentsRoute() {
           <ActionButton variant="secondary" onClick={refreshLatestQuotes} disabled={refreshQuotes.isPending}>
             <ArrowsClockwise size={16} />{refreshQuotes.isPending ? "更新中" : "更新報價"}
           </ActionButton>
+          {tab === "holdings" ? (
+            <ActionButton variant="secondary" onClick={backfillClassifications} disabled={backfillAssetProfiles.isPending}>
+              <ArrowsClockwise size={16} />{backfillAssetProfiles.isPending ? "回補中" : "回補資料"}
+            </ActionButton>
+          ) : null}
           <ActionButton onClick={() => setAddOpen(true)}>
             <PlusCircle size={16} />新增
           </ActionButton>
@@ -252,7 +295,7 @@ function AccountList({
     return a.account.name.localeCompare(b.account.name);
   });
   return (
-    <div className="rounded-lg border" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
+    <div className="rounded-lg border lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
       <div className="border-b px-4 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--ns-muted)", borderColor: "var(--ns-border)" }}>
         我的券商（{aggregates.length}）
       </div>
@@ -340,67 +383,59 @@ function AccountDetail({
           <p className="text-sm" style={{ color: "var(--ns-muted)" }}>此帳戶尚無持倉。</p>
         </Card>
       ) : (
-        <>
-          <Card title="配置">
-            <div className="space-y-3">
-              {sortedPositions.map((position) => {
-                const valueInBase = toPrimary(position.marketValue, position.currency);
-                const ratio = totalForAllocation === 0 ? 0 : valueInBase / totalForAllocation;
-                return (
-                  <div key={`${position.assetId}-allocation`} className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium">{position.ticker}</span>
-                      <span className="tabular">{(ratio * 100).toFixed(1)}%</span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full" style={{ background: "var(--ns-surface-strong)" }}>
-                      <div className="h-full rounded-full" style={{ width: `${ratio * 100}%`, background: "var(--ns-accent)" }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-          <Card title={`持倉明細（${sortedPositions.length}）`}>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-sm">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
-                    <th className="py-2">Ticker</th>
-                    <th className="py-2 text-right">股數</th>
-                    <th className="py-2 text-right">現價</th>
-                    <th className="py-2 text-right">市值</th>
-                    <th className="py-2 text-right">損益</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedPositions.map((position) => {
-                    const pnlTone = position.unrealizedGain >= 0 ? "positive" : "negative";
-                    return (
-                      <tr key={`${position.assetId}-detail`} className="border-t" style={{ borderColor: "var(--ns-border)" }}>
-                        <td className="py-2 font-semibold">{position.ticker}</td>
-                        <td className="py-2 text-right tabular">{formatQuantity(position.quantity)}</td>
-                        <td className="py-2 text-right tabular">
-                          {position.marketPrice !== null ? formatPrice(position.marketPrice) : "—"}
-                        </td>
-                        <td className="py-2 text-right tabular">
-                          {formatNumber(position.marketValue)} <span style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
-                        </td>
-                        <td
-                          className="py-2 text-right tabular"
-                          style={{ color: pnlTone === "positive" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}
-                        >
-                          {position.unrealizedGain >= 0 ? "+" : ""}{formatNumber(position.unrealizedGain)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </>
+        <AllocationCard positions={sortedPositions} totalForAllocation={totalForAllocation} toPrimary={toPrimary} />
       )}
     </div>
+  );
+}
+
+function AllocationCard({
+  positions,
+  totalForAllocation,
+  toPrimary,
+}: {
+  positions: HoldingPosition[];
+  totalForAllocation: number;
+  toPrimary: (value: number, currency: string, asOfDate?: string) => number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const TOP = 10;
+  const hasMore = positions.length > TOP;
+  const visible = expanded || !hasMore ? positions : positions.slice(0, TOP);
+  return (
+    <Card
+      title="庫存分布"
+      action={
+        hasMore ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            className="text-xs font-semibold outline-none transition hover:opacity-80"
+            style={{ color: "var(--ns-accent)" }}
+          >
+            {expanded ? "收合" : `展開全部（${positions.length}）`}
+          </button>
+        ) : null
+      }
+    >
+      <div className="space-y-3">
+        {visible.map((position) => {
+          const valueInBase = toPrimary(position.marketValue, position.currency);
+          const ratio = totalForAllocation === 0 ? 0 : valueInBase / totalForAllocation;
+          return (
+            <div key={`${position.assetId}-allocation`} className="space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="font-medium">{position.ticker}</span>
+                <span className="tabular">{(ratio * 100).toFixed(1)}%</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full" style={{ background: "var(--ns-surface-strong)" }}>
+                <div className="h-full rounded-full" style={{ width: `${ratio * 100}%`, background: "var(--ns-accent)" }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
 
@@ -579,6 +614,10 @@ function HoldingsTab({
     (repository, input: PortfolioAssetDraft & { id: string }) => repository.updateManualHolding(input.id, input),
     ["assets"],
   );
+  const updateClassification = useRepositoryMutation(
+    (repository, input: Pick<PortfolioAssetDraft, "assetType" | "sector" | "industry"> & { id: string }) => repository.updateAssetClassification(input.id, input),
+    ["assets"],
+  );
 
   function toggleSort(key: HoldingsSortKey) {
     setSort((current) => {
@@ -610,6 +649,9 @@ function HoldingsTab({
       averageCost: asset.averageCost,
       acquisitionDate: asset.acquisitionDate ?? todayInTimezone(timezone),
       accountId: asset.accountId,
+      assetType: asset.assetType,
+      sector: asset.sector,
+      industry: asset.industry,
     });
     setMessage("");
   }
@@ -619,7 +661,10 @@ function HoldingsTab({
     setMessage("");
     try {
       if (editingAsset.holdingSource !== "manual") {
-        throw new Error("交易計算的持倉請到交易明細調整。");
+        await updateClassification.mutateAsync({ id: editingAsset.id, ...editForm });
+        setEditingAsset(null);
+        setEditForm(null);
+        return;
       }
       if (!editForm.accountId) throw new Error("請選擇券商 / 帳戶。");
       await updateHolding.mutateAsync({ ...editForm, id: editingAsset.id });
@@ -646,11 +691,12 @@ function HoldingsTab({
     <>
       <Card title={`持倉 (${positions.length})`}>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-sm">
+          <table className="w-full min-w-[960px] text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
                 <SortableHeader label="Ticker" sortKey="ticker" sort={sort} onToggle={toggleSort} />
                 <SortableHeader label="名稱" sortKey="name" sort={sort} onToggle={toggleSort} />
+                <th className="py-2">類型</th>
                 <SortableHeader label="券商" sortKey="account" sort={sort} onToggle={toggleSort} />
                 <SortableHeader label="股數" sortKey="quantity" sort={sort} onToggle={toggleSort} align="right" />
                 <SortableHeader label="均價" sortKey="averageCost" sort={sort} onToggle={toggleSort} align="right" />
@@ -673,6 +719,9 @@ function HoldingsTab({
                   <tr key={`${position.assetId}-${position.accountId ?? "none"}`} className="border-t" style={{ borderColor: "var(--ns-border)" }}>
                     <td className="py-3 font-semibold">{position.ticker}</td>
                     <td className="py-3">{displayName}</td>
+                    <td className="py-3">
+                      <AssetTypeChip asset={asset} />
+                    </td>
                     <td className="py-3">{account ? account.name : "未指定"}</td>
                     <td className="py-3 text-right tabular">{formatQuantity(position.quantity)}</td>
                     <td className="py-3 text-right tabular">{formatPrice(position.averageCost)}</td>
@@ -698,8 +747,8 @@ function HoldingsTab({
                       <ActionButton
                         variant="ghost"
                         onClick={() => asset ? startEdit(asset) : undefined}
-                        disabled={!asset || asset.holdingSource !== "manual"}
-                        title={asset?.holdingSource === "transactions" ? "交易計算持倉請到交易明細調整" : "編輯持倉"}
+                        disabled={!asset}
+                        title={asset?.holdingSource === "transactions" ? "編輯分類資料" : "編輯持倉"}
                       >
                         <PencilSimple size={16} />編輯
                       </ActionButton>
@@ -737,8 +786,9 @@ function HoldingsTab({
                 value={editForm}
                 onChange={setEditForm}
                 onSubmit={submitEdit}
-                submitLabel={updateHolding.isPending ? "儲存中…" : "儲存持倉"}
+                submitLabel={updateHolding.isPending || updateClassification.isPending ? "儲存中…" : editingAsset.holdingSource === "manual" ? "儲存持倉" : "儲存分類"}
                 accounts={accounts}
+                classificationOnly={editingAsset.holdingSource !== "manual"}
               />
               {message ? <div className="mt-3"><StatusText>{message}</StatusText></div> : null}
             </div>
@@ -746,6 +796,20 @@ function HoldingsTab({
         </div>
       ) : null}
     </>
+  );
+}
+
+function AssetTypeChip({ asset }: { asset: PortfolioAsset | null }) {
+  const label = asset?.assetType ? assetTypeLabels[asset.assetType] : "未分類";
+  const detail = asset?.sector ? (asset.industry ? `${asset.sector} / ${asset.industry}` : asset.sector) : "";
+  return (
+    <span
+      className="inline-flex max-w-[10rem] items-center rounded-md border px-2 py-1 text-xs font-medium"
+      style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface-strong)", color: "var(--ns-muted)" }}
+      title={detail || label}
+    >
+      <span className="truncate">{detail ? `${label} · ${detail}` : label}</span>
+    </span>
   );
 }
 

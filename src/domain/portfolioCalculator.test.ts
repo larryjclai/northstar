@@ -18,6 +18,9 @@ const manualAsset: PortfolioAsset = {
   averageCost: 50,
   holdingSource: "manual",
   acquisitionDate: "2026-05-24",
+  assetType: null,
+  sector: null,
+  industry: null,
   accountId: "acct_test",
 };
 

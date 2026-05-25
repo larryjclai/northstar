@@ -22,6 +22,48 @@ export function useRefreshQuotes() {
   });
 }
 
+export interface BackfillAssetProfilesInput {
+  force?: boolean;
+  onProgress?: (done: number, total: number) => void;
+}
+
+export function useBackfillAssetProfiles() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ force = false, onProgress }: BackfillAssetProfilesInput = {}) => {
+      const provider = new YahooFinanceProvider();
+      const repository = await getFinanceRepository();
+      const assets = await repository.listPortfolioAssets();
+      const candidates = assets.filter((asset) => {
+        if (!asset.ticker.trim()) return false;
+        return force || !asset.assetType;
+      });
+      const symbols = [...new Set(candidates.map((asset) => asset.ticker.trim().toUpperCase()))];
+      if (symbols.length === 0) return { updated: 0, total: 0, failed: [] as string[] };
+
+      const profiles = await provider.fetchAssetProfiles(symbols, onProgress);
+      let updated = 0;
+      const failed = symbols.filter((symbol) => !profiles[symbol]);
+
+      for (const asset of candidates) {
+        const profile = profiles[asset.ticker.trim().toUpperCase()];
+        if (!profile) continue;
+        await repository.updateAssetClassification(asset.id, {
+          assetType: profile.assetType,
+          sector: profile.sector,
+          industry: profile.industry,
+        });
+        updated += 1;
+      }
+
+      return { updated, total: candidates.length, failed };
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.assets });
+    },
+  });
+}
+
 export interface RefreshFxRatesInput {
   pairs: Array<{ from: string; to: string }>;
   range?: string;
