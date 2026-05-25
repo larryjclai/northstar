@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { create } from "zustand";
 import { setPrivacyMaskOn } from "../domain/currency";
 import type { NameLocalePreference } from "../domain/assetName";
+import { isValidTimezone, resolveSystemTimezone } from "../domain/datetime";
 
 export type { NameLocalePreference };
 
@@ -9,10 +10,12 @@ export interface UiPreferences {
   privacyMode: boolean;
   nameLocale: NameLocalePreference;
   clockMode: ClockMode;
+  timezone: string;
   setPrivacyMode: (value: boolean) => void;
   togglePrivacyMode: () => void;
   setNameLocale: (value: NameLocalePreference) => void;
   setClockMode: (value: ClockMode) => void;
+  setTimezone: (value: string) => void;
 }
 
 const STORAGE_KEY = "northstar.uiPreferences.v1";
@@ -21,17 +24,26 @@ interface PersistedShape {
   privacyMode: boolean;
   nameLocale: NameLocalePreference;
   clockMode: ClockMode;
+  timezone: string;
 }
 
 export type ClockMode = "24h" | "12h";
 
 function loadPersisted(): PersistedShape {
-  const fallback: PersistedShape = { privacyMode: false, nameLocale: "auto", clockMode: "24h" };
+  const fallback: PersistedShape = {
+    privacyMode: false,
+    nameLocale: "auto",
+    clockMode: "24h",
+    timezone: resolveSystemTimezone(),
+  };
   if (typeof window === "undefined") return fallback;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<PersistedShape>;
+    const tz = typeof parsed.timezone === "string" && isValidTimezone(parsed.timezone)
+      ? parsed.timezone
+      : fallback.timezone;
     return {
       privacyMode: typeof parsed.privacyMode === "boolean" ? parsed.privacyMode : false,
       nameLocale:
@@ -39,6 +51,7 @@ function loadPersisted(): PersistedShape {
           ? parsed.nameLocale
           : "auto",
       clockMode: parsed.clockMode === "12h" ? "12h" : "24h",
+      timezone: tz,
     };
   } catch {
     return fallback;
@@ -57,13 +70,19 @@ function persist(state: PersistedShape) {
 const initial = loadPersisted();
 
 function snapshot(state: UiPreferences): PersistedShape {
-  return { privacyMode: state.privacyMode, nameLocale: state.nameLocale, clockMode: state.clockMode };
+  return {
+    privacyMode: state.privacyMode,
+    nameLocale: state.nameLocale,
+    clockMode: state.clockMode,
+    timezone: state.timezone,
+  };
 }
 
 export const useUiPreferences = create<UiPreferences>((set, get) => ({
   privacyMode: initial.privacyMode,
   nameLocale: initial.nameLocale,
   clockMode: initial.clockMode,
+  timezone: initial.timezone,
   setPrivacyMode(value) {
     setPrivacyMaskOn(value);
     set({ privacyMode: value });
@@ -81,6 +100,13 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   },
   setClockMode(value) {
     set({ clockMode: value });
+    persist(snapshot(get()));
+  },
+  setTimezone(value) {
+    // Defensive: if a free-text entry isn't a real IANA zone, keep the
+    // current pref instead of writing garbage.
+    if (!isValidTimezone(value)) return;
+    set({ timezone: value });
     persist(snapshot(get()));
   },
 }));

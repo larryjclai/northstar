@@ -4,18 +4,20 @@ import { ActionButton } from "../components/ActionButton";
 import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
-import { HoldingForm, emptyHoldingDraft } from "../components/HoldingForm";
+import { HoldingForm, makeEmptyHoldingDraft } from "../components/HoldingForm";
 import { StatusText } from "../components/StatusText";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { PortfolioAssetDraft } from "../data/repositories";
-import { formatNumber, formatPrice, formatQuantity, resolveAssetName, type PortfolioAsset } from "../domain";
+import { formatNumber, formatPrice, formatQuantity, resolveAssetName, todayInTimezone, type PortfolioAsset } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useRefreshDailyPrices, useRefreshQuotes } from "../features/market-data/useMarketRefresh";
 
 export function HoldingsRoute() {
   const { assets, quotes, dailyPrices, accounts } = useFinanceData();
   const nameLocale = useUiPreferences((state) => state.nameLocale);
+  const timezone = useUiPreferences((state) => state.timezone);
   const accountRows = accounts.data ?? [];
+  const emptyHoldingDraft = useMemo(() => makeEmptyHoldingDraft(timezone), [timezone]);
   const [form, setForm] = useState<PortfolioAssetDraft>(emptyHoldingDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
@@ -82,7 +84,7 @@ export function HoldingsRoute() {
       currency: asset.currency,
       totalQuantity: asset.totalQuantity,
       averageCost: asset.averageCost,
-      acquisitionDate: asset.acquisitionDate ?? new Date().toISOString().slice(0, 10),
+      acquisitionDate: asset.acquisitionDate ?? todayInTimezone(timezone),
       accountId: asset.accountId,
     });
   }

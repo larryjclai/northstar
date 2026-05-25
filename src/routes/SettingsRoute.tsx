@@ -1,12 +1,14 @@
-import { ArrowsClockwise, ArrowsLeftRight, CheckCircle, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X } from "@phosphor-icons/react";
+import { ArrowsClockwise, ArrowsLeftRight, CheckCircle, Clock, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ActionButton } from "../components/ActionButton";
 import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
 import { Field, TextInput } from "../components/Field";
+import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { getFinanceRepository, type RepositorySnapshot } from "../data/repositories";
+import { COMMON_TIMEZONES, isValidTimezone, formatDateTimeInTimezone } from "../domain";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../domain";
 import { useRefreshFxRates } from "../features/market-data/useMarketRefresh";
 import { FireGoalEditor } from "../features/goals/FireGoalEditor";
@@ -23,18 +25,17 @@ export function SettingsRoute() {
   const { settings, dailyFxRates } = useFinanceData();
   const [form, setForm] = useState(emptySettings);
   const [merchantDraft, setMerchantDraft] = useState("");
-  const [message, setMessage] = useState("");
-  const [saveTone, setSaveTone] = useState<"success" | "error" | null>(null);
   const seededRef = useRef(false);
   const updateSettings = useRepositoryMutation((repository, input: AppSettings) => repository.updateAppSettings(input), ["settings"]);
   const refreshFxRates = useRefreshFxRates();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const [snapshotBusy, setSnapshotBusy] = useState(false);
+  const [importStatus, setImportStatus] = useState<string>("");
+  const toast = useToast();
 
   async function exportBackup() {
-    setMessage("");
-    setSaveTone(null);
+    const progressId = toast.info("正在準備備份…", { description: "讀取資料庫快照中。", durationMs: 0 });
     try {
       setSnapshotBusy(true);
       const repository = await getFinanceRepository();
@@ -44,34 +45,42 @@ export function SettingsRoute() {
       const link = document.createElement("a");
       link.href = url;
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      link.download = `northstar-backup-${stamp}.json`;
+      const filename = `northstar-backup-${stamp}.json`;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      setMessage("備份已下載。");
-      setSaveTone("success");
+      toast.dismiss(progressId);
+      toast.success("已匯出備份", {
+        description: `${filename}（${formatBytes(blob.size)}）已下載到「下載」資料夾。`,
+      });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "備份失敗。");
-      setSaveTone("error");
+      toast.dismiss(progressId);
+      toast.error("備份失敗", {
+        description: error instanceof Error ? error.message : "未預期的錯誤。",
+        detail: formatErrorDetail(error),
+      });
     } finally {
       setSnapshotBusy(false);
     }
   }
 
   async function importBackup(file: File) {
-    setMessage("");
-    setSaveTone(null);
     if (!window.confirm("匯入會覆蓋目前所有資料，確定要繼續嗎？")) return;
+    setImportStatus("");
+    const progressId = toast.info("正在匯入備份…", {
+      description: "讀取檔案中。",
+      durationMs: 0,
+    });
     try {
       setSnapshotBusy(true);
-      setMessage("讀取備份檔…");
-      setSaveTone(null);
+      setImportStatus("讀取備份檔…");
       const text = await file.text();
-      setMessage("解析 JSON…");
+      setImportStatus("解析 JSON…");
       const parsed = JSON.parse(text) as RepositorySnapshot;
       if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.accounts)) {
-        throw new Error("檔案格式不正確。");
+        throw new Error("檔案格式不正確：找不到 accounts 陣列。");
       }
       const summary = {
         accounts: parsed.accounts.length,
@@ -80,21 +89,32 @@ export function SettingsRoute() {
         records: parsed.investmentRecords?.length ?? 0,
         prices: parsed.dailyPrices?.length ?? 0,
         fx: parsed.dailyFxRates?.length ?? 0,
+        recurring: parsed.recurringTransactions?.length ?? 0,
+        quotes: parsed.marketQuotes?.length ?? 0,
+        goals: parsed.financialGoals?.length ?? 0,
       };
       console.log("[import] parsed backup", summary);
-      setMessage(
+      setImportStatus(
         `寫入資料庫中…（${summary.accounts} 帳戶、${summary.assets} 持倉、${summary.ledger} 筆記帳、${summary.prices} 筆股價）`,
       );
       const repository = await getFinanceRepository();
       await repository.importSnapshot(parsed);
       await queryClient.invalidateQueries();
       seededRef.current = false;
-      setMessage(`已匯入備份。(${summary.accounts} 帳戶、${summary.assets} 持倉、${summary.prices} 筆股價)`);
-      setSaveTone("success");
+      setImportStatus("");
+      toast.dismiss(progressId);
+      toast.success("已匯入備份", {
+        description: `${summary.accounts} 帳戶、${summary.assets} 持倉、${summary.ledger} 筆記帳、${summary.prices} 筆股價、${summary.fx} 筆匯率。`,
+      });
     } catch (error) {
       console.error("[import] failed", error);
-      setMessage(error instanceof Error ? `匯入失敗：${error.message}` : "匯入失敗。");
-      setSaveTone("error");
+      const detail = formatErrorDetail(error, { fileName: file.name, fileSize: file.size });
+      toast.dismiss(progressId);
+      toast.error("匯入失敗", {
+        description: error instanceof Error ? error.message : "未預期的錯誤。請複製詳細內容回報。",
+        detail,
+      });
+      setImportStatus(error instanceof Error ? error.message : "匯入失敗");
     } finally {
       setSnapshotBusy(false);
     }
@@ -110,49 +130,56 @@ export function SettingsRoute() {
   const fxStats = useMemo(() => buildFxStats(dailyFxRates.data ?? []), [dailyFxRates.data]);
 
   async function submit() {
-    setMessage("");
-    setSaveTone(null);
     const next = normalizeForm(form);
     try {
       await updateSettings.mutateAsync(next);
       setForm(next);
-      setMessage("設定已儲存。");
-      setSaveTone("success");
+      toast.success("設定已儲存");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "設定儲存失敗。");
-      setSaveTone("error");
+      toast.error("設定儲存失敗", {
+        description: error instanceof Error ? error.message : "未預期的錯誤。",
+        detail: formatErrorDetail(error),
+      });
     }
   }
 
   async function refreshAllFxRates() {
-    setMessage("");
-    setSaveTone(null);
     const pairs = form.exchangeRates.map((rate) => ({ from: rate.from, to: rate.to || form.primaryCurrency }));
     if (pairs.length === 0) {
-      setMessage("沒有可更新的匯率，請先新增。");
-      setSaveTone("error");
+      toast.warning("沒有可更新的匯率", { description: "請先新增一組匯率配對。" });
       return;
     }
     try {
       const result = await refreshFxRates.mutateAsync({ pairs, range: "1y" });
-      setMessage(`已抓取 ${result.saved} 筆每日匯率${result.failed.length ? `（部分失敗：${result.failed.join("；")}）` : "。"}`);
-      setSaveTone(result.failed.length ? "error" : "success");
+      if (result.failed.length) {
+        toast.warning("部分匯率更新失敗", {
+          description: `已抓取 ${result.saved} 筆，但有 ${result.failed.length} 組失敗。`,
+          detail: result.failed.join("\n"),
+        });
+      } else {
+        toast.success(`已抓取 ${result.saved} 筆每日匯率`);
+      }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "匯率更新失敗。");
-      setSaveTone("error");
+      toast.error("匯率更新失敗", {
+        description: error instanceof Error ? error.message : "未預期的錯誤。",
+        detail: formatErrorDetail(error),
+      });
     }
   }
 
   async function refreshSinglePair(rate: ExchangeRate, range: string) {
-    setMessage("");
-    setSaveTone(null);
     try {
       const result = await refreshFxRates.mutateAsync({ pairs: [{ from: rate.from, to: rate.to || form.primaryCurrency }], range });
-      setMessage(`${rate.from}→${rate.to || form.primaryCurrency} 已抓取 ${result.saved} 筆。`);
-      setSaveTone(result.failed.length ? "error" : "success");
+      if (result.failed.length) {
+        toast.warning(`${rate.from}→${rate.to || form.primaryCurrency} 部分失敗`, { detail: result.failed.join("\n") });
+      } else {
+        toast.success(`${rate.from}→${rate.to || form.primaryCurrency} 已抓取 ${result.saved} 筆`);
+      }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "匯率更新失敗。");
-      setSaveTone("error");
+      toast.error("匯率更新失敗", {
+        description: error instanceof Error ? error.message : "未預期的錯誤。",
+        detail: formatErrorDetail(error),
+      });
     }
   }
 
@@ -252,19 +279,6 @@ export function SettingsRoute() {
             </div>
           </Card>
 
-          {message ? (
-            <div
-              role="status"
-              className="rounded-md border px-3 py-2 text-sm"
-              style={{
-                background: saveTone === "error" ? "var(--ns-danger-soft, #fdecea)" : "var(--ns-accent-soft)",
-                borderColor: saveTone === "error" ? "var(--ns-danger, #c0392b)" : "var(--ns-accent)",
-                color: saveTone === "error" ? "var(--ns-danger, #c0392b)" : "var(--ns-accent)",
-              }}
-            >
-              {message}
-            </div>
-          ) : null}
           <div>
             <ActionButton onClick={submit} disabled={updateSettings.isPending}>
               <CheckCircle size={16} />{updateSettings.isPending ? "儲存中" : "儲存設定"}
@@ -311,6 +325,16 @@ export function SettingsRoute() {
                 }}
               />
             </div>
+            {importStatus ? (
+              <div
+                className="mt-3 rounded-md border px-3 py-2 text-xs"
+                style={{ borderColor: "var(--ns-border)", color: "var(--ns-muted)", background: "var(--ns-surface-strong)" }}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Clock size={14} />{importStatus}
+                </span>
+              </div>
+            ) : null}
           </Card>
         </div>
       </div>
@@ -482,6 +506,18 @@ function DisplayAndPrivacyCard() {
   const setNameLocale = useUiPreferences((state) => state.setNameLocale);
   const clockMode = useUiPreferences((state) => state.clockMode);
   const setClockMode = useUiPreferences((state) => state.setClockMode);
+  const timezone = useUiPreferences((state) => state.timezone);
+  const setTimezone = useUiPreferences((state) => state.setTimezone);
+  const [customTzInput, setCustomTzInput] = useState("");
+  const [tzError, setTzError] = useState<string | null>(null);
+  const toast = useToast();
+
+  // Live clock so you can verify the chosen timezone matches your reality.
+  const [tickNow, setTickNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setTickNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const localeOptions: { value: NameLocalePreference; label: string }[] = [
     { value: "auto", label: "跟隨系統" },
@@ -493,6 +529,35 @@ function DisplayAndPrivacyCard() {
     { value: "24h", label: "24 小時制" },
     { value: "12h", label: "AM / PM" },
   ];
+
+  // Show the user's selected zone even if it's not in the curated list, so
+  // they can see what's currently active without scrolling the dropdown.
+  const timezoneOptions = useMemo(() => {
+    const list = [...COMMON_TIMEZONES];
+    if (!list.some((option) => option.id === timezone)) {
+      list.unshift({ id: timezone, label: timezone });
+    }
+    return list;
+  }, [timezone]);
+
+  function applyCustomTimezone() {
+    const next = customTzInput.trim();
+    if (!next) return;
+    if (!isValidTimezone(next)) {
+      setTzError(`「${next}」不是有效的 IANA 時區。`);
+      return;
+    }
+    setTimezone(next);
+    setCustomTzInput("");
+    setTzError(null);
+    toast.success("時區已更新", { description: next });
+  }
+
+  function handleTimezoneSelect(next: string) {
+    setTzError(null);
+    setTimezone(next);
+    toast.success("時區已更新", { description: next });
+  }
 
   return (
     <Card title="顯示與隱私">
@@ -583,9 +648,78 @@ function DisplayAndPrivacyCard() {
         <p className="-mt-2 text-xs leading-5" style={{ color: "var(--ns-muted)" }}>
           影響新增收支時的時間挑選器。在表單上也能即時切換。
         </p>
+
+        <Field label="時區">
+          <select
+            value={timezone}
+            onChange={(event) => handleTimezoneSelect(event.target.value)}
+            className="w-full rounded-md border bg-transparent px-3 py-2 text-sm outline-none"
+            style={{ borderColor: "var(--ns-border)", color: "var(--ns-fg)" }}
+          >
+            {timezoneOptions.map((option) => (
+              <option key={option.id} value={option.id}>{option.label}</option>
+            ))}
+          </select>
+        </Field>
+        <div className="-mt-2 grid grid-cols-[1fr_auto] gap-2">
+          <TextInput
+            placeholder="自訂 IANA 時區（例如 Asia/Tokyo）"
+            value={customTzInput}
+            onChange={(event) => setCustomTzInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                applyCustomTimezone();
+              }
+            }}
+          />
+          <ActionButton variant="secondary" onClick={applyCustomTimezone}>套用</ActionButton>
+        </div>
+        {tzError ? (
+          <p className="-mt-2 text-xs leading-5" style={{ color: "var(--ns-danger, #c0392b)" }}>{tzError}</p>
+        ) : (
+          <p className="-mt-2 text-xs leading-5" style={{ color: "var(--ns-muted)" }}>
+            目前 {timezone}：{formatDateTimeInTimezone(tickNow, timezone, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: clockMode === "12h" })}
+          </p>
+        )}
       </div>
     </Card>
   );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * Build a copy-pastable error report. WebView in production builds doesn't
+ * expose devtools, so the toast detail is the only way the user can hand us
+ * a useful stack trace. Include any context the caller provides too.
+ */
+function formatErrorDetail(error: unknown, extra: Record<string, unknown> = {}): string {
+  const lines: string[] = [];
+  if (error instanceof Error) {
+    lines.push(`${error.name}: ${error.message}`);
+    if (error.stack) lines.push("", error.stack);
+    const cause = (error as { cause?: unknown }).cause;
+    if (cause) {
+      lines.push("", "Caused by:");
+      lines.push(typeof cause === "string" ? cause : JSON.stringify(cause, null, 2));
+    }
+  } else if (typeof error === "string") {
+    lines.push(error);
+  } else if (error) {
+    lines.push(JSON.stringify(error, null, 2));
+  } else {
+    lines.push("Unknown error (no error object).");
+  }
+  if (Object.keys(extra).length) {
+    lines.push("", "Context:", JSON.stringify(extra, null, 2));
+  }
+  lines.push("", `When: ${new Date().toISOString()}`);
+  return lines.join("\n");
 }
 
 function normalizeForm(form: AppSettings): AppSettings {

@@ -1,16 +1,16 @@
 import { ChartLineUp, StackSimple, X } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ActionButton } from "../components/ActionButton";
 import { Field, SelectInput, TextInput } from "../components/Field";
-import { HoldingForm, emptyHoldingDraft } from "../components/HoldingForm";
+import { HoldingForm, makeEmptyHoldingDraft } from "../components/HoldingForm";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { StatusText } from "../components/StatusText";
 import { TickerSearchField } from "../components/TickerSearchField";
 import { useRepositoryMutation } from "../data/hooks";
 import type { InvestmentDraft, PortfolioAssetDraft } from "../data/repositories";
-import type { Account, InvestmentAction } from "../domain";
+import { todayInTimezone, type Account, type InvestmentAction } from "../domain";
+import { useUiPreferences } from "../state/uiPreferences";
 
-const today = () => new Date().toISOString().slice(0, 10);
 const actions: InvestmentAction[] = ["buy", "sell", "cashDividend", "stockDividend", "capitalReduction", "stockSplit"];
 const actionLabels: Record<InvestmentAction, string> = {
   buy: "買進",
@@ -23,13 +23,13 @@ const actionLabels: Record<InvestmentAction, string> = {
 
 type Mode = "snapshot" | "transaction";
 
-function emptyTransactionDraft(): InvestmentDraft {
+function emptyTransactionDraft(timezone: string): InvestmentDraft {
   return {
     ticker: "",
     name: "",
     currency: "TWD",
     linkedAccountId: null,
-    date: today(),
+    date: todayInTimezone(timezone),
     action: "buy",
     price: 0,
     quantity: 0,
@@ -47,9 +47,11 @@ export function HoldingsAddSheet({
   onClose: () => void;
   accounts: Account[];
 }) {
+  const timezone = useUiPreferences((state) => state.timezone);
+  const emptyHoldingDraft = useMemo(() => makeEmptyHoldingDraft(timezone), [timezone]);
   const [mode, setMode] = useState<Mode>("snapshot");
   const [snapshotForm, setSnapshotForm] = useState<PortfolioAssetDraft>(emptyHoldingDraft);
-  const [transactionForm, setTransactionForm] = useState<InvestmentDraft>(emptyTransactionDraft());
+  const [transactionForm, setTransactionForm] = useState<InvestmentDraft>(() => emptyTransactionDraft(timezone));
   const [message, setMessage] = useState("");
 
   const createHolding = useRepositoryMutation(
@@ -66,10 +68,10 @@ export function HoldingsAddSheet({
   useEffect(() => {
     if (!open) return;
     setSnapshotForm(emptyHoldingDraft);
-    setTransactionForm(emptyTransactionDraft());
+    setTransactionForm(emptyTransactionDraft(timezone));
     setMessage("");
     setMode("snapshot");
-  }, [open]);
+  }, [open, emptyHoldingDraft, timezone]);
 
   if (!open) return null;
 

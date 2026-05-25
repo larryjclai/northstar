@@ -1,6 +1,6 @@
-import { ArrowsClockwise, Bank, ChartLineUp, ListChecks, PencilSimple, PlusCircle, X } from "@phosphor-icons/react";
+import { ArrowDown, ArrowsClockwise, ArrowsDownUp, ArrowUp, Bank, ChartLineUp, ListChecks, PencilSimple, PlusCircle, X } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ActionButton } from "../components/ActionButton";
 import { PageHeader } from "../components/AppShell";
@@ -20,6 +20,7 @@ import {
   formatPrice,
   formatQuantity,
   resolveAssetName,
+  todayInTimezone,
   type Account,
   type DailyPrice,
   type HoldingPosition,
@@ -154,6 +155,15 @@ export function InvestmentsRoute() {
   );
 }
 
+interface AccountAggregate {
+  account: Account;
+  positions: HoldingPosition[];
+  marketValue: number;
+  costBasis: number;
+  pnl: number;
+  returnPercent: number;
+}
+
 function AccountsTab({
   accounts,
   positions,
@@ -165,6 +175,45 @@ function AccountsTab({
   primaryCurrency: string;
   toPrimary: (value: number, currency: string, asOfDate?: string) => number;
 }) {
+  // Group positions by account once, then derive totals so the right pane
+  // can read them in O(1) without recomputing on every selection change.
+  const aggregates = useMemo<AccountAggregate[]>(() => {
+    const byAccount = new Map<string, HoldingPosition[]>();
+    for (const position of positions) {
+      const key = position.accountId ?? "__unassigned__";
+      const existing = byAccount.get(key) ?? [];
+      existing.push(position);
+      byAccount.set(key, existing);
+    }
+    return accounts.map((account) => {
+      const accountPositions = byAccount.get(account.id) ?? [];
+      const marketValue = accountPositions.reduce(
+        (sum, position) => sum + toPrimary(position.marketValue, position.currency),
+        0,
+      );
+      const costBasis = accountPositions.reduce(
+        (sum, position) => sum + toPrimary(position.costBasis, position.currency),
+        0,
+      );
+      const pnl = marketValue - costBasis;
+      const returnPercent = costBasis === 0 ? 0 : (pnl / costBasis) * 100;
+      return { account, positions: accountPositions, marketValue, costBasis, pnl, returnPercent };
+    });
+  }, [accounts, positions, toPrimary]);
+
+  // Auto-select the first account on first render (or whenever the selected
+  // one disappears) so the right pane always has something useful to show.
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => accounts[0]?.id ?? null);
+  useEffect(() => {
+    if (accounts.length === 0) {
+      if (selectedAccountId !== null) setSelectedAccountId(null);
+      return;
+    }
+    if (!accounts.some((account) => account.id === selectedAccountId)) {
+      setSelectedAccountId(accounts[0].id);
+    }
+  }, [accounts, selectedAccountId]);
+
   if (accounts.length === 0) {
     return (
       <EmptyState
@@ -175,59 +224,182 @@ function AccountsTab({
     );
   }
 
-  const byAccount = new Map<string, HoldingPosition[]>();
-  for (const position of positions) {
-    const key = position.accountId ?? "__unassigned__";
-    const existing = byAccount.get(key) ?? [];
-    existing.push(position);
-    byAccount.set(key, existing);
-  }
+  const selected = aggregates.find((entry) => entry.account.id === selectedAccountId) ?? aggregates[0];
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+      <AccountList aggregates={aggregates} selectedId={selected.account.id} onSelect={setSelectedAccountId} primaryCurrency={primaryCurrency} />
+      <AccountDetail aggregate={selected} primaryCurrency={primaryCurrency} toPrimary={toPrimary} />
+    </div>
+  );
+}
+
+function AccountList({
+  aggregates,
+  selectedId,
+  onSelect,
+  primaryCurrency,
+}: {
+  aggregates: AccountAggregate[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  primaryCurrency: string;
+}) {
+  // Aggregate-sorted by market value descending so the broker contributing the
+  // most to your net worth shows up first. Tie-break by name for stability.
+  const sorted = [...aggregates].sort((a, b) => {
+    if (b.marketValue !== a.marketValue) return b.marketValue - a.marketValue;
+    return a.account.name.localeCompare(b.account.name);
+  });
+  return (
+    <div className="rounded-lg border" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
+      <div className="border-b px-4 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--ns-muted)", borderColor: "var(--ns-border)" }}>
+        我的券商（{aggregates.length}）
+      </div>
+      <div className="max-h-[70vh] overflow-y-auto">
+        {sorted.map((aggregate) => {
+          const active = aggregate.account.id === selectedId;
+          const pnlColor = aggregate.pnl >= 0 ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)";
+          return (
+            <button
+              key={aggregate.account.id}
+              type="button"
+              onClick={() => onSelect(aggregate.account.id)}
+              aria-pressed={active}
+              className="flex w-full items-start gap-3 border-b px-4 py-3 text-left outline-none transition hover:opacity-90"
+              style={{
+                borderColor: "var(--ns-border)",
+                background: active ? "var(--ns-accent-soft)" : "transparent",
+                color: active ? "var(--ns-accent)" : "var(--ns-fg)",
+              }}
+            >
+              <div className="grid size-9 shrink-0 place-items-center rounded-md" style={{ background: active ? "var(--ns-accent)" : "var(--ns-surface-strong)", color: active ? "white" : "var(--ns-muted)" }}>
+                <Bank size={18} weight="duotone" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold">{aggregate.account.name}</div>
+                <div className="mt-0.5 text-xs" style={{ color: active ? "var(--ns-accent)" : "var(--ns-muted)" }}>
+                  {aggregate.positions.length} 檔 · {aggregate.account.currency}
+                </div>
+              </div>
+              <div className="text-right tabular">
+                <div className="text-sm font-semibold">{formatMoney(aggregate.marketValue, primaryCurrency)}</div>
+                <div className="text-[11px]" style={{ color: pnlColor }}>
+                  {aggregate.pnl >= 0 ? "+" : ""}{aggregate.returnPercent.toFixed(2)}%
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AccountDetail({
+  aggregate,
+  primaryCurrency,
+  toPrimary,
+}: {
+  aggregate: AccountAggregate;
+  primaryCurrency: string;
+  toPrimary: (value: number, currency: string, asOfDate?: string) => number;
+}) {
+  const { account, positions, marketValue, costBasis, pnl, returnPercent } = aggregate;
+  const sortedPositions = [...positions].sort(
+    (a, b) => toPrimary(b.marketValue, b.currency) - toPrimary(a.marketValue, a.currency),
+  );
+  const totalForAllocation = sortedPositions.reduce(
+    (sum, position) => sum + toPrimary(position.marketValue, position.currency),
+    0,
+  );
 
   return (
     <div className="grid gap-4">
-      {accounts.map((account) => {
-        const accountPositions = byAccount.get(account.id) ?? [];
-        const marketValue = accountPositions.reduce(
-          (sum, position) => sum + toPrimary(position.marketValue, position.currency),
-          0,
-        );
-        const costBasis = accountPositions.reduce(
-          (sum, position) => sum + toPrimary(position.costBasis, position.currency),
-          0,
-        );
-        const pnl = marketValue - costBasis;
-        return (
-          <Card key={account.id} title={account.name}>
-            <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <div className="text-sm" style={{ color: "var(--ns-muted)" }}>
-                {account.type === "investment" ? "投資帳戶" : "存款帳戶"} · {account.currency}
-              </div>
-              <div className="tabular text-right">
-                <div className="font-semibold">{formatMoney(marketValue, primaryCurrency)}</div>
-                <div className="text-xs" style={{ color: pnl >= 0 ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}>
-                  損益 {pnl >= 0 ? "+" : ""}{formatNumber(pnl)} {primaryCurrency}
-                </div>
-              </div>
+      <Card title={account.name}>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <div className="text-sm" style={{ color: "var(--ns-muted)" }}>
+            {account.type === "investment" ? "投資帳戶" : "存款帳戶"} · {account.currency}
+          </div>
+          <div className="tabular text-right">
+            <div className="text-lg font-semibold">{formatMoney(marketValue, primaryCurrency)}</div>
+            <div className="text-xs" style={{ color: pnl >= 0 ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}>
+              損益 {pnl >= 0 ? "+" : ""}{formatNumber(pnl)} {primaryCurrency}（{pnl >= 0 ? "+" : ""}{returnPercent.toFixed(2)}%）
             </div>
-            {accountPositions.length === 0 ? (
-              <p className="mt-3 text-sm" style={{ color: "var(--ns-muted)" }}>
-                此帳戶尚無持倉。
-              </p>
-            ) : (
-              <div className="mt-4 grid gap-2 text-sm">
-                {accountPositions.map((position) => (
-                  <div key={`${position.assetId}-${position.accountId ?? "none"}`} className="flex justify-between gap-3">
-                    <span>{position.ticker}</span>
-                    <span className="tabular">
-                      {formatQuantity(position.quantity)} × {formatPrice(position.marketPrice ?? position.averageCost)} {position.currency}
-                    </span>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <SummaryCell label="持倉檔數" value={`${positions.length}`} />
+          <SummaryCell label="成本" value={formatMoney(costBasis, primaryCurrency)} />
+          <SummaryCell label="未實現損益" value={`${pnl >= 0 ? "+" : ""}${formatNumber(pnl)} ${primaryCurrency}`} tone={pnl >= 0 ? "positive" : "negative"} />
+        </div>
+      </Card>
+
+      {sortedPositions.length === 0 ? (
+        <Card title="持倉">
+          <p className="text-sm" style={{ color: "var(--ns-muted)" }}>此帳戶尚無持倉。</p>
+        </Card>
+      ) : (
+        <>
+          <Card title="配置">
+            <div className="space-y-3">
+              {sortedPositions.map((position) => {
+                const valueInBase = toPrimary(position.marketValue, position.currency);
+                const ratio = totalForAllocation === 0 ? 0 : valueInBase / totalForAllocation;
+                return (
+                  <div key={`${position.assetId}-allocation`} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium">{position.ticker}</span>
+                      <span className="tabular">{(ratio * 100).toFixed(1)}%</span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full" style={{ background: "var(--ns-surface-strong)" }}>
+                      <div className="h-full rounded-full" style={{ width: `${ratio * 100}%`, background: "var(--ns-accent)" }} />
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
           </Card>
-        );
-      })}
+          <Card title={`持倉明細（${sortedPositions.length}）`}>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
+                    <th className="py-2">Ticker</th>
+                    <th className="py-2 text-right">股數</th>
+                    <th className="py-2 text-right">現價</th>
+                    <th className="py-2 text-right">市值</th>
+                    <th className="py-2 text-right">損益</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedPositions.map((position) => {
+                    const pnlTone = position.unrealizedGain >= 0 ? "positive" : "negative";
+                    return (
+                      <tr key={`${position.assetId}-detail`} className="border-t" style={{ borderColor: "var(--ns-border)" }}>
+                        <td className="py-2 font-semibold">{position.ticker}</td>
+                        <td className="py-2 text-right tabular">{formatQuantity(position.quantity)}</td>
+                        <td className="py-2 text-right tabular">
+                          {position.marketPrice !== null ? formatPrice(position.marketPrice) : "—"}
+                        </td>
+                        <td className="py-2 text-right tabular">
+                          {formatNumber(position.marketValue)} <span style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
+                        </td>
+                        <td
+                          className="py-2 text-right tabular"
+                          style={{ color: pnlTone === "positive" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}
+                        >
+                          {position.unrealizedGain >= 0 ? "+" : ""}{formatNumber(position.unrealizedGain)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
@@ -365,6 +537,24 @@ function PerformanceTab({
   );
 }
 
+type HoldingsSortKey =
+  | "ticker"
+  | "name"
+  | "account"
+  | "quantity"
+  | "averageCost"
+  | "marketPrice"
+  | "marketValue"
+  | "unrealizedGain"
+  | "unrealizedGainPercent";
+
+type SortDirection = "asc" | "desc";
+
+interface HoldingsSortState {
+  key: HoldingsSortKey;
+  direction: SortDirection;
+}
+
 function HoldingsTab({
   positions,
   accountMap,
@@ -378,13 +568,37 @@ function HoldingsTab({
   nameLocale: NameLocalePreference;
   assetsById: Map<string, PortfolioAsset>;
 }) {
+  const timezone = useUiPreferences((state) => state.timezone);
   const [editingAsset, setEditingAsset] = useState<PortfolioAsset | null>(null);
   const [editForm, setEditForm] = useState<PortfolioAssetDraft | null>(null);
   const [message, setMessage] = useState("");
+  // Default to descending market value — matches user expectation that the
+  // biggest positions sit at the top until they explicitly sort otherwise.
+  const [sort, setSort] = useState<HoldingsSortState>({ key: "marketValue", direction: "desc" });
   const updateHolding = useRepositoryMutation(
     (repository, input: PortfolioAssetDraft & { id: string }) => repository.updateManualHolding(input.id, input),
     ["assets"],
   );
+
+  function toggleSort(key: HoldingsSortKey) {
+    setSort((current) => {
+      if (current.key !== key) {
+        // First click on a new column picks the natural direction: descending
+        // for numerics (most-to-least is what people scan for) and ascending
+        // for text (A-Z reads naturally).
+        const numeric: HoldingsSortKey[] = [
+          "quantity",
+          "averageCost",
+          "marketPrice",
+          "marketValue",
+          "unrealizedGain",
+          "unrealizedGainPercent",
+        ];
+        return { key, direction: numeric.includes(key) ? "desc" : "asc" };
+      }
+      return { key, direction: current.direction === "asc" ? "desc" : "asc" };
+    });
+  }
 
   function startEdit(asset: PortfolioAsset) {
     setEditingAsset(asset);
@@ -394,7 +608,7 @@ function HoldingsTab({
       currency: asset.currency,
       totalQuantity: asset.totalQuantity,
       averageCost: asset.averageCost,
-      acquisitionDate: asset.acquisitionDate ?? new Date().toISOString().slice(0, 10),
+      acquisitionDate: asset.acquisitionDate ?? todayInTimezone(timezone),
       accountId: asset.accountId,
     });
     setMessage("");
@@ -426,7 +640,7 @@ function HoldingsTab({
     );
   }
 
-  const sorted = [...positions].sort((a, b) => b.marketValue - a.marketValue);
+  const sorted = sortHoldings(positions, sort, accountMap, assetsById, nameLocale);
 
   return (
     <>
@@ -435,15 +649,15 @@ function HoldingsTab({
           <table className="w-full min-w-[860px] text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
-                <th className="py-2">Ticker</th>
-                <th className="py-2">名稱</th>
-                <th className="py-2">券商</th>
-                <th className="py-2 text-right">股數</th>
-                <th className="py-2 text-right">均價</th>
-                <th className="py-2 text-right">現價</th>
-                <th className="py-2 text-right">市值</th>
-                <th className="py-2 text-right">損益</th>
-                <th className="py-2 text-right">報酬率</th>
+                <SortableHeader label="Ticker" sortKey="ticker" sort={sort} onToggle={toggleSort} />
+                <SortableHeader label="名稱" sortKey="name" sort={sort} onToggle={toggleSort} />
+                <SortableHeader label="券商" sortKey="account" sort={sort} onToggle={toggleSort} />
+                <SortableHeader label="股數" sortKey="quantity" sort={sort} onToggle={toggleSort} align="right" />
+                <SortableHeader label="均價" sortKey="averageCost" sort={sort} onToggle={toggleSort} align="right" />
+                <SortableHeader label="現價" sortKey="marketPrice" sort={sort} onToggle={toggleSort} align="right" />
+                <SortableHeader label="市值" sortKey="marketValue" sort={sort} onToggle={toggleSort} align="right" />
+                <SortableHeader label="損益" sortKey="unrealizedGain" sort={sort} onToggle={toggleSort} align="right" />
+                <SortableHeader label="報酬率" sortKey="unrealizedGainPercent" sort={sort} onToggle={toggleSort} align="right" />
                 <th className="py-2 text-right">操作</th>
               </tr>
             </thead>
@@ -533,6 +747,111 @@ function HoldingsTab({
       ) : null}
     </>
   );
+}
+
+function SortableHeader({
+  label,
+  sortKey,
+  sort,
+  onToggle,
+  align = "left",
+}: {
+  label: string;
+  sortKey: HoldingsSortKey;
+  sort: HoldingsSortState;
+  onToggle: (key: HoldingsSortKey) => void;
+  align?: "left" | "right";
+}) {
+  const active = sort.key === sortKey;
+  const icon = active
+    ? sort.direction === "asc"
+      ? <ArrowUp size={11} weight="bold" />
+      : <ArrowDown size={11} weight="bold" />
+    : <ArrowsDownUp size={11} weight="bold" />;
+  return (
+    <th className={`py-2 ${align === "right" ? "text-right" : ""}`}>
+      <button
+        type="button"
+        onClick={() => onToggle(sortKey)}
+        className="inline-flex items-center gap-1 select-none text-xs uppercase tracking-wide outline-none transition hover:opacity-80"
+        style={{ color: active ? "var(--ns-accent)" : "var(--ns-muted)" }}
+        aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
+      >
+        {align === "right" ? <span>{icon}</span> : null}
+        <span>{label}</span>
+        {align !== "right" ? <span>{icon}</span> : null}
+      </button>
+    </th>
+  );
+}
+
+/**
+ * Sort holdings by the chosen column. Tie-breaks fall back to market value
+ * (then ticker) so the order is stable even when, e.g., two positions both
+ * lack a current market price.
+ */
+function sortHoldings(
+  positions: HoldingPosition[],
+  sort: HoldingsSortState,
+  accountMap: Map<string, Account>,
+  assetsById: Map<string, PortfolioAsset>,
+  nameLocale: NameLocalePreference,
+): HoldingPosition[] {
+  const multiplier = sort.direction === "asc" ? 1 : -1;
+  const comparator = (a: HoldingPosition, b: HoldingPosition) => {
+    const primary = comparePositions(a, b, sort.key, accountMap, assetsById, nameLocale);
+    if (primary !== 0) return primary * multiplier;
+    // Stable secondary key: bigger market value first, then ticker A→Z.
+    const byValue = (b.marketValue ?? 0) - (a.marketValue ?? 0);
+    if (byValue !== 0) return byValue;
+    return a.ticker.localeCompare(b.ticker);
+  };
+  return [...positions].sort(comparator);
+}
+
+function comparePositions(
+  a: HoldingPosition,
+  b: HoldingPosition,
+  key: HoldingsSortKey,
+  accountMap: Map<string, Account>,
+  assetsById: Map<string, PortfolioAsset>,
+  nameLocale: NameLocalePreference,
+): number {
+  switch (key) {
+    case "ticker":
+      return a.ticker.localeCompare(b.ticker);
+    case "name": {
+      const an = assetsById.get(a.assetId) ? resolveAssetName(assetsById.get(a.assetId)!, nameLocale) : a.name;
+      const bn = assetsById.get(b.assetId) ? resolveAssetName(assetsById.get(b.assetId)!, nameLocale) : b.name;
+      // Chinese collation via Intl so 台積 sorts predictably alongside ASCII.
+      return an.localeCompare(bn, undefined, { numeric: true, sensitivity: "base" });
+    }
+    case "account": {
+      const an = a.accountId ? accountMap.get(a.accountId)?.name ?? "" : "";
+      const bn = b.accountId ? accountMap.get(b.accountId)?.name ?? "" : "";
+      // Push "未指定" (empty account name) to the end no matter the direction —
+      // that's almost always less useful to surface.
+      if (an === "" && bn !== "") return 1;
+      if (bn === "" && an !== "") return -1;
+      return an.localeCompare(bn, undefined, { numeric: true, sensitivity: "base" });
+    }
+    case "quantity":
+      return a.quantity - b.quantity;
+    case "averageCost":
+      return a.averageCost - b.averageCost;
+    case "marketPrice":
+      // Null prices fall to the end regardless of direction.
+      if (a.marketPrice === null && b.marketPrice === null) return 0;
+      if (a.marketPrice === null) return 1;
+      if (b.marketPrice === null) return -1;
+      return a.marketPrice - b.marketPrice;
+    case "marketValue":
+      return a.marketValue - b.marketValue;
+    case "unrealizedGain":
+      return a.unrealizedGain - b.unrealizedGain;
+    case "unrealizedGainPercent":
+      return a.unrealizedGainPercent - b.unrealizedGainPercent;
+  }
 }
 
 function SummaryCell({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "neutral" | "positive" | "negative" }) {

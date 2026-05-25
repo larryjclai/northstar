@@ -4,16 +4,25 @@ import { ActionButton } from "./ActionButton";
 import { TickerSearchField } from "./TickerSearchField";
 import type { PortfolioAssetDraft } from "../data/repositories";
 import type { Account } from "../domain";
+import { todayInTimezone } from "../domain";
 
-export const emptyHoldingDraft: PortfolioAssetDraft = {
-  ticker: "",
-  name: "",
-  currency: "TWD",
-  totalQuantity: 0,
-  averageCost: 0,
-  acquisitionDate: new Date().toISOString().slice(0, 10),
-  accountId: null,
-};
+/**
+ * Build a blank holding draft using the user's configured timezone for
+ * `acquisitionDate`. Kept as a function (not a frozen module-level const)
+ * so the date follows the timezone preference instead of being stamped
+ * with whatever zone the module first loaded under.
+ */
+export function makeEmptyHoldingDraft(timezone: string): PortfolioAssetDraft {
+  return {
+    ticker: "",
+    name: "",
+    currency: "TWD",
+    totalQuantity: 0,
+    averageCost: 0,
+    acquisitionDate: todayInTimezone(timezone),
+    accountId: null,
+  };
+}
 
 export function HoldingForm({
   value,

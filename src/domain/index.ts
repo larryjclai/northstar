@@ -1,6 +1,7 @@
 export * from "./amountExpression";
 export * from "./assetName";
 export * from "./currency";
+export * from "./datetime";
 export * from "./fifoCalculator";
 export * from "./fireGoal";
 export * from "./groupClassifier";

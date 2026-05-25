@@ -9,57 +9,66 @@ import { StatusText } from "../components/StatusText";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { LedgerDraft, RecurringDraft, TransferDraft } from "../data/repositories";
-import { evaluateAmountExpression, formatNumber } from "../domain";
+import { evaluateAmountExpression, formatNumber, nowAsDatetimeLocal, todayInTimezone } from "../domain";
 import type { LedgerTransaction } from "../domain";
+import { useUiPreferences } from "../state/uiPreferences";
 
 type CashMode = "single" | "transfer";
 
-function toLocalMinute(date = new Date()) {
-  const offsetMs = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+/** Factory functions — empty templates are computed per-render so they pick
+ *  up the user's currently-selected timezone instead of being frozen at
+ *  module load time (which was the timezone bug we just fixed). */
+function makeEmptyLedger(timezone: string): LedgerDraft {
+  return {
+    accountId: "",
+    date: nowAsDatetimeLocal(timezone),
+    amount: 100,
+    currency: "TWD",
+    category: "餐飲",
+    subcategory: "點心",
+    merchant: "",
+    entryType: "expense",
+    settlementStatus: "settled",
+    note: "",
+  };
 }
 
-const emptyLedger: LedgerDraft = {
-  accountId: "",
-  date: toLocalMinute(),
-  amount: 100,
-  currency: "TWD",
-  category: "餐飲",
-  subcategory: "點心",
-  merchant: "",
-  entryType: "expense",
-  settlementStatus: "settled",
-  note: "",
-};
+function makeEmptyTransfer(timezone: string): TransferDraft {
+  return {
+    date: nowAsDatetimeLocal(timezone),
+    sourceAccountId: "",
+    destinationAccountId: "",
+    sourceCurrency: "TWD",
+    destinationCurrency: "TWD",
+    sourceAmount: 1000,
+    destinationAmount: 1000,
+    note: "",
+  };
+}
 
-const emptyTransfer: TransferDraft = {
-  date: toLocalMinute(),
-  sourceAccountId: "",
-  destinationAccountId: "",
-  sourceCurrency: "TWD",
-  destinationCurrency: "TWD",
-  sourceAmount: 1000,
-  destinationAmount: 1000,
-  note: "",
-};
-
-const emptyRecurring: RecurringDraft = {
-  accountId: "",
-  amount: -390,
-  currency: "TWD",
-  category: "餐飲",
-  subcategory: "飲料",
-  merchant: "",
-  entryType: "expense",
-  settlementStatus: "settled",
-  note: "訂閱",
-  dayOfMonth: 1,
-  nextRunDate: new Date().toISOString().slice(0, 10),
-  isActive: true,
-};
+function makeEmptyRecurring(timezone: string): RecurringDraft {
+  return {
+    accountId: "",
+    amount: -390,
+    currency: "TWD",
+    category: "餐飲",
+    subcategory: "飲料",
+    merchant: "",
+    entryType: "expense",
+    settlementStatus: "settled",
+    note: "訂閱",
+    dayOfMonth: 1,
+    nextRunDate: todayInTimezone(timezone),
+    isActive: true,
+  };
+}
 
 export function CashFlowRoute() {
   const { accounts, ledger, recurring, settings } = useFinanceData();
+  const timezone = useUiPreferences((state) => state.timezone);
+  const emptyLedger = useMemo(() => makeEmptyLedger(timezone), [timezone]);
+  const emptyTransfer = useMemo(() => makeEmptyTransfer(timezone), [timezone]);
+  const emptyRecurring = useMemo(() => makeEmptyRecurring(timezone), [timezone]);
   const [mode, setMode] = useState<CashMode>("single");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [ledgerForm, setLedgerForm] = useState<LedgerDraft>(emptyLedger);
@@ -138,7 +147,7 @@ export function CashFlowRoute() {
       if (editingId) await updateLedger.mutateAsync({ ...payload, id: editingId });
       else await createLedger.mutateAsync(payload);
       rememberMerchantNames([payload.merchant]);
-      setLedgerForm({ ...emptyLedger, date: toLocalMinute(), currency: appSettings?.primaryCurrency ?? emptyLedger.currency });
+      setLedgerForm({ ...emptyLedger, date: nowAsDatetimeLocal(timezone), currency: appSettings?.primaryCurrency ?? emptyLedger.currency });
       setAmountExpression(String(Math.abs(emptyLedger.amount)));
       setEditingId(null);
     } catch (error) {
@@ -151,7 +160,7 @@ export function CashFlowRoute() {
     try {
       if (!transferForm.sourceAccountId || !transferForm.destinationAccountId) throw new Error("請選擇來源和目標帳戶。");
       await createTransfer.mutateAsync(transferForm);
-      setTransferForm({ ...emptyTransfer, date: toLocalMinute() });
+      setTransferForm({ ...emptyTransfer, date: nowAsDatetimeLocal(timezone) });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "轉帳儲存失敗。");
     }
@@ -242,7 +251,7 @@ export function CashFlowRoute() {
               {message ? <StatusText>{message}</StatusText> : null}
               <div className="flex gap-2">
                 <ActionButton onClick={submitSingle}>{editingId ? "儲存" : "新增"}</ActionButton>
-                {editingId ? <ActionButton variant="secondary" onClick={() => { setEditingId(null); setLedgerForm({ ...emptyLedger, date: toLocalMinute() }); setAmountExpression(String(Math.abs(emptyLedger.amount))); }}>取消</ActionButton> : null}
+                {editingId ? <ActionButton variant="secondary" onClick={() => { setEditingId(null); setLedgerForm({ ...emptyLedger, date: nowAsDatetimeLocal(timezone) }); setAmountExpression(String(Math.abs(emptyLedger.amount))); }}>取消</ActionButton> : null}
               </div>
             </div>
           ) : (

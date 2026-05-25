@@ -1,20 +1,21 @@
 import { ChartLineUp, PencilSimple, PlusCircle, StackSimple, Trash, UploadSimple } from "@phosphor-icons/react";
-import { ChangeEvent, useState } from "react";
+import { ChangeEvent, useMemo, useState } from "react";
 import { ActionButton } from "../components/ActionButton";
 import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { Field, SelectInput, TextInput } from "../components/Field";
-import { HoldingForm, emptyHoldingDraft } from "../components/HoldingForm";
+import { HoldingForm, makeEmptyHoldingDraft } from "../components/HoldingForm";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { StatusText } from "../components/StatusText";
 import { TickerSearchField } from "../components/TickerSearchField";
 import { downloadCsv, exportInvestmentCsv, parseInvestmentCsv, type ImportPreview } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { InvestmentDraft, PortfolioAssetDraft } from "../data/repositories";
+import { todayInTimezone } from "../domain";
 import type { InvestmentAction, InvestmentRecord } from "../domain";
+import { useUiPreferences } from "../state/uiPreferences";
 
-const today = new Date().toISOString().slice(0, 10);
 type EntryMode = "transaction" | "holding";
 const actions: InvestmentAction[] = ["buy", "sell", "cashDividend", "stockDividend", "capitalReduction", "stockSplit"];
 const actionLabels: Record<InvestmentAction, string> = {
@@ -26,21 +27,26 @@ const actionLabels: Record<InvestmentAction, string> = {
   stockSplit: "股票分割",
 };
 
-const emptyInvestment: InvestmentDraft = {
-  ticker: "",
-  name: "",
-  currency: "TWD",
-  linkedAccountId: null,
-  date: today,
-  action: "buy",
-  price: 0,
-  quantity: 0,
-  fee: 0,
-  note: "",
-};
+function makeEmptyInvestment(timezone: string): InvestmentDraft {
+  return {
+    ticker: "",
+    name: "",
+    currency: "TWD",
+    linkedAccountId: null,
+    date: todayInTimezone(timezone),
+    action: "buy",
+    price: 0,
+    quantity: 0,
+    fee: 0,
+    note: "",
+  };
+}
 
 export function TransactionsRoute() {
   const { accounts, assets, investments } = useFinanceData();
+  const timezone = useUiPreferences((state) => state.timezone);
+  const emptyInvestment = useMemo(() => makeEmptyInvestment(timezone), [timezone]);
+  const emptyHoldingDraft = useMemo(() => makeEmptyHoldingDraft(timezone), [timezone]);
   const [mode, setMode] = useState<EntryMode>("transaction");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<InvestmentDraft>(emptyInvestment);
