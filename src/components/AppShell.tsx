@@ -12,6 +12,8 @@ import { Link, Outlet } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { usePrivacySync, useUiPreferences } from "../state/uiPreferences";
 
+const appIconUrl = new URL("../../src-tauri/icons/icon.png", import.meta.url).href;
+
 const navItems = [
   { to: "/", label: "總覽", icon: House },
   { to: "/investments", label: "投資", icon: TrendUp },
@@ -32,7 +34,7 @@ export function AppShell() {
     <div className="min-h-screen lg:grid lg:grid-cols-[260px_1fr]">
       <aside className="hidden border-r p-4 lg:sticky lg:top-0 lg:block lg:h-screen lg:self-start" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
         <div className="mb-6 flex items-center gap-3">
-          <img src="/favicon.svg" alt="" className="size-10 rounded-lg" />
+          <img src={appIconUrl} alt="" className="size-10 rounded-lg" />
           <div className="flex-1">
             <div className="font-semibold">Northstar</div>
             <div className="text-xs" style={{ color: "var(--ns-muted)" }}>投資與現金流</div>

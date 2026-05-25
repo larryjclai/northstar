@@ -34,6 +34,7 @@ export function HoldingForm({
   submitLabel = "新增持倉",
   accounts = [],
   classificationOnly = false,
+  onTickerSelected,
 }: {
   value: PortfolioAssetDraft;
   onChange: (value: PortfolioAssetDraft) => void;
@@ -41,10 +42,12 @@ export function HoldingForm({
   submitLabel?: string;
   accounts?: Account[];
   classificationOnly?: boolean;
+  onTickerSelected?: (value: PortfolioAssetDraft) => void;
 }) {
   const eligibleAccounts = accounts.filter(
     (account) => account.deletedAt === null && account.type === "investment",
   );
+  const selectedAccount = eligibleAccounts.find((account) => account.id === value.accountId) ?? null;
   const isFundLike = value.assetType === "etf" || value.assetType === "mutual_fund";
 
   return (
@@ -57,18 +60,26 @@ export function HoldingForm({
             <TickerSearchField
               value={value.ticker}
               onChange={(ticker) => onChange({ ...value, ticker })}
-              onSelect={(result) => onChange({
-                ...value,
-                ticker: result.symbol.toUpperCase(),
-                name: result.name || result.symbol,
-                currency: result.currency || value.currency,
-                assetType: result.assetType ?? value.assetType ?? null,
-              })}
+              onSelect={(result) => {
+                const next = {
+                  ...value,
+                  ticker: result.symbol.toUpperCase(),
+                  name: result.name || result.symbol,
+                  currency: selectedAccount?.currency ?? value.currency,
+                  assetType: result.assetType ?? value.assetType ?? null,
+                };
+                onChange(next);
+                onTickerSelected?.(next);
+              }}
             />
           )}
         </Field>
         <Field label="幣別">
-          <TextInput value={value.currency} disabled={classificationOnly} onChange={(event) => onChange({ ...value, currency: event.target.value.toUpperCase() })} />
+          <TextInput
+            value={selectedAccount?.currency ?? value.currency}
+            disabled={classificationOnly || Boolean(selectedAccount)}
+            onChange={(event) => onChange({ ...value, currency: event.target.value.toUpperCase() })}
+          />
         </Field>
       </div>
       <Field label="名稱">
@@ -78,7 +89,10 @@ export function HoldingForm({
         <SelectInput
           value={value.accountId ?? ""}
           disabled={classificationOnly}
-          onChange={(event) => onChange({ ...value, accountId: event.target.value || null })}
+          onChange={(event) => {
+            const account = eligibleAccounts.find((row) => row.id === event.target.value);
+            onChange({ ...value, accountId: event.target.value || null, currency: account?.currency ?? value.currency });
+          }}
         >
           <option value="">— 選擇券商 —</option>
           {eligibleAccounts.map((account) => (
