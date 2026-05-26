@@ -9,6 +9,7 @@ import {
   TrendUp,
 } from "@phosphor-icons/react";
 import { Link, Outlet } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { usePrivacySync, useUiPreferences } from "../state/uiPreferences";
 
@@ -16,10 +17,10 @@ const appIconUrl = new URL("../../src-tauri/icons/icon.png", import.meta.url).hr
 
 const navItems = [
   { to: "/", label: "總覽", icon: House },
+  { to: "/cash-flow", label: "記帳", icon: Receipt },
+  { to: "/accounts", label: "帳戶", icon: Bank },
   { to: "/investments", label: "投資", icon: TrendUp },
   { to: "/goals", label: "目標", icon: Target },
-  { to: "/cash-flow", label: "收支", icon: Receipt },
-  { to: "/accounts", label: "帳戶", icon: Bank },
   { to: "/settings", label: "設定", icon: GearSix },
 ] as const;
 
@@ -121,11 +122,25 @@ function usePrivacyShortcut() {
   }, [toggle]);
 }
 
-export function PageHeader({ title, description }: { title: string; description: string }) {
+export function PageHeader({
+  title,
+  description,
+  action,
+  meta,
+}: {
+  title: string;
+  description: string;
+  action?: ReactNode;
+  meta?: ReactNode;
+}) {
   return (
-    <header className="mb-6 flex flex-col gap-2">
-      <h1 className="text-3xl font-semibold">{title}</h1>
-      <p className="max-w-3xl text-sm leading-6" style={{ color: "var(--ns-muted)" }}>{description}</p>
+    <header className="mb-6 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+      <div className="min-w-0">
+        <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+        <p className="mt-2 max-w-3xl text-sm leading-6" style={{ color: "var(--ns-muted)" }}>{description}</p>
+        {meta ? <div className="mt-3 flex flex-wrap gap-2">{meta}</div> : null}
+      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
     </header>
   );
 }

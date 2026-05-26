@@ -903,6 +903,7 @@ class BrowserFinanceRepository implements FinanceRepository {
 
     const cashDelta = calculateInvestmentCashDelta(input);
     if (cashDelta >= 0) return;
+    if (allowsTwdTPlus2Buffer(input, account.currency)) return;
     const baseBalance = computeAccountBalance(account, this.data.ledgerTransactions, options.excludeLedgerId ?? null);
     const nextBalance = baseBalance + cashDelta;
     if (isEffectivelyNegative(nextBalance)) throw new Error(`購買力不足，目前餘額 ${formatPlainAmount(baseBalance)} ${account.currency}。`);
@@ -2090,6 +2091,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
     const cashDelta = calculateInvestmentCashDelta(input);
     if (cashDelta >= 0) return;
+    if (allowsTwdTPlus2Buffer(input, account.currency)) return;
     const ledgerRows = await this.db.select<LedgerTransaction[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       account_id as accountId, date, name, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, linked_investment_record_id as linkedInvestmentRecordId,
@@ -2620,4 +2622,8 @@ function formatPlainAmount(value: number) {
   return new Intl.NumberFormat("zh-TW", {
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function allowsTwdTPlus2Buffer(input: InvestmentDraft, accountCurrency: string) {
+  return input.action === "buy" && accountCurrency.trim().toUpperCase() === "TWD";
 }

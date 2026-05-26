@@ -14,7 +14,6 @@ import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { PortfolioAssetDraft } from "../data/repositories";
 import {
-  assetTypeLabels,
   buildHoldingPositionsByAccount,
   createFxConverter,
   formatMoney,
@@ -141,7 +140,15 @@ export function InvestmentsRoute() {
 
   return (
     <div className="mx-auto max-w-6xl p-5 lg:p-8">
-      <PageHeader title="投資" description="把帳戶、績效、持倉合而為一。每筆持倉都綁定券商，方便看出每家券商的損益。" />
+      <PageHeader
+        title="投資"
+        description="把帳戶、績效、持倉合而為一。每筆持倉都綁定券商，方便看出每家券商的損益。"
+        action={
+          <ActionButton onClick={() => setAddOpen(true)} size="sm">
+            <PlusCircle size={16} />新增部位
+          </ActionButton>
+        }
+      />
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <SegmentedControl value={tab} options={tabOptions} onChange={changeTab} />
@@ -154,9 +161,6 @@ export function InvestmentsRoute() {
               <ArrowsClockwise size={16} />{backfillAssetProfiles.isPending ? "回補中" : "回補資料"}
             </ActionButton>
           ) : null}
-          <ActionButton onClick={() => setAddOpen(true)}>
-            <PlusCircle size={16} />新增
-          </ActionButton>
         </div>
       </div>
 
@@ -691,16 +695,39 @@ function HoldingsTab({
     <>
       <Card title={`持倉 (${positions.length})`}>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-sm">
+          <table className="w-full table-auto text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
                 <SortableHeader label="Ticker" sortKey="ticker" sort={sort} onToggle={toggleSort} />
                 <SortableHeader label="名稱" sortKey="name" sort={sort} onToggle={toggleSort} />
-                <th className="py-2">類型</th>
                 <SortableHeader label="券商" sortKey="account" sort={sort} onToggle={toggleSort} />
                 <SortableHeader label="股數" sortKey="quantity" sort={sort} onToggle={toggleSort} align="right" />
-                <SortableHeader label="均價" sortKey="averageCost" sort={sort} onToggle={toggleSort} align="right" />
-                <SortableHeader label="現價" sortKey="marketPrice" sort={sort} onToggle={toggleSort} align="right" />
+                <th className="hidden py-2 text-right 2xl:table-cell">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("averageCost")}
+                    className="inline-flex items-center gap-1 select-none text-xs uppercase tracking-wide outline-none transition hover:opacity-80"
+                    style={{ color: sort.key === "averageCost" ? "var(--ns-accent)" : "var(--ns-muted)" }}
+                  >
+                    <span>均價</span>
+                    {sort.key === "averageCost"
+                      ? (sort.direction === "asc" ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />)
+                      : <ArrowsDownUp size={11} weight="bold" />}
+                  </button>
+                </th>
+                <th className="hidden py-2 text-right 2xl:table-cell">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("marketPrice")}
+                    className="inline-flex items-center gap-1 select-none text-xs uppercase tracking-wide outline-none transition hover:opacity-80"
+                    style={{ color: sort.key === "marketPrice" ? "var(--ns-accent)" : "var(--ns-muted)" }}
+                  >
+                    <span>現價</span>
+                    {sort.key === "marketPrice"
+                      ? (sort.direction === "asc" ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />)
+                      : <ArrowsDownUp size={11} weight="bold" />}
+                  </button>
+                </th>
                 <SortableHeader label="市值" sortKey="marketValue" sort={sort} onToggle={toggleSort} align="right" />
                 <SortableHeader label="損益" sortKey="unrealizedGain" sort={sort} onToggle={toggleSort} align="right" />
                 <SortableHeader label="報酬率" sortKey="unrealizedGainPercent" sort={sort} onToggle={toggleSort} align="right" />
@@ -717,33 +744,34 @@ function HoldingsTab({
                 const pnlTone = position.unrealizedGain >= 0 ? "positive" : "negative";
                 return (
                   <tr key={`${position.assetId}-${position.accountId ?? "none"}`} className="border-t" style={{ borderColor: "var(--ns-border)" }}>
-                    <td className="py-3 font-semibold">{position.ticker}</td>
-                    <td className="py-3">{displayName}</td>
-                    <td className="py-3">
-                      <AssetTypeChip asset={asset} />
+                    <td className="py-3 font-semibold whitespace-nowrap">{position.ticker}</td>
+                    <td className="max-w-[14rem] py-3" title={displayName}>
+                      <span className="block truncate">{displayName}</span>
                     </td>
-                    <td className="py-3">{account ? account.name : "未指定"}</td>
-                    <td className="py-3 text-right tabular">{formatQuantity(position.quantity)}</td>
-                    <td className="py-3 text-right tabular">{formatPrice(position.averageCost)}</td>
-                    <td className="py-3 text-right tabular">
+                    <td className="max-w-[11rem] py-3" title={account ? account.name : "未指定"}>
+                      <span className="block truncate">{account ? account.name : "未指定"}</span>
+                    </td>
+                    <td className="py-3 text-right tabular whitespace-nowrap">{formatQuantity(position.quantity)}</td>
+                    <td className="hidden py-3 text-right tabular whitespace-nowrap 2xl:table-cell">{formatPrice(position.averageCost)}</td>
+                    <td className="hidden py-3 text-right tabular whitespace-nowrap 2xl:table-cell">
                       {position.marketPrice !== null ? formatPrice(position.marketPrice) : "—"}
                     </td>
-                    <td className="py-3 text-right tabular">
+                    <td className="py-3 text-right tabular whitespace-nowrap">
                       {formatNumber(position.marketValue)} <span style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
                     </td>
                     <td
-                      className="py-3 text-right tabular"
+                      className="py-3 text-right tabular whitespace-nowrap"
                       style={{ color: pnlTone === "positive" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}
                     >
                       {position.unrealizedGain >= 0 ? "+" : ""}{formatNumber(position.unrealizedGain)}
                     </td>
                     <td
-                      className="py-3 text-right tabular"
+                      className="py-3 text-right tabular whitespace-nowrap"
                       style={{ color: pnlTone === "positive" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}
                     >
                       {position.unrealizedGainPercent >= 0 ? "+" : ""}{position.unrealizedGainPercent.toFixed(2)}%
                     </td>
-                    <td className="py-3 text-right">
+                    <td className="py-3 text-right whitespace-nowrap">
                       <ActionButton
                         variant="ghost"
                         onClick={() => asset ? startEdit(asset) : undefined}
@@ -796,20 +824,6 @@ function HoldingsTab({
         </div>
       ) : null}
     </>
-  );
-}
-
-function AssetTypeChip({ asset }: { asset: PortfolioAsset | null }) {
-  const label = asset?.assetType ? assetTypeLabels[asset.assetType] : "未分類";
-  const detail = asset?.sector ? (asset.industry ? `${asset.sector} / ${asset.industry}` : asset.sector) : "";
-  return (
-    <span
-      className="inline-flex max-w-[10rem] items-center rounded-md border px-2 py-1 text-xs font-medium"
-      style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface-strong)", color: "var(--ns-muted)" }}
-      title={detail || label}
-    >
-      <span className="truncate">{detail ? `${label} · ${detail}` : label}</span>
-    </span>
   );
 }
 

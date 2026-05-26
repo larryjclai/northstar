@@ -144,8 +144,8 @@ export function GoalsRoute() {
         description="退休 / FIRE 計畫 — 你的生活、何時離開職場、能撐多久。"
       />
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
-        <div className="grid gap-4">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]">
+        <div className="grid min-w-0 gap-4">
           <HeroCard goal={goal} projection={projection} currentValue={currentValue} onSave={saveGoal} />
           <ProjectionChartCard projection={projection} goal={goal} />
           <FireLevelsCard projection={projection} goal={goal} currentValue={currentValue} />
@@ -153,7 +153,7 @@ export function GoalsRoute() {
           <DisclaimerCard />
         </div>
 
-        <div className="grid content-start gap-4">
+        <div className="grid min-w-0 content-start gap-4">
           <PlanInputsCard goal={goal} onSave={saveGoal} onDelete={removeGoal} busy={upsertGoal.isPending || deleteGoal.isPending} />
           <SpendingCard goal={goal} onSave={saveGoal} />
           <IncomeCard />
@@ -506,7 +506,7 @@ function PlanInputsCard({
           <Field label="計畫名稱">
             <TextInput value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
           </Field>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 gap-2 2xl:grid-cols-3">
             <Field label="目前年齡">
               <TextInput type="number" value={draft.currentAge} onChange={(event) => setDraft({ ...draft, currentAge: Number(event.target.value) })} />
             </Field>

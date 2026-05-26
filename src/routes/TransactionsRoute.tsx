@@ -12,7 +12,7 @@ import { TickerSearchField } from "../components/TickerSearchField";
 import { downloadCsv, exportInvestmentCsv, parseInvestmentCsv, type ImportPreview } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { InvestmentDraft, PortfolioAssetDraft } from "../data/repositories";
-import { todayInTimezone } from "../domain";
+import { calculateInvestmentCashDelta, formatNumber, todayInTimezone } from "../domain";
 import type { InvestmentAction, InvestmentRecord } from "../domain";
 import { YahooFinanceProvider } from "../features/market-data/yahooFinanceProvider";
 import { useUiPreferences } from "../state/uiPreferences";
@@ -46,6 +46,13 @@ function makeEmptyInvestment(timezone: string): InvestmentDraft {
   };
 }
 
+function normalizeTransactionDraft(input: InvestmentDraft): InvestmentDraft {
+  if (input.action === "cashDividend") {
+    return { ...input, quantity: 0 };
+  }
+  return input;
+}
+
 export function TransactionsRoute() {
   const { accounts, assets, investments } = useFinanceData();
   const timezone = useUiPreferences((state) => state.timezone);
@@ -68,6 +75,11 @@ export function TransactionsRoute() {
   const accountRows = accounts.data ?? [];
   const investmentAccounts = accountRows.filter((account) => account.deletedAt === null && account.type === "investment");
   const selectedAccount = investmentAccounts.find((account) => account.id === form.linkedAccountId) ?? null;
+  const transactionCashDelta = calculateInvestmentCashDelta(normalizeTransactionDraft(form));
+  const twdTopUpShortfall = selectedAccount && selectedAccount.currency.toUpperCase() === "TWD" && form.action === "buy"
+    ? Math.max(0, -(selectedAccount.balance + transactionCashDelta))
+    : 0;
+  const tPlus2Date = addDays(form.date, 2);
   const assetFor = (id: string) => assetRows.find((asset) => asset.id === id);
 
   async function submit() {
@@ -75,8 +87,9 @@ export function TransactionsRoute() {
     try {
       if (!form.ticker.trim()) throw new Error("請輸入 ticker。");
       if (!form.linkedAccountId) throw new Error("請選擇投資帳戶。");
-      if (editingId) await updateRecord.mutateAsync({ ...form, id: editingId });
-      else await createRecord.mutateAsync(form);
+      const payload = normalizeTransactionDraft(form);
+      if (editingId) await updateRecord.mutateAsync({ ...payload, id: editingId });
+      else await createRecord.mutateAsync(payload);
       setForm(emptyInvestment);
       setEditingId(null);
     } catch (error) {
@@ -214,15 +227,19 @@ export function TransactionsRoute() {
             <Field label="名稱"><TextInput value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="元大台灣50" /></Field>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="日期"><TextInput type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></Field>
-              <Field label="動作">
-                <SelectInput value={form.action} onChange={(event) => setForm({ ...form, action: event.target.value as InvestmentAction })}>
+              <Field label="種類">
+                <SelectInput value={form.action} onChange={(event) => setForm((current) => normalizeTransactionDraft({ ...current, action: event.target.value as InvestmentAction }))}>
                   {actions.map((action) => <option key={action} value={action}>{actionLabels[action]}</option>)}
                 </SelectInput>
               </Field>
             </div>
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-              <Field label="價格"><TextInput type="number" value={form.price} onChange={(event) => setForm({ ...form, price: Number(event.target.value) })} /></Field>
-              <Field label="數量"><TextInput type="number" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: Number(event.target.value) })} /></Field>
+              <Field label={form.action === "cashDividend" ? "股利金額" : "價格"}>
+                <TextInput type="number" value={form.price} onChange={(event) => setForm({ ...form, price: Number(event.target.value) })} />
+              </Field>
+              {form.action === "cashDividend" ? <div /> : (
+                <Field label="數量"><TextInput type="number" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: Number(event.target.value) })} /></Field>
+              )}
               <Field label="手續費"><TextInput type="number" value={form.fee} onChange={(event) => setForm({ ...form, fee: Number(event.target.value) })} /></Field>
             </div>
             <Field label="連動帳戶">
@@ -238,6 +255,11 @@ export function TransactionsRoute() {
               </SelectInput>
             </Field>
             <Field label="備註"><TextInput value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} /></Field>
+            {twdTopUpShortfall > 0 ? (
+              <p className="text-sm" style={{ color: "var(--ns-warn)" }}>
+                台股 T+2 提醒：預估交割後需補 {formatNumber(twdTopUpShortfall)} TWD，請在 {tPlus2Date || "交割日前"} 前補款。
+              </p>
+            ) : null}
             {message ? <StatusText>{message}</StatusText> : null}
             <div className="flex gap-2">
               <ActionButton onClick={submit}>{editingId ? "儲存" : "新增"}</ActionButton>
@@ -289,7 +311,11 @@ export function TransactionsRoute() {
                       </div>
                     </div>
                     <div className="tabular text-right">
-                      <div>{record.quantity} × {record.price}</div>
+                      <div>
+                        {record.action === "cashDividend"
+                          ? `股利 ${record.price}`
+                          : `${record.quantity} × ${record.price}`}
+                      </div>
                       <div className="mt-2 flex flex-wrap justify-start gap-2 sm:justify-end">
                         <ActionButton variant="secondary" onClick={() => startEdit(record)}><PencilSimple size={16} />編輯</ActionButton>
                         <ActionButton variant="danger" onClick={() => deleteRecord.mutate(record.id)}><Trash size={16} />刪除</ActionButton>
@@ -305,4 +331,11 @@ export function TransactionsRoute() {
       </div>
     </div>
   );
+}
+
+function addDays(value: string, days: number) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
 }

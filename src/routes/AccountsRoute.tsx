@@ -89,7 +89,15 @@ export function AccountsRoute() {
 
   return (
     <div className="mx-auto max-w-6xl p-5 lg:p-8">
-      <PageHeader title="帳戶" description="管理現金、銀行、信用卡與投資帳戶，讓淨值和收支有可靠基礎。" />
+      <PageHeader
+        title="帳戶"
+        description="管理現金、銀行、信用卡與投資帳戶，讓淨值和收支有可靠基礎。"
+        action={
+          <ActionButton onClick={submit} size="sm">
+            新增帳戶
+          </ActionButton>
+        }
+      />
       <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
         <Card title={isEditing ? "編輯帳戶" : "新增帳戶"}>
           <div className="grid gap-3">
