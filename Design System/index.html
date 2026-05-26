@@ -1,0 +1,837 @@
+<!doctype html>
+<html lang="en"><head><script data-od-sandbox-shim="">(function(){
+  function makeStore(){
+    var data = {};
+    var api = {
+      getItem: function(k){ return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+      setItem: function(k, v){ data[k] = String(v); },
+      removeItem: function(k){ delete data[k]; },
+      clear: function(){ data = {}; },
+      key: function(i){ return Object.keys(data)[i] || null; }
+    };
+    Object.defineProperty(api, 'length', { get: function(){ return Object.keys(data).length; } });
+    return api;
+  }
+  function tryShim(name){
+    var works = false;
+    try { works = !!window[name] && typeof window[name].getItem === 'function'; void window[name].length; }
+    catch (_) { works = false; }
+    if (works) return;
+    try { Object.defineProperty(window, name, { configurable: true, value: makeStore() }); }
+    catch (_) { try { window[name] = makeStore(); } catch (__) {} }
+  }
+  tryShim('localStorage');
+  tryShim('sessionStorage');
+  document.addEventListener('click', (e) => {
+    if (!e.target || !(e.target instanceof Element)) return;
+    var link = e.target.closest('a[href]');
+    if (!link) return;
+    var href = link.getAttribute('href');
+    if (href === null) return;
+    var isAnchor = href.startsWith('#') || href === '';
+    if (isAnchor) {
+      e.preventDefault();
+      if (href === '' || href === '#') {
+        window.scrollTo({ top: 0 });
+        history.replaceState(null, '', ' ');
+      } else {
+        var targetId = href.slice(1);
+        var target = targetId ? document.getElementById(targetId) : null;
+        if (target) {
+          target.scrollIntoView();
+          location.hash === href && history.replaceState(null, '', ' ');
+          location.hash = href;
+        }
+      }
+    } else if (link.getAttribute('target') === '_blank') {
+      e.preventDefault();
+      let safe = false;
+      try {
+        var url = new URL(href, location.href);
+        safe =
+          url.protocol === 'http:' ||
+          url.protocol === 'https:' ||
+          url.protocol === 'mailto:';
+      } catch (_) {}
+      safe && window.open(href, '_blank', 'noopener,noreferrer');
+    }
+  });
+})();</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wise — showcase</title>
+  <style>
+    :root {
+      --bg: #0e0f0c;
+      --fg: #ffffff;
+      --accent: #9fe870;
+      --accent-fg: #0a0a0a;
+      --accent-2: #868685;
+      --accent-2-fg: #ffffff;
+      --muted: #454745;
+      --border: #e6e6e6;
+      --surface: #e2f6d5;
+      --display: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mono: ui-monospace, 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--body);
+      line-height: 1.6;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    img { max-width: 100%; display: block; }
+    .container { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+
+    /* Nav */
+    .nav {
+      position: sticky; top: 0; z-index: 30;
+      background: rgba(255,255,255,0.7);
+      backdrop-filter: saturate(180%) blur(14px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-row {
+      display: flex; align-items: center; gap: 32px;
+      height: 64px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
+    .brand-mark {
+      width: 26px; height: 26px; border-radius: 7px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    }
+    .nav-links { display: flex; gap: 22px; font-size: 14px; color: var(--muted); }
+    .nav-links a:hover { color: var(--fg); }
+    .nav-spacer { flex: 1; }
+    .nav-cta {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--fg); color: var(--bg);
+      padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    }
+    .nav-link-cta { color: var(--fg); font-weight: 500; font-size: 14px; }
+
+    /* Hero */
+    .hero { padding: 96px 0 72px; }
+    .hero-eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: var(--mono); font-size: 12px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px;
+      background: var(--surface);
+      margin-bottom: 24px;
+    }
+    .hero-eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .hero h1 {
+      font-family: var(--display);
+      font-size: clamp(44px, 6.6vw, 84px);
+      line-height: 1.02;
+      letter-spacing: -0.025em;
+      margin: 0 0 22px;
+      max-width: 18ch;
+      font-weight: 700;
+    }
+    .hero h1 em { font-style: normal; background: linear-gradient(120deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .hero p.lede {
+      font-size: 19px; color: var(--muted);
+      max-width: 56ch; margin: 0 0 36px;
+    }
+    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .btn {
+      font: inherit; cursor: pointer; border-radius: 10px;
+      padding: 13px 22px; font-size: 14.5px; font-weight: 500;
+      border: 1px solid transparent; display: inline-flex; align-items: center; gap: 8px;
+    }
+    .btn-primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+    .btn-primary:hover { filter: brightness(1.06); }
+    .btn-ghost { background: transparent; color: var(--fg); border-color: var(--border); }
+    .btn-ghost:hover { background: var(--surface); }
+    .hero-meta { display: flex; gap: 24px; margin-top: 44px; color: var(--muted); font-size: 13px; }
+    .hero-meta span strong { color: var(--fg); font-weight: 600; }
+
+    /* Logo strip */
+    .logos { padding: 36px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .logos-label { font-size: 12px; color: var(--muted); text-align: center; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 18px; }
+    .logos-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 44px; align-items: center; opacity: 0.85; }
+    .logo-pill { font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: -0.01em; color: var(--muted); }
+
+    /* Features grid */
+    .section { padding: 96px 0; }
+    .section-eyebrow { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.1em; font-size: 12px; color: var(--accent); margin-bottom: 12px; }
+    .section-title { font-family: var(--display); font-size: clamp(32px, 4.2vw, 48px); letter-spacing: -0.02em; line-height: 1.1; margin: 0 0 18px; max-width: 22ch; font-weight: 700; }
+    .section-lede { color: var(--muted); font-size: 17px; max-width: 56ch; margin: 0 0 48px; }
+    .features {
+      display: grid; gap: 18px;
+      grid-template-columns: repeat(3, 1fr);
+    }
+    @media (max-width: 920px) { .features { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 600px) { .features { grid-template-columns: 1fr; } }
+    .feature {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: 26px; display: flex; flex-direction: column; gap: 12px;
+    }
+    .feature-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: var(--accent-fg);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 700;
+    }
+    .feature h3 { font-family: var(--display); font-size: 18px; margin: 0; letter-spacing: -0.01em; }
+    .feature p { color: var(--muted); margin: 0; font-size: 14.5px; line-height: 1.55; }
+
+    /* Product preview / dashboard mock */
+    .preview-wrap { padding-top: 24px; padding-bottom: 96px; }
+    .preview-frame {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+      padding: 14px;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.06), 0 12px 30px rgba(0,0,0,0.04);
+    }
+    .preview-titlebar { display: flex; gap: 6px; padding: 4px 8px 12px; }
+    .preview-titlebar span { width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
+    .preview-app {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+      display: grid; grid-template-columns: 220px 1fr; min-height: 440px; overflow: hidden;
+    }
+    .preview-side { background: var(--surface); border-right: 1px solid var(--border); padding: 18px 14px; display: flex; flex-direction: column; gap: 4px; }
+    .side-link { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; color: var(--muted); }
+    .side-link.active { background: var(--bg); color: var(--fg); font-weight: 500; box-shadow: inset 0 0 0 1px var(--border); }
+    .side-link .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .side-section { font-family: var(--mono); text-transform: uppercase; font-size: 10px; letter-spacing: 0.08em; color: var(--muted); padding: 14px 10px 6px; }
+    .preview-main { padding: 22px 24px; display: flex; flex-direction: column; gap: 22px; }
+    .preview-head { display: flex; align-items: center; justify-content: space-between; }
+    .preview-head h4 { font-family: var(--display); font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+    .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+    .kpi .label { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .kpi .value { font-family: var(--display); font-size: 24px; font-weight: 700; margin-top: 4px; letter-spacing: -0.01em; }
+    .kpi .delta { font-family: var(--mono); font-size: 11.5px; margin-top: 2px; color: var(--accent); }
+    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+    .chart-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+    .chart-head .title { font-weight: 600; font-size: 14px; }
+    .chart-head .meta { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+    .chart svg { width: 100%; height: 160px; display: block; }
+    .preview-row-2 { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; }
+    .list-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+    .list-row { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--border); align-items: center; }
+    .list-row:first-of-type { border-top: none; }
+    .list-row .name { font-weight: 500; font-size: 13.5px; }
+    .list-row .meta { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; background: var(--bg); border: 1px solid var(--border); color: var(--muted); }
+    .badge.up { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+    .list-card .head { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    .list-card .head h5 { margin: 0; font-size: 14px; }
+
+    /* Pricing */
+    .pricing { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    @media (max-width: 920px) { .pricing { grid-template-columns: 1fr; } }
+    .price-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+      padding: 28px; display: flex; flex-direction: column; gap: 18px;
+    }
+    .price-card.featured {
+      background: var(--fg); color: var(--bg); border-color: var(--fg);
+    }
+    .price-card.featured .muted, .price-card.featured h3, .price-card.featured .price { color: var(--bg); }
+    .price-card .tier-name { font-family: var(--display); font-size: 14px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+    .price-card .price { font-family: var(--display); font-size: 44px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+    .price-card .price small { font-size: 14px; color: var(--muted); font-weight: 400; }
+    .price-card ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; font-size: 14.5px; }
+    .price-card li::before { content: "✓"; color: var(--accent); margin-right: 8px; font-weight: 700; }
+    .price-card.featured li::before { color: var(--accent-2); }
+
+    /* Testimonials */
+    .quotes { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    @media (max-width: 760px) { .quotes { grid-template-columns: 1fr; } }
+    .quote { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 26px; display: flex; flex-direction: column; gap: 18px; }
+    .quote p { font-size: 17px; line-height: 1.55; margin: 0; font-family: var(--display); letter-spacing: -0.01em; }
+    .quote-author { display: flex; align-items: center; gap: 12px; }
+    .quote-author .avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+    .quote-author .name { font-weight: 600; font-size: 13.5px; }
+    .quote-author .role { font-size: 12.5px; color: var(--muted); }
+
+    /* FAQ */
+    .faq { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 32px; }
+    @media (max-width: 760px) { .faq { grid-template-columns: 1fr; } }
+    .faq-item { padding: 18px 0; border-top: 1px solid var(--border); }
+    .faq-item h4 { margin: 0 0 6px; font-family: var(--display); font-size: 17px; letter-spacing: -0.01em; }
+    .faq-item p { margin: 0; color: var(--muted); font-size: 14.5px; }
+
+    /* CTA */
+    .cta {
+      margin: 48px 0 96px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: var(--accent-fg);
+      border-radius: 24px;
+      padding: 64px 56px;
+      display: grid;
+      grid-template-columns: 1.4fr auto;
+      gap: 32px;
+      align-items: center;
+    }
+    @media (max-width: 760px) { .cta { grid-template-columns: 1fr; padding: 36px; } }
+    .cta h2 { font-family: var(--display); font-size: clamp(28px, 4vw, 40px); letter-spacing: -0.02em; margin: 0 0 10px; line-height: 1.1; max-width: 22ch; }
+    .cta p { margin: 0; opacity: 0.92; font-size: 16px; max-width: 50ch; }
+    .cta .btn { background: var(--accent-fg); color: var(--accent); border: none; }
+    .cta .btn-secondary { background: transparent; color: var(--accent-fg); border: 1px solid color-mix(in srgb, var(--accent-fg) 35%, transparent); }
+
+    /* Footer */
+    footer { border-top: 1px solid var(--border); padding: 36px 0 56px; color: var(--muted); font-size: 13.5px; }
+    .footer-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 32px; margin-bottom: 32px; }
+    @media (max-width: 760px) { .footer-row { grid-template-columns: 1fr 1fr; } }
+    .footer-col h6 { color: var(--fg); font-family: var(--display); font-size: 13.5px; margin: 0 0 12px; font-weight: 600; }
+    .footer-col a { display: block; padding: 4px 0; }
+    .footer-col a:hover { color: var(--fg); }
+    .footer-bottom { display: flex; justify-content: space-between; padding-top: 24px; border-top: 1px solid var(--border); }
+  </style>
+<style data-od-tweaks-bridge-style="">
+[data-od-tweaks-hidden] .tw-panel {
+  transform: translateX(calc(100% + 32px)) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.tw-restore { display: none !important; }
+</style><script data-od-tweaks-bridge="">(function(){
+  // Synchronously hide BEFORE the artifact body parses so the panel never
+  // flashes on initial paint. The host removes the attribute via postMessage
+  // once it knows the desired state.
+  document.documentElement.setAttribute('data-od-tweaks-hidden', '');
+
+  var suppressEcho = false;
+  var observer = null;
+
+  function panelEl(){ return document.querySelector('.tw-panel'); }
+
+  function applyClassesToPanel(visible){
+    var panel = panelEl();
+    if (panel) panel.classList.toggle('tw-hidden', !visible);
+  }
+
+  function setPanelVisible(visible){
+    suppressEcho = true;
+    document.documentElement.toggleAttribute('data-od-tweaks-hidden', !visible);
+    applyClassesToPanel(visible);
+    // Clear flag after the MutationObserver has had a chance to fire for this
+    // change so we don't echo our own host-driven toggles back to the host.
+    Promise.resolve().then(function(){ suppressEcho = false; });
+  }
+
+  function postState(){
+    var panel = panelEl();
+    if (!panel) return;
+    try {
+      parent.postMessage({
+        type: 'od:tweaks-panel-state',
+        visible: !panel.classList.contains('tw-hidden'),
+      }, '*');
+    } catch (e) {}
+  }
+
+  function postAvailability(){
+    try {
+      parent.postMessage({
+        type: 'od:tweaks-available',
+        available: !!panelEl(),
+      }, '*');
+    } catch (e) {}
+  }
+
+  function attachObserver(){
+    var panel = panelEl();
+    if (!panel || observer) return;
+    observer = new MutationObserver(function(){
+      if (suppressEcho) return;
+      postState();
+    });
+    observer.observe(panel, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  function onReady(){
+    // Capture the panel authored visibility BEFORE we apply the host hidden
+    // attribute. The bridge sets data-od-tweaks-hidden synchronously in head
+    // (before the body parses), so on entry to onReady the attribute is
+    // always present even though the artifact may have authored the panel
+    // as default-visible. Reading the panel class first is the only place
+    // we can still observe the author intent. Then drive the attribute,
+    // classes, and posted state from that captured value so a default
+    // visible tw-panel reports visible:true and the toolbar toggle starts
+    // ON. Issue surfaced in PR #1643 review.
+    var panel = panelEl();
+    var initialVisible = !!panel && !panel.classList.contains('tw-hidden');
+    document.documentElement.toggleAttribute('data-od-tweaks-hidden', !initialVisible);
+    applyClassesToPanel(initialVisible);
+    attachObserver();
+    postAvailability();
+    // Post the captured initial visibility so the toolbar toggle reflects
+    // the default state on mount. Without this the toggle reads OFF while
+    // a default-visible tw-panel artifact clearly shows its panel and the
+    // user would have to click toggle-on then toggle-off to actually hide.
+    postState();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', onReady);
+  } else {
+    onReady();
+  }
+
+  window.addEventListener('message', function(ev){
+    if (!ev.data || ev.data.type !== 'od:tweaks-panel-visible') return;
+    setPanelVisible(!!ev.data.visible);
+  });
+})();</script></head>
+<body>
+  <header class="nav" data-od-id="path-0">
+    <div class="container nav-row" data-od-id="path-0-0">
+      <a class="brand" href="#" data-od-id="path-0-0-0"><span class="brand-mark"></span>Wise</a>
+      <nav class="nav-links" data-od-id="path-0-0-1">
+        <a href="#features" data-od-id="path-0-0-1-0">Product</a>
+        <a href="#preview" data-od-id="path-0-0-1-1">Workspace</a>
+        <a href="#pricing" data-od-id="path-0-0-1-2">Pricing</a>
+        <a href="#faq" data-od-id="path-0-0-1-3">Docs</a>
+        <a href="#faq" data-od-id="path-0-0-1-4">Customers</a>
+      </nav>
+      <div class="nav-spacer"></div>
+      <a class="nav-link-cta" href="#" data-od-id="path-0-0-3">Sign in</a>
+      <a class="nav-cta" href="#" data-od-id="path-0-0-4">Get started →</a>
+    </div>
+  </header>
+
+  <main data-od-id="path-1">
+    <section class="hero" data-od-id="path-1-0">
+      <div class="container" data-od-id="path-1-0-0">
+        <div class="hero-eyebrow"><span class="dot"></span>Wise · live preview</div>
+        <h1 data-od-id="path-1-0-0-1">The system that makes <em>Wise</em> feel like Wise.</h1>
+        <p class="lede">Money transfer. Bright green accent, friendly and clear.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#" data-od-id="path-1-0-0-3-0">Start a free trial →</a>
+          <a class="btn btn-ghost" href="#preview" data-od-id="path-1-0-0-3-1">See it in action</a>
+        </div>
+        <div class="hero-meta">
+          <span><strong>4.9</strong> · App Store rating</span>
+          <span><strong>SOC 2</strong> · Type II compliant</span>
+          <span><strong>120k+</strong> active teams</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="logos" data-od-id="path-1-1">
+      <div class="container" data-od-id="path-1-1-0">
+        <div class="logos-label">Trusted by teams shipping serious work</div>
+        <div class="logos-row">
+          <span class="logo-pill">Northwind</span>
+          <span class="logo-pill">Pioneer</span>
+          <span class="logo-pill">Lattice</span>
+          <span class="logo-pill">Atlas Co.</span>
+          <span class="logo-pill">Voltage</span>
+          <span class="logo-pill">Foundry</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="features" data-od-id="path-1-2">
+      <div class="container" data-od-id="path-1-2-0">
+        <div class="section-eyebrow">What it does</div>
+        <h2 class="section-title" data-od-id="path-1-2-0-1">Every primitive a fast team needs.</h2>
+        <p class="section-lede">A system styled entirely from the tokens of Wise — palette, typography, surfaces, and motion. Drop it into any product and it stays in character.</p>
+        <div class="features">
+          <div class="feature">
+    <div class="feature-icon">★</div>
+    <h3 data-od-id="path-1-2-0-3-0-1">Tokens that compose</h3>
+    <p>Color, type, spacing, and elevation defined once and reused across every surface — from a marketing hero to a row in a table.</p>
+  </div>
+          <div class="feature">
+    <div class="feature-icon">◐</div>
+    <h3 data-od-id="path-1-2-0-3-1-1">Light &amp; dark in lockstep</h3>
+    <p>Every component ships with both modes. The accent reads as confident in either context, and contrast meets WCAG AA out of the box.</p>
+  </div>
+          <div class="feature">
+    <div class="feature-icon">⌘</div>
+    <h3 data-od-id="path-1-2-0-3-2-1">Desktop-first, but mobile-honest</h3>
+    <p>Layouts collapse from a 12-column desktop grid to a focused single column without losing density or rhythm.</p>
+  </div>
+          <div class="feature">
+    <div class="feature-icon">▣</div>
+    <h3 data-od-id="path-1-2-0-3-3-1">Production-grade primitives</h3>
+    <p>40+ components — from the obvious (button, input) to the load-bearing (data table, command bar, empty states).</p>
+  </div>
+          <div class="feature">
+    <div class="feature-icon">↗</div>
+    <h3 data-od-id="path-1-2-0-3-4-1">Designed for handoff</h3>
+    <p>Every spec carries a Figma frame, a code snippet, and a "do/don’t" pair so engineers don’t have to guess.</p>
+  </div>
+          <div class="feature">
+    <div class="feature-icon">∞</div>
+    <h3 data-od-id="path-1-2-0-3-5-1">Built to evolve</h3>
+    <p>Tokens version semver-style. A palette refresh ships through one file — no component code touches.</p>
+  </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="preview-wrap" id="preview" data-od-id="path-1-3">
+      <div class="container" data-od-id="path-1-3-0">
+        <div class="section-eyebrow">In production</div>
+        <h2 class="section-title" data-od-id="path-1-3-0-1">A workspace, fully styled.</h2>
+        <p class="section-lede">This is the same component library you'd use in your app — rendered with Wise tokens.</p>
+        <div class="preview-frame">
+          <div class="preview-titlebar"><span></span><span></span><span></span></div>
+          <div class="preview-app">
+            <aside class="preview-side" data-od-id="path-1-3-0-3-1-0">
+              <div class="brand" style="margin-bottom: 14px;" data-od-id="path-1-3-0-3-1-0-0"><span class="brand-mark"></span>Wise</div>
+              <a class="side-link active" data-od-id="path-1-3-0-3-1-0-1"><span class="dot"></span>Overview</a>
+              <a class="side-link" data-od-id="path-1-3-0-3-1-0-2">Customers</a>
+              <a class="side-link" data-od-id="path-1-3-0-3-1-0-3">Pipeline</a>
+              <a class="side-link" data-od-id="path-1-3-0-3-1-0-4">Reports</a>
+              <a class="side-link" data-od-id="path-1-3-0-3-1-0-5">Automations</a>
+              <div class="side-section" data-od-id="path-1-3-0-3-1-0-6">Workspaces</div>
+              <a class="side-link" data-od-id="path-1-3-0-3-1-0-7">Growth</a>
+              <a class="side-link" data-od-id="path-1-3-0-3-1-0-8">Lifecycle</a>
+              <a class="side-link" data-od-id="path-1-3-0-3-1-0-9">Finance</a>
+            </aside>
+            <div class="preview-main">
+              <div class="preview-head">
+                <h4 data-od-id="path-1-3-0-3-1-1-0-0">Overview</h4>
+                <span class="badge up">↑ 12.4% this week</span>
+              </div>
+              <div class="kpi-row">
+                <div class="kpi">
+    <div class="label">MRR</div>
+    <div class="value">$184,210</div>
+    <div class="delta">+8.2%</div>
+  </div>
+                <div class="kpi">
+    <div class="label">Active orgs</div>
+    <div class="value">2,914</div>
+    <div class="delta">+121</div>
+  </div>
+                <div class="kpi">
+    <div class="label">Conversion</div>
+    <div class="value">4.6%</div>
+    <div class="delta">+0.4 pp</div>
+  </div>
+                <div class="kpi">
+    <div class="label">Net retention</div>
+    <div class="value">113%</div>
+    <div class="delta">+2 pp</div>
+  </div>
+              </div>
+              <div class="chart-card">
+                <div class="chart-head">
+                  <span class="title">Revenue · last 12 weeks</span>
+                  <span class="meta">USD · weekly</span>
+                </div>
+                <div class="chart">
+                  <svg viewBox="0 0 720 160" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="lg" x1="0" x2="0" y1="0" y2="1" data-od-id="path-1-3-0-3-1-1-2-1-0-0-0">
+        <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.32"></stop>
+        <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"></stop>
+      </linearGradient>
+    </defs>
+    <polygon points="8,160 8,146.0 72,130.2 136,138.1 200,109.0 264,117.0 328,85.3 392,93.2 456,69.4 520,58.9 584,45.7 648,29.8 712,14.0 712,160" fill="url(#lg)"></polygon>
+    <polyline points="8,146.0 72,130.2 136,138.1 200,109.0 264,117.0 328,85.3 392,93.2 456,69.4 520,58.9 584,45.7 648,29.8 712,14.0" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></polyline>
+    <circle cx="8" cy="146.0" r="0" fill="var(--accent)"></circle><circle cx="72" cy="130.2" r="0" fill="var(--accent)"></circle><circle cx="136" cy="138.1" r="0" fill="var(--accent)"></circle><circle cx="200" cy="109.0" r="0" fill="var(--accent)"></circle><circle cx="264" cy="117.0" r="0" fill="var(--accent)"></circle><circle cx="328" cy="85.3" r="0" fill="var(--accent)"></circle><circle cx="392" cy="93.2" r="0" fill="var(--accent)"></circle><circle cx="456" cy="69.4" r="0" fill="var(--accent)"></circle><circle cx="520" cy="58.9" r="0" fill="var(--accent)"></circle><circle cx="584" cy="45.7" r="0" fill="var(--accent)"></circle><circle cx="648" cy="29.8" r="0" fill="var(--accent)"></circle><circle cx="712" cy="14.0" r="4" fill="var(--accent)"></circle>
+  </svg>
+                </div>
+              </div>
+              <div class="preview-row-2">
+                <div class="list-card">
+                  <div class="head">
+                    <h5 data-od-id="path-1-3-0-3-1-1-3-0-0-0">Top accounts</h5>
+                    <span class="badge">View all</span>
+                  </div>
+                  <div class="list-row">
+    <div>
+      <div class="name">Northwind Trading</div>
+      <div class="meta">Annual · NA</div>
+    </div>
+    <div class="meta">$48,200</div>
+    <span class="badge up">↑</span>
+  </div>
+                  <div class="list-row">
+    <div>
+      <div class="name">Pioneer Robotics</div>
+      <div class="meta">Quarterly · EMEA</div>
+    </div>
+    <div class="meta">$31,890</div>
+    <span class="badge up">↑</span>
+  </div>
+                  <div class="list-row">
+    <div>
+      <div class="name">Atlas Cooperative</div>
+      <div class="meta">Annual · APAC</div>
+    </div>
+    <div class="meta">$22,400</div>
+    <span class="badge">·</span>
+  </div>
+                  <div class="list-row">
+    <div>
+      <div class="name">Foundry Group</div>
+      <div class="meta">Monthly · NA</div>
+    </div>
+    <div class="meta">$14,750</div>
+    <span class="badge up">↑</span>
+  </div>
+                </div>
+                <div class="list-card">
+                  <div class="head">
+                    <h5 data-od-id="path-1-3-0-3-1-1-3-1-0-0">Activity</h5>
+                    <span class="badge">Live</span>
+                  </div>
+                  <div class="list-row">
+    <div>
+      <div class="name">Renewal closed</div>
+      <div class="meta">Lattice · 11m ago</div>
+    </div>
+    <div></div>
+    <span class="badge">●</span>
+  </div>
+                  <div class="list-row">
+    <div>
+      <div class="name">Trial started</div>
+      <div class="meta">Voltage · 22m ago</div>
+    </div>
+    <div></div>
+    <span class="badge">●</span>
+  </div>
+                  <div class="list-row">
+    <div>
+      <div class="name">Plan upgraded</div>
+      <div class="meta">Pioneer · 1h ago</div>
+    </div>
+    <div></div>
+    <span class="badge">●</span>
+  </div>
+                  <div class="list-row">
+    <div>
+      <div class="name">Invoice paid</div>
+      <div class="meta">Atlas · 2h ago</div>
+    </div>
+    <div></div>
+    <span class="badge">●</span>
+  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="pricing" style="padding-top: 24px;" data-od-id="path-1-4">
+      <div class="container" data-od-id="path-1-4-0">
+        <div class="section-eyebrow">Pricing</div>
+        <h2 class="section-title" data-od-id="path-1-4-0-1">Built for teams of one to one thousand.</h2>
+        <p class="section-lede">Pick the plan that matches the way your team ships. Every tier ships the full token system.</p>
+        <div class="pricing">
+          <div class="price-card">
+    <div class="tier-name">Starter</div>
+    <div class="price">$0 <small>Free forever</small></div>
+    <ul><li>Single user</li><li>All core tokens</li><li>Up to 3 projects</li><li>Community support</li></ul>
+    <a class="btn btn-ghost" href="#" style="" data-od-id="path-1-4-0-3-0-3">Choose Starter</a>
+  </div>
+          <div class="price-card featured">
+    <div class="tier-name">Team</div>
+    <div class="price">$24 <small>per seat / month</small></div>
+    <ul><li>Unlimited projects</li><li>Real-time co-edit</li><li>Brand themes</li><li>Priority email support</li></ul>
+    <a class="btn btn-primary" href="#" style="background: var(--accent); color: var(--accent-fg); border-color: var(--accent);" data-od-id="path-1-4-0-3-1-3">Choose Team</a>
+  </div>
+          <div class="price-card">
+    <div class="tier-name">Enterprise</div>
+    <div class="price">Custom <small>volume pricing</small></div>
+    <ul><li>SSO + SCIM</li><li>Audit logs</li><li>Custom token schemas</li><li>Dedicated success manager</li></ul>
+    <a class="btn btn-ghost" href="#" style="" data-od-id="path-1-4-0-3-2-3">Choose Enterprise</a>
+  </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-od-id="path-1-5">
+      <div class="container" data-od-id="path-1-5-0">
+        <div class="section-eyebrow">Customers</div>
+        <h2 class="section-title" data-od-id="path-1-5-0-1">Loved by teams who care about craft.</h2>
+        <div class="quotes">
+          <div class="quote">
+    <p>"Our marketing site, our app, and our internal dashboards finally feel like the same product. The token system is doing all the work."</p>
+    <div class="quote-author">
+      <div class="avatar"></div>
+      <div>
+        <div class="name">Mira Okafor</div>
+        <div class="role">Head of Design · Pioneer</div>
+      </div>
+    </div>
+  </div>
+          <div class="quote">
+    <p>"We swapped our entire design language in an afternoon. Nothing broke. That’s the line, and we crossed it."</p>
+    <div class="quote-author">
+      <div class="avatar"></div>
+      <div>
+        <div class="name">Caleb Renner</div>
+        <div class="role">Engineering Lead · Northwind</div>
+      </div>
+    </div>
+  </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="faq" style="padding-top: 24px;" data-od-id="path-1-6">
+      <div class="container" data-od-id="path-1-6-0">
+        <div class="section-eyebrow">FAQ</div>
+        <h2 class="section-title" data-od-id="path-1-6-0-1">Questions, answered.</h2>
+        <div class="faq">
+          <div class="faq-item">
+    <h4 data-od-id="path-1-6-0-2-0-0">Is this a Figma library, a code library, or both?</h4>
+    <p>Both. Tokens flow from one source of truth into Figma styles and into the codegen pipeline at the same time.</p>
+  </div>
+          <div class="faq-item">
+    <h4 data-od-id="path-1-6-0-2-1-0">Can we ship our own brand theme?</h4>
+    <p>Yes — fork the token file, change the palette and type stack, and every component reskins automatically.</p>
+  </div>
+          <div class="faq-item">
+    <h4 data-od-id="path-1-6-0-2-2-0">What about accessibility?</h4>
+    <p>Color contrast meets WCAG AA on every surface. Components ship with focus rings, ARIA roles, and keyboard handling.</p>
+  </div>
+          <div class="faq-item">
+    <h4 data-od-id="path-1-6-0-2-3-0">How do you handle dark mode?</h4>
+    <p>Every token has a paired dark value. The system flips at the document level — no per-component overrides needed.</p>
+  </div>
+        </div>
+      </div>
+    </section>
+
+    <section data-od-id="path-1-7">
+      <div class="container" data-od-id="path-1-7-0">
+        <div class="cta">
+          <div>
+            <h2 data-od-id="path-1-7-0-0-0-0">Ship a product that finally feels finished.</h2>
+            <p>Drop the system into your app today. The first project is on us.</p>
+          </div>
+          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <a class="btn btn-primary" href="#" data-od-id="path-1-7-0-0-1-0">Start free trial</a>
+            <a class="btn btn-secondary" href="#" data-od-id="path-1-7-0-0-1-1">Talk to sales</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer data-od-id="path-2">
+    <div class="container" data-od-id="path-2-0">
+      <div class="footer-row">
+        <div class="footer-col">
+          <div class="brand" style="margin-bottom: 12px;"><span class="brand-mark"></span>Wise</div>
+          <p style="margin: 0; max-width: 38ch;">Money transfer. Bright green accent, friendly and clear.</p>
+        </div>
+        <div class="footer-col"><h6 data-od-id="path-2-0-0-1-0">Product</h6><a href="#" data-od-id="path-2-0-0-1-1">Features</a><a href="#" data-od-id="path-2-0-0-1-2">Pricing</a><a href="#" data-od-id="path-2-0-0-1-3">Changelog</a><a href="#" data-od-id="path-2-0-0-1-4">Roadmap</a></div>
+        <div class="footer-col"><h6 data-od-id="path-2-0-0-2-0">Company</h6><a href="#" data-od-id="path-2-0-0-2-1">About</a><a href="#" data-od-id="path-2-0-0-2-2">Customers</a><a href="#" data-od-id="path-2-0-0-2-3">Careers</a><a href="#" data-od-id="path-2-0-0-2-4">Press</a></div>
+        <div class="footer-col"><h6 data-od-id="path-2-0-0-3-0">Resources</h6><a href="#" data-od-id="path-2-0-0-3-1">Docs</a><a href="#" data-od-id="path-2-0-0-3-2">Status</a><a href="#" data-od-id="path-2-0-0-3-3">Brand</a><a href="#" data-od-id="path-2-0-0-3-4">Contact</a></div>
+      </div>
+      <div class="footer-bottom">
+        <span>© 2026 Wise. All rights reserved.</span>
+        <span>Showcase rendered from <code style="font-family: var(--mono);">design-systems/wise/DESIGN.md</code></span>
+      </div>
+    </div>
+  </footer>
+
+<script data-od-snapshot-bridge="">(function(){
+  function copyComputedStyle(source, target){
+    if (!source || !target || source.nodeType !== 1 || target.nodeType !== 1) return;
+    var computed = window.getComputedStyle(source);
+    var style = target.getAttribute('style') || '';
+    for (var i = 0; i < computed.length; i++){
+      var prop = computed[i];
+      style += prop + ':' + computed.getPropertyValue(prop) + ';';
+    }
+    target.setAttribute('style', style);
+  }
+  function syncElementState(source, target){
+    var tag = source.tagName ? source.tagName.toLowerCase() : '';
+    if (tag === 'img' && source.currentSrc) target.setAttribute('src', source.currentSrc);
+    if (tag === 'input' || tag === 'textarea') target.setAttribute('value', source.value || '');
+    if (tag === 'canvas') {
+      try {
+        var img = document.createElement('img');
+        img.setAttribute('src', source.toDataURL('image/png'));
+        img.setAttribute('style', target.getAttribute('style') || '');
+        target.parentNode && target.parentNode.replaceChild(img, target);
+      } catch (_) {}
+    }
+  }
+  function inlineSnapshotStyles(originalRoot, cloneRoot){
+    copyComputedStyle(originalRoot, cloneRoot);
+    syncElementState(originalRoot, cloneRoot);
+    var originals = originalRoot.querySelectorAll('*');
+    var clones = cloneRoot.querySelectorAll('*');
+    var count = Math.min(originals.length, clones.length);
+    for (var i = 0; i < count; i++){
+      copyComputedStyle(originals[i], clones[i]);
+      syncElementState(originals[i], clones[i]);
+    }
+    var scripts = cloneRoot.querySelectorAll('script');
+    for (var s = scripts.length - 1; s >= 0; s--) scripts[s].remove();
+  }
+  function waitForImages(){
+    var imgs = Array.prototype.slice.call(document.images || []);
+    return Promise.all(imgs.map(function(img){
+      if (img.complete) return Promise.resolve();
+      return new Promise(function(resolve){
+        img.addEventListener('load', resolve, { once: true });
+        img.addEventListener('error', resolve, { once: true });
+      });
+    }));
+  }
+  function renderSnapshot(id){
+    var w = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
+    var h = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
+    var dpr = window.devicePixelRatio || 1;
+    var docW = Math.max(w, document.documentElement.scrollWidth || 0, document.body ? document.body.scrollWidth : 0);
+    var docH = Math.max(h, document.documentElement.scrollHeight || 0, document.body ? document.body.scrollHeight : 0);
+    var clone = document.documentElement.cloneNode(true);
+    clone.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+    inlineSnapshotStyles(document.documentElement, clone);
+    var serializer = new XMLSerializer();
+    var html = serializer.serializeToString(clone);
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' +
+      '<foreignObject x="' + (-window.scrollX || 0) + '" y="' + (-window.scrollY || 0) + '" width="' + docW + '" height="' + docH + '">' +
+      html +
+      '</foreignObject></svg>';
+    var img = new Image();
+    img.onload = function(){
+      try {
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.floor(w * dpr));
+        canvas.height = Math.max(1, Math.floor(h * dpr));
+        var ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('no 2d context');
+        ctx.scale(dpr, dpr);
+        ctx.drawImage(img, 0, 0, w, h);
+        window.parent.postMessage({ type: 'od:snapshot:result', id: id, dataUrl: canvas.toDataURL('image/png'), w: canvas.width, h: canvas.height }, '*');
+      } catch (err) {
+        window.parent.postMessage({ type: 'od:snapshot:result', id: id, error: String(err && err.message || err) }, '*');
+      }
+    };
+    img.onerror = function(){
+      window.parent.postMessage({ type: 'od:snapshot:result', id: id, error: 'snapshot image failed' }, '*');
+    };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  }
+  window.addEventListener('message', function(ev){
+    var data = ev && ev.data;
+    if (!data || data.type !== 'od:snapshot' || !data.id) return;
+    waitForImages().then(function(){ renderSnapshot(String(data.id)); });
+  });
+})();</script><script data-od-srcdoc-transport-activation="">(function(){
+  window.addEventListener('message', function(ev){
+    var data = ev && ev.data;
+    if (!data || data.type !== 'od:srcdoc-transport-activate' || typeof data.html !== 'string') return;
+    document.open();
+    document.write(data.html);
+    document.close();
+  });
+})();</script></body></html>
