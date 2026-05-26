@@ -8,7 +8,7 @@ import { StatusText } from "../components/StatusText";
 import { TickerSearchField } from "../components/TickerSearchField";
 import { useRepositoryMutation } from "../data/hooks";
 import type { InvestmentDraft, PortfolioAssetDraft } from "../data/repositories";
-import { calculateInvestmentCashDelta, formatNumber, todayInTimezone, type Account, type InvestmentAction } from "../domain";
+import { calculateInvestmentCashDelta, formatNumber, todayInTimezone, type Account, type InvestmentAction, type PortfolioAsset } from "../domain";
 import { YahooFinanceProvider } from "../features/market-data/yahooFinanceProvider";
 import { useUiPreferences } from "../state/uiPreferences";
 
@@ -22,9 +22,14 @@ const actionLabels: Record<InvestmentAction, string> = {
   stockSplit: "股票分割",
 };
 
-type Mode = "snapshot" | "transaction";
+export type InvestmentEntryMode = "snapshot" | "transaction";
 
-function emptyTransactionDraft(timezone: string): InvestmentDraft {
+export interface TransactionPreset {
+  id?: string;
+  draft: InvestmentDraft;
+}
+
+export function emptyTransactionDraft(timezone: string): InvestmentDraft {
   return {
     ticker: "",
     name: "",
@@ -49,18 +54,28 @@ function normalizeTransactionDraft(input: InvestmentDraft): InvestmentDraft {
   return input;
 }
 
-export function HoldingsAddSheet({
+export function InvestmentEntryDrawer({
   open,
   onClose,
   accounts,
+  portfolioAssets = [],
+  title = "新增",
+  initialMode = "snapshot",
+  onSubmitted,
+  transactionPreset,
 }: {
   open: boolean;
   onClose: () => void;
   accounts: Account[];
+  portfolioAssets?: PortfolioAsset[];
+  title?: string;
+  initialMode?: InvestmentEntryMode;
+  onSubmitted?: () => void;
+  transactionPreset?: TransactionPreset;
 }) {
   const timezone = useUiPreferences((state) => state.timezone);
   const emptyHoldingDraft = useMemo(() => makeEmptyHoldingDraft(timezone), [timezone]);
-  const [mode, setMode] = useState<Mode>("snapshot");
+  const [mode, setMode] = useState<InvestmentEntryMode>(initialMode);
   const [snapshotForm, setSnapshotForm] = useState<PortfolioAssetDraft>(emptyHoldingDraft);
   const [transactionForm, setTransactionForm] = useState<InvestmentDraft>(() => emptyTransactionDraft(timezone));
   const [message, setMessage] = useState("");
@@ -73,16 +88,50 @@ export function HoldingsAddSheet({
     (repository, input: InvestmentDraft) => repository.createInvestmentRecord(input),
     ["investments", "assets", "accounts", "ledger"],
   );
+  const updateRecord = useRepositoryMutation(
+    (repository, input: InvestmentDraft & { id: string }) => repository.updateInvestmentRecord(input.id, input),
+    ["investments", "assets", "accounts", "ledger"],
+  );
 
-  // Reset state every time the sheet opens so it never carries half-typed values
-  // across separate add sessions.
+  const isEditingTransaction = Boolean(transactionPreset?.id);
+
   useEffect(() => {
     if (!open) return;
     setSnapshotForm(emptyHoldingDraft);
-    setTransactionForm(emptyTransactionDraft(timezone));
+    if (transactionPreset) {
+      setTransactionForm(normalizeTransactionDraft(transactionPreset.draft));
+      setMode("transaction");
+    } else {
+      setTransactionForm(emptyTransactionDraft(timezone));
+      setMode(initialMode);
+    }
     setMessage("");
-    setMode("snapshot");
-  }, [open, emptyHoldingDraft, timezone]);
+  }, [open, emptyHoldingDraft, timezone, initialMode, transactionPreset]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, onClose]);
+
+  const currentHoldingQty = useMemo(() => {
+    if (transactionForm.action !== "buy" && transactionForm.action !== "sell") return null;
+    const ticker = transactionForm.ticker.trim().toUpperCase();
+    if (!ticker) return null;
+    const match = portfolioAssets.find(
+      (a) => a.ticker === ticker && a.deletedAt === null && a.totalQuantity > 0 &&
+        (a.holdingSource === "transactions" || a.accountId === transactionForm.linkedAccountId),
+    );
+    return match ? match.totalQuantity : null;
+  }, [portfolioAssets, transactionForm.ticker, transactionForm.action, transactionForm.linkedAccountId]);
 
   if (!open) return null;
 
@@ -92,6 +141,7 @@ export function HoldingsAddSheet({
       if (!snapshotForm.ticker.trim()) throw new Error("請輸入 ticker。");
       if (!snapshotForm.accountId) throw new Error("請選擇券商 / 帳戶。");
       await createHolding.mutateAsync(snapshotForm);
+      onSubmitted?.();
       onClose();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "持倉儲存失敗。");
@@ -103,7 +153,13 @@ export function HoldingsAddSheet({
     try {
       if (!transactionForm.ticker.trim()) throw new Error("請輸入 ticker。");
       if (!transactionForm.linkedAccountId) throw new Error("請選擇連動帳戶。");
-      await createRecord.mutateAsync(normalizeTransactionDraft(transactionForm));
+      const payload = normalizeTransactionDraft(transactionForm);
+      if (transactionPreset?.id) {
+        await updateRecord.mutateAsync({ ...payload, id: transactionPreset.id });
+      } else {
+        await createRecord.mutateAsync(payload);
+      }
+      onSubmitted?.();
       onClose();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "交易儲存失敗。");
@@ -153,192 +209,212 @@ export function HoldingsAddSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/45" onClick={onClose}>
       <div
-        className="w-full max-w-2xl rounded-lg border shadow-xl"
-        style={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}
+        className="absolute inset-y-0 right-0 flex h-full w-full sm:w-[680px] lg:w-[740px]"
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="flex items-center justify-between border-b px-5 py-3" style={{ borderColor: "var(--ns-border)" }}>
-          <h2 className="text-lg font-semibold">新增</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid size-8 place-items-center rounded-md outline-none transition hover:opacity-70"
-            aria-label="關閉"
-          >
-            <X size={18} />
-          </button>
-        </header>
-
-        <div className="px-5 pt-4">
-          <SegmentedControl
-            value={mode}
-            onChange={(next) => {
-              setMode(next);
-              setMessage("");
-            }}
-            options={[
-              { value: "snapshot", label: "建立目前部位", icon: <StackSimple size={16} /> },
-              { value: "transaction", label: "記一筆交易", icon: <ChartLineUp size={16} /> },
-            ]}
-          />
-          <p className="mt-2 text-xs" style={{ color: "var(--ns-muted)" }}>
-            {mode === "snapshot"
-              ? "建立目前部位：直接填入現有股數與平均成本，適合既有庫存。"
-              : "記一筆交易：逐筆記錄買賣 / 股利，系統會自動更新均價與庫存。"}
-          </p>
-        </div>
-
-        <div className="max-h-[70vh] overflow-y-auto px-5 pb-5 pt-4">
-          {mode === "snapshot" ? (
+        <div
+          className="h-full w-full border-l shadow-2xl animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)]"
+          style={{ background: "var(--ns-panel-bg)", borderColor: "var(--ns-panel-border)" }}
+        >
+          <header className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--ns-panel-border)" }}>
             <div>
-              <HoldingForm
-                value={snapshotForm}
-                onChange={setSnapshotForm}
-                onSubmit={submitSnapshot}
-                submitLabel={createHolding.isPending ? "儲存中…" : "儲存持倉"}
-                accounts={accounts}
-                onTickerSelected={(draft) => void enrichSnapshotClassification(draft)}
-              />
-              {message ? <div className="mt-3"><StatusText>{message}</StatusText></div> : null}
+              <h2 className="text-lg font-semibold">{title}</h2>
+              <p className="text-xs" style={{ color: "var(--ns-muted)" }}>
+                {isEditingTransaction
+                  ? "調整既有交易，會自動重算持倉成本。"
+                  : mode === "snapshot"
+                    ? "直接建立目前持倉，適合一次導入既有部位。"
+                    : "逐筆記錄買賣 / 股利，系統會自動更新持倉。"}
+              </p>
             </div>
-          ) : (
-            <div className="grid gap-3">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="種類">
+            <button
+              type="button"
+              onClick={onClose}
+              className="grid size-9 place-items-center rounded-md outline-none transition hover:opacity-70"
+              aria-label="關閉"
+            >
+              <X size={18} />
+            </button>
+          </header>
+
+          <div className="px-5 pt-4">
+            <SegmentedControl
+              value={mode}
+              onChange={(next) => {
+                if (isEditingTransaction) return;
+                setMode(next);
+                setMessage("");
+              }}
+              options={[
+                { value: "snapshot", label: "建立目前部位", icon: <StackSimple size={16} /> },
+                { value: "transaction", label: "記一筆交易", icon: <ChartLineUp size={16} /> },
+              ]}
+            />
+          </div>
+
+          <div className="h-[calc(100%-118px)] overflow-y-auto px-5 pb-6 pt-4">
+            {mode === "snapshot" ? (
+              <div>
+                <HoldingForm
+                  value={snapshotForm}
+                  onChange={setSnapshotForm}
+                  onSubmit={submitSnapshot}
+                  submitLabel={createHolding.isPending ? "儲存中…" : "儲存持倉"}
+                  accounts={accounts}
+                  onTickerSelected={(draft) => void enrichSnapshotClassification(draft)}
+                />
+                {message ? <div className="mt-3"><StatusText>{message}</StatusText></div> : null}
+              </div>
+            ) : (
+              <div className="grid gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="種類">
+                    <SelectInput
+                      value={transactionForm.action}
+                      onChange={(event) =>
+                        setTransactionForm((current) => normalizeTransactionDraft({
+                          ...current,
+                          action: event.target.value as InvestmentAction,
+                        }))
+                      }
+                    >
+                      {actions.map((action) => (
+                        <option key={action} value={action}>
+                          {actionLabels[action]}
+                        </option>
+                      ))}
+                    </SelectInput>
+                  </Field>
+                  <Field label="日期">
+                    <TextInput
+                      type="date"
+                      value={transactionForm.date}
+                      onChange={(event) => setTransactionForm({ ...transactionForm, date: event.target.value })}
+                    />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
+                  <Field label="Ticker">
+                    <TickerSearchField
+                      value={transactionForm.ticker}
+                      onChange={(ticker) => setTransactionForm({ ...transactionForm, ticker })}
+                      onSelect={(result) => {
+                        const next = {
+                          ...transactionForm,
+                          ticker: result.symbol.toUpperCase(),
+                          name: result.name || result.symbol,
+                          currency: selectedTransactionAccount?.currency ?? transactionForm.currency,
+                          assetType: result.assetType ?? transactionForm.assetType ?? null,
+                        };
+                        setTransactionForm(next);
+                        void enrichTransactionClassification(next);
+                      }}
+                    />
+                  </Field>
+                  <Field label="幣別">
+                    <TextInput
+                      value={selectedTransactionAccount?.currency ?? transactionForm.currency}
+                      disabled={Boolean(selectedTransactionAccount)}
+                      onChange={(event) =>
+                        setTransactionForm({ ...transactionForm, currency: event.target.value.toUpperCase() })
+                      }
+                    />
+                  </Field>
+                </div>
+                <Field label="名稱">
+                  <TextInput
+                    value={transactionForm.name}
+                    onChange={(event) => setTransactionForm({ ...transactionForm, name: event.target.value })}
+                    placeholder="元大台灣50"
+                  />
+                </Field>
+                <Field label="連動帳戶 / 券商">
                   <SelectInput
-                    value={transactionForm.action}
+                    value={transactionForm.linkedAccountId ?? ""}
                     onChange={(event) =>
-                      setTransactionForm((current) => normalizeTransactionDraft({
-                        ...current,
-                        action: event.target.value as InvestmentAction,
-                      }))
+                      setTransactionForm({
+                        ...transactionForm,
+                        linkedAccountId: event.target.value || null,
+                        currency: eligibleAccounts.find((account) => account.id === event.target.value)?.currency ?? transactionForm.currency,
+                      })
                     }
                   >
-                    {actions.map((action) => (
-                      <option key={action} value={action}>
-                        {actionLabels[action]}
+                    <option value="">— 選擇券商 —</option>
+                    {eligibleAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name} ({account.currency})
                       </option>
                     ))}
                   </SelectInput>
                 </Field>
-                <Field label="日期">
-                  <TextInput
-                    type="date"
-                    value={transactionForm.date}
-                    onChange={(event) => setTransactionForm({ ...transactionForm, date: event.target.value })}
-                  />
-                </Field>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
-                <Field label="Ticker">
-                  <TickerSearchField
-                    value={transactionForm.ticker}
-                    onChange={(ticker) => setTransactionForm({ ...transactionForm, ticker })}
-                    onSelect={(result) => {
-                      const next = {
-                        ...transactionForm,
-                        ticker: result.symbol.toUpperCase(),
-                        name: result.name || result.symbol,
-                        currency: selectedTransactionAccount?.currency ?? transactionForm.currency,
-                        assetType: result.assetType ?? transactionForm.assetType ?? null,
-                      };
-                      setTransactionForm(next);
-                      void enrichTransactionClassification(next);
-                    }}
-                  />
-                </Field>
-                <Field label="幣別">
-                  <TextInput
-                    value={selectedTransactionAccount?.currency ?? transactionForm.currency}
-                    disabled={Boolean(selectedTransactionAccount)}
-                    onChange={(event) =>
-                      setTransactionForm({ ...transactionForm, currency: event.target.value.toUpperCase() })
-                    }
-                  />
-                </Field>
-              </div>
-              <Field label="名稱">
-                <TextInput
-                  value={transactionForm.name}
-                  onChange={(event) => setTransactionForm({ ...transactionForm, name: event.target.value })}
-                  placeholder="元大台灣50"
-                />
-              </Field>
-              <Field label="連動帳戶 / 券商">
-                <SelectInput
-                  value={transactionForm.linkedAccountId ?? ""}
-                  onChange={(event) =>
-                    setTransactionForm({
-                      ...transactionForm,
-                      linkedAccountId: event.target.value || null,
-                      currency: eligibleAccounts.find((account) => account.id === event.target.value)?.currency ?? transactionForm.currency,
-                    })
-                  }
-                >
-                  <option value="">— 選擇券商 —</option>
-                  {eligibleAccounts.map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.name} ({account.currency})
-                    </option>
-                  ))}
-                </SelectInput>
-              </Field>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <Field label={transactionForm.action === "cashDividend" ? "股利金額" : "價格"}>
-                  <TextInput
-                    type="number"
-                    value={transactionForm.price}
-                    onChange={(event) => setTransactionForm({ ...transactionForm, price: Number(event.target.value) })}
-                  />
-                </Field>
-                {transactionForm.action === "cashDividend" ? <div /> : (
-                  <Field label="數量">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <Field label={transactionForm.action === "cashDividend" ? "股利金額" : "價格"}>
                     <TextInput
                       type="number"
-                      value={transactionForm.quantity}
-                      onChange={(event) =>
-                        setTransactionForm({ ...transactionForm, quantity: Number(event.target.value) })
-                      }
+                      value={transactionForm.price}
+                      onChange={(event) => setTransactionForm({ ...transactionForm, price: Number(event.target.value) })}
                     />
                   </Field>
-                )}
-                <Field label="手續費">
+                  {transactionForm.action === "cashDividend" ? <div /> : (
+                    <Field label="數量">
+                      <TextInput
+                        type="number"
+                        value={transactionForm.quantity}
+                        onChange={(event) =>
+                          setTransactionForm({ ...transactionForm, quantity: Number(event.target.value) })
+                        }
+                      />
+                    </Field>
+                  )}
+                  <Field label="手續費">
+                    <TextInput
+                      type="number"
+                      value={transactionForm.fee}
+                      onChange={(event) => setTransactionForm({ ...transactionForm, fee: Number(event.target.value) })}
+                    />
+                  </Field>
+                </div>
+                {currentHoldingQty !== null ? (
+                  <p className="text-xs" style={{ color: "var(--ns-muted)" }}>
+                    目前持倉：{formatNumber(currentHoldingQty)} 股
+                  </p>
+                ) : null}
+                <Field label="備註">
                   <TextInput
-                    type="number"
-                    value={transactionForm.fee}
-                    onChange={(event) => setTransactionForm({ ...transactionForm, fee: Number(event.target.value) })}
+                    value={transactionForm.note}
+                    onChange={(event) => setTransactionForm({ ...transactionForm, note: event.target.value })}
                   />
                 </Field>
+                {twdTopUpShortfall > 0 ? (
+                  <p className="text-sm" style={{ color: "var(--ns-warn)" }}>
+                    台股 T+2 提醒：預估交割後需補 {formatNumber(twdTopUpShortfall)} TWD，請在 {tPlus2Date || "交割日前"} 前補款。
+                  </p>
+                ) : null}
+                {message ? <StatusText>{message}</StatusText> : null}
+                <div className="flex gap-2">
+                  <ActionButton onClick={submitTransaction} disabled={createRecord.isPending || updateRecord.isPending}>
+                    {(createRecord.isPending || updateRecord.isPending)
+                      ? "儲存中…"
+                      : isEditingTransaction
+                        ? "儲存交易"
+                        : "新增交易"}
+                  </ActionButton>
+                  <ActionButton variant="secondary" onClick={onClose}>
+                    取消
+                  </ActionButton>
+                </div>
               </div>
-              <Field label="備註">
-                <TextInput
-                  value={transactionForm.note}
-                  onChange={(event) => setTransactionForm({ ...transactionForm, note: event.target.value })}
-                />
-              </Field>
-              {twdTopUpShortfall > 0 ? (
-                <p className="text-sm" style={{ color: "var(--ns-warn)" }}>
-                  台股 T+2 提醒：預估交割後需補 {formatNumber(twdTopUpShortfall)} TWD，請在 {tPlus2Date || "交割日前"} 前補款。
-                </p>
-              ) : null}
-              {message ? <StatusText>{message}</StatusText> : null}
-              <div className="flex gap-2">
-                <ActionButton onClick={submitTransaction} disabled={createRecord.isPending}>
-                  {createRecord.isPending ? "儲存中…" : "儲存交易"}
-                </ActionButton>
-                <ActionButton variant="secondary" onClick={onClose}>
-                  取消
-                </ActionButton>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
+export const HoldingsAddSheet = InvestmentEntryDrawer;
 
 function addDays(value: string, days: number) {
   const date = new Date(`${value}T00:00:00`);

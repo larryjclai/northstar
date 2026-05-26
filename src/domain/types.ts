@@ -109,6 +109,13 @@ export interface PortfolioAsset extends SyncFields {
    *   is derived from `InvestmentRecord.linkedAccountId`.
    */
   accountId: string | null;
+  /**
+   * For `holdingSource = "manual"` rows, the original snapshot quantity set
+   * when the holding was created. Used as the base for recomputing
+   * `totalQuantity` when sells are subsequently recorded against this asset.
+   * Null for transaction-based assets and legacy manual holdings.
+   */
+  baseQuantity: number | null;
 }
 
 export interface InvestmentRecord extends SyncFields {

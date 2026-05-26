@@ -40,6 +40,7 @@ function asset(id: string, ticker: string, quantity: number, averageCost: number
     sector: null,
     industry: null,
     accountId: "acct_cash",
+    baseQuantity: null,
   };
 }
 

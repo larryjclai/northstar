@@ -204,6 +204,7 @@ export function InvestmentsRoute() {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         accounts={accountRows}
+        portfolioAssets={assetRows}
         title="新增部位"
         initialMode="snapshot"
       />

@@ -22,6 +22,7 @@ const manualAsset: PortfolioAsset = {
   sector: null,
   industry: null,
   accountId: "acct_test",
+  baseQuantity: null,
 };
 
 const transactionAsset: PortfolioAsset = {
