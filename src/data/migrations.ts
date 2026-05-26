@@ -182,6 +182,22 @@ export const migrations: Migration[] = [
       );
     `,
   },
+  {
+    id: 3,
+    description: "Manual price snapshots for assets not tracked by Yahoo Finance",
+    sql: `
+      create table if not exists manual_price_snapshots (
+        id text primary key,
+        asset_id text not null,
+        date text not null,
+        price real not null,
+        note text not null default '',
+        created_at text not null
+      );
+
+      create index if not exists idx_manual_price_snapshots_asset_date on manual_price_snapshots (asset_id, date);
+    `,
+  },
   // NOTE: extension columns for `financial_goals` (retirement projection
   // inputs) are added via `ensureSqliteColumn` calls inside the SQLite
   // initialize() routine, not via a sql migration. SQLite's bare

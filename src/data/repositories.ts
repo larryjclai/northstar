@@ -12,6 +12,7 @@ import type {
   InvestmentAction,
   InvestmentRecord,
   LedgerTransaction,
+  ManualPriceSnapshot,
   PortfolioAsset,
   RecurringTransaction,
   SpendingItem,
@@ -104,6 +105,13 @@ export interface PortfolioAssetDraft {
   industry?: string | null;
 }
 
+export interface ManualPriceSnapshotDraft {
+  assetId: string;
+  date: string;
+  price: number;
+  note: string;
+}
+
 export interface FinancialGoalDraft {
   kind: GoalKind;
   name: string;
@@ -167,6 +175,9 @@ export interface FinanceRepository {
   listDailyPrices(filter?: { ticker?: string; since?: string }): Promise<DailyPrice[]>;
   saveDailyPrices(prices: DailyPrice[]): Promise<void>;
   getDailyPrice(ticker: string, date: string): Promise<DailyPrice | null>;
+  listManualPriceSnapshots(filter?: { assetId?: string }): Promise<ManualPriceSnapshot[]>;
+  createManualPriceSnapshot(input: ManualPriceSnapshotDraft): Promise<void>;
+  deleteManualPriceSnapshot(id: string): Promise<void>;
   listFinancialGoals(): Promise<FinancialGoal[]>;
   upsertFinancialGoal(input: FinancialGoalDraft & { id?: string }): Promise<FinancialGoal>;
   deleteFinancialGoal(id: string): Promise<void>;
@@ -187,6 +198,7 @@ export interface RepositorySnapshot {
   dailyFxRates: DailyFxRate[];
   dailyPrices: DailyPrice[];
   financialGoals?: FinancialGoal[];
+  manualPriceSnapshots?: ManualPriceSnapshot[];
 }
 
 const personalSpace = "space_personal_default";
@@ -219,6 +231,7 @@ interface RepositoryData {
   dailyFxRates: DailyFxRate[];
   dailyPrices: DailyPrice[];
   financialGoals: FinancialGoal[];
+  manualPriceSnapshots: ManualPriceSnapshot[];
 }
 
 let repositoryPromise: Promise<FinanceRepository> | null = null;
@@ -776,6 +789,29 @@ class BrowserFinanceRepository implements FinanceRepository {
     return matches[0] ?? null;
   }
 
+  async listManualPriceSnapshots(filter?: { assetId?: string }) {
+    return this.data.manualPriceSnapshots
+      .filter((row) => (filter?.assetId ? row.assetId === filter.assetId : true))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  async createManualPriceSnapshot(input: ManualPriceSnapshotDraft) {
+    this.data.manualPriceSnapshots.push({
+      id: createId("mps"),
+      assetId: input.assetId,
+      date: input.date.slice(0, 10),
+      price: input.price,
+      note: input.note,
+      createdAt: nowIso(),
+    });
+    await this.persist();
+  }
+
+  async deleteManualPriceSnapshot(id: string) {
+    this.data.manualPriceSnapshots = this.data.manualPriceSnapshots.filter((row) => row.id !== id);
+    await this.persist();
+  }
+
   async listFinancialGoals() {
     return this.data.financialGoals
       .filter((goal) => goal.deletedAt === null)
@@ -834,6 +870,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       dailyFxRates: this.data.dailyFxRates,
       dailyPrices: this.data.dailyPrices,
       financialGoals: this.data.financialGoals,
+      manualPriceSnapshots: this.data.manualPriceSnapshots,
     };
   }
 
@@ -849,6 +886,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       dailyFxRates: snapshot.dailyFxRates,
       dailyPrices: snapshot.dailyPrices,
       financialGoals: snapshot.financialGoals,
+      manualPriceSnapshots: snapshot.manualPriceSnapshots,
     });
     await this.persist();
   }
@@ -1681,6 +1719,41 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     };
   }
 
+  override async listManualPriceSnapshots(filter?: { assetId?: string }) {
+    const rows = await this.db.select<Array<{
+      id: string;
+      asset_id: string;
+      date: string;
+      price: number;
+      note: string;
+      created_at: string;
+    }>>(
+      filter?.assetId
+        ? `select id, asset_id, date, price, note, created_at from manual_price_snapshots where asset_id = $1 order by date asc`
+        : `select id, asset_id, date, price, note, created_at from manual_price_snapshots order by date asc`,
+      filter?.assetId ? [filter.assetId] : [],
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      assetId: row.asset_id,
+      date: row.date,
+      price: row.price,
+      note: row.note,
+      createdAt: row.created_at,
+    }));
+  }
+
+  override async createManualPriceSnapshot(input: ManualPriceSnapshotDraft) {
+    await this.db.execute(
+      `insert into manual_price_snapshots (id, asset_id, date, price, note, created_at) values ($1,$2,$3,$4,$5,$6)`,
+      [createId("mps"), input.assetId, input.date.slice(0, 10), input.price, input.note, nowIso()],
+    );
+  }
+
+  override async deleteManualPriceSnapshot(id: string) {
+    await this.db.execute(`delete from manual_price_snapshots where id = $1`, [id]);
+  }
+
   override async listFinancialGoals() {
     const rows = await this.db.select<Array<{
       id: string;
@@ -1831,7 +1904,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async exportSnapshot(): Promise<RepositorySnapshot> {
-    const [accounts, ledger, assetsList, investments, recurring, quotes, settings, fx, prices, goals] = await Promise.all([
+    const [accounts, ledger, assetsList, investments, recurring, quotes, settings, fx, prices, goals, manualSnapshots] = await Promise.all([
       this.listAccounts(),
       this.listLedgerTransactions(),
       this.listPortfolioAssets(),
@@ -1842,6 +1915,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       this.listDailyFxRates(),
       this.listDailyPrices(),
       this.listFinancialGoals(),
+      this.listManualPriceSnapshots(),
     ]);
     return {
       version: 1,
@@ -1856,6 +1930,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       dailyFxRates: fx,
       dailyPrices: prices,
       financialGoals: goals,
+      manualPriceSnapshots: manualSnapshots,
     };
   }
 
@@ -1871,6 +1946,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       await this.db.execute("delete from market_quotes");
       await this.db.execute("delete from fx_rates");
       await this.db.execute("delete from daily_prices");
+      await this.db.execute("delete from manual_price_snapshots");
       await this.db.execute("delete from recurring_transactions");
       await this.db.execute("delete from investment_records");
       await this.db.execute("delete from ledger_transactions");
@@ -1966,6 +2042,15 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
           );
         }
         console.log(`[import] inserted ${snapshot.financialGoals.length} financial_goals`);
+      }
+      if (snapshot.manualPriceSnapshots?.length) {
+        for (const row of snapshot.manualPriceSnapshots) {
+          await this.db.execute(
+            `insert into manual_price_snapshots (id, asset_id, date, price, note, created_at) values ($1,$2,$3,$4,$5,$6)`,
+            [row.id, row.assetId, row.date, row.price, row.note, row.createdAt],
+          );
+        }
+        console.log(`[import] inserted ${snapshot.manualPriceSnapshots.length} manual_price_snapshots`);
       }
       await this.updateAppSettings(snapshot.settings);
       await this.db.execute("COMMIT");
@@ -2213,6 +2298,7 @@ function createInitialData(): RepositoryData {
     dailyFxRates: [] as DailyFxRate[],
     dailyPrices: [] as DailyPrice[],
     financialGoals: [],
+    manualPriceSnapshots: [],
   };
 }
 
@@ -2245,6 +2331,7 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
     dailyFxRates: data.dailyFxRates ?? [],
     dailyPrices: data.dailyPrices ?? [],
     financialGoals: (data.financialGoals ?? []).map(normalizeFinancialGoal),
+    manualPriceSnapshots: data.manualPriceSnapshots ?? [],
   };
 }
 

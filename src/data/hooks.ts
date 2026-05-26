@@ -13,6 +13,7 @@ const keys = {
   dailyFxRates: ["dailyFxRates"] as const,
   dailyPrices: ["dailyPrices"] as const,
   financialGoals: ["financialGoals"] as const,
+  manualPriceSnapshots: ["manualPriceSnapshots"] as const,
 };
 
 export function useRepository() {
@@ -76,6 +77,11 @@ export function useFinanceData() {
     queryFn: () => repository.data!.listFinancialGoals(),
     enabled,
   });
+  const manualPriceSnapshots = useQuery({
+    queryKey: keys.manualPriceSnapshots,
+    queryFn: () => repository.data!.listManualPriceSnapshots(),
+    enabled,
+  });
 
   return {
     repository,
@@ -89,6 +95,7 @@ export function useFinanceData() {
     dailyFxRates,
     dailyPrices,
     financialGoals,
+    manualPriceSnapshots,
   };
 }
 
