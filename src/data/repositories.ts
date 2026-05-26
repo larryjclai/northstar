@@ -18,7 +18,7 @@ import type {
   SpendingItem,
 } from "../domain/types";
 import type { MarketQuote } from "../features/market-data";
-import { calculateInvestmentAccountQuantity, calculateInvestmentCashDelta, isEffectivelyNegative } from "../domain/investmentCash";
+import { calculateInvestmentAccountQuantity, calculateInvestmentCashDelta, calculateInvestmentNetDelta, isEffectivelyNegative } from "../domain/investmentCash";
 import { migrations, splitSqlStatements } from "./migrations";
 import {
   seedAccounts,
@@ -296,7 +296,17 @@ function recomputeAssets(assets: PortfolioAsset[], records: InvestmentRecord[]) 
   const activeRecords = active(records);
   return assets.map((asset) => {
     if (asset.deletedAt !== null) return asset;
-    if (asset.holdingSource === "manual") return asset;
+    if (asset.holdingSource === "manual") {
+      const linkedRecords = activeRecords.filter((r) => r.assetId === asset.id);
+      if (linkedRecords.length === 0) return asset;
+      const baseQty = asset.baseQuantity ?? asset.totalQuantity;
+      let delta = 0;
+      for (const record of linkedRecords) {
+        if (record.action === "buy" || record.action === "stockDividend") delta += record.quantity;
+        else if (record.action === "sell") delta -= record.quantity;
+      }
+      return { ...asset, totalQuantity: Math.max(0, baseQty + delta) };
+    }
     const assetRecords = activeRecords.filter((record) => record.assetId === asset.id);
     let quantity = 0;
     let cost = 0;
@@ -550,8 +560,8 @@ class BrowserFinanceRepository implements FinanceRepository {
   }
 
   async createInvestmentRecord(input: InvestmentDraft) {
-    const existingAsset = this.findTransactionAsset(input);
-    this.validateInvestmentDraft(input, existingAsset?.id);
+    const existingAsset = this.findTransactionAsset(input) ?? this.findManualAsset(input);
+    this.validateInvestmentDraft(input, existingAsset);
     const asset = this.findOrCreateAsset(input);
     const record = createInvestmentRow(input, asset.id);
     const ledger = createInvestmentLedgerRow(input, record.id);
@@ -567,8 +577,8 @@ class BrowserFinanceRepository implements FinanceRepository {
   async updateInvestmentRecord(id: string, input: InvestmentDraft) {
     const existingRecord = this.data.investmentRecords.find((record) => record.id === id && record.deletedAt === null);
     if (!existingRecord) throw new Error("找不到投資交易。");
-    const existingAsset = this.findTransactionAsset(input);
-    this.validateInvestmentDraft(input, existingAsset?.id, {
+    const existingAsset = this.findTransactionAsset(input) ?? this.findManualAsset(input);
+    this.validateInvestmentDraft(input, existingAsset, {
       excludeRecordId: id,
       excludeLedgerId: existingRecord.linkedLedgerTransactionId,
     });
@@ -611,8 +621,8 @@ class BrowserFinanceRepository implements FinanceRepository {
 
   async importInvestmentRecords(rows: InvestmentDraft[]) {
     for (const row of rows) {
-      const existingAsset = this.findTransactionAsset(row);
-      this.validateInvestmentDraft(row, existingAsset?.id);
+      const existingAsset = this.findTransactionAsset(row) ?? this.findManualAsset(row);
+      this.validateInvestmentDraft(row, existingAsset);
       const asset = this.findOrCreateAsset(row);
       const record = createInvestmentRow(row, asset.id);
       const ledger = createInvestmentLedgerRow(row, record.id);
@@ -896,10 +906,19 @@ class BrowserFinanceRepository implements FinanceRepository {
     return this.data.portfolioAssets.find((item) => item.ticker === ticker && item.deletedAt === null && item.holdingSource === "transactions");
   }
 
+  private findManualAsset(input: InvestmentDraft): PortfolioAsset | undefined {
+    const ticker = input.ticker.trim().toUpperCase();
+    return this.data.portfolioAssets.find(
+      (item) => item.ticker === ticker && item.deletedAt === null && item.holdingSource === "manual" && item.accountId === input.linkedAccountId,
+    );
+  }
+
   private findOrCreateAsset(input: InvestmentDraft): PortfolioAsset {
     const ticker = input.ticker.trim().toUpperCase();
     const existing = this.findTransactionAsset(input);
     if (existing) return existing;
+    const manualAsset = this.findManualAsset(input);
+    if (manualAsset) return manualAsset;
     const timestamp = nowIso();
     const asset: PortfolioAsset = {
       id: createId("asset"),
@@ -919,6 +938,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       acquisitionDate: null,
       ...assetClassificationFields(input),
       accountId: null,
+      baseQuantity: null,
     };
     this.data.portfolioAssets.push(asset);
     return asset;
@@ -926,7 +946,7 @@ class BrowserFinanceRepository implements FinanceRepository {
 
   private validateInvestmentDraft(
     input: InvestmentDraft,
-    assetId: string | undefined,
+    existingAsset: PortfolioAsset | undefined,
     options: { excludeRecordId?: string; excludeLedgerId?: string | null } = {},
   ) {
     const account = this.data.accounts.find((row) => row.id === input.linkedAccountId && row.deletedAt === null);
@@ -934,8 +954,15 @@ class BrowserFinanceRepository implements FinanceRepository {
     if (input.currency.trim().toUpperCase() !== account.currency.trim().toUpperCase()) throw new Error("交易幣別必須與投資帳戶一致。");
 
     if (input.action === "sell") {
-      if (!assetId) throw new Error("賣出股數大於目前庫存。");
-      const available = calculateInvestmentAccountQuantity(this.data.investmentRecords, assetId, account.id, options.excludeRecordId);
+      if (!existingAsset) throw new Error("賣出股數大於目前庫存。");
+      let available: number;
+      if (existingAsset.holdingSource === "manual") {
+        const baseQty = existingAsset.baseQuantity ?? existingAsset.totalQuantity;
+        const delta = calculateInvestmentNetDelta(this.data.investmentRecords, existingAsset.id, options.excludeRecordId);
+        available = Math.max(0, baseQty + delta);
+      } else {
+        available = calculateInvestmentAccountQuantity(this.data.investmentRecords, existingAsset.id, account.id, options.excludeRecordId);
+      }
       if (input.quantity > available + 0.000001) throw new Error(`賣出股數大於目前庫存，可賣出 ${available} 股。`);
     }
 
@@ -1107,6 +1134,10 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("portfolio_assets", "asset_type", "text");
     await this.ensureSqliteColumn("portfolio_assets", "sector", "text");
     await this.ensureSqliteColumn("portfolio_assets", "industry", "text");
+    await this.ensureSqliteColumn("portfolio_assets", "base_quantity", "real");
+    await this.db.execute(
+      `update portfolio_assets set base_quantity = total_quantity where holding_source = 'manual' and base_quantity is null`,
+    );
     // Retirement-projection extensions for financial_goals. Each one is
     // optional at the DB level — readers coalesce missing values to the
     // sane defaults documented in `goalFieldsFromDraft`.
@@ -1248,7 +1279,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     const rows = await this.db.select<PortfolioAsset[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       ticker, name, name_zh as nameZh, name_en as nameEn, currency, total_quantity as totalQuantity, average_cost as averageCost, holding_source as holdingSource, acquisition_date as acquisitionDate,
-      asset_type as assetType, sector, industry, account_id as accountId
+      asset_type as assetType, sector, industry, account_id as accountId, base_quantity as baseQuantity
       from portfolio_assets where deleted_at is null order by ticker`);
     return rows.map((row) => ({
       ...row,
@@ -1258,6 +1289,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       sector: row.sector ?? null,
       industry: row.industry ?? null,
       accountId: row.accountId ?? null,
+      baseQuantity: row.baseQuantity ?? null,
     }));
   }
 
@@ -1302,7 +1334,10 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async createInvestmentRecord(input: InvestmentDraft) {
-    const existingAssetId = await this.findSqliteTransactionAssetId(input);
+    const ticker = input.ticker.trim().toUpperCase();
+    const transactionAssetId = await this.findSqliteTransactionAssetId(input);
+    const manualAssetId = !transactionAssetId ? (await this.findSqliteManualAsset(ticker, input.linkedAccountId ?? null))?.id : undefined;
+    const existingAssetId = transactionAssetId ?? manualAssetId;
     await this.validateSqliteInvestmentDraft(input, existingAssetId);
     const assetId = await this.findOrCreateSqliteAsset(input);
     const record = createInvestmentRow(input, assetId);
@@ -1324,7 +1359,10 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       from investment_records where id = $1 and deleted_at is null`, [id]);
     const existingRecord = existingRows[0];
     if (!existingRecord) throw new Error("找不到投資交易。");
-    const existingAssetId = await this.findSqliteTransactionAssetId(input);
+    const ticker = input.ticker.trim().toUpperCase();
+    const transactionAssetId = await this.findSqliteTransactionAssetId(input);
+    const manualAssetId = !transactionAssetId ? (await this.findSqliteManualAsset(ticker, input.linkedAccountId ?? null))?.id : undefined;
+    const existingAssetId = transactionAssetId ?? manualAssetId;
     await this.validateSqliteInvestmentDraft(input, existingAssetId, {
       excludeRecordId: id,
       excludeLedgerId: existingRecord.linkedLedgerTransactionId,
@@ -1378,7 +1416,10 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   override async importInvestmentRecords(rows: InvestmentDraft[]) {
     for (const row of rows) {
-      const existingAssetId = await this.findSqliteTransactionAssetId(row);
+      const rowTicker = row.ticker.trim().toUpperCase();
+      const txAssetId = await this.findSqliteTransactionAssetId(row);
+      const manualId = !txAssetId ? (await this.findSqliteManualAsset(rowTicker, row.linkedAccountId ?? null))?.id : undefined;
+      const existingAssetId = txAssetId ?? manualId;
       await this.validateSqliteInvestmentDraft(row, existingAssetId);
       const assetId = await this.findOrCreateSqliteAsset(row);
       const record = createInvestmentRow(row, assetId);
@@ -2087,9 +2128,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   private async insertAssetRow(row: PortfolioAsset) {
     await this.db.execute(
-      `insert into portfolio_assets (id, space_id, revision, created_at, updated_at, deleted_at, ticker, name, name_zh, name_en, currency, total_quantity, average_cost, holding_source, acquisition_date, asset_type, sector, industry, account_id)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
-      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.ticker, row.name, row.nameZh ?? null, row.nameEn ?? null, row.currency, row.totalQuantity, row.averageCost, row.holdingSource, row.acquisitionDate, row.assetType ?? null, row.sector ?? null, row.industry ?? null, row.accountId ?? null],
+      `insert into portfolio_assets (id, space_id, revision, created_at, updated_at, deleted_at, ticker, name, name_zh, name_en, currency, total_quantity, average_cost, holding_source, acquisition_date, asset_type, sector, industry, account_id, base_quantity)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
+      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.ticker, row.name, row.nameZh ?? null, row.nameEn ?? null, row.currency, row.totalQuantity, row.averageCost, row.holdingSource, row.acquisitionDate, row.assetType ?? null, row.sector ?? null, row.industry ?? null, row.accountId ?? null, row.baseQuantity ?? null],
     );
   }
 
@@ -2126,10 +2167,21 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     return rows[0]?.id;
   }
 
+  private async findSqliteManualAsset(ticker: string, accountId: string | null) {
+    if (!accountId) return undefined;
+    const rows = await this.db.select<Array<{ id: string; totalQuantity: number; baseQuantity: number | null }>>(
+      `select id, total_quantity as totalQuantity, base_quantity as baseQuantity from portfolio_assets where ticker = $1 and holding_source = 'manual' and account_id = $2 and deleted_at is null limit 1`,
+      [ticker, accountId],
+    );
+    return rows[0];
+  }
+
   private async findOrCreateSqliteAsset(input: InvestmentDraft) {
     const ticker = input.ticker.trim().toUpperCase();
     const existingId = await this.findSqliteTransactionAssetId(input);
     if (existingId) return existingId;
+    const manualAsset = await this.findSqliteManualAsset(ticker, input.linkedAccountId ?? null);
+    if (manualAsset) return manualAsset.id;
     const timestamp = nowIso();
     const asset: PortfolioAsset = {
       id: createId("asset"),
@@ -2149,6 +2201,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       acquisitionDate: null,
       ...assetClassificationFields(input),
       accountId: null,
+      baseQuantity: null,
     };
     await this.insertAssetRow(asset);
     return asset.id;
@@ -2170,7 +2223,19 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     if (input.action === "sell") {
       if (!assetId) throw new Error("賣出股數大於目前庫存。");
       const records = await this.listInvestmentRecords();
-      const available = calculateInvestmentAccountQuantity(records, assetId, account.id, options.excludeRecordId);
+      const assetRows = await this.db.select<Array<{ holdingSource: string; baseQuantity: number | null; totalQuantity: number }>>(
+        `select holding_source as holdingSource, base_quantity as baseQuantity, total_quantity as totalQuantity from portfolio_assets where id = $1`,
+        [assetId],
+      );
+      const assetRow = assetRows[0];
+      let available: number;
+      if (assetRow?.holdingSource === "manual") {
+        const baseQty = assetRow.baseQuantity ?? assetRow.totalQuantity;
+        const delta = calculateInvestmentNetDelta(records, assetId, options.excludeRecordId);
+        available = Math.max(0, baseQty + delta);
+      } else {
+        available = calculateInvestmentAccountQuantity(records, assetId, account.id, options.excludeRecordId);
+      }
       if (input.quantity > available + 0.000001) throw new Error(`賣出股數大於目前庫存，可賣出 ${available} 股。`);
     }
 
@@ -2280,8 +2345,12 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     const assets = await this.listPortfolioAssets();
     const records = await this.listInvestmentRecords();
     for (const asset of recomputeAssets(assets, records)) {
-      if (asset.holdingSource === "manual") continue;
-      await this.db.execute(`update portfolio_assets set total_quantity = $1, average_cost = $2 where id = $3`, [asset.totalQuantity, asset.averageCost, asset.id]);
+      if (asset.holdingSource === "manual") {
+        if (!records.some((r) => r.assetId === asset.id)) continue;
+        await this.db.execute(`update portfolio_assets set total_quantity = $1 where id = $2`, [asset.totalQuantity, asset.id]);
+      } else {
+        await this.db.execute(`update portfolio_assets set total_quantity = $1, average_cost = $2 where id = $3`, [asset.totalQuantity, asset.averageCost, asset.id]);
+      }
     }
   }
 }
@@ -2426,6 +2495,7 @@ function normalizePortfolioAsset(asset: PortfolioAsset): PortfolioAsset {
     sector: cleanOptionalText(asset.sector),
     industry: cleanOptionalText(asset.industry),
     accountId: asset.accountId ?? null,
+    baseQuantity: asset.baseQuantity ?? null,
   };
 }
 
@@ -2523,18 +2593,20 @@ function parseJsonObject<V>(raw: string | null): Record<string, V> {
 
 function manualHoldingFields(input: PortfolioAssetDraft) {
   const ticker = input.ticker.trim().toUpperCase();
+  const totalQuantity = Math.max(0, Number(input.totalQuantity) || 0);
   return {
     ticker,
     name: input.name.trim() || ticker,
     nameZh: null as string | null,
     nameEn: null as string | null,
     currency: input.currency.trim().toUpperCase(),
-    totalQuantity: Math.max(0, Number(input.totalQuantity) || 0),
+    totalQuantity,
     averageCost: Math.max(0, Number(input.averageCost) || 0),
     holdingSource: "manual" as const,
     acquisitionDate: input.acquisitionDate || null,
     ...assetClassificationFields(input),
     accountId: input.accountId || null,
+    baseQuantity: totalQuantity,
   };
 }
 

@@ -59,3 +59,21 @@ export function calculateInvestmentAccountQuantity(
 export function isEffectivelyNegative(value: number) {
   return value < -epsilon;
 }
+
+/**
+ * Net quantity change from transaction records for an asset, without clamping.
+ * Used to compute available quantity for manual holdings that also have sells.
+ */
+export function calculateInvestmentNetDelta(
+  records: InvestmentRecord[],
+  assetId: string,
+  excludeRecordId?: string,
+): number {
+  let delta = 0;
+  for (const record of records) {
+    if (record.deletedAt !== null || record.assetId !== assetId || record.id === excludeRecordId) continue;
+    if (record.action === "buy" || record.action === "stockDividend") delta += record.quantity;
+    else if (record.action === "sell") delta -= record.quantity;
+  }
+  return delta;
+}

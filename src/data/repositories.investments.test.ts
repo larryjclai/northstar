@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMemoryFinanceRepositoryForTests, type InvestmentDraft } from "./repositories";
+import { createMemoryFinanceRepositoryForTests, type InvestmentDraft, type PortfolioAssetDraft } from "./repositories";
 import type { Account } from "../domain";
 
 const account: Account = {
@@ -70,6 +70,65 @@ describe("investment repository cash posting", () => {
     const repo = repository();
     await repo.createInvestmentRecord(buyDraft);
     await expect(repo.createInvestmentRecord({ ...buyDraft, action: "sell", price: 100, quantity: 3, fee: 0 })).rejects.toThrow("賣出股數大於目前庫存");
+  });
+
+  it("allows sells from manual holdings and recomputes quantity", async () => {
+    const repo = repository();
+    const holding: PortfolioAssetDraft = {
+      ticker: "NFLX",
+      name: "Netflix, Inc.",
+      currency: "USD",
+      totalQuantity: 11,
+      averageCost: 88.18,
+      acquisitionDate: null,
+      accountId: "acct_broker",
+    };
+    await repo.createManualHolding(holding);
+
+    const sellDraft: InvestmentDraft = {
+      ticker: "NFLX",
+      name: "Netflix, Inc.",
+      currency: "USD",
+      linkedAccountId: "acct_broker",
+      date: "2026-05-26",
+      action: "sell",
+      price: 87.98,
+      quantity: 2,
+      fee: 0,
+      note: "",
+    };
+    await expect(repo.createInvestmentRecord(sellDraft)).resolves.toBeUndefined();
+
+    const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "NFLX");
+    expect(asset.totalQuantity).toBe(9);
+  });
+
+  it("blocks sells that exceed manual holding quantity", async () => {
+    const repo = repository();
+    const holding: PortfolioAssetDraft = {
+      ticker: "NFLX",
+      name: "Netflix, Inc.",
+      currency: "USD",
+      totalQuantity: 11,
+      averageCost: 88.18,
+      acquisitionDate: null,
+      accountId: "acct_broker",
+    };
+    await repo.createManualHolding(holding);
+
+    const oversellDraft: InvestmentDraft = {
+      ticker: "NFLX",
+      name: "Netflix, Inc.",
+      currency: "USD",
+      linkedAccountId: "acct_broker",
+      date: "2026-05-26",
+      action: "sell",
+      price: 87.98,
+      quantity: 12,
+      fee: 0,
+      note: "",
+    };
+    await expect(repo.createInvestmentRecord(oversellDraft)).rejects.toThrow("賣出股數大於目前庫存");
   });
 
   it("updates and deletes linked ledger rows", async () => {

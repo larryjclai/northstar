@@ -23,6 +23,9 @@
   --ns-positive-soft: oklch(92% 0.04 160);
   --ns-shadow: 0 1px 2px oklch(20% 0.02 220 / 12%);
   --ns-shadow-strong: 0 12px 30px oklch(20% 0.02 220 / 12%);
+  --ns-panel-bg: oklch(98% 0.01 220);
+  --ns-panel-surface: oklch(99% 0.007 220);
+  --ns-panel-border: oklch(82% 0.02 220);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -49,6 +52,20 @@
     --ns-positive-soft: oklch(34% 0.06 160);
     --ns-shadow: 0 1px 2px oklch(5% 0.02 220 / 34%);
     --ns-shadow-strong: 0 16px 32px oklch(5% 0.02 220 / 40%);
+    --ns-panel-bg: oklch(20% 0.02 228);
+    --ns-panel-surface: oklch(24% 0.02 228);
+    --ns-panel-border: oklch(33% 0.022 228);
+  }
+}
+
+@keyframes ns-drawer-in {
+  from {
+    transform: translateX(28px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
   }
 }
 
