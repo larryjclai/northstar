@@ -1,9 +1,10 @@
 import { ArrowsLeftRight, CalendarPlus, PencilSimple, Receipt, Trash, UploadSimple } from "@phosphor-icons/react";
-import { ChangeEvent, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { ActionButton } from "../components/ActionButton";
 import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
 import { DateTimeField } from "../components/DateTimeField";
+import { EmptyState } from "../components/EmptyState";
 import { Field, SelectInput, TextAreaInput, TextInput } from "../components/Field";
 import { StatusText } from "../components/StatusText";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
@@ -76,6 +77,7 @@ export function CashFlowRoute() {
   const [amountExpression, setAmountExpression] = useState(String(Math.abs(emptyLedger.amount)));
   const [transferForm, setTransferForm] = useState<TransferDraft>(emptyTransfer);
   const [recurringForm, setRecurringForm] = useState<RecurringDraft>(emptyRecurring);
+  const [accountSelectionMode, setAccountSelectionMode] = useState<"auto" | "manual">("auto");
   const [preview, setPreview] = useState<ImportPreview<LedgerDraft> | null>(null);
   const [message, setMessage] = useState("");
 
@@ -88,9 +90,22 @@ export function CashFlowRoute() {
   const subcategories = categories.find((category) => category.name === ledgerForm.category)?.children ?? [];
   const recurringSubcategories = categories.find((category) => category.name === recurringForm.category)?.children ?? [];
   const merchants = appSettings?.merchants ?? [];
+  const merchantPool = useMemo(
+    () => uniqueClean([...merchants, ...ledgerRows.map((row) => row.merchant)]),
+    [merchants, ledgerRows],
+  );
+  const merchantSuggestions = useMemo(
+    () => buildMerchantSuggestions(merchantPool, ledgerForm.merchant),
+    [merchantPool, ledgerForm.merchant],
+  );
+  const recurringMerchantSuggestions = useMemo(
+    () => buildMerchantSuggestions(merchantPool, recurringForm.merchant),
+    [merchantPool, recurringForm.merchant],
+  );
   const accountName = (id: string) => accountRows.find((account) => account.id === id)?.name ?? id;
   const accountIdFor = (nameOrId: string) => accountRows.find((account) => account.id === nameOrId || account.name === nameOrId)?.id;
   const groupedRows = useMemo(() => groupLedgerRows(ledgerRows), [ledgerRows]);
+  const availableAccountIds = useMemo(() => new Set(accountRows.map((account) => account.id)), [accountRows]);
 
   const createLedger = useRepositoryMutation((repository, input: LedgerDraft) => repository.createLedgerTransaction(input), ["ledger", "accounts"]);
   const updateLedger = useRepositoryMutation((repository, input: LedgerDraft & { id: string }) => repository.updateLedgerTransaction(input.id, input), ["ledger", "accounts"]);
@@ -154,9 +169,41 @@ export function CashFlowRoute() {
   }
 
   function syncAccountDefaults(accountId: string) {
+    setAccountSelectionMode("manual");
     const account = accountRows.find((item) => item.id === accountId);
     if (account) setLedgerForm((current) => ({ ...current, accountId, currency: account.currency }));
   }
+
+  useEffect(() => {
+    if (mode !== "single" || editingId || accountSelectionMode !== "auto") return;
+    const accountId = findLastUsedAccountIdForCategory(ledgerRows, availableAccountIds, {
+      category: ledgerForm.category,
+      subcategory: ledgerForm.subcategory,
+      entryType: ledgerForm.entryType,
+    });
+    if (!accountId) return;
+    const account = accountRows.find((item) => item.id === accountId);
+    if (!account) return;
+
+    setLedgerForm((current) => {
+      if (current.accountId === accountId && current.currency === account.currency) return current;
+      return {
+        ...current,
+        accountId,
+        currency: account.currency,
+      };
+    });
+  }, [
+    accountRows,
+    accountSelectionMode,
+    availableAccountIds,
+    editingId,
+    ledgerForm.category,
+    ledgerForm.entryType,
+    ledgerForm.subcategory,
+    ledgerRows,
+    mode,
+  ]);
 
   async function submitRecurring() {
     setMessage("");
@@ -190,6 +237,7 @@ export function CashFlowRoute() {
       rememberMerchantNames([payload.merchant]);
       setLedgerForm({ ...emptyLedger, date: nowAsDatetimeLocal(timezone), currency: appSettings?.primaryCurrency ?? emptyLedger.currency });
       setAmountExpression(String(Math.abs(emptyLedger.amount)));
+      setAccountSelectionMode("auto");
       setEditingId(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "收支儲存失敗。");
@@ -216,7 +264,15 @@ export function CashFlowRoute() {
 
   return (
     <div className="mx-auto max-w-6xl p-5 lg:p-8">
-      <PageHeader title="收支" description="記錄收入、支出與轉帳，帳戶餘額會自動更新。" />
+      <PageHeader
+        title="記帳"
+        description="記錄收入、支出與轉帳，帳戶餘額會自動更新。"
+        action={
+          <ActionButton onClick={() => setMode("single")} size="sm">
+            <Receipt size={14} />新增收支
+          </ActionButton>
+        }
+      />
       <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
         <Card title="新增收支">
           <div className="mb-3 flex gap-2">
@@ -235,10 +291,10 @@ export function CashFlowRoute() {
               </Field>
 
               <Field label="商家">
-                <TextInput
-                  list="cashflow-merchants"
+                <MerchantAutocomplete
                   value={ledgerForm.merchant}
-                  onChange={(event) => setLedgerForm({ ...ledgerForm, merchant: event.target.value })}
+                  suggestions={merchantSuggestions}
+                  onChange={(next) => setLedgerForm({ ...ledgerForm, merchant: next })}
                   placeholder="例如 7-ELEVEN、Lyft"
                 />
               </Field>
@@ -328,9 +384,6 @@ export function CashFlowRoute() {
                 </div>
               </details>
 
-              <datalist id="cashflow-merchants">
-                {merchants.map((merchant) => <option key={merchant} value={merchant} />)}
-              </datalist>
               <datalist id="cashflow-categories">
                 {categoryNames.map((category) => <option key={category} value={category} />)}
               </datalist>
@@ -341,7 +394,7 @@ export function CashFlowRoute() {
               {message ? <StatusText>{message}</StatusText> : null}
               <div className="flex gap-2">
                 <ActionButton onClick={submitSingle}>{editingId ? "儲存" : "新增"}</ActionButton>
-                {editingId ? <ActionButton variant="secondary" onClick={() => { setEditingId(null); setLedgerForm({ ...emptyLedger, date: nowAsDatetimeLocal(timezone) }); setAmountExpression(String(Math.abs(emptyLedger.amount))); }}>取消</ActionButton> : null}
+                {editingId ? <ActionButton variant="secondary" onClick={() => { setEditingId(null); setLedgerForm({ ...emptyLedger, date: nowAsDatetimeLocal(timezone) }); setAmountExpression(String(Math.abs(emptyLedger.amount))); setAccountSelectionMode("auto"); }}>取消</ActionButton> : null}
               </div>
             </div>
           ) : (
@@ -406,8 +459,15 @@ export function CashFlowRoute() {
               </div>
             </div>
           ) : null}
-          <div className="space-y-3">
-            {groupedRows.map((group) => (
+          {groupedRows.length === 0 ? (
+            <EmptyState
+              icon={<Receipt size={24} weight="duotone" />}
+              title="還沒有記帳資料"
+              description="先從左側新增第一筆收支，或匯入 CSV 歷史資料。"
+            />
+          ) : (
+            <div className="space-y-3">
+              {groupedRows.map((group) => (
               <div key={group.id} className="grid grid-cols-1 gap-4 rounded-md border p-4 sm:grid-cols-[1fr_auto]" style={{ borderColor: "var(--ns-border)" }}>
                 <div>
                   <div className="font-semibold">{group.title}</div>
@@ -434,6 +494,7 @@ export function CashFlowRoute() {
                           settlementStatus: row.settlementStatus ?? "settled",
                           note: row.note,
                         });
+                        setAccountSelectionMode("manual");
                         setAmountExpression(String(Math.abs(row.amount)));
                       }}><PencilSimple size={16} />編輯</ActionButton>
                     ) : null}
@@ -441,13 +502,18 @@ export function CashFlowRoute() {
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </Card>
       </div>
-      <div className="mt-4 grid gap-4 lg:grid-cols-[380px_1fr]">
-        <Card title="新增週期事件">
-          <div className="grid gap-3">
+      <details className="mt-4 rounded-xl border p-4" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
+        <summary className="cursor-pointer select-none text-sm font-semibold" style={{ color: "var(--ns-muted)" }}>
+          週期事件（每月固定收支）
+        </summary>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[380px_1fr]">
+          <Card title="新增週期事件" variant="muted">
+            <div className="grid gap-3">
             <Field label="帳戶">
               <SelectInput value={recurringForm.accountId} onChange={(event) => {
                 const account = accountRows.find((item) => item.id === event.target.value);
@@ -501,17 +567,29 @@ export function CashFlowRoute() {
               </Field>
             </div>
             <Field label="商家">
-              <TextInput list="cashflow-merchants" value={recurringForm.merchant} onChange={(event) => setRecurringForm({ ...recurringForm, merchant: event.target.value })} />
+              <MerchantAutocomplete
+                value={recurringForm.merchant}
+                suggestions={recurringMerchantSuggestions}
+                onChange={(next) => setRecurringForm({ ...recurringForm, merchant: next })}
+                placeholder="例如 Spotify"
+              />
             </Field>
             <Field label="備註">
               <TextInput value={recurringForm.note} onChange={(event) => setRecurringForm({ ...recurringForm, note: event.target.value })} />
             </Field>
             <ActionButton onClick={submitRecurring}><CalendarPlus size={16} />建立週期事件</ActionButton>
-          </div>
-        </Card>
-        <Card title="週期事件">
-          <div className="space-y-3">
-            {recurringRows.map((row) => (
+            </div>
+          </Card>
+          <Card title="週期事件" variant="muted">
+            {recurringRows.length === 0 ? (
+              <EmptyState
+                icon={<CalendarPlus size={24} weight="duotone" />}
+                title="尚未建立週期事件"
+                description="你可以建立每月固定扣款或固定收入，降低重複輸入。"
+              />
+            ) : (
+              <div className="space-y-3">
+                {recurringRows.map((row) => (
               <div key={row.id} className="grid grid-cols-1 gap-3 rounded-md border p-4 sm:grid-cols-[1fr_auto]" style={{ borderColor: "var(--ns-border)" }}>
                 <div>
                   <div className="font-semibold">{row.category}{row.subcategory ? ` / ${row.subcategory}` : ""}</div>
@@ -525,10 +603,12 @@ export function CashFlowRoute() {
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-        </Card>
-      </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+      </details>
     </div>
   );
 }
@@ -568,6 +648,137 @@ function formatRecordTime(value: string) {
   return value.replace("T", " ");
 }
 
+function MerchantAutocomplete({
+  value,
+  suggestions,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  suggestions: string[];
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const showPanel = open && suggestions.length > 0;
+
+  return (
+    <div className="relative">
+      <TextInput
+        value={value}
+        onChange={(event) => {
+          onChange(event.target.value);
+          setActiveIndex(-1);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        onKeyDown={(event) => {
+          if (!showPanel) return;
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setActiveIndex((index) => Math.min(suggestions.length - 1, index + 1));
+            return;
+          }
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setActiveIndex((index) => Math.max(0, index - 1));
+            return;
+          }
+          if (event.key === "Enter" && activeIndex >= 0) {
+            event.preventDefault();
+            onChange(suggestions[activeIndex]);
+            setOpen(false);
+          }
+        }}
+        placeholder={placeholder}
+      />
+      {showPanel ? (
+        <div
+          className="absolute left-0 right-0 z-20 mt-1 overflow-hidden rounded-md border"
+          style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)", boxShadow: "var(--ns-shadow-strong)" }}
+        >
+          {suggestions.map((suggestion, index) => (
+            <button
+              key={suggestion}
+              type="button"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                onChange(suggestion);
+                setOpen(false);
+              }}
+              className="block w-full px-3 py-2 text-left text-sm transition"
+              style={{ background: index === activeIndex ? "var(--ns-accent-soft)" : "transparent" }}
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function uniqueClean(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function buildMerchantSuggestions(merchants: string[], query: string) {
+  const normalizedQuery = normalizeText(query);
+  if (!normalizedQuery) return merchants.slice(0, 12);
+
+  return merchants
+    .map((merchant, index) => ({
+      merchant,
+      index,
+      score: merchantMatchScore(merchant, normalizedQuery),
+    }))
+    .filter((item) => item.score > -1)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, 12)
+    .map((item) => item.merchant);
+}
+
+function merchantMatchScore(rawMerchant: string, normalizedQuery: string) {
+  const merchant = normalizeText(rawMerchant);
+  if (!merchant) return -1;
+  if (merchant === normalizedQuery) return 300;
+  if (merchant.startsWith(normalizedQuery)) return 200;
+
+  const tokenHit = merchant
+    .split(/[\s\-_.]+/)
+    .some((token) => token.startsWith(normalizedQuery));
+  if (tokenHit) return 120;
+  if (merchant.includes(normalizedQuery)) return 80;
+  return -1;
+}
+
+function findLastUsedAccountIdForCategory(
+  rows: LedgerTransaction[],
+  availableAccountIds: Set<string>,
+  target: Pick<LedgerDraft, "category" | "subcategory" | "entryType">,
+) {
+  const category = target.category.trim();
+  if (!category) return "";
+  const subcategory = target.subcategory.trim();
+
+  const rankedRows = [...rows].sort((a, b) => b.date.localeCompare(a.date));
+  const exact = rankedRows.find((row) =>
+    row.entryType === target.entryType &&
+    row.category.trim() === category &&
+    row.subcategory.trim() === subcategory &&
+    availableAccountIds.has(row.accountId),
+  );
+  if (exact) return exact.accountId;
+
+  const byCategory = rankedRows.find((row) =>
+    row.entryType === target.entryType &&
+    row.category.trim() === category &&
+    availableAccountIds.has(row.accountId),
+  );
+  return byCategory?.accountId ?? "";
+}
+
+function normalizeText(value: string) {
+  return value.trim().toLowerCase();
 }

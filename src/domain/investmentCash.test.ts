@@ -26,6 +26,7 @@ describe("investment cash helpers", () => {
     expect(calculateInvestmentCashDelta({ action: "buy", price: 100, quantity: 2, fee: 5 })).toBe(-205);
     expect(calculateInvestmentCashDelta({ action: "sell", price: 120, quantity: 2, fee: 3 })).toBe(237);
     expect(calculateInvestmentCashDelta({ action: "cashDividend", price: 1.5, quantity: 10, fee: 1 })).toBe(14);
+    expect(calculateInvestmentCashDelta({ action: "cashDividend", price: 1500, quantity: 0, fee: 10 })).toBe(1490);
     expect(calculateInvestmentCashDelta({ action: "capitalReduction", price: 2, quantity: 10, fee: 9 })).toBe(20);
     expect(calculateInvestmentCashDelta({ action: "stockDividend", price: 0, quantity: 1, fee: 0 })).toBe(0);
     expect(calculateInvestmentCashDelta({ action: "stockSplit", price: 0, quantity: 2, fee: 0 })).toBe(0);
@@ -43,4 +44,3 @@ describe("investment cash helpers", () => {
     expect(calculateInvestmentAccountQuantity(records, "asset_test", "acct_test", "sell")).toBe(10);
   });
 });
-

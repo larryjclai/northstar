@@ -26,6 +26,8 @@ export function SettingsRoute() {
   const { settings, dailyFxRates } = useFinanceData();
   const [form, setForm] = useState(emptySettings);
   const [merchantDraft, setMerchantDraft] = useState("");
+  const [showAllRates, setShowAllRates] = useState(false);
+  const [showAllMerchants, setShowAllMerchants] = useState(false);
   const seededRef = useRef(false);
   const updateSettings = useRepositoryMutation((repository, input: AppSettings) => repository.updateAppSettings(input), ["settings"]);
   const refreshFxRates = useRefreshFxRates();
@@ -124,11 +126,14 @@ export function SettingsRoute() {
   useEffect(() => {
     if (!settings.data) return;
     if (seededRef.current) return;
-    setForm(settings.data);
+    setForm(normalizeForm(settings.data));
     seededRef.current = true;
   }, [settings.data]);
 
   const fxStats = useMemo(() => buildFxStats(dailyFxRates.data ?? []), [dailyFxRates.data]);
+  const visibleRates = (showAllRates ? form.exchangeRates : form.exchangeRates.slice(0, 4))
+    .map((rate, sourceIndex) => ({ rate, sourceIndex }));
+  const visibleMerchants = showAllMerchants ? form.merchants : form.merchants.slice(0, 16);
 
   async function submit() {
     const next = normalizeForm(form);
@@ -193,9 +198,18 @@ export function SettingsRoute() {
 
   return (
     <div className="mx-auto max-w-6xl p-5 lg:p-8">
-      <PageHeader title="設定" description="整理幣別、匯率、分類與商家，讓每次記帳更快、更一致。" />
+      <PageHeader
+        title="設定"
+        description="整理幣別、匯率、分類與商家，讓每次記帳更快、更一致。"
+        action={
+          <ActionButton onClick={submit} disabled={updateSettings.isPending} size="sm" loading={updateSettings.isPending}>
+            <CheckCircle size={16} />儲存設定
+          </ActionButton>
+        }
+      />
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
         <div className="grid gap-4">
+          <DisplayAndPrivacyCard />
           <Card title="幣別與匯率">
             <div className="grid gap-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-[180px_1fr]">
@@ -209,21 +223,31 @@ export function SettingsRoute() {
                 <PreferencePreview icon={<CurrencyCircleDollar size={20} />} title="總覽換算基準" text={`${form.primaryCurrency || "TWD"} 會用於淨值、帳戶與現金流摘要。`} />
               </div>
               <div className="grid gap-2">
-                {form.exchangeRates.map((rate, index) => {
+                {visibleRates.map(({ rate, sourceIndex }) => {
                   const pairKey = `${rate.from}|${rate.to || form.primaryCurrency}`;
                   return (
                     <RateRow
-                      key={`${rate.from}-${rate.to}-${index}`}
+                      key={`${rate.from}-${rate.to}-${sourceIndex}`}
                       rate={rate}
                       primaryCurrency={form.primaryCurrency}
                       stats={fxStats.get(pairKey)}
-                      onChange={(next) => setRate(index, next, setForm)}
-                      onDelete={() => setForm((current) => ({ ...current, exchangeRates: current.exchangeRates.filter((_, rowIndex) => rowIndex !== index) }))}
+                      onChange={(next) => setRate(sourceIndex, next, setForm)}
+                      onDelete={() => setForm((current) => ({ ...current, exchangeRates: current.exchangeRates.filter((_, rowIndex) => rowIndex !== sourceIndex) }))}
                       onRefresh={(range) => refreshSinglePair(rate, range)}
                       busy={refreshFxRates.isPending}
                     />
                   );
                 })}
+                {form.exchangeRates.length > 4 ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllRates((value) => !value)}
+                    className="text-xs font-semibold"
+                    style={{ color: "var(--ns-accent)" }}
+                  >
+                    {showAllRates ? "收合部分匯率" : `顯示全部匯率（${form.exchangeRates.length}）`}
+                  </button>
+                ) : null}
                 <div className="flex flex-wrap gap-2">
                   <ActionButton
                     variant="secondary"
@@ -242,7 +266,7 @@ export function SettingsRoute() {
             </div>
           </Card>
 
-          <Card title="分類">
+          <Card title="分類與商家">
             <div className="grid gap-3">
               {form.categories.map((group, index) => (
                 <CategoryEditor
@@ -259,26 +283,10 @@ export function SettingsRoute() {
                 <Plus size={16} />新增分類
               </ActionButton>
             </div>
-          </Card>
-
-          <Card title="FIRE 目標">
-            <p className="text-sm" style={{ color: "var(--ns-muted)" }}>
-              已搬到獨立的「目標」分頁，加入了年齡、退休前後報酬率、通膨、支出分項與年度試算表。
-            </p>
-            <div className="mt-3">
-              <Link
-                to="/goals"
-                className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold outline-none transition"
-                style={{ background: "var(--ns-accent)", color: "var(--ns-on-accent, white)" }}
-              >
-                <Target size={16} weight="fill" />前往目標
-              </Link>
-            </div>
-          </Card>
-
-          <Card title="商家">
-            <div className="flex flex-wrap gap-2">
-              {form.merchants.map((merchant) => (
+            <div className="mt-4">
+              <h3 className="mb-2 text-sm font-semibold" style={{ color: "var(--ns-muted)" }}>常用商家</h3>
+              <div className="flex flex-wrap gap-2">
+              {visibleMerchants.map((merchant) => (
                 <span key={merchant} className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-sm" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface-strong)" }}>
                   {merchant}
                   <button type="button" aria-label={`移除 ${merchant}`} onClick={() => setForm((current) => ({ ...current, merchants: current.merchants.filter((item) => item !== merchant) }))}>
@@ -286,37 +294,54 @@ export function SettingsRoute() {
                   </button>
                 </span>
               ))}
-            </div>
-            <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
-              <TextInput value={merchantDraft} onChange={(event) => setMerchantDraft(event.target.value)} placeholder="新增常用商家" />
-              <ActionButton variant="secondary" onClick={addMerchant}><Plus size={16} />新增</ActionButton>
+              </div>
+              {form.merchants.length > 16 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAllMerchants((value) => !value)}
+                  className="mt-2 text-xs font-semibold"
+                  style={{ color: "var(--ns-accent)" }}
+                >
+                  {showAllMerchants ? "收合商家清單" : `顯示全部商家（${form.merchants.length}）`}
+                </button>
+              ) : null}
+              <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
+                <TextInput value={merchantDraft} onChange={(event) => setMerchantDraft(event.target.value)} placeholder="新增常用商家" />
+                <ActionButton variant="secondary" onClick={addMerchant}><Plus size={16} />新增商家</ActionButton>
+              </div>
             </div>
           </Card>
 
-          <div>
-            <ActionButton onClick={submit} disabled={updateSettings.isPending}>
-              <CheckCircle size={16} />{updateSettings.isPending ? "儲存中" : "儲存設定"}
-            </ActionButton>
-          </div>
+          <Card title="退休目標">
+            <p className="text-sm" style={{ color: "var(--ns-muted)" }}>
+              FIRE 計畫已搬到「目標」分頁，支援年齡、報酬率、通膨與支出分項試算。
+            </p>
+            <div className="mt-3">
+              <Link
+                to="/goals"
+                className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold outline-none transition"
+                style={{ background: "var(--ns-accent)", color: "var(--ns-on-accent, white)", borderColor: "var(--ns-accent)" }}
+              >
+                <Target size={16} weight="fill" />前往目標
+              </Link>
+            </div>
+          </Card>
         </div>
 
         <div className="grid content-start gap-4">
-          <DisplayAndPrivacyCard />
           <Card title="目前設定">
             <SummaryBlock icon={<Tag size={18} />} title="分類" items={form.categories.map((item) => `${item.name} · ${item.children.length} 個子分類`)} />
             <div className="my-4 h-px" style={{ background: "var(--ns-border)" }} />
             <SummaryBlock icon={<Storefront size={18} />} title="商家" items={form.merchants} />
             <div className="my-4 h-px" style={{ background: "var(--ns-border)" }} />
-            <SummaryBlock icon={<ArrowsLeftRight size={18} />} title="匯率" items={form.exchangeRates.map((rate) => `${rate.from} → ${rate.to} = ${rate.rate}`)} />
+            <SummaryBlock icon={<ArrowsLeftRight size={18} />} title="匯率" items={form.exchangeRates.map((rate) => `${rate.from} → ${rate.to} = ${rate.rate.toFixed(2)}`)} />
           </Card>
-          <Card title="同步與安全">
-            <div className="space-y-3 text-sm" style={{ color: "var(--ns-muted)" }}>
+          <Card title="備份與安全">
+            <div className="mb-3 space-y-2 rounded-lg border p-3 text-sm" style={{ borderColor: "var(--ns-border)", color: "var(--ns-muted)", background: "var(--ns-surface-subtle)" }}>
               <StatusRow icon={<Key size={18} />} text="同步開啟前會建立救援金鑰。" />
               <StatusRow icon={<UsersThree size={18} />} text="家庭共享會使用獨立 Household Space Key。" />
               <StatusRow icon={<CheckCircle size={18} />} text="不登入也能完整使用本機帳本。" />
             </div>
-          </Card>
-          <Card title="備份與還原">
             <p className="text-sm" style={{ color: "var(--ns-muted)" }}>
               匯出整份資料庫成 JSON 檔（含交易、持倉、匯率歷史、每日股價）。匯入會覆蓋現有資料，請先備份再執行。
             </p>
@@ -383,7 +408,12 @@ function RateRow({
           <TextInput value={rate.to || primaryCurrency} onChange={(event) => onChange({ ...rate, to: event.target.value.toUpperCase(), updatedAt: new Date().toISOString() })} />
         </Field>
         <Field label="最新匯率">
-          <TextInput type="number" value={rate.rate} onChange={(event) => onChange({ ...rate, rate: Number(event.target.value), updatedAt: new Date().toISOString() })} />
+          <TextInput
+            type="number"
+            step="0.01"
+            value={rate.rate}
+            onChange={(event) => onChange({ ...rate, rate: roundTo2(Number(event.target.value)), updatedAt: new Date().toISOString() })}
+          />
         </Field>
         <ActionButton variant="danger" onClick={onDelete}><Trash size={16} /></ActionButton>
       </div>
@@ -437,36 +467,46 @@ function CategoryEditor({
 }) {
   const [childDraft, setChildDraft] = useState("");
   return (
-    <div className="rounded-lg border p-3" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
-      <div className="grid grid-cols-[1fr_auto] gap-2">
-        <TextInput value={group.name} onChange={(event) => onChange({ ...group, name: event.target.value })} aria-label="分類名稱" />
-        <ActionButton variant="danger" onClick={onDelete}><Trash size={16} /></ActionButton>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {group.children.map((child) => (
-          <span key={child} className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm" style={{ background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
-            {child}
-            <button type="button" aria-label={`移除 ${child}`} onClick={() => onChange({ ...group, children: group.children.filter((item) => item !== child) })}>
-              <X size={14} />
-            </button>
+    <details className="rounded-lg border p-3" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
+      <summary className="cursor-pointer list-none select-none">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-semibold">{group.name || "未命名分類"}</span>
+          <span className="text-xs" style={{ color: "var(--ns-muted)" }}>
+            {group.children.length} 個子分類
           </span>
-        ))}
+        </div>
+      </summary>
+      <div className="mt-3 grid gap-3">
+        <div className="grid grid-cols-[1fr_auto] gap-2">
+          <TextInput value={group.name} onChange={(event) => onChange({ ...group, name: event.target.value })} aria-label="分類名稱" />
+          <ActionButton variant="danger" onClick={onDelete}><Trash size={16} /></ActionButton>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {group.children.map((child) => (
+            <span key={child} className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm" style={{ background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
+              {child}
+              <button type="button" aria-label={`移除 ${child}`} onClick={() => onChange({ ...group, children: group.children.filter((item) => item !== child) })}>
+                <X size={14} />
+              </button>
+            </span>
+          ))}
+        </div>
+        <div className="grid grid-cols-[1fr_auto] gap-2">
+          <TextInput value={childDraft} onChange={(event) => setChildDraft(event.target.value)} placeholder="新增子分類" />
+          <ActionButton
+            variant="secondary"
+            onClick={() => {
+              const next = childDraft.trim();
+              if (!next) return;
+              onChange({ ...group, children: [...new Set([...group.children, next])] });
+              setChildDraft("");
+            }}
+          >
+            <Plus size={16} />新增
+          </ActionButton>
+        </div>
       </div>
-      <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
-        <TextInput value={childDraft} onChange={(event) => setChildDraft(event.target.value)} placeholder="新增子分類" />
-        <ActionButton
-          variant="secondary"
-          onClick={() => {
-            const next = childDraft.trim();
-            if (!next) return;
-            onChange({ ...group, children: [...new Set([...group.children, next])] });
-            setChildDraft("");
-          }}
-        >
-          <Plus size={16} />新增
-        </ActionButton>
-      </div>
-    </div>
+    </details>
   );
 }
 
@@ -747,9 +787,14 @@ function normalizeForm(form: AppSettings): AppSettings {
       .map((rate) => ({
         from: rate.from.trim().toUpperCase(),
         to: rate.to.trim().toUpperCase() || form.primaryCurrency.trim().toUpperCase() || "TWD",
-        rate: Number(rate.rate),
+        rate: roundTo2(Number(rate.rate)),
         updatedAt: rate.updatedAt || new Date().toISOString(),
       }))
       .filter((rate) => rate.from && rate.to && Number.isFinite(rate.rate) && rate.rate > 0),
   };
+}
+
+function roundTo2(value: number) {
+  if (!Number.isFinite(value)) return value;
+  return Math.round(value * 100) / 100;
 }

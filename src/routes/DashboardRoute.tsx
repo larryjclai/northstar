@@ -1,4 +1,5 @@
 import { ArrowClockwise, CloudSlash, CurrencyCircleDollar, ChartLineUp, PlusCircle, Wallet } from "@phosphor-icons/react";
+import { Link } from "@tanstack/react-router";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ActionButton } from "../components/ActionButton";
 import { PageHeader } from "../components/AppShell";
@@ -44,6 +45,25 @@ export function DashboardRoute() {
       <PageHeader
         title="總覽"
         description="檢視現金、投資持倉與本月現金流，所有資料先保存在你的裝置上。"
+        action={
+          <Link
+            to="/cash-flow"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold"
+            style={{ background: "var(--ns-accent)", color: "var(--ns-on-accent)", borderColor: "var(--ns-accent)", boxShadow: "var(--ns-shadow)" }}
+          >
+            <PlusCircle size={16} />記第一筆
+          </Link>
+        }
+        meta={
+          <>
+            <span className="inline-flex rounded-full border px-2 py-1 text-xs font-medium" style={{ borderColor: "var(--ns-border)", color: "var(--ns-muted)" }}>
+              Local-first
+            </span>
+            <span className="inline-flex rounded-full border px-2 py-1 text-xs font-medium" style={{ borderColor: "var(--ns-border)", color: "var(--ns-muted)" }}>
+              Privacy mode ready
+            </span>
+          </>
+        }
       />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card>
@@ -83,6 +103,24 @@ export function DashboardRoute() {
               icon={hasAnyData ? <ChartLineUp size={24} weight="duotone" /> : <Wallet size={24} weight="duotone" />}
               title={hasAnyData ? "累積幾筆資料後會顯示趨勢" : "先建立你的第一個帳戶"}
               description={hasAnyData ? "淨值趨勢只會使用實際帳戶、收支與持倉資料，不會用示意資料補線。" : "新增銀行、現金或投資帳戶後，Northstar 會開始從你的本機資料計算總覽。"}
+              action={
+                <Link
+                  to={hasAnyData ? "/cash-flow" : "/accounts"}
+                  className="inline-flex min-h-8 items-center justify-center rounded-lg border px-2.5 py-1.5 text-xs font-semibold"
+                  style={{ background: "var(--ns-accent)", color: "var(--ns-on-accent)", borderColor: "var(--ns-accent)" }}
+                >
+                  {hasAnyData ? "繼續記帳" : "建立帳戶"}
+                </Link>
+              }
+              secondaryAction={
+                <Link
+                  to="/investments"
+                  className="inline-flex min-h-8 items-center justify-center rounded-lg border px-2.5 py-1.5 text-xs font-semibold"
+                  style={{ background: "var(--ns-surface-elevated)", color: "var(--ns-text)", borderColor: "var(--ns-border)" }}
+                >
+                  新增持倉
+                </Link>
+              }
             />
           )}
         </Card>
@@ -125,37 +163,50 @@ export function DashboardRoute() {
         </div>
       </div>
       {hasHoldings ? (
-        <Card title="持倉摘要" action={<PlusCircle size={20} weight="duotone" />}>
-          <div className="grid gap-3 md:grid-cols-2">
-            {topHoldings.map((row) => {
-              const asset = row.asset;
-              return (
-                <div key={asset.id} className="rounded-md border p-4" style={{ borderColor: "var(--ns-border)" }}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold">{asset.ticker}</div>
-                      <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{resolveAssetName(asset, nameLocale)}</div>
-                    </div>
-                    <div className="tabular text-right">
-                      <div>{formatMoney(row.marketValuePrimary, primaryCurrency)}</div>
-                      {row.hasQuote && row.dayChangePrimary !== null && row.dayChangePercent !== null ? (
-                        <div
-                          className="text-sm"
-                          style={{ color: row.dayChangePrimary >= 0 ? "var(--ns-positive)" : "var(--ns-negative)" }}
-                        >
-                          {formatSignedMoney(row.dayChangePrimary, primaryCurrency)} ({row.dayChangePercent >= 0 ? "+" : ""}{row.dayChangePercent.toFixed(2)}%)
-                        </div>
-                      ) : (
-                        <div className="text-sm" style={{ color: "var(--ns-muted)" }}>待更新</div>
-                      )}
-                      <div className="text-xs" style={{ color: "var(--ns-muted)" }}>{row.hasQuote ? `${formatPrice(row.marketValue / asset.totalQuantity)} ${row.currency}` : asset.currency}</div>
+        <div className="mt-4">
+          <Card
+          title="持倉摘要"
+          action={(
+            <Link
+              to="/investments"
+              className="inline-flex min-h-8 items-center justify-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold"
+              style={{ borderColor: "var(--ns-border)", color: "var(--ns-accent)", background: "var(--ns-accent-soft)" }}
+            >
+              <PlusCircle size={14} weight="duotone" />前往投資
+            </Link>
+          )}
+          >
+            <div className="grid gap-3 md:grid-cols-2">
+              {topHoldings.map((row) => {
+                const asset = row.asset;
+                return (
+                  <div key={asset.id} className="rounded-md border p-4" style={{ borderColor: "var(--ns-border)" }}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-semibold">{asset.ticker}</div>
+                        <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{resolveAssetName(asset, nameLocale)}</div>
+                      </div>
+                      <div className="tabular text-right">
+                        <div>{formatMoney(row.marketValuePrimary, primaryCurrency)}</div>
+                        {row.hasQuote && row.dayChangePrimary !== null && row.dayChangePercent !== null ? (
+                          <div
+                            className="text-sm"
+                            style={{ color: row.dayChangePrimary >= 0 ? "var(--ns-positive)" : "var(--ns-negative)" }}
+                          >
+                            {formatSignedMoney(row.dayChangePrimary, primaryCurrency)} ({row.dayChangePercent >= 0 ? "+" : ""}{row.dayChangePercent.toFixed(2)}%)
+                          </div>
+                        ) : (
+                          <div className="text-sm" style={{ color: "var(--ns-muted)" }}>待更新</div>
+                        )}
+                        <div className="text-xs" style={{ color: "var(--ns-muted)" }}>{row.hasQuote ? `${formatPrice(row.marketValue / asset.totalQuantity)} ${row.currency}` : asset.currency}</div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
       ) : null}
     </div>
   );
@@ -170,18 +221,37 @@ function buildNetWorthTrend(
   dailyFxRates: DailyFxRate[],
 ) {
   const { toPrimary } = createFxConverter(settings, dailyFxRates);
-  const opening = accounts.reduce((sum, account) => sum + toPrimary(account.openingBalance, account.currency), 0);
   const settledRows = ledgerRows
     .filter((row) => row.settlementStatus === "settled")
     .sort((a, b) => a.date.localeCompare(b.date));
-  if (accounts.length === 0 && settledRows.length === 0) return [];
+  const startCandidates = [
+    ...accounts.map((account) => dateOnly(account.createdAt)),
+    ...assets.map((asset) => dateOnly(asset.acquisitionDate || asset.createdAt)),
+  ].filter(Boolean);
+  if (startCandidates.length === 0 && settledRows.length === 0) return [];
 
-  let running = opening;
-  const monthly = new Map<string, number>();
-  if (accounts.length > 0) monthly.set("起始", running);
+  const monthDelta = new Map<string, number>();
+  for (const account of accounts) {
+    const joinedDate = dateOnly(account.createdAt);
+    if (!joinedDate) continue;
+    const key = monthKey(joinedDate);
+    monthDelta.set(key, (monthDelta.get(key) ?? 0) + toPrimary(account.openingBalance, account.currency, joinedDate));
+  }
   for (const row of settledRows) {
-    running += toPrimary(row.amount, row.currency, row.date);
-    monthly.set(formatMonth(row.date), running);
+    const key = monthKey(row.date);
+    monthDelta.set(key, (monthDelta.get(key) ?? 0) + toPrimary(row.amount, row.currency, row.date));
+  }
+
+  const startMonth = startCandidates.length
+    ? monthKey([...startCandidates].sort()[0])
+    : monthKey(settledRows[0].date);
+  const orderedMonths = [...new Set([startMonth, ...monthDelta.keys()])].sort();
+
+  let running = 0;
+  const timeline: Array<{ date: string; value: number }> = [];
+  for (const key of orderedMonths) {
+    running += monthDelta.get(key) ?? 0;
+    timeline.push({ date: formatMonth(key), value: running });
   }
 
   const quoteFor = (ticker: string) => quotes.find((quote) => quote.symbol.toUpperCase() === ticker.toUpperCase());
@@ -190,16 +260,27 @@ function buildNetWorthTrend(
     const value = quote ? quote.price * asset.totalQuantity : asset.averageCost * asset.totalQuantity;
     return sum + toPrimary(value, quote?.currency ?? asset.currency);
   }, 0);
-  if (currentHoldingsValue > 0) monthly.set("現在", running + currentHoldingsValue);
-  return [...monthly.entries()].map(([date, value]) => ({ date, value }));
+  if (currentHoldingsValue > 0) {
+    timeline.push({ date: "現在", value: running + currentHoldingsValue });
+  }
+  return timeline;
 }
 
 function formatMonth(value: string) {
-  const date = new Date(value);
+  const date = new Date(`${value}-01T00:00:00`);
   if (Number.isNaN(date.getTime())) return value.slice(0, 7);
-  return date.toLocaleDateString("zh-TW", { month: "short" });
+  return date.toLocaleDateString("zh-TW", { year: "numeric", month: "short" });
 }
 
 function formatSignedMoney(value: number, currency: string) {
   return `${value >= 0 ? "+" : ""}${formatMoney(value, currency)}`;
+}
+
+function dateOnly(value: string | null | undefined) {
+  if (!value) return "";
+  return value.slice(0, 10);
+}
+
+function monthKey(value: string) {
+  return value.slice(0, 7);
 }

@@ -209,6 +209,15 @@ export interface DailyPrice {
   updatedAt: string;
 }
 
+export interface ManualPriceSnapshot {
+  id: string;
+  assetId: string;
+  date: string;
+  price: number;
+  note: string;
+  createdAt: string;
+}
+
 export type GoalKind = "fire" | "custom";
 
 export type GoalDisplayMode = "today" | "nominal";

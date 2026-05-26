@@ -8,7 +8,7 @@ import { StatusText } from "../components/StatusText";
 import { TickerSearchField } from "../components/TickerSearchField";
 import { useRepositoryMutation } from "../data/hooks";
 import type { InvestmentDraft, PortfolioAssetDraft } from "../data/repositories";
-import { todayInTimezone, type Account, type InvestmentAction } from "../domain";
+import { calculateInvestmentCashDelta, formatNumber, todayInTimezone, type Account, type InvestmentAction } from "../domain";
 import { YahooFinanceProvider } from "../features/market-data/yahooFinanceProvider";
 import { useUiPreferences } from "../state/uiPreferences";
 
@@ -40,6 +40,13 @@ function emptyTransactionDraft(timezone: string): InvestmentDraft {
     sector: null,
     industry: null,
   };
+}
+
+function normalizeTransactionDraft(input: InvestmentDraft): InvestmentDraft {
+  if (input.action === "cashDividend") {
+    return { ...input, quantity: 0 };
+  }
+  return input;
 }
 
 export function HoldingsAddSheet({
@@ -96,7 +103,7 @@ export function HoldingsAddSheet({
     try {
       if (!transactionForm.ticker.trim()) throw new Error("請輸入 ticker。");
       if (!transactionForm.linkedAccountId) throw new Error("請選擇連動帳戶。");
-      await createRecord.mutateAsync(transactionForm);
+      await createRecord.mutateAsync(normalizeTransactionDraft(transactionForm));
       onClose();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "交易儲存失敗。");
@@ -107,6 +114,11 @@ export function HoldingsAddSheet({
     (account) => account.deletedAt === null && account.type === "investment",
   );
   const selectedTransactionAccount = eligibleAccounts.find((account) => account.id === transactionForm.linkedAccountId) ?? null;
+  const transactionCashDelta = calculateInvestmentCashDelta(normalizeTransactionDraft(transactionForm));
+  const twdTopUpShortfall = selectedTransactionAccount && selectedTransactionAccount.currency.toUpperCase() === "TWD" && transactionForm.action === "buy"
+    ? Math.max(0, -(selectedTransactionAccount.balance + transactionCashDelta))
+    : 0;
+  const tPlus2Date = addDays(transactionForm.date, 2);
 
   async function enrichSnapshotClassification(draft: PortfolioAssetDraft) {
     try {
@@ -167,14 +179,14 @@ export function HoldingsAddSheet({
               setMessage("");
             }}
             options={[
-              { value: "snapshot", label: "新增持倉", icon: <StackSimple size={16} /> },
-              { value: "transaction", label: "新增交易", icon: <ChartLineUp size={16} /> },
+              { value: "snapshot", label: "建立目前部位", icon: <StackSimple size={16} /> },
+              { value: "transaction", label: "記一筆交易", icon: <ChartLineUp size={16} /> },
             ]}
           />
           <p className="mt-2 text-xs" style={{ color: "var(--ns-muted)" }}>
             {mode === "snapshot"
-              ? "新增持倉：直接填入目前的股數、平均成本，適合既有部位。"
-              : "新增交易：逐筆記錄買賣 / 股利，系統會自動更新均價與庫存。"}
+              ? "建立目前部位：直接填入現有股數與平均成本，適合既有庫存。"
+              : "記一筆交易：逐筆記錄買賣 / 股利，系統會自動更新均價與庫存。"}
           </p>
         </div>
 
@@ -193,6 +205,32 @@ export function HoldingsAddSheet({
             </div>
           ) : (
             <div className="grid gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="種類">
+                  <SelectInput
+                    value={transactionForm.action}
+                    onChange={(event) =>
+                      setTransactionForm((current) => normalizeTransactionDraft({
+                        ...current,
+                        action: event.target.value as InvestmentAction,
+                      }))
+                    }
+                  >
+                    {actions.map((action) => (
+                      <option key={action} value={action}>
+                        {actionLabels[action]}
+                      </option>
+                    ))}
+                  </SelectInput>
+                </Field>
+                <Field label="日期">
+                  <TextInput
+                    type="date"
+                    value={transactionForm.date}
+                    onChange={(event) => setTransactionForm({ ...transactionForm, date: event.target.value })}
+                  />
+                </Field>
+              </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
                 <Field label="Ticker">
                   <TickerSearchField
@@ -247,46 +285,25 @@ export function HoldingsAddSheet({
                   ))}
                 </SelectInput>
               </Field>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="日期">
-                  <TextInput
-                    type="date"
-                    value={transactionForm.date}
-                    onChange={(event) => setTransactionForm({ ...transactionForm, date: event.target.value })}
-                  />
-                </Field>
-                <Field label="動作">
-                  <SelectInput
-                    value={transactionForm.action}
-                    onChange={(event) =>
-                      setTransactionForm({ ...transactionForm, action: event.target.value as InvestmentAction })
-                    }
-                  >
-                    {actions.map((action) => (
-                      <option key={action} value={action}>
-                        {actionLabels[action]}
-                      </option>
-                    ))}
-                  </SelectInput>
-                </Field>
-              </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <Field label="價格">
+                <Field label={transactionForm.action === "cashDividend" ? "股利金額" : "價格"}>
                   <TextInput
                     type="number"
                     value={transactionForm.price}
                     onChange={(event) => setTransactionForm({ ...transactionForm, price: Number(event.target.value) })}
                   />
                 </Field>
-                <Field label="數量">
-                  <TextInput
-                    type="number"
-                    value={transactionForm.quantity}
-                    onChange={(event) =>
-                      setTransactionForm({ ...transactionForm, quantity: Number(event.target.value) })
-                    }
-                  />
-                </Field>
+                {transactionForm.action === "cashDividend" ? <div /> : (
+                  <Field label="數量">
+                    <TextInput
+                      type="number"
+                      value={transactionForm.quantity}
+                      onChange={(event) =>
+                        setTransactionForm({ ...transactionForm, quantity: Number(event.target.value) })
+                      }
+                    />
+                  </Field>
+                )}
                 <Field label="手續費">
                   <TextInput
                     type="number"
@@ -301,6 +318,11 @@ export function HoldingsAddSheet({
                   onChange={(event) => setTransactionForm({ ...transactionForm, note: event.target.value })}
                 />
               </Field>
+              {twdTopUpShortfall > 0 ? (
+                <p className="text-sm" style={{ color: "var(--ns-warn)" }}>
+                  台股 T+2 提醒：預估交割後需補 {formatNumber(twdTopUpShortfall)} TWD，請在 {tPlus2Date || "交割日前"} 前補款。
+                </p>
+              ) : null}
               {message ? <StatusText>{message}</StatusText> : null}
               <div className="flex gap-2">
                 <ActionButton onClick={submitTransaction} disabled={createRecord.isPending}>
@@ -316,4 +338,11 @@ export function HoldingsAddSheet({
       </div>
     </div>
   );
+}
+
+function addDays(value: string, days: number) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
 }

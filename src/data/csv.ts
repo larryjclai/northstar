@@ -84,18 +84,25 @@ export function parseLedgerCsv(text: string, accountIdFor: (nameOrId: string) =>
 }
 
 export function parseInvestmentCsv(text: string): ImportPreview<InvestmentDraft> {
-  return previewRows(text, (row) => ({
-    date: required(row, "date"),
-    ticker: required(row, "ticker").toUpperCase(),
-    name: row.name || required(row, "ticker").toUpperCase(),
-    currency: required(row, "currency").toUpperCase(),
-    action: required(row, "action") as InvestmentDraft["action"],
-    price: numberField(row, "price"),
-    quantity: numberField(row, "quantity"),
-    fee: row.fee ? numberField(row, "fee") : 0,
-    note: row.note || "",
-    linkedAccountId: null,
-  }));
+  return previewRows(text, (row) => {
+    const action = required(row, "action") as InvestmentDraft["action"];
+    const quantityRaw = row.quantity?.trim() ?? "";
+    const quantity = action === "cashDividend"
+      ? (quantityRaw ? numberField(row, "quantity") : 0)
+      : numberField(row, "quantity");
+    return {
+      date: required(row, "date"),
+      ticker: required(row, "ticker").toUpperCase(),
+      name: row.name || required(row, "ticker").toUpperCase(),
+      currency: required(row, "currency").toUpperCase(),
+      action,
+      price: numberField(row, "price"),
+      quantity,
+      fee: row.fee ? numberField(row, "fee") : 0,
+      note: row.note || "",
+      linkedAccountId: null,
+    };
+  });
 }
 
 export function downloadCsv(filename: string, csv: string) {

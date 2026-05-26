@@ -14,7 +14,6 @@ import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { PortfolioAssetDraft } from "../data/repositories";
 import {
-  assetTypeLabels,
   buildHoldingPositionsByAccount,
   createFxConverter,
   formatMoney,
@@ -26,12 +25,14 @@ import {
   type Account,
   type DailyPrice,
   type HoldingPosition,
+  type InvestmentRecord,
+  type ManualPriceSnapshot,
   type MarketQuote as DomainMarketQuote,
   type PortfolioAsset,
 } from "../domain";
 import { useBackfillAssetProfiles, useRefreshDailyPrices, useRefreshQuotes } from "../features/market-data/useMarketRefresh";
 import { useUiPreferences, type NameLocalePreference } from "../state/uiPreferences";
-import { HoldingsAddSheet } from "./InvestmentsAddSheet";
+import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
 
 type InvestmentTab = "accounts" | "performance" | "holdings";
 
@@ -44,7 +45,7 @@ const tabOptions: { value: InvestmentTab; label: string; icon: React.ReactNode }
 export function InvestmentsRoute() {
   const [tab, setTab] = useState<InvestmentTab>("holdings");
 
-  const { accounts, assets, investments, quotes, settings, dailyFxRates, dailyPrices } = useFinanceData();
+  const { accounts, assets, investments, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
   const refreshDailyPrices = useRefreshDailyPrices();
   const backfillAssetProfiles = useBackfillAssetProfiles();
@@ -56,6 +57,7 @@ export function InvestmentsRoute() {
   const recordRows = investments.data ?? [];
   const quoteRows = quotes.data ?? [];
   const dailyPriceRows = dailyPrices.data ?? [];
+  const manualSnapshotRows = manualPriceSnapshots.data ?? [];
   const appSettings = settings.data;
   const fxHistory = dailyFxRates.data ?? [];
   const { primaryCurrency, toPrimary } = createFxConverter(appSettings, fxHistory);
@@ -141,7 +143,15 @@ export function InvestmentsRoute() {
 
   return (
     <div className="mx-auto max-w-6xl p-5 lg:p-8">
-      <PageHeader title="投資" description="把帳戶、績效、持倉合而為一。每筆持倉都綁定券商，方便看出每家券商的損益。" />
+      <PageHeader
+        title="投資"
+        description="把帳戶、績效、持倉合而為一。每筆持倉都綁定券商，方便看出每家券商的損益。"
+        action={
+          <ActionButton onClick={() => setAddOpen(true)} size="sm">
+            <PlusCircle size={16} />新增部位
+          </ActionButton>
+        }
+      />
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <SegmentedControl value={tab} options={tabOptions} onChange={changeTab} />
@@ -154,9 +164,6 @@ export function InvestmentsRoute() {
               <ArrowsClockwise size={16} />{backfillAssetProfiles.isPending ? "回補中" : "回補資料"}
             </ActionButton>
           ) : null}
-          <ActionButton onClick={() => setAddOpen(true)}>
-            <PlusCircle size={16} />新增
-          </ActionButton>
         </div>
       </div>
 
@@ -173,9 +180,12 @@ export function InvestmentsRoute() {
       {tab === "performance" ? (
         <PerformanceTab
           positions={positions}
+          assets={assetRows}
+          records={recordRows}
           primaryCurrency={primaryCurrency}
           toPrimary={toPrimary}
           dailyPrices={dailyPriceRows}
+          manualPriceSnapshots={manualSnapshotRows}
           refreshing={refreshQuotes.isPending || refreshDailyPrices.isPending}
         />
       ) : null}
@@ -186,13 +196,16 @@ export function InvestmentsRoute() {
           accounts={investmentAccounts}
           nameLocale={nameLocale}
           assetsById={new Map(assetRows.map((asset) => [asset.id, asset]))}
+          manualPriceSnapshots={manualSnapshotRows}
         />
       ) : null}
 
-      <HoldingsAddSheet
+      <InvestmentEntryDrawer
         open={addOpen}
         onClose={() => setAddOpen(false)}
         accounts={accountRows}
+        title="新增部位"
+        initialMode="snapshot"
       />
     </div>
   );
@@ -441,15 +454,21 @@ function AllocationCard({
 
 function PerformanceTab({
   positions,
+  assets,
+  records,
   primaryCurrency,
   toPrimary,
   dailyPrices,
+  manualPriceSnapshots,
   refreshing,
 }: {
   positions: HoldingPosition[];
+  assets: PortfolioAsset[];
+  records: InvestmentRecord[];
   primaryCurrency: string;
   toPrimary: (value: number, currency: string, asOfDate?: string) => number;
   dailyPrices: DailyPrice[];
+  manualPriceSnapshots: ManualPriceSnapshot[];
   refreshing: boolean;
 }) {
   const [range, setRange] = useState<PerformanceRange>("1Y");
@@ -471,7 +490,10 @@ function PerformanceTab({
   const returnPct = totalCost === 0 ? 0 : (totalPnL / totalCost) * 100;
   const trend = buildPerformanceTrend({
     positions,
+    assets,
+    records,
     dailyPrices,
+    manualPriceSnapshots,
     toPrimary,
     range,
     customStart,
@@ -596,17 +618,23 @@ function HoldingsTab({
   accounts,
   nameLocale,
   assetsById,
+  manualPriceSnapshots,
 }: {
   positions: HoldingPosition[];
   accountMap: Map<string, Account>;
   accounts: Account[];
   nameLocale: NameLocalePreference;
   assetsById: Map<string, PortfolioAsset>;
+  manualPriceSnapshots: ManualPriceSnapshot[];
 }) {
   const timezone = useUiPreferences((state) => state.timezone);
   const [editingAsset, setEditingAsset] = useState<PortfolioAsset | null>(null);
   const [editForm, setEditForm] = useState<PortfolioAssetDraft | null>(null);
   const [message, setMessage] = useState("");
+  const [snapshotDate, setSnapshotDate] = useState(() => todayDate());
+  const [snapshotPrice, setSnapshotPrice] = useState(0);
+  const [snapshotNote, setSnapshotNote] = useState("");
+  const [snapshotMessage, setSnapshotMessage] = useState("");
   // Default to descending market value — matches user expectation that the
   // biggest positions sit at the top until they explicitly sort otherwise.
   const [sort, setSort] = useState<HoldingsSortState>({ key: "marketValue", direction: "desc" });
@@ -617,6 +645,15 @@ function HoldingsTab({
   const updateClassification = useRepositoryMutation(
     (repository, input: Pick<PortfolioAssetDraft, "assetType" | "sector" | "industry"> & { id: string }) => repository.updateAssetClassification(input.id, input),
     ["assets"],
+  );
+  const createSnapshot = useRepositoryMutation(
+    (repository, input: { assetId: string; date: string; price: number; note: string }) =>
+      repository.createManualPriceSnapshot(input),
+    ["manualPriceSnapshots"],
+  );
+  const deleteSnapshot = useRepositoryMutation(
+    (repository, id: string) => repository.deleteManualPriceSnapshot(id),
+    ["manualPriceSnapshots"],
   );
 
   function toggleSort(key: HoldingsSortKey) {
@@ -654,6 +691,25 @@ function HoldingsTab({
       industry: asset.industry,
     });
     setMessage("");
+    setSnapshotDate(todayDate());
+    setSnapshotPrice(0);
+    setSnapshotNote("");
+    setSnapshotMessage("");
+  }
+
+  async function submitSnapshot() {
+    if (!editingAsset) return;
+    setSnapshotMessage("");
+    if (!snapshotDate) { setSnapshotMessage("請選擇日期。"); return; }
+    if (snapshotPrice <= 0) { setSnapshotMessage("請輸入有效的價格。"); return; }
+    try {
+      await createSnapshot.mutateAsync({ assetId: editingAsset.id, date: snapshotDate, price: snapshotPrice, note: snapshotNote });
+      setSnapshotDate(todayDate());
+      setSnapshotPrice(0);
+      setSnapshotNote("");
+    } catch (error) {
+      setSnapshotMessage(error instanceof Error ? error.message : "快照儲存失敗。");
+    }
   }
 
   async function submitEdit() {
@@ -691,16 +747,39 @@ function HoldingsTab({
     <>
       <Card title={`持倉 (${positions.length})`}>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-sm">
+          <table className="w-full table-auto text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
                 <SortableHeader label="Ticker" sortKey="ticker" sort={sort} onToggle={toggleSort} />
                 <SortableHeader label="名稱" sortKey="name" sort={sort} onToggle={toggleSort} />
-                <th className="py-2">類型</th>
                 <SortableHeader label="券商" sortKey="account" sort={sort} onToggle={toggleSort} />
                 <SortableHeader label="股數" sortKey="quantity" sort={sort} onToggle={toggleSort} align="right" />
-                <SortableHeader label="均價" sortKey="averageCost" sort={sort} onToggle={toggleSort} align="right" />
-                <SortableHeader label="現價" sortKey="marketPrice" sort={sort} onToggle={toggleSort} align="right" />
+                <th className="hidden py-2 text-right 2xl:table-cell">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("averageCost")}
+                    className="inline-flex items-center gap-1 select-none text-xs uppercase tracking-wide outline-none transition hover:opacity-80"
+                    style={{ color: sort.key === "averageCost" ? "var(--ns-accent)" : "var(--ns-muted)" }}
+                  >
+                    <span>均價</span>
+                    {sort.key === "averageCost"
+                      ? (sort.direction === "asc" ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />)
+                      : <ArrowsDownUp size={11} weight="bold" />}
+                  </button>
+                </th>
+                <th className="hidden py-2 text-right 2xl:table-cell">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("marketPrice")}
+                    className="inline-flex items-center gap-1 select-none text-xs uppercase tracking-wide outline-none transition hover:opacity-80"
+                    style={{ color: sort.key === "marketPrice" ? "var(--ns-accent)" : "var(--ns-muted)" }}
+                  >
+                    <span>現價</span>
+                    {sort.key === "marketPrice"
+                      ? (sort.direction === "asc" ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />)
+                      : <ArrowsDownUp size={11} weight="bold" />}
+                  </button>
+                </th>
                 <SortableHeader label="市值" sortKey="marketValue" sort={sort} onToggle={toggleSort} align="right" />
                 <SortableHeader label="損益" sortKey="unrealizedGain" sort={sort} onToggle={toggleSort} align="right" />
                 <SortableHeader label="報酬率" sortKey="unrealizedGainPercent" sort={sort} onToggle={toggleSort} align="right" />
@@ -717,33 +796,34 @@ function HoldingsTab({
                 const pnlTone = position.unrealizedGain >= 0 ? "positive" : "negative";
                 return (
                   <tr key={`${position.assetId}-${position.accountId ?? "none"}`} className="border-t" style={{ borderColor: "var(--ns-border)" }}>
-                    <td className="py-3 font-semibold">{position.ticker}</td>
-                    <td className="py-3">{displayName}</td>
-                    <td className="py-3">
-                      <AssetTypeChip asset={asset} />
+                    <td className="py-3 font-semibold whitespace-nowrap">{position.ticker}</td>
+                    <td className="max-w-[14rem] py-3" title={displayName}>
+                      <span className="block truncate">{displayName}</span>
                     </td>
-                    <td className="py-3">{account ? account.name : "未指定"}</td>
-                    <td className="py-3 text-right tabular">{formatQuantity(position.quantity)}</td>
-                    <td className="py-3 text-right tabular">{formatPrice(position.averageCost)}</td>
-                    <td className="py-3 text-right tabular">
+                    <td className="max-w-[11rem] py-3" title={account ? account.name : "未指定"}>
+                      <span className="block truncate">{account ? account.name : "未指定"}</span>
+                    </td>
+                    <td className="py-3 text-right tabular whitespace-nowrap">{formatQuantity(position.quantity)}</td>
+                    <td className="hidden py-3 text-right tabular whitespace-nowrap 2xl:table-cell">{formatPrice(position.averageCost)}</td>
+                    <td className="hidden py-3 text-right tabular whitespace-nowrap 2xl:table-cell">
                       {position.marketPrice !== null ? formatPrice(position.marketPrice) : "—"}
                     </td>
-                    <td className="py-3 text-right tabular">
+                    <td className="py-3 text-right tabular whitespace-nowrap">
                       {formatNumber(position.marketValue)} <span style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
                     </td>
                     <td
-                      className="py-3 text-right tabular"
+                      className="py-3 text-right tabular whitespace-nowrap"
                       style={{ color: pnlTone === "positive" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}
                     >
                       {position.unrealizedGain >= 0 ? "+" : ""}{formatNumber(position.unrealizedGain)}
                     </td>
                     <td
-                      className="py-3 text-right tabular"
+                      className="py-3 text-right tabular whitespace-nowrap"
                       style={{ color: pnlTone === "positive" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}
                     >
                       {position.unrealizedGainPercent >= 0 ? "+" : ""}{position.unrealizedGainPercent.toFixed(2)}%
                     </td>
-                    <td className="py-3 text-right">
+                    <td className="py-3 text-right whitespace-nowrap">
                       <ActionButton
                         variant="ghost"
                         onClick={() => asset ? startEdit(asset) : undefined}
@@ -791,25 +871,65 @@ function HoldingsTab({
                 classificationOnly={editingAsset.holdingSource !== "manual"}
               />
               {message ? <div className="mt-3"><StatusText>{message}</StatusText></div> : null}
+
+              {editingAsset.holdingSource === "manual" ? (
+                <div className="mt-6 border-t pt-5" style={{ borderColor: "var(--ns-border)" }}>
+                  <h3 className="mb-3 text-sm font-semibold">價格快照紀錄</h3>
+                  {(() => {
+                    const snapshots = manualPriceSnapshots
+                      .filter((s) => s.assetId === editingAsset.id)
+                      .sort((a, b) => b.date.localeCompare(a.date));
+                    return snapshots.length === 0 ? (
+                      <p className="mb-3 text-xs" style={{ color: "var(--ns-muted)" }}>尚無快照，新增第一筆後就能在績效圖中看到趨勢。</p>
+                    ) : (
+                      <div className="mb-4 space-y-1.5">
+                        {snapshots.map((snap) => (
+                          <div key={snap.id} className="flex items-center justify-between rounded-md px-3 py-2 text-sm" style={{ background: "var(--ns-surface-strong)" }}>
+                            <div>
+                              <span className="tabular font-semibold">{snap.date}</span>
+                              <span className="ml-3 tabular">{formatPrice(snap.price)}</span>
+                              {snap.note ? <span className="ml-2 text-xs" style={{ color: "var(--ns-muted)" }}>{snap.note}</span> : null}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void deleteSnapshot.mutateAsync(snap.id)}
+                              disabled={deleteSnapshot.isPending}
+                              className="ml-3 grid size-6 place-items-center rounded outline-none transition hover:opacity-70"
+                              aria-label="刪除快照"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                    <Field label="日期">
+                      <TextInput type="date" value={snapshotDate} onChange={(e) => setSnapshotDate(e.target.value)} />
+                    </Field>
+                    <Field label="淨值 / 價格">
+                      <TextInput type="number" value={snapshotPrice} onChange={(e) => setSnapshotPrice(Number(e.target.value))} />
+                    </Field>
+                    <div className="flex items-end">
+                      <ActionButton onClick={() => void submitSnapshot()} disabled={createSnapshot.isPending}>
+                        {createSnapshot.isPending ? "儲存中…" : "新增快照"}
+                      </ActionButton>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <Field label="備註（選填）">
+                      <TextInput value={snapshotNote} onChange={(e) => setSnapshotNote(e.target.value)} placeholder="基金公告淨值 2026-05-26" />
+                    </Field>
+                  </div>
+                  {snapshotMessage ? <div className="mt-2"><StatusText>{snapshotMessage}</StatusText></div> : null}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
       ) : null}
     </>
-  );
-}
-
-function AssetTypeChip({ asset }: { asset: PortfolioAsset | null }) {
-  const label = asset?.assetType ? assetTypeLabels[asset.assetType] : "未分類";
-  const detail = asset?.sector ? (asset.industry ? `${asset.sector} / ${asset.industry}` : asset.sector) : "";
-  return (
-    <span
-      className="inline-flex max-w-[10rem] items-center rounded-md border px-2 py-1 text-xs font-medium"
-      style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface-strong)", color: "var(--ns-muted)" }}
-      title={detail || label}
-    >
-      <span className="truncate">{detail ? `${label} · ${detail}` : label}</span>
-    </span>
   );
 }
 
@@ -937,14 +1057,20 @@ type PerformanceRange = typeof performanceRangeOptions[number];
 
 function buildPerformanceTrend({
   positions,
+  assets,
+  records,
   dailyPrices,
+  manualPriceSnapshots,
   toPrimary,
   range,
   customStart,
   customEnd,
 }: {
   positions: HoldingPosition[];
+  assets: PortfolioAsset[];
+  records: InvestmentRecord[];
   dailyPrices: DailyPrice[];
+  manualPriceSnapshots: ManualPriceSnapshot[];
   toPrimary: (value: number, currency: string, asOfDate?: string) => number;
   range: PerformanceRange;
   customStart: string;
@@ -954,11 +1080,47 @@ function buildPerformanceTrend({
   const start = range === "Custom" ? customStart : rangeStartDate(range, end);
   if (!start || !end || start > end) return [];
 
-  const tickers = new Set(positions.map((position) => position.ticker.toUpperCase()));
+  // Build acquisition-date map: earliest date this position should appear in the chart.
+  // Manual assets: use acquisitionDate field.
+  // Transaction-based: use date of earliest buy record for that asset.
+  const assetById = new Map(assets.map((a) => [a.id, a]));
+  const earliestBuyByAsset = new Map<string, string>();
+  for (const record of records) {
+    if (record.action !== "buy" || record.deletedAt !== null) continue;
+    const current = earliestBuyByAsset.get(record.assetId);
+    if (!current || record.date < current) earliestBuyByAsset.set(record.assetId, record.date);
+  }
+  function acquisitionDateFor(position: HoldingPosition): string | null {
+    const asset = assetById.get(position.assetId);
+    if (!asset) return null;
+    if (asset.holdingSource === "manual") return asset.acquisitionDate ?? null;
+    return earliestBuyByAsset.get(position.assetId) ?? null;
+  }
+
+  // Build manual-snapshot lookup: assetId → sorted snapshots
+  const manualSnapshotsByAsset = new Map<string, ManualPriceSnapshot[]>();
+  for (const snap of manualPriceSnapshots) {
+    const bucket = manualSnapshotsByAsset.get(snap.assetId) ?? [];
+    bucket.push(snap);
+    manualSnapshotsByAsset.set(snap.assetId, bucket);
+  }
+  for (const [assetId, snaps] of manualSnapshotsByAsset) {
+    manualSnapshotsByAsset.set(assetId, snaps.sort((a, b) => a.date.localeCompare(b.date)));
+  }
+
+  // Identify which positions are manual (price from snapshots) vs tracked (price from daily_prices).
+  const manualAssetIds = new Set(
+    assets.filter((a) => a.holdingSource === "manual").map((a) => a.id),
+  );
+
+  // Collect price history for tracked (Yahoo) positions.
+  const trackedTickers = new Set(
+    positions.filter((p) => !manualAssetIds.has(p.assetId)).map((p) => p.ticker.toUpperCase()),
+  );
   const pricesByTicker = new Map<string, DailyPrice[]>();
   for (const price of dailyPrices) {
     const ticker = price.ticker.toUpperCase();
-    if (!tickers.has(ticker)) continue;
+    if (!trackedTickers.has(ticker)) continue;
     if (price.date < start || price.date > end) continue;
     const bucket = pricesByTicker.get(ticker) ?? [];
     bucket.push(price);
@@ -968,9 +1130,25 @@ function buildPerformanceTrend({
     pricesByTicker.set(ticker, rows.sort((a, b) => a.date.localeCompare(b.date)));
   }
 
-  const dates = [...new Set([...pricesByTicker.values()].flat().map((price) => price.date))].sort();
+  // Collect dates from both sources.
+  const trackedDates = [...pricesByTicker.values()].flat().map((p) => p.date);
+  const manualDates = [...manualSnapshotsByAsset.values()].flat()
+    .filter((s) => s.date >= start && s.date <= end)
+    .map((s) => s.date);
+  const dates = [...new Set([...trackedDates, ...manualDates])].sort();
+
   return dates.map((date) => {
     const value = positions.reduce((sum, position) => {
+      const acqDate = acquisitionDateFor(position);
+      if (acqDate && date < acqDate) return sum;
+
+      if (manualAssetIds.has(position.assetId)) {
+        const snaps = manualSnapshotsByAsset.get(position.assetId) ?? [];
+        const snap = latestSnapshotOnOrBefore(snaps, date);
+        if (!snap) return sum;
+        return sum + toPrimary(snap.price * position.quantity, position.currency, date);
+      }
+
       const history = pricesByTicker.get(position.ticker.toUpperCase()) ?? [];
       const price = latestPriceOnOrBefore(history, date);
       if (!price) return sum;
@@ -982,6 +1160,13 @@ function buildPerformanceTrend({
       value,
     };
   }).filter((point) => point.value > 0);
+}
+
+function latestSnapshotOnOrBefore(rows: ManualPriceSnapshot[], date: string) {
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    if (rows[index].date <= date) return rows[index];
+  }
+  return null;
 }
 
 function latestPriceOnOrBefore(rows: DailyPrice[], date: string) {
