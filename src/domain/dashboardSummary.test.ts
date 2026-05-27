@@ -17,6 +17,9 @@ const baseAccount: Account = {
   creditLimit: null,
   creditLimitGroup: "",
   isSharedToHousehold: false,
+  loanStartDate: null,
+  annualInterestRate: null,
+  loanTerm: null,
 };
 
 function asset(id: string, ticker: string, quantity: number, averageCost: number): PortfolioAsset {

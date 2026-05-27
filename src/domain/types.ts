@@ -67,6 +67,9 @@ export interface Account extends SyncFields {
   creditLimit: number | null;
   creditLimitGroup: string;
   isSharedToHousehold: boolean;
+  loanStartDate: string | null;
+  annualInterestRate: number | null;
+  loanTerm: number | null;
 }
 
 export interface LedgerTransaction extends SyncFields {
@@ -131,6 +134,15 @@ export interface InvestmentRecord extends SyncFields {
   linkedLedgerTransactionId: string | null;
 }
 
+export type RecurringFrequency = "weekly" | "biweekly" | "monthly" | "yearly";
+
+export const recurringFrequencyLabels: Record<RecurringFrequency, string> = {
+  weekly: "每週",
+  biweekly: "每兩週",
+  monthly: "每月",
+  yearly: "每年",
+};
+
 export interface RecurringTransaction extends SyncFields {
   accountId: string;
   amount: number;
@@ -141,6 +153,7 @@ export interface RecurringTransaction extends SyncFields {
   entryType: "income" | "expense";
   settlementStatus: "settled" | "receivable" | "payable";
   note: string;
+  frequency: RecurringFrequency;
   dayOfMonth: number;
   nextRunDate: string;
   isActive: boolean;

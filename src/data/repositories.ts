@@ -48,7 +48,7 @@ export interface LedgerDraft {
   groupId?: string | null;
 }
 
-export type AccountDraft = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "isSharedToHousehold">;
+export type AccountDraft = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm">;
 
 export interface RecurringDraft {
   accountId: string;
@@ -60,6 +60,7 @@ export interface RecurringDraft {
   entryType: "income" | "expense";
   settlementStatus: "settled" | "receivable" | "payable";
   note: string;
+  frequency: import("../domain").RecurringFrequency;
   dayOfMonth: number;
   nextRunDate: string;
   isActive: boolean;
@@ -181,6 +182,9 @@ export interface FinanceRepository {
   listFinancialGoals(): Promise<FinancialGoal[]>;
   upsertFinancialGoal(input: FinancialGoalDraft & { id?: string }): Promise<FinancialGoal>;
   deleteFinancialGoal(id: string): Promise<void>;
+  adjustAccountBalance(accountId: string, targetBalance: number, date: string, note: string): Promise<void>;
+  renameMerchant(oldName: string, newName: string): Promise<void>;
+  renameSubcategory(category: string, oldSub: string, newSub: string): Promise<void>;
   exportSnapshot(): Promise<RepositorySnapshot>;
   importSnapshot(snapshot: RepositorySnapshot): Promise<void>;
 }
@@ -385,6 +389,9 @@ class BrowserFinanceRepository implements FinanceRepository {
         creditLimit: null,
         creditLimitGroup: "",
         isSharedToHousehold: false,
+        loanStartDate: null,
+        annualInterestRate: null,
+        loanTerm: null,
       };
       this.data.accounts.push(unassigned);
     }
@@ -406,7 +413,12 @@ class BrowserFinanceRepository implements FinanceRepository {
   }
 
   async listAccounts() {
-    return active(this.data.accounts);
+    return active(this.data.accounts).map((row) => ({
+      ...row,
+      loanStartDate: row.loanStartDate ?? null,
+      annualInterestRate: row.annualInterestRate ?? null,
+      loanTerm: row.loanTerm ?? null,
+    }));
   }
 
   async createAccount(input: AccountDraft) {
@@ -422,6 +434,9 @@ class BrowserFinanceRepository implements FinanceRepository {
       ...input,
       creditLimit: input.type === "credit" ? input.creditLimit : null,
       creditLimitGroup: input.type === "credit" ? input.creditLimitGroup : "",
+      loanStartDate: input.type === "loan" ? (input.loanStartDate ?? null) : null,
+      annualInterestRate: input.type === "loan" ? (input.annualInterestRate ?? null) : null,
+      loanTerm: input.type === "loan" ? (input.loanTerm ?? null) : null,
     });
     await this.persist();
   }
@@ -433,6 +448,9 @@ class BrowserFinanceRepository implements FinanceRepository {
         ...input,
         creditLimit: input.type === "credit" ? input.creditLimit : null,
         creditLimitGroup: input.type === "credit" ? input.creditLimitGroup : "",
+        loanStartDate: input.type === "loan" ? (input.loanStartDate ?? null) : null,
+        annualInterestRate: input.type === "loan" ? (input.annualInterestRate ?? null) : null,
+        loanTerm: input.type === "loan" ? (input.loanTerm ?? null) : null,
       }) : account,
     );
     this.recompute();
@@ -637,7 +655,10 @@ class BrowserFinanceRepository implements FinanceRepository {
   }
 
   async listRecurringTransactions() {
-    return active(this.data.recurringTransactions);
+    return active(this.data.recurringTransactions).map((row) => ({
+      ...row,
+      frequency: (row.frequency ?? "monthly") as import("../domain").RecurringFrequency,
+    }));
   }
 
   async createRecurringTransaction(input: RecurringDraft) {
@@ -676,9 +697,65 @@ class BrowserFinanceRepository implements FinanceRepository {
       note: recurring.note,
     }));
     this.data.recurringTransactions = this.data.recurringTransactions.map((row) =>
-      row.id === id ? bump({ ...row, nextRunDate: nextMonthlyDate(row.nextRunDate, row.dayOfMonth) }) : row,
+      row.id === id ? bump({ ...row, nextRunDate: nextRecurringDate(row.nextRunDate, row.frequency ?? "monthly", row.dayOfMonth) }) : row,
     );
     this.recompute();
+    await this.persist();
+  }
+
+  async adjustAccountBalance(accountId: string, targetBalance: number, date: string, note: string) {
+    const account = this.data.accounts.find((row) => row.id === accountId && row.deletedAt === null);
+    if (!account) throw new Error("找不到帳戶。");
+    const diff = targetBalance - account.balance;
+    if (diff === 0) return;
+    this.data.ledgerTransactions.push(createLedgerRow({
+      accountId,
+      date,
+      name: "餘額調整",
+      amount: diff,
+      currency: account.currency,
+      category: "餘額調整",
+      subcategory: "",
+      merchant: "",
+      entryType: diff > 0 ? "income" : "expense",
+      settlementStatus: "settled",
+      note,
+    }));
+    this.recompute();
+    await this.persist();
+  }
+
+  async renameMerchant(oldName: string, newName: string) {
+    const trimmed = newName.trim();
+    if (!trimmed) throw new Error("新商家名稱不能為空。");
+    this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
+      row.merchant === oldName ? bump({ ...row, merchant: trimmed }) : row,
+    );
+    const current = this.data.settings;
+    if (current.merchants.includes(oldName)) {
+      this.data.settings = {
+        ...current,
+        merchants: current.merchants.map((m) => (m === oldName ? trimmed : m)),
+      };
+    }
+    await this.persist();
+  }
+
+  async renameSubcategory(category: string, oldSub: string, newSub: string) {
+    const trimmed = newSub.trim();
+    if (!trimmed) throw new Error("新子分類名稱不能為空。");
+    this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
+      row.category === category && row.subcategory === oldSub ? bump({ ...row, subcategory: trimmed }) : row,
+    );
+    const current = this.data.settings;
+    this.data.settings = {
+      ...current,
+      categories: current.categories.map((group) =>
+        group.name === category
+          ? { ...group, children: group.children.map((c) => (c === oldSub ? trimmed : c)) }
+          : group,
+      ),
+    };
     await this.persist();
   }
 
@@ -1126,6 +1203,10 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("recurring_transactions", "merchant", "text not null default ''");
     await this.ensureSqliteColumn("recurring_transactions", "entry_type", "text not null default 'expense'");
     await this.ensureSqliteColumn("recurring_transactions", "settlement_status", "text not null default 'settled'");
+    await this.ensureSqliteColumn("recurring_transactions", "frequency", "text not null default 'monthly'");
+    await this.ensureSqliteColumn("accounts", "loan_start_date", "text");
+    await this.ensureSqliteColumn("accounts", "annual_interest_rate", "real");
+    await this.ensureSqliteColumn("accounts", "loan_term", "real");
     await this.ensureSqliteColumn("portfolio_assets", "holding_source", "text not null default 'transactions'");
     await this.ensureSqliteColumn("portfolio_assets", "acquisition_date", "text");
     await this.ensureSqliteColumn("portfolio_assets", "name_zh", "text");
@@ -1164,28 +1245,32 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   override async listAccounts() {
     return (await this.db.select<Account[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
-      name, currency, opening_balance as openingBalance, balance, type, credit_limit as creditLimit, credit_limit_group as creditLimitGroup, is_shared_to_household as isSharedToHousehold
+      name, currency, opening_balance as openingBalance, balance, type, credit_limit as creditLimit, credit_limit_group as creditLimitGroup, is_shared_to_household as isSharedToHousehold,
+      loan_start_date as loanStartDate, annual_interest_rate as annualInterestRate, loan_term as loanTerm
       from accounts where deleted_at is null order by name`)).map((row) => ({
         ...row,
         creditLimit: row.creditLimit ?? null,
         creditLimitGroup: row.creditLimitGroup ?? "",
         isSharedToHousehold: Boolean(row.isSharedToHousehold),
+        loanStartDate: row.loanStartDate ?? null,
+        annualInterestRate: row.annualInterestRate ?? null,
+        loanTerm: row.loanTerm ?? null,
       }));
   }
 
   override async createAccount(input: AccountDraft) {
     const timestamp = nowIso();
     await this.db.execute(
-      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household)
-       values ($1,$2,1,$3,$3,null,$4,$5,$6,$6,$7,$8,$9,$10)`,
-      [createId("acct"), personalSpace, timestamp, input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold)],
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term)
+       values ($1,$2,1,$3,$3,null,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [createId("acct"), personalSpace, timestamp, input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null],
     );
   }
 
   override async updateAccount(id: string, input: AccountDraft) {
     await this.db.execute(
-      `update accounts set revision = revision + 1, updated_at = $1, name = $2, currency = $3, opening_balance = $4, type = $5, credit_limit = $6, credit_limit_group = $7, is_shared_to_household = $8 where id = $9`,
-      [nowIso(), input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), id],
+      `update accounts set revision = revision + 1, updated_at = $1, name = $2, currency = $3, opening_balance = $4, type = $5, credit_limit = $6, credit_limit_group = $7, is_shared_to_household = $8, loan_start_date = $9, annual_interest_rate = $10, loan_term = $11 where id = $12`,
+      [nowIso(), input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, id],
     );
     await this.recomputeSqliteAccounts();
   }
@@ -1435,10 +1520,14 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async listRecurringTransactions() {
-    return this.db.select<RecurringTransaction[]>(`select
+    return (await this.db.select<RecurringTransaction[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
-      account_id as accountId, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, day_of_month as dayOfMonth, next_run_date as nextRunDate, is_active as isActive
-      from recurring_transactions where deleted_at is null order by next_run_date`);
+      account_id as accountId, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, frequency, day_of_month as dayOfMonth, next_run_date as nextRunDate, is_active as isActive
+      from recurring_transactions where deleted_at is null order by next_run_date`)).map((row) => ({
+        ...row,
+        frequency: (row.frequency ?? "monthly") as import("../domain").RecurringFrequency,
+        isActive: Boolean(row.isActive),
+      }));
   }
 
   override async createRecurringTransaction(input: RecurringDraft) {
@@ -1447,8 +1536,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   override async updateRecurringTransaction(id: string, input: RecurringDraft) {
     await this.db.execute(
-      `update recurring_transactions set revision = revision + 1, updated_at = $1, account_id = $2, amount = $3, currency = $4, category = $5, subcategory = $6, merchant = $7, entry_type = $8, settlement_status = $9, note = $10, day_of_month = $11, next_run_date = $12, is_active = $13 where id = $14`,
-      [nowIso(), input.accountId, input.amount, input.currency, input.category, input.subcategory, input.merchant, input.entryType, input.settlementStatus, input.note, input.dayOfMonth, input.nextRunDate, Number(input.isActive), id],
+      `update recurring_transactions set revision = revision + 1, updated_at = $1, account_id = $2, amount = $3, currency = $4, category = $5, subcategory = $6, merchant = $7, entry_type = $8, settlement_status = $9, note = $10, frequency = $11, day_of_month = $12, next_run_date = $13, is_active = $14 where id = $15`,
+      [nowIso(), input.accountId, input.amount, input.currency, input.category, input.subcategory, input.merchant, input.entryType, input.settlementStatus, input.note, input.frequency ?? "monthly", input.dayOfMonth, input.nextRunDate, Number(input.isActive), id],
     );
   }
 
@@ -1459,7 +1548,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   override async postRecurringTransaction(id: string) {
     const rows = await this.db.select<RecurringTransaction[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
-      account_id as accountId, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, day_of_month as dayOfMonth, next_run_date as nextRunDate, is_active as isActive
+      account_id as accountId, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, frequency, day_of_month as dayOfMonth, next_run_date as nextRunDate, is_active as isActive
       from recurring_transactions where id = $1 and deleted_at is null`, [id]);
     const recurring = rows[0];
     if (!recurring) throw new Error("找不到週期事件。");
@@ -1476,8 +1565,65 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       settlementStatus: recurring.settlementStatus,
       note: recurring.note,
     }));
-    await this.db.execute(`update recurring_transactions set next_run_date = $1, updated_at = $2, revision = revision + 1 where id = $3`, [nextMonthlyDate(recurring.nextRunDate, recurring.dayOfMonth), nowIso(), id]);
+    const freq = (recurring.frequency ?? "monthly") as import("../domain").RecurringFrequency;
+    await this.db.execute(`update recurring_transactions set next_run_date = $1, updated_at = $2, revision = revision + 1 where id = $3`, [nextRecurringDate(recurring.nextRunDate, freq, recurring.dayOfMonth), nowIso(), id]);
     await this.recomputeSqliteAccounts();
+  }
+
+  override async adjustAccountBalance(accountId: string, targetBalance: number, date: string, note: string) {
+    const rows = await this.db.select<Array<{ balance: number; currency: string }>>(
+      `select balance, currency from accounts where id = $1 and deleted_at is null`, [accountId],
+    );
+    const account = rows[0];
+    if (!account) throw new Error("找不到帳戶。");
+    const diff = targetBalance - account.balance;
+    if (diff === 0) return;
+    await this.insertLedgerRow(createLedgerRow({
+      accountId,
+      date,
+      name: "餘額調整",
+      amount: diff,
+      currency: account.currency,
+      category: "餘額調整",
+      subcategory: "",
+      merchant: "",
+      entryType: diff > 0 ? "income" : "expense",
+      settlementStatus: "settled",
+      note,
+    }));
+    await this.recomputeSqliteAccounts();
+  }
+
+  override async renameMerchant(oldName: string, newName: string) {
+    const trimmed = newName.trim();
+    if (!trimmed) throw new Error("新商家名稱不能為空。");
+    await this.db.execute(
+      `update ledger_transactions set merchant = $1, updated_at = $2, revision = revision + 1 where merchant = $3 and deleted_at is null`,
+      [trimmed, nowIso(), oldName],
+    );
+    const settingsRows = await this.db.select<Array<{ value: string }>>(`select value from app_settings where key = 'merchants'`);
+    if (settingsRows[0]) {
+      const merchants: string[] = JSON.parse(settingsRows[0].value);
+      const updated = merchants.map((m) => (m === oldName ? trimmed : m));
+      await this.db.execute(`insert into app_settings (key, value, updated_at) values ('merchants',$1,$2) on conflict(key) do update set value=excluded.value, updated_at=excluded.updated_at`, [JSON.stringify(updated), nowIso()]);
+    }
+  }
+
+  override async renameSubcategory(category: string, oldSub: string, newSub: string) {
+    const trimmed = newSub.trim();
+    if (!trimmed) throw new Error("新子分類名稱不能為空。");
+    await this.db.execute(
+      `update ledger_transactions set subcategory = $1, updated_at = $2, revision = revision + 1 where category = $3 and subcategory = $4 and deleted_at is null`,
+      [trimmed, nowIso(), category, oldSub],
+    );
+    const settingsRows = await this.db.select<Array<{ value: string }>>(`select value from app_settings where key = 'categories'`);
+    if (settingsRows[0]) {
+      const cats: Array<{ name: string; children: string[] }> = JSON.parse(settingsRows[0].value);
+      const updated = cats.map((g) =>
+        g.name === category ? { ...g, children: g.children.map((c) => (c === oldSub ? trimmed : c)) } : g,
+      );
+      await this.db.execute(`insert into app_settings (key, value, updated_at) values ('categories',$1,$2) on conflict(key) do update set value=excluded.value, updated_at=excluded.updated_at`, [JSON.stringify(updated), nowIso()]);
+    }
   }
 
   override async listMarketQuotes() {
@@ -2120,9 +2266,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   private async insertAccountRow(row: Account) {
     await this.db.execute(
-      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.name, row.currency, row.openingBalance, row.balance, row.type, row.creditLimit, row.creditLimitGroup, Number(row.isSharedToHousehold)],
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.name, row.currency, row.openingBalance, row.balance, row.type, row.creditLimit, row.creditLimitGroup, Number(row.isSharedToHousehold), row.loanStartDate ?? null, row.annualInterestRate ?? null, row.loanTerm ?? null],
     );
   }
 
@@ -2144,9 +2290,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   private async insertRecurringRow(row: RecurringTransaction) {
     await this.db.execute(
-      `insert into recurring_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, amount, currency, category, subcategory, merchant, entry_type, settlement_status, note, day_of_month, next_run_date, is_active)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
-      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.accountId, row.amount, row.currency, row.category, row.subcategory, row.merchant, row.entryType, row.settlementStatus, row.note, row.dayOfMonth, row.nextRunDate, Number(row.isActive)],
+      `insert into recurring_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, amount, currency, category, subcategory, merchant, entry_type, settlement_status, note, frequency, day_of_month, next_run_date, is_active)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.accountId, row.amount, row.currency, row.category, row.subcategory, row.merchant, row.entryType, row.settlementStatus, row.note, row.frequency ?? "monthly", row.dayOfMonth, row.nextRunDate, Number(row.isActive)],
     );
   }
 
@@ -2723,6 +2869,7 @@ function createRecurringRow(input: RecurringDraft): RecurringTransaction {
     updatedAt: timestamp,
     deletedAt: null,
     ...input,
+    frequency: input.frequency ?? "monthly",
   };
 }
 
@@ -2731,6 +2878,24 @@ function nextMonthlyDate(value: string, dayOfMonth: number) {
   const next = new Date(year, month, 1);
   next.setDate(Math.min(dayOfMonth, daysInMonth(next.getFullYear(), next.getMonth())));
   return next.toISOString().slice(0, 10);
+}
+
+function nextRecurringDate(value: string, frequency: import("../domain").RecurringFrequency, dayOfMonth: number): string {
+  const date = new Date(`${value.slice(0, 10)}T00:00:00`);
+  switch (frequency) {
+    case "weekly":
+      date.setDate(date.getDate() + 7);
+      return date.toISOString().slice(0, 10);
+    case "biweekly":
+      date.setDate(date.getDate() + 14);
+      return date.toISOString().slice(0, 10);
+    case "yearly":
+      date.setFullYear(date.getFullYear() + 1);
+      return date.toISOString().slice(0, 10);
+    case "monthly":
+    default:
+      return nextMonthlyDate(value, dayOfMonth);
+  }
 }
 
 function daysInMonth(year: number, zeroBasedMonth: number) {

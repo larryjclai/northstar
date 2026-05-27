@@ -1,117 +1,33 @@
 import {
   ArrowsLeftRight,
-  Calendar,
+  CalendarBlank,
   CalendarPlus,
-  Funnel,
   PencilSimple,
-  Plus,
   Receipt,
-  Tag,
   TrendDown,
   TrendUp,
   Trash,
   UploadSimple,
   X,
-  ForkKnife,
-  Car,
-  GameController,
-  MonitorPlay,
-  House,
-  Pill,
-  GraduationCap,
-  DotsThree,
-  Briefcase,
-  Money,
-  Wrench,
-  Gift,
 } from "@phosphor-icons/react";
-import { Link, useNavigate } from "@tanstack/react-router";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { ActionButton } from "../components/ActionButton";
+import { PageHeader } from "../components/AppShell";
+import { Card } from "../components/Card";
 import { DateTimeField } from "../components/DateTimeField";
 import { EmptyState } from "../components/EmptyState";
 import { Field, SelectInput, TextAreaInput, TextInput } from "../components/Field";
 import { SegmentedControl } from "../components/SegmentedControl";
-import { TickerSearchField } from "../components/TickerSearchField";
-import { DatePicker } from "../components/ui/date-picker";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { StatusText } from "../components/StatusText";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { LedgerDraft, RecurringDraft, TransferDraft } from "../data/repositories";
 import { evaluateAmountExpression, formatNumber, nowAsDatetimeLocal, todayInTimezone } from "../domain";
-import type { LedgerTransaction } from "../domain";
+import type { LedgerTransaction, RecurringFrequency, RecurringTransaction } from "../domain";
+import { recurringFrequencyLabels } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
-import { CashFlowEntryDrawer } from "./CashFlowEntryDrawer";
 
-type CashDrawerMode = "income" | "expense" | "transfer" | "receivable" | "payable";
-
-const CHART_COLORS = [
-  "var(--ns-chart-1)",
-  "var(--ns-chart-2)",
-  "var(--ns-chart-3)",
-  "var(--ns-chart-4)",
-  "var(--ns-chart-5)",
-];
-
-function CfMark({ label, color, size = 32 }: { label: string; color: string; size?: number }) {
-  return (
-    <div
-      style={{
-        width: size, height: size, flexShrink: 0,
-        background: color, color: "var(--ns-bg)",
-        borderRadius: "var(--ns-r-sm)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontFamily: "var(--ns-font-display)", fontWeight: 600,
-        fontSize: size <= 28 ? 11 : 13, letterSpacing: "0.02em",
-      }}
-    >
-      {label.slice(0, 2)}
-    </div>
-  );
-}
-
-function DailyBars({ data }: { data: Array<{ income: number; expense: number }> }) {
-  if (!data.length) return null;
-  const max = Math.max(...data.flatMap((d) => [d.income, d.expense]), 1);
-  const w = 1000;
-  const h = 80;
-  const gap = 3;
-  const bw = (w - (data.length - 1) * gap) / data.length;
-  const mid = h / 2;
-  return (
-    <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ display: "block" }}>
-      <line x1="0" x2={w} y1={mid} y2={mid} stroke="var(--ns-border)" />
-      {data.map((d, i) => {
-        const hIn = (d.income / max) * (h * 0.42);
-        const hEx = (d.expense / max) * (h * 0.42);
-        return (
-          <g key={i}>
-            {d.income > 0 && (
-              <rect x={i * (bw + gap)} y={mid - hIn} width={bw} height={Math.max(hIn, 1)} fill="var(--ns-pos)" rx="1.5" />
-            )}
-            {d.expense > 0 && (
-              <rect x={i * (bw + gap)} y={mid} width={bw} height={Math.max(hEx, 1)} fill="var(--ns-neg)" rx="1.5" />
-            )}
-            {d.income === 0 && d.expense === 0 && (
-              <rect x={i * (bw + gap)} y={mid - 0.5} width={bw} height={1} fill="var(--ns-fg-dim)" rx="0.5" />
-            )}
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-function formatGroupDate(dateStr: string) {
-  const today = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  const d = new Date(dateStr + "T00:00:00");
-  const label = d.toLocaleDateString("zh-TW", { month: "numeric", day: "numeric", weekday: "short" });
-  if (dateStr === today) return `今天 · ${label}`;
-  if (dateStr === yesterday) return `昨天 · ${label}`;
-  return label;
-}
+type CashDrawerMode = "income" | "expense" | "transfer" | "recurring";
 
 function makeEmptyLedger(timezone: string): LedgerDraft {
   return {
@@ -153,6 +69,7 @@ function makeEmptyRecurring(timezone: string): RecurringDraft {
     entryType: "expense",
     settlementStatus: "settled",
     note: "訂閱",
+    frequency: "monthly",
     dayOfMonth: 1,
     nextRunDate: todayInTimezone(timezone),
     isActive: true,
@@ -160,8 +77,7 @@ function makeEmptyRecurring(timezone: string): RecurringDraft {
 }
 
 export function CashFlowRoute() {
-  const navigate = useNavigate();
-  const { ledger, accounts, recurring, settings } = useFinanceData();
+  const { accounts, ledger, recurring, settings } = useFinanceData();
   const timezone = useUiPreferences((state) => state.timezone);
   const emptyLedger = useMemo(() => makeEmptyLedger(timezone), [timezone]);
   const emptyTransfer = useMemo(() => makeEmptyTransfer(timezone), [timezone]);
@@ -169,7 +85,6 @@ export function CashFlowRoute() {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<CashDrawerMode>("expense");
-  const [drawerRecurringFreq, setDrawerRecurringFreq] = useState<"none" | "daily" | "weekly" | "monthly" | "yearly">("none");
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [ledgerForm, setLedgerForm] = useState<LedgerDraft>(emptyLedger);
@@ -180,11 +95,6 @@ export function CashFlowRoute() {
 
   const [preview, setPreview] = useState<ImportPreview<LedgerDraft> | null>(null);
   const [message, setMessage] = useState("");
-  const [settleDraft, setSettleDraft] = useState<LedgerTransaction | null>(null);
-
-  const [filterMonth, setFilterMonth] = useState(() => todayInTimezone(timezone).slice(0, 7));
-  const [filterAccount, setFilterAccount] = useState("all");
-  const [filterCategory, setFilterCategory] = useState("all");
 
   const appSettings = settings.data;
   const accountRows = accounts.data ?? [];
@@ -272,18 +182,16 @@ export function CashFlowRoute() {
     setDrawerOpen(true);
     setEditingId(null);
     setMessage("");
-    if (mode !== "transfer") {
-      const isReceivable = mode === "receivable";
-      const isPayable = mode === "payable";
-      const entryType = mode === "income" || isReceivable ? "income" : "expense";
+    if (mode === "recurring") {
+      setRecurringForm({ ...emptyRecurring, currency: appSettings?.primaryCurrency ?? emptyRecurring.currency });
+    } else if (mode !== "transfer") {
       setLedgerForm((current) => ({
         ...emptyLedger,
         date: nowAsDatetimeLocal(timezone),
         currency: appSettings?.primaryCurrency ?? current.currency,
-        entryType,
-        settlementStatus: isReceivable ? "receivable" : isPayable ? "payable" : "settled",
+        entryType: mode === "income" ? "income" : "expense",
+        settlementStatus: "settled",
       }));
-      setDrawerRecurringFreq("none");
       setAmountExpression(String(Math.abs(emptyLedger.amount)));
       setAccountSelectionMode("auto");
     } else {
@@ -294,7 +202,6 @@ export function CashFlowRoute() {
   function closeDrawer() {
     setDrawerOpen(false);
     setEditingId(null);
-    setTransferEditingIds(null);
     setMessage("");
   }
 
@@ -332,6 +239,7 @@ export function CashFlowRoute() {
       await createRecurring.mutateAsync(recurringForm);
       rememberMerchantNames([recurringForm.merchant]);
       setRecurringForm({ ...emptyRecurring, currency: appSettings?.primaryCurrency ?? emptyRecurring.currency });
+      closeDrawer();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "週期事件儲存失敗。");
     }
@@ -353,28 +261,8 @@ export function CashFlowRoute() {
         merchant: ledgerForm.merchant.trim(),
       };
       if (!payload.accountId) throw new Error("請選擇帳戶。");
-      if (editingId) {
-        await updateLedger.mutateAsync({ ...payload, id: editingId });
-      } else {
-        await createLedger.mutateAsync(payload);
-        if (drawerRecurringFreq !== "none") {
-          const dateObj = new Date(payload.date);
-          await createRecurring.mutateAsync({
-            entryType: payload.entryType as "income" | "expense",
-            category: payload.category,
-            subcategory: payload.subcategory,
-            merchant: payload.merchant,
-            currency: payload.currency,
-            amount: payload.amount,
-            accountId: payload.accountId,
-            settlementStatus: payload.settlementStatus ?? "settled",
-            dayOfMonth: dateObj.getDate(),
-            nextRunDate: payload.date.split("T")[0],
-            isActive: true,
-            note: payload.note,
-          });
-        }
-      }
+      if (editingId) await updateLedger.mutateAsync({ ...payload, id: editingId });
+      else await createLedger.mutateAsync(payload);
       await rememberCategories.mutateAsync([{ category: payload.category, subcategory: payload.subcategory }]);
       rememberMerchantNames([payload.merchant]);
       closeDrawer();
@@ -387,13 +275,6 @@ export function CashFlowRoute() {
     setMessage("");
     try {
       if (!transferForm.sourceAccountId || !transferForm.destinationAccountId) throw new Error("請選擇來源和目標帳戶。");
-      
-      if (transferEditingIds) {
-        for (const id of transferEditingIds) {
-          await deleteLedger.mutateAsync(id);
-        }
-      }
-      
       await createTransfer.mutateAsync(transferForm);
       closeDrawer();
     } catch (error) {
@@ -409,11 +290,7 @@ export function CashFlowRoute() {
   }
 
   function startEdit(row: LedgerTransaction) {
-    const type = row.entryType ?? (row.amount >= 0 ? "income" : "expense");
-    if (row.settlementStatus === "receivable") setDrawerMode("receivable");
-    else if (row.settlementStatus === "payable") setDrawerMode("payable");
-    else setDrawerMode(type);
-
+    setDrawerMode(row.entryType === "income" ? "income" : "expense");
     setEditingId(row.id);
     setLedgerForm({
       accountId: row.accountId,
@@ -424,7 +301,7 @@ export function CashFlowRoute() {
       category: row.category,
       subcategory: row.subcategory,
       merchant: row.merchant,
-      entryType: type,
+      entryType: row.entryType ?? (row.amount >= 0 ? "income" : "expense"),
       settlementStatus: row.settlementStatus ?? "settled",
       note: row.note,
     });
@@ -434,69 +311,8 @@ export function CashFlowRoute() {
     setDrawerOpen(true);
   }
 
-  const [transferEditingIds, setTransferEditingIds] = useState<string[] | null>(null);
-
-  function startEditTransfer(rows: LedgerTransaction[]) {
-    const expense = rows.find((r) => r.amount < 0);
-    const income = rows.find((r) => r.amount > 0);
-    if (!expense || !income) return;
-    
-    setTransferEditingIds([expense.id, income.id]);
-    setTransferForm({
-      sourceAccountId: expense.accountId,
-      destinationAccountId: income.accountId,
-      date: expense.date,
-      sourceAmount: Math.abs(expense.amount),
-      destinationAmount: income.amount,
-      sourceCurrency: expense.currency,
-      destinationCurrency: income.currency,
-      note: expense.note || "",
-    });
-    setDrawerMode("transfer");
-    setDrawerOpen(true);
-  }
-
-  async function handleSettleConfirm(accountId: string, date: string) {
-    if (!settleDraft) return;
-    try {
-      // 1. Update original transaction to settled
-      await updateLedger.mutateAsync({
-        ...settleDraft,
-        settlementStatus: "settled",
-      });
-      // 2. Create offsetting transaction
-      const isReceivable = settleDraft.settlementStatus === "receivable";
-      const newEntryType = isReceivable ? "income" : "expense";
-      // Ensure positive for income, negative for expense
-      const amount = isReceivable ? Math.abs(settleDraft.amount) : -Math.abs(settleDraft.amount);
-      
-      const newTransaction: LedgerDraft = {
-        accountId,
-        date,
-        name: `結清：${settleDraft.name}`,
-        amount,
-        currency: settleDraft.currency,
-        category: settleDraft.category,
-        subcategory: settleDraft.subcategory,
-        merchant: settleDraft.merchant,
-        entryType: newEntryType,
-        settlementStatus: "settled",
-        note: "應收/應付帳款結清",
-      };
-      await createLedger.mutateAsync(newTransaction);
-      setSettleDraft(null);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "結清失敗。");
-    }
-  }
-
-  const monthRows = useMemo(() => ledgerRows.filter((row) => {
-    if (!row.date.startsWith(filterMonth)) return false;
-    if (filterAccount !== "all" && row.accountId !== filterAccount) return false;
-    if (filterCategory !== "all" && row.category !== filterCategory) return false;
-    return true;
-  }), [ledgerRows, filterMonth, filterAccount, filterCategory]);
-  
+  const monthKey = todayInTimezone(timezone).slice(0, 7);
+  const monthRows = useMemo(() => ledgerRows.filter((row) => row.date.startsWith(monthKey)), [ledgerRows, monthKey]);
   const monthIncome = monthRows.filter((row) => row.entryType === "income").reduce((sum, row) => sum + Math.max(0, row.amount), 0);
   const monthExpense = monthRows.filter((row) => row.entryType === "expense").reduce((sum, row) => sum + Math.abs(row.amount), 0);
   const monthNet = monthIncome - monthExpense;
@@ -528,351 +344,370 @@ export function CashFlowRoute() {
       .slice(0, 6);
   }, [monthRows]);
 
-  const dailyStats = useMemo(() => {
-    const now = todayInTimezone(timezone);
-    const year = parseInt(now.slice(0, 4));
-    const month = parseInt(now.slice(5, 7));
-    const daysInMonth = new Date(year, month, 0).getDate();
-    const byDay = new Map<number, { income: number; expense: number }>();
-    for (let i = 1; i <= daysInMonth; i++) {
-      byDay.set(i, { income: 0, expense: 0 });
-    }
-    for (const row of monthRows) {
-      if (row.entryType === "transfer") continue;
-      const day = parseInt(row.date.slice(8, 10));
-      const stats = byDay.get(day)!;
-      if (row.entryType === "income") {
-        stats.income += Math.max(0, row.amount);
-      } else {
-        stats.expense += Math.abs(row.amount);
-      }
-    }
-    return Array.from({ length: daysInMonth }, (_, i) => byDay.get(i + 1)!);
-  }, [monthRows, timezone]);
-
-  const dateGroups = useMemo(() => {
-    const byDate = new Map<string, typeof groupedRows>();
-    for (const group of groupedRows) {
-      const date = group.rows[0].date.slice(0, 10);
-      byDate.set(date, [...(byDate.get(date) ?? []), group]);
-    }
-    return [...byDate.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [groupedRows]);
-
   return (
-    <div style={{ padding: "24px 32px 100px", overflowY: "auto" }}>
-      {/* ── Header row ── */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 22 }}>
-        <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>
-            {new Date().toLocaleDateString("zh-TW", { year: "numeric", month: "long" })}
-          </div>
-          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.5, fontWeight: 600 }}>
-            現金流
-          </h1>
+    <div className="mx-auto max-w-6xl p-5 lg:p-8">
+      <div>
+        <PageHeader
+          title="記帳"
+          description="以 dashboard 方式掌握收入、支出與轉帳，帳戶餘額會同步更新。"
+          action={
+            <ActionButton onClick={() => openCreate("expense")} size="sm">
+              <Receipt size={14} />新增支出
+            </ActionButton>
+          }
+        />
+
+        <div className="mb-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <SummaryCard label="本月收入" value={`${formatNumber(monthIncome)} TWD`} tone="positive" />
+          <SummaryCard label="本月支出" value={`${formatNumber(monthExpense)} TWD`} tone="negative" />
+          <SummaryCard label="本月淨額" value={`${formatNumber(monthNet)} TWD`} tone={monthNet >= 0 ? "positive" : "negative"} />
+          <SummaryCard label="本月轉帳筆數" value={`${monthTransferCount} 筆`} tone="neutral" />
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="ns-btn" onClick={() => navigate({ to: "/cash-flow/categories" })}><Tag size={14} />分類</button>
-          
-          <DatePicker 
-            value={filterMonth + "-01"} 
-            onChange={(val) => setFilterMonth(val.slice(0, 7))} 
-          />
 
-          <Select value={filterAccount} onValueChange={(val) => setFilterAccount(val ?? "all")}>
-            <SelectTrigger className="w-[140px] ns-btn" style={{ padding: "0 10px", height: "36px" }}>
-              <SelectValue placeholder="所有帳戶">
-                {filterAccount === "all" ? "所有帳戶" : accountRows.find(a => a.id === filterAccount)?.name}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">所有帳戶</SelectItem>
-              {accountRows.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-
-          <Select value={filterCategory} onValueChange={(val) => setFilterCategory(val ?? "all")}>
-            <SelectTrigger className="w-[140px] ns-btn" style={{ padding: "0 10px", height: "36px" }}>
-              <SelectValue placeholder="所有類別">
-                {filterCategory === "all" ? "所有類別" : filterCategory}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">所有類別</SelectItem>
-              {categories.map(c => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <button className="ns-btn primary" onClick={() => openCreate("expense")}>
-            <Plus size={14} />新增交易
-          </button>
+        <div className="mb-4 grid gap-4 lg:grid-cols-2">
+          <DashboardListCard title="類別花費排行" rows={topCategorySpend} emptyText="本月尚無支出分類資料" />
+          <DashboardListCard title="商家花費排行" rows={topMerchantSpend} emptyText="本月尚無商家花費資料" />
         </div>
-      </div>
 
-      {/* ── Top summary: two-up ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16, marginBottom: 20 }}>
-        {/* Net monthly card */}
-        <div className="ns-card">
-          <div style={{ display: "flex", alignItems: "baseline", gap: 16, marginBottom: 14 }}>
-            <div>
-              <div className="ns-eyebrow" style={{ marginBottom: 6 }}>本月淨額</div>
-              <div
-                className="ns-num-lg"
-                style={{ color: monthNet >= 0 ? "var(--ns-pos)" : "var(--ns-neg)" }}
-              >
-                {monthNet >= 0 ? "+" : "−"}{formatNumber(Math.abs(monthNet))} TWD
-              </div>
+        {message ? <div className="mb-4"><StatusText>{message}</StatusText></div> : null}
+
+        <Card
+          title="本機收支"
+          variant="raised"
+          action={
+            <div className="flex flex-wrap gap-2">
+              <ActionButton variant="secondary" onClick={() => openCreate("income")} size="sm"><TrendUp size={14} />收入</ActionButton>
+              <ActionButton variant="secondary" onClick={() => openCreate("expense")} size="sm"><TrendDown size={14} />支出</ActionButton>
+              <ActionButton variant="secondary" onClick={() => openCreate("transfer")} size="sm"><ArrowsLeftRight size={14} />轉帳</ActionButton>
+              <ActionButton variant="secondary" onClick={() => downloadCsv("northstar-ledger.csv", exportLedgerCsv(ledgerRows, accountName))}>匯出 CSV</ActionButton>
+              <label>
+                <input className="hidden" type="file" accept=".csv,text/csv" onChange={handleCsv} />
+                <span className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface-elevated)" }}><UploadSimple size={16} />匯入 CSV</span>
+              </label>
             </div>
-            <div style={{ flex: 1 }} />
-            <div style={{ display: "flex", gap: 20, fontSize: 12 }}>
-              <div>
-                <div className="muted">收入</div>
-                <div className="num" style={{ fontSize: 18, fontWeight: 500 }}>{formatNumber(monthIncome)}</div>
-              </div>
-              <div>
-                <div className="muted">支出</div>
-                <div className="num" style={{ fontSize: 18, fontWeight: 500 }}>{formatNumber(monthExpense)}</div>
-              </div>
-              {monthIncome > 0 && (
-                <div>
-                  <div className="muted">儲蓄率</div>
-                  <div className="num pos" style={{ fontSize: 18, fontWeight: 500 }}>
-                    {Math.max(0, (monthNet / monthIncome) * 100).toFixed(1)}%
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          <DailyBars data={dailyStats} />
-          <div className="dim mono" style={{ fontSize: 10.5, marginTop: 6, display: "flex", justifyContent: "space-between" }}>
-            <span>1日</span><span>8日</span><span>15日</span><span>22日</span><span>月末</span>
-          </div>
-        </div>
-
-        {/* Category breakdown */}
-        <div className="ns-card">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <div className="ns-eyebrow">本月支出分類</div>
-          </div>
-          {topCategorySpend.length === 0 ? (
-            <div className="muted" style={{ fontSize: 13 }}>本月尚無支出資料</div>
-          ) : (
-            <div style={{ display: "grid", gap: 10 }}>
-              {topCategorySpend.map((r, i) => (
-                <div
-                  key={r.name}
-                  style={{ display: "grid", gridTemplateColumns: "70px 1fr 80px", gap: 10, alignItems: "center", fontSize: 12.5 }}
-                >
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
-                  <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
-                    <div
-                      style={{
-                        width: `${(r.amount / monthExpense) * 100}%`,
-                        height: "100%",
-                        background: CHART_COLORS[i % 5],
-                        borderRadius: 99,
-                      }}
-                    />
-                  </div>
-                  <span className="num" style={{ textAlign: "right" }}>{formatNumber(r.amount)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {topMerchantSpend.length > 0 && (
-            <>
-              <div className="ns-eyebrow" style={{ marginTop: 18, marginBottom: 10 }}>商家排行</div>
-              <div style={{ display: "grid", gap: 8 }}>
-                {topMerchantSpend.slice(0, 4).map((r) => (
-                  <div key={r.name} style={{ display: "grid", gridTemplateColumns: "70px 1fr 80px", gap: 10, alignItems: "center", fontSize: 12.5 }}>
-                    <span className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
-                    <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
-                      <div
-                        style={{
-                          width: `${(r.amount / monthExpense) * 100}%`,
-                          height: "100%",
-                          background: "var(--ns-fg-dim)",
-                          borderRadius: 99,
-                        }}
-                      />
-                    </div>
-                    <span className="num" style={{ textAlign: "right" }}>{formatNumber(r.amount)}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* ── CSV import preview ── */}
-      {preview && (
-        <div className="ns-card" style={{ marginBottom: 16, padding: 18 }}>
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>
-            匯入預覽：{preview.valid.length} valid / {preview.invalid.length} invalid
-          </div>
-          {preview.invalid.map((item) => (
-            <div key={item.row} style={{ color: "var(--ns-neg)", fontSize: 13 }}>Row {item.row}: {item.reason}</div>
-          ))}
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button
-              className="ns-btn primary"
-              onClick={async () => {
+          }
+        >
+        {preview ? (
+          <div className="mb-4 rounded-md border p-4" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface-subtle)" }}>
+            <div className="font-semibold">匯入預覽：{preview.valid.length} valid / {preview.invalid.length} invalid</div>
+            {preview.invalid.map((item) => <div key={item.row} className="text-sm" style={{ color: "var(--ns-negative)" }}>Row {item.row}: {item.reason}</div>)}
+            <div className="mt-3 flex gap-2">
+              <ActionButton onClick={async () => {
                 const rows = preview.valid.map((item) => item.value);
                 await importLedger.mutateAsync(rows);
                 rememberMerchantNames(rows.map((row) => row.merchant));
                 setPreview(null);
-              }}
-            >
-              確認匯入
-            </button>
-            <button className="ns-btn" onClick={() => setPreview(null)}>取消</button>
+              }}>確認匯入</ActionButton>
+              <ActionButton variant="secondary" onClick={() => setPreview(null)}>取消</ActionButton>
+            </div>
           </div>
-        </div>
-      )}
+        ) : null}
 
-      {/* ── Status message ── */}
-      {message && <div style={{ marginBottom: 12 }}><StatusText>{message}</StatusText></div>}
-
-      {/* ── Transaction list grouped by date ── */}
-      <div className="ns-card" style={{ padding: 0 }}>
-        {dateGroups.length === 0 ? (
-          <div style={{ padding: 32 }}>
-            <EmptyState
-              icon={<Receipt size={24} weight="duotone" />}
-              title="還沒有記帳資料"
-              description="點擊右上角「記一筆」新增收支，或匯入 CSV 歷史資料。"
-              action={
-                <button className="ns-btn primary" onClick={() => openCreate("expense")}>
-                  <Receipt size={16} />新增支出
-                </button>
-              }
-            />
-          </div>
+        {groupedRows.length === 0 ? (
+          <EmptyState
+            icon={<Receipt size={24} weight="duotone" />}
+            title="還沒有記帳資料"
+            description="先新增一筆收入/支出/轉帳，或匯入 CSV 歷史資料。"
+            action={<ActionButton onClick={() => openCreate("expense")}><Receipt size={16} />新增支出</ActionButton>}
+          />
         ) : (
-          dateGroups.map(([date, groups]) => {
-            const dayNet = groups.reduce((s, g) => s + g.amount, 0);
-            return (
-              <div key={date}>
-                <div
-                  style={{
-                    padding: "14px 22px",
-                    background: "var(--ns-bg-elev)",
-                    borderBottom: "1px solid var(--ns-border)",
-                    borderTop: "1px solid var(--ns-border)",
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                  }}
-                >
-                  <span className="ns-eyebrow">{formatGroupDate(date)}</span>
-                  <span className="dim mono" style={{ fontSize: 11 }}>
-                    {dayNet >= 0 ? "+" : "−"}{formatNumber(Math.abs(dayNet))} TWD
-                  </span>
+          <div className="space-y-3">
+            {groupedRows.map((group) => (
+              <div key={group.id} className="grid grid-cols-1 gap-4 rounded-xl border p-4 transition hover:opacity-95 sm:grid-cols-[1fr_auto]" style={{ borderColor: "var(--ns-panel-border)", background: "var(--ns-panel-surface)" }}>
+                <div>
+                  <div className="text-lg font-semibold">{group.title}</div>
+                  <div className="text-sm leading-6" style={{ color: "var(--ns-muted)" }}>{group.subtitle}</div>
                 </div>
-                {groups.map((group, gi) => {
-                  const isIncome = group.typeLabel === "收入";
-                  const isTransfer = group.typeLabel === "轉帳";
-                  const initials = isTransfer
-                    ? "↔"
-                    : (group.title || "?").replace(/\s+/g, "").slice(0, 2).toUpperCase();
-                  const color = isTransfer
-                    ? "var(--ns-fg-muted)"
-                    : isIncome
-                    ? "var(--ns-chart-1)"
-                    : CHART_COLORS[1 + (gi % 4)];
-                  return (
-                    <div key={group.id} className="ns-row" style={{ gap: 12 }}>
-                      <CfMark label={initials} color={color} size={32} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div
-                          style={{
-                            fontSize: 14, fontWeight: 500,
-                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                          }}
-                        >
-                          {group.title}
-                        </div>
-                        <div className="muted" style={{ fontSize: 12 }}>{group.subtitle}</div>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        {isTransfer ? (
-                          <span className="ns-pill">↔ 轉帳</span>
-                        ) : (
-                          <div
-                            className={"num " + (isIncome ? "pos" : "")}
-                            style={{ fontSize: 14.5, minWidth: 100, textAlign: "right" }}
-                          >
-                            {isIncome ? "+" : "−"}{formatNumber(Math.abs(group.amount))} {group.currency}
-                          </div>
-                        )}
-                        {group.rows.length === 1 && !isTransfer && (
-                          <button
-                            className="ns-btn ghost"
-                            style={{ padding: 6 }}
-                            onClick={() => startEdit(group.rows[0])}
-                            title="編輯"
-                          >
-                            <PencilSimple size={13} />
-                          </button>
-                        )}
-                        {isTransfer && group.rows.length === 2 && (
-                          <button
-                            className="ns-btn ghost"
-                            style={{ padding: 6 }}
-                            onClick={() => startEditTransfer(group.rows)}
-                            title="編輯"
-                          >
-                            <PencilSimple size={13} />
-                          </button>
-                        )}
-                        {group.rows.length === 1 && !isTransfer && (group.rows[0].settlementStatus === "receivable" || group.rows[0].settlementStatus === "payable") && (
-                          <button
-                            className="ns-btn primary"
-                            style={{ padding: "4px 8px", fontSize: 12 }}
-                            onClick={() => setSettleDraft(group.rows[0])}
-                            title="結清"
-                          >
-                            結清
-                          </button>
-                        )}
-                        <button
-                          className="ns-btn ghost"
-                          style={{ padding: 6, color: "var(--ns-neg)" }}
-                          onClick={async () => {
-                            for (const row of group.rows) await deleteLedger.mutateAsync(row.id);
-                          }}
-                          title="刪除"
-                        >
-                          <Trash size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                <div className="tabular text-left sm:text-right" style={{ color: group.amount < 0 ? "var(--ns-negative)" : "var(--ns-positive)" }}>
+                  <div className="text-2xl font-semibold">{group.typeLabel} {formatNumber(Math.abs(group.amount))} {group.currency}</div>
+                  <div className="mt-2 flex flex-wrap gap-2 sm:justify-end">
+                    {group.rows.length === 1 && group.rows[0].entryType !== "transfer" ? (
+                      <ActionButton variant="secondary" onClick={() => startEdit(group.rows[0])}><PencilSimple size={16} />編輯</ActionButton>
+                    ) : null}
+                    <ActionButton
+                      variant="danger"
+                      onClick={async () => {
+                        for (const row of group.rows) {
+                          await deleteLedger.mutateAsync(row.id);
+                        }
+                      }}
+                    >
+                      <Trash size={16} />刪除
+                    </ActionButton>
+                  </div>
+                </div>
               </div>
-            );
-          })
+            ))}
+          </div>
         )}
+        </Card>
       </div>
 
-      {/* ── Recurring events (collapsed by default) ── */}
-      <details
-        className="ns-card"
-        style={{ marginTop: 16, padding: 0, cursor: "pointer" }}
-      >
-        <summary
-          style={{
-            padding: "14px 22px", cursor: "pointer", userSelect: "none",
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            fontFamily: "var(--ns-font-display)", fontSize: 15, fontWeight: 500,
-          }}
-        >
-          <span>週期事件（每月固定收支）</span>
-          <span className="ns-pill">{recurringRows.length} 個</span>
+      <UpcomingPayments recurringRows={recurringRows} accountName={accountName} formatMoney={(amount, currency) => `${formatNumber(Math.abs(amount))} ${currency}`} />
+
+      <details className="mt-4 rounded-xl border p-4" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
+        <summary className="cursor-pointer select-none text-sm font-semibold" style={{ color: "var(--ns-muted)" }}>
+          週期事件（固定收支）
         </summary>
-        <div style={{ borderTop: "1px solid var(--ns-border)", padding: "20px 22px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 20 }}>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[380px_1fr]">
+          <Card title="新增週期事件" variant="muted">
+            <div className="grid gap-3">
+              <Field label="帳戶">
+                <SelectInput value={recurringForm.accountId} onChange={(event) => {
+                  const account = accountRows.find((item) => item.id === event.target.value);
+                  setRecurringForm({ ...recurringForm, accountId: event.target.value, currency: account?.currency ?? recurringForm.currency });
+                }}>
+                  <option value="">選擇帳戶</option>
+                  {accountRows.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                </SelectInput>
+              </Field>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="類型">
+                  <SelectInput value={recurringForm.entryType} onChange={(event) => {
+                    const entryType = event.target.value as RecurringDraft["entryType"];
+                    const amount = Math.abs(recurringForm.amount);
+                    setRecurringForm({ ...recurringForm, entryType, amount: entryType === "expense" ? -amount : amount });
+                  }}>
+                    <option value="expense">支出</option>
+                    <option value="income">收入</option>
+                  </SelectInput>
+                </Field>
+                <Field label="金額">
+                  <TextInput type="number" value={Math.abs(recurringForm.amount)} onChange={(event) => {
+                    const amount = Math.abs(Number(event.target.value));
+                    setRecurringForm({ ...recurringForm, amount: recurringForm.entryType === "expense" ? -amount : amount });
+                  }} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="分類">
+                  <SelectInput value={recurringForm.category} onChange={(event) => {
+                    const category = event.target.value;
+                    const firstChild = categories.find((item) => item.name === category)?.children[0] ?? "";
+                    setRecurringForm({ ...recurringForm, category, subcategory: firstChild });
+                  }}>
+                    {categoryNames.map((category) => <option key={category} value={category}>{category}</option>)}
+                  </SelectInput>
+                </Field>
+                <Field label="子分類">
+                  <SelectInput value={recurringForm.subcategory} onChange={(event) => setRecurringForm({ ...recurringForm, subcategory: event.target.value })}>
+                    <option value="">未分類</option>
+                    {recurringSubcategories.map((subcategory) => <option key={subcategory} value={subcategory}>{subcategory}</option>)}
+                  </SelectInput>
+                </Field>
+              </div>
+              <Field label="週期頻率">
+                <SelectInput value={recurringForm.frequency} onChange={(event) => setRecurringForm({ ...recurringForm, frequency: event.target.value as RecurringFrequency })}>
+                  {(Object.keys(recurringFrequencyLabels) as RecurringFrequency[]).map((freq) => (
+                    <option key={freq} value={freq}>{recurringFrequencyLabels[freq]}</option>
+                  ))}
+                </SelectInput>
+              </Field>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {recurringForm.frequency === "monthly" ? (
+                  <Field label="每月日期">
+                    <TextInput type="number" min={1} max={31} value={recurringForm.dayOfMonth} onChange={(event) => setRecurringForm({ ...recurringForm, dayOfMonth: Number(event.target.value) })} />
+                  </Field>
+                ) : <div />}
+                <Field label="下次日期">
+                  <TextInput type="date" value={recurringForm.nextRunDate} onChange={(event) => setRecurringForm({ ...recurringForm, nextRunDate: event.target.value })} />
+                </Field>
+              </div>
+              <Field label="商家">
+                <MerchantAutocomplete
+                  value={recurringForm.merchant}
+                  suggestions={recurringMerchantSuggestions}
+                  onChange={(next) => setRecurringForm({ ...recurringForm, merchant: next })}
+                  placeholder="例如 Spotify"
+                />
+              </Field>
+              <Field label="備註">
+                <TextInput value={recurringForm.note} onChange={(event) => setRecurringForm({ ...recurringForm, note: event.target.value })} />
+              </Field>
+              <ActionButton onClick={submitRecurring}><CalendarPlus size={16} />建立週期事件</ActionButton>
+            </div>
+          </Card>
+          <Card title="週期事件" variant="muted">
+            {recurringRows.length === 0 ? (
+              <EmptyState
+                icon={<CalendarPlus size={24} weight="duotone" />}
+                title="尚未建立週期事件"
+                description="你可以建立每月固定扣款或固定收入，降低重複輸入。"
+              />
+            ) : (
+              <div className="space-y-3">
+                {recurringRows.map((row) => (
+                  <div key={row.id} className="grid grid-cols-1 gap-3 rounded-md border p-4 sm:grid-cols-[1fr_auto]" style={{ borderColor: "var(--ns-border)" }}>
+                    <div>
+                      <div className="font-semibold">{row.category}{row.subcategory ? ` / ${row.subcategory}` : ""}</div>
+                      <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{row.merchant || accountName(row.accountId)} · 下次 {row.nextRunDate} · {recurringFrequencyLabels[row.frequency ?? "monthly"]}{row.frequency === "monthly" ? ` ${row.dayOfMonth} 日` : ""}</div>
+                    </div>
+                    <div className="tabular text-left sm:text-right">
+                      <div>{row.entryType === "income" ? "收入" : "支出"} {formatNumber(Math.abs(row.amount))} {row.currency}</div>
+                      <div className="mt-2 flex flex-wrap gap-2 sm:justify-end">
+                        <ActionButton variant="secondary" onClick={() => postRecurring.mutate(row.id)}>產生本期</ActionButton>
+                        <ActionButton variant="danger" onClick={() => deleteRecurring.mutate(row.id)}><Trash size={16} />刪除</ActionButton>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+      </details>
+
+      <CashFlowEntryDrawer
+        open={drawerOpen}
+        mode={drawerMode}
+        onClose={closeDrawer}
+        onModeChange={(next) => {
+          setDrawerMode(next);
+          if (next === "recurring") {
+            setRecurringForm({ ...emptyRecurring, currency: appSettings?.primaryCurrency ?? emptyRecurring.currency });
+          } else if (next !== "transfer") {
+            const entryType: LedgerDraft["entryType"] = next === "income" ? "income" : "expense";
+            setLedgerForm((current) => ({
+              ...current,
+              entryType,
+              settlementStatus:
+                current.settlementStatus === "receivable" || current.settlementStatus === "payable"
+                  ? (entryType === "income" ? "receivable" : "payable")
+                  : "settled",
+            }));
+          }
+        }}
+        editing={Boolean(editingId)}
+        ledgerForm={ledgerForm}
+        setLedgerForm={setLedgerForm}
+        amountExpression={amountExpression}
+        setAmountExpression={setAmountExpression}
+        transferForm={transferForm}
+        setTransferForm={setTransferForm}
+        merchantSuggestions={merchantSuggestions}
+        categories={categoryNames}
+        subcategories={subcategories}
+        recurringForm={recurringForm}
+        setRecurringForm={setRecurringForm}
+        recurringSubcategories={recurringSubcategories}
+        recurringMerchantSuggestions={recurringMerchantSuggestions}
+        onSubmitRecurring={submitRecurring}
+        recurringIsPending={createRecurring.isPending}
+        accountRows={accountRows}
+        onAccountSelected={syncAccountDefaults}
+        onSubmitSingle={submitSingle}
+        onSubmitTransfer={submitTransfer}
+        message={message}
+      />
+    </div>
+  );
+}
+
+function CashFlowEntryDrawer({
+  open,
+  mode,
+  onClose,
+  onModeChange,
+  editing,
+  ledgerForm,
+  setLedgerForm,
+  amountExpression,
+  setAmountExpression,
+  transferForm,
+  setTransferForm,
+  merchantSuggestions,
+  categories,
+  subcategories,
+  recurringForm,
+  setRecurringForm,
+  recurringSubcategories,
+  recurringMerchantSuggestions,
+  onSubmitRecurring,
+  recurringIsPending,
+  accountRows,
+  onAccountSelected,
+  onSubmitSingle,
+  onSubmitTransfer,
+  message,
+}: {
+  open: boolean;
+  mode: CashDrawerMode;
+  onClose: () => void;
+  onModeChange: (mode: CashDrawerMode) => void;
+  editing: boolean;
+  ledgerForm: LedgerDraft;
+  setLedgerForm: (value: LedgerDraft) => void;
+  amountExpression: string;
+  setAmountExpression: (value: string) => void;
+  transferForm: TransferDraft;
+  setTransferForm: (value: TransferDraft) => void;
+  merchantSuggestions: string[];
+  categories: string[];
+  subcategories: string[];
+  recurringForm: RecurringDraft;
+  setRecurringForm: (value: RecurringDraft) => void;
+  recurringSubcategories: string[];
+  recurringMerchantSuggestions: string[];
+  onSubmitRecurring: () => void;
+  recurringIsPending: boolean;
+  accountRows: Array<{ id: string; name: string; currency: string }>;
+  onAccountSelected: (id: string) => void;
+  onSubmitSingle: () => void;
+  onSubmitTransfer: () => void;
+  message: string;
+}) {
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const settledLabel = mode === "income" ? "已收款" : "已付款";
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/45" onClick={onClose}>
+      <div className="absolute inset-y-0 right-0 flex h-full w-full sm:w-[680px] lg:w-[740px]" onClick={(event) => event.stopPropagation()}>
+        <div className="h-full w-full border-l shadow-2xl animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)]" style={{ background: "var(--ns-panel-bg)", borderColor: "var(--ns-panel-border)" }}>
+          <header className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--ns-panel-border)" }}>
             <div>
-              <div className="ns-eyebrow" style={{ marginBottom: 14 }}>新增週期事件</div>
-              <div style={{ display: "grid", gap: 12 }}>
+              <h2 className="text-lg font-semibold">
+                {mode === "recurring" ? "新增週期事件" : editing ? "編輯收支" : "新增收支"}
+              </h2>
+              <p className="text-xs" style={{ color: "var(--ns-muted)" }}>
+                {mode === "recurring" ? "設定固定收支，系統到期自動提醒並過帳。" : "右側抽屜快速記錄收入、支出與轉帳。"}
+              </p>
+            </div>
+            <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-md outline-none transition hover:opacity-70" aria-label="關閉">
+              <X size={18} />
+            </button>
+          </header>
+
+          <div className="px-5 pt-4">
+            <SegmentedControl
+              value={mode}
+              onChange={onModeChange}
+              options={[
+                { value: "income", label: "收入", icon: <TrendUp size={16} /> },
+                { value: "expense", label: "支出", icon: <TrendDown size={16} /> },
+                { value: "transfer", label: "轉帳", icon: <ArrowsLeftRight size={16} /> },
+                { value: "recurring", label: "週期", icon: <CalendarPlus size={16} /> },
+              ]}
+            />
+          </div>
+
+          <div className="h-[calc(100%-120px)] overflow-y-auto px-5 pb-6 pt-4">
+            {mode === "recurring" ? (
+              <div className="grid gap-3">
                 <Field label="帳戶">
                   <SelectInput value={recurringForm.accountId} onChange={(event) => {
                     const account = accountRows.find((item) => item.id === event.target.value);
@@ -882,7 +717,7 @@ export function CashFlowRoute() {
                     {accountRows.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                   </SelectInput>
                 </Field>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="類型">
                     <SelectInput value={recurringForm.entryType} onChange={(event) => {
                       const entryType = event.target.value as RecurringDraft["entryType"];
@@ -900,14 +735,14 @@ export function CashFlowRoute() {
                     }} />
                   </Field>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="分類">
                     <SelectInput value={recurringForm.category} onChange={(event) => {
                       const category = event.target.value;
-                      const firstChild = categories.find((item) => item.name === category)?.children[0] ?? "";
-                      setRecurringForm({ ...recurringForm, category, subcategory: firstChild });
+                      setRecurringForm({ ...recurringForm, category, subcategory: "" });
                     }}>
-                      {categoryNames.map((category) => <option key={category} value={category}>{category}</option>)}
+                      <option value="">— 選擇分類 —</option>
+                      {categories.map((category) => <option key={category} value={category}>{category}</option>)}
                     </SelectInput>
                   </Field>
                   <Field label="子分類">
@@ -917,10 +752,19 @@ export function CashFlowRoute() {
                     </SelectInput>
                   </Field>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <Field label="每月日期">
-                    <TextInput type="number" min={1} max={31} value={recurringForm.dayOfMonth} onChange={(event) => setRecurringForm({ ...recurringForm, dayOfMonth: Number(event.target.value) })} />
-                  </Field>
+                <Field label="週期頻率">
+                  <SelectInput value={recurringForm.frequency} onChange={(event) => setRecurringForm({ ...recurringForm, frequency: event.target.value as RecurringFrequency })}>
+                    {(Object.keys(recurringFrequencyLabels) as RecurringFrequency[]).map((freq) => (
+                      <option key={freq} value={freq}>{recurringFrequencyLabels[freq]}</option>
+                    ))}
+                  </SelectInput>
+                </Field>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {recurringForm.frequency === "monthly" ? (
+                    <Field label="每月日期">
+                      <TextInput type="number" min={1} max={31} value={recurringForm.dayOfMonth} onChange={(event) => setRecurringForm({ ...recurringForm, dayOfMonth: Number(event.target.value) })} />
+                    </Field>
+                  ) : <div />}
                   <Field label="下次日期">
                     <TextInput type="date" value={recurringForm.nextRunDate} onChange={(event) => setRecurringForm({ ...recurringForm, nextRunDate: event.target.value })} />
                   </Field>
@@ -936,126 +780,111 @@ export function CashFlowRoute() {
                 <Field label="備註">
                   <TextInput value={recurringForm.note} onChange={(event) => setRecurringForm({ ...recurringForm, note: event.target.value })} />
                 </Field>
-                <button className="ns-btn primary" onClick={submitRecurring}>
-                  <CalendarPlus size={16} />建立週期事件
-                </button>
-              </div>
-            </div>
-            <div>
-              <div className="ns-eyebrow" style={{ marginBottom: 14 }}>已建立的週期事件</div>
-              {recurringRows.length === 0 ? (
-                <EmptyState
-                  icon={<CalendarPlus size={24} weight="duotone" />}
-                  title="尚未建立週期事件"
-                  description="你可以建立每月固定扣款或固定收入，降低重複輸入。"
-                />
-              ) : (
-                <div style={{ display: "grid", gap: 10 }}>
-                  {recurringRows.map((row) => (
-                    <div
-                      key={row.id}
-                      className="ns-row"
-                      style={{ gap: 12, borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-border)" }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 500 }}>
-                          {row.category}{row.subcategory ? ` / ${row.subcategory}` : ""}
-                        </div>
-                        <div className="muted" style={{ fontSize: 12 }}>
-                          {row.merchant || accountName(row.accountId)} · 下次 {row.nextRunDate} · 每月 {row.dayOfMonth} 日
-                        </div>
-                      </div>
-                      <div className="num" style={{ fontSize: 14, fontWeight: 500 }}>
-                        {row.entryType === "income" ? "+" : "−"}{formatNumber(Math.abs(row.amount))} {row.currency}
-                      </div>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <button className="ns-btn" style={{ fontSize: 12, padding: "6px 10px" }} onClick={() => postRecurring.mutate(row.id)}>產生本期</button>
-                        <button className="ns-btn ghost" style={{ padding: 6, color: "var(--ns-neg)" }} onClick={() => deleteRecurring.mutate(row.id)}>
-                          <Trash size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                {message ? <StatusText>{message}</StatusText> : null}
+                <div className="flex gap-2">
+                  <ActionButton onClick={onSubmitRecurring} disabled={recurringIsPending}>
+                    <CalendarPlus size={16} />{recurringIsPending ? "儲存中…" : "建立週期事件"}
+                  </ActionButton>
+                  <ActionButton variant="secondary" onClick={onClose}>取消</ActionButton>
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </details>
-
-      {/* Settlement Modal */}
-      {settleDraft && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45" onClick={() => setSettleDraft(null)}>
-          <div className="ns-card" style={{ width: 400, padding: 24 }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ margin: "0 0 16px", fontSize: 18, fontWeight: 600 }}>結清帳款</h3>
-            <div style={{ marginBottom: 16, fontSize: 14 }}>
-              你要結清 <strong style={{ color: settleDraft.settlementStatus === "receivable" ? "var(--ns-pos)" : "var(--ns-neg)" }}>
-                {settleDraft.settlementStatus === "receivable" ? "應收" : "應付"} {formatNumber(Math.abs(settleDraft.amount))} {settleDraft.currency}
-              </strong> ({settleDraft.name})？<br/>
-              系統將會建立一筆對應的{settleDraft.settlementStatus === "receivable" ? "收入" : "支出"}。
-            </div>
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const formData = new FormData(e.currentTarget);
-              const accountId = formData.get("accountId") as string;
-              const date = formData.get("date") as string;
-              if (accountId && date) handleSettleConfirm(accountId, date);
-            }}>
-              <div style={{ display: "grid", gap: 12, marginBottom: 24 }}>
-                <Field label="結清入帳帳戶">
-                  <SelectInput name="accountId" defaultValue={settleDraft.accountId}>
+              </div>
+            ) : mode === "transfer" ? (
+              <div className="grid gap-3">
+                <Field label="來源帳戶">
+                  <SelectInput value={transferForm.sourceAccountId} onChange={(event) => {
+                    const account = accountRows.find((item) => item.id === event.target.value);
+                    setTransferForm({ ...transferForm, sourceAccountId: event.target.value, sourceCurrency: account?.currency ?? transferForm.sourceCurrency });
+                  }}>
                     <option value="">選擇帳戶</option>
-                    {accountRows.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                    {accountRows.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                   </SelectInput>
                 </Field>
-                <Field label="結清日期">
-                  <TextInput name="date" type="date" defaultValue={todayInTimezone(timezone)} required />
+                <Field label="目標帳戶">
+                  <SelectInput value={transferForm.destinationAccountId} onChange={(event) => {
+                    const account = accountRows.find((item) => item.id === event.target.value);
+                    setTransferForm({ ...transferForm, destinationAccountId: event.target.value, destinationCurrency: account?.currency ?? transferForm.destinationCurrency });
+                  }}>
+                    <option value="">選擇帳戶</option>
+                    {accountRows.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                  </SelectInput>
                 </Field>
+                <DateTimeField label="時間" value={transferForm.date} onChange={(value) => setTransferForm({ ...transferForm, date: value })} />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label={`來源金額 ${transferForm.sourceCurrency}`}><TextInput type="number" value={transferForm.sourceAmount} onChange={(event) => setTransferForm({ ...transferForm, sourceAmount: Number(event.target.value) })} /></Field>
+                  <Field label={`目標金額 ${transferForm.destinationCurrency}`}><TextInput type="number" value={transferForm.destinationAmount ?? ""} onChange={(event) => setTransferForm({ ...transferForm, destinationAmount: Number(event.target.value) })} /></Field>
+                </div>
+                <Field label="備註"><TextInput value={transferForm.note} onChange={(event) => setTransferForm({ ...transferForm, note: event.target.value })} /></Field>
+                {message ? <StatusText>{message}</StatusText> : null}
+                <div className="flex gap-2">
+                  <ActionButton onClick={onSubmitTransfer}>建立轉帳</ActionButton>
+                  <ActionButton variant="secondary" onClick={onClose}>取消</ActionButton>
+                </div>
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-                <button type="button" className="ns-btn" onClick={() => setSettleDraft(null)}>取消</button>
-                <button type="submit" className="ns-btn primary">確認結清</button>
+            ) : (
+              <div className="grid gap-4">
+                <Field label="名稱">
+                  <TextInput value={ledgerForm.name} onChange={(event) => setLedgerForm({ ...ledgerForm, name: event.target.value })} placeholder="例如 晚餐、咖啡、股利" className="py-3 text-base font-semibold" />
+                </Field>
+
+                <Field label="商家">
+                  <MerchantAutocomplete value={ledgerForm.merchant} suggestions={merchantSuggestions} onChange={(next) => setLedgerForm({ ...ledgerForm, merchant: next })} placeholder="例如 7-ELEVEN、Lyft" />
+                </Field>
+
+                <Field label="金額 / 算式">
+                  <TextInput value={amountExpression} onChange={(event) => setAmountExpression(event.target.value)} placeholder="120+85" inputMode="decimal" className="text-right text-lg font-semibold tabular" />
+                </Field>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="幣別">
+                    <TextInput value={ledgerForm.currency} onChange={(event) => setLedgerForm({ ...ledgerForm, currency: event.target.value.toUpperCase() })} />
+                  </Field>
+                  <Field label="狀態">
+                    <SelectInput value={ledgerForm.settlementStatus} onChange={(event) => setLedgerForm({ ...ledgerForm, settlementStatus: event.target.value as LedgerDraft["settlementStatus"] })}>
+                      <option value="settled">{settledLabel}</option>
+                      {mode === "income" ? <option value="receivable">應收帳款</option> : <option value="payable">應付帳款</option>}
+                    </SelectInput>
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="分類">
+                    <TextInput list="cashflow-categories" value={ledgerForm.category} onChange={(event) => setLedgerForm({ ...ledgerForm, category: event.target.value })} placeholder="選擇或輸入分類" />
+                  </Field>
+                  <Field label="子分類">
+                    <TextInput list="cashflow-subcategories" value={ledgerForm.subcategory} onChange={(event) => setLedgerForm({ ...ledgerForm, subcategory: event.target.value })} placeholder="未分類" />
+                  </Field>
+                </div>
+
+                <Field label="帳戶">
+                  <SelectInput value={ledgerForm.accountId} onChange={(event) => onAccountSelected(event.target.value)}>
+                    <option value="">選擇帳戶</option>
+                    {accountRows.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                  </SelectInput>
+                </Field>
+
+                <DateTimeField label="日期 + 時間" value={ledgerForm.date} onChange={(value) => setLedgerForm({ ...ledgerForm, date: value })} />
+
+                <Field label="備註">
+                  <TextAreaInput value={ledgerForm.note} onChange={(event) => setLedgerForm({ ...ledgerForm, note: event.target.value })} rows={3} placeholder="可留空" />
+                </Field>
+
+                <datalist id="cashflow-categories">
+                  {categories.map((category) => <option key={category} value={category} />)}
+                </datalist>
+                <datalist id="cashflow-subcategories">
+                  {subcategories.map((subcategory) => <option key={subcategory} value={subcategory} />)}
+                </datalist>
+
+                {message ? <StatusText>{message}</StatusText> : null}
+                <div className="flex gap-2">
+                  <ActionButton onClick={onSubmitSingle}>{editing ? "儲存" : mode === "income" ? "新增收入" : "新增支出"}</ActionButton>
+                  <ActionButton variant="secondary" onClick={onClose}>取消</ActionButton>
+                </div>
               </div>
-            </form>
+            )}
           </div>
         </div>
-      )}
-
-      <CashFlowEntryDrawer
-        open={drawerOpen}
-        mode={drawerMode}
-        onClose={closeDrawer}
-        onModeChange={(next) => {
-          setDrawerMode(next);
-          if (next !== "transfer") {
-            const isReceivable = next === "receivable";
-            const isPayable = next === "payable";
-            const entryType: LedgerDraft["entryType"] = next === "income" || isReceivable ? "income" : "expense";
-            setLedgerForm((current) => ({
-              ...current,
-              entryType,
-              settlementStatus: isReceivable ? "receivable" : isPayable ? "payable" : "settled",
-            }));
-          }
-        }}
-        editing={Boolean(editingId)}
-        drawerRecurringFreq={drawerRecurringFreq}
-        setDrawerRecurringFreq={setDrawerRecurringFreq}
-        ledgerForm={ledgerForm}
-        setLedgerForm={setLedgerForm}
-        amountExpression={amountExpression}
-        setAmountExpression={setAmountExpression}
-        transferForm={transferForm}
-        setTransferForm={setTransferForm}
-        merchantSuggestions={merchantSuggestions}
-        categories={categoryNames}
-        subcategories={subcategories}
-        accountRows={accountRows}
-        onAccountSelected={syncAccountDefaults}
-        onSubmitSingle={submitSingle}
-        onSubmitTransfer={submitTransfer}
-        message={message}
-      />
+      </div>
     </div>
   );
 }
@@ -1112,7 +941,51 @@ function DashboardListCard({
           ))}
         </div>
       )}
+    </div>
+  );
+}
 
+function UpcomingPayments({
+  recurringRows,
+  accountName,
+  formatMoney,
+}: {
+  recurringRows: RecurringTransaction[];
+  accountName: (id: string) => string;
+  formatMoney: (amount: number, currency: string) => string;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const twoWeeksLater = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  const upcoming = recurringRows
+    .filter((row) => row.isActive && row.nextRunDate >= today && row.nextRunDate <= twoWeeksLater)
+    .sort((a, b) => a.nextRunDate.localeCompare(b.nextRunDate));
+
+  if (upcoming.length === 0) return null;
+
+  return (
+    <div className="mt-4 rounded-xl border p-4" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
+      <div className="mb-3 flex items-center gap-2">
+        <CalendarBlank size={16} weight="duotone" style={{ color: "var(--ns-accent)" }} />
+        <span className="text-sm font-semibold">即將到來的付款（近 2 週）</span>
+      </div>
+      <div className="space-y-2">
+        {upcoming.map((row) => (
+          <div key={row.id} className="flex items-center justify-between gap-3 rounded-md px-3 py-2 text-sm" style={{ background: "var(--ns-surface-strong)" }}>
+            <div className="min-w-0">
+              <div className="font-medium truncate">{row.merchant || row.category}{row.subcategory ? ` / ${row.subcategory}` : ""}</div>
+              <div className="text-xs" style={{ color: "var(--ns-muted)" }}>{row.nextRunDate} · {accountName(row.accountId)}</div>
+            </div>
+            <div className="tabular shrink-0 font-semibold" style={{ color: row.entryType === "income" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}>
+              {row.entryType === "income" ? "+" : "-"}{formatMoney(row.amount, row.currency)}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1133,13 +1006,9 @@ function groupLedgerRows(rows: LedgerTransaction[]) {
       return {
         id: first.groupId ?? first.id,
         rows: group,
-        title: isTransfer ? "轉帳" : first.name || `${first.category}${first.subcategory ? ` / ${first.subcategory}` : ""}`,
+        title: isTransfer ? "轉帳 / 換匯" : first.name || `${first.category}${first.subcategory ? ` / ${first.subcategory}` : ""}`,
         subtitle: isTransfer
-          ? [
-            `${group[0].currency} → ${group[1].currency}`,
-            formatRecordTime(first.date),
-            first.note || "無備註"
-          ].filter(Boolean).join(" · ")
+          ? `${group[0].currency} → ${group[1].currency} · ${formatRecordTime(first.date)}`
           : [
             settlementLabel(first.settlementStatus),
             formatRecordTime(first.date),

@@ -1,14 +1,18 @@
-import { ArrowsClockwise, ArrowsLeftRight, CaretRight, PencilSimple, Plus, Trash } from "@phosphor-icons/react";
+import { Bank, PencilSimple, Scales, Trash } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
+import { ActionButton } from "../components/ActionButton";
+import { PageHeader } from "../components/AppShell";
+import { Card } from "../components/Card";
+import { DateTimeField } from "../components/DateTimeField";
 import { Field, SelectInput, TextInput } from "../components/Field";
 import { StatusText } from "../components/StatusText";
 import { downloadCsv, exportAccountsCsv } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { Account, AccountType, AppSettings } from "../domain";
-import { convertCurrency, formatMoney, formatNumber } from "../domain";
+import { convertCurrency, formatMoney, formatNumber, nowAsDatetimeLocal } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 
-type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "isSharedToHousehold">;
+type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm">;
 
 const emptyAccount: AccountFormState = {
   name: "",
@@ -18,6 +22,9 @@ const emptyAccount: AccountFormState = {
   creditLimit: null,
   creditLimitGroup: "",
   isSharedToHousehold: false,
+  loanStartDate: null,
+  annualInterestRate: null,
+  loanTerm: null,
 };
 
 const accountTypes: AccountType[] = ["depository", "cash", "credit", "loan", "investment", "other"];
@@ -30,82 +37,49 @@ const accountTypeLabels: Record<AccountType, string> = {
   other: "其他",
 };
 
-const CHART_COLORS = [
-  "var(--ns-chart-1)",
-  "var(--ns-chart-2)",
-  "var(--ns-chart-3)",
-  "var(--ns-chart-4)",
-  "var(--ns-chart-5)",
-];
-
-function Mark({ label, color, size = 36 }: { label: string; color: string; size?: number }) {
-  return (
-    <div
-      style={{
-        width: size, height: size, flexShrink: 0,
-        background: color, color: "var(--ns-bg)",
-        borderRadius: "var(--ns-r-sm)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontFamily: "var(--ns-font-display)",
-        fontWeight: 600, fontSize: size <= 28 ? 11 : 13, letterSpacing: "0.02em",
-      }}
-    >
-      {label.slice(0, 2)}
-    </div>
-  );
-}
-
-function timeAgo(dateStr: string) {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  if (isNaN(diff) || diff < 0) return "just now";
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 60) return `${minutes || 1}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days === 1) return `昨天`;
-  return `${days}d ago`;
-}
+const accountTypeDescriptions: Record<AccountType, string> = {
+  depository: "支票、存款帳戶",
+  cash: "實體現金",
+  credit: "信用卡、預付卡",
+  loan: "房貸、車貸、學貸",
+  investment: "券商、基金帳戶",
+  other: "其他類型",
+};
 
 export function AccountsRoute() {
-  const { accounts, ledger, settings } = useFinanceData();
+  const { accounts, settings } = useFinanceData();
   const timezone = useUiPreferences((state) => state.timezone);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [typeStep, setTypeStep] = useState<AccountType | null>(null);
   const [form, setForm] = useState<AccountFormState>(emptyAccount);
   const [message, setMessage] = useState("");
-  const [showForm, setShowForm] = useState(false);
+  const [adjustingAccountId, setAdjustingAccountId] = useState<string | null>(null);
+  const [adjustTarget, setAdjustTarget] = useState("");
+  const [adjustNote, setAdjustNote] = useState("");
+  const [adjustDate, setAdjustDate] = useState("");
+  const [adjustMessage, setAdjustMessage] = useState("");
 
-  const createAccount = useRepositoryMutation(
-    (repository, input: AccountFormState) => repository.createAccount(input),
-    ["accounts"],
-  );
+  const createAccount = useRepositoryMutation((repository, input: AccountFormState) => repository.createAccount(input), ["accounts"]);
   const updateAccount = useRepositoryMutation(
     (repository, input: AccountFormState & { id: string }) => repository.updateAccount(input.id, input),
     ["accounts"],
   );
-  const deleteAccount = useRepositoryMutation(
-    (repository, id: string) => repository.deleteAccount(id),
-    ["accounts"],
+  const deleteAccount = useRepositoryMutation((repository, id: string) => repository.deleteAccount(id), ["accounts"]);
+  const adjustBalance = useRepositoryMutation(
+    (repository, input: { accountId: string; targetBalance: number; date: string; note: string }) =>
+      repository.adjustAccountBalance(input.accountId, input.targetBalance, input.date, input.note),
+    ["accounts", "ledger"],
   );
 
   const rows = accounts.data ?? [];
-  const ledgerRows = ledger.data ?? [];
   const appSettings = settings.data;
   const currencyOptions = useMemo(() => buildConfiguredCurrencyOptions(appSettings), [appSettings]);
   const selectedCurrency = currencyOptions.includes(form.currency) ? form.currency : currencyOptions[0];
   const isEditing = Boolean(editingId);
-
-  const latestTxByAccount = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const tx of ledgerRows) {
-      if (!tx.accountId) continue;
-      const existing = map.get(tx.accountId);
-      if (!existing || tx.date > existing) {
-        map.set(tx.accountId, tx.date);
-      }
-    }
-    return map;
-  }, [ledgerRows]);
+  const groupedAccounts = accountTypes.map((type) => ({
+    type,
+    rows: rows.filter((account) => account.type === type),
+  })).filter((group) => group.rows.length);
 
   async function submit() {
     setMessage("");
@@ -122,7 +96,7 @@ export function AccountsRoute() {
       }
       setForm(emptyAccount);
       setEditingId(null);
-      setShowForm(false);
+      setTypeStep(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "帳戶儲存失敗。");
     }
@@ -130,7 +104,7 @@ export function AccountsRoute() {
 
   function startEdit(account: Account) {
     setEditingId(account.id);
-    setShowForm(true);
+    setTypeStep(account.type);
     setForm({
       name: account.name,
       currency: account.currency,
@@ -139,305 +113,292 @@ export function AccountsRoute() {
       creditLimit: account.creditLimit,
       creditLimitGroup: account.creditLimitGroup,
       isSharedToHousehold: account.isSharedToHousehold,
+      loanStartDate: account.loanStartDate,
+      annualInterestRate: account.annualInterestRate,
+      loanTerm: account.loanTerm,
     });
   }
 
-  function cancelEdit() {
+  function cancelForm() {
     setEditingId(null);
+    setTypeStep(null);
     setForm(emptyAccount);
-    setShowForm(false);
     setMessage("");
   }
 
-  const colorMap = new Map(rows.map((a, i) => [a.id, CHART_COLORS[i % 5]]));
+  function openAdjust(account: Account) {
+    setAdjustingAccountId(account.id);
+    setAdjustTarget(String(account.balance));
+    setAdjustNote("");
+    setAdjustDate(nowAsDatetimeLocal(timezone));
+    setAdjustMessage("");
+  }
 
-  const totalNetWorth = rows.reduce((sum, a) => {
-    if (!appSettings) return sum + a.balance;
-    const conv = convertCurrency(a.balance, a.currency, appSettings.primaryCurrency, appSettings);
-    return sum + (conv ?? a.balance);
-  }, 0);
-
-  const currencyStats = useMemo(() => {
-    const map = new Map<string, { native: number; base: number }>();
-    for (const a of rows) {
-      let key = a.currency;
-      if (key === "BTC" || key === "ETH") key = "Crypto"; // Group crypto slightly if needed, or just keep as is.
-      const curr = map.get(key) || { native: 0, base: 0 };
-      curr.native += a.balance;
-      const baseVal = appSettings ? (convertCurrency(a.balance, a.currency, appSettings.primaryCurrency, appSettings) ?? a.balance) : a.balance;
-      curr.base += baseVal;
-      map.set(key, curr);
+  async function submitAdjust() {
+    setAdjustMessage("");
+    const target = Number(adjustTarget);
+    if (Number.isNaN(target)) {
+      setAdjustMessage("請輸入有效的目標餘額。");
+      return;
     }
-    return Array.from(map.entries())
-      .map(([currency, vals]) => {
-        const pct = totalNetWorth === 0 ? 0 : (Math.max(0, vals.base) / Math.max(1, totalNetWorth)) * 100;
-        return {
-          currency,
-          native: vals.native,
-          base: vals.base,
-          pct,
-        };
-      })
-      .sort((a, b) => b.base - a.base)
-      .slice(0, 4); // Top 4
-  }, [rows, appSettings, totalNetWorth]);
-
-  const groupedAccounts = [
-    {
-      name: 'Cash & deposits',
-      types: ["depository", "cash"],
-    },
-    {
-      name: 'Investment',
-      types: ["investment", "other"],
-    },
-    {
-      name: 'Credit · liabilities',
-      types: ["credit", "loan"],
+    try {
+      await adjustBalance.mutateAsync({
+        accountId: adjustingAccountId!,
+        targetBalance: target,
+        date: adjustDate,
+        note: adjustNote.trim() || "手動調整餘額",
+      });
+      setAdjustingAccountId(null);
+    } catch (error) {
+      setAdjustMessage(error instanceof Error ? error.message : "調整失敗。");
     }
-  ].map(group => {
-    const groupRows = rows.filter(a => group.types.includes(a.type));
-    const total = groupRows.reduce((sum, a) => {
-      const conv = appSettings ? convertCurrency(a.balance, a.currency, appSettings.primaryCurrency, appSettings) : null;
-      return sum + (conv ?? a.balance);
-    }, 0);
-    return { name: group.name, rows: groupRows, total };
-  }).filter(g => g.rows.length > 0);
+  }
+
+  const adjustingAccount = adjustingAccountId ? rows.find((r) => r.id === adjustingAccountId) : null;
 
   return (
-    <div style={{ padding: "24px 32px 100px", height: "100%", overflow: "auto" }}>
-      {/* ── Header row ── */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 22 }}>
+    <div className="mx-auto max-w-6xl p-5 lg:p-8">
+      <PageHeader
+        title="帳戶"
+        description="管理現金、銀行、信用卡與投資帳戶，讓淨值和收支有可靠基礎。"
+      />
+      <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
         <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>
-            {rows.length} accounts · {appSettings?.primaryCurrency ?? "TWD"} base
-          </div>
-          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>
-            Accounts
-          </h1>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="ns-btn" onClick={() => downloadCsv("northstar-accounts.csv", exportAccountsCsv(rows))}>
-            <ArrowsClockwise size={14} />Refresh FX
-          </button>
-          <button className="ns-btn">
-            <ArrowsLeftRight size={14} />Transfer
-          </button>
-          <button className="ns-btn primary" onClick={() => { cancelEdit(); setShowForm(true); }}>
-            <Plus size={14} weight="bold" />新增帳戶
-          </button>
-        </div>
-      </div>
-
-      {/* ── Inline form (shown when adding/editing) ── */}
-      {showForm && (
-        <div className="ns-card" style={{ marginBottom: 20, padding: 24 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-            <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 600 }}>
-              {isEditing ? "編輯帳戶" : "新增帳戶"}
-            </h3>
-            <button className="ns-btn ghost" onClick={cancelEdit} style={{ padding: 6 }}>✕</button>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
-            <Field label="名稱">
-              <TextInput
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="台幣生活帳戶"
-              />
-            </Field>
-            <Field label="幣別">
-              <SelectInput
-                value={selectedCurrency}
-                onChange={(e) => setForm({ ...form, currency: e.target.value })}
-              >
-                {currencyOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-              </SelectInput>
-            </Field>
-            <Field label="類型">
-              <SelectInput
-                value={form.type}
-                onChange={(e) => setForm({ ...form, type: e.target.value as AccountType })}
-              >
-                {accountTypes.map((t) => <option key={t} value={t}>{accountTypeLabels[t]}</option>)}
-              </SelectInput>
-            </Field>
-            <Field label="期初餘額">
-              <TextInput
-                type="number"
-                value={form.openingBalance}
-                onChange={(e) => setForm({ ...form, openingBalance: Number(e.target.value) })}
-              />
-            </Field>
-            {form.type === "credit" && (
-              <>
-                <Field label="信用額度">
-                  <TextInput
-                    type="number"
-                    value={form.creditLimit ?? ""}
-                    onChange={(e) => setForm({ ...form, creditLimit: e.target.value ? Number(e.target.value) : null })}
-                    placeholder="120000"
-                  />
-                </Field>
-                <Field label="共用額度群組">
-                  <TextInput
-                    value={form.creditLimitGroup}
-                    onChange={(e) => setForm({ ...form, creditLimitGroup: e.target.value })}
-                    placeholder="玉山信用卡"
-                  />
-                </Field>
-              </>
-            )}
-          </div>
-          <label className="flex items-center gap-2 text-sm" style={{ marginTop: 12 }}>
-            <input
-              type="checkbox"
-              checked={form.isSharedToHousehold}
-              onChange={(e) => setForm({ ...form, isSharedToHousehold: e.target.checked })}
-            />
-            未來納入家庭視圖
-          </label>
-          {message ? <div style={{ marginTop: 8 }}><StatusText>{message}</StatusText></div> : null}
-          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-            <button className="ns-btn primary" onClick={submit}>
-              {isEditing ? "儲存" : "新增"}
-            </button>
-            <button className="ns-btn" onClick={cancelEdit}>取消</button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Currency breakdown card ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14, marginBottom: 20 }}>
-        {currencyStats.map((r, i) => {
-          const isBase = appSettings?.primaryCurrency === r.currency;
-          return (
-            <div className="ns-card" key={r.currency} style={{ padding: 16 }}>
-              <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{r.currency}</div>
-              <div style={{ fontSize: 19, fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums" }}>
-                {formatMoney(r.base, appSettings?.primaryCurrency ?? "TWD")}
-                {!isBase && <span className="muted" style={{ fontSize: 13 }}> · {formatNumber(r.native)}</span>}
+          {/* Type selection step */}
+          {!typeStep ? (
+            <Card title={isEditing ? "編輯帳戶" : "新增帳戶"}>
+              <p className="mb-3 text-sm" style={{ color: "var(--ns-muted)" }}>請先選擇帳戶種類：</p>
+              <div className="grid gap-2">
+                {accountTypes.map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => {
+                      setTypeStep(type);
+                      setForm({ ...emptyAccount, type });
+                      setMessage("");
+                    }}
+                    className="flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition hover:opacity-90"
+                    style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface-strong)" }}
+                  >
+                    <div className="grid size-9 shrink-0 place-items-center rounded-md" style={{ background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
+                      <Bank size={18} weight="duotone" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold">{accountTypeLabels[type]}</div>
+                      <div className="text-xs" style={{ color: "var(--ns-muted)" }}>{accountTypeDescriptions[type]}</div>
+                    </div>
+                  </button>
+                ))}
               </div>
-              <div style={{ height: 6, borderRadius: 99, background: "var(--ns-bg-hover)", marginTop: 8, overflow: "hidden" }}>
-                <div style={{ width: r.pct + "%", height: "100%", background: CHART_COLORS[i % 5] }} />
-              </div>
-              <div className="mono dim" style={{ fontSize: 11, marginTop: 4 }}>{r.pct.toFixed(1)}% of total</div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* ── Account groups ── */}
-      <div style={{ display: "grid", gap: 16 }}>
-        {groupedAccounts.length === 0 ? (
-          <div className="ns-card" style={{ padding: 40, textAlign: "center" }}>
-            <div className="muted" style={{ fontSize: 14 }}>尚無帳戶 · 點擊「新增帳戶」開始</div>
-          </div>
-        ) : (
-          groupedAccounts.map((group) => {
-            const isLiability = group.name.includes("liabilities");
-            return (
-              <div key={group.name} className="ns-card" style={{ padding: 0 }}>
-                <div
-                  style={{
-                    padding: "14px 22px",
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    borderBottom: "1px solid var(--ns-border)",
-                  }}
-                >
-                  <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 15, fontWeight: 500 }}>
-                    {group.name}
-                  </h3>
-                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                    <span className="dim mono" style={{ fontSize: 11 }}>{group.rows.length} accounts</span>
-                    <span
-                      className="num"
-                      style={{
-                        fontSize: 16, fontWeight: 500,
-                        color: isLiability && group.total < 0 ? "var(--ns-neg)" : undefined,
-                      }}
-                    >
-                      {formatMoney(group.total, appSettings?.primaryCurrency ?? "TWD")}
-                    </span>
-                  </div>
+            </Card>
+          ) : (
+            <Card title={isEditing ? `編輯帳戶 · ${accountTypeLabels[typeStep]}` : `新增${accountTypeLabels[typeStep]}`}>
+              <div className="grid gap-3">
+                {!isEditing && (
+                  <button
+                    type="button"
+                    onClick={() => { setTypeStep(null); setMessage(""); }}
+                    className="inline-flex items-center gap-1 text-xs outline-none transition hover:opacity-70"
+                    style={{ color: "var(--ns-accent)" }}
+                  >
+                    ← 重新選擇種類
+                  </button>
+                )}
+                <Field label="名稱">
+                  <TextInput value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="台幣生活帳戶" />
+                </Field>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="幣別">
+                    <SelectInput value={selectedCurrency} onChange={(event) => setForm({ ...form, currency: event.target.value })}>
+                      {currencyOptions.map((currency) => <option key={currency} value={currency}>{currency}</option>)}
+                    </SelectInput>
+                  </Field>
+                  <Field label="期初餘額">
+                    <TextInput type="number" value={form.openingBalance} onChange={(event) => setForm({ ...form, openingBalance: Number(event.target.value) })} />
+                  </Field>
                 </div>
 
-                {group.rows.map((account) => {
-                  const converted = appSettings
-                    ? convertCurrency(account.balance, account.currency, appSettings.primaryCurrency, appSettings)
-                    : null;
-                  const initials = account.name.replace(/\s+/g, "").slice(0, 2).toUpperCase();
-                  const color = colorMap.get(account.id) ?? CHART_COLORS[0];
-                  const isNegative = account.balance < 0;
+                {form.type === "credit" ? (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Field label="信用額度">
+                      <TextInput type="number" value={form.creditLimit ?? ""} onChange={(event) => setForm({ ...form, creditLimit: event.target.value ? Number(event.target.value) : null })} placeholder="120000" />
+                    </Field>
+                    <Field label="共用額度群組">
+                      <TextInput value={form.creditLimitGroup} onChange={(event) => setForm({ ...form, creditLimitGroup: event.target.value })} placeholder="玉山信用卡" />
+                    </Field>
+                  </div>
+                ) : null}
 
-                  return (
-                    <div key={account.id} className="ns-row" style={{ gap: 14 }}>
-                      <Mark label={initials} color={isNegative ? "var(--ns-neg)" : color} size={36} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 14.5, fontWeight: 500 }}>{account.name}</span>
-                          <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px" }}>{account.currency}</span>
-                        </div>
-                        <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
-                          synced {timeAgo(latestTxByAccount.get(account.id) ?? account.updatedAt)}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <div
-                          className="num"
-                          style={{
-                            fontSize: 15, fontWeight: 500,
-                            color: isNegative ? "var(--ns-neg)" : undefined,
-                          }}
-                        >
-                          {formatMoney(converted ?? account.balance, appSettings?.primaryCurrency ?? "TWD")}
-                        </div>
-                        {converted !== null && appSettings && account.currency !== appSettings.primaryCurrency ? (
-                          <div className="muted mono" style={{ fontSize: 11.5 }}>
+                {form.type === "loan" ? (
+                  <>
+                    <Field label="貸款開始日期">
+                      <TextInput type="date" value={form.loanStartDate ?? ""} onChange={(event) => setForm({ ...form, loanStartDate: event.target.value || null })} />
+                    </Field>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Field label="年利率（%）">
+                        <TextInput type="number" step="0.01" value={form.annualInterestRate ?? ""} onChange={(event) => setForm({ ...form, annualInterestRate: event.target.value ? Number(event.target.value) : null })} placeholder="2.5" />
+                      </Field>
+                      <Field label="貸款期限（月）">
+                        <TextInput type="number" value={form.loanTerm ?? ""} onChange={(event) => setForm({ ...form, loanTerm: event.target.value ? Number(event.target.value) : null })} placeholder="240" />
+                      </Field>
+                    </div>
+                  </>
+                ) : null}
+
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={form.isSharedToHousehold} onChange={(event) => setForm({ ...form, isSharedToHousehold: event.target.checked })} />
+                  未來納入家庭視圖
+                </label>
+                {message ? <StatusText>{message}</StatusText> : null}
+                <div className="flex gap-2">
+                  <ActionButton onClick={submit} disabled={createAccount.isPending || updateAccount.isPending}>
+                    {(createAccount.isPending || updateAccount.isPending) ? "儲存中…" : isEditing ? "儲存" : "新增"}
+                  </ActionButton>
+                  <ActionButton variant="secondary" onClick={cancelForm}>取消</ActionButton>
+                </div>
+              </div>
+            </Card>
+          )}
+        </div>
+
+        <Card
+          title="本機帳戶"
+          action={<ActionButton variant="secondary" onClick={() => downloadCsv("northstar-accounts.csv", exportAccountsCsv(rows))}>匯出 CSV</ActionButton>}
+        >
+          <div className="grid gap-5">
+            {groupedAccounts.map((group) => (
+              <section key={group.type} className="grid gap-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold" style={{ color: "var(--ns-muted)" }}>{accountTypeLabels[group.type]}</h3>
+                  <div className="text-xs tabular" style={{ color: "var(--ns-muted)" }}>{group.rows.length} 個帳戶</div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {group.rows.map((account) => {
+                    const converted = appSettings ? convertCurrency(account.balance, account.currency, appSettings.primaryCurrency, appSettings) : null;
+                    const groupCredit = account.type === "credit" && account.creditLimitGroup
+                      ? calculateCreditGroup(account.creditLimitGroup, rows)
+                      : null;
+                    return (
+                      <div key={account.id} className="rounded-md border p-4" style={{ borderColor: "var(--ns-border)" }}>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="grid size-10 place-items-center rounded-md" style={{ background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
+                              <Bank size={20} weight="duotone" />
+                            </div>
+                            <div>
+                              <div className="font-semibold">{account.name}</div>
+                              <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{accountTypeLabels[account.type]} · {account.currency}</div>
+                            </div>
+                          </div>
+                          <div className="tabular text-right font-semibold">
                             {formatNumber(account.balance)}
+                            {converted !== null && appSettings && account.currency !== appSettings.primaryCurrency ? (
+                              <div className="text-xs font-normal" style={{ color: "var(--ns-muted)" }}>{formatMoney(converted, appSettings.primaryCurrency)}</div>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {account.type === "credit" ? (
+                          <div className="mt-3 rounded-md p-3 text-sm" style={{ background: "var(--ns-surface-strong)" }}>
+                            <div className="flex justify-between gap-3">
+                              <span style={{ color: "var(--ns-muted)" }}>已用額度</span>
+                              <span className="tabular">{formatNumber(Math.max(0, -account.balance))} / {formatNumber(account.creditLimit ?? 0)}</span>
+                            </div>
+                            {groupCredit ? <div className="mt-1 flex justify-between gap-3"><span style={{ color: "var(--ns-muted)" }}>共用額度 {groupCredit.name}</span><span className="tabular">{formatNumber(groupCredit.used)} / {formatNumber(groupCredit.limit)}</span></div> : null}
                           </div>
                         ) : null}
+
+                        {account.type === "loan" && (account.annualInterestRate !== null || account.loanTerm !== null) ? (
+                          <div className="mt-3 rounded-md p-3 text-sm" style={{ background: "var(--ns-surface-strong)" }}>
+                            {account.loanStartDate ? <div className="flex justify-between gap-3"><span style={{ color: "var(--ns-muted)" }}>開始日期</span><span>{account.loanStartDate}</span></div> : null}
+                            {account.annualInterestRate !== null ? <div className="flex justify-between gap-3"><span style={{ color: "var(--ns-muted)" }}>年利率</span><span>{account.annualInterestRate}%</span></div> : null}
+                            {account.loanTerm !== null ? <div className="flex justify-between gap-3"><span style={{ color: "var(--ns-muted)" }}>期限</span><span>{account.loanTerm} 個月</span></div> : null}
+                          </div>
+                        ) : null}
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <ActionButton variant="secondary" onClick={() => startEdit(account)}><PencilSimple size={16} />編輯</ActionButton>
+                          <ActionButton variant="secondary" onClick={() => openAdjust(account)}><Scales size={16} />調整餘額</ActionButton>
+                          <ActionButton
+                            variant="danger"
+                            onClick={async () => {
+                              try {
+                                await deleteAccount.mutateAsync(account.id);
+                              } catch (error) {
+                                setMessage(error instanceof Error ? error.message : "刪除失敗。");
+                              }
+                            }}
+                          >
+                            <Trash size={16} />刪除
+                          </ActionButton>
+                        </div>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-                        <button
-                          className="ns-btn ghost"
-                          style={{ padding: 6 }}
-                          onClick={() => startEdit(account)}
-                          title="編輯"
-                        >
-                          <PencilSimple size={14} />
-                        </button>
-                        <button
-                          className="ns-btn ghost"
-                          style={{ padding: 6, color: "var(--ns-neg)" }}
-                          onClick={async () => {
-                            try {
-                              await deleteAccount.mutateAsync(account.id);
-                            } catch (error) {
-                              setMessage(error instanceof Error ? error.message : "刪除失敗。");
-                            }
-                          }}
-                          title="刪除"
-                        >
-                          <Trash size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })
-        )}
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+            {rows.length === 0 ? (
+              <p className="text-sm" style={{ color: "var(--ns-muted)" }}>尚未建立任何帳戶，從左側新增第一個帳戶。</p>
+            ) : null}
+          </div>
+        </Card>
       </div>
+
+      {/* Adjust balance modal */}
+      {adjustingAccount ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAdjustingAccountId(null)}>
+          <div
+            className="w-full max-w-md rounded-xl border shadow-2xl"
+            style={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="border-b px-5 py-4" style={{ borderColor: "var(--ns-border)" }}>
+              <h2 className="text-base font-semibold">調整餘額 · {adjustingAccount.name}</h2>
+              <p className="mt-0.5 text-xs" style={{ color: "var(--ns-muted)" }}>
+                目前餘額：{formatNumber(adjustingAccount.balance)} {adjustingAccount.currency}
+              </p>
+            </header>
+            <div className="grid gap-3 px-5 py-4">
+              <Field label="目標餘額">
+                <TextInput
+                  type="number"
+                  value={adjustTarget}
+                  onChange={(e) => setAdjustTarget(e.target.value)}
+                  placeholder={String(adjustingAccount.balance)}
+                />
+              </Field>
+              <DateTimeField label="調整時間" value={adjustDate} onChange={setAdjustDate} />
+              <Field label="備註（選填）">
+                <TextInput value={adjustNote} onChange={(e) => setAdjustNote(e.target.value)} placeholder="例如：對帳後修正" />
+              </Field>
+              {adjustMessage ? <StatusText>{adjustMessage}</StatusText> : null}
+              <div className="flex gap-2">
+                <ActionButton onClick={submitAdjust} disabled={adjustBalance.isPending}>
+                  {adjustBalance.isPending ? "調整中…" : "確認調整"}
+                </ActionButton>
+                <ActionButton variant="secondary" onClick={() => setAdjustingAccountId(null)}>取消</ActionButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function calculateCreditGroup(name: string, accounts: Account[]) {
+  const groupRows = accounts.filter((account) => account.type === "credit" && account.creditLimitGroup === name);
+  const used = groupRows.reduce((sum, account) => sum + Math.max(0, -account.balance), 0);
+  const limit = Math.max(...groupRows.map((account) => account.creditLimit ?? 0), 0);
+  return { name, used, limit };
 }
 
 function buildConfiguredCurrencyOptions(settings: AppSettings | undefined) {
   const values = [
     settings?.primaryCurrency ?? "TWD",
-    ...(settings?.exchangeRates.flatMap((r) => [r.from, r.to]) ?? []),
+    ...(settings?.exchangeRates.flatMap((rate) => [rate.from, rate.to]) ?? []),
   ];
-  return [...new Set(values.map((v) => v.trim().toUpperCase()).filter(Boolean))];
+  return [...new Set(values.map((value) => value.trim().toUpperCase()).filter(Boolean))];
 }

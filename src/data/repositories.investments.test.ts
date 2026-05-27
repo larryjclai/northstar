@@ -17,6 +17,9 @@ const account: Account = {
   creditLimit: null,
   creditLimitGroup: "",
   isSharedToHousehold: false,
+  loanStartDate: null,
+  annualInterestRate: null,
+  loanTerm: null,
 };
 
 const buyDraft: InvestmentDraft = {
