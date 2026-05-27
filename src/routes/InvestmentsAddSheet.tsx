@@ -1,4 +1,5 @@
 import { ChartLineUp, StackSimple, X } from "@phosphor-icons/react";
+import { DateTimeField } from "../components/DateTimeField";
 import { useEffect, useMemo, useState } from "react";
 import { ActionButton } from "../components/ActionButton";
 import { Field, SelectInput, TextInput } from "../components/Field";
@@ -8,7 +9,7 @@ import { StatusText } from "../components/StatusText";
 import { TickerSearchField } from "../components/TickerSearchField";
 import { useRepositoryMutation } from "../data/hooks";
 import type { InvestmentDraft, PortfolioAssetDraft } from "../data/repositories";
-import { calculateInvestmentCashDelta, formatNumber, todayInTimezone, type Account, type InvestmentAction, type PortfolioAsset } from "../domain";
+import { calculateInvestmentCashDelta, formatNumber, nowAsDatetimeLocal, type Account, type InvestmentAction, type PortfolioAsset } from "../domain";
 import { YahooFinanceProvider } from "../features/market-data/yahooFinanceProvider";
 import { useUiPreferences } from "../state/uiPreferences";
 
@@ -35,7 +36,7 @@ export function emptyTransactionDraft(timezone: string): InvestmentDraft {
     name: "",
     currency: "TWD",
     linkedAccountId: null,
-    date: todayInTimezone(timezone),
+    date: nowAsDatetimeLocal(timezone),
     action: "buy",
     price: 0,
     quantity: 0,
@@ -287,13 +288,11 @@ export function InvestmentEntryDrawer({
                       ))}
                     </SelectInput>
                   </Field>
-                  <Field label="日期">
-                    <TextInput
-                      type="date"
-                      value={transactionForm.date}
-                      onChange={(event) => setTransactionForm({ ...transactionForm, date: event.target.value })}
-                    />
-                  </Field>
+                  <DateTimeField
+                    label="日期 + 時間"
+                    value={transactionForm.date}
+                    onChange={(value) => setTransactionForm({ ...transactionForm, date: value })}
+                  />
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
                   <Field label="Ticker">

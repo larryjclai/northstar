@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ActionButton } from "../components/ActionButton";
+import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { Field, TextInput } from "../components/Field";
@@ -32,13 +33,15 @@ import {
 import { useBackfillAssetProfiles, useRefreshDailyPrices, useRefreshQuotes } from "../features/market-data/useMarketRefresh";
 import { useUiPreferences, type NameLocalePreference } from "../state/uiPreferences";
 import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
+import { TransactionsRoute } from "./TransactionsRoute";
 
-type InvestmentTab = "accounts" | "performance" | "holdings";
+type InvestmentTab = "accounts" | "performance" | "holdings" | "transactions";
 
 const tabOptions: { value: InvestmentTab; label: string; icon: React.ReactNode }[] = [
   { value: "accounts", label: "帳戶", icon: <Bank size={16} weight="duotone" /> },
   { value: "performance", label: "績效", icon: <ChartLineUp size={16} weight="duotone" /> },
   { value: "holdings", label: "持倉", icon: <ListChecks size={16} weight="duotone" /> },
+  { value: "transactions", label: "交易記錄", icon: <ArrowsDownUp size={16} weight="duotone" /> },
 ];
 
 export function InvestmentsRoute() {
@@ -102,6 +105,31 @@ export function InvestmentsRoute() {
     }
   }
 
+  async function backfillHistoricalPrices(range: "1y" | "5y") {
+    setStatusMessage("");
+    const tickers = [...new Set(assetRows.filter((a) => a.ticker.trim() && !a.deletedAt).map((a) => a.ticker.trim().toUpperCase()))];
+    if (tickers.length === 0) {
+      toast.info("尚無持倉可回補");
+      return;
+    }
+    const progressId = toast.info("回補歷史股價中", { description: `${tickers.length} 檔標的，${range} 資料`, durationMs: 0 });
+    try {
+      const result = await refreshDailyPrices.mutateAsync({ tickers, range });
+      toast.dismiss(progressId);
+      if (result.failed.length) {
+        toast.warning("部分股價未取得", { description: `已儲存 ${result.saved} 筆。`, detail: result.failed.join("\n") });
+      } else {
+        toast.success(`已回補 ${result.saved} 筆歷史股價`);
+      }
+      setStatusMessage(`已回補 ${result.saved} 筆歷史股價。`);
+    } catch (error) {
+      toast.dismiss(progressId);
+      const message = error instanceof Error ? error.message : "歷史股價回補失敗。";
+      toast.error("歷史股價回補失敗", { description: message });
+      setStatusMessage(message);
+    }
+  }
+
   async function backfillClassifications() {
     setStatusMessage("");
     const candidates = assetRows.filter((asset) => asset.ticker.trim() && !asset.assetType);
@@ -141,38 +169,42 @@ export function InvestmentsRoute() {
   }
 
   return (
-    <div style={{ padding: "24px 32px 100px", overflowY: "auto" }}>
-      {/* ── Header row ── */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24 }}>
-        <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Portfolio</div>
-          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.5, fontWeight: 600 }}>
-            持倉投資
-          </h1>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <div className="ns-seg">
-            {tabOptions.map((option) => (
-              <button key={option.value} aria-selected={tab === option.value} onClick={() => changeTab(option.value)}>
-                {option.label}
-              </button>
-            ))}
-          </div>
-          <button className="ns-btn" onClick={refreshLatestQuotes} disabled={refreshQuotes.isPending}>
-            <ArrowsClockwise size={14} />{refreshQuotes.isPending ? "更新中" : "更新報價"}
-          </button>
-          {tab === "holdings" && (
-            <button className="ns-btn" onClick={backfillClassifications} disabled={backfillAssetProfiles.isPending}>
-              <ArrowsClockwise size={14} />{backfillAssetProfiles.isPending ? "回補中" : "回補資料"}
-            </button>
-          )}
-          <button className="ns-btn primary" onClick={() => setAddOpen(true)}>
-            <PlusCircle size={14} />新增部位
-          </button>
+    <div className="mx-auto max-w-6xl p-5 lg:p-8">
+      <PageHeader
+        title="投資"
+        description="把帳戶、績效、持倉合而為一。每筆持倉都綁定券商，方便看出每家券商的損益。"
+        action={
+          <ActionButton onClick={() => setAddOpen(true)} size="sm">
+            <PlusCircle size={16} />新增部位
+          </ActionButton>
+        }
+      />
+
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <SegmentedControl value={tab} options={tabOptions} onChange={changeTab} />
+        <div className="flex flex-wrap gap-2">
+          <ActionButton variant="secondary" onClick={refreshLatestQuotes} disabled={refreshQuotes.isPending}>
+            <ArrowsClockwise size={16} />{refreshQuotes.isPending ? "更新中" : "更新報價"}
+          </ActionButton>
+          {tab === "holdings" ? (
+            <ActionButton variant="secondary" onClick={backfillClassifications} disabled={backfillAssetProfiles.isPending}>
+              <ArrowsClockwise size={16} />{backfillAssetProfiles.isPending ? "回補中" : "回補分類"}
+            </ActionButton>
+          ) : null}
+          {tab === "performance" ? (
+            <>
+              <ActionButton variant="secondary" onClick={() => backfillHistoricalPrices("1y")} disabled={refreshDailyPrices.isPending}>
+                <ArrowsClockwise size={16} />{refreshDailyPrices.isPending ? "回補中" : "回補 1Y 股價"}
+              </ActionButton>
+              <ActionButton variant="secondary" onClick={() => backfillHistoricalPrices("5y")} disabled={refreshDailyPrices.isPending}>
+                <ArrowsClockwise size={16} />回補 5Y 股價
+              </ActionButton>
+            </>
+          ) : null}
         </div>
       </div>
 
-      {statusMessage ? <div style={{ marginBottom: 12 }}><StatusText>{statusMessage}</StatusText></div> : null}
+      {statusMessage ? <div className="mb-4"><StatusText>{statusMessage}</StatusText></div> : null}
 
       {tab === "accounts" ? (
         <AccountsTab
@@ -191,6 +223,7 @@ export function InvestmentsRoute() {
           toPrimary={toPrimary}
           dailyPrices={dailyPriceRows}
           manualPriceSnapshots={manualSnapshotRows}
+          quoteMap={quoteMap}
           refreshing={refreshQuotes.isPending || refreshDailyPrices.isPending}
         />
       ) : null}
@@ -204,6 +237,7 @@ export function InvestmentsRoute() {
           manualPriceSnapshots={manualSnapshotRows}
         />
       ) : null}
+      {tab === "transactions" ? <TransactionsRoute /> : null}
 
       <InvestmentEntryDrawer
         open={addOpen}
@@ -466,6 +500,7 @@ function PerformanceTab({
   toPrimary,
   dailyPrices,
   manualPriceSnapshots,
+  quoteMap,
   refreshing,
 }: {
   positions: HoldingPosition[];
@@ -475,6 +510,7 @@ function PerformanceTab({
   toPrimary: (value: number, currency: string, asOfDate?: string) => number;
   dailyPrices: DailyPrice[];
   manualPriceSnapshots: ManualPriceSnapshot[];
+  quoteMap: Record<string, DomainMarketQuote | undefined>;
   refreshing: boolean;
 }) {
   const [range, setRange] = useState<PerformanceRange>("1Y");
@@ -504,6 +540,7 @@ function PerformanceTab({
     range,
     customStart,
     customEnd,
+    quoteMap,
   });
 
   return (
@@ -546,7 +583,7 @@ function PerformanceTab({
             </Field>
           </div>
         ) : null}
-        {trend.length > 1 ? (
+        {trend.length > 0 ? (
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={trend}>
@@ -749,153 +786,106 @@ function HoldingsTab({
 
   const sorted = sortHoldings(positions, sort, accountMap, assetsById, nameLocale);
 
-  const HOLDING_COLORS = [
-    "var(--ns-chart-1)", "var(--ns-chart-2)", "var(--ns-chart-3)",
-    "var(--ns-chart-4)", "var(--ns-chart-5)",
-  ];
-
   return (
     <>
-      <div className="ns-card" style={{ padding: 0, overflow: "hidden" }}>
-        {/* Table header */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "2.4fr 0.8fr 1fr 1fr 1.1fr 0.9fr 80px",
-            padding: "10px 22px",
-            borderBottom: "1px solid var(--ns-border)",
-            fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase",
-            color: "var(--ns-fg-dim)", fontFamily: "var(--ns-font-mono)",
-          }}
-        >
-          {(["ticker", "quantity", "averageCost", "marketPrice", "marketValue", "unrealizedGainPercent"] as HoldingsSortKey[]).map((key, i) => {
-            const labels: Record<string, string> = {
-              ticker: "Symbol", quantity: "股數", averageCost: "均價",
-              marketPrice: "現價", marketValue: "市值", unrealizedGainPercent: "報酬率",
-            };
-            const isActive = sort.key === key;
-            const align = i === 0 ? "left" : "right";
-            return (
-              <button
-                key={key}
-                onClick={() => toggleSort(key)}
-                style={{
-                  background: "none", border: "none", cursor: "pointer", padding: 0,
-                  display: "inline-flex", alignItems: "center", gap: 4,
-                  justifyContent: align === "right" ? "flex-end" : "flex-start",
-                  color: isActive ? "var(--ns-accent)" : "var(--ns-fg-dim)",
-                  fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit",
-                  textTransform: "inherit",
-                }}
-              >
-                {align === "right" && isActive && (
-                  sort.direction === "asc" ? <ArrowUp size={10} weight="bold" /> : <ArrowDown size={10} weight="bold" />
-                )}
-                {labels[key]}
-                {align === "left" && isActive && (
-                  sort.direction === "asc" ? <ArrowUp size={10} weight="bold" /> : <ArrowDown size={10} weight="bold" />
-                )}
-              </button>
-            );
-          })}
-          <span />
+      <Card title={`持倉 (${positions.length})`}>
+        <div className="overflow-x-auto">
+          <table className="w-full table-auto text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
+                <SortableHeader label="Ticker" sortKey="ticker" sort={sort} onToggle={toggleSort} />
+                <SortableHeader label="名稱" sortKey="name" sort={sort} onToggle={toggleSort} />
+                <SortableHeader label="券商" sortKey="account" sort={sort} onToggle={toggleSort} />
+                <SortableHeader label="股數" sortKey="quantity" sort={sort} onToggle={toggleSort} align="right" />
+                <th className="hidden py-2 text-right 2xl:table-cell">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("averageCost")}
+                    className="inline-flex items-center gap-1 select-none text-xs uppercase tracking-wide outline-none transition hover:opacity-80"
+                    style={{ color: sort.key === "averageCost" ? "var(--ns-accent)" : "var(--ns-muted)" }}
+                  >
+                    <span>均價</span>
+                    {sort.key === "averageCost"
+                      ? (sort.direction === "asc" ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />)
+                      : <ArrowsDownUp size={11} weight="bold" />}
+                  </button>
+                </th>
+                <th className="hidden py-2 text-right 2xl:table-cell">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("marketPrice")}
+                    className="inline-flex items-center gap-1 select-none text-xs uppercase tracking-wide outline-none transition hover:opacity-80"
+                    style={{ color: sort.key === "marketPrice" ? "var(--ns-accent)" : "var(--ns-muted)" }}
+                  >
+                    <span>現價</span>
+                    {sort.key === "marketPrice"
+                      ? (sort.direction === "asc" ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />)
+                      : <ArrowsDownUp size={11} weight="bold" />}
+                  </button>
+                </th>
+                <SortableHeader label="市值" sortKey="marketValue" sort={sort} onToggle={toggleSort} align="right" />
+                <SortableHeader label="損益" sortKey="unrealizedGain" sort={sort} onToggle={toggleSort} align="right" />
+                <SortableHeader label="報酬率" sortKey="unrealizedGainPercent" sort={sort} onToggle={toggleSort} align="right" />
+                <th className="py-2 text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((position) => {
+                const account = position.accountId ? accountMap.get(position.accountId) : null;
+                const asset = assetsById.get(position.assetId) ?? null;
+                const displayName = asset
+                  ? resolveAssetName(asset, nameLocale)
+                  : position.name;
+                const pnlTone = position.unrealizedGain >= 0 ? "positive" : "negative";
+                return (
+                  <tr key={`${position.assetId}-${position.accountId ?? "none"}`} className="border-t" style={{ borderColor: "var(--ns-border)" }}>
+                    <td className="py-3 font-semibold whitespace-nowrap">{position.ticker}</td>
+                    <td className="max-w-[14rem] py-3" title={displayName}>
+                      <span className="block truncate">{displayName}</span>
+                    </td>
+                    <td className="max-w-[11rem] py-3" title={account ? account.name : "未指定"}>
+                      <span className="block truncate">{account ? account.name : "未指定"}</span>
+                    </td>
+                    <td className="py-3 text-right tabular whitespace-nowrap">{formatQuantity(position.quantity)}</td>
+                    <td className="hidden py-3 text-right tabular whitespace-nowrap 2xl:table-cell">{formatPrice(position.averageCost)}</td>
+                    <td className="hidden py-3 text-right tabular whitespace-nowrap 2xl:table-cell">
+                      {position.marketPrice !== null ? formatPrice(position.marketPrice) : "—"}
+                    </td>
+                    <td className="py-3 text-right tabular whitespace-nowrap">
+                      {formatNumber(position.marketValue)} <span style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
+                    </td>
+                    <td
+                      className="py-3 text-right tabular whitespace-nowrap"
+                      style={{ color: pnlTone === "positive" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}
+                    >
+                      {position.unrealizedGain >= 0 ? "+" : ""}{formatNumber(position.unrealizedGain)}
+                    </td>
+                    <td
+                      className="py-3 text-right tabular whitespace-nowrap"
+                      style={{ color: pnlTone === "positive" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}
+                    >
+                      {position.unrealizedGainPercent >= 0 ? "+" : ""}{position.unrealizedGainPercent.toFixed(2)}%
+                    </td>
+                    <td className="py-3 text-right whitespace-nowrap">
+                      <ActionButton
+                        variant="ghost"
+                        onClick={() => asset ? startEdit(asset) : undefined}
+                        disabled={!asset}
+                        title={asset?.holdingSource === "transactions" ? "編輯分類資料" : "編輯持倉"}
+                      >
+                        <PencilSimple size={16} />編輯
+                      </ActionButton>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-
-        {/* Rows */}
-        {sorted.map((position, i) => {
-          const account = position.accountId ? accountMap.get(position.accountId) : null;
-          const asset = assetsById.get(position.assetId) ?? null;
-          const displayName = asset ? resolveAssetName(asset, nameLocale) : position.name;
-          const isPos = position.unrealizedGain >= 0;
-          const color = HOLDING_COLORS[i % 5];
-          const isTW = position.ticker.includes(".TW") || position.ticker.includes(".TWO");
-
-          return (
-            <div
-              key={`${position.assetId}-${position.accountId ?? "none"}`}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "2.4fr 0.8fr 1fr 1fr 1.1fr 0.9fr 80px",
-                alignItems: "center",
-                padding: "14px 22px",
-                borderBottom: "1px solid var(--ns-border)",
-              }}
-            >
-              {/* Symbol + name */}
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div
-                  style={{
-                    width: 32, height: 32, flexShrink: 0,
-                    background: isTW ? "var(--ns-chart-1)" : color,
-                    color: "var(--ns-bg)", borderRadius: "var(--ns-r-sm)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontFamily: "var(--ns-font-mono)", fontWeight: 600, fontSize: 10,
-                    letterSpacing: "-0.02em",
-                  }}
-                >
-                  {position.ticker.slice(0, 4)}
-                </div>
-                <div>
-                  <div className="mono" style={{ fontSize: 13.5, fontWeight: 500 }}>{position.ticker}</div>
-                  <div className="muted" style={{ fontSize: 11.5 }}>
-                    {displayName}{account ? ` · ${account.name}` : ""}
-                  </div>
-                </div>
-              </div>
-
-              {/* Qty */}
-              <span className="num muted" style={{ textAlign: "right", fontSize: 13 }}>
-                {formatQuantity(position.quantity)}
-              </span>
-
-              {/* Avg cost */}
-              <span className="num muted" style={{ textAlign: "right", fontSize: 13 }}>
-                {formatPrice(position.averageCost)}
-              </span>
-
-              {/* Last price */}
-              <span className="num" style={{ textAlign: "right", fontSize: 13 }}>
-                {position.marketPrice !== null ? formatPrice(position.marketPrice) : "—"}
-              </span>
-
-              {/* Market value */}
-              <span className="num" style={{ textAlign: "right", fontSize: 14, fontWeight: 500 }}>
-                {formatNumber(position.marketValue)}{" "}
-                <span className="muted" style={{ fontSize: 11 }}>{position.currency}</span>
-              </span>
-
-              {/* P/L % */}
-              <div style={{ textAlign: "right" }}>
-                <div className={"num " + (isPos ? "pos" : "neg")} style={{ fontSize: 13, fontWeight: 500 }}>
-                  {isPos ? "+" : ""}{position.unrealizedGainPercent.toFixed(2)}%
-                </div>
-                <div className={"num " + (isPos ? "pos" : "neg")} style={{ fontSize: 11 }}>
-                  {isPos ? "+" : ""}{formatNumber(position.unrealizedGain)}
-                </div>
-              </div>
-
-              {/* Edit action */}
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
-                <button
-                  className="ns-btn ghost"
-                  style={{ padding: 6 }}
-                  onClick={() => asset ? startEdit(asset) : undefined}
-                  disabled={!asset}
-                  title={asset?.holdingSource === "transactions" ? "編輯分類資料" : "編輯持倉"}
-                >
-                  <PencilSimple size={14} />
-                </button>
-              </div>
-            </div>
-          );
-        })}
-
-        <div style={{ padding: "14px 22px" }}>
-          <Link to="/transactions" className="muted" style={{ fontSize: 12, textDecoration: "none" }}>
-            查看交易明細 →
-          </Link>
+        <div className="mt-4 flex flex-wrap gap-3 text-xs" style={{ color: "var(--ns-muted)" }}>
+          <Link to="/transactions">查看交易明細</Link>
         </div>
-      </div>
+      </Card>
       {editingAsset && editForm ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center" onClick={() => setEditingAsset(null)}>
           <div
@@ -1118,6 +1108,7 @@ function buildPerformanceTrend({
   range,
   customStart,
   customEnd,
+  quoteMap,
 }: {
   positions: HoldingPosition[];
   assets: PortfolioAsset[];
@@ -1128,6 +1119,7 @@ function buildPerformanceTrend({
   range: PerformanceRange;
   customStart: string;
   customEnd: string;
+  quoteMap: Record<string, DomainMarketQuote | undefined>;
 }) {
   const end = range === "Custom" ? customEnd : todayDate();
   const start = range === "Custom" ? customStart : rangeStartDate(range, end);
@@ -1183,12 +1175,15 @@ function buildPerformanceTrend({
     pricesByTicker.set(ticker, rows.sort((a, b) => a.date.localeCompare(b.date)));
   }
 
-  // Collect dates from both sources.
+  // Collect dates from both sources, plus today from live quotes when available.
   const trackedDates = [...pricesByTicker.values()].flat().map((p) => p.date);
   const manualDates = [...manualSnapshotsByAsset.values()].flat()
     .filter((s) => s.date >= start && s.date <= end)
     .map((s) => s.date);
-  const dates = [...new Set([...trackedDates, ...manualDates])].sort();
+  const today = todayDate();
+  const hasLiveQuotes = positions.some((p) => quoteMap[p.ticker.toUpperCase()]);
+  const quoteDates = (hasLiveQuotes && today >= start && today <= end) ? [today] : [];
+  const dates = [...new Set([...trackedDates, ...manualDates, ...quoteDates])].sort();
 
   return dates.map((date) => {
     const value = positions.reduce((sum, position) => {
@@ -1198,13 +1193,25 @@ function buildPerformanceTrend({
       if (manualAssetIds.has(position.assetId)) {
         const snaps = manualSnapshotsByAsset.get(position.assetId) ?? [];
         const snap = latestSnapshotOnOrBefore(snaps, date);
-        if (!snap) return sum;
-        return sum + toPrimary(snap.price * position.quantity, position.currency, date);
+        if (snap) return sum + toPrimary(snap.price * position.quantity, position.currency, date);
+        // For today with no manual snapshot, fall back to live quote.
+        if (date === today) {
+          const quote = quoteMap[position.ticker.toUpperCase()];
+          if (quote) return sum + toPrimary(quote.price * position.quantity, quote.currency || position.currency, date);
+        }
+        return sum;
       }
 
       const history = pricesByTicker.get(position.ticker.toUpperCase()) ?? [];
       const price = latestPriceOnOrBefore(history, date);
-      if (!price) return sum;
+      // For today's date, fall back to live quote if no daily close exists yet.
+      if (!price) {
+        if (date === today) {
+          const quote = quoteMap[position.ticker.toUpperCase()];
+          if (quote) return sum + toPrimary(quote.price * position.quantity, quote.currency || position.currency, date);
+        }
+        return sum;
+      }
       return sum + toPrimary(price.close * position.quantity, price.currency || position.currency, date);
     }, 0);
     return {
