@@ -223,9 +223,15 @@ export function CashFlowEntryDrawer({
                 </div>
               </div>
 
-              <div>
-                <div style={{ fontSize: 13, color: "var(--ns-fg-muted)", marginBottom: 8 }}>備註</div>
-                <input type="text" value={transferForm.note} onChange={e => setTransferForm({ ...transferForm, note: e.target.value })} placeholder="選填" style={{ width: "100%", padding: "12px 16px", borderRadius: 10, border: "1px solid var(--ns-border)", background: "var(--ns-surface)", color: "var(--ns-fg)", outline: "none" }} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: 13, color: "var(--ns-fg-muted)", marginBottom: 8 }}>外加手續費 (選填)</div>
+                  <input type="number" value={transferForm.feeAmount || ""} onChange={e => setTransferForm({ ...transferForm, feeAmount: Number(e.target.value) })} placeholder="0" style={{ width: "100%", padding: "12px 16px", borderRadius: 10, border: "1px solid var(--ns-border)", background: "var(--ns-surface)", color: "var(--ns-fg)", outline: "none" }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, color: "var(--ns-fg-muted)", marginBottom: 8 }}>備註</div>
+                  <input type="text" value={transferForm.note} onChange={e => setTransferForm({ ...transferForm, note: e.target.value })} placeholder="選填" style={{ width: "100%", padding: "12px 16px", borderRadius: 10, border: "1px solid var(--ns-border)", background: "var(--ns-surface)", color: "var(--ns-fg)", outline: "none" }} />
+                </div>
               </div>
             </div>
           ) : (
@@ -376,9 +382,17 @@ export function CashFlowEntryDrawer({
                 </div>
               )}
 
-              <div>
-                <div style={{ fontSize: 13, color: "var(--ns-fg-muted)", marginBottom: 8 }}>備註</div>
-                <input type="text" value={ledgerForm.note} onChange={e => setLedgerForm({ ...ledgerForm, note: e.target.value })} placeholder="選填" style={{ width: "100%", padding: "12px 16px", borderRadius: 10, border: "1px solid var(--ns-border)", background: "var(--ns-surface)", color: "var(--ns-fg)", outline: "none" }} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                {mode === "expense" ? (
+                  <div>
+                    <div style={{ fontSize: 13, color: "var(--ns-fg-muted)", marginBottom: 8 }}>外加手續費 (選填)</div>
+                    <input type="number" value={ledgerForm.feeAmount || ""} onChange={e => setLedgerForm({ ...ledgerForm, feeAmount: Number(e.target.value) })} placeholder="0" style={{ width: "100%", padding: "12px 16px", borderRadius: 10, border: "1px solid var(--ns-border)", background: "var(--ns-surface)", color: "var(--ns-fg)", outline: "none" }} />
+                  </div>
+                ) : null}
+                <div style={{ gridColumn: mode === "expense" ? "auto" : "span 2" }}>
+                  <div style={{ fontSize: 13, color: "var(--ns-fg-muted)", marginBottom: 8 }}>備註</div>
+                  <input type="text" value={ledgerForm.note} onChange={e => setLedgerForm({ ...ledgerForm, note: e.target.value })} placeholder="選填" style={{ width: "100%", padding: "12px 16px", borderRadius: 10, border: "1px solid var(--ns-border)", background: "var(--ns-surface)", color: "var(--ns-fg)", outline: "none" }} />
+                </div>
               </div>
             </div>
           )}

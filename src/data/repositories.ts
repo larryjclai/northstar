@@ -46,6 +46,7 @@ export interface LedgerDraft {
   settlementStatus: "settled" | "receivable" | "payable";
   note: string;
   groupId?: string | null;
+  feeAmount?: number;
 }
 
 export type AccountDraft = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm">;
@@ -75,6 +76,7 @@ export interface TransferDraft {
   sourceAmount: number;
   destinationAmount?: number;
   note: string;
+  feeAmount?: number;
 }
 
 export interface InvestmentDraft {
@@ -472,7 +474,28 @@ class BrowserFinanceRepository implements FinanceRepository {
   }
 
   async createLedgerTransaction(input: LedgerDraft) {
-    this.data.ledgerTransactions.push(createLedgerRow(input));
+    if (input.feeAmount && input.feeAmount > 0) {
+      const groupId = input.groupId || createId("group");
+      this.data.ledgerTransactions.push(
+        createLedgerRow({ ...input, groupId }),
+        createLedgerRow({
+          accountId: input.accountId,
+          date: input.date,
+          name: "手續費",
+          amount: -Math.abs(input.feeAmount),
+          currency: input.currency,
+          category: "手續費",
+          subcategory: "海外交易手續費",
+          merchant: input.merchant,
+          entryType: "expense",
+          settlementStatus: "settled",
+          note: "由系統自動建立的手續費紀錄",
+          groupId,
+        })
+      );
+    } else {
+      this.data.ledgerTransactions.push(createLedgerRow(input));
+    }
     this.recompute();
     await this.persist();
   }
@@ -531,6 +554,22 @@ class BrowserFinanceRepository implements FinanceRepository {
         groupId,
       }),
     );
+    if (input.feeAmount && input.feeAmount > 0) {
+      this.data.ledgerTransactions.push(createLedgerRow({
+        accountId: input.sourceAccountId,
+        date: input.date,
+        name: "手續費",
+        amount: -Math.abs(input.feeAmount),
+        currency: input.sourceCurrency,
+        category: "手續費",
+        subcategory: "轉帳手續費",
+        merchant: "",
+        entryType: "expense",
+        settlementStatus: "settled",
+        note: "由系統自動建立的轉帳手續費紀錄",
+        groupId,
+      }));
+    }
     this.recompute();
     await this.persist();
   }
@@ -1298,7 +1337,26 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async createLedgerTransaction(input: LedgerDraft) {
-    await this.insertLedgerRow(createLedgerRow(input));
+    if (input.feeAmount && input.feeAmount > 0) {
+      const groupId = input.groupId || createId("group");
+      await this.insertLedgerRow(createLedgerRow({ ...input, groupId }));
+      await this.insertLedgerRow(createLedgerRow({
+        accountId: input.accountId,
+        date: input.date,
+        name: "手續費",
+        amount: -Math.abs(input.feeAmount),
+        currency: input.currency,
+        category: "手續費",
+        subcategory: "海外交易手續費",
+        merchant: input.merchant,
+        entryType: "expense",
+        settlementStatus: "settled",
+        note: "由系統自動建立的手續費紀錄",
+        groupId,
+      }));
+    } else {
+      await this.insertLedgerRow(createLedgerRow(input));
+    }
     await this.recomputeSqliteAccounts();
   }
 
@@ -1352,6 +1410,22 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       note: input.note,
       groupId,
     }));
+    if (input.feeAmount && input.feeAmount > 0) {
+      await this.insertLedgerRow(createLedgerRow({
+        accountId: input.sourceAccountId,
+        date: input.date,
+        name: "手續費",
+        amount: -Math.abs(input.feeAmount),
+        currency: input.sourceCurrency,
+        category: "手續費",
+        subcategory: "轉帳手續費",
+        merchant: "",
+        entryType: "expense",
+        settlementStatus: "settled",
+        note: "由系統自動建立的轉帳手續費紀錄",
+        groupId,
+      }));
+    }
     await this.recomputeSqliteAccounts();
   }
 
