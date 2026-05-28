@@ -1,10 +1,6 @@
-import { ChartLineUp, StackSimple, X } from "@phosphor-icons/react";
-import { DateTimeField } from "../components/DateTimeField";
+import { X } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
-import { ActionButton } from "../components/ActionButton";
-import { Field, SelectInput, TextInput } from "../components/Field";
 import { HoldingForm, makeEmptyHoldingDraft } from "../components/HoldingForm";
-import { SegmentedControl } from "../components/SegmentedControl";
 import { StatusText } from "../components/StatusText";
 import { TickerSearchField } from "../components/TickerSearchField";
 import { useRepositoryMutation } from "../data/hooks";
@@ -13,17 +9,25 @@ import { calculateInvestmentCashDelta, formatNumber, nowAsDatetimeLocal, type Ac
 import { YahooFinanceProvider } from "../features/market-data/yahooFinanceProvider";
 import { useUiPreferences } from "../state/uiPreferences";
 
-const actions: InvestmentAction[] = ["buy", "sell", "cashDividend", "stockDividend", "capitalReduction", "stockSplit"];
-const actionLabels: Record<InvestmentAction, string> = {
-  buy: "買進",
-  sell: "賣出",
-  cashDividend: "現金股利",
-  stockDividend: "股票股利",
-  capitalReduction: "減資",
-  stockSplit: "股票分割",
-};
-
 export type InvestmentEntryMode = "snapshot" | "transaction";
+
+/** The 4 transaction sides surfaced in the prototype, mapped to data-layer actions. */
+type TxSide = "buy" | "sell" | "dividend" | "split";
+const SIDE_TO_ACTION: Record<TxSide, InvestmentAction> = {
+  buy: "buy",
+  sell: "sell",
+  dividend: "cashDividend",
+  split: "stockSplit",
+};
+const SIDE_LABEL: Record<TxSide, string> = { buy: "Buy", sell: "Sell", dividend: "Dividend", split: "Split" };
+const SIDE_CONFIRM: Record<TxSide, string> = { buy: "確認買入", sell: "確認賣出", dividend: "確認股利", split: "確認拆股" };
+
+function sideFromAction(action: InvestmentAction): TxSide {
+  if (action === "sell") return "sell";
+  if (action === "cashDividend" || action === "stockDividend") return "dividend";
+  if (action === "stockSplit") return "split";
+  return "buy";
+}
 
 export interface TransactionPreset {
   id?: string;
@@ -48,10 +52,11 @@ export function emptyTransactionDraft(timezone: string): InvestmentDraft {
   };
 }
 
+/** Normalise per-action so cash/quantity math stays consistent with the data layer. */
 function normalizeTransactionDraft(input: InvestmentDraft): InvestmentDraft {
-  if (input.action === "cashDividend") {
-    return { ...input, quantity: 0 };
-  }
+  if (input.action === "cashDividend") return { ...input, quantity: 0 };
+  // stockSplit: `quantity` holds the ratio (holding ×= ratio); no price / fee.
+  if (input.action === "stockSplit") return { ...input, price: 0, fee: 0 };
   return input;
 }
 
@@ -60,8 +65,8 @@ export function InvestmentEntryDrawer({
   onClose,
   accounts,
   portfolioAssets = [],
-  title = "新增",
-  initialMode = "snapshot",
+  title = "New transaction",
+  initialMode = "transaction",
   onSubmitted,
   transactionPreset,
 }: {
@@ -123,18 +128,32 @@ export function InvestmentEntryDrawer({
     };
   }, [open, onClose]);
 
-  const currentHoldingQty = useMemo(() => {
-    if (transactionForm.action !== "buy" && transactionForm.action !== "sell") return null;
+  const eligibleAccounts = accounts.filter(
+    (account) => account.deletedAt === null && account.type === "investment",
+  );
+  const selectedTransactionAccount = eligibleAccounts.find((account) => account.id === transactionForm.linkedAccountId) ?? null;
+
+  // Current holding for the entered ticker + account, used for the FIFO preview.
+  const matchedAsset = useMemo(() => {
     const ticker = transactionForm.ticker.trim().toUpperCase();
     if (!ticker) return null;
-    const match = portfolioAssets.find(
-      (a) => a.ticker === ticker && a.deletedAt === null && a.totalQuantity > 0 &&
-        (a.holdingSource === "transactions" || a.accountId === transactionForm.linkedAccountId),
+    return (
+      portfolioAssets.find(
+        (a) => a.ticker.toUpperCase() === ticker && a.deletedAt === null &&
+          (a.holdingSource === "transactions" || a.accountId === transactionForm.linkedAccountId),
+      ) ?? null
     );
-    return match ? match.totalQuantity : null;
-  }, [portfolioAssets, transactionForm.ticker, transactionForm.action, transactionForm.linkedAccountId]);
+  }, [portfolioAssets, transactionForm.ticker, transactionForm.linkedAccountId]);
 
   if (!open) return null;
+
+  const side = sideFromAction(transactionForm.action);
+  const currency = selectedTransactionAccount?.currency ?? transactionForm.currency;
+
+  function setAction(nextSide: TxSide) {
+    setTransactionForm((current) => normalizeTransactionDraft({ ...current, action: SIDE_TO_ACTION[nextSide] }));
+    setMessage("");
+  }
 
   async function submitSnapshot() {
     setMessage("");
@@ -153,43 +172,15 @@ export function InvestmentEntryDrawer({
     setMessage("");
     try {
       if (!transactionForm.ticker.trim()) throw new Error("請輸入 ticker。");
-      if (!transactionForm.linkedAccountId) throw new Error("請選擇連動帳戶。");
+      if (!transactionForm.linkedAccountId) throw new Error("請選擇連動帳戶 / 券商。");
+      if (side === "split" && transactionForm.quantity <= 0) throw new Error("請輸入拆股比例（例如 3 = 1 股拆 3 股）。");
       const payload = normalizeTransactionDraft(transactionForm);
-      if (transactionPreset?.id) {
-        await updateRecord.mutateAsync({ ...payload, id: transactionPreset.id });
-      } else {
-        await createRecord.mutateAsync(payload);
-      }
+      if (transactionPreset?.id) await updateRecord.mutateAsync({ ...payload, id: transactionPreset.id });
+      else await createRecord.mutateAsync(payload);
       onSubmitted?.();
       onClose();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "交易儲存失敗。");
-    }
-  }
-
-  const eligibleAccounts = accounts.filter(
-    (account) => account.deletedAt === null && account.type === "investment",
-  );
-  const selectedTransactionAccount = eligibleAccounts.find((account) => account.id === transactionForm.linkedAccountId) ?? null;
-  const transactionCashDelta = calculateInvestmentCashDelta(normalizeTransactionDraft(transactionForm));
-  const twdTopUpShortfall = selectedTransactionAccount && selectedTransactionAccount.currency.toUpperCase() === "TWD" && transactionForm.action === "buy"
-    ? Math.max(0, -(selectedTransactionAccount.balance + transactionCashDelta))
-    : 0;
-  const tPlus2Date = addDays(transactionForm.date, 2);
-
-  async function enrichSnapshotClassification(draft: PortfolioAssetDraft) {
-    try {
-      const provider = new YahooFinanceProvider();
-      const profiles = await provider.fetchAssetProfiles([draft.ticker]);
-      const profile = profiles[draft.ticker.trim().toUpperCase()];
-      if (!profile) throw new Error("No profile");
-      setSnapshotForm((current) =>
-        current.ticker.trim().toUpperCase() === draft.ticker.trim().toUpperCase()
-          ? { ...current, assetType: profile.assetType ?? current.assetType, sector: profile.sector ?? current.sector, industry: profile.industry ?? current.industry }
-          : current,
-      );
-    } catch {
-      setMessage("未能取得分類，請手動填入。");
     }
   }
 
@@ -209,205 +200,243 @@ export function InvestmentEntryDrawer({
     }
   }
 
+  // ── FIFO impact preview ──
+  const curQty = matchedAsset?.totalQuantity ?? 0;
+  const curAvg = matchedAsset?.averageCost ?? 0;
+  const curCost = curQty * curAvg;
+  const qty = Math.max(0, transactionForm.quantity || 0);
+  const price = Math.max(0, transactionForm.price || 0);
+  const fee = Math.max(0, transactionForm.fee || 0);
+
+  let totalLabel = "Total cost";
+  let totalValue = 0;
+  let newQty = curQty;
+  let newAvg = curAvg;
+  if (side === "buy") {
+    totalValue = qty * price + fee;
+    newQty = curQty + qty;
+    newAvg = newQty > 0 ? (curCost + qty * price + fee) / newQty : 0;
+  } else if (side === "sell") {
+    totalLabel = "預估收入";
+    totalValue = qty * price - fee;
+    newQty = Math.max(0, curQty - qty);
+    newAvg = curAvg;
+  } else if (side === "dividend") {
+    totalLabel = "股利收入";
+    totalValue = price;
+    newQty = curQty;
+    newAvg = curAvg;
+  } else {
+    // split: quantity = ratio
+    totalLabel = "拆股比例";
+    const ratio = qty;
+    totalValue = ratio;
+    newQty = ratio > 0 ? curQty * ratio : curQty;
+    newAvg = ratio > 0 ? curAvg / ratio : curAvg;
+  }
+  const newMarketValue = newQty * (price || curAvg);
+  const confirmAmount =
+    side === "split" ? `×${qty || 0}` : `${currency === "TWD" ? "NT$" : ""}${formatNumber(Math.round(totalValue))}`;
+
+  // T+2 settlement warning (TWD buys only).
+  const cashDelta = calculateInvestmentCashDelta(normalizeTransactionDraft(transactionForm));
+  const twdTopUpShortfall = selectedTransactionAccount && currency.toUpperCase() === "TWD" && side === "buy"
+    ? Math.max(0, -(selectedTransactionAccount.balance + cashDelta))
+    : 0;
+  const tPlus2Date = addDays(transactionForm.date, 2);
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/45" onClick={onClose}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={onClose}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} />
       <div
-        className="absolute inset-y-0 right-0 flex h-full w-full sm:w-[680px] lg:w-[740px]"
         onClick={(event) => event.stopPropagation()}
+        className="animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)]"
+        style={{
+          position: "absolute", right: 0, top: 0, bottom: 0, width: "min(520px, 100%)",
+          background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
+          display: "flex", flexDirection: "column", boxShadow: "-20px 0 60px rgba(0,0,0,0.4)",
+        }}
       >
-        <div
-          className="h-full w-full border-l shadow-2xl animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)]"
-          style={{ background: "var(--ns-panel-bg)", borderColor: "var(--ns-panel-border)" }}
-        >
-          <header className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--ns-panel-border)" }}>
-            <div>
-              <h2 className="text-lg font-semibold">{title}</h2>
-              <p className="text-xs" style={{ color: "var(--ns-muted)" }}>
-                {isEditingTransaction
-                  ? "調整既有交易，會自動重算持倉成本。"
-                  : mode === "snapshot"
-                    ? "直接建立目前持倉，適合一次導入既有部位。"
-                    : "逐筆記錄買賣 / 股利，系統會自動更新持倉。"}
-              </p>
-            </div>
+        {/* Header */}
+        <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", gap: 12 }}>
+          <h2 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 20, fontWeight: 600, letterSpacing: -0.02 }}>
+            {mode === "snapshot" ? "建立目前部位" : title}
+          </h2>
+          <div style={{ flex: 1 }} />
+          {!isEditingTransaction ? (
             <button
-              type="button"
-              onClick={onClose}
-              className="grid size-9 place-items-center rounded-md outline-none transition hover:opacity-70"
-              aria-label="關閉"
+              className="ns-btn ghost"
+              style={{ fontSize: 12.5 }}
+              onClick={() => { setMode(mode === "snapshot" ? "transaction" : "snapshot"); setMessage(""); }}
             >
-              <X size={18} />
+              {mode === "snapshot" ? "改記一筆交易" : "匯入現有持倉"}
             </button>
-          </header>
+          ) : null}
+          <button className="ns-btn ghost icon" onClick={onClose} aria-label="關閉"><X size={16} /></button>
+        </div>
 
-          <div className="px-5 pt-4">
-            <SegmentedControl
-              value={mode}
-              onChange={(next) => {
-                if (isEditingTransaction) return;
-                setMode(next);
-                setMessage("");
-              }}
-              options={[
-                { value: "snapshot", label: "建立目前部位", icon: <StackSimple size={16} /> },
-                { value: "transaction", label: "記一筆交易", icon: <ChartLineUp size={16} /> },
-              ]}
+        {mode === "snapshot" ? (
+          <div style={{ flex: 1, overflow: "auto", padding: "20px 24px" }}>
+            <HoldingForm
+              value={snapshotForm}
+              onChange={setSnapshotForm}
+              onSubmit={submitSnapshot}
+              submitLabel={createHolding.isPending ? "儲存中…" : "儲存持倉"}
+              accounts={accounts}
             />
+            {message ? <div style={{ marginTop: 12 }}><StatusText>{message}</StatusText></div> : null}
           </div>
-
-          <div className="h-[calc(100%-118px)] overflow-y-auto px-5 pb-6 pt-4">
-            {mode === "snapshot" ? (
-              <div>
-                <HoldingForm
-                  value={snapshotForm}
-                  onChange={setSnapshotForm}
-                  onSubmit={submitSnapshot}
-                  submitLabel={createHolding.isPending ? "儲存中…" : "儲存持倉"}
-                  accounts={accounts}
-                  onTickerSelected={(draft) => void enrichSnapshotClassification(draft)}
-                />
-                {message ? <div className="mt-3"><StatusText>{message}</StatusText></div> : null}
+        ) : (
+          <>
+            {/* Side tabs */}
+            <div style={{ padding: "18px 24px 0" }}>
+              <div className="ns-seg" style={{ width: "100%" }}>
+                {(Object.keys(SIDE_TO_ACTION) as TxSide[]).map((s) => (
+                  <button key={s} style={{ flex: 1 }} aria-selected={side === s} onClick={() => setAction(s)}>
+                    {SIDE_LABEL[s]}
+                  </button>
+                ))}
               </div>
-            ) : (
-              <div className="grid gap-3">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field label="種類">
-                    <SelectInput
-                      value={transactionForm.action}
-                      onChange={(event) =>
-                        setTransactionForm((current) => normalizeTransactionDraft({
-                          ...current,
-                          action: event.target.value as InvestmentAction,
-                        }))
-                      }
-                    >
-                      {actions.map((action) => (
-                        <option key={action} value={action}>
-                          {actionLabels[action]}
-                        </option>
-                      ))}
-                    </SelectInput>
-                  </Field>
-                  <DateTimeField
-                    label="日期 + 時間"
-                    value={transactionForm.date}
-                    onChange={(value) => setTransactionForm({ ...transactionForm, date: value })}
-                  />
+            </div>
+
+            <div style={{ flex: 1, overflow: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
+              {/* Ticker + quick chips */}
+              <div>
+                <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Ticker / Symbol</label>
+                <TickerSearchField
+                  value={transactionForm.ticker}
+                  onChange={(ticker) => setTransactionForm({ ...transactionForm, ticker })}
+                  onSelect={(result) => {
+                    const next = {
+                      ...transactionForm,
+                      ticker: result.symbol.toUpperCase(),
+                      name: result.name || result.symbol,
+                      currency: selectedTransactionAccount?.currency ?? transactionForm.currency,
+                      assetType: result.assetType ?? transactionForm.assetType ?? null,
+                    };
+                    setTransactionForm(next);
+                    void enrichTransactionClassification(next);
+                  }}
+                />
+                <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {["2330.TW", "0050.TW", "AAPL", "VTI", "VWRA"].map((s) => (
+                    <button key={s} className="ns-pill" style={{ cursor: "pointer" }} onClick={() => setTransactionForm({ ...transactionForm, ticker: s })}>
+                      <span className="mono" style={{ fontSize: 11.5 }}>{s}</span>
+                    </button>
+                  ))}
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
-                  <Field label="Ticker">
-                    <TickerSearchField
-                      value={transactionForm.ticker}
-                      onChange={(ticker) => setTransactionForm({ ...transactionForm, ticker })}
-                      onSelect={(result) => {
-                        const next = {
-                          ...transactionForm,
-                          ticker: result.symbol.toUpperCase(),
-                          name: result.name || result.symbol,
-                          currency: selectedTransactionAccount?.currency ?? transactionForm.currency,
-                          assetType: result.assetType ?? transactionForm.assetType ?? null,
-                        };
-                        setTransactionForm(next);
-                        void enrichTransactionClassification(next);
-                      }}
-                    />
-                  </Field>
-                  <Field label="幣別">
-                    <TextInput
-                      value={selectedTransactionAccount?.currency ?? transactionForm.currency}
-                      disabled={Boolean(selectedTransactionAccount)}
-                      onChange={(event) =>
-                        setTransactionForm({ ...transactionForm, currency: event.target.value.toUpperCase() })
-                      }
-                    />
-                  </Field>
+              </div>
+
+              {/* Date + account */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div>
+                  <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Date</label>
+                  <input className="ns-input" type="datetime-local" value={transactionForm.date} onChange={(e) => setTransactionForm({ ...transactionForm, date: e.target.value })} />
                 </div>
-                <Field label="名稱">
-                  <TextInput
-                    value={transactionForm.name}
-                    onChange={(event) => setTransactionForm({ ...transactionForm, name: event.target.value })}
-                    placeholder="元大台灣50"
-                  />
-                </Field>
-                <Field label="連動帳戶 / 券商">
-                  <SelectInput
+                <div>
+                  <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Account</label>
+                  <select
+                    className="ns-input"
+                    style={{ appearance: "none" }}
                     value={transactionForm.linkedAccountId ?? ""}
-                    onChange={(event) =>
+                    onChange={(e) =>
                       setTransactionForm({
                         ...transactionForm,
-                        linkedAccountId: event.target.value || null,
-                        currency: eligibleAccounts.find((account) => account.id === event.target.value)?.currency ?? transactionForm.currency,
+                        linkedAccountId: e.target.value || null,
+                        currency: eligibleAccounts.find((a) => a.id === e.target.value)?.currency ?? transactionForm.currency,
                       })
                     }
                   >
                     <option value="">— 選擇券商 —</option>
-                    {eligibleAccounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.name} ({account.currency})
-                      </option>
-                    ))}
-                  </SelectInput>
-                </Field>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <Field label={transactionForm.action === "cashDividend" ? "股利金額" : "價格"}>
-                    <TextInput
-                      type="number"
-                      value={transactionForm.price}
-                      onChange={(event) => setTransactionForm({ ...transactionForm, price: Number(event.target.value) })}
-                    />
-                  </Field>
-                  {transactionForm.action === "cashDividend" ? <div /> : (
-                    <Field label="數量">
-                      <TextInput
-                        type="number"
-                        value={transactionForm.quantity}
-                        onChange={(event) =>
-                          setTransactionForm({ ...transactionForm, quantity: Number(event.target.value) })
-                        }
-                      />
-                    </Field>
-                  )}
-                  <Field label="手續費">
-                    <TextInput
-                      type="number"
-                      value={transactionForm.fee}
-                      onChange={(event) => setTransactionForm({ ...transactionForm, fee: Number(event.target.value) })}
-                    />
-                  </Field>
-                </div>
-                {currentHoldingQty !== null ? (
-                  <p className="text-xs" style={{ color: "var(--ns-muted)" }}>
-                    目前持倉：{formatNumber(currentHoldingQty)} 股
-                  </p>
-                ) : null}
-                <Field label="備註">
-                  <TextInput
-                    value={transactionForm.note}
-                    onChange={(event) => setTransactionForm({ ...transactionForm, note: event.target.value })}
-                  />
-                </Field>
-                {twdTopUpShortfall > 0 ? (
-                  <p className="text-sm" style={{ color: "var(--ns-warn)" }}>
-                    台股 T+2 提醒：預估交割後需補 {formatNumber(twdTopUpShortfall)} TWD，請在 {tPlus2Date || "交割日前"} 前補款。
-                  </p>
-                ) : null}
-                {message ? <StatusText>{message}</StatusText> : null}
-                <div className="flex gap-2">
-                  <ActionButton onClick={submitTransaction} disabled={createRecord.isPending || updateRecord.isPending}>
-                    {(createRecord.isPending || updateRecord.isPending)
-                      ? "儲存中…"
-                      : isEditingTransaction
-                        ? "儲存交易"
-                        : "新增交易"}
-                  </ActionButton>
-                  <ActionButton variant="secondary" onClick={onClose}>
-                    取消
-                  </ActionButton>
+                    {eligibleAccounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>)}
+                  </select>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
+
+              {/* Side-specific numeric fields */}
+              {side === "split" ? (
+                <div>
+                  <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>拆股比例（1 股 → N 股）</label>
+                  <input
+                    className="ns-input mono"
+                    value={transactionForm.quantity || ""}
+                    onChange={(e) => setTransactionForm({ ...transactionForm, quantity: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })}
+                    placeholder="3"
+                    style={{ fontFamily: "var(--ns-font-mono)", fontSize: 18 }}
+                  />
+                  <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+                    輸入 3 = 3-for-1（持股 ×3、均價 ÷3、總成本不變）；小於 1 為反向拆股（例 0.5 = 2 併 1）。無手續費。
+                  </div>
+                </div>
+              ) : side === "dividend" ? (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <div>
+                    <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>股利金額</label>
+                    <input className="ns-input mono" value={transactionForm.price || ""} onChange={(e) => setTransactionForm({ ...transactionForm, price: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="3500" style={{ fontFamily: "var(--ns-font-mono)", fontSize: 18 }} />
+                  </div>
+                  <div>
+                    <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>代扣稅 / 手續費</label>
+                    <input className="ns-input" value={transactionForm.fee || ""} onChange={(e) => setTransactionForm({ ...transactionForm, fee: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="0" />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <div>
+                      <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Shares</label>
+                      <input className="ns-input mono" value={transactionForm.quantity || ""} onChange={(e) => setTransactionForm({ ...transactionForm, quantity: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="100" style={{ fontFamily: "var(--ns-font-mono)", fontSize: 18 }} />
+                    </div>
+                    <div>
+                      <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Price per share</label>
+                      <input className="ns-input mono" value={transactionForm.price || ""} onChange={(e) => setTransactionForm({ ...transactionForm, price: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="1042.00" style={{ fontFamily: "var(--ns-font-mono)", fontSize: 18 }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Commission / fee</label>
+                    <input className="ns-input" value={transactionForm.fee || ""} onChange={(e) => setTransactionForm({ ...transactionForm, fee: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="Optional · e.g. 220" />
+                  </div>
+                </>
+              )}
+
+              {/* Note */}
+              <div>
+                <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Note</label>
+                <input className="ns-input" value={transactionForm.note} onChange={(e) => setTransactionForm({ ...transactionForm, note: e.target.value })} placeholder="Optional" />
+              </div>
+
+              {/* FIFO impact preview */}
+              <div style={{ padding: 16, borderRadius: "var(--ns-r-md)", background: "var(--ns-accent-soft)", border: "1px solid var(--ns-accent)" }}>
+                <div className="ns-eyebrow" style={{ marginBottom: 10, color: "var(--ns-accent)" }}>FIFO impact preview</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13 }}>
+                  <div><span className="muted">{totalLabel}</span><br /><span className="num" style={{ fontSize: 16, fontWeight: 500 }}>{side === "split" ? `×${formatNumber(totalValue)}` : `NT$${formatNumber(Math.round(totalValue))}`}</span></div>
+                  <div><span className="muted">New avg cost (FIFO)</span><br /><span className="num" style={{ fontSize: 16, fontWeight: 500 }}>NT${formatNumber(Math.round(newAvg * 100) / 100)}</span></div>
+                  <div><span className="muted">New position</span><br /><span className="num" style={{ fontSize: 16, fontWeight: 500 }}>{formatNumber(newQty)} 股</span></div>
+                  <div><span className="muted">New market value</span><br /><span className="num pos" style={{ fontSize: 16, fontWeight: 500 }}>NT${formatNumber(Math.round(newMarketValue))}</span></div>
+                </div>
+              </div>
+
+              {twdTopUpShortfall > 0 ? (
+                <div style={{ fontSize: 12.5, color: "var(--ns-warn)" }}>
+                  台股 T+2 提醒：預估交割後需補 {formatNumber(twdTopUpShortfall)} TWD，請在 {tPlus2Date || "交割日前"} 前補款。
+                </div>
+              ) : null}
+              {message ? <StatusText>{message}</StatusText> : null}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: "16px 24px", borderTop: "1px solid var(--ns-border)", display: "flex", gap: 10 }}>
+              <button className="ns-btn ghost" style={{ flex: 1, justifyContent: "center" }} onClick={onClose}>取消</button>
+              <button
+                className="ns-btn primary"
+                style={{ flex: 2, justifyContent: "center" }}
+                onClick={submitTransaction}
+                disabled={createRecord.isPending || updateRecord.isPending}
+              >
+                {(createRecord.isPending || updateRecord.isPending) ? "儲存中…" : `${isEditingTransaction ? "儲存交易" : SIDE_CONFIRM[side]} · ${confirmAmount}`}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
