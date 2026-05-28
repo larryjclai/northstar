@@ -3,18 +3,20 @@
 function NSPrototype() {
   const [screen, setScreen] = React.useState('dashboard');
   const screens = {
-    dashboard:        NSDesktopDashboard,
+    dashboard:        NSDesktopDashboardV2,
     holdings:         NSDesktopHoldings,
     'holding-detail': NSDesktopHoldingDetail,
     'inv-add':        NSDesktopInvestAddSheet,
     cashflow:         NSDesktopCashFlow,
     'cf-detail':      NSDesktopCashFlowDetail,
+    'cf-new':         NSDesktopNewTxSheet,
     'cat-mgmt':       NSDesktopCategoryMgmt,
     accounts:         NSDesktopAccounts,
+    'acct-add':       NSDesktopAddAccountFlow,
     goals:            NSDesktopGoals,
     'fire-calc':      NSDesktopFireCalc,
     connect:          NSDesktopConnect,
-    settings:         NSDesktopConnect,
+    settings:         NSDesktopSettingsV2,
   };
   const Comp = screens[screen] || NSDesktopDashboard;
   return (

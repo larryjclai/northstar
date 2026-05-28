@@ -66,7 +66,10 @@ function NSRoot() {
         </DCSection>
 
         <DCSection id="desktop" title="Desktop" subtitle="1440 × 900 · Tauri shell layout">
-          <DCArtboard id="d-dashboard" label="Dashboard" width={1440} height={900}>
+          <DCArtboard id="d-dashboard-v2" label="Dashboard V2 · complete" width={1440} height={900}>
+            <NSDesktopDashboardV2 />
+          </DCArtboard>
+          <DCArtboard id="d-dashboard" label="Dashboard · original" width={1440} height={900}>
             <NSDesktopDashboard />
           </DCArtboard>
           <DCArtboard id="d-holdings" label="Holdings · FIFO" width={1440} height={900}>
@@ -78,11 +81,17 @@ function NSRoot() {
           <DCArtboard id="d-accounts" label="Accounts" width={1440} height={900}>
             <NSDesktopAccounts />
           </DCArtboard>
+          <DCArtboard id="d-acct-add" label="Accounts · 新增帳戶 flow" width={1440} height={900}>
+            <NSDesktopAddAccountFlow />
+          </DCArtboard>
           <DCArtboard id="d-goals" label="Goals · FIRE" width={1440} height={900}>
             <NSDesktopGoals />
           </DCArtboard>
           <DCArtboard id="d-connect" label="Settings · Connect" width={1440} height={900}>
             <NSDesktopConnect />
+          </DCArtboard>
+          <DCArtboard id="d-settings-v2" label="Settings · 分類 / 商家 / 匯率 / 匯出" width={1440} height={900}>
+            <NSDesktopSettingsV2 />
           </DCArtboard>
           <DCArtboard id="d-onboarding" label="Onboarding" width={1440} height={900}>
             <NSDesktopOnboarding />
@@ -95,6 +104,9 @@ function NSRoot() {
           </DCArtboard>
           <DCArtboard id="d-cf-detail" label="Cash Flow · Transaction detail" width={1440} height={900}>
             <NSDesktopCashFlowDetail />
+          </DCArtboard>
+          <DCArtboard id="d-cf-new" label="Cash Flow · New transaction" width={1440} height={900}>
+            <NSDesktopNewTxSheet />
           </DCArtboard>
           <DCArtboard id="d-cat-mgmt" label="Cash Flow · Categories" width={1440} height={900}>
             <NSDesktopCategoryMgmt />

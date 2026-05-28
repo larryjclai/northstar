@@ -426,7 +426,7 @@ function NSDesktopCashFlow({ onNavigate } = {}) {
             <button className="ns-btn" onClick={() => onNavigate && onNavigate('cat-mgmt')}><NSIcon name="tag" size={14}/>分類</button>
             <button className="ns-btn"><NSIcon name="calendar" size={14}/>5 月</button>
             <button className="ns-btn"><NSIcon name="filter" size={14}/>All accounts · All cats</button>
-            <button className="ns-btn primary"><NSIcon name="plus" size={14} strokeWidth={2}/>記一筆</button>
+            <button className="ns-btn primary" onClick={() => onNavigate && onNavigate('cf-new')}><NSIcon name="plus" size={14} strokeWidth={2}/>記一筆</button>
           </div>
         </div>
 

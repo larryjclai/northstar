@@ -242,100 +242,266 @@ function NSMobileHoldingDetail() {
 // ─────── Mobile Cash Flow with numpad ───────
 function NSMobileQuickAdd() {
   const [amt, setAmt] = React.useState('120');
-  const [active, setActive] = React.useState('食物');
-  const cats = [
+  const [type, setType] = React.useState('expense');
+  const [activecat, setActivecat] = React.useState('食物');
+  const [subcat, setSubcat] = React.useState(null);
+  const [recurring, setRecurring] = React.useState('none');
+  const [counterparty, setCounterparty] = React.useState('');
+  const [dueDate, setDueDate] = React.useState('');
+  const [note, setNote] = React.useState('');
+
+  const catTree = {
+    expense: [
+      { name: '食物', icon: '🍱', color: 'var(--ns-chart-3)', subs: ['餐廳', '外送', '超市', '早餐', '咖啡', '夜市'] },
+      { name: '交通', icon: '🚖', color: 'var(--ns-chart-4)', subs: ['計程車', '捷運', '停車', '油費', '高鐵', 'YouBike'] },
+      { name: '娛樂', icon: '🎮', color: 'var(--ns-chart-5)', subs: ['電影', '遊戲', '書籍', '旅遊', '運動', '其他'] },
+      { name: '訂閱', icon: '📺', color: 'var(--ns-chart-2)', subs: ['串流', '音樂', '軟體', '新聞', '健身', '其他'] },
+      { name: '居家', icon: '🏠', color: 'var(--ns-chart-1)', subs: ['租金', '水電', '網路', '家具', '清潔', '修繕'] },
+      { name: '其他', icon: '⋯',  color: 'var(--ns-fg-dim)', subs: ['醫療', '教育', '禮品', '保險', '稅金', '其他'] },
+    ],
+    income: [
+      { name: '薪資', icon: '💼', color: 'var(--ns-pos)',     subs: ['本薪', '加班費', '績效', '年終'] },
+      { name: '投資', icon: '📈', color: 'var(--ns-chart-1)', subs: ['股票', '配息', '基金', '利息'] },
+      { name: '兼職', icon: '🛠', color: 'var(--ns-chart-4)', subs: ['接案', '打工', '自媒體', '其他'] },
+      { name: '租金', icon: '🏠', color: 'var(--ns-chart-2)', subs: ['房租', '車位', '設備', '其他'] },
+      { name: '獎金', icon: '🎁', color: 'var(--ns-chart-3)', subs: ['績效', '年終', '比賽', '其他'] },
+      { name: '其他', icon: '⋯',  color: 'var(--ns-fg-dim)', subs: ['退稅', '補助', '贈與', '其他'] },
+    ],
+  };
+  const currentCats = type === 'income' ? catTree.income : catTree.expense;
+  const parentCat = currentCats.find(c => c.name === activecat);
+
+  const types = [
+    { id: 'expense',  label: '支出',    sign: '−', color: 'var(--ns-neg)',     eyebrow: '支出金額 · TWD' },
+    { id: 'income',   label: '收入',    sign: '+', color: 'var(--ns-pos)',     eyebrow: '收入金額 · TWD' },
+    { id: 'transfer', label: '轉帳',    sign: '',  color: 'var(--ns-accent)',  eyebrow: '轉帳金額 · TWD' },
+    { id: 'ar',       label: '應收帳款', sign: '+', color: 'var(--ns-chart-3)', eyebrow: '應收金額 · TWD' },
+    { id: 'ap',       label: '應付帳款', sign: '−', color: 'var(--ns-chart-5)', eyebrow: '應付金額 · TWD' },
+  ];
+  const current = types.find(t => t.id === type);
+
+  const expenseCats = [
     { name: '食物', icon: '🍱', color: 'var(--ns-chart-3)' },
     { name: '交通', icon: '🚖', color: 'var(--ns-chart-4)' },
     { name: '娛樂', icon: '🎮', color: 'var(--ns-chart-5)' },
     { name: '訂閱', icon: '📺', color: 'var(--ns-chart-2)' },
     { name: '居家', icon: '🏠', color: 'var(--ns-chart-1)' },
-    { name: '其他', icon: '⋯', color: 'var(--ns-fg-dim)' },
+    { name: '其他', icon: '⋯',  color: 'var(--ns-fg-dim)'  },
   ];
+  const incomeCats = [
+    { name: '薪資', icon: '💼', color: 'var(--ns-pos)'     },
+    { name: '投資', icon: '📈', color: 'var(--ns-chart-1)' },
+    { name: '獎金', icon: '🎁', color: 'var(--ns-chart-3)' },
+    { name: '租金', icon: '🏠', color: 'var(--ns-chart-2)' },
+    { name: '兼職', icon: '🛠', color: 'var(--ns-chart-4)' },
+    { name: '其他', icon: '⋯',  color: 'var(--ns-fg-dim)'  },
+  ];
+  const cats = type === 'income' ? incomeCats : expenseCats;
   const keys = ['7','8','9','+','4','5','6','−','1','2','3','=','.','0','←','✓'];
+
+  const AccountRow = ({ label, name, sub, color, markLabel }) => (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '11px 14px', background: 'var(--ns-bg-elev)',
+      border: '1px solid var(--ns-border)', borderRadius: 'var(--ns-r-md)',
+    }}>
+      {label && <span className="muted" style={{ fontSize: 11, minWidth: 28 }}>{label}</span>}
+      <NSMark label={markLabel} color={color} size={26}/>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 500 }}>{name}</div>
+        <div className="muted" style={{ fontSize: 11 }}>{sub}</div>
+      </div>
+      <NSIcon name="chevRight" size={14}/>
+    </div>
+  );
 
   return (
     <NSMobileShell active="add" hideTab>
+      {/* Header */}
       <div style={{ padding: '14px 18px 10px', display: 'flex', alignItems: 'center' }}>
         <span className="muted" style={{ fontSize: 14, cursor: 'pointer' }}>取消</span>
         <div style={{ flex: 1, textAlign: 'center', fontWeight: 600, fontSize: 16 }}>記一筆</div>
-        <span className="muted" style={{ fontSize: 14 }}>儲存</span>
+        <span style={{ fontSize: 14, color: 'var(--ns-accent)', fontWeight: 500, cursor: 'pointer' }}>儲存</span>
       </div>
 
-      {/* Segmented: 支出 / 收入 / 轉帳 */}
-      <div style={{ padding: '6px 18px 0' }}>
-        <div className="ns-seg" style={{ width: '100%' }}>
-          <button aria-selected style={{ flex: 1 }}>支出</button>
-          <button style={{ flex: 1 }}>收入</button>
-          <button style={{ flex: 1 }}>轉帳</button>
-        </div>
-      </div>
-
-      {/* Amount display */}
-      <div style={{ textAlign: 'center', padding: '22px 18px 6px' }}>
-        <div className="ns-eyebrow" style={{ marginBottom: 6 }}>金額 · TWD</div>
-        <div className="mono" style={{ fontSize: 52, fontWeight: 500, letterSpacing: -0.04, color: 'var(--ns-fg)' }}>
-          <span className="dim">−NT$</span>{amt}
-        </div>
-        <div className="dim mono" style={{ fontSize: 12, marginTop: 2 }}>= 120</div>
-      </div>
-
-      {/* Category quick picker */}
-      <div style={{ padding: '8px 18px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
-          {cats.map((c) => (
-            <button key={c.name} onClick={() => setActive(c.name)}
-                    className="ns-surface" style={{
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                      padding: '10px 0 8px',
-                      background: active === c.name ? c.color : 'var(--ns-bg-elev)',
-                      color: active === c.name ? 'var(--ns-bg)' : 'var(--ns-fg)',
-                      border: active === c.name ? 'none' : '1px solid var(--ns-border)',
-                      fontFamily: 'inherit', cursor: 'pointer',
-                    }}>
-              <span style={{ fontSize: 18 }}>{c.icon}</span>
-              <span style={{ fontSize: 10.5, fontWeight: 500 }}>{c.name}</span>
-            </button>
+      {/* Type picker — horizontal scroll pills */}
+      <div style={{ padding: '4px 18px 0', overflowX: 'auto', scrollbarWidth: 'none' }}>
+        <div style={{ display: 'flex', gap: 6, width: 'max-content' }}>
+          {types.map(t => (
+            <button key={t.id} onClick={() => setType(t.id)} style={{
+              padding: '6px 14px', borderRadius: 999, fontSize: 13, fontWeight: 500,
+              border: type === t.id ? 'none' : '1px solid var(--ns-border)',
+              background: type === t.id ? t.color : 'var(--ns-bg-elev)',
+              color: type === t.id ? (t.id === 'ar' || t.id === 'ap' ? '#fff' : 'var(--ns-bg)') : 'var(--ns-fg-dim)',
+              cursor: 'pointer', transition: 'all 0.15s',
+              whiteSpace: 'nowrap',
+            }}>{t.label}</button>
           ))}
         </div>
       </div>
 
-      {/* Account selector */}
-      <div style={{ padding: '10px 18px 2px' }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          padding: '12px 14px', background: 'var(--ns-bg-elev)',
-          border: '1px solid var(--ns-border)', borderRadius: 'var(--ns-r-md)',
-        }}>
-          <NSMark label="V" color="var(--ns-chart-2)" size={28}/>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 500 }}>Cathay World Card</div>
-            <div className="muted" style={{ fontSize: 11 }}>信用卡 · 餘額 −48,210</div>
-          </div>
-          <NSIcon name="chevRight" size={14}/>
+      {/* Amount display */}
+      <div style={{ textAlign: 'center', padding: '16px 18px 6px' }}>
+        <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{current.eyebrow}</div>
+        <div className="mono" style={{ fontSize: 52, fontWeight: 500, letterSpacing: -0.04, color: current.color }}>
+          <span style={{ opacity: 0.5 }}>{current.sign}NT$</span>{amt}
         </div>
       </div>
 
-      <div style={{ padding: '8px 18px' }}>
-        <input className="ns-input" placeholder="備註 (optional) · 拿鐵 + 三明治" style={{ fontSize: 13 }}/>
-      </div>
+      {/* ── 支出 / 收入: 分類 + 帳戶 + 週期 + 備註 ── */}
+      {(type === 'expense' || type === 'income') && (
+        <>
+          {/* 大分類 grid */}
+          <div style={{ padding: '8px 18px 0' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
+              {currentCats.map((c) => (
+                <button key={c.name} onClick={() => { setActivecat(c.name); setSubcat(null); }}
+                        className="ns-surface" style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                          padding: '9px 0 7px', borderRadius: 'var(--ns-r-md)',
+                          background: activecat === c.name ? c.color : 'var(--ns-bg-elev)',
+                          color: activecat === c.name ? 'var(--ns-bg)' : 'var(--ns-fg)',
+                          border: activecat === c.name ? 'none' : '1px solid var(--ns-border)',
+                          fontFamily: 'inherit', cursor: 'pointer',
+                        }}>
+                  <span style={{ fontSize: 17 }}>{c.icon}</span>
+                  <span style={{ fontSize: 10, fontWeight: 500 }}>{c.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 細分類 horizontal scroll */}
+          {parentCat && (
+            <div style={{ padding: '6px 18px 0', overflowX: 'auto', scrollbarWidth: 'none' }}>
+              <div style={{ display: 'flex', gap: 6, width: 'max-content', paddingLeft: 2, borderLeft: `2px solid ${parentCat.color}` }}>
+                {parentCat.subs.map(s => (
+                  <button key={s} onClick={() => setSubcat(s)} style={{
+                    padding: '4px 11px', borderRadius: 999, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
+                    background: subcat === s ? parentCat.color : 'var(--ns-bg-elev)',
+                    color: subcat === s ? '#fff' : 'var(--ns-fg-muted)',
+                    border: subcat === s ? 'none' : '1px solid var(--ns-border)',
+                    fontFamily: 'inherit', transition: 'all 0.1s',
+                  }}>{s}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ padding: '6px 18px 0' }}>
+            <AccountRow markLabel="V" color="var(--ns-chart-2)"
+              name="Cathay World Card" sub="信用卡 · 餘額 −48,210"/>
+          </div>
+
+          {/* 週期記帳 */}
+          <div style={{ padding: '6px 18px 0' }}>
+            <div style={{ display: 'flex', gap: 5, overflowX: 'auto', scrollbarWidth: 'none' }}>
+              {[{id:'none',label:'不重複'},{id:'daily',label:'每日'},{id:'weekly',label:'每週'},{id:'monthly',label:'每月'},{id:'yearly',label:'每年'}].map(r => (
+                <button key={r.id} onClick={() => setRecurring(r.id)} style={{
+                  padding: '4px 11px', borderRadius: 999, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
+                  background: recurring === r.id ? 'var(--ns-fg)' : 'var(--ns-bg-elev)',
+                  color: recurring === r.id ? 'var(--ns-bg)' : 'var(--ns-fg-muted)',
+                  border: recurring === r.id ? 'none' : '1px solid var(--ns-border)',
+                  fontFamily: 'inherit', flexShrink: 0,
+                }}>{r.label}</button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ padding: '6px 18px 0' }}>
+            <input className="ns-input" value={note} onChange={e => setNote(e.target.value)}
+              placeholder="備註（選填）" style={{ fontSize: 13 }}/>
+          </div>
+        </>
+      )}
+
+      {/* ── 轉帳: 從 → 至 + 備註 ── */}
+      {type === 'transfer' && (
+        <div style={{ padding: '10px 18px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <AccountRow label="從" markLabel="V" color="var(--ns-chart-2)"
+            name="Cathay World Card" sub="信用卡 · 餘額 −48,210"/>
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <NSIcon name="arrowDown" size={16} style={{ opacity: 0.4 }}/>
+          </div>
+          <AccountRow label="至" markLabel="玉" color="var(--ns-chart-1)"
+            name="玉山活存" sub="銀行帳戶 · 餘額 NT$284,000"/>
+          <input className="ns-input" value={note} onChange={e => setNote(e.target.value)}
+            placeholder="備註（選填）" style={{ fontSize: 13 }}/>
+        </div>
+      )}
+
+      {/* ── 應收帳款 ── */}
+      {type === 'ar' && (
+        <div style={{ padding: '10px 18px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{
+            padding: '10px 14px', borderRadius: 'var(--ns-r-md)',
+            background: 'color-mix(in srgb, var(--ns-chart-3) 12%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--ns-chart-3) 30%, transparent)',
+            fontSize: 12, color: 'var(--ns-fg-muted)', lineHeight: 1.5,
+          }}>
+            應收帳款：對方欠你的錢，尚未入帳。記錄後可追蹤收款狀態。
+          </div>
+          <div>
+            <div className="ns-eyebrow" style={{ marginBottom: 5 }}>對象（欠款方）</div>
+            <input className="ns-input" value={counterparty} onChange={e => setCounterparty(e.target.value)}
+              placeholder="例：小明、ABC 公司" style={{ fontSize: 14 }}/>
+          </div>
+          <div>
+            <div className="ns-eyebrow" style={{ marginBottom: 5 }}>預計收款日</div>
+            <input className="ns-input" type="date" value={dueDate}
+              onChange={e => setDueDate(e.target.value)}
+              style={{ fontSize: 14, fontFamily: 'var(--ns-font-mono)' }}/>
+          </div>
+          <input className="ns-input" value={note} onChange={e => setNote(e.target.value)}
+            placeholder="備註（選填）" style={{ fontSize: 13 }}/>
+        </div>
+      )}
+
+      {/* ── 應付帳款 ── */}
+      {type === 'ap' && (
+        <div style={{ padding: '10px 18px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{
+            padding: '10px 14px', borderRadius: 'var(--ns-r-md)',
+            background: 'color-mix(in srgb, var(--ns-chart-5) 12%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--ns-chart-5) 30%, transparent)',
+            fontSize: 12, color: 'var(--ns-fg-muted)', lineHeight: 1.5,
+          }}>
+            應付帳款：你欠別人的錢，尚未付款。記錄後可追蹤付款截止日。
+          </div>
+          <div>
+            <div className="ns-eyebrow" style={{ marginBottom: 5 }}>對象（收款方）</div>
+            <input className="ns-input" value={counterparty} onChange={e => setCounterparty(e.target.value)}
+              placeholder="例：房東、供應商" style={{ fontSize: 14 }}/>
+          </div>
+          <div>
+            <div className="ns-eyebrow" style={{ marginBottom: 5 }}>付款截止日</div>
+            <input className="ns-input" type="date" value={dueDate}
+              onChange={e => setDueDate(e.target.value)}
+              style={{ fontSize: 14, fontFamily: 'var(--ns-font-mono)' }}/>
+          </div>
+          <input className="ns-input" value={note} onChange={e => setNote(e.target.value)}
+            placeholder="備註（選填）" style={{ fontSize: 13 }}/>
+        </div>
+      )}
+
+      <div style={{ flex: 1 }}/>
 
       {/* Numpad */}
-      <div style={{ flex: 1 }} />
       <div style={{
         background: 'var(--ns-bg-elev)', borderTop: '1px solid var(--ns-border)',
-        padding: '12px 12px 28px',
+        padding: '10px 12px 28px',
       }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 7 }}>
           {keys.map((k) => {
-            const isOp = ['+','−','=','✓','←'].includes(k);
+            const isOp = ['+','−','=','←'].includes(k);
             const isPrimary = k === '✓';
             return (
               <button key={k} style={{
                 fontFamily: 'var(--ns-font-mono)', fontVariantNumeric: 'tabular-nums',
-                fontSize: 22, fontWeight: 500, height: 48, borderRadius: 'var(--ns-r-md)',
-                background: isPrimary ? 'var(--ns-accent)' : isOp ? 'var(--ns-bg-card)' : 'var(--ns-bg-card)',
-                color: isPrimary ? 'var(--ns-accent-fg)' : 'var(--ns-fg)',
-                border: '1px solid var(--ns-border)', cursor: 'pointer',
+                fontSize: 22, fontWeight: 500, height: 46, borderRadius: 'var(--ns-r-md)',
+                background: isPrimary ? current.color : isOp ? 'var(--ns-bg-card)' : 'var(--ns-bg-card)',
+                color: isPrimary ? '#fff' : 'var(--ns-fg)',
+                border: isPrimary ? 'none' : '1px solid var(--ns-border)', cursor: 'pointer',
               }}>{k}</button>
             );
           })}
