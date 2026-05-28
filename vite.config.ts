@@ -2,9 +2,16 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
+import path from "node:path";
+
 export default defineConfig({
   base: "./",
   plugins: [react(), tailwindcss(), yahooFinanceProxy()],
+  resolve: {
+    alias: {
+      "@": path.resolve(import.meta.dirname, "./src"),
+    },
+  },
   clearScreen: false,
   server: {
     strictPort: true,
