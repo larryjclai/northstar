@@ -10,8 +10,10 @@ import {
 } from "@phosphor-icons/react";
 import { Link, Outlet } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePrivacySync, useUiPreferences } from "../state/uiPreferences";
+import { GlobalSearch } from "./GlobalSearch";
+import { MagnifyingGlass } from "@phosphor-icons/react";
 
 const appIconUrl = new URL("../../src-tauri/icons/icon.png", import.meta.url).href;
 
@@ -30,6 +32,7 @@ export function AppShell() {
   usePrivacyShortcut();
   const privacyMode = useUiPreferences((state) => state.privacyMode);
   const togglePrivacy = useUiPreferences((state) => state.togglePrivacyMode);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   return (
     <div
@@ -59,6 +62,22 @@ export function AppShell() {
           >
             Northstar
           </span>
+        </div>
+
+        {/* Global Search Trigger */}
+        <div style={{ padding: "0 8px 8px" }}>
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground bg-secondary/30 hover:bg-secondary/50 rounded-md border border-border/50 transition-colors"
+            style={{ color: "var(--ns-fg-muted)", fontSize: 13 }}
+          >
+            <MagnifyingGlass size={15} />
+            <span className="flex-1 text-left">Search...</span>
+            <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+              <span className="text-xs">⌘</span>K
+            </kbd>
+          </button>
         </div>
 
         {/* Nav items */}
@@ -136,6 +155,8 @@ export function AppShell() {
           </Link>
         ))}
       </nav>
+
+      <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
     </div>
   );
 }
