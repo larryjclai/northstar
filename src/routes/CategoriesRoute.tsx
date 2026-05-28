@@ -94,32 +94,20 @@ export function CategoriesRoute() {
           </h1>
         </div>
         
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ display: "flex", background: "var(--ns-surface)", borderRadius: 8, padding: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div className="ns-seg">
             {(["month", "ytd", "custom"] as const).map(mode => (
               <button
                 key={mode}
+                aria-selected={timeRange === mode}
                 onClick={() => setTimeRange(mode)}
-                style={{
-                  padding: "6px 16px",
-                  fontSize: 13,
-                  fontWeight: timeRange === mode ? 500 : 400,
-                  color: timeRange === mode ? "var(--ns-fg)" : "var(--ns-fg-muted)",
-                  background: timeRange === mode ? "var(--ns-card-bg)" : "transparent",
-                  border: "1px solid",
-                  borderColor: timeRange === mode ? "var(--ns-border)" : "transparent",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                  boxShadow: timeRange === mode ? "0 1px 3px rgba(0,0,0,0.05)" : "none",
-                  transition: "all 0.2s"
-                }}
               >
                 {mode === "month" ? "本月" : mode === "ytd" ? "YTD" : "自訂"}
               </button>
             ))}
           </div>
-          <button onClick={() => navigate({ to: "/settings" })} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--ns-accent)", color: "white", padding: "8px 16px", borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: "pointer", border: "none" }}>
-            <Plus size={16} weight="bold" /> 新增分類
+          <button className="ns-btn primary" onClick={() => navigate({ to: "/settings" })}>
+            <Plus size={14} weight="bold" /> 新增分類
           </button>
         </div>
       </div>

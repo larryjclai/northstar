@@ -1,33 +1,50 @@
 import {
   ArrowsLeftRight,
   CalendarBlank,
-  CalendarPlus,
-  PencilSimple,
+  Check,
+  DownloadSimple,
+  Plus,
   Receipt,
-  TrendDown,
-  TrendUp,
+  Tag,
   Trash,
   UploadSimple,
   X,
 } from "@phosphor-icons/react";
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
-import { ActionButton } from "../components/ActionButton";
-import { PageHeader } from "../components/AppShell";
-import { Card } from "../components/Card";
-import { DateTimeField } from "../components/DateTimeField";
-import { EmptyState } from "../components/EmptyState";
-import { Field, SelectInput, TextAreaInput, TextInput } from "../components/Field";
-import { SegmentedControl } from "../components/SegmentedControl";
-import { StatusText } from "../components/StatusText";
+import { ChangeEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import type { LedgerDraft, RecurringDraft, TransferDraft } from "../data/repositories";
+import type { LedgerDraft, TransferDraft } from "../data/repositories";
 import { evaluateAmountExpression, formatNumber, nowAsDatetimeLocal, todayInTimezone } from "../domain";
-import type { LedgerTransaction, RecurringFrequency, RecurringTransaction } from "../domain";
-import { recurringFrequencyLabels } from "../domain";
+import type { LedgerTransaction, RecurringTransaction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 
-type CashDrawerMode = "income" | "expense" | "transfer" | "recurring";
+/**
+ * Transaction types surfaced in the entry drawer. `ar` / `ap` (應收 / 應付)
+ * are persisted as income / expense rows whose `settlementStatus` is
+ * receivable / payable, matching the existing data model. The "對象" is stored
+ * in `merchant`, and any due date is appended to `note` until dedicated
+ * counterparty / dueDate fields land in the data layer.
+ */
+type CashType = "expense" | "income" | "transfer" | "ar" | "ap";
+
+const TYPE_META: Record<CashType, { label: string; color: string; sign: string; eyebrow: string }> = {
+  expense: { label: "支出", color: "var(--ns-neg)", sign: "−", eyebrow: "支出金額" },
+  income: { label: "收入", color: "var(--ns-pos)", sign: "+", eyebrow: "收入金額" },
+  transfer: { label: "轉帳", color: "var(--ns-accent)", sign: "", eyebrow: "轉帳金額" },
+  ar: { label: "應收帳款", color: "var(--ns-chart-3)", sign: "+", eyebrow: "應收金額" },
+  ap: { label: "應付帳款", color: "var(--ns-chart-5)", sign: "−", eyebrow: "應付金額" },
+};
+
+const TYPE_ORDER: CashType[] = ["expense", "income", "transfer", "ar", "ap"];
+
+function entryTypeFor(type: CashType): LedgerDraft["entryType"] {
+  return type === "income" || type === "ar" ? "income" : "expense";
+}
+function settlementFor(type: CashType): LedgerDraft["settlementStatus"] {
+  if (type === "ar") return "receivable";
+  if (type === "ap") return "payable";
+  return "settled";
+}
 
 function makeEmptyLedger(timezone: string): LedgerDraft {
   return {
@@ -36,8 +53,8 @@ function makeEmptyLedger(timezone: string): LedgerDraft {
     name: "",
     amount: 100,
     currency: "TWD",
-    category: "餐飲",
-    subcategory: "點心",
+    category: "",
+    subcategory: "",
     merchant: "",
     entryType: "expense",
     settlementStatus: "settled",
@@ -58,40 +75,21 @@ function makeEmptyTransfer(timezone: string): TransferDraft {
   };
 }
 
-function makeEmptyRecurring(timezone: string): RecurringDraft {
-  return {
-    accountId: "",
-    amount: -390,
-    currency: "TWD",
-    category: "餐飲",
-    subcategory: "飲料",
-    merchant: "",
-    entryType: "expense",
-    settlementStatus: "settled",
-    note: "訂閱",
-    frequency: "monthly",
-    dayOfMonth: 1,
-    nextRunDate: todayInTimezone(timezone),
-    isActive: true,
-  };
-}
-
 export function CashFlowRoute() {
   const { accounts, ledger, recurring, settings } = useFinanceData();
   const timezone = useUiPreferences((state) => state.timezone);
   const emptyLedger = useMemo(() => makeEmptyLedger(timezone), [timezone]);
   const emptyTransfer = useMemo(() => makeEmptyTransfer(timezone), [timezone]);
-  const emptyRecurring = useMemo(() => makeEmptyRecurring(timezone), [timezone]);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerMode, setDrawerMode] = useState<CashDrawerMode>("expense");
+  const [drawerType, setDrawerType] = useState<CashType>("expense");
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [ledgerForm, setLedgerForm] = useState<LedgerDraft>(emptyLedger);
   const [amountExpression, setAmountExpression] = useState(String(Math.abs(emptyLedger.amount)));
   const [transferForm, setTransferForm] = useState<TransferDraft>(emptyTransfer);
-  const [recurringForm, setRecurringForm] = useState<RecurringDraft>(emptyRecurring);
-  const [accountSelectionMode, setAccountSelectionMode] = useState<"auto" | "manual">("auto");
+  const [counterparty, setCounterparty] = useState("");
+  const [dueDate, setDueDate] = useState("");
 
   const [preview, setPreview] = useState<ImportPreview<LedgerDraft> | null>(null);
   const [message, setMessage] = useState("");
@@ -104,27 +102,41 @@ export function CashFlowRoute() {
   const categories = appSettings?.categories.length ? appSettings.categories : [];
   const categoryNames = categories.map((category) => category.name);
   const subcategories = categories.find((category) => category.name === ledgerForm.category)?.children ?? [];
-  const recurringSubcategories = categories.find((category) => category.name === recurringForm.category)?.children ?? [];
 
   const merchants = appSettings?.merchants ?? [];
-  const merchantPool = useMemo(() => uniqueClean([...merchants, ...ledgerRows.map((row) => row.merchant)]), [merchants, ledgerRows]);
-  const merchantSuggestions = useMemo(() => buildMerchantSuggestions(merchantPool, ledgerForm.merchant), [merchantPool, ledgerForm.merchant]);
-  const recurringMerchantSuggestions = useMemo(() => buildMerchantSuggestions(merchantPool, recurringForm.merchant), [merchantPool, recurringForm.merchant]);
+  const merchantPool = useMemo(
+    () => uniqueClean([...merchants, ...ledgerRows.map((row) => row.merchant)]),
+    [merchants, ledgerRows],
+  );
+  const merchantSuggestions = useMemo(
+    () => buildMerchantSuggestions(merchantPool, ledgerForm.merchant),
+    [merchantPool, ledgerForm.merchant],
+  );
 
   const accountName = (id: string) => accountRows.find((account) => account.id === id)?.name ?? id;
-  const accountIdFor = (nameOrId: string) => accountRows.find((account) => account.id === nameOrId || account.name === nameOrId)?.id;
-  const groupedRows = useMemo(() => groupLedgerRows(ledgerRows), [ledgerRows]);
-  const availableAccountIds = useMemo(() => new Set(accountRows.map((account) => account.id)), [accountRows]);
+  const accountIdFor = (nameOrId: string) =>
+    accountRows.find((account) => account.id === nameOrId || account.name === nameOrId)?.id;
 
-  const createLedger = useRepositoryMutation((repository, input: LedgerDraft) => repository.createLedgerTransaction(input), ["ledger", "accounts"]);
-  const updateLedger = useRepositoryMutation((repository, input: LedgerDraft & { id: string }) => repository.updateLedgerTransaction(input.id, input), ["ledger", "accounts"]);
-  const deleteLedger = useRepositoryMutation((repository, id: string) => repository.deleteLedgerTransaction(id), ["ledger", "accounts"]);
-  const createTransfer = useRepositoryMutation((repository, input: TransferDraft) => repository.createTransfer(input), ["ledger", "accounts"]);
-  const importLedger = useRepositoryMutation((repository, input: LedgerDraft[]) => repository.importLedgerTransactions(input), ["ledger", "accounts"]);
-
-  const createRecurring = useRepositoryMutation((repository, input: RecurringDraft) => repository.createRecurringTransaction(input), ["recurring"]);
-  const deleteRecurring = useRepositoryMutation((repository, id: string) => repository.deleteRecurringTransaction(id), ["recurring"]);
-  const postRecurring = useRepositoryMutation((repository, id: string) => repository.postRecurringTransaction(id), ["recurring", "ledger", "accounts"]);
+  const createLedger = useRepositoryMutation(
+    (repository, input: LedgerDraft) => repository.createLedgerTransaction(input),
+    ["ledger", "accounts"],
+  );
+  const updateLedger = useRepositoryMutation(
+    (repository, input: LedgerDraft & { id: string }) => repository.updateLedgerTransaction(input.id, input),
+    ["ledger", "accounts"],
+  );
+  const deleteLedger = useRepositoryMutation(
+    (repository, id: string) => repository.deleteLedgerTransaction(id),
+    ["ledger", "accounts"],
+  );
+  const createTransfer = useRepositoryMutation(
+    (repository, input: TransferDraft) => repository.createTransfer(input),
+    ["ledger", "accounts"],
+  );
+  const importLedger = useRepositoryMutation(
+    (repository, input: LedgerDraft[]) => repository.importLedgerTransactions(input),
+    ["ledger", "accounts"],
+  );
 
   const rememberMerchants = useRepositoryMutation(async (repository, input: string[]) => {
     const nextNames = uniqueClean(input);
@@ -136,32 +148,32 @@ export function CashFlowRoute() {
     await repository.updateAppSettings({ ...current, merchants: [...current.merchants, ...additions] });
   }, ["settings"]);
 
-  const rememberCategories = useRepositoryMutation(async (repository, input: Array<{ category: string; subcategory: string }>) => {
-    const nextItems = input
-      .map((item) => ({ category: item.category.trim(), subcategory: item.subcategory.trim() }))
-      .filter((item) => item.category);
-    if (nextItems.length === 0) return;
-
-    const current = await repository.getAppSettings();
-    const nextCategories = current.categories.map((category) => ({ ...category, children: [...category.children] }));
-    let changed = false;
-
-    for (const item of nextItems) {
-      let category = nextCategories.find((candidate) => candidate.name === item.category);
-      if (!category) {
-        category = { name: item.category, children: [] };
-        nextCategories.push(category);
-        changed = true;
+  const rememberCategories = useRepositoryMutation(
+    async (repository, input: Array<{ category: string; subcategory: string }>) => {
+      const nextItems = input
+        .map((item) => ({ category: item.category.trim(), subcategory: item.subcategory.trim() }))
+        .filter((item) => item.category);
+      if (nextItems.length === 0) return;
+      const current = await repository.getAppSettings();
+      const nextCategories = current.categories.map((category) => ({ ...category, children: [...category.children] }));
+      let changed = false;
+      for (const item of nextItems) {
+        let category = nextCategories.find((candidate) => candidate.name === item.category);
+        if (!category) {
+          category = { name: item.category, children: [] };
+          nextCategories.push(category);
+          changed = true;
+        }
+        if (item.subcategory && !category.children.includes(item.subcategory)) {
+          category.children.push(item.subcategory);
+          changed = true;
+        }
       }
-      if (item.subcategory && !category.children.includes(item.subcategory)) {
-        category.children.push(item.subcategory);
-        changed = true;
-      }
-    }
-
-    if (!changed) return;
-    await repository.updateAppSettings({ ...current, categories: nextCategories });
-  }, ["settings"]);
+      if (!changed) return;
+      await repository.updateAppSettings({ ...current, categories: nextCategories });
+    },
+    ["settings"],
+  );
 
   function rememberMerchantNames(names: string[]) {
     const nextNames = uniqueClean(names);
@@ -171,31 +183,25 @@ export function CashFlowRoute() {
     });
   }
 
-  function syncAccountDefaults(accountId: string) {
-    setAccountSelectionMode("manual");
-    const account = accountRows.find((item) => item.id === accountId);
-    if (account) setLedgerForm((current) => ({ ...current, accountId, currency: account.currency }));
-  }
-
-  function openCreate(mode: CashDrawerMode) {
-    setDrawerMode(mode);
+  function openCreate(type: CashType) {
+    setDrawerType(type);
     setDrawerOpen(true);
     setEditingId(null);
     setMessage("");
-    if (mode === "recurring") {
-      setRecurringForm({ ...emptyRecurring, currency: appSettings?.primaryCurrency ?? emptyRecurring.currency });
-    } else if (mode !== "transfer") {
-      setLedgerForm((current) => ({
+    setCounterparty("");
+    setDueDate("");
+    if (type === "transfer") {
+      setTransferForm({ ...emptyTransfer, date: nowAsDatetimeLocal(timezone) });
+    } else {
+      setLedgerForm({
         ...emptyLedger,
         date: nowAsDatetimeLocal(timezone),
-        currency: appSettings?.primaryCurrency ?? current.currency,
-        entryType: mode === "income" ? "income" : "expense",
-        settlementStatus: "settled",
-      }));
+        currency: appSettings?.primaryCurrency ?? emptyLedger.currency,
+        category: categoryNames[0] ?? "",
+        entryType: entryTypeFor(type),
+        settlementStatus: settlementFor(type),
+      });
       setAmountExpression(String(Math.abs(emptyLedger.amount)));
-      setAccountSelectionMode("auto");
-    } else {
-      setTransferForm({ ...emptyTransfer, date: nowAsDatetimeLocal(timezone) });
     }
   }
 
@@ -205,93 +211,32 @@ export function CashFlowRoute() {
     setMessage("");
   }
 
-  useEffect(() => {
-    if (!drawerOpen || drawerMode === "transfer" || editingId || accountSelectionMode !== "auto") return;
-    const accountId = findLastUsedAccountIdForCategory(ledgerRows, availableAccountIds, {
-      category: ledgerForm.category,
-      subcategory: ledgerForm.subcategory,
-      entryType: drawerMode === "income" ? "income" : "expense",
-    });
-    if (!accountId) return;
-    const account = accountRows.find((item) => item.id === accountId);
-    if (!account) return;
-
-    setLedgerForm((current) => {
-      if (current.accountId === accountId && current.currency === account.currency) return current;
-      return { ...current, accountId, currency: account.currency };
-    });
-  }, [
-    accountRows,
-    accountSelectionMode,
-    availableAccountIds,
-    drawerMode,
-    drawerOpen,
-    editingId,
-    ledgerForm.category,
-    ledgerForm.subcategory,
-    ledgerRows,
-  ]);
-
-  async function submitRecurring() {
-    setMessage("");
-    try {
-      if (!recurringForm.accountId) throw new Error("請選擇帳戶。");
-      await createRecurring.mutateAsync(recurringForm);
-      rememberMerchantNames([recurringForm.merchant]);
-      setRecurringForm({ ...emptyRecurring, currency: appSettings?.primaryCurrency ?? emptyRecurring.currency });
-      closeDrawer();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "週期事件儲存失敗。");
+  function changeType(next: CashType) {
+    setDrawerType(next);
+    if (next === "transfer") {
+      setTransferForm({ ...emptyTransfer, date: nowAsDatetimeLocal(timezone) });
+    } else {
+      setLedgerForm((current) => ({
+        ...current,
+        entryType: entryTypeFor(next),
+        settlementStatus: settlementFor(next),
+      }));
     }
-  }
-
-  async function submitSingle() {
-    setMessage("");
-    try {
-      const amount = Math.abs(evaluateAmountExpression(amountExpression));
-      const entryType: LedgerDraft["entryType"] = drawerMode === "income" ? "income" : "expense";
-      const signedAmount = entryType === "expense" ? -amount : amount;
-      const payload: LedgerDraft = {
-        ...ledgerForm,
-        entryType,
-        amount: signedAmount,
-        name: ledgerForm.name.trim(),
-        category: ledgerForm.category.trim(),
-        subcategory: ledgerForm.subcategory.trim(),
-        merchant: ledgerForm.merchant.trim(),
-      };
-      if (!payload.accountId) throw new Error("請選擇帳戶。");
-      if (editingId) await updateLedger.mutateAsync({ ...payload, id: editingId });
-      else await createLedger.mutateAsync(payload);
-      await rememberCategories.mutateAsync([{ category: payload.category, subcategory: payload.subcategory }]);
-      rememberMerchantNames([payload.merchant]);
-      closeDrawer();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "收支儲存失敗。");
-    }
-  }
-
-  async function submitTransfer() {
-    setMessage("");
-    try {
-      if (!transferForm.sourceAccountId || !transferForm.destinationAccountId) throw new Error("請選擇來源和目標帳戶。");
-      await createTransfer.mutateAsync(transferForm);
-      closeDrawer();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "轉帳儲存失敗。");
-    }
-  }
-
-  async function handleCsv(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setPreview(parseLedgerCsv(await file.text(), accountIdFor));
-    event.target.value = "";
   }
 
   function startEdit(row: LedgerTransaction) {
-    setDrawerMode(row.entryType === "income" ? "income" : "expense");
+    const type: CashType =
+      row.settlementStatus === "receivable"
+        ? "ar"
+        : row.settlementStatus === "payable"
+          ? "ap"
+          : row.entryType === "income"
+            ? "income"
+            : "expense";
+    setDrawerType(type);
     setEditingId(row.id);
+    setCounterparty(row.settlementStatus === "settled" ? "" : row.merchant);
+    setDueDate("");
     setLedgerForm({
       accountId: row.accountId,
       date: row.date,
@@ -305,24 +250,94 @@ export function CashFlowRoute() {
       settlementStatus: row.settlementStatus ?? "settled",
       note: row.note,
     });
-    setAccountSelectionMode("manual");
     setAmountExpression(String(Math.abs(row.amount)));
     setMessage("");
     setDrawerOpen(true);
   }
 
+  async function submitLedger() {
+    setMessage("");
+    try {
+      const amount = Math.abs(evaluateAmountExpression(amountExpression));
+      const entryType = entryTypeFor(drawerType);
+      const signedAmount = entryType === "expense" ? -amount : amount;
+      const isReceivablePayable = drawerType === "ar" || drawerType === "ap";
+      const note = dueDate ? `${ledgerForm.note ? `${ledgerForm.note} · ` : ""}到期 ${dueDate}`.trim() : ledgerForm.note;
+      const payload: LedgerDraft = {
+        ...ledgerForm,
+        entryType,
+        settlementStatus: settlementFor(drawerType),
+        amount: signedAmount,
+        name: ledgerForm.name.trim() || (isReceivablePayable ? counterparty.trim() : ""),
+        category: ledgerForm.category.trim(),
+        subcategory: ledgerForm.subcategory.trim(),
+        merchant: (isReceivablePayable ? counterparty : ledgerForm.merchant).trim(),
+        note,
+      };
+      if (!payload.accountId) throw new Error("請選擇帳戶。");
+      if (isReceivablePayable && !payload.merchant) throw new Error("請填寫對象。");
+      if (editingId) await updateLedger.mutateAsync({ ...payload, id: editingId });
+      else await createLedger.mutateAsync(payload);
+      await rememberCategories.mutateAsync([{ category: payload.category, subcategory: payload.subcategory }]);
+      rememberMerchantNames([payload.merchant]);
+      closeDrawer();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "收支儲存失敗。");
+    }
+  }
+
+  async function submitTransfer() {
+    setMessage("");
+    try {
+      if (!transferForm.sourceAccountId || !transferForm.destinationAccountId)
+        throw new Error("請選擇來源和目標帳戶。");
+      await createTransfer.mutateAsync(transferForm);
+      closeDrawer();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "轉帳儲存失敗。");
+    }
+  }
+
+  async function markSettled(row: LedgerTransaction) {
+    await updateLedger.mutateAsync({
+      id: row.id,
+      accountId: row.accountId,
+      date: row.date,
+      name: row.name,
+      amount: row.amount,
+      currency: row.currency,
+      category: row.category,
+      subcategory: row.subcategory,
+      merchant: row.merchant,
+      entryType: row.entryType,
+      settlementStatus: "settled",
+      note: row.note,
+    });
+  }
+
+  async function handleCsv(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setPreview(parseLedgerCsv(await file.text(), accountIdFor));
+    event.target.value = "";
+  }
+
   const monthKey = todayInTimezone(timezone).slice(0, 7);
   const monthRows = useMemo(() => ledgerRows.filter((row) => row.date.startsWith(monthKey)), [ledgerRows, monthKey]);
-  const monthIncome = monthRows.filter((row) => row.entryType === "income").reduce((sum, row) => sum + Math.max(0, row.amount), 0);
-  const monthExpense = monthRows.filter((row) => row.entryType === "expense").reduce((sum, row) => sum + Math.abs(row.amount), 0);
+  const monthIncome = monthRows
+    .filter((row) => row.entryType === "income" && row.settlementStatus === "settled")
+    .reduce((sum, row) => sum + Math.max(0, row.amount), 0);
+  const monthExpense = monthRows
+    .filter((row) => row.entryType === "expense" && row.settlementStatus === "settled")
+    .reduce((sum, row) => sum + Math.abs(row.amount), 0);
   const monthNet = monthIncome - monthExpense;
   const monthTransferCount = monthRows.filter((row) => row.entryType === "transfer").length;
 
   const topCategorySpend = useMemo(() => {
     const map = new Map<string, number>();
     for (const row of monthRows) {
-      if (row.entryType !== "expense") continue;
-      const key = row.subcategory ? `${row.category} / ${row.subcategory}` : row.category;
+      if (row.entryType !== "expense" || row.settlementStatus !== "settled") continue;
+      const key = row.subcategory ? `${row.category} / ${row.subcategory}` : row.category || "未分類";
       map.set(key, (map.get(key) ?? 0) + Math.abs(row.amount));
     }
     return [...map.entries()]
@@ -331,271 +346,148 @@ export function CashFlowRoute() {
       .slice(0, 6);
   }, [monthRows]);
 
-  const topMerchantSpend = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const row of monthRows) {
-      if (row.entryType !== "expense" || !row.merchant.trim()) continue;
-      const key = row.merchant.trim();
-      map.set(key, (map.get(key) ?? 0) + Math.abs(row.amount));
-    }
-    return [...map.entries()]
-      .map(([name, amount]) => ({ name, amount }))
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 6);
-  }, [monthRows]);
+  const sortedRows = useMemo(
+    () => [...ledgerRows].sort((a, b) => b.date.localeCompare(a.date)),
+    [ledgerRows],
+  );
+  const dayGroups = useMemo(() => groupByDay(sortedRows), [sortedRows]);
+  const monthLabel = monthKey.replace("-", " / ");
 
   return (
-    <div className="mx-auto max-w-6xl p-5 lg:p-8">
-      <div>
-        <PageHeader
-          title="記帳"
-          description="以 dashboard 方式掌握收入、支出與轉帳，帳戶餘額會同步更新。"
-          action={
-            <ActionButton onClick={() => openCreate("expense")} size="sm">
-              <Receipt size={14} />新增支出
-            </ActionButton>
-          }
-        />
-
-        <div className="mb-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard label="本月收入" value={`${formatNumber(monthIncome)} TWD`} tone="positive" />
-          <SummaryCard label="本月支出" value={`${formatNumber(monthExpense)} TWD`} tone="negative" />
-          <SummaryCard label="本月淨額" value={`${formatNumber(monthNet)} TWD`} tone={monthNet >= 0 ? "positive" : "negative"} />
-          <SummaryCard label="本月轉帳筆數" value={`${monthTransferCount} 筆`} tone="neutral" />
+    <div style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginBottom: 22, flexWrap: "wrap" }}>
+        <div>
+          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{monthLabel} · {monthRows.length} 筆</div>
+          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>
+            記帳
+          </h1>
         </div>
-
-        <div className="mb-4 grid gap-4 lg:grid-cols-2">
-          <DashboardListCard title="類別花費排行" rows={topCategorySpend} emptyText="本月尚無支出分類資料" />
-          <DashboardListCard title="商家花費排行" rows={topMerchantSpend} emptyText="本月尚無商家花費資料" />
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="ns-btn" onClick={() => downloadCsv("northstar-ledger.csv", exportLedgerCsv(ledgerRows, accountName))}>
+            <DownloadSimple size={14} />匯出
+          </button>
+          <label>
+            <input className="hidden" type="file" accept=".csv,text/csv" onChange={handleCsv} />
+            <span className="ns-btn" style={{ cursor: "pointer" }}><UploadSimple size={14} />匯入</span>
+          </label>
+          <button className="ns-btn primary" onClick={() => openCreate("expense")}>
+            <Plus size={14} weight="bold" />新增交易
+          </button>
         </div>
+      </div>
 
-        {message ? <div className="mb-4"><StatusText>{message}</StatusText></div> : null}
+      {/* Summary strip */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 20 }}>
+        <StatCard label="本月收入" value={`NT$${formatNumber(monthIncome)}`} tone="pos" />
+        <StatCard label="本月支出" value={`NT$${formatNumber(monthExpense)}`} tone="neg" />
+        <StatCard label="本月淨額" value={`${monthNet < 0 ? "−" : ""}NT$${formatNumber(Math.abs(monthNet))}`} tone={monthNet >= 0 ? "pos" : "neg"} />
+        <StatCard label="本月轉帳筆數" value={`${monthTransferCount} 筆`} tone="muted" />
+      </div>
 
-        <Card
-          title="本機收支"
-          variant="raised"
-          action={
-            <div className="flex flex-wrap gap-2">
-              <ActionButton variant="secondary" onClick={() => openCreate("income")} size="sm"><TrendUp size={14} />收入</ActionButton>
-              <ActionButton variant="secondary" onClick={() => openCreate("expense")} size="sm"><TrendDown size={14} />支出</ActionButton>
-              <ActionButton variant="secondary" onClick={() => openCreate("transfer")} size="sm"><ArrowsLeftRight size={14} />轉帳</ActionButton>
-              <ActionButton variant="secondary" onClick={() => downloadCsv("northstar-ledger.csv", exportLedgerCsv(ledgerRows, accountName))}>匯出 CSV</ActionButton>
-              <label>
-                <input className="hidden" type="file" accept=".csv,text/csv" onChange={handleCsv} />
-                <span className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface-elevated)" }}><UploadSimple size={16} />匯入 CSV</span>
-              </label>
-            </div>
-          }
-        >
-        {preview ? (
-          <div className="mb-4 rounded-md border p-4" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface-subtle)" }}>
-            <div className="font-semibold">匯入預覽：{preview.valid.length} valid / {preview.invalid.length} invalid</div>
-            {preview.invalid.map((item) => <div key={item.row} className="text-sm" style={{ color: "var(--ns-negative)" }}>Row {item.row}: {item.reason}</div>)}
-            <div className="mt-3 flex gap-2">
-              <ActionButton onClick={async () => {
+      {message ? (
+        <div className="ns-card" style={{ marginBottom: 16, padding: "10px 16px", color: "var(--ns-neg)", fontSize: 13 }}>{message}</div>
+      ) : null}
+
+      {preview ? (
+        <div className="ns-card" style={{ marginBottom: 16 }}>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>
+            匯入預覽：{preview.valid.length} valid / {preview.invalid.length} invalid
+          </div>
+          {preview.invalid.map((item) => (
+            <div key={item.row} style={{ fontSize: 13, color: "var(--ns-neg)" }}>Row {item.row}: {item.reason}</div>
+          ))}
+          <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+            <button
+              className="ns-btn primary"
+              onClick={async () => {
                 const rows = preview.valid.map((item) => item.value);
                 await importLedger.mutateAsync(rows);
                 rememberMerchantNames(rows.map((row) => row.merchant));
                 setPreview(null);
-              }}>確認匯入</ActionButton>
-              <ActionButton variant="secondary" onClick={() => setPreview(null)}>取消</ActionButton>
+              }}
+            >
+              確認匯入
+            </button>
+            <button className="ns-btn" onClick={() => setPreview(null)}>取消</button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Main: ledger list + side rankings */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 20, alignItems: "start" }}>
+        {/* 流水帳 */}
+        <div className="ns-card" style={{ padding: 0, overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid var(--ns-border)" }}>
+            <span style={{ fontWeight: 600, fontSize: 15 }}>流水帳</span>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button className="ns-btn ghost" style={{ fontSize: 12.5 }} onClick={() => openCreate("income")}>收入</button>
+              <button className="ns-btn ghost" style={{ fontSize: 12.5 }} onClick={() => openCreate("expense")}>支出</button>
+              <button className="ns-btn ghost" style={{ fontSize: 12.5 }} onClick={() => openCreate("transfer")}>轉帳</button>
             </div>
           </div>
-        ) : null}
 
-        {groupedRows.length === 0 ? (
-          <EmptyState
-            icon={<Receipt size={24} weight="duotone" />}
-            title="還沒有記帳資料"
-            description="先新增一筆收入/支出/轉帳，或匯入 CSV 歷史資料。"
-            action={<ActionButton onClick={() => openCreate("expense")}><Receipt size={16} />新增支出</ActionButton>}
-          />
-        ) : (
-          <div className="space-y-3">
-            {groupedRows.map((group) => (
-              <div key={group.id} className="grid grid-cols-1 gap-4 rounded-xl border p-4 transition hover:opacity-95 sm:grid-cols-[1fr_auto]" style={{ borderColor: "var(--ns-panel-border)", background: "var(--ns-panel-surface)" }}>
-                <div>
-                  <div className="text-lg font-semibold">{group.title}</div>
-                  <div className="text-sm leading-6" style={{ color: "var(--ns-muted)" }}>{group.subtitle}</div>
-                </div>
-                <div className="tabular text-left sm:text-right" style={{ color: group.amount < 0 ? "var(--ns-negative)" : "var(--ns-positive)" }}>
-                  <div className="text-2xl font-semibold">{group.typeLabel} {formatNumber(Math.abs(group.amount))} {group.currency}</div>
-                  <div className="mt-2 flex flex-wrap gap-2 sm:justify-end">
-                    {group.rows.length === 1 && group.rows[0].entryType !== "transfer" ? (
-                      <ActionButton variant="secondary" onClick={() => startEdit(group.rows[0])}><PencilSimple size={16} />編輯</ActionButton>
-                    ) : null}
-                    <ActionButton
-                      variant="danger"
-                      onClick={async () => {
-                        for (const row of group.rows) {
-                          await deleteLedger.mutateAsync(row.id);
-                        }
-                      }}
-                    >
-                      <Trash size={16} />刪除
-                    </ActionButton>
-                  </div>
-                </div>
+          {dayGroups.length === 0 ? (
+            <div style={{ padding: "56px 20px", textAlign: "center" }}>
+              <div style={{ width: 52, height: 52, borderRadius: "var(--ns-r-md)", background: "var(--ns-accent-soft)", color: "var(--ns-accent)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
+                <Receipt size={24} weight="duotone" />
               </div>
-            ))}
-          </div>
-        )}
-        </Card>
-      </div>
-
-      <UpcomingPayments recurringRows={recurringRows} accountName={accountName} formatMoney={(amount, currency) => `${formatNumber(Math.abs(amount))} ${currency}`} />
-
-      <details className="mt-4 rounded-xl border p-4" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
-        <summary className="cursor-pointer select-none text-sm font-semibold" style={{ color: "var(--ns-muted)" }}>
-          週期事件（固定收支）
-        </summary>
-        <div className="mt-4 grid gap-4 lg:grid-cols-[380px_1fr]">
-          <Card title="新增週期事件" variant="muted">
-            <div className="grid gap-3">
-              <Field label="帳戶">
-                <SelectInput value={recurringForm.accountId} onChange={(event) => {
-                  const account = accountRows.find((item) => item.id === event.target.value);
-                  setRecurringForm({ ...recurringForm, accountId: event.target.value, currency: account?.currency ?? recurringForm.currency });
-                }}>
-                  <option value="">選擇帳戶</option>
-                  {accountRows.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                </SelectInput>
-              </Field>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="類型">
-                  <SelectInput value={recurringForm.entryType} onChange={(event) => {
-                    const entryType = event.target.value as RecurringDraft["entryType"];
-                    const amount = Math.abs(recurringForm.amount);
-                    setRecurringForm({ ...recurringForm, entryType, amount: entryType === "expense" ? -amount : amount });
-                  }}>
-                    <option value="expense">支出</option>
-                    <option value="income">收入</option>
-                  </SelectInput>
-                </Field>
-                <Field label="金額">
-                  <TextInput type="number" value={Math.abs(recurringForm.amount)} onChange={(event) => {
-                    const amount = Math.abs(Number(event.target.value));
-                    setRecurringForm({ ...recurringForm, amount: recurringForm.entryType === "expense" ? -amount : amount });
-                  }} />
-                </Field>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="分類">
-                  <SelectInput value={recurringForm.category} onChange={(event) => {
-                    const category = event.target.value;
-                    const firstChild = categories.find((item) => item.name === category)?.children[0] ?? "";
-                    setRecurringForm({ ...recurringForm, category, subcategory: firstChild });
-                  }}>
-                    {categoryNames.map((category) => <option key={category} value={category}>{category}</option>)}
-                  </SelectInput>
-                </Field>
-                <Field label="子分類">
-                  <SelectInput value={recurringForm.subcategory} onChange={(event) => setRecurringForm({ ...recurringForm, subcategory: event.target.value })}>
-                    <option value="">未分類</option>
-                    {recurringSubcategories.map((subcategory) => <option key={subcategory} value={subcategory}>{subcategory}</option>)}
-                  </SelectInput>
-                </Field>
-              </div>
-              <Field label="週期頻率">
-                <SelectInput value={recurringForm.frequency} onChange={(event) => setRecurringForm({ ...recurringForm, frequency: event.target.value as RecurringFrequency })}>
-                  {(Object.keys(recurringFrequencyLabels) as RecurringFrequency[]).map((freq) => (
-                    <option key={freq} value={freq}>{recurringFrequencyLabels[freq]}</option>
-                  ))}
-                </SelectInput>
-              </Field>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {recurringForm.frequency === "monthly" ? (
-                  <Field label="每月日期">
-                    <TextInput type="number" min={1} max={31} value={recurringForm.dayOfMonth} onChange={(event) => setRecurringForm({ ...recurringForm, dayOfMonth: Number(event.target.value) })} />
-                  </Field>
-                ) : <div />}
-                <Field label="下次日期">
-                  <TextInput type="date" value={recurringForm.nextRunDate} onChange={(event) => setRecurringForm({ ...recurringForm, nextRunDate: event.target.value })} />
-                </Field>
-              </div>
-              <Field label="商家">
-                <MerchantAutocomplete
-                  value={recurringForm.merchant}
-                  suggestions={recurringMerchantSuggestions}
-                  onChange={(next) => setRecurringForm({ ...recurringForm, merchant: next })}
-                  placeholder="例如 Spotify"
-                />
-              </Field>
-              <Field label="備註">
-                <TextInput value={recurringForm.note} onChange={(event) => setRecurringForm({ ...recurringForm, note: event.target.value })} />
-              </Field>
-              <ActionButton onClick={submitRecurring}><CalendarPlus size={16} />建立週期事件</ActionButton>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>還沒有記帳資料</div>
+              <div className="muted" style={{ fontSize: 13, marginBottom: 16 }}>新增一筆收入 / 支出 / 轉帳，或匯入 CSV。</div>
+              <button className="ns-btn primary" onClick={() => openCreate("expense")}><Plus size={14} weight="bold" />新增交易</button>
             </div>
-          </Card>
-          <Card title="週期事件" variant="muted">
-            {recurringRows.length === 0 ? (
-              <EmptyState
-                icon={<CalendarPlus size={24} weight="duotone" />}
-                title="尚未建立週期事件"
-                description="你可以建立每月固定扣款或固定收入，降低重複輸入。"
-              />
-            ) : (
-              <div className="space-y-3">
-                {recurringRows.map((row) => (
-                  <div key={row.id} className="grid grid-cols-1 gap-3 rounded-md border p-4 sm:grid-cols-[1fr_auto]" style={{ borderColor: "var(--ns-border)" }}>
-                    <div>
-                      <div className="font-semibold">{row.category}{row.subcategory ? ` / ${row.subcategory}` : ""}</div>
-                      <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{row.merchant || accountName(row.accountId)} · 下次 {row.nextRunDate} · {recurringFrequencyLabels[row.frequency ?? "monthly"]}{row.frequency === "monthly" ? ` ${row.dayOfMonth} 日` : ""}</div>
-                    </div>
-                    <div className="tabular text-left sm:text-right">
-                      <div>{row.entryType === "income" ? "收入" : "支出"} {formatNumber(Math.abs(row.amount))} {row.currency}</div>
-                      <div className="mt-2 flex flex-wrap gap-2 sm:justify-end">
-                        <ActionButton variant="secondary" onClick={() => postRecurring.mutate(row.id)}>產生本期</ActionButton>
-                        <ActionButton variant="danger" onClick={() => deleteRecurring.mutate(row.id)}><Trash size={16} />刪除</ActionButton>
-                      </div>
-                    </div>
-                  </div>
+          ) : (
+            dayGroups.map((group) => (
+              <div key={group.date}>
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 20px", background: "var(--ns-bg-elev)", borderBottom: "1px solid var(--ns-border)" }}>
+                  <span className="ns-eyebrow">{group.date}</span>
+                  <span className="num muted" style={{ fontSize: 12 }}>
+                    {group.net < 0 ? "−" : "+"}NT${formatNumber(Math.abs(group.net))}
+                  </span>
+                </div>
+                {group.rows.map((row) => (
+                  <LedgerRow
+                    key={row.id}
+                    row={row}
+                    accountName={accountName}
+                    onEdit={() => startEdit(row)}
+                    onDelete={() => deleteLedger.mutate(row.id)}
+                    onSettle={() => markSettled(row)}
+                  />
                 ))}
               </div>
-            )}
-          </Card>
+            ))
+          )}
         </div>
-      </details>
 
-      <CashFlowEntryDrawer
+        {/* Side rankings */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <RankingCard title="類別花費排行" rows={topCategorySpend} emptyText="本月尚無支出分類" />
+          <UpcomingPayments recurringRows={recurringRows} accountName={accountName} />
+        </div>
+      </div>
+
+      <EntryDrawer
         open={drawerOpen}
-        mode={drawerMode}
-        onClose={closeDrawer}
-        onModeChange={(next) => {
-          setDrawerMode(next);
-          if (next === "recurring") {
-            setRecurringForm({ ...emptyRecurring, currency: appSettings?.primaryCurrency ?? emptyRecurring.currency });
-          } else if (next !== "transfer") {
-            const entryType: LedgerDraft["entryType"] = next === "income" ? "income" : "expense";
-            setLedgerForm((current) => ({
-              ...current,
-              entryType,
-              settlementStatus:
-                current.settlementStatus === "receivable" || current.settlementStatus === "payable"
-                  ? (entryType === "income" ? "receivable" : "payable")
-                  : "settled",
-            }));
-          }
-        }}
+        type={drawerType}
         editing={Boolean(editingId)}
+        onClose={closeDrawer}
+        onTypeChange={changeType}
         ledgerForm={ledgerForm}
         setLedgerForm={setLedgerForm}
         amountExpression={amountExpression}
         setAmountExpression={setAmountExpression}
         transferForm={transferForm}
         setTransferForm={setTransferForm}
-        merchantSuggestions={merchantSuggestions}
-        categories={categoryNames}
+        counterparty={counterparty}
+        setCounterparty={setCounterparty}
+        dueDate={dueDate}
+        setDueDate={setDueDate}
+        categories={categories}
         subcategories={subcategories}
-        recurringForm={recurringForm}
-        setRecurringForm={setRecurringForm}
-        recurringSubcategories={recurringSubcategories}
-        recurringMerchantSuggestions={recurringMerchantSuggestions}
-        onSubmitRecurring={submitRecurring}
-        recurringIsPending={createRecurring.isPending}
+        merchantSuggestions={merchantSuggestions}
         accountRows={accountRows}
-        onAccountSelected={syncAccountDefaults}
-        onSubmitSingle={submitSingle}
+        onSubmitLedger={submitLedger}
         onSubmitTransfer={submitTransfer}
         message={message}
       />
@@ -603,56 +495,191 @@ export function CashFlowRoute() {
   );
 }
 
-function CashFlowEntryDrawer({
+/* ─────────────── Ledger row ─────────────── */
+
+function LedgerRow({
+  row,
+  accountName,
+  onEdit,
+  onDelete,
+  onSettle,
+}: {
+  row: LedgerTransaction;
+  accountName: (id: string) => string;
+  onEdit: () => void;
+  onDelete: () => void;
+  onSettle: () => void;
+}) {
+  const isTransfer = row.entryType === "transfer";
+  const isReceivable = row.settlementStatus === "receivable";
+  const isPayable = row.settlementStatus === "payable";
+  const positive = row.amount >= 0;
+  const color = isTransfer ? "var(--ns-fg)" : positive ? "var(--ns-pos)" : "var(--ns-neg)";
+  const sign = isTransfer ? "" : positive ? "+" : "−";
+  const subtitle = [
+    row.category ? `${row.category}${row.subcategory ? ` / ${row.subcategory}` : ""}` : null,
+    row.merchant || null,
+    accountName(row.accountId),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div
+      className="ns-cf-row"
+      style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderBottom: "1px solid var(--ns-border)" }}
+    >
+      <div style={{ width: 34, height: 34, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {isTransfer ? <ArrowsLeftRight size={15} /> : <Tag size={15} />}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 14, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {row.name || row.category || (isTransfer ? "轉帳" : "未命名")}
+          </span>
+          {isReceivable ? <span className="ns-pill" style={{ color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收</span> : null}
+          {isPayable ? <span className="ns-pill" style={{ color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}>應付</span> : null}
+        </div>
+        <div className="muted" style={{ fontSize: 11.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subtitle}</div>
+      </div>
+      <div style={{ textAlign: "right" }}>
+        <div className="num" style={{ fontSize: 14.5, color }}>{sign}NT${formatNumber(Math.abs(row.amount))}</div>
+      </div>
+      <div className="ns-cf-actions" style={{ display: "flex", gap: 4 }}>
+        {(isReceivable || isPayable) ? (
+          <button className="ns-btn ghost icon" title="結清" onClick={onSettle}><Check size={14} /></button>
+        ) : null}
+        {!isTransfer ? (
+          <button className="ns-btn ghost icon" title="編輯" onClick={onEdit}><Tag size={13} /></button>
+        ) : null}
+        <button className="ns-btn ghost icon" title="刪除" onClick={onDelete} style={{ color: "var(--ns-neg)" }}><Trash size={13} /></button>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────── Stat + ranking cards ─────────────── */
+
+function StatCard({ label, value, tone }: { label: string; value: string; tone: "pos" | "neg" | "muted" }) {
+  const color = tone === "pos" ? "var(--ns-pos)" : tone === "neg" ? "var(--ns-neg)" : "var(--ns-fg)";
+  return (
+    <div className="ns-card" style={{ padding: 18 }}>
+      <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{label}</div>
+      <div className="num" style={{ fontSize: 22, fontWeight: 500, color }}>{value}</div>
+    </div>
+  );
+}
+
+function RankingCard({ title, rows, emptyText }: { title: string; rows: Array<{ name: string; amount: number }>; emptyText: string }) {
+  const max = rows[0]?.amount ?? 1;
+  return (
+    <div className="ns-card">
+      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14 }}>{title}</div>
+      {rows.length === 0 ? (
+        <div className="muted" style={{ fontSize: 13 }}>{emptyText}</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {rows.map((row) => (
+            <div key={row.name}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 5 }}>
+                <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.name}</span>
+                <span className="num muted">NT${formatNumber(row.amount)}</span>
+              </div>
+              <div style={{ height: 6, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
+                <div style={{ width: `${Math.max(6, (row.amount / max) * 100)}%`, height: "100%", background: "var(--ns-accent)" }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UpcomingPayments({ recurringRows, accountName }: { recurringRows: RecurringTransaction[]; accountName: (id: string) => string }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const horizon = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().slice(0, 10);
+  })();
+  const upcoming = recurringRows
+    .filter((row) => row.isActive && row.nextRunDate >= today && row.nextRunDate <= horizon)
+    .sort((a, b) => a.nextRunDate.localeCompare(b.nextRunDate));
+
+  return (
+    <div className="ns-card">
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+        <CalendarBlank size={15} weight="duotone" style={{ color: "var(--ns-accent)" }} />
+        <span style={{ fontWeight: 600, fontSize: 14 }}>近 2 週固定收支</span>
+      </div>
+      {upcoming.length === 0 ? (
+        <div className="muted" style={{ fontSize: 13 }}>近期沒有排定的週期事件。</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {upcoming.map((row) => (
+            <div key={row.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.merchant || row.category}</div>
+                <div className="muted" style={{ fontSize: 11 }}>{row.nextRunDate} · {accountName(row.accountId)}</div>
+              </div>
+              <span className="num" style={{ color: row.entryType === "income" ? "var(--ns-pos)" : "var(--ns-neg)", whiteSpace: "nowrap" }}>
+                {row.entryType === "income" ? "+" : "−"}NT${formatNumber(Math.abs(row.amount))}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────── Entry drawer (5 types) ─────────────── */
+
+function EntryDrawer({
   open,
-  mode,
-  onClose,
-  onModeChange,
+  type,
   editing,
+  onClose,
+  onTypeChange,
   ledgerForm,
   setLedgerForm,
   amountExpression,
   setAmountExpression,
   transferForm,
   setTransferForm,
-  merchantSuggestions,
+  counterparty,
+  setCounterparty,
+  dueDate,
+  setDueDate,
   categories,
   subcategories,
-  recurringForm,
-  setRecurringForm,
-  recurringSubcategories,
-  recurringMerchantSuggestions,
-  onSubmitRecurring,
-  recurringIsPending,
+  merchantSuggestions,
   accountRows,
-  onAccountSelected,
-  onSubmitSingle,
+  onSubmitLedger,
   onSubmitTransfer,
   message,
 }: {
   open: boolean;
-  mode: CashDrawerMode;
-  onClose: () => void;
-  onModeChange: (mode: CashDrawerMode) => void;
+  type: CashType;
   editing: boolean;
+  onClose: () => void;
+  onTypeChange: (type: CashType) => void;
   ledgerForm: LedgerDraft;
   setLedgerForm: (value: LedgerDraft) => void;
   amountExpression: string;
   setAmountExpression: (value: string) => void;
   transferForm: TransferDraft;
   setTransferForm: (value: TransferDraft) => void;
-  merchantSuggestions: string[];
-  categories: string[];
+  counterparty: string;
+  setCounterparty: (value: string) => void;
+  dueDate: string;
+  setDueDate: (value: string) => void;
+  categories: Array<{ name: string; children: string[]; color?: string }>;
   subcategories: string[];
-  recurringForm: RecurringDraft;
-  setRecurringForm: (value: RecurringDraft) => void;
-  recurringSubcategories: string[];
-  recurringMerchantSuggestions: string[];
-  onSubmitRecurring: () => void;
-  recurringIsPending: boolean;
+  merchantSuggestions: string[];
   accountRows: Array<{ id: string; name: string; currency: string }>;
-  onAccountSelected: (id: string) => void;
-  onSubmitSingle: () => void;
+  onSubmitLedger: () => void;
   onSubmitTransfer: () => void;
   message: string;
 }) {
@@ -672,367 +699,318 @@ function CashFlowEntryDrawer({
 
   if (!open) return null;
 
-  const settledLabel = mode === "income" ? "已收款" : "已付款";
+  const meta = TYPE_META[type];
+  const isAcct = type === "expense" || type === "income";
+  const isRp = type === "ar" || type === "ap";
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/45" onClick={onClose}>
-      <div className="absolute inset-y-0 right-0 flex h-full w-full sm:w-[680px] lg:w-[740px]" onClick={(event) => event.stopPropagation()}>
-        <div className="h-full w-full border-l shadow-2xl animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)]" style={{ background: "var(--ns-panel-bg)", borderColor: "var(--ns-panel-border)" }}>
-          <header className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--ns-panel-border)" }}>
-            <div>
-              <h2 className="text-lg font-semibold">
-                {mode === "recurring" ? "新增週期事件" : editing ? "編輯收支" : "新增收支"}
-              </h2>
-              <p className="text-xs" style={{ color: "var(--ns-muted)" }}>
-                {mode === "recurring" ? "設定固定收支，系統到期自動提醒並過帳。" : "右側抽屜快速記錄收入、支出與轉帳。"}
-              </p>
-            </div>
-            <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-md outline-none transition hover:opacity-70" aria-label="關閉">
-              <X size={18} />
-            </button>
-          </header>
-
-          <div className="px-5 pt-4">
-            <SegmentedControl
-              value={mode}
-              onChange={onModeChange}
-              options={[
-                { value: "income", label: "收入", icon: <TrendUp size={16} /> },
-                { value: "expense", label: "支出", icon: <TrendDown size={16} /> },
-                { value: "transfer", label: "轉帳", icon: <ArrowsLeftRight size={16} /> },
-                { value: "recurring", label: "週期", icon: <CalendarPlus size={16} /> },
-              ]}
-            />
+    <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={onClose}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} />
+      <div
+        onClick={(event) => event.stopPropagation()}
+        className="animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)]"
+        style={{
+          position: "absolute", right: 0, top: 0, bottom: 0, width: "min(500px, 100%)",
+          background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
+          display: "flex", flexDirection: "column", boxShadow: "-20px 0 60px rgba(0,0,0,0.4)",
+        }}
+      >
+        {/* Header */}
+        <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 32, height: 32, borderRadius: "var(--ns-r-sm)", background: meta.color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Plus size={15} weight="bold" />
           </div>
+          <h2 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 18, fontWeight: 600 }}>
+            {editing ? "編輯交易" : "新增交易"}
+          </h2>
+          <div style={{ flex: 1 }} />
+          <button className="ns-btn ghost icon" onClick={onClose} aria-label="關閉"><X size={16} /></button>
+        </div>
 
-          <div className="h-[calc(100%-120px)] overflow-y-auto px-5 pb-6 pt-4">
-            {mode === "recurring" ? (
-              <div className="grid gap-3">
-                <Field label="帳戶">
-                  <SelectInput value={recurringForm.accountId} onChange={(event) => {
-                    const account = accountRows.find((item) => item.id === event.target.value);
-                    setRecurringForm({ ...recurringForm, accountId: event.target.value, currency: account?.currency ?? recurringForm.currency });
-                  }}>
-                    <option value="">選擇帳戶</option>
-                    {accountRows.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                  </SelectInput>
-                </Field>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field label="類型">
-                    <SelectInput value={recurringForm.entryType} onChange={(event) => {
-                      const entryType = event.target.value as RecurringDraft["entryType"];
-                      const amount = Math.abs(recurringForm.amount);
-                      setRecurringForm({ ...recurringForm, entryType, amount: entryType === "expense" ? -amount : amount });
-                    }}>
-                      <option value="expense">支出</option>
-                      <option value="income">收入</option>
-                    </SelectInput>
-                  </Field>
-                  <Field label="金額">
-                    <TextInput type="number" value={Math.abs(recurringForm.amount)} onChange={(event) => {
-                      const amount = Math.abs(Number(event.target.value));
-                      setRecurringForm({ ...recurringForm, amount: recurringForm.entryType === "expense" ? -amount : amount });
-                    }} />
-                  </Field>
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field label="分類">
-                    <SelectInput value={recurringForm.category} onChange={(event) => {
-                      const category = event.target.value;
-                      setRecurringForm({ ...recurringForm, category, subcategory: "" });
-                    }}>
-                      <option value="">— 選擇分類 —</option>
-                      {categories.map((category) => <option key={category} value={category}>{category}</option>)}
-                    </SelectInput>
-                  </Field>
-                  <Field label="子分類">
-                    <SelectInput value={recurringForm.subcategory} onChange={(event) => setRecurringForm({ ...recurringForm, subcategory: event.target.value })}>
-                      <option value="">未分類</option>
-                      {recurringSubcategories.map((subcategory) => <option key={subcategory} value={subcategory}>{subcategory}</option>)}
-                    </SelectInput>
-                  </Field>
-                </div>
-                <Field label="週期頻率">
-                  <SelectInput value={recurringForm.frequency} onChange={(event) => setRecurringForm({ ...recurringForm, frequency: event.target.value as RecurringFrequency })}>
-                    {(Object.keys(recurringFrequencyLabels) as RecurringFrequency[]).map((freq) => (
-                      <option key={freq} value={freq}>{recurringFrequencyLabels[freq]}</option>
-                    ))}
-                  </SelectInput>
-                </Field>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {recurringForm.frequency === "monthly" ? (
-                    <Field label="每月日期">
-                      <TextInput type="number" min={1} max={31} value={recurringForm.dayOfMonth} onChange={(event) => setRecurringForm({ ...recurringForm, dayOfMonth: Number(event.target.value) })} />
-                    </Field>
-                  ) : <div />}
-                  <Field label="下次日期">
-                    <TextInput type="date" value={recurringForm.nextRunDate} onChange={(event) => setRecurringForm({ ...recurringForm, nextRunDate: event.target.value })} />
-                  </Field>
-                </div>
-                <Field label="商家">
-                  <MerchantAutocomplete
-                    value={recurringForm.merchant}
-                    suggestions={recurringMerchantSuggestions}
-                    onChange={(next) => setRecurringForm({ ...recurringForm, merchant: next })}
-                    placeholder="例如 Spotify"
-                  />
-                </Field>
-                <Field label="備註">
-                  <TextInput value={recurringForm.note} onChange={(event) => setRecurringForm({ ...recurringForm, note: event.target.value })} />
-                </Field>
-                {message ? <StatusText>{message}</StatusText> : null}
-                <div className="flex gap-2">
-                  <ActionButton onClick={onSubmitRecurring} disabled={recurringIsPending}>
-                    <CalendarPlus size={16} />{recurringIsPending ? "儲存中…" : "建立週期事件"}
-                  </ActionButton>
-                  <ActionButton variant="secondary" onClick={onClose}>取消</ActionButton>
-                </div>
-              </div>
-            ) : mode === "transfer" ? (
-              <div className="grid gap-3">
-                <Field label="來源帳戶">
-                  <SelectInput value={transferForm.sourceAccountId} onChange={(event) => {
-                    const account = accountRows.find((item) => item.id === event.target.value);
-                    setTransferForm({ ...transferForm, sourceAccountId: event.target.value, sourceCurrency: account?.currency ?? transferForm.sourceCurrency });
-                  }}>
-                    <option value="">選擇帳戶</option>
-                    {accountRows.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                  </SelectInput>
-                </Field>
-                <Field label="目標帳戶">
-                  <SelectInput value={transferForm.destinationAccountId} onChange={(event) => {
-                    const account = accountRows.find((item) => item.id === event.target.value);
-                    setTransferForm({ ...transferForm, destinationAccountId: event.target.value, destinationCurrency: account?.currency ?? transferForm.destinationCurrency });
-                  }}>
-                    <option value="">選擇帳戶</option>
-                    {accountRows.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                  </SelectInput>
-                </Field>
-                <DateTimeField label="時間" value={transferForm.date} onChange={(value) => setTransferForm({ ...transferForm, date: value })} />
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field label={`來源金額 ${transferForm.sourceCurrency}`}><TextInput type="number" value={transferForm.sourceAmount} onChange={(event) => setTransferForm({ ...transferForm, sourceAmount: Number(event.target.value) })} /></Field>
-                  <Field label={`目標金額 ${transferForm.destinationCurrency}`}><TextInput type="number" value={transferForm.destinationAmount ?? ""} onChange={(event) => setTransferForm({ ...transferForm, destinationAmount: Number(event.target.value) })} /></Field>
-                </div>
-                <Field label="備註"><TextInput value={transferForm.note} onChange={(event) => setTransferForm({ ...transferForm, note: event.target.value })} /></Field>
-                {message ? <StatusText>{message}</StatusText> : null}
-                <div className="flex gap-2">
-                  <ActionButton onClick={onSubmitTransfer}>建立轉帳</ActionButton>
-                  <ActionButton variant="secondary" onClick={onClose}>取消</ActionButton>
-                </div>
-              </div>
+        {/* Type tabs */}
+        <div style={{ padding: "16px 24px 0" }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {TYPE_ORDER.map((t) => {
+              const m = TYPE_META[t];
+              const active = type === t;
+              return (
+                <button
+                  key={t}
+                  onClick={() => onTypeChange(t)}
+                  style={{
+                    padding: "6px 14px", borderRadius: 999, fontSize: 13, fontWeight: 500, cursor: "pointer",
+                    border: active ? "none" : "1px solid var(--ns-border)",
+                    background: active ? m.color : "var(--ns-bg-card)",
+                    color: active ? "#fff" : "var(--ns-fg-dim)",
+                    fontFamily: "inherit", transition: "all 0.15s",
+                  }}
+                >
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflow: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
+          {/* Amount */}
+          <DrawerField label={`${meta.eyebrow} · ${type === "transfer" ? transferForm.sourceCurrency : ledgerForm.currency}`} required>
+            <div style={{ position: "relative" }}>
+              <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 18, color: meta.color, fontFamily: "var(--ns-font-mono)", fontWeight: 500, pointerEvents: "none" }}>
+                {meta.sign}NT$
+              </span>
+              {type === "transfer" ? (
+                <input
+                  className="ns-input"
+                  value={transferForm.sourceAmount}
+                  onChange={(e) => {
+                    const v = Number(e.target.value.replace(/[^\d.]/g, "")) || 0;
+                    setTransferForm({ ...transferForm, sourceAmount: v, destinationAmount: v });
+                  }}
+                  placeholder="0"
+                  style={{ paddingLeft: 44, fontSize: 22, fontFamily: "var(--ns-font-mono)", height: 52, color: meta.color }}
+                />
+              ) : (
+                <input
+                  className="ns-input"
+                  value={amountExpression}
+                  onChange={(e) => setAmountExpression(e.target.value)}
+                  placeholder="0"
+                  inputMode="decimal"
+                  style={{ paddingLeft: 52, fontSize: 22, fontFamily: "var(--ns-font-mono)", height: 52, color: meta.color }}
+                />
+              )}
+            </div>
+          </DrawerField>
+
+          {/* Date + account/currency */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <DrawerField label="日期">
+              <input
+                className="ns-input"
+                type="datetime-local"
+                value={type === "transfer" ? transferForm.date : ledgerForm.date}
+                onChange={(e) =>
+                  type === "transfer"
+                    ? setTransferForm({ ...transferForm, date: e.target.value })
+                    : setLedgerForm({ ...ledgerForm, date: e.target.value })
+                }
+              />
+            </DrawerField>
+            {type !== "transfer" ? (
+              <DrawerField label={type === "expense" || type === "ap" ? "支出帳戶" : "收入帳戶"} required>
+                <select
+                  className="ns-input"
+                  style={{ appearance: "none" }}
+                  value={ledgerForm.accountId}
+                  onChange={(e) => {
+                    const account = accountRows.find((a) => a.id === e.target.value);
+                    setLedgerForm({ ...ledgerForm, accountId: e.target.value, currency: account?.currency ?? ledgerForm.currency });
+                  }}
+                >
+                  <option value="">選擇帳戶</option>
+                  {accountRows.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </DrawerField>
             ) : (
-              <div className="grid gap-4">
-                <Field label="名稱">
-                  <TextInput value={ledgerForm.name} onChange={(event) => setLedgerForm({ ...ledgerForm, name: event.target.value })} placeholder="例如 晚餐、咖啡、股利" className="py-3 text-base font-semibold" />
-                </Field>
-
-                <Field label="商家">
-                  <MerchantAutocomplete value={ledgerForm.merchant} suggestions={merchantSuggestions} onChange={(next) => setLedgerForm({ ...ledgerForm, merchant: next })} placeholder="例如 7-ELEVEN、Lyft" />
-                </Field>
-
-                <Field label="金額 / 算式">
-                  <TextInput value={amountExpression} onChange={(event) => setAmountExpression(event.target.value)} placeholder="120+85" inputMode="decimal" className="text-right text-lg font-semibold tabular" />
-                </Field>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field label="幣別">
-                    <TextInput value={ledgerForm.currency} onChange={(event) => setLedgerForm({ ...ledgerForm, currency: event.target.value.toUpperCase() })} />
-                  </Field>
-                  <Field label="狀態">
-                    <SelectInput value={ledgerForm.settlementStatus} onChange={(event) => setLedgerForm({ ...ledgerForm, settlementStatus: event.target.value as LedgerDraft["settlementStatus"] })}>
-                      <option value="settled">{settledLabel}</option>
-                      {mode === "income" ? <option value="receivable">應收帳款</option> : <option value="payable">應付帳款</option>}
-                    </SelectInput>
-                  </Field>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field label="分類">
-                    <TextInput list="cashflow-categories" value={ledgerForm.category} onChange={(event) => setLedgerForm({ ...ledgerForm, category: event.target.value })} placeholder="選擇或輸入分類" />
-                  </Field>
-                  <Field label="子分類">
-                    <TextInput list="cashflow-subcategories" value={ledgerForm.subcategory} onChange={(event) => setLedgerForm({ ...ledgerForm, subcategory: event.target.value })} placeholder="未分類" />
-                  </Field>
-                </div>
-
-                <Field label="帳戶">
-                  <SelectInput value={ledgerForm.accountId} onChange={(event) => onAccountSelected(event.target.value)}>
-                    <option value="">選擇帳戶</option>
-                    {accountRows.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                  </SelectInput>
-                </Field>
-
-                <DateTimeField label="日期 + 時間" value={ledgerForm.date} onChange={(value) => setLedgerForm({ ...ledgerForm, date: value })} />
-
-                <Field label="備註">
-                  <TextAreaInput value={ledgerForm.note} onChange={(event) => setLedgerForm({ ...ledgerForm, note: event.target.value })} rows={3} placeholder="可留空" />
-                </Field>
-
-                <datalist id="cashflow-categories">
-                  {categories.map((category) => <option key={category} value={category} />)}
-                </datalist>
-                <datalist id="cashflow-subcategories">
-                  {subcategories.map((subcategory) => <option key={subcategory} value={subcategory} />)}
-                </datalist>
-
-                {message ? <StatusText>{message}</StatusText> : null}
-                <div className="flex gap-2">
-                  <ActionButton onClick={onSubmitSingle}>{editing ? "儲存" : mode === "income" ? "新增收入" : "新增支出"}</ActionButton>
-                  <ActionButton variant="secondary" onClick={onClose}>取消</ActionButton>
-                </div>
-              </div>
+              <DrawerField label="幣別">
+                <input className="ns-input" value={transferForm.sourceCurrency} disabled />
+              </DrawerField>
             )}
           </div>
+
+          {/* Transfer from → to */}
+          {type === "transfer" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <DrawerField label="從（轉出）" required>
+                <select
+                  className="ns-input"
+                  style={{ appearance: "none" }}
+                  value={transferForm.sourceAccountId}
+                  onChange={(e) => {
+                    const account = accountRows.find((a) => a.id === e.target.value);
+                    setTransferForm({ ...transferForm, sourceAccountId: e.target.value, sourceCurrency: account?.currency ?? transferForm.sourceCurrency });
+                  }}
+                >
+                  <option value="">選擇帳戶</option>
+                  {accountRows.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </DrawerField>
+              <DrawerField label="至（轉入）" required>
+                <select
+                  className="ns-input"
+                  style={{ appearance: "none" }}
+                  value={transferForm.destinationAccountId}
+                  onChange={(e) => {
+                    const account = accountRows.find((a) => a.id === e.target.value);
+                    setTransferForm({ ...transferForm, destinationAccountId: e.target.value, destinationCurrency: account?.currency ?? transferForm.destinationCurrency });
+                  }}
+                >
+                  <option value="">選擇帳戶</option>
+                  {accountRows.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </DrawerField>
+            </div>
+          )}
+
+          {/* Name + merchant + category for expense/income */}
+          {isAcct && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <DrawerField label="名稱">
+                  <input className="ns-input" value={ledgerForm.name} onChange={(e) => setLedgerForm({ ...ledgerForm, name: e.target.value })} placeholder={type === "expense" ? "計程車" : "月薪"} />
+                </DrawerField>
+                <DrawerField label="商家 / 來源">
+                  <MerchantAutocomplete value={ledgerForm.merchant} suggestions={merchantSuggestions} onChange={(next) => setLedgerForm({ ...ledgerForm, merchant: next })} placeholder={type === "expense" ? "UBER" : "公司"} />
+                </DrawerField>
+              </div>
+
+              <DrawerField label="分類">
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: subcategories.length ? 10 : 0 }}>
+                  {categories.map((c) => {
+                    const active = ledgerForm.category === c.name;
+                    const color = c.color || "var(--ns-accent)";
+                    return (
+                      <button
+                        key={c.name}
+                        onClick={() => setLedgerForm({ ...ledgerForm, category: c.name, subcategory: "" })}
+                        style={{
+                          padding: "5px 11px", borderRadius: 999, fontSize: 12.5, cursor: "pointer",
+                          background: active ? color : "var(--ns-bg-card)",
+                          color: active ? "#fff" : "var(--ns-fg)",
+                          border: active ? "none" : "1px solid var(--ns-border)",
+                          fontFamily: "inherit", transition: "all 0.12s",
+                        }}
+                      >
+                        {c.name}
+                      </button>
+                    );
+                  })}
+                  {categories.length === 0 ? <span className="muted" style={{ fontSize: 12 }}>尚未建立分類，可於設定新增。</span> : null}
+                </div>
+                {subcategories.length ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5, paddingLeft: 10, borderLeft: "2px solid var(--ns-border)" }}>
+                    {subcategories.map((s) => {
+                      const active = ledgerForm.subcategory === s;
+                      return (
+                        <button
+                          key={s}
+                          onClick={() => setLedgerForm({ ...ledgerForm, subcategory: s })}
+                          style={{
+                            padding: "4px 10px", borderRadius: 999, fontSize: 12, cursor: "pointer",
+                            background: active ? "var(--ns-accent)" : "var(--ns-bg-hover)",
+                            color: active ? "#fff" : "var(--ns-fg-muted)",
+                            border: active ? "none" : "1px solid var(--ns-border)",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          {s}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </DrawerField>
+            </>
+          )}
+
+          {/* AR / AP */}
+          {isRp && (
+            <>
+              <div style={{ padding: "12px 14px", borderRadius: "var(--ns-r-md)", background: `color-mix(in srgb, ${meta.color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${meta.color} 25%, transparent)`, fontSize: 12.5, color: "var(--ns-fg-muted)", lineHeight: 1.6 }}>
+                {type === "ar" ? "應收帳款：對方欠你的錢，尚未入帳。結清後計入收入。" : "應付帳款：你欠對方的錢，尚未付款。結清後計入支出。"}
+              </div>
+              <DrawerField label={type === "ar" ? "對象（欠款方）" : "對象（收款方）"} required>
+                <input className="ns-input" value={counterparty} onChange={(e) => setCounterparty(e.target.value)} placeholder={type === "ar" ? "例：小明、ABC 公司" : "例：房東、供應商"} />
+              </DrawerField>
+              <DrawerField label={type === "ar" ? "預計收款日" : "付款截止日"}>
+                <input className="ns-input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={{ fontFamily: "var(--ns-font-mono)" }} />
+              </DrawerField>
+              <DrawerField label="分類">
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {categories.map((c) => {
+                    const active = ledgerForm.category === c.name;
+                    return (
+                      <button
+                        key={c.name}
+                        onClick={() => setLedgerForm({ ...ledgerForm, category: c.name, subcategory: "" })}
+                        style={{
+                          padding: "5px 11px", borderRadius: 999, fontSize: 12.5, cursor: "pointer",
+                          background: active ? (c.color || "var(--ns-accent)") : "var(--ns-bg-card)",
+                          color: active ? "#fff" : "var(--ns-fg)",
+                          border: active ? "none" : "1px solid var(--ns-border)",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        {c.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </DrawerField>
+            </>
+          )}
+
+          {/* Note */}
+          <DrawerField label="備註">
+            <input
+              className="ns-input"
+              value={type === "transfer" ? transferForm.note : ledgerForm.note}
+              onChange={(e) =>
+                type === "transfer"
+                  ? setTransferForm({ ...transferForm, note: e.target.value })
+                  : setLedgerForm({ ...ledgerForm, note: e.target.value })
+              }
+              placeholder="選填"
+            />
+          </DrawerField>
+
+          {message ? <div style={{ color: "var(--ns-neg)", fontSize: 13 }}>{message}</div> : null}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: "14px 24px", borderTop: "1px solid var(--ns-border)", display: "flex", gap: 8 }}>
+          <button className="ns-btn ghost" style={{ flex: "0 0 80px", justifyContent: "center" }} onClick={onClose}>取消</button>
+          <button
+            className="ns-btn primary"
+            style={{ flex: 1, justifyContent: "center", background: meta.color, borderColor: meta.color, color: "#fff" }}
+            onClick={type === "transfer" ? onSubmitTransfer : onSubmitLedger}
+          >
+            <Check size={14} weight="bold" />
+            {editing ? "儲存變更" : type === "ar" ? "記錄應收" : type === "ap" ? "記錄應付" : type === "transfer" ? "建立轉帳" : "儲存交易"}
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function SummaryCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "positive" | "negative" | "neutral";
-}) {
-  const color = tone === "positive"
-    ? "var(--ns-positive)"
-    : tone === "negative"
-      ? "var(--ns-negative)"
-      : "var(--ns-text)";
+function DrawerField({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
   return (
-    <div className="rounded-xl border p-4" style={{ borderColor: "var(--ns-panel-border)", background: "var(--ns-panel-surface)", boxShadow: "var(--ns-shadow)" }}>
-      <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>{label}</div>
-      <div className="mt-2 text-2xl font-semibold tabular" style={{ color }}>{value}</div>
+    <div>
+      <label style={{ display: "block", fontSize: 11.5, color: "var(--ns-fg-muted)", marginBottom: 6, letterSpacing: 0.04, textTransform: "uppercase" }}>
+        {label}
+        {required ? <span style={{ color: "var(--ns-neg)", marginLeft: 3 }}>*</span> : null}
+      </label>
+      {children}
     </div>
   );
 }
 
-function DashboardListCard({
-  title,
-  rows,
-  emptyText,
-}: {
-  title: string;
-  rows: Array<{ name: string; amount: number }>;
-  emptyText: string;
-}) {
-  const max = rows[0]?.amount ?? 1;
-  return (
-    <div className="rounded-xl border p-4" style={{ borderColor: "var(--ns-panel-border)", background: "var(--ns-panel-surface)", boxShadow: "var(--ns-shadow)" }}>
-      <div className="mb-3 text-sm font-semibold tracking-wide">{title}</div>
-      {rows.length === 0 ? (
-        <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{emptyText}</div>
-      ) : (
-        <div className="space-y-3">
-          {rows.map((row) => (
-            <div key={row.name}>
-              <div className="mb-1 flex items-center justify-between gap-3 text-sm">
-                <span className="truncate">{row.name}</span>
-                <span className="tabular" style={{ color: "var(--ns-muted)" }}>{formatNumber(row.amount)}</span>
-              </div>
-              <div className="h-2 rounded-full" style={{ background: "var(--ns-surface-strong)" }}>
-                <div className="h-full rounded-full" style={{ width: `${Math.max(8, (row.amount / max) * 100)}%`, background: "var(--ns-accent)" }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+/* ─────────────── helpers ─────────────── */
 
-function UpcomingPayments({
-  recurringRows,
-  accountName,
-  formatMoney,
-}: {
-  recurringRows: RecurringTransaction[];
-  accountName: (id: string) => string;
-  formatMoney: (amount: number, currency: string) => string;
-}) {
-  const today = new Date().toISOString().slice(0, 10);
-  const twoWeeksLater = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 14);
-    return d.toISOString().slice(0, 10);
-  })();
-
-  const upcoming = recurringRows
-    .filter((row) => row.isActive && row.nextRunDate >= today && row.nextRunDate <= twoWeeksLater)
-    .sort((a, b) => a.nextRunDate.localeCompare(b.nextRunDate));
-
-  if (upcoming.length === 0) return null;
-
-  return (
-    <div className="mt-4 rounded-xl border p-4" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
-      <div className="mb-3 flex items-center gap-2">
-        <CalendarBlank size={16} weight="duotone" style={{ color: "var(--ns-accent)" }} />
-        <span className="text-sm font-semibold">即將到來的付款（近 2 週）</span>
-      </div>
-      <div className="space-y-2">
-        {upcoming.map((row) => (
-          <div key={row.id} className="flex items-center justify-between gap-3 rounded-md px-3 py-2 text-sm" style={{ background: "var(--ns-surface-strong)" }}>
-            <div className="min-w-0">
-              <div className="font-medium truncate">{row.merchant || row.category}{row.subcategory ? ` / ${row.subcategory}` : ""}</div>
-              <div className="text-xs" style={{ color: "var(--ns-muted)" }}>{row.nextRunDate} · {accountName(row.accountId)}</div>
-            </div>
-            <div className="tabular shrink-0 font-semibold" style={{ color: row.entryType === "income" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}>
-              {row.entryType === "income" ? "+" : "-"}{formatMoney(row.amount, row.currency)}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function groupLedgerRows(rows: LedgerTransaction[]) {
-  const byGroup = new Map<string, LedgerTransaction[]>();
-  const singles: LedgerTransaction[][] = [];
+function groupByDay(rows: LedgerTransaction[]) {
+  const map = new Map<string, LedgerTransaction[]>();
   for (const row of rows) {
-    if (!row.groupId) singles.push([row]);
-    else byGroup.set(row.groupId, [...(byGroup.get(row.groupId) ?? []), row]);
+    const day = row.date.slice(0, 10);
+    map.set(day, [...(map.get(day) ?? []), row]);
   }
-
-  return [...singles, ...byGroup.values()]
-    .map((group) => {
-      const first = group[0];
-      const isTransfer = group.length === 2 && group.some((row) => row.amount < 0) && group.some((row) => row.amount > 0);
-      const amount = isTransfer ? Math.abs(group.find((row) => row.amount < 0)?.amount ?? 0) : group.reduce((sum, row) => sum + row.amount, 0);
-      return {
-        id: first.groupId ?? first.id,
-        rows: group,
-        title: isTransfer ? "轉帳 / 換匯" : first.name || `${first.category}${first.subcategory ? ` / ${first.subcategory}` : ""}`,
-        subtitle: isTransfer
-          ? `${group[0].currency} → ${group[1].currency} · ${formatRecordTime(first.date)}`
-          : [
-            settlementLabel(first.settlementStatus),
-            formatRecordTime(first.date),
-            `${first.category}${first.subcategory ? ` / ${first.subcategory}` : ""}`,
-            first.merchant,
-            first.note || "無備註",
-          ].filter(Boolean).join(" · "),
-        amount,
-        currency: isTransfer ? group[0].currency : first.currency,
-        typeLabel: isTransfer ? "轉帳" : first.entryType === "income" ? "收入" : "支出",
-      };
-    })
-    .sort((a, b) => b.rows[0].date.localeCompare(a.rows[0].date));
-}
-
-function settlementLabel(status: LedgerTransaction["settlementStatus"]) {
-  if (status === "receivable") return "應收";
-  if (status === "payable") return "應付";
-  return "已收付";
-}
-
-function formatRecordTime(value: string) {
-  if (!value.includes("T")) return value;
-  return value.replace("T", " ");
+  return [...map.entries()].map(([date, dayRows]) => ({
+    date,
+    rows: dayRows,
+    net: dayRows.reduce((sum, row) => (row.entryType === "transfer" ? sum : sum + row.amount), 0),
+  }));
 }
 
 function MerchantAutocomplete({
@@ -1047,42 +1025,20 @@ function MerchantAutocomplete({
   placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(-1);
   const showPanel = open && suggestions.length > 0;
-
   return (
-    <div className="relative">
-      <TextInput
+    <div style={{ position: "relative" }}>
+      <input
+        className="ns-input"
         value={value}
-        onChange={(event) => {
-          onChange(event.target.value);
-          setActiveIndex(-1);
-        }}
+        onChange={(event) => onChange(event.target.value)}
         onFocus={() => setOpen(true)}
         onBlur={() => window.setTimeout(() => setOpen(false), 120)}
-        onKeyDown={(event) => {
-          if (!showPanel) return;
-          if (event.key === "ArrowDown") {
-            event.preventDefault();
-            setActiveIndex((index) => Math.min(suggestions.length - 1, index + 1));
-            return;
-          }
-          if (event.key === "ArrowUp") {
-            event.preventDefault();
-            setActiveIndex((index) => Math.max(0, index - 1));
-            return;
-          }
-          if (event.key === "Enter" && activeIndex >= 0) {
-            event.preventDefault();
-            onChange(suggestions[activeIndex]);
-            setOpen(false);
-          }
-        }}
         placeholder={placeholder}
       />
       {showPanel ? (
-        <div className="absolute left-0 right-0 z-20 mt-1 overflow-hidden rounded-md border" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)", boxShadow: "var(--ns-shadow-strong)" }}>
-          {suggestions.map((suggestion, index) => (
+        <div style={{ position: "absolute", left: 0, right: 0, zIndex: 20, marginTop: 4, overflow: "hidden", borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-border)", background: "var(--ns-bg-card)", boxShadow: "var(--ns-shadow-2)" }}>
+          {suggestions.slice(0, 8).map((suggestion) => (
             <button
               key={suggestion}
               type="button"
@@ -1091,8 +1047,7 @@ function MerchantAutocomplete({
                 onChange(suggestion);
                 setOpen(false);
               }}
-              className="block w-full px-3 py-2 text-left text-sm transition"
-              style={{ background: index === activeIndex ? "var(--ns-accent-soft)" : "transparent" }}
+              style={{ display: "block", width: "100%", padding: "8px 12px", textAlign: "left", fontSize: 13, background: "transparent", border: "none", color: "var(--ns-fg)", cursor: "pointer" }}
             >
               {suggestion}
             </button>
@@ -1108,55 +1063,9 @@ function uniqueClean(values: string[]) {
 }
 
 function buildMerchantSuggestions(merchants: string[], query: string) {
-  const normalizedQuery = normalizeText(query);
+  const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) return merchants.slice(0, 12);
-
   return merchants
-    .map((merchant, index) => ({ merchant, index, score: merchantMatchScore(merchant, normalizedQuery) }))
-    .filter((item) => item.score > -1)
-    .sort((a, b) => b.score - a.score || a.index - b.index)
-    .slice(0, 12)
-    .map((item) => item.merchant);
-}
-
-function merchantMatchScore(rawMerchant: string, normalizedQuery: string) {
-  const merchant = normalizeText(rawMerchant);
-  if (!merchant) return -1;
-  if (merchant === normalizedQuery) return 300;
-  if (merchant.startsWith(normalizedQuery)) return 200;
-
-  const tokenHit = merchant.split(/[\s\-_.]+/).some((token) => token.startsWith(normalizedQuery));
-  if (tokenHit) return 120;
-  if (merchant.includes(normalizedQuery)) return 80;
-  return -1;
-}
-
-function findLastUsedAccountIdForCategory(
-  rows: LedgerTransaction[],
-  availableAccountIds: Set<string>,
-  target: Pick<LedgerDraft, "category" | "subcategory" | "entryType">,
-) {
-  const category = target.category.trim();
-  if (!category) return "";
-  const subcategory = target.subcategory.trim();
-
-  const rankedRows = [...rows].sort((a, b) => b.date.localeCompare(a.date));
-  const exact = rankedRows.find((row) =>
-    row.entryType === target.entryType &&
-    row.category.trim() === category &&
-    row.subcategory.trim() === subcategory &&
-    availableAccountIds.has(row.accountId),
-  );
-  if (exact) return exact.accountId;
-
-  const byCategory = rankedRows.find((row) =>
-    row.entryType === target.entryType &&
-    row.category.trim() === category &&
-    availableAccountIds.has(row.accountId),
-  );
-  return byCategory?.accountId ?? "";
-}
-
-function normalizeText(value: string) {
-  return value.trim().toLowerCase();
+    .filter((merchant) => merchant.toLowerCase().includes(normalizedQuery))
+    .slice(0, 12);
 }
