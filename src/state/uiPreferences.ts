@@ -5,17 +5,20 @@ import type { NameLocalePreference } from "../domain/assetName";
 import { isValidTimezone, resolveSystemTimezone } from "../domain/datetime";
 
 export type { NameLocalePreference };
+export type ThemeMode = "system" | "dark" | "light";
 
 export interface UiPreferences {
   privacyMode: boolean;
   nameLocale: NameLocalePreference;
   clockMode: ClockMode;
   timezone: string;
+  theme: ThemeMode;
   setPrivacyMode: (value: boolean) => void;
   togglePrivacyMode: () => void;
   setNameLocale: (value: NameLocalePreference) => void;
   setClockMode: (value: ClockMode) => void;
   setTimezone: (value: string) => void;
+  setTheme: (value: ThemeMode) => void;
 }
 
 const STORAGE_KEY = "northstar.uiPreferences.v1";
@@ -25,6 +28,7 @@ interface PersistedShape {
   nameLocale: NameLocalePreference;
   clockMode: ClockMode;
   timezone: string;
+  theme: ThemeMode;
 }
 
 export type ClockMode = "24h" | "12h";
@@ -35,6 +39,7 @@ function loadPersisted(): PersistedShape {
     nameLocale: "auto",
     clockMode: "24h",
     timezone: resolveSystemTimezone(),
+    theme: "system",
   };
   if (typeof window === "undefined") return fallback;
   try {
@@ -44,6 +49,8 @@ function loadPersisted(): PersistedShape {
     const tz = typeof parsed.timezone === "string" && isValidTimezone(parsed.timezone)
       ? parsed.timezone
       : fallback.timezone;
+    const theme: ThemeMode =
+      parsed.theme === "dark" || parsed.theme === "light" ? parsed.theme : "system";
     return {
       privacyMode: typeof parsed.privacyMode === "boolean" ? parsed.privacyMode : false,
       nameLocale:
@@ -52,6 +59,7 @@ function loadPersisted(): PersistedShape {
           : "auto",
       clockMode: parsed.clockMode === "12h" ? "12h" : "24h",
       timezone: tz,
+      theme,
     };
   } catch {
     return fallback;
@@ -69,12 +77,26 @@ function persist(state: PersistedShape) {
 
 const initial = loadPersisted();
 
+// Apply initial theme immediately before React mounts to avoid flash.
+applyThemeAttribute(initial.theme);
+
+function applyThemeAttribute(theme: ThemeMode) {
+  if (typeof document === "undefined") return;
+  const el = document.documentElement;
+  if (theme === "system") {
+    el.removeAttribute("data-theme");
+  } else {
+    el.setAttribute("data-theme", theme);
+  }
+}
+
 function snapshot(state: UiPreferences): PersistedShape {
   return {
     privacyMode: state.privacyMode,
     nameLocale: state.nameLocale,
     clockMode: state.clockMode,
     timezone: state.timezone,
+    theme: state.theme,
   };
 }
 
@@ -83,6 +105,7 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   nameLocale: initial.nameLocale,
   clockMode: initial.clockMode,
   timezone: initial.timezone,
+  theme: initial.theme,
   setPrivacyMode(value) {
     setPrivacyMaskOn(value);
     set({ privacyMode: value });
@@ -107,6 +130,11 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
     // current pref instead of writing garbage.
     if (!isValidTimezone(value)) return;
     set({ timezone: value });
+    persist(snapshot(get()));
+  },
+  setTheme(value) {
+    applyThemeAttribute(value);
+    set({ theme: value });
     persist(snapshot(get()));
   },
 }));

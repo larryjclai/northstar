@@ -1,9 +1,5 @@
 import { ArrowClockwise, ArrowsClockwise, PencilSimple, PlusCircle, Trash, TrendUp } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
-import { ActionButton } from "../components/ActionButton";
-import { PageHeader } from "../components/AppShell";
-import { Card } from "../components/Card";
-import { EmptyState } from "../components/EmptyState";
 import { HoldingForm, makeEmptyHoldingDraft } from "../components/HoldingForm";
 import { StatusText } from "../components/StatusText";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -90,10 +86,17 @@ export function HoldingsRoute() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl p-5 lg:p-8">
-      <PageHeader title="持倉" description="追蹤持股數量、平均成本與最新快取報價，也可以從今天的現有部位開始記錄。" />
-      <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
-        <Card title={editingId ? "編輯持倉" : "新增持倉"}>
+    <div style={{ padding: "24px 32px 100px", overflowY: "auto" }}>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Portfolio · Manual</div>
+          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.5, fontWeight: 600 }}>持倉</h1>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 16, alignItems: "start" }}>
+        <div className="ns-card" style={{ padding: 22 }}>
+          <div className="ns-eyebrow" style={{ marginBottom: 14 }}>{editingId ? "編輯持倉" : "新增持倉"}</div>
           <HoldingForm
             value={form}
             onChange={setForm}
@@ -101,90 +104,88 @@ export function HoldingsRoute() {
             submitLabel={editingId ? "儲存持倉" : "新增持倉"}
             accounts={accountRows}
           />
-          {message ? <div className="mt-3"><StatusText>{message}</StatusText></div> : null}
+          {message ? <div style={{ marginTop: 12 }}><StatusText>{message}</StatusText></div> : null}
           {editingId ? (
-            <div className="mt-3">
-              <ActionButton variant="secondary" onClick={() => { setEditingId(null); setForm(emptyHoldingDraft); }}>取消編輯</ActionButton>
+            <div style={{ marginTop: 12 }}>
+              <button className="ns-btn" onClick={() => { setEditingId(null); setForm(emptyHoldingDraft); }}>取消編輯</button>
             </div>
           ) : null}
-        </Card>
-        <Card
-          title="投資資產"
-          action={
-            <div className="flex flex-wrap gap-2">
-              <ActionButton
+        </div>
+
+        <div className="ns-card" style={{ padding: 0 }}>
+          <div style={{ padding: "14px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--ns-border)" }}>
+            <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 15, fontWeight: 500 }}>投資資產</h3>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                className="ns-btn"
                 onClick={() => refreshQuotes.mutate(assetRows.map((asset) => asset.ticker))}
                 disabled={refreshQuotes.isPending || assetRows.length === 0}
               >
-                <ArrowClockwise size={16} />{refreshQuotes.isPending ? "更新中" : "更新報價"}
-              </ActionButton>
-              <ActionButton
-                variant="secondary"
+                <ArrowClockwise size={14} />{refreshQuotes.isPending ? "更新中" : "更新報價"}
+              </button>
+              <button
+                className="ns-btn"
                 onClick={() => refreshAllDailyPrices("1y")}
                 disabled={refreshDailyPrices.isPending || assetRows.length === 0}
               >
-                <ArrowsClockwise size={16} />{refreshDailyPrices.isPending ? "抓取中" : "回補 1Y 歷史"}
-              </ActionButton>
-              <ActionButton
-                variant="secondary"
+                <ArrowsClockwise size={14} />{refreshDailyPrices.isPending ? "抓取中" : "回補 1Y"}
+              </button>
+              <button
+                className="ns-btn"
                 onClick={() => refreshAllDailyPrices("5y")}
                 disabled={refreshDailyPrices.isPending || assetRows.length === 0}
               >
-                <ArrowsClockwise size={16} />回補 5Y
-              </ActionButton>
+                <ArrowsClockwise size={14} />回補 5Y
+              </button>
             </div>
-          }
-        >
-          {refreshQuotes.error ? <p className="mb-3 text-sm" style={{ color: "var(--ns-negative)" }}>{refreshQuotes.error.message}</p> : null}
-          {refreshDailyPrices.error ? <p className="mb-3 text-sm" style={{ color: "var(--ns-negative)" }}>{refreshDailyPrices.error.message}</p> : null}
-          {message ? <p className="mb-3 text-sm" style={{ color: "var(--ns-muted)" }}>{message}</p> : null}
+          </div>
+
+          {refreshQuotes.error ? <div style={{ padding: "10px 22px", color: "var(--ns-neg)", fontSize: 13 }}>{refreshQuotes.error.message}</div> : null}
+          {refreshDailyPrices.error ? <div style={{ padding: "10px 22px", color: "var(--ns-neg)", fontSize: 13 }}>{refreshDailyPrices.error.message}</div> : null}
+
           {assetRows.length === 0 ? (
-            <EmptyState
-              icon={<PlusCircle size={24} weight="duotone" />}
-              title="尚未建立持倉"
-              description="可以直接輸入現有部位與平均成本，也可以從投資交易開始逐筆累積。"
-            />
+            <div style={{ padding: 40, textAlign: "center" }}>
+              <PlusCircle size={28} weight="duotone" style={{ color: "var(--ns-fg-muted)", marginBottom: 12 }} />
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>尚未建立持倉</div>
+              <div className="muted" style={{ fontSize: 13 }}>可以直接輸入現有部位與平均成本，也可以從投資交易開始逐筆累積。</div>
+            </div>
           ) : (
-            <div className="divide-y" style={{ borderColor: "var(--ns-border)" }}>
-              {assetRows.map((asset) => {
-                const quote = quoteFor(asset.ticker);
-                const marketValue = quote ? quote.price * asset.totalQuantity : null;
-                const stat = priceStats.get(asset.ticker.toUpperCase());
-                return (
-                  <div key={asset.id} className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-[1fr_auto]">
-                    <div className="flex items-center gap-3">
-                      <div className="grid size-10 place-items-center rounded-md" style={{ background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
-                        <TrendUp size={20} weight="duotone" />
-                      </div>
-                      <div>
-                        <div className="font-semibold">{asset.ticker}</div>
-                        <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{resolveAssetName(asset, nameLocale)}</div>
-                        <div className="text-xs" style={{ color: "var(--ns-muted)" }}>
-                          {asset.holdingSource === "manual" ? "手動持倉" : "交易計算"} · {quote ? `Yahoo Finance · ${new Date(quote.updatedAt).toLocaleString("zh-TW")}` : "尚未更新報價"}
-                        </div>
-                        <div className="text-xs" style={{ color: "var(--ns-muted)" }}>
-                          每日股價：{stat ? `${stat.count} 筆（${stat.firstDate} ~ ${stat.lastDate}）` : "尚未回補歷史"}
-                        </div>
-                      </div>
+            assetRows.map((asset) => {
+              const quote = quoteFor(asset.ticker);
+              const marketValue = quote ? quote.price * asset.totalQuantity : null;
+              const stat = priceStats.get(asset.ticker.toUpperCase());
+              return (
+                <div key={asset.id} className="ns-row" style={{ gap: 14 }}>
+                  <div style={{ width: 36, height: 36, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "var(--ns-r-sm)", background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
+                    <TrendUp size={18} weight="duotone" />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14.5, fontWeight: 600 }}>{asset.ticker}</div>
+                    <div className="muted" style={{ fontSize: 12, marginTop: 1 }}>{resolveAssetName(asset, nameLocale)}</div>
+                    <div className="dim" style={{ fontSize: 11, marginTop: 2 }}>
+                      {asset.holdingSource === "manual" ? "手動持倉" : "交易計算"} · {quote ? `Yahoo · ${new Date(quote.updatedAt).toLocaleString("zh-TW")}` : "尚未更新報價"}
                     </div>
-                    <div className="tabular text-left sm:text-right">
-                      <div>{formatQuantity(asset.totalQuantity)} 股</div>
-                      <div className="text-sm" style={{ color: "var(--ns-muted)" }}>均價 {formatPrice(asset.averageCost)}</div>
-                      <div className="text-sm font-semibold">{quote ? `${formatPrice(quote.price)} ${quote.currency}` : "無報價"}</div>
-                      {marketValue !== null ? <div className="text-sm" style={{ color: "var(--ns-muted)" }}>市值 {formatNumber(marketValue)}</div> : null}
-                      {asset.holdingSource === "manual" ? (
-                        <div className="mt-3 flex gap-2 sm:justify-end">
-                          <ActionButton variant="secondary" onClick={() => startEdit(asset)}><PencilSimple size={16} />編輯</ActionButton>
-                          <ActionButton variant="danger" onClick={() => deleteHolding.mutate(asset.id)}><Trash size={16} />刪除</ActionButton>
-                        </div>
-                      ) : null}
+                    <div className="dim" style={{ fontSize: 11 }}>
+                      每日股價：{stat ? `${stat.count} 筆（${stat.firstDate} ~ ${stat.lastDate}）` : "尚未回補"}
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div className="num" style={{ fontSize: 14, fontWeight: 600 }}>{formatQuantity(asset.totalQuantity)} 股</div>
+                    <div className="muted mono" style={{ fontSize: 12 }}>均價 {formatPrice(asset.averageCost)}</div>
+                    <div className="num" style={{ fontSize: 12.5, fontWeight: 500 }}>{quote ? `${formatPrice(quote.price)} ${quote.currency}` : "無報價"}</div>
+                    {marketValue !== null ? <div className="muted mono" style={{ fontSize: 11.5 }}>市值 {formatNumber(marketValue)}</div> : null}
+                    {asset.holdingSource === "manual" ? (
+                      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: 8 }}>
+                        <button className="ns-btn ghost" style={{ padding: 7 }} onClick={() => startEdit(asset)} title="編輯"><PencilSimple size={13} /></button>
+                        <button className="ns-btn ghost" style={{ padding: 7, color: "var(--ns-neg)" }} onClick={() => deleteHolding.mutate(asset.id)} title="刪除"><Trash size={13} /></button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })
           )}
-        </Card>
+        </div>
       </div>
     </div>
   );

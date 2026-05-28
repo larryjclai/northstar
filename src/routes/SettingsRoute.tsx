@@ -1,9 +1,6 @@
 import { ArrowsClockwise, ArrowsLeftRight, CheckCircle, Clock, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ActionButton } from "../components/ActionButton";
-import { PageHeader } from "../components/AppShell";
-import { Card } from "../components/Card";
 import { Field, TextInput } from "../components/Field";
 import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -11,7 +8,7 @@ import { getFinanceRepository, type RepositorySnapshot } from "../data/repositor
 import { COMMON_TIMEZONES, isValidTimezone, formatDateTimeInTimezone } from "../domain";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../domain";
 import { useRefreshFxRates } from "../features/market-data/useMarketRefresh";
-import { useUiPreferences, type ClockMode, type NameLocalePreference } from "../state/uiPreferences";
+import { useUiPreferences, type ClockMode, type NameLocalePreference, type ThemeMode } from "../state/uiPreferences";
 import { Link } from "@tanstack/react-router";
 import { Target } from "@phosphor-icons/react";
 
@@ -197,22 +194,24 @@ export function SettingsRoute() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl p-5 lg:p-8">
-      <PageHeader
-        title="設定"
-        description="整理幣別、匯率、分類與商家，讓每次記帳更快、更一致。"
-        action={
-          <ActionButton onClick={submit} disabled={updateSettings.isPending} size="sm" loading={updateSettings.isPending}>
-            <CheckCircle size={16} />儲存設定
-          </ActionButton>
-        }
-      />
-      <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
-        <div className="grid gap-4">
+    <div style={{ padding: "24px 32px 100px", overflowY: "auto" }}>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Preferences</div>
+          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.5, fontWeight: 600 }}>設定</h1>
+        </div>
+        <button className="ns-btn primary" onClick={submit} disabled={updateSettings.isPending}>
+          <CheckCircle size={14} />儲存設定
+        </button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <DisplayAndPrivacyCard />
-          <Card title="幣別與匯率">
-            <div className="grid gap-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[180px_1fr]">
+          <div className="ns-card" style={{ padding: 0 }}>
+          <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)" }}><h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 15, fontWeight: 500 }}>幣別與匯率</h3></div>
+          <div style={{ padding: 22 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: 12 }}>
                 <Field label="主要幣別">
                   <TextInput
                     value={form.primaryCurrency}
@@ -222,7 +221,7 @@ export function SettingsRoute() {
                 </Field>
                 <PreferencePreview icon={<CurrencyCircleDollar size={20} />} title="總覽換算基準" text={`${form.primaryCurrency || "TWD"} 會用於淨值、帳戶與現金流摘要。`} />
               </div>
-              <div className="grid gap-2">
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {visibleRates.map(({ rate, sourceIndex }) => {
                   const pairKey = `${rate.from}|${rate.to || form.primaryCurrency}`;
                   return (
@@ -242,32 +241,33 @@ export function SettingsRoute() {
                   <button
                     type="button"
                     onClick={() => setShowAllRates((value) => !value)}
-                    className="text-xs font-semibold"
-                    style={{ color: "var(--ns-accent)" }}
+                    style={{ fontSize: 12, fontWeight: 600, color: "var(--ns-accent)", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
                   >
                     {showAllRates ? "收合部分匯率" : `顯示全部匯率（${form.exchangeRates.length}）`}
                   </button>
                 ) : null}
-                <div className="flex flex-wrap gap-2">
-                  <ActionButton
-                    variant="secondary"
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    className="ns-btn"
                     onClick={() => setForm((current) => ({
                       ...current,
                       exchangeRates: [...current.exchangeRates, { from: "USD", to: current.primaryCurrency || "TWD", rate: 1, updatedAt: new Date().toISOString() }],
                     }))}
                   >
-                    <Plus size={16} />新增匯率
-                  </ActionButton>
-                  <ActionButton variant="secondary" onClick={refreshAllFxRates} disabled={refreshFxRates.isPending || form.exchangeRates.length === 0}>
-                    <ArrowsClockwise size={16} />{refreshFxRates.isPending ? "抓取中" : "全部更新（1Y）"}
-                  </ActionButton>
+                    <Plus size={14} />新增匯率
+                  </button>
+                  <button className="ns-btn" onClick={refreshAllFxRates} disabled={refreshFxRates.isPending || form.exchangeRates.length === 0}>
+                    <ArrowsClockwise size={14} />{refreshFxRates.isPending ? "抓取中" : "全部更新（1Y）"}
+                  </button>
                 </div>
               </div>
             </div>
-          </Card>
+          </div></div>
 
-          <Card title="分類與商家">
-            <div className="grid gap-3">
+          <div className="ns-card" style={{ padding: 0 }}>
+          <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)" }}><h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 15, fontWeight: 500 }}>分類與商家</h3></div>
+          <div style={{ padding: 22 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {form.categories.map((group, index) => (
                 <CategoryEditor
                   key={`${group.name}-${index}`}
@@ -276,21 +276,21 @@ export function SettingsRoute() {
                   onDelete={() => setForm((current) => ({ ...current, categories: current.categories.filter((_, rowIndex) => rowIndex !== index) }))}
                 />
               ))}
-              <ActionButton
-                variant="secondary"
+              <button
+                className="ns-btn"
                 onClick={() => setForm((current) => ({ ...current, categories: [...current.categories, { name: "新分類", children: [] }] }))}
               >
-                <Plus size={16} />新增分類
-              </ActionButton>
+                <Plus size={14} />新增分類
+              </button>
             </div>
-            <div className="mt-4">
-              <h3 className="mb-2 text-sm font-semibold" style={{ color: "var(--ns-muted)" }}>常用商家</h3>
-              <div className="flex flex-wrap gap-2">
+            <div style={{ marginTop: 20 }}>
+              <div className="ns-eyebrow" style={{ marginBottom: 10 }}>常用商家</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {visibleMerchants.map((merchant) => (
-                <span key={merchant} className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-sm" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface-strong)" }}>
+                <span key={merchant} style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-border)", padding: "4px 10px", fontSize: 13 }}>
                   {merchant}
-                  <button type="button" aria-label={`移除 ${merchant}`} onClick={() => setForm((current) => ({ ...current, merchants: current.merchants.filter((item) => item !== merchant) }))}>
-                    <X size={14} />
+                  <button type="button" aria-label={`移除 ${merchant}`} style={{ display: "flex", lineHeight: 1 }} onClick={() => setForm((current) => ({ ...current, merchants: current.merchants.filter((item) => item !== merchant) }))}>
+                    <X size={13} />
                   </button>
                 </span>
               ))}
@@ -299,64 +299,63 @@ export function SettingsRoute() {
                 <button
                   type="button"
                   onClick={() => setShowAllMerchants((value) => !value)}
-                  className="mt-2 text-xs font-semibold"
-                  style={{ color: "var(--ns-accent)" }}
+                  style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: "var(--ns-accent)", background: "none", border: "none", cursor: "pointer" }}
                 >
                   {showAllMerchants ? "收合商家清單" : `顯示全部商家（${form.merchants.length}）`}
                 </button>
               ) : null}
-              <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
+              <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
                 <TextInput value={merchantDraft} onChange={(event) => setMerchantDraft(event.target.value)} placeholder="新增常用商家" />
-                <ActionButton variant="secondary" onClick={addMerchant}><Plus size={16} />新增商家</ActionButton>
+                <button className="ns-btn" onClick={addMerchant}><Plus size={14} />新增商家</button>
               </div>
             </div>
-          </Card>
+          </div></div>
 
-          <Card title="退休目標">
-            <p className="text-sm" style={{ color: "var(--ns-muted)" }}>
+          <div className="ns-card" style={{ padding: 0 }}>
+          <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)" }}><h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 15, fontWeight: 500 }}>退休目標</h3></div>
+          <div style={{ padding: 22 }}>
+            <p className="muted" style={{ fontSize: 13, margin: "0 0 14px" }}>
               FIRE 計畫已搬到「目標」分頁，支援年齡、報酬率、通膨與支出分項試算。
             </p>
-            <div className="mt-3">
-              <Link
-                to="/goals"
-                className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold outline-none transition"
-                style={{ background: "var(--ns-accent)", color: "var(--ns-on-accent, white)", borderColor: "var(--ns-accent)" }}
-              >
-                <Target size={16} weight="fill" />前往目標
-              </Link>
-            </div>
-          </Card>
+            <Link to="/goals" className="ns-btn primary" style={{ display: "inline-flex" }}>
+              <Target size={14} weight="fill" />前往目標
+            </Link>
+          </div></div>
         </div>
 
-        <div className="grid content-start gap-4">
-          <Card title="目前設定">
-            <SummaryBlock icon={<Tag size={18} />} title="分類" items={form.categories.map((item) => `${item.name} · ${item.children.length} 個子分類`)} />
-            <div className="my-4 h-px" style={{ background: "var(--ns-border)" }} />
-            <SummaryBlock icon={<Storefront size={18} />} title="商家" items={form.merchants} />
-            <div className="my-4 h-px" style={{ background: "var(--ns-border)" }} />
-            <SummaryBlock icon={<ArrowsLeftRight size={18} />} title="匯率" items={form.exchangeRates.map((rate) => `${rate.from} → ${rate.to} = ${rate.rate.toFixed(2)}`)} />
-          </Card>
-          <Card title="備份與安全">
-            <div className="mb-3 space-y-2 rounded-lg border p-3 text-sm" style={{ borderColor: "var(--ns-border)", color: "var(--ns-muted)", background: "var(--ns-surface-subtle)" }}>
-              <StatusRow icon={<Key size={18} />} text="同步開啟前會建立救援金鑰。" />
-              <StatusRow icon={<UsersThree size={18} />} text="家庭共享會使用獨立 Household Space Key。" />
-              <StatusRow icon={<CheckCircle size={18} />} text="不登入也能完整使用本機帳本。" />
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="ns-card" style={{ padding: 0 }}>
+          <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)" }}><h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 15, fontWeight: 500 }}>目前設定</h3></div>
+          <div style={{ padding: 22, display: "flex", flexDirection: "column", gap: 16 }}>
+            <SummaryBlock icon={<Tag size={16} />} title="分類" items={form.categories.map((item) => `${item.name} · ${item.children.length} 個子分類`)} />
+            <div style={{ height: 1, background: "var(--ns-border)" }} />
+            <SummaryBlock icon={<Storefront size={16} />} title="商家" items={form.merchants} />
+            <div style={{ height: 1, background: "var(--ns-border)" }} />
+            <SummaryBlock icon={<ArrowsLeftRight size={16} />} title="匯率" items={form.exchangeRates.map((rate) => `${rate.from} → ${rate.to} = ${rate.rate.toFixed(2)}`)} />
+          </div></div>
+          <div className="ns-card" style={{ padding: 0 }}>
+          <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)" }}><h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 15, fontWeight: 500 }}>備份與安全</h3></div>
+          <div style={{ padding: 22 }}>
+            <div style={{ borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-border)", padding: 12, fontSize: 13, background: "var(--ns-bg-hover)", display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+              <StatusRow icon={<Key size={16} />} text="同步開啟前會建立救援金鑰。" />
+              <StatusRow icon={<UsersThree size={16} />} text="家庭共享會使用獨立 Household Space Key。" />
+              <StatusRow icon={<CheckCircle size={16} />} text="不登入也能完整使用本機帳本。" />
             </div>
-            <p className="text-sm" style={{ color: "var(--ns-muted)" }}>
+            <p className="muted" style={{ fontSize: 13, margin: "0 0 14px" }}>
               匯出整份資料庫成 JSON 檔（含交易、持倉、匯率歷史、每日股價）。匯入會覆蓋現有資料，請先備份再執行。
             </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <ActionButton variant="secondary" onClick={exportBackup} disabled={snapshotBusy}>
-                <DownloadSimple size={16} />匯出備份 JSON
-              </ActionButton>
-              <ActionButton variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={snapshotBusy}>
-                <UploadSimple size={16} />匯入備份
-              </ActionButton>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="ns-btn" onClick={exportBackup} disabled={snapshotBusy}>
+                <DownloadSimple size={14} />匯出備份 JSON
+              </button>
+              <button className="ns-btn" onClick={() => fileInputRef.current?.click()} disabled={snapshotBusy}>
+                <UploadSimple size={14} />匯入備份
+              </button>
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="application/json"
-                className="hidden"
+                style={{ display: "none" }}
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (file) void importBackup(file);
@@ -365,16 +364,13 @@ export function SettingsRoute() {
               />
             </div>
             {importStatus ? (
-              <div
-                className="mt-3 rounded-md border px-3 py-2 text-xs"
-                style={{ borderColor: "var(--ns-border)", color: "var(--ns-muted)", background: "var(--ns-surface-strong)" }}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Clock size={14} />{importStatus}
+              <div style={{ marginTop: 12, borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-border)", padding: "8px 12px", fontSize: 12, color: "var(--ns-fg-muted)", background: "var(--ns-bg-hover)" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <Clock size={13} />{importStatus}
                 </span>
               </div>
             ) : null}
-          </Card>
+          </div></div>
         </div>
       </div>
     </div>
@@ -399,8 +395,8 @@ function RateRow({
   busy: boolean;
 }) {
   return (
-    <div className="rounded-lg border p-3" style={{ borderColor: "var(--ns-border)" }}>
-      <div className="grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-2">
+    <div style={{ borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", padding: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", alignItems: "end", gap: 8 }}>
         <Field label="來源">
           <TextInput value={rate.from} onChange={(event) => onChange({ ...rate, from: event.target.value.toUpperCase(), updatedAt: new Date().toISOString() })} />
         </Field>
@@ -415,20 +411,20 @@ function RateRow({
             onChange={(event) => onChange({ ...rate, rate: roundTo2(Number(event.target.value)), updatedAt: new Date().toISOString() })}
           />
         </Field>
-        <ActionButton variant="danger" onClick={onDelete}><Trash size={16} /></ActionButton>
+        <button className="ns-btn ghost" style={{ padding: 7, color: "var(--ns-neg)" }} onClick={onDelete}><Trash size={14} /></button>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs" style={{ color: "var(--ns-muted)" }}>
+      <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, fontSize: 12, color: "var(--ns-fg-muted)" }}>
         <span>每日匯率：{stats ? `${stats.count} 筆（${stats.firstDate} ~ ${stats.lastDate}）` : "尚未抓取"}</span>
-        <span className="ml-auto" />
-        <ActionButton variant="ghost" onClick={() => onRefresh("5d")} disabled={busy}>
-          <ArrowsClockwise size={14} />更新最新
-        </ActionButton>
-        <ActionButton variant="ghost" onClick={() => onRefresh("1y")} disabled={busy}>
-          <ArrowsClockwise size={14} />回補 1 年
-        </ActionButton>
-        <ActionButton variant="ghost" onClick={() => onRefresh("5y")} disabled={busy}>
-          <ArrowsClockwise size={14} />回補 5 年
-        </ActionButton>
+        <span style={{ marginLeft: "auto" }} />
+        <button className="ns-btn ghost" style={{ padding: "4px 8px", fontSize: 11 }} onClick={() => onRefresh("5d")} disabled={busy}>
+          <ArrowsClockwise size={12} />更新最新
+        </button>
+        <button className="ns-btn ghost" style={{ padding: "4px 8px", fontSize: 11 }} onClick={() => onRefresh("1y")} disabled={busy}>
+          <ArrowsClockwise size={12} />回補 1 年
+        </button>
+        <button className="ns-btn ghost" style={{ padding: "4px 8px", fontSize: 11 }} onClick={() => onRefresh("5y")} disabled={busy}>
+          <ArrowsClockwise size={12} />回補 5 年
+        </button>
       </div>
     </div>
   );
@@ -467,34 +463,32 @@ function CategoryEditor({
 }) {
   const [childDraft, setChildDraft] = useState("");
   return (
-    <details className="rounded-lg border p-3" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
-      <summary className="cursor-pointer list-none select-none">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-semibold">{group.name || "未命名分類"}</span>
-          <span className="text-xs" style={{ color: "var(--ns-muted)" }}>
-            {group.children.length} 個子分類
-          </span>
+    <details style={{ borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", padding: 12 }}>
+      <summary style={{ cursor: "pointer", listStyle: "none", userSelect: "none" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{group.name || "未命名分類"}</span>
+          <span className="muted" style={{ fontSize: 11 }}>{group.children.length} 個子分類</span>
         </div>
       </summary>
-      <div className="mt-3 grid gap-3">
-        <div className="grid grid-cols-[1fr_auto] gap-2">
+      <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
           <TextInput value={group.name} onChange={(event) => onChange({ ...group, name: event.target.value })} aria-label="分類名稱" />
-          <ActionButton variant="danger" onClick={onDelete}><Trash size={16} /></ActionButton>
+          <button className="ns-btn ghost" style={{ padding: 7, color: "var(--ns-neg)" }} onClick={onDelete}><Trash size={14} /></button>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {group.children.map((child) => (
-            <span key={child} className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm" style={{ background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
+            <span key={child} style={{ display: "inline-flex", alignItems: "center", gap: 5, borderRadius: "var(--ns-r-sm)", padding: "3px 8px", fontSize: 12, background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
               {child}
-              <button type="button" aria-label={`移除 ${child}`} onClick={() => onChange({ ...group, children: group.children.filter((item) => item !== child) })}>
-                <X size={14} />
+              <button type="button" aria-label={`移除 ${child}`} style={{ display: "flex", lineHeight: 1 }} onClick={() => onChange({ ...group, children: group.children.filter((item) => item !== child) })}>
+                <X size={12} />
               </button>
             </span>
           ))}
         </div>
-        <div className="grid grid-cols-[1fr_auto] gap-2">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
           <TextInput value={childDraft} onChange={(event) => setChildDraft(event.target.value)} placeholder="新增子分類" />
-          <ActionButton
-            variant="secondary"
+          <button
+            className="ns-btn"
             onClick={() => {
               const next = childDraft.trim();
               if (!next) return;
@@ -502,8 +496,8 @@ function CategoryEditor({
               setChildDraft("");
             }}
           >
-            <Plus size={16} />新增
-          </ActionButton>
+            <Plus size={13} />新增
+          </button>
         </div>
       </div>
     </details>
@@ -512,11 +506,11 @@ function CategoryEditor({
 
 function PreferencePreview({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-md border p-3" style={{ borderColor: "var(--ns-border)" }}>
-      <div className="grid size-9 place-items-center rounded-md" style={{ background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>{icon}</div>
+    <div style={{ display: "flex", alignItems: "center", gap: 12, borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", padding: 12 }}>
+      <div style={{ width: 36, height: 36, display: "grid", placeItems: "center", borderRadius: "var(--ns-r-sm)", background: "var(--ns-accent-soft)", color: "var(--ns-accent)", flexShrink: 0 }}>{icon}</div>
       <div>
-        <div className="font-semibold">{title}</div>
-        <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{text}</div>
+        <div style={{ fontWeight: 600, fontSize: 13 }}>{title}</div>
+        <div className="muted" style={{ fontSize: 12 }}>{text}</div>
       </div>
     </div>
   );
@@ -525,18 +519,18 @@ function PreferencePreview({ icon, title, text }: { icon: ReactNode; title: stri
 function SummaryBlock({ icon, title, items }: { icon: ReactNode; title: string; items: string[] }) {
   return (
     <div>
-      <div className="mb-2 flex items-center gap-2 font-semibold">{icon}{title}</div>
-      <div className="flex flex-wrap gap-2">
+      <div style={{ display: "flex", alignItems: "center", gap: 7, fontWeight: 600, fontSize: 13, marginBottom: 10 }}>{icon}{title}</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {items.length ? items.map((item) => (
-          <span key={item} className="rounded-md border px-2 py-1 text-xs" style={{ borderColor: "var(--ns-border)", color: "var(--ns-muted)" }}>{item}</span>
-        )) : <span className="text-sm" style={{ color: "var(--ns-muted)" }}>尚未建立</span>}
+          <span key={item} className="ns-pill" style={{ fontSize: 11 }}>{item}</span>
+        )) : <span className="muted" style={{ fontSize: 12 }}>尚未建立</span>}
       </div>
     </div>
   );
 }
 
 function StatusRow({ icon, text }: { icon: ReactNode; text: string }) {
-  return <div className="flex items-center gap-2">{icon}<span>{text}</span></div>;
+  return <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>{icon}<span>{text}</span></div>;
 }
 
 function setRate(index: number, rate: ExchangeRate, setForm: Dispatch<SetStateAction<AppSettings>>) {
@@ -562,6 +556,8 @@ function DisplayAndPrivacyCard() {
   const setClockMode = useUiPreferences((state) => state.setClockMode);
   const timezone = useUiPreferences((state) => state.timezone);
   const setTimezone = useUiPreferences((state) => state.setTimezone);
+  const theme = useUiPreferences((state) => state.theme);
+  const setTheme = useUiPreferences((state) => state.setTheme);
   const [customTzInput, setCustomTzInput] = useState("");
   const [tzError, setTzError] = useState<string | null>(null);
   const toast = useToast();
@@ -572,6 +568,12 @@ function DisplayAndPrivacyCard() {
     const timer = window.setInterval(() => setTickNow(new Date()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  const themeOptions: { value: ThemeMode; label: string; icon: string }[] = [
+    { value: "system", label: "跟隨系統", icon: "⚙" },
+    { value: "light", label: "淺色", icon: "☀" },
+    { value: "dark", label: "深色", icon: "☾" },
+  ];
 
   const localeOptions: { value: NameLocalePreference; label: string }[] = [
     { value: "auto", label: "跟隨系統" },
@@ -614,42 +616,65 @@ function DisplayAndPrivacyCard() {
   }
 
   return (
-    <Card title="顯示與隱私">
-      <div className="space-y-4">
+    <div className="ns-card" style={{ padding: 0 }}>
+      <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)" }}><h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 15, fontWeight: 500 }}>顯示與隱私</h3></div>
+      <div style={{ padding: 22, display: "flex", flexDirection: "column", gap: 20 }}>
+        <Field label="外觀主題">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+            {themeOptions.map((option) => {
+              const active = option.value === theme;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setTheme(option.value)}
+                  aria-pressed={active}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    borderRadius: "var(--ns-r-sm)", border: "1px solid",
+                    borderColor: active ? "var(--ns-accent)" : "var(--ns-border)",
+                    padding: "8px", fontSize: 12, fontWeight: 500, cursor: "pointer",
+                    background: active ? "var(--ns-accent-soft)" : "transparent",
+                    color: active ? "var(--ns-accent)" : "var(--ns-fg-muted)",
+                  }}
+                >
+                  <span style={{ fontSize: 13 }}>{option.icon}</span>
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </Field>
+
         <button
           type="button"
           onClick={togglePrivacy}
           aria-pressed={privacyMode}
-          className="flex w-full items-start gap-3 rounded-md border p-3 text-left outline-none transition hover:opacity-90"
           style={{
+            display: "flex", width: "100%", alignItems: "flex-start", gap: 12,
+            borderRadius: "var(--ns-r-md)", border: "1px solid", padding: 12, textAlign: "left", cursor: "pointer",
             borderColor: privacyMode ? "var(--ns-accent)" : "var(--ns-border)",
             background: privacyMode ? "var(--ns-accent-soft)" : "transparent",
           }}
         >
-          <div
-            className="grid size-9 shrink-0 place-items-center rounded-md"
-            style={{
-              background: privacyMode ? "var(--ns-accent)" : "var(--ns-surface-strong, var(--ns-surface))",
-              color: privacyMode ? "white" : "var(--ns-muted)",
-            }}
-          >
+          <div style={{ width: 36, height: 36, flexShrink: 0, display: "grid", placeItems: "center", borderRadius: "var(--ns-r-sm)", background: privacyMode ? "var(--ns-accent)" : "var(--ns-bg-hover)", color: privacyMode ? "white" : "var(--ns-fg-muted)" }}>
             {privacyMode ? <EyeSlash size={18} weight="fill" /> : <Eye size={18} weight="duotone" />}
           </div>
-          <div className="flex-1">
-            <div className="text-sm font-semibold">
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>
               隱藏金額（截圖模式）
-              <span className="ml-2 text-xs font-normal" style={{ color: "var(--ns-muted)" }}>
+              <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 400, color: "var(--ns-fg-muted)" }}>
                 {privacyMode ? "已開啟" : "已關閉"}
               </span>
             </div>
-            <p className="mt-1 text-xs leading-5" style={{ color: "var(--ns-muted)" }}>
+            <p className="muted" style={{ marginTop: 4, fontSize: 12, lineHeight: 1.6 }}>
               開啟後所有金額會以 ＊＊＊＊＊＊ 顯示，方便錄影或回報問題。可用 ⌘⇧H 快速切換。
             </p>
           </div>
         </button>
 
         <Field label="標的名稱語系">
-          <div className="grid grid-cols-3 gap-2">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
             {localeOptions.map((option) => {
               const active = option.value === nameLocale;
               return (
@@ -658,26 +683,27 @@ function DisplayAndPrivacyCard() {
                   type="button"
                   onClick={() => setNameLocale(option.value)}
                   aria-pressed={active}
-                  className="flex items-center justify-center gap-1 rounded-md border px-2 py-2 text-xs font-medium outline-none transition"
                   style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+                    borderRadius: "var(--ns-r-sm)", border: "1px solid", padding: "7px", fontSize: 12, fontWeight: 500, cursor: "pointer",
                     borderColor: active ? "var(--ns-accent)" : "var(--ns-border)",
                     background: active ? "var(--ns-accent-soft)" : "transparent",
-                    color: active ? "var(--ns-accent)" : "var(--ns-muted)",
+                    color: active ? "var(--ns-accent)" : "var(--ns-fg-muted)",
                   }}
                 >
-                  <Globe size={14} weight={active ? "fill" : "duotone"} />
+                  <Globe size={13} weight={active ? "fill" : "duotone"} />
                   {option.label}
                 </button>
               );
             })}
           </div>
         </Field>
-        <p className="-mt-2 text-xs leading-5" style={{ color: "var(--ns-muted)" }}>
+        <p className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>
           影響股票名稱顯示偏好。缺少對應翻譯時自動使用 Yahoo 回傳的原文。
         </p>
 
         <Field label="時間制式">
-          <div className="grid grid-cols-2 gap-2">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             {clockOptions.map((option) => {
               const active = option.value === clockMode;
               return (
@@ -686,11 +712,12 @@ function DisplayAndPrivacyCard() {
                   type="button"
                   onClick={() => setClockMode(option.value)}
                   aria-pressed={active}
-                  className="flex items-center justify-center gap-1 rounded-md border px-2 py-2 text-xs font-medium outline-none transition"
                   style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+                    borderRadius: "var(--ns-r-sm)", border: "1px solid", padding: "7px", fontSize: 12, fontWeight: 500, cursor: "pointer",
                     borderColor: active ? "var(--ns-accent)" : "var(--ns-border)",
                     background: active ? "var(--ns-accent-soft)" : "transparent",
-                    color: active ? "var(--ns-accent)" : "var(--ns-muted)",
+                    color: active ? "var(--ns-accent)" : "var(--ns-fg-muted)",
                   }}
                 >
                   {option.label}
@@ -699,7 +726,7 @@ function DisplayAndPrivacyCard() {
             })}
           </div>
         </Field>
-        <p className="-mt-2 text-xs leading-5" style={{ color: "var(--ns-muted)" }}>
+        <p className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>
           影響新增收支時的時間挑選器。在表單上也能即時切換。
         </p>
 
@@ -707,15 +734,14 @@ function DisplayAndPrivacyCard() {
           <select
             value={timezone}
             onChange={(event) => handleTimezoneSelect(event.target.value)}
-            className="w-full rounded-md border bg-transparent px-3 py-2 text-sm outline-none"
-            style={{ borderColor: "var(--ns-border)", color: "var(--ns-fg)" }}
+            style={{ width: "100%", borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-border)", background: "transparent", padding: "8px 12px", fontSize: 13, color: "var(--ns-fg)", outline: "none" }}
           >
             {timezoneOptions.map((option) => (
               <option key={option.id} value={option.id}>{option.label}</option>
             ))}
           </select>
         </Field>
-        <div className="-mt-2 grid grid-cols-[1fr_auto] gap-2">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
           <TextInput
             placeholder="自訂 IANA 時區（例如 Asia/Tokyo）"
             value={customTzInput}
@@ -727,17 +753,17 @@ function DisplayAndPrivacyCard() {
               }
             }}
           />
-          <ActionButton variant="secondary" onClick={applyCustomTimezone}>套用</ActionButton>
+          <button className="ns-btn" onClick={applyCustomTimezone}>套用</button>
         </div>
         {tzError ? (
-          <p className="-mt-2 text-xs leading-5" style={{ color: "var(--ns-danger, #c0392b)" }}>{tzError}</p>
+          <p className="neg" style={{ fontSize: 12, lineHeight: 1.6 }}>{tzError}</p>
         ) : (
-          <p className="-mt-2 text-xs leading-5" style={{ color: "var(--ns-muted)" }}>
+          <p className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>
             目前 {timezone}：{formatDateTimeInTimezone(tickNow, timezone, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: clockMode === "12h" })}
           </p>
         )}
       </div>
-    </Card>
+    </div>
   );
 }
 

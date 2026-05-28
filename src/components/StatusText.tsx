@@ -1,6 +1,6 @@
 export function StatusText({ children }: { children: string }) {
   return (
-    <p className="text-sm" style={{ color: "var(--ns-muted)" }}>
+    <p className="text-sm" style={{ color: "var(--ns-fg-muted)" }}>
       {children}
     </p>
   );

@@ -1,10 +1,6 @@
 import { CheckCircle, Confetti, Flag, Info, Pencil, Plus, Target, Trash, Warning, X } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
-import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ActionButton } from "../components/ActionButton";
-import { PageHeader } from "../components/AppShell";
-import { Card } from "../components/Card";
-import { EmptyState } from "../components/EmptyState";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Field, TextInput } from "../components/Field";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { useToast } from "../components/Toast";
@@ -33,8 +29,6 @@ export function GoalsRoute() {
   const appSettings = settings.data;
   const fxHistory = dailyFxRates.data ?? [];
 
-  // Net worth contribution (cash + holdings, FX'd into the goal's currency).
-  // Recomputes whenever any underlying balance changes.
   const currentValue = useMemo(
     () => goal ? computeNetWorthInCurrency(goal.currency, accountRows, assetRows, quoteRows, appSettings, fxHistory) : 0,
     [goal, accountRows, assetRows, quoteRows, appSettings, fxHistory],
@@ -119,33 +113,38 @@ export function GoalsRoute() {
 
   if (!goal || !projection) {
     return (
-      <div className="mx-auto max-w-6xl p-5 lg:p-8">
-        <PageHeader title="目標" description="設定退休 / FIRE 計畫，看到達成目標的年齡、所需金額與每月需要的貢獻。" />
-        <Card>
-          <EmptyState
-            icon={<Target size={28} weight="duotone" />}
-            title="尚未建立目標"
-            description="按下「建立 FIRE 計畫」，northstar 會用合理的預設值（30 歲 → 50 歲退休、活到 90 歲、年支出 60 萬）開始模擬。建立後可隨時調整。"
-            action={
-              <ActionButton onClick={createDefaultGoal} disabled={upsertGoal.isPending}>
-                <Flag size={16} weight="fill" />建立 FIRE 計畫
-              </ActionButton>
-            }
-          />
-        </Card>
+      <div style={{ padding: "24px 32px 100px", overflowY: "auto" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24 }}>
+          <div>
+            <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Goals · FIRE</div>
+            <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.5, fontWeight: 600 }}>FIRE 計算機</h1>
+          </div>
+        </div>
+        <div className="ns-card" style={{ padding: 48, textAlign: "center" }}>
+          <Target size={32} weight="duotone" style={{ color: "var(--ns-fg-muted)", marginBottom: 14 }} />
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>尚未建立目標</div>
+          <div className="muted" style={{ fontSize: 13, marginBottom: 20, maxWidth: 480, margin: "0 auto 20px" }}>
+            按下「建立 FIRE 計畫」，northstar 會用合理的預設值（30 歲 → 50 歲退休、活到 90 歲、年支出 60 萬）開始模擬。建立後可隨時調整。
+          </div>
+          <button className="ns-btn primary" onClick={createDefaultGoal} disabled={upsertGoal.isPending}>
+            <Flag size={16} weight="fill" />建立 FIRE 計畫
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-7xl p-5 lg:p-8">
-      <PageHeader
-        title={goal.name}
-        description="退休 / FIRE 計畫 — 你的生活、何時離開職場、能撐多久。"
-      />
+    <div style={{ padding: "24px 32px 100px", overflowY: "auto" }}>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Goals · FIRE</div>
+          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.5, fontWeight: 600 }}>{goal.name}</h1>
+        </div>
+      </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]">
-        <div className="grid min-w-0 gap-4">
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 340px", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
           <HeroCard goal={goal} projection={projection} currentValue={currentValue} onSave={saveGoal} />
           <ProjectionChartCard projection={projection} goal={goal} />
           <FireLevelsCard projection={projection} goal={goal} currentValue={currentValue} />
@@ -153,7 +152,7 @@ export function GoalsRoute() {
           <DisclaimerCard />
         </div>
 
-        <div className="grid min-w-0 content-start gap-4">
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
           <PlanInputsCard goal={goal} onSave={saveGoal} onDelete={removeGoal} busy={upsertGoal.isPending || deleteGoal.isPending} />
           <SpendingCard goal={goal} onSave={saveGoal} />
           <IncomeCard />
@@ -195,13 +194,14 @@ function HeroCard({
     : "目前路徑無法在退休前達成 FIRE";
 
   return (
-    <Card>
-      <div className="flex items-start justify-between gap-3">
+    <div className="ns-card" style={{ padding: "var(--ns-pad-card)" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <span
-          className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold"
           style={{
-            background: projection.onTrack ? "var(--ns-positive-soft, var(--ns-accent-soft))" : "var(--ns-danger-soft, #fdecea)",
-            color: projection.onTrack ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)",
+            display: "inline-flex", alignItems: "center", gap: 4,
+            borderRadius: 99, padding: "4px 10px", fontSize: 12, fontWeight: 600,
+            background: projection.onTrack ? "var(--ns-positive-soft, var(--ns-accent-soft))" : "var(--ns-danger-soft, rgba(239,68,68,0.12))",
+            color: projection.onTrack ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, var(--ns-neg))",
           }}
         >
           {projection.onTrack ? <CheckCircle size={12} weight="fill" /> : <Warning size={12} weight="fill" />}
@@ -210,53 +210,56 @@ function HeroCard({
         <DisplayModeToggle goal={goal} onChange={(mode) => onSave({ displayMode: mode })} />
       </div>
 
-      <h2 className="mt-3 text-2xl font-semibold leading-tight">
-        {fiCopy}
-      </h2>
-      <p className="mt-2 text-sm" style={{ color: "var(--ns-muted)" }}>
+      <h2 style={{ marginTop: 12, fontSize: 20, fontWeight: 600, lineHeight: 1.3 }}>{fiCopy}</h2>
+      <p className="muted" style={{ marginTop: 8, fontSize: 13 }}>
         每月 {formatMoney(goal.monthlyContribution, goal.currency)} 的貢獻可以支付到 {goal.planThroughAge ?? PROJECTION_DEFAULTS.planThroughAge} 歲、
         年支出 {formatMoney(projection.annualSpending, goal.currency)}。
       </p>
 
-      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 20 }}>
         <div>
-          <div className="text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>目前淨值</div>
-          <div className="mt-1 text-2xl font-semibold tabular">{formatMoney(currentValue, goal.currency)}</div>
+          <div className="ns-eyebrow" style={{ marginBottom: 4 }}>目前淨值</div>
+          <div className="ns-num-md">{formatMoney(currentValue, goal.currency)}</div>
         </div>
-        <div className="text-right">
-          <div className="text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>目標 @ 退休</div>
-          <div className="mt-1 text-2xl font-semibold tabular">{formatMoney(target, goal.currency)}</div>
+        <div style={{ textAlign: "right" }}>
+          <div className="ns-eyebrow" style={{ marginBottom: 4 }}>目標 @ 退休</div>
+          <div className="ns-num-md">{formatMoney(target, goal.currency)}</div>
         </div>
       </div>
-      <div className="mt-3">
-        <div className="h-2 overflow-hidden rounded-full" style={{ background: "var(--ns-surface-strong)" }}>
+
+      <div style={{ marginTop: 14 }}>
+        <div style={{ height: 6, borderRadius: 99, overflow: "hidden", background: "var(--ns-bg-hover)" }}>
           <div
-            className="h-full rounded-full transition-[width]"
             style={{
+              height: "100%", borderRadius: 99,
               width: `${progressPct}%`,
               background: reachedFi
-                ? "var(--ns-positive, var(--ns-accent))"
+                ? "var(--ns-pos)"
                 : projection.onTrack
                   ? "var(--ns-accent)"
-                  : "var(--ns-danger, #c0392b)",
+                  : "var(--ns-neg)",
+              transition: "width 0.3s",
             }}
           />
         </div>
-        <div className="mt-1 flex flex-wrap items-center justify-between gap-3 text-xs" style={{ color: "var(--ns-muted)" }}>
-          <span>{progressPct.toFixed(1)}% 完成度</span>
-          <span>Coast FIRE: {formatMoney(projection.coastFireAmount, goal.currency)}</span>
+        <div style={{ marginTop: 4, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+          <span className="dim mono" style={{ fontSize: 11 }}>{progressPct.toFixed(1)}% 完成度</span>
+          <span className="dim mono" style={{ fontSize: 11 }}>Coast FIRE: {formatMoney(projection.coastFireAmount, goal.currency)}</span>
         </div>
       </div>
 
       {reachedFi ? (
         <div
-          className="mt-4 inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold"
-          style={{ background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}
+          style={{
+            marginTop: 14, display: "inline-flex", alignItems: "center", gap: 8,
+            borderRadius: "var(--ns-r-md)", padding: "8px 14px", fontSize: 13, fontWeight: 600,
+            background: "var(--ns-accent-soft)", color: "var(--ns-accent)",
+          }}
         >
           <Confetti size={18} weight="fill" />已達成 FIRE 目標
         </div>
       ) : null}
-    </Card>
+    </div>
   );
 }
 
@@ -290,8 +293,9 @@ function ProjectionChartCard({
     phase: row.phase,
   }));
   return (
-    <Card title="Portfolio trajectory">
-      <div className="h-72">
+    <div className="ns-card" style={{ padding: "var(--ns-pad-card)" }}>
+      <div className="ns-eyebrow" style={{ marginBottom: 14 }}>Portfolio trajectory</div>
+      <div style={{ height: 288 }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
             <defs>
@@ -301,18 +305,18 @@ function ProjectionChartCard({
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--ns-border)" />
-            <XAxis dataKey="age" stroke="var(--ns-muted)" />
-            <YAxis stroke="var(--ns-muted)" tickFormatter={(value) => formatNumber(Number(value))} width={80} />
+            <XAxis dataKey="age" stroke="var(--ns-fg-dim)" tick={{ fontSize: 11, fontFamily: "var(--ns-font-mono)" }} />
+            <YAxis stroke="var(--ns-fg-dim)" tick={{ fontSize: 11, fontFamily: "var(--ns-font-mono)" }} tickFormatter={(value) => formatNumber(Number(value))} width={80} />
             <Tooltip
               formatter={(value) => formatMoney(Number(value), goal.currency)}
               labelFormatter={(label) => `${label} 歲`}
-              contentStyle={{ background: "var(--ns-surface)", border: "1px solid var(--ns-border)", borderRadius: 6 }}
+              contentStyle={{ background: "var(--ns-bg-card)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-md)", fontSize: 12 }}
             />
             <Area type="monotone" dataKey="portfolio" stroke="var(--ns-accent)" fill="url(#portfolioTrajectory)" strokeWidth={2} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -336,27 +340,28 @@ function FireLevelsCard({
     { label: "Fat FIRE", amount: projection.fatFireAmount, tagline: "150% 規劃支出，寬裕退休" },
   ];
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
       {levels.map((level) => {
         const achieved = currentValue >= level.amount;
         return (
-          <Card key={level.label}>
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
-                {level.label}
-              </span>
+          <div key={level.label} className="ns-card" style={{ padding: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+              <span className="ns-eyebrow">{level.label}</span>
               {achieved ? (
                 <span
-                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
-                  style={{ background: "var(--ns-positive-soft, var(--ns-accent-soft))", color: "var(--ns-positive, var(--ns-accent))" }}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 3,
+                    borderRadius: 99, padding: "2px 8px", fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+                    background: "var(--ns-positive-soft, var(--ns-accent-soft))", color: "var(--ns-positive, var(--ns-accent))",
+                  }}
                 >
                   Done
                 </span>
               ) : null}
             </div>
-            <div className="mt-2 text-xl font-semibold tabular">{formatMoney(level.amount, goal.currency)}</div>
-            <div className="mt-1 text-xs leading-5" style={{ color: "var(--ns-muted)" }}>{level.tagline}</div>
-          </Card>
+            <div className="num" style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>{formatMoney(level.amount, goal.currency)}</div>
+            <div className="muted" style={{ fontSize: 11.5, lineHeight: 1.5 }}>{level.tagline}</div>
+          </div>
         );
       })}
     </div>
@@ -377,7 +382,6 @@ function YearTableCard({
   const pageSize = 10;
   const [page, setPage] = useState(0);
   const pages = Math.max(1, Math.ceil(projection.series.length / pageSize));
-  // Clamp the page if a parameter change shrinks the series.
   useEffect(() => {
     if (page >= pages) setPage(0);
   }, [pages, page]);
@@ -385,28 +389,34 @@ function YearTableCard({
   const visible = projection.series.slice(page * pageSize, page * pageSize + pageSize);
 
   return (
-    <Card
-      title="年度試算表"
-      action={
-        <div className="flex items-center gap-2 text-xs" style={{ color: "var(--ns-muted)" }}>
-          <button type="button" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="rounded-md border px-2 py-1 disabled:opacity-40" style={{ borderColor: "var(--ns-border)" }}>‹</button>
-          <span>{page + 1} / {pages}</span>
-          <button type="button" onClick={() => setPage((p) => Math.min(pages - 1, p + 1))} disabled={page >= pages - 1} className="rounded-md border px-2 py-1 disabled:opacity-40" style={{ borderColor: "var(--ns-border)" }}>›</button>
+    <div className="ns-card" style={{ padding: 0 }}>
+      <div style={{ padding: "14px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--ns-border)" }}>
+        <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 15, fontWeight: 500 }}>年度試算表</h3>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span className="dim mono" style={{ fontSize: 12 }}>{page + 1} / {pages}</span>
+          <button
+            type="button"
+            className="ns-btn ghost"
+            style={{ padding: "4px 10px" }}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+          >‹</button>
+          <button
+            type="button"
+            className="ns-btn ghost"
+            style={{ padding: "4px 10px" }}
+            onClick={() => setPage((p) => Math.min(pages - 1, p + 1))}
+            disabled={page >= pages - 1}
+          >›</button>
         </div>
-      }
-    >
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-sm">
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", minWidth: 720, fontSize: 13, borderCollapse: "collapse" }}>
           <thead>
-            <tr className="text-left text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
-              <th className="py-2">年齡</th>
-              <th className="py-2">年份</th>
-              <th className="py-2">階段</th>
-              <th className="py-2 text-right">年底淨值</th>
-              <th className="py-2 text-right">當年貢獻</th>
-              <th className="py-2 text-right">退休收入</th>
-              <th className="py-2 text-right">規劃支出</th>
-              <th className="py-2 text-right">提領</th>
+            <tr style={{ color: "var(--ns-fg-muted)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              {["年齡", "年份", "階段", "年底淨值", "當年貢獻", "退休收入", "規劃支出", "提領"].map((h, i) => (
+                <th key={h} style={{ padding: "10px 14px", textAlign: i >= 3 ? "right" : "left", fontWeight: 500, borderBottom: "1px solid var(--ns-border)" }}>{h}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -414,30 +424,25 @@ function YearTableCard({
           </tbody>
         </table>
       </div>
-    </Card>
+    </div>
   );
 }
 
 function YearRow({ row, currency }: { row: ProjectionYear; currency: string }) {
   const phaseLabel = row.phase === "accumulation" ? "累積" : "退休";
-  const phaseColor = row.phase === "accumulation" ? "var(--ns-accent)" : "var(--ns-warning, #d97706)";
+  const phaseColor = row.phase === "accumulation" ? "var(--ns-accent)" : "var(--ns-chart-2)";
   return (
-    <tr className="border-t" style={{ borderColor: "var(--ns-border)" }}>
-      <td className="py-2 font-semibold">{row.age}</td>
-      <td className="py-2">{row.year}</td>
-      <td className="py-2">
-        <span
-          className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold"
-          style={{ background: "var(--ns-surface-strong)", color: phaseColor }}
-        >
-          {phaseLabel}
-        </span>
+    <tr style={{ borderTop: "1px solid var(--ns-border)" }}>
+      <td style={{ padding: "10px 14px", fontWeight: 600 }}>{row.age}</td>
+      <td style={{ padding: "10px 14px" }}>{row.year}</td>
+      <td style={{ padding: "10px 14px" }}>
+        <span className="ns-pill" style={{ fontSize: 10, color: phaseColor }}>{phaseLabel}</span>
       </td>
-      <td className="py-2 text-right tabular">{formatMoney(row.endBalance, currency)}</td>
-      <td className="py-2 text-right tabular">{row.contribution > 0 ? formatMoney(row.contribution, currency) : "—"}</td>
-      <td className="py-2 text-right tabular">{row.retirementIncome > 0 ? formatMoney(row.retirementIncome, currency) : "—"}</td>
-      <td className="py-2 text-right tabular">{row.plannedSpending > 0 ? formatMoney(row.plannedSpending, currency) : "—"}</td>
-      <td className="py-2 text-right tabular">{row.portfolioWithdrawal > 0 ? formatMoney(row.portfolioWithdrawal, currency) : "—"}</td>
+      <td className="num" style={{ padding: "10px 14px", textAlign: "right" }}>{formatMoney(row.endBalance, currency)}</td>
+      <td className="num" style={{ padding: "10px 14px", textAlign: "right" }}>{row.contribution > 0 ? formatMoney(row.contribution, currency) : "—"}</td>
+      <td className="num" style={{ padding: "10px 14px", textAlign: "right" }}>{row.retirementIncome > 0 ? formatMoney(row.retirementIncome, currency) : "—"}</td>
+      <td className="num" style={{ padding: "10px 14px", textAlign: "right" }}>{row.plannedSpending > 0 ? formatMoney(row.plannedSpending, currency) : "—"}</td>
+      <td className="num" style={{ padding: "10px 14px", textAlign: "right" }}>{row.portfolioWithdrawal > 0 ? formatMoney(row.portfolioWithdrawal, currency) : "—"}</td>
     </tr>
   );
 }
@@ -466,8 +471,6 @@ function PlanInputsCard({
     monthlyContribution: goal.monthlyContribution,
   });
 
-  // Re-seed draft when the goal id swaps (e.g. delete + recreate) but not on
-  // every revision tick, so an open edit form doesn't get clobbered.
   useEffect(() => {
     setDraft({
       name: goal.name,
@@ -493,56 +496,62 @@ function PlanInputsCard({
   }
 
   return (
-    <Card
-      title="計畫"
-      action={
-        <button type="button" onClick={() => setOpen((v) => !v)} className="text-xs font-semibold" style={{ color: "var(--ns-accent)" }}>
-          {open ? "收合" : <span className="inline-flex items-center gap-1"><Pencil size={12} />編輯</span>}
+    <div className="ns-card" style={{ padding: 0 }}>
+      <div style={{ padding: "14px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--ns-border)" }}>
+        <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 15, fontWeight: 500 }}>計畫</h3>
+        <button
+          type="button"
+          className="ns-btn ghost"
+          style={{ padding: "4px 10px", fontSize: 12 }}
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? "收合" : <><Pencil size={12} style={{ marginRight: 4 }} />編輯</>}
         </button>
-      }
-    >
-      {open ? (
-        <div className="grid gap-3">
-          <Field label="計畫名稱">
-            <TextInput value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
-          </Field>
-          <div className="grid grid-cols-1 gap-2 2xl:grid-cols-3">
-            <Field label="目前年齡">
-              <TextInput type="number" value={draft.currentAge} onChange={(event) => setDraft({ ...draft, currentAge: Number(event.target.value) })} />
+      </div>
+      <div style={{ padding: 20 }}>
+        {open ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <Field label="計畫名稱">
+              <TextInput value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
             </Field>
-            <Field label="預計退休">
-              <TextInput type="number" value={draft.retirementAge} onChange={(event) => setDraft({ ...draft, retirementAge: Number(event.target.value) })} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              <Field label="目前年齡">
+                <TextInput type="number" value={draft.currentAge} onChange={(event) => setDraft({ ...draft, currentAge: Number(event.target.value) })} />
+              </Field>
+              <Field label="預計退休">
+                <TextInput type="number" value={draft.retirementAge} onChange={(event) => setDraft({ ...draft, retirementAge: Number(event.target.value) })} />
+              </Field>
+              <Field label="計畫到">
+                <TextInput type="number" value={draft.planThroughAge} onChange={(event) => setDraft({ ...draft, planThroughAge: Number(event.target.value) })} />
+              </Field>
+            </div>
+            <Field label="月貢獻">
+              <TextInput type="number" value={draft.monthlyContribution} onChange={(event) => setDraft({ ...draft, monthlyContribution: Number(event.target.value) })} />
             </Field>
-            <Field label="計畫到">
-              <TextInput type="number" value={draft.planThroughAge} onChange={(event) => setDraft({ ...draft, planThroughAge: Number(event.target.value) })} />
-            </Field>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="ns-btn primary" onClick={save} disabled={busy}><CheckCircle size={14} />儲存</button>
+              <button className="ns-btn" onClick={() => setOpen(false)} disabled={busy}>取消</button>
+              <button className="ns-btn" style={{ color: "var(--ns-neg)" }} onClick={onDelete} disabled={busy}><Trash size={14} />刪除目標</button>
+            </div>
           </div>
-          <Field label="月貢獻">
-            <TextInput type="number" value={draft.monthlyContribution} onChange={(event) => setDraft({ ...draft, monthlyContribution: Number(event.target.value) })} />
-          </Field>
-          <div className="flex flex-wrap gap-2">
-            <ActionButton onClick={save} disabled={busy}><CheckCircle size={14} />儲存</ActionButton>
-            <ActionButton variant="secondary" onClick={() => setOpen(false)} disabled={busy}>取消</ActionButton>
-            <ActionButton variant="danger" onClick={onDelete} disabled={busy}><Trash size={14} />刪除目標</ActionButton>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <PlanRow label="目前年齡" value={`${goal.currentAge ?? PROJECTION_DEFAULTS.currentAge} 歲`} />
+            <PlanRow label="預計退休" value={`${goal.retirementAge ?? PROJECTION_DEFAULTS.retirementAge} 歲`} />
+            <PlanRow label="計畫到" value={`${goal.planThroughAge ?? PROJECTION_DEFAULTS.planThroughAge} 歲`} />
+            <PlanRow label="月貢獻" value={formatMoney(goal.monthlyContribution, goal.currency)} />
           </div>
-        </div>
-      ) : (
-        <dl className="grid grid-cols-2 gap-2 text-sm">
-          <PlanRow label="目前年齡" value={`${goal.currentAge ?? PROJECTION_DEFAULTS.currentAge} 歲`} />
-          <PlanRow label="預計退休" value={`${goal.retirementAge ?? PROJECTION_DEFAULTS.retirementAge} 歲`} />
-          <PlanRow label="計畫到" value={`${goal.planThroughAge ?? PROJECTION_DEFAULTS.planThroughAge} 歲`} />
-          <PlanRow label="月貢獻" value={formatMoney(goal.monthlyContribution, goal.currency)} />
-        </dl>
-      )}
-    </Card>
+        )}
+      </div>
+    </div>
   );
 }
 
 function PlanRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border p-2" style={{ borderColor: "var(--ns-border)" }}>
-      <dt className="text-[11px] uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>{label}</dt>
-      <dd className="mt-0.5 font-semibold tabular">{value}</dd>
+    <div style={{ borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-border)", padding: 10 }}>
+      <div className="ns-eyebrow" style={{ marginBottom: 4 }}>{label}</div>
+      <div className="num" style={{ fontSize: 14, fontWeight: 600 }}>{value}</div>
     </div>
   );
 }
@@ -558,8 +567,6 @@ function SpendingCard({
   goal: FinancialGoal;
   onSave: (patch: Partial<FinancialGoalDraft>, successMessage?: string) => void;
 }) {
-  // Keep items local-stateful while editing so multi-row tweaks don't fire a
-  // mutation on every keystroke; persist on blur or explicit "儲存".
   const [items, setItems] = useState<SpendingItem[]>(() => goal.spendingItems ?? []);
   useEffect(() => {
     setItems(goal.spendingItems ?? []);
@@ -584,68 +591,74 @@ function SpendingCard({
   }
 
   return (
-    <Card
-      title="退休支出"
-      action={
-        <button type="button" onClick={add} className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: "var(--ns-accent)" }}>
+    <div className="ns-card" style={{ padding: 0 }}>
+      <div style={{ padding: "14px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--ns-border)" }}>
+        <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 15, fontWeight: 500 }}>退休支出</h3>
+        <button
+          type="button"
+          className="ns-btn ghost"
+          style={{ padding: "4px 10px", fontSize: 12 }}
+          onClick={add}
+        >
           <Plus size={12} />新增
         </button>
-      }
-    >
-      {items.length === 0 ? (
-        <p className="text-sm" style={{ color: "var(--ns-muted)" }}>
-          尚未設定任何支出項目，先用「年支出」估算：{formatMoney(goal.annualSpending, goal.currency)} / 年。
-        </p>
-      ) : (
-        <div className="grid gap-2">
-          {items.map((item, index) => (
-            <div key={item.id} className="rounded-md border p-2" style={{ borderColor: "var(--ns-border)" }}>
-              <div className="flex gap-2">
-                <TextInput
-                  value={item.name}
-                  onChange={(event) => update(index, { name: event.target.value })}
-                  placeholder="項目名稱"
-                />
-                <button
-                  type="button"
-                  onClick={() => remove(index)}
-                  aria-label="移除項目"
-                  className="grid size-8 shrink-0 place-items-center rounded-md outline-none transition"
-                  style={{ color: "var(--ns-muted)" }}
-                >
-                  <X size={14} />
-                </button>
-              </div>
-              <div className="mt-2 grid grid-cols-[1fr_auto] gap-2 text-xs" style={{ color: "var(--ns-muted)" }}>
-                <Field label="月支出">
+      </div>
+      <div style={{ padding: 20 }}>
+        {items.length === 0 ? (
+          <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+            尚未設定任何支出項目，先用「年支出」估算：{formatMoney(goal.annualSpending, goal.currency)} / 年。
+          </p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {items.map((item, index) => (
+              <div key={item.id} style={{ borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-border)", padding: 12 }}>
+                <div style={{ display: "flex", gap: 8 }}>
                   <TextInput
-                    type="number"
-                    value={item.monthlyAmount}
-                    onChange={(event) => update(index, { monthlyAmount: Number(event.target.value) })}
+                    value={item.name}
+                    onChange={(event) => update(index, { name: event.target.value })}
+                    placeholder="項目名稱"
                   />
-                </Field>
-                <label className="flex flex-col gap-1">
-                  <span className="text-[11px] uppercase tracking-wide">必需</span>
-                  <input
-                    type="checkbox"
-                    checked={item.mustHave}
-                    onChange={(event) => update(index, { mustHave: event.target.checked })}
-                    className="mt-2 size-4"
-                  />
-                </label>
+                  <button
+                    type="button"
+                    className="ns-btn ghost"
+                    style={{ padding: 7, flexShrink: 0 }}
+                    onClick={() => remove(index)}
+                    aria-label="移除項目"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, marginTop: 10, alignItems: "end" }}>
+                  <Field label="月支出">
+                    <TextInput
+                      type="number"
+                      value={item.monthlyAmount}
+                      onChange={(event) => update(index, { monthlyAmount: Number(event.target.value) })}
+                    />
+                  </Field>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4, paddingBottom: 8 }}>
+                    <span className="ns-eyebrow">必需</span>
+                    <input
+                      type="checkbox"
+                      checked={item.mustHave}
+                      onChange={(event) => update(index, { mustHave: event.target.checked })}
+                      style={{ width: 16, height: 16 }}
+                    />
+                  </label>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+        )}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--ns-border)" }}>
+          <span className="muted" style={{ fontSize: 13 }}>合計</span>
+          <span className="num" style={{ fontSize: 14, fontWeight: 600 }}>{formatMoney(totalMonthly, goal.currency)} / 月</span>
         </div>
-      )}
-      <div className="mt-3 flex items-center justify-between text-sm">
-        <span style={{ color: "var(--ns-muted)" }}>合計</span>
-        <span className="font-semibold tabular">{formatMoney(totalMonthly, goal.currency)} / 月</span>
+        <div style={{ marginTop: 14 }}>
+          <button className="ns-btn primary" onClick={commit}><CheckCircle size={14} />儲存支出</button>
+        </div>
       </div>
-      <div className="mt-3">
-        <ActionButton onClick={commit}><CheckCircle size={14} />儲存支出</ActionButton>
-      </div>
-    </Card>
+    </div>
   );
 }
 
@@ -655,14 +668,16 @@ function SpendingCard({
 
 function IncomeCard() {
   return (
-    <Card title="退休收入">
-      <div className="rounded-md border p-3 text-xs" style={{ borderColor: "var(--ns-border)", color: "var(--ns-muted)", background: "var(--ns-surface-strong)" }}>
-        <div className="mb-1 inline-flex items-center gap-1 font-semibold" style={{ color: "var(--ns-fg)" }}>
-          <Info size={12} />即將推出
+    <div className="ns-card" style={{ padding: 20 }}>
+      <div style={{ borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-border)", padding: 14, background: "var(--ns-bg-hover)" }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 600, fontSize: 12.5, marginBottom: 6 }}>
+          <Info size={13} />退休收入 — 即將推出
         </div>
-        勞保、國民年金、雇主退休金等收入會在後續版本加入這裡，並自動扣減從投資組合提領的金額。
+        <p className="muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+          勞保、國民年金、雇主退休金等收入會在後續版本加入這裡，並自動扣減從投資組合提領的金額。
+        </p>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -712,57 +727,63 @@ function AssumptionsCard({
   }
 
   return (
-    <Card
-      title="假設"
-      action={
-        <button type="button" onClick={() => setOpen((v) => !v)} className="text-xs font-semibold" style={{ color: "var(--ns-accent)" }}>
-          {open ? "收合" : <span className="inline-flex items-center gap-1"><Pencil size={12} />編輯</span>}
+    <div className="ns-card" style={{ padding: 0 }}>
+      <div style={{ padding: "14px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--ns-border)" }}>
+        <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 15, fontWeight: 500 }}>假設</h3>
+        <button
+          type="button"
+          className="ns-btn ghost"
+          style={{ padding: "4px 10px", fontSize: 12 }}
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? "收合" : <><Pencil size={12} style={{ marginRight: 4 }} />編輯</>}
         </button>
-      }
-    >
-      {open ? (
-        <div className="grid gap-3">
-          <Field label="退休前報酬率（年化）">
-            <TextInput type="number" step="0.001" value={draft.preRetirementReturn} onChange={(event) => setDraft({ ...draft, preRetirementReturn: Number(event.target.value) })} />
-          </Field>
-          <Field label="退休後報酬率">
-            <TextInput type="number" step="0.001" value={draft.postRetirementReturn} onChange={(event) => setDraft({ ...draft, postRetirementReturn: Number(event.target.value) })} />
-          </Field>
-          <Field label="年度手續費（含稅、ETF 內扣）">
-            <TextInput type="number" step="0.001" value={draft.annualFee} onChange={(event) => setDraft({ ...draft, annualFee: Number(event.target.value) })} />
-          </Field>
-          <Field label="通膨率">
-            <TextInput type="number" step="0.001" value={draft.inflationRate} onChange={(event) => setDraft({ ...draft, inflationRate: Number(event.target.value) })} />
-          </Field>
-          <Field label="月貢獻每年成長">
-            <TextInput type="number" step="0.001" value={draft.contributionGrowthRate} onChange={(event) => setDraft({ ...draft, contributionGrowthRate: Number(event.target.value) })} />
-          </Field>
-          <Field label="提領率（25× 法則用）">
-            <TextInput type="number" step="0.001" value={draft.withdrawalRate} onChange={(event) => setDraft({ ...draft, withdrawalRate: Number(event.target.value) })} />
-          </Field>
-          <ActionButton onClick={save}><CheckCircle size={14} />儲存假設</ActionButton>
-        </div>
-      ) : (
-        <dl className="grid gap-2 text-sm">
-          <AssumptionRow label="退休前報酬率" value={percent(goal.preRetirementReturn ?? PROJECTION_DEFAULTS.preRetirementReturn)} />
-          <AssumptionRow label="退休後報酬率" value={percent(goal.postRetirementReturn ?? PROJECTION_DEFAULTS.postRetirementReturn)} />
-          <AssumptionRow label="年度手續費" value={percent(goal.annualFee ?? PROJECTION_DEFAULTS.annualFee)} />
-          <AssumptionRow label="實質退休前報酬" value={percent(projection.effectivePreReturn)} muted />
-          <AssumptionRow label="實質退休後報酬" value={percent(projection.effectivePostReturn)} muted />
-          <AssumptionRow label="通膨率" value={percent(goal.inflationRate ?? PROJECTION_DEFAULTS.inflationRate)} />
-          <AssumptionRow label="月貢獻成長" value={percent(goal.contributionGrowthRate ?? PROJECTION_DEFAULTS.contributionGrowthRate)} />
-          <AssumptionRow label="提領率" value={percent(goal.withdrawalRate)} />
-        </dl>
-      )}
-    </Card>
+      </div>
+      <div style={{ padding: 20 }}>
+        {open ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Field label="退休前報酬率（年化）">
+              <TextInput type="number" step="0.001" value={draft.preRetirementReturn} onChange={(event) => setDraft({ ...draft, preRetirementReturn: Number(event.target.value) })} />
+            </Field>
+            <Field label="退休後報酬率">
+              <TextInput type="number" step="0.001" value={draft.postRetirementReturn} onChange={(event) => setDraft({ ...draft, postRetirementReturn: Number(event.target.value) })} />
+            </Field>
+            <Field label="年度手續費（含稅、ETF 內扣）">
+              <TextInput type="number" step="0.001" value={draft.annualFee} onChange={(event) => setDraft({ ...draft, annualFee: Number(event.target.value) })} />
+            </Field>
+            <Field label="通膨率">
+              <TextInput type="number" step="0.001" value={draft.inflationRate} onChange={(event) => setDraft({ ...draft, inflationRate: Number(event.target.value) })} />
+            </Field>
+            <Field label="月貢獻每年成長">
+              <TextInput type="number" step="0.001" value={draft.contributionGrowthRate} onChange={(event) => setDraft({ ...draft, contributionGrowthRate: Number(event.target.value) })} />
+            </Field>
+            <Field label="提領率（25× 法則用）">
+              <TextInput type="number" step="0.001" value={draft.withdrawalRate} onChange={(event) => setDraft({ ...draft, withdrawalRate: Number(event.target.value) })} />
+            </Field>
+            <button className="ns-btn primary" onClick={save}><CheckCircle size={14} />儲存假設</button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <AssumptionRow label="退休前報酬率" value={percent(goal.preRetirementReturn ?? PROJECTION_DEFAULTS.preRetirementReturn)} />
+            <AssumptionRow label="退休後報酬率" value={percent(goal.postRetirementReturn ?? PROJECTION_DEFAULTS.postRetirementReturn)} />
+            <AssumptionRow label="年度手續費" value={percent(goal.annualFee ?? PROJECTION_DEFAULTS.annualFee)} />
+            <AssumptionRow label="實質退休前報酬" value={percent(projection.effectivePreReturn)} muted />
+            <AssumptionRow label="實質退休後報酬" value={percent(projection.effectivePostReturn)} muted />
+            <AssumptionRow label="通膨率" value={percent(goal.inflationRate ?? PROJECTION_DEFAULTS.inflationRate)} />
+            <AssumptionRow label="月貢獻成長" value={percent(goal.contributionGrowthRate ?? PROJECTION_DEFAULTS.contributionGrowthRate)} />
+            <AssumptionRow label="提領率" value={percent(goal.withdrawalRate)} />
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
 function AssumptionRow({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
   return (
-    <div className="flex items-center justify-between text-sm">
-      <span style={{ color: muted ? "var(--ns-muted)" : "var(--ns-fg)" }}>{label}</span>
-      <span className="font-semibold tabular" style={{ color: muted ? "var(--ns-muted)" : "var(--ns-fg)" }}>{value}</span>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid var(--ns-border)", fontSize: 13 }}>
+      <span style={{ color: muted ? "var(--ns-fg-dim)" : "var(--ns-fg-muted)" }}>{label}</span>
+      <span className="num" style={{ fontWeight: 600, color: muted ? "var(--ns-fg-dim)" : "var(--ns-fg)" }}>{value}</span>
     </div>
   );
 }
@@ -777,14 +798,14 @@ function percent(value: number): string {
 
 function DisclaimerCard() {
   return (
-    <Card>
-      <div className="flex gap-3 text-xs leading-5" style={{ color: "var(--ns-muted)" }}>
-        <Info size={16} className="mt-0.5 shrink-0" />
-        <p>
+    <div className="ns-card" style={{ padding: 20 }}>
+      <div style={{ display: "flex", gap: 12 }}>
+        <Info size={16} style={{ color: "var(--ns-fg-dim)", flexShrink: 0, marginTop: 1 }} />
+        <p className="muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.7 }}>
           這不是投資建議。把這些數字當作一張草稿，而不是預測。所有結果都由你輸入的假設算出 — 報酬率、通膨、貢獻、壽命 — 真實世界會偏離線性、稅制會改、政府政策會變。用這個畫面壓力測試想法、找出落差，重要決定請與合格的專業人士討論。
         </p>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -792,10 +813,6 @@ function DisclaimerCard() {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Convert a stored goal into a draft shape so a partial patch + spread keeps
- * every required field set. Strips the server-managed sync fields.
- */
 function goalToDraft(goal: FinancialGoal): FinancialGoalDraft {
   return {
     kind: goal.kind,

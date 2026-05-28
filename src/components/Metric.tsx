@@ -1,23 +1,27 @@
 export function Metric({
   label,
   value,
+  sub,
   tone = "neutral",
 }: {
   label: string;
   value: string;
+  sub?: string;
   tone?: "neutral" | "positive" | "negative";
 }) {
-  const color =
-    tone === "positive" ? "var(--ns-positive)" : tone === "negative" ? "var(--ns-negative)" : "var(--ns-text)";
+  const valueColor =
+    tone === "positive"
+      ? "var(--ns-pos)"
+      : tone === "negative"
+        ? "var(--ns-neg)"
+        : "var(--ns-fg)";
   return (
-    <div>
-      <div className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
-        {label}
-      </div>
-      <div className="tabular mt-1 text-2xl font-semibold" style={{ color }}>
-        {value}
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div className="ns-eyebrow">{label}</div>
+      <div className="ns-num-md" style={{ color: valueColor }}>{value}</div>
+      {sub ? (
+        <div style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>{sub}</div>
+      ) : null}
     </div>
   );
 }
-

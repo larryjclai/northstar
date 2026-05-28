@@ -1,97 +1,234 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════
+   Northstar Design System — CSS Tokens & Utility Classes
+   ═══════════════════════════════════════════════════════════ */
+
 :root {
-  color-scheme: light;
-  --ns-bg: oklch(97% 0.01 210);
-  --ns-surface: oklch(99% 0.006 210);
-  --ns-surface-subtle: oklch(98% 0.009 210);
-  --ns-surface-elevated: oklch(100% 0 0);
-  --ns-surface-strong: oklch(95% 0.015 210);
-  --ns-border: oklch(84% 0.018 210);
-  --ns-text: oklch(23% 0.02 220);
-  --ns-fg: oklch(23% 0.02 220);
-  --ns-muted: oklch(45% 0.018 220);
-  --ns-accent: oklch(47% 0.12 168);
-  --ns-on-accent: oklch(98% 0.004 190);
-  --ns-accent-soft: oklch(92% 0.05 168);
-  --ns-warn: oklch(66% 0.14 77);
-  --ns-warning: oklch(66% 0.14 77);
-  --ns-negative: oklch(55% 0.18 29);
-  --ns-danger: oklch(55% 0.18 29);
-  --ns-danger-soft: oklch(92% 0.03 29);
-  --ns-positive: oklch(50% 0.13 160);
-  --ns-positive-soft: oklch(92% 0.04 160);
-  --ns-shadow: 0 1px 2px oklch(20% 0.02 220 / 12%);
-  --ns-shadow-strong: 0 12px 30px oklch(20% 0.02 220 / 12%);
-  --ns-panel-bg: oklch(98% 0.01 220);
-  --ns-panel-surface: oklch(99% 0.007 220);
-  --ns-panel-border: oklch(82% 0.02 220);
+  /* Type families */
+  --ns-font-display: "Space Grotesk", ui-sans-serif, system-ui, "Noto Sans TC", sans-serif;
+  --ns-font-ui:      "Space Grotesk", ui-sans-serif, system-ui, "Noto Sans TC", sans-serif;
+  --ns-font-mono:    "JetBrains Mono", "Geist Mono", ui-monospace, "SF Mono", monospace;
+
+  /* Spacing scale */
+  --ns-s-0: 0px;   --ns-s-1: 4px;  --ns-s-2: 8px;   --ns-s-3: 12px;
+  --ns-s-4: 16px;  --ns-s-5: 20px; --ns-s-6: 24px;  --ns-s-7: 32px;
+  --ns-s-8: 40px;  --ns-s-9: 56px; --ns-s-10: 80px;
+
+  /* Radii */
+  --ns-r-xs: 6px; --ns-r-sm: 10px; --ns-r-md: 14px;
+  --ns-r-lg: 18px; --ns-r-xl: 24px; --ns-r-full: 999px;
+
+  /* Density (default) */
+  --ns-row-h: 56px;
+  --ns-pad-card: 24px;
+  --ns-gap-card: 20px;
+
+  /* Type scale */
+  --ns-t-display-xl: 56px; --ns-t-display: 40px;
+  --ns-t-title-1: 28px;    --ns-t-title-2: 22px;  --ns-t-title-3: 18px;
+  --ns-t-body: 15px;       --ns-t-ui: 14px;        --ns-t-caption: 12px;
+  --ns-t-mono-lg: 28px;    --ns-t-mono-xl: 40px;   --ns-t-mono-xxl: 56px;
+
+  /* Motion */
+  --ns-ease: cubic-bezier(.2, .7, .2, 1);
+  --ns-dur-fast: 120ms;
+  --ns-dur: 200ms;
 }
 
+/* ─── Light mode (default + explicit) ─── */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  --ns-bg:          oklch(0.985 0.005 250);
+  --ns-bg-elev:     oklch(0.998 0 0);
+  --ns-bg-card:     oklch(0.998 0 0);
+  --ns-bg-hover:    oklch(0.965 0.005 250);
+  --ns-border:      oklch(0.91 0.005 250);
+  --ns-border-strong: oklch(0.82 0.008 250);
+  --ns-fg:          oklch(0.2 0.01 250);
+  --ns-fg-muted:    oklch(0.45 0.01 250);
+  --ns-fg-dim:      oklch(0.6 0.008 250);
+
+  --ns-accent:      #5fb83a;
+  --ns-accent-fg:   #ffffff;
+  --ns-accent-soft: color-mix(in srgb, #5fb83a 14%, transparent);
+
+  --ns-pos:         #1f9d57;
+  --ns-pos-soft:    color-mix(in srgb, #1f9d57 12%, transparent);
+  --ns-neg:         #d8553c;
+  --ns-neg-soft:    color-mix(in srgb, #d8553c 12%, transparent);
+  --ns-warn:        #c98a18;
+  --ns-info:        #2c6df0;
+
+  --ns-chart-1: #5fb83a; --ns-chart-2: #2c6df0;
+  --ns-chart-3: #d18a18; --ns-chart-4: #c44a82; --ns-chart-5: #6e58d8;
+
+  --ns-shadow-1: 0 1px 0 rgba(255,255,255,.9) inset, 0 1px 2px rgba(20,20,30,.06);
+  --ns-shadow-2: 0 20px 50px rgba(20,20,30,.08);
+
+  /* ── Backward-compat aliases ── */
+  --ns-surface:          var(--ns-bg-card);
+  --ns-surface-subtle:   var(--ns-bg);
+  --ns-surface-elevated: var(--ns-bg-elev);
+  --ns-surface-strong:   var(--ns-bg-hover);
+  --ns-text:             var(--ns-fg);
+  --ns-muted:            var(--ns-fg-muted);
+  --ns-on-accent:        var(--ns-accent-fg);
+  --ns-positive:         var(--ns-pos);
+  --ns-positive-soft:    var(--ns-pos-soft);
+  --ns-negative:         var(--ns-neg);
+  --ns-danger:           var(--ns-neg);
+  --ns-danger-soft:      var(--ns-neg-soft);
+  --ns-warning:          var(--ns-warn);
+  --ns-warning-soft:     color-mix(in srgb, var(--ns-warn) 12%, transparent);
+  --ns-shadow:           var(--ns-shadow-1);
+  --ns-shadow-strong:    var(--ns-shadow-2);
+  --ns-panel-bg:         var(--ns-bg-elev);
+  --ns-panel-surface:    var(--ns-bg-card);
+  --ns-panel-border:     var(--ns-border);
+}
+
+/* ─── Dark mode (system fallback) ─── */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --ns-bg: oklch(17% 0.018 230);
-    --ns-surface: oklch(22% 0.018 230);
-    --ns-surface-subtle: oklch(20% 0.016 230);
-    --ns-surface-elevated: oklch(26% 0.017 230);
-    --ns-surface-strong: oklch(30% 0.017 230);
-    --ns-border: oklch(36% 0.02 230);
-    --ns-text: oklch(93% 0.01 210);
-    --ns-fg: oklch(93% 0.01 210);
-    --ns-muted: oklch(73% 0.014 220);
-    --ns-accent: oklch(74% 0.11 168);
-    --ns-on-accent: oklch(17% 0.012 220);
-    --ns-accent-soft: oklch(33% 0.06 168);
-    --ns-warn: oklch(76% 0.13 77);
-    --ns-warning: oklch(76% 0.13 77);
-    --ns-negative: oklch(73% 0.17 29);
-    --ns-danger: oklch(73% 0.17 29);
-    --ns-danger-soft: oklch(32% 0.06 29);
-    --ns-positive: oklch(75% 0.13 160);
-    --ns-positive-soft: oklch(34% 0.06 160);
-    --ns-shadow: 0 1px 2px oklch(5% 0.02 220 / 34%);
-    --ns-shadow-strong: 0 16px 32px oklch(5% 0.02 220 / 40%);
-    --ns-panel-bg: oklch(20% 0.02 228);
-    --ns-panel-surface: oklch(24% 0.02 228);
-    --ns-panel-border: oklch(33% 0.022 228);
+
+    --ns-bg:          oklch(0.165 0.008 250);
+    --ns-bg-elev:     oklch(0.198 0.008 250);
+    --ns-bg-card:     oklch(0.22 0.008 250);
+    --ns-bg-hover:    oklch(0.255 0.008 250);
+    --ns-border:      oklch(0.285 0.008 250);
+    --ns-border-strong: oklch(0.38 0.008 250);
+    --ns-fg:          oklch(0.97 0.005 250);
+    --ns-fg-muted:    oklch(0.68 0.008 250);
+    --ns-fg-dim:      oklch(0.5 0.008 250);
+
+    --ns-accent:      #9fe870;
+    --ns-accent-fg:   #0a1a02;
+    --ns-accent-soft: color-mix(in srgb, #9fe870 18%, transparent);
+
+    --ns-pos:         #6ee49a;
+    --ns-pos-soft:    color-mix(in srgb, #6ee49a 16%, transparent);
+    --ns-neg:         #ff7d6b;
+    --ns-neg-soft:    color-mix(in srgb, #ff7d6b 16%, transparent);
+    --ns-warn:        #f0c050;
+    --ns-info:        #6fb3ff;
+
+    --ns-chart-1: #9fe870; --ns-chart-2: #6fb3ff;
+    --ns-chart-3: #f0c050; --ns-chart-4: #d97a9c; --ns-chart-5: #a99cff;
+
+    --ns-shadow-1: 0 1px 0 rgba(255,255,255,.03) inset, 0 1px 2px rgba(0,0,0,.3);
+    --ns-shadow-2: 0 24px 60px rgba(0,0,0,.5);
+
+    /* ── Backward-compat aliases ── */
+    --ns-surface:          var(--ns-bg-card);
+    --ns-surface-subtle:   var(--ns-bg);
+    --ns-surface-elevated: var(--ns-bg-elev);
+    --ns-surface-strong:   var(--ns-bg-hover);
+    --ns-text:             var(--ns-fg);
+    --ns-muted:            var(--ns-fg-muted);
+    --ns-on-accent:        var(--ns-accent-fg);
+    --ns-positive:         var(--ns-pos);
+    --ns-positive-soft:    var(--ns-pos-soft);
+    --ns-negative:         var(--ns-neg);
+    --ns-danger:           var(--ns-neg);
+    --ns-danger-soft:      var(--ns-neg-soft);
+    --ns-warning:          var(--ns-warn);
+    --ns-warning-soft:     color-mix(in srgb, var(--ns-warn) 12%, transparent);
+    --ns-shadow:           var(--ns-shadow-1);
+    --ns-shadow-strong:    var(--ns-shadow-2);
+    --ns-panel-bg:         var(--ns-bg-elev);
+    --ns-panel-surface:    var(--ns-bg-card);
+    --ns-panel-border:     var(--ns-border);
   }
 }
+
+/* ─── Dark mode (explicit override) ─── */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --ns-bg:          oklch(0.165 0.008 250);
+  --ns-bg-elev:     oklch(0.198 0.008 250);
+  --ns-bg-card:     oklch(0.22 0.008 250);
+  --ns-bg-hover:    oklch(0.255 0.008 250);
+  --ns-border:      oklch(0.285 0.008 250);
+  --ns-border-strong: oklch(0.38 0.008 250);
+  --ns-fg:          oklch(0.97 0.005 250);
+  --ns-fg-muted:    oklch(0.68 0.008 250);
+  --ns-fg-dim:      oklch(0.5 0.008 250);
+
+  --ns-accent:      #9fe870;
+  --ns-accent-fg:   #0a1a02;
+  --ns-accent-soft: color-mix(in srgb, #9fe870 18%, transparent);
+
+  --ns-pos:         #6ee49a;
+  --ns-pos-soft:    color-mix(in srgb, #6ee49a 16%, transparent);
+  --ns-neg:         #ff7d6b;
+  --ns-neg-soft:    color-mix(in srgb, #ff7d6b 16%, transparent);
+  --ns-warn:        #f0c050;
+  --ns-info:        #6fb3ff;
+
+  --ns-chart-1: #9fe870; --ns-chart-2: #6fb3ff;
+  --ns-chart-3: #f0c050; --ns-chart-4: #d97a9c; --ns-chart-5: #a99cff;
+
+  --ns-shadow-1: 0 1px 0 rgba(255,255,255,.03) inset, 0 1px 2px rgba(0,0,0,.3);
+  --ns-shadow-2: 0 24px 60px rgba(0,0,0,.5);
+
+  /* ── Backward-compat aliases ── */
+  --ns-surface:          var(--ns-bg-card);
+  --ns-surface-subtle:   var(--ns-bg);
+  --ns-surface-elevated: var(--ns-bg-elev);
+  --ns-surface-strong:   var(--ns-bg-hover);
+  --ns-text:             var(--ns-fg);
+  --ns-muted:            var(--ns-fg-muted);
+  --ns-on-accent:        var(--ns-accent-fg);
+  --ns-positive:         var(--ns-pos);
+  --ns-positive-soft:    var(--ns-pos-soft);
+  --ns-negative:         var(--ns-neg);
+  --ns-danger:           var(--ns-neg);
+  --ns-danger-soft:      var(--ns-neg-soft);
+  --ns-warning:          var(--ns-warn);
+  --ns-warning-soft:     color-mix(in srgb, var(--ns-warn) 12%, transparent);
+  --ns-shadow:           var(--ns-shadow-1);
+  --ns-shadow-strong:    var(--ns-shadow-2);
+  --ns-panel-bg:         var(--ns-bg-elev);
+  --ns-panel-surface:    var(--ns-bg-card);
+  --ns-panel-border:     var(--ns-border);
+}
+
+/* ─── Density variants ─── */
+[data-density="loose"]  { --ns-row-h: 64px; --ns-pad-card: 28px; --ns-gap-card: 24px; }
+[data-density="medium"] { --ns-row-h: 52px; --ns-pad-card: 20px; --ns-gap-card: 16px; }
+[data-density="tight"]  { --ns-row-h: 40px; --ns-pad-card: 14px; --ns-gap-card: 10px;
+                           --ns-t-body: 13.5px; --ns-t-ui: 12.5px; }
+
+/* ─── Radius variants ─── */
+[data-radius="sharp"] { --ns-r-xs: 2px; --ns-r-sm: 3px; --ns-r-md: 4px; --ns-r-lg: 6px; --ns-r-xl: 8px; }
+[data-radius="round"] { --ns-r-xs: 10px; --ns-r-sm: 14px; --ns-r-md: 18px; --ns-r-lg: 24px; --ns-r-xl: 32px; }
+
+/* ═══════════════════════════════════════════════════════════
+   Base reset
+   ═══════════════════════════════════════════════════════════ */
 
 @keyframes ns-drawer-in {
-  from {
-    transform: translateX(28px);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+  from { transform: translateX(28px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
 }
 
-html,
-body,
-#root {
-  min-height: 100%;
-}
+html, body, #root { min-height: 100%; }
 
 body {
   margin: 0;
-  background:
-    radial-gradient(circle at 10% -10%, oklch(96% 0.03 165 / 30%), transparent 42%),
-    radial-gradient(circle at 100% -20%, oklch(96% 0.03 210 / 35%), transparent 45%),
-    var(--ns-bg);
-  color: var(--ns-text);
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--ns-bg);
+  color: var(--ns-fg);
+  font-family: var(--ns-font-ui);
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
 }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
+button, input, select, textarea { font: inherit; }
 
 a:focus-visible,
 button:focus-visible,
@@ -102,6 +239,181 @@ textarea:focus-visible {
   outline-offset: 2px;
 }
 
-.tabular {
-  font-variant-numeric: tabular-nums;
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* ═══════════════════════════════════════════════════════════
+   DS Utility classes
+   ═══════════════════════════════════════════════════════════ */
+
+/* Card */
+.ns-card {
+  background: var(--ns-bg-card);
+  border: 1px solid var(--ns-border);
+  border-radius: var(--ns-r-lg);
+  padding: var(--ns-pad-card);
 }
+
+/* Surface (subtler) */
+.ns-surface {
+  background: var(--ns-bg-elev);
+  border: 1px solid var(--ns-border);
+  border-radius: var(--ns-r-md);
+}
+
+/* List row */
+.ns-row {
+  display: flex;
+  align-items: center;
+  min-height: var(--ns-row-h);
+  padding: 0 var(--ns-s-5);
+  border-bottom: 1px solid var(--ns-border);
+}
+.ns-row:last-child { border-bottom: none; }
+
+/* Eyebrow / kicker */
+.ns-eyebrow {
+  font-family: var(--ns-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ns-fg-muted);
+}
+
+/* Pill / badge */
+.ns-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: var(--ns-r-full);
+  font-size: 11.5px;
+  font-weight: 500;
+  border: 1px solid var(--ns-border);
+  background: transparent;
+  color: var(--ns-fg-muted);
+}
+.ns-pill.solid-accent { background: var(--ns-accent); color: var(--ns-accent-fg); border-color: transparent; }
+.ns-pill.solid-pos    { background: var(--ns-pos-soft); color: var(--ns-pos); border-color: transparent; }
+.ns-pill.solid-neg    { background: var(--ns-neg-soft); color: var(--ns-neg); border-color: transparent; }
+
+/* Button */
+.ns-btn {
+  appearance: none;
+  border: 1px solid var(--ns-border);
+  background: var(--ns-bg-elev);
+  color: var(--ns-fg);
+  font-family: inherit;
+  font-size: var(--ns-t-ui);
+  font-weight: 500;
+  padding: 9px 14px;
+  border-radius: var(--ns-r-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: background var(--ns-dur-fast) var(--ns-ease),
+              transform var(--ns-dur-fast) var(--ns-ease);
+}
+.ns-btn:hover   { background: var(--ns-bg-hover); }
+.ns-btn:active  { transform: translateY(1px); }
+.ns-btn.primary { background: var(--ns-accent); color: var(--ns-accent-fg); border-color: transparent; }
+.ns-btn.primary:hover { filter: brightness(1.05); background: var(--ns-accent); }
+.ns-btn.ghost   { background: transparent; border-color: transparent; color: var(--ns-fg-muted); }
+.ns-btn.ghost:hover { background: var(--ns-bg-hover); color: var(--ns-fg); }
+.ns-btn.icon    { padding: 8px; }
+.ns-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ns-btn:disabled:hover { background: var(--ns-bg-elev); filter: none; transform: none; }
+.ns-btn.primary:disabled:hover { background: var(--ns-accent); }
+
+/* Segmented control */
+.ns-seg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--ns-bg-elev);
+  border: 1px solid var(--ns-border);
+  border-radius: var(--ns-r-sm);
+}
+.ns-seg button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 5px 11px;
+  color: var(--ns-fg-muted);
+  border-radius: calc(var(--ns-r-sm) - 3px);
+  cursor: pointer;
+  transition: background var(--ns-dur-fast) var(--ns-ease);
+}
+.ns-seg button[aria-selected="true"] {
+  background: var(--ns-bg-card);
+  color: var(--ns-fg);
+  box-shadow: var(--ns-shadow-1);
+}
+
+/* Input */
+.ns-input {
+  appearance: none;
+  background: var(--ns-bg-elev);
+  border: 1px solid var(--ns-border);
+  color: var(--ns-fg);
+  font-family: inherit;
+  font-size: var(--ns-t-ui);
+  padding: 10px 12px;
+  border-radius: var(--ns-r-sm);
+  width: 100%;
+  transition: border-color var(--ns-dur-fast) var(--ns-ease),
+              box-shadow var(--ns-dur-fast) var(--ns-ease);
+}
+.ns-input:focus {
+  outline: none;
+  border-color: var(--ns-accent);
+  box-shadow: 0 0 0 3px var(--ns-accent-soft);
+}
+.ns-input::placeholder { color: var(--ns-fg-dim); }
+
+/* Divider */
+.ns-divider { height: 1px; background: var(--ns-border); border: none; }
+
+/* Sidebar nav link */
+.ns-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 11px;
+  border-radius: var(--ns-r-sm);
+  font-size: 13.5px;
+  color: var(--ns-fg-muted);
+  cursor: pointer;
+  transition: background var(--ns-dur-fast) var(--ns-ease),
+              color var(--ns-dur-fast) var(--ns-ease);
+  text-decoration: none;
+}
+.ns-nav-link.active {
+  background: var(--ns-bg-card);
+  color: var(--ns-fg);
+  box-shadow: inset 0 0 0 1px var(--ns-border);
+}
+.ns-nav-link:hover:not(.active) { background: var(--ns-bg-hover); color: var(--ns-fg); }
+
+/* Number display sizes */
+.ns-num-xl  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; font-size: 56px; letter-spacing: -0.04em; font-weight: 500; }
+.ns-num-lg  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; font-size: 40px; letter-spacing: -0.03em; font-weight: 500; }
+.ns-num-md  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; font-size: 28px; letter-spacing: -0.02em; font-weight: 500; }
+.ns-num-sm  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; font-size: 16px; letter-spacing: -0.01em; font-weight: 500; }
+
+/* Mono utility */
+.ns-mono { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+/* Chart crosshair */
+.ns-chart-cross { stroke: var(--ns-border-strong); stroke-dasharray: 3 3; }
+
+/* ── DS shorthand color utilities (mirrors the mockup classes) ── */
+.pos  { color: var(--ns-pos); }
+.neg  { color: var(--ns-neg); }
+.muted { color: var(--ns-fg-muted); }
+.dim  { color: var(--ns-fg-dim); }
+.num  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }

@@ -12,21 +12,34 @@ export function Card({
   variant?: "default" | "muted" | "raised";
   density?: "sm" | "md";
 }>) {
-  const paddingClass = density === "sm" ? "p-4" : "p-5";
-  const background =
-    variant === "muted"
-      ? "var(--ns-surface-subtle)"
-      : "var(--ns-surface)";
-  const shadow = variant === "raised" ? "var(--ns-shadow-strong)" : "var(--ns-shadow)";
+  const padding = density === "sm" ? "16px" : "var(--ns-pad-card)";
+  const bg =
+    variant === "muted" ? "var(--ns-bg)" : "var(--ns-bg-card)";
+  const shadow =
+    variant === "raised" ? "var(--ns-shadow-2)" : "var(--ns-shadow-1)";
 
   return (
     <section
-      className={`rounded-xl border ${paddingClass}`}
-      style={{ background, borderColor: "var(--ns-border)", boxShadow: shadow }}
+      className="ns-card"
+      style={{ padding, background: bg, boxShadow: shadow }}
     >
       {(title || action) && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          {title ? <h2 className="min-w-0 text-base font-semibold">{title}</h2> : <span />}
+          {title ? (
+            <h2
+              style={{
+                fontFamily: "var(--ns-font-display)",
+                fontSize: 15,
+                fontWeight: 600,
+                margin: 0,
+                letterSpacing: -0.01,
+              }}
+            >
+              {title}
+            </h2>
+          ) : (
+            <span />
+          )}
           {action ? <div className="min-w-0">{action}</div> : null}
         </div>
       )}
