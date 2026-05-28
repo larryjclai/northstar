@@ -103,6 +103,17 @@ export function HoldingDetailRoute() {
   const unrealizedGainPercent = costBasis === 0 ? 0 : (unrealizedGain / costBasis) * 100;
   const pos = unrealizedGain >= 0;
 
+  // 持倉天數：自最早一筆買進至今。
+  const earliestBuyDate = txns.filter((t) => t.action === "buy").map((t) => t.date).sort()[0];
+  const holdingDays = earliestBuyDate
+    ? Math.max(0, Math.floor((Date.now() - new Date(earliestBuyDate).getTime()) / 86_400_000))
+    : null;
+  // 配息 YTD：本年度現金股利（cashDividend 以 price 存總額）。
+  const thisYear = new Date().toISOString().slice(0, 4);
+  const dividendYtd = txns
+    .filter((t) => t.action === "cashDividend" && t.date.startsWith(thisYear))
+    .reduce((sum, t) => sum + t.price, 0);
+
   const markColor = ticker.includes(".TW") || ticker.length === 4 
     ? "var(--ns-chart-1)" 
     : ["BTC", "ETH"].includes(ticker) ? "var(--ns-chart-3)" : "var(--ns-chart-2)";
@@ -211,8 +222,8 @@ export function HoldingDetailRoute() {
                 ["FIFO 成本", formatNumber(costBasis), null],
                 ["未實現損益", (pos ? "+" : "") + formatNumber(unrealizedGain), pos ? "pos" : "neg"],
                 ["報酬率", (pos ? "+" : "") + unrealizedGainPercent.toFixed(2) + "%", pos ? "pos" : "neg"],
-                ["配息 YTD", "0", null],
-                ["持倉天數", "–", null],
+                ["配息 YTD", formatNumber(dividendYtd), null],
+                ["持倉天數", holdingDays !== null ? `${holdingDays} 天` : "–", null],
               ].map(([l, v, c]) => (
                 <div key={l}>
                   <div className="muted" style={{ fontSize: 11 }}>{l}</div>
