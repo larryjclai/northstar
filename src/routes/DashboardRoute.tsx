@@ -1,117 +1,210 @@
-import { ArrowClockwise, CalendarBlank, CloudSlash, CurrencyCircleDollar, ChartLineUp, PlusCircle, Wallet } from "@phosphor-icons/react";
+import { ArrowDown, ArrowsClockwise, ArrowUp, Plus } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ActionButton } from "../components/ActionButton";
-import { PageHeader } from "../components/AppShell";
-import { Card } from "../components/Card";
-import { EmptyState } from "../components/EmptyState";
-import { Metric } from "../components/Metric";
+import { useMemo } from "react";
+import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useFinanceData } from "../data/hooks";
-import { buildTopHoldingSummaries, calculateAvailableCash, calculateLiabilities, createFxConverter, formatMoney, formatNumber, formatPrice, resolveAssetName, type Account, type AppSettings, type DailyFxRate, type LedgerTransaction, type PortfolioAsset, type RecurringTransaction } from "../domain";
-import { useUiPreferences } from "../state/uiPreferences";
 import type { StoredMarketQuote } from "../data/repositories";
+import {
+  assetTypeLabels,
+  calculateAvailableCash,
+  calculateLiabilities,
+  createFxConverter,
+  formatMoney,
+  formatNumber,
+  type Account,
+  type AppSettings,
+  type DailyFxRate,
+  type FinancialGoal,
+  type LedgerTransaction,
+  type PortfolioAsset,
+} from "../domain";
 import { useRefreshQuotes } from "../features/market-data/useMarketRefresh";
 
+const CHART_COLORS = [
+  "var(--ns-chart-1)",
+  "var(--ns-chart-2)",
+  "var(--ns-chart-3)",
+  "var(--ns-chart-4)",
+  "var(--ns-chart-5)",
+  "#2dd4bf",
+  "#fb923c",
+];
+
 export function DashboardRoute() {
-  const { accounts, ledger, assets, quotes, settings, dailyFxRates, recurring } = useFinanceData();
+  const { accounts, ledger, assets, quotes, settings, dailyFxRates, recurring, financialGoals } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
+
   const accountRows = accounts.data ?? [];
   const ledgerRows = ledger.data ?? [];
   const assetRows = assets.data ?? [];
   const quoteRows = quotes.data ?? [];
   const appSettings = settings.data;
   const fxHistory = dailyFxRates.data ?? [];
+  const recurringRows = recurring.data ?? [];
+  const goalRows = financialGoals.data ?? [];
+
   const { primaryCurrency, toPrimary } = createFxConverter(appSettings, fxHistory);
   const availableCash = calculateAvailableCash(accountRows, toPrimary);
   const liabilities = calculateLiabilities(accountRows, toPrimary);
-  const monthlyIncome = ledgerRows.filter((row) => row.amount > 0 && !row.groupId && row.settlementStatus === "settled").reduce((sum, row) => sum + toPrimary(row.amount, row.currency, row.date), 0);
-  const monthlyExpense = ledgerRows.filter((row) => row.amount < 0 && !row.groupId && row.settlementStatus === "settled").reduce((sum, row) => sum + toPrimary(row.amount, row.currency, row.date), 0);
-  const receivable = ledgerRows.filter((row) => row.settlementStatus === "receivable").reduce((sum, row) => sum + toPrimary(Math.abs(row.amount), row.currency, row.date), 0);
-  const payable = ledgerRows.filter((row) => row.settlementStatus === "payable").reduce((sum, row) => sum + toPrimary(Math.abs(row.amount), row.currency, row.date), 0);
+
   const quoteFor = (ticker: string) => quoteRows.find((quote) => quote.symbol.toUpperCase() === ticker.toUpperCase());
   const marketValue = assetRows.reduce((sum, asset) => {
     const quote = quoteFor(asset.ticker);
-    return sum + toPrimary((quote?.price ?? 0) * asset.totalQuantity, quote?.currency ?? asset.currency);
+    const value = quote ? quote.price * asset.totalQuantity : asset.averageCost * asset.totalQuantity;
+    return sum + toPrimary(value, quote?.currency ?? asset.currency);
   }, 0);
-  const lastQuote = [...quoteRows].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-  const trend = buildNetWorthTrend(accountRows, ledgerRows, assetRows, quoteRows, appSettings, fxHistory);
+
+  const netWorth = availableCash + marketValue - liabilities;
+
+  const monthKeyNow = new Date().toISOString().slice(0, 7);
+  const monthRows = ledgerRows.filter((row) => row.date.startsWith(monthKeyNow) && row.settlementStatus === "settled");
+  const monthIncome = monthRows.filter((row) => row.entryType === "income").reduce((sum, row) => sum + toPrimary(Math.max(0, row.amount), row.currency, row.date), 0);
+  const monthExpense = monthRows.filter((row) => row.entryType === "expense").reduce((sum, row) => sum + toPrimary(Math.abs(row.amount), row.currency, row.date), 0);
+  const monthNet = monthIncome - monthExpense;
+  const savingsRate = monthIncome > 0 ? (monthNet / monthIncome) * 100 : 0;
+
+  const trend = useMemo(
+    () => buildNetWorthTrend(accountRows, ledgerRows, assetRows, quoteRows, appSettings, fxHistory),
+    [accountRows, ledgerRows, assetRows, quoteRows, appSettings, fxHistory],
+  );
+  const prevValue = trend.length >= 2 ? trend[trend.length - 2].value : 0;
+  const lastValue = trend.length >= 1 ? trend[trend.length - 1].value : netWorth;
+  const momChange = lastValue - prevValue;
+  const momPct = prevValue > 0 ? (momChange / prevValue) * 100 : 0;
+
   const hasAnyData = accountRows.length > 0 || ledgerRows.length > 0 || assetRows.length > 0;
-  const topHoldings = buildTopHoldingSummaries(assetRows, quoteRows, toPrimary, 5);
-  const hasHoldings = topHoldings.length > 0;
-  const nameLocale = useUiPreferences((state) => state.nameLocale);
-  const recurringRows = recurring.data ?? [];
-  const accountMap = new Map(accountRows.map((a) => [a.id, a]));
-  const today = new Date().toISOString().slice(0, 10);
-  const twoWeeksLater = (() => { const d = new Date(); d.setDate(d.getDate() + 14); return d.toISOString().slice(0, 10); })();
-  const upcomingPayments = recurringRows
-    .filter((row) => row.isActive && row.nextRunDate >= today && row.nextRunDate <= twoWeeksLater)
-    .sort((a, b) => a.nextRunDate.localeCompare(b.nextRunDate));
+
+  // Budget health — current-month expense per category vs configured budget.
+  const budgetCats = useMemo(() => {
+    const spendByCat = new Map<string, number>();
+    for (const row of monthRows) {
+      if (row.entryType !== "expense" || !row.category) continue;
+      spendByCat.set(row.category, (spendByCat.get(row.category) ?? 0) + Math.abs(toPrimary(row.amount, row.currency, row.date)));
+    }
+    const cats = (appSettings?.categories ?? []).map((c, i) => ({
+      name: c.name,
+      budget: c.budget ?? null,
+      color: c.color || CHART_COLORS[i % CHART_COLORS.length],
+      spent: spendByCat.get(c.name) ?? 0,
+    }));
+    // Surface categories that have a budget or some spend; sort by usage.
+    return cats
+      .filter((c) => c.budget || c.spent > 0)
+      .sort((a, b) => (b.spent / (b.budget || b.spent || 1)) - (a.spent / (a.budget || a.spent || 1)))
+      .slice(0, 5);
+  }, [monthRows, appSettings, toPrimary]);
+  const totalBudget = budgetCats.reduce((sum, c) => sum + (c.budget ?? 0), 0);
+  const overBudget = budgetCats.filter((c) => c.budget && c.spent > c.budget);
+
+  // Allocation by asset class (+ cash slice).
+  const allocation = useMemo(() => {
+    const byClass = new Map<string, number>();
+    for (const asset of assetRows) {
+      const quote = quoteFor(asset.ticker);
+      const value = toPrimary((quote ? quote.price : asset.averageCost) * asset.totalQuantity, quote?.currency ?? asset.currency);
+      if (value <= 0) continue;
+      const label = asset.assetType ? assetTypeLabels[asset.assetType] : "其他";
+      byClass.set(label, (byClass.get(label) ?? 0) + value);
+    }
+    if (availableCash > 0) byClass.set("現金", (byClass.get("現金") ?? 0) + availableCash);
+    const total = [...byClass.values()].reduce((s, v) => s + v, 0);
+    return [...byClass.entries()]
+      .map(([label, value], i) => ({ label, value, color: CHART_COLORS[i % CHART_COLORS.length], pct: total > 0 ? (value / total) * 100 : 0 }))
+      .sort((a, b) => b.value - a.value);
+  }, [assetRows, quoteRows, availableCash, toPrimary]);
+
+  // Goals — approximate progress = net worth / target (dashboard glance only).
+  const goals = useMemo(() => {
+    return goalRows
+      .filter((g) => g.deletedAt === null)
+      .map((g) => {
+        const target = goalTarget(g);
+        const pct = target > 0 ? Math.min((netWorth / target) * 100, 100) : 0;
+        return { id: g.id, name: g.name, target, pct };
+      })
+      .slice(0, 4);
+  }, [goalRows, netWorth]);
+
+  // Upcoming bills (recurring, next 30 days).
+  const accountMap = useMemo(() => new Map(accountRows.map((a) => [a.id, a])), [accountRows]);
+  const upcoming = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const horizon = (() => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().slice(0, 10); })();
+    return recurringRows
+      .filter((r) => r.isActive && r.nextRunDate >= today && r.nextRunDate <= horizon)
+      .sort((a, b) => a.nextRunDate.localeCompare(b.nextRunDate))
+      .slice(0, 5);
+  }, [recurringRows]);
+  const upcomingTotal = upcoming.reduce((sum, r) => sum + toPrimary(Math.abs(r.amount), r.currency, r.nextRunDate), 0);
+
+  // FX rates (latest per pair) for the Market card.
+  const fxRates = useMemo(() => {
+    const latest = new Map<string, DailyFxRate>();
+    for (const row of fxHistory) {
+      const key = `${row.from}/${row.to}`;
+      const cur = latest.get(key);
+      if (!cur || row.date > cur.date) latest.set(key, row);
+    }
+    let rows = [...latest.values()].map((r) => ({ pair: `${r.from}/${r.to}`, rate: r.rate }));
+    if (rows.length === 0 && appSettings) {
+      rows = appSettings.exchangeRates.map((r) => ({ pair: `${r.from}/${r.to}`, rate: r.rate }));
+    }
+    return rows.slice(0, 4);
+  }, [fxHistory, appSettings]);
+
+  // Recent activity.
+  const recent = useMemo(
+    () => [...ledgerRows].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6),
+    [ledgerRows],
+  );
+
+  const greeting = greetingForHour(new Date().getHours());
+  const todayLabel = new Date().toLocaleDateString("zh-TW", { month: "long", day: "numeric" });
 
   return (
-    <div className="mx-auto max-w-6xl p-5 lg:p-8">
-      <PageHeader
-        title="總覽"
-        description="檢視現金、投資持倉與本月現金流，所有資料先保存在你的裝置上。"
-        action={
-          <Link
-            to="/cash-flow"
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold"
-            style={{ background: "var(--ns-accent)", color: "var(--ns-on-accent)", borderColor: "var(--ns-accent)", boxShadow: "var(--ns-shadow)" }}
-          >
-            <PlusCircle size={16} />記第一筆
-          </Link>
-        }
-        meta={
-          <>
-            <span className="inline-flex rounded-full border px-2 py-1 text-xs font-medium" style={{ borderColor: "var(--ns-border)", color: "var(--ns-muted)" }}>
-              Local-first
-            </span>
-            <span className="inline-flex rounded-full border px-2 py-1 text-xs font-medium" style={{ borderColor: "var(--ns-border)", color: "var(--ns-muted)" }}>
-              Privacy mode ready
-            </span>
-          </>
-        }
-      />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <Metric label="可用現金" value={formatMoney(availableCash, primaryCurrency)} />
-        </Card>
-        <Card>
-          <Metric label="負債" value={formatMoney(liabilities, primaryCurrency)} tone={liabilities > 0 ? "negative" : "neutral"} />
-        </Card>
-        <Card>
-          <Metric label="已快取持倉市值" value={marketValue ? formatMoney(marketValue, primaryCurrency) : "待更新"} tone={marketValue ? "positive" : "neutral"} />
-        </Card>
-        <Card>
-          <Metric label="本月淨流入" value={formatMoney(monthlyIncome + monthlyExpense, primaryCurrency)} />
-        </Card>
-      </div>
-      {upcomingPayments.length > 0 ? (
-        <div className="mt-4 rounded-xl border p-4" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}>
-          <div className="mb-3 flex items-center gap-2">
-            <CalendarBlank size={16} weight="duotone" style={{ color: "var(--ns-accent)" }} />
-            <span className="text-sm font-semibold">即將到來的付款（近 2 週）</span>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {upcomingPayments.map((row) => (
-              <div key={row.id} className="flex items-center justify-between gap-3 rounded-md px-3 py-2 text-sm" style={{ background: "var(--ns-surface-strong)" }}>
-                <div className="min-w-0">
-                  <div className="font-medium truncate">{row.merchant || row.category}{row.subcategory ? ` / ${row.subcategory}` : ""}</div>
-                  <div className="text-xs" style={{ color: "var(--ns-muted)" }}>{row.nextRunDate} · {accountMap.get(row.accountId)?.name ?? row.accountId}</div>
-                </div>
-                <div className="tabular shrink-0 font-semibold" style={{ color: row.entryType === "income" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}>
-                  {row.entryType === "income" ? "+" : "-"}{formatNumber(Math.abs(row.amount))} {row.currency}
-                </div>
-              </div>
-            ))}
-          </div>
+    <div style={{ padding: "22px 32px 100px", maxWidth: 1180, margin: "0 auto" }}>
+      {/* Over-budget alert */}
+      {overBudget.length > 0 ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-neg-soft)", border: "1px solid color-mix(in srgb, var(--ns-neg) 40%, transparent)", marginBottom: 14, fontSize: 13 }}>
+          <span>
+            <strong>{overBudget.map((c) => c.name).join("、")}</strong> 本月已超支
+            &nbsp;·&nbsp; 超出 NT${formatNumber(overBudget.reduce((s, c) => s + (c.spent - (c.budget ?? 0)), 0))}
+          </span>
+          <Link to="/cash-flow/categories" className="ns-btn ghost" style={{ marginLeft: "auto", padding: "2px 8px", fontSize: 12 }}>查看分類 →</Link>
         </div>
       ) : null}
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_340px]">
-        <Card title="淨值趨勢">
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18, gap: 16, flexWrap: "wrap" }}>
+        <div>
+          <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Overview · {todayLabel}</div>
+          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>{greeting}</h1>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="ns-btn" onClick={() => refreshQuotes.mutate(assetRows.map((a) => a.ticker))} disabled={refreshQuotes.isPending || assetRows.length === 0}>
+            <ArrowsClockwise size={14} />{refreshQuotes.isPending ? "更新中" : "更新報價"}
+          </button>
+          <Link to="/cash-flow" className="ns-btn primary"><Plus size={14} weight="bold" />新增</Link>
+        </div>
+      </div>
+
+      {/* Row 1 · Net worth + KPI stack */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 300px", gap: 16, marginBottom: 16 }}>
+        <div className="ns-card" style={{ padding: 22 }}>
+          <div style={{ marginBottom: 14 }}>
+            <div className="ns-eyebrow" style={{ marginBottom: 5 }}>Net worth · {primaryCurrency}</div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+              <span className="ns-num-xl">{formatMoney(netWorth, primaryCurrency)}</span>
+              {trend.length >= 2 ? (
+                <span className={"ns-pill " + (momChange >= 0 ? "solid-pos" : "solid-neg")}>
+                  {momChange >= 0 ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />}
+                  <span className="num">{momChange >= 0 ? "+" : "−"}{formatNumber(Math.abs(momChange))} · {Math.abs(momPct).toFixed(2)}%</span>
+                </span>
+              ) : null}
+            </div>
+          </div>
           {trend.length > 1 ? (
-            <div className="h-72">
+            <div style={{ height: 190 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trend}>
                   <defs>
@@ -120,125 +213,253 @@ export function DashboardRoute() {
                       <stop offset="95%" stopColor="var(--ns-accent)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <XAxis dataKey="date" stroke="var(--ns-muted)" />
+                  <XAxis dataKey="date" stroke="var(--ns-fg-muted)" fontSize={11} minTickGap={24} />
                   <YAxis hide domain={["dataMin - 20000", "dataMax + 20000"]} />
-                  <Tooltip formatter={(value) => formatMoney(Number(value), primaryCurrency)} />
+                  <Tooltip formatter={(value) => formatMoney(Number(value), primaryCurrency)} contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }} />
                   <Area type="monotone" dataKey="value" stroke="var(--ns-accent)" fill="url(#netWorth)" strokeWidth={2} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <EmptyState
-              icon={hasAnyData ? <ChartLineUp size={24} weight="duotone" /> : <Wallet size={24} weight="duotone" />}
-              title={hasAnyData ? "累積幾筆資料後會顯示趨勢" : "先建立你的第一個帳戶"}
-              description={hasAnyData ? "淨值趨勢只會使用實際帳戶、收支與持倉資料，不會用示意資料補線。" : "新增銀行、現金或投資帳戶後，Northstar 會開始從你的本機資料計算總覽。"}
-              action={
-                <Link
-                  to={hasAnyData ? "/cash-flow" : "/accounts"}
-                  className="inline-flex min-h-8 items-center justify-center rounded-lg border px-2.5 py-1.5 text-xs font-semibold"
-                  style={{ background: "var(--ns-accent)", color: "var(--ns-on-accent)", borderColor: "var(--ns-accent)" }}
-                >
-                  {hasAnyData ? "繼續記帳" : "建立帳戶"}
-                </Link>
-              }
-              secondaryAction={
-                <Link
-                  to="/investments"
-                  className="inline-flex min-h-8 items-center justify-center rounded-lg border px-2.5 py-1.5 text-xs font-semibold"
-                  style={{ background: "var(--ns-surface-elevated)", color: "var(--ns-text)", borderColor: "var(--ns-border)" }}
-                >
-                  新增持倉
-                </Link>
-              }
-            />
+            <div style={{ height: 190, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, textAlign: "center" }}>
+              <div className="muted" style={{ fontSize: 13 }}>
+                {hasAnyData ? "累積幾筆資料後會顯示淨值趨勢。" : "先建立第一個帳戶，Northstar 會開始計算總覽。"}
+              </div>
+              <Link to={hasAnyData ? "/cash-flow" : "/accounts"} className="ns-btn primary">{hasAnyData ? "去記帳" : "建立帳戶"}</Link>
+            </div>
           )}
-        </Card>
-        <div className="grid gap-4">
-          <Card
-            title="報價"
-            action={<ActionButton onClick={() => refreshQuotes.mutate(assetRows.map((asset) => asset.ticker))} disabled={refreshQuotes.isPending || assetRows.length === 0}><ArrowClockwise size={16} />更新</ActionButton>}
-          >
-            <div className="space-y-4 text-sm">
-              <div className="flex items-center gap-3">
-                <CurrencyCircleDollar size={24} weight="duotone" style={{ color: "var(--ns-accent)" }} />
-                <div>
-                  <div className="font-semibold">Yahoo Finance</div>
-                  <div style={{ color: "var(--ns-muted)" }}>{lastQuote ? `更新於 ${new Date(lastQuote.updatedAt).toLocaleString("zh-TW")}` : "尚未更新報價"}</div>
-                </div>
+        </div>
+
+        {/* KPI stack */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <KpiCard label="投資" value={formatMoney(marketValue, primaryCurrency)} color="var(--ns-chart-1)" />
+          <KpiCard label="現金 / 存款" value={formatMoney(availableCash, primaryCurrency)} color="var(--ns-chart-2)" />
+          <KpiCard label="負債" value={formatMoney(liabilities, primaryCurrency)} color="var(--ns-chart-5)" tone={liabilities > 0 ? "neg" : undefined} />
+          <div className="ns-card" style={{ padding: "13px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 4, height: 32, borderRadius: 99, background: "var(--ns-chart-3)", flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <div className="ns-eyebrow" style={{ fontSize: 10 }}>本月現金流</div>
+              <div className={monthNet >= 0 ? "pos" : "neg"} style={{ fontSize: 18, fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums", fontWeight: 500, marginTop: 1 }}>
+                {monthNet >= 0 ? "+" : "−"}{formatNumber(Math.abs(monthNet))}
               </div>
-              <div className="flex items-center gap-3">
-                <ArrowClockwise size={24} weight="duotone" style={{ color: "var(--ns-accent)" }} />
-                <div>
-                  <div className="font-semibold">60s quotes / 5m FX</div>
-                  <div style={{ color: "var(--ns-muted)" }}>短時間重複更新會使用快取</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <CloudSlash size={24} weight="duotone" style={{ color: "var(--ns-warn)" }} />
-                <div>
-                  <div className="font-semibold">本機優先</div>
-                  <div style={{ color: "var(--ns-muted)" }}>同步功能啟用前會先建立救援金鑰</div>
-                </div>
-              </div>
-              {refreshQuotes.error ? <div style={{ color: "var(--ns-negative)" }}>{refreshQuotes.error.message}</div> : null}
             </div>
-          </Card>
-          <Card title="待收付">
-            <div className="grid gap-3 text-sm">
-              <div className="flex justify-between gap-3"><span style={{ color: "var(--ns-muted)" }}>應收</span><span className="tabular font-semibold">{formatMoney(receivable, primaryCurrency)}</span></div>
-              <div className="flex justify-between gap-3"><span style={{ color: "var(--ns-muted)" }}>應付</span><span className="tabular font-semibold">{formatMoney(payable, primaryCurrency)}</span></div>
+            <div style={{ fontSize: 11.5, textAlign: "right" }}>
+              <div className="muted">收 {formatNumber(monthIncome)}</div>
+              <div className="muted">支 {formatNumber(monthExpense)}</div>
+              {monthIncome > 0 ? <div className="pos mono" style={{ fontSize: 11 }}>儲蓄率 {savingsRate.toFixed(0)}%</div> : null}
             </div>
-          </Card>
+          </div>
         </div>
       </div>
-      {hasHoldings ? (
-        <div className="mt-4">
-          <Card
-          title="持倉摘要"
-          action={(
-            <Link
-              to="/investments"
-              className="inline-flex min-h-8 items-center justify-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold"
-              style={{ borderColor: "var(--ns-border)", color: "var(--ns-accent)", background: "var(--ns-accent-soft)" }}
-            >
-              <PlusCircle size={14} weight="duotone" />前往投資
-            </Link>
-          )}
-          >
-            <div className="grid gap-3 md:grid-cols-2">
-              {topHoldings.map((row) => {
-                const asset = row.asset;
+
+      {/* Row 2 · Budget + Upcoming */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16, marginBottom: 16 }}>
+        <div className="ns-card">
+          <SectionHead eyebrow={`Budget · ${todayLabel.slice(0, todayLabel.indexOf("月") + 1) || "本月"}`} title="預算進度" action={<Link to="/cash-flow/categories" className="ns-btn ghost" style={{ fontSize: 12 }}>管理分類 →</Link>} />
+          {budgetCats.length === 0 ? (
+            <div className="muted" style={{ fontSize: 13 }}>本月尚無支出或預算資料。</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              {budgetCats.map((c) => {
+                const pct = c.budget ? Math.min(c.spent / c.budget, 1) : 0;
+                const over = c.budget ? c.spent > c.budget : false;
                 return (
-                  <div key={asset.id} className="rounded-md border p-4" style={{ borderColor: "var(--ns-border)" }}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold">{asset.ticker}</div>
-                        <div className="text-sm" style={{ color: "var(--ns-muted)" }}>{resolveAssetName(asset, nameLocale)}</div>
-                      </div>
-                      <div className="tabular text-right">
-                        <div>{formatMoney(row.marketValuePrimary, primaryCurrency)}</div>
-                        {row.hasQuote && row.dayChangePrimary !== null && row.dayChangePercent !== null ? (
-                          <div
-                            className="text-sm"
-                            style={{ color: row.dayChangePrimary >= 0 ? "var(--ns-positive)" : "var(--ns-negative)" }}
-                          >
-                            {formatSignedMoney(row.dayChangePrimary, primaryCurrency)} ({row.dayChangePercent >= 0 ? "+" : ""}{row.dayChangePercent.toFixed(2)}%)
-                          </div>
-                        ) : (
-                          <div className="text-sm" style={{ color: "var(--ns-muted)" }}>待更新</div>
-                        )}
-                        <div className="text-xs" style={{ color: "var(--ns-muted)" }}>{row.hasQuote ? `${formatPrice(row.marketValue / asset.totalQuantity)} ${row.currency}` : asset.currency}</div>
-                      </div>
+                  <div key={c.name} style={{ display: "grid", gridTemplateColumns: "84px 1fr 132px", gap: 10, alignItems: "center" }}>
+                    <span style={{ fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>
+                    <div style={{ height: 7, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
+                      <div style={{ width: `${(c.budget ? pct : 0.5) * 100}%`, height: "100%", background: over ? "var(--ns-neg)" : c.color, borderRadius: 99 }} />
+                    </div>
+                    <div style={{ textAlign: "right", fontSize: 12, display: "flex", justifyContent: "flex-end", gap: 4 }}>
+                      {c.budget ? <span className={"num " + (over ? "neg" : "muted")}>{(pct * 100).toFixed(0)}%</span> : <span className="dim">無上限</span>}
+                      <span className="dim">·</span>
+                      <span className={"num " + (over ? "neg" : "")}>NT${formatNumber(c.spent)}</span>
                     </div>
                   </div>
                 );
               })}
+              {totalBudget > 0 ? (
+                <div style={{ marginTop: 8, paddingTop: 10, borderTop: "1px solid var(--ns-border)", fontSize: 12 }} className="muted">
+                  總預算 NT${formatNumber(totalBudget)}{overBudget.length ? ` · ${overBudget.length} 個分類超支` : ""}
+                </div>
+              ) : null}
             </div>
-          </Card>
+          )}
         </div>
-      ) : null}
+
+        <div className="ns-card" style={{ padding: 0 }}>
+          <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Upcoming</div>
+              <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>近期帳單 · 30 天</h3>
+            </div>
+            {upcoming.length ? <span className="ns-pill solid-neg" style={{ fontSize: 11 }}>NT${formatNumber(upcomingTotal)}</span> : null}
+          </div>
+          {upcoming.length === 0 ? (
+            <div className="muted" style={{ fontSize: 13, padding: "18px 20px" }}>近期沒有排定的週期收支。</div>
+          ) : (
+            upcoming.map((b, i) => (
+              <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.merchant || b.category}</div>
+                  <div className="muted" style={{ fontSize: 11.5 }}>{accountMap.get(b.accountId)?.name ?? ""}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div className="num" style={{ fontSize: 13.5, color: b.entryType === "income" ? "var(--ns-pos)" : "var(--ns-neg)" }}>
+                    {b.entryType === "income" ? "+" : "−"}NT${formatNumber(Math.abs(b.amount))}
+                  </div>
+                  <div className="mono dim" style={{ fontSize: 11 }}>{b.nextRunDate.slice(5)}</div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Row 3 · Allocation + Goals + Market */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.15fr 1fr 0.82fr", gap: 16, marginBottom: 16 }}>
+        {/* Allocation */}
+        <div className="ns-card">
+          <SectionHead eyebrow="Asset allocation" title="資產配置" />
+          {allocation.length === 0 ? (
+            <div className="muted" style={{ fontSize: 13 }}>尚無資產可顯示配置。</div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 18, alignItems: "center" }}>
+              <div style={{ width: 120, height: 120 }}>
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie data={allocation} dataKey="value" nameKey="label" cx="50%" cy="50%" innerRadius={42} outerRadius={60} stroke="none" paddingAngle={2}>
+                      {allocation.map((a) => <Cell key={a.label} fill={a.color} />)}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => formatMoney(value, primaryCurrency)} contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {allocation.map((a) => (
+                  <div key={a.label} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, borderBottom: "1px solid var(--ns-border)", paddingBottom: 5 }}>
+                    <span style={{ width: 8, height: 8, background: a.color, borderRadius: 2, flexShrink: 0 }} />
+                    <span style={{ flex: 1 }}>{a.label}</span>
+                    <span className="num muted" style={{ fontSize: 11 }}>{formatMoney(a.value, primaryCurrency)}</span>
+                    <span className="num" style={{ minWidth: 42, textAlign: "right" }}>{a.pct.toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Goals */}
+        <div className="ns-card">
+          <SectionHead eyebrow="Goals" title={`${goals.length} active`} action={<Link to="/goals" className="ns-btn ghost" style={{ fontSize: 12 }}>全部 →</Link>} />
+          {goals.length === 0 ? (
+            <div className="muted" style={{ fontSize: 13 }}>還沒有設定目標。<Link to="/goals" style={{ color: "var(--ns-accent)" }}>建立 FIRE 目標 →</Link></div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {goals.map((g) => (
+                <div key={g.id}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 500 }}>{g.name}</span>
+                    {g.pct >= 100 ? <span className="ns-pill solid-pos" style={{ fontSize: 10 }}>達成</span> : null}
+                  </div>
+                  <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden", marginBottom: 5 }}>
+                    <div style={{ width: `${Math.min(g.pct, 100)}%`, height: "100%", background: "var(--ns-accent)", borderRadius: 99 }} />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                    <span className="mono" style={{ color: "var(--ns-accent)" }}>{g.pct.toFixed(1)}%</span>
+                    <span className="mono muted">目標 {formatMoney(g.target, primaryCurrency)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Market FX */}
+        <div className="ns-card" style={{ padding: 0 }}>
+          <div style={{ padding: "14px 18px 10px", borderBottom: "1px solid var(--ns-border)" }}>
+            <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Market</div>
+            <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>匯率</h3>
+          </div>
+          {fxRates.length === 0 ? (
+            <div className="muted" style={{ fontSize: 13, padding: "16px 18px" }}>尚無匯率資料。</div>
+          ) : (
+            fxRates.map((fx) => (
+              <div key={fx.pair} style={{ padding: "10px 18px", display: "flex", alignItems: "center", gap: 8, borderTop: "1px solid var(--ns-border)" }}>
+                <span className="mono" style={{ fontSize: 12.5, flex: 1 }}>{fx.pair}</span>
+                <span className="num" style={{ fontSize: 13.5, fontWeight: 500 }}>{fx.rate.toFixed(4)}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Row 4 · Recent activity */}
+      <div className="ns-card" style={{ padding: 0 }}>
+        <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+          <div>
+            <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Recent activity</div>
+            <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>最近交易</h3>
+          </div>
+          <Link to="/cash-flow" className="ns-btn ghost" style={{ fontSize: 12 }}>查看全部 →</Link>
+        </div>
+        {recent.length === 0 ? (
+          <div className="muted" style={{ fontSize: 13, padding: "18px 22px" }}>還沒有交易紀錄。</div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+            {recent.map((r, i) => (
+              <div key={r.id} className="ns-row" style={{ gap: 12, paddingLeft: 22, paddingRight: 22, borderLeft: i % 2 === 1 ? "1px solid var(--ns-border)" : "none" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name || r.category || (r.entryType === "transfer" ? "轉帳" : "交易")}</div>
+                  <div className="muted" style={{ fontSize: 11.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.date.slice(5).replace("T", " ")} · {accountMap.get(r.accountId)?.name ?? ""}</div>
+                </div>
+                <div className={"num " + (r.amount >= 0 ? "pos" : "")} style={{ fontSize: 14, minWidth: 88, textAlign: "right" }}>
+                  {r.amount >= 0 ? "+" : "−"}NT${formatNumber(Math.abs(r.amount))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
+}
+
+function KpiCard({ label, value, color, tone }: { label: string; value: string; color: string; tone?: "neg" }) {
+  return (
+    <div className="ns-card" style={{ padding: "13px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ width: 4, height: 32, borderRadius: 99, background: color, flexShrink: 0 }} />
+      <div style={{ flex: 1 }}>
+        <div className="ns-eyebrow" style={{ fontSize: 10 }}>{label}</div>
+        <div className={tone === "neg" ? "neg" : ""} style={{ fontSize: 18, fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums", fontWeight: 500, marginTop: 1 }}>{value}</div>
+      </div>
+    </div>
+  );
+}
+
+function SectionHead({ eyebrow, title, action }: { eyebrow: string; title: string; action?: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+      <div>
+        <div className="ns-eyebrow" style={{ marginBottom: 4 }}>{eyebrow}</div>
+        <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>{title}</h3>
+      </div>
+      {action ?? null}
+    </div>
+  );
+}
+
+function greetingForHour(hour: number) {
+  if (hour < 5) return "夜深了";
+  if (hour < 11) return "早安";
+  if (hour < 14) return "午安";
+  if (hour < 18) return "下午好";
+  return "晚安";
+}
+
+function goalTarget(goal: FinancialGoal): number {
+  if (goal.targetAmount && goal.targetAmount > 0) return goal.targetAmount;
+  if (goal.annualSpending > 0 && goal.withdrawalRate > 0) return goal.annualSpending / (goal.withdrawalRate / 100);
+  return 0;
 }
 
 function buildNetWorthTrend(
@@ -299,10 +520,6 @@ function formatMonth(value: string) {
   const date = new Date(`${value}-01T00:00:00`);
   if (Number.isNaN(date.getTime())) return value.slice(0, 7);
   return date.toLocaleDateString("zh-TW", { year: "numeric", month: "short" });
-}
-
-function formatSignedMoney(value: number, currency: string) {
-  return `${value >= 0 ? "+" : ""}${formatMoney(value, currency)}`;
 }
 
 function dateOnly(value: string | null | undefined) {
