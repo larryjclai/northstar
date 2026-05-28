@@ -2705,7 +2705,7 @@ function investmentLedgerFields(input: InvestmentDraft, investmentRecordId: stri
     category: "投資",
     subcategory,
     merchant: "",
-    entryType: amount >= 0 ? ("income" as const) : ("expense" as const),
+    entryType: input.action === "cashDividend" ? (amount >= 0 ? ("income" as const) : ("expense" as const)) : ("transfer" as const),
     settlementStatus: "settled" as const,
     note: input.note,
     linkedInvestmentRecordId: investmentRecordId,

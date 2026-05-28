@@ -4,7 +4,7 @@ import { StatusText } from "../components/StatusText";
 import { downloadCsv, exportInvestmentCsv, parseInvestmentCsv, type ImportPreview } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { InvestmentDraft } from "../data/repositories";
-import { formatNumber, todayInTimezone } from "../domain";
+import { createFxConverter, formatNumber, todayInTimezone } from "../domain";
 import type { InvestmentAction, InvestmentRecord } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { InvestmentEntryDrawer, type TransactionPreset } from "./InvestmentsAddSheet";
@@ -19,7 +19,7 @@ const actionLabels: Record<InvestmentAction, string> = {
 };
 
 export function TransactionsRoute() {
-  const { accounts, assets, investments } = useFinanceData();
+  const { accounts, assets, investments, settings, dailyFxRates } = useFinanceData();
   const timezone = useUiPreferences((state) => state.timezone);
   const [preview, setPreview] = useState<ImportPreview<InvestmentDraft> | null>(null);
   const [message, setMessage] = useState("");
@@ -80,17 +80,19 @@ export function TransactionsRoute() {
     };
   }, [assetRows, editingRecordId, recordRows]);
 
+  const fx = useMemo(() => createFxConverter(settings.data, dailyFxRates.data), [settings.data, dailyFxRates.data]);
+
   const monthKey = todayInTimezone(timezone).slice(0, 7);
   const monthRows = useMemo(() => recordRows.filter((row) => row.date.startsWith(monthKey)), [monthKey, recordRows]);
   const monthBuy = monthRows
     .filter((row) => row.action === "buy")
-    .reduce((sum, row) => sum + row.price * row.quantity, 0);
+    .reduce((sum, row) => sum + fx.toPrimary(row.price * row.quantity, assetFor(row.assetId)?.currency ?? "TWD", row.date), 0);
   const monthSell = monthRows
     .filter((row) => row.action === "sell")
-    .reduce((sum, row) => sum + row.price * row.quantity, 0);
+    .reduce((sum, row) => sum + fx.toPrimary(row.price * row.quantity, assetFor(row.assetId)?.currency ?? "TWD", row.date), 0);
   const monthDividend = monthRows
     .filter((row) => row.action === "cashDividend")
-    .reduce((sum, row) => sum + row.price, 0);
+    .reduce((sum, row) => sum + fx.toPrimary(row.price, assetFor(row.assetId)?.currency ?? "TWD", row.date), 0);
   const twdSettlementWatchCount = monthRows.filter((row) => {
     const linked = row.linkedAccountId ? accountMap.get(row.linkedAccountId) : null;
     return row.action === "buy" && linked?.currency.toUpperCase() === "TWD";
@@ -168,18 +170,19 @@ export function TransactionsRoute() {
           </div>
         ) : (
           <div style={{ padding: "0 0 8px" }}>
-            {groupedRecords.map((group) => (
+            {groupedRecords.map((group, groupIndex) => (
               <div key={group.date} style={{ marginBottom: 4 }}>
-                <div style={{ padding: "12px 22px 6px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ padding: "12px 22px 6px", borderTop: groupIndex > 0 ? "1px solid var(--ns-border)" : "none", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span className="ns-eyebrow">{group.date}</span>
                   <span className="dim mono" style={{ fontSize: 11 }}>{group.rows.length} 筆</span>
                 </div>
-                {group.rows.map((record) => {
+                {group.rows.map((record, rowIndex) => {
                   const asset = assetFor(record.assetId);
                   const gross = record.action === "cashDividend" ? record.price : record.price * record.quantity;
                   const signed = record.action === "buy" ? -gross : gross;
+                  const isLast = rowIndex === group.rows.length - 1;
                   return (
-                    <div key={record.id} className="ns-row" style={{ gap: 14 }}>
+                    <div key={record.id} style={{ display: "flex", alignItems: "center", minHeight: "var(--ns-row-h)", padding: "0 var(--ns-s-5)", borderBottom: isLast ? "none" : "1px solid var(--ns-border)", gap: 14 }}>
                       <div style={{ width: 34, height: 34, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "var(--ns-r-sm)", background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
                         <ChartLineUp size={17} weight="duotone" />
                       </div>

@@ -189,6 +189,9 @@ export interface AppSettings {
 export interface CategoryGroup {
   name: string;
   children: string[];
+  budget?: number | null;
+  color?: string;
+  iconName?: string;
 }
 
 export interface ExchangeRate {

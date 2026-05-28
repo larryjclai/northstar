@@ -102,36 +102,29 @@ export function InvestmentsRoute() {
     }
   }
 
-  async function backfillClassifications() {
+  async function backfillDailyPricesData() {
     setStatusMessage("");
-    const candidates = assetRows.filter((asset) => asset.ticker.trim() && !asset.assetType);
-    if (candidates.length === 0) {
+    const tickers = [...new Set(assetRows.map((asset) => asset.ticker.trim().toUpperCase()).filter(Boolean))];
+    if (tickers.length === 0) {
       toast.info("沒有需要回補的持倉");
-      setStatusMessage("所有持倉都已有類型資料。");
       return;
     }
-    const confirmed = window.confirm(`將透過 Yahoo Finance 回補 ${candidates.length} 筆持倉分類，可能會發出數十次查詢。要繼續嗎？`);
-    if (!confirmed) return;
-
-    const progressId = toast.info("回補分類中", { description: `0 / ${candidates.length}`, durationMs: 0 });
+    
+    const progressId = toast.info("回補歷史股價中", { description: "正在抓取 5Y 歷史價格資料…", durationMs: 0 });
     try {
-      const result = await backfillAssetProfiles.mutateAsync({
-        onProgress: (done, total) => {
-          setStatusMessage(`回補分類中 ${done} / ${total}…`);
-        },
-      });
+      const result = await refreshDailyPrices.mutateAsync({ tickers, range: "5y" });
       toast.dismiss(progressId);
       if (result.failed.length) {
-        toast.warning("部分分類未取得", { description: `已更新 ${result.updated} / ${result.total} 筆。`, detail: result.failed.join("\n") });
-        setStatusMessage(`已回補 ${result.updated} / ${result.total} 筆分類，部分 ticker 需要手動填入。`);
+        toast.warning("部分股價未取得", { description: `已更新 ${result.saved} 筆股價資料。`, detail: result.failed.join("\n") });
+        setStatusMessage(`已回補 ${result.saved} 筆股價，部分 ticker 失敗。`);
       } else {
-        toast.success(`已回補 ${result.updated} 筆分類`);
-        setStatusMessage(`已回補 ${result.updated} 筆分類。`);
+        toast.success(`已回補歷史股價`, { description: `成功更新 ${result.saved} 筆日報價。` });
+        setStatusMessage(`已回補 5 年歷史價格。`);
       }
     } catch (error) {
       toast.dismiss(progressId);
-      const message = error instanceof Error ? error.message : "分類回補失敗。";
-      toast.error("分類回補失敗", { description: message });
+      const message = error instanceof Error ? error.message : "股價回補失敗。";
+      toast.error("股價回補失敗", { description: message });
       setStatusMessage(message);
     }
   }
@@ -162,8 +155,8 @@ export function InvestmentsRoute() {
             <ArrowsClockwise size={14} />{refreshQuotes.isPending ? "更新中" : "更新報價"}
           </button>
           {tab === "holdings" && (
-            <button className="ns-btn" onClick={backfillClassifications} disabled={backfillAssetProfiles.isPending}>
-              <ArrowsClockwise size={14} />{backfillAssetProfiles.isPending ? "回補中" : "回補資料"}
+            <button className="ns-btn" onClick={backfillDailyPricesData} disabled={refreshDailyPrices.isPending}>
+              <ArrowsClockwise size={14} />{refreshDailyPrices.isPending ? "回補中" : "回補資料"}
             </button>
           )}
           <button className="ns-btn primary" onClick={() => setAddOpen(true)}>
@@ -494,6 +487,12 @@ function PerformanceTab({
   const totalCost = positions.reduce((sum, position) => sum + toPrimary(position.costBasis, position.currency), 0);
   const totalPnL = totalValue - totalCost;
   const returnPct = totalCost === 0 ? 0 : (totalPnL / totalCost) * 100;
+  
+  const thisYear = new Date().getFullYear().toString();
+  const totalDividends = records
+    .filter((r) => r.action === "cashDividend" && r.date.startsWith(thisYear))
+    .reduce((sum, r) => sum + r.price - r.fee, 0);
+
   const trend = buildPerformanceTrend({
     positions,
     assets,
@@ -508,22 +507,46 @@ function PerformanceTab({
 
   return (
     <div className="grid gap-4">
-      <Card title="總覽">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <SummaryCell label="市值" value={formatMoney(totalValue, primaryCurrency)} />
-          <SummaryCell label="成本" value={formatMoney(totalCost, primaryCurrency)} />
-          <SummaryCell
-            label="未實現損益"
-            value={`${totalPnL >= 0 ? "+" : ""}${formatNumber(totalPnL)} ${primaryCurrency} (${returnPct >= 0 ? "+" : ""}${returnPct.toFixed(2)}%)`}
-            tone={totalPnL >= 0 ? "positive" : "negative"}
-          />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 14 }}>
+        <div className="ns-card" style={{ padding: 18, minWidth: 0 }}>
+          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>Market value</div>
+          <div className="ns-num-md" style={{ fontSize: 20, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`NT$${formatNumber(totalValue)}`}>NT${formatNumber(totalValue)}</div>
+          <div className={"mono " + (totalPnL >= 0 ? "pos" : "neg")} style={{ fontSize: 11.5, marginTop: 4 }}>
+            {totalPnL >= 0 ? "+" : ""}{returnPct.toFixed(2)}%
+          </div>
         </div>
-        {refreshing ? (
+        <div className="ns-card" style={{ padding: 18, minWidth: 0 }}>
+          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>Cost basis</div>
+          <div className="ns-num-md" style={{ fontSize: 20, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`NT$${formatNumber(totalCost)}`}>NT${formatNumber(totalCost)}</div>
+          <div className="mono muted" style={{ fontSize: 11.5, marginTop: 4 }}>−</div>
+        </div>
+        <div className="ns-card" style={{ padding: 18, minWidth: 0 }}>
+          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>Unrealized P/L</div>
+          <div className={"ns-num-md " + (totalPnL >= 0 ? "pos" : "neg")} style={{ fontSize: 20, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`${totalPnL >= 0 ? "+" : "−"}NT$${formatNumber(Math.abs(totalPnL))}`}>
+            {totalPnL >= 0 ? "+" : "−"}NT${formatNumber(Math.abs(totalPnL))}
+          </div>
+          <div className={"mono " + (totalPnL >= 0 ? "pos" : "neg")} style={{ fontSize: 11.5, marginTop: 4 }}>
+            {totalPnL >= 0 ? "+" : ""}{returnPct.toFixed(2)}%
+          </div>
+        </div>
+        <div className="ns-card" style={{ padding: 18, minWidth: 0 }}>
+          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>Realized YTD</div>
+          <div className="ns-num-md pos" style={{ fontSize: 20, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>+NT$0</div>
+          <div className="mono pos" style={{ fontSize: 11.5, marginTop: 4 }}>0 closed lots</div>
+        </div>
+        <div className="ns-card" style={{ padding: 18, minWidth: 0 }}>
+          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>Dividends YTD</div>
+          <div className="ns-num-md" style={{ fontSize: 20, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`NT$${formatNumber(totalDividends)}`}>NT${formatNumber(totalDividends)}</div>
+          <div className="mono pos" style={{ fontSize: 11.5, marginTop: 4 }}>+ NT$0 today</div>
+        </div>
+      </div>
+      
+      {refreshing ? (
           <div className="mt-3 text-xs" style={{ color: "var(--ns-muted)" }}>
             正在抓取最新報價…
           </div>
-        ) : null}
-      </Card>
+      ) : null}
+
       <Card
         title="績效趨勢"
         action={
@@ -811,14 +834,19 @@ function HoldingsTab({
           const isTW = position.ticker.includes(".TW") || position.ticker.includes(".TWO");
 
           return (
-            <div
+            <Link
+              to="/holdings/$ticker"
+              params={{ ticker: position.ticker }}
               key={`${position.assetId}-${position.accountId ?? "none"}`}
+              className="ns-row"
               style={{
                 display: "grid",
                 gridTemplateColumns: "2.4fr 0.8fr 1fr 1fr 1.1fr 0.9fr 80px",
                 alignItems: "center",
                 padding: "14px 22px",
                 borderBottom: "1px solid var(--ns-border)",
+                textDecoration: "none",
+                color: "inherit",
               }}
             >
               {/* Symbol + name */}
@@ -886,7 +914,7 @@ function HoldingsTab({
                   <PencilSimple size={14} />
                 </button>
               </div>
-            </div>
+            </Link>
           );
         })}
 
@@ -1162,19 +1190,17 @@ function buildPerformanceTrend({
   }
 
   // Identify which positions are manual (price from snapshots) vs tracked (price from daily_prices).
-  const manualAssetIds = new Set(
-    assets.filter((a) => a.holdingSource === "manual").map((a) => a.id),
-  );
-
-  // Collect price history for tracked (Yahoo) positions.
+  // We want to track historical prices for ALL assets that have a ticker, regardless of holdingSource.
   const trackedTickers = new Set(
-    positions.filter((p) => !manualAssetIds.has(p.assetId)).map((p) => p.ticker.toUpperCase()),
+    positions.filter((p) => p.ticker.trim() !== "").map((p) => p.ticker.toUpperCase()),
   );
   const pricesByTicker = new Map<string, DailyPrice[]>();
   for (const price of dailyPrices) {
     const ticker = price.ticker.toUpperCase();
     if (!trackedTickers.has(ticker)) continue;
-    if (price.date < start || price.date > end) continue;
+    // Do not filter out prices before `start` here! We need them for `latestPriceOnOrBefore`
+    // to carry forward the last known price if there are gaps.
+    if (price.date > end) continue;
     const bucket = pricesByTicker.get(ticker) ?? [];
     bucket.push(price);
     pricesByTicker.set(ticker, bucket);
@@ -1183,8 +1209,10 @@ function buildPerformanceTrend({
     pricesByTicker.set(ticker, rows.sort((a, b) => a.date.localeCompare(b.date)));
   }
 
-  // Collect dates from both sources.
-  const trackedDates = [...pricesByTicker.values()].flat().map((p) => p.date);
+  // Collect dates from both sources, but only keep dates within the requested range for the X-axis.
+  const trackedDates = [...pricesByTicker.values()].flat()
+    .filter((p) => p.date >= start && p.date <= end)
+    .map((p) => p.date);
   const manualDates = [...manualSnapshotsByAsset.values()].flat()
     .filter((s) => s.date >= start && s.date <= end)
     .map((s) => s.date);
@@ -1192,20 +1220,25 @@ function buildPerformanceTrend({
 
   return dates.map((date) => {
     const value = positions.reduce((sum, position) => {
-      const acqDate = acquisitionDateFor(position);
-      if (acqDate && date < acqDate) return sum;
+      const ticker = position.ticker.trim().toUpperCase();
+      
+      // If the asset has a ticker, try to use historical daily prices first.
+      if (ticker) {
+        const history = pricesByTicker.get(ticker) ?? [];
+        const price = latestPriceOnOrBefore(history, date);
+        if (price) {
+          return sum + toPrimary(price.close * position.quantity, price.currency || position.currency, date);
+        }
+      }
 
-      if (manualAssetIds.has(position.assetId)) {
-        const snaps = manualSnapshotsByAsset.get(position.assetId) ?? [];
-        const snap = latestSnapshotOnOrBefore(snaps, date);
-        if (!snap) return sum;
+      // Fallback to manual snapshots if no daily price is found (or no ticker)
+      const snaps = manualSnapshotsByAsset.get(position.assetId) ?? [];
+      const snap = latestSnapshotOnOrBefore(snaps, date);
+      if (snap) {
         return sum + toPrimary(snap.price * position.quantity, position.currency, date);
       }
 
-      const history = pricesByTicker.get(position.ticker.toUpperCase()) ?? [];
-      const price = latestPriceOnOrBefore(history, date);
-      if (!price) return sum;
-      return sum + toPrimary(price.close * position.quantity, price.currency || position.currency, date);
+      return sum;
     }, 0);
     return {
       date,

@@ -1,4 +1,4 @@
-import { ArrowsClockwise, ArrowsLeftRight, CheckCircle, Clock, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X } from "@phosphor-icons/react";
+import { ArrowsClockwise, ArrowsLeftRight, CheckCircle, Clock, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X, CaretUp, CaretDown } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Field, TextInput } from "../components/Field";
@@ -272,6 +272,10 @@ export function SettingsRoute() {
                 <CategoryEditor
                   key={`${group.name}-${index}`}
                   group={group}
+                  isFirst={index === 0}
+                  isLast={index === form.categories.length - 1}
+                  onMoveUp={() => moveCategory(index, -1, setForm)}
+                  onMoveDown={() => moveCategory(index, 1, setForm)}
                   onChange={(next) => setCategory(index, next, setForm)}
                   onDelete={() => setForm((current) => ({ ...current, categories: current.categories.filter((_, rowIndex) => rowIndex !== index) }))}
                 />
@@ -454,10 +458,18 @@ function buildFxStats(rates: DailyFxRate[]): Map<string, FxPairStats> {
 
 function CategoryEditor({
   group,
+  isFirst,
+  isLast,
+  onMoveUp,
+  onMoveDown,
   onChange,
   onDelete,
 }: {
   group: CategoryGroup;
+  isFirst: boolean;
+  isLast: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
   onChange: (group: CategoryGroup) => void;
   onDelete: () => void;
 }) {
@@ -471,10 +483,41 @@ function CategoryEditor({
         </div>
       </summary>
       <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "auto auto 1fr auto", gap: 8 }}>
+          <button className="ns-btn ghost" style={{ padding: "7px 4px" }} onClick={onMoveUp} disabled={isFirst}><CaretUp size={14} /></button>
+          <button className="ns-btn ghost" style={{ padding: "7px 4px" }} onClick={onMoveDown} disabled={isLast}><CaretDown size={14} /></button>
           <TextInput value={group.name} onChange={(event) => onChange({ ...group, name: event.target.value })} aria-label="分類名稱" />
           <button className="ns-btn ghost" style={{ padding: 7, color: "var(--ns-neg)" }} onClick={onDelete}><Trash size={14} /></button>
         </div>
+        
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <Field label="每月預算 (TWD)">
+            <TextInput
+              type="number"
+              placeholder="無上限"
+              value={group.budget || ""}
+              onChange={(event) => onChange({ ...group, budget: event.target.value ? Number(event.target.value) : null })}
+            />
+          </Field>
+          <Field label="代表顏色">
+            <select
+              value={group.color || ""}
+              onChange={(e) => onChange({ ...group, color: e.target.value })}
+              style={{ width: "100%", padding: "10px 12px", borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)", color: "var(--ns-fg)", outline: "none", fontSize: 14 }}
+            >
+              <option value="">預設</option>
+              <option value="var(--ns-chart-1)">綠色</option>
+              <option value="var(--ns-chart-2)">藍色</option>
+              <option value="var(--ns-chart-3)">黃色</option>
+              <option value="var(--ns-chart-4)">粉紅色</option>
+              <option value="var(--ns-chart-5)">紫色</option>
+              <option value="#2dd4bf">青綠色</option>
+              <option value="#fb923c">橘色</option>
+              <option value="var(--ns-border)">灰色</option>
+            </select>
+          </Field>
+        </div>
+
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {group.children.map((child) => (
             <span key={child} style={{ display: "inline-flex", alignItems: "center", gap: 5, borderRadius: "var(--ns-r-sm)", padding: "3px 8px", fontSize: 12, background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
@@ -545,6 +588,18 @@ function setCategory(index: number, group: CategoryGroup, setForm: Dispatch<SetS
     ...current,
     categories: current.categories.map((item, rowIndex) => rowIndex === index ? group : item),
   }));
+}
+
+function moveCategory(index: number, direction: 1 | -1, setForm: Dispatch<SetStateAction<AppSettings>>) {
+  setForm(current => {
+    const nextCategories = [...current.categories];
+    const target = index + direction;
+    if (target < 0 || target >= nextCategories.length) return current;
+    const temp = nextCategories[index];
+    nextCategories[index] = nextCategories[target];
+    nextCategories[target] = temp;
+    return { ...current, categories: nextCategories };
+  });
 }
 
 function DisplayAndPrivacyCard() {

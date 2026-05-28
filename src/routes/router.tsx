@@ -2,9 +2,11 @@ import { createRootRoute, createRoute, createRouter } from "@tanstack/react-rout
 import { AppShell } from "../components/AppShell";
 import { AccountsRoute } from "./AccountsRoute";
 import { CashFlowRoute } from "./CashFlowRoute";
+import { CategoriesRoute } from "./CategoriesRoute";
 import { DashboardRoute } from "./DashboardRoute";
+import { FIRECalculatorRoute } from "./FIRECalculatorRoute";
 import { GoalsRoute } from "./GoalsRoute";
-import { HoldingsRoute } from "./HoldingsRoute";
+import { HoldingDetailRoute } from "./HoldingDetailRoute";
 import { InvestmentsRoute } from "./InvestmentsRoute";
 import { SettingsRoute } from "./SettingsRoute";
 import { TransactionsRoute } from "./TransactionsRoute";
@@ -25,15 +27,10 @@ const investmentsRoute = createRoute({
   component: InvestmentsRoute,
 });
 
-// Old routes kept so existing bookmarks / links keep working, but the new
-// /investments view is the canonical destination. Wrap each one with a thin
-// redirect-like notice instead of removing them outright so power users who
-// rely on the deeper edit UIs (CSV import, full transaction list) can still
-// reach them.
-const holdingsRoute = createRoute({
+const holdingDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/holdings",
-  component: HoldingsRoute,
+  path: "/holdings/$ticker",
+  component: HoldingDetailRoute,
 });
 
 const transactionsRoute = createRoute({
@@ -46,6 +43,12 @@ const cashFlowRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/cash-flow",
   component: CashFlowRoute,
+});
+
+const categoriesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/cash-flow/categories",
+  component: CategoriesRoute,
 });
 
 const accountsRoute = createRoute({
@@ -66,13 +69,21 @@ const goalsRoute = createRoute({
   component: GoalsRoute,
 });
 
+const fireCalculatorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/goals/fire",
+  component: FIRECalculatorRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   investmentsRoute,
   goalsRoute,
-  holdingsRoute,
+  fireCalculatorRoute,
+  holdingDetailRoute,
   transactionsRoute,
   cashFlowRoute,
+  categoriesRoute,
   accountsRoute,
   settingsRoute,
 ]);

@@ -1,4 +1,4 @@
-import { PencilSimple, Plus, Trash } from "@phosphor-icons/react";
+import { ArrowsClockwise, ArrowsLeftRight, CaretRight, PencilSimple, Plus, Trash } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { Field, SelectInput, TextInput } from "../components/Field";
 import { StatusText } from "../components/StatusText";
@@ -6,6 +6,7 @@ import { downloadCsv, exportAccountsCsv } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { Account, AccountType, AppSettings } from "../domain";
 import { convertCurrency, formatMoney, formatNumber } from "../domain";
+import { useUiPreferences } from "../state/uiPreferences";
 
 type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "isSharedToHousehold">;
 
@@ -54,8 +55,21 @@ function Mark({ label, color, size = 36 }: { label: string; color: string; size?
   );
 }
 
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  if (isNaN(diff) || diff < 0) return "just now";
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 60) return `${minutes || 1}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return `昨天`;
+  return `${days}d ago`;
+}
+
 export function AccountsRoute() {
-  const { accounts, settings } = useFinanceData();
+  const { accounts, ledger, settings } = useFinanceData();
+  const timezone = useUiPreferences((state) => state.timezone);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<AccountFormState>(emptyAccount);
   const [message, setMessage] = useState("");
@@ -75,13 +89,23 @@ export function AccountsRoute() {
   );
 
   const rows = accounts.data ?? [];
+  const ledgerRows = ledger.data ?? [];
   const appSettings = settings.data;
   const currencyOptions = useMemo(() => buildConfiguredCurrencyOptions(appSettings), [appSettings]);
   const selectedCurrency = currencyOptions.includes(form.currency) ? form.currency : currencyOptions[0];
   const isEditing = Boolean(editingId);
-  const groupedAccounts = accountTypes
-    .map((type) => ({ type, rows: rows.filter((a) => a.type === type) }))
-    .filter((g) => g.rows.length);
+
+  const latestTxByAccount = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const tx of ledgerRows) {
+      if (!tx.accountId) continue;
+      const existing = map.get(tx.accountId);
+      if (!existing || tx.date > existing) {
+        map.set(tx.accountId, tx.date);
+      }
+    }
+    return map;
+  }, [ledgerRows]);
 
   async function submit() {
     setMessage("");
@@ -125,32 +149,81 @@ export function AccountsRoute() {
     setMessage("");
   }
 
-  // Assign stable color index per account (by position in flat list)
   const colorMap = new Map(rows.map((a, i) => [a.id, CHART_COLORS[i % 5]]));
 
+  const totalNetWorth = rows.reduce((sum, a) => {
+    if (!appSettings) return sum + a.balance;
+    const conv = convertCurrency(a.balance, a.currency, appSettings.primaryCurrency, appSettings);
+    return sum + (conv ?? a.balance);
+  }, 0);
+
+  const currencyStats = useMemo(() => {
+    const map = new Map<string, { native: number; base: number }>();
+    for (const a of rows) {
+      let key = a.currency;
+      if (key === "BTC" || key === "ETH") key = "Crypto"; // Group crypto slightly if needed, or just keep as is.
+      const curr = map.get(key) || { native: 0, base: 0 };
+      curr.native += a.balance;
+      const baseVal = appSettings ? (convertCurrency(a.balance, a.currency, appSettings.primaryCurrency, appSettings) ?? a.balance) : a.balance;
+      curr.base += baseVal;
+      map.set(key, curr);
+    }
+    return Array.from(map.entries())
+      .map(([currency, vals]) => {
+        const pct = totalNetWorth === 0 ? 0 : (Math.max(0, vals.base) / Math.max(1, totalNetWorth)) * 100;
+        return {
+          currency,
+          native: vals.native,
+          base: vals.base,
+          pct,
+        };
+      })
+      .sort((a, b) => b.base - a.base)
+      .slice(0, 4); // Top 4
+  }, [rows, appSettings, totalNetWorth]);
+
+  const groupedAccounts = [
+    {
+      name: 'Cash & deposits',
+      types: ["depository", "cash"],
+    },
+    {
+      name: 'Investment',
+      types: ["investment", "other"],
+    },
+    {
+      name: 'Credit · liabilities',
+      types: ["credit", "loan"],
+    }
+  ].map(group => {
+    const groupRows = rows.filter(a => group.types.includes(a.type));
+    const total = groupRows.reduce((sum, a) => {
+      const conv = appSettings ? convertCurrency(a.balance, a.currency, appSettings.primaryCurrency, appSettings) : null;
+      return sum + (conv ?? a.balance);
+    }, 0);
+    return { name: group.name, rows: groupRows, total };
+  }).filter(g => g.rows.length > 0);
+
   return (
-    <div style={{ padding: "24px 32px 100px", overflowY: "auto" }}>
+    <div style={{ padding: "24px 32px 100px", height: "100%", overflow: "auto" }}>
       {/* ── Header row ── */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24 }}>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 22 }}>
         <div>
           <div className="ns-eyebrow" style={{ marginBottom: 6 }}>
-            {rows.length} 個帳戶 · {appSettings?.primaryCurrency ?? "TWD"} base
+            {rows.length} accounts · {appSettings?.primaryCurrency ?? "TWD"} base
           </div>
-          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.5, fontWeight: 600 }}>
-            帳戶
+          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>
+            Accounts
           </h1>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button
-            className="ns-btn"
-            onClick={() => downloadCsv("northstar-accounts.csv", exportAccountsCsv(rows))}
-          >
-            匯出 CSV
+          <button className="ns-btn" onClick={() => downloadCsv("northstar-accounts.csv", exportAccountsCsv(rows))}>
+            <ArrowsClockwise size={14} />Refresh FX
           </button>
-          <button
-            className="ns-btn primary"
-            onClick={() => { cancelEdit(); setShowForm(true); }}
-          >
+          <button className="ns-btn">
+            <ArrowsLeftRight size={14} />Transfer
+          </button>
+          <button className="ns-btn primary" onClick={() => { cancelEdit(); setShowForm(true); }}>
             <Plus size={14} weight="bold" />新增帳戶
           </button>
         </div>
@@ -234,6 +307,26 @@ export function AccountsRoute() {
         </div>
       )}
 
+      {/* ── Currency breakdown card ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14, marginBottom: 20 }}>
+        {currencyStats.map((r, i) => {
+          const isBase = appSettings?.primaryCurrency === r.currency;
+          return (
+            <div className="ns-card" key={r.currency} style={{ padding: 16 }}>
+              <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{r.currency}</div>
+              <div style={{ fontSize: 19, fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums" }}>
+                {formatMoney(r.base, appSettings?.primaryCurrency ?? "TWD")}
+                {!isBase && <span className="muted" style={{ fontSize: 13 }}> · {formatNumber(r.native)}</span>}
+              </div>
+              <div style={{ height: 6, borderRadius: 99, background: "var(--ns-bg-hover)", marginTop: 8, overflow: "hidden" }}>
+                <div style={{ width: r.pct + "%", height: "100%", background: CHART_COLORS[i % 5] }} />
+              </div>
+              <div className="mono dim" style={{ fontSize: 11, marginTop: 4 }}>{r.pct.toFixed(1)}% of total</div>
+            </div>
+          )
+        })}
+      </div>
+
       {/* ── Account groups ── */}
       <div style={{ display: "grid", gap: 16 }}>
         {groupedAccounts.length === 0 ? (
@@ -242,16 +335,9 @@ export function AccountsRoute() {
           </div>
         ) : (
           groupedAccounts.map((group) => {
-            const groupTotal = group.rows.reduce((sum, a) => {
-              if (!appSettings) return sum + a.balance;
-              const conv = convertCurrency(a.balance, a.currency, appSettings.primaryCurrency, appSettings);
-              return sum + (conv ?? a.balance);
-            }, 0);
-            const isLiability = group.type === "credit" || group.type === "loan";
-
+            const isLiability = group.name.includes("liabilities");
             return (
-              <div key={group.type} className="ns-card" style={{ padding: 0 }}>
-                {/* Group header */}
+              <div key={group.name} className="ns-card" style={{ padding: 0 }}>
                 <div
                   style={{
                     padding: "14px 22px",
@@ -260,31 +346,26 @@ export function AccountsRoute() {
                   }}
                 >
                   <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 15, fontWeight: 500 }}>
-                    {accountTypeLabels[group.type]}
+                    {group.name}
                   </h3>
                   <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                    <span className="dim mono" style={{ fontSize: 11 }}>{group.rows.length} 個帳戶</span>
+                    <span className="dim mono" style={{ fontSize: 11 }}>{group.rows.length} accounts</span>
                     <span
                       className="num"
                       style={{
                         fontSize: 16, fontWeight: 500,
-                        color: isLiability && groupTotal < 0 ? "var(--ns-neg)" : undefined,
+                        color: isLiability && group.total < 0 ? "var(--ns-neg)" : undefined,
                       }}
                     >
-                      {formatMoney(groupTotal, appSettings?.primaryCurrency ?? "TWD")}
+                      {formatMoney(group.total, appSettings?.primaryCurrency ?? "TWD")}
                     </span>
                   </div>
                 </div>
 
-                {/* Account rows */}
                 {group.rows.map((account) => {
                   const converted = appSettings
                     ? convertCurrency(account.balance, account.currency, appSettings.primaryCurrency, appSettings)
                     : null;
-                  const groupCredit =
-                    account.type === "credit" && account.creditLimitGroup
-                      ? calculateCreditGroup(account.creditLimitGroup, rows)
-                      : null;
                   const initials = account.name.replace(/\s+/g, "").slice(0, 2).toUpperCase();
                   const color = colorMap.get(account.id) ?? CHART_COLORS[0];
                   const isNegative = account.balance < 0;
@@ -298,8 +379,7 @@ export function AccountsRoute() {
                           <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px" }}>{account.currency}</span>
                         </div>
                         <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
-                          {accountTypeLabels[account.type]}
-                          {groupCredit ? ` · 已用 ${formatNumber(groupCredit.used)} / ${formatNumber(groupCredit.limit)}` : ""}
+                          synced {timeAgo(latestTxByAccount.get(account.id) ?? account.updatedAt)}
                         </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
@@ -310,18 +390,18 @@ export function AccountsRoute() {
                             color: isNegative ? "var(--ns-neg)" : undefined,
                           }}
                         >
-                          {formatNumber(account.balance)} {account.currency}
+                          {formatMoney(converted ?? account.balance, appSettings?.primaryCurrency ?? "TWD")}
                         </div>
                         {converted !== null && appSettings && account.currency !== appSettings.primaryCurrency ? (
                           <div className="muted mono" style={{ fontSize: 11.5 }}>
-                            {formatMoney(converted, appSettings.primaryCurrency)}
+                            {formatNumber(account.balance)}
                           </div>
                         ) : null}
                       </div>
-                      <div style={{ display: "flex", gap: 6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
                         <button
                           className="ns-btn ghost"
-                          style={{ padding: 7 }}
+                          style={{ padding: 6 }}
                           onClick={() => startEdit(account)}
                           title="編輯"
                         >
@@ -329,7 +409,7 @@ export function AccountsRoute() {
                         </button>
                         <button
                           className="ns-btn ghost"
-                          style={{ padding: 7, color: "var(--ns-neg)" }}
+                          style={{ padding: 6, color: "var(--ns-neg)" }}
                           onClick={async () => {
                             try {
                               await deleteAccount.mutateAsync(account.id);
@@ -352,13 +432,6 @@ export function AccountsRoute() {
       </div>
     </div>
   );
-}
-
-function calculateCreditGroup(name: string, accounts: Account[]) {
-  const groupRows = accounts.filter((a) => a.type === "credit" && a.creditLimitGroup === name);
-  const used = groupRows.reduce((sum, a) => sum + Math.max(0, -a.balance), 0);
-  const limit = Math.max(...groupRows.map((a) => a.creditLimit ?? 0), 0);
-  return { name, used, limit };
 }
 
 function buildConfiguredCurrencyOptions(settings: AppSettings | undefined) {
