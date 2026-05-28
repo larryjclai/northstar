@@ -51,9 +51,9 @@ function CfMark({ label, color, size = 32 }: { label: string; color: string; siz
   );
 }
 
-function DailyBars({ data }: { data: Array<{ v: number }> }) {
+function DailyBars({ data }: { data: Array<{ income: number; expense: number }> }) {
   if (!data.length) return null;
-  const max = Math.max(...data.map((d) => Math.abs(d.v)), 1);
+  const max = Math.max(...data.flatMap((d) => [d.income, d.expense]), 1);
   const w = 1000;
   const h = 80;
   const gap = 3;
@@ -63,12 +63,21 @@ function DailyBars({ data }: { data: Array<{ v: number }> }) {
     <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ display: "block" }}>
       <line x1="0" x2={w} y1={mid} y2={mid} stroke="var(--ns-border)" />
       {data.map((d, i) => {
-        const bh = (Math.abs(d.v) / max) * (h * 0.42);
-        const y = d.v >= 0 ? mid - bh : mid;
-        const c = d.v === 0
-          ? "var(--ns-fg-dim)"
-          : d.v > 0 ? "var(--ns-pos)" : "var(--ns-neg)";
-        return <rect key={i} x={i * (bw + gap)} y={y} width={bw} height={Math.max(bh, 1)} fill={c} rx="1.5" />;
+        const hIn = (d.income / max) * (h * 0.42);
+        const hEx = (d.expense / max) * (h * 0.42);
+        return (
+          <g key={i}>
+            {d.income > 0 && (
+              <rect x={i * (bw + gap)} y={mid - hIn} width={bw} height={Math.max(hIn, 1)} fill="var(--ns-pos)" rx="1.5" />
+            )}
+            {d.expense > 0 && (
+              <rect x={i * (bw + gap)} y={mid} width={bw} height={Math.max(hEx, 1)} fill="var(--ns-neg)" rx="1.5" />
+            )}
+            {d.income === 0 && d.expense === 0 && (
+              <rect x={i * (bw + gap)} y={mid - 0.5} width={bw} height={1} fill="var(--ns-fg-dim)" rx="0.5" />
+            )}
+          </g>
+        );
       })}
     </svg>
   );
@@ -395,18 +404,26 @@ export function CashFlowRoute() {
       .slice(0, 6);
   }, [monthRows]);
 
-  const dailyNetAmounts = useMemo(() => {
+  const dailyStats = useMemo(() => {
     const now = todayInTimezone(timezone);
     const year = parseInt(now.slice(0, 4));
     const month = parseInt(now.slice(5, 7));
     const daysInMonth = new Date(year, month, 0).getDate();
-    const byDay = new Map<number, number>();
+    const byDay = new Map<number, { income: number; expense: number }>();
+    for (let i = 1; i <= daysInMonth; i++) {
+      byDay.set(i, { income: 0, expense: 0 });
+    }
     for (const row of monthRows) {
       if (row.entryType === "transfer") continue;
       const day = parseInt(row.date.slice(8, 10));
-      byDay.set(day, (byDay.get(day) ?? 0) + row.amount);
+      const stats = byDay.get(day)!;
+      if (row.entryType === "income") {
+        stats.income += Math.max(0, row.amount);
+      } else {
+        stats.expense += Math.abs(row.amount);
+      }
     }
-    return Array.from({ length: daysInMonth }, (_, i) => ({ v: byDay.get(i + 1) ?? 0 }));
+    return Array.from({ length: daysInMonth }, (_, i) => byDay.get(i + 1)!);
   }, [monthRows, timezone]);
 
   const dateGroups = useMemo(() => {
@@ -481,7 +498,7 @@ export function CashFlowRoute() {
               )}
             </div>
           </div>
-          <DailyBars data={dailyNetAmounts} />
+          <DailyBars data={dailyStats} />
           <div className="dim mono" style={{ fontSize: 10.5, marginTop: 6, display: "flex", justifyContent: "space-between" }}>
             <span>1日</span><span>8日</span><span>15日</span><span>22日</span><span>月末</span>
           </div>
@@ -499,7 +516,7 @@ export function CashFlowRoute() {
               {topCategorySpend.map((r, i) => (
                 <div
                   key={r.name}
-                  style={{ display: "grid", gridTemplateColumns: "1fr 120px 90px", gap: 10, alignItems: "center", fontSize: 12.5 }}
+                  style={{ display: "grid", gridTemplateColumns: "70px 1fr 80px", gap: 10, alignItems: "center", fontSize: 12.5 }}
                 >
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
                   <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
