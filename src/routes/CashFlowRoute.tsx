@@ -1094,7 +1094,8 @@ function EntryDrawer({
                   value={transferForm.sourceAmount}
                   onChange={(e) => {
                     const v = Number(e.target.value.replace(/[^\d.]/g, "")) || 0;
-                    setTransferForm({ ...transferForm, sourceAmount: v, destinationAmount: v });
+                    const sameCcy = transferForm.sourceCurrency === transferForm.destinationCurrency;
+                    setTransferForm({ ...transferForm, sourceAmount: v, destinationAmount: sameCcy ? v : transferForm.destinationAmount });
                   }}
                   placeholder="0"
                   style={{ paddingLeft: 44, fontSize: 22, fontFamily: "var(--ns-font-mono)", height: 52, color: meta.color }}
@@ -1172,7 +1173,9 @@ function EntryDrawer({
                   value={transferForm.destinationAccountId}
                   onChange={(e) => {
                     const account = accountRows.find((a) => a.id === e.target.value);
-                    setTransferForm({ ...transferForm, destinationAccountId: e.target.value, destinationCurrency: account?.currency ?? transferForm.destinationCurrency });
+                    const destCurrency = account?.currency ?? transferForm.destinationCurrency;
+                    const sameCcy = transferForm.sourceCurrency === destCurrency;
+                    setTransferForm({ ...transferForm, destinationAccountId: e.target.value, destinationCurrency: destCurrency, destinationAmount: sameCcy ? transferForm.sourceAmount : transferForm.destinationAmount });
                   }}
                 >
                   <option value="">選擇帳戶</option>
@@ -1180,6 +1183,26 @@ function EntryDrawer({
                 </select>
               </DrawerField>
             </div>
+          )}
+
+          {/* Cross-currency: editable destination amount */}
+          {type === "transfer" && transferForm.sourceCurrency !== transferForm.destinationCurrency && (
+            <DrawerField label={`對方收到金額 · ${transferForm.destinationCurrency}`} required>
+              <input
+                className="ns-input"
+                inputMode="decimal"
+                value={transferForm.destinationAmount ?? ""}
+                onChange={(e) => setTransferForm({ ...transferForm, destinationAmount: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })}
+                placeholder="0"
+                style={{ fontFamily: "var(--ns-font-mono)" }}
+              />
+              <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
+                跨幣轉帳：輸入對方帳戶實際收到的金額
+                {transferForm.sourceAmount > 0 && (transferForm.destinationAmount ?? 0) > 0
+                  ? `（匯率約 1 ${transferForm.sourceCurrency} ≈ ${(transferForm.destinationAmount! / transferForm.sourceAmount).toFixed(4)} ${transferForm.destinationCurrency}）`
+                  : ""}
+              </div>
+            </DrawerField>
           )}
 
           {/* Transfer fee */}
