@@ -49,7 +49,7 @@ export interface LedgerDraft {
   feeAmount?: number;
 }
 
-export type AccountDraft = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color">;
+export type AccountDraft = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color">;
 
 export interface RecurringDraft {
   accountId: string;
@@ -402,6 +402,8 @@ class BrowserFinanceRepository implements FinanceRepository {
         loanTerm: null,
         iconName: null,
         color: null,
+        statementDay: null,
+        paymentDueDay: null,
       };
       this.data.accounts.push(unassigned);
     }
@@ -430,6 +432,8 @@ class BrowserFinanceRepository implements FinanceRepository {
       loanTerm: row.loanTerm ?? null,
       iconName: row.iconName ?? null,
       color: row.color ?? null,
+      statementDay: row.statementDay ?? null,
+      paymentDueDay: row.paymentDueDay ?? null,
     }));
   }
 
@@ -446,6 +450,8 @@ class BrowserFinanceRepository implements FinanceRepository {
       ...input,
       creditLimit: input.type === "credit" ? input.creditLimit : null,
       creditLimitGroup: input.type === "credit" ? input.creditLimitGroup : "",
+      statementDay: input.type === "credit" ? (input.statementDay ?? null) : null,
+      paymentDueDay: input.type === "credit" ? (input.paymentDueDay ?? null) : null,
       loanStartDate: input.type === "loan" ? (input.loanStartDate ?? null) : null,
       annualInterestRate: input.type === "loan" ? (input.annualInterestRate ?? null) : null,
       loanTerm: input.type === "loan" ? (input.loanTerm ?? null) : null,
@@ -1296,6 +1302,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("accounts", "loan_term", "real");
     await this.ensureSqliteColumn("accounts", "icon_name", "text");
     await this.ensureSqliteColumn("accounts", "color", "text");
+    await this.ensureSqliteColumn("accounts", "statement_day", "integer");
+    await this.ensureSqliteColumn("accounts", "payment_due_day", "integer");
     await this.ensureSqliteColumn("portfolio_assets", "holding_source", "text not null default 'transactions'");
     await this.ensureSqliteColumn("portfolio_assets", "acquisition_date", "text");
     await this.ensureSqliteColumn("portfolio_assets", "name_zh", "text");
@@ -1335,7 +1343,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     return (await this.db.select<Account[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       name, currency, opening_balance as openingBalance, balance, type, credit_limit as creditLimit, credit_limit_group as creditLimitGroup, is_shared_to_household as isSharedToHousehold,
-      loan_start_date as loanStartDate, annual_interest_rate as annualInterestRate, loan_term as loanTerm, icon_name as iconName, color
+      loan_start_date as loanStartDate, annual_interest_rate as annualInterestRate, loan_term as loanTerm, icon_name as iconName, color, statement_day as statementDay, payment_due_day as paymentDueDay
       from accounts where deleted_at is null order by name`)).map((row) => ({
         ...row,
         creditLimit: row.creditLimit ?? null,
@@ -1346,22 +1354,24 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         loanTerm: row.loanTerm ?? null,
         iconName: row.iconName ?? null,
         color: row.color ?? null,
+        statementDay: row.statementDay ?? null,
+        paymentDueDay: row.paymentDueDay ?? null,
       }));
   }
 
   override async createAccount(input: AccountDraft) {
     const timestamp = nowIso();
     await this.db.execute(
-      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color)
-       values ($1,$2,1,$3,$3,null,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
-      [createId("acct"), personalSpace, timestamp, input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null],
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, statement_day, payment_due_day)
+       values ($1,$2,1,$3,$3,null,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+      [createId("acct"), personalSpace, timestamp, input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null],
     );
   }
 
   override async updateAccount(id: string, input: AccountDraft) {
     await this.db.execute(
-      `update accounts set revision = revision + 1, updated_at = $1, name = $2, currency = $3, opening_balance = $4, type = $5, credit_limit = $6, credit_limit_group = $7, is_shared_to_household = $8, loan_start_date = $9, annual_interest_rate = $10, loan_term = $11, icon_name = $12, color = $13 where id = $14`,
-      [nowIso(), input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, id],
+      `update accounts set revision = revision + 1, updated_at = $1, name = $2, currency = $3, opening_balance = $4, type = $5, credit_limit = $6, credit_limit_group = $7, is_shared_to_household = $8, loan_start_date = $9, annual_interest_rate = $10, loan_term = $11, icon_name = $12, color = $13, statement_day = $14, payment_due_day = $15 where id = $16`,
+      [nowIso(), input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, id],
     );
     await this.recomputeSqliteAccounts();
   }
@@ -2427,9 +2437,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   private async insertAccountRow(row: Account) {
     await this.db.execute(
-      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
-      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.name, row.currency, row.openingBalance, row.balance, row.type, row.creditLimit, row.creditLimitGroup, Number(row.isSharedToHousehold), row.loanStartDate ?? null, row.annualInterestRate ?? null, row.loanTerm ?? null, row.iconName ?? null, row.color ?? null],
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, statement_day, payment_due_day)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.name, row.currency, row.openingBalance, row.balance, row.type, row.creditLimit, row.creditLimitGroup, Number(row.isSharedToHousehold), row.loanStartDate ?? null, row.annualInterestRate ?? null, row.loanTerm ?? null, row.iconName ?? null, row.color ?? null, row.statementDay ?? null, row.paymentDueDay ?? null],
     );
   }
 

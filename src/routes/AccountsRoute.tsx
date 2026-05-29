@@ -8,7 +8,7 @@ import type { Account, AccountType, AppSettings } from "../domain";
 import { convertCurrency, formatNumber, nowAsDatetimeLocal } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 
-type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color">;
+type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color">;
 
 const emptyAccount: AccountFormState = {
   name: "",
@@ -17,6 +17,8 @@ const emptyAccount: AccountFormState = {
   type: "depository",
   creditLimit: null,
   creditLimitGroup: "",
+  statementDay: null,
+  paymentDueDay: null,
   isSharedToHousehold: false,
   loanStartDate: null,
   annualInterestRate: null,
@@ -130,6 +132,7 @@ export function AccountsRoute() {
       creditLimit: account.creditLimit, creditLimitGroup: account.creditLimitGroup, isSharedToHousehold: account.isSharedToHousehold,
       loanStartDate: account.loanStartDate, annualInterestRate: account.annualInterestRate, loanTerm: account.loanTerm,
       iconName: account.iconName ?? null, color: account.color ?? null,
+      statementDay: account.statementDay ?? null, paymentDueDay: account.paymentDueDay ?? null,
     });
     setMessage("");
     setDrawerOpen(true);
@@ -487,14 +490,24 @@ function AccountDrawer({
                 </DrawerField>
 
                 {form.type === "credit" ? (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <DrawerField label="信用額度">
-                      <input className="ns-input" type="number" value={form.creditLimit ?? ""} onChange={(e) => setForm({ ...form, creditLimit: e.target.value ? Number(e.target.value) : null })} placeholder="120000" />
-                    </DrawerField>
-                    <DrawerField label="共用額度群組">
-                      <input className="ns-input" value={form.creditLimitGroup} onChange={(e) => setForm({ ...form, creditLimitGroup: e.target.value })} placeholder="玉山信用卡" />
-                    </DrawerField>
-                  </div>
+                  <>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      <DrawerField label="信用額度">
+                        <input className="ns-input" type="number" value={form.creditLimit ?? ""} onChange={(e) => setForm({ ...form, creditLimit: e.target.value ? Number(e.target.value) : null })} placeholder="120000" />
+                      </DrawerField>
+                      <DrawerField label="共用額度群組">
+                        <input className="ns-input" value={form.creditLimitGroup} onChange={(e) => setForm({ ...form, creditLimitGroup: e.target.value })} placeholder="玉山信用卡" />
+                      </DrawerField>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      <DrawerField label="結帳日（每月）">
+                        <input className="ns-input" type="number" min={1} max={31} value={form.statementDay ?? ""} onChange={(e) => setForm({ ...form, statementDay: e.target.value ? Math.min(31, Math.max(1, Number(e.target.value))) : null })} placeholder="例：5" />
+                      </DrawerField>
+                      <DrawerField label="繳款日（每月）">
+                        <input className="ns-input" type="number" min={1} max={31} value={form.paymentDueDay ?? ""} onChange={(e) => setForm({ ...form, paymentDueDay: e.target.value ? Math.min(31, Math.max(1, Number(e.target.value))) : null })} placeholder="例：22" />
+                      </DrawerField>
+                    </div>
+                  </>
                 ) : null}
 
                 {form.type === "loan" ? (
