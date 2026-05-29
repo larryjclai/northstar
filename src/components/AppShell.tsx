@@ -4,6 +4,7 @@ import {
   EyeSlash,
   GearSix,
   House,
+  Plus,
   Receipt,
   Target,
   TrendUp,
@@ -96,6 +97,22 @@ export function AppShell() {
           </button>
         </div>
 
+        {/* Quick Add trigger */}
+        <div style={{ padding: "0 8px 8px" }}>
+          <button
+            type="button"
+            onClick={() => setQuickAddOpen(true)}
+            className="ns-btn primary"
+            style={{ width: "100%", justifyContent: "center", gap: 8 }}
+          >
+            <Plus size={15} weight="bold" />
+            <span className="flex-1 text-left">快速記帳</span>
+            <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded px-1.5 font-mono text-[10px] font-medium" style={{ background: "color-mix(in srgb, var(--ns-accent-fg) 18%, transparent)", color: "var(--ns-accent-fg)" }}>
+              <span className="text-xs">⌘</span>N
+            </kbd>
+          </button>
+        </div>
+
         {/* Nav items */}
         <nav style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
           {navItems.map((item) => (
@@ -166,6 +183,17 @@ export function AppShell() {
       <main key={privacyMode ? "privacy-on" : "privacy-off"} className="pb-20 lg:pb-0">
         <Outlet />
       </main>
+
+      {/* ── Mobile Quick Add FAB ── */}
+      <button
+        type="button"
+        onClick={() => setQuickAddOpen(true)}
+        aria-label="快速記帳"
+        className="fixed right-4 bottom-20 lg:hidden"
+        style={{ zIndex: 40, width: 52, height: 52, borderRadius: 999, background: "var(--ns-accent)", color: "var(--ns-accent-fg)", border: "none", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "var(--ns-shadow-xl)" }}
+      >
+        <Plus size={24} weight="bold" />
+      </button>
 
       {/* ── Mobile bottom nav ── */}
       <nav
