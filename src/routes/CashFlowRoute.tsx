@@ -28,7 +28,7 @@ import { DatePicker } from "../components/ui/date-picker";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { useToast } from "../components/Toast";
 import type { LedgerDraft, TransferDraft } from "../data/repositories";
-import { evaluateAmountExpression, formatNumber, nowAsDatetimeLocal, todayInTimezone } from "../domain";
+import { buildMerchantCategoryMap, evaluateAmountExpression, formatNumber, nowAsDatetimeLocal, todayInTimezone } from "../domain";
 import type { LedgerTransaction, RecurringTransaction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 
@@ -138,6 +138,10 @@ export function CashFlowRoute() {
     () => buildMerchantSuggestions(merchantPool, ledgerForm.merchant),
     [merchantPool, ledgerForm.merchant],
   );
+  // Each merchant's most-used (category, subcategory) from expense history, so
+  // picking a merchant can auto-fill its usual category.
+  const merchantCategoryMap = useMemo(() => buildMerchantCategoryMap(ledgerRows), [ledgerRows]);
+  const categoryForMerchant = (merchant: string) => merchantCategoryMap.get(merchant.trim()) ?? null;
 
   const accountName = (id: string) => accountRows.find((account) => account.id === id)?.name ?? id;
   const accountIdFor = (nameOrId: string) =>
@@ -787,6 +791,7 @@ export function CashFlowRoute() {
         categories={categories}
         subcategories={subcategories}
         merchantSuggestions={merchantSuggestions}
+        categoryForMerchant={categoryForMerchant}
         accountRows={accountRows}
         onSubmitLedger={submitLedger}
         onSubmitTransfer={submitTransfer}
@@ -979,6 +984,7 @@ function EntryDrawer({
   categories,
   subcategories,
   merchantSuggestions,
+  categoryForMerchant,
   accountRows,
   onSubmitLedger,
   onSubmitTransfer,
@@ -1004,6 +1010,7 @@ function EntryDrawer({
   categories: Array<{ name: string; children: string[]; color?: string }>;
   subcategories: string[];
   merchantSuggestions: string[];
+  categoryForMerchant: (merchant: string) => { category: string; subcategory: string } | null;
   accountRows: Array<{ id: string; name: string; currency: string }>;
   onSubmitLedger: () => void;
   onSubmitTransfer: () => void;
@@ -1228,7 +1235,15 @@ function EntryDrawer({
                   <input className="ns-input" value={ledgerForm.name} onChange={(e) => setLedgerForm({ ...ledgerForm, name: e.target.value })} placeholder={type === "expense" ? "計程車" : "月薪"} />
                 </DrawerField>
                 <DrawerField label="商家 / 來源">
-                  <MerchantAutocomplete value={ledgerForm.merchant} suggestions={merchantSuggestions} onChange={(next) => setLedgerForm({ ...ledgerForm, merchant: next })} placeholder={type === "expense" ? "UBER" : "公司"} />
+                  <MerchantAutocomplete value={ledgerForm.merchant} suggestions={merchantSuggestions} onChange={(next) => {
+                    const patch = { ...ledgerForm, merchant: next };
+                    // Auto-fill the usual category for this merchant, but never override a choice already made.
+                    if (!ledgerForm.category.trim()) {
+                      const suggestion = categoryForMerchant(next);
+                      if (suggestion?.category) { patch.category = suggestion.category; patch.subcategory = suggestion.subcategory; }
+                    }
+                    setLedgerForm(patch);
+                  }} placeholder={type === "expense" ? "UBER" : "公司"} />
                 </DrawerField>
               </div>
 
@@ -1463,4 +1478,5 @@ function buildMerchantSuggestions(merchants: string[], query: string) {
     .filter((merchant) => merchant.toLowerCase().includes(normalizedQuery))
     .slice(0, 12);
 }
+
 

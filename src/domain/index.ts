@@ -7,6 +7,7 @@ export * from "./fifoCalculator";
 export * from "./fireGoal";
 export * from "./retirementProjection";
 export * from "./groupClassifier";
+export * from "./merchantCategory";
 export * from "./investmentCash";
 export * from "./portfolioCalculator";
 export * from "./transferBuilder";
