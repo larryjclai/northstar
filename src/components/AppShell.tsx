@@ -13,23 +13,29 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { usePrivacySync, useUiPreferences } from "../state/uiPreferences";
 import { GlobalSearch } from "./GlobalSearch";
+import { useTranslation } from "react-i18next";
 import { MagnifyingGlass } from "@phosphor-icons/react";
 
 const appIconUrl = new URL("../../src-tauri/icons/icon.png", import.meta.url).href;
 
-const navItems = [
-  { to: "/", label: "總覽", icon: House },
-  { to: "/investments", label: "投資", icon: TrendUp },
-  { to: "/cash-flow", label: "記帳", icon: Receipt },
-  { to: "/accounts", label: "帳戶", icon: Bank },
-  { to: "/goals", label: "目標 · FIRE", icon: Target },
-] as const;
 
-const nav2Items = [
-  { to: "/settings", label: "設定", icon: GearSix },
-] as const;
+
+
 
 export function AppShell() {
+  const { t } = useTranslation();
+
+  const navItems = [
+    { to: "/", label: t("nav.dashboard"), icon: House },
+    { to: "/investments", label: t("nav.investments"), icon: TrendUp },
+    { to: "/cash-flow", label: t("nav.cashflow"), icon: Receipt },
+    { to: "/accounts", label: t("nav.accounts"), icon: Bank },
+    { to: "/goals", label: t("nav.goals"), icon: Target },
+  ];
+  
+  const nav2Items = [
+    { to: "/settings", label: t("nav.settings"), icon: GearSix },
+  ];
   useBlockBrowserBackOnBackspace();
   usePrivacySync();
   usePrivacyShortcut();
@@ -143,7 +149,7 @@ export function AppShell() {
               <span style={{ fontSize: 12, fontWeight: 500 }}>Local-first</span>
             </div>
             <div style={{ fontSize: 11, lineHeight: 1.45, color: "var(--ns-fg-dim)" }}>
-              資料僅保存在此裝置上。
+              {t("shell.dataSavedLocally")}
             </div>
           </div>
         </div>

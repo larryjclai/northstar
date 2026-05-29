@@ -199,7 +199,7 @@ export function InvestmentsRoute() {
       {tab === "portfolio" ? (
         <>
           {/* Top KPIs */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-5">
             {[
               ['Market value', `NT$${formatNumber(totalValue)}`, '', true],
               ['Cost basis', `NT$${formatNumber(totalCost)}`, '', true],
@@ -207,11 +207,11 @@ export function InvestmentsRoute() {
               ['Realized YTD', '-', '', true],
               ['Dividends YTD', '-', '', true],
             ].map(([label, val, pct, pos], i) => (
-              <div key={i} className="ns-card p-4 sm:p-5">
-                <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{label}</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                  <div className="num" style={{ fontSize: 22, fontWeight: 500 }}>{val}</div>
-                  {pct && <div className="num" style={{ fontSize: 13, color: pos ? 'var(--ns-pos)' : 'var(--ns-neg)' }}>{pct}</div>}
+              <div key={i} className="ns-card p-4 sm:p-5 flex flex-col min-w-0">
+                <div className="ns-eyebrow" style={{ marginBottom: 8, flexShrink: 0 }}>{label}</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                  <div className="num truncate" style={{ fontSize: "clamp(18px, 2.5vw, 22px)", fontWeight: 500, minWidth: 0, flex: 1 }} title={String(val)}>{val}</div>
+                  {pct && <div className="num" style={{ fontSize: 13, color: pos ? 'var(--ns-pos)' : 'var(--ns-neg)', flexShrink: 0 }}>{pct}</div>}
                 </div>
               </div>
             ))}
