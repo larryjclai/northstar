@@ -17,6 +17,7 @@ import { Bar, BarChart, ResponsiveContainer, Tooltip, Cell } from "recharts";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { DatePicker } from "../components/ui/date-picker";
+import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { useToast } from "../components/Toast";
 import type { LedgerDraft, TransferDraft } from "../data/repositories";
 import { evaluateAmountExpression, formatNumber, nowAsDatetimeLocal, todayInTimezone } from "../domain";
@@ -90,6 +91,7 @@ export function CashFlowRoute() {
   const [drawerType, setDrawerType] = useState<CashType>("expense");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [drawerRecurringFreq, setDrawerRecurringFreq] = useState("none");
+  const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
 
   const [ledgerForm, setLedgerForm] = useState<LedgerDraft>(emptyLedger);
   const [amountExpression, setAmountExpression] = useState(String(Math.abs(emptyLedger.amount)));
@@ -137,6 +139,10 @@ export function CashFlowRoute() {
   const deleteLedger = useRepositoryMutation(
     (repository, id: string) => repository.deleteLedgerTransaction(id),
     ["ledger", "accounts"],
+  );
+  const updateSettingsMutation = useRepositoryMutation(
+    (repository, input: import("../domain/types").AppSettings) => repository.updateAppSettings(input),
+    ["settings"],
   );
   const createRecurring = useRepositoryMutation(
     (repository, input: import("../data/repositories").RecurringDraft) => repository.createRecurringTransaction(input),
@@ -672,6 +678,16 @@ export function CashFlowRoute() {
         message={message}
         drawerRecurringFreq={drawerRecurringFreq}
         setDrawerRecurringFreq={setDrawerRecurringFreq}
+      />
+      <CategoryManagementDrawer
+        open={categoryDrawerOpen}
+        onClose={() => setCategoryDrawerOpen(false)}
+        categories={appSettings?.categories || []}
+        onSave={async (cats) => {
+          if (!appSettings) return;
+          await updateSettingsMutation.mutateAsync({ ...appSettings, categories: cats });
+          toast.success("已更新分類設定");
+        }}
       />
     </div>
   );
