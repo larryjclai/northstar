@@ -22,8 +22,19 @@ export interface HoldingSummaryRow {
 export function calculateAvailableCash(accounts: Account[], toPrimary: (amount: number, currency: string) => number) {
   return accounts.reduce((sum, account) => {
     if (account.deletedAt !== null) return sum;
-    if (account.type === "loan" || account.type === "credit") return sum;
+    if (account.type === "loan" || account.type === "credit" || account.type === "alternative") return sum;
     return sum + toPrimary(Math.max(0, account.balance), account.currency);
+  }, 0);
+}
+
+// Non-liquid / alternative assets (property, metals, vehicles…) tracked as
+// accounts with a manually-maintained market value. Counted toward net worth
+// but kept out of the liquid-cash figure.
+export function calculateAlternativeAssets(accounts: Account[], toPrimary: (amount: number, currency: string) => number) {
+  return accounts.reduce((sum, account) => {
+    if (account.deletedAt !== null) return sum;
+    if (account.type !== "alternative") return sum;
+    return sum + toPrimary(account.balance, account.currency);
   }, 0);
 }
 

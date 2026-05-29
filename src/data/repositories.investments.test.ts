@@ -20,6 +20,8 @@ const account: Account = {
   loanStartDate: null,
   annualInterestRate: null,
   loanTerm: null,
+  iconName: null,
+  color: null,
 };
 
 const buyDraft: InvestmentDraft = {

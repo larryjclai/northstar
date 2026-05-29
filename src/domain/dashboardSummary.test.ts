@@ -20,6 +20,8 @@ const baseAccount: Account = {
   loanStartDate: null,
   annualInterestRate: null,
   loanTerm: null,
+  iconName: null,
+  color: null,
 };
 
 function asset(id: string, ticker: string, quantity: number, averageCost: number): PortfolioAsset {
