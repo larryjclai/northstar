@@ -28,7 +28,7 @@ import { DatePicker } from "../components/ui/date-picker";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { useToast } from "../components/Toast";
 import type { LedgerDraft, TransferDraft } from "../data/repositories";
-import { evaluateAmountExpression, formatNumber, nowAsDatetimeLocal, todayInTimezone } from "../domain";
+import { buildMerchantCategoryMap, evaluateAmountExpression, formatNumber, nowAsDatetimeLocal, todayInTimezone } from "../domain";
 import type { LedgerTransaction, RecurringTransaction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 
@@ -138,6 +138,10 @@ export function CashFlowRoute() {
     () => buildMerchantSuggestions(merchantPool, ledgerForm.merchant),
     [merchantPool, ledgerForm.merchant],
   );
+  // Each merchant's most-used (category, subcategory) from expense history, so
+  // picking a merchant can auto-fill its usual category.
+  const merchantCategoryMap = useMemo(() => buildMerchantCategoryMap(ledgerRows), [ledgerRows]);
+  const categoryForMerchant = (merchant: string) => merchantCategoryMap.get(merchant.trim()) ?? null;
 
   const accountName = (id: string) => accountRows.find((account) => account.id === id)?.name ?? id;
   const accountIdFor = (nameOrId: string) =>
@@ -162,6 +166,10 @@ export function CashFlowRoute() {
   const createRecurring = useRepositoryMutation(
     (repository, input: import("../data/repositories").RecurringDraft) => repository.createRecurringTransaction(input),
     ["recurring"],
+  );
+  const postRecurring = useRepositoryMutation(
+    (repository, id: string) => repository.postRecurringTransaction(id),
+    ["recurring", "ledger", "accounts"],
   );
   const createTransfer = useRepositoryMutation(
     (repository, input: TransferDraft) => repository.createTransfer(input),
@@ -750,7 +758,7 @@ export function CashFlowRoute() {
         {/* Side rankings */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <RankingCard title="商家花費排行" rows={topMerchantSpend} emptyText="本月尚無商家資料" />
-          <UpcomingPayments recurringRows={recurringRows} accountName={accountName} />
+          <UpcomingPayments recurringRows={recurringRows} accountName={accountName} onPost={async (id) => { try { await postRecurring.mutateAsync(id); toast.success("已記入交易"); } catch { toast.error("記入失敗"); } }} posting={postRecurring.isPending} />
         </div>
       </div>
       </>
@@ -783,6 +791,7 @@ export function CashFlowRoute() {
         categories={categories}
         subcategories={subcategories}
         merchantSuggestions={merchantSuggestions}
+        categoryForMerchant={categoryForMerchant}
         accountRows={accountRows}
         onSubmitLedger={submitLedger}
         onSubmitTransfer={submitTransfer}
@@ -915,7 +924,7 @@ function RankingCard({ title, rows, emptyText }: { title: string; rows: Array<{ 
   );
 }
 
-function UpcomingPayments({ recurringRows, accountName }: { recurringRows: RecurringTransaction[]; accountName: (id: string) => string }) {
+function UpcomingPayments({ recurringRows, accountName, onPost, posting }: { recurringRows: RecurringTransaction[]; accountName: (id: string) => string; onPost: (id: string) => void; posting: boolean }) {
   const today = new Date().toISOString().slice(0, 10);
   const horizon = (() => {
     const d = new Date();
@@ -937,14 +946,15 @@ function UpcomingPayments({ recurringRows, accountName }: { recurringRows: Recur
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {upcoming.map((row) => (
-            <div key={row.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13 }}>
-              <div style={{ minWidth: 0 }}>
+            <div key={row.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 13 }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.merchant || row.category}</div>
                 <div className="muted" style={{ fontSize: 11 }}>{row.nextRunDate} · {accountName(row.accountId)}</div>
               </div>
               <span className="num" style={{ color: row.entryType === "income" ? "var(--ns-pos)" : "var(--ns-neg)", whiteSpace: "nowrap" }}>
                 {row.entryType === "income" ? "+" : "−"}NT${formatNumber(Math.abs(row.amount))}
               </span>
+              <button className="ns-btn ghost" style={{ fontSize: 11, padding: "3px 8px", minHeight: "auto", whiteSpace: "nowrap" }} disabled={posting} onClick={() => onPost(row.id)} title="立即記入這筆交易">記入</button>
             </div>
           ))}
         </div>
@@ -974,6 +984,7 @@ function EntryDrawer({
   categories,
   subcategories,
   merchantSuggestions,
+  categoryForMerchant,
   accountRows,
   onSubmitLedger,
   onSubmitTransfer,
@@ -999,6 +1010,7 @@ function EntryDrawer({
   categories: Array<{ name: string; children: string[]; color?: string }>;
   subcategories: string[];
   merchantSuggestions: string[];
+  categoryForMerchant: (merchant: string) => { category: string; subcategory: string } | null;
   accountRows: Array<{ id: string; name: string; currency: string }>;
   onSubmitLedger: () => void;
   onSubmitTransfer: () => void;
@@ -1089,7 +1101,8 @@ function EntryDrawer({
                   value={transferForm.sourceAmount}
                   onChange={(e) => {
                     const v = Number(e.target.value.replace(/[^\d.]/g, "")) || 0;
-                    setTransferForm({ ...transferForm, sourceAmount: v, destinationAmount: v });
+                    const sameCcy = transferForm.sourceCurrency === transferForm.destinationCurrency;
+                    setTransferForm({ ...transferForm, sourceAmount: v, destinationAmount: sameCcy ? v : transferForm.destinationAmount });
                   }}
                   placeholder="0"
                   style={{ paddingLeft: 44, fontSize: 22, fontFamily: "var(--ns-font-mono)", height: 52, color: meta.color }}
@@ -1167,7 +1180,9 @@ function EntryDrawer({
                   value={transferForm.destinationAccountId}
                   onChange={(e) => {
                     const account = accountRows.find((a) => a.id === e.target.value);
-                    setTransferForm({ ...transferForm, destinationAccountId: e.target.value, destinationCurrency: account?.currency ?? transferForm.destinationCurrency });
+                    const destCurrency = account?.currency ?? transferForm.destinationCurrency;
+                    const sameCcy = transferForm.sourceCurrency === destCurrency;
+                    setTransferForm({ ...transferForm, destinationAccountId: e.target.value, destinationCurrency: destCurrency, destinationAmount: sameCcy ? transferForm.sourceAmount : transferForm.destinationAmount });
                   }}
                 >
                   <option value="">選擇帳戶</option>
@@ -1175,6 +1190,26 @@ function EntryDrawer({
                 </select>
               </DrawerField>
             </div>
+          )}
+
+          {/* Cross-currency: editable destination amount */}
+          {type === "transfer" && transferForm.sourceCurrency !== transferForm.destinationCurrency && (
+            <DrawerField label={`對方收到金額 · ${transferForm.destinationCurrency}`} required>
+              <input
+                className="ns-input"
+                inputMode="decimal"
+                value={transferForm.destinationAmount ?? ""}
+                onChange={(e) => setTransferForm({ ...transferForm, destinationAmount: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })}
+                placeholder="0"
+                style={{ fontFamily: "var(--ns-font-mono)" }}
+              />
+              <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
+                跨幣轉帳：輸入對方帳戶實際收到的金額
+                {transferForm.sourceAmount > 0 && (transferForm.destinationAmount ?? 0) > 0
+                  ? `（匯率約 1 ${transferForm.sourceCurrency} ≈ ${(transferForm.destinationAmount! / transferForm.sourceAmount).toFixed(4)} ${transferForm.destinationCurrency}）`
+                  : ""}
+              </div>
+            </DrawerField>
           )}
 
           {/* Transfer fee */}
@@ -1200,7 +1235,15 @@ function EntryDrawer({
                   <input className="ns-input" value={ledgerForm.name} onChange={(e) => setLedgerForm({ ...ledgerForm, name: e.target.value })} placeholder={type === "expense" ? "計程車" : "月薪"} />
                 </DrawerField>
                 <DrawerField label="商家 / 來源">
-                  <MerchantAutocomplete value={ledgerForm.merchant} suggestions={merchantSuggestions} onChange={(next) => setLedgerForm({ ...ledgerForm, merchant: next })} placeholder={type === "expense" ? "UBER" : "公司"} />
+                  <MerchantAutocomplete value={ledgerForm.merchant} suggestions={merchantSuggestions} onChange={(next) => {
+                    const patch = { ...ledgerForm, merchant: next };
+                    // Auto-fill the usual category for this merchant, but never override a choice already made.
+                    if (!ledgerForm.category.trim()) {
+                      const suggestion = categoryForMerchant(next);
+                      if (suggestion?.category) { patch.category = suggestion.category; patch.subcategory = suggestion.subcategory; }
+                    }
+                    setLedgerForm(patch);
+                  }} placeholder={type === "expense" ? "UBER" : "公司"} />
                 </DrawerField>
               </div>
 
@@ -1435,4 +1478,5 @@ function buildMerchantSuggestions(merchants: string[], query: string) {
     .filter((merchant) => merchant.toLowerCase().includes(normalizedQuery))
     .slice(0, 12);
 }
+
 

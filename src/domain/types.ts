@@ -67,6 +67,10 @@ export interface Account extends SyncFields {
   type: AccountType;
   creditLimit: number | null;
   creditLimitGroup: string;
+  /** Credit cards: statement closing day of month (1-31). Null for non-credit. */
+  statementDay: number | null;
+  /** Credit cards: payment due day of month (1-31). Null for non-credit. */
+  paymentDueDay: number | null;
   isSharedToHousehold: boolean;
   loanStartDate: string | null;
   annualInterestRate: number | null;

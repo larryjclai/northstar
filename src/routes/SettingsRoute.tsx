@@ -639,6 +639,8 @@ function SettingsGeneral({ form, t }: any) {
   const setNameLocale = useUiPreferences((state) => state.setNameLocale);
   const timezone = useUiPreferences((state) => state.timezone);
   const setTimezone = useUiPreferences((state) => state.setTimezone);
+  const assetLogosEnabled = useUiPreferences((state) => state.assetLogosEnabled);
+  const setAssetLogosEnabled = useUiPreferences((state) => state.setAssetLogosEnabled);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -711,6 +713,19 @@ function SettingsGeneral({ form, t }: any) {
         <select value={timezone} onChange={e=>setTimezone(e.target.value)} className="ns-input w-full">
           {COMMON_TIMEZONES.map(tz => <option key={tz.id} value={tz.id}>{tz.label}</option>)}
         </select>
+
+        <h3 className="font-semibold mb-4 mt-6">投資標的 LOGO</h3>
+        <button
+          onClick={() => setAssetLogosEnabled(!assetLogosEnabled)}
+          className="flex w-full items-center gap-3 rounded-md border p-3 text-left transition"
+          style={{ borderColor: assetLogosEnabled ? "var(--ns-accent)" : "var(--ns-border)", background: assetLogosEnabled ? "var(--ns-accent-soft)" : "transparent" }}
+        >
+          <Globe size={18} />
+          <div>
+            <div className="font-medium">投資標的品牌 LOGO - {assetLogosEnabled ? "已開啟" : "已關閉"}</div>
+            <div className="text-xs muted">開啟後會向第三方服務 (assets.parqet.com) 請求各標的的 LOGO 圖示。<strong style={{ color: "var(--ns-fg)" }}>隱私風險：你持有的股票代號會傳送到該第三方</strong>。關閉時一律顯示本地產生的字母標記，不會發出任何請求。</div>
+          </div>
+        </button>
       </div>
 
       <div className="ns-card p-5">
@@ -725,6 +740,50 @@ function SettingsGeneral({ form, t }: any) {
             e.target.value = '';
           }} />
         </div>
+      </div>
+
+      <UpdateChecker />
+    </div>
+  );
+}
+
+// Built-in "check for updates" via the Tauri updater plugin. The plugin module
+// is dynamically imported so the web/dev build (no Tauri runtime) stays happy;
+// outside a desktop build the button reports that updates aren't available.
+function UpdateChecker() {
+  const isDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function checkForUpdates() {
+    setBusy(true);
+    setMessage("正在檢查更新…");
+    try {
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const update = await check();
+      if (!update) { setMessage("已是最新版本。"); return; }
+      setMessage(`發現新版本 v${update.version}，下載並安裝中…`);
+      await update.downloadAndInstall();
+      const { relaunch } = await import("@tauri-apps/plugin-process");
+      setMessage("更新完成，正在重新啟動…");
+      await relaunch();
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      setMessage(isDesktop ? `目前無法檢查更新（${detail}）。請確認已設定更新來源。` : "檢查更新僅在桌面版可用。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="ns-card p-5">
+      <h3 className="font-semibold mb-2">應用程式更新</h3>
+      <p className="text-sm muted mb-4">檢查並安裝 Northstar 的最新桌面版本。所有更新都經過簽章驗證。</p>
+      <div className="flex items-center gap-3 flex-wrap">
+        <button className="ns-btn primary" onClick={checkForUpdates} disabled={busy}>
+          <ArrowsClockwise size={14} />{busy ? "檢查中…" : "檢查更新"}
+        </button>
+        {message ? <span className="text-sm muted">{message}</span> : null}
       </div>
     </div>
   );

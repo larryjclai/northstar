@@ -302,3 +302,30 @@ const screens = {
 - [ ] Category Detail：互連回 Merchant 的 `onNavigate` 目前為 hardcoded `'merchant'`，正式需傳入 merchantId
 - [ ] FIFO lot breakdown 目前為 hardcoded mock，需接真實 lot 資料
 - [ ] 帳戶頁：點擊個別帳戶 row → 帳戶詳情頁（尚未設計）
+
+---
+
+## 11. 自動更新（Tauri Updater）發佈設定
+
+「設定 → 一般 → 應用程式更新」的「檢查更新」按鈕已接上 `@tauri-apps/plugin-updater`。
+程式碼（plugin 註冊、capability、UI）皆已就緒，但**要實際發佈更新還需要下列一次性設定**：
+
+1. 產生簽章金鑰：`npm run tauri signer generate -- -w ~/.tauri/northstar.key`
+   （私鑰請妥善保存，**切勿** commit 進 repo）
+2. 在 `src-tauri/tauri.conf.json` 補上 updater 設定：
+   ```json
+   "plugins": {
+     "updater": {
+       "pubkey": "<上一步產生的公鑰>",
+       "endpoints": ["https://github.com/larryjclai/northstar/releases/latest/download/latest.json"]
+     }
+   },
+   "bundle": { "createUpdaterArtifacts": true }
+   ```
+   （目前刻意未填，避免空 pubkey 造成啟動問題。）
+3. CI / 本機打包時設定環境變數：
+   `TAURI_SIGNING_PRIVATE_KEY`（私鑰內容）、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（若有）。
+4. 每次發佈：`npm run tauri build`，將產生的 `latest.json` 與簽章檔上傳到對應的 release。
+
+完成後「檢查更新」即會抓取 latest.json、下載、驗章、安裝並重啟。
+在未設定前，按鈕會優雅顯示「目前無法檢查更新…」；在瀏覽器（非桌面）則顯示「僅在桌面版可用」。

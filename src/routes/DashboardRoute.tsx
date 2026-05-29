@@ -9,6 +9,7 @@ import {
   calculateAvailableCash,
   calculateAlternativeAssets,
   calculateLiabilities,
+  buildCreditCardReminders,
   createFxConverter,
   formatMoney,
   formatNumber,
@@ -155,6 +156,12 @@ export function DashboardRoute() {
       .slice(0, 5);
   }, [recurringRows, timezone]);
   const upcomingTotal = upcoming.reduce((sum, r) => sum + toPrimary(Math.abs(r.amount), r.currency, r.nextRunDate), 0);
+
+  // Credit-card payments coming due (within ~45 days), soonest first.
+  const creditReminders = useMemo(
+    () => buildCreditCardReminders(filteredAccounts, todayInTimezone(timezone), (amount, currency) => toPrimary(amount, currency)).filter((r) => r.daysUntilDue <= 45),
+    [filteredAccounts, timezone],
+  );
 
   // FX rates (latest per pair) for the Market card.
   const fxRates = useMemo(() => {
@@ -345,6 +352,34 @@ export function DashboardRoute() {
           )}
         </div>
       </div>
+
+      {/* Credit-card payment reminders */}
+      {creditReminders.length > 0 ? (
+        <div className="ns-card" style={{ padding: 0, marginBottom: 16 }}>
+          <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Credit cards</div>
+              <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>信用卡繳款提醒</h3>
+            </div>
+            <span className="ns-pill solid-neg" style={{ fontSize: 11 }}>NT${formatNumber(creditReminders.reduce((s, r) => s + r.outstanding, 0))}</span>
+          </div>
+          {creditReminders.map((r, i) => {
+            const soon = r.daysUntilDue <= 7;
+            return (
+              <Link key={r.accountId} to="/cash-flow/reconcile/$accountId" params={{ accountId: r.accountId }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none", textDecoration: "none", color: "inherit" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name}</div>
+                  <div className="muted" style={{ fontSize: 11.5 }}>繳款日 {r.dueDate.slice(5)} · {r.daysUntilDue === 0 ? "今天到期" : `還有 ${r.daysUntilDue} 天`}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div className="num" style={{ fontSize: 13.5, color: "var(--ns-neg)" }}>−NT${formatNumber(r.outstanding)}</div>
+                  <div className="mono" style={{ fontSize: 11, color: soon ? "var(--ns-neg)" : "var(--ns-fg-dim)" }}>{soon ? "即將到期" : "對帳 →"}</div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
 
       {/* Row 3 · Allocation + Goals + Market */}
       <div style={{ display: "grid", gridTemplateColumns: "1.15fr 1fr 0.82fr", gap: 16, marginBottom: 16 }}>

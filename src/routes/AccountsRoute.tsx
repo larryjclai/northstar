@@ -1,5 +1,6 @@
-import { DownloadSimple, PencilSimple, Plus, Scales, Trash, X } from "@phosphor-icons/react";
+import { DownloadSimple, ListChecks, PencilSimple, Plus, Scales, Trash, X } from "@phosphor-icons/react";
 import { ReactNode, useMemo, useState, useEffect } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import EmojiPicker from "emoji-picker-react";
 import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
 import { downloadCsv, exportAccountsCsv } from "../data/csv";
@@ -8,7 +9,7 @@ import type { Account, AccountType, AppSettings } from "../domain";
 import { convertCurrency, formatNumber, nowAsDatetimeLocal } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 
-type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color">;
+type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color">;
 
 const emptyAccount: AccountFormState = {
   name: "",
@@ -17,6 +18,8 @@ const emptyAccount: AccountFormState = {
   type: "depository",
   creditLimit: null,
   creditLimitGroup: "",
+  statementDay: null,
+  paymentDueDay: null,
   isSharedToHousehold: false,
   loanStartDate: null,
   annualInterestRate: null,
@@ -60,6 +63,7 @@ const MARK_COLORS = ["var(--ns-chart-1)", "var(--ns-chart-2)", "var(--ns-chart-3
 
 export function AccountsRoute() {
   const { accounts, settings } = useFinanceData();
+  const navigate = useNavigate();
   const timezone = useUiPreferences((state) => state.timezone);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -130,6 +134,7 @@ export function AccountsRoute() {
       creditLimit: account.creditLimit, creditLimitGroup: account.creditLimitGroup, isSharedToHousehold: account.isSharedToHousehold,
       loanStartDate: account.loanStartDate, annualInterestRate: account.annualInterestRate, loanTerm: account.loanTerm,
       iconName: account.iconName ?? null, color: account.color ?? null,
+      statementDay: account.statementDay ?? null, paymentDueDay: account.paymentDueDay ?? null,
     });
     setMessage("");
     setDrawerOpen(true);
@@ -252,6 +257,9 @@ export function AccountsRoute() {
                       {a.currency !== primaryCurrency ? <div className="muted mono" style={{ fontSize: 11.5 }}>{formatNumber(a.balance)} {a.currency}</div> : null}
                     </div>
                     <div className="ns-acct-actions" style={{ display: "flex", gap: 4 }}>
+                      {a.type === "credit" ? (
+                        <button className="ns-btn ghost icon" title="對帳" onClick={() => navigate({ to: "/cash-flow/reconcile/$accountId", params: { accountId: a.id } })}><ListChecks size={14} /></button>
+                      ) : null}
                       <button className="ns-btn ghost icon" title="編輯" onClick={() => startEdit(a)}><PencilSimple size={14} /></button>
                       <button className="ns-btn ghost icon" title="調整餘額" onClick={() => openAdjust(a)}><Scales size={14} /></button>
                       <button className="ns-btn ghost icon" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={async () => { try { await deleteAccount.mutateAsync(a.id); } catch (e) { setMessage(e instanceof Error ? e.message : "刪除失敗。"); } }}><Trash size={14} /></button>
@@ -487,14 +495,24 @@ function AccountDrawer({
                 </DrawerField>
 
                 {form.type === "credit" ? (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <DrawerField label="信用額度">
-                      <input className="ns-input" type="number" value={form.creditLimit ?? ""} onChange={(e) => setForm({ ...form, creditLimit: e.target.value ? Number(e.target.value) : null })} placeholder="120000" />
-                    </DrawerField>
-                    <DrawerField label="共用額度群組">
-                      <input className="ns-input" value={form.creditLimitGroup} onChange={(e) => setForm({ ...form, creditLimitGroup: e.target.value })} placeholder="玉山信用卡" />
-                    </DrawerField>
-                  </div>
+                  <>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      <DrawerField label="信用額度">
+                        <input className="ns-input" type="number" value={form.creditLimit ?? ""} onChange={(e) => setForm({ ...form, creditLimit: e.target.value ? Number(e.target.value) : null })} placeholder="120000" />
+                      </DrawerField>
+                      <DrawerField label="共用額度群組">
+                        <input className="ns-input" value={form.creditLimitGroup} onChange={(e) => setForm({ ...form, creditLimitGroup: e.target.value })} placeholder="玉山信用卡" />
+                      </DrawerField>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      <DrawerField label="結帳日（每月）">
+                        <input className="ns-input" type="number" min={1} max={31} value={form.statementDay ?? ""} onChange={(e) => setForm({ ...form, statementDay: e.target.value ? Math.min(31, Math.max(1, Number(e.target.value))) : null })} placeholder="例：5" />
+                      </DrawerField>
+                      <DrawerField label="繳款日（每月）">
+                        <input className="ns-input" type="number" min={1} max={31} value={form.paymentDueDay ?? ""} onChange={(e) => setForm({ ...form, paymentDueDay: e.target.value ? Math.min(31, Math.max(1, Number(e.target.value))) : null })} placeholder="例：22" />
+                      </DrawerField>
+                    </div>
+                  </>
                 ) : null}
 
                 {form.type === "loan" ? (

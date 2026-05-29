@@ -13,12 +13,15 @@ export interface UiPreferences {
   clockMode: ClockMode;
   timezone: string;
   theme: ThemeMode;
+  /** Opt-in: fetch brand logos for tickers from a third-party CDN. Off by default. */
+  assetLogosEnabled: boolean;
   setPrivacyMode: (value: boolean) => void;
   togglePrivacyMode: () => void;
   setNameLocale: (value: NameLocalePreference) => void;
   setClockMode: (value: ClockMode) => void;
   setTimezone: (value: string) => void;
   setTheme: (value: ThemeMode) => void;
+  setAssetLogosEnabled: (value: boolean) => void;
 }
 
 const STORAGE_KEY = "northstar.uiPreferences.v1";
@@ -29,6 +32,7 @@ interface PersistedShape {
   clockMode: ClockMode;
   timezone: string;
   theme: ThemeMode;
+  assetLogosEnabled: boolean;
 }
 
 export type ClockMode = "24h" | "12h";
@@ -40,6 +44,7 @@ function loadPersisted(): PersistedShape {
     clockMode: "24h",
     timezone: resolveSystemTimezone(),
     theme: "system",
+    assetLogosEnabled: false,
   };
   if (typeof window === "undefined") return fallback;
   try {
@@ -60,6 +65,7 @@ function loadPersisted(): PersistedShape {
       clockMode: parsed.clockMode === "12h" ? "12h" : "24h",
       timezone: tz,
       theme,
+      assetLogosEnabled: typeof parsed.assetLogosEnabled === "boolean" ? parsed.assetLogosEnabled : false,
     };
   } catch {
     return fallback;
@@ -97,6 +103,7 @@ function snapshot(state: UiPreferences): PersistedShape {
     clockMode: state.clockMode,
     timezone: state.timezone,
     theme: state.theme,
+    assetLogosEnabled: state.assetLogosEnabled,
   };
 }
 
@@ -106,6 +113,7 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   clockMode: initial.clockMode,
   timezone: initial.timezone,
   theme: initial.theme,
+  assetLogosEnabled: initial.assetLogosEnabled,
   setPrivacyMode(value) {
     setPrivacyMaskOn(value);
     set({ privacyMode: value });
@@ -135,6 +143,10 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   setTheme(value) {
     applyThemeAttribute(value);
     set({ theme: value });
+    persist(snapshot(get()));
+  },
+  setAssetLogosEnabled(value) {
+    set({ assetLogosEnabled: value });
     persist(snapshot(get()));
   },
 }));

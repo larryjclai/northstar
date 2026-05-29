@@ -22,6 +22,8 @@ const baseAccount: Account = {
   loanTerm: null,
   iconName: null,
   color: null,
+  statementDay: null,
+  paymentDueDay: null,
 };
 
 function asset(id: string, ticker: string, quantity: number, averageCost: number): PortfolioAsset {
