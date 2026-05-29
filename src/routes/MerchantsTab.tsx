@@ -30,6 +30,7 @@ export function MerchantsTab({ filterMonth, ledgerRows }: { filterMonth: string;
     
   const maxSpendMerchant = allMerchantSpend[0];
   const maxVisitsMerchant = [...allMerchantSpend].sort((a, b) => b.visits - a.visits)[0];
+  const totalSpend = allMerchantSpend.reduce((sum, m) => sum + m.amount, 0);
 
   const getInitials = (name: string) => {
     return name.slice(0, 2).toUpperCase();
@@ -54,21 +55,20 @@ export function MerchantsTab({ filterMonth, ledgerRows }: { filterMonth: string;
           </div>
         </div>
         <div className="ns-card" style={{ padding: "20px 24px" }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>Auto-Rules Active</div>
+          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>Total Spending YTD</div>
           <div style={{ fontSize: 18, fontWeight: 500 }}>
-            0 / {allMerchantSpend.length} merchants
+            NT${formatNumber(totalSpend)} · {allMerchantSpend.length} merchants
           </div>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="ns-card" style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 80px 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", fontSize: 12, fontWeight: 500, color: "var(--ns-fg-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", fontSize: 12, fontWeight: 500, color: "var(--ns-fg-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
           <div>Merchant</div>
           <div>Category</div>
           <div>Visits YTD</div>
           <div>Spending YTD</div>
-          <div>Auto-Rule</div>
           <div></div>
         </div>
         
@@ -85,8 +85,8 @@ export function MerchantsTab({ filterMonth, ledgerRows }: { filterMonth: string;
                   key={r.name} 
                   style={{ display: "block", textDecoration: "none", color: "inherit" }}
                 >
-                  <div 
-                    style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 80px 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", alignItems: "center", fontSize: 14, cursor: "pointer", transition: "background 0.15s" }}
+                  <div
+                    style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", alignItems: "center", fontSize: 14, cursor: "pointer", transition: "background 0.15s" }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = "var(--ns-bg-hover)")}
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
@@ -102,9 +102,6 @@ export function MerchantsTab({ filterMonth, ledgerRows }: { filterMonth: string;
                     <div>{r.category}</div>
                     <div>{r.visits} 次</div>
                     <div className="num">−NT${formatNumber(r.amount)}</div>
-                    <div>
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--ns-bg-hover)" }} />
-                    </div>
                     <div style={{ display: "flex", justifyContent: "flex-end" }}>
                       <CaretRight size={16} className="muted" />
                     </div>

@@ -2938,6 +2938,7 @@ function investmentLedgerFields(input: InvestmentDraft, investmentRecordId: stri
 
 function createRecurringRow(input: RecurringDraft): RecurringTransaction {
   const timestamp = nowIso();
+  const frequency = input.frequency ?? "monthly";
   return {
     id: createId("recurring"),
     spaceId: personalSpace,
@@ -2946,8 +2947,23 @@ function createRecurringRow(input: RecurringDraft): RecurringTransaction {
     updatedAt: timestamp,
     deletedAt: null,
     ...input,
-    frequency: input.frequency ?? "monthly",
+    frequency,
+    nextRunDate: firstFutureRunDate(input.nextRunDate, frequency, input.dayOfMonth),
   };
+}
+
+// A recurring rule created from an existing (often past-dated) transaction must
+// fire on its *next* occurrence, not the original date — otherwise upcoming-bill
+// widgets that filter `nextRunDate >= today` never surface it.
+function firstFutureRunDate(value: string, frequency: import("../domain").RecurringFrequency, dayOfMonth: number): string {
+  const today = new Date().toISOString().slice(0, 10);
+  let next = value.slice(0, 10);
+  let guard = 0;
+  while (next < today && guard < 600) {
+    next = nextRecurringDate(next, frequency, dayOfMonth);
+    guard += 1;
+  }
+  return next;
 }
 
 function nextMonthlyDate(value: string, dayOfMonth: number) {

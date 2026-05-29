@@ -110,6 +110,34 @@ function SettingsCategories({ form, setForm, submit, t }: any) {
   const [adding, setAdding] = useState(false);
   const [newCat, setNewCat] = useState({ name: '', icon: '📦', color: '#9fe870', budget: '' });
   const [expandId, setExpandId] = useState<string | null>(null);
+  // Inline subcategory editing (prompt() is unsupported in the Tauri webview).
+  const [editingSub, setEditingSub] = useState<{ cat: string; sub: string } | null>(null);
+  const [editSubValue, setEditSubValue] = useState('');
+  const [addingSubFor, setAddingSubFor] = useState<string | null>(null);
+  const [newSubValue, setNewSubValue] = useState('');
+
+  function renameSubcategory(catName: string, oldSub: string, rawNext: string) {
+    const next = rawNext.trim();
+    setEditingSub(null);
+    if (!next || next === oldSub) return;
+    const target = form.categories.find((cat: any) => cat.name === catName);
+    if (target?.children?.includes(next)) { toast.error("子分類已存在"); return; }
+    const nextForm = { ...form, categories: form.categories.map((cat: any) => cat.name === catName ? { ...cat, children: cat.children.map((child: string) => child === oldSub ? next : child) } : cat) };
+    submit(nextForm);
+    toast.success("已更新子分類");
+  }
+
+  function addSubcategory(catName: string, rawName: string) {
+    const name = rawName.trim();
+    setAddingSubFor(null);
+    setNewSubValue('');
+    if (!name) return;
+    const target = form.categories.find((cat: any) => cat.name === catName);
+    if (target?.children?.includes(name)) { toast.error("子分類已存在"); return; }
+    const nextForm = { ...form, categories: form.categories.map((cat: any) => cat.name === catName ? { ...cat, children: [...(cat.children || []), name] } : cat) };
+    submit(nextForm);
+    toast.success("已新增子分類");
+  }
   
   const colorPicker = ['#f0c050','#6fb3ff','#a99cff','#6ee49a','#ff7d6b','#34c5b0','#f0a050','#9fe870','#d97a9c','#868685'];
 
@@ -273,32 +301,58 @@ function SettingsCategories({ form, setForm, submit, t }: any) {
 
               {expandId === c.name && (
                 <div style={{ background:'var(--ns-bg)', borderTop:'1px solid var(--ns-border)' }}>
-                  {c.children?.map((s: string, si: number) => (
-                    <div key={s} style={{ padding:'9px 20px 9px 66px', display:'flex', alignItems:'center', gap:10,
-                      borderTop: si?'1px solid var(--ns-border)':'none', fontSize:13 }}>
-                      <span className="dim">↳</span>
-                      <span style={{ flex:1 }}>{s}</span>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button className="ns-btn ghost icon" style={{padding:'3px 6px'}} onClick={() => {
-                          const newName = prompt("重新命名子分類：", s);
-                          if (!newName || newName === s) return;
-                          const nextForm = { ...form, categories: form.categories.map((cat: any) => cat.name === c.name ? { ...cat, children: cat.children.map((child: string) => child === s ? newName : child) } : cat) };
-                          submit(nextForm);
-                        }}><PencilSimple size={12}/></button>
-                        <button className="ns-btn ghost icon" style={{color:'var(--ns-neg)', padding:'3px 6px'}} onClick={() => {
-                          const nextForm = { ...form, categories: form.categories.map((cat: any) => cat.name === c.name ? { ...cat, children: cat.children.filter((x: string) => x !== s) } : cat) };
-                          submit(nextForm);
-                        }}><Trash size={12}/></button>
+                  {c.children?.map((s: string, si: number) => {
+                    const isEditingSub = editingSub?.cat === c.name && editingSub?.sub === s;
+                    return (
+                      <div key={s} style={{ padding:'9px 20px 9px 66px', display:'flex', alignItems:'center', gap:10,
+                        borderTop: si?'1px solid var(--ns-border)':'none', fontSize:13 }}>
+                        <span className="dim">↳</span>
+                        {isEditingSub ? (
+                          <input
+                            autoFocus
+                            className="ns-input"
+                            style={{ flex:1, padding:'4px 8px', fontSize:13 }}
+                            value={editSubValue}
+                            onChange={e => setEditSubValue(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') renameSubcategory(c.name, s, editSubValue);
+                              if (e.key === 'Escape') setEditingSub(null);
+                            }}
+                            onBlur={() => renameSubcategory(c.name, s, editSubValue)}
+                          />
+                        ) : (
+                          <span style={{ flex:1 }}>{s}</span>
+                        )}
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          {!isEditingSub && (
+                            <button className="ns-btn ghost icon" style={{padding:'3px 6px'}} onClick={() => { setEditingSub({ cat: c.name, sub: s }); setEditSubValue(s); }}><PencilSimple size={12}/></button>
+                          )}
+                          <button className="ns-btn ghost icon" style={{color:'var(--ns-neg)', padding:'3px 6px'}} onClick={() => {
+                            const nextForm = { ...form, categories: form.categories.map((cat: any) => cat.name === c.name ? { ...cat, children: cat.children.filter((x: string) => x !== s) } : cat) };
+                            submit(nextForm);
+                          }}><Trash size={12}/></button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <div style={{ padding:'9px 20px 9px 66px', borderTop: c.children?.length ? '1px solid var(--ns-border)' : 'none' }}>
-                    <button className="ns-btn ghost" style={{ fontSize: 12, padding: "4px 8px", minHeight: "auto" }} onClick={() => {
-                      const newName = prompt(`新增「${c.name}」的子分類：`);
-                      if (!newName || c.children?.includes(newName)) return;
-                      const nextForm = { ...form, categories: form.categories.map((cat: any) => cat.name === c.name ? { ...cat, children: [...(cat.children || []), newName] } : cat) };
-                      submit(nextForm);
-                    }}><Plus size={12} style={{ marginRight: 4 }} />新增子分類</button>
+                    {addingSubFor === c.name ? (
+                      <input
+                        autoFocus
+                        className="ns-input"
+                        style={{ width:'60%', padding:'4px 8px', fontSize:13 }}
+                        placeholder="子分類名稱…"
+                        value={newSubValue}
+                        onChange={e => setNewSubValue(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') addSubcategory(c.name, newSubValue);
+                          if (e.key === 'Escape') { setAddingSubFor(null); setNewSubValue(''); }
+                        }}
+                        onBlur={() => addSubcategory(c.name, newSubValue)}
+                      />
+                    ) : (
+                      <button className="ns-btn ghost" style={{ fontSize: 12, padding: "4px 8px", minHeight: "auto" }} onClick={() => { setAddingSubFor(c.name); setNewSubValue(''); }}><Plus size={12} style={{ marginRight: 4 }} />新增子分類</button>
+                    )}
                   </div>
                 </div>
               )}
@@ -371,13 +425,18 @@ function SettingsMerchants({ form, setForm, submit, t }: any) {
   const [search, setSearch] = useState('');
   const [editingMerchant, setEditingMerchant] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
-  
+  const [adding, setAdding] = useState(false);
+  const [newMerchant, setNewMerchant] = useState('');
+
   const filtered = form.merchants.filter((m: string) => m.toLowerCase().includes(search.toLowerCase()));
 
   function addMerchant() {
-    const next = window.prompt("輸入新商家名稱：");
-    if (!next || !next.trim()) return;
-    const nextForm = { ...form, merchants: [...new Set([...form.merchants, next.trim()])] };
+    const next = newMerchant.trim();
+    setAdding(false);
+    setNewMerchant('');
+    if (!next) return;
+    if (form.merchants.includes(next)) { toast.error("商家已存在"); return; }
+    const nextForm = { ...form, merchants: [...new Set([...form.merchants, next])] };
     submit(nextForm);
     toast.success("已新增商家");
   }
@@ -412,7 +471,7 @@ function SettingsMerchants({ form, setForm, submit, t }: any) {
           </p>
         </div>
         <div>
-          <button className="ns-btn primary" onClick={addMerchant}><Plus size={14}/>{t('settings.addMerchant')}</button>
+          <button className="ns-btn primary" onClick={() => { setAdding(true); setNewMerchant(''); }}><Plus size={14}/>{t('settings.addMerchant')}</button>
         </div>
       </div>
 
@@ -427,6 +486,26 @@ function SettingsMerchants({ form, setForm, submit, t }: any) {
           letterSpacing:0.07, textTransform:'uppercase' }}>
           <span>{t('settings.merchantName')}</span><span/>
         </div>
+        {adding && (
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 80px', alignItems:'center', padding:'13px 20px', borderTop:'1px solid var(--ns-border)', background:'var(--ns-bg-hover)' }}>
+            <input
+              autoFocus
+              className="ns-input"
+              style={{ padding:'4px 8px', fontSize:14 }}
+              placeholder="輸入新商家名稱…"
+              value={newMerchant}
+              onChange={e => setNewMerchant(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') addMerchant();
+                if (e.key === 'Escape') { setAdding(false); setNewMerchant(''); }
+              }}
+              onBlur={addMerchant}
+            />
+            <div style={{display:'flex',justifyContent:'flex-end'}}>
+              <button className="ns-btn ghost icon" onClick={addMerchant}><CheckCircle size={16}/></button>
+            </div>
+          </div>
+        )}
         {filtered.map((m: string, i: number) => (
           <div key={m} style={{
             display:'grid', gridTemplateColumns:'1fr 80px',
