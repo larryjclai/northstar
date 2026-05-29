@@ -103,7 +103,7 @@ function NSDesktopCashFlowDetail({ onNavigate } = {}) {
               </button>
             </div>
 
-            {/* ── 商家（可編輯）── */}
+            {/* ── 商家（可編輯 + 可進入商家頁）── */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 14,
               padding: '12px 14px', borderRadius: 'var(--ns-r-md)',
@@ -124,7 +124,18 @@ function NSDesktopCashFlowDetail({ onNavigate } = {}) {
                     style={{ marginTop: 2, padding: '2px 6px', fontSize: 14, height: 28, borderRadius: 'var(--ns-r-sm)' }}
                   />
                 ) : (
-                  <div style={{ fontSize: 14, marginTop: 2 }}>{merchant || <span className="muted">未指定商家</span>}</div>
+                  <div style={{ fontSize: 14, marginTop: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>{merchant || <span className="muted">未指定商家</span>}</span>
+                    {merchant && (
+                      <button
+                        className="ns-btn ghost"
+                        onClick={() => onNavigate && onNavigate('merchant')}
+                        style={{ fontSize: 11.5, padding: '2px 8px', opacity: 0.75, display: 'flex', alignItems: 'center', gap: 4 }}
+                      >
+                        View <NSIcon name="chevRight" size={11}/>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
               <button

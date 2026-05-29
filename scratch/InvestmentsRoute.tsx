@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowsClockwise, ArrowsDownUp, ArrowUp, Bank, ChartLineUp, ListChecks, PencilSimple, PlusCircle, X } from "@phosphor-icons/react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ActionButton } from "../components/ActionButton";
@@ -35,8 +35,17 @@ import { useUiPreferences, type NameLocalePreference } from "../state/uiPreferen
 import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
 import { TransactionsRoute } from "./TransactionsRoute";
 
+type InvestmentTab = "accounts" | "performance" | "holdings" | "transactions";
+
+const tabOptions: { value: InvestmentTab; label: string; icon: React.ReactNode }[] = [
+  { value: "accounts", label: "帳戶", icon: <Bank size={16} weight="duotone" /> },
+  { value: "performance", label: "績效", icon: <ChartLineUp size={16} weight="duotone" /> },
+  { value: "holdings", label: "持倉", icon: <ListChecks size={16} weight="duotone" /> },
+  { value: "transactions", label: "交易記錄", icon: <ArrowsDownUp size={16} weight="duotone" /> },
+];
+
 export function InvestmentsRoute() {
-  const [tab, setTab] = useState<"portfolio" | "transactions">("portfolio");
+  const [tab, setTab] = useState<InvestmentTab>("holdings");
 
   const { accounts, assets, investments, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
@@ -155,79 +164,79 @@ export function InvestmentsRoute() {
     }
   }
 
-  const totalValue = positions.reduce((sum, position) => sum + toPrimary(position.marketValue, position.currency), 0);
-  const totalCost = positions.reduce((sum, position) => sum + toPrimary(position.costBasis, position.currency), 0);
-  const totalPnL = totalValue - totalCost;
-  const returnPct = totalCost === 0 ? 0 : (totalPnL / totalCost) * 100;
+  function changeTab(next: InvestmentTab) {
+    setTab(next);
+  }
 
   return (
-    <div style={{ padding: '24px 32px 120px', maxWidth: 1180, margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 0 }}>
-        <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Portfolio</div>
-          <h1 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>Holdings</h1>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="ns-btn" onClick={refreshLatestQuotes} disabled={refreshQuotes.isPending}>
-            <ArrowsClockwise size={14} />{refreshQuotes.isPending ? "更新中" : "更新報價"}
-          </button>
-          <button className="ns-btn primary" onClick={() => setAddOpen(true)}>
-            <PlusCircle size={14} weight="bold" />Buy / Sell
-          </button>
+    <div className="mx-auto max-w-6xl p-5 lg:p-8">
+      <PageHeader
+        title="投資"
+        description="把帳戶、績效、持倉合而為一。每筆持倉都綁定券商，方便看出每家券商的損益。"
+        action={
+          <ActionButton onClick={() => setAddOpen(true)} size="sm">
+            <PlusCircle size={16} />新增部位
+          </ActionButton>
+        }
+      />
+
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <SegmentedControl value={tab} options={tabOptions} onChange={changeTab} />
+        <div className="flex flex-wrap gap-2">
+          <ActionButton variant="secondary" onClick={refreshLatestQuotes} disabled={refreshQuotes.isPending}>
+            <ArrowsClockwise size={16} />{refreshQuotes.isPending ? "更新中" : "更新報價"}
+          </ActionButton>
+          {tab === "holdings" ? (
+            <ActionButton variant="secondary" onClick={backfillClassifications} disabled={backfillAssetProfiles.isPending}>
+              <ArrowsClockwise size={16} />{backfillAssetProfiles.isPending ? "回補中" : "回補分類"}
+            </ActionButton>
+          ) : null}
+          {tab === "performance" ? (
+            <>
+              <ActionButton variant="secondary" onClick={() => backfillHistoricalPrices("1y")} disabled={refreshDailyPrices.isPending}>
+                <ArrowsClockwise size={16} />{refreshDailyPrices.isPending ? "回補中" : "回補 1Y 股價"}
+              </ActionButton>
+              <ActionButton variant="secondary" onClick={() => backfillHistoricalPrices("5y")} disabled={refreshDailyPrices.isPending}>
+                <ArrowsClockwise size={16} />回補 5Y 股價
+              </ActionButton>
+            </>
+          ) : null}
         </div>
       </div>
 
-      {statusMessage ? <div className="mt-4"><StatusText>{statusMessage}</StatusText></div> : null}
+      {statusMessage ? <div className="mb-4"><StatusText>{statusMessage}</StatusText></div> : null}
 
-      {/* Page-level tabs: Portfolio | Transactions */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--ns-border)', marginTop: 20, marginBottom: 22 }}>
-        {[
-          { id: 'portfolio', label: 'Portfolio', active: tab === 'portfolio' },
-          { id: 'transactions', label: 'Transactions', active: tab === 'transactions' },
-        ].map(t => (
-          <button key={t.id} onClick={() => setTab(t.id as any)} style={{
-            padding: '10px 20px', background: 'none', border: 'none', cursor: 'pointer',
-            fontFamily: 'inherit', fontSize: 14, fontWeight: t.active ? 600 : 400,
-            color: t.active ? 'var(--ns-fg)' : 'var(--ns-fg-muted)',
-            borderBottom: t.active ? '2px solid var(--ns-accent)' : '2px solid transparent',
-            marginBottom: -1, transition: 'color 0.12s',
-          }}>{t.label}</button>
-        ))}
-      </div>
-
-      {tab === "portfolio" ? (
-        <>
-          {/* Top KPIs */}
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-5">
-            {[
-              ['Market value', `NT$${formatNumber(totalValue)}`, '', true],
-              ['Cost basis', `NT$${formatNumber(totalCost)}`, '', true],
-              ['Unrealized P/L', `NT$${formatNumber(Math.abs(totalPnL))}`, totalPnL >= 0 ? `+${returnPct.toFixed(2)}%` : `${returnPct.toFixed(2)}%`, totalPnL >= 0],
-              ['Realized YTD', '-', '', true],
-              ['Dividends YTD', '-', '', true],
-            ].map(([label, val, pct, pos], i) => (
-              <div key={i} className="ns-card p-4 sm:p-5 flex flex-col min-w-0">
-                <div className="ns-eyebrow" style={{ marginBottom: 8, flexShrink: 0 }}>{label}</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                  <div className="num truncate" style={{ fontSize: "clamp(18px, 2.5vw, 22px)", fontWeight: 500, minWidth: 0, flex: 1 }} title={String(val)}>{val}</div>
-                  {pct && <div className="num" style={{ fontSize: 13, color: pos ? 'var(--ns-pos)' : 'var(--ns-neg)', flexShrink: 0 }}>{pct}</div>}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <HoldingsTab
-            positions={positions}
-            accountMap={accountMap}
-            accounts={investmentAccounts}
-            nameLocale={nameLocale}
-            assetsById={new Map(assetRows.map((asset) => [asset.id, asset]))}
-            manualPriceSnapshots={manualSnapshotRows}
-          />
-        </>
+      {tab === "accounts" ? (
+        <AccountsTab
+          accounts={investmentAccounts}
+          positions={positions}
+          primaryCurrency={primaryCurrency}
+          toPrimary={toPrimary}
+        />
       ) : null}
-
+      {tab === "performance" ? (
+        <PerformanceTab
+          positions={positions}
+          assets={assetRows}
+          records={recordRows}
+          primaryCurrency={primaryCurrency}
+          toPrimary={toPrimary}
+          dailyPrices={dailyPriceRows}
+          manualPriceSnapshots={manualSnapshotRows}
+          quoteMap={quoteMap}
+          refreshing={refreshQuotes.isPending || refreshDailyPrices.isPending}
+        />
+      ) : null}
+      {tab === "holdings" ? (
+        <HoldingsTab
+          positions={positions}
+          accountMap={accountMap}
+          accounts={investmentAccounts}
+          nameLocale={nameLocale}
+          assetsById={new Map(assetRows.map((asset) => [asset.id, asset]))}
+          manualPriceSnapshots={manualSnapshotRows}
+        />
+      ) : null}
       {tab === "transactions" ? <TransactionsRoute /> : null}
 
       <InvestmentEntryDrawer
@@ -661,7 +670,6 @@ function HoldingsTab({
   assetsById: Map<string, PortfolioAsset>;
   manualPriceSnapshots: ManualPriceSnapshot[];
 }) {
-  const navigate = useNavigate();
   const timezone = useUiPreferences((state) => state.timezone);
   const [editingAsset, setEditingAsset] = useState<PortfolioAsset | null>(null);
   const [editForm, setEditForm] = useState<PortfolioAssetDraft | null>(null);
@@ -830,12 +838,7 @@ function HoldingsTab({
                   : position.name;
                 const pnlTone = position.unrealizedGain >= 0 ? "positive" : "negative";
                 return (
-                  <tr 
-                    key={`${position.assetId}-${position.accountId ?? "none"}`} 
-                    className="border-t cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors" 
-                    style={{ borderColor: "var(--ns-border)" }}
-                    onClick={() => navigate({ to: '/holdings/$ticker', params: { ticker: position.ticker } })}
-                  >
+                  <tr key={`${position.assetId}-${position.accountId ?? "none"}`} className="border-t" style={{ borderColor: "var(--ns-border)" }}>
                     <td className="py-3 font-semibold whitespace-nowrap">{position.ticker}</td>
                     <td className="max-w-[14rem] py-3" title={displayName}>
                       <span className="block truncate">{displayName}</span>

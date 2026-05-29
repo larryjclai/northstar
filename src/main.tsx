@@ -5,6 +5,7 @@ import ReactDOM from "react-dom/client";
 import { ToastProvider } from "./components/Toast";
 import { router } from "./routes/router";
 import "./styles/globals.css";
+import "./i18n";
 
 const queryClient = new QueryClient();
 

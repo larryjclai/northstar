@@ -1,12 +1,14 @@
-import { ArrowsClockwise, CheckCircle, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, PencilSimple, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X, CaretDown, CaretRight, Backspace, Gear, Bank, Target } from "@phosphor-icons/react";
+const fs = require('fs');
+const path = require('path');
+
+const content = `import { ArrowsClockwise, CheckCircle, Clock, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, PencilSimple, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X, CaretDown, CaretRight, Backspace, Gear, Bank, Target } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ActionButton } from "../components/ActionButton";
 import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { getFinanceRepository, type RepositorySnapshot } from "../data/repositories";
-import { COMMON_TIMEZONES, isValidTimezone } from "../domain";
-
+import { COMMON_TIMEZONES, isValidTimezone, formatBytes, formatErrorDetail, roundTo2 } from "../domain";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../domain";
 import { useRefreshFxRates } from "../features/market-data/useMarketRefresh";
 import { useUiPreferences, type ClockMode, type NameLocalePreference } from "../state/uiPreferences";
@@ -24,7 +26,7 @@ const emptySettings: AppSettings = {
 function buildFxStats(rates: DailyFxRate[]): Map<string, {count: number, firstDate: string, lastDate: string}> {
   const map = new Map<string, {count: number, firstDate: string, lastDate: string}>();
   for (const row of rates) {
-    const key = `${row.from}|${row.to}`;
+    const key = \`\${row.from}|\${row.to}\`;
     const existing = map.get(key);
     if (!existing) {
       map.set(key, { count: 1, firstDate: row.date, lastDate: row.date });
@@ -53,6 +55,7 @@ export function SettingsRoute() {
   }, [settings.data]);
 
   const [tab, setTab] = useState('categories');
+  const navigate = useNavigate();
 
   const tabs = [
     { id: 'categories', label: t('settings.categories'), icon: <Tag size={14} /> },
@@ -81,7 +84,7 @@ export function SettingsRoute() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {tabs.map((tItem) => (
             <div key={tItem.id} 
-              className={`ns-nav-link ${tab === tItem.id ? 'active' : ''}`}
+              className={\`ns-nav-link \${tab === tItem.id ? 'active' : ''}\`}
               onClick={() => setTab(tItem.id)}>
               {tItem.icon}
               <span style={{ fontSize: 13 }}>{tItem.label}</span>
@@ -466,14 +469,14 @@ function SettingsFX({ form, submit, dailyFxRates, t }: any) {
           <span/>
         </div>
         {form.exchangeRates.map((r: any, i: number) => {
-          const stat = fxStats.get(`${r.from}|${r.to || form.primaryCurrency}`);
+          const stat = fxStats.get(\`\${r.from}|\${r.to || form.primaryCurrency}\`);
           return (
             <div key={i} style={{ display:'grid',gridTemplateColumns:'80px 1fr 1fr 1fr 56px',
               alignItems:'center',padding:'14px 20px', borderTop:i?'1px solid var(--ns-border)':'none' }}>
               <input className="ns-input" value={r.from} onChange={e=>updateRate(i, { from: e.target.value.toUpperCase() })} />
               <input className="ns-input" type="number" step="0.01" style={{textAlign:'right'}} value={r.rate} onChange={e=>updateRate(i, { rate: +e.target.value })} />
               <input className="ns-input" style={{textAlign:'right'}} value={r.to || form.primaryCurrency} onChange={e=>updateRate(i, { to: e.target.value.toUpperCase() })} />
-              <div className="dim" style={{fontSize: 11, textAlign: 'right'}}>{stat ? `${stat.count} records` : 'No history'}</div>
+              <div className="dim" style={{fontSize: 11, textAlign: 'right'}}>{stat ? \`\${stat.count} records\` : 'No history'}</div>
               <div style={{display:'flex',justifyContent:'flex-end'}}>
                 <button className="ns-btn ghost icon" style={{color:'var(--ns-neg)'}} onClick={()=>deleteRate(i)}><Trash size={14}/></button>
               </div>
@@ -496,7 +499,6 @@ function SettingsGeneral({ form, t }: any) {
   const setTimezone = useUiPreferences((state) => state.setTimezone);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const queryClient = useQueryClient();
 
   async function exportBackup() {
     try {
@@ -506,29 +508,13 @@ function SettingsGeneral({ form, t }: any) {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `northstar-backup-${new Date().toISOString().slice(0,10)}.json`;
+      link.download = \`northstar-backup-\${new Date().toISOString().slice(0,10)}.json\`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       toast.success("已匯出");
     } catch (e) {
       toast.error("匯出失敗");
-    }
-  }
-
-  async function importBackup(file: File) {
-    if (!window.confirm("匯入會覆蓋目前所有資料，確定要繼續嗎？")) return;
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text) as RepositorySnapshot;
-      if (!parsed || !Array.isArray(parsed.accounts)) throw new Error("無效檔案");
-      
-      const repository = await getFinanceRepository();
-      await repository.importSnapshot(parsed);
-      await queryClient.invalidateQueries();
-      toast.success("匯入成功");
-    } catch (e) {
-      toast.error("匯入失敗");
     }
   }
 
@@ -563,7 +549,7 @@ function SettingsGeneral({ form, t }: any) {
         </div>
 
         <h3 className="font-semibold mb-4 mt-6">{t('settings.timezone')}</h3>
-        <select value={timezone} onChange={e=>setTimezone(e.target.value)} className="ns-input w-full">
+        <select value={timezone} onChange={e=>setTimezone(e.target.value)} className="ns-input">
           {COMMON_TIMEZONES.map(tz => <option key={tz.id} value={tz.id}>{tz.label}</option>)}
         </select>
       </div>
@@ -573,14 +559,11 @@ function SettingsGeneral({ form, t }: any) {
         <p className="text-sm muted mb-4">{t('settings.backupDesc')}</p>
         <div className="flex gap-2">
           <button className="ns-btn primary" onClick={exportBackup}><DownloadSimple size={14}/>{t('settings.exportJson')}</button>
-          <button className="ns-btn ghost" onClick={()=>fileInputRef.current?.click()}><UploadSimple size={14}/>{t('settings.importBackup')}</button>
-          <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={(e)=>{
-            const file = e.target.files?.[0];
-            if (file) importBackup(file);
-            e.target.value = '';
-          }} />
+          <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={()=>toast.info("Import UI hooked up")} />
         </div>
       </div>
     </div>
   );
 }
+`;
+fs.writeFileSync(file, content);

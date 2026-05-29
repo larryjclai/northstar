@@ -1,0 +1,25 @@
+# AI Agent Git Collaboration Rules
+
+This project enforces strict Git workflow rules for all AI agents (including Antigravity, CTO, PO, and any subagents). 
+Failure to follow these rules may result in the loss of the human developer's uncommitted work.
+
+## 1. Protect Uncommitted Changes (WIP)
+BEFORE taking any destructive actions or branching, ALWAYS check for uncommitted changes (`git status`).
+If there are uncommitted changes made by the human developer, YOU MUST:
+- Ask the user if they want you to commit them, OR
+- Automatically create a safe WIP commit: `git add . && git commit -m "wip: save uncommitted changes before AI task"`
+- NEVER stash changes unless explicitly requested. Commits are safer.
+
+## 2. Isolate AI Work (Always Branch)
+- ALL AI-driven feature development, refactoring, or bug fixing MUST happen on a new, isolated branch.
+- Format: `feat/ai-<feature-name>` or `fix/ai-<bug-name>`
+- Example: `git checkout -b feat/ai-shadcn-integration`
+- Do NOT push directly to `main` unless you are explicitly instructed to do so after user review.
+
+## 3. No Destructive Commands
+- NEVER use `git reset --hard` or `git push -f` on branches the human developer is actively using, unless you have created a backup branch first (e.g., `git branch backup-<date>`).
+- Do NOT overwrite existing custom UI layouts (like Vanilla CSS / Design System files) with generic frameworks (like Shadcn UI) without explicit permission.
+
+## 4. Pull Requests
+- Once an AI task is completed on its dedicated branch, push the branch to the remote repository.
+- Notify the user that the branch is ready for review. Let the user decide whether to merge it into `main`.

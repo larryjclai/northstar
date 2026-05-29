@@ -13,20 +13,29 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { usePrivacySync, useUiPreferences } from "../state/uiPreferences";
 import { GlobalSearch } from "./GlobalSearch";
+import { useTranslation } from "react-i18next";
 import { MagnifyingGlass } from "@phosphor-icons/react";
 
 const appIconUrl = new URL("../../src-tauri/icons/icon.png", import.meta.url).href;
 
-const navItems = [
-  { to: "/", label: "總覽", icon: House },
-  { to: "/cash-flow", label: "記帳", icon: Receipt },
-  { to: "/accounts", label: "帳戶", icon: Bank },
-  { to: "/investments", label: "投資", icon: TrendUp },
-  { to: "/goals", label: "目標", icon: Target },
-  { to: "/settings", label: "設定", icon: GearSix },
-] as const;
+
+
+
 
 export function AppShell() {
+  const { t } = useTranslation();
+
+  const navItems = [
+    { to: "/", label: t("nav.dashboard"), icon: House },
+    { to: "/investments", label: t("nav.investments"), icon: TrendUp },
+    { to: "/cash-flow", label: t("nav.cashflow"), icon: Receipt },
+    { to: "/accounts", label: t("nav.accounts"), icon: Bank },
+    { to: "/goals", label: t("nav.goals"), icon: Target },
+  ];
+  
+  const nav2Items = [
+    { to: "/settings", label: t("nav.settings"), icon: GearSix },
+  ];
   useBlockBrowserBackOnBackspace();
   usePrivacySync();
   usePrivacyShortcut();
@@ -94,6 +103,20 @@ export function AppShell() {
               {item.label}
             </Link>
           ))}
+
+          <div className="ns-eyebrow" style={{ padding: '18px 11px 8px' }}>Settings</div>
+          {nav2Items.map((item) => (
+            <Link
+              key={item.to}
+              to={item.to}
+              className="ns-nav-link"
+              activeProps={{ className: "ns-nav-link active" }}
+              inactiveProps={{ className: "ns-nav-link" }}
+            >
+              <item.icon size={16} weight="duotone" />
+              {item.label}
+            </Link>
+          ))}
         </nav>
 
         {/* Bottom: privacy + local-first notice */}
@@ -126,7 +149,7 @@ export function AppShell() {
               <span style={{ fontSize: 12, fontWeight: 500 }}>Local-first</span>
             </div>
             <div style={{ fontSize: 11, lineHeight: 1.45, color: "var(--ns-fg-dim)" }}>
-              資料僅保存在此裝置上。
+              {t("shell.dataSavedLocally")}
             </div>
           </div>
         </div>
@@ -142,7 +165,7 @@ export function AppShell() {
         className="fixed inset-x-0 bottom-0 grid grid-cols-6 border-t lg:hidden"
         style={{ background: "var(--ns-bg-elev)", borderColor: "var(--ns-border)" }}
       >
-        {navItems.map((item) => (
+        {[...navItems, ...nav2Items].map((item) => (
           <Link
             key={item.to}
             to={item.to}

@@ -1,8 +1,9 @@
-import { CaretRight, Plus, Calculator, CheckCircle, Target, Star } from "@phosphor-icons/react";
-import { Link } from "@tanstack/react-router";
+import { CaretRight, Plus, Calculator, CheckCircle, Target, Star, Trash, PencilSimple } from "@phosphor-icons/react";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
-import { useFinanceData } from "../data/hooks";
+import { useFinanceData, useRepositoryMutation } from "../data/hooks";
+import { useToast } from "../components/Toast";
 import { computeNetWorthInCurrency } from "../features/goals/netWorth";
 import { projectRetirement, formatNumber, type FinancialGoal } from "../domain";
 
@@ -20,6 +21,23 @@ export function GoalsRoute() {
   const appSettings = settings.data;
   const fxHistory = dailyFxRates.data ?? [];
 
+  const toast = useToast();
+  const navigate = useNavigate();
+
+  const deleteGoal = useRepositoryMutation(
+    (repository, id: string) => repository.deleteFinancialGoal(id),
+    ["financialGoals"]
+  );
+
+  async function handleDeleteGoal(id: string) {
+    try {
+      await deleteGoal.mutateAsync(id);
+      toast.success("已刪除目標");
+    } catch (e) {
+      toast.error("刪除目標失敗");
+    }
+  }
+
   const [activeProjection, setActiveProjection] = useState<"bear" | "base" | "bull">("base");
 
   const goals = (financialGoals.data ?? []).filter((g) => g.deletedAt === null);
@@ -30,13 +48,13 @@ export function GoalsRoute() {
     [fireGoal, accountRows, assetRows, quoteRows, appSettings, fxHistory],
   );
 
-  const projection = useMemo(
-    () => (fireGoal ? projectRetirement({ goal: fireGoal, currentValue }) : null),
-    [fireGoal, currentValue],
-  );
-
   const projectionRates = { bear: 0.05, base: 0.072, bull: 0.1 };
   const activeRate = projectionRates[activeProjection];
+
+  const projection = useMemo(
+    () => (fireGoal ? projectRetirement({ goal: { ...fireGoal, expectedAnnualReturn: activeRate }, currentValue }) : null),
+    [fireGoal, currentValue, activeRate],
+  );
 
   const chartData = useMemo(() => {
     if (projection) return projection.series.map((row) => ({ age: row.age, portfolio: row.endBalance }));
@@ -175,7 +193,7 @@ export function GoalsRoute() {
             <div style={{ display: "flex", flexDirection: "column" }}>
               {goals.map((goal, i) => {
                 const target = goalTargetAmount(goal);
-                const current = goal.kind === "fire" ? currentValue : 0;
+                const current = goal.kind === "fire" ? currentValue : (currentValue / goalTargetAmount(goal)) * 100;
                 const progress = target > 0 ? Math.min(100, (current / target) * 100) : 0;
                 const achieved = progress >= 100;
                 const Icon = goal.kind === "fire" ? Star : Target;
@@ -199,13 +217,16 @@ export function GoalsRoute() {
                       </div>
                       <div style={{ fontSize: 13, color: "var(--ns-fg-dim)", width: 48, textAlign: "right" }}>{progress.toFixed(1)}%</div>
                     </div>
-                    <div style={{ flex: "0 0 120px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ flex: "0 0 120px", display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 16 }}>
                       {achieved ? (
                         <span style={{ fontSize: 13, color: "var(--ns-pos)", display: "flex", alignItems: "center", gap: 4 }}><CheckCircle size={14} weight="fill" /> 達成</span>
                       ) : (
                         <span style={{ fontSize: 13, color: "var(--ns-fg-dim)" }}>追蹤中</span>
                       )}
-                      <CaretRight size={16} color="var(--ns-fg-muted)" />
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button className="ns-btn ghost icon" title="編輯" onClick={() => navigate({ to: goal.kind === "fire" ? "/goals/fire" : "/goals", search: { id: goal.id } })}><PencilSimple size={14} /></button>
+                        <button className="ns-btn ghost icon" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={() => handleDeleteGoal(goal.id)}><Trash size={14} /></button>
+                      </div>
                     </div>
                   </div>
                 );

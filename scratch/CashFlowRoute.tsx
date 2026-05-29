@@ -9,16 +9,10 @@ import {
   Trash,
   UploadSimple,
   X,
-  Funnel,
-  CaretDown
 } from "@phosphor-icons/react";
 import { ChangeEvent, ReactNode, useEffect, useMemo, useState } from "react";
-import { Bar, BarChart, ResponsiveContainer, Tooltip, Cell } from "recharts";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { DatePicker } from "../components/ui/date-picker";
-import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
-import { useToast } from "../components/Toast";
 import type { LedgerDraft, TransferDraft } from "../data/repositories";
 import { evaluateAmountExpression, formatNumber, nowAsDatetimeLocal, todayInTimezone } from "../domain";
 import type { LedgerTransaction, RecurringTransaction } from "../domain";
@@ -90,8 +84,6 @@ export function CashFlowRoute() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerType, setDrawerType] = useState<CashType>("expense");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [drawerRecurringFreq, setDrawerRecurringFreq] = useState("none");
-  const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
 
   const [ledgerForm, setLedgerForm] = useState<LedgerDraft>(emptyLedger);
   const [amountExpression, setAmountExpression] = useState(String(Math.abs(emptyLedger.amount)));
@@ -101,9 +93,6 @@ export function CashFlowRoute() {
 
   const [preview, setPreview] = useState<ImportPreview<LedgerDraft> | null>(null);
   const [message, setMessage] = useState("");
-  const toast = useToast();
-  const [selectedMonth, setSelectedMonth] = useState(() => todayInTimezone(timezone).slice(0, 7));
-  const [selectedAccount, setSelectedAccount] = useState("all");
 
   const appSettings = settings.data;
   const accountRows = accounts.data ?? [];
@@ -139,14 +128,6 @@ export function CashFlowRoute() {
   const deleteLedger = useRepositoryMutation(
     (repository, id: string) => repository.deleteLedgerTransaction(id),
     ["ledger", "accounts"],
-  );
-  const updateSettingsMutation = useRepositoryMutation(
-    (repository, input: import("../domain/types").AppSettings) => repository.updateAppSettings(input),
-    ["settings"],
-  );
-  const createRecurring = useRepositoryMutation(
-    (repository, input: import("../data/repositories").RecurringDraft) => repository.createRecurringTransaction(input),
-    ["recurring"],
   );
   const createTransfer = useRepositoryMutation(
     (repository, input: TransferDraft) => repository.createTransfer(input),
@@ -295,30 +276,8 @@ export function CashFlowRoute() {
       };
       if (!payload.accountId) throw new Error("請選擇帳戶。");
       if (isReceivablePayable && !payload.merchant) throw new Error("請填寫對象。");
-      if (editingId) {
-        await updateLedger.mutateAsync({ ...payload, id: editingId });
-        toast.success("已更新交易");
-      } else {
-        await createLedger.mutateAsync(payload);
-        toast.success("已新增交易");
-        if (drawerRecurringFreq !== "none") {
-          await createRecurring.mutateAsync({
-             frequency: drawerRecurringFreq as any,
-             dayOfMonth: parseInt(payload.date.slice(8, 10)),
-             accountId: payload.accountId,
-             amount: payload.amount,
-             currency: payload.currency,
-             category: payload.category,
-             subcategory: payload.subcategory,
-             merchant: payload.merchant,
-             entryType: payload.entryType as "income" | "expense",
-             settlementStatus: payload.settlementStatus,
-             note: payload.note,
-             nextRunDate: payload.date.slice(0, 10),
-             isActive: true
-          });
-        }
-      }
+      if (editingId) await updateLedger.mutateAsync({ ...payload, id: editingId });
+      else await createLedger.mutateAsync(payload);
       await rememberCategories.mutateAsync([{ category: payload.category, subcategory: payload.subcategory }]);
       rememberMerchantNames([payload.merchant]);
       closeDrawer();
@@ -333,19 +292,9 @@ export function CashFlowRoute() {
       if (!transferForm.sourceAccountId || !transferForm.destinationAccountId)
         throw new Error("請選擇來源和目標帳戶。");
       await createTransfer.mutateAsync(transferForm);
-      toast.success("已建立轉帳");
       closeDrawer();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "轉帳儲存失敗。");
-    }
-  }
-
-  async function handleDelete(id: string) {
-    try {
-      await deleteLedger.mutateAsync(id);
-      toast.success("已刪除交易");
-    } catch (e) {
-      toast.error("刪除失敗");
     }
   }
 
@@ -373,12 +322,8 @@ export function CashFlowRoute() {
     event.target.value = "";
   }
 
-  const monthKey = selectedMonth;
-  const monthRows = useMemo(() => ledgerRows.filter((row) => {
-    if (!row.date.startsWith(monthKey)) return false;
-    if (selectedAccount !== "all" && row.accountId !== selectedAccount) return false;
-    return true;
-  }), [ledgerRows, monthKey, selectedAccount]);
+  const monthKey = todayInTimezone(timezone).slice(0, 7);
+  const monthRows = useMemo(() => ledgerRows.filter((row) => row.date.startsWith(monthKey)), [ledgerRows, monthKey]);
   const monthIncome = monthRows
     .filter((row) => row.entryType === "income" && row.settlementStatus === "settled")
     .reduce((sum, row) => sum + Math.max(0, row.amount), 0);
@@ -398,56 +343,14 @@ export function CashFlowRoute() {
     return [...map.entries()]
       .map(([name, amount]) => ({ name, amount }))
       .sort((a, b) => b.amount - a.amount)
-      .slice(0, 5);
+      .slice(0, 6);
   }, [monthRows]);
 
-  const topMerchantSpend = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const row of monthRows) {
-      if (row.entryType !== "expense" || row.settlementStatus !== "settled" || !row.merchant) continue;
-      map.set(row.merchant, (map.get(row.merchant) ?? 0) + Math.abs(row.amount));
-    }
-    return [...map.entries()]
-      .map(([name, amount]) => ({ name, amount }))
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 5);
-  }, [monthRows]);
-
-  const dailyNetData = useMemo(() => {
-    const [year, month] = monthKey.split("-").map(Number);
-    const daysInMonth = new Date(year, month, 0).getDate();
-    const data = [];
-    for (let i = 1; i <= daysInMonth; i++) {
-      const dateStr = `${monthKey}-${i.toString().padStart(2, "0")}`;
-      let net = 0;
-      for (const row of monthRows) {
-        if (row.date.startsWith(dateStr) && row.entryType !== "transfer" && row.settlementStatus === "settled") {
-          net += row.amount;
-        }
-      }
-      data.push({ date: i, net });
-    }
-    return data;
-  }, [monthRows, monthKey]);
-
-
-  const [page, setPage] = useState(1);
-  const pageSize = 50;
-  
-  useEffect(() => {
-    setPage(1);
-  }, [monthKey, selectedAccount]);
-  
   const sortedRows = useMemo(
-
     () => [...ledgerRows].sort((a, b) => b.date.localeCompare(a.date)),
     [ledgerRows],
   );
-
-  const totalPages = Math.ceil(monthRows.length / pageSize);
-  const paginatedRows = useMemo(() => monthRows.slice((page - 1) * pageSize, page * pageSize), [monthRows, page]);
-  const dayGroups = useMemo(() => groupByDay(paginatedRows), [paginatedRows]);
-
+  const dayGroups = useMemo(() => groupByDay(sortedRows), [sortedRows]);
   const monthLabel = monthKey.replace("-", " / ");
 
   return (
@@ -455,123 +358,36 @@ export function CashFlowRoute() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginBottom: 22, flexWrap: "wrap" }}>
         <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{monthLabel}</div>
+          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{monthLabel} · {monthRows.length} 筆</div>
           <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>
-            Cash Flow
+            記帳
           </h1>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="ns-btn" onClick={() => toast.info("即將支援全螢幕分類管理")}><Tag size={14}/>分類</button>
-          
-          <div style={{ position: "relative" }}>
-            <input 
-              type="month" 
-              className="ns-input" 
-              value={selectedMonth} 
-              onChange={e => setSelectedMonth(e.target.value)} 
-              style={{ padding: "6px 10px", fontSize: 13, minWidth: 120, height: "100%" }}
-            />
-          </div>
-
-          <div style={{ position: "relative" }}>
-            <select
-              className="ns-input"
-              value={selectedAccount}
-              onChange={(e) => setSelectedAccount(e.target.value)}
-              style={{ appearance: "none", paddingRight: 28, height: "100%", fontSize: 13 }}
-            >
-              <option value="all">All accounts · All cats</option>
-              {accountRows.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-            <CaretDown size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--ns-muted)" }} />
-          </div>
-
+          <button className="ns-btn" onClick={() => downloadCsv("northstar-ledger.csv", exportLedgerCsv(ledgerRows, accountName))}>
+            <DownloadSimple size={14} />匯出
+          </button>
+          <label>
+            <input className="hidden" type="file" accept=".csv,text/csv" onChange={handleCsv} />
+            <span className="ns-btn" style={{ cursor: "pointer" }}><UploadSimple size={14} />匯入</span>
+          </label>
           <button className="ns-btn primary" onClick={() => openCreate("expense")}>
-            <Plus size={14} weight="bold" />記一筆
+            <Plus size={14} weight="bold" />新增交易
           </button>
         </div>
       </div>
 
-      {/* Summary layer */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 20, marginBottom: 20 }}>
-        {/* Cashflow Chart */}
-        <div className="ns-card" id="cashflow-chart" style={{ padding: 24, display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 16, marginBottom: 12 }}>
-            <div>
-              <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Net this month</div>
-              <div className={"ns-num-lg " + (monthNet >= 0 ? "pos" : "neg")}>
-                {monthNet >= 0 ? "+" : "−"}NT${formatNumber(Math.abs(monthNet))}
-              </div>
-            </div>
-            <div style={{ flex: 1 }}/>
-            <div style={{ display: "flex", gap: 18, fontSize: 12 }}>
-              <div>
-                <div className="muted">Income</div>
-                <div className="num" style={{ fontSize: 18, fontWeight: 500 }}>NT${formatNumber(monthIncome)}</div>
-              </div>
-              <div>
-                <div className="muted">Spending</div>
-                <div className="num" style={{ fontSize: 18, fontWeight: 500 }}>NT${formatNumber(monthExpense)}</div>
-              </div>
-              <div>
-                <div className="muted">Savings rate</div>
-                <div className={"num " + (monthIncome > 0 ? "pos" : "muted")} style={{ fontSize: 18, fontWeight: 500 }}>
-                  {monthIncome > 0 ? ((monthNet / monthIncome) * 100).toFixed(1) + "%" : "0%"}
-                </div>
-              </div>
-            </div>
-          </div>
-          <div style={{ height: 200 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dailyNetData}>
-                <Tooltip 
-                  cursor={{ fill: "var(--ns-bg-hover)" }}
-                  contentStyle={{ background: "var(--ns-surface)", border: "1px solid var(--ns-border)", borderRadius: 6, fontSize: 12 }}
-                  formatter={(v: any) => [`NT$${formatNumber(Math.abs(v as number))}`, "Net"]}
-                  labelFormatter={(v) => `${monthLabel} / ${v}`}
-                />
-                <Bar dataKey="net" radius={[2, 2, 2, 2]}>
-                  {dailyNetData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.net >= 0 ? "var(--ns-pos)" : "var(--ns-neg)"} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="dim mono" style={{ fontSize: 10.5, marginTop: 6, display: "flex", justifyContent: "space-between" }}>
-            <span>1號</span><span>15號</span><span>月底</span>
-          </div>
-        </div>
-
-        <div className="ns-card flex flex-col justify-between">
-          <div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div className="ns-eyebrow">By category · {monthLabel}</div>
-            </div>
-            <div style={{ display: "grid", gap: 10 }}>
-              {topCategorySpend.length === 0 ? (
-                <div className="muted" style={{ fontSize: 13 }}>本月尚無支出分類</div>
-              ) : (
-                topCategorySpend.map((r, idx) => {
-                  const max = topCategorySpend[0].amount;
-                  const ratio = r.amount / max;
-                  const colors = ["var(--ns-chart-3)", "var(--ns-chart-4)", "var(--ns-chart-5)", "var(--ns-chart-2)", "var(--ns-fg-dim)"];
-                  const color = colors[idx % colors.length];
-                  return (
-                    <div key={r.name} style={{ display: "grid", gridTemplateColumns: "80px 1fr 80px", gap: 10, alignItems: "center", fontSize: 12.5 }}>
-                      <span className="truncate">{r.name}</span>
-                      <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
-                        <div style={{ width: (ratio * 100) + "%", height: "100%", background: color, borderRadius: 99 }}/>
-                      </div>
-                      <span className="num" style={{ textAlign: "right" }}>NT${formatNumber(r.amount)}</span>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
+      {/* Summary strip */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 20 }}>
+        <StatCard label="本月收入" value={`NT$${formatNumber(monthIncome)}`} tone="pos" />
+        <StatCard label="本月支出" value={`NT$${formatNumber(monthExpense)}`} tone="neg" />
+        <StatCard label="本月淨額" value={`${monthNet < 0 ? "−" : ""}NT$${formatNumber(Math.abs(monthNet))}`} tone={monthNet >= 0 ? "pos" : "neg"} />
+        <StatCard label="本月轉帳筆數" value={`${monthTransferCount} 筆`} tone="muted" />
       </div>
+
+      {message ? (
+        <div className="ns-card" style={{ marginBottom: 16, padding: "10px 16px", color: "var(--ns-neg)", fontSize: 13 }}>{message}</div>
+      ) : null}
 
       {preview ? (
         <div className="ns-card" style={{ marginBottom: 16 }}>
@@ -589,7 +405,6 @@ export function CashFlowRoute() {
                 await importLedger.mutateAsync(rows);
                 rememberMerchantNames(rows.map((row) => row.merchant));
                 setPreview(null);
-                toast.success(`成功匯入 ${rows.length} 筆資料`);
               }}
             >
               確認匯入
@@ -599,56 +414,55 @@ export function CashFlowRoute() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-5 items-start">
-        {/* Transactions grouped by day */}
-        <div className="ns-card" style={{ padding: 0 }}>
-           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid var(--ns-border)" }}>
-             <span style={{ fontWeight: 600, fontSize: 15 }}>Recent activity</span>
-             <a className="muted" style={{ fontSize: 12.5, cursor: "pointer" }}>{monthRows.length} events</a>
-           </div>
+      {/* Main: ledger list + side rankings */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 20, alignItems: "start" }}>
+        {/* 流水帳 */}
+        <div className="ns-card" style={{ padding: 0, overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid var(--ns-border)" }}>
+            <span style={{ fontWeight: 600, fontSize: 15 }}>流水帳</span>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button className="ns-btn ghost" style={{ fontSize: 12.5 }} onClick={() => openCreate("income")}>收入</button>
+              <button className="ns-btn ghost" style={{ fontSize: 12.5 }} onClick={() => openCreate("expense")}>支出</button>
+              <button className="ns-btn ghost" style={{ fontSize: 12.5 }} onClick={() => openCreate("transfer")}>轉帳</button>
+            </div>
+          </div>
 
-           {dayGroups.length === 0 ? (
+          {dayGroups.length === 0 ? (
             <div style={{ padding: "56px 20px", textAlign: "center" }}>
               <div style={{ width: 52, height: 52, borderRadius: "var(--ns-r-md)", background: "var(--ns-accent-soft)", color: "var(--ns-accent)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
                 <Receipt size={24} weight="duotone" />
               </div>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>還沒有記帳資料</div>
+              <div className="muted" style={{ fontSize: 13, marginBottom: 16 }}>新增一筆收入 / 支出 / 轉帳，或匯入 CSV。</div>
               <button className="ns-btn primary" onClick={() => openCreate("expense")}><Plus size={14} weight="bold" />新增交易</button>
             </div>
-           ) : (
-            dayGroups.map((g, gi) => (
-              <div key={g.date}>
-                <div style={{
-                  padding: "14px 22px", borderBottom: "1px solid var(--ns-border)",
-                  borderTop: gi === 0 ? "none" : "none",
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  background: "var(--ns-bg-elev)",
-                }}>
-                  <span className="ns-eyebrow">{g.date}</span>
-                  <span className="dim mono" style={{ fontSize: 11 }}>
-                    Net <span className={g.net >= 0 ? "pos" : "neg"}>
-                      {(g.net >= 0 ? "+" : "−")}NT${formatNumber(Math.abs(g.net))}
-                    </span>
+          ) : (
+            dayGroups.map((group) => (
+              <div key={group.date}>
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 20px", background: "var(--ns-bg-elev)", borderBottom: "1px solid var(--ns-border)" }}>
+                  <span className="ns-eyebrow">{group.date}</span>
+                  <span className="num muted" style={{ fontSize: 12 }}>
+                    {group.net < 0 ? "−" : "+"}NT${formatNumber(Math.abs(group.net))}
                   </span>
                 </div>
-                {g.rows.map((r, i) => (
+                {group.rows.map((row) => (
                   <LedgerRow
-                    key={r.id}
-                    row={r}
+                    key={row.id}
+                    row={row}
                     accountName={accountName}
-                    onEdit={() => startEdit(r)}
-                    onDelete={() => handleDelete(r.id)}
-                    onSettle={() => markSettled(r)}
+                    onEdit={() => startEdit(row)}
+                    onDelete={() => deleteLedger.mutate(row.id)}
+                    onSettle={() => markSettled(row)}
                   />
                 ))}
               </div>
             ))
-           )}
+          )}
         </div>
 
         {/* Side rankings */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <RankingCard title="商家花費排行" rows={topMerchantSpend} emptyText="本月尚無商家資料" />
+          <RankingCard title="類別花費排行" rows={topCategorySpend} emptyText="本月尚無支出分類" />
           <UpcomingPayments recurringRows={recurringRows} accountName={accountName} />
         </div>
       </div>
@@ -676,18 +490,6 @@ export function CashFlowRoute() {
         onSubmitLedger={submitLedger}
         onSubmitTransfer={submitTransfer}
         message={message}
-        drawerRecurringFreq={drawerRecurringFreq}
-        setDrawerRecurringFreq={setDrawerRecurringFreq}
-      />
-      <CategoryManagementDrawer
-        open={categoryDrawerOpen}
-        onClose={() => setCategoryDrawerOpen(false)}
-        categories={appSettings?.categories || []}
-        onSave={async (cats) => {
-          if (!appSettings) return;
-          await updateSettingsMutation.mutateAsync({ ...appSettings, categories: cats });
-          toast.success("已更新分類設定");
-        }}
       />
     </div>
   );
@@ -725,8 +527,7 @@ function LedgerRow({
   return (
     <div
       className="ns-cf-row"
-      onClick={onEdit}
-      style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderBottom: "1px solid var(--ns-border)", cursor: "pointer" }}
+      style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderBottom: "1px solid var(--ns-border)" }}
     >
       <div style={{ width: 34, height: 34, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)", display: "flex", alignItems: "center", justifyContent: "center" }}>
         {isTransfer ? <ArrowsLeftRight size={15} /> : <Tag size={15} />}
@@ -744,7 +545,7 @@ function LedgerRow({
       <div style={{ textAlign: "right" }}>
         <div className="num" style={{ fontSize: 14.5, color }}>{sign}NT${formatNumber(Math.abs(row.amount))}</div>
       </div>
-      <div className="ns-cf-actions" style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
+      <div className="ns-cf-actions" style={{ display: "flex", gap: 4 }}>
         {(isReceivable || isPayable) ? (
           <button className="ns-btn ghost icon" title="結清" onClick={onSettle}><Check size={14} /></button>
         ) : null}
@@ -858,8 +659,6 @@ function EntryDrawer({
   onSubmitLedger,
   onSubmitTransfer,
   message,
-  drawerRecurringFreq,
-  setDrawerRecurringFreq,
 }: {
   open: boolean;
   type: CashType;
@@ -883,8 +682,6 @@ function EntryDrawer({
   onSubmitLedger: () => void;
   onSubmitTransfer: () => void;
   message: string;
-  drawerRecurringFreq: string;
-  setDrawerRecurringFreq: (v: string) => void;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -1156,20 +953,6 @@ function EntryDrawer({
           )}
 
           {/* Note */}
-          <DrawerField label="週期交易">
-            <select
-              className="ns-input"
-              value={drawerRecurringFreq}
-              onChange={(e) => setDrawerRecurringFreq(e.target.value)}
-              style={{ appearance: "none" }}
-            >
-              <option value="none">單次交易 (不重複)</option>
-              <option value="weekly">每週</option>
-              <option value="monthly">每月</option>
-              <option value="yearly">每年</option>
-            </select>
-          </DrawerField>
-
           <DrawerField label="備註">
             <input
               className="ns-input"

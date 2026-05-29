@@ -1,7 +1,6 @@
 import { ChartLineUp, PencilSimple, PlusCircle, Trash, UploadSimple } from "@phosphor-icons/react";
-import { ChangeEvent, useMemo, useState } from "react";
+import { ChangeEvent, useMemo, useState, useEffect } from "react";
 import { ActionButton } from "../components/ActionButton";
-import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { StatusText } from "../components/StatusText";
@@ -86,6 +85,17 @@ export function TransactionsRoute() {
   }, [assetRows, editingRecordId, recordRows]);
 
   const monthKey = todayInTimezone(timezone).slice(0, 7);
+
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
+
+  useEffect(() => {
+    setPage(1);
+  }, [assetFor, monthKey]);
+
+  const paginatedGroups = useMemo(() => groupedRecords.slice((page - 1) * pageSize, page * pageSize), [groupedRecords, page]);
+  const totalPages = Math.ceil(groupedRecords.length / pageSize);
+
   const monthRows = useMemo(() => recordRows.filter((row) => row.date.startsWith(monthKey)), [monthKey, recordRows]);
   const monthBuy = monthRows
     .filter((row) => row.action === "buy")
@@ -96,6 +106,7 @@ export function TransactionsRoute() {
   const monthDividend = monthRows
     .filter((row) => row.action === "cashDividend")
     .reduce((sum, row) => sum + row.price, 0);
+  useEffect(() => { setPage(1); }, [monthKey, assetFor]);
   const twdSettlementWatchCount = monthRows.filter((row) => {
     const linked = row.linkedAccountId ? accountMap.get(row.linkedAccountId) : null;
     return row.action === "buy" && linked?.currency.toUpperCase() === "TWD";
@@ -121,18 +132,14 @@ export function TransactionsRoute() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl p-5 lg:p-8">
-      <PageHeader
-        title="投資交易"
-        description="用 dashboard 方式管理交易：快速瀏覽本月動態、再用右側抽屜新增或調整每筆記錄。"
-        action={
-          <ActionButton onClick={openCreate} size="sm">
-            <PlusCircle size={16} />新增交易
-          </ActionButton>
-        }
-      />
+    <div className="mt-4">
+      <div className="flex justify-end mb-4">
+        <ActionButton onClick={openCreate} size="sm">
+          <PlusCircle size={16} />新增交易
+        </ActionButton>
+      </div>
 
-      <div className="mb-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <SummaryCard label="本月交易筆數" value={`${monthRows.length} 筆`} sublabel={monthKey} />
         <SummaryCard label="本月買進" value={formatNumber(monthBuy)} sublabel="未含手續費" />
         <SummaryCard label="本月賣出" value={formatNumber(monthSell)} sublabel="成交金額" />
@@ -165,7 +172,7 @@ export function TransactionsRoute() {
           </div>
         ) : null}
 
-        {groupedRecords.length === 0 ? (
+        {paginatedGroups.length === 0 ? (
           <EmptyState
             icon={<PlusCircle size={24} weight="duotone" />}
             title="還沒有投資交易"
@@ -173,74 +180,83 @@ export function TransactionsRoute() {
             action={<ActionButton onClick={openCreate}><PlusCircle size={16} />新增第一筆交易</ActionButton>}
           />
         ) : (
-          <div className="space-y-5">
-            {groupedRecords.map((group) => (
-              <section key={group.date} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold" style={{ color: "var(--ns-muted)" }}>{group.date}</h3>
-                  <span className="text-xs tabular" style={{ color: "var(--ns-muted)" }}>{group.rows.length} 筆</span>
-                </div>
-                <div className="space-y-2">
-                  {group.rows.map((record) => {
-                    const asset = assetFor(record.assetId);
-                    const gross = record.action === "cashDividend" ? record.price : record.price * record.quantity;
-                    const signed = record.action === "buy" ? -gross : gross;
-                    const tone = signed >= 0 ? "var(--ns-positive)" : "var(--ns-danger)";
-                    return (
-                      <div key={record.id} className="rounded-lg border p-3" style={{ borderColor: "var(--ns-panel-border)", background: "var(--ns-panel-surface)" }}>
-                        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px_240px] lg:items-center">
-                          <div className="flex items-center gap-3">
-                            <div className="grid size-9 place-items-center rounded-md" style={{ background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
-                              <ChartLineUp size={18} weight="duotone" />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="truncate font-semibold">{asset?.ticker ?? record.assetId}</div>
-                              <div className="truncate text-xs" style={{ color: "var(--ns-muted)" }}>{asset?.name || "未命名資產"}{record.date.length > 10 ? ` · ${record.date.slice(11, 16)}` : ""}</div>
-                            </div>
-                          </div>
-
-                          <div className="text-sm">
-                            <div className="inline-flex rounded-full border px-2 py-1 text-xs font-semibold" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface-elevated)", color: "var(--ns-muted)" }}>
-                              {actionLabels[record.action]}
-                            </div>
-                            <div className="mt-1 tabular" style={{ color: "var(--ns-muted)" }}>
-                              {record.action === "cashDividend" ? `股利 ${formatNumber(record.price)}` : `${formatNumber(record.quantity)} × ${formatNumber(record.price)}`}
-                            </div>
-                          </div>
-
-                          <div className="flex flex-wrap items-center justify-between gap-3 lg:justify-end">
-                            <div className="tabular text-right">
-                              <div className="font-semibold" style={{ color: tone }}>
-                                {signed >= 0 ? "+" : ""}{formatNumber(signed)}
+          <>
+            <div className="space-y-5">
+              {paginatedGroups.map((group) => (
+                <section key={group.date} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold" style={{ color: "var(--ns-muted)" }}>{group.date}</h3>
+                    <span className="text-xs tabular" style={{ color: "var(--ns-muted)" }}>{group.rows.length} 筆</span>
+                  </div>
+                  <div className="space-y-2">
+                    {group.rows.map((record) => {
+                      const asset = assetFor(record.assetId);
+                      const gross = record.action === "cashDividend" ? record.price : record.price * record.quantity;
+                      const signed = record.action === "buy" ? -gross : gross;
+                      const tone = signed >= 0 ? "var(--ns-positive)" : "var(--ns-danger)";
+                      return (
+                        <div key={record.id} className="rounded-lg border p-3" style={{ borderColor: "var(--ns-panel-border)", background: "var(--ns-panel-surface)" }}>
+                          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px_240px] lg:items-center">
+                            <div className="flex items-center gap-3">
+                              <div className="grid size-9 place-items-center rounded-md" style={{ background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
+                                <ChartLineUp size={18} weight="duotone" />
                               </div>
-                              <div className="text-xs" style={{ color: "var(--ns-muted)" }}>Fee {formatNumber(record.fee)}</div>
+                              <div className="min-w-0">
+                                <div className="truncate font-semibold">{asset?.ticker ?? record.assetId}</div>
+                                <div className="truncate text-xs" style={{ color: "var(--ns-muted)" }}>{asset?.name || "未命名資產"}{record.date.length > 10 ? ` · ${record.date.slice(11, 16)}` : ""}</div>
+                              </div>
                             </div>
-                            <div className="flex gap-2">
-                              <ActionButton variant="secondary" size="sm" onClick={() => openEdit(record)}><PencilSimple size={14} />編輯</ActionButton>
-                              <ActionButton
-                                variant="danger"
-                                size="sm"
-                                onClick={async () => {
-                                  try {
-                                    await deleteRecord.mutateAsync(record.id);
-                                    if (editingRecordId === record.id) setEditingRecordId(null);
-                                  } catch (error) {
-                                    setMessage(error instanceof Error ? error.message : "刪除失敗。");
-                                  }
-                                }}
-                              >
-                                <Trash size={14} />刪除
-                              </ActionButton>
+
+                            <div className="text-sm">
+                              <div className="inline-flex rounded-full border px-2 py-1 text-xs font-semibold" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface-elevated)", color: "var(--ns-muted)" }}>
+                                {actionLabels[record.action]}
+                              </div>
+                              <div className="mt-1 tabular" style={{ color: "var(--ns-muted)" }}>
+                                {record.action === "cashDividend" ? `股利 ${formatNumber(record.price)}` : `${formatNumber(record.quantity)} × ${formatNumber(record.price)}`}
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center justify-between gap-3 lg:justify-end">
+                              <div className="tabular text-right">
+                                <div className="font-semibold" style={{ color: tone }}>
+                                  {signed >= 0 ? "+" : ""}{formatNumber(signed)}
+                                </div>
+                                <div className="text-xs" style={{ color: "var(--ns-muted)" }}>Fee {formatNumber(record.fee)}</div>
+                              </div>
+                              <div className="flex gap-2">
+                                <ActionButton variant="secondary" size="sm" onClick={() => openEdit(record)}><PencilSimple size={14} />編輯</ActionButton>
+                                <ActionButton
+                                  variant="danger"
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      await deleteRecord.mutateAsync(record.id);
+                                      if (editingRecordId === record.id) setEditingRecordId(null);
+                                    } catch (error) {
+                                      setMessage(error instanceof Error ? error.message : "刪除失敗。");
+                                    }
+                                  }}
+                                >
+                                  <Trash size={14} />刪除
+                                </ActionButton>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
-          </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 24, marginBottom: 24 }}>
+                <button className="ns-btn" disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>上一頁</button>
+                <span style={{ fontSize: 13, alignSelf: 'center', color: 'var(--ns-fg-muted)' }}>{page} / {totalPages}</span>
+                <button className="ns-btn" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>下一頁</button>
+              </div>
+            )}
+          </>
         )}
       </Card>
 
@@ -274,17 +290,12 @@ function SummaryCard({
   sublabel: string;
 }) {
   return (
-    <div
-      className="rounded-xl border p-4"
-      style={{
-        borderColor: "var(--ns-panel-border)",
-        background: "var(--ns-panel-surface)",
-        boxShadow: "var(--ns-shadow)",
-      }}
-    >
-      <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>{label}</div>
-      <div className="mt-2 text-2xl font-semibold tabular">{value}</div>
-      <div className="mt-1 text-xs" style={{ color: "var(--ns-muted)" }}>{sublabel}</div>
+    <div className="ns-card p-4 sm:p-5">
+      <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <div className="num" style={{ fontSize: 22, fontWeight: 500 }}>{value}</div>
+        {sublabel && <div className="num" style={{ fontSize: 13, color: 'var(--ns-muted)' }}>{sublabel}</div>}
+      </div>
     </div>
   );
 }

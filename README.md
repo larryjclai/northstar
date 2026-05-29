@@ -1,10 +1,16 @@
 # Northstar
 
-> 0.1.0-alpha.1 · **試用版**，介面與資料結構仍可能變動，正式發行前資料庫 schema 不保證向後相容。
+> 0.1.0-alpha.4 · **試用版**，介面與資料結構仍可能變動，正式發行前資料庫 schema 不保證向後相容。
 
 Northstar 是一個 local-first、隱私優先的個人與家庭財務應用，給想要安靜追蹤投資與現金流、不想把可讀的財務資料交給雲端服務的人使用。
 
 這個分支是 Tauri 重寫版。先前的 SwiftUI / SwiftData 實作保留在 GitHub 分支 `archive/swift-native-before-tauri`。
+
+## 下載 Alpha 版本試用
+
+我們已經開始在 GitHub Releases 提供 Alpha 版本的編譯檔，你可以前往 **[Releases 頁面](https://github.com/larryjclai/northstar/releases)** 下載最新的安裝檔：
+- **macOS**: 下載 `.dmg` 檔案，開啟並拖曳至 Applications 即可。*(註：由於尚未經過 Apple 開發者公證，第一次開啟請到「系統設定 -> 隱私權與安全性」中點擊強制打開)*
+- **Windows**: (即將支援) 下載 `.msi` 或 `.exe`。
 
 ## 技術棧
 
