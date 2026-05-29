@@ -10,6 +10,7 @@ import { COMMON_TIMEZONES, isValidTimezone } from "../domain";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../domain";
 import { useRefreshFxRates } from "../features/market-data/useMarketRefresh";
 import { useUiPreferences, type ClockMode, type NameLocalePreference } from "../state/uiPreferences";
+import { getOrCreateDeviceIdentity } from "../state/deviceIdentity";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import EmojiPicker from "emoji-picker-react";
@@ -743,6 +744,53 @@ function SettingsGeneral({ form, t }: any) {
       </div>
 
       <UpdateChecker />
+      <ConnectStatus />
+    </div>
+  );
+}
+
+// Connect Sync — preparation status. No cloud push yet; surfaces the local
+// device identity and how many local changes are pending a future sync.
+function ConnectStatus() {
+  const [identity] = useState(() => getOrCreateDeviceIdentity());
+  const [pending, setPending] = useState<number | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const repository = await getFinanceRepository();
+        const result = await repository.collectPendingChanges(identity.lastSyncCursor);
+        if (active) setPending(result.count);
+      } catch {
+        if (active) setPending(null);
+      }
+    })();
+    return () => { active = false; };
+  }, [identity.lastSyncCursor]);
+
+  return (
+    <div className="ns-card p-5">
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+        <h3 className="font-semibold">Connect 同步</h3>
+        <span className="ns-pill" style={{ fontSize: 10.5 }}>準備中</span>
+      </div>
+      <p className="text-sm muted mb-4">多裝置加密同步即將推出。以下為本機的同步基礎資訊。</p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13 }}>
+        <Stat label="裝置 ID" value={identity.deviceId.slice(0, 8)} mono />
+        <Stat label="建立時間" value={identity.createdAt.slice(0, 10)} mono />
+        <Stat label="待同步變更" value={pending === null ? "—" : `${pending} 筆`} />
+        <Stat label="上次同步" value={identity.lastSyncCursor ? identity.lastSyncCursor.slice(0, 10) : "尚未同步"} mono />
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div>
+      <div className="ns-eyebrow" style={{ fontSize: 10.5, marginBottom: 3 }}>{label}</div>
+      <div className={mono ? "mono" : ""} style={{ fontWeight: 500 }}>{value}</div>
     </div>
   );
 }

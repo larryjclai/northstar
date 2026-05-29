@@ -19,6 +19,7 @@ import type {
 } from "../domain/types";
 import type { MarketQuote } from "../features/market-data";
 import { calculateInvestmentAccountQuantity, calculateInvestmentCashDelta, calculateInvestmentNetDelta, isEffectivelyNegative } from "../domain/investmentCash";
+import { buildPendingChanges, type SyncSource } from "../domain/sync";
 import { migrations, splitSqlStatements } from "./migrations";
 import {
   seedAccounts,
@@ -196,6 +197,8 @@ export interface FinanceRepository {
   renameSubcategory(category: string, oldSub: string, newSub: string): Promise<void>;
   exportSnapshot(): Promise<RepositorySnapshot>;
   importSnapshot(snapshot: RepositorySnapshot): Promise<void>;
+  /** Connect Sync prep: records changed since `sinceCursor` (an updatedAt). */
+  collectPendingChanges(sinceCursor: string | null): Promise<import("../domain").PendingChangeSet>;
 }
 
 export interface RepositorySnapshot {
@@ -1060,6 +1063,24 @@ class BrowserFinanceRepository implements FinanceRepository {
       financialGoals: this.data.financialGoals,
       manualPriceSnapshots: this.data.manualPriceSnapshots,
     };
+  }
+
+  // Sync-tracked records INCLUDING soft-deleted ones (deletes must propagate).
+  // Overridden for SQLite to query rows directly so it isn't subject to the
+  // deleted_at filter that the public list* methods apply.
+  protected async allSyncRecords(): Promise<SyncSource> {
+    return {
+      accounts: this.data.accounts,
+      ledgerTransactions: this.data.ledgerTransactions,
+      portfolioAssets: this.data.portfolioAssets,
+      investmentRecords: this.data.investmentRecords,
+      recurringTransactions: this.data.recurringTransactions,
+      financialGoals: this.data.financialGoals,
+    };
+  }
+
+  async collectPendingChanges(sinceCursor: string | null) {
+    return buildPendingChanges(await this.allSyncRecords(), sinceCursor);
   }
 
   async importSnapshot(snapshot: RepositorySnapshot) {
@@ -2304,6 +2325,29 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       dailyPrices: prices,
       financialGoals: goals,
       manualPriceSnapshots: manualSnapshots,
+    };
+  }
+
+  protected override async allSyncRecords(): Promise<SyncSource> {
+    const q = (table: string) =>
+      this.db.select<Array<{ id: string; revision: number; updatedAt: string; deletedAt: string | null }>>(
+        `select id, revision, updated_at as updatedAt, deleted_at as deletedAt from ${table}`,
+      );
+    const [accounts, ledger, assets, investments, recurring, goals] = await Promise.all([
+      q("accounts"),
+      q("ledger_transactions"),
+      q("portfolio_assets"),
+      q("investment_records"),
+      q("recurring_transactions"),
+      q("financial_goals"),
+    ]);
+    return {
+      accounts,
+      ledgerTransactions: ledger,
+      portfolioAssets: assets,
+      investmentRecords: investments,
+      recurringTransactions: recurring,
+      financialGoals: goals,
     };
   }
 
