@@ -15,6 +15,7 @@ import { usePrivacySync, useUiPreferences } from "../state/uiPreferences";
 import { usePostDueRecurring } from "../data/hooks";
 import { todayInTimezone } from "../domain";
 import { GlobalSearch } from "./GlobalSearch";
+import { QuickAdd } from "./QuickAdd";
 import { useTranslation } from "react-i18next";
 import { MagnifyingGlass } from "@phosphor-icons/react";
 
@@ -46,6 +47,8 @@ export function AppShell() {
   const privacyMode = useUiPreferences((state) => state.privacyMode);
   const togglePrivacy = useUiPreferences((state) => state.togglePrivacyMode);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  useQuickAddShortcut(() => setQuickAddOpen((v) => !v));
 
   return (
     <div
@@ -184,8 +187,22 @@ export function AppShell() {
       </nav>
 
       <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
+      <QuickAdd open={quickAddOpen} onClose={() => setQuickAddOpen(false)} />
     </div>
   );
+}
+
+function useQuickAddShortcut(toggle: () => void) {
+  useEffect(() => {
+    function handler(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && (event.key === "n" || event.key === "N")) {
+        event.preventDefault();
+        toggle();
+      }
+    }
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [toggle]);
 }
 
 function useBlockBrowserBackOnBackspace() {
