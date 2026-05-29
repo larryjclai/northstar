@@ -5,33 +5,10 @@ import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "rec
 import { useFinanceData } from "../data/hooks";
 import { formatNumber, formatPrice, formatQuantity, resolveAssetName } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
+import { AssetLogo } from "../components/AssetLogo";
 import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
 import { HoldingEditModal } from "./HoldingEditModal";
 import { ChartLineUp, PencilSimple } from "@phosphor-icons/react";
-
-function NSMark({ label, color, mono, size = 32 }: { label: string; color: string; mono?: boolean; size?: number }) {
-  return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        flexShrink: 0,
-        background: color,
-        color: "var(--ns-bg)",
-        borderRadius: "var(--ns-r-sm)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontFamily: mono ? "var(--ns-font-mono)" : "var(--ns-font-display)",
-        fontWeight: 600,
-        fontSize: size <= 28 ? 11 : 13,
-        letterSpacing: mono ? 0 : "0.02em",
-      }}
-    >
-      {label}
-    </div>
-  );
-}
 
 export function HoldingDetailRoute() {
   const params = useParams({ strict: false }) as any;
@@ -130,7 +107,7 @@ export function HoldingDetailRoute() {
       {/* Hero header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 22 }}>
         <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-          <NSMark label={asset.ticker.slice(0, 4)} color={markColor} size={52} mono />
+          <AssetLogo ticker={asset.ticker} name={resolveAssetName(asset, nameLocale)} size={52} />
           <div>
             <div className="mono" style={{ fontSize: 13, marginBottom: 2, letterSpacing: 0.04, color: "var(--ns-fg-muted)", textTransform: "uppercase" }}>
               {asset.assetType || "Asset"} · {asset.ticker}

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ActionButton } from "../components/ActionButton";
+import { AssetLogo } from "../components/AssetLogo";
 import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
@@ -906,7 +907,12 @@ function HoldingsTab({
                     style={{ borderColor: "var(--ns-border)" }}
                     onClick={() => navigate({ to: '/holdings/$ticker', params: { ticker: position.ticker } })}
                   >
-                    <td className="py-3 font-semibold whitespace-nowrap">{position.ticker}</td>
+                    <td className="py-3 font-semibold whitespace-nowrap">
+                      <span className="inline-flex items-center gap-2">
+                        <AssetLogo ticker={position.ticker} name={position.name} size={26} />
+                        {position.ticker}
+                      </span>
+                    </td>
                     <td className="max-w-[14rem] py-3" title={displayName}>
                       <span className="block truncate">{displayName}</span>
                     </td>
