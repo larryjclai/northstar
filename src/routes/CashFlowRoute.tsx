@@ -163,6 +163,10 @@ export function CashFlowRoute() {
     (repository, input: import("../data/repositories").RecurringDraft) => repository.createRecurringTransaction(input),
     ["recurring"],
   );
+  const postRecurring = useRepositoryMutation(
+    (repository, id: string) => repository.postRecurringTransaction(id),
+    ["recurring", "ledger", "accounts"],
+  );
   const createTransfer = useRepositoryMutation(
     (repository, input: TransferDraft) => repository.createTransfer(input),
     ["ledger", "accounts"],
@@ -750,7 +754,7 @@ export function CashFlowRoute() {
         {/* Side rankings */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <RankingCard title="商家花費排行" rows={topMerchantSpend} emptyText="本月尚無商家資料" />
-          <UpcomingPayments recurringRows={recurringRows} accountName={accountName} />
+          <UpcomingPayments recurringRows={recurringRows} accountName={accountName} onPost={async (id) => { try { await postRecurring.mutateAsync(id); toast.success("已記入交易"); } catch { toast.error("記入失敗"); } }} posting={postRecurring.isPending} />
         </div>
       </div>
       </>
@@ -915,7 +919,7 @@ function RankingCard({ title, rows, emptyText }: { title: string; rows: Array<{ 
   );
 }
 
-function UpcomingPayments({ recurringRows, accountName }: { recurringRows: RecurringTransaction[]; accountName: (id: string) => string }) {
+function UpcomingPayments({ recurringRows, accountName, onPost, posting }: { recurringRows: RecurringTransaction[]; accountName: (id: string) => string; onPost: (id: string) => void; posting: boolean }) {
   const today = new Date().toISOString().slice(0, 10);
   const horizon = (() => {
     const d = new Date();
@@ -937,14 +941,15 @@ function UpcomingPayments({ recurringRows, accountName }: { recurringRows: Recur
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {upcoming.map((row) => (
-            <div key={row.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13 }}>
-              <div style={{ minWidth: 0 }}>
+            <div key={row.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 13 }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.merchant || row.category}</div>
                 <div className="muted" style={{ fontSize: 11 }}>{row.nextRunDate} · {accountName(row.accountId)}</div>
               </div>
               <span className="num" style={{ color: row.entryType === "income" ? "var(--ns-pos)" : "var(--ns-neg)", whiteSpace: "nowrap" }}>
                 {row.entryType === "income" ? "+" : "−"}NT${formatNumber(Math.abs(row.amount))}
               </span>
+              <button className="ns-btn ghost" style={{ fontSize: 11, padding: "3px 8px", minHeight: "auto", whiteSpace: "nowrap" }} disabled={posting} onClick={() => onPost(row.id)} title="立即記入這筆交易">記入</button>
             </div>
           ))}
         </div>

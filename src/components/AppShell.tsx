@@ -12,6 +12,8 @@ import { Link, Outlet } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { usePrivacySync, useUiPreferences } from "../state/uiPreferences";
+import { usePostDueRecurring } from "../data/hooks";
+import { todayInTimezone } from "../domain";
 import { GlobalSearch } from "./GlobalSearch";
 import { useTranslation } from "react-i18next";
 import { MagnifyingGlass } from "@phosphor-icons/react";
@@ -39,6 +41,8 @@ export function AppShell() {
   useBlockBrowserBackOnBackspace();
   usePrivacySync();
   usePrivacyShortcut();
+  const timezone = useUiPreferences((state) => state.timezone);
+  usePostDueRecurring(todayInTimezone(timezone));
   const privacyMode = useUiPreferences((state) => state.privacyMode);
   const togglePrivacy = useUiPreferences((state) => state.togglePrivacyMode);
   const [searchOpen, setSearchOpen] = useState(false);

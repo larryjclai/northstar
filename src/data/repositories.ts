@@ -168,6 +168,12 @@ export interface FinanceRepository {
   updateRecurringTransaction(id: string, input: RecurringDraft): Promise<void>;
   deleteRecurringTransaction(id: string): Promise<void>;
   postRecurringTransaction(id: string): Promise<void>;
+  /**
+   * Materialize every active recurring rule whose nextRunDate is on or before
+   * `today`, advancing each rule past today (catching up missed periods).
+   * Returns the number of ledger rows created.
+   */
+  postDueRecurringTransactions(today: string): Promise<number>;
   listMarketQuotes(): Promise<StoredMarketQuote[]>;
   saveMarketQuotes(quotes: MarketQuote[], source: string): Promise<void>;
   getAppSettings(): Promise<AppSettings>;
@@ -744,6 +750,44 @@ class BrowserFinanceRepository implements FinanceRepository {
     );
     this.recompute();
     await this.persist();
+  }
+
+  async postDueRecurringTransactions(today: string) {
+    let posted = 0;
+    const advanced = new Map<string, string>();
+    for (const rule of this.data.recurringTransactions) {
+      if (rule.deletedAt !== null || !rule.isActive) continue;
+      const frequency = rule.frequency ?? "monthly";
+      let next = rule.nextRunDate;
+      let guard = 0;
+      while (next <= today && guard < 120) {
+        this.data.ledgerTransactions.push(createLedgerRow({
+          accountId: rule.accountId,
+          date: `${next}T09:00`,
+          name: rule.merchant || rule.category,
+          amount: rule.amount,
+          currency: rule.currency,
+          category: rule.category,
+          subcategory: rule.subcategory,
+          merchant: rule.merchant,
+          entryType: rule.entryType,
+          settlementStatus: rule.settlementStatus,
+          note: rule.note,
+        }));
+        next = nextRecurringDate(next, frequency, rule.dayOfMonth);
+        posted += 1;
+        guard += 1;
+      }
+      if (next !== rule.nextRunDate) advanced.set(rule.id, next);
+    }
+    if (posted > 0) {
+      this.data.recurringTransactions = this.data.recurringTransactions.map((row) =>
+        advanced.has(row.id) ? bump({ ...row, nextRunDate: advanced.get(row.id)! }) : row,
+      );
+      this.recompute();
+      await this.persist();
+    }
+    return posted;
   }
 
   async adjustAccountBalance(accountId: string, targetBalance: number, date: string, note: string) {
@@ -1650,6 +1694,41 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     const freq = (recurring.frequency ?? "monthly") as import("../domain").RecurringFrequency;
     await this.db.execute(`update recurring_transactions set next_run_date = $1, updated_at = $2, revision = revision + 1 where id = $3`, [nextRecurringDate(recurring.nextRunDate, freq, recurring.dayOfMonth), nowIso(), id]);
     await this.recomputeSqliteAccounts();
+  }
+
+  override async postDueRecurringTransactions(today: string) {
+    const rules = await this.db.select<RecurringTransaction[]>(`select
+      id, account_id as accountId, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, frequency, day_of_month as dayOfMonth, next_run_date as nextRunDate, is_active as isActive
+      from recurring_transactions where deleted_at is null and is_active = 1`);
+    let posted = 0;
+    for (const rule of rules) {
+      const frequency = (rule.frequency ?? "monthly") as import("../domain").RecurringFrequency;
+      let next = rule.nextRunDate;
+      let guard = 0;
+      while (next <= today && guard < 120) {
+        await this.insertLedgerRow(createLedgerRow({
+          accountId: rule.accountId,
+          date: `${next}T09:00`,
+          name: rule.merchant || rule.category,
+          amount: rule.amount,
+          currency: rule.currency,
+          category: rule.category,
+          subcategory: rule.subcategory,
+          merchant: rule.merchant,
+          entryType: rule.entryType,
+          settlementStatus: rule.settlementStatus,
+          note: rule.note,
+        }));
+        next = nextRecurringDate(next, frequency, rule.dayOfMonth);
+        posted += 1;
+        guard += 1;
+      }
+      if (next !== rule.nextRunDate) {
+        await this.db.execute(`update recurring_transactions set next_run_date = $1, updated_at = $2, revision = revision + 1 where id = $3`, [next, nowIso(), rule.id]);
+      }
+    }
+    if (posted > 0) await this.recomputeSqliteAccounts();
+    return posted;
   }
 
   override async adjustAccountBalance(accountId: string, targetBalance: number, date: string, note: string) {
@@ -2974,24 +3053,28 @@ function firstFutureRunDate(value: string, frequency: import("../domain").Recurr
   return next;
 }
 
+// All recurring-date math is done in UTC to keep the YYYY-MM-DD string stable
+// regardless of the machine timezone (local Date + toISOString shifts the day).
 function nextMonthlyDate(value: string, dayOfMonth: number) {
-  const [year, month] = value.split("-").map(Number);
-  const next = new Date(year, month, 1);
-  next.setDate(Math.min(dayOfMonth, daysInMonth(next.getFullYear(), next.getMonth())));
-  return next.toISOString().slice(0, 10);
+  const [year, month] = value.slice(0, 10).split("-").map(Number); // month is 1-based
+  const nextYear = month === 12 ? year + 1 : year;
+  const nextMonthZeroBased = month % 12; // next month, 0-based
+  const day = Math.min(dayOfMonth, daysInMonth(nextYear, nextMonthZeroBased));
+  return new Date(Date.UTC(nextYear, nextMonthZeroBased, day)).toISOString().slice(0, 10);
 }
 
 function nextRecurringDate(value: string, frequency: import("../domain").RecurringFrequency, dayOfMonth: number): string {
-  const date = new Date(`${value.slice(0, 10)}T00:00:00`);
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
   switch (frequency) {
     case "weekly":
-      date.setDate(date.getDate() + 7);
+      date.setUTCDate(date.getUTCDate() + 7);
       return date.toISOString().slice(0, 10);
     case "biweekly":
-      date.setDate(date.getDate() + 14);
+      date.setUTCDate(date.getUTCDate() + 14);
       return date.toISOString().slice(0, 10);
     case "yearly":
-      date.setFullYear(date.getFullYear() + 1);
+      date.setUTCFullYear(date.getUTCFullYear() + 1);
       return date.toISOString().slice(0, 10);
     case "monthly":
     default:
@@ -3000,7 +3083,7 @@ function nextRecurringDate(value: string, frequency: import("../domain").Recurri
 }
 
 function daysInMonth(year: number, zeroBasedMonth: number) {
-  return new Date(year, zeroBasedMonth + 1, 0).getDate();
+  return new Date(Date.UTC(year, zeroBasedMonth + 1, 0)).getUTCDate();
 }
 
 function createInvestmentRow(input: InvestmentDraft, assetId: string): InvestmentRecord {

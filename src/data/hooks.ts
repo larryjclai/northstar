@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { getFinanceRepository, type FinanceRepository } from "./repositories";
 
 const keys = {
@@ -97,6 +98,36 @@ export function useFinanceData() {
     financialGoals,
     manualPriceSnapshots,
   };
+}
+
+/**
+ * On first ready render, materialize any recurring rules whose nextRunDate has
+ * already passed (catching up missed periods), then refresh affected queries.
+ * Runs once per app session.
+ */
+export function usePostDueRecurring(today: string) {
+  const queryClient = useQueryClient();
+  const repository = useRepository();
+  const ranRef = useRef(false);
+  useEffect(() => {
+    if (ranRef.current) return;
+    if (!repository.data || !today) return;
+    ranRef.current = true;
+    void (async () => {
+      try {
+        const posted = await repository.data!.postDueRecurringTransactions(today);
+        if (posted > 0) {
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: keys.ledger }),
+            queryClient.invalidateQueries({ queryKey: keys.accounts }),
+            queryClient.invalidateQueries({ queryKey: keys.recurring }),
+          ]);
+        }
+      } catch (error) {
+        console.error("Failed to post due recurring transactions", error);
+      }
+    })();
+  }, [repository.data, today, queryClient]);
 }
 
 export function useRepositoryMutation<TInput>(
