@@ -725,7 +725,8 @@ function LedgerRow({
   return (
     <div
       className="ns-cf-row"
-      style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderBottom: "1px solid var(--ns-border)" }}
+      onClick={onEdit}
+      style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderBottom: "1px solid var(--ns-border)", cursor: "pointer" }}
     >
       <div style={{ width: 34, height: 34, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)", display: "flex", alignItems: "center", justifyContent: "center" }}>
         {isTransfer ? <ArrowsLeftRight size={15} /> : <Tag size={15} />}
@@ -743,7 +744,7 @@ function LedgerRow({
       <div style={{ textAlign: "right" }}>
         <div className="num" style={{ fontSize: 14.5, color }}>{sign}NT${formatNumber(Math.abs(row.amount))}</div>
       </div>
-      <div className="ns-cf-actions" style={{ display: "flex", gap: 4 }}>
+      <div className="ns-cf-actions" style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
         {(isReceivable || isPayable) ? (
           <button className="ns-btn ghost icon" title="結清" onClick={onSettle}><Check size={14} /></button>
         ) : null}

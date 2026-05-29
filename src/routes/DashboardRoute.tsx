@@ -19,6 +19,8 @@ import {
   type PortfolioAsset,
 } from "../domain";
 import { useRefreshQuotes } from "../features/market-data/useMarketRefresh";
+import { useState } from "react";
+
 
 const CHART_COLORS = [
   "var(--ns-chart-1)",
@@ -33,6 +35,8 @@ const CHART_COLORS = [
 export function DashboardRoute() {
   const { accounts, ledger, assets, quotes, settings, dailyFxRates, recurring, financialGoals } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
+  const [monthKey, setMonthKey] = useState(() => new Date().toISOString().slice(0, 7));
+  const [selectedAccount, setSelectedAccount] = useState<string>("all");
 
   const accountRows = accounts.data ?? [];
   const ledgerRows = ledger.data ?? [];
@@ -44,11 +48,13 @@ export function DashboardRoute() {
   const goalRows = financialGoals.data ?? [];
 
   const { primaryCurrency, toPrimary } = createFxConverter(appSettings, fxHistory);
-  const availableCash = calculateAvailableCash(accountRows, toPrimary);
-  const liabilities = calculateLiabilities(accountRows, toPrimary);
+  const filteredAccounts = selectedAccount === "all" ? accountRows : accountRows.filter(a => a.id === selectedAccount);
+  const availableCash = calculateAvailableCash(filteredAccounts, toPrimary);
+  const liabilities = calculateLiabilities(filteredAccounts, toPrimary);
 
   const quoteFor = (ticker: string) => quoteRows.find((quote) => quote.symbol.toUpperCase() === ticker.toUpperCase());
-  const marketValue = assetRows.reduce((sum, asset) => {
+  const filteredAssets = selectedAccount === "all" ? assetRows : assetRows.filter(a => a.accountId === selectedAccount);
+  const marketValue = filteredAssets.reduce((sum, asset) => {
     const quote = quoteFor(asset.ticker);
     const value = quote ? quote.price * asset.totalQuantity : asset.averageCost * asset.totalQuantity;
     return sum + toPrimary(value, quote?.currency ?? asset.currency);
@@ -56,15 +62,19 @@ export function DashboardRoute() {
 
   const netWorth = availableCash + marketValue - liabilities;
 
-  const monthKeyNow = new Date().toISOString().slice(0, 7);
-  const monthRows = ledgerRows.filter((row) => row.date.startsWith(monthKeyNow) && row.settlementStatus === "settled");
+  const monthRows = ledgerRows.filter((row) => row.date.startsWith(monthKey) && row.settlementStatus === "settled" && (selectedAccount === "all" || row.accountId === selectedAccount));
   const monthIncome = monthRows.filter((row) => row.entryType === "income").reduce((sum, row) => sum + toPrimary(Math.max(0, row.amount), row.currency, row.date), 0);
   const monthExpense = monthRows.filter((row) => row.entryType === "expense").reduce((sum, row) => sum + toPrimary(Math.abs(row.amount), row.currency, row.date), 0);
   const monthNet = monthIncome - monthExpense;
   const savingsRate = monthIncome > 0 ? (monthNet / monthIncome) * 100 : 0;
 
   const trend = useMemo(
-    () => buildNetWorthTrend(accountRows, ledgerRows, assetRows, quoteRows, appSettings, fxHistory),
+    () => buildNetWorthTrend(
+      selectedAccount === "all" ? accountRows : accountRows.filter(a => a.id === selectedAccount),
+      selectedAccount === "all" ? ledgerRows : ledgerRows.filter(r => r.accountId === selectedAccount),
+      selectedAccount === "all" ? assetRows : assetRows.filter(a => a.accountId === selectedAccount),
+      quoteRows, appSettings, fxHistory
+    ),
     [accountRows, ledgerRows, assetRows, quoteRows, appSettings, fxHistory],
   );
   const prevValue = trend.length >= 2 ? trend[trend.length - 2].value : 0;
@@ -99,7 +109,7 @@ export function DashboardRoute() {
   // Allocation by asset class (+ cash slice).
   const allocation = useMemo(() => {
     const byClass = new Map<string, number>();
-    for (const asset of assetRows) {
+    for (const asset of filteredAssets) {
       const quote = quoteFor(asset.ticker);
       const value = toPrimary((quote ? quote.price : asset.averageCost) * asset.totalQuantity, quote?.currency ?? asset.currency);
       if (value <= 0) continue;
@@ -111,7 +121,7 @@ export function DashboardRoute() {
     return [...byClass.entries()]
       .map(([label, value], i) => ({ label, value, color: CHART_COLORS[i % CHART_COLORS.length], pct: total > 0 ? (value / total) * 100 : 0 }))
       .sort((a, b) => b.value - a.value);
-  }, [assetRows, quoteRows, availableCash, toPrimary]);
+  }, [filteredAssets, quoteRows, availableCash, toPrimary]);
 
   // Goals — approximate progress = net worth / target (dashboard glance only).
   const goals = useMemo(() => {
@@ -160,6 +170,7 @@ export function DashboardRoute() {
 
   const greeting = greetingForHour(new Date().getHours());
   const todayLabel = new Date().toLocaleDateString("zh-TW", { month: "long", day: "numeric" });
+  const monthLabel = monthKey.replace("-", " / ");
 
   return (
     <div style={{ padding: "22px 32px 100px", maxWidth: 1180, margin: "0 auto" }}>
@@ -177,12 +188,22 @@ export function DashboardRoute() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Overview · {todayLabel}</div>
+          <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Overview · {monthLabel}</div>
           <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>{greeting}</h1>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <select 
+            className="ns-input" 
+            style={{ width: 140, height: 36 }}
+            value={selectedAccount}
+            onChange={e => setSelectedAccount(e.target.value)}
+          >
+            <option value="all">所有帳戶</option>
+            {accountRows.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+          <input type="month" className="ns-input" style={{ width: 140, height: 36 }} value={monthKey} onChange={e => setMonthKey(e.target.value)} />
           <button className="ns-btn" onClick={() => refreshQuotes.mutate(assetRows.map((a) => a.ticker))} disabled={refreshQuotes.isPending || assetRows.length === 0}>
-            <ArrowsClockwise size={14} />{refreshQuotes.isPending ? "更新中" : "更新報價"}
+            <ArrowsClockwise size={14} />{refreshQuotes.isPending ? "更新中" : "更新"}
           </button>
           <Link to="/cash-flow" className="ns-btn primary"><Plus size={14} weight="bold" />新增</Link>
         </div>
