@@ -145,8 +145,9 @@ export function DashboardRoute() {
     const d = new Date();
     d.setDate(d.getDate() + 30);
     const horizon = todayInTimezone(timezone, d);
+    const today = todayInTimezone(timezone);
     return recurringRows
-      .filter((r) => r.isActive && r.nextRunDate <= horizon) // Includes overdue items
+      .filter((r) => r.isActive && r.nextRunDate >= today && r.nextRunDate <= horizon)
       .sort((a, b) => a.nextRunDate.localeCompare(b.nextRunDate))
       .slice(0, 5);
   }, [recurringRows, timezone]);
@@ -199,18 +200,18 @@ export function DashboardRoute() {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <select 
             className="ns-input" 
-            style={{ width: 140, height: 36 }}
+            style={{ minWidth: 120, maxWidth: 200, height: 36, boxSizing: "border-box", appearance: "none", paddingRight: 28, backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4 6 8 10 12 6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center", backgroundSize: "14px" }}
             value={selectedAccount}
             onChange={e => setSelectedAccount(e.target.value)}
           >
             <option value="all">所有帳戶</option>
             {accountRows.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
-          <MonthPicker value={monthKey} onChange={setMonthKey} triggerClassName="h-[36px]" />
-          <button className="ns-btn" onClick={() => refreshQuotes.mutate(assetRows.map((a) => a.ticker))} disabled={refreshQuotes.isPending || assetRows.length === 0}>
+          <MonthPicker value={monthKey} onChange={setMonthKey} triggerClassName="h-[36px] whitespace-nowrap" />
+          <button className="ns-btn" style={{ height: 36, boxSizing: "border-box", whiteSpace: "nowrap" }} onClick={() => refreshQuotes.mutate(assetRows.map((a) => a.ticker))} disabled={refreshQuotes.isPending || assetRows.length === 0}>
             <ArrowsClockwise size={14} />{refreshQuotes.isPending ? "更新中" : "更新"}
           </button>
-          <Link to="/cash-flow" className="ns-btn primary"><Plus size={14} weight="bold" />新增</Link>
+          <Link to="/cash-flow" className="ns-btn primary" style={{ height: 36, boxSizing: "border-box", whiteSpace: "nowrap" }}><Plus size={14} weight="bold" />新增</Link>
         </div>
       </div>
 

@@ -48,10 +48,10 @@ export function TransactionsRoute() {
     const groups: Array<{ date: string; rows: InvestmentRecord[] }> = [];
     let currentDate = "";
     for (const row of sortedRecords) {
-      const dateKey = row.date.slice(0, 10);
-      if (dateKey !== currentDate) {
-        groups.push({ date: dateKey, rows: [row] });
-        currentDate = dateKey;
+      const monthKey = row.date.slice(0, 7);
+      if (monthKey !== currentDate) {
+        groups.push({ date: monthKey, rows: [row] });
+        currentDate = monthKey;
       } else {
         groups[groups.length - 1].rows.push(row);
       }
@@ -140,10 +140,10 @@ export function TransactionsRoute() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-        <SummaryCard label="本月交易筆數" value={`${monthRows.length} 筆`} sublabel={monthKey} />
-        <SummaryCard label="本月買進" value={formatNumber(monthBuy)} sublabel="未含手續費" />
-        <SummaryCard label="本月賣出" value={formatNumber(monthSell)} sublabel="成交金額" />
-        <SummaryCard label="本月現金股利" value={formatNumber(monthDividend)} sublabel={`T+2 留意 ${twdSettlementWatchCount} 筆`} />
+        <SummaryCard label="Records (All time)" value={`${recordRows.length}`} sublabel="總筆數" />
+        <SummaryCard label="Total Bought (All time)" value={formatNumber(recordRows.filter(r => r.action === "buy").reduce((s, r) => s + r.price * r.quantity, 0))} sublabel="總買入金額" />
+        <SummaryCard label="Total Sold (All time)" value={formatNumber(recordRows.filter(r => r.action === "sell").reduce((s, r) => s + r.price * r.quantity, 0))} sublabel="總賣出金額" />
+        <SummaryCard label="Dividends (All time)" value={formatNumber(recordRows.filter(r => r.action === "cashDividend").reduce((s, r) => s + r.price, 0))} sublabel="總股利" />
       </div>
 
       {message ? <div className="mb-4"><StatusText>{message}</StatusText></div> : null}

@@ -2670,10 +2670,13 @@ function normalizeCategoryGroups(input: unknown) {
   const source = Array.isArray(input) ? input : [];
   return source.map((item) => {
     if (typeof item === "string") return { name: item, children: [] };
-    const group = item as { name?: unknown; children?: unknown };
+    const group = item as { name?: unknown; children?: unknown; icon?: unknown; color?: unknown; budget?: unknown };
     return {
       name: String(group.name ?? "").trim(),
       children: uniqueClean(group.children, []),
+      icon: group.icon ? String(group.icon) : undefined,
+      color: group.color ? String(group.color) : undefined,
+      budget: typeof group.budget === "number" ? group.budget : group.budget ? Number(group.budget) : undefined,
     };
   }).filter((item) => item.name);
 }

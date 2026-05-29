@@ -1,4 +1,5 @@
-import { X } from "@phosphor-icons/react";
+import { X, Bank } from "@phosphor-icons/react";
+import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { HoldingForm, makeEmptyHoldingDraft } from "../components/HoldingForm";
 import { StatusText } from "../components/StatusText";
@@ -85,6 +86,8 @@ export function InvestmentEntryDrawer({
   const [snapshotForm, setSnapshotForm] = useState<PortfolioAssetDraft>(emptyHoldingDraft);
   const [transactionForm, setTransactionForm] = useState<InvestmentDraft>(() => emptyTransactionDraft(timezone));
   const [message, setMessage] = useState("");
+  const [batchMode, setBatchMode] = useState(false);
+  const [batchAccounts, setBatchAccounts] = useState<string[]>([]);
 
   const createHolding = useRepositoryMutation(
     (repository, input: PortfolioAssetDraft) => repository.createManualHolding(input),
@@ -112,6 +115,8 @@ export function InvestmentEntryDrawer({
       setMode(initialMode);
     }
     setMessage("");
+    setBatchMode(false);
+    setBatchAccounts([]);
   }, [open, emptyHoldingDraft, timezone, initialMode, transactionPreset]);
 
   useEffect(() => {
@@ -172,11 +177,26 @@ export function InvestmentEntryDrawer({
     setMessage("");
     try {
       if (!transactionForm.ticker.trim()) throw new Error("請輸入 ticker。");
-      if (!transactionForm.linkedAccountId) throw new Error("請選擇連動帳戶 / 券商。");
+      if (batchMode) {
+        if (batchAccounts.length === 0) throw new Error("請選擇至少一個連動帳戶。");
+      } else {
+        if (!transactionForm.linkedAccountId) throw new Error("請選擇連動帳戶 / 券商。");
+      }
       if (side === "split" && transactionForm.quantity <= 0) throw new Error("請輸入拆股比例（例如 3 = 1 股拆 3 股）。");
+      
       const payload = normalizeTransactionDraft(transactionForm);
-      if (transactionPreset?.id) await updateRecord.mutateAsync({ ...payload, id: transactionPreset.id });
-      else await createRecord.mutateAsync(payload);
+      if (transactionPreset?.id) {
+        await updateRecord.mutateAsync({ ...payload, id: transactionPreset.id });
+      } else {
+        if (batchMode) {
+          await Promise.all(batchAccounts.map(async (accId) => {
+            const acc = eligibleAccounts.find(a => a.id === accId);
+            return createRecord.mutateAsync({ ...payload, linkedAccountId: accId, currency: acc?.currency ?? payload.currency });
+          }));
+        } else {
+          await createRecord.mutateAsync(payload);
+        }
+      }
       onSubmitted?.();
       onClose();
     } catch (error) {
@@ -275,7 +295,20 @@ export function InvestmentEntryDrawer({
           <button className="ns-btn ghost icon" onClick={onClose} aria-label="關閉"><X size={16} /></button>
         </div>
 
-        {mode === "snapshot" ? (
+        {eligibleAccounts.length === 0 ? (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 32, textAlign: "center" }}>
+            <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--ns-accent-soft)", color: "var(--ns-accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Bank size={24} weight="duotone" />
+            </div>
+            <div>
+              <h3 style={{ margin: "0 0 8px 0", fontSize: 16, fontWeight: 600 }}>尚未建立投資帳戶</h3>
+              <p className="muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+                在開始記錄投資交易前，您需要先建立至少一個「投資種類」的帳戶。
+              </p>
+            </div>
+            <Link to="/accounts" onClick={onClose} className="ns-btn primary" style={{ marginTop: 8 }}>前往建立帳戶</Link>
+          </div>
+        ) : mode === "snapshot" ? (
           <div style={{ flex: 1, overflow: "auto", padding: "20px 24px" }}>
             <HoldingForm
               value={snapshotForm}
@@ -334,22 +367,44 @@ export function InvestmentEntryDrawer({
                   <input className="ns-input" type="datetime-local" value={transactionForm.date} onChange={(e) => setTransactionForm({ ...transactionForm, date: e.target.value })} />
                 </div>
                 <div>
-                  <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Account</label>
-                  <select
-                    className="ns-input"
-                    style={{ appearance: "none" }}
-                    value={transactionForm.linkedAccountId ?? ""}
-                    onChange={(e) =>
-                      setTransactionForm({
-                        ...transactionForm,
-                        linkedAccountId: e.target.value || null,
-                        currency: eligibleAccounts.find((a) => a.id === e.target.value)?.currency ?? transactionForm.currency,
-                      })
-                    }
-                  >
-                    <option value="">— 選擇券商 —</option>
-                    {eligibleAccounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>)}
-                  </select>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <label className="ns-eyebrow">Account</label>
+                    {!isEditingTransaction ? (
+                      <label style={{ fontSize: 11.5, display: "flex", alignItems: "center", gap: 4, cursor: "pointer", color: "var(--ns-accent)" }}>
+                        <input type="checkbox" checked={batchMode} onChange={(e) => { setBatchMode(e.target.checked); setBatchAccounts(transactionForm.linkedAccountId ? [transactionForm.linkedAccountId] : []); }} />
+                        批次多帳戶
+                      </label>
+                    ) : null}
+                  </div>
+                  {batchMode ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 120, overflowY: "auto", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-sm)", padding: 8 }}>
+                      {eligibleAccounts.map((a) => (
+                        <label key={a.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+                          <input type="checkbox" checked={batchAccounts.includes(a.id)} onChange={(e) => {
+                            if (e.target.checked) setBatchAccounts([...batchAccounts, a.id]);
+                            else setBatchAccounts(batchAccounts.filter((id) => id !== a.id));
+                          }} />
+                          {a.name} ({a.currency})
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <select
+                      className="ns-input"
+                      style={{ appearance: "none" }}
+                      value={transactionForm.linkedAccountId ?? ""}
+                      onChange={(e) =>
+                        setTransactionForm({
+                          ...transactionForm,
+                          linkedAccountId: e.target.value || null,
+                          currency: eligibleAccounts.find((a) => a.id === e.target.value)?.currency ?? transactionForm.currency,
+                        })
+                      }
+                    >
+                      <option value="">— 選擇券商 —</option>
+                      {eligibleAccounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>)}
+                    </select>
+                  )}
                 </div>
               </div>
 
@@ -432,7 +487,7 @@ export function InvestmentEntryDrawer({
                 onClick={submitTransaction}
                 disabled={createRecord.isPending || updateRecord.isPending}
               >
-                {(createRecord.isPending || updateRecord.isPending) ? "儲存中…" : `${isEditingTransaction ? "儲存交易" : SIDE_CONFIRM[side]} · ${confirmAmount}`}
+                {(createRecord.isPending || updateRecord.isPending) ? "儲存中…" : isEditingTransaction ? "儲存交易" : batchMode ? `批次建立 ${batchAccounts.length} 筆交易` : `${SIDE_CONFIRM[side]} · ${confirmAmount}`}
               </button>
             </div>
           </>

@@ -12,6 +12,8 @@ import { useRefreshFxRates } from "../features/market-data/useMarketRefresh";
 import { useUiPreferences, type ClockMode, type NameLocalePreference } from "../state/uiPreferences";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import EmojiPicker from "emoji-picker-react";
+import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
 
 const emptySettings: AppSettings = {
   primaryCurrency: "TWD",
@@ -109,7 +111,6 @@ function SettingsCategories({ form, setForm, submit, t }: any) {
   const [newCat, setNewCat] = useState({ name: '', icon: '📦', color: '#9fe870', budget: '' });
   const [expandId, setExpandId] = useState<string | null>(null);
   
-  const iconPicker = ['🍱','🚖','🎮','📺','🏠','💊','📚','☕','✈️','💪','🛒','🎵','📦','💰','🐾','🌿','🎓','🧴'];
   const colorPicker = ['#f0c050','#6fb3ff','#a99cff','#6ee49a','#ff7d6b','#34c5b0','#f0a050','#9fe870','#d97a9c','#868685'];
 
   function addCategory() {
@@ -167,13 +168,21 @@ function SettingsCategories({ form, setForm, submit, t }: any) {
           <div style={{ marginBottom: 10 }}>
             <label style={{ fontSize: 11.5, color: 'var(--ns-fg-muted)', display: 'block', marginBottom: 6 }}>圖示</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {iconPicker.map(ic => (
-                <button key={ic} onClick={() => setNewCat(n=>({...n,icon:ic}))}
-                  style={{ width:32,height:32,borderRadius:'var(--ns-r-sm)',fontSize:18,
-                    background:newCat.icon===ic?'var(--ns-accent-soft)':'var(--ns-bg-hover)',
-                    border:newCat.icon===ic?'1.5px solid var(--ns-accent)':'1px solid transparent',
-                    cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>{ic}</button>
-              ))}
+              <Popover>
+                <PopoverTrigger style={{ width:32,height:32,borderRadius:'var(--ns-r-sm)',fontSize:18,
+                  background:'var(--ns-bg-hover)',
+                  border:'1px solid var(--ns-border)',
+                  cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
+                  {newCat.icon}
+                </PopoverTrigger>
+                <PopoverContent className="z-[150] shadow-xl rounded-xl w-auto p-0">
+                  <EmojiPicker 
+                    onEmojiClick={(emojiData) => setNewCat(n=>({...n,icon: emojiData.emoji}))} 
+                    width={300} 
+                    height={400} 
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           <div style={{ marginBottom: 14 }}>
@@ -258,23 +267,39 @@ function SettingsCategories({ form, setForm, submit, t }: any) {
 
               {isEdit && (
                 <div style={{ padding:'14px 20px 16px', borderTop:'1px dashed var(--ns-border)', background:'var(--ns-bg-hover)' }}>
-                  <EditCatForm cat={c} colors={colorPicker} icons={iconPicker} onSave={(patch: any) => saveEdit(c.name, patch)} onCancel={() => setEditId(null)} />
+                  <EditCatForm cat={c} colors={colorPicker} onSave={(patch: any) => saveEdit(c.name, patch)} onCancel={() => setEditId(null)} />
                 </div>
               )}
 
-              {expandId === c.name && c.children?.length > 0 && (
+              {expandId === c.name && (
                 <div style={{ background:'var(--ns-bg)', borderTop:'1px solid var(--ns-border)' }}>
-                  {c.children.map((s: string, si: number) => (
+                  {c.children?.map((s: string, si: number) => (
                     <div key={s} style={{ padding:'9px 20px 9px 66px', display:'flex', alignItems:'center', gap:10,
                       borderTop: si?'1px solid var(--ns-border)':'none', fontSize:13 }}>
                       <span className="dim">↳</span>
                       <span style={{ flex:1 }}>{s}</span>
-                      <button className="ns-btn ghost icon" style={{color:'var(--ns-neg)', padding:'3px 6px'}} onClick={() => {
-                        const nextForm = { ...form, categories: form.categories.map((cat: any) => cat.name === c.name ? { ...cat, children: cat.children.filter((x: string) => x !== s) } : cat) };
-                        submit(nextForm);
-                      }}><Trash size={12}/></button>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button className="ns-btn ghost icon" style={{padding:'3px 6px'}} onClick={() => {
+                          const newName = prompt("重新命名子分類：", s);
+                          if (!newName || newName === s) return;
+                          const nextForm = { ...form, categories: form.categories.map((cat: any) => cat.name === c.name ? { ...cat, children: cat.children.map((child: string) => child === s ? newName : child) } : cat) };
+                          submit(nextForm);
+                        }}><PencilSimple size={12}/></button>
+                        <button className="ns-btn ghost icon" style={{color:'var(--ns-neg)', padding:'3px 6px'}} onClick={() => {
+                          const nextForm = { ...form, categories: form.categories.map((cat: any) => cat.name === c.name ? { ...cat, children: cat.children.filter((x: string) => x !== s) } : cat) };
+                          submit(nextForm);
+                        }}><Trash size={12}/></button>
+                      </div>
                     </div>
                   ))}
+                  <div style={{ padding:'9px 20px 9px 66px', borderTop: c.children?.length ? '1px solid var(--ns-border)' : 'none' }}>
+                    <button className="ns-btn ghost" style={{ fontSize: 12, padding: "4px 8px", minHeight: "auto" }} onClick={() => {
+                      const newName = prompt(`新增「${c.name}」的子分類：`);
+                      if (!newName || c.children?.includes(newName)) return;
+                      const nextForm = { ...form, categories: form.categories.map((cat: any) => cat.name === c.name ? { ...cat, children: [...(cat.children || []), newName] } : cat) };
+                      submit(nextForm);
+                    }}><Plus size={12} style={{ marginRight: 4 }} />新增子分類</button>
+                  </div>
                 </div>
               )}
             </div>
@@ -285,7 +310,7 @@ function SettingsCategories({ form, setForm, submit, t }: any) {
   );
 }
 
-function EditCatForm({ cat, colors, icons, onSave, onCancel }: any) {
+function EditCatForm({ cat, colors, onSave, onCancel }: any) {
   const [name,   setName]   = useState(cat.name);
   const [icon,   setIcon]   = useState(cat.icon || '📦');
   const [color,  setColor]  = useState(cat.color || '#868685');
@@ -303,13 +328,21 @@ function EditCatForm({ cat, colors, icons, onSave, onCancel }: any) {
       <div>
         <label style={{ fontSize:11,color:'var(--ns-fg-muted)',display:'block',marginBottom:6 }}>圖示</label>
         <div style={{ display:'flex',flexWrap:'wrap',gap:5 }}>
-          {icons.map((ic: string)=>(
-            <button key={ic} onClick={()=>setIcon(ic)} style={{
-              width:28,height:28,borderRadius:'var(--ns-r-xs)',fontSize:16,
-              background:icon===ic?'var(--ns-accent-soft)':'transparent',
-              border:icon===ic?'1px solid var(--ns-accent)':'1px solid transparent',
-              cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>{ic}</button>
-          ))}
+          <Popover>
+            <PopoverTrigger style={{ width:32,height:32,borderRadius:'var(--ns-r-sm)',fontSize:18,
+              background:'var(--ns-bg-hover)',
+              border:'1px solid var(--ns-border)',
+              cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
+              {icon}
+            </PopoverTrigger>
+            <PopoverContent className="z-[150] shadow-xl rounded-xl w-auto p-0">
+              <EmojiPicker 
+                onEmojiClick={(emojiData) => setIcon(emojiData.emoji)} 
+                width={300} 
+                height={400} 
+              />
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
       <div>

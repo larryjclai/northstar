@@ -78,10 +78,13 @@ function NSDesktopMerchantDetail({ onNavigate } = {}) {
               <h1 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 26, margin: '0 0 6px', fontWeight: 600, letterSpacing: -0.02 }}>
                 Uber
               </h1>
-              <div style={{ display: 'flex', gap: 7 }}>
-                <span className="ns-pill"><span>交通</span></span>
+              <div style={{ display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap' }}>
                 <span className="ns-pill"><span>計程車 · 外送</span></span>
                 <span className="ns-pill"><span>Cathay World Card</span></span>
+                <button className="ns-btn ghost" style={{ padding: '3px 10px', fontSize: 12 }}
+                  onClick={() => onNavigate && onNavigate('cat-detail')}>
+                  🚗 交通 分類 <NSIcon name="chevRight" size={11}/>
+                </button>
               </div>
             </div>
           </div>

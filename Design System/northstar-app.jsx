@@ -117,6 +117,9 @@ function NSRoot() {
           <DCArtboard id="d-cat-mgmt" label="Cash Flow · Categories" width={1440} height={900}>
             <NSDesktopCategoryMgmt />
           </DCArtboard>
+          <DCArtboard id="d-cat-detail" label="Cash Flow · Category detail" width={1440} height={900}>
+            <NSDesktopCategoryDetail />
+          </DCArtboard>
           <DCArtboard id="d-fire-calc" label="FIRE Calculator · Interactive" width={1440} height={900}>
             <NSDesktopFireCalc />
           </DCArtboard>
@@ -166,6 +169,21 @@ function NSRoot() {
           <DCArtboard id="m-fire-calc" label="FIRE Calculator" width={420} height={870}>
             <IOSDevice width={420} height={870} dark={t.theme === 'dark'}>
               <NSMobileFireCalc />
+            </IOSDevice>
+          </DCArtboard>
+          <DCArtboard id="m-holdings-txns" label="Holdings · Transactions tab" width={420} height={870}>
+            <IOSDevice width={420} height={870} dark={t.theme === 'dark'}>
+              <NSMobileHoldingsTxns />
+            </IOSDevice>
+          </DCArtboard>
+          <DCArtboard id="m-merchant" label="Cash Flow · Merchant detail" width={420} height={870}>
+            <IOSDevice width={420} height={870} dark={t.theme === 'dark'}>
+              <NSMobileMerchantDetail />
+            </IOSDevice>
+          </DCArtboard>
+          <DCArtboard id="m-cat-detail" label="Cash Flow · Category detail" width={420} height={870}>
+            <IOSDevice width={420} height={870} dark={t.theme === 'dark'}>
+              <NSMobileCategoryDetail />
             </IOSDevice>
           </DCArtboard>
         </DCSection>

@@ -246,6 +246,63 @@ function NSDesktopHoldingsTxns({ onNavigate } = {}) {
   );
 }
 
+// ─────── Batch Account Toggle (sub-component) ───────
+function BatchToggle() {
+  const [on, setOn] = React.useState(false);
+  const [selected, setSelected] = React.useState([]);
+  const accounts = ['富邦證券', 'Interactive Brokers', 'MAX Exchange', 'BitoPro'];
+
+  return (
+    <div style={{ width: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 13.5, fontWeight: 500 }}>Apply to multiple accounts</div>
+          <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>同步新增相同交易到其他帳戶</div>
+        </div>
+        <div onClick={() => { setOn(!on); setSelected([]); }} style={{
+          width: 38, height: 22, borderRadius: 99, cursor: 'pointer', flexShrink: 0,
+          background: on ? 'var(--ns-accent)' : 'var(--ns-bg-hover)',
+          border: on ? 'none' : '1px solid var(--ns-border)',
+          position: 'relative', transition: 'background 0.2s',
+        }}>
+          <div style={{
+            width: 16, height: 16, background: '#fff', borderRadius: 99, position: 'absolute', top: 3,
+            left: on ? 19 : 3, transition: 'left 0.18s', boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
+          }}/>
+        </div>
+      </div>
+      {on && (
+        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {accounts.map(acc => {
+            const checked = selected.includes(acc);
+            return (
+              <label key={acc} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 13 }}>
+                <div onClick={() => setSelected(s => checked ? s.filter(a => a !== acc) : [...s, acc])} style={{
+                  width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                  background: checked ? 'var(--ns-accent)' : 'transparent',
+                  border: checked ? 'none' : '1.5px solid var(--ns-border)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer',
+                }}>
+                  {checked && <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                    <path d="M1 4L3.5 6.5L9 1" stroke="var(--ns-accent-fg)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>}
+                </div>
+                <span>{acc}</span>
+              </label>
+            );
+          })}
+          {selected.length > 0 && (
+            <div className="muted" style={{ fontSize: 11.5, marginTop: 4, paddingTop: 8, borderTop: '1px solid var(--ns-border)' }}>
+              Save 時將在 {selected.length} 個帳戶各新增一筆相同交易
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─────── Transaction Edit Sheet ───────
 function NSInvestEditSheet({ tx, onClose } = {}) {
   const [side,  setSide]  = React.useState(tx?.side  || 'BUY');
@@ -375,6 +432,78 @@ function NSInvestEditSheet({ tx, onClose } = {}) {
                   </span>
                 </div>
               </div>
+
+              {/* FIFO lot breakdown */}
+              {(side === 'BUY' || side === 'SELL') && (
+                <div style={{ marginTop: 14, borderTop: `1px solid color-mix(in srgb, ${meta.color} 20%, transparent)`, paddingTop: 12 }}>
+                  <div className="ns-eyebrow" style={{ marginBottom: 8 }}>FIFO cost basis impact</div>
+                  {side === 'BUY' && (
+                    <div>
+                      {/* Existing lots */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                        {[
+                          { date: '2026-02-14', qty: 200, price: 980, status: 'existing' },
+                          { date: '2026-01-15', qty: 300, price: 940, status: 'existing' },
+                        ].map((lot, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+                            <div style={{ width: 6, height: 6, borderRadius: 99, background: 'var(--ns-fg-dim)', flexShrink: 0 }}/>
+                            <span className="mono muted">{lot.date}</span>
+                            <span className="muted">{lot.qty} shares @ NT${lot.price.toLocaleString()}</span>
+                            <span className="dim" style={{ marginLeft: 'auto' }}>existing lot</span>
+                          </div>
+                        ))}
+                        {/* New lot to be added */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+                          <div style={{ width: 6, height: 6, borderRadius: 99, background: meta.color, flexShrink: 0 }}/>
+                          <span className="mono" style={{ color: meta.color }}>{tx?.date}</span>
+                          <span style={{ color: meta.color }}>
+                            {parseFloat(qty||0)} shares @ NT${parseFloat(price||0).toLocaleString()}
+                          </span>
+                          <span style={{ marginLeft: 'auto', color: meta.color, fontWeight: 500 }}>new lot</span>
+                        </div>
+                      </div>
+                      {/* New avg cost */}
+                      <div style={{
+                        padding: '8px 12px', borderRadius: 'var(--ns-r-sm)',
+                        background: `color-mix(in srgb, ${meta.color} 14%, transparent)`,
+                        display: 'flex', justifyContent: 'space-between', fontSize: 12.5,
+                      }}>
+                        <span className="muted">New avg cost basis</span>
+                        <span className="num" style={{ fontWeight: 600 }}>
+                          NT${Math.round((980*200 + 940*300 + parseFloat(price||0)*parseFloat(qty||0)) / (200 + 300 + parseFloat(qty||0))).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {side === 'SELL' && (
+                    <div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                        {[
+                          { date: '2026-01-15', qty: 300, price: 940, pnl: (parseFloat(price||0)-940) * Math.min(parseFloat(qty||0), 300) },
+                        ].map((lot, i) => (
+                          <div key={i} style={{ fontSize: 12 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                              <div style={{ width: 6, height: 6, borderRadius: 99, background: 'var(--ns-neg)', flexShrink: 0 }}/>
+                              <span className="mono muted">{lot.date} lot</span>
+                              <span className="muted">{Math.min(parseFloat(qty||0), lot.qty)} shares @ NT$940 cost</span>
+                            </div>
+                            <div style={{
+                              marginLeft: 16, padding: '6px 10px', borderRadius: 'var(--ns-r-sm)',
+                              background: lot.pnl >= 0 ? 'var(--ns-pos-soft)' : 'var(--ns-neg-soft)',
+                              display: 'flex', justifyContent: 'space-between',
+                            }}>
+                              <span className="muted">Realized P/L</span>
+                              <span className={`num ${lot.pnl >= 0 ? 'pos' : 'neg'}`} style={{ fontWeight: 600 }}>
+                                {lot.pnl >= 0 ? '+' : ''}NT${Math.round(lot.pnl).toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               {(side === 'BUY' || side === 'SELL') && (
                 <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
                   Changes will be applied to FIFO cost basis immediately.
@@ -382,6 +511,14 @@ function NSInvestEditSheet({ tx, onClose } = {}) {
               )}
             </div>
           )}
+
+          {/* Batch account edit */}
+          <div style={{
+            padding: '14px 16px', borderRadius: 'var(--ns-r-md)',
+            border: '1px solid var(--ns-border)', background: 'var(--ns-bg-card)',
+          }}>
+            <BatchToggle />
+          </div>
 
           {/* Danger zone */}
           <div style={{

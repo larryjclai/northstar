@@ -4,6 +4,8 @@ import { AccountsRoute } from "./AccountsRoute";
 import { CashFlowRoute } from "./CashFlowRoute";
 import { CategoriesRoute } from "./CategoriesRoute";
 import { DashboardRoute } from "./DashboardRoute";
+import { CategoryDetailRoute } from "./CategoryDetailRoute";
+import { MerchantDetailRoute } from "./MerchantDetailRoute";
 import { FIRECalculatorRoute } from "./FIRECalculatorRoute";
 import { GoalsRoute } from "./GoalsRoute";
 import { HoldingDetailRoute } from "./HoldingDetailRoute";
@@ -51,6 +53,18 @@ const categoriesRoute = createRoute({
   component: CategoriesRoute,
 });
 
+const categoryDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/cash-flow/categories/$categoryName",
+  component: CategoryDetailRoute,
+});
+
+const merchantDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/cash-flow/merchants/$merchantName",
+  component: MerchantDetailRoute,
+});
+
 const accountsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/accounts",
@@ -84,6 +98,8 @@ const routeTree = rootRoute.addChildren([
   transactionsRoute,
   cashFlowRoute,
   categoriesRoute,
+  categoryDetailRoute,
+  merchantDetailRoute,
   accountsRoute,
   settingsRoute,
 ]);

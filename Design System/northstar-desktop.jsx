@@ -409,6 +409,8 @@ function NSDesktopHoldings({ onNavigate } = {}) {
 
 // ─────── 3. Cash Flow ───────
 function NSDesktopCashFlow({ onNavigate } = {}) {
+  const [cfTab, setCfTab] = React.useState('transactions');
+
   const days = Array.from({ length: 30 }, (_, i) => ({
     v: ((Math.sin(i * 0.9) * 1500) + (Math.cos(i * 0.4) * 2000) + ((i % 5 === 0) ? 4500 : -2200)),
   }));
@@ -430,21 +432,234 @@ function NSDesktopCashFlow({ onNavigate } = {}) {
     ]},
   ];
 
+  const merchants = [
+    { mark: 'FD', color: 'var(--ns-chart-3)', name: '全家便利商店', cat: '食物',  visits: 28, ytd: 4200,  lastDate: '今天',   rule: true  },
+    { mark: 'UB', color: 'var(--ns-chart-4)', name: 'Uber',         cat: '交通',  visits: 23, ytd: 9600,  lastDate: '今天',   rule: true  },
+    { mark: 'SP', color: 'var(--ns-chart-2)', name: 'Spotify',      cat: '訂閱',  visits: 5,  ytd: 745,   lastDate: '昨天',   rule: true  },
+    { mark: 'CB', color: 'var(--ns-chart-4)', name: 'Costco',       cat: '雜貨',  visits: 8,  ytd: 22400, lastDate: '5/25',   rule: false },
+    { mark: 'IK', color: 'var(--ns-chart-5)', name: 'IKEA',         cat: '家用',  visits: 3,  ytd: 8640,  lastDate: '昨天',   rule: false },
+    { mark: 'MR', color: 'var(--ns-chart-1)', name: 'MRT 捷運',     cat: '交通',  visits: 62, ytd: 3200,  lastDate: '5/24',   rule: true  },
+    { mark: 'YS', color: 'var(--ns-chart-1)', name: '玉山銀行',     cat: '轉帳',  visits: 2,  ytd: 144000,lastDate: '5/25',   rule: false },
+    { mark: 'NF', color: 'var(--ns-chart-3)', name: 'Netflix',      cat: '訂閱',  visits: 5,  ytd: 975,   lastDate: '5/1',    rule: true  },
+  ];
+
   return (
     <NSDesktopShell active="cashflow" onNavigate={onNavigate}>
       <div style={{ padding: '24px 32px 100px', height: '100%', overflow: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 22 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 0 }}>
           <div>
             <div className="ns-eyebrow" style={{ marginBottom: 6 }}>May 2026</div>
             <h1 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>Cash Flow</h1>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="ns-btn" onClick={() => onNavigate && onNavigate('cat-mgmt')}><NSIcon name="tag" size={14}/>分類</button>
             <button className="ns-btn"><NSIcon name="calendar" size={14}/>5 月</button>
             <button className="ns-btn"><NSIcon name="filter" size={14}/>All accounts · All cats</button>
             <button className="ns-btn primary" onClick={() => onNavigate && onNavigate('cf-new')}><NSIcon name="plus" size={14} strokeWidth={2}/>記一筆</button>
           </div>
         </div>
+
+        {/* Page-level tabs: Transactions | 分類 | Merchants */}
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--ns-border)', marginTop: 20, marginBottom: 22 }}>
+          {[
+            { id: 'transactions', label: 'Transactions' },
+            { id: 'categories',   label: '分類' },
+            { id: 'merchants',    label: 'Merchants' },
+          ].map(tab => (
+            <button key={tab.id} onClick={() => setCfTab(tab.id)} style={{
+              padding: '10px 20px', background: 'none', border: 'none', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: 14, fontWeight: cfTab === tab.id ? 600 : 400,
+              color: cfTab === tab.id ? 'var(--ns-fg)' : 'var(--ns-fg-muted)',
+              borderBottom: cfTab === tab.id ? '2px solid var(--ns-accent)' : '2px solid transparent',
+              marginBottom: -1, transition: 'color 0.12s',
+            }}>{tab.label}</button>
+          ))}
+        </div>
+
+        {/* ── Categories tab ── */}
+        {cfTab === 'categories' && (() => {
+          const cfCats = [
+            { name: '食物', icon: '🍱', color: 'var(--ns-chart-3)', ytd: 4200,  txns: 28, pct: 8.6,  topM: '全家便利商店' },
+            { name: '交通', icon: '🚗', color: 'var(--ns-chart-4)', ytd: 9600,  txns: 23, pct: 19.7, topM: 'Uber' },
+            { name: '訂閱', icon: '📺', color: 'var(--ns-chart-2)', ytd: 1745,  txns: 10, pct: 3.6,  topM: 'Spotify' },
+            { name: '雜貨', icon: '🛒', color: 'var(--ns-chart-5)', ytd: 22400, txns: 8,  pct: 46.0, topM: 'Costco' },
+            { name: '居家', icon: '🏠', color: 'var(--ns-chart-1)', ytd: 8640,  txns: 3,  pct: 17.7, topM: 'IKEA' },
+            { name: '其他', icon: '⋯',  color: 'var(--ns-fg-dim)',  ytd: 2100,  txns: 5,  pct: 4.3,  topM: '—' },
+          ];
+          const total = cfCats.reduce((s, c) => s + c.ytd, 0);
+          return (
+            <div>
+              {/* Summary strip */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 20 }}>
+                {[
+                  ['最大支出', '雜貨 · NT$22,400', null],
+                  ['交易最多', '食物 · 28 筆', null],
+                  ['未分類', '3 筆 · 0.6%', 'neg'],
+                ].map(([l, v, c]) => (
+                  <div className="ns-card" key={l} style={{ padding: '14px 18px' }}>
+                    <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{l}</div>
+                    <div className={`num ${c || ''}`} style={{ fontSize: 17, fontWeight: 500 }}>{v}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Donut + Table two-column */}
+              <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 16 }}>
+
+                {/* Donut card */}
+                <div className="ns-card" style={{ padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: 16 }}>
+                    <div>
+                      <div className="ns-eyebrow" style={{ marginBottom: 3 }}>5 月支出</div>
+                      <div className="num" style={{ fontSize: 18, fontWeight: 600 }}>NT${total.toLocaleString()}</div>
+                    </div>
+                    <button className="ns-btn ghost" style={{ padding: '4px 8px' }} onClick={() => onNavigate && onNavigate('cat-mgmt')}>
+                      <NSIcon name="settings" size={14}/>
+                    </button>
+                  </div>
+                  <NSDonut
+                    size={160} thickness={22}
+                    data={cfCats.map(c => ({ label: c.name, v: c.pct, color: c.color }))}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 16, width: '100%' }}>
+                    {cfCats.map((c) => (
+                      <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 2, background: c.color, flexShrink: 0 }}/>
+                        <span style={{ flex: 1, fontSize: 12 }}>{c.icon} {c.name}</span>
+                        <span className="num muted" style={{ fontSize: 11.5 }}>{c.pct}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Category table */}
+                <div className="ns-card" style={{ padding: 0 }}>
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: '1.8fr 0.9fr 1.1fr 80px 1fr 44px',
+                    padding: '9px 20px', borderBottom: '1px solid var(--ns-border)',
+                    fontSize: 10.5, letterSpacing: 0.06, textTransform: 'uppercase',
+                    color: 'var(--ns-fg-dim)', fontFamily: 'var(--ns-font-mono)',
+                    background: 'var(--ns-bg-elev)',
+                  }}>
+                    <span>分類</span>
+                    <span style={{ textAlign: 'right' }}>筆數</span>
+                    <span style={{ textAlign: 'right' }}>YTD 支出</span>
+                    <span style={{ textAlign: 'right' }}>佔比</span>
+                    <span>Top merchant</span>
+                    <span/>
+                  </div>
+                  {cfCats.map((c, i) => (
+                    <div key={i}
+                      onClick={() => onNavigate && onNavigate('cat-detail')}
+                      style={{
+                        display: 'grid', gridTemplateColumns: '1.8fr 0.9fr 1.1fr 80px 1fr 44px',
+                        alignItems: 'center', padding: '13px 20px',
+                        borderTop: '1px solid var(--ns-border)',
+                        cursor: 'pointer', transition: 'background 0.1s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--ns-bg-hover)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{
+                          width: 30, height: 30, borderRadius: 'var(--ns-r-sm)', fontSize: 15,
+                          background: `color-mix(in srgb, ${c.color} 18%, transparent)`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>{c.icon}</div>
+                        <span style={{ fontSize: 14, fontWeight: 500 }}>{c.name}</span>
+                      </div>
+                      <span className="num muted" style={{ textAlign: 'right', fontSize: 13 }}>{c.txns} 筆</span>
+                      <span className="neg num" style={{ textAlign: 'right', fontSize: 14, fontWeight: 500 }}>
+                        −NT${c.ytd.toLocaleString()}
+                      </span>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{
+                          fontSize: 11.5, padding: '2px 8px', borderRadius: 99,
+                          background: `color-mix(in srgb, ${c.color} 15%, transparent)`,
+                          color: c.color, fontWeight: 600,
+                        }}>{c.pct}%</span>
+                      </div>
+                      <span className="muted" style={{ fontSize: 12 }}>{c.topM}</span>
+                      <span className="dim" style={{ textAlign: 'right' }}><NSIcon name="chevRight" size={13}/></span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── Merchants tab ── */}
+        {cfTab === 'merchants' && (
+          <div>
+            {/* Merchant summary strip */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 20 }}>
+              {[
+                ['Top merchant', 'Costco · NT$22,400', null],
+                ['Most frequent', 'MRT 捷運 · 62 次', null],
+                ['Auto-rules active', '5 / 8 merchants', 'pos'],
+              ].map(([l, v, c]) => (
+                <div className="ns-card" key={l} style={{ padding: '14px 18px' }}>
+                  <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{l}</div>
+                  <div className={`num ${c || ''}`} style={{ fontSize: 17, fontWeight: 500 }}>{v}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Merchant table */}
+            <div className="ns-card" style={{ padding: 0 }}>
+              {/* Column header */}
+              <div style={{
+                display: 'grid', gridTemplateColumns: '2fr 100px 0.9fr 1fr 80px 44px',
+                padding: '9px 22px', borderBottom: '1px solid var(--ns-border)',
+                fontSize: 11, letterSpacing: 0.06, textTransform: 'uppercase',
+                color: 'var(--ns-fg-dim)', fontFamily: 'var(--ns-font-mono)',
+                background: 'var(--ns-bg-elev)',
+              }}>
+                <span>Merchant</span>
+                <span>Category</span>
+                <span style={{ textAlign: 'right' }}>Visits YTD</span>
+                <span style={{ textAlign: 'right' }}>Spending YTD</span>
+                <span style={{ textAlign: 'center' }}>Auto-rule</span>
+                <span/>
+              </div>
+
+              {merchants.map((m, i) => (
+                <div key={i} onClick={() => onNavigate && onNavigate('merchant')} style={{
+                  display: 'grid', gridTemplateColumns: '2fr 100px 0.9fr 1fr 80px 44px',
+                  alignItems: 'center', padding: '12px 22px',
+                  borderTop: '1px solid var(--ns-border)',
+                  cursor: 'pointer', transition: 'background 0.1s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--ns-bg-hover)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <NSMark label={m.mark} color={m.color} size={30}/>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 500 }}>{m.name}</div>
+                      <div className="muted" style={{ fontSize: 11.5 }}>Last: {m.lastDate}</div>
+                    </div>
+                  </div>
+                  <span className="muted" style={{ fontSize: 13 }}>{m.cat}</span>
+                  <span className="num" style={{ textAlign: 'right', fontSize: 13 }}>{m.visits} 次</span>
+                  <span className="neg num" style={{ textAlign: 'right', fontSize: 14, fontWeight: 500 }}>
+                    −NT${m.ytd.toLocaleString()}
+                  </span>
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <span style={{
+                      width: 8, height: 8, borderRadius: 99,
+                      background: m.rule ? 'var(--ns-accent)' : 'var(--ns-bg-hover)',
+                      border: m.rule ? 'none' : '1px solid var(--ns-border)',
+                      display: 'inline-block',
+                    }}/>
+                  </div>
+                  <span className="dim" style={{ textAlign: 'right' }}><NSIcon name="chevRight" size={13}/></span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Transactions tab ── */}
+        {cfTab === 'transactions' && <div>
 
         {/* Top summary */}
         <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16, marginBottom: 20 }}>
@@ -538,6 +753,7 @@ function NSDesktopCashFlow({ onNavigate } = {}) {
             </div>
           ))}
         </div>
+        </div>}
       </div>
     </NSDesktopShell>
   );
@@ -579,7 +795,7 @@ function NSDesktopAccounts({ onNavigate } = {}) {
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="ns-btn"><NSIcon name="refresh" size={14}/>Refresh FX</button>
             <button className="ns-btn"><NSIcon name="transfer" size={14}/>Transfer</button>
-            <button className="ns-btn primary"><NSIcon name="plus" size={14} strokeWidth={2}/>新增帳戶</button>
+            <button className="ns-btn primary" onClick={() => onNavigate && onNavigate('acct-add')}><NSIcon name="plus" size={14} strokeWidth={2}/>新增帳戶</button>
           </div>
         </div>
 

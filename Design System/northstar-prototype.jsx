@@ -13,6 +13,7 @@ function NSPrototype() {
     merchant:         NSDesktopMerchantDetail,
     'cf-new':         NSDesktopNewTxSheet,
     'cat-mgmt':       NSDesktopCategoryMgmt,
+    'cat-detail':     NSDesktopCategoryDetail,
     accounts:         NSDesktopAccounts,
     'acct-add':       NSDesktopAddAccountFlow,
     goals:            NSDesktopGoals,

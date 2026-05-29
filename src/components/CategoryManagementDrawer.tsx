@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { X, Plus, Trash, PencilSimple, CaretRight, CaretDown } from "@phosphor-icons/react";
+import { X, Plus, Trash, PencilSimple, CaretRight, CaretDown, Tag } from "@phosphor-icons/react";
+import EmojiPicker from "emoji-picker-react";
+import { Popover, PopoverTrigger, PopoverContent } from "./ui/popover";
 import { CategoryGroup } from "../domain";
 
 export function CategoryManagementDrawer({
@@ -56,6 +58,18 @@ export function CategoryManagementDrawer({
     setLocal(local.map(c => c.name === oldName ? { ...c, name: newName } : c));
   }
 
+  function renameSubCategory(mainName: string, oldSubName: string) {
+    const newName = prompt("重新命名子分類：", oldSubName);
+    if (!newName || newName === oldSubName) return;
+    setLocal(local.map(c => {
+      if (c.name === mainName) {
+        if (c.children.includes(newName)) return c;
+        return { ...c, children: c.children.map(child => child === oldSubName ? newName : child) };
+      }
+      return c;
+    }));
+  }
+
   function removeMainCategory(name: string) {
     if (confirm(`確定要刪除主分類「${name}」及其所有子分類嗎？`)) {
       setLocal(local.filter(c => c.name !== name));
@@ -90,9 +104,25 @@ export function CategoryManagementDrawer({
               return (
                 <div key={group.name} className="ns-card" style={{ padding: "12px 16px" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", flex: 1 }} onClick={() => toggle(group.name)}>
-                      {isExp ? <CaretDown size={14} weight="bold" /> : <CaretRight size={14} weight="bold" />}
-                      <span style={{ fontWeight: 500 }}>{group.name}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+                      <div style={{ cursor: "pointer", display: "flex", alignItems: "center" }} onClick={() => toggle(group.name)}>
+                        {isExp ? <CaretDown size={14} weight="bold" /> : <CaretRight size={14} weight="bold" />}
+                      </div>
+                      <Popover>
+                        <PopoverTrigger className="ns-btn-icon" style={{ fontSize: 16 }}>
+                          {group.iconName || <Tag size={16} />}
+                        </PopoverTrigger>
+                        <PopoverContent className="z-[150] shadow-xl rounded-xl w-auto p-0">
+                          <EmojiPicker 
+                            onEmojiClick={(emojiData) => {
+                              setLocal(local.map(c => c.name === group.name ? { ...c, iconName: emojiData.emoji } : c));
+                            }} 
+                            width={300} 
+                            height={400} 
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <span style={{ fontWeight: 500, cursor: "pointer" }} onClick={() => toggle(group.name)}>{group.name}</span>
                       <span style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>({group.children.length})</span>
                     </div>
                     <div style={{ display: "flex", gap: 4 }}>
@@ -107,7 +137,10 @@ export function CategoryManagementDrawer({
                       {group.children.map(child => (
                         <div key={child} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 24 }}>
                           <span style={{ fontSize: 14 }}>{child}</span>
-                          <button className="ns-btn-icon" style={{ color: "var(--ns-danger)" }} onClick={() => removeSubCategory(group.name, child)}><Trash size={12} /></button>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            <button className="ns-btn-icon" onClick={() => renameSubCategory(group.name, child)}><PencilSimple size={12} /></button>
+                            <button className="ns-btn-icon" style={{ color: "var(--ns-danger)" }} onClick={() => removeSubCategory(group.name, child)}><Trash size={12} /></button>
+                          </div>
                         </div>
                       ))}
                     </div>
