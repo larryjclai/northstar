@@ -336,22 +336,36 @@ function EditCatForm({ cat, colors, icons, onSave, onCancel }: any) {
 function SettingsMerchants({ form, setForm, submit, t }: any) {
   const toast = useToast();
   const [search, setSearch] = useState('');
-  const [merchantDraft, setMerchantDraft] = useState('');
+  const [editingMerchant, setEditingMerchant] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
   
   const filtered = form.merchants.filter((m: string) => m.toLowerCase().includes(search.toLowerCase()));
 
   function addMerchant() {
-    const next = merchantDraft.trim();
-    if (!next) return;
-    const nextForm = { ...form, merchants: [...new Set([...form.merchants, next])] };
+    const next = window.prompt("輸入新商家名稱：");
+    if (!next || !next.trim()) return;
+    const nextForm = { ...form, merchants: [...new Set([...form.merchants, next.trim()])] };
     submit(nextForm);
-    setMerchantDraft('');
     toast.success("已新增商家");
   }
 
   function deleteMerchant(name: string) {
     const nextForm = { ...form, merchants: form.merchants.filter((m: string) => m !== name) };
     submit(nextForm);
+  }
+
+  function startEdit(name: string) {
+    setEditingMerchant(name);
+    setEditValue(name);
+  }
+
+  function saveEdit(oldName: string) {
+    const next = editValue.trim();
+    if (!next) return;
+    const nextForm = { ...form, merchants: [...new Set(form.merchants.map((m: string) => m === oldName ? next : m))] };
+    submit(nextForm);
+    setEditingMerchant(null);
+    toast.success("已更新商家");
   }
 
   return (
@@ -364,6 +378,9 @@ function SettingsMerchants({ form, setForm, submit, t }: any) {
             {t('settings.merchantsDesc')}
           </p>
         </div>
+        <div>
+          <button className="ns-btn primary" onClick={addMerchant}><Plus size={14}/>{t('settings.addMerchant')}</button>
+        </div>
       </div>
 
       <div style={{ position:'relative', marginBottom:16 }}>
@@ -372,29 +389,45 @@ function SettingsMerchants({ form, setForm, submit, t }: any) {
 
       <div className="ns-card" style={{padding:0}}>
         <div style={{ padding:'10px 20px', borderBottom:'1px solid var(--ns-border)',
-          display:'grid', gridTemplateColumns:'1fr 60px',
+          display:'grid', gridTemplateColumns:'1fr 80px',
           fontSize:10.5, color:'var(--ns-fg-dim)', fontFamily:'var(--ns-font-mono)',
           letterSpacing:0.07, textTransform:'uppercase' }}>
           <span>{t('settings.merchantName')}</span><span/>
         </div>
         {filtered.map((m: string, i: number) => (
           <div key={m} style={{
-            display:'grid', gridTemplateColumns:'1fr 60px',
+            display:'grid', gridTemplateColumns:'1fr 80px',
             alignItems:'center', padding:'13px 20px',
             borderTop: i?'1px solid var(--ns-border)':'none',
           }}>
-            <div style={{fontSize:14,fontWeight:500}}>{m}</div>
-            <div style={{display:'flex',justifyContent:'flex-end'}}>
+            {editingMerchant === m ? (
+              <input
+                autoFocus
+                className="ns-input"
+                style={{ padding: "4px 8px", fontSize: 14 }}
+                value={editValue}
+                onChange={e => setEditValue(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') saveEdit(m);
+                  if (e.key === 'Escape') setEditingMerchant(null);
+                }}
+                onBlur={() => saveEdit(m)}
+              />
+            ) : (
+              <div style={{fontSize:14,fontWeight:500}}>{m}</div>
+            )}
+            <div style={{display:'flex',justifyContent:'flex-end', gap:4}}>
+              {editingMerchant !== m && (
+                <button className="ns-btn ghost icon" style={{color:'var(--ns-fg-muted)'}} onClick={()=>startEdit(m)}>
+                  <PencilSimple size={14}/>
+                </button>
+              )}
               <button className="ns-btn ghost icon" style={{color:'var(--ns-neg)'}} onClick={()=>deleteMerchant(m)}>
                 <Trash size={14}/>
               </button>
             </div>
           </div>
         ))}
-      </div>
-      <div style={{ display:'flex', gap:8, marginTop:16 }}>
-        <input className="ns-input" placeholder="新增常用商家" value={merchantDraft} onChange={e=>setMerchantDraft(e.target.value)} />
-        <button className="ns-btn primary" onClick={addMerchant}><Plus size={14}/>{t('settings.addMerchant')}</button>
       </div>
     </div>
   );

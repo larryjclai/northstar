@@ -7,7 +7,7 @@ export function Card({
   density = "md",
   children,
 }: PropsWithChildren<{
-  title?: string;
+  title?: ReactNode;
   action?: ReactNode;
   variant?: "default" | "muted" | "raised";
   density?: "sm" | "md";

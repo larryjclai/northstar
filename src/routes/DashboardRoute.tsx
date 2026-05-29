@@ -17,9 +17,12 @@ import {
   type FinancialGoal,
   type LedgerTransaction,
   type PortfolioAsset,
+  todayInTimezone,
 } from "../domain";
 import { useRefreshQuotes } from "../features/market-data/useMarketRefresh";
 import { useState } from "react";
+import { MonthPicker } from "../components/ui/month-picker";
+import { useUiPreferences } from "../state/uiPreferences";
 
 
 const CHART_COLORS = [
@@ -35,6 +38,7 @@ const CHART_COLORS = [
 export function DashboardRoute() {
   const { accounts, ledger, assets, quotes, settings, dailyFxRates, recurring, financialGoals } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
+  const timezone = useUiPreferences((state) => state.timezone);
   const [monthKey, setMonthKey] = useState(() => new Date().toISOString().slice(0, 7));
   const [selectedAccount, setSelectedAccount] = useState<string>("all");
 
@@ -135,16 +139,17 @@ export function DashboardRoute() {
       .slice(0, 4);
   }, [goalRows, netWorth]);
 
-  // Upcoming bills (recurring, next 30 days).
+  // Upcoming bills (recurring, next 30 days or overdue).
   const accountMap = useMemo(() => new Map(accountRows.map((a) => [a.id, a])), [accountRows]);
   const upcoming = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const horizon = (() => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().slice(0, 10); })();
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    const horizon = todayInTimezone(timezone, d);
     return recurringRows
-      .filter((r) => r.isActive && r.nextRunDate >= today && r.nextRunDate <= horizon)
+      .filter((r) => r.isActive && r.nextRunDate <= horizon) // Includes overdue items
       .sort((a, b) => a.nextRunDate.localeCompare(b.nextRunDate))
       .slice(0, 5);
-  }, [recurringRows]);
+  }, [recurringRows, timezone]);
   const upcomingTotal = upcoming.reduce((sum, r) => sum + toPrimary(Math.abs(r.amount), r.currency, r.nextRunDate), 0);
 
   // FX rates (latest per pair) for the Market card.
@@ -191,7 +196,7 @@ export function DashboardRoute() {
           <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Overview · {monthLabel}</div>
           <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>{greeting}</h1>
         </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <select 
             className="ns-input" 
             style={{ width: 140, height: 36 }}
@@ -201,7 +206,7 @@ export function DashboardRoute() {
             <option value="all">所有帳戶</option>
             {accountRows.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
-          <input type="month" className="ns-input" style={{ width: 140, height: 36 }} value={monthKey} onChange={e => setMonthKey(e.target.value)} />
+          <MonthPicker value={monthKey} onChange={setMonthKey} triggerClassName="h-[36px]" />
           <button className="ns-btn" onClick={() => refreshQuotes.mutate(assetRows.map((a) => a.ticker))} disabled={refreshQuotes.isPending || assetRows.length === 0}>
             <ArrowsClockwise size={14} />{refreshQuotes.isPending ? "更新中" : "更新"}
           </button>

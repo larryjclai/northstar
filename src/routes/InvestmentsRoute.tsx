@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowsClockwise, ArrowsDownUp, ArrowUp, Bank, ChartLineUp, ListChecks, PencilSimple, PlusCircle, X } from "@phosphor-icons/react";
+import { ArrowDown, ArrowsClockwise, ArrowsDownUp, ArrowUp, Bank, ChartLineUp, ListChecks, PencilSimple, PlusCircle, X, CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -160,6 +160,54 @@ export function InvestmentsRoute() {
   const totalPnL = totalValue - totalCost;
   const returnPct = totalCost === 0 ? 0 : (totalPnL / totalCost) * 100;
 
+  const { realizedYTD, dividendsYTD } = useMemo(() => {
+    const currentYearStr = new Date().getFullYear().toString();
+    let rYTD = 0;
+    let dYTD = 0;
+
+    const buckets = new Map<string, { quantity: number; cost: number }>();
+    const sortedRecords = [...recordRows].sort((a, b) => a.date.localeCompare(b.date));
+
+    for (const record of sortedRecords) {
+      if (record.deletedAt !== null) continue;
+      const asset = assetRows.find((a) => a.id === record.assetId);
+      if (!asset) continue;
+
+      const key = `${record.assetId}-${record.linkedAccountId ?? "unassigned"}`;
+      const bucket = buckets.get(key) ?? { quantity: 0, cost: 0 };
+      const isCurrentYear = record.date.startsWith(currentYearStr);
+
+      if (record.action === "buy") {
+        bucket.quantity += record.quantity;
+        bucket.cost += record.price * record.quantity + record.fee;
+      } else if (record.action === "sell") {
+        const avgCost = bucket.quantity === 0 ? 0 : bucket.cost / bucket.quantity;
+        const saleProceeds = record.price * record.quantity - record.fee;
+        const costOfSold = avgCost * record.quantity;
+        const realized = saleProceeds - costOfSold;
+        
+        if (isCurrentYear) {
+          rYTD += toPrimary(realized, asset.currency, record.date);
+        }
+
+        bucket.quantity -= record.quantity;
+        bucket.cost -= costOfSold;
+      } else if (record.action === "cashDividend") {
+        if (isCurrentYear) {
+          dYTD += toPrimary(record.price, asset.currency, record.date); // price stores the total dividend amount
+        }
+      } else if (record.action === "stockDividend") {
+        bucket.quantity += record.quantity;
+      } else if (record.action === "capitalReduction") {
+        bucket.cost = Math.max(0, bucket.cost - record.price * record.quantity);
+      } else if (record.action === "stockSplit" && record.quantity > 0) {
+        bucket.quantity *= record.quantity;
+      }
+      buckets.set(key, bucket);
+    }
+    return { realizedYTD: rYTD, dividendsYTD: dYTD };
+  }, [recordRows, assetRows, toPrimary]);
+
   return (
     <div style={{ padding: '24px 32px 120px', maxWidth: 1180, margin: '0 auto' }}>
       {/* Header */}
@@ -204,13 +252,13 @@ export function InvestmentsRoute() {
               ['Market value', `NT$${formatNumber(totalValue)}`, '', true],
               ['Cost basis', `NT$${formatNumber(totalCost)}`, '', true],
               ['Unrealized P/L', `NT$${formatNumber(Math.abs(totalPnL))}`, totalPnL >= 0 ? `+${returnPct.toFixed(2)}%` : `${returnPct.toFixed(2)}%`, totalPnL >= 0],
-              ['Realized YTD', '-', '', true],
-              ['Dividends YTD', '-', '', true],
+              ['Realized YTD', `NT$${formatNumber(Math.abs(realizedYTD))}`, realizedYTD >= 0 ? '' : 'Loss', realizedYTD >= 0],
+              ['Dividends YTD', `NT$${formatNumber(dividendsYTD)}`, '', true],
             ].map(([label, val, pct, pos], i) => (
               <div key={i} className="ns-card p-4 sm:p-5 flex flex-col min-w-0">
                 <div className="ns-eyebrow" style={{ marginBottom: 8, flexShrink: 0 }}>{label}</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                  <div className="num truncate" style={{ fontSize: "clamp(18px, 2.5vw, 22px)", fontWeight: 500, minWidth: 0, flex: 1 }} title={String(val)}>{val}</div>
+                  <div className="num" style={{ fontSize: "clamp(16px, 2.2vw, 22px)", fontWeight: 500, minWidth: 0, flex: 1, wordBreak: 'break-word' }} title={String(val)}>{val}</div>
                   {pct && <div className="num" style={{ fontSize: 13, color: pos ? 'var(--ns-pos)' : 'var(--ns-neg)', flexShrink: 0 }}>{pct}</div>}
                 </div>
               </div>
@@ -670,6 +718,12 @@ function HoldingsTab({
   const [snapshotPrice, setSnapshotPrice] = useState(0);
   const [snapshotNote, setSnapshotNote] = useState("");
   const [snapshotMessage, setSnapshotMessage] = useState("");
+  const [filterAccount, setFilterAccount] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+  
+  useEffect(() => setPage(1), [filterAccount]);
+
   // Default to descending market value — matches user expectation that the
   // biggest positions sit at the top until they explicitly sort otherwise.
   const [sort, setSort] = useState<HoldingsSortState>({ key: "marketValue", direction: "desc" });
@@ -776,11 +830,27 @@ function HoldingsTab({
     );
   }
 
-  const sorted = sortHoldings(positions, sort, accountMap, assetsById, nameLocale);
+  const filteredPositions = filterAccount === "all" ? positions : positions.filter(p => p.accountId === filterAccount);
+  const sorted = sortHoldings(filteredPositions, sort, accountMap, assetsById, nameLocale);
+  const totalPages = Math.ceil(sorted.length / pageSize);
+  const paginated = sorted.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <>
-      <Card title={`持倉 (${positions.length})`}>
+      <Card title={
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+          <span>持倉 ({filteredPositions.length})</span>
+          <select 
+            className="ns-input" 
+            style={{ width: 140, height: 32, fontSize: 13, padding: '0 8px' }}
+            value={filterAccount} 
+            onChange={e => setFilterAccount(e.target.value)}
+          >
+            <option value="all">所有券商</option>
+            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </div>
+      }>
         <div className="overflow-x-auto">
           <table className="w-full table-auto text-sm">
             <thead>
@@ -822,7 +892,7 @@ function HoldingsTab({
               </tr>
             </thead>
             <tbody>
-              {sorted.map((position) => {
+              {paginated.map((position) => {
                 const account = position.accountId ? accountMap.get(position.accountId) : null;
                 const asset = assetsById.get(position.assetId) ?? null;
                 const displayName = asset
@@ -879,6 +949,19 @@ function HoldingsTab({
             </tbody>
           </table>
         </div>
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--ns-border)' }}>
+            <button className="ns-btn ghost" disabled={page === 1} onClick={() => setPage(p => p - 1)}>
+              <CaretLeft size={16} />上一頁
+            </button>
+            <div style={{ fontSize: 13, color: 'var(--ns-fg-muted)' }}>
+              第 {page} 頁 / 共 {totalPages} 頁
+            </div>
+            <button className="ns-btn ghost" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>
+              下一頁<CaretRight size={16} />
+            </button>
+          </div>
+        )}
         <div className="mt-4 flex flex-wrap gap-3 text-xs" style={{ color: "var(--ns-muted)" }}>
           <Link to="/transactions">查看交易明細</Link>
         </div>
