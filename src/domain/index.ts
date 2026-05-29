@@ -9,6 +9,7 @@ export * from "./retirementProjection";
 export * from "./groupClassifier";
 export * from "./merchantCategory";
 export * from "./quickAdd";
+export * from "./sync";
 export * from "./investmentCash";
 export * from "./portfolioCalculator";
 export * from "./transferBuilder";
