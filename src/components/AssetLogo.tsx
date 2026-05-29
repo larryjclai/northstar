@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useUiPreferences } from "../state/uiPreferences";
 
 const PALETTE = ["#f0c050", "#6fb3ff", "#a99cff", "#6ee49a", "#ff7d6b", "#34c5b0", "#f0a050", "#9fe870", "#d97a9c", "#868685"];
 
@@ -17,12 +18,15 @@ function hashColor(seed: string) {
  * fallback keeps the feature fully functional even when the network is blocked.
  */
 export function AssetLogo({ ticker, name, size = 32 }: { ticker: string; name?: string; size?: number }) {
+  const logosEnabled = useUiPreferences((state) => state.assetLogosEnabled);
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [ticker]);
 
   const symbol = (ticker || "").split(".")[0].trim().toUpperCase();
   const label = (name?.trim() || ticker || "?").slice(0, 2).toUpperCase();
-  const src = symbol ? `https://assets.parqet.com/logos/symbol/${encodeURIComponent(symbol)}?format=png&size=64` : "";
+  // Only hit the third-party CDN when the user has opted in; otherwise the
+  // colored monogram is shown and no ticker leaves the device.
+  const src = logosEnabled && symbol ? `https://assets.parqet.com/logos/symbol/${encodeURIComponent(symbol)}?format=png&size=64` : "";
   const radius = Math.round(size * 0.28);
 
   return (

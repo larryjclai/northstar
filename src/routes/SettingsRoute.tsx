@@ -639,6 +639,8 @@ function SettingsGeneral({ form, t }: any) {
   const setNameLocale = useUiPreferences((state) => state.setNameLocale);
   const timezone = useUiPreferences((state) => state.timezone);
   const setTimezone = useUiPreferences((state) => state.setTimezone);
+  const assetLogosEnabled = useUiPreferences((state) => state.assetLogosEnabled);
+  const setAssetLogosEnabled = useUiPreferences((state) => state.setAssetLogosEnabled);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -711,6 +713,19 @@ function SettingsGeneral({ form, t }: any) {
         <select value={timezone} onChange={e=>setTimezone(e.target.value)} className="ns-input w-full">
           {COMMON_TIMEZONES.map(tz => <option key={tz.id} value={tz.id}>{tz.label}</option>)}
         </select>
+
+        <h3 className="font-semibold mb-4 mt-6">投資標的 LOGO</h3>
+        <button
+          onClick={() => setAssetLogosEnabled(!assetLogosEnabled)}
+          className="flex w-full items-center gap-3 rounded-md border p-3 text-left transition"
+          style={{ borderColor: assetLogosEnabled ? "var(--ns-accent)" : "var(--ns-border)", background: assetLogosEnabled ? "var(--ns-accent-soft)" : "transparent" }}
+        >
+          <Globe size={18} />
+          <div>
+            <div className="font-medium">投資標的品牌 LOGO - {assetLogosEnabled ? "已開啟" : "已關閉"}</div>
+            <div className="text-xs muted">開啟後會向第三方服務 (assets.parqet.com) 請求各標的的 LOGO 圖示。<strong style={{ color: "var(--ns-fg)" }}>隱私風險：你持有的股票代號會傳送到該第三方</strong>。關閉時一律顯示本地產生的字母標記，不會發出任何請求。</div>
+          </div>
+        </button>
       </div>
 
       <div className="ns-card p-5">
