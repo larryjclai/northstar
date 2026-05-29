@@ -193,7 +193,7 @@ export function GoalsRoute() {
             <div style={{ display: "flex", flexDirection: "column" }}>
               {goals.map((goal, i) => {
                 const target = goalTargetAmount(goal);
-                const current = goal.kind === "fire" ? currentValue : 0;
+                const current = goal.kind === "fire" ? currentValue : (currentValue / goalTargetAmount(goal)) * 100;
                 const progress = target > 0 ? Math.min(100, (current / target) * 100) : 0;
                 const achieved = progress >= 100;
                 const Icon = goal.kind === "fire" ? Star : Target;
@@ -224,7 +224,7 @@ export function GoalsRoute() {
                         <span style={{ fontSize: 13, color: "var(--ns-fg-dim)" }}>追蹤中</span>
                       )}
                       <div style={{ display: "flex", gap: 8 }}>
-                        <button className="ns-btn ghost icon" title="編輯" onClick={() => navigate({ to: "/goals/fire", search: { id: goal.id } })}><PencilSimple size={14} /></button>
+                        <button className="ns-btn ghost icon" title="編輯" onClick={() => navigate({ to: goal.kind === "fire" ? "/goals/fire" : "/goals", search: { id: goal.id } })}><PencilSimple size={14} /></button>
                         <button className="ns-btn ghost icon" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={() => handleDeleteGoal(goal.id)}><Trash size={14} /></button>
                       </div>
                     </div>

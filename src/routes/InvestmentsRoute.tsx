@@ -199,7 +199,7 @@ export function InvestmentsRoute() {
       {tab === "portfolio" ? (
         <>
           {/* Top KPIs */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 20 }}>
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
             {[
               ['Market value', `NT$${formatNumber(totalValue)}`, '', true],
               ['Cost basis', `NT$${formatNumber(totalCost)}`, '', true],
@@ -207,7 +207,7 @@ export function InvestmentsRoute() {
               ['Realized YTD', '-', '', true],
               ['Dividends YTD', '-', '', true],
             ].map(([label, val, pct, pos], i) => (
-              <div key={i} className="ns-card" style={{ padding: 18 }}>
+              <div key={i} className="ns-card p-4 sm:p-5">
                 <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{label}</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                   <div className="num" style={{ fontSize: 22, fontWeight: 500 }}>{val}</div>

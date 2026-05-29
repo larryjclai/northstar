@@ -138,6 +138,10 @@ export function CashFlowRoute() {
     (repository, id: string) => repository.deleteLedgerTransaction(id),
     ["ledger", "accounts"],
   );
+  const createRecurring = useRepositoryMutation(
+    (repository, input: import("../data/repositories").RecurringDraft) => repository.createRecurringTransaction(input),
+    ["recurring"],
+  );
   const createTransfer = useRepositoryMutation(
     (repository, input: TransferDraft) => repository.createTransfer(input),
     ["ledger", "accounts"],
@@ -291,6 +295,23 @@ export function CashFlowRoute() {
       } else {
         await createLedger.mutateAsync(payload);
         toast.success("已新增交易");
+        if (drawerRecurringFreq !== "none") {
+          await createRecurring.mutateAsync({
+             frequency: drawerRecurringFreq as any,
+             dayOfMonth: parseInt(payload.date.slice(8, 10)),
+             accountId: payload.accountId,
+             amount: payload.amount,
+             currency: payload.currency,
+             category: payload.category,
+             subcategory: payload.subcategory,
+             merchant: payload.merchant,
+             entryType: payload.entryType as "income" | "expense",
+             settlementStatus: payload.settlementStatus,
+             note: payload.note,
+             nextRunDate: payload.date.slice(0, 10),
+             isActive: true
+          });
+        }
       }
       await rememberCategories.mutateAsync([{ category: payload.category, subcategory: payload.subcategory }]);
       rememberMerchantNames([payload.merchant]);
@@ -417,7 +438,8 @@ export function CashFlowRoute() {
     [ledgerRows],
   );
 
-  const paginatedRows = useMemo(() => sortedRows.slice((page - 1) * pageSize, page * pageSize), [sortedRows, page]);
+  const totalPages = Math.ceil(monthRows.length / pageSize);
+  const paginatedRows = useMemo(() => monthRows.slice((page - 1) * pageSize, page * pageSize), [monthRows, page]);
   const dayGroups = useMemo(() => groupByDay(paginatedRows), [paginatedRows]);
 
   const monthLabel = monthKey.replace("-", " / ");
@@ -493,7 +515,7 @@ export function CashFlowRoute() {
               </div>
             </div>
           </div>
-          <div style={{ height: 120 }}>
+          <div style={{ height: 200 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={dailyNetData}>
                 <Tooltip 
@@ -571,7 +593,7 @@ export function CashFlowRoute() {
         </div>
       ) : null}
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 20, alignItems: "start" }}>
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-5 items-start">
         {/* Transactions grouped by day */}
         <div className="ns-card" style={{ padding: 0 }}>
            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid var(--ns-border)" }}>
