@@ -10,20 +10,18 @@ This roadmap is organized into **Now (近期執行)**, **Next (中期規劃)**, 
 - **Visual Trust & Branding (投資標的 LOGO)** — `AssetLogo` 元件，依 ticker 抓品牌圖、失敗退回字母標記；**預設關閉**，設定中可開啟（含隱私風險提示）。
 - **App Maintenance (內建檢查更新)** — 接上 Tauri Updater + process plugin 與「檢查更新」按鈕；發佈簽章/endpoint 設定見 `HANDOVER.md §11`。
 - **Credit Card Reconciliation (信用卡對帳與結帳日提醒)** — 結帳日/繳款日欄位、Dashboard 繳款提醒、對帳模式（逐筆勾選核對）。
+- **Quick Add (快速記帳)** — ⌘N 全域自然語言輸入列，解析支出/收入/投資買賣 → 預填確認後送出；側邊欄按鈕 + 手機 FAB 入口。
+- **Connect Sync 前置（裝置身份 + 變更追蹤）** — 本地裝置身份；以既有 SyncFields 推導的待同步變更清單（含軟刪除）；設定頁「Connect 同步 · 準備中」狀態卡。
 - **其他修復** — 子分類內嵌編輯（修 Tauri prompt 失效）、週期交易自動入帳 + 時區修正、跨幣轉帳金額、商家自動分類。
 
 ---
 
 ## 🟢 NOW (近期執行)
-*Focus: 完成雲端同步前置，並補強日常記帳效率。*
+*Focus: 補完雲端同步前置的加密層。*
 
-### 1. Connect Sync Preparation (雲端同步前置作業)
-- **Action**: 建立 Mutation Outbox、本地裝置身份驗證，準備迎接多裝置同步。
-
-### 2. Quick Add (快速記帳) — 提案中
-- **Problem**: 記一筆仍需開啟抽屜、填多個欄位，日常高頻記帳摩擦偏高。
-- **User Impact**: 用最少步驟（全域快捷鍵 / 單列輸入）即時記下一筆消費。
-- **Action**: 將 Prototype 的 Quick Add 流程接上現有 ledger CRUD。（細節待規劃）
+### 1. Connect Sync Preparation — 剩餘項目
+- **已完成**: 裝置身份、待同步變更追蹤（change feed）、設定頁狀態卡。
+- **待辦**: 加密同步信封（envelope）序列化、crypto 抽象層與測試；（可選）改用既有 `sync_outbox` 資料表做 write-ahead 紀錄。
 
 ---
 
