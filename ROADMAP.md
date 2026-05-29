@@ -2,46 +2,36 @@
 
 This roadmap is organized into **Now (近期執行)**, **Next (中期規劃)**, and **Later (遠期願景)** to ensure we stay focused on delivering real value while building towards a complete local-first and multi-device finance OS.
 
-## 🟢 NOW (近期執行：核心體驗與細節優化)
-*Focus: Refine the local-first experience, improve ledger accuracy, and enhance visual trust.*
+## ✅ SHIPPED (已完成)
+*以下項目已實作並合併進 main。*
 
-### 1. Ledger Refinement (手續費與海外交易)
-- **Problem**: 轉帳或跨國消費時常產生手續費，目前無法精準紀錄。
-- **User Impact**: 資產餘額能 100% 吻合真實世界，不需靠「誤差調整」來修正。
-- **Action**: 
-  - 轉帳功能中加入「手續費 (Fee)」欄位。
-  - 支出/海外交易加入「外加手續費」紀錄模式。
-
-### 2. Account & Asset Customization (帳戶與客製化資產)
-- **Problem**: 現有資產類別太少，且帳戶列表視覺較為單一。
-- **User Impact**: 能追蹤房產、貴金屬、汽車等非流動資產，並讓帳戶列表更具個人化辨識度。
-- **Action**:
-  - 新增「客製化資產 (Alternative Assets)」模組，手動更新市值。
-  - 導入 Emoji 或內建 Icon 選擇器來客製化帳戶與分類圖示。
-
-### 3. Visual Trust & Branding (投資標的 LOGO)
-- **Problem**: 投資組合列表目前只有文字與數字，缺乏直覺的視覺辨識。
-- **User Impact**: 介面更精緻專業，提升使用者對產品的信任感。
-- **Action**: 串接公開 Logo API (如 Clearbit) 自動抓取投資標的品牌圖示。
-
-### 4. App Maintenance (內建檢查更新)
-- **Action**: 透過 Tauri Updater plugin 實作「Check for update」，讓本地端軟體能無縫升級。
+- **Ledger Refinement (手續費與海外交易)** — 轉帳手續費欄位、海外支出「外加手續費」模式（自動產生連結的手續費分錄）。
+- **Account & Asset Customization (帳戶與客製化資產)** — 新增「實體資產」帳戶類型（手動更新市值、Dashboard 獨立淨值卡），帳戶 Emoji/顏色客製化。
+- **Visual Trust & Branding (投資標的 LOGO)** — `AssetLogo` 元件，依 ticker 抓品牌圖、失敗退回字母標記；**預設關閉**，設定中可開啟（含隱私風險提示）。
+- **App Maintenance (內建檢查更新)** — 接上 Tauri Updater + process plugin 與「檢查更新」按鈕；發佈簽章/endpoint 設定見 `HANDOVER.md §11`。
+- **Credit Card Reconciliation (信用卡對帳與結帳日提醒)** — 結帳日/繳款日欄位、Dashboard 繳款提醒、對帳模式（逐筆勾選核對）。
+- **其他修復** — 子分類內嵌編輯（修 Tauri prompt 失效）、週期交易自動入帳 + 時區修正、跨幣轉帳金額、商家自動分類。
 
 ---
 
-## 🟡 NEXT (中期規劃：進階帳務與雲端準備)
-*Focus: Handle complex financial instruments and prepare for Connect.*
+## 🟢 NOW (近期執行)
+*Focus: 完成雲端同步前置，並補強日常記帳效率。*
 
-### 1. Credit Card Reconciliation (信用卡對帳與結帳日提醒)
-- **Problem**: 信用卡並非一般現金帳戶，有結帳週期與遞延付款的特性。
-- **User Impact**: 幫助使用者準確預估下個月的現金流，避免忘記繳款。
-- **Action**:
-  - 新增專屬的「信用卡」帳戶類型。
-  - 設定結帳日與繳款日，並在 Dashboard 提供「即將到期帳單」提醒。
-  - 實作「對帳模式 (Reconciliation mode)」，核對每筆刷卡紀錄與銀行帳單是否吻合。
-
-### 2. Connect Sync Preparation (雲端同步前置作業)
+### 1. Connect Sync Preparation (雲端同步前置作業)
 - **Action**: 建立 Mutation Outbox、本地裝置身份驗證，準備迎接多裝置同步。
+
+### 2. Quick Add (快速記帳) — 提案中
+- **Problem**: 記一筆仍需開啟抽屜、填多個欄位，日常高頻記帳摩擦偏高。
+- **User Impact**: 用最少步驟（全域快捷鍵 / 單列輸入）即時記下一筆消費。
+- **Action**: 將 Prototype 的 Quick Add 流程接上現有 ledger CRUD。（細節待規劃）
+
+---
+
+## 🟡 NEXT (中期規劃)
+*Focus: 雲端同步與進階帳務。*
+
+### 1. Connect Sync (雲端同步)
+- **Action**: 在前置作業完成後，串接實際的多裝置加密同步。
 
 ---
 
