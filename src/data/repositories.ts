@@ -49,7 +49,7 @@ export interface LedgerDraft {
   feeAmount?: number;
 }
 
-export type AccountDraft = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm">;
+export type AccountDraft = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color">;
 
 export interface RecurringDraft {
   accountId: string;
@@ -394,6 +394,8 @@ class BrowserFinanceRepository implements FinanceRepository {
         loanStartDate: null,
         annualInterestRate: null,
         loanTerm: null,
+        iconName: null,
+        color: null,
       };
       this.data.accounts.push(unassigned);
     }
@@ -420,6 +422,8 @@ class BrowserFinanceRepository implements FinanceRepository {
       loanStartDate: row.loanStartDate ?? null,
       annualInterestRate: row.annualInterestRate ?? null,
       loanTerm: row.loanTerm ?? null,
+      iconName: row.iconName ?? null,
+      color: row.color ?? null,
     }));
   }
 
@@ -1246,6 +1250,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("accounts", "loan_start_date", "text");
     await this.ensureSqliteColumn("accounts", "annual_interest_rate", "real");
     await this.ensureSqliteColumn("accounts", "loan_term", "real");
+    await this.ensureSqliteColumn("accounts", "icon_name", "text");
+    await this.ensureSqliteColumn("accounts", "color", "text");
     await this.ensureSqliteColumn("portfolio_assets", "holding_source", "text not null default 'transactions'");
     await this.ensureSqliteColumn("portfolio_assets", "acquisition_date", "text");
     await this.ensureSqliteColumn("portfolio_assets", "name_zh", "text");
@@ -1285,7 +1291,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     return (await this.db.select<Account[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       name, currency, opening_balance as openingBalance, balance, type, credit_limit as creditLimit, credit_limit_group as creditLimitGroup, is_shared_to_household as isSharedToHousehold,
-      loan_start_date as loanStartDate, annual_interest_rate as annualInterestRate, loan_term as loanTerm
+      loan_start_date as loanStartDate, annual_interest_rate as annualInterestRate, loan_term as loanTerm, icon_name as iconName, color
       from accounts where deleted_at is null order by name`)).map((row) => ({
         ...row,
         creditLimit: row.creditLimit ?? null,
@@ -1294,22 +1300,24 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         loanStartDate: row.loanStartDate ?? null,
         annualInterestRate: row.annualInterestRate ?? null,
         loanTerm: row.loanTerm ?? null,
+        iconName: row.iconName ?? null,
+        color: row.color ?? null,
       }));
   }
 
   override async createAccount(input: AccountDraft) {
     const timestamp = nowIso();
     await this.db.execute(
-      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term)
-       values ($1,$2,1,$3,$3,null,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13)`,
-      [createId("acct"), personalSpace, timestamp, input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null],
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color)
+       values ($1,$2,1,$3,$3,null,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      [createId("acct"), personalSpace, timestamp, input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null],
     );
   }
 
   override async updateAccount(id: string, input: AccountDraft) {
     await this.db.execute(
-      `update accounts set revision = revision + 1, updated_at = $1, name = $2, currency = $3, opening_balance = $4, type = $5, credit_limit = $6, credit_limit_group = $7, is_shared_to_household = $8, loan_start_date = $9, annual_interest_rate = $10, loan_term = $11 where id = $12`,
-      [nowIso(), input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, id],
+      `update accounts set revision = revision + 1, updated_at = $1, name = $2, currency = $3, opening_balance = $4, type = $5, credit_limit = $6, credit_limit_group = $7, is_shared_to_household = $8, loan_start_date = $9, annual_interest_rate = $10, loan_term = $11, icon_name = $12, color = $13 where id = $14`,
+      [nowIso(), input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, id],
     );
     await this.recomputeSqliteAccounts();
   }
@@ -2340,9 +2348,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   private async insertAccountRow(row: Account) {
     await this.db.execute(
-      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
-      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.name, row.currency, row.openingBalance, row.balance, row.type, row.creditLimit, row.creditLimitGroup, Number(row.isSharedToHousehold), row.loanStartDate ?? null, row.annualInterestRate ?? null, row.loanTerm ?? null],
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.name, row.currency, row.openingBalance, row.balance, row.type, row.creditLimit, row.creditLimitGroup, Number(row.isSharedToHousehold), row.loanStartDate ?? null, row.annualInterestRate ?? null, row.loanTerm ?? null, row.iconName ?? null, row.color ?? null],
     );
   }
 
@@ -2938,6 +2946,7 @@ function investmentLedgerFields(input: InvestmentDraft, investmentRecordId: stri
 
 function createRecurringRow(input: RecurringDraft): RecurringTransaction {
   const timestamp = nowIso();
+  const frequency = input.frequency ?? "monthly";
   return {
     id: createId("recurring"),
     spaceId: personalSpace,
@@ -2946,8 +2955,23 @@ function createRecurringRow(input: RecurringDraft): RecurringTransaction {
     updatedAt: timestamp,
     deletedAt: null,
     ...input,
-    frequency: input.frequency ?? "monthly",
+    frequency,
+    nextRunDate: firstFutureRunDate(input.nextRunDate, frequency, input.dayOfMonth),
   };
+}
+
+// A recurring rule created from an existing (often past-dated) transaction must
+// fire on its *next* occurrence, not the original date — otherwise upcoming-bill
+// widgets that filter `nextRunDate >= today` never surface it.
+function firstFutureRunDate(value: string, frequency: import("../domain").RecurringFrequency, dayOfMonth: number): string {
+  const today = new Date().toISOString().slice(0, 10);
+  let next = value.slice(0, 10);
+  let guard = 0;
+  while (next < today && guard < 600) {
+    next = nextRecurringDate(next, frequency, dayOfMonth);
+    guard += 1;
+  }
+  return next;
 }
 
 function nextMonthlyDate(value: string, dayOfMonth: number) {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Plus, Trash, PencilSimple, CaretRight, CaretDown, Tag } from "@phosphor-icons/react";
+import { X, Plus, Trash, PencilSimple, CaretRight, CaretDown, Tag, Check } from "@phosphor-icons/react";
 import EmojiPicker from "emoji-picker-react";
 import { Popover, PopoverTrigger, PopoverContent } from "./ui/popover";
 import { CategoryGroup } from "../domain";
@@ -17,6 +17,14 @@ export function CategoryManagementDrawer({
 }) {
   const [local, setLocal] = useState<CategoryGroup[]>(categories);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  // Inline editing state (prompt() is unsupported in the Tauri webview).
+  const [addingMain, setAddingMain] = useState(false);
+  const [draftMain, setDraftMain] = useState("");
+  const [renamingMain, setRenamingMain] = useState<string | null>(null);
+  const [addingSubFor, setAddingSubFor] = useState<string | null>(null);
+  const [draftSub, setDraftSub] = useState("");
+  const [renamingSub, setRenamingSub] = useState<{ main: string; sub: string } | null>(null);
+  const [draftRename, setDraftRename] = useState("");
 
   if (!open) return null;
 
@@ -24,14 +32,18 @@ export function CategoryManagementDrawer({
     setExpanded((prev) => ({ ...prev, [name]: !prev[name] }));
   }
 
-  function addMainCategory() {
-    const name = prompt("主分類名稱：");
+  function commitAddMain(raw: string) {
+    const name = raw.trim();
+    setAddingMain(false);
+    setDraftMain("");
     if (!name || local.some(c => c.name === name)) return;
     setLocal([...local, { name, children: [] }]);
   }
 
-  function addSubCategory(mainName: string) {
-    const name = prompt(`新增「${mainName}」的子分類：`);
+  function commitAddSub(mainName: string, raw: string) {
+    const name = raw.trim();
+    setAddingSubFor(null);
+    setDraftSub("");
     if (!name) return;
     setLocal(local.map(c => {
       if (c.name === mainName) {
@@ -52,14 +64,16 @@ export function CategoryManagementDrawer({
     }));
   }
 
-  function renameMainCategory(oldName: string) {
-    const newName = prompt("重新命名主分類：", oldName);
+  function commitRenameMain(oldName: string, raw: string) {
+    const newName = raw.trim();
+    setRenamingMain(null);
     if (!newName || newName === oldName || local.some(c => c.name === newName)) return;
     setLocal(local.map(c => c.name === oldName ? { ...c, name: newName } : c));
   }
 
-  function renameSubCategory(mainName: string, oldSubName: string) {
-    const newName = prompt("重新命名子分類：", oldSubName);
+  function commitRenameSub(mainName: string, oldSubName: string, raw: string) {
+    const newName = raw.trim();
+    setRenamingSub(null);
     if (!newName || newName === oldSubName) return;
     setLocal(local.map(c => {
       if (c.name === mainName) {
@@ -95,12 +109,29 @@ export function CategoryManagementDrawer({
 
         <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-            <button className="ns-btn primary" onClick={addMainCategory}><Plus size={14} />新增主分類</button>
+            {addingMain ? (
+              <input
+                autoFocus
+                className="ns-input"
+                style={{ flex: 1, fontSize: 13 }}
+                placeholder="主分類名稱…"
+                value={draftMain}
+                onChange={(e) => setDraftMain(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitAddMain(draftMain);
+                  if (e.key === "Escape") { setAddingMain(false); setDraftMain(""); }
+                }}
+                onBlur={() => commitAddMain(draftMain)}
+              />
+            ) : (
+              <button className="ns-btn primary" onClick={() => { setAddingMain(true); setDraftMain(""); }}><Plus size={14} />新增主分類</button>
+            )}
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {local.map(group => {
               const isExp = expanded[group.name] || false;
+              const isRenamingMain = renamingMain === group.name;
               return (
                 <div key={group.name} className="ns-card" style={{ padding: "12px 16px" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -113,36 +144,91 @@ export function CategoryManagementDrawer({
                           {group.iconName || <Tag size={16} />}
                         </PopoverTrigger>
                         <PopoverContent className="z-[150] shadow-xl rounded-xl w-auto p-0">
-                          <EmojiPicker 
+                          <EmojiPicker
                             onEmojiClick={(emojiData) => {
                               setLocal(local.map(c => c.name === group.name ? { ...c, iconName: emojiData.emoji } : c));
-                            }} 
-                            width={300} 
-                            height={400} 
+                            }}
+                            width={300}
+                            height={400}
                           />
                         </PopoverContent>
                       </Popover>
-                      <span style={{ fontWeight: 500, cursor: "pointer" }} onClick={() => toggle(group.name)}>{group.name}</span>
-                      <span style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>({group.children.length})</span>
+                      {isRenamingMain ? (
+                        <input
+                          autoFocus
+                          className="ns-input"
+                          style={{ flex: 1, fontSize: 14, padding: "4px 8px" }}
+                          value={draftRename}
+                          onChange={(e) => setDraftRename(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") commitRenameMain(group.name, draftRename);
+                            if (e.key === "Escape") setRenamingMain(null);
+                          }}
+                          onBlur={() => commitRenameMain(group.name, draftRename)}
+                        />
+                      ) : (
+                        <>
+                          <span style={{ fontWeight: 500, cursor: "pointer" }} onClick={() => toggle(group.name)}>{group.name}</span>
+                          <span style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>({group.children.length})</span>
+                        </>
+                      )}
                     </div>
                     <div style={{ display: "flex", gap: 4 }}>
-                      <button className="ns-btn-icon" onClick={() => addSubCategory(group.name)}><Plus size={14} /></button>
-                      <button className="ns-btn-icon" onClick={() => renameMainCategory(group.name)}><PencilSimple size={14} /></button>
+                      <button className="ns-btn-icon" onClick={() => { setAddingSubFor(group.name); setDraftSub(""); setExpanded(prev => ({ ...prev, [group.name]: true })); }}><Plus size={14} /></button>
+                      <button className="ns-btn-icon" onClick={() => { setRenamingMain(group.name); setDraftRename(group.name); }}><PencilSimple size={14} /></button>
                       <button className="ns-btn-icon" style={{ color: "var(--ns-danger)" }} onClick={() => removeMainCategory(group.name)}><Trash size={14} /></button>
                     </div>
                   </div>
 
-                  {isExp && group.children.length > 0 && (
+                  {isExp && (group.children.length > 0 || addingSubFor === group.name) && (
                     <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed var(--ns-border)", display: "flex", flexDirection: "column", gap: 8 }}>
-                      {group.children.map(child => (
-                        <div key={child} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 24 }}>
-                          <span style={{ fontSize: 14 }}>{child}</span>
-                          <div style={{ display: "flex", gap: 4 }}>
-                            <button className="ns-btn-icon" onClick={() => renameSubCategory(group.name, child)}><PencilSimple size={12} /></button>
-                            <button className="ns-btn-icon" style={{ color: "var(--ns-danger)" }} onClick={() => removeSubCategory(group.name, child)}><Trash size={12} /></button>
+                      {group.children.map(child => {
+                        const isRenamingThis = renamingSub?.main === group.name && renamingSub?.sub === child;
+                        return (
+                          <div key={child} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 24 }}>
+                            {isRenamingThis ? (
+                              <input
+                                autoFocus
+                                className="ns-input"
+                                style={{ flex: 1, fontSize: 14, padding: "4px 8px" }}
+                                value={draftRename}
+                                onChange={(e) => setDraftRename(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") commitRenameSub(group.name, child, draftRename);
+                                  if (e.key === "Escape") setRenamingSub(null);
+                                }}
+                                onBlur={() => commitRenameSub(group.name, child, draftRename)}
+                              />
+                            ) : (
+                              <span style={{ fontSize: 14 }}>{child}</span>
+                            )}
+                            <div style={{ display: "flex", gap: 4 }}>
+                              {!isRenamingThis && (
+                                <button className="ns-btn-icon" onClick={() => { setRenamingSub({ main: group.name, sub: child }); setDraftRename(child); }}><PencilSimple size={12} /></button>
+                              )}
+                              <button className="ns-btn-icon" style={{ color: "var(--ns-danger)" }} onClick={() => removeSubCategory(group.name, child)}><Trash size={12} /></button>
+                            </div>
                           </div>
+                        );
+                      })}
+                      {addingSubFor === group.name && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 24 }}>
+                          <input
+                            autoFocus
+                            className="ns-input"
+                            style={{ flex: 1, fontSize: 14, padding: "4px 8px" }}
+                            placeholder="子分類名稱…"
+                            value={draftSub}
+                            onChange={(e) => setDraftSub(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") commitAddSub(group.name, draftSub);
+                              if (e.key === "Escape") { setAddingSubFor(null); setDraftSub(""); }
+                            }}
+                            onBlur={() => commitAddSub(group.name, draftSub)}
+                          />
+                          <button className="ns-btn-icon" onClick={() => commitAddSub(group.name, draftSub)}><Check size={14} /></button>
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
                 </div>

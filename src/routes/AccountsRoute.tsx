@@ -1,12 +1,14 @@
 import { DownloadSimple, PencilSimple, Plus, Scales, Trash, X } from "@phosphor-icons/react";
 import { ReactNode, useMemo, useState, useEffect } from "react";
+import EmojiPicker from "emoji-picker-react";
+import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
 import { downloadCsv, exportAccountsCsv } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { Account, AccountType, AppSettings } from "../domain";
 import { convertCurrency, formatNumber, nowAsDatetimeLocal } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 
-type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm">;
+type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color">;
 
 const emptyAccount: AccountFormState = {
   name: "",
@@ -19,15 +21,18 @@ const emptyAccount: AccountFormState = {
   loanStartDate: null,
   annualInterestRate: null,
   loanTerm: null,
+  iconName: null,
+  color: null,
 };
 
-const accountTypes: AccountType[] = ["depository", "cash", "credit", "loan", "investment", "other"];
+const accountTypes: AccountType[] = ["depository", "cash", "credit", "loan", "investment", "alternative", "other"];
 const accountTypeLabels: Record<AccountType, string> = {
   depository: "銀行帳戶",
   cash: "現金",
   credit: "信用卡",
   loan: "貸款",
   investment: "投資",
+  alternative: "實體資產",
   other: "其他",
 };
 const accountTypeDescriptions: Record<AccountType, string> = {
@@ -36,13 +41,17 @@ const accountTypeDescriptions: Record<AccountType, string> = {
   credit: "信用卡、預付卡",
   loan: "房貸、車貸、學貸",
   investment: "券商、基金帳戶",
+  alternative: "房產、貴金屬、汽車（手動更新市值）",
   other: "其他類型",
 };
+
+const ACCOUNT_COLORS = ["#f0c050", "#6fb3ff", "#a99cff", "#6ee49a", "#ff7d6b", "#34c5b0", "#f0a050", "#9fe870", "#d97a9c", "#868685"];
 
 // Display grouping that mirrors the prototype (Cash / Investment / Credit·liabilities / Other).
 const GROUP_ORDER: { key: string; label: string; types: AccountType[] }[] = [
   { key: "cash", label: "現金 / 存款", types: ["depository", "cash"] },
   { key: "investment", label: "投資 / 券商", types: ["investment"] },
+  { key: "alternative", label: "實體資產 / 其他資產", types: ["alternative"] },
   { key: "credit", label: "信用卡 / 負債", types: ["credit", "loan"] },
   { key: "other", label: "其他", types: ["other"] },
 ];
@@ -120,6 +129,7 @@ export function AccountsRoute() {
       name: account.name, currency: account.currency, openingBalance: account.openingBalance, type: account.type,
       creditLimit: account.creditLimit, creditLimitGroup: account.creditLimitGroup, isSharedToHousehold: account.isSharedToHousehold,
       loanStartDate: account.loanStartDate, annualInterestRate: account.annualInterestRate, loanTerm: account.loanTerm,
+      iconName: account.iconName ?? null, color: account.color ?? null,
     });
     setMessage("");
     setDrawerOpen(true);
@@ -220,8 +230,8 @@ export function AccountsRoute() {
                 const groupCredit = a.type === "credit" && a.creditLimitGroup ? calculateCreditGroup(a.creditLimitGroup, rows) : null;
                 return (
                   <div key={a.id} className="ns-acct-row" style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 22px", borderTop: i ? "1px solid var(--ns-border)" : "none" }}>
-                    <div style={{ width: 36, height: 36, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: MARK_COLORS[i % MARK_COLORS.length], color: "var(--ns-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 13 }}>
-                      {a.name.slice(0, 2)}
+                    <div style={{ width: 36, height: 36, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: a.color || MARK_COLORS[i % MARK_COLORS.length], color: a.iconName ? undefined : "var(--ns-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: a.iconName ? 18 : 13 }}>
+                      {a.iconName || a.name.slice(0, 2)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -455,6 +465,27 @@ function AccountDrawer({
                   </select>
                 </DrawerField>
 
+                <DrawerField label="圖示與顏色（選填）">
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                    <Popover>
+                      <PopoverTrigger style={{ width: 40, height: 40, borderRadius: "var(--ns-r-sm)", fontSize: 20, background: form.color || "var(--ns-bg-hover)", border: "1px solid var(--ns-border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {form.iconName || "＋"}
+                      </PopoverTrigger>
+                      <PopoverContent className="z-[150] shadow-xl rounded-xl w-auto p-0">
+                        <EmojiPicker onEmojiClick={(e) => setForm({ ...form, iconName: e.emoji })} width={300} height={400} />
+                      </PopoverContent>
+                    </Popover>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {ACCOUNT_COLORS.map((c) => (
+                        <div key={c} onClick={() => setForm({ ...form, color: c })} style={{ width: 22, height: 22, borderRadius: 99, background: c, cursor: "pointer", outline: form.color === c ? "2px solid var(--ns-fg)" : "none", outlineOffset: 2 }} />
+                      ))}
+                    </div>
+                    {(form.iconName || form.color) ? (
+                      <button type="button" className="ns-btn ghost" style={{ fontSize: 12, padding: "4px 8px", minHeight: "auto" }} onClick={() => setForm({ ...form, iconName: null, color: null })}>清除</button>
+                    ) : null}
+                  </div>
+                </DrawerField>
+
                 {form.type === "credit" ? (
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                     <DrawerField label="信用額度">
@@ -496,9 +527,12 @@ function AccountDrawer({
               </p>
 
               <div style={{ marginBottom: 20 }}>
-                <DrawerField label={`當前餘額（${form.currency}）`}>
+                <DrawerField label={`${form.type === "alternative" ? "目前市值" : "當前餘額"}（${form.currency}）`}>
                   <input className="ns-input" style={{ fontSize: 22, fontFamily: 'var(--ns-font-mono)', fontVariantNumeric: 'tabular-nums', height: 56 }} type="number" value={form.openingBalance} onChange={(e) => setForm({ ...form, openingBalance: Number(e.target.value) })} />
                 </DrawerField>
+                {form.type === "alternative" && (
+                  <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>輸入此資產目前的估計市值，日後可用「調整餘額」手動更新。</div>
+                )}
                 {form.type === 'credit' && (
                   <div className="muted" style={{ fontSize: 12, marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
                     信用卡餘額請輸入「本期消費應還金額」，系統會記錄為負數（負債）

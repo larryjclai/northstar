@@ -6,6 +6,7 @@ export type AccountType =
   | "credit"
   | "loan"
   | "investment"
+  | "alternative"
   | "other";
 
 export type InvestmentAction =
@@ -70,6 +71,10 @@ export interface Account extends SyncFields {
   loanStartDate: string | null;
   annualInterestRate: number | null;
   loanTerm: number | null;
+  /** Optional emoji or icon-name used to personalize the account row. */
+  iconName: string | null;
+  /** Optional accent color (hex or token) for the account marker. */
+  color: string | null;
 }
 
 export interface LedgerTransaction extends SyncFields {

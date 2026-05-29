@@ -8,10 +8,12 @@ export function classifyLedgerGroup(rows: LedgerTransaction[]): LedgerGroupKind 
   if (activeRows.length === 1 || !activeRows[0].groupId) return "singleton";
 
   const accountIds = new Set(activeRows.map((row) => row.accountId));
-  const hasPositive = activeRows.some((row) => row.amount > 0);
-  const hasNegative = activeRows.some((row) => row.amount < 0);
+  const positiveCount = activeRows.filter((row) => row.amount > 0).length;
+  const negativeCount = activeRows.filter((row) => row.amount < 0).length;
 
-  if (activeRows.length === 2 && accountIds.size === 2 && hasPositive && hasNegative) {
+  // A transfer credits exactly one account (destination) and debits the source.
+  // An optional same-account fee leg adds a second debit but keeps it a transfer.
+  if (accountIds.size === 2 && positiveCount === 1 && negativeCount >= 1) {
     return "transfer";
   }
 

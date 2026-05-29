@@ -7,6 +7,7 @@ import type { StoredMarketQuote } from "../data/repositories";
 import {
   assetTypeLabels,
   calculateAvailableCash,
+  calculateAlternativeAssets,
   calculateLiabilities,
   createFxConverter,
   formatMoney,
@@ -54,6 +55,7 @@ export function DashboardRoute() {
   const { primaryCurrency, toPrimary } = createFxConverter(appSettings, fxHistory);
   const filteredAccounts = selectedAccount === "all" ? accountRows : accountRows.filter(a => a.id === selectedAccount);
   const availableCash = calculateAvailableCash(filteredAccounts, toPrimary);
+  const alternativeAssets = calculateAlternativeAssets(filteredAccounts, toPrimary);
   const liabilities = calculateLiabilities(filteredAccounts, toPrimary);
 
   const quoteFor = (ticker: string) => quoteRows.find((quote) => quote.symbol.toUpperCase() === ticker.toUpperCase());
@@ -64,7 +66,7 @@ export function DashboardRoute() {
     return sum + toPrimary(value, quote?.currency ?? asset.currency);
   }, 0);
 
-  const netWorth = availableCash + marketValue - liabilities;
+  const netWorth = availableCash + alternativeAssets + marketValue - liabilities;
 
   const monthRows = ledgerRows.filter((row) => row.date.startsWith(monthKey) && row.settlementStatus === "settled" && (selectedAccount === "all" || row.accountId === selectedAccount));
   const monthIncome = monthRows.filter((row) => row.entryType === "income").reduce((sum, row) => sum + toPrimary(Math.max(0, row.amount), row.currency, row.date), 0);
@@ -121,11 +123,12 @@ export function DashboardRoute() {
       byClass.set(label, (byClass.get(label) ?? 0) + value);
     }
     if (availableCash > 0) byClass.set("現金", (byClass.get("現金") ?? 0) + availableCash);
+    if (alternativeAssets > 0) byClass.set("實體資產", (byClass.get("實體資產") ?? 0) + alternativeAssets);
     const total = [...byClass.values()].reduce((s, v) => s + v, 0);
     return [...byClass.entries()]
       .map(([label, value], i) => ({ label, value, color: CHART_COLORS[i % CHART_COLORS.length], pct: total > 0 ? (value / total) * 100 : 0 }))
       .sort((a, b) => b.value - a.value);
-  }, [filteredAssets, quoteRows, availableCash, toPrimary]);
+  }, [filteredAssets, quoteRows, availableCash, alternativeAssets, toPrimary]);
 
   // Goals — approximate progress = net worth / target (dashboard glance only).
   const goals = useMemo(() => {
@@ -261,6 +264,7 @@ export function DashboardRoute() {
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <KpiCard label="投資" value={formatMoney(marketValue, primaryCurrency)} color="var(--ns-chart-1)" />
           <KpiCard label="現金 / 存款" value={formatMoney(availableCash, primaryCurrency)} color="var(--ns-chart-2)" />
+          {alternativeAssets > 0 ? <KpiCard label="其他資產" value={formatMoney(alternativeAssets, primaryCurrency)} color="var(--ns-chart-4)" /> : null}
           <KpiCard label="負債" value={formatMoney(liabilities, primaryCurrency)} color="var(--ns-chart-5)" tone={liabilities > 0 ? "neg" : undefined} />
           <div className="ns-card" style={{ padding: "13px 16px", display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 4, height: 32, borderRadius: 99, background: "var(--ns-chart-3)", flexShrink: 0 }} />
