@@ -73,6 +73,7 @@ function makeEmptyLedger(timezone: string): LedgerDraft {
     entryType: "expense",
     settlementStatus: "settled",
     note: "",
+    feeAmount: 0,
   };
 }
 
@@ -86,6 +87,7 @@ function makeEmptyTransfer(timezone: string): TransferDraft {
     sourceAmount: 1000,
     destinationAmount: 1000,
     note: "",
+    feeAmount: 0,
   };
 }
 
@@ -306,6 +308,9 @@ export function CashFlowRoute() {
         subcategory: ledgerForm.subcategory.trim(),
         merchant: (isReceivablePayable ? counterparty : ledgerForm.merchant).trim(),
         note,
+        // Fees only attach to newly-created expenses; the repo emits a linked
+        // 手續費 leg. Edits and non-expense rows never carry a fee.
+        feeAmount: !editingId && entryType === "expense" ? (ledgerForm.feeAmount || 0) : 0,
       };
       if (!payload.accountId) throw new Error("請選擇帳戶。");
       if (isReceivablePayable && !payload.merchant) throw new Error("請填寫對象。");
@@ -1172,6 +1177,21 @@ function EntryDrawer({
             </div>
           )}
 
+          {/* Transfer fee */}
+          {type === "transfer" && (
+            <DrawerField label={`手續費（選填） · ${transferForm.sourceCurrency}`}>
+              <input
+                className="ns-input"
+                inputMode="decimal"
+                value={transferForm.feeAmount || ""}
+                onChange={(e) => setTransferForm({ ...transferForm, feeAmount: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })}
+                placeholder="0"
+                style={{ fontFamily: "var(--ns-font-mono)" }}
+              />
+              <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>跨行/跨國轉帳手續費，將從轉出帳戶另計一筆「手續費」支出。</div>
+            </DrawerField>
+          )}
+
           {/* Name + merchant + category for expense/income */}
           {isAcct && (
             <>
@@ -1183,6 +1203,20 @@ function EntryDrawer({
                   <MerchantAutocomplete value={ledgerForm.merchant} suggestions={merchantSuggestions} onChange={(next) => setLedgerForm({ ...ledgerForm, merchant: next })} placeholder={type === "expense" ? "UBER" : "公司"} />
                 </DrawerField>
               </div>
+
+              {type === "expense" && !editing && (
+                <DrawerField label={`外加手續費（選填） · ${ledgerForm.currency}`}>
+                  <input
+                    className="ns-input"
+                    inputMode="decimal"
+                    value={ledgerForm.feeAmount || ""}
+                    onChange={(e) => setLedgerForm({ ...ledgerForm, feeAmount: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })}
+                    placeholder="0"
+                    style={{ fontFamily: "var(--ns-font-mono)" }}
+                  />
+                  <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>海外刷卡/跨國交易手續費，將另計一筆「手續費」支出。</div>
+                </DrawerField>
+              )}
 
               <DrawerField label="分類">
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: subcategories.length ? 10 : 0 }}>

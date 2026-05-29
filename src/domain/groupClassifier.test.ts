@@ -46,4 +46,13 @@ describe("ledger group classifier", () => {
     ];
     expect(classifyLedgerGroup(rows)).toBe("transfer");
   });
+
+  it("classifies a transfer with a source-side fee leg as transfer", () => {
+    const rows: LedgerTransaction[] = [
+      { ...base, id: "a", groupId: "g", accountId: "source", amount: -100, entryType: "transfer" },
+      { ...base, id: "b", groupId: "g", accountId: "dest", amount: 100, entryType: "transfer" },
+      { ...base, id: "fee", groupId: "g", accountId: "source", amount: -15, category: "手續費", entryType: "expense" },
+    ];
+    expect(classifyLedgerGroup(rows)).toBe("transfer");
+  });
 });
