@@ -1,10 +1,12 @@
-import { ForkKnife, Car, GameController, MonitorPlay, House, Pill, GraduationCap, DotsThree, Gear, Plus, Tag } from "@phosphor-icons/react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Gear, Plus, Tag, X } from "@phosphor-icons/react";
+import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { useFinanceData } from "../data/hooks";
+import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { formatNumber, todayInTimezone } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
+import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
+import { useToast } from "../components/Toast";
 
 // Removed Mock Data
 
@@ -17,8 +19,16 @@ export function CategoriesRoute() {
 
   const [filterMonth, setFilterMonth] = useState(() => todayInTimezone(timezone).slice(0, 7));
   const [timeRange, setTimeRange] = useState<"month" | "ytd" | "custom">("month");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
+  const toast = useToast();
 
   const navigate = useNavigate();
+
+  const updateSettingsMutation = useRepositoryMutation(
+    (repository, input: import("../domain/types").AppSettings) => repository.updateAppSettings(input),
+    ["settings"],
+  );
 
   const filteredRows = useMemo(() => {
     const today = todayInTimezone(timezone);
@@ -34,12 +44,15 @@ export function CategoriesRoute() {
     }
   }, [ledgerRows, filterMonth, timeRange, timezone]);
 
-  const expenseRows = filteredRows.filter((row) => row.entryType === "expense");
-  const totalExpense = expenseRows.reduce((sum, row) => sum + Math.abs(row.amount), 0);
+  const allExpenseRows = filteredRows.filter((row) => row.entryType === "expense");
+  const totalExpense = allExpenseRows.reduce((sum, row) => sum + Math.abs(row.amount), 0);
+  const expenseRows = selectedCategory
+    ? allExpenseRows.filter((row) => row.category === selectedCategory)
+    : allExpenseRows;
   
   const categoryStats = useMemo(() => {
     const map = new Map<string, { amount: number, count: number }>();
-    for (const row of expenseRows) {
+    for (const row of allExpenseRows) {
       if (!row.category) continue;
       const current = map.get(row.category) ?? { amount: 0, count: 0 };
       map.set(row.category, { 
@@ -56,7 +69,8 @@ export function CategoriesRoute() {
         const catSetting = appSettings?.categories.find(c => c.name === name);
         const budget = catSetting?.budget || null;
         const color = catSetting?.color || defaultColors[index % defaultColors.length];
-        const icon = Tag; // Using generic icon
+        const emoji = catSetting?.iconName || '📦';
+        const icon = Tag; // Fallback Phosphor icon
         
         return {
           name,
@@ -64,10 +78,11 @@ export function CategoriesRoute() {
           count: stats.count,
           budget,
           color,
-          icon
+          icon,
+          emoji
         };
       });
-  }, [expenseRows, appSettings]);
+  }, [allExpenseRows, appSettings]);
 
   // Aggregate stats
   const totalBudget = categoryStats.reduce((sum, cat) => sum + (cat.budget || cat.amount), 0);
@@ -106,8 +121,8 @@ export function CategoriesRoute() {
               </button>
             ))}
           </div>
-          <button className="ns-btn primary" onClick={() => navigate({ to: "/settings" })}>
-            <Plus size={14} weight="bold" /> 新增分類
+          <button className="ns-btn primary" onClick={() => setCategoryDrawerOpen(true)}>
+            <Plus size={14} weight="bold" /> 管理分類
           </button>
         </div>
       </div>
@@ -141,9 +156,21 @@ export function CategoriesRoute() {
                       outerRadius={100}
                       stroke="none"
                       paddingAngle={2}
+                      onClick={(data) => {
+                        if (data && data.name) {
+                          setSelectedCategory(prev => prev === data.name ? null : data.name);
+                        }
+                      }}
+                      style={{ cursor: "pointer" }}
                     >
                       {categoryStats.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={entry.color}
+                          opacity={!selectedCategory || selectedCategory === entry.name ? 1 : 0.3}
+                          stroke={selectedCategory === entry.name ? "var(--ns-fg)" : "none"}
+                          strokeWidth={selectedCategory === entry.name ? 2 : 0}
+                        />
                       ))}
                     </Pie>
                     <Tooltip 
@@ -155,10 +182,25 @@ export function CategoriesRoute() {
               </div>
               
               {/* Legend Grid */}
+              {selectedCategory && (
+                <button className="ns-btn ghost" style={{ fontSize: 11, marginBottom: 8, alignSelf: 'center' }} onClick={() => setSelectedCategory(null)}>
+                  <X size={10} weight="bold" />清除篩選: {selectedCategory}
+                </button>
+              )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 24px", width: "100%" }}>
                 {categoryStats.map(cat => (
-                  <div key={cat.name} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 2, background: cat.color, flexShrink: 0 }} />
+                  <div
+                    key={cat.name}
+                    onClick={() => setSelectedCategory(prev => prev === cat.name ? null : cat.name)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8, fontSize: 13,
+                      cursor: "pointer", padding: "4px 6px", borderRadius: "var(--ns-r-xs)",
+                      background: selectedCategory === cat.name ? "var(--ns-bg-hover)" : "transparent",
+                      opacity: !selectedCategory || selectedCategory === cat.name ? 1 : 0.45,
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <span style={{ fontSize: 16 }}>{cat.emoji}</span>
                     <span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cat.name}</span>
                   </div>
                 ))}
@@ -175,10 +217,10 @@ export function CategoriesRoute() {
         <div className="ns-card" style={{ flex: 1, padding: "24px 0" }}>
           {/* List Header */}
           <div style={{ display: "flex", padding: "0 32px 12px", borderBottom: "1px solid var(--ns-border)", fontSize: 11, fontFamily: "var(--ns-font-mono)", color: "var(--ns-fg-muted)", letterSpacing: 1 }}>
-            <div style={{ flex: "0 0 160px" }}>CATEGORY</div>
-            <div style={{ flex: 1, textAlign: "right" }}>SPENT</div>
-            <div style={{ flex: "0 0 240px", textAlign: "right" }}>BUDGET</div>
-            <div style={{ flex: "0 0 120px", textAlign: "center" }}>USAGE</div>
+            <div style={{ flex: "0 0 160px" }}>分類</div>
+            <div style={{ flex: 1, textAlign: "right" }}>已消費</div>
+            <div style={{ flex: "0 0 240px", textAlign: "right" }}>預算</div>
+            <div style={{ flex: "0 0 120px", textAlign: "center" }}>使用率</div>
             <div style={{ width: 40 }}></div>
           </div>
 
@@ -195,12 +237,23 @@ export function CategoriesRoute() {
               const displayPercent = hasBudget ? Math.min(100, percent) : 0;
 
               return (
-                <div key={cat.name} style={{ display: "flex", alignItems: "center", padding: "16px 32px", borderBottom: index < categoryStats.length - 1 ? "1px solid var(--ns-border)" : "none", transition: "background 0.2s" }} className="hover:bg-[var(--ns-surface)]">
+                <div
+                  key={cat.name}
+                  onClick={() => setSelectedCategory(prev => prev === cat.name ? null : cat.name)}
+                  style={{
+                    display: "flex", alignItems: "center", padding: "16px 32px",
+                    borderBottom: index < categoryStats.length - 1 ? "1px solid var(--ns-border)" : "none",
+                    transition: "background 0.2s", cursor: "pointer",
+                    opacity: !selectedCategory || selectedCategory === cat.name ? 1 : 0.5,
+                    background: selectedCategory === cat.name ? "var(--ns-bg-hover)" : "transparent",
+                  }}
+                  className="hover:bg-[var(--ns-surface)]"
+                >
                   
                   {/* Category Info */}
                   <div style={{ flex: "0 0 160px", display: "flex", alignItems: "center", gap: 16 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--ns-surface-strong)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <IconComp size={18} color={cat.color} weight="fill" />
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: (cat.color || 'var(--ns-surface-strong)') + '18', display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
+                      {cat.emoji}
                     </div>
                     <div>
                       <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 2 }}>{cat.name}</div>
@@ -242,7 +295,7 @@ export function CategoriesRoute() {
                   
                   {/* Settings */}
                   <div style={{ width: 40, display: "flex", justifyContent: "flex-end", color: "var(--ns-fg-muted)" }}>
-                    <Gear size={16} style={{ cursor: "pointer" }} className="hover:text-[var(--ns-fg)] transition-colors" onClick={() => navigate({ to: "/settings" })} />
+                    <Gear size={16} style={{ cursor: "pointer" }} className="hover:text-[var(--ns-fg)] transition-colors" onClick={(e) => { e.stopPropagation(); setCategoryDrawerOpen(true); }} />
                   </div>
                 </div>
               );
@@ -254,6 +307,17 @@ export function CategoriesRoute() {
           </div>
         </div>
       </div>
+
+      <CategoryManagementDrawer
+        open={categoryDrawerOpen}
+        onClose={() => setCategoryDrawerOpen(false)}
+        categories={appSettings?.categories || []}
+        onSave={async (cats) => {
+          if (!appSettings) return;
+          await updateSettingsMutation.mutateAsync({ ...appSettings, categories: cats });
+          toast.success("已更新分類設定");
+        }}
+      />
     </div>
   );
 }

@@ -13,7 +13,8 @@ import {
   CaretDown
 } from "@phosphor-icons/react";
 import { ChangeEvent, ReactNode, useEffect, useMemo, useState } from "react";
-import { Bar, BarChart, ResponsiveContainer, Tooltip, Cell } from "recharts";
+import { Bar, BarChart, ResponsiveContainer, Tooltip, Cell, PieChart, Pie } from "recharts";
+import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { DatePicker } from "../components/ui/date-picker";
@@ -104,6 +105,8 @@ export function CashFlowRoute() {
   const toast = useToast();
   const [selectedMonth, setSelectedMonth] = useState(() => todayInTimezone(timezone).slice(0, 7));
   const [selectedAccount, setSelectedAccount] = useState("all");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [detailRow, setDetailRow] = useState<LedgerTransaction | null>(null);
 
   const appSettings = settings.data;
   const accountRows = accounts.data ?? [];
@@ -377,8 +380,9 @@ export function CashFlowRoute() {
   const monthRows = useMemo(() => ledgerRows.filter((row) => {
     if (!row.date.startsWith(monthKey)) return false;
     if (selectedAccount !== "all" && row.accountId !== selectedAccount) return false;
+    if (selectedCategory !== "all" && row.category !== selectedCategory) return false;
     return true;
-  }), [ledgerRows, monthKey, selectedAccount]);
+  }), [ledgerRows, monthKey, selectedAccount, selectedCategory]);
   const monthIncome = monthRows
     .filter((row) => row.entryType === "income" && row.settlementStatus === "settled")
     .reduce((sum, row) => sum + Math.max(0, row.amount), 0);
@@ -388,18 +392,32 @@ export function CashFlowRoute() {
   const monthNet = monthIncome - monthExpense;
   const monthTransferCount = monthRows.filter((row) => row.entryType === "transfer").length;
 
-  const topCategorySpend = useMemo(() => {
+  // Category spending for donut chart (all categories, not just top 5)
+  const allCategorySpend = useMemo(() => {
     const map = new Map<string, number>();
-    for (const row of monthRows) {
+    // Use unfiltered-by-category rows for the donut so it always shows all categories
+    const baseRows = ledgerRows.filter((row) => {
+      if (!row.date.startsWith(monthKey)) return false;
+      if (selectedAccount !== "all" && row.accountId !== selectedAccount) return false;
+      return true;
+    });
+    for (const row of baseRows) {
       if (row.entryType !== "expense" || row.settlementStatus !== "settled") continue;
-      const key = row.subcategory ? `${row.category} / ${row.subcategory}` : row.category || "未分類";
+      const key = row.category || "未分類";
       map.set(key, (map.get(key) ?? 0) + Math.abs(row.amount));
     }
+    const defaultColors = ["var(--ns-chart-1)","var(--ns-chart-2)","var(--ns-chart-3)","var(--ns-chart-4)","var(--ns-chart-5)","#2dd4bf","#fb923c","#a78bfa","#f472b6","#facc15"];
     return [...map.entries()]
-      .map(([name, amount]) => ({ name, amount }))
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 5);
-  }, [monthRows]);
+      .map(([name, amount], idx) => {
+        const catSetting = appSettings?.categories.find(c => c.name === name);
+        return { name, amount, color: catSetting?.color || defaultColors[idx % defaultColors.length], icon: catSetting?.iconName || '📦' };
+      })
+      .sort((a, b) => b.amount - a.amount);
+  }, [ledgerRows, monthKey, selectedAccount, appSettings]);
+
+  const totalCategorySpend = allCategorySpend.reduce((s, c) => s + c.amount, 0);
+
+  const topCategorySpend = useMemo(() => allCategorySpend.slice(0, 5), [allCategorySpend]);
 
   const topMerchantSpend = useMemo(() => {
     const map = new Map<string, number>();
@@ -436,7 +454,7 @@ export function CashFlowRoute() {
   
   useEffect(() => {
     setPage(1);
-  }, [monthKey, selectedAccount]);
+  }, [monthKey, selectedAccount, selectedCategory]);
   
   const sortedRows = useMemo(
 
@@ -461,7 +479,7 @@ export function CashFlowRoute() {
           </h1>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="ns-btn" onClick={() => toast.info("即將支援全螢幕分類管理")}><Tag size={14}/>分類</button>
+          <button className="ns-btn" onClick={() => setCategoryDrawerOpen(true)}><Tag size={14}/>分類管理</button>
           
           <div style={{ position: "relative" }}>
             <input 
@@ -480,8 +498,21 @@ export function CashFlowRoute() {
               onChange={(e) => setSelectedAccount(e.target.value)}
               style={{ appearance: "none", paddingRight: 28, height: "100%", fontSize: 13 }}
             >
-              <option value="all">All accounts · All cats</option>
+              <option value="all">所有帳戶</option>
               {accountRows.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+            <CaretDown size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--ns-muted)" }} />
+          </div>
+
+          <div style={{ position: "relative" }}>
+            <select
+              className="ns-input"
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              style={{ appearance: "none", paddingRight: 28, height: "100%", fontSize: 13 }}
+            >
+              <option value="all">所有分類</option>
+              {categories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
             </select>
             <CaretDown size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--ns-muted)" }} />
           </div>
@@ -543,32 +574,87 @@ export function CashFlowRoute() {
           </div>
         </div>
 
-        <div className="ns-card flex flex-col justify-between">
-          <div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div className="ns-eyebrow">By category · {monthLabel}</div>
+        <div className="ns-card" style={{ padding: 20, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <div className="ns-eyebrow">分類支出 · {monthLabel}</div>
+            {selectedCategory !== "all" && (
+              <button className="ns-btn ghost" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => setSelectedCategory("all")}>
+                <X size={10} weight="bold" />清除篩選
+              </button>
+            )}
+          </div>
+
+          {/* Donut Chart */}
+          {allCategorySpend.length > 0 ? (
+            <div style={{ width: "100%", height: 180, position: "relative", marginBottom: 8 }}>
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie
+                    data={allCategorySpend}
+                    dataKey="amount"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={75}
+                    stroke="none"
+                    paddingAngle={2}
+                    onClick={(data) => {
+                      if (data && data.name) {
+                        setSelectedCategory(prev => prev === data.name ? "all" : data.name);
+                      }
+                    }}
+                    style={{ cursor: "pointer" }}
+                  >
+                    {allCategorySpend.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={entry.color}
+                        opacity={selectedCategory === "all" || selectedCategory === entry.name ? 1 : 0.3}
+                        stroke={selectedCategory === entry.name ? "var(--ns-fg)" : "none"}
+                        strokeWidth={selectedCategory === entry.name ? 2 : 0}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => [`NT$${formatNumber(value)}`, "金額"]}
+                    contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg)", fontSize: 12 }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              {/* Center label */}
+              <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", textAlign: "center", pointerEvents: "none" }}>
+                <div className="num" style={{ fontSize: 16, fontWeight: 600 }}>NT${formatNumber(totalCategorySpend)}</div>
+                <div className="muted" style={{ fontSize: 10 }}>總支出</div>
+              </div>
             </div>
-            <div style={{ display: "grid", gap: 10 }}>
-              {topCategorySpend.length === 0 ? (
-                <div className="muted" style={{ fontSize: 13 }}>本月尚無支出分類</div>
-              ) : (
-                topCategorySpend.map((r, idx) => {
-                  const max = topCategorySpend[0].amount;
-                  const ratio = r.amount / max;
-                  const colors = ["var(--ns-chart-3)", "var(--ns-chart-4)", "var(--ns-chart-5)", "var(--ns-chart-2)", "var(--ns-fg-dim)"];
-                  const color = colors[idx % colors.length];
-                  return (
-                    <div key={r.name} style={{ display: "grid", gridTemplateColumns: "80px 1fr 80px", gap: 10, alignItems: "center", fontSize: 12.5 }}>
-                      <span className="truncate">{r.name}</span>
-                      <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
-                        <div style={{ width: (ratio * 100) + "%", height: "100%", background: color, borderRadius: 99 }}/>
-                      </div>
-                      <span className="num" style={{ textAlign: "right" }}>NT${formatNumber(r.amount)}</span>
-                    </div>
-                  );
-                })
-              )}
-            </div>
+          ) : (
+            <div className="muted" style={{ fontSize: 13, textAlign: "center", padding: "30px 0" }}>本月尚無支出</div>
+          )}
+
+          {/* Category Legend / List */}
+          <div style={{ display: "grid", gap: 6 }}>
+            {allCategorySpend.map((r) => {
+              const pct = totalCategorySpend > 0 ? ((r.amount / totalCategorySpend) * 100).toFixed(1) : "0";
+              const isActive = selectedCategory === "all" || selectedCategory === r.name;
+              return (
+                <div
+                  key={r.name}
+                  onClick={() => setSelectedCategory(prev => prev === r.name ? "all" : r.name)}
+                  style={{
+                    display: "grid", gridTemplateColumns: "24px 1fr auto", gap: 8, alignItems: "center",
+                    fontSize: 12.5, padding: "6px 8px", borderRadius: "var(--ns-r-sm)",
+                    cursor: "pointer", opacity: isActive ? 1 : 0.45,
+                    background: selectedCategory === r.name ? "var(--ns-bg-hover)" : "transparent",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <span style={{ fontSize: 15 }}>{r.icon}</span>
+                  <span className="truncate" style={{ fontWeight: 500 }}>{r.name}</span>
+                  <span className="num muted" style={{ fontSize: 11 }}>{pct}% · NT${formatNumber(r.amount)}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -636,7 +722,7 @@ export function CashFlowRoute() {
                     key={r.id}
                     row={r}
                     accountName={accountName}
-                    onEdit={() => startEdit(r)}
+                    onEdit={() => setDetailRow(r)}
                     onDelete={() => handleDelete(r.id)}
                     onSettle={() => markSettled(r)}
                   />
@@ -688,6 +774,13 @@ export function CashFlowRoute() {
           await updateSettingsMutation.mutateAsync({ ...appSettings, categories: cats });
           toast.success("已更新分類設定");
         }}
+      />
+      <TransactionDetailPanel
+        row={detailRow}
+        onClose={() => setDetailRow(null)}
+        onEdit={(row) => { setDetailRow(null); startEdit(row); }}
+        onDelete={(id) => { setDetailRow(null); handleDelete(id); }}
+        accountName={accountName}
       />
     </div>
   );
