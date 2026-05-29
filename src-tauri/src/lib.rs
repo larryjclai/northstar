@@ -41,6 +41,7 @@ async fn fetch_yahoo(path_and_query: String) -> Result<String, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_sql::Builder::default().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let salt_path = app
                 .path()
@@ -49,6 +50,13 @@ pub fn run() {
                 .join("stronghold-salt.txt");
             app.handle()
                 .plugin(tauri_plugin_stronghold::Builder::with_argon2(&salt_path).build())?;
+
+            // Desktop-only self-update. Endpoints + signing pubkey are supplied
+            // in tauri.conf.json (plugins.updater); see HANDOVER for release setup.
+            #[cfg(desktop)]
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![fetch_yahoo])

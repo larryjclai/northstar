@@ -726,6 +726,50 @@ function SettingsGeneral({ form, t }: any) {
           }} />
         </div>
       </div>
+
+      <UpdateChecker />
+    </div>
+  );
+}
+
+// Built-in "check for updates" via the Tauri updater plugin. The plugin module
+// is dynamically imported so the web/dev build (no Tauri runtime) stays happy;
+// outside a desktop build the button reports that updates aren't available.
+function UpdateChecker() {
+  const isDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function checkForUpdates() {
+    setBusy(true);
+    setMessage("正在檢查更新…");
+    try {
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const update = await check();
+      if (!update) { setMessage("已是最新版本。"); return; }
+      setMessage(`發現新版本 v${update.version}，下載並安裝中…`);
+      await update.downloadAndInstall();
+      const { relaunch } = await import("@tauri-apps/plugin-process");
+      setMessage("更新完成，正在重新啟動…");
+      await relaunch();
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      setMessage(isDesktop ? `目前無法檢查更新（${detail}）。請確認已設定更新來源。` : "檢查更新僅在桌面版可用。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="ns-card p-5">
+      <h3 className="font-semibold mb-2">應用程式更新</h3>
+      <p className="text-sm muted mb-4">檢查並安裝 Northstar 的最新桌面版本。所有更新都經過簽章驗證。</p>
+      <div className="flex items-center gap-3 flex-wrap">
+        <button className="ns-btn primary" onClick={checkForUpdates} disabled={busy}>
+          <ArrowsClockwise size={14} />{busy ? "檢查中…" : "檢查更新"}
+        </button>
+        {message ? <span className="text-sm muted">{message}</span> : null}
+      </div>
     </div>
   );
 }
