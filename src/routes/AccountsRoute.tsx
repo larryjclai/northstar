@@ -1,5 +1,6 @@
-import { DownloadSimple, PencilSimple, Plus, Scales, Trash, X } from "@phosphor-icons/react";
+import { DownloadSimple, ListChecks, PencilSimple, Plus, Scales, Trash, X } from "@phosphor-icons/react";
 import { ReactNode, useMemo, useState, useEffect } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import EmojiPicker from "emoji-picker-react";
 import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
 import { downloadCsv, exportAccountsCsv } from "../data/csv";
@@ -62,6 +63,7 @@ const MARK_COLORS = ["var(--ns-chart-1)", "var(--ns-chart-2)", "var(--ns-chart-3
 
 export function AccountsRoute() {
   const { accounts, settings } = useFinanceData();
+  const navigate = useNavigate();
   const timezone = useUiPreferences((state) => state.timezone);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -255,6 +257,9 @@ export function AccountsRoute() {
                       {a.currency !== primaryCurrency ? <div className="muted mono" style={{ fontSize: 11.5 }}>{formatNumber(a.balance)} {a.currency}</div> : null}
                     </div>
                     <div className="ns-acct-actions" style={{ display: "flex", gap: 4 }}>
+                      {a.type === "credit" ? (
+                        <button className="ns-btn ghost icon" title="對帳" onClick={() => navigate({ to: "/cash-flow/reconcile/$accountId", params: { accountId: a.id } })}><ListChecks size={14} /></button>
+                      ) : null}
                       <button className="ns-btn ghost icon" title="編輯" onClick={() => startEdit(a)}><PencilSimple size={14} /></button>
                       <button className="ns-btn ghost icon" title="調整餘額" onClick={() => openAdjust(a)}><Scales size={14} /></button>
                       <button className="ns-btn ghost icon" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={async () => { try { await deleteAccount.mutateAsync(a.id); } catch (e) { setMessage(e instanceof Error ? e.message : "刪除失敗。"); } }}><Trash size={14} /></button>

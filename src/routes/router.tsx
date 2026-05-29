@@ -6,6 +6,7 @@ import { CategoriesRoute } from "./CategoriesRoute";
 import { DashboardRoute } from "./DashboardRoute";
 import { CategoryDetailRoute } from "./CategoryDetailRoute";
 import { MerchantDetailRoute } from "./MerchantDetailRoute";
+import { ReconcileRoute } from "./ReconcileRoute";
 import { FIRECalculatorRoute } from "./FIRECalculatorRoute";
 import { GoalsRoute } from "./GoalsRoute";
 import { HoldingDetailRoute } from "./HoldingDetailRoute";
@@ -65,6 +66,12 @@ const merchantDetailRoute = createRoute({
   component: MerchantDetailRoute,
 });
 
+const reconcileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/cash-flow/reconcile/$accountId",
+  component: ReconcileRoute,
+});
+
 const accountsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/accounts",
@@ -100,6 +107,7 @@ const routeTree = rootRoute.addChildren([
   categoriesRoute,
   categoryDetailRoute,
   merchantDetailRoute,
+  reconcileRoute,
   accountsRoute,
   settingsRoute,
 ]);

@@ -150,6 +150,7 @@ export interface FinanceRepository {
   listLedgerTransactions(): Promise<LedgerTransaction[]>;
   createLedgerTransaction(input: LedgerDraft): Promise<void>;
   updateLedgerTransaction(id: string, input: LedgerDraft): Promise<void>;
+  setLedgerReviewed(id: string, reviewed: boolean): Promise<void>;
   deleteLedgerTransaction(id: string): Promise<void>;
   createTransfer(input: TransferDraft): Promise<void>;
   importLedgerTransactions(rows: LedgerDraft[]): Promise<void>;
@@ -521,6 +522,13 @@ class BrowserFinanceRepository implements FinanceRepository {
       row.id === id ? bump({ ...row, ...input, groupId: input.groupId ?? null }) : row,
     );
     this.recompute();
+    await this.persist();
+  }
+
+  async setLedgerReviewed(id: string, reviewed: boolean) {
+    this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
+      row.id === id ? bump({ ...row, isReviewed: reviewed }) : row,
+    );
     await this.persist();
   }
 
@@ -1428,6 +1436,13 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       [nowIso(), input.accountId, input.date, input.name, input.amount, input.currency, input.category, input.subcategory, input.merchant, input.entryType, input.settlementStatus, input.note, input.groupId ?? null, id],
     );
     await this.recomputeSqliteAccounts();
+  }
+
+  override async setLedgerReviewed(id: string, reviewed: boolean) {
+    await this.db.execute(
+      `update ledger_transactions set is_reviewed = $1, updated_at = $2, revision = revision + 1 where id = $3`,
+      [Number(reviewed), nowIso(), id],
+    );
   }
 
   override async deleteLedgerTransaction(id: string) {
