@@ -19,10 +19,13 @@ const appIconUrl = new URL("../../src-tauri/icons/icon.png", import.meta.url).hr
 
 const navItems = [
   { to: "/", label: "總覽", icon: House },
+  { to: "/investments", label: "投資", icon: TrendUp },
   { to: "/cash-flow", label: "記帳", icon: Receipt },
   { to: "/accounts", label: "帳戶", icon: Bank },
-  { to: "/investments", label: "投資", icon: TrendUp },
-  { to: "/goals", label: "目標", icon: Target },
+  { to: "/goals", label: "目標 · FIRE", icon: Target },
+] as const;
+
+const nav2Items = [
   { to: "/settings", label: "設定", icon: GearSix },
 ] as const;
 
@@ -94,6 +97,20 @@ export function AppShell() {
               {item.label}
             </Link>
           ))}
+
+          <div className="ns-eyebrow" style={{ padding: '18px 11px 8px' }}>Settings</div>
+          {nav2Items.map((item) => (
+            <Link
+              key={item.to}
+              to={item.to}
+              className="ns-nav-link"
+              activeProps={{ className: "ns-nav-link active" }}
+              inactiveProps={{ className: "ns-nav-link" }}
+            >
+              <item.icon size={16} weight="duotone" />
+              {item.label}
+            </Link>
+          ))}
         </nav>
 
         {/* Bottom: privacy + local-first notice */}
@@ -142,7 +159,7 @@ export function AppShell() {
         className="fixed inset-x-0 bottom-0 grid grid-cols-6 border-t lg:hidden"
         style={{ background: "var(--ns-bg-elev)", borderColor: "var(--ns-border)" }}
       >
-        {navItems.map((item) => (
+        {[...navItems, ...nav2Items].map((item) => (
           <Link
             key={item.to}
             to={item.to}

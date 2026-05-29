@@ -1,7 +1,6 @@
 import { ChartLineUp, PencilSimple, PlusCircle, Trash, UploadSimple } from "@phosphor-icons/react";
-import { ChangeEvent, useMemo, useState } from "react";
+import { ChangeEvent, useMemo, useState, useEffect } from "react";
 import { ActionButton } from "../components/ActionButton";
-import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { StatusText } from "../components/StatusText";
@@ -86,6 +85,16 @@ export function TransactionsRoute() {
   }, [assetRows, editingRecordId, recordRows]);
 
   const monthKey = todayInTimezone(timezone).slice(0, 7);
+
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
+
+  useEffect(() => {
+    setPage(1);
+  }, [assetFor, monthKey]);
+
+  const paginatedRows = useMemo(() => recordRows.slice((page - 1) * pageSize, page * pageSize), [recordRows, page]);
+
   const monthRows = useMemo(() => recordRows.filter((row) => row.date.startsWith(monthKey)), [monthKey, recordRows]);
   const monthBuy = monthRows
     .filter((row) => row.action === "buy")
@@ -96,6 +105,7 @@ export function TransactionsRoute() {
   const monthDividend = monthRows
     .filter((row) => row.action === "cashDividend")
     .reduce((sum, row) => sum + row.price, 0);
+  useEffect(() => { setPage(1); }, [monthKey, assetFor]);
   const twdSettlementWatchCount = monthRows.filter((row) => {
     const linked = row.linkedAccountId ? accountMap.get(row.linkedAccountId) : null;
     return row.action === "buy" && linked?.currency.toUpperCase() === "TWD";
@@ -121,18 +131,14 @@ export function TransactionsRoute() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl p-5 lg:p-8">
-      <PageHeader
-        title="投資交易"
-        description="用 dashboard 方式管理交易：快速瀏覽本月動態、再用右側抽屜新增或調整每筆記錄。"
-        action={
-          <ActionButton onClick={openCreate} size="sm">
-            <PlusCircle size={16} />新增交易
-          </ActionButton>
-        }
-      />
+    <div className="mt-4">
+      <div className="flex justify-end mb-4">
+        <ActionButton onClick={openCreate} size="sm">
+          <PlusCircle size={16} />新增交易
+        </ActionButton>
+      </div>
 
-      <div className="mb-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 20 }}>
         <SummaryCard label="本月交易筆數" value={`${monthRows.length} 筆`} sublabel={monthKey} />
         <SummaryCard label="本月買進" value={formatNumber(monthBuy)} sublabel="未含手續費" />
         <SummaryCard label="本月賣出" value={formatNumber(monthSell)} sublabel="成交金額" />
@@ -274,17 +280,12 @@ function SummaryCard({
   sublabel: string;
 }) {
   return (
-    <div
-      className="rounded-xl border p-4"
-      style={{
-        borderColor: "var(--ns-panel-border)",
-        background: "var(--ns-panel-surface)",
-        boxShadow: "var(--ns-shadow)",
-      }}
-    >
-      <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>{label}</div>
-      <div className="mt-2 text-2xl font-semibold tabular">{value}</div>
-      <div className="mt-1 text-xs" style={{ color: "var(--ns-muted)" }}>{sublabel}</div>
+    <div className="ns-card" style={{ padding: 18 }}>
+      <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <div className="num" style={{ fontSize: 22, fontWeight: 500 }}>{value}</div>
+        {sublabel && <div className="num" style={{ fontSize: 13, color: 'var(--ns-muted)' }}>{sublabel}</div>}
+      </div>
     </div>
   );
 }

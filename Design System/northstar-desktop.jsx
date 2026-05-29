@@ -291,7 +291,7 @@ function NSDesktopHoldings({ onNavigate } = {}) {
   return (
     <NSDesktopShell active="holdings" onNavigate={onNavigate}>
       <div style={{ padding: '24px 32px 100px', height: '100%', overflow: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 0 }}>
           <div>
             <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Portfolio</div>
             <h1 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>Holdings</h1>
@@ -306,6 +306,22 @@ function NSDesktopHoldings({ onNavigate } = {}) {
             <button className="ns-btn"><NSIcon name="upload" size={14}/>Import CSV</button>
             <button className="ns-btn primary"><NSIcon name="plus" size={14} strokeWidth={2}/>Buy / Sell</button>
           </div>
+        </div>
+
+        {/* Page-level tabs: Portfolio | Transactions */}
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--ns-border)', marginTop: 20, marginBottom: 22 }}>
+          {[
+            { id: 'portfolio', label: 'Portfolio',    active: true,  nav: null },
+            { id: 'txns',      label: 'Transactions', active: false, nav: 'holdings-txns' },
+          ].map(tab => (
+            <button key={tab.id} onClick={() => tab.nav && onNavigate && onNavigate(tab.nav)} style={{
+              padding: '10px 20px', background: 'none', border: 'none', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: 14, fontWeight: tab.active ? 600 : 400,
+              color: tab.active ? 'var(--ns-fg)' : 'var(--ns-fg-muted)',
+              borderBottom: tab.active ? '2px solid var(--ns-accent)' : '2px solid transparent',
+              marginBottom: -1, transition: 'color 0.12s',
+            }}>{tab.label}</button>
+          ))}
         </div>
 
         {/* Top KPIs */}

@@ -99,11 +99,17 @@ function NSRoot() {
           <DCArtboard id="d-holding-detail" label="Holdings · 2330.TW 詳情" width={1440} height={900}>
             <NSDesktopHoldingDetail />
           </DCArtboard>
+          <DCArtboard id="d-holdings-txns" label="Holdings · All Transactions tab" width={1440} height={900}>
+            <NSDesktopHoldingsTxns />
+          </DCArtboard>
           <DCArtboard id="d-inv-add" label="Investments · Add sheet" width={1440} height={900}>
             <NSDesktopInvestAddSheet />
           </DCArtboard>
           <DCArtboard id="d-cf-detail" label="Cash Flow · Transaction detail" width={1440} height={900}>
             <NSDesktopCashFlowDetail />
+          </DCArtboard>
+          <DCArtboard id="d-merchant" label="Cash Flow · Merchant detail" width={1440} height={900}>
+            <NSDesktopMerchantDetail />
           </DCArtboard>
           <DCArtboard id="d-cf-new" label="Cash Flow · New transaction" width={1440} height={900}>
             <NSDesktopNewTxSheet />
