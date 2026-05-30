@@ -87,6 +87,11 @@ export interface LedgerTransaction extends SyncFields {
   name: string;
   amount: number;
   currency: CurrencyCode;
+  /** Original foreign-currency amount when the entry was recorded in a currency
+   * different from the account's currency. `amount` always stores the value
+   * converted to the account's currency for balance calculations. */
+  originalAmount: number | null;
+  originalCurrency: string | null;
   category: string;
   subcategory: string;
   merchant: string;

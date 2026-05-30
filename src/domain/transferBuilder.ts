@@ -48,6 +48,8 @@ export function buildTransfer(input: TransferInput): LedgerTransaction[] {
     isReviewed: false,
     receiptAttachmentId: null,
     recurringRuleId: null,
+    originalAmount: null,
+    originalCurrency: null,
   };
 
   return [

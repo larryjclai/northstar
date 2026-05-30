@@ -25,6 +25,8 @@ const base: LedgerTransaction = {
   isReviewed: false,
   receiptAttachmentId: null,
   recurringRuleId: null,
+  originalAmount: null,
+  originalCurrency: null,
 };
 
 describe("buildMerchantCategoryMap", () => {

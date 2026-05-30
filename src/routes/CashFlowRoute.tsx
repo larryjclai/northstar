@@ -30,8 +30,10 @@ import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer
 import { useToast } from "../components/Toast";
 import type { LedgerDraft, TransferDraft } from "../data/repositories";
 import { buildMerchantCategoryMap, evaluateAmountExpression, formatNumber, nowAsDatetimeLocal, recurringFrequencyLabels, todayInTimezone } from "../domain";
+import { convertCurrency } from "../domain/currency";
 import type { LedgerTransaction, RecurringTransaction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
+import { useNumericField } from "../hooks/useNumericField";
 
 /**
  * Transaction types surfaced in the entry drawer. `ar` / `ap` (應收 / 應付)
@@ -107,6 +109,7 @@ export function CashFlowRoute() {
 
   const [ledgerForm, setLedgerForm] = useState<LedgerDraft>(emptyLedger);
   const [amountExpression, setAmountExpression] = useState(String(Math.abs(emptyLedger.amount)));
+  const [entryDisplayCurrency, setEntryDisplayCurrency] = useState(emptyLedger.currency);
   const [transferForm, setTransferForm] = useState<TransferDraft>(emptyTransfer);
   const [counterparty, setCounterparty] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -238,14 +241,16 @@ export function CashFlowRoute() {
     if (type === "transfer") {
       setTransferForm({ ...emptyTransfer, date: nowAsDatetimeLocal(timezone) });
     } else {
+      const defaultCurrency = appSettings?.primaryCurrency ?? emptyLedger.currency;
       setLedgerForm({
         ...emptyLedger,
         date: nowAsDatetimeLocal(timezone),
-        currency: appSettings?.primaryCurrency ?? emptyLedger.currency,
+        currency: defaultCurrency,
         category: categoryNames[0] ?? "",
         entryType: entryTypeFor(type),
         settlementStatus: settlementFor(type),
       });
+      setEntryDisplayCurrency(defaultCurrency);
       setAmountExpression(String(Math.abs(emptyLedger.amount)));
     }
   }
@@ -289,6 +294,8 @@ export function CashFlowRoute() {
       name: row.name,
       amount: row.amount,
       currency: row.currency,
+      originalAmount: row.originalAmount,
+      originalCurrency: row.originalCurrency,
       category: row.category,
       subcategory: row.subcategory,
       merchant: row.merchant,
@@ -296,7 +303,8 @@ export function CashFlowRoute() {
       settlementStatus: row.settlementStatus ?? "settled",
       note: row.note,
     });
-    setAmountExpression(String(Math.abs(row.amount)));
+    setEntryDisplayCurrency(row.originalCurrency ?? row.currency);
+    setAmountExpression(String(Math.abs(row.originalAmount ?? row.amount)));
     setDrawerRecurringFreq("none");
     setEditingRecurringRuleId(row.recurringRuleId ?? null);
     setMessage("");
@@ -306,9 +314,24 @@ export function CashFlowRoute() {
   async function submitLedger() {
     setMessage("");
     try {
-      const amount = Math.abs(evaluateAmountExpression(amountExpression));
+      const rawAmount = Math.abs(evaluateAmountExpression(amountExpression));
       const entryType = entryTypeFor(drawerType);
-      const signedAmount = entryType === "expense" ? -amount : amount;
+      const isForeignCurrency = entryDisplayCurrency !== ledgerForm.currency;
+
+      let signedAmount: number;
+      let originalAmount: number | null = null;
+      let originalCurrency: string | null = null;
+
+      if (isForeignCurrency) {
+        const converted = convertCurrency(rawAmount, entryDisplayCurrency, ledgerForm.currency, appSettings);
+        if (converted === null) throw new Error(`找不到 ${entryDisplayCurrency} → ${ledgerForm.currency} 的匯率，請先在「設定 → 匯率」中新增。`);
+        signedAmount = entryType === "expense" ? -converted : converted;
+        originalAmount = entryType === "expense" ? -rawAmount : rawAmount;
+        originalCurrency = entryDisplayCurrency;
+      } else {
+        signedAmount = entryType === "expense" ? -rawAmount : rawAmount;
+      }
+
       const isReceivablePayable = drawerType === "ar" || drawerType === "ap";
       const note = dueDate ? `${ledgerForm.note ? `${ledgerForm.note} · ` : ""}到期 ${dueDate}`.trim() : ledgerForm.note;
       const payload: LedgerDraft = {
@@ -316,6 +339,8 @@ export function CashFlowRoute() {
         entryType,
         settlementStatus: settlementFor(drawerType),
         amount: signedAmount,
+        originalAmount,
+        originalCurrency,
         name: ledgerForm.name.trim() || (isReceivablePayable ? counterparty.trim() : ""),
         category: ledgerForm.category.trim(),
         subcategory: ledgerForm.subcategory.trim(),
@@ -789,7 +814,16 @@ export function CashFlowRoute() {
         onClose={closeDrawer}
         onTypeChange={changeType}
         ledgerForm={ledgerForm}
-        setLedgerForm={setLedgerForm}
+        setLedgerForm={(next) => {
+          // When account changes, reset display currency to account's currency
+          if (next.accountId !== ledgerForm.accountId) {
+            setEntryDisplayCurrency(next.currency);
+          }
+          setLedgerForm(next);
+        }}
+        entryDisplayCurrency={entryDisplayCurrency}
+        setEntryDisplayCurrency={setEntryDisplayCurrency}
+        appSettings={appSettings}
         amountExpression={amountExpression}
         setAmountExpression={setAmountExpression}
         transferForm={transferForm}
@@ -884,7 +918,14 @@ function LedgerRow({
         <div className="muted" style={{ fontSize: 11.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subtitle}</div>
       </div>
       <div style={{ textAlign: "right" }}>
-        <div className="num" style={{ fontSize: 14.5, color }}>{sign}NT${formatNumber(Math.abs(row.amount))}</div>
+        {row.originalCurrency && row.originalAmount != null ? (
+          <>
+            <div className="num" style={{ fontSize: 14.5, color }}>{sign}{currencySymbol(row.originalCurrency)}{formatNumber(Math.abs(row.originalAmount))}</div>
+            <div className="muted" style={{ fontSize: 10.5, fontFamily: "var(--ns-font-mono)" }}>≈ {currencySymbol(row.currency)}{formatNumber(Math.abs(row.amount))}</div>
+          </>
+        ) : (
+          <div className="num" style={{ fontSize: 14.5, color }}>{sign}{currencySymbol(row.currency)}{formatNumber(Math.abs(row.amount))}</div>
+        )}
       </div>
       <div className="ns-cf-actions" style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
         {(isReceivable || isPayable) ? (
@@ -986,6 +1027,9 @@ function EntryDrawer({
   onTypeChange,
   ledgerForm,
   setLedgerForm,
+  entryDisplayCurrency,
+  setEntryDisplayCurrency,
+  appSettings,
   amountExpression,
   setAmountExpression,
   transferForm,
@@ -1014,6 +1058,9 @@ function EntryDrawer({
   onTypeChange: (type: CashType) => void;
   ledgerForm: LedgerDraft;
   setLedgerForm: (value: LedgerDraft) => void;
+  entryDisplayCurrency: string;
+  setEntryDisplayCurrency: (v: string) => void;
+  appSettings: import("../domain/types").AppSettings | undefined;
   amountExpression: string;
   setAmountExpression: (value: string) => void;
   transferForm: TransferDraft;
@@ -1036,6 +1083,19 @@ function EntryDrawer({
   recurringRows: import("../domain").RecurringTransaction[];
 }) {
   const [amountFocused, setAmountFocused] = useState(false);
+
+  const destAmountField = useNumericField(
+    transferForm.destinationAmount ?? 0,
+    (v) => setTransferForm({ ...transferForm, destinationAmount: v }),
+  );
+  const transferFeeField = useNumericField(
+    transferForm.feeAmount ?? 0,
+    (v) => setTransferForm({ ...transferForm, feeAmount: v }),
+  );
+  const expenseFeeField = useNumericField(
+    ledgerForm.feeAmount ?? 0,
+    (v) => setLedgerForm({ ...ledgerForm, feeAmount: v }),
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -1060,6 +1120,23 @@ function EntryDrawer({
   const linkedRule = editingRecurringRuleId
     ? recurringRows.find((r) => r.id === editingRecurringRuleId) ?? null
     : null;
+
+  // Currencies available for entry: account's own currency + those in exchange rates
+  const entryCurrencies = (() => {
+    const accountCurrency = ledgerForm.currency || "TWD";
+    const rateCurrencies = (appSettings?.exchangeRates ?? []).flatMap((r) => [r.from, r.to]);
+    return [...new Set([accountCurrency, ...rateCurrencies])];
+  })();
+  const isForeignEntry = isAcct && entryDisplayCurrency !== ledgerForm.currency;
+  const convertedHint = (() => {
+    if (!isForeignEntry) return null;
+    const raw = Math.abs(Number(amountExpression) || 0);
+    if (!raw) return null;
+    const converted = convertCurrency(raw, entryDisplayCurrency, ledgerForm.currency, appSettings);
+    if (converted === null) return null;
+    const rate = raw > 0 ? (converted / raw).toFixed(4) : "—";
+    return { converted, rate };
+  })();
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={onClose}>
@@ -1126,7 +1203,7 @@ function EntryDrawer({
             </div>
           )}
           {/* Amount */}
-          <DrawerField label={`${meta.eyebrow} · ${type === "transfer" ? transferForm.sourceCurrency : ledgerForm.currency}`} required>
+          <DrawerField label={`${meta.eyebrow} · ${type === "transfer" ? transferForm.sourceCurrency : entryDisplayCurrency}`} required>
             <div style={{
               display: "flex", alignItems: "center",
               background: "var(--ns-bg-elev)",
@@ -1135,15 +1212,32 @@ function EntryDrawer({
               borderRadius: "var(--ns-r-sm)", height: 52, overflow: "hidden",
               transition: "border-color 0.12s, box-shadow 0.12s",
             }}>
-              <span style={{
-                padding: "0 14px", fontSize: 20, color: meta.color,
-                fontFamily: "var(--ns-font-mono)", fontWeight: 500,
-                flexShrink: 0, borderRight: "1px solid var(--ns-border)",
-                height: "100%", display: "flex", alignItems: "center",
-                userSelect: "none",
-              }}>
-                {meta.sign}{type === "transfer" ? transferForm.sourceCurrency : "NT$"}
-              </span>
+              {isAcct && entryCurrencies.length > 1 ? (
+                <select
+                  value={entryDisplayCurrency}
+                  onChange={(e) => setEntryDisplayCurrency(e.target.value)}
+                  style={{
+                    padding: "0 10px 0 14px", fontSize: 16, color: meta.color,
+                    fontFamily: "var(--ns-font-mono)", fontWeight: 500,
+                    flexShrink: 0, borderRight: "1px solid var(--ns-border)",
+                    height: "100%", background: "transparent", border: "none",
+                    outline: "none", cursor: "pointer", appearance: "none",
+                    minWidth: 80,
+                  }}
+                >
+                  {entryCurrencies.map((c) => <option key={c} value={c}>{meta.sign}{c}</option>)}
+                </select>
+              ) : (
+                <span style={{
+                  padding: "0 14px", fontSize: 20, color: meta.color,
+                  fontFamily: "var(--ns-font-mono)", fontWeight: 500,
+                  flexShrink: 0, borderRight: "1px solid var(--ns-border)",
+                  height: "100%", display: "flex", alignItems: "center",
+                  userSelect: "none",
+                }}>
+                  {meta.sign}{type === "transfer" ? transferForm.sourceCurrency : entryDisplayCurrency}
+                </span>
+              )}
               {type === "transfer" ? (
                 <input
                   style={{
@@ -1182,6 +1276,11 @@ function EntryDrawer({
                 />
               )}
             </div>
+            {convertedHint && (
+              <div className="muted" style={{ fontSize: 11.5, marginTop: 5 }}>
+                ≈ {ledgerForm.currency} {formatNumber(convertedHint.converted)}（1 {entryDisplayCurrency} ≈ {convertedHint.rate} {ledgerForm.currency}）
+              </div>
+            )}
           </DrawerField>
 
           {/* Date + account/currency */}
@@ -1261,11 +1360,9 @@ function EntryDrawer({
             <DrawerField label={`對方收到金額 · ${transferForm.destinationCurrency}`} required>
               <input
                 className="ns-input"
-                inputMode="decimal"
-                value={transferForm.destinationAmount ?? ""}
-                onChange={(e) => setTransferForm({ ...transferForm, destinationAmount: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })}
                 placeholder="0"
                 style={{ fontFamily: "var(--ns-font-mono)" }}
+                {...destAmountField}
               />
               <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
                 跨幣轉帳：輸入對方帳戶實際收到的金額
@@ -1281,11 +1378,9 @@ function EntryDrawer({
             <DrawerField label={`手續費（選填） · ${transferForm.sourceCurrency}`}>
               <input
                 className="ns-input"
-                inputMode="decimal"
-                value={transferForm.feeAmount || ""}
-                onChange={(e) => setTransferForm({ ...transferForm, feeAmount: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })}
                 placeholder="0"
                 style={{ fontFamily: "var(--ns-font-mono)" }}
+                {...transferFeeField}
               />
               <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>跨行/跨國轉帳手續費，將從轉出帳戶另計一筆「手續費」支出。</div>
             </DrawerField>
@@ -1315,11 +1410,9 @@ function EntryDrawer({
                 <DrawerField label={`外加手續費（選填） · ${ledgerForm.currency}`}>
                   <input
                     className="ns-input"
-                    inputMode="decimal"
-                    value={ledgerForm.feeAmount || ""}
-                    onChange={(e) => setLedgerForm({ ...ledgerForm, feeAmount: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })}
                     placeholder="0"
                     style={{ fontFamily: "var(--ns-font-mono)" }}
+                    {...expenseFeeField}
                   />
                   <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>海外刷卡/跨國交易手續費，將另計一筆「手續費」支出。</div>
                 </DrawerField>
@@ -1529,6 +1622,13 @@ function MerchantAutocomplete({
       ) : null}
     </div>
   );
+}
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  TWD: "NT$", USD: "$", JPY: "¥", EUR: "€", GBP: "£", CNY: "¥", HKD: "HK$", AUD: "A$", CAD: "C$", SGD: "S$",
+};
+function currencySymbol(code: string) {
+  return CURRENCY_SYMBOLS[code] ?? code;
 }
 
 function fmtAmountDisplay(expr: string): string {

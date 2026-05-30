@@ -817,7 +817,14 @@ function UpdateChecker() {
       await relaunch();
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
-      setMessage(isDesktop ? `目前無法檢查更新（${detail}）。請確認已設定更新來源。` : "檢查更新僅在桌面版可用。");
+      const noRelease = /fetch|not found|404|valid release/i.test(detail);
+      setMessage(
+        !isDesktop
+          ? "檢查更新僅在桌面版可用。"
+          : noRelease
+            ? "尚未發布正式版本，目前無可用更新。"
+            : `無法檢查更新：${detail}`,
+      );
     } finally {
       setBusy(false);
     }

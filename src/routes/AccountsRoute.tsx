@@ -8,6 +8,7 @@ import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { Account, AccountType, AppSettings } from "../domain";
 import { convertCurrency, formatNumber, nowAsDatetimeLocal } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
+import { useNumericField } from "../hooks/useNumericField";
 
 type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color">;
 
@@ -340,6 +341,8 @@ function AccountDrawer({
   const [importMethod, setImportMethod] = useState('skip');
   const [csvDropped, setCsvDropped] = useState(false);
 
+  const openingBalanceField = useNumericField(form.openingBalance, (v) => setForm({ ...form, openingBalance: v }));
+
   // If we open in edit mode, go straight to step 1
   useEffect(() => {
     if (isEditing) {
@@ -546,7 +549,12 @@ function AccountDrawer({
 
               <div style={{ marginBottom: 20 }}>
                 <DrawerField label={`${form.type === "alternative" ? "目前市值" : "當前餘額"}（${form.currency}）`}>
-                  <input className="ns-input" style={{ fontSize: 22, fontFamily: 'var(--ns-font-mono)', fontVariantNumeric: 'tabular-nums', height: 56 }} type="number" value={form.openingBalance} onChange={(e) => setForm({ ...form, openingBalance: Number(e.target.value) })} />
+                  <input
+                    className="ns-input"
+                    style={{ fontSize: 22, fontFamily: 'var(--ns-font-mono)', fontVariantNumeric: 'tabular-nums', height: 56 }}
+                    placeholder="0"
+                    {...openingBalanceField}
+                  />
                 </DrawerField>
                 {form.type === "alternative" && (
                   <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>輸入此資產目前的估計市值，日後可用「調整餘額」手動更新。</div>

@@ -40,6 +40,8 @@ export interface LedgerDraft {
   name: string;
   amount: number;
   currency: string;
+  originalAmount?: number | null;
+  originalCurrency?: string | null;
   category: string;
   subcategory: string;
   merchant: string;
@@ -1363,6 +1365,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("financial_goals", "display_mode", "text");
     await this.ensureSqliteColumn("financial_goals", "account_share_map", "text");
     await this.ensureSqliteColumn("ledger_transactions", "recurring_rule_id", "text");
+    await this.ensureSqliteColumn("ledger_transactions", "original_amount", "real");
+    await this.ensureSqliteColumn("ledger_transactions", "original_currency", "text");
     await this.backfillUnassignedAccount();
     await this.ensureDefaultSettings();
     const rows = await this.db.select<Array<{ count: number }>>("select count(*) as count from accounts");
@@ -1424,7 +1428,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   override async listLedgerTransactions() {
     return this.db.select<LedgerTransaction[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
-      account_id as accountId, date, name, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note,
+      account_id as accountId, date, name, amount, currency, original_amount as originalAmount, original_currency as originalCurrency,
+      category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note,
       linked_investment_record_id as linkedInvestmentRecordId, group_id as groupId,
       is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId, recurring_rule_id as recurringRuleId
       from ledger_transactions where deleted_at is null order by date desc, created_at desc`);
@@ -1456,8 +1461,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   override async updateLedgerTransaction(id: string, input: LedgerDraft) {
     await this.db.execute(
-      `update ledger_transactions set revision = revision + 1, updated_at = $1, account_id = $2, date = $3, name = $4, amount = $5, currency = $6, category = $7, subcategory = $8, merchant = $9, entry_type = $10, settlement_status = $11, note = $12, group_id = $13 where id = $14`,
-      [nowIso(), input.accountId, input.date, input.name, input.amount, input.currency, input.category, input.subcategory, input.merchant, input.entryType, input.settlementStatus, input.note, input.groupId ?? null, id],
+      `update ledger_transactions set revision = revision + 1, updated_at = $1, account_id = $2, date = $3, name = $4, amount = $5, currency = $6, original_amount = $7, original_currency = $8, category = $9, subcategory = $10, merchant = $11, entry_type = $12, settlement_status = $13, note = $14, group_id = $15 where id = $16`,
+      [nowIso(), input.accountId, input.date, input.name, input.amount, input.currency, input.originalAmount ?? null, input.originalCurrency ?? null, input.category, input.subcategory, input.merchant, input.entryType, input.settlementStatus, input.note, input.groupId ?? null, id],
     );
     await this.recomputeSqliteAccounts();
   }
@@ -2517,9 +2522,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   private async insertLedgerRow(row: LedgerTransaction) {
     await this.db.execute(
-      `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, date, name, amount, currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id, recurring_rule_id)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
-      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.accountId, row.date, row.name, row.amount, row.currency, row.category, row.subcategory, row.merchant, row.entryType, row.settlementStatus, row.note, row.linkedInvestmentRecordId, row.groupId, Number(row.isReviewed), row.receiptAttachmentId, row.recurringRuleId ?? null],
+      `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, date, name, amount, currency, original_amount, original_currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id, recurring_rule_id)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
+      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.accountId, row.date, row.name, row.amount, row.currency, row.originalAmount ?? null, row.originalCurrency ?? null, row.category, row.subcategory, row.merchant, row.entryType, row.settlementStatus, row.note, row.linkedInvestmentRecordId, row.groupId, Number(row.isReviewed), row.receiptAttachmentId, row.recurringRuleId ?? null],
     );
   }
 
@@ -2715,7 +2720,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       from accounts`);
     const ledger = await this.db.select<LedgerTransaction[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
-      account_id as accountId, date, name, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, linked_investment_record_id as linkedInvestmentRecordId,
+      account_id as accountId, date, name, amount, currency, original_amount as originalAmount, original_currency as originalCurrency,
+      category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, linked_investment_record_id as linkedInvestmentRecordId,
       group_id as groupId, is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId from ledger_transactions`);
     for (const account of recomputeAccounts(accounts, ledger)) {
       await this.db.execute(`update accounts set balance = $1 where id = $2`, [account.balance, account.id]);
@@ -2766,6 +2772,8 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
       merchant: row.merchant ?? "",
       entryType: row.entryType ?? (row.amount >= 0 ? "income" : "expense"),
       settlementStatus: row.settlementStatus ?? "settled",
+      originalAmount: row.originalAmount ?? null,
+      originalCurrency: row.originalCurrency ?? null,
     })),
     portfolioAssets: (data.portfolioAssets ?? []).map(normalizePortfolioAsset),
     investmentRecords: data.investmentRecords ?? [],
@@ -3040,6 +3048,8 @@ function createLedgerRow(input: LedgerDraft & { recurringRuleId?: string | null 
     name: input.name,
     amount: input.amount,
     currency: input.currency,
+    originalAmount: input.originalAmount ?? null,
+    originalCurrency: input.originalCurrency ?? null,
     category: input.category,
     subcategory: input.subcategory,
     merchant: input.merchant,
@@ -3068,6 +3078,8 @@ function createInvestmentLedgerRow(input: InvestmentDraft, investmentRecordId: s
     isReviewed: false,
     receiptAttachmentId: null,
     recurringRuleId: null,
+    originalAmount: null,
+    originalCurrency: null,
     ...investmentLedgerFields(input, investmentRecordId),
   };
 }

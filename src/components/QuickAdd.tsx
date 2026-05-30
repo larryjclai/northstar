@@ -31,6 +31,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
   const [text, setText] = useState("");
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [error, setError] = useState("");
+  const [amountFocused, setAmountFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const createLedger = useRepositoryMutation(
@@ -139,7 +140,16 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
             </div>
             {confirm.kind === "ledger" ? (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <Field label="金額"><input className="ns-input" inputMode="decimal" value={confirm.amount} onChange={(e) => setConfirm({ ...confirm, amount: e.target.value.replace(/[^\d.]/g, "") })} autoFocus /></Field>
+                <Field label="金額"><input
+                  className="ns-input"
+                  type="text"
+                  inputMode="decimal"
+                  autoFocus
+                  value={amountFocused ? confirm.amount : (parseFloat(confirm.amount) ? parseFloat(confirm.amount).toLocaleString("zh-TW") : confirm.amount)}
+                  onFocus={() => setAmountFocused(true)}
+                  onBlur={() => setAmountFocused(false)}
+                  onChange={(e) => setConfirm({ ...confirm, amount: e.target.value.replace(/[^\d.]/g, "") })}
+                /></Field>
                 <Field label="帳戶"><select className="ns-input" style={{ appearance: "none" }} value={confirm.accountId} onChange={(e) => setConfirm({ ...confirm, accountId: e.target.value })}><option value="">選擇帳戶</option>{accountRows.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
                 <Field label="名稱 / 商家"><input className="ns-input" value={confirm.merchant} onChange={(e) => setConfirm({ ...confirm, merchant: e.target.value })} /></Field>
                 <Field label="分類"><input className="ns-input" value={confirm.category} onChange={(e) => setConfirm({ ...confirm, category: e.target.value })} placeholder="選填" /></Field>

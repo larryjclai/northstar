@@ -12,6 +12,7 @@ import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { RecurringDraft } from "../data/repositories";
 import { formatNumber, recurringFrequencyLabels } from "../domain";
+import { useNumericField } from "../hooks/useNumericField";
 import type { RecurringTransaction } from "../domain";
 
 type FreqFilter = "all" | "monthly" | "yearly" | "weekly" | "biweekly" | "paused";
@@ -296,6 +297,8 @@ function RuleEditSheet({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [message, setMessage] = useState("");
 
+  const amountField = useNumericField(form.amount, (v) => setForm({ ...form, amount: v }));
+
   const signedAmount = form.entryType === "expense" ? -Math.abs(form.amount) : Math.abs(form.amount);
 
   async function handleSave() {
@@ -363,10 +366,9 @@ function RuleEditSheet({
           <RuleField label="金額" required>
             <input
               className="ns-input"
-              inputMode="decimal"
-              value={form.amount}
-              onChange={(e) => setForm({ ...form, amount: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })}
+              placeholder="0"
               style={{ fontFamily: "var(--ns-font-mono)" }}
+              {...amountField}
             />
           </RuleField>
 
