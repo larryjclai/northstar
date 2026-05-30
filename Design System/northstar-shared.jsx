@@ -18,9 +18,12 @@ function NSIcon({ name, size = 18, strokeWidth = 1.6 }) {
     upload:      <><path d="M10 17V7M5 12l5-5 5 5M4 3h12"/></>,
     arrowUp:     <path d="M10 16V4M5 9l5-5 5 5"/>,
     arrowDown:   <path d="M10 4v12M5 11l5 5 5-5"/>,
+    arrowLeft:   <path d="M16 10H4M9 5l-5 5 5 5"/>,
     arrowRight:  <path d="M4 10h12M11 5l5 5-5 5"/>,
     chevDown:    <path d="M5 8l5 5 5-5"/>,
+    chevLeft:    <path d="M12 5l-5 5 5 5"/>,
     chevRight:   <path d="M8 5l5 5-5 5"/>,
+    chevUp:      <path d="M5 13l5-5 5 5"/>,
     refresh:     <><path d="M3 10a7 7 0 0112-4.95M17 4v3.5h-3.5"/><path d="M17 10a7 7 0 01-12 4.95M3 16v-3.5h3.5"/></>,
     eye:         <><path d="M1.5 10S4 4 10 4s8.5 6 8.5 6S16 16 10 16 1.5 10 1.5 10z"/><circle cx="10" cy="10" r="2.5"/></>,
     dots:        <><circle cx="5" cy="10" r="1.2" fill="currentColor"/><circle cx="10" cy="10" r="1.2" fill="currentColor"/><circle cx="15" cy="10" r="1.2" fill="currentColor"/></>,
@@ -116,7 +119,7 @@ function NSAreaChart({
         return (
           <g key={i}>
             <line x1={padLeft} x2={w - padRight} y1={y} y2={y} stroke="var(--ns-border)" strokeDasharray="2 3" />
-            <text x={w - padRight - 4} y={y - 4} fill="var(--ns-fg-dim)" fontSize="10" textAnchor="end" fontFamily="var(--ns-font-mono)">{yFormat(v)}</text>
+            <text x={w - padRight - 4} y={y - 4} fill="var(--ns-fg-dim)" fontSize="11" textAnchor="end" fontFamily="var(--ns-font-mono)">{yFormat(v)}</text>
           </g>
         );
       })}
@@ -134,7 +137,7 @@ function NSAreaChart({
           {sPts && <circle cx={sPts[hover][0]} cy={sPts[hover][1]} r="3" fill="var(--ns-bg)" stroke={c2} strokeWidth="1.5" />}
           <g transform={`translate(${Math.min(hi[0] + 12, w - 130)}, ${Math.max(hi[1] - 38, padTop)})`}>
             <rect width="118" height="42" rx="6" fill="var(--ns-bg-card)" stroke="var(--ns-border)" />
-            <text x="10" y="16" fontSize="10" fill="var(--ns-fg-dim)" fontFamily="var(--ns-font-mono)" letterSpacing="0.06em">
+            <text x="10" y="16" fontSize="11" fill="var(--ns-fg-dim)" fontFamily="var(--ns-font-mono)" letterSpacing="0.06em">
               {xLabels ? xLabels[hover] : `D${hover}`}
             </text>
             <text x="10" y="32" fontSize="13" fill="var(--ns-fg)" fontFamily="var(--ns-font-mono)" fontWeight="500">
@@ -151,7 +154,7 @@ function NSAreaChart({
             const showEvery = Math.max(1, Math.floor(xLabels.length / 6));
             if (i % showEvery !== 0 && i !== xLabels.length - 1) return null;
             return (
-              <text key={i} x={ix(i)} y={h - 8} fill="var(--ns-fg-dim)" fontSize="10"
+              <text key={i} x={ix(i)} y={h - 8} fill="var(--ns-fg-dim)" fontSize="11"
                     textAnchor="middle" fontFamily="var(--ns-font-mono)">{lab}</text>
             );
           })}
@@ -207,7 +210,7 @@ function NSBars({ data, w = 280, h = 80, color, neutral }) {
 // ─────── KPI card ───────
 function NSKpi({ label, value, sub, trend, spark, accent }) {
   return (
-    <div className="ns-card" style={{ padding: 'var(--ns-pad-card)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div className="ns-card" style={{ padding: 'var(--ns-pad-card)', display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span className="ns-eyebrow">{label}</span>
         {trend != null && (
@@ -217,7 +220,7 @@ function NSKpi({ label, value, sub, trend, spark, accent }) {
           </span>
         )}
       </div>
-      <div className="ns-num-md" style={{ color: accent ? 'var(--ns-fg)' : 'var(--ns-fg)' }}>{value}</div>
+      <div className="ns-num-md" style={{ color: accent ? 'var(--ns-fg)' : 'var(--ns-fg)', marginBlock: 2 }}>{value}</div>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
         <span className="muted" style={{ fontSize: 12 }}>{sub}</span>
         {spark && <NSSparkline data={spark} pos={trend >= 0} />}
@@ -271,7 +274,16 @@ function nsCurrency(v, sign = false, ccy = 'NT$') {
   return `${prefix}${ccy}${s}`;
 }
 
+// ─────── Tabular number helper ───────
+// Ensures consistent thousand separators + optional fixed decimals
+function nsFmt(v, { decimals = 0, sign = false, prefix = '', suffix = '' } = {}) {
+  const opts = { minimumFractionDigits: decimals, maximumFractionDigits: decimals };
+  const abs = Math.abs(v).toLocaleString('zh-TW', opts);
+  const sigil = v < 0 ? '−' : sign ? '+' : '';
+  return `${sigil}${prefix}${abs}${suffix}`;
+}
+
 Object.assign(window, {
   NSIcon, NSSparkline, NSAreaChart, NSDonut, NSBars,
-  NSKpi, NSLogo, NSMark, nsSeries, nsCurrency,
+  NSKpi, NSLogo, NSMark, nsSeries, nsCurrency, nsFmt,
 });

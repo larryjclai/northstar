@@ -36,6 +36,8 @@ backups/
 .env
 .env.*
 !.env.example
+*.key
+*.pem
 
 # ─── Logs ──────────────────────────────────────────────
 *.log

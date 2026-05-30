@@ -153,10 +153,15 @@ function NSDesktopFireCalc({ onNavigate } = {}) {
                 ['Coast-FIRE', base.coastYear != null ? `+${base.coastYear}y · ${p.currentAge + base.coastYear}歲` : '—', base.coastYear != null ? 'pos' : null, '屆時停止儲蓄仍可達成'],
                 ['每月需存', fmt.money(Math.round(p.annualSaving / 12)), null, '= 年薪的 ' + (p.annualSaving / 2_160_000 * 100).toFixed(0) + '%（估計）'],
               ].map(([l, v, c, sub]) => (
-                <div className="ns-card" key={l} style={{ padding: 18 }}>
-                  <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{l}</div>
-                  <div className={'num ' + (c || '')} style={{ fontSize: 17, fontWeight: 600 }}>{v}</div>
-                  {sub && <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>{sub}</div>}
+                <div className="ns-card" key={l} style={{ padding: '20px 22px' }}>
+                  <div className="ns-eyebrow" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    {l}
+                    {l === 'Coast-FIRE' && (
+                      <span title="Coast FIRE：達到此金額後，即使完全停止額外儲蓄，現有資產以預期報酬率自然複利增長，仍可達成 FIRE 目標。" style={{ cursor: 'help', fontSize: 13, opacity: 0.5 }}>ⓘ</span>
+                    )}
+                  </div>
+                  <div className={'num ' + (c || '')} style={{ fontSize: 18, fontWeight: 600, marginBlock: '4px 6px' }}>{v}</div>
+                  {sub && <div className="muted" style={{ fontSize: 11 }}>{sub}</div>}
                 </div>
               ))}
             </div>
@@ -210,7 +215,7 @@ function NSDesktopFireCalc({ onNavigate } = {}) {
                   return (
                     <g key={i}>
                       <line x1={padL} x2={w - padR} y1={y} y2={y} stroke="var(--ns-border)" strokeDasharray="2 3"/>
-                      <text x={w - padR - 2} y={y - 4} fill="var(--ns-fg-dim)" fontSize="9.5" textAnchor="end" fontFamily="var(--ns-font-mono)">
+                      <text x={w - padR - 2} y={y - 4} fill="var(--ns-fg-dim)" fontSize="11" textAnchor="end" fontFamily="var(--ns-font-mono)">
                         {fmt.money(v)}
                       </text>
                     </g>
@@ -220,7 +225,7 @@ function NSDesktopFireCalc({ onNavigate } = {}) {
                 {/* FIRE target line */}
                 <line x1={padL} x2={w - padR} y1={iy(base.fireTarget)} y2={iy(base.fireTarget)}
                       stroke="var(--ns-fg-muted)" strokeDasharray="5 3" strokeWidth="1.2"/>
-                <text x={w - padR - 2} y={iy(base.fireTarget) - 4} fill="var(--ns-fg-muted)" fontSize="9.5" textAnchor="end" fontFamily="var(--ns-font-mono)">
+                <text x={w - padR - 2} y={iy(base.fireTarget) - 4} fill="var(--ns-fg-muted)" fontSize="11" textAnchor="end" fontFamily="var(--ns-font-mono)">
                   FIRE {fmt.money(base.fireTarget)}
                 </text>
 
@@ -241,7 +246,7 @@ function NSDesktopFireCalc({ onNavigate } = {}) {
                     <line x1={fireY} x2={fireY} y1={padT} y2={h - padB} stroke="var(--ns-accent)" strokeDasharray="3 2" strokeWidth="1"/>
                     <circle cx={fireY} cy={iy(base.fireTarget)} r="5" fill="var(--ns-bg)" stroke="var(--ns-accent)" strokeWidth="2"/>
                     <rect x={fireY + 8} y={iy(base.fireTarget) - 28} width={130} height={38} rx="5" fill="var(--ns-bg-card)" stroke="var(--ns-border)"/>
-                    <text x={fireY + 16} y={iy(base.fireTarget) - 14} fill="var(--ns-fg-muted)" fontSize="9" fontFamily="var(--ns-font-mono)" letterSpacing="0.06">
+                    <text x={fireY + 16} y={iy(base.fireTarget) - 14} fill="var(--ns-fg-muted)" fontSize="10" fontFamily="var(--ns-font-mono)" letterSpacing="0.06">
                       FIRE ACHIEVED
                     </text>
                     <text x={fireY + 16} y={iy(base.fireTarget) + 2} fill="var(--ns-fg)" fontSize="12" fontFamily="var(--ns-font-mono)" fontWeight="500">
@@ -252,7 +257,7 @@ function NSDesktopFireCalc({ onNavigate } = {}) {
 
                 {/* X axis labels */}
                 {allPoints.filter((_, i) => i % 5 === 0).map((d) => (
-                  <text key={d.y} x={ix(d.y)} y={h - 4} fill="var(--ns-fg-dim)" fontSize="9.5" textAnchor="middle" fontFamily="var(--ns-font-mono)">
+                  <text key={d.y} x={ix(d.y)} y={h - 6} fill="var(--ns-fg-dim)" fontSize="11" textAnchor="middle" fontFamily="var(--ns-font-mono)">
                     {d.age}歲
                   </text>
                 ))}

@@ -120,6 +120,9 @@ function NSRoot() {
           <DCArtboard id="d-cat-detail" label="Cash Flow · Category detail" width={1440} height={900}>
             <NSDesktopCategoryDetail />
           </DCArtboard>
+          <DCArtboard id="d-recurring" label="Cash Flow · 週期規則" width={1440} height={900}>
+            <NSDesktopRecurringRules />
+          </DCArtboard>
           <DCArtboard id="d-fire-calc" label="FIRE Calculator · Interactive" width={1440} height={900}>
             <NSDesktopFireCalc />
           </DCArtboard>

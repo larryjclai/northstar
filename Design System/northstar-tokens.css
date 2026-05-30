@@ -4,7 +4,7 @@
   /* type families */
   --ns-font-display: "Space Grotesk", ui-sans-serif, system-ui, "Noto Sans TC", sans-serif;
   --ns-font-ui: "Space Grotesk", ui-sans-serif, system-ui, "Noto Sans TC", sans-serif;
-  --ns-font-mono: "JetBrains Mono", "Geist Mono", ui-monospace, "SF Mono", monospace;
+  --ns-font-mono: "IBM Plex Mono", "JetBrains Mono", ui-monospace, "SF Mono", monospace;
 
   /* spacing scale (loose default) */
   --ns-s-0: 0px;
@@ -101,10 +101,10 @@
   --ns-accent-fg: #ffffff;
   --ns-accent-soft: color-mix(in srgb, #5fb83a 14%, transparent);
 
-  --ns-pos: #1f9d57;
-  --ns-pos-soft: color-mix(in srgb, #1f9d57 12%, transparent);
-  --ns-neg: #d8553c;
-  --ns-neg-soft: color-mix(in srgb, #d8553c 12%, transparent);
+  --ns-pos: #157040;
+  --ns-pos-soft: color-mix(in srgb, #157040 14%, transparent);
+  --ns-neg: #c22a1e;
+  --ns-neg-soft: color-mix(in srgb, #c22a1e 14%, transparent);
   --ns-warn: #c98a18;
   --ns-info: #2c6df0;
 
@@ -120,9 +120,9 @@
 
 /* density variants — applied by tweak */
 [data-density="loose"] {
-  --ns-row-h: 64px;
-  --ns-pad-card: 28px;
-  --ns-gap-card: 24px;
+  --ns-row-h: 68px;
+  --ns-pad-card: 30px;
+  --ns-gap-card: 26px;
 }
 [data-density="medium"] {
   --ns-row-h: 52px;
@@ -174,7 +174,7 @@
 }
 .ns * { box-sizing: border-box; }
 .ns .mono { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-.ns .num { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.ns .num { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; letter-spacing: -0.005em; }
 .ns .pos { color: var(--ns-pos); }
 .ns .neg { color: var(--ns-neg); }
 .ns .muted { color: var(--ns-fg-muted); }
@@ -297,10 +297,10 @@
 }
 
 /* number display sizes */
-.ns-num-xl { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; font-size: 56px; letter-spacing: -0.04em; font-weight: 500; }
-.ns-num-lg { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; font-size: 40px; letter-spacing: -0.03em; font-weight: 500; }
-.ns-num-md { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; font-size: 28px; letter-spacing: -0.02em; font-weight: 500; }
-.ns-num-sm { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; font-size: 16px; letter-spacing: -0.01em; font-weight: 500; }
+.ns-num-xl { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; font-size: 56px; letter-spacing: -0.025em; font-weight: 500; line-height: 1; }
+.ns-num-lg { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; font-size: 40px; letter-spacing: -0.02em; font-weight: 500; line-height: 1; }
+.ns-num-md { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; font-size: 28px; letter-spacing: -0.015em; font-weight: 500; line-height: 1.1; }
+.ns-num-sm { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; font-size: 16px; letter-spacing: -0.005em; font-weight: 500; line-height: 1.2; }
 
 /* chart hover crosshair */
 .ns-chart-cross { stroke: var(--ns-border-strong); stroke-dasharray: 3 3; }

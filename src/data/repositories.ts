@@ -761,6 +761,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       entryType: recurring.entryType,
       settlementStatus: recurring.settlementStatus,
       note: recurring.note,
+      recurringRuleId: recurring.id,
     }));
     this.data.recurringTransactions = this.data.recurringTransactions.map((row) =>
       row.id === id ? bump({ ...row, nextRunDate: nextRecurringDate(row.nextRunDate, row.frequency ?? "monthly", row.dayOfMonth) }) : row,
@@ -790,6 +791,7 @@ class BrowserFinanceRepository implements FinanceRepository {
           entryType: rule.entryType,
           settlementStatus: rule.settlementStatus,
           note: rule.note,
+          recurringRuleId: rule.id,
         }));
         next = nextRecurringDate(next, frequency, rule.dayOfMonth);
         posted += 1;
@@ -1360,6 +1362,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("financial_goals", "income_items", "text");
     await this.ensureSqliteColumn("financial_goals", "display_mode", "text");
     await this.ensureSqliteColumn("financial_goals", "account_share_map", "text");
+    await this.ensureSqliteColumn("ledger_transactions", "recurring_rule_id", "text");
     await this.backfillUnassignedAccount();
     await this.ensureDefaultSettings();
     const rows = await this.db.select<Array<{ count: number }>>("select count(*) as count from accounts");
@@ -1423,7 +1426,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       account_id as accountId, date, name, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note,
       linked_investment_record_id as linkedInvestmentRecordId, group_id as groupId,
-      is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId
+      is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId, recurring_rule_id as recurringRuleId
       from ledger_transactions where deleted_at is null order by date desc, created_at desc`);
   }
 
@@ -1736,6 +1739,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       entryType: recurring.entryType,
       settlementStatus: recurring.settlementStatus,
       note: recurring.note,
+      recurringRuleId: recurring.id,
     }));
     const freq = (recurring.frequency ?? "monthly") as import("../domain").RecurringFrequency;
     await this.db.execute(`update recurring_transactions set next_run_date = $1, updated_at = $2, revision = revision + 1 where id = $3`, [nextRecurringDate(recurring.nextRunDate, freq, recurring.dayOfMonth), nowIso(), id]);
@@ -1764,6 +1768,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
           entryType: rule.entryType,
           settlementStatus: rule.settlementStatus,
           note: rule.note,
+          recurringRuleId: rule.id,
         }));
         next = nextRecurringDate(next, frequency, rule.dayOfMonth);
         posted += 1;
@@ -2512,9 +2517,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   private async insertLedgerRow(row: LedgerTransaction) {
     await this.db.execute(
-      `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, date, name, amount, currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
-      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.accountId, row.date, row.name, row.amount, row.currency, row.category, row.subcategory, row.merchant, row.entryType, row.settlementStatus, row.note, row.linkedInvestmentRecordId, row.groupId, Number(row.isReviewed), row.receiptAttachmentId],
+      `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, date, name, amount, currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id, recurring_rule_id)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
+      [row.id, row.spaceId, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.accountId, row.date, row.name, row.amount, row.currency, row.category, row.subcategory, row.merchant, row.entryType, row.settlementStatus, row.note, row.linkedInvestmentRecordId, row.groupId, Number(row.isReviewed), row.receiptAttachmentId, row.recurringRuleId ?? null],
     );
   }
 
@@ -3021,7 +3026,7 @@ function createManualHoldingRow(input: PortfolioAssetDraft): PortfolioAsset {
   };
 }
 
-function createLedgerRow(input: LedgerDraft): LedgerTransaction {
+function createLedgerRow(input: LedgerDraft & { recurringRuleId?: string | null }): LedgerTransaction {
   const timestamp = nowIso();
   return {
     id: createId("ledger"),
@@ -3045,6 +3050,7 @@ function createLedgerRow(input: LedgerDraft): LedgerTransaction {
     groupId: input.groupId ?? null,
     isReviewed: false,
     receiptAttachmentId: null,
+    recurringRuleId: input.recurringRuleId ?? null,
   };
 }
 
@@ -3061,6 +3067,7 @@ function createInvestmentLedgerRow(input: InvestmentDraft, investmentRecordId: s
     deletedAt: null,
     isReviewed: false,
     receiptAttachmentId: null,
+    recurringRuleId: null,
     ...investmentLedgerFields(input, investmentRecordId),
   };
 }

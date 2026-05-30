@@ -24,6 +24,7 @@ const base: LedgerTransaction = {
   groupId: null,
   isReviewed: true,
   receiptAttachmentId: null,
+  recurringRuleId: null,
 };
 
 describe("ledger group classifier", () => {

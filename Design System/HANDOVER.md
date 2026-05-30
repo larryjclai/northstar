@@ -293,6 +293,281 @@ const screens = {
 
 ---
 
+---
+
+## 11. 第三輪迭代：數字格式 · UX 修正 · 週期規則
+
+> 更新日期：2026-05-30
+
+---
+
+### 11.1 Design Token 異動（`northstar-tokens.css`）
+
+| Token | 舊值 | 新值 | 說明 |
+|---|---|---|---|
+| `--ns-font-mono` | JetBrains Mono | **IBM Plex Mono**, JetBrains Mono | 財務數字更易讀 |
+| `--ns-row-h` (loose) | 64px | **68px** | 列高加大，減少擁擠感 |
+| `--ns-pad-card` (loose) | 28px | **30px** | 卡片內距 |
+| `--ns-gap-card` (loose) | 24px | **26px** | 卡片間距 |
+| `--ns-pos` (light) | `#1f9d57` | **`#157040`** | WCAG AA 對比度提升 |
+| `--ns-neg` (light) | `#d8553c` | **`#c22a1e`** | WCAG AA 對比度提升 |
+
+**`.ns-num-*` class 統一加入 `lining-nums`**，所有數字基線齊平：
+```css
+font-variant-numeric: tabular-nums lining-nums;
+```
+
+letter-spacing 也同步放寬（xl: -0.04→-0.025，lg: -0.03→-0.02，以此類推）。
+
+---
+
+### 11.2 數字格式規範（全站一致）
+
+**千分位**：全站動態數字一律改為 `toLocaleString('zh-TW')`  
+**小數位**：股價 avg / last 統一補 `minimumFractionDigits: 2`
+
+```js
+// ✅ 正確做法
+h.avg.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+h.val.toLocaleString('zh-TW')
+
+// ❌ 舊做法（不統一）
+h.avg.toLocaleString(undefined, { maximumFractionDigits: 2 })
+```
+
+**正負符號**：一律用 `+` / `−`（MINUS SIGN U+2212），不用 ASCII 的 `-`：
+```js
+{r.amt >= 0 ? '+' : '−'}NT${Math.abs(r.amt).toLocaleString('zh-TW')}
+```
+
+**`fontVariantNumeric`** inline style 補充到所有表格金額欄：
+```jsx
+style={{ fontVariantNumeric: 'tabular-nums lining-nums' }}
+```
+
+**新增 helper `nsFmt()`**（`northstar-shared.jsx`）：
+```js
+nsFmt(v, { decimals=0, sign=false, prefix='', suffix='' })
+// e.g. nsFmt(-47430, { prefix: 'NT$', sign: true }) → '−NT$47,430'
+```
+
+---
+
+### 11.3 Right-Align 修正
+
+以下欄位之前缺少 `textAlign: 'right'`，已補齊：
+
+| 畫面 | 欄位 |
+|---|---|
+| Dashboard 資產配置表 | 金額欄（`r[3]`，如 `NT$3,228K`） |
+| Holdings Transactions | qty / price / fee / total |
+| Mobile 帳戶列表 | 每個帳戶餘額 |
+| Mobile 最近活動 | 交易金額 |
+
+---
+
+### 11.4 間距調整
+
+| 位置 | 舊值 | 新值 |
+|---|---|---|
+| `NSKpi` 卡片 outer gap | 10px | 14px |
+| `NSKpi` number `marginBlock` | — | `2px 0` |
+| Holdings KPI strip padding | `18px` | `20px 22px` |
+| Holdings KPI `ns-num-md` | — | `marginBlock: '4px 6px'` |
+| Dashboard 資產配置表 row | `padding: 6px 0` | `padding: 10px 0` |
+| Dashboard 資產配置表 gap | `10px` | `12px` |
+| Dashboard 資產配置表金額欄 | `fontSize: 12` | `fontSize: 12.5, minWidth: 74` |
+
+---
+
+### 11.5 UX Bug 修正
+
+#### Mobile 返回按鈕圖示
+**檔案**：`northstar-mobile.jsx` `NSMobileHoldingDetail`  
+**修正**：`chevRight` → `chevLeft`  
+**同步**：`northstar-shared.jsx` 新增 `chevLeft` / `arrowLeft` icon path
+
+```jsx
+// northstar-shared.jsx icons map 新增：
+arrowLeft: <path d="M16 10H4M9 5l-5 5 5 5"/>,
+chevLeft:  <path d="M12 5l-5 5 5 5"/>,
+```
+
+#### Sidebar 搜尋框重構（`northstar-desktop.jsx` `NSDesktopShell`）
+舊做法用多個 `position: absolute` span 疊加，點 icon 不 focus input。  
+新做法：標準 icon-inside-input pattern：
+
+```jsx
+<div style={{ position: 'relative', marginBottom: 14 }}>
+  <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', ... }}>
+    <NSIcon name="search" size={14}/>
+  </span>
+  <span className="dim mono" style={{ position: 'absolute', right: 10, ... }}>⌘K</span>
+  <input className="ns-input" placeholder="Search…" style={{ paddingLeft: 32, paddingRight: 36 }}/>
+</div>
+```
+
+#### Transfer 行補 NTD 金額（`northstar-desktop.jsx` `NSDesktopCashFlow`）
+Transfer 交易 data 新增 `transferNtd` 欄位：
+```js
+{ mark: '↔', ..., amt: 0, transfer: true, transferNtd: -47430 }
+```
+Render 時 pill 下方補一行金額：
+```jsx
+{r.transfer ? (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+    <span className="ns-pill">Transfer · 1,500 USD</span>
+    {r.transferNtd != null && (
+      <span className="num dim" style={{ fontSize: 12 }}>
+        −NT${Math.abs(r.transferNtd).toLocaleString('zh-TW')}
+      </span>
+    )}
+  </div>
+) : (...)}
+```
+
+#### Holdings KPI 卡片 hover 狀態
+```jsx
+<div className="ns-card" ... style={{ cursor: 'pointer', transition: 'background 0.12s' }}
+  onMouseEnter={e => e.currentTarget.style.background = 'var(--ns-bg-hover)'}
+  onMouseLeave={e => e.currentTarget.style.background = 'var(--ns-bg-card)'}>
+```
+
+#### FIRE Coast-FIRE 說明 tooltip（`northstar-fire-calc.jsx`）
+```jsx
+{l === 'Coast-FIRE' && (
+  <span title="達到此金額後，即使完全停止額外儲蓄，現有資產以預期報酬率自然複利增長，仍可在目標退休年齡達成 FIRE 目標。"
+    style={{ cursor: 'help', fontSize: 13, opacity: 0.5 }}>ⓘ</span>
+)}
+```
+
+#### Chart 軸線文字大小（`northstar-shared.jsx` + `northstar-fire-calc.jsx`）
+| 位置 | 舊 | 新 |
+|---|---|---|
+| NSAreaChart 格線標籤 | `fontSize="10"` | `fontSize="11"` |
+| NSAreaChart x 軸 | `fontSize="10"` | `fontSize="11"` |
+| FIRE 圖格線標籤 | `fontSize="9.5"` | `fontSize="11"` |
+| FIRE x 軸 | `fontSize="9.5"` | `fontSize="11"` |
+| FIRE ACHIEVED 文字 | `fontSize="9"` | `fontSize="10"` |
+
+#### CF 日期格式統一（`northstar-desktop.jsx`）
+```js
+// 舊（不一致）
+{ day: '今天 · 5/27' }
+{ day: '昨天 · 5/26' }
+{ day: '5/25 (週六)' }
+
+// 新（統一格式）
+{ day: '今天 · 5/27 (二)' }
+{ day: '昨天 · 5/26 (一)' }
+{ day: '5/25 (六)' }
+```
+
+---
+
+### 11.6 新功能：週期規則管理
+
+**新增檔案**：`northstar-recurring.jsx`  
+**路由 key**：`recurring` → `NSDesktopRecurringRules`  
+**入口**：Cash Flow 第四個頁籤「週期規則」
+
+#### 頁面結構
+
+```
+[Header: 週期規則 + 新增規則 button]
+[CF 4-tab bar: Transactions | 分類 | Merchants | 週期規則●]
+
+[Summary strip 4格]
+  月收入（預估）| 月支出（預估）| 月淨現金流 | 規則總計
+
+[Table card]
+  [Filter bar: 全部(10) | 每月(8) | 每年(2) | 暫停(1)] ── 下一批日期提示
+
+  [Column header]
+  規則名稱 / 分類 / 週期 / 金額 / 帳戶 / 下次觸發 / 狀態 / chevron
+
+  [Rule rows]
+  - emoji icon（pos/neg soft background）
+  - 右對齊金額欄（pos/neg color）
+  - 暫停規則 opacity: 0.5
+  - hover → bg-hover
+  - 點擊 → RuleEditSheet
+```
+
+#### 月收支預估計算
+```js
+// 年費按比例折算為月均
+const monthlyAmt = r.freq === 'yearly'   ? r.amt / 12
+                 : r.freq === 'bimonth'  ? r.amt / 2
+                 : r.amt;
+```
+
+#### RuleEditSheet（右側滑出）
+- 欄位：名稱 / 金額+類型 / 週期+觸發日 / 帳戶 / 分類
+- 狀態 toggle（啟用 / 暫停）
+- Danger Zone：刪除二次確認
+
+#### Mock Data 結構（`recurringData`）
+```js
+{
+  id, icon,       // emoji
+  name, cat,      // 規則名稱 / 分類
+  freq,           // 'monthly' | 'bimonth' | 'weekly' | 'yearly' | 'daily'
+  day,            // 觸發日（幾號，yearly 時為月份/日）
+  amt,            // 正數=收入，負數=支出（NT$）
+  acc,            // 帳戶名
+  status,         // 'active' | 'paused'
+  next,           // 'YYYY-MM-DD' 下次觸發日
+}
+```
+
+#### `freqLabel()` 工具函式
+```js
+function freqLabel(r) {
+  if (r.freq === 'yearly')  return `每年 ${r.next.slice(5, 10)}`;
+  if (r.freq === 'monthly') return `每月 ${r.day} 日`;
+  if (r.freq === 'bimonth') return `雙月 ${r.day} 日`;
+  return freqMeta[r.freq] || r.freq;
+}
+```
+
+---
+
+### 11.7 更新後路由表（完整）
+
+```js
+const screens = {
+  dashboard:        NSDesktopDashboardV2,
+  holdings:         NSDesktopHoldings,
+  'holding-detail': NSDesktopHoldingDetail,
+  'inv-add':        NSDesktopInvestAddSheet,
+  'holdings-txns':  NSDesktopHoldingsTxns,
+  cashflow:         NSDesktopCashFlow,          // ← 現在有 4 個 tab
+  'cf-detail':      NSDesktopCashFlowDetail,
+  merchant:         NSDesktopMerchantDetail,
+  'cf-new':         NSDesktopNewTxSheet,
+  'cat-mgmt':       NSDesktopCategoryMgmt,
+  'cat-detail':     NSDesktopCategoryDetail,
+  recurring:        NSDesktopRecurringRules,    // ★ 新增
+  accounts:         NSDesktopAccounts,
+  'acct-add':       NSDesktopAddAccountFlow,
+  goals:            NSDesktopGoals,
+  'fire-calc':      NSDesktopFireCalc,
+  connect:          NSDesktopConnect,
+  settings:         NSDesktopSettingsV2,
+};
+```
+
+---
+
+### 11.8 新增 Artboard
+
+| Artboard ID | Label | 元件 |
+|---|---|---|
+| `d-recurring` | Cash Flow · 週期規則 | `NSDesktopRecurringRules` |
+
+---
+
 ## 10. 已知 TODO（設計未完成項）
 
 - [ ] Mobile: Cash Flow 主頁的 Merchants tab（目前只有 desktop）
@@ -302,30 +577,3 @@ const screens = {
 - [ ] Category Detail：互連回 Merchant 的 `onNavigate` 目前為 hardcoded `'merchant'`，正式需傳入 merchantId
 - [ ] FIFO lot breakdown 目前為 hardcoded mock，需接真實 lot 資料
 - [ ] 帳戶頁：點擊個別帳戶 row → 帳戶詳情頁（尚未設計）
-
----
-
-## 11. 自動更新（Tauri Updater）發佈設定
-
-「設定 → 一般 → 應用程式更新」的「檢查更新」按鈕已接上 `@tauri-apps/plugin-updater`。
-程式碼（plugin 註冊、capability、UI）皆已就緒，但**要實際發佈更新還需要下列一次性設定**：
-
-1. 產生簽章金鑰：`npm run tauri signer generate -- -w ~/.tauri/northstar.key`
-   （私鑰請妥善保存，**切勿** commit 進 repo）
-2. 在 `src-tauri/tauri.conf.json` 補上 updater 設定：
-   ```json
-   "plugins": {
-     "updater": {
-       "pubkey": "<上一步產生的公鑰>",
-       "endpoints": ["https://github.com/larryjclai/northstar/releases/latest/download/latest.json"]
-     }
-   },
-   "bundle": { "createUpdaterArtifacts": true }
-   ```
-   （目前刻意未填，避免空 pubkey 造成啟動問題。）
-3. CI / 本機打包時設定環境變數：
-   `TAURI_SIGNING_PRIVATE_KEY`（私鑰內容）、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（若有）。
-4. 每次發佈：`npm run tauri build`，將產生的 `latest.json` 與簽章檔上傳到對應的 release。
-
-完成後「檢查更新」即會抓取 latest.json、下載、驗章、安裝並重啟。
-在未設定前，按鈕會優雅顯示「目前無法檢查更新…」；在瀏覽器（非桌面）則顯示「僅在桌面版可用」。

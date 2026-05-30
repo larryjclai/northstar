@@ -20,6 +20,7 @@ import { Bar, BarChart, ResponsiveContainer, Tooltip, Cell, PieChart, Pie } from
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 import { CategoriesTab } from "./CategoriesTab";
 import { MerchantsTab } from "./MerchantsTab";
+import { RecurringRulesTab } from "./RecurringRulesTab";
 import { MonthPicker } from "../components/ui/month-picker";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
@@ -28,7 +29,7 @@ import { DatePicker } from "../components/ui/date-picker";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { useToast } from "../components/Toast";
 import type { LedgerDraft, TransferDraft } from "../data/repositories";
-import { buildMerchantCategoryMap, evaluateAmountExpression, formatNumber, nowAsDatetimeLocal, todayInTimezone } from "../domain";
+import { buildMerchantCategoryMap, evaluateAmountExpression, formatNumber, nowAsDatetimeLocal, recurringFrequencyLabels, todayInTimezone } from "../domain";
 import type { LedgerTransaction, RecurringTransaction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 
@@ -100,6 +101,7 @@ export function CashFlowRoute() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerType, setDrawerType] = useState<CashType>("expense");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingRecurringRuleId, setEditingRecurringRuleId] = useState<string | null>(null);
   const [drawerRecurringFreq, setDrawerRecurringFreq] = useState("none");
   const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
 
@@ -115,7 +117,7 @@ export function CashFlowRoute() {
   const [selectedMonth, setSelectedMonth] = useState(() => todayInTimezone(timezone).slice(0, 7));
   const [selectedAccount, setSelectedAccount] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [activeTab, setActiveTab] = useState<"overview" | "categories" | "merchants">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "categories" | "merchants" | "recurring">("overview");
   const [detailRow, setDetailRow] = useState<LedgerTransaction | null>(null);
 
   const navigate = useNavigate();
@@ -229,6 +231,7 @@ export function CashFlowRoute() {
     setDrawerType(type);
     setDrawerOpen(true);
     setEditingId(null);
+    setEditingRecurringRuleId(null);
     setMessage("");
     setCounterparty("");
     setDueDate("");
@@ -250,6 +253,7 @@ export function CashFlowRoute() {
   function closeDrawer() {
     setDrawerOpen(false);
     setEditingId(null);
+    setEditingRecurringRuleId(null);
     setMessage("");
   }
 
@@ -294,6 +298,7 @@ export function CashFlowRoute() {
     });
     setAmountExpression(String(Math.abs(row.amount)));
     setDrawerRecurringFreq("none");
+    setEditingRecurringRuleId(row.recurringRuleId ?? null);
     setMessage("");
     setDrawerOpen(true);
   }
@@ -565,6 +570,7 @@ export function CashFlowRoute() {
           { id: 'overview', label: 'Transactions' },
           { id: 'categories', label: '分類' },
           { id: 'merchants', label: 'Merchants' },
+          { id: 'recurring', label: '週期規則' },
         ].map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id as any)} style={{
             padding: '10px 20px', background: 'none', border: 'none', cursor: 'pointer',
@@ -772,6 +778,10 @@ export function CashFlowRoute() {
         <MerchantsTab filterMonth={selectedMonth} ledgerRows={ledgerRows} />
       )}
 
+      {activeTab === "recurring" && (
+        <RecurringRulesTab />
+      )}
+
       <EntryDrawer
         open={drawerOpen}
         type={drawerType}
@@ -798,6 +808,8 @@ export function CashFlowRoute() {
         message={message}
         drawerRecurringFreq={drawerRecurringFreq}
         setDrawerRecurringFreq={setDrawerRecurringFreq}
+        editingRecurringRuleId={editingRecurringRuleId}
+        recurringRows={recurringRows}
       />
       <CategoryManagementDrawer
         open={categoryDrawerOpen}
@@ -815,6 +827,7 @@ export function CashFlowRoute() {
         onEdit={(row) => { setDetailRow(null); startEdit(row); }}
         onDelete={(id) => { setDetailRow(null); handleDelete(id); }}
         accountName={accountName}
+        recurringRows={recurringRows}
       />
     </div>
   );
@@ -991,6 +1004,8 @@ function EntryDrawer({
   message,
   drawerRecurringFreq,
   setDrawerRecurringFreq,
+  editingRecurringRuleId,
+  recurringRows,
 }: {
   open: boolean;
   type: CashType;
@@ -1017,7 +1032,11 @@ function EntryDrawer({
   message: string;
   drawerRecurringFreq: string;
   setDrawerRecurringFreq: (v: string) => void;
+  editingRecurringRuleId: string | null;
+  recurringRows: import("../domain").RecurringTransaction[];
 }) {
+  const [amountFocused, setAmountFocused] = useState(false);
+
   useEffect(() => {
     if (!open) return;
     function onKeyDown(event: KeyboardEvent) {
@@ -1037,6 +1056,10 @@ function EntryDrawer({
   const meta = TYPE_META[type];
   const isAcct = type === "expense" || type === "income";
   const isRp = type === "ar" || type === "ap";
+
+  const linkedRule = editingRecurringRuleId
+    ? recurringRows.find((r) => r.id === editingRecurringRuleId) ?? null
+    : null;
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={onClose}>
@@ -1089,32 +1112,73 @@ function EntryDrawer({
 
         {/* Body */}
         <div style={{ flex: 1, overflow: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
+          {/* Recurring rule banner */}
+          {linkedRule && (
+            <div style={{
+              padding: "10px 14px", borderRadius: "var(--ns-r-sm)",
+              background: "var(--ns-accent-soft)", border: "1px solid var(--ns-accent)",
+              fontSize: 12, display: "flex", alignItems: "center", gap: 8,
+            }}>
+              <span style={{ color: "var(--ns-accent)", fontWeight: 600 }}>週期交易</span>
+              <span style={{ color: "var(--ns-fg-muted)" }}>
+                此筆由週期規則「{linkedRule.merchant || linkedRule.category}」自動產生（{recurringFrequencyLabels[linkedRule.frequency]}）
+              </span>
+            </div>
+          )}
           {/* Amount */}
           <DrawerField label={`${meta.eyebrow} · ${type === "transfer" ? transferForm.sourceCurrency : ledgerForm.currency}`} required>
-            <div style={{ position: "relative" }}>
-              <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 18, color: meta.color, fontFamily: "var(--ns-font-mono)", fontWeight: 500, pointerEvents: "none" }}>
-                {meta.sign}NT$
+            <div style={{
+              display: "flex", alignItems: "center",
+              background: "var(--ns-bg-elev)",
+              border: amountFocused ? "1px solid var(--ns-accent)" : "1px solid var(--ns-border)",
+              boxShadow: amountFocused ? "0 0 0 3px var(--ns-accent-soft)" : "none",
+              borderRadius: "var(--ns-r-sm)", height: 52, overflow: "hidden",
+              transition: "border-color 0.12s, box-shadow 0.12s",
+            }}>
+              <span style={{
+                padding: "0 14px", fontSize: 20, color: meta.color,
+                fontFamily: "var(--ns-font-mono)", fontWeight: 500,
+                flexShrink: 0, borderRight: "1px solid var(--ns-border)",
+                height: "100%", display: "flex", alignItems: "center",
+                userSelect: "none",
+              }}>
+                {meta.sign}{type === "transfer" ? transferForm.sourceCurrency : "NT$"}
               </span>
               {type === "transfer" ? (
                 <input
-                  className="ns-input"
-                  value={transferForm.sourceAmount}
+                  style={{
+                    flex: 1, border: "none", outline: "none", background: "transparent",
+                    padding: "0 14px", fontSize: 22, fontFamily: "var(--ns-font-mono)",
+                    color: meta.color, textAlign: "right", height: "100%",
+                    fontVariantNumeric: "tabular-nums lining-nums",
+                  }}
+                  value={amountFocused
+                    ? (transferForm.sourceAmount || "")
+                    : (transferForm.sourceAmount ? transferForm.sourceAmount.toLocaleString("zh-TW") : "")}
+                  onFocus={() => setAmountFocused(true)}
+                  onBlur={() => setAmountFocused(false)}
                   onChange={(e) => {
                     const v = Number(e.target.value.replace(/[^\d.]/g, "")) || 0;
                     const sameCcy = transferForm.sourceCurrency === transferForm.destinationCurrency;
                     setTransferForm({ ...transferForm, sourceAmount: v, destinationAmount: sameCcy ? v : transferForm.destinationAmount });
                   }}
                   placeholder="0"
-                  style={{ paddingLeft: 44, fontSize: 22, fontFamily: "var(--ns-font-mono)", height: 52, color: meta.color }}
+                  inputMode="decimal"
                 />
               ) : (
                 <input
-                  className="ns-input"
-                  value={amountExpression}
+                  style={{
+                    flex: 1, border: "none", outline: "none", background: "transparent",
+                    padding: "0 14px", fontSize: 22, fontFamily: "var(--ns-font-mono)",
+                    color: meta.color, textAlign: "right", height: "100%",
+                    fontVariantNumeric: "tabular-nums lining-nums",
+                  }}
+                  value={amountFocused ? amountExpression : fmtAmountDisplay(amountExpression)}
+                  onFocus={() => setAmountFocused(true)}
+                  onBlur={() => setAmountFocused(false)}
                   onChange={(e) => setAmountExpression(e.target.value)}
                   placeholder="0"
                   inputMode="decimal"
-                  style={{ paddingLeft: 52, fontSize: 22, fontFamily: "var(--ns-font-mono)", height: 52, color: meta.color }}
                 />
               )}
             </div>
@@ -1465,6 +1529,14 @@ function MerchantAutocomplete({
       ) : null}
     </div>
   );
+}
+
+function fmtAmountDisplay(expr: string): string {
+  if (!expr || expr === "0") return "";
+  if (/[+\-*/]/.test(expr)) return expr;
+  const n = parseFloat(expr);
+  if (isNaN(n)) return expr;
+  return Number.isInteger(n) ? n.toLocaleString("zh-TW") : n.toLocaleString("zh-TW", { maximumFractionDigits: 4 });
 }
 
 function uniqueClean(values: string[]) {

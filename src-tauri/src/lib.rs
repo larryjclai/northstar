@@ -53,9 +53,13 @@ pub fn run() {
 
             // Desktop-only self-update. Endpoints + signing pubkey are supplied
             // in tauri.conf.json (plugins.updater); see HANDOVER for release setup.
+            // Gracefully skip if the updater config is not yet present.
             #[cfg(desktop)]
-            app.handle()
-                .plugin(tauri_plugin_updater::Builder::new().build())?;
+            if let Err(e) = app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())
+            {
+                eprintln!("tauri-plugin-updater skipped: {e}");
+            }
 
             Ok(())
         })

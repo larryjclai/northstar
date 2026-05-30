@@ -1,6 +1,6 @@
-import { ArrowRight, CalendarBlank, PencilSimple, Receipt, Storefront, Tag, Trash, Wallet, X } from "@phosphor-icons/react";
-import type { LedgerTransaction } from "../domain";
-import { formatNumber } from "../domain";
+import { ArrowRight, ArrowsClockwise, CalendarBlank, PencilSimple, Receipt, Storefront, Tag, Trash, Wallet, X } from "@phosphor-icons/react";
+import type { LedgerTransaction, RecurringTransaction } from "../domain";
+import { formatNumber, recurringFrequencyLabels } from "../domain";
 
 interface TransactionDetailPanelProps {
   row: LedgerTransaction | null;
@@ -8,6 +8,7 @@ interface TransactionDetailPanelProps {
   onEdit: (row: LedgerTransaction) => void;
   onDelete: (id: string) => void;
   accountName: (id: string) => string;
+  recurringRows?: RecurringTransaction[];
 }
 
 const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }> = {
@@ -16,10 +17,13 @@ const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }
   transfer: { label: "轉帳", color: "var(--ns-accent)", sign: "" },
 };
 
-export function TransactionDetailPanel({ row, onClose, onEdit, onDelete, accountName }: TransactionDetailPanelProps) {
+export function TransactionDetailPanel({ row, onClose, onEdit, onDelete, accountName, recurringRows }: TransactionDetailPanelProps) {
   if (!row) return null;
 
   const meta = TYPE_LABELS[row.entryType] || TYPE_LABELS.expense;
+  const linkedRule = row.recurringRuleId && recurringRows
+    ? recurringRows.find((r) => r.id === row.recurringRuleId) ?? null
+    : null;
   const formattedDate = (() => {
     try {
       const d = new Date(row.date);
@@ -80,7 +84,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDelete, account
             <div style={{ fontSize: 32, fontWeight: 600, fontFamily: "var(--ns-font-mono)", color: meta.color, letterSpacing: -1 }}>
               {meta.sign}{row.currency === "TWD" ? "NT$" : row.currency + " "}{formatNumber(Math.abs(row.amount))}
             </div>
-            <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 8 }}>
+            <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
               <span
                 style={{
                   padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 500,
@@ -99,6 +103,27 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDelete, account
                   {settlementLabel}
                 </span>
               )}
+              {row.recurringRuleId ? (
+                <span
+                  style={{
+                    padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 500,
+                    background: "var(--ns-accent-soft)", color: "var(--ns-accent)",
+                    display: "inline-flex", alignItems: "center", gap: 4,
+                  }}
+                >
+                  <ArrowsClockwise size={10} weight="bold" />
+                  週期交易{linkedRule ? ` · ${recurringFrequencyLabels[linkedRule.frequency]}` : ""}
+                </span>
+              ) : (
+                <span
+                  style={{
+                    padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 500,
+                    background: "var(--ns-border)", color: "var(--ns-fg-muted)",
+                  }}
+                >
+                  單筆交易
+                </span>
+              )}
             </div>
           </div>
 
@@ -111,6 +136,13 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDelete, account
             <DetailField icon={<Storefront size={15} />} label="商家" value={row.merchant || "—"} />
             <DetailField icon={<Wallet size={15} />} label="帳戶" value={accountName(row.accountId)} />
             <DetailField icon={<CalendarBlank size={15} />} label="日期" value={formattedDate} />
+            {linkedRule && (
+              <DetailField
+                icon={<ArrowsClockwise size={15} />}
+                label="週期規則"
+                value={`${linkedRule.merchant || linkedRule.category} · ${recurringFrequencyLabels[linkedRule.frequency]}`}
+              />
+            )}
             {row.note && (
               <DetailField icon={<Receipt size={15} />} label="備註" value={row.note} />
             )}

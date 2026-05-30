@@ -97,6 +97,7 @@ export interface LedgerTransaction extends SyncFields {
   groupId: string | null;
   isReviewed: boolean;
   receiptAttachmentId: string | null;
+  recurringRuleId: string | null;
 }
 
 export interface PortfolioAsset extends SyncFields {

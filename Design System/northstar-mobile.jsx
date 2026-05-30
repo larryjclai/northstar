@@ -123,8 +123,8 @@ function NSMobileDashboard() {
                 <div style={{ fontSize: 13.5, fontWeight: 500 }}>{r.name}</div>
                 <div className="muted" style={{ fontSize: 11 }}>{r.sub}</div>
               </div>
-              <div className={'num ' + (r.amt >= 0 ? 'pos' : '')} style={{ fontSize: 13.5 }}>
-                {r.amt >= 0 ? '+' : '−'}NT${Math.abs(r.amt).toLocaleString()}
+              <div className={'num ' + (r.amt >= 0 ? 'pos' : '')} style={{ fontSize: 13.5, textAlign: 'right', fontVariantNumeric: 'tabular-nums lining-nums' }}>
+                {r.amt >= 0 ? '+' : '−'}NT${Math.abs(r.amt).toLocaleString('zh-TW')}
               </div>
             </div>
           ))}
@@ -140,7 +140,7 @@ function NSMobileHoldingDetail() {
     <NSMobileShell active="chart" hideTab>
       <div style={{ padding: '14px 16px 10px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button className="ns-btn icon" style={{ borderRadius: 999 }}>
-          <NSIcon name="chevRight" size={14} strokeWidth={2}/>
+          <NSIcon name="chevLeft" size={14} strokeWidth={2}/>
         </button>
         <div style={{ flex: 1 }}>
           <div className="mono" style={{ fontSize: 13, fontWeight: 600 }}>2330.TW</div>
@@ -567,7 +567,7 @@ function NSMobileAccounts() {
                     <div style={{ fontSize: 13.5, fontWeight: 500 }}>{a.n}</div>
                     <div className="muted" style={{ fontSize: 11 }}>{a.s}</div>
                   </div>
-                  <div className="num" style={{ fontSize: 13.5 }}>{a.v}</div>
+                  <div className="num" style={{ fontSize: 13.5, textAlign: 'right', fontVariantNumeric: 'tabular-nums lining-nums' }}>{a.v}</div>
                 </div>
               ))}
             </div>

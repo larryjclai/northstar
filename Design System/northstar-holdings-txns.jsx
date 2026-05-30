@@ -118,9 +118,9 @@ function NSDesktopHoldingsTxns({ onNavigate } = {}) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
           {[
             ['Records',      filtered.length + ' txns',                                                null ],
-            ['Total bought', 'NT$' + filtered.filter(t=>t.side==='BUY').reduce((s,t)=>s+t.total,0).toLocaleString(), null],
-            ['Total sold',   'NT$' + filtered.filter(t=>t.side==='SELL').reduce((s,t)=>s+t.total,0).toLocaleString(),'pos'],
-            ['Dividends',    'NT$' + filtered.filter(t=>t.side==='DIV').reduce((s,t)=>s+t.total,0).toLocaleString(), 'pos'],
+            ['Total bought', 'NT$' + filtered.filter(t=>t.side==='BUY').reduce((s,t)=>s+t.total,0).toLocaleString('zh-TW'), null],
+            ['Total sold',   'NT$' + filtered.filter(t=>t.side==='SELL').reduce((s,t)=>s+t.total,0).toLocaleString('zh-TW'),'pos'],
+            ['Dividends',    'NT$' + filtered.filter(t=>t.side==='DIV').reduce((s,t)=>s+t.total,0).toLocaleString('zh-TW'), 'pos'],
           ].map(([l, v, c]) => (
             <div className="ns-card" key={l} style={{ padding: '14px 18px' }}>
               <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{l}</div>
@@ -152,9 +152,9 @@ function NSDesktopHoldingsTxns({ onNavigate } = {}) {
                   <span className="muted mono" style={{ fontSize: 11 }}>{g.items.length} 筆</span>
                   <div style={{ flex: 1 }}/>
                   <div style={{ display: 'flex', gap: 14, fontSize: 11.5 }}>
-                    {buys  > 0 && <span className="muted mono">買入 NT${buys.toLocaleString()}</span>}
-                    {sells > 0 && <span className="pos mono">賣出 +NT${sells.toLocaleString()}</span>}
-                    {divs  > 0 && <span style={{ color: 'var(--ns-chart-3)' }} className="mono">配息 +NT${divs.toLocaleString()}</span>}
+                    {buys  > 0 && <span className="muted mono">買入 NT${buys.toLocaleString('zh-TW')}</span>}
+                    {sells > 0 && <span className="pos mono">賣出 +NT${sells.toLocaleString('zh-TW')}</span>}
+                    {divs  > 0 && <span style={{ color: 'var(--ns-chart-3)' }} className="mono">配息 +NT${divs.toLocaleString('zh-TW')}</span>}
                   </div>
                 </div>
 
@@ -213,17 +213,17 @@ function NSDesktopHoldingsTxns({ onNavigate } = {}) {
                       </div>
 
                       <span className="num" style={{ textAlign: 'right', fontSize: 13 }}>
-                        {tx.qty === 0 ? '—' : tx.qty < 1 ? tx.qty.toFixed(4) : tx.qty.toLocaleString()}
+                        {tx.qty === 0 ? '—' : tx.qty < 1 ? tx.qty.toFixed(4) : tx.qty.toLocaleString('zh-TW')}
                       </span>
                       <span className="num muted" style={{ textAlign: 'right', fontSize: 13 }}>
-                        {tx.price === 0 ? '—' : tx.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                        {tx.price === 0 ? '—' : tx.price.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                       <span className="num muted" style={{ textAlign: 'right', fontSize: 12 }}>
-                        {tx.fee ? tx.fee.toLocaleString() : '—'}
+                        {tx.fee ? tx.fee.toLocaleString('zh-TW') : '—'}
                       </span>
                       <span className={`num ${tx.side === 'SELL' || tx.side === 'DIV' ? 'pos' : ''}`}
-                        style={{ textAlign: 'right', fontSize: 14, fontWeight: 500 }}>
-                        {tx.total === 0 ? '—' : `${meta.sign}NT$${tx.total.toLocaleString()}`}
+                        style={{ textAlign: 'right', fontSize: 14, fontWeight: 500, fontVariantNumeric: 'tabular-nums lining-nums' }}>
+                        {tx.total === 0 ? '—' : `${meta.sign}NT$${tx.total.toLocaleString('zh-TW')}`}
                       </span>
                       <span className="muted" style={{ textAlign: 'right', fontSize: 11, lineHeight: 1.3 }}>{tx.acc}</span>
                       <span className="dim" style={{ textAlign: 'right' }}>

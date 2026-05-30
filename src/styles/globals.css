@@ -13,7 +13,7 @@
   /* Type families */
   --ns-font-display: "Space Grotesk", ui-sans-serif, system-ui, "Noto Sans TC", sans-serif;
   --ns-font-ui:      "Space Grotesk", ui-sans-serif, system-ui, "Noto Sans TC", sans-serif;
-  --ns-font-mono:    "JetBrains Mono", "Geist Mono", ui-monospace, "SF Mono", monospace;
+  --ns-font-mono:    "IBM Plex Mono", "JetBrains Mono", "Geist Mono", ui-monospace, "SF Mono", monospace;
 
   /* Spacing scale */
   --ns-s-0: 0px;   --ns-s-1: 4px;  --ns-s-2: 8px;   --ns-s-3: 12px;
@@ -92,10 +92,10 @@
   --ns-accent-fg:   #ffffff;
   --ns-accent-soft: color-mix(in srgb, #5fb83a 14%, transparent);
 
-  --ns-pos:         #1f9d57;
-  --ns-pos-soft:    color-mix(in srgb, #1f9d57 12%, transparent);
-  --ns-neg:         #d8553c;
-  --ns-neg-soft:    color-mix(in srgb, #d8553c 12%, transparent);
+  --ns-pos:         #157040;
+  --ns-pos-soft:    color-mix(in srgb, #157040 12%, transparent);
+  --ns-neg:         #c22a1e;
+  --ns-neg-soft:    color-mix(in srgb, #c22a1e 12%, transparent);
   --ns-warn:        #c98a18;
   --ns-info:        #2c6df0;
 
@@ -276,7 +276,7 @@ textarea:focus-visible {
   outline-offset: 2px;
 }
 
-.tabular { font-variant-numeric: tabular-nums; }
+.tabular { font-variant-numeric: tabular-nums lining-nums; }
 
 /* ═══════════════════════════════════════════════════════════
    DS Utility classes
@@ -436,13 +436,13 @@ textarea:focus-visible {
 .ns-nav-link:hover:not(.active) { background: var(--ns-bg-hover); color: var(--ns-fg); }
 
 /* Number display sizes */
-.ns-num-xl  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; font-size: 56px; letter-spacing: -0.04em; font-weight: 500; }
-.ns-num-lg  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; font-size: 40px; letter-spacing: -0.03em; font-weight: 500; }
-.ns-num-md  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; font-size: 28px; letter-spacing: -0.02em; font-weight: 500; }
-.ns-num-sm  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; font-size: 16px; letter-spacing: -0.01em; font-weight: 500; }
+.ns-num-xl  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; font-size: 56px; letter-spacing: -0.025em; font-weight: 500; }
+.ns-num-lg  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; font-size: 40px; letter-spacing: -0.02em;  font-weight: 500; }
+.ns-num-md  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; font-size: 28px; letter-spacing: -0.015em; font-weight: 500; }
+.ns-num-sm  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; font-size: 16px; letter-spacing: -0.005em; font-weight: 500; }
 
 /* Mono utility */
-.ns-mono { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.ns-mono { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; letter-spacing: -0.01em; }
 
 /* Chart crosshair */
 .ns-chart-cross { stroke: var(--ns-border-strong); stroke-dasharray: 3 3; }
@@ -452,8 +452,8 @@ textarea:focus-visible {
 .neg  { color: var(--ns-neg); }
 .muted { color: var(--ns-fg-muted); }
 .dim  { color: var(--ns-fg-dim); }
-.num  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; }
-.mono { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.num  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; }
+.mono { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; letter-spacing: -0.01em; }
 
 @theme inline {
   --font-heading: var(--font-sans);

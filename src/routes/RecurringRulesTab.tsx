@@ -1,0 +1,523 @@
+import {
+  ArrowsClockwise,
+  CalendarBlank,
+  Check,
+  PencilSimple,
+  Plus,
+  Trash,
+  X,
+} from "@phosphor-icons/react";
+import { useState } from "react";
+import { useToast } from "../components/Toast";
+import { useFinanceData, useRepositoryMutation } from "../data/hooks";
+import type { RecurringDraft } from "../data/repositories";
+import { formatNumber, recurringFrequencyLabels } from "../domain";
+import type { RecurringTransaction } from "../domain";
+
+type FreqFilter = "all" | "monthly" | "yearly" | "weekly" | "biweekly" | "paused";
+
+function freqLabel(rule: RecurringTransaction): string {
+  if (rule.frequency === "yearly") return `每年 ${rule.nextRunDate.slice(5, 10)}`;
+  if (rule.frequency === "monthly") return `每月 ${rule.dayOfMonth} 日`;
+  if (rule.frequency === "biweekly") return "每兩週";
+  if (rule.frequency === "weekly") return "每週";
+  return recurringFrequencyLabels[rule.frequency] ?? rule.frequency;
+}
+
+function monthlyEquivalent(rule: RecurringTransaction): number {
+  if (rule.frequency === "yearly") return rule.amount / 12;
+  if (rule.frequency === "biweekly") return rule.amount * 2;
+  return rule.amount;
+}
+
+export function RecurringRulesTab() {
+  const { recurring, accounts } = useFinanceData();
+  const toast = useToast();
+  const [filter, setFilter] = useState<FreqFilter>("all");
+  const [editingRule, setEditingRule] = useState<RecurringTransaction | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+
+  const createRecurring = useRepositoryMutation(
+    (repo, input: RecurringDraft) => repo.createRecurringTransaction(input),
+    ["recurring"],
+  );
+  const updateRecurring = useRepositoryMutation(
+    (repo, input: RecurringDraft & { id: string }) => repo.updateRecurringTransaction(input.id, input),
+    ["recurring"],
+  );
+  const deleteRecurring = useRepositoryMutation(
+    (repo, id: string) => repo.deleteRecurringTransaction(id),
+    ["recurring"],
+  );
+
+  const rules = recurring.data ?? [];
+  const accountName = (id: string) => accounts.data?.find((a) => a.id === id)?.name ?? id;
+
+  const filtered = rules.filter((r) => {
+    if (filter === "paused") return !r.isActive;
+    if (filter === "all") return r.isActive;
+    return r.isActive && r.frequency === filter;
+  });
+
+  const activeRules = rules.filter((r) => r.isActive);
+  const monthlyIncome = activeRules
+    .filter((r) => r.entryType === "income")
+    .reduce((sum, r) => sum + monthlyEquivalent(r), 0);
+  const monthlyExpense = activeRules
+    .filter((r) => r.entryType === "expense")
+    .reduce((sum, r) => sum + Math.abs(monthlyEquivalent(r)), 0);
+  const monthlyNet = monthlyIncome - monthlyExpense;
+  const pausedCount = rules.filter((r) => !r.isActive).length;
+
+  const allFilterOptions: { key: FreqFilter; label: string }[] = [
+    { key: "all", label: `全部 (${activeRules.length})` },
+    { key: "monthly", label: `每月 (${activeRules.filter((r) => r.frequency === "monthly").length})` },
+    { key: "yearly", label: `每年 (${activeRules.filter((r) => r.frequency === "yearly").length})` },
+    { key: "weekly", label: `每週 (${activeRules.filter((r) => r.frequency === "weekly").length})` },
+    { key: "paused", label: `暫停 (${pausedCount})` },
+  ];
+  const filterOptions = allFilterOptions.filter((o) => o.key === "all" || o.key === "paused" || parseInt(o.label.match(/\d+/)?.[0] ?? "0") > 0 || filter === o.key);
+
+  function openCreate() {
+    setEditingRule(null);
+    setIsCreating(true);
+    setSheetOpen(true);
+  }
+
+  function openEdit(rule: RecurringTransaction) {
+    setEditingRule(rule);
+    setIsCreating(false);
+    setSheetOpen(true);
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await deleteRecurring.mutateAsync(id);
+      setSheetOpen(false);
+      toast.success("已刪除週期規則");
+    } catch {
+      toast.error("刪除失敗");
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--ns-gap-card)" }}>
+      {/* Summary KPI strip */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+        <KpiCard label="月收入（預估）" value={`NT$${formatNumber(monthlyIncome)}`} color="var(--ns-pos)" />
+        <KpiCard label="月支出（預估）" value={`NT$${formatNumber(monthlyExpense)}`} color="var(--ns-neg)" />
+        <KpiCard
+          label="月淨現金流"
+          value={`${monthlyNet >= 0 ? "+" : "−"}NT$${formatNumber(Math.abs(monthlyNet))}`}
+          color={monthlyNet >= 0 ? "var(--ns-pos)" : "var(--ns-neg)"}
+        />
+        <KpiCard label="規則總計" value={`${rules.length} 條`} color="var(--ns-accent)" />
+      </div>
+
+      {/* Table card */}
+      <div className="ns-card" style={{ padding: 0, overflow: "hidden" }}>
+        {/* Header */}
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", gap: 12 }}>
+          <ArrowsClockwise size={15} weight="duotone" style={{ color: "var(--ns-accent)" }} />
+          <span style={{ fontWeight: 600, fontSize: 14 }}>週期規則</span>
+          <div style={{ flex: 1 }} />
+          <button className="ns-btn primary" style={{ fontSize: 12, padding: "5px 12px", minHeight: "auto" }} onClick={openCreate}>
+            <Plus size={12} weight="bold" />新增規則
+          </button>
+        </div>
+
+        {/* Filter bar */}
+        <div style={{ padding: "10px 20px", borderBottom: "1px solid var(--ns-border)", display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {filterOptions.map((o) => (
+            <button
+              key={o.key}
+              onClick={() => setFilter(o.key)}
+              style={{
+                padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: "pointer",
+                border: filter === o.key ? "none" : "1px solid var(--ns-border)",
+                background: filter === o.key ? "var(--ns-accent)" : "var(--ns-bg-card)",
+                color: filter === o.key ? "var(--ns-accent-fg)" : "var(--ns-fg-dim)",
+                fontFamily: "inherit", transition: "all 0.15s",
+              }}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Column header */}
+        {filtered.length > 0 && (
+          <div style={{
+            display: "grid", gridTemplateColumns: "1fr 90px 100px 100px 120px 80px",
+            padding: "8px 20px", borderBottom: "1px solid var(--ns-border)",
+            fontSize: 11, color: "var(--ns-fg-muted)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em",
+          }}>
+            <span>規則名稱 / 分類</span>
+            <span>週期</span>
+            <span style={{ textAlign: "right" }}>月均金額</span>
+            <span>帳戶</span>
+            <span>下次觸發</span>
+            <span>狀態</span>
+          </div>
+        )}
+
+        {/* Rows */}
+        {filtered.length === 0 ? (
+          <div className="muted" style={{ padding: "32px 20px", textAlign: "center", fontSize: 13 }}>
+            {filter === "paused" ? "沒有暫停中的規則。" : "還沒有週期規則，點擊「新增規則」建立第一條。"}
+          </div>
+        ) : (
+          filtered.map((rule) => (
+            <div
+              key={rule.id}
+              onClick={() => openEdit(rule)}
+              style={{
+                display: "grid", gridTemplateColumns: "1fr 90px 100px 100px 120px 80px",
+                padding: "12px 20px", borderBottom: "1px solid var(--ns-border)",
+                cursor: "pointer", transition: "background 0.12s",
+                opacity: rule.isActive ? 1 : 0.5,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--ns-bg-hover)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "")}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 500, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {rule.merchant || rule.category}
+                </div>
+                <div className="muted" style={{ fontSize: 11, marginTop: 1 }}>{rule.category}{rule.subcategory ? ` / ${rule.subcategory}` : ""}</div>
+              </div>
+              <span style={{ fontSize: 12, color: "var(--ns-fg-dim)", alignSelf: "center" }}>{freqLabel(rule)}</span>
+              <span
+                className="num"
+                style={{
+                  fontSize: 13, fontWeight: 500, textAlign: "right", alignSelf: "center",
+                  color: rule.entryType === "income" ? "var(--ns-pos)" : "var(--ns-neg)",
+                }}
+              >
+                {rule.entryType === "income" ? "+" : "−"}NT${formatNumber(Math.abs(monthlyEquivalent(rule)))}
+              </span>
+              <span style={{ fontSize: 12, color: "var(--ns-fg-dim)", alignSelf: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {accountName(rule.accountId)}
+              </span>
+              <span style={{ fontSize: 12, color: "var(--ns-fg-dim)", alignSelf: "center" }}>
+                <CalendarBlank size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />
+                {rule.nextRunDate}
+              </span>
+              <span style={{ alignSelf: "center" }}>
+                <span style={{
+                  display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 500,
+                  background: rule.isActive ? "var(--ns-pos-soft)" : "var(--ns-border)",
+                  color: rule.isActive ? "var(--ns-pos)" : "var(--ns-fg-muted)",
+                }}>
+                  {rule.isActive ? "啟用" : "暫停"}
+                </span>
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Edit Sheet */}
+      {sheetOpen && (
+        <RuleEditSheet
+          rule={editingRule}
+          isCreating={isCreating}
+          accountRows={accounts.data ?? []}
+          onClose={() => setSheetOpen(false)}
+          onSave={async (draft, id) => {
+            try {
+              if (id) {
+                await updateRecurring.mutateAsync({ ...draft, id });
+                toast.success("已更新週期規則");
+              } else {
+                await createRecurring.mutateAsync(draft);
+                toast.success("已建立週期規則");
+              }
+              setSheetOpen(false);
+            } catch {
+              toast.error("儲存失敗");
+            }
+          }}
+          onDelete={handleDelete}
+          saving={createRecurring.isPending || updateRecurring.isPending}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─── KPI Card ─── */
+function KpiCard({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="ns-card" style={{ padding: "14px 16px" }}>
+      <div style={{ fontSize: 11, color: "var(--ns-fg-muted)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>{label}</div>
+      <div className="num" style={{ fontSize: 18, fontWeight: 600, color }}>{value}</div>
+    </div>
+  );
+}
+
+/* ─── Rule Edit Sheet ─── */
+function RuleEditSheet({
+  rule,
+  isCreating,
+  accountRows,
+  onClose,
+  onSave,
+  onDelete,
+  saving,
+}: {
+  rule: RecurringTransaction | null;
+  isCreating: boolean;
+  accountRows: Array<{ id: string; name: string; currency: string }>;
+  onClose: () => void;
+  onSave: (draft: RecurringDraft, id: string | null) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  saving: boolean;
+}) {
+  const primaryCurrency = accountRows[0]?.currency ?? "TWD";
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [form, setForm] = useState<RecurringDraft>(() => ({
+    accountId: rule?.accountId ?? accountRows[0]?.id ?? "",
+    amount: rule ? Math.abs(rule.amount) : 100,
+    currency: rule?.currency ?? primaryCurrency,
+    category: rule?.category ?? "",
+    subcategory: rule?.subcategory ?? "",
+    merchant: rule?.merchant ?? "",
+    entryType: rule?.entryType ?? "expense",
+    settlementStatus: rule?.settlementStatus ?? "settled",
+    note: rule?.note ?? "",
+    frequency: rule?.frequency ?? "monthly",
+    dayOfMonth: rule?.dayOfMonth ?? new Date().getDate(),
+    nextRunDate: rule?.nextRunDate ?? today,
+    isActive: rule?.isActive ?? true,
+  }));
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const signedAmount = form.entryType === "expense" ? -Math.abs(form.amount) : Math.abs(form.amount);
+
+  async function handleSave() {
+    if (!form.accountId) { setMessage("請選擇帳戶。"); return; }
+    if (!form.amount) { setMessage("請輸入金額。"); return; }
+    setMessage("");
+    await onSave({ ...form, amount: signedAmount }, rule?.id ?? null);
+  }
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 998 }} />
+      <div
+        style={{
+          position: "fixed", top: 0, right: 0, bottom: 0, width: "min(460px, 100%)",
+          background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
+          zIndex: 999, display: "flex", flexDirection: "column",
+          boxShadow: "-8px 0 32px rgba(0,0,0,0.12)",
+          animation: "slideInRight 0.2s ease",
+        }}
+      >
+        {/* Header */}
+        <div style={{ padding: "18px 24px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", gap: 10 }}>
+          <ArrowsClockwise size={16} style={{ color: "var(--ns-accent)" }} />
+          <span style={{ fontWeight: 600, fontSize: 15 }}>{isCreating ? "新增週期規則" : "編輯週期規則"}</span>
+          <div style={{ flex: 1 }} />
+          <button className="ns-btn ghost icon" onClick={onClose}><X size={16} /></button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflow: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
+
+          {/* Entry type toggle */}
+          <RuleField label="類型">
+            <div style={{ display: "flex", gap: 6 }}>
+              {(["expense", "income"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setForm({ ...form, entryType: t })}
+                  style={{
+                    padding: "6px 16px", borderRadius: 999, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
+                    border: form.entryType === t ? "none" : "1px solid var(--ns-border)",
+                    background: form.entryType === t ? (t === "expense" ? "var(--ns-neg)" : "var(--ns-pos)") : "var(--ns-bg-card)",
+                    color: form.entryType === t ? "#fff" : "var(--ns-fg-dim)",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {t === "expense" ? "支出" : "收入"}
+                </button>
+              ))}
+            </div>
+          </RuleField>
+
+          {/* Name */}
+          <RuleField label="名稱 / 商家">
+            <input
+              className="ns-input"
+              value={form.merchant}
+              onChange={(e) => setForm({ ...form, merchant: e.target.value })}
+              placeholder="例：Netflix、房租"
+            />
+          </RuleField>
+
+          {/* Amount */}
+          <RuleField label="金額" required>
+            <input
+              className="ns-input"
+              inputMode="decimal"
+              value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })}
+              style={{ fontFamily: "var(--ns-font-mono)" }}
+            />
+          </RuleField>
+
+          {/* Frequency + day */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <RuleField label="週期">
+              <select
+                className="ns-input"
+                value={form.frequency}
+                onChange={(e) => setForm({ ...form, frequency: e.target.value as RecurringDraft["frequency"] })}
+                style={{ appearance: "none" }}
+              >
+                <option value="weekly">每週</option>
+                <option value="biweekly">每兩週</option>
+                <option value="monthly">每月</option>
+                <option value="yearly">每年</option>
+              </select>
+            </RuleField>
+            <RuleField label="觸發日（幾號）">
+              <input
+                className="ns-input"
+                type="number"
+                min={1}
+                max={31}
+                value={form.dayOfMonth}
+                onChange={(e) => setForm({ ...form, dayOfMonth: Math.max(1, Math.min(31, parseInt(e.target.value) || 1)) })}
+                style={{ fontFamily: "var(--ns-font-mono)" }}
+              />
+            </RuleField>
+          </div>
+
+          {/* Account */}
+          <RuleField label="帳戶" required>
+            <select
+              className="ns-input"
+              value={form.accountId}
+              onChange={(e) => {
+                const acct = accountRows.find((a) => a.id === e.target.value);
+                setForm({ ...form, accountId: e.target.value, currency: acct?.currency ?? form.currency });
+              }}
+              style={{ appearance: "none" }}
+            >
+              <option value="">選擇帳戶</option>
+              {accountRows.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </RuleField>
+
+          {/* Category */}
+          <RuleField label="分類">
+            <input
+              className="ns-input"
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+              placeholder="選填"
+            />
+          </RuleField>
+
+          {/* Note */}
+          <RuleField label="備註">
+            <input
+              className="ns-input"
+              value={form.note}
+              onChange={(e) => setForm({ ...form, note: e.target.value })}
+              placeholder="選填"
+            />
+          </RuleField>
+
+          {/* Active toggle */}
+          <RuleField label="狀態">
+            <button
+              onClick={() => setForm({ ...form, isActive: !form.isActive })}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 8,
+                padding: "6px 16px", borderRadius: 999, fontSize: 13, fontWeight: 500,
+                cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
+                border: "none",
+                background: form.isActive ? "var(--ns-pos-soft)" : "var(--ns-border)",
+                color: form.isActive ? "var(--ns-pos)" : "var(--ns-fg-muted)",
+              }}
+            >
+              <div style={{
+                width: 32, height: 18, borderRadius: 9, background: form.isActive ? "var(--ns-pos)" : "var(--ns-fg-dim)",
+                position: "relative", transition: "background 0.2s",
+              }}>
+                <div style={{
+                  position: "absolute", top: 2, width: 14, height: 14, borderRadius: 7,
+                  background: "#fff", transition: "left 0.2s",
+                  left: form.isActive ? 16 : 2,
+                }} />
+              </div>
+              {form.isActive ? "啟用中" : "已暫停"}
+            </button>
+          </RuleField>
+
+          {message && <div style={{ color: "var(--ns-neg)", fontSize: 13 }}>{message}</div>}
+
+          {/* Danger zone */}
+          {!isCreating && (
+            <div style={{ marginTop: 8, padding: "14px 16px", borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-neg-soft)" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--ns-neg)", marginBottom: 8 }}>刪除規則</div>
+              {confirmDelete ? (
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontSize: 12, color: "var(--ns-fg-muted)", flex: 1 }}>確定刪除？此操作無法復原。</span>
+                  <button className="ns-btn" style={{ fontSize: 12, padding: "4px 12px", minHeight: "auto", color: "var(--ns-neg)" }} onClick={() => onDelete(rule!.id)}>確定刪除</button>
+                  <button className="ns-btn ghost" style={{ fontSize: 12, padding: "4px 12px", minHeight: "auto" }} onClick={() => setConfirmDelete(false)}>取消</button>
+                </div>
+              ) : (
+                <button
+                  className="ns-btn ghost"
+                  style={{ fontSize: 12, padding: "4px 12px", minHeight: "auto", color: "var(--ns-neg)" }}
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  <Trash size={12} />刪除此規則
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: "14px 24px", borderTop: "1px solid var(--ns-border)", display: "flex", gap: 8 }}>
+          <button className="ns-btn ghost" style={{ flex: "0 0 80px", justifyContent: "center" }} onClick={onClose}>取消</button>
+          <button
+            className="ns-btn primary"
+            style={{ flex: 1, justifyContent: "center" }}
+            onClick={handleSave}
+            disabled={saving}
+          >
+            <Check size={14} weight="bold" />
+            {saving ? "儲存中…" : isCreating ? "建立規則" : "儲存變更"}
+          </button>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes slideInRight {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+      `}</style>
+    </>
+  );
+}
+
+function RuleField({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div>
+      <label style={{ display: "block", fontSize: 11.5, color: "var(--ns-fg-muted)", marginBottom: 6, letterSpacing: 0.04, textTransform: "uppercase" }}>
+        {label}{required && <span style={{ color: "var(--ns-neg)", marginLeft: 3 }}>*</span>}
+      </label>
+      {children}
+    </div>
+  );
+}

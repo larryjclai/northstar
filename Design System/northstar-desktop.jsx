@@ -37,11 +37,12 @@ function NSDesktopShell({ children, active = 'dashboard', quickAdd = true, onNav
           <NSIcon name="chevDown" size={14}/>
         </div>
 
-        <div style={{ position: 'relative' }}>
-          <NSIcon name="search" size={14}/>
-          <span style={{ position: 'absolute', left: 30, top: 9, fontSize: 12.5 }} className="muted">Search · </span>
-          <span style={{ position: 'absolute', right: 12, top: 8 }} className="dim mono">⌘K</span>
-          <input className="ns-input" placeholder="" style={{ paddingLeft: 32, fontSize: 12.5, marginBottom: 14 }} />
+        <div style={{ position: 'relative', marginBottom: 14 }}>
+          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--ns-fg-dim)' }}>
+            <NSIcon name="search" size={14}/>
+          </span>
+          <span className="dim mono" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, pointerEvents: 'none' }}>⌘K</span>
+          <input className="ns-input" placeholder="Search…" style={{ paddingLeft: 32, paddingRight: 36, fontSize: 12.5 }} />
         </div>
 
         {nav.map((n) => (
@@ -231,10 +232,10 @@ function NSDesktopDashboard({ onNavigate } = {}) {
                   ['Bonds & cash equiv.', '9.8%', 'var(--ns-chart-4)', 'NT$828K'],
                   ['Crypto & gold', '5.9%', 'var(--ns-chart-5)', 'NT$499K'],
                 ].map((r) => (
-                  <div key={r[0]} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--ns-border)' }}>
-                    <span style={{ width: 9, height: 9, background: r[2], borderRadius: 2 }}/>
+                  <div key={r[0]} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--ns-border)' }}>
+                    <span style={{ width: 9, height: 9, background: r[2], borderRadius: 2, flexShrink: 0 }}/>
                     <span style={{ flex: 1, fontSize: 13 }}>{r[0]}</span>
-                    <span className="num muted" style={{ fontSize: 12 }}>{r[3]}</span>
+                    <span className="num muted" style={{ fontSize: 12.5, textAlign: 'right', minWidth: 74 }}>{r[3]}</span>
                     <span className="num" style={{ fontSize: 13, minWidth: 52, textAlign: 'right' }}>{r[1]}</span>
                   </div>
                 ))}
@@ -264,8 +265,8 @@ function NSDesktopDashboard({ onNavigate } = {}) {
                   <div style={{ fontSize: 13.5, fontWeight: 500 }}>{r.name}</div>
                   <div className="muted" style={{ fontSize: 11.5 }}>{r.sub}</div>
                 </div>
-                <div className={'num ' + (r.amt >= 0 ? 'pos' : '')} style={{ fontSize: 14, minWidth: 100, textAlign: 'right' }}>
-                  {r.amt >= 0 ? '+' : '−'}NT${Math.abs(r.amt).toLocaleString()}
+                <div className={'num ' + (r.amt >= 0 ? 'pos' : '')} style={{ fontSize: 14, minWidth: 110, textAlign: 'right', fontVariantNumeric: 'tabular-nums lining-nums' }}>
+                  {r.amt >= 0 ? '+' : '−'}NT${Math.abs(r.amt).toLocaleString('zh-TW')}
                 </div>
               </div>
             ))}
@@ -333,10 +334,13 @@ function NSDesktopHoldings({ onNavigate } = {}) {
             ['Realized YTD', '+NT$184K', '12 closed lots', true],
             ['Dividends YTD', 'NT$38,540', '+ NT$3,500 today', true],
           ].map((r) => (
-            <div className="ns-card" key={r[0]} style={{ padding: 18 }}>
-              <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{r[0]}</div>
-              <div className="ns-num-md">{r[1]}</div>
-              <div className={'mono ' + (r[3] === true ? 'pos' : 'muted')} style={{ fontSize: 11.5, marginTop: 4 }}>{r[2]}</div>
+            <div className="ns-card" key={r[0]}
+              style={{ padding: '20px 22px', cursor: 'pointer', transition: 'background 0.12s' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--ns-bg-hover)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'var(--ns-bg-card)'}>
+              <div className="ns-eyebrow" style={{ marginBottom: 10 }}>{r[0]}</div>
+              <div className="ns-num-md" style={{ marginBlock: '4px 6px' }}>{r[1]}</div>
+              <div className={'mono ' + (r[3] === true ? 'pos' : 'muted')} style={{ fontSize: 11.5 }}>{r[2]}</div>
             </div>
           ))}
         </div>
@@ -382,13 +386,13 @@ function NSDesktopHoldings({ onNavigate } = {}) {
                     <div className="muted" style={{ fontSize: 11.5 }}>{h.name} · weight {h.weight}%</div>
                   </div>
                 </div>
-                <span className="num" style={{ textAlign: 'right', fontSize: 13 }}>{h.qty < 1 ? h.qty.toFixed(4) : h.qty.toLocaleString()}</span>
-                <span className="num muted" style={{ textAlign: 'right', fontSize: 13 }}>{h.avg.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                <span className="num" style={{ textAlign: 'right', fontSize: 13 }}>{h.last.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                <span className="num" style={{ textAlign: 'right', fontSize: 13 }}>{h.qty < 1 ? h.qty.toFixed(4) : h.qty.toLocaleString('zh-TW')}</span>
+                <span className="num muted" style={{ textAlign: 'right', fontSize: 13 }}>{h.avg.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="num" style={{ textAlign: 'right', fontSize: 13 }}>{h.last.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 <span className={'num ' + (h.day >= 0 ? 'pos' : 'neg')} style={{ textAlign: 'right', fontSize: 13 }}>
                   {h.day >= 0 ? '+' : ''}{h.day.toFixed(2)}%
                 </span>
-                <span className="num" style={{ textAlign: 'right', fontSize: 14, fontWeight: 500 }}>NT${(h.val).toLocaleString()}</span>
+                <span className="num" style={{ textAlign: 'right', fontSize: 14, fontWeight: 500 }}>NT${h.val.toLocaleString('zh-TW')}</span>
                 <div style={{ textAlign: 'right' }}>
                   <div className={'num ' + (pos ? 'pos' : 'neg')} style={{ fontSize: 13, fontWeight: 500 }}>
                     {pos ? '+' : ''}{h.pct.toFixed(2)}%
@@ -416,17 +420,17 @@ function NSDesktopCashFlow({ onNavigate } = {}) {
   }));
 
   const txns = [
-    { day: '今天 · 5/27', items: [
+    { day: '今天 · 5/27 (二)', items: [
       { mark: 'FD', color: 'var(--ns-chart-3)', name: '全家便利商店', sub: '14:32 · 信用卡 · 食物', amt: -85 },
       { mark: 'UB', color: 'var(--ns-chart-4)', name: 'Uber', sub: '09:10 · 信用卡 · 交通', amt: -250 },
       { mark: 'TS', color: 'var(--ns-chart-1)', name: '台積電配息', sub: '證券戶 · 配息', amt: +3500, mono: true },
     ]},
-    { day: '昨天 · 5/26', items: [
+    { day: '昨天 · 5/26 (一)', items: [
       { mark: 'SP', color: 'var(--ns-chart-2)', name: 'Spotify', sub: '訂閱 · 信用卡', amt: -149 },
       { mark: 'IK', color: 'var(--ns-chart-5)', name: 'IKEA', sub: '家用 · 信用卡', amt: -2480 },
-      { mark: '↔', color: 'var(--ns-fg-dim)', name: 'Transfer · NTD → USD', sub: '美金活存 · @31.62', amt: 0, transfer: true },
+      { mark: '↔', color: 'var(--ns-fg-dim)', name: 'Transfer · NTD → USD', sub: '美金活存 · @31.62', amt: 0, transfer: true, transferNtd: -47430 },
     ]},
-    { day: '5/25 (週六)', items: [
+    { day: '5/25 (六)', items: [
       { mark: '$',  color: 'var(--ns-chart-1)', name: '薪資', sub: '玉山銀行 · 收入', amt: +72000 },
       { mark: 'CB', color: 'var(--ns-chart-4)', name: 'Costco', sub: '雜貨 · 信用卡', amt: -3850 },
     ]},
@@ -567,8 +571,8 @@ function NSDesktopCashFlow({ onNavigate } = {}) {
                         <span style={{ fontSize: 14, fontWeight: 500 }}>{c.name}</span>
                       </div>
                       <span className="num muted" style={{ textAlign: 'right', fontSize: 13 }}>{c.txns} 筆</span>
-                      <span className="neg num" style={{ textAlign: 'right', fontSize: 14, fontWeight: 500 }}>
-                        −NT${c.ytd.toLocaleString()}
+                      <span className="neg num" style={{ textAlign: 'right', fontSize: 14, fontWeight: 500, fontVariantNumeric: 'tabular-nums lining-nums' }}>
+                        −NT${c.ytd.toLocaleString('zh-TW')}
                       </span>
                       <div style={{ textAlign: 'right' }}>
                         <span style={{
@@ -640,8 +644,8 @@ function NSDesktopCashFlow({ onNavigate } = {}) {
                   </div>
                   <span className="muted" style={{ fontSize: 13 }}>{m.cat}</span>
                   <span className="num" style={{ textAlign: 'right', fontSize: 13 }}>{m.visits} 次</span>
-                  <span className="neg num" style={{ textAlign: 'right', fontSize: 14, fontWeight: 500 }}>
-                    −NT${m.ytd.toLocaleString()}
+                  <span className="neg num" style={{ textAlign: 'right', fontSize: 14, fontWeight: 500, fontVariantNumeric: 'tabular-nums lining-nums' }}>
+                    −NT${m.ytd.toLocaleString('zh-TW')}
                   </span>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
                     <span style={{
@@ -709,7 +713,7 @@ function NSDesktopCashFlow({ onNavigate } = {}) {
                   <div style={{ height: 8, borderRadius: 99, background: 'var(--ns-bg-hover)', overflow: 'hidden' }}>
                     <div style={{ width: (r[2] * 100) + '%', height: '100%', background: r[3], borderRadius: 99 }}/>
                   </div>
-                  <span className="num" style={{ textAlign: 'right' }}>NT${r[1].toLocaleString()}</span>
+                  <span className="num" style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums lining-nums' }}>NT${r[1].toLocaleString('zh-TW')}</span>
                 </div>
               ))}
             </div>
@@ -729,7 +733,7 @@ function NSDesktopCashFlow({ onNavigate } = {}) {
                 <span className="ns-eyebrow">{g.day}</span>
                 <span className="dim mono" style={{ fontSize: 11 }}>
                   Net <span className={g.items.reduce((s, i) => s + i.amt, 0) >= 0 ? 'pos' : 'neg'}>
-                    {(g.items.reduce((s, i) => s + i.amt, 0) >= 0 ? '+' : '−')}NT${Math.abs(g.items.reduce((s, i) => s + i.amt, 0)).toLocaleString()}
+                    {(g.items.reduce((s, i) => s + i.amt, 0) >= 0 ? '+' : '−')}NT${Math.abs(g.items.reduce((s, i) => s + i.amt, 0)).toLocaleString('zh-TW')}
                   </span>
                 </span>
               </div>
@@ -742,10 +746,17 @@ function NSDesktopCashFlow({ onNavigate } = {}) {
                     <div className="muted" style={{ fontSize: 12 }}>{r.sub}</div>
                   </div>
                   {r.transfer ? (
-                    <span className="ns-pill"><NSIcon name="transfer" size={11}/>Transfer · 1,500 USD</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                      <span className="ns-pill"><NSIcon name="transfer" size={11}/>Transfer · 1,500 USD</span>
+                      {r.transferNtd != null && (
+                        <span className="num dim" style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums lining-nums' }}>
+                          −NT${Math.abs(r.transferNtd).toLocaleString('zh-TW')}
+                        </span>
+                      )}
+                    </div>
                   ) : (
-                    <div className={'num ' + (r.amt >= 0 ? 'pos' : '')} style={{ fontSize: 14.5, minWidth: 100, textAlign: 'right' }}>
-                      {r.amt >= 0 ? '+' : '−'}NT${Math.abs(r.amt).toLocaleString()}
+                    <div className={'num ' + (r.amt >= 0 ? 'pos' : '')} style={{ fontSize: 14.5, minWidth: 110, textAlign: 'right', fontVariantNumeric: 'tabular-nums lining-nums' }}>
+                      {r.amt >= 0 ? '+' : '−'}NT${Math.abs(r.amt).toLocaleString('zh-TW')}
                     </div>
                   )}
                 </div>

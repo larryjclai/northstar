@@ -47,6 +47,7 @@ export function buildTransfer(input: TransferInput): LedgerTransaction[] {
     groupId: input.groupId,
     isReviewed: false,
     receiptAttachmentId: null,
+    recurringRuleId: null,
   };
 
   return [
