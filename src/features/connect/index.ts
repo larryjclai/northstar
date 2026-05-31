@@ -2,6 +2,7 @@ export * from "./policies";
 export * from "./types";
 export * from "./crypto/vault";
 export * from "./crypto/pairing";
+export * from "./crypto/recovery-kit";
 export * from "./sync/account";
 export * from "./sync/client";
 export * from "./sync/push";

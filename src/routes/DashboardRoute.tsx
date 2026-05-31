@@ -227,7 +227,7 @@ export function DashboardRoute() {
 
       {/* Row 1 · Net worth + KPI stack */}
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 300px", gap: 16, marginBottom: 16 }}>
-        <div className="ns-card" style={{ padding: 22 }}>
+        <div className="ns-card" style={{ padding: 22, display: "flex", flexDirection: "column" }}>
           <div style={{ marginBottom: 14 }}>
             <div className="ns-eyebrow" style={{ marginBottom: 5 }}>Net worth · {primaryCurrency}</div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
@@ -241,7 +241,7 @@ export function DashboardRoute() {
             </div>
           </div>
           {trend.length > 1 ? (
-            <div style={{ height: 190 }}>
+            <div style={{ flex: 1, minHeight: 160 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trend}>
                   <defs>
@@ -258,7 +258,7 @@ export function DashboardRoute() {
               </ResponsiveContainer>
             </div>
           ) : (
-            <div style={{ height: 190, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, textAlign: "center" }}>
+            <div style={{ flex: 1, minHeight: 160, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, textAlign: "center" }}>
               <div className="muted" style={{ fontSize: 13 }}>
                 {hasAnyData ? "累積幾筆資料後會顯示淨值趨勢。" : "先建立第一個帳戶，Northstar 會開始計算總覽。"}
               </div>

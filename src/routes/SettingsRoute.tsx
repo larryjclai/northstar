@@ -29,6 +29,10 @@ import {
 import {
   initiatePairing, joinWithCode, type PairingSession,
 } from "../features/connect/sync/pairing-flow";
+import {
+  generateRecoveryKit, confirmRecoveryKit, downloadRecoveryKit,
+  loadLocalRecoveryKitStatus, type LocalRecoveryKitStatus,
+} from "../features/connect/crypto/recovery-kit";
 
 const emptySettings: AppSettings = {
   primaryCurrency: "TWD",
@@ -790,6 +794,11 @@ function ConnectStatus() {
   const [showDialog, setShowDialog] = useState(false);
   const [dialogTab, setDialogTab] = useState<"show" | "join">("show");
 
+  // Recovery Kit
+  const [kitStatus, setKitStatus] = useState<LocalRecoveryKitStatus | null>(() => loadLocalRecoveryKitStatus());
+  const [kitCode, setKitCode] = useState<string | null>(null);
+  const [kitLoading, setKitLoading] = useState(false);
+
   // Device A: show pairing code
   const [session, setSession] = useState<PairingSession | null>(null);
   const [sessionLoading, setSessionLoading] = useState(false);
@@ -910,6 +919,33 @@ function ConnectStatus() {
     }
   }
 
+  // ── Recovery Kit ──
+  async function handleGenerateKit() {
+    if (!account) return;
+    setKitLoading(true);
+    try {
+      const code = await generateRecoveryKit();
+      setKitCode(code);
+      setKitStatus(loadLocalRecoveryKitStatus());
+    } catch (e) {
+      toast.error("無法產生備援碼");
+    } finally {
+      setKitLoading(false);
+    }
+  }
+
+  function handleDownloadKit() {
+    if (!kitCode || !account) return;
+    downloadRecoveryKit(kitCode, account.userId);
+  }
+
+  function handleConfirmKit() {
+    confirmRecoveryKit();
+    setKitStatus(loadLocalRecoveryKitStatus());
+    setKitCode(null);
+    toast.success("備援碼已確認儲存");
+  }
+
   function openDialog(tab: "show" | "join") {
     setDialogTab(tab);
     setSession(null);
@@ -1023,6 +1059,56 @@ function ConnectStatus() {
             }
           </div>
         ))}
+      </div>
+
+      {/* Recovery Kit */}
+      <div style={{ marginTop: 20, paddingTop: 18, borderTop: "1px solid var(--ns-border)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>備援碼</div>
+            {kitStatus?.confirmedAt
+              ? <span className="ns-pill" style={{ fontSize: 10.5, background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}>已儲存</span>
+              : <span className="ns-pill" style={{ fontSize: 10.5, background: "var(--ns-warn-soft, #fef3c7)", color: "var(--ns-warn, #b45309)" }}>尚未設定</span>
+            }
+          </div>
+          {!kitCode && (
+            <button className="ns-btn ghost" style={{ fontSize: 12 }} onClick={handleGenerateKit} disabled={kitLoading}>
+              <Key size={13} />{kitStatus?.confirmedAt ? "重新產生" : "產生備援碼"}
+            </button>
+          )}
+        </div>
+        <p className="text-sm muted" style={{ marginBottom: kitCode ? 14 : 0 }}>
+          {kitStatus?.confirmedAt
+            ? `已於 ${kitStatus.confirmedAt.slice(0, 10)} 儲存。如所有裝置遺失可用此碼還原。`
+            : "產生並安全儲存備援碼，萬一所有裝置遺失時可用來還原加密金鑰。"}
+        </p>
+
+        {kitCode && (
+          <div style={{ background: "var(--ns-bg-hover)", borderRadius: "var(--ns-r-md)", padding: "14px 16px", marginTop: 10 }}>
+            <div style={{
+              fontFamily: "var(--ns-font-mono)", fontSize: 13.5, fontWeight: 600,
+              letterSpacing: 1, wordBreak: "break-all", lineHeight: 1.7,
+              color: "var(--ns-fg)", marginBottom: 12,
+            }}>
+              {kitCode.split("-").reduce<string[]>((acc, g, i) => {
+                acc.push(g);
+                if (i % 2 === 1 && i < 7) acc.push("\n");
+                return acc;
+              }, []).join("-").split("\n-").join("\n")}
+            </div>
+            <p className="text-sm" style={{ color: "var(--ns-warn, #b45309)", marginBottom: 12, fontSize: 11.5 }}>
+              ⚠ 請將此碼列印或抄寫到安全的地方。關閉後無法再次檢視。
+            </p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="ns-btn primary" onClick={handleDownloadKit}>
+                <DownloadSimple size={13} />下載備援碼
+              </button>
+              <button className="ns-btn ghost" onClick={handleConfirmKit}>
+                <CheckCircle size={13} weight="bold" />我已安全儲存
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add device dialog */}
