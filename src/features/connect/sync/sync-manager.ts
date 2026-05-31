@@ -22,8 +22,28 @@ export interface SyncResult {
   applied: number;
 }
 
+// Module-level mutex — prevents concurrent syncs hitting SQLite simultaneously.
+// Both auto-sync (AppShell focus event) and manual-sync (Settings button)
+// share this lock, so only one can run at a time.
+let _syncRunning = false;
+
+export function isSyncRunning(): boolean {
+  return _syncRunning;
+}
+
 /** Run a full push-then-pull sync cycle. Throws on error. */
 export async function runSync(repo: FinanceRepository): Promise<SyncResult> {
+  if (_syncRunning) throw new Error("同步正在進行中，請稍候");
+  _syncRunning = true;
+
+  try {
+    return await _doSync(repo);
+  } finally {
+    _syncRunning = false;
+  }
+}
+
+async function _doSync(repo: FinanceRepository): Promise<SyncResult> {
   const account = loadSyncAccount();
   if (!account) throw new Error("尚未設定同步帳號");
 

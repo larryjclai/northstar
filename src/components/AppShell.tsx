@@ -22,7 +22,7 @@ import { MagnifyingGlass } from "@phosphor-icons/react";
 import { getFinanceRepository } from "../data/repositories";
 import { loadSyncAccount } from "../features/connect/sync/account";
 import { loadVaultKey } from "../features/connect/crypto/vault";
-import { runSync, isTauriRuntime } from "../features/connect/sync/sync-manager";
+import { runSync, isSyncRunning, isTauriRuntime } from "../features/connect/sync/sync-manager";
 import { useSyncStatus } from "../state/syncStatus";
 
 const appIconUrl = new URL("../../src-tauri/icons/icon.png", import.meta.url).href;
@@ -293,6 +293,9 @@ function useAutoSync() {
     const vaultKey = await loadVaultKey();
     if (!vaultKey) return;
 
+    // Skip if another sync is already running (e.g. manual sync from Settings)
+    if (isSyncRunning()) return;
+
     // Debounce: don't sync more than once per minute
     if (Date.now() - lastSyncRef.current < MIN_SYNC_INTERVAL_MS) return;
     lastSyncRef.current = Date.now();
@@ -304,9 +307,11 @@ function useAutoSync() {
       const result = await runSync(repo);
       setSyncDone(result.pushed, result.pulled, result.applied);
     } catch (e) {
+      // Silently skip "already running" — user already sees status from manual sync
       const msg = e instanceof Error ? e.message
         : typeof e === "string" ? e
         : (e as { message?: string })?.message ?? JSON.stringify(e) ?? "同步失敗";
+      if (msg === "同步正在進行中，請稍候") return;
       console.error("[sync] auto-sync failed:", e);
       setError(msg);
     }
