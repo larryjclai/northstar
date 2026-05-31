@@ -12,24 +12,33 @@ This roadmap is organized into **Now (近期執行)**, **Next (中期規劃)**, 
 - **Credit Card Reconciliation (信用卡對帳與結帳日提醒)** — 結帳日/繳款日欄位、Dashboard 繳款提醒、對帳模式（逐筆勾選核對）。
 - **Quick Add (快速記帳)** — ⌘N 全域自然語言輸入列，解析支出/收入/投資買賣 → 預填確認後送出；側邊欄按鈕 + 手機 FAB 入口。
 - **Connect Sync 前置（裝置身份 + 變更追蹤）** — 本地裝置身份；以既有 SyncFields 推導的待同步變更清單（含軟刪除）；設定頁「Connect 同步 · 準備中」狀態卡。
+- **Connect Sync — 加密層 + Worker + 配對 UI** — Cloudflare Worker + D1 relay（`northstar-sync.larrynote.workers.dev`）；AES-GCM-256 vault key；PBKDF2 短配對碼（`XXXX-XXXX`）+ QR Code 雙路徑；push/pull encrypted envelopes；設定頁完整裝置管理 UI（啟用、顯示配對碼、輸入配對碼、撤銷裝置）。
 - **其他修復** — 子分類內嵌編輯（修 Tauri prompt 失效）、週期交易自動入帳 + 時區修正、跨幣轉帳金額、商家自動分類。
 
 ---
 
 ## 🟢 NOW (近期執行)
-*Focus: 補完雲端同步前置的加密層。*
+*Focus: 補完 Connect Sync 的完整資料同步，讓變更真正在裝置間流動。*
 
-### 1. Connect Sync Preparation — 剩餘項目
-- **已完成**: 裝置身份、待同步變更追蹤（change feed）、設定頁狀態卡。
-- **待辦**: 加密同步信封（envelope）序列化、crypto 抽象層與測試；（可選）改用既有 `sync_outbox` 資料表做 write-ahead 紀錄。
+### 1. Connect Sync — 完整 Record Payload 同步
+- **已完成**: Cloudflare Worker relay、加密 envelope 傳輸、裝置配對 UI、push/pull 架構。
+- **待辦**:
+  - **Full record serialisation** — 目前 push 的 payload 只有 `PendingChange` metadata（entity + entityId + revision），尚未包含完整的 record 欄位。需為每個 entity type 加上 `getById` 查詢，把完整資料序列化後加密打包。
+  - **Pull apply** — pull 下來的 envelopes 解密後，需 upsert 進本地 SQLite（目前只有 log，尚未實際寫入）。
+  - **Conflict resolution** — 以 `revision` 為版本號，last-write-wins；刪除（`deletedAt`）優先。
+  - **Recovery Kit** — 產生並確認一次性備援碼（已在 `policies.ts` 定義為前置條件，但 UI 尚未實作）。
 
 ---
 
 ## 🟡 NEXT (中期規劃)
-*Focus: 雲端同步與進階帳務。*
+*Focus: 同步穩定性、背景自動同步、進階帳務。*
 
-### 1. Connect Sync (雲端同步)
-- **Action**: 在前置作業完成後，串接實際的多裝置加密同步。
+### 1. Connect Sync — 背景自動同步
+- **Action**: 在 Tauri 的 background task 或 app focus 事件觸發 push/pull，讓使用者不需手動同步。
+- **前置條件**: 完整 record payload 同步完成。
+
+### 2. Recovery Kit UI
+- **Action**: 設定頁加入「產生備援碼」流程（12 組隨機字，下載或列印），確認後才能啟用雲端功能。確保 `canEnableCloudBackedFeature` 的前置條件在 UI 上被強制執行。
 
 ---
 
