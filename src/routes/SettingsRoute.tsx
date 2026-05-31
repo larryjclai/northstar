@@ -972,7 +972,12 @@ function ConnectStatus() {
       syncStatus.setSyncDone(result.pushed, result.pulled, result.applied);
       await queryClient.invalidateQueries();
     } catch (e) {
-      syncStatus.setError(e instanceof Error ? e.message : "同步失敗");
+      // Tauri plugin errors can be plain strings, not Error instances
+      const msg = e instanceof Error ? e.message
+        : typeof e === "string" ? e
+        : (e as { message?: string })?.message ?? JSON.stringify(e) ?? "同步失敗";
+      console.error("[sync] manual sync failed:", e);
+      syncStatus.setError(msg);
     }
   }
 

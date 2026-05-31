@@ -304,7 +304,11 @@ function useAutoSync() {
       const result = await runSync(repo);
       setSyncDone(result.pushed, result.pulled, result.applied);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "同步失敗");
+      const msg = e instanceof Error ? e.message
+        : typeof e === "string" ? e
+        : (e as { message?: string })?.message ?? JSON.stringify(e) ?? "同步失敗";
+      console.error("[sync] auto-sync failed:", e);
+      setError(msg);
     }
   }, [setPhase, setSyncDone, setError]);
 

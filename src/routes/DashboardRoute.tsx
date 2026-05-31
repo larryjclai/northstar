@@ -278,15 +278,20 @@ export function DashboardRoute() {
           <KpiCard label="現金 / 存款" value={formatMoney(availableCash, primaryCurrency)} color="var(--ns-chart-2)" />
           {alternativeAssets > 0 ? <KpiCard label="其他資產" value={formatMoney(alternativeAssets, primaryCurrency)} color="var(--ns-chart-4)" /> : null}
           <KpiCard label="負債" value={formatMoney(liabilities, primaryCurrency)} color="var(--ns-chart-5)" tone={liabilities > 0 ? "neg" : undefined} />
-          <div className="ns-card" style={{ padding: "13px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+          <div className="ns-card" style={{ padding: "13px 16px", display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
             <div style={{ width: 4, height: 32, borderRadius: 99, background: "var(--ns-chart-3)", flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div className="ns-eyebrow" style={{ fontSize: 10 }}>本月現金流</div>
-              <div className={monthNet >= 0 ? "pos" : "neg"} style={{ fontSize: 18, fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums", fontWeight: 500, marginTop: 1 }}>
+              <div className={monthNet >= 0 ? "pos" : "neg"} style={{
+                fontSize: "clamp(13px, 1.4vw, 18px)",
+                fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums",
+                fontWeight: 500, marginTop: 1,
+                whiteSpace: "nowrap", overflow: "hidden",
+              }}>
                 {monthNet >= 0 ? "+" : "−"}{formatNumber(Math.abs(monthNet))}
               </div>
             </div>
-            <div style={{ fontSize: 11.5, textAlign: "right" }}>
+            <div style={{ fontSize: 11.5, textAlign: "right", flexShrink: 0 }}>
               <div className="muted">收 {formatNumber(monthIncome)}</div>
               <div className="muted">支 {formatNumber(monthExpense)}</div>
               {monthIncome > 0 ? <div className="pos mono" style={{ fontSize: 11 }}>儲蓄率 {savingsRate.toFixed(0)}%</div> : null}
@@ -497,11 +502,16 @@ export function DashboardRoute() {
 
 function KpiCard({ label, value, color, tone }: { label: string; value: string; color: string; tone?: "neg" }) {
   return (
-    <div className="ns-card" style={{ padding: "13px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+    <div className="ns-card" style={{ padding: "13px 16px", display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
       <div style={{ width: 4, height: 32, borderRadius: 99, background: color, flexShrink: 0 }} />
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div className="ns-eyebrow" style={{ fontSize: 10 }}>{label}</div>
-        <div className={tone === "neg" ? "neg" : ""} style={{ fontSize: 18, fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums", fontWeight: 500, marginTop: 1 }}>{value}</div>
+        <div className={tone === "neg" ? "neg" : ""} style={{
+          fontSize: "clamp(13px, 1.4vw, 18px)",
+          fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums",
+          fontWeight: 500, marginTop: 1,
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }}>{value}</div>
       </div>
     </div>
   );

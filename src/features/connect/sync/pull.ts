@@ -54,9 +54,17 @@ export async function pullAndApply(
   }
 
   // Decrypt all foreign envelopes in parallel.
-  const decrypted = await Promise.all(
+  // Use allSettled so a single bad envelope doesn't abort the entire batch.
+  const settled = await Promise.allSettled(
     foreign.map((e) => decryptPayload(vaultKey, e.encryptedPayload)),
   );
+  const decrypted = settled.map((r, i) => {
+    if (r.status === "rejected") {
+      console.warn("[sync] failed to decrypt envelope", foreign[i].id, r.reason);
+      return null;
+    }
+    return r.value;
+  });
 
   // Load the current local snapshot to build merge maps.
   const snapshot = await repo.exportSnapshot();
@@ -71,7 +79,9 @@ export async function pullAndApply(
   let applied = 0;
   for (let i = 0; i < foreign.length; i++) {
     const envelope = foreign[i];
-    const payload = decrypted[i] as SyncFields & Record<string, unknown>;
+    const raw = decrypted[i];
+    if (!raw) continue; // decryption failed, already warned
+    const payload = raw as SyncFields & Record<string, unknown>;
     if (!payload?.id) continue;
 
     let changed = false;
