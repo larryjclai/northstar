@@ -8,3 +8,5 @@ export * from "./sync/client";
 export * from "./sync/push";
 export * from "./sync/pull";
 export * from "./sync/pairing-flow";
+export * from "./sync/backup";
+export * from "./sync/sync-manager";

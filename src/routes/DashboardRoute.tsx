@@ -226,12 +226,17 @@ export function DashboardRoute() {
       </div>
 
       {/* Row 1 · Net worth + KPI stack */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 300px", gap: 16, marginBottom: 16 }}>
-        <div className="ns-card" style={{ padding: 22, display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(200px,280px)", gap: 16, marginBottom: 16 }}>
+        <div className="ns-card" style={{ padding: 22, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{ marginBottom: 14 }}>
             <div className="ns-eyebrow" style={{ marginBottom: 5 }}>Net worth · {primaryCurrency}</div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-              <span className="ns-num-xl">{formatMoney(netWorth, primaryCurrency)}</span>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap", minWidth: 0 }}>
+              <span style={{ fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums lining-nums",
+                fontSize: "clamp(28px, 4vw, 56px)", letterSpacing: "-0.025em", fontWeight: 500,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%",
+                flexShrink: 1 }}>
+                {formatMoney(netWorth, primaryCurrency)}
+              </span>
               {trend.length >= 2 ? (
                 <span className={"ns-pill " + (momChange >= 0 ? "solid-pos" : "solid-neg")}>
                   {momChange >= 0 ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />}
@@ -291,7 +296,7 @@ export function DashboardRoute() {
       </div>
 
       {/* Row 2 · Budget + Upcoming */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(200px,1.4fr) minmax(160px,1fr)", gap: 16, marginBottom: 16 }}>
         <div className="ns-card">
           <SectionHead eyebrow={`Budget · ${todayLabel.slice(0, todayLabel.indexOf("月") + 1) || "本月"}`} title="預算進度" action={<Link to="/cash-flow/categories" className="ns-btn ghost" style={{ fontSize: 12 }}>管理分類 →</Link>} />
           {budgetCats.length === 0 ? (
@@ -382,7 +387,7 @@ export function DashboardRoute() {
       ) : null}
 
       {/* Row 3 · Allocation + Goals + Market */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.15fr 1fr 0.82fr", gap: 16, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(140px,1.15fr) minmax(140px,1fr) minmax(120px,0.82fr)", gap: 16, marginBottom: 16 }}>
         {/* Allocation */}
         <div className="ns-card">
           <SectionHead eyebrow="Asset allocation" title="資產配置" />

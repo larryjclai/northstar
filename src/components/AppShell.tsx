@@ -11,7 +11,7 @@ import {
 } from "@phosphor-icons/react";
 import { Link, Outlet } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivacySync, useUiPreferences } from "../state/uiPreferences";
 import { usePostDueRecurring } from "../data/hooks";
 import { todayInTimezone } from "../domain";
@@ -19,6 +19,11 @@ import { GlobalSearch } from "./GlobalSearch";
 import { QuickAdd } from "./QuickAdd";
 import { useTranslation } from "react-i18next";
 import { MagnifyingGlass } from "@phosphor-icons/react";
+import { getFinanceRepository } from "../data/repositories";
+import { loadSyncAccount } from "../features/connect/sync/account";
+import { loadVaultKey } from "../features/connect/crypto/vault";
+import { runSync, isTauriRuntime } from "../features/connect/sync/sync-manager";
+import { useSyncStatus } from "../state/syncStatus";
 
 const appIconUrl = new URL("../../src-tauri/icons/icon.png", import.meta.url).href;
 
@@ -43,6 +48,7 @@ export function AppShell() {
   useBlockBrowserBackOnBackspace();
   usePrivacySync();
   usePrivacyShortcut();
+  useAutoSync();
   const timezone = useUiPreferences((state) => state.timezone);
   usePostDueRecurring(todayInTimezone(timezone));
   const privacyMode = useUiPreferences((state) => state.privacyMode);
@@ -268,6 +274,55 @@ function usePrivacyShortcut() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [toggle]);
+}
+
+// ── Auto-sync on Tauri window focus ────────────────────────────────────────
+// Triggers a push+pull cycle whenever the app regains OS focus,
+// with a 60-second cooldown to avoid hammering the server.
+
+const MIN_SYNC_INTERVAL_MS = 60_000;
+
+function useAutoSync() {
+  const { setPhase, setSyncDone, setError } = useSyncStatus();
+  const lastSyncRef = useRef<number>(0);
+
+  const triggerSync = useCallback(async () => {
+    // Skip if sync not configured
+    const account = loadSyncAccount();
+    if (!account) return;
+    const vaultKey = await loadVaultKey();
+    if (!vaultKey) return;
+
+    // Debounce: don't sync more than once per minute
+    if (Date.now() - lastSyncRef.current < MIN_SYNC_INTERVAL_MS) return;
+    lastSyncRef.current = Date.now();
+
+    try {
+      setPhase("pushing");
+      const repo = await getFinanceRepository();
+      setPhase("pulling");
+      const result = await runSync(repo);
+      setSyncDone(result.pushed, result.pulled, result.applied);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "同步失敗");
+    }
+  }, [setPhase, setSyncDone, setError]);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+
+    let unlistenFn: (() => void) | null = null;
+
+    import("@tauri-apps/api/event").then(({ listen }) => {
+      listen("tauri://focus", () => {
+        void triggerSync();
+      }).then((unlisten) => {
+        unlistenFn = unlisten;
+      });
+    });
+
+    return () => { unlistenFn?.(); };
+  }, [triggerSync]);
 }
 
 export function PageHeader({

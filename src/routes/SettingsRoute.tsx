@@ -29,6 +29,9 @@ import {
 import {
   initiatePairing, joinWithCode, type PairingSession,
 } from "../features/connect/sync/pairing-flow";
+import { runSync } from "../features/connect/sync/sync-manager";
+import { listBackups, restoreBackup, type BackupEntry } from "../features/connect/sync/backup";
+import { useSyncStatus } from "../state/syncStatus";
 import {
   generateRecoveryKit, confirmRecoveryKit, downloadRecoveryKit,
   loadLocalRecoveryKitStatus, type LocalRecoveryKitStatus,
@@ -799,6 +802,18 @@ function ConnectStatus() {
   const [kitCode, setKitCode] = useState<string | null>(null);
   const [kitLoading, setKitLoading] = useState(false);
 
+  // Sync status + backups
+  const syncStatus = useSyncStatus();
+  const [backups, setBackups] = useState<BackupEntry[]>([]);
+  const [showBackups, setShowBackups] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Load backups list when panel opens
+  useEffect(() => {
+    if (!showBackups) return;
+    listBackups().then(setBackups).catch(() => setBackups([]));
+  }, [showBackups]);
+
   // Device A: show pairing code
   const [session, setSession] = useState<PairingSession | null>(null);
   const [sessionLoading, setSessionLoading] = useState(false);
@@ -946,6 +961,35 @@ function ConnectStatus() {
     toast.success("備援碼已確認儲存");
   }
 
+  // ── Manual sync ──
+  async function handleManualSync() {
+    if (syncStatus.phase === "pushing" || syncStatus.phase === "pulling") return;
+    syncStatus.setPhase("pushing");
+    try {
+      const repo = await getFinanceRepository();
+      syncStatus.setPhase("pulling");
+      const result = await runSync(repo);
+      syncStatus.setSyncDone(result.pushed, result.pulled, result.applied);
+      await queryClient.invalidateQueries();
+    } catch (e) {
+      syncStatus.setError(e instanceof Error ? e.message : "同步失敗");
+    }
+  }
+
+  // ── Restore backup ──
+  async function handleRestore(timestamp: string) {
+    if (!window.confirm("確定要還原到此備份？目前的資料將被覆蓋。")) return;
+    try {
+      const repo = await getFinanceRepository();
+      await restoreBackup(timestamp, repo);
+      await queryClient.invalidateQueries();
+      toast.success("已還原備份");
+      setShowBackups(false);
+    } catch (e) {
+      toast.error("還原失敗：" + (e instanceof Error ? e.message : String(e)));
+    }
+  }
+
   function openDialog(tab: "show" | "join") {
     setDialogTab(tab);
     setSession(null);
@@ -1022,15 +1066,38 @@ function ConnectStatus() {
           <h3 className="font-semibold">Connect 同步</h3>
           <span className="ns-pill" style={{ fontSize: 10.5, background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}>已啟用</span>
         </div>
-        <button className="ns-btn ghost" style={{ fontSize: 12 }} onClick={() => openDialog("show")}>
-          <Plus size={13} />新增裝置
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="ns-btn ghost" style={{ fontSize: 12 }}
+            onClick={handleManualSync}
+            disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
+            <ArrowsClockwise size={13} style={{ animation: (syncStatus.phase === "pushing" || syncStatus.phase === "pulling") ? "spin 1s linear infinite" : undefined }} />
+            {syncStatus.phase === "pushing" ? "上傳中…" : syncStatus.phase === "pulling" ? "下載中…" : "立即同步"}
+          </button>
+          <button className="ns-btn ghost" style={{ fontSize: 12 }} onClick={() => openDialog("show")}>
+            <Plus size={13} />新增裝置
+          </button>
+        </div>
       </div>
 
+      {/* Sync status bar */}
+      {(syncStatus.phase === "done" || syncStatus.phase === "error" || syncStatus.lastSyncAt) && (
+        <div style={{ fontSize: 11.5, marginBottom: 10, padding: "7px 10px", borderRadius: "var(--ns-r-sm)",
+          background: syncStatus.phase === "error" ? "var(--ns-neg-soft)" : "var(--ns-bg-hover)",
+          color: syncStatus.phase === "error" ? "var(--ns-neg)" : "var(--ns-fg-muted)" }}>
+          {syncStatus.phase === "error"
+            ? `⚠ ${syncStatus.error}`
+            : syncStatus.phase === "done"
+              ? `✓ 已同步：上傳 ${syncStatus.lastPushed} 筆，下載並套用 ${syncStatus.lastApplied} 筆`
+              : syncStatus.lastSyncAt
+                ? `上次同步：${new Date(syncStatus.lastSyncAt).toLocaleString("zh-Hant")}`
+                : null}
+        </div>
+      )}
+
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, fontSize: 13, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, fontSize: 13, marginBottom: 16 }}>
         <Stat label="待同步" value={pending === null ? "—" : `${pending} 筆`} />
-        <Stat label="上次同步" value={identity.lastSyncCursor ? identity.lastSyncCursor.slice(0, 10) : "尚未同步"} mono />
+        <Stat label="上次同步" value={syncStatus.lastSyncAt ? syncStatus.lastSyncAt.slice(0, 10) : "尚未同步"} mono />
         <Stat label="裝置 ID" value={identity.deviceId.slice(0, 8) + "…"} mono />
       </div>
 
@@ -1107,6 +1174,43 @@ function ConnectStatus() {
                 <CheckCircle size={13} weight="bold" />我已安全儲存
               </button>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Sync snapshots / restore points */}
+      <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--ns-border)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>同步前快照</div>
+          <button className="ns-btn ghost" style={{ fontSize: 11.5 }} onClick={() => {
+            setShowBackups(!showBackups);
+          }}>
+            {showBackups ? "收起" : `查看備份`}
+          </button>
+        </div>
+        <p className="text-sm muted" style={{ marginBottom: showBackups ? 10 : 0 }}>
+          每次同步前自動儲存，最多保留 3 份。若同步後資料異常可還原。
+        </p>
+        {showBackups && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {backups.length === 0
+              ? <div className="muted" style={{ fontSize: 12 }}>尚無快照（執行一次同步後會自動建立）</div>
+              : backups.map((b) => (
+                <div key={b.timestamp} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "9px 12px", borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)",
+                }}>
+                  <div>
+                    <div style={{ fontSize: 12.5, fontWeight: 500 }}>{b.label}</div>
+                    <div className="mono muted" style={{ fontSize: 10.5 }}>{b.timestamp.slice(0, 19).replace("T", " ")}</div>
+                  </div>
+                  <button className="ns-btn ghost" style={{ fontSize: 11.5, color: "var(--ns-warn, #b45309)" }}
+                    onClick={() => handleRestore(b.timestamp)}>
+                    還原
+                  </button>
+                </div>
+              ))
+            }
           </div>
         )}
       </div>
