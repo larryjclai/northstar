@@ -12,33 +12,33 @@ This roadmap is organized into **Now (近期執行)**, **Next (中期規劃)**, 
 - **Credit Card Reconciliation (信用卡對帳與結帳日提醒)** — 結帳日/繳款日欄位、Dashboard 繳款提醒、對帳模式（逐筆勾選核對）。
 - **Quick Add (快速記帳)** — ⌘N 全域自然語言輸入列，解析支出/收入/投資買賣 → 預填確認後送出；側邊欄按鈕 + 手機 FAB 入口。
 - **Connect Sync 前置（裝置身份 + 變更追蹤）** — 本地裝置身份；以既有 SyncFields 推導的待同步變更清單（含軟刪除）；設定頁「Connect 同步 · 準備中」狀態卡。
+- **Dashboard 卡片高度一致** — 淨值卡改為 flex column，圖表 `flex:1` 填滿高度，與右側 KPI stack 等高無空白。
 - **Connect Sync — 加密層 + Worker + 配對 UI** — Cloudflare Worker + D1 relay（`northstar-sync.larrynote.workers.dev`）；AES-GCM-256 vault key；PBKDF2 短配對碼（`XXXX-XXXX`）+ QR Code 雙路徑；push/pull encrypted envelopes；設定頁完整裝置管理 UI（啟用、顯示配對碼、輸入配對碼、撤銷裝置）。
+- **Connect Sync — Full Record Payload + Recovery Kit** — push 帶完整 record 序列化；pull 解密後 last-write-wins merge 寫回 SQLite；Recovery Kit（64-char hex，下載 .txt，確認流程）。
 - **其他修復** — 子分類內嵌編輯（修 Tauri prompt 失效）、週期交易自動入帳 + 時區修正、跨幣轉帳金額、商家自動分類。
 
 ---
 
 ## 🟢 NOW (近期執行)
-*Focus: 補完 Connect Sync 的完整資料同步，讓變更真正在裝置間流動。*
+*Focus: 背景自動同步，讓資料在裝置間無感流動。*
 
-### 1. Connect Sync — 完整 Record Payload 同步
-- **已完成**: Cloudflare Worker relay、加密 envelope 傳輸、裝置配對 UI、push/pull 架構。
+### 1. Connect Sync — 背景自動同步
+- **已完成**: Cloudflare Worker relay、加密 envelope 傳輸、full record payload push/pull、last-write-wins merge、Recovery Kit UI。
 - **待辦**:
-  - **Full record serialisation** — 目前 push 的 payload 只有 `PendingChange` metadata（entity + entityId + revision），尚未包含完整的 record 欄位。需為每個 entity type 加上 `getById` 查詢，把完整資料序列化後加密打包。
-  - **Pull apply** — pull 下來的 envelopes 解密後，需 upsert 進本地 SQLite（目前只有 log，尚未實際寫入）。
-  - **Conflict resolution** — 以 `revision` 為版本號，last-write-wins；刪除（`deletedAt`）優先。
-  - **Recovery Kit** — 產生並確認一次性備援碼（已在 `policies.ts` 定義為前置條件，但 UI 尚未實作）。
+  - **自動觸發** — 在 Tauri 的 app focus 事件（`tauri://focus`）或視窗切換時自動執行 `pushPendingChanges` + `pullAndApply`，讓使用者不需手動同步。
+  - **同步狀態指示** — 設定頁顯示「同步中…」spinner 與「上次同步：X 秒前」的即時更新。
 
 ---
 
 ## 🟡 NEXT (中期規劃)
-*Focus: 同步穩定性、背景自動同步、進階帳務。*
+*Focus: 穩健性與進階帳務。*
 
-### 1. Connect Sync — 背景自動同步
-- **Action**: 在 Tauri 的 background task 或 app focus 事件觸發 push/pull，讓使用者不需手動同步。
-- **前置條件**: 完整 record payload 同步完成。
+### 1. Recovery Kit 強制前置條件
+- **Action**: 在啟用同步時，強制要求 Recovery Kit 已確認（`kitStatus.confirmedAt` 非 null）才允許啟動同步，符合 `policies.ts` 中 `canEnableCloudBackedFeature` 的設計意圖。
 
-### 2. Recovery Kit UI
-- **Action**: 設定頁加入「產生備援碼」流程（12 組隨機字，下載或列印），確認後才能啟用雲端功能。確保 `canEnableCloudBackedFeature` 的前置條件在 UI 上被強制執行。
+### 2. Apple Notarization（解決 AirDrop 安裝問題）
+- **Problem**: AirDrop 傳送的 `.app` 會被 macOS Gatekeeper 標記為「已損壞」，需要手動執行 `xattr -cr` 解除。
+- **Action**: 設定 Apple Developer 帳號、codesign + notarize Tauri 打包流程，讓 `.app` 可直接在任何 Mac 上開啟。
 
 ---
 
