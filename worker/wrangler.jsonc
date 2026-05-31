@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "northstar-sync",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-05-31",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "northstar-sync",
+      "database_id": "43c23ce0-99be-4074-b1c3-5eba5190b07d",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": { "enabled": true }
+}

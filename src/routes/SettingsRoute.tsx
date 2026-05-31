@@ -1,4 +1,4 @@
-import { ArrowsClockwise, CheckCircle, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, PencilSimple, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X, CaretDown, CaretRight, Backspace, Gear, Bank, Target } from "@phosphor-icons/react";
+import { ArrowsClockwise, CheckCircle, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, PencilSimple, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X, CaretDown, CaretRight, Backspace, Gear, Bank, Target, DeviceMobile, Desktop, Spinner, WifiHigh, CopySimple, QrCode } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ActionButton } from "../components/ActionButton";
@@ -6,7 +6,6 @@ import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { getFinanceRepository, type RepositorySnapshot } from "../data/repositories";
 import { COMMON_TIMEZONES, isValidTimezone } from "../domain";
-
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../domain";
 import { useRefreshFxRates } from "../features/market-data/useMarketRefresh";
 import { useUiPreferences, type ClockMode, type NameLocalePreference } from "../state/uiPreferences";
@@ -15,6 +14,21 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import EmojiPicker from "emoji-picker-react";
 import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
+import QRCode from "react-qr-code";
+import {
+  loadSyncAccount, getOrCreateSyncAccount, setSyncAccount, sha256Hex,
+  type SyncAccount,
+} from "../features/connect/sync/account";
+import {
+  generateVaultKey, saveVaultKey, loadVaultKey,
+} from "../features/connect/crypto/vault";
+import {
+  registerUser, listDevices, revokeDevice, addDevice,
+  type DeviceRecord,
+} from "../features/connect/sync/client";
+import {
+  initiatePairing, joinWithCode, type PairingSession,
+} from "../features/connect/sync/pairing-flow";
 
 const emptySettings: AppSettings = {
   primaryCurrency: "TWD",
@@ -749,38 +763,473 @@ function SettingsGeneral({ form, t }: any) {
   );
 }
 
-// Connect Sync — preparation status. No cloud push yet; surfaces the local
-// device identity and how many local changes are pending a future sync.
-function ConnectStatus() {
-  const [identity] = useState(() => getOrCreateDeviceIdentity());
-  const [pending, setPending] = useState<number | null>(null);
+// ─────── Connect Sync ───────
 
+function getDevicePlatform(): string {
+  const ua = navigator.userAgent;
+  if (ua.includes("Win")) return "windows";
+  if (ua.includes("Linux")) return "linux";
+  return "macos";
+}
+
+function PlatformIcon({ platform }: { platform: string }) {
+  return platform === "ios" || platform === "android"
+    ? <DeviceMobile size={14} />
+    : <Desktop size={14} />;
+}
+
+function ConnectStatus() {
+  const toast = useToast();
+  const [identity] = useState(() => getOrCreateDeviceIdentity());
+  const [account, setAccount] = useState<SyncAccount | null>(() => loadSyncAccount());
+  const [devices, setDevices] = useState<DeviceRecord[]>([]);
+  const [pending, setPending] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Dialog: add device
+  const [showDialog, setShowDialog] = useState(false);
+  const [dialogTab, setDialogTab] = useState<"show" | "join">("show");
+
+  // Device A: show pairing code
+  const [session, setSession] = useState<PairingSession | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+
+  // Device B: join with code
+  const [joinCode, setJoinCode] = useState("");
+  const [joinLoading, setJoinLoading] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const [joinDeviceName, setJoinDeviceName] = useState(() => `My ${getDevicePlatform() === "windows" ? "PC" : "Mac"}`);
+
+  // Load pending changes count
   useEffect(() => {
     let active = true;
     (async () => {
       try {
-        const repository = await getFinanceRepository();
-        const result = await repository.collectPendingChanges(identity.lastSyncCursor);
+        const repo = await getFinanceRepository();
+        const result = await repo.collectPendingChanges(identity.lastSyncCursor);
         if (active) setPending(result.count);
-      } catch {
-        if (active) setPending(null);
-      }
+      } catch { if (active) setPending(null); }
     })();
     return () => { active = false; };
   }, [identity.lastSyncCursor]);
 
+  // Load device list when account is active
+  useEffect(() => {
+    if (!account) return;
+    listDevices(account.apiSecret).then(setDevices).catch(() => {});
+  }, [account]);
+
+  // Countdown timer for pairing session
+  useEffect(() => {
+    if (!session) return;
+    const tick = () => {
+      const left = Math.max(0, Math.floor((session.expiresAt.getTime() - Date.now()) / 1000));
+      setSecondsLeft(left);
+      if (left === 0) setSession(null);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [session]);
+
+  // ── First-time setup ──
+  async function handleSetup() {
+    setLoading(true);
+    try {
+      const vaultKey = await generateVaultKey();
+      await saveVaultKey(vaultKey);
+
+      const newAccount = getOrCreateSyncAccount();
+      const hash = await sha256Hex(newAccount.apiSecret);
+      await registerUser({
+        userId: newAccount.userId,
+        apiSecretHash: hash,
+        device: {
+          id: identity.deviceId,
+          name: joinDeviceName,
+          platform: getDevicePlatform(),
+        },
+      });
+      setAccount(newAccount);
+      const devs = await listDevices(newAccount.apiSecret);
+      setDevices(devs);
+      toast.success("同步已啟用");
+    } catch (e) {
+      toast.error("啟用失敗，請稍後再試");
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── Generate pairing code (Device A) ──
+  async function handleGenerateCode() {
+    if (!account) return;
+    setSessionLoading(true);
+    try {
+      const s = await initiatePairing();
+      setSession(s);
+    } catch (e) {
+      toast.error("無法產生配對碼，請確認網路連線");
+    } finally {
+      setSessionLoading(false);
+    }
+  }
+
+  // ── Join with code (Device B) ──
+  async function handleJoin() {
+    setJoinError(null);
+    setJoinLoading(true);
+    try {
+      await joinWithCode(joinCode, joinDeviceName, getDevicePlatform());
+      const joined = loadSyncAccount()!;
+      setAccount(joined);
+      const devs = await listDevices(joined.apiSecret);
+      setDevices(devs);
+      setShowDialog(false);
+      setJoinCode("");
+      toast.success("裝置已成功加入同步");
+    } catch (e) {
+      setJoinError(e instanceof Error ? e.message : "配對失敗，請確認配對碼是否正確");
+    } finally {
+      setJoinLoading(false);
+    }
+  }
+
+  // ── Revoke device ──
+  async function handleRevoke(deviceId: string) {
+    if (!account) return;
+    if (!window.confirm("確定要移除這台裝置的同步存取權嗎？")) return;
+    try {
+      await revokeDevice(account.apiSecret, deviceId);
+      setDevices(d => d.filter(dev => dev.id !== deviceId));
+      toast.success("裝置已移除");
+    } catch {
+      toast.error("移除失敗");
+    }
+  }
+
+  function openDialog(tab: "show" | "join") {
+    setDialogTab(tab);
+    setSession(null);
+    setJoinCode("");
+    setJoinError(null);
+    setShowDialog(true);
+    if (tab === "show") handleGenerateCode();
+  }
+
+  const codeDisplay = session
+    ? session.code.slice(0, 4) + " – " + session.code.slice(5)
+    : "——";
+
+  // ── Not yet set up ──
+  if (!account) {
+    return (
+      <div className="ns-card p-5">
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+          <h3 className="font-semibold">Connect 同步</h3>
+        </div>
+        <p className="text-sm muted mb-4">
+          啟用後，你的財務資料會以端對端加密的方式同步到你的其他裝置。資料加密後才離開裝置，伺服器看不到任何明文。
+        </p>
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ fontSize: 11.5, color: "var(--ns-fg-muted)", display: "block", marginBottom: 5 }}>這台裝置的名稱</label>
+          <input
+            className="ns-input"
+            style={{ maxWidth: 260 }}
+            value={joinDeviceName}
+            onChange={e => setJoinDeviceName(e.target.value)}
+            placeholder="My Mac"
+          />
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="ns-btn primary" onClick={handleSetup} disabled={loading || !joinDeviceName.trim()}>
+            {loading ? <Spinner size={14} className="animate-spin" /> : <WifiHigh size={14} />}
+            {loading ? "啟用中…" : "啟用同步"}
+          </button>
+          <button className="ns-btn ghost" onClick={() => openDialog("join")}>
+            我有配對碼
+          </button>
+        </div>
+
+        {/* Join dialog (for device B before account exists) */}
+        {showDialog && (
+          <AddDeviceDialog
+            tab={dialogTab}
+            onTabChange={setDialogTab}
+            onClose={() => setShowDialog(false)}
+            session={session}
+            sessionLoading={sessionLoading}
+            secondsLeft={secondsLeft}
+            codeDisplay={codeDisplay}
+            onGenerateCode={handleGenerateCode}
+            joinCode={joinCode}
+            onJoinCodeChange={setJoinCode}
+            joinDeviceName={joinDeviceName}
+            onJoinDeviceNameChange={setJoinDeviceName}
+            joinLoading={joinLoading}
+            joinError={joinError}
+            onJoin={handleJoin}
+            hideShowTab
+          />
+        )}
+      </div>
+    );
+  }
+
+  // ── Active ──
   return (
     <div className="ns-card p-5">
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-        <h3 className="font-semibold">Connect 同步</h3>
-        <span className="ns-pill" style={{ fontSize: 10.5 }}>準備中</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <h3 className="font-semibold">Connect 同步</h3>
+          <span className="ns-pill" style={{ fontSize: 10.5, background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}>已啟用</span>
+        </div>
+        <button className="ns-btn ghost" style={{ fontSize: 12 }} onClick={() => openDialog("show")}>
+          <Plus size={13} />新增裝置
+        </button>
       </div>
-      <p className="text-sm muted mb-4">多裝置加密同步即將推出。以下為本機的同步基礎資訊。</p>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13 }}>
-        <Stat label="裝置 ID" value={identity.deviceId.slice(0, 8)} mono />
-        <Stat label="建立時間" value={identity.createdAt.slice(0, 10)} mono />
-        <Stat label="待同步變更" value={pending === null ? "—" : `${pending} 筆`} />
+
+      {/* Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, fontSize: 13, marginBottom: 20 }}>
+        <Stat label="待同步" value={pending === null ? "—" : `${pending} 筆`} />
         <Stat label="上次同步" value={identity.lastSyncCursor ? identity.lastSyncCursor.slice(0, 10) : "尚未同步"} mono />
+        <Stat label="裝置 ID" value={identity.deviceId.slice(0, 8) + "…"} mono />
+      </div>
+
+      {/* Device list */}
+      <div style={{ fontSize: 11.5, color: "var(--ns-fg-dim)", textTransform: "uppercase", letterSpacing: 0.06, fontFamily: "var(--ns-font-mono)", marginBottom: 8 }}>
+        已信任裝置 · {devices.length}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {devices.map(dev => (
+          <div key={dev.id} style={{
+            display: "flex", alignItems: "center", gap: 10,
+            padding: "10px 14px", borderRadius: "var(--ns-r-md)",
+            background: dev.id === identity.deviceId ? "var(--ns-accent-soft)" : "var(--ns-bg-hover)",
+            border: dev.id === identity.deviceId ? "1px solid var(--ns-accent)" : "1px solid transparent",
+          }}>
+            <PlatformIcon platform={dev.platform} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 500, fontSize: 13 }}>{dev.name}</div>
+              <div className="mono muted" style={{ fontSize: 10.5 }}>{dev.id.slice(0, 8)}… · {dev.platform}</div>
+            </div>
+            {dev.id === identity.deviceId
+              ? <span style={{ fontSize: 11, color: "var(--ns-fg-muted)" }}>本機</span>
+              : <button className="ns-btn ghost icon" style={{ color: "var(--ns-neg)", padding: "4px 6px" }} onClick={() => handleRevoke(dev.id)}>
+                  <Trash size={13} />
+                </button>
+            }
+          </div>
+        ))}
+      </div>
+
+      {/* Add device dialog */}
+      {showDialog && (
+        <AddDeviceDialog
+          tab={dialogTab}
+          onTabChange={tab => {
+            setDialogTab(tab);
+            if (tab === "show" && !session) handleGenerateCode();
+          }}
+          onClose={() => setShowDialog(false)}
+          session={session}
+          sessionLoading={sessionLoading}
+          secondsLeft={secondsLeft}
+          codeDisplay={codeDisplay}
+          onGenerateCode={handleGenerateCode}
+          joinCode={joinCode}
+          onJoinCodeChange={setJoinCode}
+          joinDeviceName={joinDeviceName}
+          onJoinDeviceNameChange={setJoinDeviceName}
+          joinLoading={joinLoading}
+          joinError={joinError}
+          onJoin={handleJoin}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─────── Add Device Dialog ───────
+
+interface AddDeviceDialogProps {
+  tab: "show" | "join";
+  onTabChange: (t: "show" | "join") => void;
+  onClose: () => void;
+  session: PairingSession | null;
+  sessionLoading: boolean;
+  secondsLeft: number;
+  codeDisplay: string;
+  onGenerateCode: () => void;
+  joinCode: string;
+  onJoinCodeChange: (v: string) => void;
+  joinDeviceName: string;
+  onJoinDeviceNameChange: (v: string) => void;
+  joinLoading: boolean;
+  joinError: string | null;
+  onJoin: () => void;
+  hideShowTab?: boolean;
+}
+
+function AddDeviceDialog({
+  tab, onTabChange, onClose,
+  session, sessionLoading, secondsLeft, codeDisplay, onGenerateCode,
+  joinCode, onJoinCodeChange, joinDeviceName, onJoinDeviceNameChange,
+  joinLoading, joinError, onJoin,
+  hideShowTab,
+}: AddDeviceDialogProps) {
+  const toast = useToast();
+
+  function handleCopyCode() {
+    if (!session) return;
+    navigator.clipboard.writeText(session.code);
+    toast.success("配對碼已複製");
+  }
+
+  // Format code input automatically as XXXX-XXXX
+  function handleCodeInput(raw: string) {
+    const clean = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+    const formatted = clean.length > 4 ? clean.slice(0, 4) + "-" + clean.slice(4) : clean;
+    onJoinCodeChange(formatted);
+  }
+
+  const mins = Math.floor(secondsLeft / 60);
+  const secs = String(secondsLeft % 60).padStart(2, "0");
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 200,
+      background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center",
+    }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="ns-card" style={{ width: 480, padding: 0, overflow: "hidden" }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px 0" }}>
+          <h3 style={{ fontFamily: "var(--ns-font-display)", fontSize: 17, fontWeight: 600, margin: 0 }}>新增裝置</h3>
+          <button className="ns-btn ghost icon" onClick={onClose}><X size={16} /></button>
+        </div>
+
+        {/* Tabs */}
+        {!hideShowTab && (
+          <div style={{ display: "flex", gap: 0, padding: "14px 22px 0", borderBottom: "1px solid var(--ns-border)" }}>
+            {(["show", "join"] as const).map(t => (
+              <button key={t} onClick={() => onTabChange(t)} style={{
+                fontSize: 13, fontWeight: 500, padding: "8px 16px",
+                borderBottom: tab === t ? "2px solid var(--ns-accent)" : "2px solid transparent",
+                color: tab === t ? "var(--ns-fg)" : "var(--ns-fg-muted)",
+                background: "none", border: "none", borderRadius: 0, cursor: "pointer",
+              }}>
+                {t === "show" ? "顯示配對碼" : "輸入配對碼"}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div style={{ padding: "24px 22px 22px" }}>
+          {/* ── Show pairing code (Device A) ── */}
+          {tab === "show" && (
+            <div>
+              <p className="text-sm muted" style={{ marginBottom: 20 }}>
+                在新裝置上開啟 Northstar，選擇「我有配對碼」，輸入下方的配對碼，或掃描 QR Code。
+              </p>
+
+              {sessionLoading && (
+                <div style={{ textAlign: "center", padding: "32px 0", color: "var(--ns-fg-muted)", fontSize: 13 }}>
+                  <Spinner size={20} className="animate-spin" style={{ margin: "0 auto 8px" }} />
+                  產生配對碼中…
+                </div>
+              )}
+
+              {session && (
+                <>
+                  {/* Code */}
+                  <div style={{
+                    textAlign: "center", padding: "20px 0 16px",
+                    fontFamily: "var(--ns-font-mono)", fontSize: 38, fontWeight: 700,
+                    letterSpacing: 6, color: "var(--ns-fg)",
+                  }}>
+                    {codeDisplay}
+                  </div>
+
+                  {/* Timer */}
+                  <div style={{ textAlign: "center", fontSize: 12, color: secondsLeft < 60 ? "var(--ns-neg)" : "var(--ns-fg-muted)", marginBottom: 20 }}>
+                    {secondsLeft > 0 ? `${mins}:${secs} 後失效` : "配對碼已失效"}
+                  </div>
+
+                  {/* QR */}
+                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+                    <div style={{ padding: 14, background: "#fff", borderRadius: "var(--ns-r-md)", display: "inline-block" }}>
+                      <QRCode value={session.qrPayload} size={160} />
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                    <button className="ns-btn ghost" onClick={handleCopyCode}>
+                      <CopySimple size={13} />複製配對碼
+                    </button>
+                    {secondsLeft === 0 && (
+                      <button className="ns-btn" onClick={onGenerateCode}>
+                        <ArrowsClockwise size={13} />重新產生
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── Enter pairing code (Device B) ── */}
+          {tab === "join" && (
+            <div>
+              <p className="text-sm muted" style={{ marginBottom: 20 }}>
+                在已有資料的裝置上點「新增裝置 → 顯示配對碼」，然後在這裡輸入配對碼，或掃描 QR Code。
+              </p>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11.5, color: "var(--ns-fg-muted)", display: "block", marginBottom: 5 }}>配對碼</label>
+                <input
+                  className="ns-input"
+                  style={{ fontFamily: "var(--ns-font-mono)", fontSize: 22, letterSpacing: 4, textAlign: "center", width: "100%" }}
+                  placeholder="XXXX-XXXX"
+                  value={joinCode}
+                  maxLength={9}
+                  onChange={e => handleCodeInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && joinCode.length === 9) onJoin(); }}
+                  autoFocus
+                />
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: 11.5, color: "var(--ns-fg-muted)", display: "block", marginBottom: 5 }}>這台裝置的名稱</label>
+                <input
+                  className="ns-input"
+                  style={{ width: "100%" }}
+                  placeholder="My Mac"
+                  value={joinDeviceName}
+                  onChange={e => onJoinDeviceNameChange(e.target.value)}
+                />
+              </div>
+
+              {joinError && (
+                <div style={{ fontSize: 12, color: "var(--ns-neg)", marginBottom: 14, padding: "10px 12px", background: "var(--ns-neg-soft)", borderRadius: "var(--ns-r-sm)" }}>
+                  {joinError}
+                </div>
+              )}
+
+              <button
+                className="ns-btn primary"
+                style={{ width: "100%" }}
+                disabled={joinCode.length !== 9 || !joinDeviceName.trim() || joinLoading}
+                onClick={onJoin}
+              >
+                {joinLoading ? <Spinner size={14} className="animate-spin" /> : <CheckCircle size={14} weight="bold" />}
+                {joinLoading ? "配對中…" : "加入同步"}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
