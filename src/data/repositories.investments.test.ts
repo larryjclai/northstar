@@ -24,6 +24,7 @@ const account: Account = {
   color: null,
   statementDay: null,
   paymentDueDay: null,
+  creditPaymentPaidUntil: null,
 };
 
 const buyDraft: InvestmentDraft = {

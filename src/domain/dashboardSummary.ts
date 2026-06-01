@@ -86,6 +86,7 @@ export function buildCreditCardReminders(
     const owed = Math.max(0, -account.balance);
     if (owed <= 0) continue;
     const dueDate = nextDayOfMonthOnOrAfter(today, account.paymentDueDay);
+    if (account.creditPaymentPaidUntil && account.creditPaymentPaidUntil >= dueDate) continue;
     const daysUntilDue = Math.round((Date.parse(dueDate) - Date.parse(today.slice(0, 10))) / 86400000);
     reminders.push({
       accountId: account.id,

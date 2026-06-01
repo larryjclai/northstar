@@ -8,7 +8,7 @@
 
 import type {
   Account, LedgerTransaction, PortfolioAsset,
-  InvestmentRecord, RecurringTransaction, FinancialGoal,
+  InvestmentRecord, RecurringTransaction, FinancialGoal, AppSettings,
 } from "../../../domain/types";
 import type { SyncFields } from "../../../domain/types";
 import { loadVaultKey, decryptPayload } from "../crypto/vault";
@@ -83,6 +83,9 @@ export async function pullAndApply(
   const investments: MergeMap<InvestmentRecord> = new Map(snapshot.investmentRecords.map((r) => [r.id, r]));
   const recurring: MergeMap<RecurringTransaction> = new Map(snapshot.recurringTransactions.map((r) => [r.id, r]));
   const goals: MergeMap<FinancialGoal> = new Map((snapshot.financialGoals ?? []).map((r) => [r.id, r]));
+  let mergedSettings: AppSettings | null = null;
+  let mergedSettingsRevision: number = snapshot.settingsRevision ?? 1;
+  let mergedSettingsUpdatedAt: string = snapshot.settingsUpdatedAt ?? "";
 
   let applied = 0;
   for (let i = 0; i < foreign.length; i++) {
@@ -101,6 +104,16 @@ export async function pullAndApply(
       case "investment": changed = mergeRecord(investments, p as InvestmentRecord); break;
       case "recurring":  changed = mergeRecord(recurring, p as RecurringTransaction); break;
       case "goal":       changed = mergeRecord(goals, p as FinancialGoal); break;
+      case "settings": {
+        const s = p as { revision?: number; updatedAt?: string; settings?: AppSettings };
+        if (s.settings && (s.revision ?? 0) > mergedSettingsRevision) {
+          mergedSettings = s.settings;
+          mergedSettingsRevision = s.revision ?? 1;
+          mergedSettingsUpdatedAt = s.updatedAt ?? "";
+          changed = true;
+        }
+        break;
+      }
     }
     if (changed) applied++;
   }
@@ -115,6 +128,11 @@ export async function pullAndApply(
       investmentRecords: Array.from(investments.values()),
       recurringTransactions: Array.from(recurring.values()),
       financialGoals: Array.from(goals.values()),
+      ...(mergedSettings ? {
+        settings: mergedSettings,
+        settingsRevision: mergedSettingsRevision,
+        settingsUpdatedAt: mergedSettingsUpdatedAt,
+      } : {}),
     });
   }
 

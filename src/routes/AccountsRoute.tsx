@@ -10,7 +10,7 @@ import { convertCurrency, formatNumber, nowAsDatetimeLocal } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useNumericField } from "../hooks/useNumericField";
 
-type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color">;
+type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "creditPaymentPaidUntil" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color">;
 
 const emptyAccount: AccountFormState = {
   name: "",
@@ -21,6 +21,7 @@ const emptyAccount: AccountFormState = {
   creditLimitGroup: "",
   statementDay: null,
   paymentDueDay: null,
+  creditPaymentPaidUntil: null,
   isSharedToHousehold: false,
   loanStartDate: null,
   annualInterestRate: null,
@@ -136,6 +137,7 @@ export function AccountsRoute() {
       loanStartDate: account.loanStartDate, annualInterestRate: account.annualInterestRate, loanTerm: account.loanTerm,
       iconName: account.iconName ?? null, color: account.color ?? null,
       statementDay: account.statementDay ?? null, paymentDueDay: account.paymentDueDay ?? null,
+      creditPaymentPaidUntil: account.creditPaymentPaidUntil ?? null,
     });
     setMessage("");
     setDrawerOpen(true);

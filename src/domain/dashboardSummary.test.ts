@@ -24,6 +24,7 @@ const baseAccount: Account = {
   color: null,
   statementDay: null,
   paymentDueDay: null,
+  creditPaymentPaidUntil: null,
 };
 
 function asset(id: string, ticker: string, quantity: number, averageCost: number): PortfolioAsset {

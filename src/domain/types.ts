@@ -71,6 +71,8 @@ export interface Account extends SyncFields {
   statementDay: number | null;
   /** Credit cards: payment due day of month (1-31). Null for non-credit. */
   paymentDueDay: number | null;
+  /** Credit cards: if set, suppress the payment reminder until this due date passes. */
+  creditPaymentPaidUntil: string | null;
   isSharedToHousehold: boolean;
   loanStartDate: string | null;
   annualInterestRate: number | null;

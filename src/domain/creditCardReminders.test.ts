@@ -18,6 +18,7 @@ const card: Account = {
   creditLimitGroup: "",
   statementDay: 5,
   paymentDueDay: 22,
+  creditPaymentPaidUntil: null,
   isSharedToHousehold: false,
   loanStartDate: null,
   annualInterestRate: null,

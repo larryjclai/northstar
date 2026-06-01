@@ -28,7 +28,7 @@ jobs:
             args: --target aarch64-apple-darwin
 
           # macOS — Intel (x86_64)
-          - platform: macos-13
+          - platform: macos-latest
             args: --target x86_64-apple-darwin
 
           # Linux — produces .deb and .AppImage

@@ -40,6 +40,13 @@ export async function pushPendingChanges(
   const snapshot = await repo.exportSnapshot();
 
   // Build id→record lookup maps for each entity type.
+  const settingsPayload = {
+    id: "app_settings",
+    revision: snapshot.settingsRevision ?? 1,
+    updatedAt: snapshot.settingsUpdatedAt ?? new Date().toISOString(),
+    deletedAt: null,
+    settings: snapshot.settings,
+  };
   const lookup: Record<SyncEntity, Map<string, unknown>> = {
     account: new Map(snapshot.accounts.map((r) => [r.id, r])),
     ledger: new Map(snapshot.ledgerTransactions.map((r) => [r.id, r])),
@@ -47,6 +54,7 @@ export async function pushPendingChanges(
     investment: new Map(snapshot.investmentRecords.map((r) => [r.id, r])),
     recurring: new Map(snapshot.recurringTransactions.map((r) => [r.id, r])),
     goal: new Map((snapshot.financialGoals ?? []).map((r) => [r.id, r])),
+    settings: new Map([["app_settings", settingsPayload]]),
   };
 
   // Process in batches to stay within the Worker's 500-envelope limit.

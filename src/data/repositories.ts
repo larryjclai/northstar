@@ -52,7 +52,7 @@ export interface LedgerDraft {
   feeAmount?: number;
 }
 
-export type AccountDraft = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color">;
+export type AccountDraft = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "creditPaymentPaidUntil" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color">;
 
 export interface RecurringDraft {
   accountId: string;
@@ -196,6 +196,7 @@ export interface FinanceRepository {
   deleteFinancialGoal(id: string): Promise<void>;
   adjustAccountBalance(accountId: string, targetBalance: number, date: string, note: string): Promise<void>;
   renameMerchant(oldName: string, newName: string): Promise<void>;
+  renameCategory(oldName: string, newName: string): Promise<void>;
   renameSubcategory(category: string, oldSub: string, newSub: string): Promise<void>;
   exportSnapshot(): Promise<RepositorySnapshot>;
   importSnapshot(snapshot: RepositorySnapshot): Promise<void>;
@@ -213,6 +214,8 @@ export interface RepositorySnapshot {
   recurringTransactions: RecurringTransaction[];
   marketQuotes: StoredMarketQuote[];
   settings: AppSettings;
+  settingsRevision?: number;
+  settingsUpdatedAt?: string;
   dailyFxRates: DailyFxRate[];
   dailyPrices: DailyPrice[];
   financialGoals?: FinancialGoal[];
@@ -246,6 +249,8 @@ interface RepositoryData {
   recurringTransactions: RecurringTransaction[];
   marketQuotes: StoredMarketQuote[];
   settings: AppSettings;
+  settingsRevision: number;
+  settingsUpdatedAt: string;
   dailyFxRates: DailyFxRate[];
   dailyPrices: DailyPrice[];
   financialGoals: FinancialGoal[];
@@ -421,6 +426,7 @@ class BrowserFinanceRepository implements FinanceRepository {
         color: null,
         statementDay: null,
         paymentDueDay: null,
+        creditPaymentPaidUntil: null,
       };
       this.data.accounts.push(unassigned);
     }
@@ -860,6 +866,22 @@ class BrowserFinanceRepository implements FinanceRepository {
     await this.persist();
   }
 
+  async renameCategory(oldName: string, newName: string) {
+    const trimmed = newName.trim();
+    if (!trimmed) throw new Error("新分類名稱不能為空。");
+    this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
+      row.category === oldName ? bump({ ...row, category: trimmed }) : row,
+    );
+    const current = this.data.settings;
+    this.data.settings = {
+      ...current,
+      categories: current.categories.map((group) =>
+        group.name === oldName ? { ...group, name: trimmed } : group,
+      ),
+    };
+    await this.persist();
+  }
+
   async renameSubcategory(category: string, oldSub: string, newSub: string) {
     const trimmed = newSub.trim();
     if (!trimmed) throw new Error("新子分類名稱不能為空。");
@@ -909,6 +931,8 @@ class BrowserFinanceRepository implements FinanceRepository {
 
   async updateAppSettings(input: AppSettings) {
     this.data.settings = normalizeSettings(input);
+    this.data.settingsRevision = (this.data.settingsRevision ?? 0) + 1;
+    this.data.settingsUpdatedAt = nowIso();
     await this.persist();
   }
 
@@ -1073,6 +1097,8 @@ class BrowserFinanceRepository implements FinanceRepository {
       recurringTransactions: this.data.recurringTransactions,
       marketQuotes: this.data.marketQuotes,
       settings: this.data.settings,
+      settingsRevision: this.data.settingsRevision,
+      settingsUpdatedAt: this.data.settingsUpdatedAt,
       dailyFxRates: this.data.dailyFxRates,
       dailyPrices: this.data.dailyPrices,
       financialGoals: this.data.financialGoals,
@@ -1091,6 +1117,12 @@ class BrowserFinanceRepository implements FinanceRepository {
       investmentRecords: this.data.investmentRecords,
       recurringTransactions: this.data.recurringTransactions,
       financialGoals: this.data.financialGoals,
+      appSettings: [{
+        id: "app_settings",
+        revision: this.data.settingsRevision ?? 1,
+        updatedAt: this.data.settingsUpdatedAt ?? nowIso(),
+        deletedAt: null,
+      }],
     };
   }
 
@@ -1107,6 +1139,8 @@ class BrowserFinanceRepository implements FinanceRepository {
       recurringTransactions: snapshot.recurringTransactions,
       marketQuotes: snapshot.marketQuotes,
       settings: snapshot.settings,
+      settingsRevision: snapshot.settingsRevision,
+      settingsUpdatedAt: snapshot.settingsUpdatedAt,
       dailyFxRates: snapshot.dailyFxRates,
       dailyPrices: snapshot.dailyPrices,
       financialGoals: snapshot.financialGoals,
@@ -1400,6 +1434,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("accounts", "icon_name", "text");
     await this.ensureSqliteColumn("accounts", "color", "text");
     await this.ensureSqliteColumn("accounts", "statement_day", "integer");
+    await this.ensureSqliteColumn("accounts", "credit_payment_paid_until", "text");
     await this.ensureSqliteColumn("accounts", "payment_due_day", "integer");
     await this.ensureSqliteColumn("portfolio_assets", "holding_source", "text not null default 'transactions'");
     await this.ensureSqliteColumn("portfolio_assets", "acquisition_date", "text");
@@ -1443,7 +1478,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     return (await this.db.select<Account[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       name, currency, opening_balance as openingBalance, balance, type, credit_limit as creditLimit, credit_limit_group as creditLimitGroup, is_shared_to_household as isSharedToHousehold,
-      loan_start_date as loanStartDate, annual_interest_rate as annualInterestRate, loan_term as loanTerm, icon_name as iconName, color, statement_day as statementDay, payment_due_day as paymentDueDay
+      loan_start_date as loanStartDate, annual_interest_rate as annualInterestRate, loan_term as loanTerm, icon_name as iconName, color, statement_day as statementDay, payment_due_day as paymentDueDay,
+      credit_payment_paid_until as creditPaymentPaidUntil
       from accounts where deleted_at is null order by name`)).map((row) => ({
         ...row,
         creditLimit: row.creditLimit ?? null,
@@ -1456,22 +1492,23 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         color: row.color ?? null,
         statementDay: row.statementDay ?? null,
         paymentDueDay: row.paymentDueDay ?? null,
+        creditPaymentPaidUntil: (row as any).creditPaymentPaidUntil ?? null,
       }));
   }
 
   override async createAccount(input: AccountDraft) {
     const timestamp = nowIso();
     await this.db.execute(
-      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, statement_day, payment_due_day)
-       values ($1,$2,1,$3,$3,null,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
-      [createId("acct"), personalSpace, timestamp, input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null],
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, statement_day, payment_due_day, credit_payment_paid_until)
+       values ($1,$2,1,$3,$3,null,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+      [createId("acct"), personalSpace, timestamp, input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, null],
     );
   }
 
   override async updateAccount(id: string, input: AccountDraft) {
     await this.db.execute(
-      `update accounts set revision = revision + 1, updated_at = $1, name = $2, currency = $3, opening_balance = $4, type = $5, credit_limit = $6, credit_limit_group = $7, is_shared_to_household = $8, loan_start_date = $9, annual_interest_rate = $10, loan_term = $11, icon_name = $12, color = $13, statement_day = $14, payment_due_day = $15 where id = $16`,
-      [nowIso(), input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, id],
+      `update accounts set revision = revision + 1, updated_at = $1, name = $2, currency = $3, opening_balance = $4, type = $5, credit_limit = $6, credit_limit_group = $7, is_shared_to_household = $8, loan_start_date = $9, annual_interest_rate = $10, loan_term = $11, icon_name = $12, color = $13, statement_day = $14, payment_due_day = $15, credit_payment_paid_until = $16 where id = $17`,
+      [nowIso(), input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, input.creditPaymentPaidUntil ?? null, id],
     );
     await this.recomputeSqliteAccounts();
   }
@@ -1890,6 +1927,21 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     }
   }
 
+  override async renameCategory(oldName: string, newName: string) {
+    const trimmed = newName.trim();
+    if (!trimmed) throw new Error("新分類名稱不能為空。");
+    await this.db.execute(
+      `update ledger_transactions set category = $1, updated_at = $2, revision = revision + 1 where category = $3 and deleted_at is null`,
+      [trimmed, nowIso(), oldName],
+    );
+    const settingsRows = await this.db.select<Array<{ value: string }>>(`select value from app_settings where key = 'categories'`);
+    if (settingsRows[0]) {
+      const cats: Array<{ name: string; children: string[] }> = JSON.parse(settingsRows[0].value);
+      const updated = cats.map((g) => g.name === oldName ? { ...g, name: trimmed } : g);
+      await this.db.execute(`insert into app_settings (key, value, updated_at) values ('categories',$1,$2) on conflict(key) do update set value=excluded.value, updated_at=excluded.updated_at`, [JSON.stringify(updated), nowIso()]);
+    }
+  }
+
   override async renameSubcategory(category: string, oldSub: string, newSub: string) {
     const trimmed = newSub.trim();
     if (!trimmed) throw new Error("新子分類名稱不能為空。");
@@ -1961,6 +2013,11 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.upsertSetting("categories", JSON.stringify(settings.categories));
     await this.upsertSetting("merchants", JSON.stringify(settings.merchants));
     await this.upsertSetting("exchangeRates", JSON.stringify(settings.exchangeRates));
+    // bump revision for sync tracking
+    const metaRows = await this.db.select<Array<{ value: string }>>(`select value from app_settings where key = '__settingsMeta'`);
+    const meta = metaRows[0] ? JSON.parse(metaRows[0].value) : { revision: 0 };
+    const nextMeta = { revision: (meta.revision ?? 0) + 1, updatedAt: nowIso() };
+    await this.upsertSetting("__settingsMeta", JSON.stringify(nextMeta));
   }
 
   override async listDailyFxRates(filter?: { from?: string; to?: string; since?: string }) {
@@ -2385,6 +2442,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       this.listFinancialGoals(),
       this.listManualPriceSnapshots(),
     ]);
+    const metaRows = await this.db.select<Array<{ value: string }>>(`select value from app_settings where key = '__settingsMeta'`);
+    const meta = metaRows[0] ? JSON.parse(metaRows[0].value) : { revision: 1, updatedAt: nowIso() };
     return {
       version: 1,
       exportedAt: nowIso(),
@@ -2395,6 +2454,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       recurringTransactions: recurring,
       marketQuotes: quotes,
       settings,
+      settingsRevision: meta.revision ?? 1,
+      settingsUpdatedAt: meta.updatedAt ?? nowIso(),
       dailyFxRates: fx,
       dailyPrices: prices,
       financialGoals: goals,
@@ -2415,6 +2476,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       q("recurring_transactions"),
       q("financial_goals"),
     ]);
+    const metaRows = await this.db.select<Array<{ value: string }>>(`select value from app_settings where key = '__settingsMeta'`);
+    const meta = metaRows[0] ? JSON.parse(metaRows[0].value) : { revision: 1, updatedAt: nowIso() };
     return {
       accounts,
       ledgerTransactions: ledger,
@@ -2422,6 +2485,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       investmentRecords: investments,
       recurringTransactions: recurring,
       financialGoals: goals,
+      appSettings: [{ id: "app_settings", revision: meta.revision ?? 1, updatedAt: meta.updatedAt ?? nowIso(), deletedAt: null }],
     };
   }
 
@@ -2582,8 +2646,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   private async insertAccountRow(row: Account) {
     const now = nowIso();
     await this.db.execute(
-      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, statement_day, payment_due_day)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, statement_day, payment_due_day, credit_payment_paid_until)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
       [
         row.id,
         row.spaceId ?? personalSpace,
@@ -2606,6 +2670,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         row.color ?? null,
         row.statementDay ?? null,
         row.paymentDueDay ?? null,
+        row.creditPaymentPaidUntil ?? null,
       ],
     );
   }
@@ -2928,6 +2993,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 }
 
 function createInitialData(): RepositoryData {
+  const now = nowIso();
   return {
     accounts: [...seedAccounts],
     ledgerTransactions: [...seedLedgerTransactions],
@@ -2936,6 +3002,8 @@ function createInitialData(): RepositoryData {
     recurringTransactions: [...seedRecurringTransactions],
     marketQuotes: [] as StoredMarketQuote[],
     settings: defaultSettings,
+    settingsRevision: 1,
+    settingsUpdatedAt: now,
     dailyFxRates: [] as DailyFxRate[],
     dailyPrices: [] as DailyPrice[],
     financialGoals: [],
@@ -2971,6 +3039,8 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
     })),
     marketQuotes: data.marketQuotes ?? [],
     settings: normalizeSettings(data.settings ?? defaultSettings),
+    settingsRevision: data.settingsRevision ?? 1,
+    settingsUpdatedAt: data.settingsUpdatedAt ?? nowIso(),
     dailyFxRates: data.dailyFxRates ?? [],
     dailyPrices: data.dailyPrices ?? [],
     financialGoals: (data.financialGoals ?? []).map(normalizeFinancialGoal),

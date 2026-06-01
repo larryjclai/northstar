@@ -6,7 +6,7 @@ describe("collectPendingChanges (repository)", () => {
     const repo = createMemoryFinanceRepositoryForTests({});
     await repo.createAccount({
       name: "錢包", currency: "TWD", openingBalance: 0, type: "cash",
-      creditLimit: null, creditLimitGroup: "", statementDay: null, paymentDueDay: null,
+      creditLimit: null, creditLimitGroup: "", statementDay: null, paymentDueDay: null, creditPaymentPaidUntil: null,
       isSharedToHousehold: false, loanStartDate: null, annualInterestRate: null, loanTerm: null,
       iconName: null, color: null,
     });

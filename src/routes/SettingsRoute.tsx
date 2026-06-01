@@ -68,6 +68,8 @@ export function SettingsRoute() {
   const [form, setForm] = useState(emptySettings);
   const seededRef = useRef(false);
   const updateSettings = useRepositoryMutation((repository, input: AppSettings) => repository.updateAppSettings(input), ["settings"]);
+  const renameCategoryMutation = useRepositoryMutation((repository, input: { oldName: string; newName: string }) => repository.renameCategory(input.oldName, input.newName), ["settings", "ledger"]);
+  const renameMerchantMutation = useRepositoryMutation((repository, input: { oldName: string; newName: string }) => repository.renameMerchant(input.oldName, input.newName), ["settings", "ledger"]);
 
   useEffect(() => {
     if (!settings.data) return;
@@ -116,8 +118,8 @@ export function SettingsRoute() {
 
       {/* Settings content */}
       <main style={{ overflow: 'auto', padding: '28px 36px 100px' }}>
-        {tab === 'categories' && <SettingsCategories form={form} setForm={setForm} submit={submit} t={t} />}
-        {tab === 'merchants'  && <SettingsMerchants form={form} setForm={setForm} submit={submit} t={t} />}
+        {tab === 'categories' && <SettingsCategories form={form} setForm={setForm} submit={submit} t={t} renameCategory={(o: string, n: string) => renameCategoryMutation.mutateAsync({ oldName: o, newName: n })} />}
+        {tab === 'merchants'  && <SettingsMerchants form={form} setForm={setForm} submit={submit} t={t} renameMerchant={(o: string, n: string) => renameMerchantMutation.mutateAsync({ oldName: o, newName: n })} />}
         {tab === 'fx'         && <SettingsFX form={form} setForm={setForm} submit={submit} dailyFxRates={dailyFxRates.data || []} t={t} />}
         {tab === 'general'    && <SettingsGeneral form={form} t={t} />}
       </main>
@@ -126,7 +128,7 @@ export function SettingsRoute() {
 }
 
 // ─────── Categories Tab ───────
-function SettingsCategories({ form, setForm, submit, t }: any) {
+function SettingsCategories({ form, setForm, submit, t, renameCategory }: any) {
   const toast = useToast();
   const [editId, setEditId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -180,12 +182,22 @@ function SettingsCategories({ form, setForm, submit, t }: any) {
     toast.success("已刪除分類");
   }
 
-  function saveEdit(oldName: string, patch: any) {
-    const nextForm = { 
-      ...form, 
-      categories: form.categories.map((c: any) => c.name === oldName ? { ...c, ...patch } : c) 
-    };
-    submit(nextForm);
+  async function saveEdit(oldName: string, patch: any) {
+    if (patch.name && patch.name !== oldName) {
+      await renameCategory(oldName, patch.name);
+      // renameCategory already updates settings; merge remaining patch fields
+      const nextForm = {
+        ...form,
+        categories: form.categories.map((c: any) => c.name === oldName ? { ...c, ...patch } : c),
+      };
+      submit(nextForm);
+    } else {
+      const nextForm = {
+        ...form,
+        categories: form.categories.map((c: any) => c.name === oldName ? { ...c, ...patch } : c),
+      };
+      submit(nextForm);
+    }
     setEditId(null);
   }
 
@@ -442,7 +454,7 @@ function EditCatForm({ cat, colors, onSave, onCancel }: any) {
 }
 
 // ─────── Merchants Tab ───────
-function SettingsMerchants({ form, setForm, submit, t }: any) {
+function SettingsMerchants({ form, setForm, submit, t, renameMerchant }: any) {
   const toast = useToast();
   const [search, setSearch] = useState('');
   const [editingMerchant, setEditingMerchant] = useState<string | null>(null);
@@ -473,11 +485,10 @@ function SettingsMerchants({ form, setForm, submit, t }: any) {
     setEditValue(name);
   }
 
-  function saveEdit(oldName: string) {
+  async function saveEdit(oldName: string) {
     const next = editValue.trim();
-    if (!next) return;
-    const nextForm = { ...form, merchants: [...new Set(form.merchants.map((m: string) => m === oldName ? next : m))] };
-    submit(nextForm);
+    if (!next || next === oldName) { setEditingMerchant(null); return; }
+    await renameMerchant(oldName, next);
     setEditingMerchant(null);
     toast.success("已更新商家");
   }

@@ -1,20 +1,27 @@
-import { CaretRight, CheckCircle, Circle } from "@phosphor-icons/react";
+import { CaretRight, CheckCircle, Circle, CurrencyCircleDollar } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { formatNumber } from "../domain";
+import { formatNumber, todayInTimezone } from "../domain";
 import { useToast } from "../components/Toast";
+import { useUiPreferences } from "../state/uiPreferences";
+import type { AccountDraft } from "../data/repositories";
 
 export function ReconcileRoute() {
   const { accountId } = useParams({ from: "/cash-flow/reconcile/$accountId" });
   const navigate = useNavigate();
   const toast = useToast();
+  const timezone = useUiPreferences((s) => s.timezone);
   const { accounts, ledger } = useFinanceData();
   const [onlyUnreconciled, setOnlyUnreconciled] = useState(false);
 
   const setReviewed = useRepositoryMutation(
     (repository, input: { id: string; reviewed: boolean }) => repository.setLedgerReviewed(input.id, input.reviewed),
     ["ledger"],
+  );
+  const updateAccount = useRepositoryMutation(
+    (repository, input: { id: string } & AccountDraft) => repository.updateAccount(input.id, input),
+    ["accounts"],
   );
 
   const account = (accounts.data ?? []).find((a) => a.id === accountId);
@@ -48,11 +55,38 @@ export function ReconcileRoute() {
     }
   }
 
+  async function markPaid() {
+    if (!account?.paymentDueDay) return;
+    const today = todayInTimezone(timezone);
+    const [y, m] = today.split("-").map(Number);
+    const day = account.paymentDueDay;
+    // next occurrence of paymentDueDay on-or-after today
+    const nm = day >= Number(today.slice(8)) ? m : m === 12 ? 1 : m + 1;
+    const ny = day >= Number(today.slice(8)) ? y : m === 12 ? y + 1 : y;
+    const dueDate = `${ny}-${String(nm).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    try {
+      await updateAccount.mutateAsync({
+        id: account.id,
+        name: account.name, currency: account.currency, openingBalance: account.openingBalance,
+        type: account.type, creditLimit: account.creditLimit, creditLimitGroup: account.creditLimitGroup,
+        statementDay: account.statementDay, paymentDueDay: account.paymentDueDay,
+        creditPaymentPaidUntil: dueDate,
+        isSharedToHousehold: account.isSharedToHousehold,
+        loanStartDate: account.loanStartDate, annualInterestRate: account.annualInterestRate, loanTerm: account.loanTerm,
+        iconName: account.iconName, color: account.color,
+      });
+      toast.success(`已標記繳款，提醒將在 ${dueDate} 後再次顯示`);
+    } catch {
+      toast.error("更新失敗");
+    }
+  }
+
   if (!account) {
     return <div style={{ padding: "24px 32px" }} className="muted">找不到帳戶。</div>;
   }
 
   const owed = Math.max(0, -account.balance);
+  const isPaid = account.creditPaymentPaidUntil != null;
 
   return (
     <div style={{ height: "100%", overflow: "auto", padding: "24px 32px 100px" }}>
@@ -74,6 +108,17 @@ export function ReconcileRoute() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
+          {account.type === "credit" && account.paymentDueDay && (
+            <button
+              className={`ns-btn${isPaid ? " primary" : ""}`}
+              onClick={markPaid}
+              disabled={updateAccount.isPending}
+              title={isPaid ? `已繳款至 ${account.creditPaymentPaidUntil}` : "標記本期帳單已繳款，提醒面板暫時隱藏"}
+            >
+              <CurrencyCircleDollar size={14} weight={isPaid ? "fill" : "regular"} />
+              {isPaid ? "已繳款" : "標記已繳款"}
+            </button>
+          )}
           <button className="ns-btn" onClick={() => markAll(true)} disabled={setReviewed.isPending || unreconciled.length === 0}>全部標記已對帳</button>
         </div>
       </div>
