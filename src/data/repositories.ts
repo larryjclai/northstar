@@ -1146,6 +1146,10 @@ class BrowserFinanceRepository implements FinanceRepository {
       financialGoals: snapshot.financialGoals,
       manualPriceSnapshots: snapshot.manualPriceSnapshots,
     });
+    // Recompute balances from the merged ledger/investment data so two devices
+    // that each had different transactions converge to the same balance after sync,
+    // instead of keeping whichever device's stale stored balance "won" the merge.
+    this.recompute();
     await this.persist();
   }
 
@@ -2608,6 +2612,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       }
       await this.updateAppSettings(snapshot.settings);
       await this.db.execute("COMMIT");
+      // Recompute account balances from the just-imported ledger transactions
+      // so two devices that had different transactions converge after sync.
+      await this.recomputeSqliteAccounts();
       const elapsed = Math.round(performance.now() - t0);
       console.log(`[import] complete in ${elapsed}ms`);
     } catch (error) {
