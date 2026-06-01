@@ -2568,45 +2568,165 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     }
   }
 
+  // ── Insert helpers ────────────────────────────────────────────────────────
+  // All NOT NULL columns use defensive fallbacks. Records decrypted from the
+  // relay may have been pushed by an older app version that didn't serialise
+  // every field; JavaScript `undefined` is mapped to SQL NULL by plugin-sql,
+  // which immediately violates NOT NULL constraints. Coalescing here means we
+  // tolerate partial payloads and fill in the safest possible default rather
+  // than aborting the entire import.
+  //
+  // Fields shared by all entities (SyncFields): spaceId, revision,
+  // createdAt, updatedAt. Boolean-as-integer columns: Number(x ?? false)
+  // guards against Number(undefined) = NaN.
+
   private async insertAccountRow(row: Account) {
-    // Coalesce spaceId: envelopes pushed by older app versions may not carry
-    // the field, and plugin-sql maps undefined → NULL, which violates NOT NULL.
+    const now = nowIso();
     await this.db.execute(
       `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, statement_day, payment_due_day)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
-      [row.id, row.spaceId ?? personalSpace, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.name, row.currency, row.openingBalance, row.balance, row.type, row.creditLimit, row.creditLimitGroup, Number(row.isSharedToHousehold), row.loanStartDate ?? null, row.annualInterestRate ?? null, row.loanTerm ?? null, row.iconName ?? null, row.color ?? null, row.statementDay ?? null, row.paymentDueDay ?? null],
+      [
+        row.id,
+        row.spaceId ?? personalSpace,
+        row.revision ?? 1,
+        row.createdAt ?? now,
+        row.updatedAt ?? now,
+        row.deletedAt ?? null,
+        row.name ?? "",
+        row.currency ?? "",
+        row.openingBalance ?? 0,
+        row.balance ?? 0,
+        row.type ?? "checking",
+        row.creditLimit ?? null,
+        row.creditLimitGroup ?? "",
+        Number(row.isSharedToHousehold ?? false),
+        row.loanStartDate ?? null,
+        row.annualInterestRate ?? null,
+        row.loanTerm ?? null,
+        row.iconName ?? null,
+        row.color ?? null,
+        row.statementDay ?? null,
+        row.paymentDueDay ?? null,
+      ],
     );
   }
 
   private async insertAssetRow(row: PortfolioAsset) {
+    const now = nowIso();
     await this.db.execute(
       `insert into portfolio_assets (id, space_id, revision, created_at, updated_at, deleted_at, ticker, name, name_zh, name_en, currency, total_quantity, average_cost, holding_source, acquisition_date, asset_type, sector, industry, account_id, base_quantity)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
-      [row.id, row.spaceId ?? personalSpace, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.ticker, row.name, row.nameZh ?? null, row.nameEn ?? null, row.currency, row.totalQuantity, row.averageCost, row.holdingSource, row.acquisitionDate, row.assetType ?? null, row.sector ?? null, row.industry ?? null, row.accountId ?? null, row.baseQuantity ?? null],
+      [
+        row.id,
+        row.spaceId ?? personalSpace,
+        row.revision ?? 1,
+        row.createdAt ?? now,
+        row.updatedAt ?? now,
+        row.deletedAt ?? null,
+        row.ticker ?? "",
+        row.name ?? "",
+        row.nameZh ?? null,
+        row.nameEn ?? null,
+        row.currency ?? "",
+        row.totalQuantity ?? 0,
+        row.averageCost ?? 0,
+        row.holdingSource ?? "transactions",
+        row.acquisitionDate ?? null,
+        row.assetType ?? null,
+        row.sector ?? null,
+        row.industry ?? null,
+        row.accountId ?? null,
+        row.baseQuantity ?? null,
+      ],
     );
   }
 
   private async insertLedgerRow(row: LedgerTransaction) {
+    const now = nowIso();
     await this.db.execute(
       `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, date, name, amount, currency, original_amount, original_currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id, recurring_rule_id)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
-      [row.id, row.spaceId ?? personalSpace, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.accountId, row.date, row.name, row.amount, row.currency, row.originalAmount ?? null, row.originalCurrency ?? null, row.category, row.subcategory, row.merchant, row.entryType, row.settlementStatus, row.note, row.linkedInvestmentRecordId, row.groupId, Number(row.isReviewed), row.receiptAttachmentId, row.recurringRuleId ?? null],
+      [
+        row.id,
+        row.spaceId ?? personalSpace,
+        row.revision ?? 1,
+        row.createdAt ?? now,
+        row.updatedAt ?? now,
+        row.deletedAt ?? null,
+        row.accountId ?? "",
+        row.date ?? "",
+        row.name ?? "",
+        row.amount ?? 0,
+        row.currency ?? "",
+        row.originalAmount ?? null,
+        row.originalCurrency ?? null,
+        row.category ?? "",
+        row.subcategory ?? "",
+        row.merchant ?? "",
+        row.entryType ?? "expense",
+        row.settlementStatus ?? "settled",
+        row.note ?? "",
+        row.linkedInvestmentRecordId ?? null,
+        row.groupId ?? null,
+        Number(row.isReviewed ?? false),
+        row.receiptAttachmentId ?? null,
+        row.recurringRuleId ?? null,
+      ],
     );
   }
 
   private async insertRecurringRow(row: RecurringTransaction) {
+    const now = nowIso();
     await this.db.execute(
       `insert into recurring_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, amount, currency, category, subcategory, merchant, entry_type, settlement_status, note, frequency, day_of_month, next_run_date, is_active)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
-      [row.id, row.spaceId ?? personalSpace, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.accountId, row.amount, row.currency, row.category, row.subcategory, row.merchant, row.entryType, row.settlementStatus, row.note, row.frequency ?? "monthly", row.dayOfMonth, row.nextRunDate, Number(row.isActive)],
+      [
+        row.id,
+        row.spaceId ?? personalSpace,
+        row.revision ?? 1,
+        row.createdAt ?? now,
+        row.updatedAt ?? now,
+        row.deletedAt ?? null,
+        row.accountId ?? "",
+        row.amount ?? 0,
+        row.currency ?? "",
+        row.category ?? "",
+        row.subcategory ?? "",
+        row.merchant ?? "",
+        row.entryType ?? "expense",
+        row.settlementStatus ?? "settled",
+        row.note ?? "",
+        row.frequency ?? "monthly",
+        row.dayOfMonth ?? 1,
+        row.nextRunDate ?? "",
+        Number(row.isActive ?? true),
+      ],
     );
   }
 
   private async insertInvestmentRow(row: InvestmentRecord) {
+    const now = nowIso();
     await this.db.execute(
       `insert into investment_records (id, space_id, revision, created_at, updated_at, deleted_at, asset_id, linked_account_id, date, action, price, quantity, fee, note, is_reviewed, linked_ledger_transaction_id)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-      [row.id, row.spaceId ?? personalSpace, row.revision, row.createdAt, row.updatedAt, row.deletedAt, row.assetId, row.linkedAccountId, row.date, row.action, row.price, row.quantity, row.fee, row.note, Number(row.isReviewed), row.linkedLedgerTransactionId],
+      [
+        row.id,
+        row.spaceId ?? personalSpace,
+        row.revision ?? 1,
+        row.createdAt ?? now,
+        row.updatedAt ?? now,
+        row.deletedAt ?? null,
+        row.assetId ?? "",
+        row.linkedAccountId ?? null,
+        row.date ?? "",
+        row.action ?? "buy",
+        row.price ?? 0,
+        row.quantity ?? 0,
+        row.fee ?? 0,
+        row.note ?? "",
+        Number(row.isReviewed ?? false),
+        row.linkedLedgerTransactionId ?? null,
+      ],
     );
   }
 
