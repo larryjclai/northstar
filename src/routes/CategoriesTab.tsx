@@ -4,6 +4,12 @@ import { useMemo } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { formatNumber, type LedgerTransaction } from "../domain";
 
+function resolveColor(color: string): string {
+  if (!color.startsWith("var(")) return color;
+  const name = color.slice(4, -1).trim();
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || color;
+}
+
 export function CategoriesTab({ filterMonth, ledgerRows, appSettings, onSettingsClick }: { filterMonth: string; ledgerRows: LedgerTransaction[]; appSettings: any; onSettingsClick: () => void }) {
   const currentYear = filterMonth.slice(0, 4);
   
@@ -114,7 +120,7 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, onSettings
                   stroke="none"
                 >
                   {allCategorySpend.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                    <Cell key={`cell-${index}`} fill={resolveColor(entry.color)} />
                   ))}
                 </Pie>
                 <Tooltip 

@@ -16,7 +16,7 @@ import {
 } from "@phosphor-icons/react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ChangeEvent, ReactNode, useEffect, useMemo, useState } from "react";
-import { Bar, BarChart, ResponsiveContainer, Tooltip, Cell, PieChart, Pie } from "recharts";
+import { Bar, BarChart, ResponsiveContainer, Tooltip, Cell, PieChart, Pie, XAxis } from "recharts";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 import { CategoriesTab } from "./CategoriesTab";
 import { MerchantsTab } from "./MerchantsTab";
@@ -641,15 +641,16 @@ export function CashFlowRoute() {
           <div style={{ height: 200 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={dailyNetData}>
-                <Tooltip 
-                  cursor={{ fill: "var(--ns-bg-hover)" }}
+                <XAxis dataKey="date" hide />
+                <Tooltip
+                  cursor={{ fill: resolveColor("var(--ns-bg-hover)") }}
                   contentStyle={{ background: "var(--ns-surface)", border: "1px solid var(--ns-border)", borderRadius: 6, fontSize: 12 }}
                   formatter={(v: any) => [`NT$${formatNumber(Math.abs(v as number))}`, "Net"]}
                   labelFormatter={(v) => `${monthLabel} / ${v}`}
                 />
                 <Bar dataKey="net" radius={[2, 2, 2, 2]}>
                   {dailyNetData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.net >= 0 ? "var(--ns-pos)" : "var(--ns-neg)"} />
+                    <Cell key={`cell-${index}`} fill={resolveColor(entry.net >= 0 ? "var(--ns-pos)" : "var(--ns-neg)")} />
                   ))}
                 </Bar>
               </BarChart>
@@ -1069,7 +1070,7 @@ function EntryDrawer({
   setCounterparty: (value: string) => void;
   dueDate: string;
   setDueDate: (value: string) => void;
-  categories: Array<{ name: string; children: string[]; color?: string }>;
+  categories: Array<{ name: string; children: string[]; color?: string; iconName?: string }>;
   subcategories: string[];
   merchantSuggestions: string[];
   categoryForMerchant: (merchant: string) => { category: string; subcategory: string } | null;
@@ -1433,8 +1434,10 @@ function EntryDrawer({
                           color: active ? "#fff" : "var(--ns-fg)",
                           border: active ? "none" : "1px solid var(--ns-border)",
                           fontFamily: "inherit", transition: "all 0.12s",
+                          display: "flex", alignItems: "center", gap: 4,
                         }}
                       >
+                        {c.iconName && <span style={{ fontSize: 14 }}>{c.iconName}</span>}
                         {c.name}
                       </button>
                     );
@@ -1493,8 +1496,10 @@ function EntryDrawer({
                           color: active ? "#fff" : "var(--ns-fg)",
                           border: active ? "none" : "1px solid var(--ns-border)",
                           fontFamily: "inherit",
+                          display: "flex", alignItems: "center", gap: 4,
                         }}
                       >
+                        {c.iconName && <span style={{ fontSize: 14 }}>{c.iconName}</span>}
                         {c.name}
                       </button>
                     );
@@ -1641,6 +1646,12 @@ function fmtAmountDisplay(expr: string): string {
 
 function uniqueClean(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function resolveColor(color: string): string {
+  if (!color.startsWith("var(")) return color;
+  const name = color.slice(4, -1).trim();
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || color;
 }
 
 function buildMerchantSuggestions(merchants: string[], query: string) {

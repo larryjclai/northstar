@@ -1,7 +1,7 @@
 import { CaretLeft, Trash } from "@phosphor-icons/react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { useFinanceData } from "../data/hooks";
 import { formatNumber, type LedgerTransaction } from "../domain";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
@@ -20,6 +20,12 @@ export function CategoryDetailRoute() {
   const category = appSettings?.categories?.find((c) => c.name === categoryName);
   const color = category?.color ?? "var(--ns-accent)";
   const icon = category?.iconName ?? "📦";
+
+  function resolveColor(c: string): string {
+    if (!c.startsWith("var(")) return c;
+    const name = c.slice(4, -1).trim();
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || c;
+  }
 
   const rows = useMemo(
     () =>
@@ -68,15 +74,16 @@ export function CategoryDetailRoute() {
               <div style={{ height: 160 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={monthlyData}>
-                    <Tooltip 
-                      cursor={{ fill: "var(--ns-bg-hover)" }}
+                    <XAxis dataKey="month" hide />
+                    <Tooltip
+                      cursor={{ fill: resolveColor("var(--ns-bg-hover)") }}
                       contentStyle={{ background: "var(--ns-surface)", border: "1px solid var(--ns-border)", borderRadius: 6, fontSize: 12 }}
                       formatter={(v: any) => [`NT$${formatNumber(v as number)}`, "支出"]}
                       labelFormatter={(v) => String(v).replace("-", " / ")}
                     />
                     <Bar dataKey="amount" radius={[2, 2, 0, 0]}>
                       {monthlyData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={color} />
+                        <Cell key={`cell-${index}`} fill={resolveColor(color)} />
                       ))}
                     </Bar>
                   </BarChart>

@@ -130,7 +130,7 @@ function SettingsCategories({ form, setForm, submit, t }: any) {
   const toast = useToast();
   const [editId, setEditId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const [newCat, setNewCat] = useState({ name: '', icon: '📦', color: '#9fe870', budget: '' });
+  const [newCat, setNewCat] = useState({ name: '', iconName: '📦', color: '#9fe870', budget: '' });
   const [expandId, setExpandId] = useState<string | null>(null);
   // Inline subcategory editing (prompt() is unsupported in the Tauri webview).
   const [editingSub, setEditingSub] = useState<{ cat: string; sub: string } | null>(null);
@@ -165,10 +165,10 @@ function SettingsCategories({ form, setForm, submit, t }: any) {
 
   function addCategory() {
     if (!newCat.name) return;
-    const nextCat = { name: newCat.name, children: [], icon: newCat.icon, color: newCat.color, budget: newCat.budget ? +newCat.budget : undefined };
+    const nextCat = { name: newCat.name, children: [], iconName: newCat.iconName, color: newCat.color, budget: newCat.budget ? +newCat.budget : undefined };
     const nextForm = { ...form, categories: [...form.categories, nextCat] };
     submit(nextForm);
-    setNewCat({ name: '', icon: '📦', color: '#9fe870', budget: '' });
+    setNewCat({ name: '', iconName: '📦', color: '#9fe870', budget: '' });
     setAdding(false);
     toast.success("已新增分類");
   }
@@ -223,13 +223,13 @@ function SettingsCategories({ form, setForm, submit, t }: any) {
                   background:'var(--ns-bg-hover)',
                   border:'1px solid var(--ns-border)',
                   cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
-                  {newCat.icon}
+                  {newCat.iconName}
                 </PopoverTrigger>
                 <PopoverContent className="z-[150] shadow-xl rounded-xl w-auto p-0">
-                  <EmojiPicker 
-                    onEmojiClick={(emojiData) => setNewCat(n=>({...n,icon: emojiData.emoji}))} 
-                    width={300} 
-                    height={400} 
+                  <EmojiPicker
+                    onEmojiClick={(emojiData) => setNewCat(n=>({...n,iconName: emojiData.emoji}))}
+                    width={300}
+                    height={400}
                   />
                 </PopoverContent>
               </Popover>
@@ -280,7 +280,7 @@ function SettingsCategories({ form, setForm, submit, t }: any) {
               }}>
                 <div style={{ display:'flex', alignItems:'center', gap:12, cursor:'pointer' }} onClick={() => setExpandId(expandId===c.name ? null : c.name)}>
                   <div style={{ width:34,height:34,borderRadius:'var(--ns-r-sm)',fontSize:18,
-                    background:(c.color||'#868685')+'28',display:'flex',alignItems:'center',justifyContent:'center' }}>{c.icon||'📦'}</div>
+                    background:(c.color||'#868685')+'28',display:'flex',alignItems:'center',justifyContent:'center' }}>{c.iconName||'📦'}</div>
                   <div>
                     <div style={{ fontSize:13.5,fontWeight:500 }}>{c.name}</div>
                     <div className="muted mono" style={{ fontSize:10.5 }}>{c.children?.length||0} {t('settings.subcategories')}</div>
@@ -388,7 +388,7 @@ function SettingsCategories({ form, setForm, submit, t }: any) {
 
 function EditCatForm({ cat, colors, onSave, onCancel }: any) {
   const [name,   setName]   = useState(cat.name);
-  const [icon,   setIcon]   = useState(cat.icon || '📦');
+  const [icon,   setIcon]   = useState(cat.iconName || '📦');
   const [color,  setColor]  = useState(cat.color || '#868685');
   const [budget, setBudget] = useState(cat.budget || '');
   return (
@@ -432,7 +432,7 @@ function EditCatForm({ cat, colors, onSave, onCancel }: any) {
         </div>
         <div style={{display:'flex',gap:8,marginTop:12}}>
           <button className="ns-btn ghost" style={{fontSize:12}} onClick={onCancel}>取消</button>
-          <button className="ns-btn primary" style={{fontSize:12}} onClick={()=>onSave({name,icon,color,budget:budget?+budget:null})}>
+          <button className="ns-btn primary" style={{fontSize:12}} onClick={()=>onSave({name,iconName:icon,color,budget:budget?+budget:null})}>
             <CheckCircle size={14} weight="bold" />儲存
           </button>
         </div>
