@@ -1318,9 +1318,62 @@ function openBrowserRepositoryDb(): Promise<IDBDatabase> {
   });
 }
 
+/**
+ * Serialize every access to a Tauri SQL `Database` through one in-process queue.
+ *
+ * `@tauri-apps/plugin-sql` runs each execute()/select() against a sqlx
+ * connection *pool* (up to 10 connections). `importSnapshot()` issues
+ * BEGIN / …many statements… / COMMIT as *separate* execute() calls, which is
+ * only correct if every one of those calls lands on the same pooled connection.
+ *
+ * Auto-sync is triggered by the window-focus event — and that very same event
+ * makes React Query refetch every active query (listAccounts, listLedger…).
+ * Those reads run concurrently with the import and can grab the connection
+ * *between* two of the import's statements. The next statement then runs on a
+ * different connection (outside the transaction), while the original connection
+ * is left holding a dangling, never-committed write transaction. That stranded
+ * transaction keeps the WAL write lock, so every later write fails with
+ * "database is locked" (code: 5) until the process restarts.
+ *
+ * This is in-memory pool state, not on-disk data — which is why deleting
+ * northstar.db doesn't clear it. Chaining every operation onto a single promise
+ * means no two ever run concurrently, so the pool only ever hands out ONE
+ * connection (it grows past one connection only under concurrent demand). With
+ * a single connection the whole BEGIN…COMMIT can never be split, and the lock
+ * is impossible. This app has exactly one Database.load() and one repository
+ * singleton, so routing all access through here covers every code path.
+ */
+function serializeDatabase(db: Database): Database {
+  let tail: Promise<unknown> = Promise.resolve();
+  const run = <T,>(op: () => Promise<T>): Promise<T> => {
+    // Run `op` once the previous operation settles (success OR failure), so a
+    // single failed query never skips or blocks the ones queued behind it.
+    const result = tail.then(op, op);
+    tail = result.then(noop, noop);
+    return result;
+  };
+  return new Proxy(db, {
+    get(target, prop, receiver) {
+      if (prop === "execute") {
+        return (sql: string, values?: unknown[]) => run(() => target.execute(sql, values));
+      }
+      if (prop === "select") {
+        return (sql: string, values?: unknown[]) => run(() => target.select(sql, values));
+      }
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+    },
+  });
+}
+
+function noop() { /* swallow */ }
+
 class TauriSqlFinanceRepository extends BrowserFinanceRepository {
-  constructor(private readonly db: Database) {
+  private readonly db: Database;
+
+  constructor(db: Database) {
     super();
+    this.db = serializeDatabase(db);
   }
 
   override async initialize() {
