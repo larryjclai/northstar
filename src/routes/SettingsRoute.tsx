@@ -808,6 +808,10 @@ function ConnectStatus() {
   const [showBackups, setShowBackups] = useState(false);
   const queryClient = useQueryClient();
 
+  // Device removal: inline two-click confirm (window.confirm is unsupported in
+  // the Tauri webview, so the original confirm()-gated handler did nothing).
+  const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
+
   // Load backups list when panel opens
   useEffect(() => {
     if (!showBackups) return;
@@ -924,13 +928,15 @@ function ConnectStatus() {
   // ── Revoke device ──
   async function handleRevoke(deviceId: string) {
     if (!account) return;
-    if (!window.confirm("確定要移除這台裝置的同步存取權嗎？")) return;
     try {
       await revokeDevice(account.apiSecret, deviceId);
       setDevices(d => d.filter(dev => dev.id !== deviceId));
+      setConfirmRevokeId(null);
       toast.success("裝置已移除");
-    } catch {
-      toast.error("移除失敗");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : typeof e === "string" ? e : "移除失敗";
+      console.error("[connect] revoke device failed:", e);
+      toast.error("移除失敗：" + msg);
     }
   }
 
@@ -1125,9 +1131,14 @@ function ConnectStatus() {
             </div>
             {dev.id === identity.deviceId
               ? <span style={{ fontSize: 11, color: "var(--ns-fg-muted)" }}>本機</span>
-              : <button className="ns-btn ghost icon" style={{ color: "var(--ns-neg)", padding: "4px 6px" }} onClick={() => handleRevoke(dev.id)}>
-                  <Trash size={13} />
-                </button>
+              : confirmRevokeId === dev.id
+                ? <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <button className="ns-btn ghost" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => setConfirmRevokeId(null)}>取消</button>
+                    <button className="ns-btn" style={{ fontSize: 11, padding: "4px 8px", color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} onClick={() => handleRevoke(dev.id)}>確認移除</button>
+                  </div>
+                : <button className="ns-btn ghost icon" style={{ color: "var(--ns-neg)", padding: "4px 6px" }} onClick={() => setConfirmRevokeId(dev.id)}>
+                    <Trash size={13} />
+                  </button>
             }
           </div>
         ))}

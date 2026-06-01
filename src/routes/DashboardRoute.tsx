@@ -226,7 +226,7 @@ export function DashboardRoute() {
       </div>
 
       {/* Row 1 · Net worth + KPI stack */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(200px,280px)", gap: 16, marginBottom: 16 }}>
+      <div className="ns-dash-row1">
         <div className="ns-card" style={{ padding: 22, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{ marginBottom: 14 }}>
             <div className="ns-eyebrow" style={{ marginBottom: 5 }}>Net worth · {primaryCurrency}</div>
@@ -273,7 +273,7 @@ export function DashboardRoute() {
         </div>
 
         {/* KPI stack */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div className="ns-dash-kpi-stack">
           <KpiCard label="投資" value={formatMoney(marketValue, primaryCurrency)} color="var(--ns-chart-1)" />
           <KpiCard label="現金 / 存款" value={formatMoney(availableCash, primaryCurrency)} color="var(--ns-chart-2)" />
           {alternativeAssets > 0 ? <KpiCard label="其他資產" value={formatMoney(alternativeAssets, primaryCurrency)} color="var(--ns-chart-4)" /> : null}
@@ -301,7 +301,7 @@ export function DashboardRoute() {
       </div>
 
       {/* Row 2 · Budget + Upcoming */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(200px,1.4fr) minmax(160px,1fr)", gap: 16, marginBottom: 16 }}>
+      <div className="ns-dash-row2">
         <div className="ns-card">
           <SectionHead eyebrow={`Budget · ${todayLabel.slice(0, todayLabel.indexOf("月") + 1) || "本月"}`} title="預算進度" action={<Link to="/cash-flow/categories" className="ns-btn ghost" style={{ fontSize: 12 }}>管理分類 →</Link>} />
           {budgetCats.length === 0 ? (
@@ -392,7 +392,7 @@ export function DashboardRoute() {
       ) : null}
 
       {/* Row 3 · Allocation + Goals + Market */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(140px,1.15fr) minmax(140px,1fr) minmax(120px,0.82fr)", gap: 16, marginBottom: 16 }}>
+      <div className="ns-dash-row3">
         {/* Allocation */}
         <div className="ns-card">
           <SectionHead eyebrow="Asset allocation" title="資產配置" />

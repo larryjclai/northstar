@@ -269,6 +269,17 @@ async function createFinanceRepository(): Promise<FinanceRepository> {
   if (isTauriRuntime()) {
     const mod = await import("@tauri-apps/plugin-sql");
     const db = await mod.default.load("sqlite:northstar.db");
+    // WAL mode lets reads (React Query refetches) run concurrently with the
+    // long write transaction in importSnapshot(); busy_timeout makes SQLite
+    // wait-and-retry for up to 5s instead of immediately failing with
+    // "database is locked" (SQLITE_BUSY, code 5) when two operations overlap.
+    try {
+      await db.execute("PRAGMA journal_mode=WAL;");
+      await db.execute("PRAGMA busy_timeout=5000;");
+      await db.execute("PRAGMA foreign_keys=ON;");
+    } catch (e) {
+      console.warn("[db] failed to set pragmas", e);
+    }
     const repository = new TauriSqlFinanceRepository(db);
     await repository.initialize();
     return repository;
