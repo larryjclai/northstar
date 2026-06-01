@@ -1507,6 +1507,15 @@ function UpdateChecker() {
   const isDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [currentVersion, setCurrentVersion] = useState<string | null>(null);
+
+  // Load the current app version from Tauri on mount (desktop only).
+  useEffect(() => {
+    if (!isDesktop) return;
+    import("@tauri-apps/api/app").then(({ getVersion }) =>
+      getVersion().then(setCurrentVersion).catch(() => {})
+    );
+  }, [isDesktop]);
 
   async function checkForUpdates() {
     setBusy(true);
@@ -1527,7 +1536,7 @@ function UpdateChecker() {
         !isDesktop
           ? "檢查更新僅在桌面版可用。"
           : noRelease
-            ? "尚未發布正式版本，目前無可用更新。"
+            ? "已是最新版本。"
             : `無法檢查更新：${detail}`,
       );
     } finally {
@@ -1537,7 +1546,12 @@ function UpdateChecker() {
 
   return (
     <div className="ns-card p-5">
-      <h3 className="font-semibold mb-2">應用程式更新</h3>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
+        <h3 className="font-semibold">應用程式更新</h3>
+        {currentVersion && (
+          <span className="mono muted" style={{ fontSize: 11.5 }}>v{currentVersion}</span>
+        )}
+      </div>
       <p className="text-sm muted mb-4">檢查並安裝 Northstar 的最新桌面版本。所有更新都經過簽章驗證。</p>
       <div className="flex items-center gap-3 flex-wrap">
         <button className="ns-btn primary" onClick={checkForUpdates} disabled={busy}>
