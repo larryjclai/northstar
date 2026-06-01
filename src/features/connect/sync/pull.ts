@@ -36,18 +36,26 @@ function mergeRecord<T extends SyncFields>(map: MergeMap<T>, incoming: T): boole
 /**
  * Pull and apply all envelopes since `cursor` from the device's own perspective.
  * Skips envelopes that originated from this device (already applied locally).
+ *
+ * `opts.includeOwnDevice` disables that skip — used by the full-recovery flow,
+ * where the local DB was wiped, so even records this device originally pushed
+ * (and which exist on the relay only under this device's id) must be pulled
+ * back in.
  */
 export async function pullAndApply(
   repo: FinanceRepository,
   account: SyncAccount,
   cursor: string,
   deviceId: string,
+  opts: { includeOwnDevice?: boolean } = {},
 ): Promise<SyncPullResult> {
   const vaultKey = await loadVaultKey();
   if (!vaultKey) throw new Error("Vault key not initialised.");
 
   const result = await pullEnvelopes(account.apiSecret, cursor);
-  const foreign = result.envelopes.filter((e: EnvelopeRecord) => e.deviceId !== deviceId);
+  const foreign = opts.includeOwnDevice
+    ? result.envelopes
+    : result.envelopes.filter((e: EnvelopeRecord) => e.deviceId !== deviceId);
 
   if (foreign.length === 0) {
     return { pulled: 0, applied: 0, nextCursor: result.nextCursor };

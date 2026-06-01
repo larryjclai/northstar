@@ -75,6 +75,59 @@ async function _doSync(repo: FinanceRepository): Promise<SyncResult> {
   };
 }
 
+/**
+ * Re-download the entire dataset from the relay and rebuild local state,
+ * ignoring the stored pull cursor.
+ *
+ * This is the recovery path for a wiped or reinstalled device. The pull cursor
+ * lives in localStorage (not in the SQLite DB), so deleting northstar.db leaves
+ * the cursor pointing "up to date" — a normal sync would then fetch only
+ * changes newer than that stale cursor and never restore the bulk of the data
+ * already on the server.
+ *
+ * Pull-only by design: it deliberately does NOT push first, so an empty/seeded
+ * local DB can't upload its placeholder state and pollute the relay. It also
+ * pulls envelopes from *every* device (includeOwnDevice) and loops until the
+ * relay is drained, since each page is capped at 200 envelopes.
+ */
+export async function forceFullResync(repo: FinanceRepository): Promise<SyncResult> {
+  if (_syncRunning) throw new Error("同步正在進行中，請稍候");
+  _syncRunning = true;
+
+  try {
+    const account = loadSyncAccount();
+    if (!account) throw new Error("尚未設定同步帳號");
+
+    const vaultKey = await loadVaultKey();
+    if (!vaultKey) throw new Error("加密金鑰尚未初始化");
+
+    const device = getOrCreateDeviceIdentity();
+
+    // Pre-pull backup so the user can revert if the recovery looks wrong.
+    const snapshot = await repo.exportSnapshot();
+    await saveBackup(snapshot).catch(console.warn);
+
+    let cursor = "";
+    let pulled = 0;
+    let applied = 0;
+    // Drain the relay one page at a time. pullAndApply re-exports the (now
+    // updated) local state on each call, so pages accumulate correctly.
+    for (;;) {
+      const page = await pullAndApply(repo, account, cursor, device.deviceId, { includeOwnDevice: true });
+      pulled += page.pulled;
+      applied += page.applied;
+      if (page.pulled === 0 || page.nextCursor === cursor) break;
+      cursor = page.nextCursor;
+    }
+
+    if (cursor) setLastSyncCursor(cursor);
+
+    return { pushed: 0, pulled, applied };
+  } finally {
+    _syncRunning = false;
+  }
+}
+
 /** True if the current environment is a Tauri desktop app. */
 export function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;

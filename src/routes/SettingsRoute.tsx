@@ -29,7 +29,7 @@ import {
 import {
   initiatePairing, joinWithCode, type PairingSession,
 } from "../features/connect/sync/pairing-flow";
-import { runSync } from "../features/connect/sync/sync-manager";
+import { runSync, forceFullResync } from "../features/connect/sync/sync-manager";
 import { listBackups, restoreBackup, type BackupEntry } from "../features/connect/sync/backup";
 import { useSyncStatus } from "../state/syncStatus";
 import {
@@ -812,6 +812,9 @@ function ConnectStatus() {
   // the Tauri webview, so the original confirm()-gated handler did nothing).
   const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
 
+  // Force-full-resync inline confirm (window.confirm is a no-op in Tauri webview).
+  const [confirmFullResync, setConfirmFullResync] = useState(false);
+
   // Load backups list when panel opens
   useEffect(() => {
     if (!showBackups) return;
@@ -987,6 +990,27 @@ function ConnectStatus() {
     }
   }
 
+  // ── Force full re-download (recovery for a wiped/reinstalled device) ──
+  // Two-click inline confirm because window.confirm is a no-op in the Tauri webview.
+  async function handleForceFullResync() {
+    if (syncStatus.phase === "pushing" || syncStatus.phase === "pulling") return;
+    setConfirmFullResync(false);
+    syncStatus.setPhase("pulling");
+    try {
+      const repo = await getFinanceRepository();
+      const result = await forceFullResync(repo);
+      syncStatus.setSyncDone(result.pushed, result.pulled, result.applied);
+      await queryClient.invalidateQueries();
+      toast.success(`已從伺服器完整重新下載，套用 ${result.applied} 筆`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message
+        : typeof e === "string" ? e
+        : (e as { message?: string })?.message ?? JSON.stringify(e) ?? "重新下載失敗";
+      console.error("[sync] force full resync failed:", e);
+      syncStatus.setError(msg);
+    }
+  }
+
   // ── Restore backup ──
   async function handleRestore(timestamp: string) {
     if (!window.confirm("確定要還原到此備份？目前的資料將被覆蓋。")) return;
@@ -1110,6 +1134,32 @@ function ConnectStatus() {
         <Stat label="待同步" value={pending === null ? "—" : `${pending} 筆`} />
         <Stat label="上次同步" value={syncStatus.lastSyncAt ? syncStatus.lastSyncAt.slice(0, 10) : "尚未同步"} mono />
         <Stat label="裝置 ID" value={identity.deviceId.slice(0, 8) + "…"} mono />
+      </div>
+
+      {/* Recovery: re-download everything from the server. For a device whose
+          local data was wiped/reinstalled — a normal sync won't restore it
+          because the saved cursor makes the device think it's already current. */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+        padding: "10px 12px", marginBottom: 16, borderRadius: "var(--ns-r-md)",
+        background: "var(--ns-bg-hover)", border: "1px solid var(--ns-border)" }}>
+        <div style={{ fontSize: 11.5, color: "var(--ns-fg-muted)", lineHeight: 1.5 }}>
+          資料遺失或換新裝置？從伺服器完整重新下載所有資料（只下載、不會覆蓋伺服器）。
+        </div>
+        {confirmFullResync
+          ? <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+              <button className="ns-btn ghost" style={{ fontSize: 12 }} onClick={() => setConfirmFullResync(false)}>取消</button>
+              <button className="ns-btn" style={{ fontSize: 12 }}
+                onClick={handleForceFullResync}
+                disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
+                確認重新下載
+              </button>
+            </div>
+          : <button className="ns-btn ghost" style={{ fontSize: 12, flexShrink: 0 }}
+              onClick={() => setConfirmFullResync(true)}
+              disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
+              <ArrowsClockwise size={13} />完整重新下載
+            </button>
+        }
       </div>
 
       {/* Device list */}
