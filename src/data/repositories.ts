@@ -2491,6 +2491,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       }
       if (snapshot.financialGoals?.length) {
         for (const goal of snapshot.financialGoals) {
+          const now = nowIso();
           await this.db.execute(
             `insert into financial_goals (id, space_id, revision, created_at, updated_at, deleted_at, kind, name, currency,
                annual_spending, withdrawal_rate, expected_annual_return, monthly_contribution, target_amount, start_date,
@@ -2500,23 +2501,20 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
              values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`,
             [
               goal.id,
-              goal.spaceId,
-              goal.revision,
-              goal.createdAt,
-              goal.updatedAt,
-              goal.deletedAt,
-              goal.kind,
-              goal.name,
-              goal.currency,
-              goal.annualSpending,
-              goal.withdrawalRate,
-              goal.expectedAnnualReturn,
-              goal.monthlyContribution,
-              goal.targetAmount,
-              goal.startDate,
-              // Phase-7 extension columns. We coalesce to null for older
-              // snapshots that don't carry these fields so the prepared
-              // statement still gets a valid bind argument.
+              goal.spaceId ?? personalSpace,
+              goal.revision ?? 1,
+              goal.createdAt ?? now,
+              goal.updatedAt ?? now,
+              goal.deletedAt ?? null,
+              goal.kind ?? "fire",
+              goal.name ?? "",
+              goal.currency ?? "",
+              goal.annualSpending ?? 0,
+              goal.withdrawalRate ?? 0.04,
+              goal.expectedAnnualReturn ?? 0.07,
+              goal.monthlyContribution ?? 0,
+              goal.targetAmount ?? null,
+              goal.startDate ?? now.slice(0, 10),
               goal.currentAge ?? null,
               goal.retirementAge ?? null,
               goal.planThroughAge ?? null,
@@ -2536,9 +2534,10 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       }
       if (snapshot.manualPriceSnapshots?.length) {
         for (const row of snapshot.manualPriceSnapshots) {
+          const now = nowIso();
           await this.db.execute(
             `insert into manual_price_snapshots (id, asset_id, date, price, note, created_at) values ($1,$2,$3,$4,$5,$6)`,
-            [row.id, row.assetId, row.date, row.price, row.note, row.createdAt],
+            [row.id, row.assetId ?? "", row.date ?? "", row.price ?? 0, row.note ?? "", row.createdAt ?? now],
           );
         }
         console.log(`[import] inserted ${snapshot.manualPriceSnapshots.length} manual_price_snapshots`);
