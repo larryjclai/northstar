@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { formatNumber, todayInTimezone } from "../domain";
+import { convertCurrency, formatMoney, formatNumber, todayInTimezone } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { useToast } from "../components/Toast";
@@ -11,11 +11,12 @@ import { useToast } from "../components/Toast";
 // Removed Mock Data
 
 export function CategoriesRoute() {
-  const { ledger, settings } = useFinanceData();
+  const { ledger, settings, dailyFxRates } = useFinanceData();
   const timezone = useUiPreferences((state) => state.timezone);
   const ledgerRows = ledger.data ?? [];
   const appSettings = settings.data;
   const primaryCurrency = appSettings?.primaryCurrency ?? "TWD";
+  const fxHistory = dailyFxRates.data ?? [];
 
   const [filterMonth, setFilterMonth] = useState(() => todayInTimezone(timezone).slice(0, 7));
   const [timeRange, setTimeRange] = useState<"month" | "ytd" | "custom">("month");
@@ -45,7 +46,9 @@ export function CategoriesRoute() {
   }, [ledgerRows, filterMonth, timeRange, timezone]);
 
   const allExpenseRows = filteredRows.filter((row) => row.entryType === "expense");
-  const totalExpense = allExpenseRows.reduce((sum, row) => sum + Math.abs(row.amount), 0);
+  const convertedAmount = (row: (typeof allExpenseRows)[number]) => convertCurrency(Math.abs(row.amount), row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date });
+  const missingFxPairs = [...new Set(allExpenseRows.filter((row) => convertedAmount(row) === null).map((row) => `${row.currency}/${primaryCurrency}`))];
+  const totalExpense = allExpenseRows.reduce((sum, row) => sum + (convertedAmount(row) ?? 0), 0);
   const expenseRows = selectedCategory
     ? allExpenseRows.filter((row) => row.category === selectedCategory)
     : allExpenseRows;
@@ -56,7 +59,7 @@ export function CategoriesRoute() {
       if (!row.category) continue;
       const current = map.get(row.category) ?? { amount: 0, count: 0 };
       map.set(row.category, { 
-        amount: current.amount + Math.abs(row.amount),
+        amount: current.amount + (convertedAmount(row) ?? 0),
         count: current.count + 1
       });
     }
@@ -82,7 +85,7 @@ export function CategoriesRoute() {
           emoji
         };
       });
-  }, [allExpenseRows, appSettings]);
+  }, [allExpenseRows, appSettings, fxHistory, primaryCurrency]);
 
   // Aggregate stats
   const totalBudget = categoryStats.reduce((sum, cat) => sum + (cat.budget || cat.amount), 0);
@@ -129,14 +132,15 @@ export function CategoriesRoute() {
 
       {/* 4 Summary Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
-        <SummaryCard label="已消費" value={`NT$${formatNumber(totalExpense)}`} />
-        <SummaryCard label="預算合計" value={`NT$${formatNumber(totalBudget)}`} />
+        <SummaryCard label="已消費" value={formatMoney(totalExpense, primaryCurrency)} />
+        <SummaryCard label="預算合計" value={formatMoney(totalBudget, primaryCurrency)} />
         <SummaryCard label="預算使用率" value={`${usagePercent.toFixed(1)}%`} />
         <SummaryCard 
           label="超支分類" 
           value={overSpentCats.length > 0 ? `${overSpentCats.length} (${overSpentCats[0].name})` : "0"} 
         />
       </div>
+      {missingFxPairs.length ? <div className="ns-surface" style={{ padding: "10px 14px", marginBottom: 16, fontSize: 13 }}>總額不完整：缺少 {missingFxPairs.join("、")} 匯率。</div> : null}
 
       <div style={{ display: "flex", gap: 24 }}>
         {/* Left: Donut Chart */}
@@ -263,18 +267,18 @@ export function CategoriesRoute() {
                   
                   {/* Spent */}
                   <div style={{ flex: 1, textAlign: "right", fontSize: 15, fontWeight: 500 }}>
-                    NT${formatNumber(cat.amount)}
+                    {formatMoney(cat.amount, primaryCurrency)}
                   </div>
                   
                   {/* Budget */}
                   <div style={{ flex: "0 0 240px", paddingLeft: 48 }}>
                     <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
-                      {hasBudget ? `NT$${formatNumber(cat.budget!)}` : "-"}
+                      {hasBudget ? formatMoney(cat.budget!, primaryCurrency) : "-"}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--ns-fg-muted)" }}>
                       {hasBudget ? (
                         isOver ? (
-                          <span style={{ color: "var(--ns-neg)" }}>{percent.toFixed(0)}% · 超支 NT${formatNumber(cat.amount - cat.budget!)}</span>
+                          <span style={{ color: "var(--ns-neg)" }}>{percent.toFixed(0)}% · 超支 {formatMoney(cat.amount - cat.budget!, primaryCurrency)}</span>
                         ) : (
                           <span>{percent.toFixed(0)}%</span>
                         )

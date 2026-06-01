@@ -209,6 +209,7 @@ interface Envelope {
   revision: number;
   encryptedPayload: string;
   updatedAt: string;
+  sequence?: number;
 }
 
 async function handlePushEnvelopes(
@@ -224,9 +225,9 @@ async function handlePushEnvelopes(
 
   const stmt = env.DB.prepare(
     `INSERT INTO sync_envelopes
-       (id, user_id, device_id, entity, entity_id, revision, encrypted_payload, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(user_id, entity, entity_id, revision) DO NOTHING`,
+       (id, user_id, device_id, entity, entity_id, revision, encrypted_payload, updated_at, relay_sequence)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(relay_sequence), 0) + 1 FROM sync_envelopes))
+     ON CONFLICT(user_id, entity, entity_id, revision, device_id) DO NOTHING`,
   );
   const batch = envelopes.map((e) =>
     stmt.bind(e.id, userId, e.deviceId, e.entity, e.entityId, e.revision, e.encryptedPayload, e.updatedAt),
@@ -241,15 +242,16 @@ async function handlePullEnvelopes(
   env: Env,
   userId: string,
 ): Promise<Response> {
-  const cursor = url.searchParams.get("cursor") ?? "";
+  const cursor = Number(url.searchParams.get("cursor") ?? "0") || 0;
   const limit = Math.min(Number(url.searchParams.get("limit") ?? "200"), 500);
 
   const result = await env.DB.prepare(
     `SELECT id, device_id as deviceId, entity, entity_id as entityId,
-            revision, encrypted_payload as encryptedPayload, updated_at as updatedAt
+            revision, encrypted_payload as encryptedPayload, updated_at as updatedAt,
+            relay_sequence as sequence
      FROM sync_envelopes
-     WHERE user_id = ? AND updated_at > ?
-     ORDER BY updated_at ASC
+     WHERE user_id = ? AND relay_sequence > ?
+     ORDER BY relay_sequence ASC
      LIMIT ?`,
   )
     .bind(userId, cursor, limit)
@@ -257,7 +259,7 @@ async function handlePullEnvelopes(
 
   const envelopes = result.results;
   const nextCursor =
-    envelopes.length > 0 ? envelopes[envelopes.length - 1].updatedAt : cursor;
+    envelopes.length > 0 ? String(envelopes[envelopes.length - 1].sequence) : String(cursor);
 
   return json({ envelopes, nextCursor, count: envelopes.length });
 }

@@ -7,6 +7,7 @@ import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { getFinanceRepository, type RepositorySnapshot } from "../data/repositories";
 import { COMMON_TIMEZONES, isValidTimezone } from "../domain";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../domain";
+import type { SyncConflictRecord } from "../domain/sync";
 import { useRefreshFxRates } from "../features/market-data/useMarketRefresh";
 import { useUiPreferences, type ClockMode, type NameLocalePreference } from "../state/uiPreferences";
 import { getOrCreateDeviceIdentity } from "../state/deviceIdentity";
@@ -97,14 +98,14 @@ export function SettingsRoute() {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', height: '100%', overflow: 'hidden' }}>
+    <div className="ns-settings-layout">
       {/* Settings sidebar */}
-      <aside style={{ borderRight: '1px solid var(--ns-border)', padding: '22px 12px', overflowY: 'auto', background: 'var(--ns-surface)' }}>
+      <aside className="ns-settings-sidebar">
         <div style={{ padding: '0 8px 16px' }}>
           <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Settings</div>
           <h2 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 20, margin: 0, fontWeight: 600 }}>{t('settings.title')}</h2>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div className="ns-settings-tabs">
           {tabs.map((tItem) => (
             <div key={tItem.id} 
               className={`ns-nav-link ${tab === tItem.id ? 'active' : ''}`}
@@ -117,7 +118,7 @@ export function SettingsRoute() {
       </aside>
 
       {/* Settings content */}
-      <main style={{ overflow: 'auto', padding: '28px 36px 100px' }}>
+      <main className="ns-settings-content">
         {tab === 'categories' && <SettingsCategories form={form} setForm={setForm} submit={submit} t={t} renameCategory={(o: string, n: string) => renameCategoryMutation.mutateAsync({ oldName: o, newName: n })} />}
         {tab === 'merchants'  && <SettingsMerchants form={form} setForm={setForm} submit={submit} t={t} renameMerchant={(o: string, n: string) => renameMerchantMutation.mutateAsync({ oldName: o, newName: n })} />}
         {tab === 'fx'         && <SettingsFX form={form} setForm={setForm} submit={submit} dailyFxRates={dailyFxRates.data || []} t={t} />}
@@ -267,14 +268,14 @@ function SettingsCategories({ form, setForm, submit, t, renameCategory }: any) {
       )}
 
       <div className="ns-card" style={{ padding: 0 }}>
-        <div style={{ padding:'10px 20px', borderBottom:'1px solid var(--ns-border)',
+        <div className="ns-settings-category-head" style={{ padding:'10px 20px', borderBottom:'1px solid var(--ns-border)',
           display:'grid', gridTemplateColumns:'2.2fr 1fr 1fr 1.6fr 80px',
           fontSize:10.5, color:'var(--ns-fg-dim)', fontFamily:'var(--ns-font-mono)',
           letterSpacing:0.07, textTransform:'uppercase' }}>
           <span>Category</span>
           <span style={{textAlign:'right'}}>{t('settings.spent')}</span>
-          <span style={{textAlign:'right'}}>{t('settings.budget')}</span>
-          <span style={{paddingLeft:8}}>{t('settings.usage')}</span>
+          <span className="ns-settings-category-budget" style={{textAlign:'right'}}>{t('settings.budget')}</span>
+          <span className="ns-settings-category-usage" style={{paddingLeft:8}}>{t('settings.usage')}</span>
           <span />
         </div>
         {form.categories.map((c: any, i: number) => {
@@ -284,7 +285,7 @@ function SettingsCategories({ form, setForm, submit, t, renameCategory }: any) {
           const isEdit = editId === c.name;
           return (
             <div key={c.name}>
-              <div style={{
+              <div className="ns-settings-category-row" style={{
                 display:'grid', gridTemplateColumns:'2.2fr 1fr 1fr 1.6fr 80px',
                 alignItems:'center', padding:'13px 20px',
                 borderTop: i ? '1px solid var(--ns-border)' : 'none',
@@ -302,10 +303,10 @@ function SettingsCategories({ form, setForm, submit, t, renameCategory }: any) {
                 <span className={'num '+(over?'neg':'')} style={{ textAlign:'right',fontSize:14,fontWeight:over?600:400 }}>
                   NT$0
                 </span>
-                <span className="num muted" style={{ textAlign:'right',fontSize:13 }}>
+                <span className="num muted ns-settings-category-budget" style={{ textAlign:'right',fontSize:13 }}>
                   {c.budget?'NT$'+c.budget.toLocaleString():'—'}
                 </span>
-                <div style={{ paddingLeft:8 }}>
+                <div className="ns-settings-category-usage" style={{ paddingLeft:8 }}>
                   {c.budget ? (
                     <>
                       <div style={{ height:7,borderRadius:99,background:'var(--ns-bg-hover)',overflow:'hidden',marginBottom:3 }}>
@@ -666,6 +667,8 @@ function SettingsFX({ form, submit, dailyFxRates, t }: any) {
 // ─────── General & Export Tab ───────
 function SettingsGeneral({ form, t }: any) {
   const toast = useToast();
+  const [recalculating, setRecalculating] = useState(false);
+  const [recalculationSummary, setRecalculationSummary] = useState<string | null>(null);
   const privacyMode = useUiPreferences((state) => state.privacyMode);
   const togglePrivacy = useUiPreferences((state) => state.togglePrivacyMode);
   const nameLocale = useUiPreferences((state) => state.nameLocale);
@@ -712,11 +715,38 @@ function SettingsGeneral({ form, t }: any) {
     }
   }
 
+  async function recalculate() {
+    setRecalculating(true);
+    try {
+      const repository = await getFinanceRepository();
+      const report = await repository.recalculateDerivedData();
+      await queryClient.invalidateQueries();
+      const correctedCount = report.changedAccounts + report.changedAssets;
+      const orphanCount = report.orphanLedgerIds.length + report.orphanInvestmentIds.length;
+      const summary = `已修正 ${correctedCount} 筆衍生資料。孤兒關聯 ${orphanCount} 筆，不完整轉帳 ${report.incompleteTransferGroupIds.length} 組。${report.missingFxPairs.length ? ` 缺少匯率：${report.missingFxPairs.join("、")}。` : ""}`;
+      setRecalculationSummary(summary);
+      toast.success(correctedCount ? `已修正 ${correctedCount} 筆資料` : "帳本衍生資料一致");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "重新計算失敗");
+    } finally {
+      setRecalculating(false);
+    }
+  }
+
   return (
     <div className="max-w-4xl space-y-6">
       <div>
         <h2 style={{fontFamily:'var(--ns-font-display)',fontSize:24,margin:0,fontWeight:600}}>{t('settings.general')}</h2>
         <p className="muted" style={{fontSize:13,marginTop:4,marginBottom:0}}>{t('settings.generalDesc')}</p>
+      </div>
+
+      <div className="ns-card p-5">
+        <h3 className="font-semibold mb-2">帳本維護</h3>
+        <p className="text-sm muted mb-4">重新依期初餘額、已結算流水與投資紀錄計算衍生資料。這不會新增調整餘額交易。</p>
+        <button className="ns-btn primary" onClick={recalculate} disabled={recalculating}>
+          <ArrowsClockwise size={14}/>{recalculating ? "重新計算中" : "重新計算帳戶與投資"}
+        </button>
+        {recalculationSummary ? <div className="ns-surface mt-3 p-3 text-sm">{recalculationSummary}</div> : null}
       </div>
 
       <div className="ns-card p-5">
@@ -802,6 +832,7 @@ function ConnectStatus() {
   const [account, setAccount] = useState<SyncAccount | null>(() => loadSyncAccount());
   const [devices, setDevices] = useState<DeviceRecord[]>([]);
   const [pending, setPending] = useState<number | null>(null);
+  const [conflicts, setConflicts] = useState<SyncConflictRecord[] | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Dialog: add device
@@ -849,12 +880,35 @@ function ConnectStatus() {
     (async () => {
       try {
         const repo = await getFinanceRepository();
-        const result = await repo.collectPendingChanges(identity.lastSyncCursor);
-        if (active) setPending(result.count);
-      } catch { if (active) setPending(null); }
+        const [result, conflicts] = await Promise.all([
+          repo.collectPendingChanges(identity.localPushCursor),
+          repo.listSyncConflicts(),
+        ]);
+        if (active) {
+          setPending(result.count);
+          setConflicts(conflicts.filter((conflict) => conflict.resolvedAt === null));
+        }
+      } catch {
+        if (active) {
+          setPending(null);
+          setConflicts(null);
+        }
+      }
     })();
     return () => { active = false; };
-  }, [identity.lastSyncCursor]);
+  }, [identity.localPushCursor, syncStatus.lastSyncAt]);
+
+  async function resolveConflict(id: string, strategy: "keepLocal" | "useIncoming") {
+    try {
+      const repo = await getFinanceRepository();
+      await repo.resolveSyncConflict(id, strategy);
+      setConflicts((current) => current?.filter((conflict) => conflict.id !== id) ?? []);
+      await queryClient.invalidateQueries();
+      toast.success(strategy === "keepLocal" ? "已保留本機版本，將於下次同步推送" : "已採用遠端版本");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "處理同步衝突失敗");
+    }
+  }
 
   // Load device list when account is active
   useEffect(() => {
@@ -1141,11 +1195,29 @@ function ConnectStatus() {
       )}
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, fontSize: 13, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12, fontSize: 13, marginBottom: 16 }}>
         <Stat label="待同步" value={pending === null ? "—" : `${pending} 筆`} />
+        <Stat label="待檢查衝突" value={conflicts === null ? "—" : `${conflicts.length} 筆`} />
         <Stat label="上次同步" value={syncStatus.lastSyncAt ? syncStatus.lastSyncAt.slice(0, 10) : "尚未同步"} mono />
         <Stat label="裝置 ID" value={identity.deviceId.slice(0, 8) + "…"} mono />
       </div>
+
+      {conflicts?.length ? (
+        <div className="mb-4 rounded-md border p-3" style={{ borderColor: "var(--ns-neg)", background: "var(--ns-neg-soft)" }}>
+          <div className="mb-2 text-sm font-semibold">同步衝突中心</div>
+          <div className="space-y-2">
+            {conflicts.map((conflict) => (
+              <div key={conflict.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2 text-xs" style={{ borderColor: "var(--ns-border)", background: "var(--ns-bg-card)" }}>
+                <span className="mono">{conflict.entity} · {conflict.entityId.slice(0, 14)}… · rev {conflict.revision}</span>
+                <span className="flex gap-1">
+                  <button className="ns-btn ghost" style={{ fontSize: 11 }} onClick={() => resolveConflict(conflict.id, "keepLocal")}>保留本機</button>
+                  <button className="ns-btn ghost" style={{ fontSize: 11 }} onClick={() => resolveConflict(conflict.id, "useIncoming")}>採用遠端</button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {/* Recovery: re-download everything from the server. For a device whose
           local data was wiped/reinstalled — a normal sync won't restore it

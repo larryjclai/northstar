@@ -11,6 +11,8 @@ export * from "./merchantCategory";
 export * from "./quickAdd";
 export * from "./sync";
 export * from "./investmentCash";
+export * from "./ledgerTrust";
+export * from "./ledgerSuggestions";
 export * from "./portfolioCalculator";
 export * from "./transferBuilder";
 export * from "./types";

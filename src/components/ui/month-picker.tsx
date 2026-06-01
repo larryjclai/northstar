@@ -23,9 +23,16 @@ export function MonthPicker({ value, onChange, className, triggerClassName }: Mo
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
   ];
+  function shiftMonth(delta: number) {
+    const base = value ? new Date(`${value}-01T00:00:00`) : new Date();
+    base.setMonth(base.getMonth() + delta);
+    onChange(`${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`);
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
+      <div className="flex items-center gap-1">
+      <button type="button" className="ns-btn icon" aria-label="上一個月" onClick={() => shiftMonth(-1)}><CaretLeft size={15} /></button>
       <PopoverTrigger
         className={cn(
           "ns-btn bg-[var(--ns-bg)] border border-[var(--ns-border)] hover:bg-[var(--ns-bg-hover)] flex items-center gap-2",
@@ -36,6 +43,8 @@ export function MonthPicker({ value, onChange, className, triggerClassName }: Mo
         <CalendarBlank size={16} />
         <span style={{ fontSize: 14 }}>{value || "Select month"}</span>
       </PopoverTrigger>
+      <button type="button" className="ns-btn icon" aria-label="下一個月" onClick={() => shiftMonth(1)}><CaretRight size={15} /></button>
+      </div>
       <PopoverContent className={cn("w-64 p-3", className)} align="start">
         <div className="flex items-center justify-between mb-4">
           <button

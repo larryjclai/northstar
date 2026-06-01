@@ -1,16 +1,14 @@
 // Pull encrypted envelopes from the sync worker, decrypt, and apply to the
-// local repository using a last-write-wins merge keyed on (entity, id, revision).
+// local repository using a stable last-write-wins merge keyed on
+// (entity, id, revision, updatedAt).
 //
 // Merge strategy:
-//   - For each remote record, if remote.revision > local.revision → use remote
+//   - For each remote record, prefer higher revision, then newer updatedAt
 //   - Soft-deletes (deletedAt set) always propagate when revision wins
 //   - Settings, market quotes, FX rates are NOT touched (not sync-tracked)
 
-import type {
-  Account, LedgerTransaction, PortfolioAsset,
-  InvestmentRecord, RecurringTransaction, FinancialGoal, AppSettings,
-} from "../../../domain/types";
 import type { SyncFields } from "../../../domain/types";
+import type { SyncApplyChange, SyncConflictRecord, SyncEntity } from "../../../domain/sync";
 import { loadVaultKey, decryptPayload } from "../crypto/vault";
 import { pullEnvelopes, type EnvelopeRecord } from "./client";
 import type { SyncAccount } from "./account";
@@ -20,17 +18,6 @@ export interface SyncPullResult {
   pulled: number;
   applied: number;
   nextCursor: string;
-}
-
-type MergeMap<T extends SyncFields> = Map<string, T>;
-
-function mergeRecord<T extends SyncFields>(map: MergeMap<T>, incoming: T): boolean {
-  const existing = map.get(incoming.id);
-  if (!existing || incoming.revision > existing.revision) {
-    map.set(incoming.id, incoming);
-    return true;
-  }
-  return false;
 }
 
 /**
@@ -66,75 +53,78 @@ export async function pullAndApply(
   const settled = await Promise.allSettled(
     foreign.map((e) => decryptPayload(vaultKey, e.encryptedPayload)),
   );
+  const failed = settled.find((result) => result.status === "rejected");
+  if (failed?.status === "rejected") {
+    throw new Error(`同步資料解密失敗，已保留 checkpoint 供稍後重試：${String(failed.reason)}`);
+  }
   const decrypted = settled.map((r, i) => {
-    if (r.status === "rejected") {
-      console.warn("[sync] failed to decrypt envelope", foreign[i].id, r.reason);
-      return null;
-    }
+    if (r.status === "rejected") return null;
     return r.value;
   });
 
-  // Load the current local snapshot to build merge maps.
-  const snapshot = await repo.exportSnapshot();
-
-  const accounts: MergeMap<Account> = new Map(snapshot.accounts.map((r) => [r.id, r]));
-  const ledger: MergeMap<LedgerTransaction> = new Map(snapshot.ledgerTransactions.map((r) => [r.id, r]));
-  const assets: MergeMap<PortfolioAsset> = new Map(snapshot.portfolioAssets.map((r) => [r.id, r]));
-  const investments: MergeMap<InvestmentRecord> = new Map(snapshot.investmentRecords.map((r) => [r.id, r]));
-  const recurring: MergeMap<RecurringTransaction> = new Map(snapshot.recurringTransactions.map((r) => [r.id, r]));
-  const goals: MergeMap<FinancialGoal> = new Map((snapshot.financialGoals ?? []).map((r) => [r.id, r]));
-  let mergedSettings: AppSettings | null = null;
-  let mergedSettingsRevision: number = snapshot.settingsRevision ?? 1;
-  let mergedSettingsUpdatedAt: string = snapshot.settingsUpdatedAt ?? "";
-
+  const changes: SyncApplyChange[] = [];
+  const conflicts: SyncConflictRecord[] = [];
   let applied = 0;
   for (let i = 0; i < foreign.length; i++) {
     const envelope = foreign[i];
     const raw = decrypted[i];
     if (!raw) continue; // decryption failed, already warned
     const payload = raw as SyncFields & Record<string, unknown>;
-    if (!payload?.id) continue;
-
-    let changed = false;
-    const p = payload as unknown;
-    switch (envelope.entity) {
-      case "account":    changed = mergeRecord(accounts, p as Account); break;
-      case "ledger":     changed = mergeRecord(ledger, p as LedgerTransaction); break;
-      case "asset":      changed = mergeRecord(assets, p as PortfolioAsset); break;
-      case "investment": changed = mergeRecord(investments, p as InvestmentRecord); break;
-      case "recurring":  changed = mergeRecord(recurring, p as RecurringTransaction); break;
-      case "goal":       changed = mergeRecord(goals, p as FinancialGoal); break;
-      case "settings": {
-        const s = p as { revision?: number; updatedAt?: string; settings?: AppSettings };
-        if (s.settings && (s.revision ?? 0) > mergedSettingsRevision) {
-          mergedSettings = s.settings;
-          mergedSettingsRevision = s.revision ?? 1;
-          mergedSettingsUpdatedAt = s.updatedAt ?? "";
-          changed = true;
-        }
-        break;
-      }
+    assertValidPayload(envelope, payload);
+    const entity = envelope.entity as SyncEntity;
+    const existing = await repo.getSyncPayload(entity, envelope.entityId);
+    if (existing && Number(existing.revision) === payload.revision && !samePayload(existing, payload)) {
+      conflicts.push({
+        id: `conflict_${envelope.entity}_${envelope.entityId}_${payload.revision}_${envelope.deviceId}`,
+        entity,
+        entityId: envelope.entityId,
+        revision: payload.revision,
+        sourceDeviceId: envelope.deviceId,
+        localPayload: existing,
+        incomingPayload: payload,
+        createdAt: new Date().toISOString(),
+        resolvedAt: null,
+      });
     }
-    if (changed) applied++;
+    if (!shouldApply(existing, payload)) continue;
+    changes.push({
+      entity,
+      payload: payload.deletedAt !== null && existing ? { ...existing, ...payload } : payload,
+    });
+    applied++;
   }
 
-  if (applied > 0) {
-    // Import the merged snapshot, preserving non-sync-tracked data.
-    await repo.importSnapshot({
-      ...snapshot,
-      accounts: Array.from(accounts.values()),
-      ledgerTransactions: Array.from(ledger.values()),
-      portfolioAssets: Array.from(assets.values()),
-      investmentRecords: Array.from(investments.values()),
-      recurringTransactions: Array.from(recurring.values()),
-      financialGoals: Array.from(goals.values()),
-      ...(mergedSettings ? {
-        settings: mergedSettings,
-        settingsRevision: mergedSettingsRevision,
-        settingsUpdatedAt: mergedSettingsUpdatedAt,
-      } : {}),
-    });
+  if (changes.length > 0 || conflicts.length > 0) {
+    await repo.applySyncChanges(changes, conflicts);
   }
 
   return { pulled: foreign.length, applied, nextCursor: result.nextCursor };
+}
+
+function shouldApply(existing: Record<string, unknown> | null, incoming: SyncFields) {
+  if (!existing) return true;
+  const revision = Number(existing.revision ?? 0);
+  const updatedAt = String(existing.updatedAt ?? "");
+  return incoming.revision > revision
+    || (incoming.revision === revision && incoming.updatedAt > updatedAt);
+}
+
+function samePayload(left: Record<string, unknown>, right: Record<string, unknown>) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function assertValidPayload(envelope: EnvelopeRecord, payload: SyncFields & Record<string, unknown>) {
+  const validEntities = new Set<SyncEntity>(["account", "ledger", "asset", "investment", "recurring", "goal", "settings"]);
+  if (
+    !validEntities.has(envelope.entity as SyncEntity) ||
+    !payload ||
+    typeof payload.id !== "string" ||
+    payload.id !== envelope.entityId ||
+    typeof payload.revision !== "number" ||
+    !Number.isFinite(payload.revision) ||
+    typeof payload.updatedAt !== "string" ||
+    !("deletedAt" in payload)
+  ) {
+    throw new Error(`同步資料格式驗證失敗，已保留 checkpoint 供稍後重試：${envelope.entity}/${envelope.entityId}`);
+  }
 }

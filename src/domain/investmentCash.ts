@@ -69,11 +69,21 @@ export function calculateInvestmentNetDelta(
   assetId: string,
   excludeRecordId?: string,
 ): number {
-  let delta = 0;
-  for (const record of records) {
+  return calculateInvestmentQuantity(records, assetId, 0, excludeRecordId);
+}
+
+export function calculateInvestmentQuantity(
+  records: InvestmentRecord[],
+  assetId: string,
+  initialQuantity = 0,
+  excludeRecordId?: string,
+): number {
+  let delta = initialQuantity;
+  for (const record of [...records].sort((a, b) => a.date.localeCompare(b.date))) {
     if (record.deletedAt !== null || record.assetId !== assetId || record.id === excludeRecordId) continue;
     if (record.action === "buy" || record.action === "stockDividend") delta += record.quantity;
     else if (record.action === "sell") delta -= record.quantity;
+    else if (record.action === "stockSplit" && record.quantity > 0) delta *= record.quantity;
   }
   return delta;
 }

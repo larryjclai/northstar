@@ -21,7 +21,8 @@ function read(): DeviceIdentity | null {
       deviceId: parsed.deviceId,
       createdAt: parsed.createdAt ?? new Date().toISOString(),
       schemaVersion: typeof parsed.schemaVersion === "number" ? parsed.schemaVersion : SYNC_SCHEMA_VERSION,
-      lastSyncCursor: parsed.lastSyncCursor ?? null,
+      localPushCursor: parsed.localPushCursor ?? (parsed as { lastSyncCursor?: string | null }).lastSyncCursor ?? null,
+      remotePullCursor: parsed.remotePullCursor ?? null,
     };
   } catch {
     return null;
@@ -45,16 +46,25 @@ export function getOrCreateDeviceIdentity(): DeviceIdentity {
     deviceId: uuid(),
     createdAt: new Date().toISOString(),
     schemaVersion: SYNC_SCHEMA_VERSION,
-    lastSyncCursor: null,
+    localPushCursor: null,
+    remotePullCursor: null,
   };
   write(created);
   return created;
 }
 
-/** Records the cursor of the last successfully-pushed change. */
-export function setLastSyncCursor(cursor: string | null): DeviceIdentity {
+/** Records the local updatedAt watermark of the last successfully-pushed change. */
+export function setLocalPushCursor(cursor: string | null): DeviceIdentity {
   const identity = getOrCreateDeviceIdentity();
-  const next = { ...identity, lastSyncCursor: cursor };
+  const next = { ...identity, localPushCursor: cursor };
+  write(next);
+  return next;
+}
+
+/** Records the relay sequence watermark of the last successfully-applied pull. */
+export function setRemotePullCursor(cursor: string | null): DeviceIdentity {
+  const identity = getOrCreateDeviceIdentity();
+  const next = { ...identity, remotePullCursor: cursor };
   write(next);
   return next;
 }

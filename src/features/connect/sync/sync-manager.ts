@@ -9,7 +9,7 @@
 // Designed to be called both on manual button press and on app focus.
 
 import type { FinanceRepository } from "../../../data/repositories";
-import { getOrCreateDeviceIdentity, setLastSyncCursor } from "../../../state/deviceIdentity";
+import { getOrCreateDeviceIdentity, setRemotePullCursor } from "../../../state/deviceIdentity";
 import { loadVaultKey } from "../crypto/vault";
 import { loadSyncAccount } from "./account";
 import { pushPendingChanges } from "./push";
@@ -60,18 +60,22 @@ async function _doSync(repo: FinanceRepository): Promise<SyncResult> {
   await saveBackup(snapshot).catch(console.warn); // non-fatal
 
   // 3. Pull and apply remote changes
-  const cursor = device.lastSyncCursor ?? "";
-  const pullResult = await pullAndApply(repo, account, cursor, device.deviceId);
-
-  // 4. Advance cursor
-  if (pullResult.nextCursor && pullResult.nextCursor !== cursor) {
-    setLastSyncCursor(pullResult.nextCursor);
+  let cursor = device.remotePullCursor ?? "";
+  let pulled = 0;
+  let applied = 0;
+  for (;;) {
+    const page = await pullAndApply(repo, account, cursor, device.deviceId);
+    pulled += page.pulled;
+    applied += page.applied;
+    if (!page.nextCursor || page.nextCursor === cursor) break;
+    cursor = page.nextCursor;
+    setRemotePullCursor(cursor);
   }
 
   return {
     pushed: pushResult.pushed,
-    pulled: pullResult.pulled,
-    applied: pullResult.applied,
+    pulled,
+    applied,
   };
 }
 
@@ -116,11 +120,11 @@ export async function forceFullResync(repo: FinanceRepository): Promise<SyncResu
       const page = await pullAndApply(repo, account, cursor, device.deviceId, { includeOwnDevice: true });
       pulled += page.pulled;
       applied += page.applied;
-      if (page.pulled === 0 || page.nextCursor === cursor) break;
+      if (!page.nextCursor || page.nextCursor === cursor) break;
       cursor = page.nextCursor;
     }
 
-    if (cursor) setLastSyncCursor(cursor);
+    if (cursor) setRemotePullCursor(cursor);
 
     return { pushed: 0, pulled, applied };
   } finally {

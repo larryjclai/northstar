@@ -359,6 +359,23 @@ textarea:focus-visible {
 .ns-btn.ghost:hover { background: var(--ns-bg-hover); color: var(--ns-fg); }
 .ns-btn.icon    { padding: 8px; }
 .ns-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.ns-settings-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); height: 100%; overflow: hidden; }
+.ns-settings-sidebar { border-right: 1px solid var(--ns-border); padding: 22px 12px; overflow-y: auto; background: var(--ns-surface); }
+.ns-settings-tabs { display: flex; flex-direction: column; gap: 2px; }
+.ns-settings-content { overflow: auto; padding: 28px 36px 100px; }
+
+@media (max-width: 640px) {
+  .ns-settings-layout { display: flex; flex-direction: column; min-height: 100vh; height: auto; overflow: visible; }
+  .ns-settings-sidebar { border-right: 0; border-bottom: 1px solid var(--ns-border); padding: 14px 12px 10px; overflow: visible; }
+  .ns-settings-tabs { flex-direction: row; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+  .ns-settings-tabs .ns-nav-link { flex: 0 0 auto; white-space: nowrap; }
+  .ns-settings-content { overflow: visible; padding: 20px 16px 100px; }
+  .ns-settings-category-head, .ns-settings-category-row { grid-template-columns: minmax(0, 1fr) 72px 64px !important; padding-left: 14px !important; padding-right: 12px !important; gap: 6px; }
+  .ns-settings-category-budget, .ns-settings-category-usage { display: none !important; }
+  .ns-holdings-kpis { display: flex !important; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
+  .ns-holdings-kpis > * { flex: 0 0 min(78vw, 280px); scroll-snap-align: start; }
+}
 .ns-btn:disabled:hover { background: var(--ns-bg-elev); filter: none; transform: none; }
 .ns-btn.primary:disabled:hover { background: var(--ns-accent); }
 

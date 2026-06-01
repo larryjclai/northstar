@@ -1,4 +1,4 @@
-import { ChartLineUp, PencilSimple, PlusCircle, Trash, UploadSimple } from "@phosphor-icons/react";
+import { ChartLineUp, MagnifyingGlass, PencilSimple, PlusCircle, Trash, UploadSimple } from "@phosphor-icons/react";
 import { ChangeEvent, useMemo, useState, useEffect } from "react";
 import { ActionButton } from "../components/ActionButton";
 import { Card } from "../components/Card";
@@ -28,6 +28,7 @@ export function TransactionsRoute() {
   const [message, setMessage] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const deleteRecord = useRepositoryMutation((repository, id: string) => repository.deleteInvestmentRecord(id), ["investments", "assets", "accounts", "ledger"]);
   const importRecords = useRepositoryMutation((repository, input: InvestmentDraft[]) => repository.importInvestmentRecords(input), ["investments", "assets", "accounts", "ledger"]);
@@ -39,10 +40,18 @@ export function TransactionsRoute() {
   const accountMap = useMemo(() => new Map(accountRows.map((account) => [account.id, account])), [accountRows]);
   const assetFor = (id: string) => assetRows.find((asset) => asset.id === id);
 
-  const sortedRecords = useMemo(
-    () => [...recordRows].sort((a, b) => `${b.date}-${b.createdAt}`.localeCompare(`${a.date}-${a.createdAt}`)),
-    [recordRows],
-  );
+  const sortedRecords = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase();
+    return recordRows
+      .filter((record) => {
+        if (!query) return true;
+        const asset = assetFor(record.assetId);
+        const account = record.linkedAccountId ? accountMap.get(record.linkedAccountId) : null;
+        return [asset?.ticker, asset?.name, account?.name, record.note, actionLabels[record.action]]
+          .some((value) => value?.toLocaleLowerCase().includes(query));
+      })
+      .sort((a, b) => `${b.date}-${b.createdAt}`.localeCompare(`${a.date}-${a.createdAt}`));
+  }, [accountMap, assetRows, recordRows, searchQuery]);
 
   const groupedRecords = useMemo(() => {
     const groups: Array<{ date: string; rows: InvestmentRecord[] }> = [];
@@ -91,7 +100,7 @@ export function TransactionsRoute() {
 
   useEffect(() => {
     setPage(1);
-  }, [assetFor, monthKey]);
+  }, [monthKey, searchQuery]);
 
   const paginatedGroups = useMemo(() => groupedRecords.slice((page - 1) * pageSize, page * pageSize), [groupedRecords, page]);
   const totalPages = Math.ceil(groupedRecords.length / pageSize);
@@ -106,7 +115,6 @@ export function TransactionsRoute() {
   const monthDividend = monthRows
     .filter((row) => row.action === "cashDividend")
     .reduce((sum, row) => sum + row.price, 0);
-  useEffect(() => { setPage(1); }, [monthKey, assetFor]);
   const twdSettlementWatchCount = monthRows.filter((row) => {
     const linked = row.linkedAccountId ? accountMap.get(row.linkedAccountId) : null;
     return row.action === "buy" && linked?.currency.toUpperCase() === "TWD";
@@ -171,6 +179,11 @@ export function TransactionsRoute() {
             </div>
           </div>
         ) : null}
+
+        <label className="relative mb-4 block max-w-sm">
+          <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--ns-muted)" }} />
+          <input className="ns-input w-full pl-9" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜尋股票、帳戶、動作或備註" />
+        </label>
 
         {paginatedGroups.length === 0 ? (
           <EmptyState

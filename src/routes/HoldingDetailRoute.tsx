@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { useFinanceData } from "../data/hooks";
-import { formatNumber, formatPrice, formatQuantity, resolveAssetName } from "../domain";
+import { calculateFifo, formatNumber, formatPrice, formatQuantity, resolveAssetName } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { AssetLogo } from "../components/AssetLogo";
 import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
@@ -31,11 +31,12 @@ export function HoldingDetailRoute() {
   const quote = useMemo(() => quoteRows.find((q) => q.symbol.toUpperCase() === ticker.toUpperCase()), [quoteRows, ticker]);
 
   const series = useMemo(() => {
+    const cutoff = rangeCutoff(seg);
     return dailyPriceRows
-      .filter((p) => p.ticker.toUpperCase() === ticker.toUpperCase())
+      .filter((p) => p.ticker.toUpperCase() === ticker.toUpperCase() && (!cutoff || p.date >= cutoff))
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(p => ({ date: p.date, price: p.close }));
-  }, [dailyPriceRows, ticker]);
+  }, [dailyPriceRows, ticker, seg]);
 
   const txns = useMemo(() => {
     if (!asset) return [];
@@ -45,21 +46,19 @@ export function HoldingDetailRoute() {
   }, [recordRows, asset]);
 
   const lots = useMemo(() => {
-    // Basic mockup for open lots. A real implementation would use a FIFO engine.
     if (!asset) return [];
-    const buyTxns = txns.filter(t => t.action === "buy");
-    return buyTxns.map((t, idx) => {
-      const pl = quote ? (quote.price - t.price) * t.quantity : 0;
-      const pct = t.price ? ((quote?.price ?? t.price) - t.price) / t.price * 100 : 0;
+    return calculateFifo(txns).openLots.map((lot) => {
+      const last = quote?.price ?? lot.costPerShare;
+      const pl = (last - lot.costPerShare) * lot.quantity;
+      const pct = lot.costPerShare ? ((last - lot.costPerShare) / lot.costPerShare) * 100 : 0;
       return {
-        id: t.id,
-        date: t.date,
-        qty: t.quantity,
-        cost: t.price,
-        last: quote?.price ?? t.price,
+        id: lot.id,
+        date: lot.openedAt,
+        qty: lot.quantity,
+        cost: lot.costPerShare,
+        last,
         pl,
         pct,
-        div: 0 // Mocked dividend for lot
       };
     });
   }, [txns, quote, asset]);
@@ -221,7 +220,7 @@ export function HoldingDetailRoute() {
         </div>
         <div
           style={{
-            display: "grid", gridTemplateColumns: "1fr 0.7fr 0.9fr 0.9fr 1.1fr 1fr 0.9fr",
+            display: "grid", gridTemplateColumns: "1fr 0.7fr 0.9fr 0.9fr 1.1fr 1fr",
             padding: "10px 22px", borderBottom: "1px solid var(--ns-border)",
             fontSize: 11, color: "var(--ns-fg-dim)", fontFamily: "var(--ns-font-mono)",
             letterSpacing: 0.06, textTransform: "uppercase",
@@ -233,13 +232,12 @@ export function HoldingDetailRoute() {
           <span style={{ textAlign: "right" }}>Last</span>
           <span style={{ textAlign: "right" }}>P/L</span>
           <span style={{ textAlign: "right" }}>P/L %</span>
-          <span style={{ textAlign: "right" }}>Dividends</span>
         </div>
         {lots.map((l) => (
           <div
             key={l.id}
             style={{
-              display: "grid", gridTemplateColumns: "1fr 0.7fr 0.9fr 0.9fr 1.1fr 1fr 0.9fr",
+              display: "grid", gridTemplateColumns: "1fr 0.7fr 0.9fr 0.9fr 1.1fr 1fr",
               padding: "14px 22px", borderTop: "1px solid var(--ns-border)", alignItems: "center",
             }}
           >
@@ -253,7 +251,6 @@ export function HoldingDetailRoute() {
             <span className={"num " + (l.pct >= 0 ? "pos" : "neg")} style={{ textAlign: "right", fontSize: 14 }}>
               {l.pct >= 0 ? "+" : ""}{l.pct.toFixed(2)}%
             </span>
-            <span className="num muted" style={{ textAlign: "right", fontSize: 13 }}>{formatNumber(l.div)}</span>
           </div>
         ))}
       </div>
@@ -313,4 +310,14 @@ export function HoldingDetailRoute() {
       )}
     </div>
   );
+}
+
+function rangeCutoff(range: string) {
+  const now = new Date();
+  const date = new Date(now);
+  if (range === "all") return null;
+  if (range === "ytd") return `${now.getFullYear()}-01-01`;
+  const days: Record<string, number> = { "1d": 1, "1w": 7, "1m": 31, "3m": 93, "1y": 366 };
+  date.setDate(date.getDate() - (days[range] ?? 366));
+  return date.toISOString().slice(0, 10);
 }

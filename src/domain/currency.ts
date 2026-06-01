@@ -55,7 +55,7 @@ export function createFxConverter(
     return convertCurrency(amount, currency, primary, settings, {
       dailyRates: rates,
       asOfDate,
-    }) ?? amount;
+    }) ?? 0;
   }
   return { toPrimary, primaryCurrency: primary };
 }

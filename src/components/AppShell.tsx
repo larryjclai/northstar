@@ -12,6 +12,7 @@ import {
 import { Link, Outlet } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePrivacySync, useUiPreferences } from "../state/uiPreferences";
 import { usePostDueRecurring } from "../data/hooks";
 import { todayInTimezone } from "../domain";
@@ -24,6 +25,8 @@ import { loadSyncAccount } from "../features/connect/sync/account";
 import { loadVaultKey } from "../features/connect/crypto/vault";
 import { runSync, isSyncRunning, isTauriRuntime } from "../features/connect/sync/sync-manager";
 import { useSyncStatus } from "../state/syncStatus";
+import { queryKeys } from "../data/hooks";
+import { refreshLatestMarketData } from "../features/market-data/useMarketRefresh";
 
 const appIconUrl = new URL("../../src-tauri/icons/icon.png", import.meta.url).href;
 
@@ -49,6 +52,7 @@ export function AppShell() {
   usePrivacySync();
   usePrivacyShortcut();
   useAutoSync();
+  useAutoMarketRefresh();
   const timezone = useUiPreferences((state) => state.timezone);
   usePostDueRecurring(todayInTimezone(timezone));
   const privacyMode = useUiPreferences((state) => state.privacyMode);
@@ -226,6 +230,35 @@ export function AppShell() {
   );
 }
 
+const MIN_MARKET_REFRESH_INTERVAL_MS = 15 * 60_000;
+
+function useAutoMarketRefresh() {
+  const queryClient = useQueryClient();
+  const lastRefreshRef = useRef(0);
+  const triggerRefresh = useCallback(async () => {
+    if (Date.now() - lastRefreshRef.current < MIN_MARKET_REFRESH_INTERVAL_MS) return;
+    lastRefreshRef.current = Date.now();
+    try {
+      await refreshLatestMarketData();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.assets }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.quotes }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.dailyFxRates }),
+      ]);
+    } catch (error) {
+      console.warn("[market] automatic refresh failed", error);
+    }
+  }, [queryClient]);
+
+  useEffect(() => {
+    void triggerRefresh();
+    window.addEventListener("focus", triggerRefresh);
+    return () => window.removeEventListener("focus", triggerRefresh);
+  }, [triggerRefresh]);
+}
+
 function useQuickAddShortcut(toggle: () => void) {
   useEffect(() => {
     function handler(event: KeyboardEvent) {
@@ -321,6 +354,7 @@ function useAutoSync() {
     if (!isTauriRuntime()) return;
 
     let unlistenFn: (() => void) | null = null;
+    void triggerSync();
 
     import("@tauri-apps/api/event").then(({ listen }) => {
       listen("tauri://focus", () => {

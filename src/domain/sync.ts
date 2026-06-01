@@ -1,11 +1,6 @@
-// Connect Sync — preparation layer.
-//
-// We don't push to a server yet, but every record already carries SyncFields
-// (id, revision, createdAt, updatedAt, deletedAt). That lets us derive the set
-// of changes since a cursor without maintaining a separate write-ahead outbox:
-// the "pending changes" feed below is what a future push step will serialize,
-// encrypt, and send. Soft-deletes (deletedAt set + updatedAt bumped) flow
-// through naturally as deletions.
+// Connect Sync primitives shared by the browser fallback and the SQLite app.
+// Browser storage derives pending rows from timestamps. SQLite overrides that
+// feed with a transactional outbox so offline writes cannot be skipped.
 
 /** Current local schema version — bumped when the persisted shape changes. */
 export const SYNC_SCHEMA_VERSION = 1;
@@ -14,8 +9,10 @@ export interface DeviceIdentity {
   deviceId: string;
   createdAt: string;
   schemaVersion: number;
-  /** updatedAt of the last change successfully pushed; null = never synced. */
-  lastSyncCursor: string | null;
+  /** Local updatedAt watermark for changes successfully pushed by this device. */
+  localPushCursor: string | null;
+  /** Relay sequence watermark for envelopes successfully pulled by this device. */
+  remotePullCursor: string | null;
 }
 
 export type SyncEntity =
@@ -28,6 +25,8 @@ export type SyncEntity =
   | "settings";
 
 export interface PendingChange {
+  /** Present for SQLite outbox rows. Browser timestamp feeds leave it unset. */
+  outboxId?: string;
   entity: SyncEntity;
   entityId: string;
   revision: number;
@@ -40,6 +39,23 @@ export interface PendingChangeSet {
   /** Pass this back as the cursor next time once these changes are pushed. */
   nextCursor: string | null;
   count: number;
+}
+
+export interface SyncApplyChange {
+  entity: SyncEntity;
+  payload: Record<string, unknown>;
+}
+
+export interface SyncConflictRecord {
+  id: string;
+  entity: SyncEntity;
+  entityId: string;
+  revision: number;
+  sourceDeviceId: string;
+  localPayload: Record<string, unknown>;
+  incomingPayload: Record<string, unknown>;
+  createdAt: string;
+  resolvedAt: string | null;
 }
 
 export interface SyncSourceRecord {

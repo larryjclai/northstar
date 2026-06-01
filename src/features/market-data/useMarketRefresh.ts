@@ -4,6 +4,42 @@ import { getFinanceRepository } from "../../data/repositories";
 import type { DailyFxRate, DailyPrice } from "../../domain/types";
 import { YahooFinanceProvider } from "./yahooFinanceProvider";
 
+export async function refreshLatestMarketData() {
+  const provider = new YahooFinanceProvider();
+  const repository = await getFinanceRepository();
+  const [assets, settings] = await Promise.all([
+    repository.listPortfolioAssets(),
+    repository.getAppSettings(),
+  ]);
+  const symbols = [...new Set(assets.map((asset) => asset.ticker.trim().toUpperCase()).filter(Boolean))];
+  const quotesBySymbol = symbols.length ? await provider.fetchQuotes(symbols) : {};
+  const quotes = Object.values(quotesBySymbol);
+  if (quotes.length) await repository.saveMarketQuotes(quotes, provider.sourceName);
+
+  const updatedAt = new Date().toISOString();
+  const dailyRates: DailyFxRate[] = [];
+  const latestRates = new Map(settings.exchangeRates.map((row) => [`${row.from}|${row.to}`, row]));
+  for (const row of settings.exchangeRates) {
+    const from = row.from.trim().toUpperCase();
+    const to = row.to.trim().toUpperCase();
+    if (!from || !to || from === to) continue;
+    try {
+      const points = await provider.fetchHistory(`${from}${to}=X`, "5d", "1d");
+      for (const point of points) {
+        dailyRates.push({ from, to, date: point.date.slice(0, 10), rate: point.close, source: provider.sourceName, updatedAt });
+      }
+      const last = points.at(-1);
+      if (last) latestRates.set(`${from}|${to}`, { from, to, rate: last.close, updatedAt });
+    } catch (error) {
+      console.warn(`[market] unable to update ${from}/${to}`, error);
+    }
+  }
+  if (dailyRates.length) await repository.saveDailyFxRates(dailyRates);
+  if (dailyRates.length) await repository.updateAppSettings({ ...settings, exchangeRates: [...latestRates.values()] });
+  await repository.recalculateDerivedData();
+  return { quotes: quotes.length, fxRates: dailyRates.length };
+}
+
 export function useRefreshQuotes() {
   const queryClient = useQueryClient();
   return useMutation({

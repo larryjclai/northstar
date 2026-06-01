@@ -27,7 +27,8 @@ CREATE TABLE IF NOT EXISTS sync_envelopes (
   revision INTEGER NOT NULL,
   encrypted_payload TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  UNIQUE(user_id, entity, entity_id, revision)
+  relay_sequence INTEGER NOT NULL,
+  UNIQUE(user_id, entity, entity_id, revision, device_id)
 );
 
 -- Key envelopes: device-pairing key material.
@@ -45,6 +46,7 @@ CREATE TABLE IF NOT EXISTS key_envelopes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id);
-CREATE INDEX IF NOT EXISTS idx_envelopes_cursor ON sync_envelopes(user_id, updated_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_envelopes_sequence ON sync_envelopes(relay_sequence);
+CREATE INDEX IF NOT EXISTS idx_envelopes_cursor ON sync_envelopes(user_id, relay_sequence);
 CREATE INDEX IF NOT EXISTS idx_envelopes_entity ON sync_envelopes(user_id, entity, entity_id);
 CREATE INDEX IF NOT EXISTS idx_key_envelopes_target ON key_envelopes(user_id, target_device_id);

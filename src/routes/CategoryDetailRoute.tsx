@@ -3,16 +3,18 @@ import { Link, useParams } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { useFinanceData } from "../data/hooks";
-import { formatNumber, type LedgerTransaction } from "../domain";
+import { convertCurrency, formatMoney, type LedgerTransaction } from "../domain";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 
 export function CategoryDetailRoute() {
   const { categoryName } = useParams({ strict: false }) as { categoryName: string };
-  const { ledger, settings, accounts } = useFinanceData();
+  const { ledger, settings, accounts, dailyFxRates } = useFinanceData();
   const [detailRow, setDetailRow] = useState<LedgerTransaction | null>(null);
 
   const ledgerRows = ledger.data ?? [];
   const appSettings = settings.data;
+  const primaryCurrency = appSettings?.primaryCurrency ?? "TWD";
+  const fxHistory = dailyFxRates.data ?? [];
   const accountRows = accounts.data ?? [];
   
   const accountName = (id: string) => accountRows.find(a => a.id === id)?.name ?? id;
@@ -35,18 +37,20 @@ export function CategoryDetailRoute() {
     [ledgerRows, categoryName]
   );
 
-  const totalSpent = rows.reduce((s, r) => s + Math.abs(r.amount), 0);
+  const convertedAmount = (row: LedgerTransaction) => convertCurrency(Math.abs(row.amount), row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date });
+  const missingFxPairs = [...new Set(rows.filter((row) => convertedAmount(row) === null).map((row) => `${row.currency}/${primaryCurrency}`))];
+  const totalSpent = rows.reduce((s, r) => s + (convertedAmount(r) ?? 0), 0);
 
   const monthlyData = useMemo(() => {
     const map = new Map<string, number>();
     for (const r of rows) {
       const m = r.date.slice(0, 7);
-      map.set(m, (map.get(m) ?? 0) + Math.abs(r.amount));
+      map.set(m, (map.get(m) ?? 0) + (convertedAmount(r) ?? 0));
     }
     return [...map.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([month, amount]) => ({ month, amount }));
-  }, [rows]);
+  }, [rows, appSettings, fxHistory, primaryCurrency]);
 
   return (
     <div style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
@@ -67,8 +71,9 @@ export function CategoryDetailRoute() {
           <div className="ns-card" style={{ padding: 24 }}>
             <div className="ns-eyebrow" style={{ marginBottom: 4 }}>總支出</div>
             <div className="num" style={{ fontSize: 28, fontWeight: 500, marginBottom: 20 }}>
-              NT${formatNumber(totalSpent)}
+              {formatMoney(totalSpent, primaryCurrency)}
             </div>
+            {missingFxPairs.length ? <div className="muted" style={{ fontSize: 12, marginBottom: 12 }}>總額不完整：缺少 {missingFxPairs.join("、")} 匯率。<Link to="/settings">前往更新</Link></div> : null}
             
             {monthlyData.length > 0 && (
               <div style={{ height: 160 }}>
@@ -78,7 +83,7 @@ export function CategoryDetailRoute() {
                     <Tooltip
                       cursor={{ fill: resolveColor("var(--ns-bg-hover)") }}
                       contentStyle={{ background: "var(--ns-surface)", border: "1px solid var(--ns-border)", borderRadius: 6, fontSize: 12 }}
-                      formatter={(v: any) => [`NT$${formatNumber(v as number)}`, "支出"]}
+                      formatter={(v: any) => [formatMoney(v as number, primaryCurrency), "支出"]}
                       labelFormatter={(v) => String(v).replace("-", " / ")}
                     />
                     <Bar dataKey="amount" radius={[2, 2, 0, 0]}>
@@ -128,7 +133,7 @@ export function CategoryDetailRoute() {
                       </div>
                     </div>
                     <div className="num" style={{ fontWeight: 500 }}>
-                      NT${formatNumber(Math.abs(row.amount))}
+                      {formatMoney(Math.abs(row.amount), row.currency)}
                     </div>
                   </div>
                 ))}

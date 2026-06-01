@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { formatNumber, type LedgerTransaction } from "../domain";
 
-export function MerchantsTab({ filterMonth, ledgerRows }: { filterMonth: string; ledgerRows: LedgerTransaction[] }) {
+export function MerchantsTab({ filterMonth, ledgerRows, primaryCurrency, toPrimary }: { filterMonth: string; ledgerRows: LedgerTransaction[]; primaryCurrency: string; toPrimary: (row: LedgerTransaction) => number | null }) {
   const currentYear = filterMonth.slice(0, 4);
   
   const ytdRows = useMemo(() => ledgerRows.filter(r => r.date.startsWith(currentYear) && r.date <= filterMonth + "-31" && r.entryType === "expense" && r.settlementStatus === "settled" && r.merchant), [ledgerRows, currentYear, filterMonth]);
@@ -15,7 +15,7 @@ export function MerchantsTab({ filterMonth, ledgerRows }: { filterMonth: string;
     if (!key) continue;
     
     const curr = ytdMap.get(key) ?? { amount: 0, visits: 0, category: row.category || "未分類", lastVisit: row.date };
-    curr.amount += Math.abs(row.amount);
+    curr.amount += Math.abs(toPrimary(row) ?? 0);
     curr.visits += 1;
     if (row.date > curr.lastVisit) {
       curr.lastVisit = row.date;
@@ -45,7 +45,7 @@ export function MerchantsTab({ filterMonth, ledgerRows }: { filterMonth: string;
         <div className="ns-card" style={{ padding: "20px 24px" }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>Top Merchant</div>
           <div style={{ fontSize: 18, fontWeight: 500 }}>
-            {maxSpendMerchant ? `${maxSpendMerchant.name} · NT$${formatNumber(maxSpendMerchant.amount)}` : "無"}
+            {maxSpendMerchant ? `${maxSpendMerchant.name} · ${primaryCurrency} ${formatNumber(maxSpendMerchant.amount)}` : "無"}
           </div>
         </div>
         <div className="ns-card" style={{ padding: "20px 24px" }}>
@@ -57,7 +57,7 @@ export function MerchantsTab({ filterMonth, ledgerRows }: { filterMonth: string;
         <div className="ns-card" style={{ padding: "20px 24px" }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>Total Spending YTD</div>
           <div style={{ fontSize: 18, fontWeight: 500 }}>
-            NT${formatNumber(totalSpend)} · {allMerchantSpend.length} merchants
+            {primaryCurrency} {formatNumber(totalSpend)} · {allMerchantSpend.length} merchants
           </div>
         </div>
       </div>
@@ -101,7 +101,7 @@ export function MerchantsTab({ filterMonth, ledgerRows }: { filterMonth: string;
                     </div>
                     <div>{r.category}</div>
                     <div>{r.visits} 次</div>
-                    <div className="num">−NT${formatNumber(r.amount)}</div>
+                    <div className="num">−{primaryCurrency} {formatNumber(r.amount)}</div>
                     <div style={{ display: "flex", justifyContent: "flex-end" }}>
                       <CaretRight size={16} className="muted" />
                     </div>

@@ -61,18 +61,26 @@ export function exportInvestmentCsv(records: InvestmentRecord[], assetFor: (id: 
   );
 }
 
-export function parseLedgerCsv(text: string, accountIdFor: (nameOrId: string) => string | undefined): ImportPreview<LedgerDraft> {
+export function parseLedgerCsv(text: string, accountFor: (nameOrId: string) => Pick<Account, "id" | "currency"> | undefined): ImportPreview<LedgerDraft> {
   return previewRows(text, (row) => {
-    const accountId = accountIdFor(required(row, "account"));
-    if (!accountId) throw new Error("找不到帳戶");
+    const account = accountFor(required(row, "account"));
+    if (!account) throw new Error("找不到帳戶");
     const amount = numberField(row, "amount");
+    if (amount === 0) throw new Error("amount 不可為 0");
     const entryType = parseEntryType(row.entryType, amount);
+    if (entryType === "transfer") throw new Error("CSV 暫不接受單列轉帳，請使用 App 的轉帳功能");
+    if (entryType === "income" && amount < 0) throw new Error("收入 amount 必須為正數");
+    if (entryType === "expense" && amount > 0) throw new Error("支出 amount 必須為負數");
+    const date = required(row, "date");
+    if (Number.isNaN(Date.parse(date))) throw new Error("date 格式無效");
+    const currency = required(row, "currency").toUpperCase();
+    if (currency !== account.currency.toUpperCase()) throw new Error(`currency 必須與帳戶幣別 ${account.currency} 一致`);
     return {
-      date: required(row, "date"),
-      accountId,
+      date,
+      accountId: account.id,
       name: row.name || row.merchant || row.category || "",
       amount,
-      currency: required(row, "currency").toUpperCase(),
+      currency,
       category: row.category || "",
       subcategory: row.subcategory || "",
       merchant: row.merchant || "",
@@ -133,36 +141,37 @@ function previewRows<T>(text: string, parse: (row: Record<string, string>) => T)
 }
 
 function parseCsv(text: string) {
-  const lines = text.trim().split(/\r?\n/).filter(Boolean);
-  const [headerLine, ...dataLines] = lines;
-  if (!headerLine) return [];
-  const headers = splitCsvLine(headerLine).map((header) => header.trim());
-  return dataLines.map((line) => {
-    const values = splitCsvLine(line);
-    return Object.fromEntries(headers.map((header, index) => [header, values[index]?.trim() ?? ""]));
-  });
-}
-
-function splitCsvLine(line: string) {
-  const result: string[] = [];
+  const records: string[][] = [];
+  let record: string[] = [];
   let value = "";
   let quoted = false;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if (char === '"' && line[index + 1] === '"') {
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === '"' && text[index + 1] === '"') {
       value += '"';
       index += 1;
     } else if (char === '"') {
       quoted = !quoted;
     } else if (char === "," && !quoted) {
-      result.push(value);
+      record.push(value);
+      value = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && text[index + 1] === "\n") index += 1;
+      record.push(value);
+      if (record.some((cell) => cell.trim())) records.push(record);
+      record = [];
       value = "";
     } else {
       value += char;
     }
   }
-  result.push(value);
-  return result;
+  record.push(value);
+  if (record.some((cell) => cell.trim())) records.push(record);
+  const [headers, ...rows] = records;
+  if (!headers) return [];
+  return rows.map((values) =>
+    Object.fromEntries(headers.map((header, index) => [header.trim(), values[index]?.trim() ?? ""])),
+  );
 }
 
 function toCsv(headers: string[], rows: Array<Record<string, unknown>>) {
