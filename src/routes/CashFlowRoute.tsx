@@ -17,7 +17,7 @@ import {
   MagnifyingGlass,
   Sparkle,
 } from "@phosphor-icons/react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ChangeEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, Bar, BarChart, ResponsiveContainer, Tooltip, Cell, PieChart, Pie, XAxis } from "recharts";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
@@ -121,13 +121,21 @@ export function CashFlowRoute() {
   const [message, setMessage] = useState("");
   const toast = useToast();
   const [selectedMonth, setSelectedMonth] = useState(() => todayInTimezone(timezone).slice(0, 7));
-  const [selectedAccount, setSelectedAccount] = useState("all");
+  // `?account=<id>` deep-link from the Accounts page pre-selects that account.
+  const { account: accountParam } = useSearch({ strict: false }) as { account?: string };
+  const [selectedAccount, setSelectedAccount] = useState(accountParam ?? "all");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [activeTab, setActiveTab] = useState<"overview" | "categories" | "merchants" | "recurring">("overview");
   const [detailRow, setDetailRow] = useState<LedgerTransaction | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   const navigate = useNavigate();
+
+  // Follow the deep-link param if it changes after mount (e.g. clicking a
+  // different account while the ledger is already open).
+  useEffect(() => {
+    if (accountParam) setSelectedAccount(accountParam);
+  }, [accountParam]);
 
   const appSettings = settings.data;
   const accountRows = accounts.data ?? [];

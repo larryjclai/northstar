@@ -316,6 +316,10 @@ textarea:focus-visible {
   color: var(--ns-fg-muted);
 }
 
+/* Account name is a link into the filtered ledger — underline on hover. */
+.ns-acct-name { transition: color 0.12s; }
+.ns-acct-row:hover .ns-acct-name { color: var(--ns-accent); text-decoration: underline; text-underline-offset: 2px; }
+
 /* Pill / badge */
 .ns-pill {
   display: inline-flex;

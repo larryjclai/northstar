@@ -307,9 +307,13 @@ export function AccountsRoute() {
                     <div style={{ width: 36, height: 36, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: a.color || MARK_COLORS[i % MARK_COLORS.length], color: a.iconName ? undefined : "var(--ns-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: a.iconName ? 18 : 13 }}>
                       {a.iconName || a.name.slice(0, 2)}
                     </div>
-                    <div style={{ minWidth: 0, maxWidth: 280, flexShrink: 1 }}>
+                    <div
+                      style={{ minWidth: 0, maxWidth: 280, flexShrink: 1, cursor: "pointer" }}
+                      onClick={() => navigate({ to: "/cash-flow", search: { account: a.id } })}
+                      title={`查看「${a.name}」的交易紀錄`}
+                    >
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: 14.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.name}</span>
+                        <span className="ns-acct-name" style={{ fontSize: 14.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.name}</span>
                         <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px" }}>{a.currency}</span>
                       </div>
                       <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>

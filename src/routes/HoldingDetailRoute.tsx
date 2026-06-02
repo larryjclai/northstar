@@ -80,10 +80,12 @@ export function HoldingDetailRoute() {
   const unrealizedGainPercent = costBasis === 0 ? 0 : (unrealizedGain / costBasis) * 100;
   const pos = unrealizedGain >= 0;
 
-  // 持倉天數：自最早一筆買進至今。
+  // 持倉天數：自最早一筆買進算起；若沒有任何交易紀錄（手動持倉），則自
+  // 新增持倉（Add Holdings）的日期起算。
   const earliestBuyDate = txns.filter((t) => t.action === "buy").map((t) => t.date).sort()[0];
-  const holdingDays = earliestBuyDate
-    ? Math.max(0, Math.floor((Date.now() - new Date(earliestBuyDate).getTime()) / 86_400_000))
+  const holdingSince = earliestBuyDate ?? asset.acquisitionDate ?? null;
+  const holdingDays = holdingSince
+    ? Math.max(0, Math.floor((Date.now() - new Date(holdingSince).getTime()) / 86_400_000))
     : null;
   // 配息 YTD：本年度現金股利（cashDividend 以 price 存總額）。
   const thisYear = new Date().toISOString().slice(0, 4);
@@ -189,11 +191,12 @@ export function HoldingDetailRoute() {
           </div>
         </div>
 
-        {/* Position summary */}
+        {/* Position summary — stretches to the chart card's height so the two
+            cards line up top and bottom; stats distribute to fill. */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div className="ns-card" style={{ padding: 20 }}>
+          <div className="ns-card" style={{ padding: 20, flex: 1, display: "flex", flexDirection: "column" }}>
             <div className="ns-eyebrow" style={{ marginBottom: 12 }}>Your position · FIFO</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, flex: 1, alignContent: "space-between" }}>
               {[
                 ["市值", formatNumber(marketValue), null],
                 ["FIFO 成本", formatNumber(costBasis), null],

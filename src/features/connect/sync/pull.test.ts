@@ -107,4 +107,20 @@ describe("pullAndApply", () => {
     expect(await repo.listSyncConflicts()).toMatchObject([{ resolvedAt: expect.any(String) }]);
     expect(await repo.getSyncPayload("account", account.id)).toMatchObject({ name: "錢包", revision: 2 });
   });
+
+  it("auto-resolves an equal-revision divergence by newer updatedAt without a conflict", async () => {
+    const repo = createMemoryFinanceRepositoryForTests();
+    await createAccount(repo, "錢包");
+    const [account] = await repo.listAccounts();
+    // Same revision, different content, but the incoming edit is newer →
+    // last-write-wins applies it silently, no conflict to triage.
+    const incoming = { ...account, name: "遠端錢包", updatedAt: "2099-12-31T00:00:00.000Z" };
+    mockedPullEnvelopes.mockResolvedValue({ envelopes: [envelope(incoming)], nextCursor: "4", count: 1 });
+
+    const result = await pullAndApply(repo, { userId: "u", apiSecret: "s" }, "", "device_a");
+
+    expect(result.applied).toBe(1);
+    expect(await repo.listSyncConflicts()).toHaveLength(0);
+    expect(await repo.getSyncPayload("account", account.id)).toMatchObject({ name: "遠端錢包" });
+  });
 });

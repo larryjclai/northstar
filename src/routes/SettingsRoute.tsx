@@ -33,6 +33,7 @@ import {
   initiatePairing, joinWithCode, type PairingSession,
 } from "../features/connect/sync/pairing-flow";
 import { runSync, forceFullResync } from "../features/connect/sync/sync-manager";
+import { summarizeConflict } from "../features/connect/sync/conflictSummary";
 import { listBackups, restoreBackup, type BackupEntry } from "../features/connect/sync/backup";
 import { useSyncStatus } from "../state/syncStatus";
 import {
@@ -1000,6 +1001,29 @@ function ConnectStatus() {
     }
   }
 
+  async function resolveAllConflicts(strategy: "keepLocal" | "useIncoming") {
+    const pending = conflicts ?? [];
+    if (pending.length === 0) return;
+    try {
+      const repo = await getFinanceRepository();
+      // Resolve sequentially — the SQLite repo serialises writes, and conflicts
+      // are rare now that routine divergences auto-resolve on pull.
+      for (const conflict of pending) {
+        await repo.resolveSyncConflict(conflict.id, strategy);
+      }
+      setConflicts([]);
+      await queryClient.invalidateQueries();
+      toast.success(strategy === "keepLocal" ? `已全部保留本機（${pending.length} 筆）` : `已全部採用遠端（${pending.length} 筆）`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "批次處理同步衝突失敗");
+      // Refresh so the list reflects whatever did resolve before the error.
+      try {
+        const repo = await getFinanceRepository();
+        setConflicts((await repo.listSyncConflicts()).filter((c) => c.resolvedAt === null));
+      } catch { /* leave list as-is */ }
+    }
+  }
+
   // Load device list when account is active
   useEffect(() => {
     if (!account) return;
@@ -1294,17 +1318,50 @@ function ConnectStatus() {
 
       {conflicts?.length ? (
         <div className="mb-4 rounded-md border p-3" style={{ borderColor: "var(--ns-neg)", background: "var(--ns-neg-soft)" }}>
-          <div className="mb-2 text-sm font-semibold">同步衝突中心</div>
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-sm font-semibold">同步衝突中心 · {conflicts.length} 筆</span>
+            <span className="flex gap-1">
+              <button className="ns-btn ghost" style={{ fontSize: 11 }} onClick={() => resolveAllConflicts("keepLocal")}>全部保留本機</button>
+              <button className="ns-btn ghost" style={{ fontSize: 11 }} onClick={() => resolveAllConflicts("useIncoming")}>全部採用遠端</button>
+            </span>
+          </div>
+          <div className="mb-2 text-xs" style={{ color: "var(--ns-fg-muted)" }}>
+            兩台裝置在同一時間改了同一筆資料，無法自動判斷。請逐筆或批次選擇要保留哪一版。
+          </div>
           <div className="space-y-2">
-            {conflicts.map((conflict) => (
-              <div key={conflict.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2 text-xs" style={{ borderColor: "var(--ns-border)", background: "var(--ns-bg-card)" }}>
-                <span className="mono">{conflict.entity} · {conflict.entityId.slice(0, 14)}… · rev {conflict.revision}</span>
-                <span className="flex gap-1">
-                  <button className="ns-btn ghost" style={{ fontSize: 11 }} onClick={() => resolveConflict(conflict.id, "keepLocal")}>保留本機</button>
-                  <button className="ns-btn ghost" style={{ fontSize: 11 }} onClick={() => resolveConflict(conflict.id, "useIncoming")}>採用遠端</button>
-                </span>
-              </div>
-            ))}
+            {conflicts.map((conflict) => {
+              const summary = summarizeConflict(conflict);
+              return (
+                <div key={conflict.id} className="rounded-md border p-2.5 text-xs" style={{ borderColor: "var(--ns-border)", background: "var(--ns-bg-card)" }}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className="ns-pill" style={{ fontSize: 10, flexShrink: 0 }}>{summary.entityLabel}</span>
+                      <span className="font-semibold truncate" title={summary.title}>{summary.title}</span>
+                      <span style={{ color: "var(--ns-fg-muted)", flexShrink: 0 }}>
+                        {summary.newer === "tie" ? "兩版同時間" : summary.newer === "local" ? "本機較新" : "遠端較新"}
+                      </span>
+                    </span>
+                    <span className="flex gap-1 flex-shrink-0">
+                      <button className="ns-btn ghost" style={{ fontSize: 11 }} onClick={() => resolveConflict(conflict.id, "keepLocal")}>保留本機</button>
+                      <button className="ns-btn ghost" style={{ fontSize: 11 }} onClick={() => resolveConflict(conflict.id, "useIncoming")}>採用遠端</button>
+                    </span>
+                  </div>
+                  {summary.diffs.length > 0 ? (
+                    <div className="mt-2 space-y-0.5" style={{ color: "var(--ns-fg-muted)" }}>
+                      {summary.diffs.slice(0, 5).map((diff) => (
+                        <div key={diff.key} className="flex flex-wrap items-baseline gap-1.5">
+                          <span style={{ minWidth: 56 }}>{diff.label}</span>
+                          <span className="mono">本機 {diff.local}</span>
+                          <CaretRight size={10} />
+                          <span className="mono">遠端 {diff.incoming}</span>
+                        </div>
+                      ))}
+                      {summary.diffs.length > 5 ? <div>…還有 {summary.diffs.length - 5} 個欄位不同</div> : null}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : null}

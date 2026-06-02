@@ -5,6 +5,13 @@ import LanguageDetector from "i18next-browser-languagedetector";
 import enTranslations from "./locales/en/translation.json";
 import zhTranslations from "./locales/zh-TW/translation.json";
 import { useUiPreferences } from "./state/uiPreferences";
+import { setCompactLocale } from "./domain/currency";
+
+// Keep the compact-number formatters (萬/億 vs K/M) in sync with the active UI
+// language. i18n.on("languageChanged") fires for every changeLanguage() call
+// below, so this is the single place that mirrors the language into the
+// module-global formatter locale.
+i18n.on("languageChanged", (lng) => setCompactLocale(lng));
 
 i18n
   .use(LanguageDetector)

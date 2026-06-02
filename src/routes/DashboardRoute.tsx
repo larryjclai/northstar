@@ -18,6 +18,7 @@ import {
   convertCurrency,
   createFxConverter,
   formatMoney,
+  formatCompactMoney,
   formatNumber,
   type Account,
   type AppSettings,
@@ -290,7 +291,7 @@ export function DashboardRoute() {
             </div>
           </div>
           {trend.length > 1 ? (
-            <div style={{ flex: 1, minHeight: 200 }}>
+            <div style={{ flex: 1, minHeight: 160 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trend}>
                   <defs>
@@ -301,24 +302,26 @@ export function DashboardRoute() {
                   </defs>
                   <XAxis dataKey="date" stroke="var(--ns-fg-muted)" fontSize={11} minTickGap={24} />
                   <YAxis hide domain={["dataMin - 20000", "dataMax + 20000"]} />
-                  <Tooltip formatter={(value) => formatMoney(Number(value), primaryCurrency)} contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }} />
+                  <Tooltip formatter={(value) => formatMoney(Number(value), primaryCurrency)} contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }} itemStyle={{ color: "var(--ns-fg)" }} labelStyle={{ color: "var(--ns-fg)" }} />
                   <Area type="monotone" dataKey="value" stroke="var(--ns-accent)" fill="url(#netWorth)" strokeWidth={2} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <div style={{ flex: 1, minHeight: 160, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, textAlign: "center" }}>
-              <div className="muted" style={{ fontSize: 13 }}>
+            // No meaningful trend yet → collapse to a slim hint instead of a tall
+            // empty void, so the hero doesn't dominate the page.
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", paddingTop: 4 }}>
+              <span className="muted" style={{ fontSize: 13 }}>
                 {hasAnyData ? "累積幾筆資料後會顯示淨值趨勢。" : "先建立第一個帳戶，Northstar 會開始計算總覽。"}
-              </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
-                <Link to={hasAnyData ? "/cash-flow" : "/accounts"} className="ns-btn primary">{hasAnyData ? "去記帳" : "建立帳戶"}</Link>
+              </span>
+              <span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <Link to={hasAnyData ? "/cash-flow" : "/accounts"} className="ns-btn primary" style={{ fontSize: 12 }}>{hasAnyData ? "去記帳" : "建立帳戶"}</Link>
                 {!hasAnyData ? (
-                  <button type="button" className="ns-btn" onClick={loadDemo} disabled={demoLoading}>
+                  <button type="button" className="ns-btn" style={{ fontSize: 12 }} onClick={loadDemo} disabled={demoLoading}>
                     {demoLoading ? "載入中…" : "載入示範資料"}
                   </button>
                 ) : null}
-              </div>
+              </span>
             </div>
           )}
         </div>
@@ -457,7 +460,7 @@ export function DashboardRoute() {
                     <Pie data={allocation} dataKey="value" nameKey="label" cx="50%" cy="50%" innerRadius={42} outerRadius={60} stroke="none" paddingAngle={2}>
                       {allocation.map((a) => <Cell key={a.label} fill={a.color} />)}
                     </Pie>
-                    <Tooltip formatter={(value: number) => formatMoney(value, primaryCurrency)} contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }} />
+                    <Tooltip formatter={(value: number) => formatMoney(value, primaryCurrency)} contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }} itemStyle={{ color: "var(--ns-fg)" }} labelStyle={{ color: "var(--ns-fg)" }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -465,9 +468,11 @@ export function DashboardRoute() {
                 {allocation.map((a) => (
                   <div key={a.label} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, borderBottom: "1px solid var(--ns-border)", paddingBottom: 5 }}>
                     <span style={{ width: 8, height: 8, background: a.color, borderRadius: 2, flexShrink: 0 }} />
-                    <span style={{ flex: 1 }}>{a.label}</span>
-                    <span className="num muted" style={{ fontSize: 11 }}>{formatMoney(a.value, primaryCurrency)}</span>
-                    <span className="num" style={{ minWidth: 42, textAlign: "right" }}>{a.pct.toFixed(1)}%</span>
+                    <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.label}</span>
+                    {/* Compact (萬/億 · K/M) so the value never forces the label to
+                        wrap vertically on a narrow card. */}
+                    <span className="num muted" style={{ fontSize: 11, flexShrink: 0 }} title={formatMoney(a.value, primaryCurrency)}>{formatCompactMoney(a.value, primaryCurrency)}</span>
+                    <span className="num" style={{ minWidth: 42, textAlign: "right", flexShrink: 0 }}>{a.pct.toFixed(1)}%</span>
                   </div>
                 ))}
               </div>

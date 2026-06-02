@@ -19,6 +19,7 @@ import {
   createFxConverter,
   formatMoney,
   formatNumber,
+  formatCompactNumber,
   formatPrice,
   formatQuantity,
   resolveAssetName,
@@ -252,19 +253,21 @@ export function InvestmentsRoute() {
         <>
           {/* Top KPIs */}
           <div className="ns-holdings-kpis grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-5">
-            {[
-              ['Market value', `NT$${formatNumber(totalValue)}`, '', true],
-              ['Cost basis', `NT$${formatNumber(totalCost)}`, '', true],
-              ['Unrealized P/L', `NT$${formatNumber(Math.abs(totalPnL))}`, totalPnL >= 0 ? `+${returnPct.toFixed(2)}%` : `${returnPct.toFixed(2)}%`, totalPnL >= 0],
-              ['Realized YTD', `NT$${formatNumber(Math.abs(realizedYTD))}`, realizedYTD >= 0 ? '' : 'Loss', realizedYTD >= 0],
-              ['Dividends YTD', `NT$${formatNumber(dividendsYTD)}`, '', true],
-            ].map(([label, val, pct, pos], i) => (
+            {([
+              // [label, compact display, exact value (tooltip), pct, positive]
+              ['Market value', `NT$${formatCompactNumber(totalValue)}`, `NT$${formatNumber(totalValue)}`, '', true],
+              ['Cost basis', `NT$${formatCompactNumber(totalCost)}`, `NT$${formatNumber(totalCost)}`, '', true],
+              ['Unrealized P/L', `NT$${formatCompactNumber(Math.abs(totalPnL))}`, `NT$${formatNumber(Math.abs(totalPnL))}`, totalPnL >= 0 ? `+${returnPct.toFixed(2)}%` : `${returnPct.toFixed(2)}%`, totalPnL >= 0],
+              ['Realized YTD', `NT$${formatCompactNumber(Math.abs(realizedYTD))}`, `NT$${formatNumber(Math.abs(realizedYTD))}`, realizedYTD >= 0 ? '' : 'Loss', realizedYTD >= 0],
+              ['Dividends YTD', `NT$${formatCompactNumber(dividendsYTD)}`, `NT$${formatNumber(dividendsYTD)}`, '', true],
+            ] as const).map(([label, val, exact, pct, pos], i) => (
               <div key={i} className="ns-card p-4 sm:p-5 flex flex-col min-w-0">
                 <div className="ns-eyebrow" style={{ marginBottom: 8, flexShrink: 0 }}>{label}</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'nowrap' }}>
-                  <div className="num" style={{ fontSize: "clamp(15px, 1.8vw, 22px)", fontWeight: 500, minWidth: 0, flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={String(val)}>{val}</div>
-                  {pct && <div className="num" style={{ fontSize: 13, color: pos ? 'var(--ns-pos)' : 'var(--ns-neg)', flexShrink: 0 }}>{pct}</div>}
-                </div>
+                {/* Value takes the full card width (compact 萬/億 keeps it short);
+                    the % change sits on its own line so it never squeezes the
+                    number into an ellipsis. */}
+                <div className="num" style={{ fontSize: "clamp(16px, 1.9vw, 22px)", fontWeight: 500, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={exact}>{val}</div>
+                {pct ? <div className="num" style={{ fontSize: 12.5, marginTop: 2, color: pos ? 'var(--ns-pos)' : 'var(--ns-neg)' }}>{pct}</div> : null}
               </div>
             ))}
           </div>
@@ -284,6 +287,7 @@ export function InvestmentsRoute() {
             nameLocale={nameLocale}
             assetsById={new Map(assetRows.map((asset) => [asset.id, asset]))}
             manualPriceSnapshots={manualSnapshotRows}
+            toPrimary={toPrimary}
           />
         </>
       ) : null}
@@ -753,7 +757,12 @@ function HoldingsAllocation({ positions, assetsById, nameLocale, toPrimary, prim
               <Pie data={data} dataKey="value" nameKey="name" innerRadius={50} outerRadius={82} paddingAngle={2} stroke="none">
                 {data.map((_, i) => <Cell key={i} fill={ALLOCATION_COLORS[i % ALLOCATION_COLORS.length]} />)}
               </Pie>
-              <Tooltip formatter={(value) => formatMoney(Number(value), primaryCurrency)} contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)", fontSize: 12 }} />
+              <Tooltip
+                formatter={(value) => formatMoney(Number(value), primaryCurrency)}
+                contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)", fontSize: 12 }}
+                itemStyle={{ color: "var(--ns-fg)" }}
+                labelStyle={{ color: "var(--ns-fg)" }}
+              />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -761,7 +770,7 @@ function HoldingsAllocation({ positions, assetsById, nameLocale, toPrimary, prim
           {data.map((d, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, minWidth: 0 }}>
               <span style={{ width: 9, height: 9, borderRadius: 2, background: ALLOCATION_COLORS[i % ALLOCATION_COLORS.length], flexShrink: 0 }} />
-              <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.name}</span>
+              <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={d.name}>{d.name}</span>
               <span className="mono dim" style={{ flexShrink: 0 }}>{d.pct.toFixed(1)}%</span>
             </div>
           ))}
@@ -778,6 +787,7 @@ function HoldingsTab({
   nameLocale,
   assetsById,
   manualPriceSnapshots,
+  toPrimary,
 }: {
   positions: HoldingPosition[];
   accountMap: Map<string, Account>;
@@ -785,6 +795,7 @@ function HoldingsTab({
   nameLocale: NameLocalePreference;
   assetsById: Map<string, PortfolioAsset>;
   manualPriceSnapshots: ManualPriceSnapshot[];
+  toPrimary: (value: number, currency: string, asOfDate?: string) => number;
 }) {
   const navigate = useNavigate();
   const timezone = useUiPreferences((state) => state.timezone);
@@ -908,7 +919,7 @@ function HoldingsTab({
   }
 
   const filteredPositions = filterAccount === "all" ? positions : positions.filter(p => p.accountId === filterAccount);
-  const sorted = sortHoldings(filteredPositions, sort, accountMap, assetsById, nameLocale);
+  const sorted = sortHoldings(filteredPositions, sort, accountMap, assetsById, nameLocale, toPrimary);
   const totalPages = Math.ceil(sorted.length / pageSize);
   const paginated = sorted.slice((page - 1) * pageSize, page * pageSize);
 
@@ -1185,13 +1196,17 @@ function sortHoldings(
   accountMap: Map<string, Account>,
   assetsById: Map<string, PortfolioAsset>,
   nameLocale: NameLocalePreference,
+  toPrimary: (value: number, currency: string, asOfDate?: string) => number,
 ): HoldingPosition[] {
+  // Compare market value in the base currency so a USD position is never ranked
+  // below a TWD one just because its native number is smaller.
+  const baseValue = (p: HoldingPosition) => toPrimary(p.marketValue ?? 0, p.currency);
   const multiplier = sort.direction === "asc" ? 1 : -1;
   const comparator = (a: HoldingPosition, b: HoldingPosition) => {
-    const primary = comparePositions(a, b, sort.key, accountMap, assetsById, nameLocale);
+    const primary = comparePositions(a, b, sort.key, accountMap, assetsById, nameLocale, baseValue);
     if (primary !== 0) return primary * multiplier;
     // Stable secondary key: bigger market value first, then ticker A→Z.
-    const byValue = (b.marketValue ?? 0) - (a.marketValue ?? 0);
+    const byValue = baseValue(b) - baseValue(a);
     if (byValue !== 0) return byValue;
     return a.ticker.localeCompare(b.ticker);
   };
@@ -1205,6 +1220,7 @@ function comparePositions(
   accountMap: Map<string, Account>,
   assetsById: Map<string, PortfolioAsset>,
   nameLocale: NameLocalePreference,
+  baseValue: (p: HoldingPosition) => number,
 ): number {
   switch (key) {
     case "ticker":
@@ -1235,7 +1251,7 @@ function comparePositions(
       if (b.marketPrice === null) return -1;
       return a.marketPrice - b.marketPrice;
     case "marketValue":
-      return a.marketValue - b.marketValue;
+      return baseValue(a) - baseValue(b);
     case "unrealizedGain":
       return a.unrealizedGain - b.unrealizedGain;
     case "unrealizedGainPercent":

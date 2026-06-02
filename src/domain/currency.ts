@@ -72,6 +72,46 @@ export function setPrivacyMaskOn(value: boolean) {
   __privacyMaskOn = value;
 }
 
+// Locale used by the compact formatters below. Kept in sync from i18n (see
+// i18n.ts) using the same module-global pattern as the privacy mask so the
+// formatters stay callable from any context without a hook.
+let __compactLocale: "zh-TW" | "en" = "zh-TW";
+
+export function setCompactLocale(locale: string) {
+  __compactLocale = locale.startsWith("en") ? "en" : "zh-TW";
+}
+
+/**
+ * Abbreviate a large value so KPI tiles never clip, regardless of magnitude.
+ * Chinese UI → 萬 / 億 (10^4 / 10^8); English UI → Intl compact (K / M / B).
+ * Values below the abbreviation threshold render in full. The caller is
+ * expected to expose the exact value (e.g. a `title` tooltip) alongside.
+ */
+export function formatCompactNumber(amount: number): string {
+  if (__privacyMaskOn) return MASKED_TEXT;
+  const abs = Math.abs(amount);
+  const sign = amount < 0 ? "-" : "";
+  if (__compactLocale === "en") {
+    if (abs < 1000) return amount.toLocaleString("en", { maximumFractionDigits: 0 });
+    return amount.toLocaleString("en", { notation: "compact", maximumFractionDigits: 2 });
+  }
+  // zh-TW: switch to 萬 (10^4) then 億 (10^8).
+  if (abs < 10_000) return amount.toLocaleString("zh-TW", { maximumFractionDigits: 0 });
+  if (abs < 100_000_000) return `${sign}${trimUnit(abs / 10_000)}萬`;
+  return `${sign}${trimUnit(abs / 100_000_000)}億`;
+}
+
+export function formatCompactMoney(amount: number, currency: string): string {
+  if (__privacyMaskOn) return `${currency} ${MASKED_TEXT}`;
+  return `${currency} ${formatCompactNumber(amount)}`;
+}
+
+// Keep up to two decimals but drop trailing zeros so "1485萬" not "1485.00萬"
+// and "1.49億" reads cleanly.
+function trimUnit(value: number): string {
+  return value.toLocaleString(__compactLocale === "en" ? "en" : "zh-TW", { maximumFractionDigits: 2 });
+}
+
 export function isPrivacyMaskOn() {
   return __privacyMaskOn;
 }

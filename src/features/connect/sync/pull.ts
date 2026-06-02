@@ -4,6 +4,8 @@
 //
 // Merge strategy:
 //   - For each remote record, prefer higher revision, then newer updatedAt
+//   - Same revision + different content is auto-resolved by updatedAt (newer
+//     edit wins); only an exact updatedAt tie is surfaced as a conflict
 //   - Soft-deletes (deletedAt set) always propagate when revision wins
 //   - Settings, market quotes, FX rates are NOT touched (not sync-tracked)
 
@@ -73,7 +75,18 @@ export async function pullAndApply(
     assertValidPayload(envelope, payload);
     const entity = envelope.entity as SyncEntity;
     const existing = await repo.getSyncPayload(entity, envelope.entityId);
-    if (existing && Number(existing.revision) === payload.revision && !samePayload(existing, payload)) {
+    // Same logical record edited to the same revision on two devices but with
+    // different content. We auto-resolve by `updatedAt` (newer edit wins, see
+    // shouldApply) so the user is never asked to triage routine concurrent
+    // edits. Only a true tie — identical revision AND identical updatedAt, yet
+    // different content — is genuinely undecidable, so that's the only case we
+    // surface in the conflict centre.
+    if (
+      existing &&
+      Number(existing.revision) === payload.revision &&
+      !samePayload(existing, payload) &&
+      String(existing.updatedAt ?? "") === String(payload.updatedAt ?? "")
+    ) {
       conflicts.push({
         id: `conflict_${envelope.entity}_${envelope.entityId}_${payload.revision}_${envelope.deviceId}`,
         entity,
