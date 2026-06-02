@@ -342,7 +342,9 @@ textarea:focus-visible {
   font-family: inherit;
   font-size: var(--ns-t-ui);
   font-weight: 500;
-  padding: 9px 14px;
+  padding: 0 14px;
+  height: 36px;
+  box-sizing: border-box;
   border-radius: var(--ns-r-sm);
   cursor: pointer;
   display: inline-flex;
@@ -357,7 +359,7 @@ textarea:focus-visible {
 .ns-btn.primary:hover { filter: brightness(1.05); background: var(--ns-accent); }
 .ns-btn.ghost   { background: transparent; border-color: transparent; color: var(--ns-fg-muted); }
 .ns-btn.ghost:hover { background: var(--ns-bg-hover); color: var(--ns-fg); }
-.ns-btn.icon    { padding: 8px; }
+.ns-btn.icon    { padding: 8px; height: auto; min-height: 0; }
 .ns-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .ns-settings-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); height: 100%; overflow: hidden; }

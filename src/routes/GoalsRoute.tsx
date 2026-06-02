@@ -81,13 +81,13 @@ export function GoalsRoute() {
   const chartColor = activeProjection === "bear" ? "var(--ns-neg)" : activeProjection === "bull" ? "var(--ns-accent)" : "var(--ns-pos)";
 
   return (
-    <div style={{ padding: "32px 40px 100px", overflowY: "auto", minHeight: "100vh" }}>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 32 }}>
+    <div style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 22, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 11, fontFamily: "var(--ns-font-mono)", letterSpacing: 1.5, color: "var(--ns-fg-muted)", marginBottom: 8 }}>LONG-TERM PROGRESS</div>
-          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 32, margin: 0, letterSpacing: -0.5, fontWeight: 600 }}>目標・FIRE</h1>
+          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Long-term progress</div>
+          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>目標・FIRE</h1>
         </div>
-        <div style={{ display: "flex", gap: 12 }}>
+        <div style={{ display: "flex", gap: 8 }}>
           <Link to="/goals/fire" className="ns-btn ghost" style={{ textDecoration: "none" }}>
             <Calculator size={16} /> FIRE Calculator
           </Link>
