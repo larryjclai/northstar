@@ -25,7 +25,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["app", "dmg", "deb", "appimage", "nsis", "updater"],
     "category": "Finance",
     "createUpdaterArtifacts": true,
     "icon": [
