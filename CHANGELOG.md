@@ -2,6 +2,13 @@
 
 All notable changes to Northstar will be documented in this file.
 
+## [0.1.0-alpha.18] - 2026-06-02
+
+### Fixed
+- 端到端自動更新驗證版本（確認 alpha.17 起的 in-app updater 能正確偵測並安裝新版）。
+
+---
+
 ## [0.1.0-alpha.17] - 2026-06-02
 
 ### Fixed
