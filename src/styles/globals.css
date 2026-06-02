@@ -468,28 +468,19 @@ textarea:focus-visible {
    Inline styles can't carry media queries, so the Overview rows use these
    classes. They collapse to a single column on narrow windows so cards never
    overflow or end up unevenly sized. */
-.ns-dash-row1 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); gap: 16px; margin-bottom: 16px; align-items: stretch; }
+/* Row 1: full-width net-worth hero (big chart) with the KPI breakdown as a
+   horizontal strip beneath it — uses the desktop width instead of squeezing
+   the KPIs into a narrow side column. */
+.ns-dash-row1 { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
 .ns-dash-row2 { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; align-items: stretch; }
 .ns-dash-row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; align-items: stretch; }
 
-/* KPI stack: vertical column beside the net-worth chart on wide screens. */
-.ns-dash-kpi-stack { display: flex; flex-direction: column; gap: 10px; }
+/* KPI strip: equal cards across the full width. auto-fit handles 4 or 5 cards
+   and reflows to 2-up / 1-up on narrower windows without media queries. */
+.ns-dash-kpi-stack { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 
-/* Below ~1200px viewport the right KPI column gets too cramped → stack row 1
-   and lay the KPI cards out as a 2-up grid under the chart. */
-@media (max-width: 1200px) {
-  .ns-dash-row1 { grid-template-columns: 1fr; }
-  .ns-dash-kpi-stack {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-auto-rows: 1fr;
-  }
-}
 @media (max-width: 900px) {
   .ns-dash-row2, .ns-dash-row3 { grid-template-columns: 1fr; }
-}
-@media (max-width: 640px) {
-  .ns-dash-kpi-stack { grid-template-columns: 1fr; }
 }
 
 /* ── DS shorthand color utilities (mirrors the mockup classes) ── */

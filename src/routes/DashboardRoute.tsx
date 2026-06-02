@@ -288,7 +288,7 @@ export function DashboardRoute() {
             </div>
           </div>
           {trend.length > 1 ? (
-            <div style={{ flex: 1, minHeight: 160 }}>
+            <div style={{ flex: 1, minHeight: 200 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trend}>
                   <defs>

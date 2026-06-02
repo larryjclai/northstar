@@ -127,6 +127,18 @@ export function AccountsRoute() {
     }).filter((g) => g.rows.length > 0);
   }, [rows, appSettings]);
 
+  // Balance-sheet totals (in base currency). assets = positive balances,
+  // liabilities = the magnitude of negative balances, so assets − liabilities
+  // = net worth. `gross` is the denominator for each account's weight bar.
+  const totals = useMemo(() => {
+    let assets = 0, liabilities = 0;
+    for (const a of rows) {
+      const b = toBase(a.balance, a.currency);
+      if (b >= 0) assets += b; else liabilities += -b;
+    }
+    return { assets, liabilities, net: assets - liabilities, gross: assets + liabilities };
+  }, [rows, appSettings]);
+
   function openCreate() {
     setEditingId(null);
     setTypeStep(null);
@@ -220,9 +232,31 @@ export function AccountsRoute() {
         </div>
       </div>
 
-      {/* Currency breakdown */}
-      {currencyBreakdown.length > 0 ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 20 }}>
+      {/* Balance-sheet summary — always a full 3-up so a single-currency user
+          doesn't see one lonely card in a 4-wide grid. */}
+      {rows.length > 0 ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 14 }}>
+          {([
+            { label: "總資產", value: totals.assets, color: "var(--ns-chart-2)", tone: undefined },
+            { label: "總負債", value: totals.liabilities, color: "var(--ns-chart-5)", tone: "neg" as const },
+            { label: "淨值", value: totals.net, color: "var(--ns-chart-1)", tone: totals.net < 0 ? "neg" as const : undefined },
+          ]).map((c) => (
+            <div className="ns-card" key={c.label} style={{ padding: 16, display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 4, height: 38, borderRadius: 99, background: c.color, flexShrink: 0 }} />
+              <div style={{ minWidth: 0 }}>
+                <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{c.label}</div>
+                <div className={c.tone === "neg" ? "neg" : ""} style={{ fontSize: 20, fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums", fontWeight: 500 }}>
+                  {c.tone === "neg" && c.value !== 0 ? "−" : ""}{formatNumber(Math.abs(c.value))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {/* Currency split — only meaningful with more than one currency. */}
+      {currencyBreakdown.length > 1 ? (
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${currencyBreakdown.length}, 1fr)`, gap: 14, marginBottom: 20 }}>
           {currencyBreakdown.map((c) => (
             <div className="ns-card" key={c.ccy} style={{ padding: 16 }}>
               <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{c.ccy}</div>
@@ -234,7 +268,7 @@ export function AccountsRoute() {
             </div>
           ))}
         </div>
-      ) : null}
+      ) : <div style={{ marginBottom: 6 }} />}
 
       {/* Account groups */}
       {rows.length === 0 ? (
@@ -262,6 +296,7 @@ export function AccountsRoute() {
               </div>
               {!collapsedGroups.has(g.key) && g.rows.map((a, i) => {
                 const base = toBase(a.balance, a.currency);
+                const share = totals.gross ? (Math.abs(base) / totals.gross) * 100 : 0;
                 const groupCredit = a.type === "credit" && a.creditLimitGroup ? calculateCreditGroup(a.creditLimitGroup, rows) : null;
                 const subgroup = a.customGroup || "未分組";
                 const showSubgroup = i === 0 || (g.rows[i - 1].customGroup || "未分組") !== subgroup;
@@ -272,7 +307,7 @@ export function AccountsRoute() {
                     <div style={{ width: 36, height: 36, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: a.color || MARK_COLORS[i % MARK_COLORS.length], color: a.iconName ? undefined : "var(--ns-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: a.iconName ? 18 : 13 }}>
                       {a.iconName || a.name.slice(0, 2)}
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ minWidth: 0, maxWidth: 280, flexShrink: 1 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ fontSize: 14.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.name}</span>
                         <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px" }}>{a.currency}</span>
@@ -284,7 +319,15 @@ export function AccountsRoute() {
                         {a.type === "loan" && a.annualInterestRate !== null ? ` · 年利率 ${a.annualInterestRate}%` : ""}
                       </div>
                     </div>
-                    <div style={{ textAlign: "right" }}>
+                    {/* Net-worth weight bar — grows to fill the middle so a wide
+                        desktop row isn't a void between name and balance. */}
+                    <div className="hidden lg:flex" style={{ flex: 1, minWidth: 0, alignItems: "center", gap: 10, paddingLeft: 8 }}>
+                      <div style={{ flex: 1, height: 6, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
+                        <div style={{ width: `${Math.min(100, share)}%`, height: "100%", background: a.balance < 0 ? "var(--ns-neg)" : (a.color || MARK_COLORS[i % MARK_COLORS.length]) }} />
+                      </div>
+                      <span className="mono dim" style={{ fontSize: 11, flexShrink: 0, width: 38, textAlign: "right" }}>{share.toFixed(0)}%</span>
+                    </div>
+                    <div style={{ textAlign: "right", marginLeft: "auto" }}>
                       <div className="num" style={{ fontSize: 15, fontWeight: 500, color: a.balance < 0 ? "var(--ns-neg)" : undefined }}>
                         {a.balance < 0 ? "−" : ""}{formatNumber(Math.abs(base))}
                       </div>
