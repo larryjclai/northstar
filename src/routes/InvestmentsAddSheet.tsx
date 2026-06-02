@@ -25,6 +25,17 @@ function fmtNumField(value: number, focused: boolean, decimals = 0): string {
   return value === 0 ? "" : value.toLocaleString("zh-TW", { maximumFractionDigits: decimals, minimumFractionDigits: 0 });
 }
 
+/**
+ * Surface the real cause when a save fails. Errors thrown by the SQLite layer
+ * (`@tauri-apps/plugin-sql`) are bare strings, not Error instances, so a plain
+ * `instanceof Error` check drops them and shows only the generic fallback.
+ */
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return fallback;
+}
+
 /** The 4 transaction sides surfaced in the prototype, mapped to data-layer actions. */
 type TxSide = "buy" | "sell" | "dividend" | "split";
 const SIDE_TO_ACTION: Record<TxSide, InvestmentAction> = {
@@ -183,7 +194,7 @@ export function InvestmentEntryDrawer({
       onSubmitted?.();
       onClose();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "持倉儲存失敗。");
+      setMessage(errorMessage(error, "持倉儲存失敗。"));
     }
   }
 
@@ -214,7 +225,7 @@ export function InvestmentEntryDrawer({
       onSubmitted?.();
       onClose();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "交易儲存失敗。");
+      setMessage(errorMessage(error, "交易儲存失敗。"));
     }
   }
 

@@ -288,6 +288,12 @@ export function createMemoryFinanceRepositoryForTests(data: Partial<RepositoryDa
   return repository;
 }
 
+export async function createSqliteFinanceRepositoryForTests(db: Database): Promise<FinanceRepository> {
+  const repository = new TauriSqlFinanceRepository(db);
+  await repository.initialize();
+  return repository;
+}
+
 async function createFinanceRepository(): Promise<FinanceRepository> {
   if (isTauriRuntime()) {
     const mod = await import("@tauri-apps/plugin-sql");
@@ -1497,14 +1503,56 @@ function openBrowserRepositoryDb(): Promise<IDBDatabase> {
  * a single connection the whole BEGIN…COMMIT can never be split, and the lock
  * is impossible. This app has exactly one Database.load() and one repository
  * singleton, so routing all access through here covers every code path.
+ *
+ * Serializing *individual* statements is not enough for multi-statement
+ * transactions. `withTransaction()` issues BEGIN / …writes… / COMMIT as separate
+ * execute() calls. If a second write operation (e.g. auto-sync firing on
+ * window-focus while the user saves an edit) enqueues *its* BEGIN between the
+ * first transaction's BEGIN and COMMIT, that second BEGIN runs while the first
+ * transaction is still open on the single shared connection — SQLite then throws
+ * "cannot start a transaction within a transaction". plugin-sql surfaces that as
+ * a bare string (not an Error), so the UI shows its generic save-failed message.
+ *
+ * `runExclusive()` fixes this with a SECOND lock — a transaction mutex — that is
+ * separate from the statement queue. A whole BEGIN…COMMIT holds the tx mutex, so
+ * no other transaction can issue its BEGIN until this one commits. Crucially,
+ * every individual statement (including the transaction's own BEGIN/writes/COMMIT)
+ * STILL goes through the statement queue, so the sqlx pool never sees two
+ * concurrent statements and only ever hands out ONE connection.
+ *
+ * Do NOT "optimise" this by letting a transaction's statements bypass the queue:
+ * sqlx releases the connection back to the pool after every execute(), so if an
+ * external read/write runs concurrently with a transaction's statement, the pool
+ * hands out a 2nd connection. The transaction's next statement may then land on a
+ * connection with no open BEGIN, and a write on the 2nd connection fails with
+ * "database is locked" (code 5) because the 2nd connection's busy_timeout is the
+ * default 0. The two locks must stay independent: tx mutex (one transaction at a
+ * time) + statement queue (one statement at a time).
  */
-function serializeDatabase(db: Database): Database {
+const runExclusiveKey = Symbol("northstar.runExclusive");
+
+interface SerializedDatabase extends Database {
+  [runExclusiveKey]<T>(operation: () => Promise<T>): Promise<T>;
+}
+
+function serializeDatabase(db: Database): SerializedDatabase {
+  // Statement queue: every execute()/select() runs one at a time → pool only
+  // ever uses one connection.
   let tail: Promise<unknown> = Promise.resolve();
   const run = <T,>(op: () => Promise<T>): Promise<T> => {
     // Run `op` once the previous operation settles (success OR failure), so a
     // single failed query never skips or blocks the ones queued behind it.
     const result = tail.then(op, op);
     tail = result.then(noop, noop);
+    return result;
+  };
+  // Transaction mutex: only one BEGIN…COMMIT runs at a time. Independent of the
+  // statement queue, so the transaction's own statements still flow through
+  // `run()` without deadlocking on the mutex they hold.
+  let txLock: Promise<unknown> = Promise.resolve();
+  const runExclusive = <T,>(operation: () => Promise<T>): Promise<T> => {
+    const result = txLock.then(operation, operation);
+    txLock = result.then(noop, noop);
     return result;
   };
   return new Proxy(db, {
@@ -1515,16 +1563,23 @@ function serializeDatabase(db: Database): Database {
       if (prop === "select") {
         return (sql: string, values?: unknown[]) => run(() => target.select(sql, values));
       }
+      if (prop === runExclusiveKey) {
+        return runExclusive;
+      }
       const value = Reflect.get(target, prop, receiver);
       return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(target) : value;
     },
-  });
+  }) as SerializedDatabase;
 }
 
 function noop() { /* swallow */ }
 
 class TauriSqlFinanceRepository extends BrowserFinanceRepository {
-  private readonly db: Database;
+  private readonly db: SerializedDatabase;
+  // > 0 while a BEGIN…COMMIT is in flight. A nested withTransaction() call runs
+  // as part of the outer transaction (SQLite has no nested BEGIN), so it must
+  // not issue its own BEGIN/COMMIT — that would error and could strand the txn.
+  private txDepth = 0;
 
   constructor(db: Database) {
     super();
@@ -1532,19 +1587,30 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   private async withTransaction<T>(operation: () => Promise<T>): Promise<T> {
-    await this.db.execute("BEGIN");
-    try {
-      const result = await operation();
-      await this.db.execute("COMMIT");
-      return result;
-    } catch (error) {
+    // Already inside a transaction: run inline as part of it. No new BEGIN.
+    if (this.txDepth > 0) return operation();
+
+    // Claim the connection for the whole BEGIN…COMMIT so no other operation can
+    // slip its own BEGIN in between (which SQLite rejects as "cannot start a
+    // transaction within a transaction"). See serializeDatabase() for details.
+    return this.db[runExclusiveKey](async () => {
+      this.txDepth += 1;
+      await this.db.execute("BEGIN");
       try {
-        await this.db.execute("ROLLBACK");
-      } catch {
-        // Preserve the originating write failure.
+        const result = await operation();
+        await this.db.execute("COMMIT");
+        return result;
+      } catch (error) {
+        try {
+          await this.db.execute("ROLLBACK");
+        } catch {
+          // Preserve the originating write failure.
+        }
+        throw error;
+      } finally {
+        this.txDepth -= 1;
       }
-      throw error;
-    }
+    });
   }
 
   override async initialize() {
@@ -2834,9 +2900,15 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     // (which is the dominant cost) and the whole import either lands or
     // rolls back. Without this a 60k-row dailyPrices payload would take
     // many minutes and feel like the app is frozen.
+    //
+    // Route through withTransaction() (not a raw BEGIN/COMMIT) so the whole
+    // import claims the single connection exclusively. A raw BEGIN here would
+    // interleave with a concurrent edit's BEGIN — the second BEGIN then fails
+    // with "cannot start a transaction within a transaction", and a half-applied
+    // import can strand an open transaction that locks the DB until restart.
     const t0 = performance.now();
-    await this.db.execute("BEGIN");
     try {
+      await this.withTransaction(async () => {
       await this.db.execute("delete from sync_outbox");
       await this.db.execute("delete from market_quotes");
       await this.db.execute("delete from fx_rates");
@@ -2951,19 +3023,16 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         revision: snapshot.settingsRevision ?? 1,
         updatedAt: snapshot.settingsUpdatedAt ?? nowIso(),
       }));
-      await this.db.execute("COMMIT");
+      });
       // Recompute account balances from the just-imported ledger transactions
       // so two devices that had different transactions converge after sync.
+      // (Outside the transaction — withTransaction has already committed.)
       await this.recomputeSqliteAccounts();
       await this.recomputeSqliteAssets();
       const elapsed = Math.round(performance.now() - t0);
       console.log(`[import] complete in ${elapsed}ms`);
     } catch (error) {
-      try {
-        await this.db.execute("ROLLBACK");
-      } catch {
-        // Ignore rollback failure — the originating error matters more.
-      }
+      // withTransaction already issued ROLLBACK; just surface the failure.
       console.error("[import] failed, rolled back", error);
       throw error;
     }
