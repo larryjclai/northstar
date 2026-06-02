@@ -272,6 +272,66 @@ export async function hasDemoData(repo: FinanceRepository): Promise<boolean> {
   return accounts.some((a) => a.customGroup === DEMO_GROUP);
 }
 
+// ── Non-destructive demo mode (snapshot swap) ───────────────────────────────
+// Entering demo stashes the user's real data and loads the demo set; exiting
+// restores the stash. The real data is NEVER discarded — if it can't be safely
+// stashed first, we abort and leave the user's data untouched.
+const DEMO_FLAG_KEY = "northstar.demoMode.v1";
+const DEMO_BACKUP_KEY = "northstar.preDemoSnapshot.v1";
+
+export function isDemoMode(): boolean {
+  try {
+    return localStorage.getItem(DEMO_FLAG_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Enter demo mode: stash the current (real) data, then replace it with the demo
+ * set. No-op if already in demo mode. Throws WITHOUT touching any data if the
+ * real snapshot can't be stashed (e.g. localStorage quota), so the user's data
+ * is never lost.
+ */
+export async function enterDemoMode(repo: FinanceRepository): Promise<void> {
+  if (isDemoMode()) return;
+
+  const snapshot = await repo.exportSnapshot();
+  try {
+    localStorage.setItem(DEMO_BACKUP_KEY, JSON.stringify(snapshot));
+    localStorage.setItem(DEMO_FLAG_KEY, "1");
+  } catch {
+    // Couldn't safely preserve the real data → do not proceed.
+    try { localStorage.removeItem(DEMO_BACKUP_KEY); } catch { /* ignore */ }
+    throw new Error("無法安全保存你目前的資料，已取消進入示範模式（你的資料未被更動）。可先到設定手動匯出備份。");
+  }
+
+  // Real data is safely stashed; now swap in the demo set.
+  await clearAllData(repo);
+  await loadDemoData(repo);
+}
+
+/**
+ * Exit demo mode: restore the stashed real data. If there is no stash (e.g. the
+ * flag was set without a backup) just clear the demo data rather than guess.
+ */
+export async function exitDemoMode(repo: FinanceRepository): Promise<void> {
+  let raw: string | null = null;
+  try { raw = localStorage.getItem(DEMO_BACKUP_KEY); } catch { raw = null; }
+
+  if (raw) {
+    const snapshot = JSON.parse(raw) as Parameters<FinanceRepository["importSnapshot"]>[0];
+    await repo.importSnapshot(snapshot);
+  } else {
+    await clearAllData(repo);
+  }
+
+  try {
+    localStorage.removeItem(DEMO_BACKUP_KEY);
+    localStorage.removeItem(DEMO_FLAG_KEY);
+  } catch { /* ignore */ }
+}
+
 /**
  * Wipe all financial data, keeping the user's app settings (categories,
  * currency, FX). Implemented as an atomic snapshot import of empty tables —

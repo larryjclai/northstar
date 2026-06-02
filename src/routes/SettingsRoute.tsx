@@ -5,7 +5,8 @@ import { ActionButton } from "../components/ActionButton";
 import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { getFinanceRepository, type RepositorySnapshot } from "../data/repositories";
-import { loadDemoData, clearAllData } from "../data/demoData";
+import { enterDemoMode, exitDemoMode, clearAllData } from "../data/demoData";
+import { useDemoMode } from "../state/demoMode";
 import { COMMON_TIMEZONES, isValidTimezone } from "../domain";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../domain";
 import type { SyncConflictRecord } from "../domain/sync";
@@ -684,23 +685,38 @@ function SettingsGeneral({ form, t }: any) {
 
   // Demo data + reset. window.confirm is a no-op in the Tauri webview, so these
   // use a two-click inline confirm instead.
-  const [demoBusy, setDemoBusy] = useState<null | "load" | "clear">(null);
-  const [confirmLoadDemo, setConfirmLoadDemo] = useState(false);
+  const [demoBusy, setDemoBusy] = useState<null | "load" | "clear" | "exit">(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  const inDemo = useDemoMode((s) => s.active);
+  const setInDemo = useDemoMode((s) => s.set);
 
   async function handleLoadDemo() {
     setDemoBusy("load");
     try {
       const repository = await getFinanceRepository();
-      await clearAllData(repository);
-      await loadDemoData(repository);
+      await enterDemoMode(repository); // non-destructive: stashes real data first
+      setInDemo(true);
       await queryClient.invalidateQueries();
-      toast.success("已載入示範資料");
+      toast.success("已進入示範模式");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "載入示範資料失敗");
+      toast.error(e instanceof Error ? e.message : "進入示範模式失敗");
     } finally {
       setDemoBusy(null);
-      setConfirmLoadDemo(false);
+    }
+  }
+
+  async function handleExitDemo() {
+    setDemoBusy("exit");
+    try {
+      const repository = await getFinanceRepository();
+      await exitDemoMode(repository); // restores the stashed real data
+      setInDemo(false);
+      await queryClient.invalidateQueries();
+      toast.success("已結束示範模式，已還原你的資料");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "結束示範模式失敗");
+    } finally {
+      setDemoBusy(null);
     }
   }
 
@@ -789,35 +805,38 @@ function SettingsGeneral({ form, t }: any) {
 
       <div className="ns-card p-5">
         <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Demo</div>
-        <h3 className="font-semibold mb-2">示範資料</h3>
-        <p className="text-sm muted mb-4">載入一組範例帳戶、交易、持股與目標，方便瀏覽完整畫面或展示。載入會先清空目前資料；兩者都不影響分類與幣別設定。</p>
-        <div className="flex flex-wrap gap-2">
-          {confirmLoadDemo ? (
-            <>
+        <h3 className="font-semibold mb-2">示範模式</h3>
+        {inDemo ? (
+          <>
+            <p className="text-sm mb-4" style={{ color: "var(--ns-accent)" }}>
+              目前在示範模式。你原本的資料已安全保存，結束後會完整還原。
+            </p>
+            <button className="ns-btn primary" onClick={handleExitDemo} disabled={demoBusy !== null}>
+              <ArrowsClockwise size={14} />{demoBusy === "exit" ? "還原中…" : "結束示範並還原我的資料"}
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-sm muted mb-4">載入一組範例帳戶、交易、持股與目標來瀏覽完整畫面或展示。<strong>不會清除你的資料</strong>——進入前會先把你目前的資料安全保存，結束示範時自動還原。</p>
+            <div className="flex flex-wrap gap-2">
               <button className="ns-btn primary" onClick={handleLoadDemo} disabled={demoBusy !== null}>
-                {demoBusy === "load" ? "載入中…" : "確定載入（會清空現有資料）"}
+                <Plus size={14} weight="bold" />{demoBusy === "load" ? "進入中…" : "進入示範模式"}
               </button>
-              <button className="ns-btn" onClick={() => setConfirmLoadDemo(false)} disabled={demoBusy !== null}>取消</button>
-            </>
-          ) : (
-            <button className="ns-btn primary" onClick={() => { setConfirmClear(false); setConfirmLoadDemo(true); }} disabled={demoBusy !== null}>
-              <Plus size={14} weight="bold" />載入示範資料
-            </button>
-          )}
-
-          {confirmClear ? (
-            <>
-              <button className="ns-btn" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} onClick={handleClearAll} disabled={demoBusy !== null}>
-                {demoBusy === "clear" ? "清空中…" : "確定清空所有資料"}
-              </button>
-              <button className="ns-btn" onClick={() => setConfirmClear(false)} disabled={demoBusy !== null}>取消</button>
-            </>
-          ) : (
-            <button className="ns-btn" onClick={() => { setConfirmLoadDemo(false); setConfirmClear(true); }} disabled={demoBusy !== null}>
-              <Trash size={14} />清空所有資料
-            </button>
-          )}
-        </div>
+              {confirmClear ? (
+                <>
+                  <button className="ns-btn" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} onClick={handleClearAll} disabled={demoBusy !== null}>
+                    {demoBusy === "clear" ? "清空中…" : "確定清空所有資料（無法復原）"}
+                  </button>
+                  <button className="ns-btn" onClick={() => setConfirmClear(false)} disabled={demoBusy !== null}>取消</button>
+                </>
+              ) : (
+                <button className="ns-btn" onClick={() => setConfirmClear(true)} disabled={demoBusy !== null}>
+                  <Trash size={14} />清空所有資料
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       <div className="ns-card p-5">

@@ -17,6 +17,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePrivacySync, useUiPreferences } from "../state/uiPreferences";
 import { useQuickAdd } from "../state/quickAdd";
+import { useDemoMode } from "../state/demoMode";
+import { exitDemoMode } from "../data/demoData";
 import { usePostDueRecurring } from "../data/hooks";
 import { todayInTimezone } from "../domain";
 import { GlobalSearch } from "./GlobalSearch";
@@ -65,6 +67,21 @@ export function AppShell() {
   const setQuickAddOpen = useQuickAdd((state) => state.setOpen);
   const toggleQuickAdd = useQuickAdd((state) => state.toggle);
   const [moreOpen, setMoreOpen] = useState(false);
+  const demoActive = useDemoMode((state) => state.active);
+  const setDemoActive = useDemoMode((state) => state.set);
+  const [demoExiting, setDemoExiting] = useState(false);
+  const shellQueryClient = useQueryClient();
+
+  async function handleExitDemo() {
+    setDemoExiting(true);
+    try {
+      await exitDemoMode(await getFinanceRepository());
+      setDemoActive(false);
+      await shellQueryClient.invalidateQueries();
+    } finally {
+      setDemoExiting(false);
+    }
+  }
 
   // Mobile bottom nav shows the four highest-frequency destinations inline;
   // lower-frequency entries (目標 / 設定) live behind a "更多" sheet so the
@@ -203,6 +220,20 @@ export function AppShell() {
 
       {/* ── Main content ── */}
       <main key={privacyMode ? "privacy-on" : "privacy-off"} className="pb-20 lg:pb-0">
+        {demoActive ? (
+          <div
+            className="flex items-center gap-3"
+            style={{ padding: "8px 16px", background: "var(--ns-accent-soft)", color: "var(--ns-accent)", borderBottom: "1px solid var(--ns-border)", fontSize: 13, position: "sticky", top: 0, zIndex: 30 }}
+          >
+            <span style={{ fontWeight: 600 }}>示範模式</span>
+            <span style={{ flex: 1, minWidth: 0, color: "var(--ns-fg-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              你的資料已安全保存，結束後會還原。
+            </span>
+            <button type="button" className="ns-btn" style={{ height: 30, flexShrink: 0 }} onClick={handleExitDemo} disabled={demoExiting}>
+              {demoExiting ? "還原中…" : "結束示範"}
+            </button>
+          </div>
+        ) : null}
         <Outlet />
       </main>
 

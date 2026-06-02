@@ -5,7 +5,8 @@ import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAx
 import { useQueryClient } from "@tanstack/react-query";
 import { useFinanceData } from "../data/hooks";
 import { getFinanceRepository, type StoredMarketQuote } from "../data/repositories";
-import { loadDemoData } from "../data/demoData";
+import { enterDemoMode } from "../data/demoData";
+import { useDemoMode } from "../state/demoMode";
 import { useToast } from "../components/Toast";
 import { useQuickAdd } from "../state/quickAdd";
 import {
@@ -56,11 +57,12 @@ export function DashboardRoute() {
   async function loadDemo() {
     setDemoLoading(true);
     try {
-      await loadDemoData(await getFinanceRepository());
+      await enterDemoMode(await getFinanceRepository()); // non-destructive
+      useDemoMode.getState().set(true);
       await queryClient.invalidateQueries();
-      toast.success("已載入示範資料");
+      toast.success("已進入示範模式");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "載入示範資料失敗");
+      toast.error(e instanceof Error ? e.message : "進入示範模式失敗");
     } finally {
       setDemoLoading(false);
     }
@@ -226,7 +228,7 @@ export function DashboardRoute() {
   const monthLabel = monthKey.replace("-", " / ");
 
   return (
-    <div style={{ padding: "22px 32px 100px", maxWidth: 1180, margin: "0 auto" }}>
+    <div style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
       {missingFxPairs.length ? (
         <div style={{ padding: "10px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-warn-soft)", border: "1px solid var(--ns-border)", marginBottom: 14, fontSize: 13 }}>
           總額不完整：缺少 {missingFxPairs.join("、")} 匯率。<Link to="/settings" style={{ marginLeft: 8 }}>前往更新匯率</Link>
@@ -246,7 +248,7 @@ export function DashboardRoute() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Overview · {monthLabel}</div>
+          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Overview · {monthLabel}</div>
           <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>{greeting}</h1>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
