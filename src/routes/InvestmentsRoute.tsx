@@ -215,7 +215,7 @@ export function InvestmentsRoute() {
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 0 }}>
         <div>
           <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Portfolio</div>
-          <h1 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>Holdings</h1>
+          <h1 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>投資</h1>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="ns-btn" onClick={refreshLatestQuotes} disabled={refreshQuotes.isPending}>
@@ -229,11 +229,11 @@ export function InvestmentsRoute() {
 
       {statusMessage ? <div className="mt-4"><StatusText>{statusMessage}</StatusText></div> : null}
 
-      {/* Page-level tabs: Portfolio | Transactions */}
+      {/* Page-level tabs: 持倉 | 交易紀錄 */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--ns-border)', marginTop: 20, marginBottom: 22 }}>
         {[
-          { id: 'portfolio', label: 'Portfolio', active: tab === 'portfolio' },
-          { id: 'transactions', label: 'Transactions', active: tab === 'transactions' },
+          { id: 'portfolio', label: '持倉', active: tab === 'portfolio' },
+          { id: 'transactions', label: '交易紀錄', active: tab === 'transactions' },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id as any)} style={{
             padding: '10px 20px', background: 'none', border: 'none', cursor: 'pointer',

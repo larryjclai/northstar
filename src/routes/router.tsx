@@ -1,18 +1,24 @@
-import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
+import { createRootRoute, createRoute, createRouter, lazyRouteComponent } from "@tanstack/react-router";
 import { AppShell } from "../components/AppShell";
-import { AccountsRoute } from "./AccountsRoute";
 import { CashFlowRoute } from "./CashFlowRoute";
-import { CategoriesRoute } from "./CategoriesRoute";
 import { DashboardRoute } from "./DashboardRoute";
-import { CategoryDetailRoute } from "./CategoryDetailRoute";
-import { MerchantDetailRoute } from "./MerchantDetailRoute";
-import { ReconcileRoute } from "./ReconcileRoute";
-import { FIRECalculatorRoute } from "./FIRECalculatorRoute";
-import { GoalsRoute } from "./GoalsRoute";
-import { HoldingDetailRoute } from "./HoldingDetailRoute";
 import { InvestmentsRoute } from "./InvestmentsRoute";
-import { SettingsRoute } from "./SettingsRoute";
+// TransactionsRoute is statically imported by InvestmentsRoute (used as a tab),
+// so it can't be split into its own chunk — keep it eager here too.
 import { TransactionsRoute } from "./TransactionsRoute";
+
+// High-frequency routes (Dashboard / Cash Flow / Investments / Accounts) are
+// imported eagerly so the common navigation paths render instantly. Lower-
+// frequency routes are code-split into their own chunks and loaded on demand.
+const AccountsRoute = lazyRouteComponent(() => import("./AccountsRoute"), "AccountsRoute");
+const CategoriesRoute = lazyRouteComponent(() => import("./CategoriesRoute"), "CategoriesRoute");
+const CategoryDetailRoute = lazyRouteComponent(() => import("./CategoryDetailRoute"), "CategoryDetailRoute");
+const MerchantDetailRoute = lazyRouteComponent(() => import("./MerchantDetailRoute"), "MerchantDetailRoute");
+const ReconcileRoute = lazyRouteComponent(() => import("./ReconcileRoute"), "ReconcileRoute");
+const FIRECalculatorRoute = lazyRouteComponent(() => import("./FIRECalculatorRoute"), "FIRECalculatorRoute");
+const GoalsRoute = lazyRouteComponent(() => import("./GoalsRoute"), "GoalsRoute");
+const HoldingDetailRoute = lazyRouteComponent(() => import("./HoldingDetailRoute"), "HoldingDetailRoute");
+const SettingsRoute = lazyRouteComponent(() => import("./SettingsRoute"), "SettingsRoute");
 
 const rootRoute = createRootRoute({
   component: AppShell,

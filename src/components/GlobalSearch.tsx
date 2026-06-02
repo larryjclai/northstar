@@ -58,16 +58,18 @@ export function GlobalSearch({
       .slice(0, 50) // Limit search scope
       .map((r) => {
         const asset = assetRows.find((a) => a.id === r.assetId);
-        const name = asset?.ticker || asset?.name || "Unknown Asset";
-        const actionLabel = 
-          r.action === "buy" ? "買進" : 
-          r.action === "sell" ? "賣出" : 
+        const ticker = asset?.ticker?.trim() || "";
+        const name = ticker || asset?.name || "Unknown Asset";
+        const actionLabel =
+          r.action === "buy" ? "買進" :
+          r.action === "sell" ? "賣出" :
           r.action === "cashDividend" ? "現金股息" :
           r.action === "stockDividend" ? "股票股息" : "交易";
         return {
           id: r.id,
           label: `${r.date} · ${actionLabel} ${name} ${r.quantity ? `(${r.quantity})` : ""}`,
           assetName: name,
+          ticker,
         };
       });
   }, [recordRows, assetRows]);
@@ -172,7 +174,14 @@ export function GlobalSearch({
               {txns.map((t) => (
                 <CommandItem
                   key={t.id}
-                  onSelect={() => runCommand(() => navigate({ to: "/investments" }))}
+                  value={`交易 ${t.label}`}
+                  onSelect={() =>
+                    runCommand(() =>
+                      t.ticker
+                        ? navigate({ to: "/holdings/$ticker", params: { ticker: t.ticker } })
+                        : navigate({ to: "/investments" }),
+                    )
+                  }
                 >
                   <ClockCounterClockwise size={16} weight="duotone" className="mr-2" />
                   <span>{t.label}</span>

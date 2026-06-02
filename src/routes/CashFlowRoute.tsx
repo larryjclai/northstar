@@ -569,7 +569,7 @@ export function CashFlowRoute() {
         <div>
           <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{monthLabel}</div>
           <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>
-            Cash Flow
+            記帳
           </h1>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
