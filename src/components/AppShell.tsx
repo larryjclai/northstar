@@ -16,6 +16,7 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePrivacySync, useUiPreferences } from "../state/uiPreferences";
+import { useQuickAdd } from "../state/quickAdd";
 import { usePostDueRecurring } from "../data/hooks";
 import { todayInTimezone } from "../domain";
 import { GlobalSearch } from "./GlobalSearch";
@@ -60,7 +61,9 @@ export function AppShell() {
   const privacyMode = useUiPreferences((state) => state.privacyMode);
   const togglePrivacy = useUiPreferences((state) => state.togglePrivacyMode);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const quickAddOpen = useQuickAdd((state) => state.open);
+  const setQuickAddOpen = useQuickAdd((state) => state.setOpen);
+  const toggleQuickAdd = useQuickAdd((state) => state.toggle);
   const [moreOpen, setMoreOpen] = useState(false);
 
   // Mobile bottom nav shows the four highest-frequency destinations inline;
@@ -68,7 +71,7 @@ export function AppShell() {
   // bar stays readable on a 390px screen.
   const mobilePrimaryNav = navItems.slice(0, 4);
   const mobileMoreNav = [...navItems.slice(4), ...nav2Items];
-  useQuickAddShortcut(() => setQuickAddOpen((v) => !v));
+  useQuickAddShortcut(() => toggleQuickAdd());
 
   return (
     <div
@@ -208,8 +211,11 @@ export function AppShell() {
         type="button"
         onClick={() => setQuickAddOpen(true)}
         aria-label="快速記帳"
-        className="fixed right-4 bottom-20 lg:hidden"
-        style={{ zIndex: 40, width: 52, height: 52, borderRadius: 999, background: "var(--ns-accent)", color: "var(--ns-accent-fg)", border: "none", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "var(--ns-shadow-xl)" }}
+        // `flex` lives in className (not inline style) so the responsive
+        // `lg:hidden` can actually win on desktop — an inline `display:flex`
+        // would override it and leak the FAB onto the desktop layout.
+        className="fixed right-4 bottom-20 flex items-center justify-center lg:hidden"
+        style={{ zIndex: 40, width: 52, height: 52, borderRadius: 999, background: "var(--ns-accent)", color: "var(--ns-accent-fg)", border: "none", boxShadow: "var(--ns-shadow-xl)" }}
       >
         <Plus size={24} weight="bold" />
       </button>

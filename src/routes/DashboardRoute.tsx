@@ -7,6 +7,7 @@ import { useFinanceData } from "../data/hooks";
 import { getFinanceRepository, type StoredMarketQuote } from "../data/repositories";
 import { loadDemoData } from "../data/demoData";
 import { useToast } from "../components/Toast";
+import { useQuickAdd } from "../state/quickAdd";
 import {
   assetTypeLabels,
   calculateAvailableCash,
@@ -47,6 +48,7 @@ export function DashboardRoute() {
   const timezone = useUiPreferences((state) => state.timezone);
   const queryClient = useQueryClient();
   const toast = useToast();
+  const openQuickAdd = useQuickAdd((state) => state.setOpen);
   const [monthKey, setMonthKey] = useState(() => new Date().toISOString().slice(0, 7));
   const [selectedAccount, setSelectedAccount] = useState<string>("all");
   const [demoLoading, setDemoLoading] = useState(false);
@@ -261,7 +263,7 @@ export function DashboardRoute() {
           <button className="ns-btn" style={{ height: 36, boxSizing: "border-box", whiteSpace: "nowrap" }} onClick={() => refreshQuotes.mutate(assetRows.map((a) => a.ticker))} disabled={refreshQuotes.isPending || assetRows.length === 0}>
             <ArrowsClockwise size={14} />{refreshQuotes.isPending ? "更新中" : "更新"}
           </button>
-          <Link to="/cash-flow" className="ns-btn primary" style={{ height: 36, boxSizing: "border-box", whiteSpace: "nowrap" }}><Plus size={14} weight="bold" />新增</Link>
+          <button type="button" className="ns-btn primary" style={{ height: 36, boxSizing: "border-box", whiteSpace: "nowrap" }} onClick={() => openQuickAdd(true)}><Plus size={14} weight="bold" />新增</button>
         </div>
       </div>
 

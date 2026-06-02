@@ -43,7 +43,10 @@ export function InvestmentsRoute() {
   const refreshQuotes = useRefreshQuotes();
   const refreshDailyPrices = useRefreshDailyPrices();
   const backfillAssetProfiles = useBackfillAssetProfiles();
-  const nameLocale = useUiPreferences((state) => state.nameLocale);
+  // "auto" follows the app UI language, which is Chinese-first (see i18n.ts:
+  // auto → zh-TW). Resolve it to zh-Hant so holdings show Chinese names rather
+  // than whatever the OS/browser locale happens to be.
+  const nameLocale = useUiPreferences((state) => (state.nameLocale === "auto" ? "zh-Hant" : state.nameLocale));
   const toast = useToast();
 
   const accountRows = accounts.data ?? [];

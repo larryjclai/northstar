@@ -16,7 +16,8 @@ export function HoldingDetailRoute() {
   const navigate = useNavigate();
   
   const { assets, quotes, dailyPrices, accounts, investments } = useFinanceData();
-  const nameLocale = useUiPreferences((state) => state.nameLocale);
+  // "auto" follows the Chinese-first app language (see i18n.ts) → zh-Hant.
+  const nameLocale = useUiPreferences((state) => (state.nameLocale === "auto" ? "zh-Hant" : state.nameLocale));
   const [seg, setSeg] = useState("1y");
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);

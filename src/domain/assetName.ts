@@ -18,16 +18,23 @@ export function resolveAssetName(
   if (!asset) return "";
   const fallback = asset.name || asset.ticker || "";
 
+  // A market-data provider that has no real Chinese name often returns its
+  // English name in BOTH nameZh and nameEn (e.g. Yahoo for some TW tickers).
+  // In that case nameZh isn't actually localized, so prefer the user-entered
+  // `name` (a TW user typically types the Chinese name) instead of letting the
+  // English value win the Chinese branch.
+  const zhName = asset.nameZh && asset.nameZh === asset.nameEn ? (asset.name || asset.nameZh) : (asset.nameZh || fallback);
+
   switch (preference) {
     case "zh-Hant":
-      return asset.nameZh || fallback || asset.nameEn || "";
+      return zhName || asset.nameEn || "";
     case "en":
       return asset.nameEn || fallback || asset.nameZh || "";
     case "auto":
     default: {
       const tag = (runtimeLocale || "").toLowerCase();
       if (tag.startsWith("zh")) {
-        return asset.nameZh || fallback || asset.nameEn || "";
+        return zhName || asset.nameEn || "";
       }
       if (tag.startsWith("en")) {
         return asset.nameEn || fallback || asset.nameZh || "";
