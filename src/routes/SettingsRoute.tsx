@@ -5,6 +5,7 @@ import { ActionButton } from "../components/ActionButton";
 import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { getFinanceRepository, type RepositorySnapshot } from "../data/repositories";
+import { loadDemoData, clearAllData } from "../data/demoData";
 import { COMMON_TIMEZONES, isValidTimezone } from "../domain";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../domain";
 import type { SyncConflictRecord } from "../domain/sync";
@@ -681,6 +682,43 @@ function SettingsGeneral({ form, t }: any) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
+  // Demo data + reset. window.confirm is a no-op in the Tauri webview, so these
+  // use a two-click inline confirm instead.
+  const [demoBusy, setDemoBusy] = useState<null | "load" | "clear">(null);
+  const [confirmLoadDemo, setConfirmLoadDemo] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+
+  async function handleLoadDemo() {
+    setDemoBusy("load");
+    try {
+      const repository = await getFinanceRepository();
+      await clearAllData(repository);
+      await loadDemoData(repository);
+      await queryClient.invalidateQueries();
+      toast.success("已載入示範資料");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "載入示範資料失敗");
+    } finally {
+      setDemoBusy(null);
+      setConfirmLoadDemo(false);
+    }
+  }
+
+  async function handleClearAll() {
+    setDemoBusy("clear");
+    try {
+      const repository = await getFinanceRepository();
+      await clearAllData(repository);
+      await queryClient.invalidateQueries();
+      toast.success("已清空所有資料");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "清空資料失敗");
+    } finally {
+      setDemoBusy(null);
+      setConfirmClear(false);
+    }
+  }
+
   async function exportBackup() {
     try {
       const repository = await getFinanceRepository();
@@ -747,6 +785,39 @@ function SettingsGeneral({ form, t }: any) {
           <ArrowsClockwise size={14}/>{recalculating ? "重新計算中" : "重新計算帳戶與投資"}
         </button>
         {recalculationSummary ? <div className="ns-surface mt-3 p-3 text-sm">{recalculationSummary}</div> : null}
+      </div>
+
+      <div className="ns-card p-5">
+        <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Demo</div>
+        <h3 className="font-semibold mb-2">示範資料</h3>
+        <p className="text-sm muted mb-4">載入一組範例帳戶、交易、持股與目標，方便瀏覽完整畫面或展示。載入會先清空目前資料；兩者都不影響分類與幣別設定。</p>
+        <div className="flex flex-wrap gap-2">
+          {confirmLoadDemo ? (
+            <>
+              <button className="ns-btn primary" onClick={handleLoadDemo} disabled={demoBusy !== null}>
+                {demoBusy === "load" ? "載入中…" : "確定載入（會清空現有資料）"}
+              </button>
+              <button className="ns-btn" onClick={() => setConfirmLoadDemo(false)} disabled={demoBusy !== null}>取消</button>
+            </>
+          ) : (
+            <button className="ns-btn primary" onClick={() => { setConfirmClear(false); setConfirmLoadDemo(true); }} disabled={demoBusy !== null}>
+              <Plus size={14} weight="bold" />載入示範資料
+            </button>
+          )}
+
+          {confirmClear ? (
+            <>
+              <button className="ns-btn" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} onClick={handleClearAll} disabled={demoBusy !== null}>
+                {demoBusy === "clear" ? "清空中…" : "確定清空所有資料"}
+              </button>
+              <button className="ns-btn" onClick={() => setConfirmClear(false)} disabled={demoBusy !== null}>取消</button>
+            </>
+          ) : (
+            <button className="ns-btn" onClick={() => { setConfirmLoadDemo(false); setConfirmClear(true); }} disabled={demoBusy !== null}>
+              <Trash size={14} />清空所有資料
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="ns-card p-5">

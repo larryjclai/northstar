@@ -2,8 +2,11 @@ import { ArrowDown, ArrowsClockwise, ArrowUp, Plus } from "@phosphor-icons/react
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useQueryClient } from "@tanstack/react-query";
 import { useFinanceData } from "../data/hooks";
-import type { StoredMarketQuote } from "../data/repositories";
+import { getFinanceRepository, type StoredMarketQuote } from "../data/repositories";
+import { loadDemoData } from "../data/demoData";
+import { useToast } from "../components/Toast";
 import {
   assetTypeLabels,
   calculateAvailableCash,
@@ -42,8 +45,24 @@ export function DashboardRoute() {
   const { accounts, ledger, assets, quotes, settings, dailyFxRates, recurring, financialGoals } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
   const timezone = useUiPreferences((state) => state.timezone);
+  const queryClient = useQueryClient();
+  const toast = useToast();
   const [monthKey, setMonthKey] = useState(() => new Date().toISOString().slice(0, 7));
   const [selectedAccount, setSelectedAccount] = useState<string>("all");
+  const [demoLoading, setDemoLoading] = useState(false);
+
+  async function loadDemo() {
+    setDemoLoading(true);
+    try {
+      await loadDemoData(await getFinanceRepository());
+      await queryClient.invalidateQueries();
+      toast.success("已載入示範資料");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "載入示範資料失敗");
+    } finally {
+      setDemoLoading(false);
+    }
+  }
 
   const accountRows = accounts.data ?? [];
   const ledgerRows = ledger.data ?? [];
@@ -288,7 +307,14 @@ export function DashboardRoute() {
               <div className="muted" style={{ fontSize: 13 }}>
                 {hasAnyData ? "累積幾筆資料後會顯示淨值趨勢。" : "先建立第一個帳戶，Northstar 會開始計算總覽。"}
               </div>
-              <Link to={hasAnyData ? "/cash-flow" : "/accounts"} className="ns-btn primary">{hasAnyData ? "去記帳" : "建立帳戶"}</Link>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
+                <Link to={hasAnyData ? "/cash-flow" : "/accounts"} className="ns-btn primary">{hasAnyData ? "去記帳" : "建立帳戶"}</Link>
+                {!hasAnyData ? (
+                  <button type="button" className="ns-btn" onClick={loadDemo} disabled={demoLoading}>
+                    {demoLoading ? "載入中…" : "載入示範資料"}
+                  </button>
+                ) : null}
+              </div>
             </div>
           )}
         </div>
