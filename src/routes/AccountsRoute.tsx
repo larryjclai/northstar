@@ -1,16 +1,17 @@
-import { DownloadSimple, ListChecks, PencilSimple, Plus, Scales, Trash, X } from "@phosphor-icons/react";
+import { ArrowsClockwise, CaretDown, CaretRight, DownloadSimple, ListChecks, PencilSimple, Plus, Scales, Trash, X } from "@phosphor-icons/react";
 import { ReactNode, useMemo, useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import EmojiPicker from "emoji-picker-react";
 import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
 import { downloadCsv, exportAccountsCsv } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
+import { getFinanceRepository } from "../data/repositories";
 import type { Account, AccountType, AppSettings } from "../domain";
 import { convertCurrency, formatNumber, nowAsDatetimeLocal } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useNumericField } from "../hooks/useNumericField";
 
-type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "creditPaymentPaidUntil" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color">;
+type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "creditPaymentPaidUntil" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color"> & { customGroup: string };
 
 const emptyAccount: AccountFormState = {
   name: "",
@@ -28,6 +29,7 @@ const emptyAccount: AccountFormState = {
   loanTerm: null,
   iconName: null,
   color: null,
+  customGroup: "",
 };
 
 const accountTypes: AccountType[] = ["depository", "cash", "credit", "loan", "investment", "alternative", "other"];
@@ -77,6 +79,8 @@ export function AccountsRoute() {
   const [adjustNote, setAdjustNote] = useState("");
   const [adjustDate, setAdjustDate] = useState("");
   const [adjustMessage, setAdjustMessage] = useState("");
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [recalculating, setRecalculating] = useState(false);
 
   const createAccount = useRepositoryMutation((repository, input: AccountFormState) => repository.createAccount(input), ["accounts"]);
   const updateAccount = useRepositoryMutation((repository, input: AccountFormState & { id: string }) => repository.updateAccount(input.id, input), ["accounts"]);
@@ -115,7 +119,9 @@ export function AccountsRoute() {
 
   const groups = useMemo(() => {
     return GROUP_ORDER.map((g) => {
-      const groupRows = rows.filter((a) => g.types.includes(a.type));
+      const groupRows = rows
+        .filter((a) => g.types.includes(a.type))
+        .sort((a, b) => (a.customGroup || "未分組").localeCompare(b.customGroup || "未分組") || a.name.localeCompare(b.name));
       const total = groupRows.reduce((s, a) => s + toBase(a.balance, a.currency), 0);
       return { ...g, rows: groupRows, total };
     }).filter((g) => g.rows.length > 0);
@@ -138,6 +144,7 @@ export function AccountsRoute() {
       iconName: account.iconName ?? null, color: account.color ?? null,
       statementDay: account.statementDay ?? null, paymentDueDay: account.paymentDueDay ?? null,
       creditPaymentPaidUntil: account.creditPaymentPaidUntil ?? null,
+      customGroup: account.customGroup ?? "",
     });
     setMessage("");
     setDrawerOpen(true);
@@ -183,6 +190,21 @@ export function AccountsRoute() {
   }
   const adjustingAccount = adjustingAccountId ? rows.find((r) => r.id === adjustingAccountId) : null;
 
+  async function recalculate() {
+    setRecalculating(true);
+    setMessage("");
+    try {
+      const repository = await getFinanceRepository();
+      const report = await repository.recalculateDerivedData();
+      await accounts.refetch();
+      setMessage(`重新計算完成：修正 ${report.changedAccounts} 個帳戶、${report.changedAssets} 個持倉。${report.incompleteTransferGroupIds.length ? ` 發現 ${report.incompleteTransferGroupIds.length} 組不完整轉帳。` : ""}${report.missingFxPairs.length ? ` 缺少匯率：${report.missingFxPairs.join("、")}。` : ""}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "重新計算失敗。");
+    } finally {
+      setRecalculating(false);
+    }
+  }
+
   return (
     <div style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
       {/* Header */}
@@ -192,6 +214,7 @@ export function AccountsRoute() {
           <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>帳戶</h1>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
+          <button className="ns-btn" onClick={recalculate} disabled={recalculating}><ArrowsClockwise size={14} />{recalculating ? "計算中…" : "重新計算"}</button>
           <button className="ns-btn" onClick={() => downloadCsv("northstar-accounts.csv", exportAccountsCsv(rows))}><DownloadSimple size={14} />匯出</button>
           <button className="ns-btn primary" onClick={openCreate}><Plus size={14} weight="bold" />新增帳戶</button>
         </div>
@@ -224,8 +247,12 @@ export function AccountsRoute() {
         <div style={{ display: "grid", gap: 16 }}>
           {groups.map((g) => (
             <div key={g.key} className="ns-card" style={{ padding: 0 }}>
-              <div style={{ padding: "14px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--ns-border)" }}>
-                <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 15, fontWeight: 500 }}>{g.label}</h3>
+              <div onClick={() => setCollapsedGroups((current) => {
+                const next = new Set(current);
+                if (next.has(g.key)) next.delete(g.key); else next.add(g.key);
+                return next;
+              })} style={{ padding: "14px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--ns-border)", cursor: "pointer" }}>
+                <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 15, fontWeight: 500, display: "flex", alignItems: "center", gap: 7 }}>{collapsedGroups.has(g.key) ? <CaretRight size={14} /> : <CaretDown size={14} />}{g.label}</h3>
                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                   <span className="dim mono" style={{ fontSize: 11 }}>{g.rows.length} accounts</span>
                   <span className="num" style={{ fontSize: 16, fontWeight: 500, color: g.total < 0 ? "var(--ns-neg)" : undefined }}>
@@ -233,11 +260,15 @@ export function AccountsRoute() {
                   </span>
                 </div>
               </div>
-              {g.rows.map((a, i) => {
+              {!collapsedGroups.has(g.key) && g.rows.map((a, i) => {
                 const base = toBase(a.balance, a.currency);
                 const groupCredit = a.type === "credit" && a.creditLimitGroup ? calculateCreditGroup(a.creditLimitGroup, rows) : null;
+                const subgroup = a.customGroup || "未分組";
+                const showSubgroup = i === 0 || (g.rows[i - 1].customGroup || "未分組") !== subgroup;
                 return (
-                  <div key={a.id} className="ns-acct-row" style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 22px", borderTop: i ? "1px solid var(--ns-border)" : "none" }}>
+                  <div key={a.id}>
+                  {showSubgroup ? <div className="ns-eyebrow" style={{ padding: "10px 22px 4px", borderTop: i ? "1px solid var(--ns-border)" : "none" }}>{subgroup}</div> : null}
+                  <div className="ns-acct-row" style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 22px", borderTop: !showSubgroup && i ? "1px solid var(--ns-border)" : "none" }}>
                     <div style={{ width: 36, height: 36, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: a.color || MARK_COLORS[i % MARK_COLORS.length], color: a.iconName ? undefined : "var(--ns-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: a.iconName ? 18 : 13 }}>
                       {a.iconName || a.name.slice(0, 2)}
                     </div>
@@ -268,13 +299,14 @@ export function AccountsRoute() {
                       <button className="ns-btn ghost icon" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={async () => { try { await deleteAccount.mutateAsync(a.id); } catch (e) { setMessage(e instanceof Error ? e.message : "刪除失敗。"); } }}><Trash size={14} /></button>
                     </div>
                   </div>
+                  </div>
                 );
               })}
             </div>
           ))}
-          {message ? <div className="ns-card" style={{ padding: "10px 16px", color: "var(--ns-neg)", fontSize: 13 }}>{message}</div> : null}
         </div>
       )}
+      {message ? <div className="ns-card" style={{ padding: "10px 16px", marginTop: 16, color: "var(--ns-fg-muted)", fontSize: 13 }}>{message}</div> : null}
 
       {/* Add / edit drawer */}
       {drawerOpen ? (
@@ -476,6 +508,9 @@ function AccountDrawer({
                   <select className="ns-input" style={{ appearance: "none" }} value={selectedCurrency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
                     {currencyOptions.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
+                </DrawerField>
+                <DrawerField label="自訂群組（選填）">
+                  <input className="ns-input" value={form.customGroup} onChange={(e) => setForm({ ...form, customGroup: e.target.value })} placeholder="例：台灣、海外、家庭" />
                 </DrawerField>
 
                 <DrawerField label="圖示與顏色（選填）">

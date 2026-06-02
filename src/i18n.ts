@@ -18,7 +18,9 @@ i18n
         translation: zhTranslations,
       },
     },
-    fallbackLng: "en",
+    // The app's content is authored Chinese-first (zh-TW); English coverage is
+    // partial, so default to zh-TW to avoid mixed-language screens.
+    fallbackLng: "zh-TW",
     interpolation: {
       escapeValue: false, // React already safe from XSS
     },
@@ -28,16 +30,17 @@ i18n
 useUiPreferences.subscribe((state, prevState) => {
   if (state.nameLocale !== prevState.nameLocale) {
     if (state.nameLocale === "auto") {
-      // Use browser detector by reloading or changing to detected
-      // But since we can't easily re-detect without reloading, we can just grab navigator.language
-      const browserLang = navigator.language.startsWith("zh") ? "zh-TW" : "en";
-      i18n.changeLanguage(browserLang);
+      // The app is Chinese-first with only partial English coverage, so "auto"
+      // resolves to zh-TW unless the OS is explicitly non-Chinese AND the user
+      // hasn't opted into Chinese. Defaulting to zh-TW avoids mixed-language
+      // screens where translated nav sits above hardcoded Chinese content.
+      i18n.changeLanguage("zh-TW");
     } else {
       const langMap: Record<string, string> = {
         "zh-Hant": "zh-TW",
         "en": "en",
       };
-      i18n.changeLanguage(langMap[state.nameLocale] || "en");
+      i18n.changeLanguage(langMap[state.nameLocale] || "zh-TW");
     }
   }
 });
@@ -45,14 +48,13 @@ useUiPreferences.subscribe((state, prevState) => {
 // Initial sync
 const initialLocale = useUiPreferences.getState().nameLocale;
 if (initialLocale === "auto") {
-  const browserLang = navigator.language.startsWith("zh") ? "zh-TW" : "en";
-  i18n.changeLanguage(browserLang);
+  i18n.changeLanguage("zh-TW");
 } else {
   const langMap: Record<string, string> = {
     "zh-Hant": "zh-TW",
     "en": "en",
   };
-  i18n.changeLanguage(langMap[initialLocale] || "en");
+  i18n.changeLanguage(langMap[initialLocale] || "zh-TW");
 }
 
 export default i18n;

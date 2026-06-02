@@ -1,5 +1,6 @@
 import {
   Bank,
+  DotsThreeOutline,
   Eye,
   EyeSlash,
   GearSix,
@@ -8,10 +9,12 @@ import {
   Receipt,
   Target,
   TrendUp,
+  X,
 } from "@phosphor-icons/react";
 import { Link, Outlet } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePrivacySync, useUiPreferences } from "../state/uiPreferences";
 import { usePostDueRecurring } from "../data/hooks";
 import { todayInTimezone } from "../domain";
@@ -24,6 +27,8 @@ import { loadSyncAccount } from "../features/connect/sync/account";
 import { loadVaultKey } from "../features/connect/crypto/vault";
 import { runSync, isSyncRunning, isTauriRuntime } from "../features/connect/sync/sync-manager";
 import { useSyncStatus } from "../state/syncStatus";
+import { queryKeys } from "../data/hooks";
+import { refreshLatestMarketData } from "../features/market-data/useMarketRefresh";
 
 const appIconUrl = new URL("../../src-tauri/icons/icon.png", import.meta.url).href;
 
@@ -49,12 +54,20 @@ export function AppShell() {
   usePrivacySync();
   usePrivacyShortcut();
   useAutoSync();
+  useAutoMarketRefresh();
   const timezone = useUiPreferences((state) => state.timezone);
   usePostDueRecurring(todayInTimezone(timezone));
   const privacyMode = useUiPreferences((state) => state.privacyMode);
   const togglePrivacy = useUiPreferences((state) => state.togglePrivacyMode);
   const [searchOpen, setSearchOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  // Mobile bottom nav shows the four highest-frequency destinations inline;
+  // lower-frequency entries (目標 / 設定) live behind a "更多" sheet so the
+  // bar stays readable on a 390px screen.
+  const mobilePrimaryNav = navItems.slice(0, 4);
+  const mobileMoreNav = [...navItems.slice(4), ...nav2Items];
   useQuickAddShortcut(() => setQuickAddOpen((v) => !v));
 
   return (
@@ -201,12 +214,46 @@ export function AppShell() {
         <Plus size={24} weight="bold" />
       </button>
 
+      {/* ── Mobile "更多" overflow sheet ── */}
+      {moreOpen ? (
+        <div className="fixed inset-0 z-50 lg:hidden" onClick={() => setMoreOpen(false)}>
+          <div className="absolute inset-0" style={{ background: "color-mix(in srgb, var(--ns-bg) 55%, transparent)" }} />
+          <div
+            className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t"
+            style={{ background: "var(--ns-bg-elev)", borderColor: "var(--ns-border)", boxShadow: "var(--ns-shadow-xl)", paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 pt-3 pb-1">
+              <span className="ns-eyebrow">更多</span>
+              <button type="button" aria-label="關閉" onClick={() => setMoreOpen(false)} style={{ background: "none", border: "none", color: "var(--ns-fg-muted)", cursor: "pointer" }}>
+                <X size={18} />
+              </button>
+            </div>
+            <nav className="flex flex-col p-2">
+              {mobileMoreNav.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => setMoreOpen(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm outline-none"
+                  activeProps={{ style: { color: "var(--ns-accent)", background: "var(--ns-accent-soft)" } }}
+                  inactiveProps={{ style: { color: "var(--ns-fg)" } }}
+                >
+                  <item.icon size={20} weight="duotone" />
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
+        </div>
+      ) : null}
+
       {/* ── Mobile bottom nav ── */}
       <nav
-        className="fixed inset-x-0 bottom-0 grid grid-cols-6 border-t lg:hidden"
+        className="fixed inset-x-0 bottom-0 grid grid-cols-5 border-t lg:hidden"
         style={{ background: "var(--ns-bg-elev)", borderColor: "var(--ns-border)" }}
       >
-        {[...navItems, ...nav2Items].map((item) => (
+        {mobilePrimaryNav.map((item) => (
           <Link
             key={item.to}
             to={item.to}
@@ -218,12 +265,52 @@ export function AppShell() {
             {item.label}
           </Link>
         ))}
+        <button
+          type="button"
+          onClick={() => setMoreOpen(true)}
+          className="flex flex-col items-center gap-1 px-1 py-2 text-[11px] outline-none"
+          style={{ background: "none", border: "none", cursor: "pointer", color: moreOpen ? "var(--ns-accent)" : "var(--ns-fg-muted)" }}
+          aria-label="更多"
+          aria-expanded={moreOpen}
+        >
+          <DotsThreeOutline size={20} weight="duotone" />
+          更多
+        </button>
       </nav>
 
       <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
       <QuickAdd open={quickAddOpen} onClose={() => setQuickAddOpen(false)} />
     </div>
   );
+}
+
+const MIN_MARKET_REFRESH_INTERVAL_MS = 15 * 60_000;
+
+function useAutoMarketRefresh() {
+  const queryClient = useQueryClient();
+  const lastRefreshRef = useRef(0);
+  const triggerRefresh = useCallback(async () => {
+    if (Date.now() - lastRefreshRef.current < MIN_MARKET_REFRESH_INTERVAL_MS) return;
+    lastRefreshRef.current = Date.now();
+    try {
+      await refreshLatestMarketData();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.assets }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.quotes }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.dailyFxRates }),
+      ]);
+    } catch (error) {
+      console.warn("[market] automatic refresh failed", error);
+    }
+  }, [queryClient]);
+
+  useEffect(() => {
+    void triggerRefresh();
+    window.addEventListener("focus", triggerRefresh);
+    return () => window.removeEventListener("focus", triggerRefresh);
+  }, [triggerRefresh]);
 }
 
 function useQuickAddShortcut(toggle: () => void) {
@@ -321,6 +408,7 @@ function useAutoSync() {
     if (!isTauriRuntime()) return;
 
     let unlistenFn: (() => void) | null = null;
+    void triggerSync();
 
     import("@tauri-apps/api/event").then(({ listen }) => {
       listen("tauri://focus", () => {

@@ -55,7 +55,8 @@ pub fn run() {
             // in tauri.conf.json (plugins.updater); see HANDOVER for release setup.
             // Gracefully skip if the updater config is not yet present.
             #[cfg(desktop)]
-            if let Err(e) = app.handle()
+            if let Err(e) = app
+                .handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())
             {
                 eprintln!("tauri-plugin-updater skipped: {e}");

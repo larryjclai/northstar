@@ -23,7 +23,8 @@ export const migrations: Migration[] = [
         type text not null,
         credit_limit real,
         credit_limit_group text not null default '',
-        is_shared_to_household integer not null default 0
+        is_shared_to_household integer not null default 0,
+        custom_group text not null default ''
       );
 
       create table if not exists ledger_transactions (
@@ -46,7 +47,8 @@ export const migrations: Migration[] = [
         linked_investment_record_id text,
         group_id text,
         is_reviewed integer not null default 0,
-        receipt_attachment_id text
+        receipt_attachment_id text,
+        recurring_occurrence_key text
       );
 
       create table if not exists portfolio_assets (

@@ -11,6 +11,7 @@ export interface EnvelopeRecord {
   revision: number;
   encryptedPayload: string;
   updatedAt: string;
+  sequence?: number;
 }
 
 export interface DeviceRecord {

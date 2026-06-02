@@ -14,12 +14,20 @@ import type {
   LedgerTransaction,
   ManualPriceSnapshot,
   PortfolioAsset,
+  RecalculationReport,
   RecurringTransaction,
   SpendingItem,
 } from "../domain/types";
 import type { MarketQuote } from "../features/market-data";
-import { calculateInvestmentAccountQuantity, calculateInvestmentCashDelta, calculateInvestmentNetDelta, isEffectivelyNegative } from "../domain/investmentCash";
-import { buildPendingChanges, type SyncSource } from "../domain/sync";
+import { calculateInvestmentAccountQuantity, calculateInvestmentCashDelta, calculateInvestmentQuantity, isEffectivelyNegative } from "../domain/investmentCash";
+import { assertLedgerInvariants, assertTransferInvariants, buildRecalculationReport, deriveAccountBalances, findMissingFxPairs } from "../domain/ledgerTrust";
+import {
+  buildPendingChanges,
+  type SyncApplyChange,
+  type SyncConflictRecord,
+  type SyncEntity,
+  type SyncSource,
+} from "../domain/sync";
 import { migrations, splitSqlStatements } from "./migrations";
 import {
   seedAccounts,
@@ -50,9 +58,12 @@ export interface LedgerDraft {
   note: string;
   groupId?: string | null;
   feeAmount?: number;
+  recurringOccurrenceKey?: string | null;
 }
 
-export type AccountDraft = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "creditPaymentPaidUntil" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color">;
+export type AccountDraft = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "creditPaymentPaidUntil" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color"> & {
+  customGroup?: string;
+};
 
 export interface RecurringDraft {
   accountId: string;
@@ -200,8 +211,14 @@ export interface FinanceRepository {
   renameSubcategory(category: string, oldSub: string, newSub: string): Promise<void>;
   exportSnapshot(): Promise<RepositorySnapshot>;
   importSnapshot(snapshot: RepositorySnapshot): Promise<void>;
+  getSyncPayload(entity: SyncEntity, entityId: string): Promise<Record<string, unknown> | null>;
+  applySyncChanges(changes: SyncApplyChange[], conflicts?: SyncConflictRecord[]): Promise<void>;
+  recalculateDerivedData(): Promise<RecalculationReport>;
   /** Connect Sync prep: records changed since `sinceCursor` (an updatedAt). */
   collectPendingChanges(sinceCursor: string | null): Promise<import("../domain").PendingChangeSet>;
+  acknowledgePendingChanges(outboxIds: string[]): Promise<void>;
+  listSyncConflicts(): Promise<SyncConflictRecord[]>;
+  resolveSyncConflict(id: string, strategy: "keepLocal" | "useIncoming"): Promise<void>;
 }
 
 export interface RepositorySnapshot {
@@ -255,6 +272,7 @@ interface RepositoryData {
   dailyPrices: DailyPrice[];
   financialGoals: FinancialGoal[];
   manualPriceSnapshots: ManualPriceSnapshot[];
+  syncConflicts: SyncConflictRecord[];
 }
 
 let repositoryPromise: Promise<FinanceRepository> | null = null;
@@ -315,16 +333,7 @@ function active<T extends { deletedAt: string | null }>(rows: T[]) {
   return rows.filter((row) => row.deletedAt === null);
 }
 
-function recomputeAccounts(accounts: Account[], ledger: LedgerTransaction[]) {
-  const activeLedger = active(ledger).filter((row) => row.settlementStatus === "settled");
-  return accounts.map((account) => {
-    if (account.deletedAt !== null) return account;
-    const total = activeLedger
-      .filter((row) => row.accountId === account.id)
-      .reduce((sum, row) => sum + row.amount, 0);
-    return { ...account, balance: account.openingBalance + total };
-  });
-}
+const recomputeAccounts = deriveAccountBalances;
 
 function recomputeAssets(assets: PortfolioAsset[], records: InvestmentRecord[]) {
   const activeRecords = active(records);
@@ -334,12 +343,7 @@ function recomputeAssets(assets: PortfolioAsset[], records: InvestmentRecord[]) 
       const linkedRecords = activeRecords.filter((r) => r.assetId === asset.id);
       if (linkedRecords.length === 0) return asset;
       const baseQty = asset.baseQuantity ?? asset.totalQuantity;
-      let delta = 0;
-      for (const record of linkedRecords) {
-        if (record.action === "buy" || record.action === "stockDividend") delta += record.quantity;
-        else if (record.action === "sell") delta -= record.quantity;
-      }
-      return { ...asset, totalQuantity: Math.max(0, baseQty + delta) };
+      return { ...asset, totalQuantity: Math.max(0, calculateInvestmentQuantity(linkedRecords, asset.id, baseQty)) };
     }
     const assetRecords = activeRecords.filter((record) => record.assetId === asset.id);
     let quantity = 0;
@@ -382,6 +386,7 @@ class BrowserFinanceRepository implements FinanceRepository {
     const stored = await loadBrowserRepositoryData(this.storageKey);
     this.data = stored ? normalizeStoredData(stored) : createInitialData();
     this.backfillUnassignedAccountInMemory();
+    this.recompute();
     await this.persist();
   }
 
@@ -513,6 +518,7 @@ class BrowserFinanceRepository implements FinanceRepository {
   }
 
   async createLedgerTransaction(input: LedgerDraft) {
+    assertLedgerInvariants(input, this.data.accounts);
     if (input.feeAmount && input.feeAmount > 0) {
       const groupId = input.groupId || createId("group");
       this.data.ledgerTransactions.push(
@@ -540,6 +546,7 @@ class BrowserFinanceRepository implements FinanceRepository {
   }
 
   async updateLedgerTransaction(id: string, input: LedgerDraft) {
+    assertLedgerInvariants(input, this.data.accounts, { allowTransfer: input.entryType === "transfer" });
     this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
       row.id === id ? bump({ ...row, ...input, groupId: input.groupId ?? null }) : row,
     );
@@ -567,6 +574,7 @@ class BrowserFinanceRepository implements FinanceRepository {
   }
 
   async createTransfer(input: TransferDraft) {
+    assertTransferInvariants(input, this.data.accounts);
     const groupId = createId("group");
     this.data.ledgerTransactions.push(
       createLedgerRow({
@@ -621,6 +629,7 @@ class BrowserFinanceRepository implements FinanceRepository {
   }
 
   async importLedgerTransactions(rows: LedgerDraft[]) {
+    rows.forEach((row) => assertLedgerInvariants(row, this.data.accounts));
     this.data.ledgerTransactions.push(...rows.map(createLedgerRow));
     this.recompute();
     await this.persist();
@@ -747,11 +756,13 @@ class BrowserFinanceRepository implements FinanceRepository {
   }
 
   async createRecurringTransaction(input: RecurringDraft) {
+    assertLedgerInvariants(input, this.data.accounts);
     this.data.recurringTransactions.push(createRecurringRow(input));
     await this.persist();
   }
 
   async updateRecurringTransaction(id: string, input: RecurringDraft) {
+    assertLedgerInvariants(input, this.data.accounts);
     this.data.recurringTransactions = this.data.recurringTransactions.map((row) =>
       row.id === id ? bump({ ...row, ...input }) : row,
     );
@@ -768,6 +779,10 @@ class BrowserFinanceRepository implements FinanceRepository {
   async postRecurringTransaction(id: string) {
     const recurring = this.data.recurringTransactions.find((row) => row.id === id && row.deletedAt === null);
     if (!recurring) throw new Error("找不到週期事件。");
+    const recurringOccurrenceKey = recurringKey(recurring.id, recurring.nextRunDate);
+    if (this.data.ledgerTransactions.some((row) => row.recurringOccurrenceKey === recurringOccurrenceKey && row.deletedAt === null)) {
+      throw new Error("這一期週期交易已經建立。");
+    }
     this.data.ledgerTransactions.push(createLedgerRow({
       accountId: recurring.accountId,
       date: `${recurring.nextRunDate}T09:00`,
@@ -781,6 +796,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       settlementStatus: recurring.settlementStatus,
       note: recurring.note,
       recurringRuleId: recurring.id,
+      recurringOccurrenceKey,
     }));
     this.data.recurringTransactions = this.data.recurringTransactions.map((row) =>
       row.id === id ? bump({ ...row, nextRunDate: nextRecurringDate(row.nextRunDate, row.frequency ?? "monthly", row.dayOfMonth) }) : row,
@@ -798,6 +814,12 @@ class BrowserFinanceRepository implements FinanceRepository {
       let next = rule.nextRunDate;
       let guard = 0;
       while (next <= today && guard < 120) {
+        const recurringOccurrenceKey = recurringKey(rule.id, next);
+        if (this.data.ledgerTransactions.some((row) => row.recurringOccurrenceKey === recurringOccurrenceKey && row.deletedAt === null)) {
+          next = nextRecurringDate(next, frequency, rule.dayOfMonth);
+          guard += 1;
+          continue;
+        }
         this.data.ledgerTransactions.push(createLedgerRow({
           accountId: rule.accountId,
           date: `${next}T09:00`,
@@ -811,6 +833,7 @@ class BrowserFinanceRepository implements FinanceRepository {
           settlementStatus: rule.settlementStatus,
           note: rule.note,
           recurringRuleId: rule.id,
+          recurringOccurrenceKey,
         }));
         next = nextRecurringDate(next, frequency, rule.dayOfMonth);
         posted += 1;
@@ -848,6 +871,23 @@ class BrowserFinanceRepository implements FinanceRepository {
     }));
     this.recompute();
     await this.persist();
+  }
+
+  async recalculateDerivedData(): Promise<RecalculationReport> {
+    const beforeAccounts = this.data.accounts;
+    const beforeAssets = this.data.portfolioAssets;
+    this.recompute();
+    const report = buildRecalculationReport(
+      beforeAccounts,
+      this.data.accounts,
+      beforeAssets,
+      this.data.portfolioAssets,
+      this.data.ledgerTransactions,
+      this.data.investmentRecords,
+      findMissingFxPairs(this.data.accounts, this.data.ledgerTransactions, this.data.portfolioAssets, this.data.settings, this.data.dailyFxRates),
+    );
+    await this.persist();
+    return report;
   }
 
   async renameMerchant(oldName: string, newName: string) {
@@ -1130,6 +1170,54 @@ class BrowserFinanceRepository implements FinanceRepository {
     return buildPendingChanges(await this.allSyncRecords(), sinceCursor);
   }
 
+  async acknowledgePendingChanges(_outboxIds: string[]) {
+    // Browser storage derives pending rows from the timestamp cursor.
+  }
+
+  async listSyncConflicts() {
+    return this.data.syncConflicts;
+  }
+
+  async resolveSyncConflict(id: string, strategy: "keepLocal" | "useIncoming") {
+    const conflict = this.data.syncConflicts.find((row) => row.id === id && row.resolvedAt === null);
+    if (!conflict) throw new Error("找不到待處理的同步衝突。");
+    if (strategy === "useIncoming") {
+      await this.applySyncChanges([{ entity: conflict.entity, payload: conflict.incomingPayload }]);
+    } else {
+      const payload = await this.getSyncPayload(conflict.entity, conflict.entityId);
+      if (!payload) throw new Error("找不到本機版本。");
+      await this.applySyncChanges([{
+        entity: conflict.entity,
+        payload: { ...payload, revision: Number(payload.revision ?? 0) + 1, updatedAt: nowIso() },
+      }]);
+    }
+    this.data.syncConflicts = this.data.syncConflicts.map((row) =>
+      row.id === id ? { ...row, resolvedAt: nowIso() } : row,
+    );
+    await this.persist();
+  }
+
+  async getSyncPayload(entity: SyncEntity, entityId: string): Promise<Record<string, unknown> | null> {
+    if (entity === "settings") {
+      return entityId === "app_settings" ? {
+        id: "app_settings",
+        revision: this.data.settingsRevision,
+        updatedAt: this.data.settingsUpdatedAt,
+        deletedAt: null,
+        settings: this.data.settings,
+      } : null;
+    }
+    const rowsByEntity = {
+      account: this.data.accounts,
+      ledger: this.data.ledgerTransactions,
+      asset: this.data.portfolioAssets,
+      investment: this.data.investmentRecords,
+      recurring: this.data.recurringTransactions,
+      goal: this.data.financialGoals,
+    };
+    return (rowsByEntity[entity].find((row) => row.id === entityId) as unknown as Record<string, unknown> | undefined) ?? null;
+  }
+
   async importSnapshot(snapshot: RepositorySnapshot) {
     this.data = normalizeStoredData({
       accounts: snapshot.accounts,
@@ -1149,6 +1237,36 @@ class BrowserFinanceRepository implements FinanceRepository {
     // Recompute balances from the merged ledger/investment data so two devices
     // that each had different transactions converge to the same balance after sync,
     // instead of keeping whichever device's stale stored balance "won" the merge.
+    this.recompute();
+    await this.persist();
+  }
+
+  async applySyncChanges(changes: SyncApplyChange[], conflicts: SyncConflictRecord[] = []) {
+    for (const change of changes) {
+      const payload = change.payload;
+      if (change.entity === "settings") {
+        if (payload.settings) this.data.settings = normalizeSettings(payload.settings as AppSettings);
+        this.data.settingsRevision = Number(payload.revision ?? this.data.settingsRevision);
+        this.data.settingsUpdatedAt = String(payload.updatedAt ?? this.data.settingsUpdatedAt);
+        continue;
+      }
+      const keyByEntity = {
+        account: "accounts",
+        ledger: "ledgerTransactions",
+        asset: "portfolioAssets",
+        investment: "investmentRecords",
+        recurring: "recurringTransactions",
+        goal: "financialGoals",
+      } as const;
+      const key = keyByEntity[change.entity];
+      const rows = this.data[key] as Array<{ id: string }>;
+      const index = rows.findIndex((row) => row.id === payload.id);
+      if (index >= 0) rows[index] = payload as { id: string };
+      else rows.push(payload as { id: string });
+    }
+    for (const conflict of conflicts) {
+      if (!this.data.syncConflicts.some((row) => row.id === conflict.id)) this.data.syncConflicts.push(conflict);
+    }
     this.recompute();
     await this.persist();
   }
@@ -1210,8 +1328,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       let available: number;
       if (existingAsset.holdingSource === "manual") {
         const baseQty = existingAsset.baseQuantity ?? existingAsset.totalQuantity;
-        const delta = calculateInvestmentNetDelta(this.data.investmentRecords, existingAsset.id, options.excludeRecordId);
-        available = Math.max(0, baseQty + delta);
+        available = Math.max(0, calculateInvestmentQuantity(this.data.investmentRecords, existingAsset.id, baseQty, options.excludeRecordId));
       } else {
         available = calculateInvestmentAccountQuantity(this.data.investmentRecords, existingAsset.id, account.id, options.excludeRecordId);
       }
@@ -1414,6 +1531,22 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     this.db = serializeDatabase(db);
   }
 
+  private async withTransaction<T>(operation: () => Promise<T>): Promise<T> {
+    await this.db.execute("BEGIN");
+    try {
+      const result = await operation();
+      await this.db.execute("COMMIT");
+      return result;
+    } catch (error) {
+      try {
+        await this.db.execute("ROLLBACK");
+      } catch {
+        // Preserve the originating write failure.
+      }
+      throw error;
+    }
+  }
+
   override async initialize() {
     for (const migration of migrations) {
       for (const statement of splitSqlStatements(migration.sql)) {
@@ -1440,6 +1573,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("accounts", "statement_day", "integer");
     await this.ensureSqliteColumn("accounts", "credit_payment_paid_until", "text");
     await this.ensureSqliteColumn("accounts", "payment_due_day", "integer");
+    await this.ensureSqliteColumn("accounts", "custom_group", "text not null default ''");
     await this.ensureSqliteColumn("portfolio_assets", "holding_source", "text not null default 'transactions'");
     await this.ensureSqliteColumn("portfolio_assets", "acquisition_date", "text");
     await this.ensureSqliteColumn("portfolio_assets", "name_zh", "text");
@@ -1470,12 +1604,17 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("ledger_transactions", "recurring_rule_id", "text");
     await this.ensureSqliteColumn("ledger_transactions", "original_amount", "real");
     await this.ensureSqliteColumn("ledger_transactions", "original_currency", "text");
+    await this.ensureSqliteColumn("ledger_transactions", "recurring_occurrence_key", "text");
+    await this.db.execute(`create unique index if not exists idx_ledger_recurring_occurrence on ledger_transactions (recurring_occurrence_key) where recurring_occurrence_key is not null and deleted_at is null`);
+    await this.ensureSyncInfrastructure();
     await this.backfillUnassignedAccount();
     await this.ensureDefaultSettings();
     const rows = await this.db.select<Array<{ count: number }>>("select count(*) as count from accounts");
     if ((rows[0]?.count ?? 0) === 0) {
       await this.seedSqlite();
     }
+    await this.backfillSyncOutbox();
+    await this.recalculateDerivedData();
   }
 
   override async listAccounts() {
@@ -1483,7 +1622,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       name, currency, opening_balance as openingBalance, balance, type, credit_limit as creditLimit, credit_limit_group as creditLimitGroup, is_shared_to_household as isSharedToHousehold,
       loan_start_date as loanStartDate, annual_interest_rate as annualInterestRate, loan_term as loanTerm, icon_name as iconName, color, statement_day as statementDay, payment_due_day as paymentDueDay,
-      credit_payment_paid_until as creditPaymentPaidUntil
+      credit_payment_paid_until as creditPaymentPaidUntil, custom_group as customGroup
       from accounts where deleted_at is null order by name`)).map((row) => ({
         ...row,
         creditLimit: row.creditLimit ?? null,
@@ -1497,22 +1636,23 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         statementDay: row.statementDay ?? null,
         paymentDueDay: row.paymentDueDay ?? null,
         creditPaymentPaidUntil: (row as any).creditPaymentPaidUntil ?? null,
+        customGroup: row.customGroup ?? "",
       }));
   }
 
   override async createAccount(input: AccountDraft) {
     const timestamp = nowIso();
     await this.db.execute(
-      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, statement_day, payment_due_day, credit_payment_paid_until)
-       values ($1,$2,1,$3,$3,null,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
-      [createId("acct"), personalSpace, timestamp, input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, null],
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, statement_day, payment_due_day, credit_payment_paid_until, custom_group)
+       values ($1,$2,1,$3,$3,null,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+      [createId("acct"), personalSpace, timestamp, input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, null, input.customGroup?.trim() ?? ""],
     );
   }
 
   override async updateAccount(id: string, input: AccountDraft) {
     await this.db.execute(
-      `update accounts set revision = revision + 1, updated_at = $1, name = $2, currency = $3, opening_balance = $4, type = $5, credit_limit = $6, credit_limit_group = $7, is_shared_to_household = $8, loan_start_date = $9, annual_interest_rate = $10, loan_term = $11, icon_name = $12, color = $13, statement_day = $14, payment_due_day = $15, credit_payment_paid_until = $16 where id = $17`,
-      [nowIso(), input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, input.creditPaymentPaidUntil ?? null, id],
+      `update accounts set revision = revision + 1, updated_at = $1, name = $2, currency = $3, opening_balance = $4, type = $5, credit_limit = $6, credit_limit_group = $7, is_shared_to_household = $8, loan_start_date = $9, annual_interest_rate = $10, loan_term = $11, icon_name = $12, color = $13, statement_day = $14, payment_due_day = $15, credit_payment_paid_until = $16, custom_group = $17 where id = $18`,
+      [nowIso(), input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, input.creditPaymentPaidUntil ?? null, input.customGroup?.trim() ?? "", id],
     );
     await this.recomputeSqliteAccounts();
   }
@@ -1536,35 +1676,40 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       account_id as accountId, date, name, amount, currency, original_amount as originalAmount, original_currency as originalCurrency,
       category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note,
       linked_investment_record_id as linkedInvestmentRecordId, group_id as groupId,
-      is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId, recurring_rule_id as recurringRuleId
+      is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId, recurring_rule_id as recurringRuleId,
+      recurring_occurrence_key as recurringOccurrenceKey
       from ledger_transactions where deleted_at is null order by date desc, created_at desc`);
   }
 
   override async createLedgerTransaction(input: LedgerDraft) {
-    if (input.feeAmount && input.feeAmount > 0) {
-      const groupId = input.groupId || createId("group");
-      await this.insertLedgerRow(createLedgerRow({ ...input, groupId }));
-      await this.insertLedgerRow(createLedgerRow({
-        accountId: input.accountId,
-        date: input.date,
-        name: "手續費",
-        amount: -Math.abs(input.feeAmount),
-        currency: input.currency,
-        category: "手續費",
-        subcategory: "海外交易手續費",
-        merchant: input.merchant,
-        entryType: "expense",
-        settlementStatus: "settled",
-        note: "由系統自動建立的手續費紀錄",
-        groupId,
-      }));
-    } else {
-      await this.insertLedgerRow(createLedgerRow(input));
-    }
-    await this.recomputeSqliteAccounts();
+    assertLedgerInvariants(input, await this.listAccounts());
+    await this.withTransaction(async () => {
+      if (input.feeAmount && input.feeAmount > 0) {
+        const groupId = input.groupId || createId("group");
+        await this.insertLedgerRow(createLedgerRow({ ...input, groupId }));
+        await this.insertLedgerRow(createLedgerRow({
+          accountId: input.accountId,
+          date: input.date,
+          name: "手續費",
+          amount: -Math.abs(input.feeAmount),
+          currency: input.currency,
+          category: "手續費",
+          subcategory: "海外交易手續費",
+          merchant: input.merchant,
+          entryType: "expense",
+          settlementStatus: "settled",
+          note: "由系統自動建立的手續費紀錄",
+          groupId,
+        }));
+      } else {
+        await this.insertLedgerRow(createLedgerRow(input));
+      }
+      await this.recomputeSqliteAccounts();
+    });
   }
 
   override async updateLedgerTransaction(id: string, input: LedgerDraft) {
+    assertLedgerInvariants(input, await this.listAccounts(), { allowTransfer: input.entryType === "transfer" });
     await this.db.execute(
       `update ledger_transactions set revision = revision + 1, updated_at = $1, account_id = $2, date = $3, name = $4, amount = $5, currency = $6, original_amount = $7, original_currency = $8, category = $9, subcategory = $10, merchant = $11, entry_type = $12, settlement_status = $13, note = $14, group_id = $15 where id = $16`,
       [nowIso(), input.accountId, input.date, input.name, input.amount, input.currency, input.originalAmount ?? null, input.originalCurrency ?? null, input.category, input.subcategory, input.merchant, input.entryType, input.settlementStatus, input.note, input.groupId ?? null, id],
@@ -1591,9 +1736,11 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async createTransfer(input: TransferDraft) {
-    const groupId = createId("group");
-    const category = input.sourceCurrency === input.destinationCurrency ? "轉帳" : "外幣兌換";
-    await this.insertLedgerRow(createLedgerRow({
+    assertTransferInvariants(input, await this.listAccounts());
+    await this.withTransaction(async () => {
+      const groupId = createId("group");
+      const category = input.sourceCurrency === input.destinationCurrency ? "轉帳" : "外幣兌換";
+      await this.insertLedgerRow(createLedgerRow({
       accountId: input.sourceAccountId,
       date: input.date,
       name: input.sourceCurrency === input.destinationCurrency ? "轉出" : "外幣換出",
@@ -1606,8 +1753,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       settlementStatus: "settled",
       note: input.note,
       groupId,
-    }));
-    await this.insertLedgerRow(createLedgerRow({
+      }));
+      await this.insertLedgerRow(createLedgerRow({
       accountId: input.destinationAccountId,
       date: input.date,
       name: input.sourceCurrency === input.destinationCurrency ? "轉入" : "外幣換入",
@@ -1620,9 +1767,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       settlementStatus: "settled",
       note: input.note,
       groupId,
-    }));
-    if (input.feeAmount && input.feeAmount > 0) {
-      await this.insertLedgerRow(createLedgerRow({
+      }));
+      if (input.feeAmount && input.feeAmount > 0) {
+        await this.insertLedgerRow(createLedgerRow({
         accountId: input.sourceAccountId,
         date: input.date,
         name: "手續費",
@@ -1635,14 +1782,19 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         settlementStatus: "settled",
         note: "由系統自動建立的轉帳手續費紀錄",
         groupId,
-      }));
-    }
-    await this.recomputeSqliteAccounts();
+        }));
+      }
+      await this.recomputeSqliteAccounts();
+    });
   }
 
   override async importLedgerTransactions(rows: LedgerDraft[]) {
-    for (const row of rows) await this.insertLedgerRow(createLedgerRow(row));
-    await this.recomputeSqliteAccounts();
+    const accounts = await this.listAccounts();
+    rows.forEach((row) => assertLedgerInvariants(row, accounts));
+    await this.withTransaction(async () => {
+      for (const row of rows) await this.insertLedgerRow(createLedgerRow(row));
+      await this.recomputeSqliteAccounts();
+    });
   }
 
   override async listPortfolioAssets() {
@@ -1704,21 +1856,23 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async createInvestmentRecord(input: InvestmentDraft) {
-    const ticker = input.ticker.trim().toUpperCase();
-    const transactionAssetId = await this.findSqliteTransactionAssetId(input);
-    const manualAssetId = !transactionAssetId ? (await this.findSqliteManualAsset(ticker, input.linkedAccountId ?? null))?.id : undefined;
-    const existingAssetId = transactionAssetId ?? manualAssetId;
-    await this.validateSqliteInvestmentDraft(input, existingAssetId);
-    const assetId = await this.findOrCreateSqliteAsset(input);
-    const record = createInvestmentRow(input, assetId);
-    const ledger = createInvestmentLedgerRow(input, record.id);
-    if (ledger) {
-      record.linkedLedgerTransactionId = ledger.id;
-      await this.insertLedgerRow(ledger);
-    }
-    await this.insertInvestmentRow(record);
-    await this.recomputeSqliteAccounts();
-    await this.recomputeSqliteAssets();
+    await this.withTransaction(async () => {
+      const ticker = input.ticker.trim().toUpperCase();
+      const transactionAssetId = await this.findSqliteTransactionAssetId(input);
+      const manualAssetId = !transactionAssetId ? (await this.findSqliteManualAsset(ticker, input.linkedAccountId ?? null))?.id : undefined;
+      const existingAssetId = transactionAssetId ?? manualAssetId;
+      await this.validateSqliteInvestmentDraft(input, existingAssetId);
+      const assetId = await this.findOrCreateSqliteAsset(input);
+      const record = createInvestmentRow(input, assetId);
+      const ledger = createInvestmentLedgerRow(input, record.id);
+      if (ledger) {
+        record.linkedLedgerTransactionId = ledger.id;
+        await this.insertLedgerRow(ledger);
+      }
+      await this.insertInvestmentRow(record);
+      await this.recomputeSqliteAccounts();
+      await this.recomputeSqliteAssets();
+    });
   }
 
   override async updateInvestmentRecord(id: string, input: InvestmentDraft) {
@@ -1737,33 +1891,35 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       excludeRecordId: id,
       excludeLedgerId: existingRecord.linkedLedgerTransactionId,
     });
-    const assetId = await this.findOrCreateSqliteAsset(input);
-    const ledger = createInvestmentLedgerRow(input, id);
-    let linkedLedgerTransactionId: string | null = existingRecord.linkedLedgerTransactionId;
-    if (linkedLedgerTransactionId) {
-      if (ledger) {
-        const fields = investmentLedgerFields(input, id);
-        await this.db.execute(
-          `update ledger_transactions set revision = revision + 1, updated_at = $1, deleted_at = null, account_id = $2, date = $3, name = $4, amount = $5, currency = $6, category = $7, subcategory = $8, merchant = $9, entry_type = $10, settlement_status = $11, note = $12, linked_investment_record_id = $13, group_id = $14 where id = $15`,
-          [nowIso(), fields.accountId, fields.date, fields.name, fields.amount, fields.currency, fields.category, fields.subcategory, fields.merchant, fields.entryType, fields.settlementStatus, fields.note, fields.linkedInvestmentRecordId, fields.groupId, linkedLedgerTransactionId],
-        );
-      } else {
-        await this.db.execute(
-          `update ledger_transactions set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`,
-          [nowIso(), linkedLedgerTransactionId],
-        );
-        linkedLedgerTransactionId = null;
+    await this.withTransaction(async () => {
+      const assetId = await this.findOrCreateSqliteAsset(input);
+      const ledger = createInvestmentLedgerRow(input, id);
+      let linkedLedgerTransactionId: string | null = existingRecord.linkedLedgerTransactionId;
+      if (linkedLedgerTransactionId) {
+        if (ledger) {
+          const fields = investmentLedgerFields(input, id);
+          await this.db.execute(
+            `update ledger_transactions set revision = revision + 1, updated_at = $1, deleted_at = null, account_id = $2, date = $3, name = $4, amount = $5, currency = $6, category = $7, subcategory = $8, merchant = $9, entry_type = $10, settlement_status = $11, note = $12, linked_investment_record_id = $13, group_id = $14 where id = $15`,
+            [nowIso(), fields.accountId, fields.date, fields.name, fields.amount, fields.currency, fields.category, fields.subcategory, fields.merchant, fields.entryType, fields.settlementStatus, fields.note, fields.linkedInvestmentRecordId, fields.groupId, linkedLedgerTransactionId],
+          );
+        } else {
+          await this.db.execute(
+            `update ledger_transactions set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`,
+            [nowIso(), linkedLedgerTransactionId],
+          );
+          linkedLedgerTransactionId = null;
+        }
+      } else if (ledger) {
+        linkedLedgerTransactionId = ledger.id;
+        await this.insertLedgerRow(ledger);
       }
-    } else if (ledger) {
-      linkedLedgerTransactionId = ledger.id;
-      await this.insertLedgerRow(ledger);
-    }
-    await this.db.execute(
-      `update investment_records set revision = revision + 1, updated_at = $1, asset_id = $2, linked_account_id = $3, date = $4, action = $5, price = $6, quantity = $7, fee = $8, note = $9, linked_ledger_transaction_id = $10 where id = $11`,
-      [nowIso(), assetId, input.linkedAccountId ?? null, input.date, input.action, input.price, input.quantity, input.fee, input.note, linkedLedgerTransactionId, id],
-    );
-    await this.recomputeSqliteAccounts();
-    await this.recomputeSqliteAssets();
+      await this.db.execute(
+        `update investment_records set revision = revision + 1, updated_at = $1, asset_id = $2, linked_account_id = $3, date = $4, action = $5, price = $6, quantity = $7, fee = $8, note = $9, linked_ledger_transaction_id = $10 where id = $11`,
+        [nowIso(), assetId, input.linkedAccountId ?? null, input.date, input.action, input.price, input.quantity, input.fee, input.note, linkedLedgerTransactionId, id],
+      );
+      await this.recomputeSqliteAccounts();
+      await this.recomputeSqliteAssets();
+    });
   }
 
   override async deleteInvestmentRecord(id: string) {
@@ -1773,35 +1929,39 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     );
     const existingRecord = existingRows[0];
     if (!existingRecord) throw new Error("找不到投資交易。");
-    await this.db.execute(`update investment_records set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`, [nowIso(), id]);
-    if (existingRecord.linkedLedgerTransactionId) {
-      await this.db.execute(
-        `update ledger_transactions set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`,
-        [nowIso(), existingRecord.linkedLedgerTransactionId],
-      );
-    }
-    await this.recomputeSqliteAccounts();
-    await this.recomputeSqliteAssets();
+    await this.withTransaction(async () => {
+      await this.db.execute(`update investment_records set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`, [nowIso(), id]);
+      if (existingRecord.linkedLedgerTransactionId) {
+        await this.db.execute(
+          `update ledger_transactions set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`,
+          [nowIso(), existingRecord.linkedLedgerTransactionId],
+        );
+      }
+      await this.recomputeSqliteAccounts();
+      await this.recomputeSqliteAssets();
+    });
   }
 
   override async importInvestmentRecords(rows: InvestmentDraft[]) {
-    for (const row of rows) {
-      const rowTicker = row.ticker.trim().toUpperCase();
-      const txAssetId = await this.findSqliteTransactionAssetId(row);
-      const manualId = !txAssetId ? (await this.findSqliteManualAsset(rowTicker, row.linkedAccountId ?? null))?.id : undefined;
-      const existingAssetId = txAssetId ?? manualId;
-      await this.validateSqliteInvestmentDraft(row, existingAssetId);
-      const assetId = await this.findOrCreateSqliteAsset(row);
-      const record = createInvestmentRow(row, assetId);
-      const ledger = createInvestmentLedgerRow(row, record.id);
-      if (ledger) {
-        record.linkedLedgerTransactionId = ledger.id;
-        await this.insertLedgerRow(ledger);
+    await this.withTransaction(async () => {
+      for (const row of rows) {
+        const rowTicker = row.ticker.trim().toUpperCase();
+        const txAssetId = await this.findSqliteTransactionAssetId(row);
+        const manualId = !txAssetId ? (await this.findSqliteManualAsset(rowTicker, row.linkedAccountId ?? null))?.id : undefined;
+        const existingAssetId = txAssetId ?? manualId;
+        await this.validateSqliteInvestmentDraft(row, existingAssetId);
+        const assetId = await this.findOrCreateSqliteAsset(row);
+        const record = createInvestmentRow(row, assetId);
+        const ledger = createInvestmentLedgerRow(row, record.id);
+        if (ledger) {
+          record.linkedLedgerTransactionId = ledger.id;
+          await this.insertLedgerRow(ledger);
+        }
+        await this.insertInvestmentRow(record);
       }
-      await this.insertInvestmentRow(record);
-    }
-    await this.recomputeSqliteAccounts();
-    await this.recomputeSqliteAssets();
+      await this.recomputeSqliteAccounts();
+      await this.recomputeSqliteAssets();
+    });
   }
 
   override async listRecurringTransactions() {
@@ -1816,10 +1976,12 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async createRecurringTransaction(input: RecurringDraft) {
+    assertLedgerInvariants(input, await this.listAccounts());
     await this.insertRecurringRow(createRecurringRow(input));
   }
 
   override async updateRecurringTransaction(id: string, input: RecurringDraft) {
+    assertLedgerInvariants(input, await this.listAccounts());
     await this.db.execute(
       `update recurring_transactions set revision = revision + 1, updated_at = $1, account_id = $2, amount = $3, currency = $4, category = $5, subcategory = $6, merchant = $7, entry_type = $8, settlement_status = $9, note = $10, frequency = $11, day_of_month = $12, next_run_date = $13, is_active = $14 where id = $15`,
       [nowIso(), input.accountId, input.amount, input.currency, input.category, input.subcategory, input.merchant, input.entryType, input.settlementStatus, input.note, input.frequency ?? "monthly", input.dayOfMonth, input.nextRunDate, Number(input.isActive), id],
@@ -1837,23 +1999,32 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       from recurring_transactions where id = $1 and deleted_at is null`, [id]);
     const recurring = rows[0];
     if (!recurring) throw new Error("找不到週期事件。");
-    await this.insertLedgerRow(createLedgerRow({
-      accountId: recurring.accountId,
-      date: `${recurring.nextRunDate}T09:00`,
-      name: recurring.merchant || recurring.category,
-      amount: recurring.amount,
-      currency: recurring.currency,
-      category: recurring.category,
-      subcategory: recurring.subcategory,
-      merchant: recurring.merchant,
-      entryType: recurring.entryType,
-      settlementStatus: recurring.settlementStatus,
-      note: recurring.note,
-      recurringRuleId: recurring.id,
-    }));
-    const freq = (recurring.frequency ?? "monthly") as import("../domain").RecurringFrequency;
-    await this.db.execute(`update recurring_transactions set next_run_date = $1, updated_at = $2, revision = revision + 1 where id = $3`, [nextRecurringDate(recurring.nextRunDate, freq, recurring.dayOfMonth), nowIso(), id]);
-    await this.recomputeSqliteAccounts();
+    const recurringOccurrenceKey = recurringKey(recurring.id, recurring.nextRunDate);
+    const existing = await this.db.select<Array<{ count: number }>>(
+      `select count(*) as count from ledger_transactions where recurring_occurrence_key = $1 and deleted_at is null`,
+      [recurringOccurrenceKey],
+    );
+    if ((existing[0]?.count ?? 0) > 0) throw new Error("這一期週期交易已經建立。");
+    await this.withTransaction(async () => {
+      await this.insertLedgerRow(createLedgerRow({
+        accountId: recurring.accountId,
+        date: `${recurring.nextRunDate}T09:00`,
+        name: recurring.merchant || recurring.category,
+        amount: recurring.amount,
+        currency: recurring.currency,
+        category: recurring.category,
+        subcategory: recurring.subcategory,
+        merchant: recurring.merchant,
+        entryType: recurring.entryType,
+        settlementStatus: recurring.settlementStatus,
+        note: recurring.note,
+        recurringRuleId: recurring.id,
+        recurringOccurrenceKey,
+      }));
+      const freq = (recurring.frequency ?? "monthly") as import("../domain").RecurringFrequency;
+      await this.db.execute(`update recurring_transactions set next_run_date = $1, updated_at = $2, revision = revision + 1 where id = $3`, [nextRecurringDate(recurring.nextRunDate, freq, recurring.dayOfMonth), nowIso(), id]);
+      await this.recomputeSqliteAccounts();
+    });
   }
 
   override async postDueRecurringTransactions(today: string) {
@@ -1861,34 +2032,47 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       id, account_id as accountId, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, frequency, day_of_month as dayOfMonth, next_run_date as nextRunDate, is_active as isActive
       from recurring_transactions where deleted_at is null and is_active = 1`);
     let posted = 0;
-    for (const rule of rules) {
-      const frequency = (rule.frequency ?? "monthly") as import("../domain").RecurringFrequency;
-      let next = rule.nextRunDate;
-      let guard = 0;
-      while (next <= today && guard < 120) {
-        await this.insertLedgerRow(createLedgerRow({
-          accountId: rule.accountId,
-          date: `${next}T09:00`,
-          name: rule.merchant || rule.category,
-          amount: rule.amount,
-          currency: rule.currency,
-          category: rule.category,
-          subcategory: rule.subcategory,
-          merchant: rule.merchant,
-          entryType: rule.entryType,
-          settlementStatus: rule.settlementStatus,
-          note: rule.note,
-          recurringRuleId: rule.id,
-        }));
-        next = nextRecurringDate(next, frequency, rule.dayOfMonth);
-        posted += 1;
-        guard += 1;
+    await this.withTransaction(async () => {
+      for (const rule of rules) {
+        const frequency = (rule.frequency ?? "monthly") as import("../domain").RecurringFrequency;
+        let next = rule.nextRunDate;
+        let guard = 0;
+        while (next <= today && guard < 120) {
+          const recurringOccurrenceKey = recurringKey(rule.id, next);
+          const existing = await this.db.select<Array<{ count: number }>>(
+            `select count(*) as count from ledger_transactions where recurring_occurrence_key = $1 and deleted_at is null`,
+            [recurringOccurrenceKey],
+          );
+          if ((existing[0]?.count ?? 0) > 0) {
+            next = nextRecurringDate(next, frequency, rule.dayOfMonth);
+            guard += 1;
+            continue;
+          }
+          await this.insertLedgerRow(createLedgerRow({
+            accountId: rule.accountId,
+            date: `${next}T09:00`,
+            name: rule.merchant || rule.category,
+            amount: rule.amount,
+            currency: rule.currency,
+            category: rule.category,
+            subcategory: rule.subcategory,
+            merchant: rule.merchant,
+            entryType: rule.entryType,
+            settlementStatus: rule.settlementStatus,
+            note: rule.note,
+            recurringRuleId: rule.id,
+            recurringOccurrenceKey,
+          }));
+          next = nextRecurringDate(next, frequency, rule.dayOfMonth);
+          posted += 1;
+          guard += 1;
+        }
+        if (next !== rule.nextRunDate) {
+          await this.db.execute(`update recurring_transactions set next_run_date = $1, updated_at = $2, revision = revision + 1 where id = $3`, [next, nowIso(), rule.id]);
+        }
       }
-      if (next !== rule.nextRunDate) {
-        await this.db.execute(`update recurring_transactions set next_run_date = $1, updated_at = $2, revision = revision + 1 where id = $3`, [next, nowIso(), rule.id]);
-      }
-    }
-    if (posted > 0) await this.recomputeSqliteAccounts();
+      if (posted > 0) await this.recomputeSqliteAccounts();
+    });
     return posted;
   }
 
@@ -1916,6 +2100,20 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.recomputeSqliteAccounts();
   }
 
+  override async recalculateDerivedData(): Promise<RecalculationReport> {
+    const beforeAccounts = await this.listAccounts();
+    const beforeAssets = await this.listPortfolioAssets();
+    const ledger = await this.listLedgerTransactions();
+    const investments = await this.listInvestmentRecords();
+    const settings = await this.getAppSettings();
+    const dailyRates = await this.listDailyFxRates();
+    await this.recomputeSqliteAccounts();
+    await this.recomputeSqliteAssets();
+    const afterAccounts = await this.listAccounts();
+    const afterAssets = await this.listPortfolioAssets();
+    return buildRecalculationReport(beforeAccounts, afterAccounts, beforeAssets, afterAssets, ledger, investments, findMissingFxPairs(afterAccounts, ledger, afterAssets, settings, dailyRates));
+  }
+
   override async renameMerchant(oldName: string, newName: string) {
     const trimmed = newName.trim();
     if (!trimmed) throw new Error("新商家名稱不能為空。");
@@ -1928,6 +2126,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       const merchants: string[] = JSON.parse(settingsRows[0].value);
       const updated = merchants.map((m) => (m === oldName ? trimmed : m));
       await this.db.execute(`insert into app_settings (key, value, updated_at) values ('merchants',$1,$2) on conflict(key) do update set value=excluded.value, updated_at=excluded.updated_at`, [JSON.stringify(updated), nowIso()]);
+      await this.bumpSqliteSettingsRevision();
     }
   }
 
@@ -1943,6 +2142,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       const cats: Array<{ name: string; children: string[] }> = JSON.parse(settingsRows[0].value);
       const updated = cats.map((g) => g.name === oldName ? { ...g, name: trimmed } : g);
       await this.db.execute(`insert into app_settings (key, value, updated_at) values ('categories',$1,$2) on conflict(key) do update set value=excluded.value, updated_at=excluded.updated_at`, [JSON.stringify(updated), nowIso()]);
+      await this.bumpSqliteSettingsRevision();
     }
   }
 
@@ -1960,6 +2160,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         g.name === category ? { ...g, children: g.children.map((c) => (c === oldSub ? trimmed : c)) } : g,
       );
       await this.db.execute(`insert into app_settings (key, value, updated_at) values ('categories',$1,$2) on conflict(key) do update set value=excluded.value, updated_at=excluded.updated_at`, [JSON.stringify(updated), nowIso()]);
+      await this.bumpSqliteSettingsRevision();
     }
   }
 
@@ -2017,11 +2218,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.upsertSetting("categories", JSON.stringify(settings.categories));
     await this.upsertSetting("merchants", JSON.stringify(settings.merchants));
     await this.upsertSetting("exchangeRates", JSON.stringify(settings.exchangeRates));
-    // bump revision for sync tracking
-    const metaRows = await this.db.select<Array<{ value: string }>>(`select value from app_settings where key = '__settingsMeta'`);
-    const meta = metaRows[0] ? JSON.parse(metaRows[0].value) : { revision: 0 };
-    const nextMeta = { revision: (meta.revision ?? 0) + 1, updatedAt: nowIso() };
-    await this.upsertSetting("__settingsMeta", JSON.stringify(nextMeta));
+    await this.bumpSqliteSettingsRevision();
   }
 
   override async listDailyFxRates(filter?: { from?: string; to?: string; since?: string }) {
@@ -2493,6 +2690,145 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     };
   }
 
+  override async collectPendingChanges(_sinceCursor: string | null) {
+    const rows = await this.db.select<Array<{
+      id: string;
+      recordType: SyncEntity;
+      recordId: string;
+      revision: number;
+      updatedAt: string;
+      deletedAt: string | null;
+    }>>(
+      `select o.id, o.record_type as recordType, o.record_id as recordId, o.revision,
+         coalesce(o.updated_at, o.created_at) as updatedAt, o.deleted_at as deletedAt
+       from sync_outbox o
+       where o.pushed_at is null
+       order by o.created_at, o.id`,
+    );
+    return {
+      changes: rows.map((row) => ({
+        outboxId: row.id,
+        entity: row.recordType,
+        entityId: row.recordId,
+        revision: row.revision,
+        updatedAt: row.updatedAt,
+        deleted: row.deletedAt !== null,
+      })),
+      nextCursor: rows.at(-1)?.updatedAt ?? null,
+      count: rows.length,
+    };
+  }
+
+  override async acknowledgePendingChanges(outboxIds: string[]) {
+    if (!outboxIds.length) return;
+    const placeholders = outboxIds.map((_, index) => `$${index + 1}`).join(",");
+    await this.db.execute(
+      `update sync_outbox set pushed_at = $${outboxIds.length + 1} where id in (${placeholders})`,
+      [...outboxIds, nowIso()],
+    );
+  }
+
+  override async listSyncConflicts() {
+    const rows = await this.db.select<Array<{
+      id: string;
+      entity: SyncEntity;
+      entityId: string;
+      revision: number;
+      sourceDeviceId: string;
+      localPayload: string;
+      incomingPayload: string;
+      createdAt: string;
+      resolvedAt: string | null;
+    }>>(
+      `select id, entity, entity_id as entityId, revision, source_device_id as sourceDeviceId,
+         local_payload as localPayload, incoming_payload as incomingPayload,
+         created_at as createdAt, resolved_at as resolvedAt
+       from sync_conflicts order by created_at desc`,
+    );
+    return rows.map((row) => ({
+      ...row,
+      localPayload: JSON.parse(row.localPayload),
+      incomingPayload: JSON.parse(row.incomingPayload),
+    }));
+  }
+
+  override async resolveSyncConflict(id: string, strategy: "keepLocal" | "useIncoming") {
+    const conflict = (await this.listSyncConflicts()).find((row) => row.id === id && row.resolvedAt === null);
+    if (!conflict) throw new Error("找不到待處理的同步衝突。");
+    if (strategy === "useIncoming") {
+      await this.applySyncChanges([{ entity: conflict.entity, payload: conflict.incomingPayload }]);
+    } else if (conflict.entity === "settings") {
+      const settings = await this.getAppSettings();
+      await this.updateAppSettings(settings);
+    } else {
+      const tableByEntity: Record<Exclude<SyncEntity, "settings">, string> = {
+        account: "accounts",
+        ledger: "ledger_transactions",
+        asset: "portfolio_assets",
+        investment: "investment_records",
+        recurring: "recurring_transactions",
+        goal: "financial_goals",
+      };
+      await this.db.execute(
+        `update ${tableByEntity[conflict.entity]} set revision = revision + 1, updated_at = $1 where id = $2`,
+        [nowIso(), conflict.entityId],
+      );
+    }
+    await this.db.execute(`update sync_conflicts set resolved_at = $1 where id = $2`, [nowIso(), id]);
+  }
+
+  override async getSyncPayload(entity: SyncEntity, entityId: string): Promise<Record<string, unknown> | null> {
+    if (entity === "settings") {
+      if (entityId !== "app_settings") return null;
+      const settings = await this.getAppSettings();
+      const metaRows = await this.db.select<Array<{ value: string }>>(`select value from app_settings where key = '__settingsMeta'`);
+      const meta = metaRows[0] ? JSON.parse(metaRows[0].value) : { revision: 1, updatedAt: nowIso() };
+      return { id: entityId, revision: meta.revision ?? 1, updatedAt: meta.updatedAt ?? nowIso(), deletedAt: null, settings };
+    }
+    const tableByEntity: Record<Exclude<SyncEntity, "settings">, string> = {
+      account: "accounts",
+      ledger: "ledger_transactions",
+      asset: "portfolio_assets",
+      investment: "investment_records",
+      recurring: "recurring_transactions",
+      goal: "financial_goals",
+    };
+    const rows = await this.db.select<Array<Record<string, unknown>>>(
+      `select * from ${tableByEntity[entity]} where id = $1 limit 1`,
+      [entityId],
+    );
+    return rows[0] ? normalizeSqliteSyncPayload(entity, rows[0]) : null;
+  }
+
+  override async applySyncChanges(changes: SyncApplyChange[], conflicts: SyncConflictRecord[] = []) {
+    if (!changes.length && !conflicts.length) return;
+    await this.withOutboxSuppressed(async () => {
+      await this.withTransaction(async () => {
+        for (const change of changes) await this.applySqliteSyncChange(change);
+        for (const conflict of conflicts) {
+          await this.db.execute(
+            `insert or ignore into sync_conflicts
+             (id, entity, entity_id, revision, source_device_id, local_payload, incoming_payload, created_at, resolved_at)
+             values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+            [
+              conflict.id,
+              conflict.entity,
+              conflict.entityId,
+              conflict.revision,
+              conflict.sourceDeviceId,
+              JSON.stringify(conflict.localPayload),
+              JSON.stringify(conflict.incomingPayload),
+              conflict.createdAt,
+              conflict.resolvedAt,
+            ],
+          );
+        }
+      });
+    });
+    await this.recomputeSqliteAccounts();
+    await this.recomputeSqliteAssets();
+  }
+
   override async importSnapshot(snapshot: RepositorySnapshot) {
     // Wrap everything in a single transaction so SQLite skips per-row fsync
     // (which is the dominant cost) and the whole import either lands or
@@ -2611,10 +2947,15 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         console.log(`[import] inserted ${snapshot.manualPriceSnapshots.length} manual_price_snapshots`);
       }
       await this.updateAppSettings(snapshot.settings);
+      await this.upsertSetting("__settingsMeta", JSON.stringify({
+        revision: snapshot.settingsRevision ?? 1,
+        updatedAt: snapshot.settingsUpdatedAt ?? nowIso(),
+      }));
       await this.db.execute("COMMIT");
       // Recompute account balances from the just-imported ledger transactions
       // so two devices that had different transactions converge after sync.
       await this.recomputeSqliteAccounts();
+      await this.recomputeSqliteAssets();
       const elapsed = Math.round(performance.now() - t0);
       console.log(`[import] complete in ${elapsed}ms`);
     } catch (error) {
@@ -2653,8 +2994,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   private async insertAccountRow(row: Account) {
     const now = nowIso();
     await this.db.execute(
-      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, statement_day, payment_due_day, credit_payment_paid_until)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, statement_day, payment_due_day, credit_payment_paid_until, custom_group)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
       [
         row.id,
         row.spaceId ?? personalSpace,
@@ -2678,6 +3019,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         row.statementDay ?? null,
         row.paymentDueDay ?? null,
         row.creditPaymentPaidUntil ?? null,
+        row.customGroup ?? "",
       ],
     );
   }
@@ -2715,8 +3057,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   private async insertLedgerRow(row: LedgerTransaction) {
     const now = nowIso();
     await this.db.execute(
-      `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, date, name, amount, currency, original_amount, original_currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id, recurring_rule_id)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
+      `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, date, name, amount, currency, original_amount, original_currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id, recurring_rule_id, recurring_occurrence_key)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
       [
         row.id,
         row.spaceId ?? personalSpace,
@@ -2742,6 +3084,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         Number(row.isReviewed ?? false),
         row.receiptAttachmentId ?? null,
         row.recurringRuleId ?? null,
+        row.recurringOccurrenceKey ?? null,
       ],
     );
   }
@@ -2797,6 +3140,46 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         row.note ?? "",
         Number(row.isReviewed ?? false),
         row.linkedLedgerTransactionId ?? null,
+      ],
+    );
+  }
+
+  private async insertGoalRow(goal: FinancialGoal) {
+    const now = nowIso();
+    await this.db.execute(
+      `insert into financial_goals (id, space_id, revision, created_at, updated_at, deleted_at, kind, name, currency,
+         annual_spending, withdrawal_rate, expected_annual_return, monthly_contribution, target_amount, start_date,
+         current_age, retirement_age, plan_through_age, pre_retirement_return, post_retirement_return,
+         inflation_rate, annual_fee, contribution_growth_rate, spending_items, income_items, display_mode, account_share_map)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`,
+      [
+        goal.id,
+        goal.spaceId ?? personalSpace,
+        goal.revision ?? 1,
+        goal.createdAt ?? now,
+        goal.updatedAt ?? now,
+        goal.deletedAt ?? null,
+        goal.kind ?? "fire",
+        goal.name ?? "",
+        goal.currency ?? "",
+        goal.annualSpending ?? 0,
+        goal.withdrawalRate ?? 0.04,
+        goal.expectedAnnualReturn ?? 0.07,
+        goal.monthlyContribution ?? 0,
+        goal.targetAmount ?? null,
+        goal.startDate ?? now.slice(0, 10),
+        goal.currentAge ?? null,
+        goal.retirementAge ?? null,
+        goal.planThroughAge ?? null,
+        goal.preRetirementReturn ?? null,
+        goal.postRetirementReturn ?? null,
+        goal.inflationRate ?? null,
+        goal.annualFee ?? null,
+        goal.contributionGrowthRate ?? null,
+        JSON.stringify(goal.spendingItems ?? []),
+        JSON.stringify(goal.incomeItems ?? []),
+        goal.displayMode ?? "today",
+        JSON.stringify(goal.accountShareMap ?? {}),
       ],
     );
   }
@@ -2857,7 +3240,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   ) {
     const accountRows = await this.db.select<Account[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
-      name, currency, opening_balance as openingBalance, balance, type, credit_limit as creditLimit, credit_limit_group as creditLimitGroup, is_shared_to_household as isSharedToHousehold
+      name, currency, opening_balance as openingBalance, balance, type, credit_limit as creditLimit, credit_limit_group as creditLimitGroup, is_shared_to_household as isSharedToHousehold, custom_group as customGroup
       from accounts where id = $1 and deleted_at is null`, [input.linkedAccountId ?? ""]);
     const account = accountRows[0];
     if (!account || account.type !== "investment") throw new Error("請選擇投資帳戶。");
@@ -2874,8 +3257,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       let available: number;
       if (assetRow?.holdingSource === "manual") {
         const baseQty = assetRow.baseQuantity ?? assetRow.totalQuantity;
-        const delta = calculateInvestmentNetDelta(records, assetId, options.excludeRecordId);
-        available = Math.max(0, baseQty + delta);
+        available = Math.max(0, calculateInvestmentQuantity(records, assetId, baseQty, options.excludeRecordId));
       } else {
         available = calculateInvestmentAccountQuantity(records, assetId, account.id, options.excludeRecordId);
       }
@@ -2893,6 +3275,146 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     const baseBalance = computeAccountBalance(account, ledgerRows, options.excludeLedgerId ?? null);
     const nextBalance = baseBalance + cashDelta;
     if (isEffectivelyNegative(nextBalance)) throw new Error(`購買力不足，目前餘額 ${formatPlainAmount(baseBalance)} ${account.currency}。`);
+  }
+
+  private async ensureSyncInfrastructure() {
+    await this.ensureSqliteColumn("sync_outbox", "updated_at", "text");
+    await this.ensureSqliteColumn("sync_outbox", "deleted_at", "text");
+    await this.db.execute(`create unique index if not exists idx_sync_outbox_record_revision on sync_outbox (record_type, record_id, revision)`);
+    await this.db.execute(`create table if not exists sync_runtime_flags (key text primary key, value text not null)`);
+    await this.db.execute(`insert or ignore into sync_runtime_flags (key, value) values ('suppress_outbox', '0')`);
+    await this.db.execute(`create table if not exists sync_conflicts (
+      id text primary key,
+      entity text not null,
+      entity_id text not null,
+      revision integer not null,
+      source_device_id text not null,
+      local_payload text not null,
+      incoming_payload text not null,
+      created_at text not null,
+      resolved_at text
+    )`);
+    const tables: Array<[string, Exclude<SyncEntity, "settings">]> = [
+      ["accounts", "account"],
+      ["ledger_transactions", "ledger"],
+      ["portfolio_assets", "asset"],
+      ["investment_records", "investment"],
+      ["recurring_transactions", "recurring"],
+      ["financial_goals", "goal"],
+    ];
+    for (const [table, entity] of tables) {
+      await this.db.execute(`create trigger if not exists sync_outbox_${entity}_insert
+        after insert on ${table}
+        when coalesce((select value from sync_runtime_flags where key = 'suppress_outbox'), '0') <> '1'
+        begin
+          insert or ignore into sync_outbox
+            (id, space_id, record_type, record_id, revision, created_at, updated_at, deleted_at)
+          values
+            ('${entity}:' || new.id || ':' || new.revision, new.space_id, '${entity}', new.id, new.revision, new.updated_at, new.updated_at, new.deleted_at);
+        end`);
+      await this.db.execute(`create trigger if not exists sync_outbox_${entity}_update
+        after update on ${table}
+        when new.revision <> old.revision
+          and coalesce((select value from sync_runtime_flags where key = 'suppress_outbox'), '0') <> '1'
+        begin
+          insert or ignore into sync_outbox
+            (id, space_id, record_type, record_id, revision, created_at, updated_at, deleted_at)
+          values
+            ('${entity}:' || new.id || ':' || new.revision, new.space_id, '${entity}', new.id, new.revision, new.updated_at, new.updated_at, new.deleted_at);
+        end`);
+    }
+  }
+
+  private async withOutboxSuppressed<T>(operation: () => Promise<T>): Promise<T> {
+    await this.db.execute(`update sync_runtime_flags set value = '1' where key = 'suppress_outbox'`);
+    try {
+      return await operation();
+    } finally {
+      await this.db.execute(`update sync_runtime_flags set value = '0' where key = 'suppress_outbox'`);
+    }
+  }
+
+  private async isOutboxSuppressed() {
+    const rows = await this.db.select<Array<{ value: string }>>(
+      `select value from sync_runtime_flags where key = 'suppress_outbox'`,
+    );
+    return rows[0]?.value === "1";
+  }
+
+  private async queueSettingsSync(revision: number, updatedAt: string) {
+    if (await this.isOutboxSuppressed()) return;
+    await this.db.execute(
+      `insert or ignore into sync_outbox
+       (id, space_id, record_type, record_id, revision, created_at, updated_at, deleted_at)
+       values ($1,$2,'settings','app_settings',$3,$4,$4,null)`,
+      [`settings:app_settings:${revision}`, personalSpace, revision, updatedAt],
+    );
+  }
+
+  private async bumpSqliteSettingsRevision() {
+    const metaRows = await this.db.select<Array<{ value: string }>>(`select value from app_settings where key = '__settingsMeta'`);
+    const meta = metaRows[0] ? JSON.parse(metaRows[0].value) : { revision: 0 };
+    const nextMeta = { revision: (meta.revision ?? 0) + 1, updatedAt: nowIso() };
+    await this.upsertSetting("__settingsMeta", JSON.stringify(nextMeta));
+    await this.queueSettingsSync(nextMeta.revision, nextMeta.updatedAt);
+  }
+
+  private async backfillSyncOutbox() {
+    const tables: Array<[string, Exclude<SyncEntity, "settings">]> = [
+      ["accounts", "account"],
+      ["ledger_transactions", "ledger"],
+      ["portfolio_assets", "asset"],
+      ["investment_records", "investment"],
+      ["recurring_transactions", "recurring"],
+      ["financial_goals", "goal"],
+    ];
+    for (const [table, entity] of tables) {
+      await this.db.execute(
+        `insert or ignore into sync_outbox
+         (id, space_id, record_type, record_id, revision, created_at, updated_at, deleted_at)
+         select '${entity}:' || id || ':' || revision, space_id, '${entity}', id, revision, updated_at, updated_at, deleted_at
+         from ${table}`,
+      );
+    }
+    const metaRows = await this.db.select<Array<{ value: string }>>(`select value from app_settings where key = '__settingsMeta'`);
+    if (!metaRows[0]) return;
+    const meta = JSON.parse(metaRows[0].value);
+    await this.queueSettingsSync(meta.revision ?? 1, meta.updatedAt ?? nowIso());
+  }
+
+  private async applySqliteSyncChange(change: SyncApplyChange) {
+    const payload = change.payload;
+    if (change.entity === "settings") {
+      if (payload.settings) {
+        const settings = normalizeSettings(payload.settings as AppSettings);
+        await this.upsertSetting("primaryCurrency", settings.primaryCurrency);
+        await this.upsertSetting("categories", JSON.stringify(settings.categories));
+        await this.upsertSetting("merchants", JSON.stringify(settings.merchants));
+        await this.upsertSetting("exchangeRates", JSON.stringify(settings.exchangeRates));
+      }
+      await this.upsertSetting("__settingsMeta", JSON.stringify({
+        revision: Number(payload.revision ?? 1),
+        updatedAt: String(payload.updatedAt ?? nowIso()),
+      }));
+      return;
+    }
+    const tableByEntity: Record<Exclude<SyncEntity, "settings">, string> = {
+      account: "accounts",
+      ledger: "ledger_transactions",
+      asset: "portfolio_assets",
+      investment: "investment_records",
+      recurring: "recurring_transactions",
+      goal: "financial_goals",
+    };
+    await this.db.execute(`delete from ${tableByEntity[change.entity]} where id = $1`, [String(payload.id)]);
+    switch (change.entity) {
+      case "account": await this.insertAccountRow(payload as unknown as Account); break;
+      case "ledger": await this.insertLedgerRow(payload as unknown as LedgerTransaction); break;
+      case "asset": await this.insertAssetRow(payload as unknown as PortfolioAsset); break;
+      case "investment": await this.insertInvestmentRow(payload as unknown as InvestmentRecord); break;
+      case "recurring": await this.insertRecurringRow(payload as unknown as RecurringTransaction); break;
+      case "goal": await this.insertGoalRow(payload as unknown as FinancialGoal); break;
+    }
   }
 
   private async ensureSqliteColumn(table: string, column: string, definition: string) {
@@ -2979,7 +3501,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       account_id as accountId, date, name, amount, currency, original_amount as originalAmount, original_currency as originalCurrency,
       category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, linked_investment_record_id as linkedInvestmentRecordId,
-      group_id as groupId, is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId from ledger_transactions`);
+      group_id as groupId, is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId, recurring_occurrence_key as recurringOccurrenceKey from ledger_transactions`);
     for (const account of recomputeAccounts(accounts, ledger)) {
       await this.db.execute(`update accounts set balance = $1 where id = $2`, [account.balance, account.id]);
     }
@@ -2999,6 +3521,34 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 }
 
+function normalizeSqliteSyncPayload(entity: SyncEntity, row: Record<string, unknown>): Record<string, unknown> {
+  const payload = Object.fromEntries(
+    Object.entries(row).map(([key, value]) => [
+      key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()),
+      value,
+    ]),
+  );
+  if (entity === "account") payload.isSharedToHousehold = Boolean(payload.isSharedToHousehold);
+  if (entity === "ledger") payload.isReviewed = Boolean(payload.isReviewed);
+  if (entity === "investment") payload.isReviewed = Boolean(payload.isReviewed);
+  if (entity === "recurring") payload.isActive = Boolean(payload.isActive);
+  if (entity === "goal") {
+    payload.spendingItems = parseJsonValue(payload.spendingItems, []);
+    payload.incomeItems = parseJsonValue(payload.incomeItems, []);
+    payload.accountShareMap = parseJsonValue(payload.accountShareMap, {});
+  }
+  return payload;
+}
+
+function parseJsonValue<T>(value: unknown, fallback: T): T {
+  if (typeof value !== "string") return (value as T) ?? fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 function createInitialData(): RepositoryData {
   const now = nowIso();
   return {
@@ -3015,6 +3565,7 @@ function createInitialData(): RepositoryData {
     dailyPrices: [] as DailyPrice[],
     financialGoals: [],
     manualPriceSnapshots: [],
+    syncConflicts: [],
   };
 }
 
@@ -3024,6 +3575,7 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
       ...account,
       creditLimit: account.creditLimit ?? null,
       creditLimitGroup: account.creditLimitGroup ?? "",
+      customGroup: account.customGroup ?? "",
     })),
     ledgerTransactions: (data.ledgerTransactions ?? []).map((row) => ({
       ...row,
@@ -3034,6 +3586,7 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
       settlementStatus: row.settlementStatus ?? "settled",
       originalAmount: row.originalAmount ?? null,
       originalCurrency: row.originalCurrency ?? null,
+      recurringOccurrenceKey: row.recurringOccurrenceKey ?? null,
     })),
     portfolioAssets: (data.portfolioAssets ?? []).map(normalizePortfolioAsset),
     investmentRecords: data.investmentRecords ?? [],
@@ -3052,6 +3605,7 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
     dailyPrices: data.dailyPrices ?? [],
     financialGoals: (data.financialGoals ?? []).map(normalizeFinancialGoal),
     manualPriceSnapshots: data.manualPriceSnapshots ?? [],
+    syncConflicts: data.syncConflicts ?? [],
   };
 }
 
@@ -3101,11 +3655,11 @@ function normalizeCategoryGroups(input: unknown) {
   const source = Array.isArray(input) ? input : [];
   return source.map((item) => {
     if (typeof item === "string") return { name: item, children: [] };
-    const group = item as { name?: unknown; children?: unknown; icon?: unknown; color?: unknown; budget?: unknown };
+    const group = item as { name?: unknown; children?: unknown; icon?: unknown; iconName?: unknown; color?: unknown; budget?: unknown };
     return {
       name: String(group.name ?? "").trim(),
       children: uniqueClean(group.children, []),
-      icon: group.icon ? String(group.icon) : undefined,
+      iconName: group.iconName ? String(group.iconName) : group.icon ? String(group.icon) : undefined,
       color: group.color ? String(group.color) : undefined,
       budget: typeof group.budget === "number" ? group.budget : group.budget ? Number(group.budget) : undefined,
     };
@@ -3323,7 +3877,12 @@ function createLedgerRow(input: LedgerDraft & { recurringRuleId?: string | null 
     isReviewed: false,
     receiptAttachmentId: null,
     recurringRuleId: input.recurringRuleId ?? null,
+    recurringOccurrenceKey: input.recurringOccurrenceKey ?? null,
   };
+}
+
+function recurringKey(ruleId: string, occurrenceDate: string) {
+  return `${ruleId}:${occurrenceDate.slice(0, 10)}`;
 }
 
 function createInvestmentLedgerRow(input: InvestmentDraft, investmentRecordId: string): LedgerTransaction | null {

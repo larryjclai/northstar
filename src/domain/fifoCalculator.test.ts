@@ -53,4 +53,14 @@ describe("fifo calculator", () => {
     expect(result.openLots[0].quantity).toBe(6);
     expect(result.realizedLots[0].realizedGain).toBe(80);
   });
+
+  it("adjusts open lots for stock splits and capital reductions", () => {
+    const result = calculateFifo([
+      baseRecord,
+      { ...baseRecord, id: "split", action: "stockSplit", date: "2026-01-10", quantity: 2, price: 0 },
+      { ...baseRecord, id: "reduction", action: "capitalReduction", date: "2026-01-11", quantity: 20, price: 5 },
+    ]);
+    expect(result.openLots[0].quantity).toBe(20);
+    expect(result.openLots[0].costPerShare).toBe(45);
+  });
 });

@@ -281,7 +281,7 @@ function RuleEditSheet({
 
   const [form, setForm] = useState<RecurringDraft>(() => ({
     accountId: rule?.accountId ?? accountRows[0]?.id ?? "",
-    amount: rule ? Math.abs(rule.amount) : 100,
+    amount: rule ? Math.abs(rule.amount) : 0,
     currency: rule?.currency ?? primaryCurrency,
     category: rule?.category ?? "",
     subcategory: rule?.subcategory ?? "",

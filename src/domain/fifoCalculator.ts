@@ -52,9 +52,23 @@ export function calculateFifo(records: InvestmentRecord[]): FifoResult {
           openLots.shift();
         }
       }
+      continue;
+    }
+
+    if (record.action === "stockSplit" && record.quantity > 0) {
+      for (const lot of openLots) {
+        lot.quantity *= record.quantity;
+        lot.costPerShare /= record.quantity;
+      }
+      continue;
+    }
+
+    if (record.action === "capitalReduction") {
+      for (const lot of openLots) {
+        lot.costPerShare = Math.max(0, lot.costPerShare - record.price);
+      }
     }
   }
 
   return { openLots, realizedLots };
 }
-

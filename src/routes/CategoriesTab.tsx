@@ -10,7 +10,7 @@ function resolveColor(color: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || color;
 }
 
-export function CategoriesTab({ filterMonth, ledgerRows, appSettings, onSettingsClick }: { filterMonth: string; ledgerRows: LedgerTransaction[]; appSettings: any; onSettingsClick: () => void }) {
+export function CategoriesTab({ filterMonth, ledgerRows, appSettings, primaryCurrency, toPrimary, onSettingsClick }: { filterMonth: string; ledgerRows: LedgerTransaction[]; appSettings: any; primaryCurrency: string; toPrimary: (row: LedgerTransaction) => number | null; onSettingsClick: () => void }) {
   const currentYear = filterMonth.slice(0, 4);
   
   const monthRows = useMemo(() => ledgerRows.filter(r => r.date.startsWith(filterMonth) && r.entryType === "expense" && r.settlementStatus === "settled"), [ledgerRows, filterMonth]);
@@ -23,21 +23,21 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, onSettings
   for (const row of monthRows) {
     const key = row.category;
     if (!key) {
-      uncategorizedAmount += Math.abs(row.amount);
+      uncategorizedAmount += Math.abs(toPrimary(row) ?? 0);
       uncategorizedCount++;
       continue;
     }
     const curr = monthMap.get(key) ?? { amount: 0, count: 0 };
-    monthMap.set(key, { amount: curr.amount + Math.abs(row.amount), count: curr.count + 1 });
+    monthMap.set(key, { amount: curr.amount + Math.abs(toPrimary(row) ?? 0), count: curr.count + 1 });
   }
 
   const ytdMap = new Map<string, { amount: number, merchants: Map<string, number> }>();
   for (const row of ytdRows) {
     const key = row.category || "未分類";
     const curr = ytdMap.get(key) ?? { amount: 0, merchants: new Map() };
-    curr.amount += Math.abs(row.amount);
+    curr.amount += Math.abs(toPrimary(row) ?? 0);
     if (row.merchant) {
-      curr.merchants.set(row.merchant, (curr.merchants.get(row.merchant) ?? 0) + Math.abs(row.amount));
+      curr.merchants.set(row.merchant, (curr.merchants.get(row.merchant) ?? 0) + Math.abs(toPrimary(row) ?? 0));
     }
     ytdMap.set(key, curr);
   }
@@ -79,7 +79,7 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, onSettings
         <div className="ns-card" style={{ padding: "20px 24px" }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>最大支出</div>
           <div style={{ fontSize: 18, fontWeight: 500 }}>
-            {maxSpendCat ? `${maxSpendCat.name} · NT$${formatNumber(maxSpendCat.amount)}` : "無"}
+            {maxSpendCat ? `${maxSpendCat.name} · ${primaryCurrency} ${formatNumber(maxSpendCat.amount)}` : "無"}
           </div>
         </div>
         <div className="ns-card" style={{ padding: "20px 24px" }}>
@@ -103,7 +103,7 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, onSettings
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
             <div>
               <div className="ns-eyebrow" style={{ marginBottom: 4 }}>{parseInt(filterMonth.split("-")[1], 10)} 月支出</div>
-              <div className="num" style={{ fontSize: 24, fontWeight: 500 }}>NT${formatNumber(totalMonthSpend)}</div>
+              <div className="num" style={{ fontSize: 24, fontWeight: 500 }}>{primaryCurrency} {formatNumber(totalMonthSpend)}</div>
             </div>
             <button className="ns-btn-icon" onClick={onSettingsClick}><Gear size={16} /></button>
           </div>
@@ -125,7 +125,7 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, onSettings
                 </Pie>
                 <Tooltip 
                   contentStyle={{ background: "var(--ns-surface)", border: "1px solid var(--ns-border)", borderRadius: 6, fontSize: 12 }}
-                  formatter={(v: any) => [`NT$${formatNumber(v as number)}`, "支出"]}
+                  formatter={(v: any) => [`${primaryCurrency} ${formatNumber(v as number)}`, "支出"]}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -184,7 +184,7 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, onSettings
                       <span style={{ fontWeight: 500 }}>{r.name}</span>
                     </div>
                     <div>{r.count} 筆</div>
-                    <div className="num">−NT${formatNumber(r.ytdAmount)}</div>
+                    <div className="num">−{primaryCurrency} {formatNumber(r.ytdAmount)}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ background: "var(--ns-bg-hover)", color: r.color, padding: "2px 6px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
                         {pct.toFixed(1)}%
@@ -208,7 +208,7 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, onSettings
                   <span style={{ fontWeight: 500 }}>其他</span>
                 </div>
                 <div>{uncategorizedCount} 筆</div>
-                <div className="num">−NT${formatNumber(ytdMap.get("未分類")?.amount ?? 0)}</div>
+                <div className="num">−{primaryCurrency} {formatNumber(ytdMap.get("未分類")?.amount ?? 0)}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)", padding: "2px 6px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
                     {uncategorizedPct.toFixed(1)}%

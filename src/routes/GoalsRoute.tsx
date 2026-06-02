@@ -85,7 +85,7 @@ export function GoalsRoute() {
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 32 }}>
         <div>
           <div style={{ fontSize: 11, fontFamily: "var(--ns-font-mono)", letterSpacing: 1.5, color: "var(--ns-fg-muted)", marginBottom: 8 }}>LONG-TERM PROGRESS</div>
-          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 32, margin: 0, letterSpacing: -0.5, fontWeight: 600 }}>Goals &amp; FIRE</h1>
+          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 32, margin: 0, letterSpacing: -0.5, fontWeight: 600 }}>目標・FIRE</h1>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           <Link to="/goals/fire" className="ns-btn ghost" style={{ textDecoration: "none" }}>

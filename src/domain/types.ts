@@ -81,6 +81,8 @@ export interface Account extends SyncFields {
   iconName: string | null;
   /** Optional accent color (hex or token) for the account marker. */
   color: string | null;
+  /** Optional user-defined subgroup within the built-in account type group. */
+  customGroup?: string;
 }
 
 export interface LedgerTransaction extends SyncFields {
@@ -105,6 +107,8 @@ export interface LedgerTransaction extends SyncFields {
   isReviewed: boolean;
   receiptAttachmentId: string | null;
   recurringRuleId: string | null;
+  /** Stable key for a recurring-rule occurrence, used to deduplicate sync. */
+  recurringOccurrenceKey?: string | null;
 }
 
 export interface PortfolioAsset extends SyncFields {
@@ -222,6 +226,24 @@ export interface CategoryGroup {
   budget?: number | null;
   color?: string;
   iconName?: string;
+}
+
+export interface RecalculationDifference {
+  id: string;
+  label: string;
+  before: number;
+  after: number;
+}
+
+export interface RecalculationReport {
+  accountDifferences: RecalculationDifference[];
+  assetDifferences: RecalculationDifference[];
+  orphanLedgerIds: string[];
+  orphanInvestmentIds: string[];
+  incompleteTransferGroupIds: string[];
+  missingFxPairs: string[];
+  changedAccounts: number;
+  changedAssets: number;
 }
 
 export interface ExchangeRate {

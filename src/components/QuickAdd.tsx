@@ -1,7 +1,7 @@
 import { Plus, X, ArrowRight } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { buildMerchantCategoryMap, nowAsDatetimeLocal, parseQuickAdd, type QuickAddParsed } from "../domain";
+import { buildLedgerSuggestions, buildMerchantCategoryMap, formatMoney, nowAsDatetimeLocal, parseQuickAdd, type QuickAddParsed } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useToast } from "./Toast";
 
@@ -25,8 +25,10 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
   const timezone = useUiPreferences((state) => state.timezone);
   const { accounts, ledger, settings } = useFinanceData();
   const accountRows = accounts.data ?? [];
+  const ledgerRows = ledger.data ?? [];
   const primaryCurrency = settings.data?.primaryCurrency ?? "TWD";
-  const merchantCat = useMemo(() => buildMerchantCategoryMap(ledger.data ?? []), [ledger.data]);
+  const merchantCat = useMemo(() => buildMerchantCategoryMap(ledgerRows), [ledgerRows]);
+  const categoryGroups = settings.data?.categories ?? [];
 
   const [text, setText] = useState("");
   const [confirm, setConfirm] = useState<Confirm | null>(null);
@@ -60,6 +62,17 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+
+  const ledgerSuggestions = useMemo(
+    () => confirm?.kind === "ledger"
+      ? buildLedgerSuggestions(ledgerRows, { category: confirm.category || undefined, merchant: confirm.merchant || undefined })
+      : { merchants: [], accountIds: [] },
+    [confirm, ledgerRows],
+  );
+  const merchantOptions = useMemo(
+    () => [...new Set([...ledgerSuggestions.merchants, ...merchantCat.keys()])].slice(0, 20),
+    [ledgerSuggestions.merchants, merchantCat],
+  );
 
   if (!open) return null;
 
@@ -123,6 +136,17 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
 
   const pending = createLedger.isPending || createInvestment.isPending;
 
+  function chooseMerchant(merchant: string) {
+    if (!confirm || confirm.kind !== "ledger") return;
+    const known = merchantCat.get(merchant);
+    setConfirm({
+      ...confirm,
+      merchant,
+      category: confirm.category || known?.category || "",
+      subcategory: confirm.subcategory || known?.subcategory || "",
+    });
+  }
+
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 80, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)", backdropFilter: "blur(3px)" }} />
@@ -150,9 +174,40 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                   onBlur={() => setAmountFocused(false)}
                   onChange={(e) => setConfirm({ ...confirm, amount: e.target.value.replace(/[^\d.]/g, "") })}
                 /></Field>
-                <Field label="帳戶"><select className="ns-input" style={{ appearance: "none" }} value={confirm.accountId} onChange={(e) => setConfirm({ ...confirm, accountId: e.target.value })}><option value="">選擇帳戶</option>{accountRows.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
-                <Field label="名稱 / 商家"><input className="ns-input" value={confirm.merchant} onChange={(e) => setConfirm({ ...confirm, merchant: e.target.value })} /></Field>
-                <Field label="分類"><input className="ns-input" value={confirm.category} onChange={(e) => setConfirm({ ...confirm, category: e.target.value })} placeholder="選填" /></Field>
+                <Field label="分類">
+                  <input className="ns-input" value={confirm.category} onChange={(e) => setConfirm({ ...confirm, category: e.target.value })} placeholder="選填" />
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 7 }}>
+                    {categoryGroups.slice(0, 8).map((category) => (
+                      <button key={category.name} className="ns-pill" onClick={() => setConfirm({ ...confirm, category: category.name })}>
+                        {category.iconName || "•"} {category.name}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+                <Field label="名稱 / 商家">
+                  <input className="ns-input" list="quick-add-merchants" value={confirm.merchant} onChange={(e) => chooseMerchant(e.target.value)} />
+                  <datalist id="quick-add-merchants">{merchantOptions.map((merchant) => <option key={merchant} value={merchant} />)}</datalist>
+                </Field>
+                <Field label="帳戶">
+                  <select className="ns-input" style={{ appearance: "none" }} value={confirm.accountId} onChange={(e) => setConfirm({ ...confirm, accountId: e.target.value })}><option value="">選擇帳戶</option>{accountRows.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
+                </Field>
+                <div style={{ gridColumn: "1 / -1", fontSize: 12 }}>
+                  {(ledgerSuggestions.merchants.length > 0 || ledgerSuggestions.accountIds.length > 0) ? (
+                    <div className="muted" style={{ marginBottom: 5 }}>依過往紀錄建議</div>
+                  ) : null}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                    {ledgerSuggestions.merchants.map((merchant) => <button key={merchant} className="ns-pill" onClick={() => chooseMerchant(merchant)}>{merchant}</button>)}
+                    {ledgerSuggestions.accountIds.map((accountId) => {
+                      const account = accountRows.find((row) => row.id === accountId);
+                      return account ? <button key={accountId} className="ns-pill" onClick={() => setConfirm({ ...confirm, accountId })}>{account.name}</button> : null;
+                    })}
+                  </div>
+                </div>
+                <div className="ns-surface" style={{ gridColumn: "1 / -1", padding: "9px 11px", fontSize: 12.5 }}>
+                  {confirm.entryType === "expense" ? "支出" : "收入"} {formatMoney(Number(confirm.amount) || 0, accountCurrency(confirm.accountId))}
+                  {confirm.accountId ? ` · ${accountRows.find((row) => row.id === confirm.accountId)?.name ?? ""}` : ""}
+                  {confirm.category ? ` · ${confirm.category}${confirm.subcategory ? ` / ${confirm.subcategory}` : ""}` : ""}
+                </div>
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>

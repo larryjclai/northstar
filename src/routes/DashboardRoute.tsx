@@ -10,6 +10,7 @@ import {
   calculateAlternativeAssets,
   calculateLiabilities,
   buildCreditCardReminders,
+  convertCurrency,
   createFxConverter,
   formatMoney,
   formatNumber,
@@ -54,10 +55,25 @@ export function DashboardRoute() {
   const goalRows = financialGoals.data ?? [];
 
   const { primaryCurrency, toPrimary } = createFxConverter(appSettings, fxHistory);
+  const missingFxPairs = useMemo(() => {
+    const currencies = new Set([
+      ...accountRows.map((account) => account.currency),
+      ...ledgerRows.map((row) => row.currency),
+      ...assetRows.map((asset) => asset.currency),
+      ...quoteRows.map((quote) => quote.currency),
+    ]);
+    return [...currencies]
+      .filter((currency) => currency !== primaryCurrency && convertCurrency(1, currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: new Date().toISOString() }) === null)
+      .map((currency) => `${currency}/${primaryCurrency}`);
+  }, [accountRows, ledgerRows, assetRows, quoteRows, primaryCurrency, appSettings, fxHistory]);
   const filteredAccounts = selectedAccount === "all" ? accountRows : accountRows.filter(a => a.id === selectedAccount);
   const availableCash = calculateAvailableCash(filteredAccounts, toPrimary);
   const alternativeAssets = calculateAlternativeAssets(filteredAccounts, toPrimary);
   const liabilities = calculateLiabilities(filteredAccounts, toPrimary);
+  const signedAccountValue = filteredAccounts.reduce((sum, account) => {
+    if (account.deletedAt !== null) return sum;
+    return sum + toPrimary(account.balance, account.currency);
+  }, 0);
 
   const quoteFor = (ticker: string) => quoteRows.find((quote) => quote.symbol.toUpperCase() === ticker.toUpperCase());
   const filteredAssets = selectedAccount === "all" ? assetRows : assetRows.filter(a => a.accountId === selectedAccount);
@@ -67,7 +83,7 @@ export function DashboardRoute() {
     return sum + toPrimary(value, quote?.currency ?? asset.currency);
   }, 0);
 
-  const netWorth = availableCash + alternativeAssets + marketValue - liabilities;
+  const netWorth = signedAccountValue + marketValue;
 
   const monthRows = ledgerRows.filter((row) => row.date.startsWith(monthKey) && row.settlementStatus === "settled" && (selectedAccount === "all" || row.accountId === selectedAccount));
   const monthIncome = monthRows.filter((row) => row.entryType === "income").reduce((sum, row) => sum + toPrimary(Math.max(0, row.amount), row.currency, row.date), 0);
@@ -190,12 +206,17 @@ export function DashboardRoute() {
 
   return (
     <div style={{ padding: "22px 32px 100px", maxWidth: 1180, margin: "0 auto" }}>
+      {missingFxPairs.length ? (
+        <div style={{ padding: "10px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-warn-soft)", border: "1px solid var(--ns-border)", marginBottom: 14, fontSize: 13 }}>
+          總額不完整：缺少 {missingFxPairs.join("、")} 匯率。<Link to="/settings" style={{ marginLeft: 8 }}>前往更新匯率</Link>
+        </div>
+      ) : null}
       {/* Over-budget alert */}
       {overBudget.length > 0 ? (
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-neg-soft)", border: "1px solid color-mix(in srgb, var(--ns-neg) 40%, transparent)", marginBottom: 14, fontSize: 13 }}>
           <span>
             <strong>{overBudget.map((c) => c.name).join("、")}</strong> 本月已超支
-            &nbsp;·&nbsp; 超出 NT${formatNumber(overBudget.reduce((s, c) => s + (c.spent - (c.budget ?? 0)), 0))}
+            &nbsp;·&nbsp; 超出 {formatMoney(overBudget.reduce((s, c) => s + (c.spent - (c.budget ?? 0)), 0), primaryCurrency)}
           </span>
           <Link to="/cash-flow/categories" className="ns-btn ghost" style={{ marginLeft: "auto", padding: "2px 8px", fontSize: 12 }}>查看分類 →</Link>
         </div>
@@ -210,7 +231,7 @@ export function DashboardRoute() {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <select 
             className="ns-input" 
-            style={{ minWidth: 120, maxWidth: 200, height: 36, boxSizing: "border-box", appearance: "none", paddingRight: 28, backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4 6 8 10 12 6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center", backgroundSize: "14px" }}
+            style={{ minWidth: 120, maxWidth: 200, height: 36, boxSizing: "border-box", appearance: "none", padding: "0 28px 0 12px", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4 6 8 10 12 6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center", backgroundSize: "14px" }}
             value={selectedAccount}
             onChange={e => setSelectedAccount(e.target.value)}
           >

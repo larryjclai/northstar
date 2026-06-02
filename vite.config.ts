@@ -17,6 +17,24 @@ export default defineConfig({
     strictPort: true,
     port: 5173,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Split heavy third-party libraries out of the main entry so the
+        // initial load isn't a single multi-MB chunk. Low-frequency routes
+        // are additionally code-split via lazyRouteComponent (see router.tsx).
+        manualChunks: {
+          charts: ["recharts"],
+          emoji: ["emoji-picker-react"],
+          tanstack: [
+            "@tanstack/react-router",
+            "@tanstack/react-query",
+            "@tanstack/react-table",
+          ],
+        },
+      },
+    },
+  },
   envPrefix: ["VITE_", "TAURI_"],
 });
 

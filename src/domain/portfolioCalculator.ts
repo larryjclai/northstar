@@ -17,11 +17,14 @@ export function buildHoldingPositions(
       const assetRecords = records.filter((record) => record.assetId === asset.id && record.deletedAt === null);
       const quantity = asset.holdingSource === "manual"
         ? asset.totalQuantity
-        : assetRecords.reduce((sum, record) => {
-          if (record.action === "buy" || record.action === "stockDividend") return sum + record.quantity;
-          if (record.action === "sell") return sum - record.quantity;
-          return sum;
-        }, 0);
+        : assetRecords
+          .sort((a, b) => a.date.localeCompare(b.date))
+          .reduce((sum, record) => {
+            if (record.action === "buy" || record.action === "stockDividend") return sum + record.quantity;
+            if (record.action === "sell") return sum - record.quantity;
+            if (record.action === "stockSplit" && record.quantity > 0) return sum * record.quantity;
+            return sum;
+          }, 0);
       const quote = quotes[asset.ticker];
       const marketPrice = quote?.price ?? null;
       const marketValue = marketPrice === null ? 0 : quantity * marketPrice;
