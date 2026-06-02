@@ -30,8 +30,7 @@
       "dmg",
       "deb",
       "appimage",
-      "nsis",
-      "updater"
+      "nsis"
     ],
     "category": "Finance",
     "createUpdaterArtifacts": true,
