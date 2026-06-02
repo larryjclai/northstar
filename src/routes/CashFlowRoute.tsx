@@ -598,7 +598,7 @@ export function CashFlowRoute() {
               className="ns-input"
               value={selectedAccount}
               onChange={(e) => setSelectedAccount(e.target.value)}
-              style={{ appearance: "none", paddingRight: 28, height: 36, boxSizing: "border-box", fontSize: 13, minWidth: 116 }}
+              style={{ appearance: "none", padding: "0 28px 0 12px", height: 36, boxSizing: "border-box", fontSize: 13, minWidth: 116 }}
             >
               <option value="all">所有帳戶</option>
               {accountRows.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -611,7 +611,7 @@ export function CashFlowRoute() {
               className="ns-input"
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              style={{ appearance: "none", paddingRight: 28, height: 36, boxSizing: "border-box", fontSize: 13, minWidth: 116 }}
+              style={{ appearance: "none", padding: "0 28px 0 12px", height: 36, boxSizing: "border-box", fontSize: 13, minWidth: 116 }}
             >
               <option value="all">所有分類</option>
               {categories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
@@ -627,9 +627,9 @@ export function CashFlowRoute() {
 
       <div style={{ display: 'flex', borderBottom: '1px solid var(--ns-border)', marginBottom: 24, overflowX: "auto" }}>
         {[
-          { id: 'overview', label: 'Transactions' },
+          { id: 'overview', label: '交易' },
           { id: 'categories', label: '分類' },
-          { id: 'merchants', label: 'Merchants' },
+          { id: 'merchants', label: '商家' },
           { id: 'recurring', label: '週期規則' },
         ].map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id as any)} style={{
@@ -783,7 +783,7 @@ export function CashFlowRoute() {
              <span style={{ fontWeight: 600, fontSize: 15 }}>Recent activity</span>
              <label style={{ position: "relative", minWidth: 180, flex: "0 1 260px" }}>
                <MagnifyingGlass size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--ns-muted)" }} />
-               <input className="ns-input" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜尋商家、分類或備註" style={{ width: "100%", height: 34, paddingLeft: 30, fontSize: 12.5 }} />
+               <input className="ns-input" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜尋商家、分類或備註" style={{ width: "100%", height: 34, padding: "0 12px 0 30px", fontSize: 12.5 }} />
              </label>
              <span className="muted" style={{ fontSize: 12.5 }}>{activityRows.length} events</span>
            </div>

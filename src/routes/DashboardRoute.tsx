@@ -231,7 +231,7 @@ export function DashboardRoute() {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <select 
             className="ns-input" 
-            style={{ minWidth: 120, maxWidth: 200, height: 36, boxSizing: "border-box", appearance: "none", paddingRight: 28, backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4 6 8 10 12 6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center", backgroundSize: "14px" }}
+            style={{ minWidth: 120, maxWidth: 200, height: 36, boxSizing: "border-box", appearance: "none", padding: "0 28px 0 12px", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4 6 8 10 12 6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center", backgroundSize: "14px" }}
             value={selectedAccount}
             onChange={e => setSelectedAccount(e.target.value)}
           >
