@@ -2,6 +2,13 @@
 
 All notable changes to Northstar will be documented in this file.
 
+## [0.1.0-alpha.17] - 2026-06-02
+
+### Fixed
+- **自動更新**：修正 in-app updater 一直顯示「已是最新版本」的問題。更新來源改為公開的 `northstar-releases` repo（原始碼維持 private），讓 updater 能正常抓到新版本與簽章。此版起安裝的版本之後都能自動更新。
+
+---
+
 ## [0.1.0-alpha.16] - 2026-06-02
 
 ### Added
