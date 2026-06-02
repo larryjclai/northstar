@@ -2,6 +2,20 @@
 
 Northstar 使用 GitHub Actions 自動發布多平台桌面版本。觸發條件是 push 一個 `v*` tag。
 
+## 為什麼有兩個 repo？（重要）
+
+app 原始碼這個 repo 是 **private**，而 private repo 的 release assets **無法匿名下載**——
+in-app updater 在使用者電腦上沒有 GitHub 憑證，會拿到 404。
+
+所以更新來源放在另一個 **public** repo：[`larryjclai/northstar-releases`](https://github.com/larryjclai/northstar-releases)。
+CI 建置後，`mirror-to-public` job 會把 binaries 與 `latest.json` 複製過去，並把
+`latest.json` 內的下載網址從 private repo 改寫成 public repo（簽章不變）。
+
+- App 的 updater endpoint（`src-tauri/tauri.conf.json`）指向 public repo 的
+  `releases/latest/download/latest.json`。
+- 因此 **endpoint 改動只對「之後建置」的版本生效**。現有安裝（仍指向舊 endpoint）
+  必須先**手動安裝一次**新 endpoint 的版本，之後才會開始自動更新。
+
 ## 版本號格式
 
 採用 semver：`MAJOR.MINOR.PATCH[-PRERELEASE]`
@@ -41,15 +55,23 @@ git tag v0.1.0-alpha.7
 git push && git push --tags
 ```
 
-Push tag 後，GitHub Actions 會自動在 macOS (arm64 + x64)、Windows、Linux 四個環境各 build 一次，完成後建立一個 **Draft Release**。
+Push tag 後，GitHub Actions 會自動在 macOS (arm64 + x64)、Windows、Linux 四個環境各 build 一次，
+發布到 private repo 的 Releases，接著 `mirror-to-public` job 會把同一批 artifacts 複製到
+public 的 `northstar-releases` repo（並改寫 `latest.json` 下載網址）。兩邊都是正式 release（非 draft）。
 
-### 4. 確認 Draft Release
+### 4. 確認 public release
 
-前往 [GitHub Releases](https://github.com/larryjclai/northstar/releases)：
+前往 [northstar-releases Releases](https://github.com/larryjclai/northstar-releases/releases)：
 
-1. 確認 artifacts 都已上傳（`.dmg`、`.msi`、`.exe`、`.deb`、`.AppImage`、`latest.json`）
-2. 視需要編輯 release notes
-3. 點擊 **Publish release**（發布後 in-app updater 才能偵測到新版本）
+1. 確認該 tag 的 artifacts 都已上傳（`.dmg`、`.msi`、`.exe`、`.deb`、`.AppImage`、各 `.sig`、`latest.json`）
+2. 確認它被標為 **Latest**（updater 靠 `releases/latest` 解析）
+3. 驗證 updater feed：
+   ```bash
+   curl -sL https://github.com/larryjclai/northstar-releases/releases/latest/download/latest.json | jq .version
+   ```
+   應印出剛發布的版本號。
+
+> in-app updater 不需要手動 Publish——release 一建立就生效。
 
 ---
 
@@ -61,8 +83,19 @@ Repository → Settings → Secrets and variables → Actions：
 |-------------|------|
 | `TAURI_SIGNING_PRIVATE_KEY` | minisign 私鑰（`.key` 檔的完整內容） |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 建立私鑰時設定的密碼（若無則留空） |
+| `RELEASES_TOKEN` | 用來把 release 推到 public `northstar-releases` repo 的 token（見下） |
 
-`GITHUB_TOKEN` 由 Actions 自動提供，不需手動設定。
+`GITHUB_TOKEN` 由 Actions 自動提供，只對 **目前這個 repo** 有寫入權限，
+無法跨 repo 發布，所以 mirror 需要額外的 `RELEASES_TOKEN`。
+
+### 如何建立 `RELEASES_TOKEN`
+
+1. GitHub → Settings → Developer settings → **Fine-grained personal access tokens** → Generate new token
+2. **Resource owner**：`larryjclai`；**Repository access**：Only select repositories → 勾選 `northstar-releases`
+3. **Permissions** → Repository permissions → **Contents: Read and write**
+4. 產生後複製 token，到 **本 repo** 的 Settings → Secrets and variables → Actions
+   新增 secret，名稱 `RELEASES_TOKEN`，貼上 token
+5. （fine-grained token 有有效期限，到期需重新產生並更新 secret）
 
 ### 如何設定私鑰
 

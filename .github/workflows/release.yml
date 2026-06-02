@@ -100,5 +100,68 @@ jobs:
 
             **macOS 首次開啟提示**：若出現「無法驗證開發者」，請右鍵點擊 app → 選擇「開啟」即可。
           releaseDraft: false
-          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') || contains(inputs.tag, 'alpha') || contains(inputs.tag, 'beta') || contains(inputs.tag, 'rc') }}
+          # The app source repo is PRIVATE, so its release assets can't be
+          # downloaded anonymously — the updater would 404. The user-facing
+          # updater feed lives in the PUBLIC `northstar-releases` repo instead
+          # (see the mirror-to-public job below). This private-repo release is
+          # just the build output the mirror copies from; its prerelease flag is
+          # irrelevant to the updater, so keep it false for consistency.
+          prerelease: false
           args: ${{ matrix.args }}
+
+  # Copy the freshly built release into the PUBLIC northstar-releases repo so the
+  # in-app updater (which has no GitHub credentials) can fetch latest.json + the
+  # signed binaries anonymously. latest.json's per-platform URLs are rewritten
+  # from the private repo to the public one; signatures are unchanged.
+  mirror-to-public:
+    needs: publish-tauri
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read   # read this (private) repo's release assets
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: echo "tag=${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Download release assets from the private repo
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SRC_REPO: ${{ github.repository }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          mkdir -p dist
+          gh release download "$TAG" --repo "$SRC_REPO" --dir dist
+
+      - name: Rewrite latest.json URLs to the public repo
+        env:
+          SRC_REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          src = os.environ["SRC_REPO"]                 # e.g. larryjclai/northstar
+          old = f"/{src}/releases/download/"
+          new = "/larryjclai/northstar-releases/releases/download/"
+          p = "dist/latest.json"
+          d = json.load(open(p))
+          for v in d["platforms"].values():
+              v["url"] = v["url"].replace(old, new)
+          json.dump(d, open(p, "w"), ensure_ascii=False, indent=2)
+          print("rewrote", len(d["platforms"]), "platform urls ->", new)
+          PY
+
+      - name: Publish to the public releases repo
+        env:
+          # Fine-grained PAT with contents:write on larryjclai/northstar-releases.
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          NOTES=$'Northstar 桌面版下載與自動更新來源（app 原始碼為 private）。\n\n| 平台 | 檔案 |\n|------|------|\n| macOS (Apple Silicon) | `Northstar_*_aarch64.dmg` |\n| macOS (Intel) | `Northstar_*_x64.dmg` |\n| Windows | `Northstar_*_x64-setup.exe` |\n| Linux (Debian/Ubuntu) | `northstar_*_amd64.deb` |\n| Linux (通用) | `northstar_*_amd64.AppImage` |\n\n**macOS 首次開啟**：若出現「無法驗證開發者」，右鍵點擊 app → 選「開啟」。'
+          if gh release view "$TAG" --repo larryjclai/northstar-releases >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --repo larryjclai/northstar-releases --clobber
+          else
+            gh release create "$TAG" dist/* \
+              --repo larryjclai/northstar-releases \
+              --title "Northstar $TAG" \
+              --latest \
+              --notes "$NOTES"
+          fi
