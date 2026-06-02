@@ -19,7 +19,7 @@ import {
 } from "@phosphor-icons/react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ChangeEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { Bar, BarChart, ResponsiveContainer, Tooltip, Cell, PieChart, Pie, XAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, ResponsiveContainer, Tooltip, Cell, PieChart, Pie, XAxis } from "recharts";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 import { CategoriesTab } from "./CategoriesTab";
 import { MerchantsTab } from "./MerchantsTab";
@@ -542,6 +542,7 @@ export function CashFlowRoute() {
     const [year, month] = monthKey.split("-").map(Number);
     const daysInMonth = new Date(year, month, 0).getDate();
     const data = [];
+    let cum = 0;
     for (let i = 1; i <= daysInMonth; i++) {
       const dateStr = `${monthKey}-${i.toString().padStart(2, "0")}`;
       let net = 0;
@@ -550,7 +551,11 @@ export function CashFlowRoute() {
           net += toPrimary(row) ?? 0;
         }
       }
-      data.push({ date: i, net });
+      cum += net;
+      // `cum` is the running net cash flow through the month — a smooth
+      // trajectory that stays readable even when only a few days have activity
+      // (unlike scattered per-day bars).
+      data.push({ date: i, net, cum });
     }
     return data;
   }, [monthRows, monthKey, toPrimary]);
@@ -653,47 +658,46 @@ export function CashFlowRoute() {
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 20, marginBottom: 20 }}>
         {/* Cashflow Chart */}
         <div className="ns-card" id="cashflow-chart" style={{ padding: 24, display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 16, marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 16, marginBottom: 14, flexWrap: "wrap" }}>
             <div>
-              <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Net this month</div>
+              <div className="ns-eyebrow" style={{ marginBottom: 6 }}>本月現金流 · Net</div>
               <div className={"ns-num-lg " + (monthNet >= 0 ? "pos" : "neg")}>
                 {monthNet >= 0 ? "+" : "−"}{primaryCurrency} {formatNumber(Math.abs(monthNet))}
               </div>
             </div>
             <div style={{ flex: 1 }}/>
-            <div style={{ display: "flex", gap: 18, fontSize: 12 }}>
-              <div>
-                <div className="muted">Income</div>
-                <div className="num" style={{ fontSize: 18, fontWeight: 500 }}>{primaryCurrency} {formatNumber(monthIncome)}</div>
-              </div>
-              <div>
-                <div className="muted">Spending</div>
-                <div className="num" style={{ fontSize: 18, fontWeight: 500 }}>{primaryCurrency} {formatNumber(monthExpense)}</div>
-              </div>
-              <div>
-                <div className="muted">Savings rate</div>
-                <div className={"num " + (monthIncome > 0 ? "pos" : "muted")} style={{ fontSize: 18, fontWeight: 500 }}>
-                  {monthIncome > 0 ? ((monthNet / monthIncome) * 100).toFixed(1) + "%" : "0%"}
+            {/* Income / Spending / Savings as side-by-side comparison cards. */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(92px, 1fr))", gap: 8 }}>
+              {([
+                { label: "收入", value: `${primaryCurrency} ${formatNumber(monthIncome)}`, cls: "pos" },
+                { label: "支出", value: `${primaryCurrency} ${formatNumber(monthExpense)}`, cls: "neg" },
+                { label: "儲蓄率", value: monthIncome > 0 ? `${((monthNet / monthIncome) * 100).toFixed(1)}%` : "—", cls: monthIncome > 0 && monthNet >= 0 ? "pos" : "muted" },
+              ]).map((s) => (
+                <div key={s.label} className="ns-surface" style={{ padding: "8px 12px", borderRadius: "var(--ns-r-sm)" }}>
+                  <div className="muted" style={{ fontSize: 11 }}>{s.label}</div>
+                  <div className={"num " + s.cls} style={{ fontSize: 16, fontWeight: 500, whiteSpace: "nowrap" }}>{s.value}</div>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
           <div style={{ height: 200 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dailyNetData}>
+              <AreaChart data={dailyNetData}>
+                <defs>
+                  <linearGradient id="cashflowCum" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="5%" stopColor="var(--ns-accent)" stopOpacity={0.32} />
+                    <stop offset="95%" stopColor="var(--ns-accent)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
                 <XAxis dataKey="date" hide />
                 <Tooltip
-                  cursor={{ fill: resolveColor("var(--ns-bg-hover)") }}
+                  cursor={{ stroke: resolveColor("var(--ns-border)") }}
                   contentStyle={{ background: "var(--ns-surface)", border: "1px solid var(--ns-border)", borderRadius: 6, fontSize: 12 }}
-                  formatter={(v: any) => [`${primaryCurrency} ${formatNumber(Math.abs(v as number))}`, "Net"]}
+                  formatter={(v: any) => [`${primaryCurrency} ${formatNumber(v as number)}`, "累積淨額"]}
                   labelFormatter={(v) => `${monthLabel} / ${v}`}
                 />
-                <Bar dataKey="net" radius={[2, 2, 2, 2]}>
-                  {dailyNetData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={resolveColor(entry.net >= 0 ? "var(--ns-pos)" : "var(--ns-neg)")} />
-                  ))}
-                </Bar>
-              </BarChart>
+                <Area type="monotone" dataKey="cum" stroke="var(--ns-accent)" fill="url(#cashflowCum)" strokeWidth={2} />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
           <div className="dim mono" style={{ fontSize: 10.5, marginTop: 6, display: "flex", justifyContent: "space-between" }}>

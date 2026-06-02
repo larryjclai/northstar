@@ -1,7 +1,7 @@
 import { ArrowDown, ArrowsClockwise, ArrowsDownUp, ArrowUp, Bank, ChartLineUp, ListChecks, PencilSimple, PlusCircle, X, CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ActionButton } from "../components/ActionButton";
 import { AssetLogo } from "../components/AssetLogo";
 import { PageHeader } from "../components/AppShell";
@@ -268,6 +268,14 @@ export function InvestmentsRoute() {
               </div>
             ))}
           </div>
+
+          <HoldingsAllocation
+            positions={positions}
+            assetsById={new Map(assetRows.map((asset) => [asset.id, asset]))}
+            nameLocale={nameLocale}
+            toPrimary={toPrimary}
+            primaryCurrency={primaryCurrency}
+          />
 
           <HoldingsTab
             positions={positions}
@@ -696,6 +704,71 @@ type SortDirection = "asc" | "desc";
 interface HoldingsSortState {
   key: HoldingsSortKey;
   direction: SortDirection;
+}
+
+// Donut palette — DS chart tokens plus two accents, matching the dashboard.
+const ALLOCATION_COLORS = [
+  "var(--ns-chart-1)", "var(--ns-chart-2)", "var(--ns-chart-3)",
+  "var(--ns-chart-4)", "var(--ns-chart-5)", "#2dd4bf", "#fb923c",
+];
+
+/** Portfolio composition donut (by holding, valued in base currency). */
+function HoldingsAllocation({ positions, assetsById, nameLocale, toPrimary, primaryCurrency }: {
+  positions: HoldingPosition[];
+  assetsById: Map<string, PortfolioAsset>;
+  nameLocale: NameLocalePreference;
+  toPrimary: (value: number, currency: string) => number;
+  primaryCurrency: string;
+}) {
+  const data = useMemo(() => {
+    const byTicker = new Map<string, { value: number; assetId: string; ticker: string }>();
+    for (const p of positions) {
+      const value = toPrimary(p.marketValue, p.currency);
+      if (value <= 0) continue;
+      const cur = byTicker.get(p.ticker) ?? { value: 0, assetId: p.assetId, ticker: p.ticker };
+      cur.value += value;
+      byTicker.set(p.ticker, cur);
+    }
+    const all = [...byTicker.values()].sort((a, b) => b.value - a.value);
+    const total = all.reduce((s, x) => s + x.value, 0) || 1;
+    const top = all.slice(0, 6).map((x) => ({
+      name: resolveAssetName(assetsById.get(x.assetId), nameLocale) || x.ticker,
+      value: x.value,
+      pct: (x.value / total) * 100,
+    }));
+    const restValue = all.slice(6).reduce((s, x) => s + x.value, 0);
+    if (restValue > 0) top.push({ name: "其他", value: restValue, pct: (restValue / total) * 100 });
+    return top;
+  }, [positions, assetsById, nameLocale, toPrimary]);
+
+  if (data.length === 0) return null;
+
+  return (
+    <div className="ns-card" style={{ padding: 20, marginBottom: 20 }}>
+      <div className="ns-eyebrow" style={{ marginBottom: 14 }}>Allocation · 持倉配置</div>
+      <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ width: 168, height: 168, flexShrink: 0 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={data} dataKey="value" nameKey="name" innerRadius={50} outerRadius={82} paddingAngle={2} stroke="none">
+                {data.map((_, i) => <Cell key={i} fill={ALLOCATION_COLORS[i % ALLOCATION_COLORS.length]} />)}
+              </Pie>
+              <Tooltip formatter={(value) => formatMoney(Number(value), primaryCurrency)} contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)", fontSize: 12 }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div style={{ flex: 1, minWidth: 220, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: "9px 20px" }}>
+          {data.map((d, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, minWidth: 0 }}>
+              <span style={{ width: 9, height: 9, borderRadius: 2, background: ALLOCATION_COLORS[i % ALLOCATION_COLORS.length], flexShrink: 0 }} />
+              <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.name}</span>
+              <span className="mono dim" style={{ flexShrink: 0 }}>{d.pct.toFixed(1)}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function HoldingsTab({
