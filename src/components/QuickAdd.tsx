@@ -5,7 +5,7 @@ import { buildLedgerSuggestions, buildMerchantCategoryMap, formatMoney, nowAsDat
 import { useUiPreferences } from "../state/uiPreferences";
 import { useToast } from "./Toast";
 
-type LedgerConfirm = { kind: "ledger"; entryType: "expense" | "income"; amount: string; accountId: string; merchant: string; category: string; subcategory: string };
+type LedgerConfirm = { kind: "ledger"; entryType: "expense" | "income"; amount: string; accountId: string; name: string; merchant: string; category: string; subcategory: string };
 type InvestmentConfirm = { kind: "investment"; action: "buy" | "sell"; ticker: string; quantity: string; price: string; accountId: string };
 type Confirm = LedgerConfirm | InvestmentConfirm;
 
@@ -14,10 +14,12 @@ function toConfirm(parsed: QuickAddParsed, fallbackText: string): Confirm {
     return { kind: "investment", action: parsed.action, ticker: parsed.ticker, quantity: parsed.quantity ? String(parsed.quantity) : "", price: parsed.price ? String(parsed.price) : "", accountId: parsed.accountId ?? "" };
   }
   if (parsed.kind === "ledger") {
-    return { kind: "ledger", entryType: parsed.entryType, amount: String(parsed.amount), accountId: parsed.accountId ?? "", merchant: parsed.merchant, category: parsed.category, subcategory: parsed.subcategory };
+    // The parser yields one token; seed it into the name (the description) and
+    // leave merchant for the user to confirm/fill — they are separate records.
+    return { kind: "ledger", entryType: parsed.entryType, amount: String(parsed.amount), accountId: parsed.accountId ?? "", name: parsed.merchant, merchant: parsed.merchant, category: parsed.category, subcategory: parsed.subcategory };
   }
   // unknown → prefill an expense with the raw text as the name for manual completion
-  return { kind: "ledger", entryType: "expense", amount: "", accountId: "", merchant: fallbackText.trim(), category: "", subcategory: "" };
+  return { kind: "ledger", entryType: "expense", amount: "", accountId: "", name: fallbackText.trim(), merchant: "", category: "", subcategory: "" };
 }
 
 export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -98,7 +100,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
         await createLedger.mutateAsync({
           accountId: confirm.accountId,
           date: nowAsDatetimeLocal(timezone),
-          name: confirm.merchant,
+          name: confirm.name.trim() || confirm.merchant.trim(),
           amount: confirm.entryType === "expense" ? -Math.abs(amount) : Math.abs(amount),
           currency: accountCurrency(confirm.accountId),
           category: confirm.category.trim(),
@@ -184,8 +186,11 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                     ))}
                   </div>
                 </Field>
-                <Field label="名稱 / 商家">
-                  <input className="ns-input" list="quick-add-merchants" value={confirm.merchant} onChange={(e) => chooseMerchant(e.target.value)} />
+                <Field label="名稱">
+                  <input className="ns-input" value={confirm.name} onChange={(e) => setConfirm({ ...confirm, name: e.target.value })} placeholder="交易名稱" />
+                </Field>
+                <Field label="商家">
+                  <input className="ns-input" list="quick-add-merchants" value={confirm.merchant} onChange={(e) => chooseMerchant(e.target.value)} placeholder="選填" />
                   <datalist id="quick-add-merchants">{merchantOptions.map((merchant) => <option key={merchant} value={merchant} />)}</datalist>
                 </Field>
                 <Field label="帳戶">
