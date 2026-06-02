@@ -11,9 +11,11 @@ import {
   X,
   Funnel,
   CaretDown,
+  CaretRight,
   PencilSimple,
   Gear,
   MagnifyingGlass,
+  Sparkle,
 } from "@phosphor-icons/react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ChangeEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
@@ -30,7 +32,7 @@ import { DatePicker } from "../components/ui/date-picker";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { useToast } from "../components/Toast";
 import type { LedgerDraft, TransferDraft } from "../data/repositories";
-import { buildMerchantCategoryMap, evaluateAmountExpression, formatNumber, nowAsDatetimeLocal, recurringFrequencyLabels, todayInTimezone } from "../domain";
+import { buildLedgerSuggestions, buildMerchantCategoryMap, evaluateAmountExpression, formatNumber, nowAsDatetimeLocal, recurringFrequencyLabels, todayInTimezone } from "../domain";
 import { convertCurrency } from "../domain/currency";
 import type { LedgerTransaction, RecurringTransaction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
@@ -155,6 +157,14 @@ export function CashFlowRoute() {
   const merchantCategoryMap = useMemo(() => buildMerchantCategoryMap(ledgerRows), [ledgerRows]);
   const categoryForMerchant = (merchant: string) => merchantCategoryMap.get(merchant.trim()) ?? null;
 
+  // Once a category is chosen, suggest the merchants and accounts most often
+  // used with it (from settled expense history). Drives the progressive flow:
+  // pick 分類 → see 建議商家 chips + a suggested 帳戶.
+  const categorySuggestions = useMemo(
+    () => buildLedgerSuggestions(ledgerRows, { category: ledgerForm.category }),
+    [ledgerRows, ledgerForm.category],
+  );
+
   const accountName = (id: string) => accountRows.find((account) => account.id === id)?.name ?? id;
   const accountFor = (nameOrId: string) =>
     accountRows.find((account) => account.id === nameOrId || account.name === nameOrId);
@@ -253,7 +263,10 @@ export function CashFlowRoute() {
         ...emptyLedger,
         date: nowAsDatetimeLocal(timezone),
         currency: defaultCurrency,
-        category: categoryNames[0] ?? "",
+        // No category pre-selected: leaving it empty lets the progressive flow
+        // (category → suggested merchant/account) and the merchant→category
+        // auto-fill both take effect instead of being shadowed by a default.
+        category: "",
         entryType: entryTypeFor(type),
         settlementStatus: settlementFor(type),
       });
@@ -867,6 +880,7 @@ export function CashFlowRoute() {
         categories={categories}
         subcategories={subcategories}
         merchantSuggestions={merchantSuggestions}
+        categorySuggestions={categorySuggestions}
         categoryForMerchant={categoryForMerchant}
         accountRows={accountRows}
         onSubmitLedger={submitLedger}
@@ -1073,6 +1087,7 @@ function EntryDrawer({
   categories,
   subcategories,
   merchantSuggestions,
+  categorySuggestions,
   categoryForMerchant,
   accountRows,
   onSubmitLedger,
@@ -1104,6 +1119,7 @@ function EntryDrawer({
   categories: Array<{ name: string; children: string[]; color?: string; iconName?: string }>;
   subcategories: string[];
   merchantSuggestions: string[];
+  categorySuggestions: { merchants: string[]; accountIds: string[] };
   categoryForMerchant: (merchant: string) => { category: string; subcategory: string } | null;
   accountRows: Array<{ id: string; name: string; currency: string }>;
   onSubmitLedger: () => void;
@@ -1115,6 +1131,8 @@ function EntryDrawer({
   recurringRows: import("../domain").RecurringTransaction[];
 }) {
   const [amountFocused, setAmountFocused] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  useEffect(() => { if (open) setShowAdvanced(false); }, [open]);
 
   const destAmountField = useNumericField(
     transferForm.destinationAmount ?? 0,
@@ -1169,6 +1187,19 @@ function EntryDrawer({
     const rate = raw > 0 ? (converted / raw).toFixed(4) : "—";
     return { converted, rate };
   })();
+
+  // History-driven suggestions for the chosen category, shown as one-tap chips.
+  // Only surfaced while the relevant field is still empty so we never override
+  // a value the user already entered.
+  const hasCategory = Boolean(ledgerForm.category.trim());
+  const merchantChips = hasCategory && !ledgerForm.merchant.trim()
+    ? categorySuggestions.merchants.filter((m) => m && m !== ledgerForm.merchant)
+    : [];
+  const accountChips = hasCategory && !ledgerForm.accountId
+    ? categorySuggestions.accountIds
+        .map((id) => accountRows.find((a) => a.id === id))
+        .filter((a): a is { id: string; name: string; currency: string } => Boolean(a))
+    : [];
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={onClose}>
@@ -1315,41 +1346,44 @@ function EntryDrawer({
             )}
           </DrawerField>
 
-          {/* Date + account/currency */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <DrawerField label="日期">
-              <input
-                className="ns-input"
-                type="datetime-local"
-                value={type === "transfer" ? transferForm.date : ledgerForm.date}
-                onChange={(e) =>
-                  type === "transfer"
-                    ? setTransferForm({ ...transferForm, date: e.target.value })
-                    : setLedgerForm({ ...ledgerForm, date: e.target.value })
-                }
-              />
-            </DrawerField>
-            {type !== "transfer" ? (
-              <DrawerField label={type === "expense" || type === "ap" ? "支出帳戶" : "收入帳戶"} required>
-                <select
+          {/* Date + account/currency — for transfer & receivable/payable.
+              Expense/income render date + account inside the progressive block. */}
+          {!isAcct && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <DrawerField label="日期">
+                <input
                   className="ns-input"
-                  style={{ appearance: "none" }}
-                  value={ledgerForm.accountId}
-                  onChange={(e) => {
-                    const account = accountRows.find((a) => a.id === e.target.value);
-                    setLedgerForm({ ...ledgerForm, accountId: e.target.value, currency: account?.currency ?? ledgerForm.currency });
-                  }}
-                >
-                  <option value="">選擇帳戶</option>
-                  {accountRows.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
+                  type="datetime-local"
+                  value={type === "transfer" ? transferForm.date : ledgerForm.date}
+                  onChange={(e) =>
+                    type === "transfer"
+                      ? setTransferForm({ ...transferForm, date: e.target.value })
+                      : setLedgerForm({ ...ledgerForm, date: e.target.value })
+                  }
+                />
               </DrawerField>
-            ) : (
-              <DrawerField label="幣別">
-                <input className="ns-input" value={transferForm.sourceCurrency} disabled />
-              </DrawerField>
-            )}
-          </div>
+              {type !== "transfer" ? (
+                <DrawerField label={type === "ap" ? "支出帳戶" : "收入帳戶"} required>
+                  <select
+                    className="ns-input"
+                    style={{ appearance: "none" }}
+                    value={ledgerForm.accountId}
+                    onChange={(e) => {
+                      const account = accountRows.find((a) => a.id === e.target.value);
+                      setLedgerForm({ ...ledgerForm, accountId: e.target.value, currency: account?.currency ?? ledgerForm.currency });
+                    }}
+                  >
+                    <option value="">選擇帳戶</option>
+                    {accountRows.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </DrawerField>
+              ) : (
+                <DrawerField label="幣別">
+                  <input className="ns-input" value={transferForm.sourceCurrency} disabled />
+                </DrawerField>
+              )}
+            </div>
+          )}
 
           {/* Transfer from → to */}
           {type === "transfer" && (
@@ -1418,39 +1452,11 @@ function EntryDrawer({
             </DrawerField>
           )}
 
-          {/* Name + merchant + category for expense/income */}
+          {/* Expense / income — progressive flow: 分類 → 帳戶 → 名稱/商家 → 更多選項 */}
           {isAcct && (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                <DrawerField label="名稱">
-                  <input className="ns-input" value={ledgerForm.name} onChange={(e) => setLedgerForm({ ...ledgerForm, name: e.target.value })} placeholder={type === "expense" ? "計程車" : "月薪"} />
-                </DrawerField>
-                <DrawerField label="商家 / 來源">
-                  <MerchantAutocomplete value={ledgerForm.merchant} suggestions={merchantSuggestions} onChange={(next) => {
-                    const patch = { ...ledgerForm, merchant: next };
-                    // Auto-fill the usual category for this merchant, but never override a choice already made.
-                    if (!ledgerForm.category.trim()) {
-                      const suggestion = categoryForMerchant(next);
-                      if (suggestion?.category) { patch.category = suggestion.category; patch.subcategory = suggestion.subcategory; }
-                    }
-                    setLedgerForm(patch);
-                  }} placeholder={type === "expense" ? "UBER" : "公司"} />
-                </DrawerField>
-              </div>
-
-              {type === "expense" && !editing && (
-                <DrawerField label={`外加手續費（選填） · ${ledgerForm.currency}`}>
-                  <input
-                    className="ns-input"
-                    placeholder="0"
-                    style={{ fontFamily: "var(--ns-font-mono)" }}
-                    {...expenseFeeField}
-                  />
-                  <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>海外刷卡/跨國交易手續費，將另計一筆「手續費」支出。</div>
-                </DrawerField>
-              )}
-
-              <DrawerField label="分類">
+              {/* 1 · Category drives the merchant & account suggestions below */}
+              <DrawerField label="分類" required>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: subcategories.length ? 10 : 0 }}>
                   {categories.map((c) => {
                     const active = ledgerForm.category === c.name;
@@ -1498,6 +1504,108 @@ function EntryDrawer({
                   </div>
                 ) : null}
               </DrawerField>
+
+              {/* 2 · Account + date, with a suggested account from history */}
+              <div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <DrawerField label={type === "expense" ? "支出帳戶" : "收入帳戶"} required>
+                    <select
+                      className="ns-input"
+                      style={{ appearance: "none" }}
+                      value={ledgerForm.accountId}
+                      onChange={(e) => {
+                        const account = accountRows.find((a) => a.id === e.target.value);
+                        setLedgerForm({ ...ledgerForm, accountId: e.target.value, currency: account?.currency ?? ledgerForm.currency });
+                      }}
+                    >
+                      <option value="">選擇帳戶</option>
+                      {accountRows.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                  </DrawerField>
+                  <DrawerField label="日期">
+                    <input className="ns-input" type="datetime-local" value={ledgerForm.date} onChange={(e) => setLedgerForm({ ...ledgerForm, date: e.target.value })} />
+                  </DrawerField>
+                </div>
+                {accountChips.length > 0 && (
+                  <SuggestionRow
+                    chips={accountChips.map((a) => ({ key: a.id, label: a.name }))}
+                    onPick={(id) => {
+                      const account = accountRows.find((a) => a.id === id);
+                      setLedgerForm({ ...ledgerForm, accountId: id, currency: account?.currency ?? ledgerForm.currency });
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* 3 · Name + merchant, with suggested merchants for this category */}
+              <div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <DrawerField label="名稱">
+                    <input className="ns-input" value={ledgerForm.name} onChange={(e) => setLedgerForm({ ...ledgerForm, name: e.target.value })} placeholder={type === "expense" ? "計程車" : "月薪"} />
+                  </DrawerField>
+                  <DrawerField label="商家 / 來源">
+                    <MerchantAutocomplete value={ledgerForm.merchant} suggestions={merchantSuggestions} onChange={(next) => {
+                      const patch = { ...ledgerForm, merchant: next };
+                      // Reverse path: typing a merchant auto-fills its usual category,
+                      // but only when no category has been chosen yet.
+                      if (!ledgerForm.category.trim()) {
+                        const suggestion = categoryForMerchant(next);
+                        if (suggestion?.category) { patch.category = suggestion.category; patch.subcategory = suggestion.subcategory; }
+                      }
+                      setLedgerForm(patch);
+                    }} placeholder={type === "expense" ? "UBER" : "公司"} />
+                  </DrawerField>
+                </div>
+                {merchantChips.length > 0 && (
+                  <SuggestionRow
+                    chips={merchantChips.map((m) => ({ key: m, label: m }))}
+                    onPick={(m) => setLedgerForm({ ...ledgerForm, merchant: m })}
+                  />
+                )}
+              </div>
+
+              {/* 4 · Advanced: fee, recurring, note */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced((v) => !v)}
+                  style={{ background: "none", border: "none", color: "var(--ns-fg-muted)", fontSize: 12.5, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: "2px 0", fontFamily: "inherit" }}
+                >
+                  {showAdvanced ? <CaretDown size={13} /> : <CaretRight size={13} />}
+                  更多選項（手續費、週期、備註）
+                </button>
+              </div>
+              {showAdvanced && (
+                <>
+                  {type === "expense" && !editing && (
+                    <DrawerField label={`外加手續費（選填） · ${ledgerForm.currency}`}>
+                      <input
+                        className="ns-input"
+                        placeholder="0"
+                        style={{ fontFamily: "var(--ns-font-mono)" }}
+                        {...expenseFeeField}
+                      />
+                      <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>海外刷卡/跨國交易手續費，將另計一筆「手續費」支出。</div>
+                    </DrawerField>
+                  )}
+                  <DrawerField label="週期交易">
+                    <select
+                      className="ns-input"
+                      value={drawerRecurringFreq}
+                      onChange={(e) => setDrawerRecurringFreq(e.target.value)}
+                      style={{ appearance: "none" }}
+                    >
+                      <option value="none">單次交易 (不重複)</option>
+                      <option value="weekly">每週</option>
+                      <option value="monthly">每月</option>
+                      <option value="yearly">每年</option>
+                    </select>
+                  </DrawerField>
+                  <DrawerField label="備註">
+                    <input className="ns-input" value={ledgerForm.note} onChange={(e) => setLedgerForm({ ...ledgerForm, note: e.target.value })} placeholder="選填" />
+                  </DrawerField>
+                </>
+              )}
             </>
           )}
 
@@ -1540,33 +1648,38 @@ function EntryDrawer({
             </>
           )}
 
-          {/* Note */}
-          <DrawerField label="週期交易">
-            <select
-              className="ns-input"
-              value={drawerRecurringFreq}
-              onChange={(e) => setDrawerRecurringFreq(e.target.value)}
-              style={{ appearance: "none" }}
-            >
-              <option value="none">單次交易 (不重複)</option>
-              <option value="weekly">每週</option>
-              <option value="monthly">每月</option>
-              <option value="yearly">每年</option>
-            </select>
-          </DrawerField>
+          {/* Recurring + note for transfer / receivable / payable.
+              Expense/income keep these inside 更多選項 above. */}
+          {!isAcct && (
+            <>
+              <DrawerField label="週期交易">
+                <select
+                  className="ns-input"
+                  value={drawerRecurringFreq}
+                  onChange={(e) => setDrawerRecurringFreq(e.target.value)}
+                  style={{ appearance: "none" }}
+                >
+                  <option value="none">單次交易 (不重複)</option>
+                  <option value="weekly">每週</option>
+                  <option value="monthly">每月</option>
+                  <option value="yearly">每年</option>
+                </select>
+              </DrawerField>
 
-          <DrawerField label="備註">
-            <input
-              className="ns-input"
-              value={type === "transfer" ? transferForm.note : ledgerForm.note}
-              onChange={(e) =>
-                type === "transfer"
-                  ? setTransferForm({ ...transferForm, note: e.target.value })
-                  : setLedgerForm({ ...ledgerForm, note: e.target.value })
-              }
-              placeholder="選填"
-            />
-          </DrawerField>
+              <DrawerField label="備註">
+                <input
+                  className="ns-input"
+                  value={type === "transfer" ? transferForm.note : ledgerForm.note}
+                  onChange={(e) =>
+                    type === "transfer"
+                      ? setTransferForm({ ...transferForm, note: e.target.value })
+                      : setLedgerForm({ ...ledgerForm, note: e.target.value })
+                  }
+                  placeholder="選填"
+                />
+              </DrawerField>
+            </>
+          )}
 
           {message ? <div style={{ color: "var(--ns-neg)", fontSize: 13 }}>{message}</div> : null}
         </div>
@@ -1613,6 +1726,38 @@ function groupByDay(rows: LedgerTransaction[], toPrimary: (row: LedgerTransactio
     rows: dayRows,
     net: dayRows.reduce((sum, row) => (row.entryType === "transfer" ? sum : sum + (toPrimary(row) ?? 0)), 0),
   }));
+}
+
+function SuggestionRow({
+  chips,
+  onPick,
+}: {
+  chips: Array<{ key: string; label: string }>;
+  onPick: (key: string) => void;
+}) {
+  return (
+    <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+      <span className="muted" style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <Sparkle size={12} weight="fill" style={{ color: "var(--ns-accent)" }} />
+        依過往紀錄建議
+      </span>
+      {chips.map((chip) => (
+        <button
+          key={chip.key}
+          type="button"
+          onClick={() => onPick(chip.key)}
+          style={{
+            padding: "4px 11px", borderRadius: 999, fontSize: 12, cursor: "pointer",
+            background: "var(--ns-accent-soft)", color: "var(--ns-accent)",
+            border: "1px solid color-mix(in srgb, var(--ns-accent) 30%, transparent)",
+            fontFamily: "inherit",
+          }}
+        >
+          {chip.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function MerchantAutocomplete({
