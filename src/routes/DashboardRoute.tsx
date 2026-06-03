@@ -11,9 +11,8 @@ import { useToast } from "../components/Toast";
 import { useQuickAdd } from "../state/quickAdd";
 import {
   assetTypeLabels,
-  calculateAvailableCash,
-  calculateAlternativeAssets,
-  calculateLiabilities,
+  buildNetWorthBreakdown,
+  buildCostBasisTimeline,
   buildCreditCardReminders,
   buildOutstandingSettlements,
   convertCurrency,
@@ -25,6 +24,7 @@ import {
   type AppSettings,
   type DailyFxRate,
   type FinancialGoal,
+  type InvestmentRecord,
   type LedgerTransaction,
   type PortfolioAsset,
   todayInTimezone,
@@ -46,7 +46,7 @@ const CHART_COLORS = [
 ];
 
 export function DashboardRoute() {
-  const { accounts, ledger, assets, quotes, settings, dailyFxRates, recurring, recurringInvestments, financialGoals } = useFinanceData();
+  const { accounts, ledger, assets, quotes, settings, dailyFxRates, recurring, recurringInvestments, financialGoals, investments } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
   const timezone = useUiPreferences((state) => state.timezone);
   const queryClient = useQueryClient();
@@ -78,6 +78,7 @@ export function DashboardRoute() {
   const fxHistory = dailyFxRates.data ?? [];
   const recurringRows = recurring.data ?? [];
   const recurringInvestmentRows = recurringInvestments.data ?? [];
+  const investmentRows = investments.data ?? [];
   const goalRows = financialGoals.data ?? [];
 
   const { primaryCurrency, toPrimary } = createFxConverter(appSettings, fxHistory);
@@ -93,13 +94,6 @@ export function DashboardRoute() {
       .map((currency) => `${currency}/${primaryCurrency}`);
   }, [accountRows, ledgerRows, assetRows, quoteRows, primaryCurrency, appSettings, fxHistory]);
   const filteredAccounts = selectedAccount === "all" ? accountRows : accountRows.filter(a => a.id === selectedAccount);
-  const availableCash = calculateAvailableCash(filteredAccounts, toPrimary);
-  const alternativeAssets = calculateAlternativeAssets(filteredAccounts, toPrimary);
-  const liabilities = calculateLiabilities(filteredAccounts, toPrimary);
-  const signedAccountValue = filteredAccounts.reduce((sum, account) => {
-    if (account.deletedAt !== null) return sum;
-    return sum + toPrimary(account.balance, account.currency);
-  }, 0);
 
   const quoteFor = (ticker: string) => quoteRows.find((quote) => quote.symbol.toUpperCase() === ticker.toUpperCase());
   const filteredAssets = selectedAccount === "all" ? assetRows : assetRows.filter(a => a.accountId === selectedAccount);
@@ -109,22 +103,35 @@ export function DashboardRoute() {
     return sum + toPrimary(value, quote?.currency ?? asset.currency);
   }, 0);
 
-  const netWorth = signedAccountValue + marketValue;
+  // Reconciling partition: 資產 − 負債 = 淨值 always holds.
+  const breakdown = buildNetWorthBreakdown(filteredAccounts, marketValue, toPrimary);
+  const availableCash = breakdown.liquidCash;
+  const alternativeAssets = breakdown.alternativeAssets;
+  const liabilities = breakdown.liabilities;
+  const netWorth = breakdown.netWorth;
 
   const monthRows = ledgerRows.filter((row) => row.date.startsWith(monthKey) && row.settlementStatus === "settled" && (selectedAccount === "all" || row.accountId === selectedAccount));
   const monthIncome = monthRows.filter((row) => row.entryType === "income").reduce((sum, row) => sum + toPrimary(Math.max(0, row.amount), row.currency, row.date), 0);
   const monthExpense = monthRows.filter((row) => row.entryType === "expense").reduce((sum, row) => sum + toPrimary(Math.abs(row.amount), row.currency, row.date), 0);
   const monthNet = monthIncome - monthExpense;
-  const savingsRate = monthIncome > 0 ? (monthNet / monthIncome) * 100 : 0;
+  // Savings rate stays honest in deficit months: with no income but real
+  // spending we surface a negative rate (net flow over spend) instead of a
+  // flattering 0%.
+  const savingsRate = monthIncome > 0
+    ? (monthNet / monthIncome) * 100
+    : monthExpense > 0
+      ? (monthNet / monthExpense) * 100
+      : 0;
 
   const trend = useMemo(
     () => buildNetWorthTrend(
       selectedAccount === "all" ? accountRows : accountRows.filter(a => a.id === selectedAccount),
       selectedAccount === "all" ? ledgerRows : ledgerRows.filter(r => r.accountId === selectedAccount),
       selectedAccount === "all" ? assetRows : assetRows.filter(a => a.accountId === selectedAccount),
+      selectedAccount === "all" ? investmentRows : investmentRows.filter(r => r.linkedAccountId === selectedAccount),
       quoteRows, appSettings, fxHistory
     ),
-    [accountRows, ledgerRows, assetRows, quoteRows, appSettings, fxHistory],
+    [accountRows, ledgerRows, assetRows, investmentRows, quoteRows, appSettings, fxHistory],
   );
   const prevValue = trend.length >= 2 ? trend[trend.length - 2].value : 0;
   const lastValue = trend.length >= 1 ? trend[trend.length - 1].value : netWorth;
@@ -225,6 +232,12 @@ export function DashboardRoute() {
     [ledgerRows, selectedAccount, toPrimary],
   );
 
+  // Adjusted net worth (accrual view): headline net worth is cash-basis; this
+  // layers in money owed to you (AR) and money you owe (AP). Shown as a
+  // secondary figure so the headline stays clean and uninflated.
+  const netSettlement = settlements.receivableTotal - settlements.payableTotal;
+  const adjustedNetWorth = netWorth + netSettlement;
+
   // FX rates (latest per pair) for the Market card.
   const fxRates = useMemo(() => {
     const latest = new Map<string, DailyFxRate>();
@@ -311,6 +324,15 @@ export function DashboardRoute() {
                 </span>
               ) : null}
             </div>
+            {Math.abs(netSettlement) > 0.5 ? (
+              <div className="muted" style={{ fontSize: 12, marginTop: 4 }} title="現金基礎淨值加計應收、減去應付">
+                調整後淨值（含應收應付）{" "}
+                <span className="num" style={{ color: "var(--ns-fg)" }}>{formatMoney(adjustedNetWorth, primaryCurrency)}</span>
+                <span style={{ marginLeft: 6 }}>
+                  ({netSettlement >= 0 ? "+" : "−"}{formatNumber(Math.abs(netSettlement))})
+                </span>
+              </div>
+            ) : null}
           </div>
           {trend.length > 1 ? (
             <div style={{ flex: 1, minHeight: 160 }}>
@@ -679,6 +701,7 @@ function buildNetWorthTrend(
   accounts: Account[],
   ledgerRows: LedgerTransaction[],
   assets: PortfolioAsset[],
+  investments: InvestmentRecord[],
   quotes: StoredMarketQuote[],
   settings: AppSettings | undefined,
   dailyFxRates: DailyFxRate[],
@@ -693,28 +716,52 @@ function buildNetWorthTrend(
   ].filter(Boolean);
   if (startCandidates.length === 0 && settledRows.length === 0) return [];
 
-  const monthDelta = new Map<string, number>();
+  // Cash side: opening balances + every settled ledger movement (which already
+  // includes the cash leg of investment buys/sells).
+  const cashDelta = new Map<string, number>();
   for (const account of accounts) {
     const joinedDate = dateOnly(account.createdAt);
     if (!joinedDate) continue;
     const key = monthKey(joinedDate);
-    monthDelta.set(key, (monthDelta.get(key) ?? 0) + toPrimary(account.openingBalance, account.currency, joinedDate));
+    cashDelta.set(key, (cashDelta.get(key) ?? 0) + toPrimary(account.openingBalance, account.currency, joinedDate));
   }
   for (const row of settledRows) {
     const key = monthKey(row.date);
-    monthDelta.set(key, (monthDelta.get(key) ?? 0) + toPrimary(row.amount, row.currency, row.date));
+    cashDelta.set(key, (cashDelta.get(key) ?? 0) + toPrimary(row.amount, row.currency, row.date));
+  }
+
+  // Holdings side: accrue cost basis over time so historical points include
+  // investments (paired with the cash leg a buy nets to zero on its date; a
+  // sell surfaces the realized gain). The final point swaps cost for market
+  // value to capture unrealized gains, removing the old "flat then jump"
+  // artifact where holdings only appeared at the very end.
+  const currencyByAsset = new Map(assets.map((asset) => [asset.id, asset.currency]));
+  const holdingsCostDelta = new Map<string, number>();
+  const recordsByAsset = new Map<string, InvestmentRecord[]>();
+  for (const record of investments) {
+    if (record.deletedAt !== null) continue;
+    recordsByAsset.set(record.assetId, [...(recordsByAsset.get(record.assetId) ?? []), record]);
+  }
+  for (const [assetId, records] of recordsByAsset) {
+    const currency = currencyByAsset.get(assetId) ?? "TWD";
+    for (const { date, delta } of buildCostBasisTimeline(records)) {
+      const key = monthKey(date);
+      holdingsCostDelta.set(key, (holdingsCostDelta.get(key) ?? 0) + toPrimary(delta, currency, date));
+    }
   }
 
   const startMonth = startCandidates.length
     ? monthKey([...startCandidates].sort()[0])
     : monthKey(settledRows[0].date);
-  const orderedMonths = [...new Set([startMonth, ...monthDelta.keys()])].sort();
+  const orderedMonths = [...new Set([startMonth, ...cashDelta.keys(), ...holdingsCostDelta.keys()])].sort();
 
-  let running = 0;
+  let cashRunning = 0;
+  let holdingsRunning = 0;
   const timeline: Array<{ date: string; value: number }> = [];
   for (const key of orderedMonths) {
-    running += monthDelta.get(key) ?? 0;
-    timeline.push({ date: formatMonth(key), value: running });
+    cashRunning += cashDelta.get(key) ?? 0;
+    holdingsRunning += holdingsCostDelta.get(key) ?? 0;
+    timeline.push({ date: formatMonth(key), value: cashRunning + holdingsRunning });
   }
 
   const quoteFor = (ticker: string) => quotes.find((quote) => quote.symbol.toUpperCase() === ticker.toUpperCase());
@@ -723,8 +770,10 @@ function buildNetWorthTrend(
     const value = quote ? quote.price * asset.totalQuantity : asset.averageCost * asset.totalQuantity;
     return sum + toPrimary(value, quote?.currency ?? asset.currency);
   }, 0);
-  if (currentHoldingsValue > 0) {
-    timeline.push({ date: "現在", value: running + currentHoldingsValue });
+  // Replace accrued cost with live market value at the current point so the last
+  // reading matches the headline net worth (cash + market value of holdings).
+  if (currentHoldingsValue > 0 || holdingsRunning > 0) {
+    timeline.push({ date: "現在", value: cashRunning + currentHoldingsValue });
   }
   return timeline;
 }

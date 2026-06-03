@@ -47,6 +47,64 @@ export function calculateLiabilities(accounts: Account[], toPrimary: (amount: nu
   }, 0);
 }
 
+export interface NetWorthBreakdown {
+  /** Liquid asset accounts at positive balance (+ any overpaid credit/loan). */
+  liquidCash: number;
+  /** Holdings market value (passed in from the portfolio layer). */
+  investments: number;
+  /** Non-liquid / alternative assets at positive balance. */
+  alternativeAssets: number;
+  /** All negative balances as a positive magnitude: loans, card debt, overdrafts. */
+  liabilities: number;
+  /** liquidCash + investments + alternativeAssets. */
+  totalAssets: number;
+  /** totalAssets − liabilities. Equals Σ(signed account balances) + investments. */
+  netWorth: number;
+}
+
+/**
+ * A strict, reconciling partition of net worth so the KPI tiles always satisfy
+ * 資產 − 負債 = 淨值. Every account contributes to exactly one side based on the
+ * sign of its balance:
+ *
+ *   - positive balance → an asset (liquidCash, or alternativeAssets for 實體資產)
+ *   - negative balance → a liability (overdraft, card debt, loan)
+ *
+ * Overpaid credit cards / loans (a positive balance on a liability account) are
+ * counted as liquid assets rather than vanishing — the old per-metric
+ * `Math.max(0, …)` clamps broke reconciliation against the signed net-worth sum.
+ */
+export function buildNetWorthBreakdown(
+  accounts: Account[],
+  investmentsValue: number,
+  toPrimary: (amount: number, currency: string) => number,
+): NetWorthBreakdown {
+  let liquidCash = 0;
+  let alternativeAssets = 0;
+  let liabilities = 0;
+  for (const account of accounts) {
+    if (account.deletedAt !== null) continue;
+    const value = toPrimary(account.balance, account.currency);
+    if (account.type === "alternative") {
+      if (value >= 0) alternativeAssets += value;
+      else liabilities += -value;
+    } else if (value >= 0) {
+      liquidCash += value;
+    } else {
+      liabilities += -value;
+    }
+  }
+  const totalAssets = liquidCash + alternativeAssets + investmentsValue;
+  return {
+    liquidCash,
+    investments: investmentsValue,
+    alternativeAssets,
+    liabilities,
+    totalAssets,
+    netWorth: totalAssets - liabilities,
+  };
+}
+
 export interface CreditCardReminder {
   accountId: string;
   name: string;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildOutstandingSettlements, buildTopHoldingSummaries, calculateAvailableCash, calculateLiabilities } from "./dashboardSummary";
+import { buildNetWorthBreakdown, buildOutstandingSettlements, buildTopHoldingSummaries, calculateAvailableCash, calculateLiabilities } from "./dashboardSummary";
 import type { Account, LedgerTransaction, PortfolioAsset } from "./types";
 
 function ledgerRow(overrides: Partial<LedgerTransaction>): LedgerTransaction {
@@ -93,6 +93,30 @@ describe("dashboard summary helpers", () => {
 
     expect(calculateAvailableCash(accounts, (amount) => amount)).toBe(150);
     expect(calculateLiabilities(accounts, (amount) => amount)).toBe(580);
+  });
+
+  it("buildNetWorthBreakdown reconciles 資產 − 負債 = 淨值", () => {
+    const accounts: Account[] = [
+      { ...baseAccount, id: "cash", balance: 1000, type: "cash" },
+      { ...baseAccount, id: "overdrawn", balance: -200, type: "depository" },
+      { ...baseAccount, id: "house", balance: 5_000_000, type: "alternative" },
+      { ...baseAccount, id: "loan", balance: -3_000_000, type: "loan" },
+      { ...baseAccount, id: "card", balance: -1500, type: "credit" },
+      { ...baseAccount, id: "card_overpaid", balance: 300, type: "credit" },
+    ];
+    const investmentsValue = 250_000;
+    const b = buildNetWorthBreakdown(accounts, investmentsValue, (amount) => amount);
+
+    // liquid: 1000 cash + 300 overpaid card; overdraft & debts are liabilities.
+    expect(b.liquidCash).toBe(1300);
+    expect(b.alternativeAssets).toBe(5_000_000);
+    expect(b.investments).toBe(250_000);
+    expect(b.liabilities).toBe(200 + 3_000_000 + 1500);
+    expect(b.totalAssets).toBe(1300 + 5_000_000 + 250_000);
+    // Identity must hold, and equal Σ(signed balances) + investments.
+    expect(b.netWorth).toBe(b.totalAssets - b.liabilities);
+    const signed = accounts.reduce((s, a) => s + a.balance, 0) + investmentsValue;
+    expect(b.netWorth).toBe(signed);
   });
 
   it("returns the top five holdings with daily quote movement", () => {
