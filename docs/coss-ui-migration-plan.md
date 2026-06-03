@@ -119,9 +119,9 @@ Order = highest user value / highest inline-style debt first, while starting wit
 | 4 ✅ | `InvestmentsRoute` + `HoldingDetailRoute` | 60 + 61 | **DONE.** Also migrated the shared `components/Card.tsx` to wrap COSS Card (covers TransactionsRoute too). HoldingDetail price range selector → COSS ToggleGroup. Verified end-to-end with a real holding. |
 | 5 ✅ | `AccountsRoute` + account wizard | 111 | **DONE.** Cards/buttons/badge across the list, summary, adjust modal, and the multi-step wizard (close + footer). Bespoke type-selection cards and ns-input fields kept. |
 | 6 ✅ | `FIRECalculatorRoute` + `GoalsRoute` | 102 + 56 | **DONE.** Cards/buttons across metric/chart/slider cards + goal hero/list. ns-input + goal-switcher pills kept. |
-| 7 | `SettingsRoute` | 213 | Largest; do last once every pattern exists. |
-| 8 | Remaining tabs/panels | tail | `Categories*`, `Merchants*`, `Recurring*`, `Reconcile`, `Transactions`, shared panels. |
-| 9 | `AppShell` + nav chrome | 31 | Shell last so screens are stable underneath. |
+| 7 ✅ | `SettingsRoute` | 213 | **DONE.** ~50 buttons + cards + badges across all settings panels. |
+| 8 ✅ | Remaining tabs/panels | tail | **DONE.** `Categories*`, `Merchants*`, `Recurring*`, `Reconcile`, `Transactions` + shared panels (QuickAdd, TransactionDetailPanel, CategoryManagementDrawer). Done via a brace/quote-aware codemod (scratch, not committed) + manual leftovers. |
+| 9 | `AppShell` + nav chrome + shared primitives | 31 | Shell + the shared `ActionButton`, `SegmentedControl`, `ui/month-picker`, `ui/date-picker` (still on `ns-btn`/`ns-seg`). Do last so screens are stable underneath. |
 | 10 | Teardown | — | Delete `ns-*` utility classes and old `components/ui/*` duplicates; remove the token bridge aliases if fully cut over. |
 
 **Per-screen checklist (repeat each phase):**
@@ -252,6 +252,8 @@ independently shippable and revertible.
 
 ---
 
-_Status: Phases 0–6 complete as of 2026-06-03 (foundations, pilot, Dashboard, CashFlow,
-Investments+HoldingDetail, Accounts+wizard, FIRE+Goals; shared components/Card.tsx
-COSS-backed). Phases 7–10 not yet started. Next: Phase 7 — SettingsRoute (largest)._
+_Status: Phases 0–8 complete as of 2026-06-03 — all route screens + shared panels
+migrated to COSS Card/Button/Badge/ToggleGroup. Remaining: Phase 9 (AppShell + shared
+chrome: ActionButton, SegmentedControl, month/date pickers) and Phase 10 (teardown:
+delete unused ns-* utility classes). Native ns-input fields are still pending a separate
+input/select pass (see §4 deferral notes)._
