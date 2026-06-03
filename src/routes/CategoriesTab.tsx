@@ -1,4 +1,6 @@
 import { Gear, CaretRight } from "@phosphor-icons/react";
+import { Button } from "../components/coss/button";
+import { Card } from "../components/coss/card";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
@@ -77,36 +79,36 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, primaryCur
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {/* Top Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
-        <div className="ns-card" style={{ padding: "20px 24px" }}>
+        <Card style={{ padding: "20px 24px" }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>最大支出</div>
           <div style={{ fontSize: 18, fontWeight: 500 }}>
             {maxSpendCat ? `${maxSpendCat.name} · ${primaryCurrency} ${formatNumber(maxSpendCat.amount)}` : "無"}
           </div>
-        </div>
-        <div className="ns-card" style={{ padding: "20px 24px" }}>
+        </Card>
+        <Card style={{ padding: "20px 24px" }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>交易最多</div>
           <div style={{ fontSize: 18, fontWeight: 500 }}>
             {maxCountCat ? `${maxCountCat.name} · ${maxCountCat.count} 筆` : "無"}
           </div>
-        </div>
-        <div className="ns-card" style={{ padding: "20px 24px" }}>
+        </Card>
+        <Card style={{ padding: "20px 24px" }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>未分類</div>
           <div style={{ fontSize: 18, fontWeight: 500 }}>
             {uncategorizedCount} 筆 · {uncategorizedPct.toFixed(1)}%
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Main Content */}
       <div style={{ display: "grid", gridTemplateColumns: "300px minmax(0,1fr)", gap: 20 }}>
         {/* Left: Donut Chart */}
-        <div className="ns-card" style={{ padding: 24 }}>
+        <Card style={{ padding: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
             <div>
               <div className="ns-eyebrow" style={{ marginBottom: 4 }}>{parseInt(filterMonth.split("-")[1], 10)} 月支出</div>
               <div className="num" style={{ fontSize: 24, fontWeight: 500 }}>{primaryCurrency} {formatNumber(totalMonthSpend)}</div>
             </div>
-            <button className="ns-btn-icon" onClick={onSettingsClick}><Gear size={16} /></button>
+            <Button variant="ghost" size="icon-sm" onClick={onSettingsClick}><Gear size={16} /></Button>
           </div>
           
           <div style={{ height: 220, marginBottom: 24, position: "relative" }}>
@@ -152,10 +154,10 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, primaryCur
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
         {/* Right: Table */}
-        <div className="ns-card" style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <Card style={{ padding: "var(--ns-pad-card)",  overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", fontSize: 12, fontWeight: 500, color: "var(--ns-fg-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
             <div>分類</div>
             <div>筆數</div>
@@ -222,7 +224,7 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, primaryCur
               </div>
             )}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );

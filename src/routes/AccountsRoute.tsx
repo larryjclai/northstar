@@ -2,6 +2,9 @@ import { ArrowsClockwise, CaretDown, CaretRight, Check, DownloadSimple, ListChec
 import { ReactNode, useMemo, useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
+import { Badge } from "../components/coss/badge";
+import { Button } from "../components/coss/button";
+import { Card } from "../components/coss/card";
 import { IconPicker } from "../components/IconPicker";
 import { Glyph, DEFAULT_ACCOUNT_ICON } from "../lib/icons";
 import { downloadCsv, exportAccountsCsv } from "../data/csv";
@@ -227,9 +230,9 @@ export function AccountsRoute() {
           <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>帳戶</h1>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="ns-btn" onClick={recalculate} disabled={recalculating}><ArrowsClockwise size={14} />{recalculating ? "計算中…" : "重新計算"}</button>
-          <button className="ns-btn" onClick={() => downloadCsv("northstar-accounts.csv", exportAccountsCsv(rows))}><DownloadSimple size={14} />匯出</button>
-          <button className="ns-btn primary" onClick={openCreate}><Plus size={14} weight="bold" />新增帳戶</button>
+          <Button variant="outline" onClick={recalculate} loading={recalculating}><ArrowsClockwise size={14} />{recalculating ? "計算中…" : "重新計算"}</Button>
+          <Button variant="outline" onClick={() => downloadCsv("northstar-accounts.csv", exportAccountsCsv(rows))}><DownloadSimple size={14} />匯出</Button>
+          <Button onClick={openCreate}><Plus size={14} weight="bold" />新增帳戶</Button>
         </div>
       </div>
 
@@ -242,7 +245,7 @@ export function AccountsRoute() {
             { label: "總負債", value: totals.liabilities, color: "var(--ns-chart-5)", tone: "neg" as const },
             { label: "淨值", value: totals.net, color: "var(--ns-chart-1)", tone: totals.net < 0 ? "neg" as const : undefined },
           ]).map((c) => (
-            <div className="ns-card" key={c.label} style={{ padding: 16, display: "flex", alignItems: "center", gap: 12 }}>
+            <Card key={c.label} style={{ padding: 16, flexDirection: "row", alignItems: "center", gap: 12 }}>
               <div style={{ width: 4, height: 38, borderRadius: 99, background: c.color, flexShrink: 0 }} />
               <div style={{ minWidth: 0 }}>
                 <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{c.label}</div>
@@ -250,7 +253,7 @@ export function AccountsRoute() {
                   {c.tone === "neg" && c.value !== 0 ? "−" : ""}{formatNumber(Math.abs(c.value))}
                 </div>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       ) : null}
@@ -259,29 +262,29 @@ export function AccountsRoute() {
       {currencyBreakdown.length > 1 ? (
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${currencyBreakdown.length}, 1fr)`, gap: 14, marginBottom: 20 }}>
           {currencyBreakdown.map((c) => (
-            <div className="ns-card" key={c.ccy} style={{ padding: 16 }}>
+            <Card key={c.ccy} style={{ padding: 16 }}>
               <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{c.ccy}</div>
               <div style={{ fontSize: 19, fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums" }}>{formatNumber(c.base)}</div>
               <div style={{ height: 6, borderRadius: 99, background: "var(--ns-bg-hover)", marginTop: 8, overflow: "hidden" }}>
                 <div style={{ width: `${c.pct}%`, height: "100%", background: c.color }} />
               </div>
               <div className="mono dim" style={{ fontSize: 11, marginTop: 4 }}>{c.pct.toFixed(1)}% of total</div>
-            </div>
+            </Card>
           ))}
         </div>
       ) : <div style={{ marginBottom: 6 }} />}
 
       {/* Account groups */}
       {rows.length === 0 ? (
-        <div className="ns-card" style={{ padding: 48, textAlign: "center" }}>
+        <Card style={{ padding: 48, textAlign: "center" }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>還沒有帳戶</div>
           <div className="muted" style={{ fontSize: 13, marginBottom: 18 }}>新增銀行、現金、信用卡或券商帳戶，淨值與收支才有可靠基礎。</div>
-          <button className="ns-btn primary" onClick={openCreate}><Plus size={14} weight="bold" />新增第一個帳戶</button>
-        </div>
+          <Button onClick={openCreate} className="mx-auto"><Plus size={14} weight="bold" />新增第一個帳戶</Button>
+        </Card>
       ) : (
         <div style={{ display: "grid", gap: 16 }}>
           {groups.map((g) => (
-            <div key={g.key} className="ns-card" style={{ padding: 0 }}>
+            <Card key={g.key} style={{ padding: 0 }}>
               <div onClick={() => setCollapsedGroups((current) => {
                 const next = new Set(current);
                 if (next.has(g.key)) next.delete(g.key); else next.add(g.key);
@@ -314,7 +317,7 @@ export function AccountsRoute() {
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span className="ns-acct-name" style={{ fontSize: 14.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.name}</span>
-                        <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px" }}>{a.currency}</span>
+                        <Badge variant="outline" className="rounded-full">{a.currency}</Badge>
                       </div>
                       <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
                         {accountTypeLabels[a.type]}
@@ -331,21 +334,21 @@ export function AccountsRoute() {
                     </div>
                     <div className="ns-acct-actions" style={{ display: "flex", gap: 4 }}>
                       {a.type === "credit" ? (
-                        <button className="ns-btn ghost icon" title="對帳" onClick={() => navigate({ to: "/cash-flow/reconcile/$accountId", params: { accountId: a.id } })}><ListChecks size={14} /></button>
+                        <Button variant="ghost" size="icon-sm" title="對帳" onClick={() => navigate({ to: "/cash-flow/reconcile/$accountId", params: { accountId: a.id } })}><ListChecks size={14} /></Button>
                       ) : null}
-                      <button className="ns-btn ghost icon" title="編輯" onClick={() => startEdit(a)}><PencilSimple size={14} /></button>
-                      <button className="ns-btn ghost icon" title="調整餘額" onClick={() => openAdjust(a)}><Scales size={14} /></button>
-                      <button className="ns-btn ghost icon" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={async () => { try { await deleteAccount.mutateAsync(a.id); } catch (e) { setMessage(e instanceof Error ? e.message : "刪除失敗。"); } }}><Trash size={14} /></button>
+                      <Button variant="ghost" size="icon-sm" title="編輯" onClick={() => startEdit(a)}><PencilSimple size={14} /></Button>
+                      <Button variant="ghost" size="icon-sm" title="調整餘額" onClick={() => openAdjust(a)}><Scales size={14} /></Button>
+                      <Button variant="ghost" size="icon-sm" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={async () => { try { await deleteAccount.mutateAsync(a.id); } catch (e) { setMessage(e instanceof Error ? e.message : "刪除失敗。"); } }}><Trash size={14} /></Button>
                     </div>
                   </div>
                   </div>
                 );
               })}
-            </div>
+            </Card>
           ))}
         </div>
       )}
-      {message ? <div className="ns-card" style={{ padding: "10px 16px", marginTop: 16, color: "var(--ns-fg-muted)", fontSize: 13 }}>{message}</div> : null}
+      {message ? <Card style={{ padding: "10px 16px", marginTop: 16, color: "var(--ns-fg-muted)", fontSize: 13 }}>{message}</Card> : null}
 
       {/* Add / edit drawer */}
       {drawerOpen ? (
@@ -367,7 +370,7 @@ export function AccountsRoute() {
       {/* Adjust modal */}
       {adjustingAccount ? (
         <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} onClick={() => setAdjustingAccountId(null)}>
-          <div className="ns-card" style={{ width: "100%", maxWidth: 420, padding: 0 }} onClick={(e) => e.stopPropagation()}>
+          <Card style={{ width: "100%", maxWidth: 420, padding: 0 }} onClick={(e) => e.stopPropagation()}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--ns-border)" }}>
               <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>調整餘額 · {adjustingAccount.name}</h2>
               <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>目前餘額：{formatNumber(adjustingAccount.balance)} {adjustingAccount.currency}</div>
@@ -384,11 +387,11 @@ export function AccountsRoute() {
               </DrawerField>
               {adjustMessage ? <div style={{ color: "var(--ns-neg)", fontSize: 13 }}>{adjustMessage}</div> : null}
               <div style={{ display: "flex", gap: 8 }}>
-                <button className="ns-btn primary" style={{ flex: 1, justifyContent: "center" }} onClick={submitAdjust} disabled={adjustBalance.isPending}>{adjustBalance.isPending ? "調整中…" : "確認調整"}</button>
-                <button className="ns-btn" onClick={() => setAdjustingAccountId(null)}>取消</button>
+                <Button className="flex-1 justify-center" onClick={submitAdjust} loading={adjustBalance.isPending}>{adjustBalance.isPending ? "調整中…" : "確認調整"}</Button>
+                <Button variant="outline" onClick={() => setAdjustingAccountId(null)}>取消</Button>
               </div>
             </div>
-          </div>
+          </Card>
         </div>
       ) : null}
     </div>
@@ -466,7 +469,7 @@ function AccountDrawer({
                 {isEditing ? "編輯帳戶" : "新增帳戶"}
               </h2>
             </div>
-            <button className="ns-btn ghost icon" onClick={onClose} aria-label="關閉"><X size={16} /></button>
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label="關閉"><X size={16} /></Button>
           </div>
           {!isEditing && (
             <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -568,7 +571,7 @@ function AccountDrawer({
                       ))}
                     </div>
                     {(form.iconName || form.color) ? (
-                      <button type="button" className="ns-btn ghost" style={{ fontSize: 12, padding: "4px 8px", minHeight: "auto" }} onClick={() => setForm({ ...form, iconName: null, color: null })}>清除</button>
+                      <Button type="button" variant="ghost" size="xs" onClick={() => setForm({ ...form, iconName: null, color: null })}>清除</Button>
                     ) : null}
                   </div>
                 </DrawerField>
@@ -683,16 +686,16 @@ function AccountDrawer({
         <div style={{ padding: "14px 24px", borderTop: "1px solid var(--ns-border)", display: "flex", gap: 8 }}>
           {step < 3 ? (
             <>
-              <button className="ns-btn ghost" style={{ flex: "0 0 90px", justifyContent: "center" }} onClick={handleBack}>
+              <Button variant="outline" className="shrink-0 grow-0 basis-[90px] justify-center" onClick={handleBack}>
                 {step === 0 || (step === 1 && isEditing) ? "取消" : "← 上一步"}
-              </button>
-              <button className="ns-btn primary" style={{ flex: 1, justifyContent: "center", opacity: canAdvance ? 1 : 0.45 }} onClick={() => canAdvance && handleNext()} disabled={pending}>
+              </Button>
+              <Button className="flex-1 justify-center" style={{ opacity: canAdvance ? 1 : 0.45 }} onClick={() => canAdvance && handleNext()} disabled={pending} loading={pending}>
                 {pending ? "處理中…" : step === 2 || isEditing ? "儲存" : "下一步 →"}
-              </button>
+              </Button>
             </>
           ) : (
             <>
-              <button className="ns-btn primary" style={{ flex: 1, justifyContent: "center" }} onClick={onClose}>完成</button>
+              <Button className="flex-1 justify-center" onClick={onClose}>完成</Button>
             </>
           )}
         </div>

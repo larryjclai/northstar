@@ -1,4 +1,5 @@
 import { CaretRight } from "@phosphor-icons/react";
+import { Card } from "../components/coss/card";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { formatNumber, type LedgerTransaction } from "../domain";
@@ -42,28 +43,28 @@ export function MerchantsTab({ filterMonth, ledgerRows, primaryCurrency, toPrima
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {/* Top Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
-        <div className="ns-card" style={{ padding: "20px 24px" }}>
+        <Card style={{ padding: "20px 24px" }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>Top Merchant</div>
           <div style={{ fontSize: 18, fontWeight: 500 }}>
             {maxSpendMerchant ? `${maxSpendMerchant.name} · ${primaryCurrency} ${formatNumber(maxSpendMerchant.amount)}` : "無"}
           </div>
-        </div>
-        <div className="ns-card" style={{ padding: "20px 24px" }}>
+        </Card>
+        <Card style={{ padding: "20px 24px" }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>Most Frequent</div>
           <div style={{ fontSize: 18, fontWeight: 500 }}>
             {maxVisitsMerchant ? `${maxVisitsMerchant.name} · ${maxVisitsMerchant.visits} 次` : "無"}
           </div>
-        </div>
-        <div className="ns-card" style={{ padding: "20px 24px" }}>
+        </Card>
+        <Card style={{ padding: "20px 24px" }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>Total Spending YTD</div>
           <div style={{ fontSize: 18, fontWeight: 500 }}>
             {primaryCurrency} {formatNumber(totalSpend)} · {allMerchantSpend.length} merchants
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Main Content */}
-      <div className="ns-card" style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <Card style={{ padding: "var(--ns-pad-card)",  overflow: "hidden", display: "flex", flexDirection: "column" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", fontSize: 12, fontWeight: 500, color: "var(--ns-fg-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
           <div>Merchant</div>
           <div>Category</div>
@@ -111,7 +112,7 @@ export function MerchantsTab({ filterMonth, ledgerRows, primaryCurrency, toPrima
             })
           )}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

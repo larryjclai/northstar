@@ -11,6 +11,10 @@ export default defineConfig({
     alias: {
       "@": path.resolve(import.meta.dirname, "./src"),
     },
+    // Ensure a single React instance. COSS UI pulls in @base-ui/react, which
+    // Vite pre-bundles separately; without dedupe that can resolve a second
+    // React copy and trigger "Invalid hook call" in the COSS components.
+    dedupe: ["react", "react-dom"],
   },
   clearScreen: false,
   server: {

@@ -39,38 +39,55 @@
   --ns-ease: cubic-bezier(.2, .7, .2, 1);
   --ns-dur-fast: 120ms;
   --ns-dur: 200ms;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* ── COSS UI / shadcn semantic-token bridge (Phase 0) ──
+     Maps the semantic tokens COSS UI + shadcn components consume onto
+     Northstar's ns-* tokens. The ns-* color values are redefined per theme
+     ([data-theme] / prefers-color-scheme) below, so these aliases follow
+     light/dark automatically — COSS components inherit our green accent,
+     Space Grotesk type, and radii without any per-component `dark:` variants. */
+  --background: var(--ns-bg);
+  --foreground: var(--ns-fg);
+  --card: var(--ns-bg-card);
+  --card-foreground: var(--ns-fg);
+  --popover: var(--ns-bg-elev);
+  --popover-foreground: var(--ns-fg);
+  --primary: var(--ns-accent);
+  --primary-foreground: var(--ns-accent-fg);
+  --secondary: var(--ns-bg-hover);
+  --secondary-foreground: var(--ns-fg);
+  --muted: var(--ns-bg-hover);
+  --muted-foreground: var(--ns-fg-muted);
+  --accent: var(--ns-bg-hover);
+  --accent-foreground: var(--ns-fg);
+  /* The *-foreground tokens here are used by COSS as text on a *soft* tint
+     (e.g. Badge `success` = bg-success/8 + text-success-foreground), so they
+     must be the saturated colour, not white. Solid fills (Button destructive)
+     hardcode text-white separately. */
+  --destructive: var(--ns-neg);
+  --destructive-foreground: var(--ns-neg);
+  --success: var(--ns-pos);
+  --success-foreground: var(--ns-pos);
+  --warning: var(--ns-warn);
+  --warning-foreground: var(--ns-warn);
+  --info: var(--ns-info);
+  --info-foreground: var(--ns-info);
+  --border: var(--ns-border);
+  --input: var(--ns-border);
+  --ring: var(--ns-accent);
+  --chart-1: var(--ns-chart-1);
+  --chart-2: var(--ns-chart-2);
+  --chart-3: var(--ns-chart-3);
+  --chart-4: var(--ns-chart-4);
+  --chart-5: var(--ns-chart-5);
+  --radius: var(--ns-r-sm);
+  --sidebar: var(--ns-bg);
+  --sidebar-foreground: var(--ns-fg);
+  --sidebar-primary: var(--ns-accent);
+  --sidebar-primary-foreground: var(--ns-accent-fg);
+  --sidebar-accent: var(--ns-bg-hover);
+  --sidebar-accent-foreground: var(--ns-fg);
+  --sidebar-border: var(--ns-border);
+  --sidebar-ring: var(--ns-accent);
 }
 
 /* ─── Light mode (default + explicit) ─── */
@@ -282,14 +299,6 @@ textarea:focus-visible {
    DS Utility classes
    ═══════════════════════════════════════════════════════════ */
 
-/* Card */
-.ns-card {
-  background: var(--ns-bg-card);
-  border: 1px solid var(--ns-border);
-  border-radius: var(--ns-r-lg);
-  padding: var(--ns-pad-card);
-}
-
 /* Surface (subtler) */
 .ns-surface {
   background: var(--ns-bg-elev);
@@ -320,52 +329,6 @@ textarea:focus-visible {
 .ns-acct-name { transition: color 0.12s; }
 .ns-acct-row:hover .ns-acct-name { color: var(--ns-accent); text-decoration: underline; text-underline-offset: 2px; }
 
-/* Pill / badge */
-.ns-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 9px;
-  border-radius: var(--ns-r-full);
-  font-size: 11.5px;
-  font-weight: 500;
-  border: 1px solid var(--ns-border);
-  background: transparent;
-  color: var(--ns-fg-muted);
-}
-.ns-pill.solid-accent { background: var(--ns-accent); color: var(--ns-accent-fg); border-color: transparent; }
-.ns-pill.solid-pos    { background: var(--ns-pos-soft); color: var(--ns-pos); border-color: transparent; }
-.ns-pill.solid-neg    { background: var(--ns-neg-soft); color: var(--ns-neg); border-color: transparent; }
-
-/* Button */
-.ns-btn {
-  appearance: none;
-  border: 1px solid var(--ns-border);
-  background: var(--ns-bg-elev);
-  color: var(--ns-fg);
-  font-family: inherit;
-  font-size: var(--ns-t-ui);
-  font-weight: 500;
-  padding: 0 14px;
-  height: 36px;
-  box-sizing: border-box;
-  border-radius: var(--ns-r-sm);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  transition: background var(--ns-dur-fast) var(--ns-ease),
-              transform var(--ns-dur-fast) var(--ns-ease);
-}
-.ns-btn:hover   { background: var(--ns-bg-hover); }
-.ns-btn:active  { transform: translateY(1px); }
-.ns-btn.primary { background: var(--ns-accent); color: var(--ns-accent-fg); border-color: transparent; }
-.ns-btn.primary:hover { filter: brightness(1.05); background: var(--ns-accent); }
-.ns-btn.ghost   { background: transparent; border-color: transparent; color: var(--ns-fg-muted); }
-.ns-btn.ghost:hover { background: var(--ns-bg-hover); color: var(--ns-fg); }
-.ns-btn.icon    { padding: 8px; height: auto; min-height: 0; }
-.ns-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
 .ns-settings-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); height: 100%; overflow: hidden; }
 .ns-settings-sidebar { border-right: 1px solid var(--ns-border); padding: 22px 12px; overflow-y: auto; background: var(--ns-surface); }
 .ns-settings-tabs { display: flex; flex-direction: column; gap: 2px; }
@@ -382,37 +345,6 @@ textarea:focus-visible {
   .ns-holdings-kpis { display: flex !important; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
   .ns-holdings-kpis > * { flex: 0 0 min(78vw, 280px); scroll-snap-align: start; }
 }
-.ns-btn:disabled:hover { background: var(--ns-bg-elev); filter: none; transform: none; }
-.ns-btn.primary:disabled:hover { background: var(--ns-accent); }
-
-/* Segmented control */
-.ns-seg {
-  display: inline-flex;
-  padding: 3px;
-  gap: 2px;
-  background: var(--ns-bg-elev);
-  border: 1px solid var(--ns-border);
-  border-radius: var(--ns-r-sm);
-}
-.ns-seg button {
-  appearance: none;
-  border: none;
-  background: transparent;
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 500;
-  padding: 5px 11px;
-  color: var(--ns-fg-muted);
-  border-radius: calc(var(--ns-r-sm) - 3px);
-  cursor: pointer;
-  transition: background var(--ns-dur-fast) var(--ns-ease);
-}
-.ns-seg button[aria-selected="true"] {
-  background: var(--ns-bg-card);
-  color: var(--ns-fg);
-  box-shadow: var(--ns-shadow-1);
-}
-
 /* Input */
 .ns-input {
   appearance: none;
@@ -498,8 +430,16 @@ textarea:focus-visible {
 .mono { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; letter-spacing: -0.01em; }
 
 @theme inline {
-  --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', sans-serif;
+  --font-heading: var(--ns-font-display);
+  --font-sans: var(--ns-font-ui);
+  --font-mono: var(--ns-font-mono);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);

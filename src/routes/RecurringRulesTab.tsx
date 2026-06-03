@@ -7,6 +7,8 @@ import {
   Trash,
   X,
 } from "@phosphor-icons/react";
+import { Button } from "../components/coss/button";
+import { Card } from "../components/coss/card";
 import { useState } from "react";
 import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -117,15 +119,15 @@ export function RecurringRulesTab() {
       </div>
 
       {/* Table card */}
-      <div className="ns-card" style={{ padding: 0, overflow: "hidden" }}>
+      <Card style={{ padding: 0, overflow: "hidden" }}>
         {/* Header */}
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", gap: 12 }}>
           <ArrowsClockwise size={15} weight="duotone" style={{ color: "var(--ns-accent)" }} />
           <span style={{ fontWeight: 600, fontSize: 14 }}>週期規則</span>
           <div style={{ flex: 1 }} />
-          <button className="ns-btn primary" style={{ fontSize: 12, padding: "5px 12px", minHeight: "auto" }} onClick={openCreate}>
+          <Button style={{ fontSize: 12, padding: "5px 12px", minHeight: "auto" }} onClick={openCreate}>
             <Plus size={12} weight="bold" />新增規則
-          </button>
+          </Button>
         </div>
 
         {/* Filter bar */}
@@ -217,7 +219,7 @@ export function RecurringRulesTab() {
             </div>
           ))
         )}
-      </div>
+      </Card>
 
       {/* Edit Sheet */}
       {sheetOpen && (
@@ -251,10 +253,10 @@ export function RecurringRulesTab() {
 /* ─── KPI Card ─── */
 function KpiCard({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div className="ns-card" style={{ padding: "14px 16px" }}>
+    <Card style={{ padding: "14px 16px" }}>
       <div style={{ fontSize: 11, color: "var(--ns-fg-muted)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>{label}</div>
       <div className="num" style={{ fontSize: 18, fontWeight: 600, color }}>{value}</div>
-    </div>
+    </Card>
   );
 }
 
@@ -325,7 +327,7 @@ function RuleEditSheet({
           <ArrowsClockwise size={16} style={{ color: "var(--ns-accent)" }} />
           <span style={{ fontWeight: 600, fontSize: 15 }}>{isCreating ? "新增週期規則" : "編輯週期規則"}</span>
           <div style={{ flex: 1 }} />
-          <button className="ns-btn ghost icon" onClick={onClose}><X size={16} /></button>
+          <Button variant="ghost" size="icon-sm" onClick={onClose}><X size={16} /></Button>
         </div>
 
         {/* Body */}
@@ -472,17 +474,16 @@ function RuleEditSheet({
               {confirmDelete ? (
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <span style={{ fontSize: 12, color: "var(--ns-fg-muted)", flex: 1 }}>確定刪除？此操作無法復原。</span>
-                  <button className="ns-btn" style={{ fontSize: 12, padding: "4px 12px", minHeight: "auto", color: "var(--ns-neg)" }} onClick={() => onDelete(rule!.id)}>確定刪除</button>
-                  <button className="ns-btn ghost" style={{ fontSize: 12, padding: "4px 12px", minHeight: "auto" }} onClick={() => setConfirmDelete(false)}>取消</button>
+                  <Button variant="outline" style={{ fontSize: 12, padding: "4px 12px", minHeight: "auto", color: "var(--ns-neg)" }} onClick={() => onDelete(rule!.id)}>確定刪除</Button>
+                  <Button variant="ghost" style={{ fontSize: 12, padding: "4px 12px", minHeight: "auto" }} onClick={() => setConfirmDelete(false)}>取消</Button>
                 </div>
               ) : (
-                <button
-                  className="ns-btn ghost"
+                <Button variant="ghost"
                   style={{ fontSize: 12, padding: "4px 12px", minHeight: "auto", color: "var(--ns-neg)" }}
                   onClick={() => setConfirmDelete(true)}
                 >
                   <Trash size={12} />刪除此規則
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -490,16 +491,15 @@ function RuleEditSheet({
 
         {/* Footer */}
         <div style={{ padding: "14px 24px", borderTop: "1px solid var(--ns-border)", display: "flex", gap: 8 }}>
-          <button className="ns-btn ghost" style={{ flex: "0 0 80px", justifyContent: "center" }} onClick={onClose}>取消</button>
-          <button
-            className="ns-btn primary"
+          <Button variant="ghost" style={{ flex: "0 0 80px", justifyContent: "center" }} onClick={onClose}>取消</Button>
+          <Button
             style={{ flex: 1, justifyContent: "center" }}
             onClick={handleSave}
             disabled={saving}
           >
             <Check size={14} weight="bold" />
             {saving ? "儲存中…" : isCreating ? "建立規則" : "儲存變更"}
-          </button>
+          </Button>
         </div>
       </div>
 

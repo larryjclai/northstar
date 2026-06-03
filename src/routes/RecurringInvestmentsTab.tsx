@@ -1,4 +1,7 @@
 import { ArrowsClockwise, CalendarBlank, Check, PencilSimple, Plus, Trash, X } from "@phosphor-icons/react";
+import { Badge } from "../components/coss/badge";
+import { Button } from "../components/coss/button";
+import { Card } from "../components/coss/card";
 import { useMemo, useState } from "react";
 import { useToast } from "../components/Toast";
 import { TickerSearchField } from "../components/TickerSearchField";
@@ -139,22 +142,22 @@ export function RecurringInvestmentsTab() {
         <div className="muted" style={{ fontSize: 13 }}>
           {rules.filter((r) => r.isActive).length} 個進行中 · 每月約投入 <span className="num" style={{ color: "var(--ns-fg)" }}>NT${formatNumber(Math.round(monthlyTotal))}</span>
         </div>
-        <button className="ns-btn primary" onClick={openCreate}><Plus size={14} weight="bold" />新增定期定額</button>
+        <Button onClick={openCreate}><Plus size={14} weight="bold" />新增定期定額</Button>
       </div>
 
       {investmentAccounts.length === 0 ? (
-        <div className="ns-card" style={{ padding: 32, textAlign: "center" }}>
+        <Card style={{ padding: 32, textAlign: "center" }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>還沒有投資帳戶</div>
           <div className="muted" style={{ fontSize: 13 }}>請先在「帳戶」新增券商（投資）帳戶，才能設定定期定額並扣交割款。</div>
-        </div>
+        </Card>
       ) : rules.length === 0 ? (
-        <div className="ns-card" style={{ padding: 32, textAlign: "center" }}>
+        <Card style={{ padding: 32, textAlign: "center" }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>還沒有定期定額計畫</div>
           <div className="muted" style={{ fontSize: 13, marginBottom: 16 }}>設定定期定額或定期定股，到期時會在總覽與投資頁提醒你補交割款。</div>
-          <button className="ns-btn primary" onClick={openCreate}><Plus size={14} weight="bold" />建立第一個計畫</button>
-        </div>
+          <Button onClick={openCreate}><Plus size={14} weight="bold" />建立第一個計畫</Button>
+        </Card>
       ) : (
-        <div className="ns-card" style={{ padding: 0 }}>
+        <Card style={{ padding: 0 }}>
           {rules.map((rule, i) => {
             const due = rule.isActive && rule.nextRunDate <= today;
             return (
@@ -165,8 +168,8 @@ export function RecurringInvestmentsTab() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ fontSize: 14.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{rule.name || rule.ticker}</span>
-                    <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px" }}>{recurringInvestmentModeLabels[rule.mode]}</span>
-                    {due ? <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px", color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }}>待投入</span> : null}
+                    <Badge variant="outline" className="rounded-full" style={{ fontSize: 10.5, padding: "2px 7px" }}>{recurringInvestmentModeLabels[rule.mode]}</Badge>
+                    {due ? <Badge variant="outline" className="rounded-full" style={{ fontSize: 10.5, padding: "2px 7px", color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }}>待投入</Badge> : null}
                   </div>
                   <div className="muted" style={{ fontSize: 12, marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
                     <CalendarBlank size={12} /> {freqLabel(rule)} · {accountName(rule.accountId)} · 下次 {rule.nextRunDate.slice(5)}
@@ -179,14 +182,14 @@ export function RecurringInvestmentsTab() {
                   <div className="muted mono" style={{ fontSize: 11 }}>交割約 NT${formatNumber(Math.round(perPeriodCash(rule)))}</div>
                 </div>
                 <div style={{ display: "flex", gap: 4 }}>
-                  <button className="ns-btn ghost icon" title="記錄本期投入" onClick={() => post(rule)} disabled={postRule.isPending}><Check size={14} /></button>
-                  <button className="ns-btn ghost icon" title="編輯" onClick={() => openEdit(rule)}><PencilSimple size={14} /></button>
-                  <button className="ns-btn ghost icon" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={() => remove(rule.id)}><Trash size={14} /></button>
+                  <Button variant="ghost" size="icon-sm" title="記錄本期投入" onClick={() => post(rule)} disabled={postRule.isPending}><Check size={14} /></Button>
+                  <Button variant="ghost" size="icon-sm" title="編輯" onClick={() => openEdit(rule)}><PencilSimple size={14} /></Button>
+                  <Button variant="ghost" size="icon-sm" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={() => remove(rule.id)}><Trash size={14} /></Button>
                 </div>
               </div>
             );
           })}
-        </div>
+        </Card>
       )}
 
       {sheetOpen ? (
@@ -225,7 +228,7 @@ function RecurringInvestmentSheet({
       >
         <div style={{ padding: "18px 22px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <h2 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 18, fontWeight: 600 }}>{editing ? "編輯定期定額" : "新增定期定額"}</h2>
-          <button className="ns-btn ghost icon" onClick={onClose} aria-label="關閉"><X size={16} /></button>
+          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="關閉"><X size={16} /></Button>
         </div>
 
         <div style={{ flex: 1, overflow: "auto", padding: 22, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -306,14 +309,14 @@ function RecurringInvestmentSheet({
             啟用（顯示提醒）
           </label>
 
-          <div className="ns-card" style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--ns-fg-muted)" }}>
+          <Card style={{ flexDirection: "row",  padding: "10px 14px", display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--ns-fg-muted)" }}>
             <ArrowsClockwise size={14} /> 每期預估交割款約 <span className="num" style={{ color: "var(--ns-fg)" }}>NT${formatNumber(Math.round(cash))}</span>，記錄時會自動扣款。
-          </div>
+          </Card>
         </div>
 
         <div style={{ padding: "14px 22px", borderTop: "1px solid var(--ns-border)", display: "flex", gap: 8 }}>
-          <button className="ns-btn ghost" style={{ flex: "0 0 90px", justifyContent: "center" }} onClick={onClose}>取消</button>
-          <button className="ns-btn primary" style={{ flex: 1, justifyContent: "center" }} onClick={onSubmit} disabled={pending}>{pending ? "儲存中…" : editing ? "儲存變更" : "建立"}</button>
+          <Button variant="ghost" style={{ flex: "0 0 90px", justifyContent: "center" }} onClick={onClose}>取消</Button>
+          <Button style={{ flex: 1, justifyContent: "center" }} onClick={onSubmit} disabled={pending}>{pending ? "儲存中…" : editing ? "儲存變更" : "建立"}</Button>
         </div>
       </div>
     </div>

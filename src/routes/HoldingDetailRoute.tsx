@@ -6,6 +6,10 @@ import { useFinanceData } from "../data/hooks";
 import { buildPositionMetrics, calculateFifo, calculateXirr, formatNumber, formatPrice, formatQuantity, resolveAssetName } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { AssetLogo } from "../components/AssetLogo";
+import { Badge } from "../components/coss/badge";
+import { Button } from "../components/coss/button";
+import { Card } from "../components/coss/card";
+import { ToggleGroup, ToggleGroupItem } from "../components/coss/toggle-group";
 import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
 import { HoldingEditModal } from "./HoldingEditModal";
 import { ChartLineUp, PencilSimple } from "@phosphor-icons/react";
@@ -67,7 +71,7 @@ export function HoldingDetailRoute() {
   if (!asset) {
     return (
       <div style={{ padding: "24px 32px 100px" }}>
-        <button className="ns-btn ghost" onClick={() => navigate({ to: "/investments" })}>Back to Investments</button>
+        <Button variant="ghost" onClick={() => navigate({ to: "/investments" })}>Back to Investments</Button>
         <div style={{ marginTop: 20 }}>Holding not found.</div>
       </div>
     );
@@ -128,25 +132,25 @@ export function HoldingDetailRoute() {
               {resolveAssetName(asset, nameLocale)}
             </h1>
             <div style={{ display: "flex", gap: 8 }}>
-              {asset.sector && <span className="ns-pill"><span>{asset.sector}</span></span>}
-              <span className="ns-pill"><span>{formatQuantity(asset.totalQuantity)} 股</span></span>
+              {asset.sector && <Badge variant="outline" className="rounded-full">{asset.sector}</Badge>}
+              <Badge variant="outline" className="rounded-full">{formatQuantity(asset.totalQuantity)} 股</Badge>
             </div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="ns-btn ghost"><Star size={14} />追蹤</button>
-          <button className="ns-btn ghost" onClick={() => setEditOpen(true)}><PencilSimple size={14} />編輯持倉</button>
-          <button className="ns-btn"><DownloadSimple size={14} />匯出</button>
-          <button className="ns-btn primary" onClick={() => setAddOpen(true)}>
+          <Button variant="ghost"><Star size={14} />追蹤</Button>
+          <Button variant="ghost" onClick={() => setEditOpen(true)}><PencilSimple size={14} />編輯持倉</Button>
+          <Button variant="outline"><DownloadSimple size={14} />匯出</Button>
+          <Button onClick={() => setAddOpen(true)}>
             <Plus size={14} strokeWidth={2} />Buy / Sell
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Price + position */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 18, marginBottom: 20 }}>
         {/* Chart card */}
-        <div className="ns-card" style={{ padding: 22 }}>
+        <Card style={{ padding: 22 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
@@ -154,21 +158,25 @@ export function HoldingDetailRoute() {
                 <span className="dim mono" style={{ fontSize: 13 }}>{asset.currency}</span>
               </div>
               <div style={{ display: "flex", gap: 10, marginTop: 4, alignItems: "center" }}>
-                <span className={"ns-pill " + (pos ? "solid-pos" : "solid-neg")}>
+                <Badge variant={pos ? "success" : "error"} className="gap-1 rounded-full px-2">
                   {pos && <ArrowUp size={11} strokeWidth={2} />}
                   <span className="num">{pos ? "+" : ""}{formatNumber(unrealizedGain)}</span>
-                </span>
-                <span className={"ns-pill " + (pos ? "solid-pos" : "solid-neg")}>
+                </Badge>
+                <Badge variant={pos ? "success" : "error"} className="rounded-full px-2">
                   <span className="num">{pos ? "+" : ""}{unrealizedGainPercent.toFixed(2)}% (Total)</span>
-                </span>
+                </Badge>
                 {quote?.updatedAt && <span className="muted mono" style={{ fontSize: 12 }}>更新 {new Date(quote.updatedAt).toLocaleTimeString()}</span>}
               </div>
             </div>
-            <div className="ns-seg">
+            <ToggleGroup
+              variant="outline"
+              value={[seg]}
+              onValueChange={(value) => { const next = value[0]; if (next) setSeg(next); }}
+            >
               {["1D", "1W", "1M", "3M", "YTD", "1Y", "ALL"].map((v) => (
-                <button key={v} aria-selected={v.toLowerCase() === seg} onClick={() => setSeg(v.toLowerCase())}>{v}</button>
+                <ToggleGroupItem key={v} value={v.toLowerCase()} size="sm" className="data-pressed:border-primary data-pressed:bg-primary data-pressed:text-primary-foreground">{v}</ToggleGroupItem>
               ))}
-            </div>
+            </ToggleGroup>
           </div>
           
           <div style={{ height: 240, width: "100%" }}>
@@ -199,12 +207,12 @@ export function HoldingDetailRoute() {
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
         {/* Position summary — stretches to the chart card's height so the two
             cards line up top and bottom; stats distribute to fill. */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div className="ns-card" style={{ padding: 20, flex: 1, display: "flex", flexDirection: "column" }}>
+          <Card style={{ padding: 20, flex: 1 }}>
             <div className="ns-eyebrow" style={{ marginBottom: 12 }}>Your position · 平均成本</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, flex: 1, alignContent: "space-between" }}>
               {[
@@ -223,13 +231,13 @@ export function HoldingDetailRoute() {
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
         </div>
       </div>
 
       {/* Open lots — FIFO tax-lot view (kept separate from the moving-average
           P/L above; useful for lot-level tax planning). */}
-      <div className="ns-card" style={{ padding: 0, marginBottom: 16 }}>
+      <Card style={{ padding: 0, marginBottom: 16 }}>
         <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center" }}>
           <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>稅務批次 (FIFO) · {lots.length}</h3>
           <div style={{ flex: 1 }} />
@@ -270,16 +278,16 @@ export function HoldingDetailRoute() {
             </span>
           </div>
         ))}
-      </div>
+      </Card>
 
       {/* Transaction history */}
-      <div className="ns-card" style={{ padding: 0 }}>
+      <Card style={{ padding: 0 }}>
         <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center" }}>
           <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>Transaction history · {txns.length} records</h3>
           <div style={{ flex: 1 }} />
-          <button className="ns-btn" style={{ fontSize: 12.5 }} onClick={() => setAddOpen(true)}>
+          <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
             <Plus size={13} strokeWidth={2} /> Add
-          </button>
+          </Button>
         </div>
         {txns.map((tx, i) => (
           <div
@@ -291,9 +299,9 @@ export function HoldingDetailRoute() {
             }}
           >
             <span className="mono muted" style={{ fontSize: 12.5 }}>{tx.date}</span>
-            <span className={"ns-pill " + (tx.action === "buy" ? "solid-pos" : tx.action === "sell" ? "solid-neg" : "")} style={{ fontSize: 10.5, justifySelf: "start", textTransform: "uppercase" }}>
+            <Badge variant={tx.action === "buy" ? "success" : tx.action === "sell" ? "error" : "secondary"} className="rounded-full uppercase" style={{ justifySelf: "start" }}>
               {tx.action}
-            </span>
+            </Badge>
             <span className="num" style={{ textAlign: "right", fontSize: 13.5 }}>{formatQuantity(tx.quantity)}</span>
             <span className="num" style={{ textAlign: "right", fontSize: 13.5 }}>{formatPrice(tx.price)}</span>
             <span className="num muted" style={{ textAlign: "right", fontSize: 12 }}>fee {tx.fee || "–"}</span>
@@ -305,7 +313,7 @@ export function HoldingDetailRoute() {
             </span>
           </div>
         ))}
-      </div>
+      </Card>
 
       {addOpen && (
         <InvestmentEntryDrawer

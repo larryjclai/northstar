@@ -1,4 +1,7 @@
 import { Gear, Plus, X } from "@phosphor-icons/react";
+import { Button } from "../components/coss/button";
+import { Card } from "../components/coss/card";
+import { ToggleGroup, ToggleGroupItem } from "../components/coss/toggle-group";
 import { Glyph } from "../lib/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
@@ -112,20 +115,25 @@ export function CategoriesRoute() {
         </div>
         
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div className="ns-seg">
+          <ToggleGroup
+            variant="outline"
+            value={[timeRange]}
+            onValueChange={(value) => { const next = value[0]; if (next) setTimeRange(next as typeof timeRange); }}
+          >
             {(["month", "ytd", "custom"] as const).map(mode => (
-              <button
+              <ToggleGroupItem
                 key={mode}
-                aria-selected={timeRange === mode}
-                onClick={() => setTimeRange(mode)}
+                value={mode}
+                size="sm"
+                className="data-pressed:border-primary data-pressed:bg-primary data-pressed:text-primary-foreground"
               >
                 {mode === "month" ? "本月" : mode === "ytd" ? "YTD" : "自訂"}
-              </button>
+              </ToggleGroupItem>
             ))}
-          </div>
-          <button className="ns-btn primary" onClick={() => setCategoryDrawerOpen(true)}>
+          </ToggleGroup>
+          <Button onClick={() => setCategoryDrawerOpen(true)}>
             <Plus size={14} weight="bold" /> 管理分類
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -143,7 +151,7 @@ export function CategoriesRoute() {
 
       <div style={{ display: "flex", gap: 24 }}>
         {/* Left: Donut Chart */}
-        <div className="ns-card" style={{ flex: "0 0 340px", padding: 32, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <Card style={{ flex: "0 0 340px", padding: 32, display: "flex", flexDirection: "column", alignItems: "center" }}>
           {categoryStats.length > 0 ? (
             <>
               <div style={{ width: "100%", height: 260, position: "relative", marginBottom: 24 }}>
@@ -186,9 +194,9 @@ export function CategoriesRoute() {
               
               {/* Legend Grid */}
               {selectedCategory && (
-                <button className="ns-btn ghost" style={{ fontSize: 11, marginBottom: 8, alignSelf: 'center' }} onClick={() => setSelectedCategory(null)}>
+                <Button variant="ghost" style={{ fontSize: 11, marginBottom: 8, alignSelf: 'center' }} onClick={() => setSelectedCategory(null)}>
                   <X size={10} weight="bold" />清除篩選: {selectedCategory}
-                </button>
+                </Button>
               )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 24px", width: "100%" }}>
                 {categoryStats.map(cat => (
@@ -214,10 +222,10 @@ export function CategoriesRoute() {
               沒有足夠的支出資料
             </div>
           )}
-        </div>
+        </Card>
 
         {/* Right: Categories List */}
-        <div className="ns-card" style={{ flex: 1, padding: "24px 0" }}>
+        <Card style={{ flex: 1, padding: "24px 0" }}>
           {/* List Header */}
           <div style={{ display: "flex", padding: "0 32px 12px", borderBottom: "1px solid var(--ns-border)", fontSize: 11, fontFamily: "var(--ns-font-mono)", color: "var(--ns-fg-muted)", letterSpacing: 1 }}>
             <div style={{ flex: "0 0 160px" }}>分類</div>
@@ -307,7 +315,7 @@ export function CategoriesRoute() {
               <div className="muted" style={{ textAlign: "center", padding: "40px 0" }}>沒有分類資料</div>
             )}
           </div>
-        </div>
+        </Card>
       </div>
 
       <CategoryManagementDrawer
@@ -326,9 +334,9 @@ export function CategoriesRoute() {
 
 function SummaryCard({ label, value }: { label: string, value: string }) {
   return (
-    <div className="ns-card" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: 12 }}>
+    <Card style={{ padding: "24px", display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>{label}</div>
       <div style={{ fontSize: 24, fontWeight: 500 }}>{value}</div>
-    </div>
+    </Card>
   );
 }

@@ -1,4 +1,7 @@
 import { ArrowsClockwise, CheckCircle, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, PencilSimple, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X, CaretDown, CaretRight, Backspace, Gear, Bank, Target, DeviceMobile, Desktop, Spinner, WifiHigh, CopySimple, QrCode, Warning } from "@phosphor-icons/react";
+import { Badge } from "../components/coss/badge";
+import { Button } from "../components/coss/button";
+import { Card } from "../components/coss/card";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ActionButton } from "../components/ActionButton";
@@ -214,13 +217,13 @@ function SettingsCategories({ form, setForm, submit, t, renameCategory }: any) {
           <h2 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 24, margin: 0, fontWeight: 600 }}>{t('settings.categories')}</h2>
           <p className="muted" style={{ fontSize: 13, marginTop: 4, marginBottom: 0 }}>{t('settings.categoriesDesc')}</p>
         </div>
-        <button className="ns-btn primary" onClick={() => setAdding(true)}>
+        <Button onClick={() => setAdding(true)}>
           <Plus size={14} weight="bold" />{t('settings.addCategory')}
-        </button>
+        </Button>
       </div>
 
       {adding && (
-        <div className="ns-card" style={{ padding: 18, marginBottom: 14, border: '1.5px solid var(--ns-accent)' }}>
+        <Card style={{ padding: 18, marginBottom: 14, border: '1.5px solid var(--ns-accent)' }}>
           <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>{t('settings.newCategory')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
             <div>
@@ -262,15 +265,15 @@ function SettingsCategories({ form, setForm, submit, t, renameCategory }: any) {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="ns-btn ghost" onClick={() => setAdding(false)}>取消</button>
-            <button className="ns-btn primary" onClick={addCategory} style={{ opacity: newCat.name?1:0.5 }}>
+            <Button variant="ghost" onClick={() => setAdding(false)}>取消</Button>
+            <Button onClick={addCategory} style={{ opacity: newCat.name?1:0.5 }}>
               <CheckCircle size={13} weight="bold" />新增
-            </button>
+            </Button>
           </div>
-        </div>
+        </Card>
       )}
 
-      <div className="ns-card" style={{ padding: 0 }}>
+      <Card style={{ padding: 0 }}>
         <div className="ns-settings-category-head" style={{ padding:'10px 20px', borderBottom:'1px solid var(--ns-border)',
           display:'grid', gridTemplateColumns:'2.2fr 1fr 1fr 1.6fr 80px',
           fontSize:10.5, color:'var(--ns-fg-dim)', fontFamily:'var(--ns-font-mono)',
@@ -322,12 +325,12 @@ function SettingsCategories({ form, setForm, submit, t, renameCategory }: any) {
                   ) : <span className="dim" style={{fontSize:11}}>{t('settings.noLimit')}</span>}
                 </div>
                 <div style={{ display:'flex', gap:4, justifyContent:'flex-end' }}>
-                  <button className="ns-btn ghost icon" style={{padding:6}} onClick={() => setEditId(isEdit?null:c.name)}>
+                  <Button variant="ghost" size="icon-sm" style={{padding:6}} onClick={() => setEditId(isEdit?null:c.name)}>
                     <Gear size={14} />
-                  </button>
-                  <button className="ns-btn ghost icon" style={{padding:6,color:'var(--ns-neg)'}} onClick={() => deleteCategory(c.name)}>
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" style={{padding:6,color:'var(--ns-neg)'}} onClick={() => deleteCategory(c.name)}>
                     <Backspace size={14} />
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -363,12 +366,12 @@ function SettingsCategories({ form, setForm, submit, t, renameCategory }: any) {
                         )}
                         <div style={{ display: 'flex', gap: 4 }}>
                           {!isEditingSub && (
-                            <button className="ns-btn ghost icon" style={{padding:'3px 6px'}} onClick={() => { setEditingSub({ cat: c.name, sub: s }); setEditSubValue(s); }}><PencilSimple size={12}/></button>
+                            <Button variant="ghost" size="icon-sm" style={{padding:'3px 6px'}} onClick={() => { setEditingSub({ cat: c.name, sub: s }); setEditSubValue(s); }}><PencilSimple size={12}/></Button>
                           )}
-                          <button className="ns-btn ghost icon" style={{color:'var(--ns-neg)', padding:'3px 6px'}} onClick={() => {
+                          <Button variant="ghost" size="icon-sm" style={{color:'var(--ns-neg)', padding:'3px 6px'}} onClick={() => {
                             const nextForm = { ...form, categories: form.categories.map((cat: any) => cat.name === c.name ? { ...cat, children: cat.children.filter((x: string) => x !== s) } : cat) };
                             submit(nextForm);
-                          }}><Trash size={12}/></button>
+                          }}><Trash size={12}/></Button>
                         </div>
                       </div>
                     );
@@ -389,7 +392,7 @@ function SettingsCategories({ form, setForm, submit, t, renameCategory }: any) {
                         onBlur={() => addSubcategory(c.name, newSubValue)}
                       />
                     ) : (
-                      <button className="ns-btn ghost" style={{ fontSize: 12, padding: "4px 8px", minHeight: "auto" }} onClick={() => { setAddingSubFor(c.name); setNewSubValue(''); }}><Plus size={12} style={{ marginRight: 4 }} />新增子分類</button>
+                      <Button variant="ghost" style={{ fontSize: 12, padding: "4px 8px", minHeight: "auto" }} onClick={() => { setAddingSubFor(c.name); setNewSubValue(''); }}><Plus size={12} style={{ marginRight: 4 }} />新增子分類</Button>
                     )}
                   </div>
                 </div>
@@ -397,7 +400,7 @@ function SettingsCategories({ form, setForm, submit, t, renameCategory }: any) {
             </div>
           );
         })}
-      </div>
+      </Card>
     </div>
   );
 }
@@ -443,10 +446,10 @@ function EditCatForm({ cat, colors, onSave, onCancel }: any) {
           ))}
         </div>
         <div style={{display:'flex',gap:8,marginTop:12}}>
-          <button className="ns-btn ghost" style={{fontSize:12}} onClick={onCancel}>取消</button>
-          <button className="ns-btn primary" style={{fontSize:12}} onClick={()=>onSave({name,iconName:icon,color,budget:budget?+budget:null})}>
+          <Button variant="ghost" style={{fontSize:12}} onClick={onCancel}>取消</Button>
+          <Button style={{fontSize:12}} onClick={()=>onSave({name,iconName:icon,color,budget:budget?+budget:null})}>
             <CheckCircle size={14} weight="bold" />儲存
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -504,7 +507,7 @@ function SettingsMerchants({ form, setForm, submit, t, renameMerchant }: any) {
           </p>
         </div>
         <div>
-          <button className="ns-btn primary" onClick={() => { setAdding(true); setNewMerchant(''); }}><Plus size={14}/>{t('settings.addMerchant')}</button>
+          <Button onClick={() => { setAdding(true); setNewMerchant(''); }}><Plus size={14}/>{t('settings.addMerchant')}</Button>
         </div>
       </div>
 
@@ -512,7 +515,7 @@ function SettingsMerchants({ form, setForm, submit, t, renameMerchant }: any) {
         <input className="ns-input" placeholder="搜尋商家名稱..." value={search} onChange={e=>setSearch(e.target.value)} />
       </div>
 
-      <div className="ns-card" style={{padding:0}}>
+      <Card style={{padding:0}}>
         <div style={{ padding:'10px 20px', borderBottom:'1px solid var(--ns-border)',
           display:'grid', gridTemplateColumns:'1fr 80px',
           fontSize:10.5, color:'var(--ns-fg-dim)', fontFamily:'var(--ns-font-mono)',
@@ -535,7 +538,7 @@ function SettingsMerchants({ form, setForm, submit, t, renameMerchant }: any) {
               onBlur={addMerchant}
             />
             <div style={{display:'flex',justifyContent:'flex-end'}}>
-              <button className="ns-btn ghost icon" onClick={addMerchant}><CheckCircle size={16}/></button>
+              <Button variant="ghost" size="icon-sm" onClick={addMerchant}><CheckCircle size={16}/></Button>
             </div>
           </div>
         )}
@@ -563,17 +566,17 @@ function SettingsMerchants({ form, setForm, submit, t, renameMerchant }: any) {
             )}
             <div style={{display:'flex',justifyContent:'flex-end', gap:4}}>
               {editingMerchant !== m && (
-                <button className="ns-btn ghost icon" style={{color:'var(--ns-fg-muted)'}} onClick={()=>startEdit(m)}>
+                <Button variant="ghost" size="icon-sm" style={{color:'var(--ns-fg-muted)'}} onClick={()=>startEdit(m)}>
                   <PencilSimple size={14}/>
-                </button>
+                </Button>
               )}
-              <button className="ns-btn ghost icon" style={{color:'var(--ns-neg)'}} onClick={()=>deleteMerchant(m)}>
+              <Button variant="ghost" size="icon-sm" style={{color:'var(--ns-neg)'}} onClick={()=>deleteMerchant(m)}>
                 <Trash size={14}/>
-              </button>
+              </Button>
             </div>
           </div>
         ))}
-      </div>
+      </Card>
     </div>
   );
 }
@@ -621,18 +624,18 @@ function SettingsFX({ form, submit, dailyFxRates, t }: any) {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="ns-btn" onClick={addRate}><Plus size={14}/>新增</button>
-          <button className="ns-btn primary" onClick={refreshAll} disabled={refreshFxRates.isPending}><ArrowsClockwise size={14}/>全部更新</button>
+          <Button variant="outline" onClick={addRate}><Plus size={14}/>新增</Button>
+          <Button onClick={refreshAll} disabled={refreshFxRates.isPending}><ArrowsClockwise size={14}/>全部更新</Button>
         </div>
       </div>
 
-      <div className="ns-card" style={{padding:18, marginBottom:16}}>
+      <Card style={{padding:18, marginBottom:16}}>
         <div className="ns-eyebrow" style={{marginBottom:8}}>{t('settings.baseCurrency')}</div>
         <p className="muted" style={{fontSize:12,margin:'0 0 12px'}}>{t('settings.baseCurrencyDesc')}</p>
         <input className="ns-input max-w-xs" value={form.primaryCurrency} onChange={e => submit({...form, primaryCurrency: e.target.value.toUpperCase()})} />
-      </div>
+      </Card>
 
-      <div className="ns-card" style={{padding:0}}>
+      <Card style={{padding:0}}>
         <div style={{padding:'10px 20px',borderBottom:'1px solid var(--ns-border)',
           display:'grid',gridTemplateColumns:'80px 1fr 1fr 1fr 56px',
           fontSize:10.5,color:'var(--ns-fg-dim)',fontFamily:'var(--ns-font-mono)',
@@ -653,12 +656,12 @@ function SettingsFX({ form, submit, dailyFxRates, t }: any) {
               <input className="ns-input" style={{textAlign:'right'}} value={r.to || form.primaryCurrency} onChange={e=>updateRate(i, { to: e.target.value.toUpperCase() })} />
               <div className="dim" style={{fontSize: 11, textAlign: 'right'}}>{stat ? `${stat.count} records` : 'No history'}</div>
               <div style={{display:'flex',justifyContent:'flex-end'}}>
-                <button className="ns-btn ghost icon" style={{color:'var(--ns-neg)'}} onClick={()=>deleteRate(i)}><Trash size={14}/></button>
+                <Button variant="ghost" size="icon-sm" style={{color:'var(--ns-neg)'}} onClick={()=>deleteRate(i)}><Trash size={14}/></Button>
               </div>
             </div>
           )
         })}
-      </div>
+      </Card>
     </div>
   );
 }
@@ -791,16 +794,16 @@ function SettingsGeneral({ form, t }: any) {
         <p className="muted" style={{fontSize:13,marginTop:4,marginBottom:0}}>{t('settings.generalDesc')}</p>
       </div>
 
-      <div className="ns-card p-5">
+      <Card className="p-5">
         <h3 className="font-semibold mb-2">帳本維護</h3>
         <p className="text-sm muted mb-4">重新依期初餘額、已結算流水與投資紀錄計算衍生資料。這不會新增調整餘額交易。</p>
-        <button className="ns-btn primary" onClick={recalculate} disabled={recalculating}>
+        <Button onClick={recalculate} disabled={recalculating}>
           <ArrowsClockwise size={14}/>{recalculating ? "重新計算中" : "重新計算帳戶與投資"}
-        </button>
+        </Button>
         {recalculationSummary ? <div className="ns-surface mt-3 p-3 text-sm">{recalculationSummary}</div> : null}
-      </div>
+      </Card>
 
-      <div className="ns-card p-5">
+      <Card className="p-5">
         <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Demo</div>
         <h3 className="font-semibold mb-2">示範模式</h3>
         {inDemo ? (
@@ -808,35 +811,35 @@ function SettingsGeneral({ form, t }: any) {
             <p className="text-sm mb-4" style={{ color: "var(--ns-accent)" }}>
               目前在示範模式。你原本的資料已安全保存，結束後會完整還原。
             </p>
-            <button className="ns-btn primary" onClick={handleExitDemo} disabled={demoBusy !== null}>
+            <Button onClick={handleExitDemo} disabled={demoBusy !== null}>
               <ArrowsClockwise size={14} />{demoBusy === "exit" ? "還原中…" : "結束示範並還原我的資料"}
-            </button>
+            </Button>
           </>
         ) : (
           <>
             <p className="text-sm muted mb-4">載入一組範例帳戶、交易、持股與目標來瀏覽完整畫面或展示。<strong>不會清除你的資料</strong>——進入前會先把你目前的資料安全保存，結束示範時自動還原。</p>
             <div className="flex flex-wrap gap-2">
-              <button className="ns-btn primary" onClick={handleLoadDemo} disabled={demoBusy !== null}>
+              <Button onClick={handleLoadDemo} disabled={demoBusy !== null}>
                 <Plus size={14} weight="bold" />{demoBusy === "load" ? "進入中…" : "進入示範模式"}
-              </button>
+              </Button>
               {confirmClear ? (
                 <>
-                  <button className="ns-btn" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} onClick={handleClearAll} disabled={demoBusy !== null}>
+                  <Button variant="outline" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} onClick={handleClearAll} disabled={demoBusy !== null}>
                     {demoBusy === "clear" ? "清空中…" : "確定清空所有資料（無法復原）"}
-                  </button>
-                  <button className="ns-btn" onClick={() => setConfirmClear(false)} disabled={demoBusy !== null}>取消</button>
+                  </Button>
+                  <Button variant="outline" onClick={() => setConfirmClear(false)} disabled={demoBusy !== null}>取消</Button>
                 </>
               ) : (
-                <button className="ns-btn" onClick={() => setConfirmClear(true)} disabled={demoBusy !== null}>
+                <Button variant="outline" onClick={() => setConfirmClear(true)} disabled={demoBusy !== null}>
                   <Trash size={14} />清空所有資料
-                </button>
+                </Button>
               )}
             </div>
           </>
         )}
-      </div>
+      </Card>
 
-      <div className="ns-card p-5">
+      <Card className="p-5">
         <h3 className="font-semibold mb-4">{t('settings.privacyMode')}</h3>
         <button
           onClick={togglePrivacy}
@@ -853,9 +856,9 @@ function SettingsGeneral({ form, t }: any) {
         <h3 className="font-semibold mb-4 mt-6">{t('settings.language')}</h3>
         <div className="grid grid-cols-3 gap-2">
           {[{v:'auto',l:'Auto'},{v:'en',l:'English'},{v:'zh-Hant',l:'繁體中文'}].map(o => (
-            <button key={o.v} onClick={()=>setNameLocale(o.v as any)} className="ns-btn" style={{ borderColor: nameLocale===o.v?'var(--ns-accent)':'var(--ns-border)'}}>
+            <Button variant="outline" key={o.v} onClick={()=>setNameLocale(o.v as any)} style={{ borderColor: nameLocale===o.v?'var(--ns-accent)':'var(--ns-border)'}}>
               {o.l}
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -876,21 +879,21 @@ function SettingsGeneral({ form, t }: any) {
             <div className="text-xs muted">開啟後會向第三方服務 (assets.parqet.com) 請求各標的的 LOGO 圖示。<strong style={{ color: "var(--ns-fg)" }}>隱私風險：你持有的股票代號會傳送到該第三方</strong>。關閉時一律顯示本地產生的字母標記，不會發出任何請求。</div>
           </div>
         </button>
-      </div>
+      </Card>
 
-      <div className="ns-card p-5">
+      <Card className="p-5">
         <h3 className="font-semibold mb-2">{t('settings.backupTitle')}</h3>
         <p className="text-sm muted mb-4">{t('settings.backupDesc')}</p>
         <div className="flex gap-2">
-          <button className="ns-btn primary" onClick={exportBackup}><DownloadSimple size={14}/>{t('settings.exportJson')}</button>
-          <button className="ns-btn ghost" onClick={()=>fileInputRef.current?.click()}><UploadSimple size={14}/>{t('settings.importBackup')}</button>
+          <Button onClick={exportBackup}><DownloadSimple size={14}/>{t('settings.exportJson')}</Button>
+          <Button variant="ghost" onClick={()=>fileInputRef.current?.click()}><UploadSimple size={14}/>{t('settings.importBackup')}</Button>
           <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={(e)=>{
             const file = e.target.files?.[0];
             if (file) importBackup(file);
             e.target.value = '';
           }} />
         </div>
-      </div>
+      </Card>
 
       <UpdateChecker />
       <ConnectStatus />
@@ -1242,7 +1245,7 @@ function ConnectStatus() {
   // ── Not yet set up ──
   if (!account) {
     return (
-      <div className="ns-card p-5">
+      <Card className="p-5">
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
           <h3 className="font-semibold">Connect 同步</h3>
         </div>
@@ -1260,13 +1263,13 @@ function ConnectStatus() {
           />
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="ns-btn primary" onClick={handleSetup} disabled={loading || !joinDeviceName.trim()}>
+          <Button onClick={handleSetup} disabled={loading || !joinDeviceName.trim()}>
             {loading ? <Spinner size={14} className="animate-spin" /> : <WifiHigh size={14} />}
             {loading ? "啟用中…" : "啟用同步"}
-          </button>
-          <button className="ns-btn ghost" onClick={() => openDialog("join")}>
+          </Button>
+          <Button variant="ghost" onClick={() => openDialog("join")}>
             我有配對碼
-          </button>
+          </Button>
         </div>
 
         {/* Join dialog (for device B before account exists) */}
@@ -1290,33 +1293,33 @@ function ConnectStatus() {
             hideShowTab
           />
         )}
-      </div>
+      </Card>
     );
   }
 
   // ── Active ──
   return (
-    <div className="ns-card p-5">
+    <Card className="p-5">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <h3 className="font-semibold">Connect 同步</h3>
           {kitStatus?.confirmedAt ? (
-            <span className="ns-pill" style={{ fontSize: 10.5, background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}>已啟用</span>
+            <Badge variant="outline" className="rounded-full" style={{ fontSize: 10.5, background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}>已啟用</Badge>
           ) : (
-            <span className="ns-pill" style={{ fontSize: 10.5, background: "var(--ns-warn-soft, var(--ns-bg-hover))", color: "var(--ns-warn, #b45309)" }}>待備份備援碼</span>
+            <Badge variant="outline" className="rounded-full" style={{ fontSize: 10.5, background: "var(--ns-warn-soft, var(--ns-bg-hover))", color: "var(--ns-warn, #b45309)" }}>待備份備援碼</Badge>
           )}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="ns-btn ghost" style={{ fontSize: 12 }}
+          <Button variant="ghost" style={{ fontSize: 12 }}
             onClick={handleManualSync}
             title={!kitStatus?.confirmedAt ? "請先備份並確認 Recovery Kit" : undefined}
             disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling" || !kitStatus?.confirmedAt}>
             <ArrowsClockwise size={13} style={{ animation: (syncStatus.phase === "pushing" || syncStatus.phase === "pulling") ? "spin 1s linear infinite" : undefined }} />
             {syncStatus.phase === "pushing" ? "上傳中…" : syncStatus.phase === "pulling" ? "下載中…" : "立即同步"}
-          </button>
-          <button className="ns-btn ghost" style={{ fontSize: 12 }} onClick={() => openDialog("show")}>
+          </Button>
+          <Button variant="ghost" style={{ fontSize: 12 }} onClick={() => openDialog("show")}>
             <Plus size={13} />新增裝置
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -1361,8 +1364,8 @@ function ConnectStatus() {
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm font-semibold">同步衝突中心 · {conflicts.length} 筆</span>
             <span className="flex gap-1">
-              <button className="ns-btn ghost" style={{ fontSize: 11 }} onClick={() => resolveAllConflicts("keepLocal")}>全部保留本機</button>
-              <button className="ns-btn ghost" style={{ fontSize: 11 }} onClick={() => resolveAllConflicts("useIncoming")}>全部採用遠端</button>
+              <Button variant="ghost" style={{ fontSize: 11 }} onClick={() => resolveAllConflicts("keepLocal")}>全部保留本機</Button>
+              <Button variant="ghost" style={{ fontSize: 11 }} onClick={() => resolveAllConflicts("useIncoming")}>全部採用遠端</Button>
             </span>
           </div>
           <div className="mb-2 text-xs" style={{ color: "var(--ns-fg-muted)" }}>
@@ -1375,15 +1378,15 @@ function ConnectStatus() {
                 <div key={conflict.id} className="rounded-md border p-2.5 text-xs" style={{ borderColor: "var(--ns-border)", background: "var(--ns-bg-card)" }}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="flex items-center gap-2 min-w-0">
-                      <span className="ns-pill" style={{ fontSize: 10, flexShrink: 0 }}>{summary.entityLabel}</span>
+                      <Badge variant="outline" className="rounded-full" style={{ fontSize: 10, flexShrink: 0 }}>{summary.entityLabel}</Badge>
                       <span className="font-semibold truncate" title={summary.title}>{summary.title}</span>
                       <span style={{ color: "var(--ns-fg-muted)", flexShrink: 0 }}>
                         {summary.newer === "tie" ? "兩版同時間" : summary.newer === "local" ? "本機較新" : "遠端較新"}
                       </span>
                     </span>
                     <span className="flex gap-1 flex-shrink-0">
-                      <button className="ns-btn ghost" style={{ fontSize: 11 }} onClick={() => resolveConflict(conflict.id, "keepLocal")}>保留本機</button>
-                      <button className="ns-btn ghost" style={{ fontSize: 11 }} onClick={() => resolveConflict(conflict.id, "useIncoming")}>採用遠端</button>
+                      <Button variant="ghost" style={{ fontSize: 11 }} onClick={() => resolveConflict(conflict.id, "keepLocal")}>保留本機</Button>
+                      <Button variant="ghost" style={{ fontSize: 11 }} onClick={() => resolveConflict(conflict.id, "useIncoming")}>採用遠端</Button>
                     </span>
                   </div>
                   {summary.diffs.length > 0 ? (
@@ -1417,18 +1420,18 @@ function ConnectStatus() {
         </div>
         {confirmFullResync
           ? <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-              <button className="ns-btn ghost" style={{ fontSize: 12 }} onClick={() => setConfirmFullResync(false)}>取消</button>
-              <button className="ns-btn" style={{ fontSize: 12 }}
+              <Button variant="ghost" style={{ fontSize: 12 }} onClick={() => setConfirmFullResync(false)}>取消</Button>
+              <Button variant="outline" style={{ fontSize: 12 }}
                 onClick={handleForceFullResync}
                 disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
                 確認重新下載
-              </button>
+              </Button>
             </div>
-          : <button className="ns-btn ghost" style={{ fontSize: 12, flexShrink: 0 }}
+          : <Button variant="ghost" style={{ fontSize: 12, flexShrink: 0 }}
               onClick={() => setConfirmFullResync(true)}
               disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
               <ArrowsClockwise size={13} />完整重新下載
-            </button>
+            </Button>
         }
       </div>
 
@@ -1453,12 +1456,12 @@ function ConnectStatus() {
               ? <span style={{ fontSize: 11, color: "var(--ns-fg-muted)" }}>本機</span>
               : confirmRevokeId === dev.id
                 ? <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <button className="ns-btn ghost" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => setConfirmRevokeId(null)}>取消</button>
-                    <button className="ns-btn" style={{ fontSize: 11, padding: "4px 8px", color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} onClick={() => handleRevoke(dev.id)}>確認移除</button>
+                    <Button variant="ghost" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => setConfirmRevokeId(null)}>取消</Button>
+                    <Button variant="outline" style={{ fontSize: 11, padding: "4px 8px", color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} onClick={() => handleRevoke(dev.id)}>確認移除</Button>
                   </div>
-                : <button className="ns-btn ghost icon" style={{ color: "var(--ns-neg)", padding: "4px 6px" }} onClick={() => setConfirmRevokeId(dev.id)}>
+                : <Button variant="ghost" size="icon-sm" style={{ color: "var(--ns-neg)", padding: "4px 6px" }} onClick={() => setConfirmRevokeId(dev.id)}>
                     <Trash size={13} />
-                  </button>
+                  </Button>
             }
           </div>
         ))}
@@ -1470,14 +1473,14 @@ function ConnectStatus() {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ fontSize: 13, fontWeight: 600 }}>備援碼</div>
             {kitStatus?.confirmedAt
-              ? <span className="ns-pill" style={{ fontSize: 10.5, background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}>已儲存</span>
-              : <span className="ns-pill" style={{ fontSize: 10.5, background: "var(--ns-warn-soft, #fef3c7)", color: "var(--ns-warn, #b45309)" }}>尚未設定</span>
+              ? <Badge variant="outline" className="rounded-full" style={{ fontSize: 10.5, background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}>已儲存</Badge>
+              : <Badge variant="outline" className="rounded-full" style={{ fontSize: 10.5, background: "var(--ns-warn-soft, #fef3c7)", color: "var(--ns-warn, #b45309)" }}>尚未設定</Badge>
             }
           </div>
           {!kitCode && (
-            <button className="ns-btn ghost" style={{ fontSize: 12 }} onClick={handleGenerateKit} disabled={kitLoading}>
+            <Button variant="ghost" style={{ fontSize: 12 }} onClick={handleGenerateKit} disabled={kitLoading}>
               <Key size={13} />{kitStatus?.confirmedAt ? "重新產生" : "產生備援碼"}
-            </button>
+            </Button>
           )}
         </div>
         <p className="text-sm muted" style={{ marginBottom: kitCode ? 14 : 0 }}>
@@ -1503,12 +1506,12 @@ function ConnectStatus() {
               <Warning size={13} weight="fill" style={{ flexShrink: 0 }} />請將此碼列印或抄寫到安全的地方。關閉後無法再次檢視。
             </p>
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="ns-btn primary" onClick={handleDownloadKit}>
+              <Button onClick={handleDownloadKit}>
                 <DownloadSimple size={13} />下載備援碼
-              </button>
-              <button className="ns-btn ghost" onClick={handleConfirmKit}>
+              </Button>
+              <Button variant="ghost" onClick={handleConfirmKit}>
                 <CheckCircle size={13} weight="bold" />我已安全儲存
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -1518,11 +1521,11 @@ function ConnectStatus() {
       <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--ns-border)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
           <div style={{ fontSize: 13, fontWeight: 600 }}>同步前快照</div>
-          <button className="ns-btn ghost" style={{ fontSize: 11.5 }} onClick={() => {
+          <Button variant="ghost" style={{ fontSize: 11.5 }} onClick={() => {
             setShowBackups(!showBackups);
           }}>
             {showBackups ? "收起" : `查看備份`}
-          </button>
+          </Button>
         </div>
         <p className="text-sm muted" style={{ marginBottom: showBackups ? 10 : 0 }}>
           每次同步前自動儲存，最多保留 3 份。若同步後資料異常可還原。
@@ -1540,10 +1543,10 @@ function ConnectStatus() {
                     <div style={{ fontSize: 12.5, fontWeight: 500 }}>{b.label}</div>
                     <div className="mono muted" style={{ fontSize: 10.5 }}>{b.timestamp.slice(0, 19).replace("T", " ")}</div>
                   </div>
-                  <button className="ns-btn ghost" style={{ fontSize: 11.5, color: "var(--ns-warn, #b45309)" }}
+                  <Button variant="ghost" style={{ fontSize: 11.5, color: "var(--ns-warn, #b45309)" }}
                     onClick={() => handleRestore(b.timestamp)}>
                     還原
-                  </button>
+                  </Button>
                 </div>
               ))
             }
@@ -1574,7 +1577,7 @@ function ConnectStatus() {
           onJoin={handleJoin}
         />
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -1629,11 +1632,11 @@ function AddDeviceDialog({
       position: "fixed", inset: 0, zIndex: 200,
       background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center",
     }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="ns-card" style={{ width: 480, padding: 0, overflow: "hidden" }}>
+      <Card style={{ width: 480, padding: 0, overflow: "hidden" }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px 0" }}>
           <h3 style={{ fontFamily: "var(--ns-font-display)", fontSize: 17, fontWeight: 600, margin: 0 }}>新增裝置</h3>
-          <button className="ns-btn ghost icon" onClick={onClose}><X size={16} /></button>
+          <Button variant="ghost" size="icon-sm" onClick={onClose}><X size={16} /></Button>
         </div>
 
         {/* Tabs */}
@@ -1692,13 +1695,13 @@ function AddDeviceDialog({
 
                   {/* Actions */}
                   <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-                    <button className="ns-btn ghost" onClick={handleCopyCode}>
+                    <Button variant="ghost" onClick={handleCopyCode}>
                       <CopySimple size={13} />複製配對碼
-                    </button>
+                    </Button>
                     {secondsLeft === 0 && (
-                      <button className="ns-btn" onClick={onGenerateCode}>
+                      <Button variant="outline" onClick={onGenerateCode}>
                         <ArrowsClockwise size={13} />重新產生
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </>
@@ -1744,19 +1747,18 @@ function AddDeviceDialog({
                 </div>
               )}
 
-              <button
-                className="ns-btn primary"
+              <Button
                 style={{ width: "100%" }}
                 disabled={joinCode.length !== 9 || !joinDeviceName.trim() || joinLoading}
                 onClick={onJoin}
               >
                 {joinLoading ? <Spinner size={14} className="animate-spin" /> : <CheckCircle size={14} weight="bold" />}
                 {joinLoading ? "配對中…" : "加入同步"}
-              </button>
+              </Button>
             </div>
           )}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
@@ -1815,7 +1817,7 @@ function UpdateChecker() {
   }
 
   return (
-    <div className="ns-card p-5">
+    <Card className="p-5">
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
         <h3 className="font-semibold">應用程式更新</h3>
         {currentVersion && (
@@ -1824,11 +1826,11 @@ function UpdateChecker() {
       </div>
       <p className="text-sm muted mb-4">檢查並安裝 Northstar 的最新桌面版本。所有更新都經過簽章驗證。</p>
       <div className="flex items-center gap-3 flex-wrap">
-        <button className="ns-btn primary" onClick={checkForUpdates} disabled={busy}>
+        <Button onClick={checkForUpdates} disabled={busy}>
           <ArrowsClockwise size={14} />{busy ? "檢查中…" : "檢查更新"}
-        </button>
+        </Button>
         {message ? <span className="text-sm muted">{message}</span> : null}
       </div>
-    </div>
+    </Card>
   );
 }

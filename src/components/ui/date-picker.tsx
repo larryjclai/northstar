@@ -4,6 +4,7 @@ import { format, parseISO } from "date-fns"
 import { CalendarIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { buttonVariants } from "@/components/coss/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
   Popover,
@@ -27,7 +28,7 @@ export function DatePicker({
       <PopoverTrigger render={
         <button
           className={cn(
-            "ns-btn",
+            buttonVariants({ variant: "outline" }),
             "w-[140px] justify-start text-left font-normal",
             !date && "text-muted-foreground",
             className

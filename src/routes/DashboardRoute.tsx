@@ -9,6 +9,9 @@ import { enterDemoMode } from "../data/demoData";
 import { useDemoMode } from "../state/demoMode";
 import { useToast } from "../components/Toast";
 import { AccountFilter } from "../components/AccountFilter";
+import { Badge } from "../components/coss/badge";
+import { Button } from "../components/coss/button";
+import { Card } from "../components/coss/card";
 import { useQuickAdd } from "../state/quickAdd";
 import {
   assetTypeLabels,
@@ -278,7 +281,7 @@ export function DashboardRoute() {
             <strong>{overBudget.map((c) => c.name).join("、")}</strong> 本月已超支
             &nbsp;·&nbsp; 超出 {formatMoney(overBudget.reduce((s, c) => s + (c.spent - (c.budget ?? 0)), 0), primaryCurrency)}
           </span>
-          <Link to="/cash-flow/categories" className="ns-btn ghost" style={{ marginLeft: "auto", padding: "2px 8px", fontSize: 12 }}>查看分類 →</Link>
+          <Button variant="ghost" size="xs" className="ml-auto" render={<Link to="/cash-flow/categories" />}>查看分類 →</Button>
         </div>
       ) : null}
 
@@ -291,16 +294,16 @@ export function DashboardRoute() {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} />
           <MonthPicker value={monthKey} onChange={setMonthKey} triggerClassName="h-[36px] whitespace-nowrap" />
-          <button className="ns-btn" style={{ height: 36, boxSizing: "border-box", whiteSpace: "nowrap" }} onClick={() => refreshQuotes.mutate(assetRows.map((a) => a.ticker))} disabled={refreshQuotes.isPending || assetRows.length === 0}>
+          <Button variant="outline" className="h-9 sm:h-9" onClick={() => refreshQuotes.mutate(assetRows.map((a) => a.ticker))} loading={refreshQuotes.isPending} disabled={refreshQuotes.isPending || assetRows.length === 0}>
             <ArrowsClockwise size={14} />{refreshQuotes.isPending ? "更新中" : "更新"}
-          </button>
-          <button type="button" className="ns-btn primary" style={{ height: 36, boxSizing: "border-box", whiteSpace: "nowrap" }} onClick={() => openQuickAdd(true)}><Plus size={14} weight="bold" />新增</button>
+          </Button>
+          <Button className="h-9 sm:h-9" onClick={() => openQuickAdd(true)}><Plus size={14} weight="bold" />新增</Button>
         </div>
       </div>
 
       {/* Row 1 · Net worth + KPI stack */}
       <div className="ns-dash-row1">
-        <div className="ns-card" style={{ padding: 22, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <Card style={{ padding: 22, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{ marginBottom: 14 }}>
             <div className="ns-eyebrow" style={{ marginBottom: 5 }}>Net worth · {primaryCurrency}</div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap", minWidth: 0 }}>
@@ -311,10 +314,10 @@ export function DashboardRoute() {
                 {formatMoney(netWorth, primaryCurrency)}
               </span>
               {trend.length >= 2 ? (
-                <span className={"ns-pill " + (momChange >= 0 ? "solid-pos" : "solid-neg")}>
+                <Badge variant={momChange >= 0 ? "success" : "error"} className="gap-1 rounded-full px-2">
                   {momChange >= 0 ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />}
                   <span className="num">{momChange >= 0 ? "+" : "−"}{formatNumber(Math.abs(momChange))} · {Math.abs(momPct).toFixed(2)}%</span>
-                </span>
+                </Badge>
               ) : null}
             </div>
             {Math.abs(netSettlement) > 0.5 ? (
@@ -352,16 +355,16 @@ export function DashboardRoute() {
                 {hasAnyData ? "累積幾筆資料後會顯示淨值趨勢。" : "先建立第一個帳戶，Northstar 會開始計算總覽。"}
               </span>
               <span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <Link to={hasAnyData ? "/cash-flow" : "/accounts"} className="ns-btn primary" style={{ fontSize: 12 }}>{hasAnyData ? "去記帳" : "建立帳戶"}</Link>
+                <Button size="sm" render={<Link to={hasAnyData ? "/cash-flow" : "/accounts"} />}>{hasAnyData ? "去記帳" : "建立帳戶"}</Button>
                 {!hasAnyData ? (
-                  <button type="button" className="ns-btn" style={{ fontSize: 12 }} onClick={loadDemo} disabled={demoLoading}>
+                  <Button size="sm" variant="outline" onClick={loadDemo} loading={demoLoading}>
                     {demoLoading ? "載入中…" : "載入示範資料"}
-                  </button>
+                  </Button>
                 ) : null}
               </span>
             </div>
           )}
-        </div>
+        </Card>
 
         {/* KPI stack */}
         <div className="ns-dash-kpi-stack">
@@ -369,7 +372,7 @@ export function DashboardRoute() {
           <KpiCard label="現金 / 存款" value={formatMoney(availableCash, primaryCurrency)} color="var(--ns-chart-2)" />
           {alternativeAssets > 0 ? <KpiCard label="其他資產" value={formatMoney(alternativeAssets, primaryCurrency)} color="var(--ns-chart-4)" /> : null}
           <KpiCard label="負債" value={formatMoney(liabilities, primaryCurrency)} color="var(--ns-chart-5)" tone={liabilities > 0 ? "neg" : undefined} />
-          <div className="ns-card" style={{ padding: "13px 16px", display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <Card style={{ padding: "13px 16px", display: "flex", flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 }}>
             <div style={{ width: 4, height: 32, borderRadius: 99, background: "var(--ns-chart-3)", flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className="ns-eyebrow" style={{ fontSize: 10 }}>本月現金流</div>
@@ -387,14 +390,14 @@ export function DashboardRoute() {
               <div className="muted">支 {formatNumber(monthExpense)}</div>
               {monthIncome > 0 ? <div className="pos mono" style={{ fontSize: 11 }}>儲蓄率 {savingsRate.toFixed(0)}%</div> : null}
             </div>
-          </div>
+          </Card>
         </div>
       </div>
 
       {/* Row 2 · Budget + Upcoming */}
       <div className="ns-dash-row2">
-        <div className="ns-card">
-          <SectionHead eyebrow={`Budget · ${todayLabel.slice(0, todayLabel.indexOf("月") + 1) || "本月"}`} title="預算進度" action={<Link to="/cash-flow/categories" className="ns-btn ghost" style={{ fontSize: 12 }}>管理分類 →</Link>} />
+        <Card style={{ padding: "var(--ns-pad-card)" }}>
+          <SectionHead eyebrow={`Budget · ${todayLabel.slice(0, todayLabel.indexOf("月") + 1) || "本月"}`} title="預算進度" action={<Button variant="ghost" size="xs" render={<Link to="/cash-flow/categories" />}>管理分類 →</Button>} />
           {budgetCats.length === 0 ? (
             <div className="muted" style={{ fontSize: 13 }}>本月尚無支出或預算資料。</div>
           ) : (
@@ -423,15 +426,15 @@ export function DashboardRoute() {
               ) : null}
             </div>
           )}
-        </div>
+        </Card>
 
-        <div className="ns-card" style={{ padding: 0 }}>
+        <Card>
           <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Upcoming</div>
               <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>近期帳單 · 30 天</h3>
             </div>
-            {upcoming.length ? <span className="ns-pill solid-neg" style={{ fontSize: 11 }}>NT${formatNumber(upcomingTotal)}</span> : null}
+            {upcoming.length ? <Badge variant="error" className="rounded-full px-2">NT${formatNumber(upcomingTotal)}</Badge> : null}
           </div>
           {upcoming.length === 0 ? (
             <div className="muted" style={{ fontSize: 13, padding: "18px 20px" }}>近期沒有排定的週期收支。</div>
@@ -451,18 +454,18 @@ export function DashboardRoute() {
               </div>
             ))
           )}
-        </div>
+        </Card>
       </div>
 
       {/* Credit-card payment reminders */}
       {creditReminders.length > 0 ? (
-        <div className="ns-card" style={{ padding: 0, marginBottom: 16 }}>
+        <Card style={{ marginBottom: 16 }}>
           <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Credit cards</div>
               <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>信用卡繳款提醒</h3>
             </div>
-            <span className="ns-pill solid-neg" style={{ fontSize: 11 }}>NT${formatNumber(creditReminders.reduce((s, r) => s + r.outstanding, 0))}</span>
+            <Badge variant="error" className="rounded-full px-2">NT${formatNumber(creditReminders.reduce((s, r) => s + r.outstanding, 0))}</Badge>
           </div>
           {creditReminders.map((r, i) => {
             const soon = r.daysUntilDue <= 7;
@@ -479,25 +482,25 @@ export function DashboardRoute() {
               </Link>
             );
           })}
-        </div>
+        </Card>
       ) : null}
 
       {/* Outstanding receivables / payables */}
       {settlements.items.length > 0 ? (
-        <div className="ns-card" style={{ padding: 0, marginBottom: 16 }}>
+        <Card style={{ marginBottom: 16 }}>
           <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Receivables &amp; payables</div>
               <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>應收 / 應付未結清</h3>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              {settlements.receivableTotal > 0 ? <span className="ns-pill" style={{ fontSize: 11, color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收 NT${formatNumber(settlements.receivableTotal)}</span> : null}
-              {settlements.payableTotal > 0 ? <span className="ns-pill" style={{ fontSize: 11, color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}>應付 NT${formatNumber(settlements.payableTotal)}</span> : null}
+              {settlements.receivableTotal > 0 ? <Badge variant="outline" className="rounded-full px-2" style={{ color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收 NT${formatNumber(settlements.receivableTotal)}</Badge> : null}
+              {settlements.payableTotal > 0 ? <Badge variant="outline" className="rounded-full px-2" style={{ color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}>應付 NT${formatNumber(settlements.payableTotal)}</Badge> : null}
             </div>
           </div>
           {settlements.items.slice(0, 5).map((item, i) => (
             <Link key={item.id} to="/cash-flow" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none", textDecoration: "none", color: "inherit" }}>
-              <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px", color: item.kind === "receivable" ? "var(--ns-chart-3)" : "var(--ns-chart-5)", borderColor: item.kind === "receivable" ? "var(--ns-chart-3)" : "var(--ns-chart-5)" }}>{item.kind === "receivable" ? "應收" : "應付"}</span>
+              <Badge variant="outline" className="rounded-full" style={{ color: item.kind === "receivable" ? "var(--ns-chart-3)" : "var(--ns-chart-5)", borderColor: item.kind === "receivable" ? "var(--ns-chart-3)" : "var(--ns-chart-5)" }}>{item.kind === "receivable" ? "應收" : "應付"}</Badge>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.counterparty || item.name}</div>
                 <div className="muted" style={{ fontSize: 11.5 }}>{item.date.slice(0, 10)}</div>
@@ -507,24 +510,24 @@ export function DashboardRoute() {
               </div>
             </Link>
           ))}
-        </div>
+        </Card>
       ) : null}
 
       {/* Recurring investments due — top up the 交割款 */}
       {dueRecurringInvestments.length > 0 ? (
-        <div className="ns-card" style={{ padding: 0, marginBottom: 16 }}>
+        <Card style={{ marginBottom: 16 }}>
           <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Recurring investments</div>
               <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>定期定額提醒</h3>
             </div>
-            <Link to="/investments" className="ns-btn ghost" style={{ fontSize: 12 }}>前往投資 →</Link>
+            <Button variant="ghost" size="xs" render={<Link to="/investments" />}>前往投資 →</Button>
           </div>
           {dueRecurringInvestments.map((r, i) => {
             const cash = (r.mode === "fixedShares" ? (r.quantity || 0) * (r.price || 0) : (r.amount || 0)) + (r.fee || 0);
             return (
               <Link key={r.id} to="/investments" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none", textDecoration: "none", color: "inherit" }}>
-                <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px", color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }}>{r.mode === "fixedShares" ? "定期定股" : "定期定額"}</span>
+                <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }}>{r.mode === "fixedShares" ? "定期定股" : "定期定額"}</Badge>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name || r.ticker}</div>
                   <div className="muted" style={{ fontSize: 11.5 }}>{r.nextRunDate.slice(5)} 投入 · 請備妥交割款</div>
@@ -533,13 +536,13 @@ export function DashboardRoute() {
               </Link>
             );
           })}
-        </div>
+        </Card>
       ) : null}
 
       {/* Row 3 · Allocation + Goals + Market */}
       <div className="ns-dash-row3">
         {/* Allocation */}
-        <div className="ns-card">
+        <Card style={{ padding: "var(--ns-pad-card)" }}>
           <SectionHead eyebrow="Asset allocation" title="資產配置" />
           {allocation.length === 0 ? (
             <div className="muted" style={{ fontSize: 13 }}>尚無資產可顯示配置。</div>
@@ -569,11 +572,11 @@ export function DashboardRoute() {
               </div>
             </div>
           )}
-        </div>
+        </Card>
 
         {/* Goals */}
-        <div className="ns-card">
-          <SectionHead eyebrow="Goals" title={`${goals.length} active`} action={<Link to="/goals" className="ns-btn ghost" style={{ fontSize: 12 }}>全部 →</Link>} />
+        <Card style={{ padding: "var(--ns-pad-card)" }}>
+          <SectionHead eyebrow="Goals" title={`${goals.length} active`} action={<Button variant="ghost" size="xs" render={<Link to="/goals" />}>全部 →</Button>} />
           {goals.length === 0 ? (
             <div className="muted" style={{ fontSize: 13 }}>還沒有設定目標。<Link to="/goals" style={{ color: "var(--ns-accent)" }}>建立 FIRE 目標 →</Link></div>
           ) : (
@@ -582,7 +585,7 @@ export function DashboardRoute() {
                 <div key={g.id}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                     <span style={{ fontSize: 13, fontWeight: 500 }}>{g.name}</span>
-                    {g.pct >= 100 ? <span className="ns-pill solid-pos" style={{ fontSize: 10 }}>達成</span> : null}
+                    {g.pct >= 100 ? <Badge variant="success" size="sm" className="rounded-full px-2">達成</Badge> : null}
                   </div>
                   <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden", marginBottom: 5 }}>
                     <div style={{ width: `${Math.min(g.pct, 100)}%`, height: "100%", background: "var(--ns-accent)", borderRadius: 99 }} />
@@ -595,10 +598,10 @@ export function DashboardRoute() {
               ))}
             </div>
           )}
-        </div>
+        </Card>
 
         {/* Market FX */}
-        <div className="ns-card" style={{ padding: 0 }}>
+        <Card>
           <div style={{ padding: "14px 18px 10px", borderBottom: "1px solid var(--ns-border)" }}>
             <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Market</div>
             <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>匯率</h3>
@@ -613,17 +616,17 @@ export function DashboardRoute() {
               </div>
             ))
           )}
-        </div>
+        </Card>
       </div>
 
       {/* Row 4 · Recent activity */}
-      <div className="ns-card" style={{ padding: 0 }}>
+      <Card>
         <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
           <div>
             <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Recent activity</div>
             <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>最近交易</h3>
           </div>
-          <Link to="/cash-flow" className="ns-btn ghost" style={{ fontSize: 12 }}>查看全部 →</Link>
+          <Button variant="ghost" size="xs" render={<Link to="/cash-flow" />}>查看全部 →</Button>
         </div>
         {recent.length === 0 ? (
           <div className="muted" style={{ fontSize: 13, padding: "18px 22px" }}>還沒有交易紀錄。</div>
@@ -642,14 +645,14 @@ export function DashboardRoute() {
             ))}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
 
 function KpiCard({ label, value, color, tone }: { label: string; value: string; color: string; tone?: "neg" }) {
   return (
-    <div className="ns-card" style={{ padding: "13px 16px", display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+    <Card style={{ padding: "13px 16px", display: "flex", flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 }}>
       <div style={{ width: 4, height: 32, borderRadius: 99, background: color, flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="ns-eyebrow" style={{ fontSize: 10 }}>{label}</div>
@@ -660,7 +663,7 @@ function KpiCard({ label, value, color, tone }: { label: string; value: string; 
           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
         }}>{value}</div>
       </div>
-    </div>
+    </Card>
   );
 }
 

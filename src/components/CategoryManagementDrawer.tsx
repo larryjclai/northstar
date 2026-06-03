@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Button } from "./coss/button";
+import { Card } from "./coss/card";
 import { X, Plus, Trash, PencilSimple, CaretRight, CaretDown, Tag, Check } from "@phosphor-icons/react";
 import { IconPicker } from "./IconPicker";
 import { Glyph } from "../lib/icons";
@@ -105,7 +107,7 @@ export function CategoryManagementDrawer({
       >
         <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <h2 style={{ fontSize: 16, fontWeight: 600 }}>分類管理</h2>
-          <button className="ns-btn-icon" onClick={onClose}><X size={18} /></button>
+          <Button variant="ghost" size="icon-sm" onClick={onClose}><X size={18} /></Button>
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
@@ -125,7 +127,7 @@ export function CategoryManagementDrawer({
                 onBlur={() => commitAddMain(draftMain)}
               />
             ) : (
-              <button className="ns-btn primary" onClick={() => { setAddingMain(true); setDraftMain(""); }}><Plus size={14} />新增主分類</button>
+              <Button onClick={() => { setAddingMain(true); setDraftMain(""); }}><Plus size={14} />新增主分類</Button>
             )}
           </div>
 
@@ -134,7 +136,7 @@ export function CategoryManagementDrawer({
               const isExp = expanded[group.name] || false;
               const isRenamingMain = renamingMain === group.name;
               return (
-                <div key={group.name} className="ns-card" style={{ padding: "12px 16px" }}>
+                <Card key={group.name} style={{ padding: "12px 16px" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
                       <div style={{ cursor: "pointer", display: "flex", alignItems: "center" }} onClick={() => toggle(group.name)}>
@@ -174,9 +176,9 @@ export function CategoryManagementDrawer({
                       )}
                     </div>
                     <div style={{ display: "flex", gap: 4 }}>
-                      <button className="ns-btn-icon" onClick={() => { setAddingSubFor(group.name); setDraftSub(""); setExpanded(prev => ({ ...prev, [group.name]: true })); }}><Plus size={14} /></button>
-                      <button className="ns-btn-icon" onClick={() => { setRenamingMain(group.name); setDraftRename(group.name); }}><PencilSimple size={14} /></button>
-                      <button className="ns-btn-icon" style={{ color: "var(--ns-danger)" }} onClick={() => removeMainCategory(group.name)}><Trash size={14} /></button>
+                      <Button variant="ghost" size="icon-sm" onClick={() => { setAddingSubFor(group.name); setDraftSub(""); setExpanded(prev => ({ ...prev, [group.name]: true })); }}><Plus size={14} /></Button>
+                      <Button variant="ghost" size="icon-sm" onClick={() => { setRenamingMain(group.name); setDraftRename(group.name); }}><PencilSimple size={14} /></Button>
+                      <Button variant="ghost" size="icon-sm" style={{ color: "var(--ns-danger)" }} onClick={() => removeMainCategory(group.name)}><Trash size={14} /></Button>
                     </div>
                   </div>
 
@@ -204,9 +206,9 @@ export function CategoryManagementDrawer({
                             )}
                             <div style={{ display: "flex", gap: 4 }}>
                               {!isRenamingThis && (
-                                <button className="ns-btn-icon" onClick={() => { setRenamingSub({ main: group.name, sub: child }); setDraftRename(child); }}><PencilSimple size={12} /></button>
+                                <Button variant="ghost" size="icon-sm" onClick={() => { setRenamingSub({ main: group.name, sub: child }); setDraftRename(child); }}><PencilSimple size={12} /></Button>
                               )}
-                              <button className="ns-btn-icon" style={{ color: "var(--ns-danger)" }} onClick={() => removeSubCategory(group.name, child)}><Trash size={12} /></button>
+                              <Button variant="ghost" size="icon-sm" style={{ color: "var(--ns-danger)" }} onClick={() => removeSubCategory(group.name, child)}><Trash size={12} /></Button>
                             </div>
                           </div>
                         );
@@ -226,20 +228,20 @@ export function CategoryManagementDrawer({
                             }}
                             onBlur={() => commitAddSub(group.name, draftSub)}
                           />
-                          <button className="ns-btn-icon" onClick={() => commitAddSub(group.name, draftSub)}><Check size={14} /></button>
+                          <Button variant="ghost" size="icon-sm" onClick={() => commitAddSub(group.name, draftSub)}><Check size={14} /></Button>
                         </div>
                       )}
                     </div>
                   )}
-                </div>
+                </Card>
               );
             })}
           </div>
         </div>
 
         <div style={{ padding: "16px 24px", borderTop: "1px solid var(--ns-border)", display: "flex", gap: 12 }}>
-          <button className="ns-btn" style={{ flex: 1, justifyContent: "center" }} onClick={onClose}>取消</button>
-          <button className="ns-btn primary" style={{ flex: 1, justifyContent: "center" }} onClick={async () => { await onSave(local); onClose(); }}>儲存變更</button>
+          <Button variant="outline" style={{ flex: 1, justifyContent: "center" }} onClick={onClose}>取消</Button>
+          <Button style={{ flex: 1, justifyContent: "center" }} onClick={async () => { await onSave(local); onClose(); }}>儲存變更</Button>
         </div>
       </div>
     </div>

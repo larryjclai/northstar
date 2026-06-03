@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { useToast } from "../components/Toast";
+import { Button } from "../components/coss/button";
+import { Card } from "../components/coss/card";
 import { computeNetWorthInCurrency } from "../features/goals/netWorth";
 import { projectRetirement, formatNumber, formatCompactNumber, type FinancialGoal } from "../domain";
 
@@ -109,19 +111,19 @@ export function GoalsRoute() {
           <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>目標・FIRE</h1>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <Link to="/goals/fire" className="ns-btn ghost" style={{ textDecoration: "none" }}>
+          <Button variant="ghost" render={<Link to="/goals/fire" />}>
             <Calculator size={16} /> FIRE Calculator
-          </Link>
-          <Link to="/goals/fire" className="ns-btn primary">
+          </Button>
+          <Button render={<Link to="/goals/fire" />}>
             <Plus size={16} weight="bold" /> 新目標
-          </Link>
+          </Button>
         </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         {/* Main goal hero card — shows whichever active goal is selected. */}
         {selectedGoal && stats ? (
-          <div className="ns-card" style={{ padding: 32, display: "flex", gap: 48, flexWrap: "wrap" }}>
+          <Card style={{ padding: 32, flexDirection: "row", gap: 48, flexWrap: "wrap" }}>
             {/* Left column */}
             <div style={{ flex: "0 0 320px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <div>
@@ -238,20 +240,20 @@ export function GoalsRoute() {
                 )}
               </div>
             </div>
-          </div>
+          </Card>
         ) : (
-          <div className="ns-card" style={{ padding: 40, textAlign: "center" }}>
+          <Card style={{ padding: 40, textAlign: "center" }}>
             <div style={{ width: 56, height: 56, borderRadius: "var(--ns-r-md)", background: "var(--ns-accent-soft)", color: "var(--ns-accent)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
               <Star size={26} weight="fill" />
             </div>
             <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 6 }}>還沒有 FIRE 目標</div>
             <div className="muted" style={{ fontSize: 13, marginBottom: 18 }}>設定年支出、提領率與報酬假設，Northstar 會用你的真實淨值估算何時財務自由。</div>
-            <Link to="/goals/fire" className="ns-btn primary"><Calculator size={14} />開啟 FIRE 計算機</Link>
-          </div>
+            <Button render={<Link to="/goals/fire" />} className="mx-auto"><Calculator size={14} />開啟 FIRE 計算機</Button>
+          </Card>
         )}
 
         {/* Goals list */}
-        <div className="ns-card" style={{ padding: "24px 0", overflow: "hidden" }}>
+        <Card style={{ padding: "24px 0", overflow: "hidden" }}>
           <div style={{ padding: "0 32px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
             <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>{goals.length} active {goals.length === 1 ? "goal" : "goals"}</h2>
           </div>
@@ -295,8 +297,8 @@ export function GoalsRoute() {
                         <span style={{ fontSize: 13, color: "var(--ns-fg-dim)" }}>追蹤中</span>
                       )}
                       <div style={{ display: "flex", gap: 8 }}>
-                        <button className="ns-btn ghost icon" title="編輯" onClick={() => navigate({ to: goal.kind === "fire" ? "/goals/fire" : "/goals", search: { id: goal.id } })}><PencilSimple size={14} /></button>
-                        <button className="ns-btn ghost icon" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={() => handleDeleteGoal(goal.id)}><Trash size={14} /></button>
+                        <Button variant="ghost" size="icon-sm" title="編輯" onClick={() => navigate({ to: goal.kind === "fire" ? "/goals/fire" : "/goals", search: { id: goal.id } })}><PencilSimple size={14} /></Button>
+                        <Button variant="ghost" size="icon-sm" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={() => handleDeleteGoal(goal.id)}><Trash size={14} /></Button>
                       </div>
                     </div>
                   </div>
@@ -304,7 +306,7 @@ export function GoalsRoute() {
               })}
             </div>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

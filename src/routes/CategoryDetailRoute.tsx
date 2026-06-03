@@ -1,4 +1,6 @@
 import { CaretLeft, Trash } from "@phosphor-icons/react";
+import { Button } from "../components/coss/button";
+import { Card } from "../components/coss/card";
 import { Link, useParams } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis } from "recharts";
@@ -56,9 +58,9 @@ export function CategoryDetailRoute() {
   return (
     <div style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
       <div style={{ marginBottom: 24 }}>
-        <Link to="/cash-flow" className="ns-btn ghost" style={{ padding: "6px 0", fontSize: 13, marginBottom: 8 }}>
+        <Button variant="ghost" render={<Link to="/cash-flow" />} style={{ marginBottom: 8 }}>
           <CaretLeft size={14} /> 返回記帳
-        </Link>
+        </Button>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <Glyph name={icon} size={32} color={resolveColor(color)} />
           <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, fontWeight: 600 }}>
@@ -69,7 +71,7 @@ export function CategoryDetailRoute() {
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 300px", gap: 20 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <div className="ns-card" style={{ padding: 24 }}>
+          <Card style={{ padding: 24 }}>
             <div className="ns-eyebrow" style={{ marginBottom: 4 }}>總支出</div>
             <div className="num" style={{ fontSize: 28, fontWeight: 500, marginBottom: 20 }}>
               {formatMoney(totalSpent, primaryCurrency)}
@@ -96,9 +98,9 @@ export function CategoryDetailRoute() {
                 </ResponsiveContainer>
               </div>
             )}
-          </div>
+          </Card>
 
-          <div className="ns-card">
+          <Card style={{ padding: "var(--ns-pad-card)" }}>
             <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--ns-border)", fontWeight: 600 }}>
               交易紀錄
             </div>
@@ -140,7 +142,7 @@ export function CategoryDetailRoute() {
                 ))}
               </div>
             )}
-          </div>
+          </Card>
         </div>
         <div></div>
       </div>

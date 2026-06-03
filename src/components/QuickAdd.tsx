@@ -1,4 +1,7 @@
 import { Plus, X, ArrowRight } from "@phosphor-icons/react";
+import { Badge } from "./coss/badge";
+import { Button } from "./coss/button";
+import { Card } from "./coss/card";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { buildLedgerSuggestions, buildMerchantCategoryMap, formatMoney, nowAsDatetimeLocal, parseQuickAdd, type QuickAddParsed } from "../domain";
@@ -159,10 +162,10 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
       >
         {/* Confirm card (shown after parsing) */}
         {confirm ? (
-          <div className="ns-card" style={{ padding: 16, boxShadow: "var(--ns-shadow-xl)" }}>
+          <Card style={{ padding: 16, boxShadow: "var(--ns-shadow-xl)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <span className="ns-eyebrow">確認 · {confirm.kind === "investment" ? (confirm.action === "buy" ? "買入" : "賣出") : confirm.entryType === "expense" ? "支出" : "收入"}</span>
-              <button className="ns-btn ghost icon" onClick={() => setConfirm(null)}><X size={14} /></button>
+              <Button variant="ghost" size="icon-sm" onClick={() => setConfirm(null)}><X size={14} /></Button>
             </div>
             {confirm.kind === "ledger" ? (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -180,9 +183,9 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                   <input className="ns-input" value={confirm.category} onChange={(e) => setConfirm({ ...confirm, category: e.target.value })} placeholder="選填" />
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 7 }}>
                     {categoryGroups.slice(0, 8).map((category) => (
-                      <button key={category.name} className="ns-pill" onClick={() => setConfirm({ ...confirm, category: category.name })}>
+                      <Button key={category.name} variant="outline" size="xs" onClick={() => setConfirm({ ...confirm, category: category.name })}>
                         {category.iconName || "•"} {category.name}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </Field>
@@ -201,10 +204,10 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                     <div className="muted" style={{ marginBottom: 5 }}>依過往紀錄建議</div>
                   ) : null}
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                    {ledgerSuggestions.merchants.map((merchant) => <button key={merchant} className="ns-pill" onClick={() => chooseMerchant(merchant)}>{merchant}</button>)}
+                    {ledgerSuggestions.merchants.map((merchant) => <Button key={merchant} variant="outline" size="xs" onClick={() => chooseMerchant(merchant)}>{merchant}</Button>)}
                     {ledgerSuggestions.accountIds.map((accountId) => {
                       const account = accountRows.find((row) => row.id === accountId);
-                      return account ? <button key={accountId} className="ns-pill" onClick={() => setConfirm({ ...confirm, accountId })}>{account.name}</button> : null;
+                      return account ? <Button key={accountId} variant="outline" size="xs" onClick={() => setConfirm({ ...confirm, accountId })}>{account.name}</Button> : null;
                     })}
                   </div>
                 </div>
@@ -224,10 +227,10 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
             )}
             {error ? <div style={{ color: "var(--ns-neg)", fontSize: 12.5, marginTop: 10 }}>{error}</div> : null}
             <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-              <button className="ns-btn" style={{ flex: "0 0 auto" }} onClick={() => setConfirm(null)}>返回</button>
-              <button className="ns-btn primary" style={{ flex: 1, justifyContent: "center" }} onClick={submit} disabled={pending}>{pending ? "儲存中…" : "確認新增"}</button>
+              <Button variant="outline" style={{ flex: "0 0 auto" }} onClick={() => setConfirm(null)}>返回</Button>
+              <Button style={{ flex: 1, justifyContent: "center" }} onClick={submit} disabled={pending}>{pending ? "儲存中…" : "確認新增"}</Button>
             </div>
-          </div>
+          </Card>
         ) : null}
 
         {/* Input bar */}
@@ -241,10 +244,10 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
             placeholder="快速記帳 · 試試「拿鐵 120 信用卡」或「買 2330.TW 5股 @1042」"
             style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--ns-fg)", fontFamily: "inherit", fontSize: 13.5, padding: "8px" }}
           />
-          <span className="ns-pill" style={{ fontSize: 10.5 }}><span className="mono">⌘N</span></span>
-          <button className="ns-btn primary" style={{ padding: "8px 16px", borderRadius: 999 }} onClick={parse} disabled={!text.trim()}>
+          <Badge variant="outline" className="rounded-full" style={{ fontSize: 10.5 }}><span className="mono">⌘N</span></Badge>
+          <Button style={{ padding: "8px 16px", borderRadius: 999 }} onClick={parse} disabled={!text.trim()}>
             解析 <ArrowRight size={13} weight="bold" />
-          </button>
+          </Button>
         </div>
       </div>
     </div>

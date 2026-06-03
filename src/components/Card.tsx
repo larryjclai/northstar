@@ -1,4 +1,5 @@
 import type { PropsWithChildren, ReactNode } from "react";
+import { Card as CossCard } from "./coss/card";
 
 export function Card({
   title,
@@ -13,15 +14,16 @@ export function Card({
   density?: "sm" | "md";
 }>) {
   const padding = density === "sm" ? "16px" : "var(--ns-pad-card)";
-  const bg =
-    variant === "muted" ? "var(--ns-bg)" : "var(--ns-bg-card)";
-  const shadow =
-    variant === "raised" ? "var(--ns-shadow-2)" : "var(--ns-shadow-1)";
 
   return (
-    <section
-      className="ns-card"
-      style={{ padding, background: bg, boxShadow: shadow }}
+    <CossCard
+      render={<section />}
+      style={{
+        padding,
+        // Default surface uses COSS Card's bg-card; muted/raised override.
+        ...(variant === "muted" ? { background: "var(--ns-bg)" } : {}),
+        ...(variant === "raised" ? { boxShadow: "var(--ns-shadow-2)" } : {}),
+      }}
     >
       {(title || action) && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -44,6 +46,6 @@ export function Card({
         </div>
       )}
       {children}
-    </section>
+    </CossCard>
   );
 }
