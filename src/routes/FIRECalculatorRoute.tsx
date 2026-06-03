@@ -1,4 +1,4 @@
-import { DownloadSimple, Star, Info, ChartLineUp, X } from "@phosphor-icons/react";
+import { DownloadSimple, Star, Info, ChartLineUp, ChartBar, X } from "@phosphor-icons/react";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine, Line, LineChart } from "recharts";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -184,8 +184,8 @@ export function FIRECalculatorRoute() {
                 <div style={{ fontSize: 13, color: "var(--ns-fg)" }}>目前資產</div>
                 <div style={{ fontSize: 16, fontWeight: 500 }}>NT${formatNumber(currentAssets)}</div>
               </div>
-              <div style={{ fontSize: 11, color: "var(--ns-fg-dim)", background: "var(--ns-surface)", borderRadius: 6, padding: "6px 10px" }}>
-                📊 自動同步自帳戶淨值
+              <div style={{ fontSize: 11, color: "var(--ns-fg-dim)", background: "var(--ns-surface)", borderRadius: 6, padding: "6px 10px", display: "flex", alignItems: "center", gap: 6 }}>
+                <ChartBar size={13} weight="fill" /> 自動同步自帳戶淨值
               </div>
             </div>
             <SliderRow label="年儲蓄/投入" value={`NT$${formatNumber(annualSavings)}`} min={0} max={3000000} minLabel="NT$0" maxLabel="NT$3.00M" val={annualSavings} setVal={setAnnualSavings} />

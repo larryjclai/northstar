@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { useFinanceData } from "../data/hooks";
 import { convertCurrency, formatMoney, type LedgerTransaction } from "../domain";
+import { Glyph } from "../lib/icons";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 
 export function CategoryDetailRoute() {
@@ -21,7 +22,7 @@ export function CategoryDetailRoute() {
 
   const category = appSettings?.categories?.find((c) => c.name === categoryName);
   const color = category?.color ?? "var(--ns-accent)";
-  const icon = category?.iconName ?? "📦";
+  const icon = category?.iconName ?? "Tag";
 
   function resolveColor(c: string): string {
     if (!c.startsWith("var(")) return c;
@@ -59,7 +60,7 @@ export function CategoryDetailRoute() {
           <CaretLeft size={14} /> 返回記帳
         </Link>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 32 }}>{icon}</span>
+          <Glyph name={icon} size={32} color={resolveColor(color)} />
           <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, fontWeight: 600 }}>
             {categoryName}
           </h1>

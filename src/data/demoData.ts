@@ -46,11 +46,11 @@ interface AccountBlueprint {
 }
 
 const ACCOUNTS: AccountBlueprint[] = [
-  { name: "國泰世華 數位帳戶", type: "depository", openingBalance: 286_000, currency: "TWD", iconName: "🏦" },
-  { name: "台新 Richart", type: "depository", openingBalance: 82_000, currency: "TWD", iconName: "💸" },
-  { name: "街口支付", type: "cash", openingBalance: 3_800, currency: "TWD", iconName: "📱" },
-  { name: "玉山 Pi 拍錢包卡", type: "credit", openingBalance: 0, currency: "TWD", iconName: "💳", creditLimit: 150_000, statementDay: 5, paymentDueDay: 23 },
-  { name: "凱基證券", type: "investment", openingBalance: 210_000, currency: "TWD", iconName: "📈" },
+  { name: "國泰世華 數位帳戶", type: "depository", openingBalance: 286_000, currency: "TWD", iconName: "Bank" },
+  { name: "台新 Richart", type: "depository", openingBalance: 82_000, currency: "TWD", iconName: "PiggyBank" },
+  { name: "街口支付", type: "cash", openingBalance: 3_800, currency: "TWD", iconName: "DeviceMobile" },
+  { name: "玉山 Pi 拍錢包卡", type: "credit", openingBalance: 0, currency: "TWD", iconName: "CreditCard", creditLimit: 150_000, statementDay: 5, paymentDueDay: 23 },
+  { name: "凱基證券", type: "investment", openingBalance: 210_000, currency: "TWD", iconName: "ChartLineUp" },
 ];
 
 // ── Ledger blueprints (account referenced by name, resolved after creation) ──

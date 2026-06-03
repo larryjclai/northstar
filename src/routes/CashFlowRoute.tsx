@@ -25,6 +25,8 @@ import { CategoriesTab } from "./CategoriesTab";
 import { MerchantsTab } from "./MerchantsTab";
 import { RecurringRulesTab } from "./RecurringRulesTab";
 import { MonthPicker } from "../components/ui/month-picker";
+import { AccountFilter } from "../components/AccountFilter";
+import { Glyph } from "../lib/icons";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -525,7 +527,7 @@ export function CashFlowRoute() {
     return [...map.entries()]
       .map(([name, amount], idx) => {
         const catSetting = appSettings?.categories.find(c => c.name === name);
-        return { name, amount, color: catSetting?.color || defaultColors[idx % defaultColors.length], icon: catSetting?.iconName || '📦' };
+        return { name, amount, color: catSetting?.color || defaultColors[idx % defaultColors.length], icon: catSetting?.iconName || 'Tag' };
       })
       .sort((a, b) => b.amount - a.amount);
   }, [ledgerRows, monthKey, selectedAccount, appSettings, toPrimary]);
@@ -615,18 +617,7 @@ export function CashFlowRoute() {
             triggerClassName="h-[36px] whitespace-nowrap"
           />
 
-          <div style={{ position: "relative" }}>
-            <select
-              className="ns-input"
-              value={selectedAccount}
-              onChange={(e) => setSelectedAccount(e.target.value)}
-              style={{ appearance: "none", padding: "0 28px 0 12px", height: 36, boxSizing: "border-box", fontSize: 13, minWidth: 116 }}
-            >
-              <option value="all">所有帳戶</option>
-              {accountRows.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-            <CaretDown size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--ns-muted)" }} />
-          </div>
+          <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} style={{ minWidth: 116, fontSize: 13 }} />
 
           <div style={{ position: "relative" }}>
             <select
@@ -770,7 +761,7 @@ export function CashFlowRoute() {
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, marginBottom: 5 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span>{r.icon}</span>
+                        <Glyph name={r.icon} size={14} />
                         <span style={{ fontWeight: 500 }}>{r.name}</span>
                       </div>
                       <span className="num muted" style={{ fontSize: 12 }}>
@@ -991,7 +982,7 @@ function LedgerRow({
       style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderBottom: "1px solid var(--ns-border)", cursor: "pointer" }}
     >
       <div style={{ width: 34, height: 34, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        {isTransfer ? <ArrowsLeftRight size={15} /> : categoryIcon ? <span style={{ fontSize: 16 }}>{categoryIcon}</span> : <Tag size={15} />}
+        {isTransfer ? <ArrowsLeftRight size={15} /> : categoryIcon ? <Glyph name={categoryIcon} size={16} /> : <Tag size={15} />}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1514,7 +1505,7 @@ function EntryDrawer({
                           display: "flex", alignItems: "center", gap: 4,
                         }}
                       >
-                        {c.iconName && <span style={{ fontSize: 14 }}>{c.iconName}</span>}
+                        {c.iconName && <Glyph name={c.iconName} size={14} />}
                         {c.name}
                       </button>
                     );
@@ -1678,7 +1669,7 @@ function EntryDrawer({
                           display: "flex", alignItems: "center", gap: 4,
                         }}
                       >
-                        {c.iconName && <span style={{ fontSize: 14 }}>{c.iconName}</span>}
+                        {c.iconName && <Glyph name={c.iconName} size={14} />}
                         {c.name}
                       </button>
                     );

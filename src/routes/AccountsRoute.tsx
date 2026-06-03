@@ -1,8 +1,9 @@
-import { ArrowsClockwise, CaretDown, CaretRight, DownloadSimple, ListChecks, PencilSimple, Plus, Scales, Trash, X } from "@phosphor-icons/react";
+import { ArrowsClockwise, CaretDown, CaretRight, Check, DownloadSimple, ListChecks, PencilSimple, Plus, Scales, Trash, X } from "@phosphor-icons/react";
 import { ReactNode, useMemo, useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import EmojiPicker from "emoji-picker-react";
 import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
+import { IconPicker } from "../components/IconPicker";
+import { Glyph, DEFAULT_ACCOUNT_ICON } from "../lib/icons";
 import { downloadCsv, exportAccountsCsv } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { getFinanceRepository } from "../data/repositories";
@@ -303,8 +304,8 @@ export function AccountsRoute() {
                   <div key={a.id}>
                   {showSubgroup ? <div className="ns-eyebrow" style={{ padding: "10px 22px 4px", borderTop: i ? "1px solid var(--ns-border)" : "none" }}>{subgroup}</div> : null}
                   <div className="ns-acct-row" style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 22px", borderTop: !showSubgroup && i ? "1px solid var(--ns-border)" : "none" }}>
-                    <div style={{ width: 36, height: 36, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: a.color || MARK_COLORS[i % MARK_COLORS.length], color: a.iconName ? undefined : "var(--ns-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: a.iconName ? 18 : 13 }}>
-                      {a.iconName || a.name.slice(0, 2)}
+                    <div style={{ width: 36, height: 36, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: a.color || MARK_COLORS[i % MARK_COLORS.length], color: "var(--ns-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600 }}>
+                      <Glyph name={a.iconName || DEFAULT_ACCOUNT_ICON[a.type]} size={20} color="var(--ns-bg)" fallbackText={a.name.slice(0, 2)} />
                     </div>
                     <div
                       style={{ minWidth: 0, maxWidth: 280, flexShrink: 1, cursor: "pointer" }}
@@ -479,7 +480,7 @@ function AccountDrawer({
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontFamily: 'var(--ns-font-mono)', fontWeight: 700, fontSize: 10,
                     }}>
-                      {i < step ? "✓" : i + 1}
+                      {i < step ? <Check size={12} weight="bold" /> : i + 1}
                     </div>
                     <span style={{
                       fontSize: 11.5, whiteSpace: 'nowrap',
@@ -554,11 +555,11 @@ function AccountDrawer({
                 <DrawerField label="圖示與顏色（選填）">
                   <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                     <Popover>
-                      <PopoverTrigger style={{ width: 40, height: 40, borderRadius: "var(--ns-r-sm)", fontSize: 20, background: form.color || "var(--ns-bg-hover)", border: "1px solid var(--ns-border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        {form.iconName || "＋"}
+                      <PopoverTrigger style={{ width: 40, height: 40, borderRadius: "var(--ns-r-sm)", fontSize: 20, color: form.color ? "var(--ns-bg)" : undefined, background: form.color || "var(--ns-bg-hover)", border: "1px solid var(--ns-border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Glyph name={form.iconName || DEFAULT_ACCOUNT_ICON[form.type]} size={20} color={form.color ? "var(--ns-bg)" : undefined} fallbackText="＋" />
                       </PopoverTrigger>
                       <PopoverContent className="z-[150] shadow-xl rounded-xl w-auto p-0">
-                        <EmojiPicker onEmojiClick={(e) => setForm({ ...form, iconName: e.emoji })} width={300} height={400} />
+                        <IconPicker value={form.iconName} onSelect={(name) => setForm({ ...form, iconName: name })} />
                       </PopoverContent>
                     </Popover>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -658,7 +659,7 @@ function AccountDrawer({
                         <div style={{ fontSize: 13.5, fontWeight: 500 }}>{m.label}</div>
                         {m.sub && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{m.sub}</div>}
                       </div>
-                      {importMethod === m.id && <div style={{ color: 'var(--ns-accent)' }}>✓</div>}
+                      {importMethod === m.id && <Check size={15} weight="bold" style={{ color: 'var(--ns-accent)' }} />}
                     </div>
                   ))}
                 </div>

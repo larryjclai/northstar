@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { formatNumber, type LedgerTransaction } from "../domain";
+import { Glyph } from "../lib/icons";
 
 function resolveColor(color: string): string {
   if (!color.startsWith("var(")) return color;
@@ -61,7 +62,7 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, primaryCur
         ytdAmount: ytdStats?.amount ?? 0,
         topMerchant,
         color: catSetting?.color || defaultColors[idx % defaultColors.length], 
-        icon: catSetting?.iconName || '📦' 
+        icon: catSetting?.iconName || 'Tag'
       };
     })
     .sort((a, b) => b.amount - a.amount);
@@ -136,7 +137,7 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, primaryCur
               <div key={r.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ width: 8, height: 8, borderRadius: "50%", background: r.color }} />
-                  <span>{r.icon} {r.name}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Glyph name={r.icon} size={14} /> {r.name}</span>
                 </div>
                 <span className="num muted">{(totalMonthSpend > 0 ? (r.amount / totalMonthSpend) * 100 : 0).toFixed(1)}%</span>
               </div>
@@ -179,7 +180,7 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, primaryCur
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--ns-bg-hover)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
-                        {r.icon}
+                        <Glyph name={r.icon} size={16} />
                       </div>
                       <span style={{ fontWeight: 500 }}>{r.name}</span>
                     </div>

@@ -8,6 +8,7 @@ import { getFinanceRepository, type StoredMarketQuote } from "../data/repositori
 import { enterDemoMode } from "../data/demoData";
 import { useDemoMode } from "../state/demoMode";
 import { useToast } from "../components/Toast";
+import { AccountFilter } from "../components/AccountFilter";
 import { useQuickAdd } from "../state/quickAdd";
 import {
   assetTypeLabels,
@@ -288,15 +289,7 @@ export function DashboardRoute() {
           <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>{greeting}</h1>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <select 
-            className="ns-input" 
-            style={{ minWidth: 120, maxWidth: 200, height: 36, boxSizing: "border-box", appearance: "none", padding: "0 28px 0 12px", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4 6 8 10 12 6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center", backgroundSize: "14px" }}
-            value={selectedAccount}
-            onChange={e => setSelectedAccount(e.target.value)}
-          >
-            <option value="all">所有帳戶</option>
-            {accountRows.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
+          <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} />
           <MonthPicker value={monthKey} onChange={setMonthKey} triggerClassName="h-[36px] whitespace-nowrap" />
           <button className="ns-btn" style={{ height: 36, boxSizing: "border-box", whiteSpace: "nowrap" }} onClick={() => refreshQuotes.mutate(assetRows.map((a) => a.ticker))} disabled={refreshQuotes.isPending || assetRows.length === 0}>
             <ArrowsClockwise size={14} />{refreshQuotes.isPending ? "更新中" : "更新"}

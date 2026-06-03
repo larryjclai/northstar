@@ -1,4 +1,5 @@
-import { Gear, Plus, Tag, X } from "@phosphor-icons/react";
+import { Gear, Plus, X } from "@phosphor-icons/react";
+import { Glyph } from "../lib/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
@@ -72,8 +73,7 @@ export function CategoriesRoute() {
         const catSetting = appSettings?.categories.find(c => c.name === name);
         const budget = catSetting?.budget || null;
         const color = catSetting?.color || defaultColors[index % defaultColors.length];
-        const emoji = catSetting?.iconName || '📦';
-        const icon = Tag; // Fallback Phosphor icon
+        const emoji = catSetting?.iconName || 'Tag';
         
         return {
           name,
@@ -81,7 +81,6 @@ export function CategoriesRoute() {
           count: stats.count,
           budget,
           color,
-          icon,
           emoji
         };
       });
@@ -204,7 +203,7 @@ export function CategoriesRoute() {
                       transition: "all 0.15s ease",
                     }}
                   >
-                    <span style={{ fontSize: 16 }}>{cat.emoji}</span>
+                    <Glyph name={cat.emoji} size={16} />
                     <span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cat.name}</span>
                   </div>
                 ))}
@@ -231,7 +230,6 @@ export function CategoriesRoute() {
           {/* List Items */}
           <div style={{ display: "flex", flexDirection: "column" }}>
             {categoryStats.map((cat, index) => {
-              const IconComp = cat.icon;
               const hasBudget = cat.budget !== null;
               const percent = hasBudget ? (cat.amount / cat.budget!) * 100 : 0;
               const isOver = hasBudget && percent > 100;
@@ -257,7 +255,7 @@ export function CategoriesRoute() {
                   {/* Category Info */}
                   <div style={{ flex: "0 0 160px", display: "flex", alignItems: "center", gap: 16 }}>
                     <div style={{ width: 36, height: 36, borderRadius: 10, background: (cat.color || 'var(--ns-surface-strong)') + '18', display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
-                      {cat.emoji}
+                      <Glyph name={cat.emoji} size={20} />
                     </div>
                     <div>
                       <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 2 }}>{cat.name}</div>

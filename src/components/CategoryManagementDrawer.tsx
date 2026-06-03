@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { X, Plus, Trash, PencilSimple, CaretRight, CaretDown, Tag, Check } from "@phosphor-icons/react";
-import EmojiPicker from "emoji-picker-react";
+import { IconPicker } from "./IconPicker";
+import { Glyph } from "../lib/icons";
 import { Popover, PopoverTrigger, PopoverContent } from "./ui/popover";
 import { CategoryGroup } from "../domain";
 
@@ -141,15 +142,14 @@ export function CategoryManagementDrawer({
                       </div>
                       <Popover>
                         <PopoverTrigger className="ns-btn-icon" style={{ fontSize: 16 }}>
-                          {group.iconName || <Tag size={16} />}
+                          {group.iconName ? <Glyph name={group.iconName} size={16} /> : <Tag size={16} />}
                         </PopoverTrigger>
                         <PopoverContent className="z-[150] shadow-xl rounded-xl w-auto p-0">
-                          <EmojiPicker
-                            onEmojiClick={(emojiData) => {
-                              setLocal(local.map(c => c.name === group.name ? { ...c, iconName: emojiData.emoji } : c));
+                          <IconPicker
+                            value={group.iconName}
+                            onSelect={(name) => {
+                              setLocal(local.map(c => c.name === group.name ? { ...c, iconName: name } : c));
                             }}
-                            width={300}
-                            height={400}
                           />
                         </PopoverContent>
                       </Popover>
