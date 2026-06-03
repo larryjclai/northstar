@@ -106,6 +106,9 @@ const fireCalculatorRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/goals/fire",
   component: FIRECalculatorRoute,
+  validateSearch: (search: Record<string, unknown>): { id?: string } => {
+    return typeof search.id === "string" && search.id ? { id: search.id } : {};
+  },
 });
 
 const routeTree = rootRoute.addChildren([

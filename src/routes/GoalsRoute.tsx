@@ -1,11 +1,11 @@
 import { CaretRight, Plus, Calculator, CheckCircle, Target, Star, Trash, PencilSimple } from "@phosphor-icons/react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { useToast } from "../components/Toast";
 import { computeNetWorthInCurrency } from "../features/goals/netWorth";
-import { projectRetirement, formatNumber, type FinancialGoal } from "../domain";
+import { projectRetirement, formatNumber, formatCompactNumber, type FinancialGoal } from "../domain";
 
 function goalTargetAmount(goal: FinancialGoal): number {
   if (goal.targetAmount && goal.targetAmount > 0) return goal.targetAmount;
@@ -43,42 +43,63 @@ export function GoalsRoute() {
   const goals = (financialGoals.data ?? []).filter((g) => g.deletedAt === null);
   const fireGoal = goals.find((row) => row.kind === "fire") ?? null;
 
+  // The hero card can show any active goal. Default to the FIRE goal, falling
+  // back to the first goal so a custom-only user still sees a hero.
+  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
+  const selectedGoal = goals.find((g) => g.id === selectedGoalId) ?? fireGoal ?? goals[0] ?? null;
+  const isFire = selectedGoal?.kind === "fire";
+
   const currentValue = useMemo(
-    () => (fireGoal ? computeNetWorthInCurrency(fireGoal.currency, accountRows, assetRows, quoteRows, appSettings, fxHistory) : 0),
-    [fireGoal, accountRows, assetRows, quoteRows, appSettings, fxHistory],
+    () => (selectedGoal ? computeNetWorthInCurrency(selectedGoal.currency, accountRows, assetRows, quoteRows, appSettings, fxHistory) : 0),
+    [selectedGoal, accountRows, assetRows, quoteRows, appSettings, fxHistory],
   );
 
   const projectionRates = { bear: 0.05, base: 0.072, bull: 0.1 };
   const activeRate = projectionRates[activeProjection];
 
   const projection = useMemo(
-    () => (fireGoal ? projectRetirement({ goal: { ...fireGoal, expectedAnnualReturn: activeRate }, currentValue }) : null),
-    [fireGoal, currentValue, activeRate],
+    () => (selectedGoal && isFire ? projectRetirement({ goal: { ...selectedGoal, expectedAnnualReturn: activeRate }, currentValue }) : null),
+    [selectedGoal, isFire, currentValue, activeRate],
   );
 
-  const chartData = useMemo(() => {
-    if (projection) return projection.series.map((row) => ({ age: row.age, portfolio: row.endBalance }));
-    return [];
-  }, [projection]);
-
-  // FIRE card figures, derived from the real goal.
-  const fireStats = useMemo(() => {
-    if (!fireGoal) return null;
-    const annualSaving = (fireGoal.monthlyContribution || 0) * 12;
-    const annualSpending = fireGoal.annualSpending;
-    const swr = fireGoal.withdrawalRate;
-    const target = goalTargetAmount(fireGoal);
+  // Headline figures for the selected goal. For FIRE we compound at the chosen
+  // projection rate; for custom goals we normalise the stored return (which may
+  // be a fraction or a percentage) and accumulate yearly savings.
+  const stats = useMemo(() => {
+    if (!selectedGoal) return null;
+    const annualSaving = (selectedGoal.monthlyContribution || 0) * 12;
+    const annualSpending = selectedGoal.annualSpending;
+    const swr = selectedGoal.withdrawalRate;
+    const target = goalTargetAmount(selectedGoal);
+    const rawReturn = selectedGoal.expectedAnnualReturn || 0;
+    const rate = isFire ? activeRate : rawReturn > 1 ? rawReturn / 100 : rawReturn;
     let balance = currentValue;
-    let fiYears: number | null = null;
+    let years: number | null = null;
     for (let i = 0; i <= 60; i++) {
-      if (target > 0 && balance >= target && fiYears === null) fiYears = i;
-      balance = balance * (1 + activeRate) + annualSaving;
+      if (target > 0 && balance >= target && years === null) years = i;
+      balance = balance * (1 + rate) + annualSaving;
     }
     const progress = target > 0 ? Math.min(100, (currentValue / target) * 100) : 0;
-    return { annualSaving, annualSpending, swr, target, fiYears, progress };
-  }, [fireGoal, currentValue, activeRate]);
+    return { annualSaving, annualSpending, swr, target, years, progress, rate };
+  }, [selectedGoal, isFire, currentValue, activeRate]);
 
-  const chartColor = activeProjection === "bear" ? "var(--ns-neg)" : activeProjection === "bull" ? "var(--ns-accent)" : "var(--ns-pos)";
+  // Unified, labelled chart series. FIRE uses the age-based retirement
+  // projection; custom goals use a year-based savings accumulation.
+  const chartData = useMemo(() => {
+    if (!selectedGoal || !stats) return [];
+    if (isFire && projection) return projection.series.map((row) => ({ x: row.age, portfolio: row.endBalance }));
+    const startYear = new Date().getFullYear();
+    let balance = currentValue;
+    const out: { x: number; portfolio: number }[] = [];
+    for (let i = 0; i <= 30; i++) {
+      out.push({ x: startYear + i, portfolio: Math.round(balance) });
+      balance = balance * (1 + stats.rate) + stats.annualSaving;
+    }
+    return out;
+  }, [selectedGoal, isFire, projection, stats, currentValue]);
+  const xUnit = isFire ? "歲" : "年";
+
+  const chartColor = !isFire ? "var(--ns-accent)" : activeProjection === "bear" ? "var(--ns-neg)" : activeProjection === "bull" ? "var(--ns-accent)" : "var(--ns-pos)";
 
   return (
     <div style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
@@ -98,29 +119,64 @@ export function GoalsRoute() {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        {/* Main FIRE Card */}
-        {fireGoal && fireStats ? (
+        {/* Main goal hero card — shows whichever active goal is selected. */}
+        {selectedGoal && stats ? (
           <div className="ns-card" style={{ padding: 32, display: "flex", gap: 48, flexWrap: "wrap" }}>
             {/* Left column */}
             <div style={{ flex: "0 0 320px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <div>
-                <div style={{ fontSize: 12, color: "var(--ns-fg-muted)", marginBottom: 12, letterSpacing: 0.5 }}>{fireGoal.name}</div>
+                {/* Goal switcher — only when there's more than one active goal. */}
+                {goals.length > 1 ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+                    {goals.map((g) => {
+                      const active = g.id === selectedGoal.id;
+                      return (
+                        <button
+                          key={g.id}
+                          onClick={() => setSelectedGoalId(g.id)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 5, fontSize: 12, padding: "4px 10px", borderRadius: 999, cursor: "pointer", border: "1px solid",
+                            background: active ? "var(--ns-surface-strong)" : "transparent",
+                            borderColor: active ? "var(--ns-border)" : "transparent",
+                            color: active ? "var(--ns-fg)" : "var(--ns-fg-muted)",
+                          }}
+                        >
+                          {g.kind === "fire" ? <Star size={12} weight="fill" color="var(--ns-pos)" /> : <Target size={12} color="var(--ns-accent)" />}
+                          {g.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: "var(--ns-fg-muted)", marginBottom: 12, letterSpacing: 0.5 }}>{selectedGoal.name}</div>
+                )}
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 16 }}>
                   <span style={{ fontSize: 40, fontWeight: 600, letterSpacing: -1 }}>NT${(currentValue / 1_000_000).toFixed(2)}M</span>
-                  <span style={{ fontSize: 14, color: "var(--ns-fg-muted)" }}>/ NT${(fireStats.target / 1_000_000).toFixed(0)}M</span>
+                  <span style={{ fontSize: 14, color: "var(--ns-fg-muted)" }}>/ NT${(stats.target / 1_000_000).toFixed(stats.target >= 10_000_000 ? 0 : 2)}M</span>
                 </div>
                 <div style={{ height: 6, borderRadius: 3, background: "var(--ns-surface-strong)", overflow: "hidden", marginBottom: 12 }}>
-                  <div style={{ width: `${fireStats.progress.toFixed(1)}%`, height: "100%", background: "linear-gradient(90deg, var(--ns-accent), var(--ns-pos))", borderRadius: 3 }} />
+                  <div style={{ width: `${stats.progress.toFixed(1)}%`, height: "100%", background: "linear-gradient(90deg, var(--ns-accent), var(--ns-pos))", borderRadius: 3 }} />
                 </div>
                 <div style={{ fontSize: 13, color: "var(--ns-fg-dim)" }}>
-                  {fireStats.progress.toFixed(1)}% · {fireStats.fiYears !== null ? `預估 ${fireStats.fiYears} 年後達成 (${new Date().getFullYear() + fireStats.fiYears})` : "尚無法預估"}
+                  {stats.progress.toFixed(1)}% · {stats.years !== null ? `預估 ${stats.years} 年後達成 (${new Date().getFullYear() + stats.years})` : "尚無法預估"}
                 </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginTop: 48 }}>
-                <Stat label="年儲蓄" value={`NT$${formatNumber(fireStats.annualSaving)}`} />
-                <Stat label="假設報酬率" value={`${(activeRate * 100).toFixed(1)}%`} />
-                <Stat label="年支出基準" value={`NT$${formatNumber(fireStats.annualSpending)}`} />
-                <Stat label="SWR" value={`${fireStats.swr}%`} />
+                {isFire ? (
+                  <>
+                    <Stat label="年儲蓄" value={`NT$${formatNumber(stats.annualSaving)}`} />
+                    <Stat label="假設報酬率" value={`${(activeRate * 100).toFixed(1)}%`} />
+                    <Stat label="年支出基準" value={`NT$${formatNumber(stats.annualSpending)}`} />
+                    <Stat label="SWR" value={`${stats.swr}%`} />
+                  </>
+                ) : (
+                  <>
+                    <Stat label="目前淨值" value={`NT$${formatNumber(currentValue)}`} />
+                    <Stat label="目標金額" value={`NT$${formatNumber(stats.target)}`} />
+                    <Stat label="年儲蓄" value={`NT$${formatNumber(stats.annualSaving)}`} />
+                    <Stat label="假設報酬率" value={`${(stats.rate * 100).toFixed(1)}%`} />
+                  </>
+                )}
               </div>
             </div>
 
@@ -128,35 +184,50 @@ export function GoalsRoute() {
             <div style={{ flex: 1, minWidth: 280, display: "flex", flexDirection: "column" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <div style={{ fontSize: 11, fontFamily: "var(--ns-font-mono)", color: "var(--ns-fg-muted)", letterSpacing: 1 }}>PROJECTION</div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {([["bear", "保守 5%"], ["base", "基準 7.2%"], ["bull", "樂觀 10%"]] as const).map(([k, label]) => (
-                    <button
-                      key={k}
-                      onClick={() => setActiveProjection(k)}
-                      style={{
-                        fontSize: 12, padding: "4px 10px", borderRadius: 12, cursor: "pointer", border: "1px solid",
-                        background: activeProjection === k ? "var(--ns-surface-strong)" : "transparent",
-                        borderColor: activeProjection === k ? "var(--ns-border)" : "transparent",
-                        color: activeProjection === k ? "var(--ns-fg)" : "var(--ns-fg-muted)",
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                {isFire ? (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {([["bear", "保守 5%"], ["base", "基準 7.2%"], ["bull", "樂觀 10%"]] as const).map(([k, label]) => (
+                      <button
+                        key={k}
+                        onClick={() => setActiveProjection(k)}
+                        style={{
+                          fontSize: 12, padding: "4px 10px", borderRadius: 12, cursor: "pointer", border: "1px solid",
+                          background: activeProjection === k ? "var(--ns-surface-strong)" : "transparent",
+                          borderColor: activeProjection === k ? "var(--ns-border)" : "transparent",
+                          color: activeProjection === k ? "var(--ns-fg)" : "var(--ns-fg-muted)",
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11, color: "var(--ns-fg-dim)" }}>依年儲蓄推估</div>
+                )}
               </div>
               <div style={{ flex: 1, minHeight: 220, width: "100%" }}>
                 {chartData.length > 1 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
+                    <AreaChart data={chartData} margin={{ top: 20, right: 8, left: 0, bottom: 0 }}>
                       <defs>
                         <linearGradient id="fireChartGradient" x1="0" x2="0" y1="0" y2="1">
                           <stop offset="5%" stopColor={chartColor} stopOpacity={0.2} />
                           <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <XAxis dataKey="age" hide />
-                      <YAxis hide domain={["dataMin", "dataMax"]} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--ns-border)" vertical={false} />
+                      <XAxis dataKey="x" tick={{ fill: "var(--ns-fg-muted)", fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}${xUnit}`} minTickGap={28} />
+                      <YAxis tick={{ fill: "var(--ns-fg-muted)", fontSize: 11 }} tickLine={false} axisLine={false} width={52} tickFormatter={(v) => formatCompactNumber(Number(v))} domain={["dataMin", "dataMax"]} />
+                      <Tooltip
+                        formatter={(value: number) => [`NT$${formatNumber(Number(value))}`, "預估淨值"]}
+                        labelFormatter={(l) => `${l}${xUnit}`}
+                        contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }}
+                        itemStyle={{ color: "var(--ns-fg)" }}
+                        labelStyle={{ color: "var(--ns-fg-muted)" }}
+                      />
+                      {stats.target > 0 ? (
+                        <ReferenceLine y={stats.target} stroke="var(--ns-border-strong)" strokeDasharray="4 4" label={{ value: "目標", position: "insideTopRight", fill: "var(--ns-fg-muted)", fontSize: 10 }} />
+                      ) : null}
                       <Area type="monotone" dataKey="portfolio" stroke={chartColor} fill="url(#fireChartGradient)" strokeWidth={2} isAnimationActive={false} />
                     </AreaChart>
                   </ResponsiveContainer>

@@ -1,15 +1,18 @@
 import { DownloadSimple, Star, Info, ChartLineUp } from "@phosphor-icons/react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine, Line, LineChart } from "recharts";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { formatNumber, todayInTimezone } from "../domain";
 import { computeNetWorthInCurrency } from "../features/goals/netWorth";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { useToast } from "../components/Toast";
 import type { FinancialGoalDraft } from "../data/repositories";
 
 export function FIRECalculatorRoute() {
   const navigate = useNavigate();
-  const { accounts, assets, quotes, settings, dailyFxRates } = useFinanceData();
+  const toast = useToast();
+  const { id: editingGoalId } = useSearch({ strict: false }) as { id?: string };
+  const { accounts, assets, quotes, settings, dailyFxRates, financialGoals } = useFinanceData();
   const accountRows = accounts.data ?? [];
   const assetRows = assets.data ?? [];
   const quoteRows = quotes.data ?? [];
@@ -40,6 +43,26 @@ export function FIRECalculatorRoute() {
 
   // currentAssets is always synced from real data
   const currentAssets = realNetWorth;
+
+  // When opened via the goal edit pencil (?id=…), prefill the sliders from the
+  // saved goal once it loads. A ref guards against clobbering edits on later
+  // renders / data refreshes.
+  const prefilledFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!editingGoalId || prefilledFor.current === editingGoalId) return;
+    const goal = (financialGoals.data ?? []).find((g) => g.id === editingGoalId && g.deletedAt === null);
+    if (!goal) return;
+    prefilledFor.current = editingGoalId;
+    if (goal.currentAge != null) setCurrentAge(goal.currentAge);
+    if (goal.retirementAge != null) setTargetAge(goal.retirementAge);
+    if (goal.monthlyContribution) setAnnualSavings(Math.round(goal.monthlyContribution * 12));
+    if (goal.annualSpending) setAnnualExpense(goal.annualSpending);
+    if (goal.withdrawalRate) setSwr(goal.withdrawalRate <= 1 ? goal.withdrawalRate * 100 : goal.withdrawalRate);
+    if (goal.expectedAnnualReturn) setCagr(goal.expectedAnnualReturn <= 1 ? goal.expectedAnnualReturn * 100 : goal.expectedAnnualReturn);
+  }, [editingGoalId, financialGoals.data]);
+
+  const editingGoal = editingGoalId ? (financialGoals.data ?? []).find((g) => g.id === editingGoalId && g.deletedAt === null) ?? null : null;
+  const isEditing = Boolean(editingGoal);
 
   const fireTarget = annualExpense / (swr / 100);
   
@@ -80,22 +103,23 @@ export function FIRECalculatorRoute() {
   const handleSaveGoal = async () => {
     try {
       await upsertGoal.mutateAsync({
+        ...(editingGoal ? { id: editingGoal.id } : {}),
         kind: "fire",
-        name: "FIRE · 財務獨立",
-        currency: primaryCurrency,
+        name: editingGoal?.name ?? "FIRE · 財務獨立",
+        currency: editingGoal?.currency ?? primaryCurrency,
         annualSpending: annualExpense,
         withdrawalRate: swr,
         expectedAnnualReturn: cagr,
         monthlyContribution: annualSavings / 12,
         targetAmount: fireTarget,
-        startDate: new Date().toISOString().slice(0, 10),
+        startDate: editingGoal?.startDate ?? new Date().toISOString().slice(0, 10),
         currentAge,
         retirementAge: targetAge,
       });
-      alert("成功存為目標！");
+      toast.success(isEditing ? "已儲存變更" : "成功存為目標！");
       navigate({ to: "/goals" });
     } catch (e) {
-      alert("儲存失敗：" + (e instanceof Error ? e.message : String(e)));
+      toast.error("儲存失敗：" + (e instanceof Error ? e.message : String(e)));
     }
   };
 
@@ -115,7 +139,7 @@ export function FIRECalculatorRoute() {
             <DownloadSimple size={16} /> 匯出報告
           </button>
           <button onClick={handleSaveGoal} className="ns-btn primary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, fontSize: 14 }}>
-            <Star size={16} weight="bold" /> 存為目標
+            <Star size={16} weight="bold" /> {isEditing ? "儲存變更" : "存為目標"}
           </button>
         </div>
       </div>
