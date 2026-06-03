@@ -117,7 +117,7 @@ Order = highest user value / highest inline-style debt first, while starting wit
 | 2 ✅ | `DashboardRoute` | 138 | **DONE.** Established the Card/Badge/Button pattern: all `ns-card`→`Card`, `ns-btn`→`Button`, `ns-pill`→`Badge`. Charts + layout grids kept. |
 | 3 ✅ | `CashFlowRoute` | 155 | **DONE.** ns-card→Card, ns-btn→Button, ns-pill→Badge across the route + StatCard/RankingCard/UpcomingPayments helpers. Bespoke multi-colour drawer type-tabs and native inputs kept. |
 | 4 ✅ | `InvestmentsRoute` + `HoldingDetailRoute` | 60 + 61 | **DONE.** Also migrated the shared `components/Card.tsx` to wrap COSS Card (covers TransactionsRoute too). HoldingDetail price range selector → COSS ToggleGroup. Verified end-to-end with a real holding. |
-| 5 | `AccountsRoute` + account wizard | 111 | Multi-step wizard = good COSS dialog/section test. **Note:** the shared `components/Card.tsx` is already COSS-backed (Phase 4). |
+| 5 ✅ | `AccountsRoute` + account wizard | 111 | **DONE.** Cards/buttons/badge across the list, summary, adjust modal, and the multi-step wizard (close + footer). Bespoke type-selection cards and ns-input fields kept. |
 | 6 | `FIRECalculatorRoute` + `GoalsRoute` | 102 + 56 | Forms + viz. |
 | 7 | `SettingsRoute` | 213 | Largest; do last once every pattern exists. |
 | 8 | Remaining tabs/panels | tail | `Categories*`, `Merchants*`, `Recurring*`, `Reconcile`, `Transactions`, shared panels. |
@@ -252,6 +252,6 @@ independently shippable and revertible.
 
 ---
 
-_Status: Phases 0–4 complete as of 2026-06-03 (foundations, pilot, Dashboard, CashFlow,
-Investments+HoldingDetail; shared components/Card.tsx now COSS-backed). Phases 5–10 not
-yet started. Next: Phase 5 — AccountsRoute + account wizard._
+_Status: Phases 0–5 complete as of 2026-06-03 (foundations, pilot, Dashboard, CashFlow,
+Investments+HoldingDetail, Accounts+wizard; shared components/Card.tsx COSS-backed).
+Phases 6–10 not yet started. Next: Phase 6 — FIRECalculatorRoute + GoalsRoute._
