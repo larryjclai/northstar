@@ -22,6 +22,7 @@ import type {
 } from "../domain/types";
 import type { MarketQuote } from "../features/market-data";
 import { calculateInvestmentAccountQuantity, calculateInvestmentCashDelta, calculateInvestmentQuantity, isEffectivelyNegative } from "../domain/investmentCash";
+import { buildPositionMetrics } from "../domain/portfolioMetrics";
 import { assertLedgerInvariants, assertTransferInvariants, buildRecalculationReport, deriveAccountBalances, findMissingFxPairs } from "../domain/ledgerTrust";
 import {
   buildPendingChanges,
@@ -379,28 +380,14 @@ function recomputeAssets(assets: PortfolioAsset[], records: InvestmentRecord[]) 
       return { ...asset, totalQuantity: Math.max(0, calculateInvestmentQuantity(linkedRecords, asset.id, baseQty)) };
     }
     const assetRecords = activeRecords.filter((record) => record.assetId === asset.id);
-    let quantity = 0;
-    let cost = 0;
-    for (const record of assetRecords.sort((a, b) => a.date.localeCompare(b.date))) {
-      if (record.action === "buy") {
-        quantity += record.quantity;
-        cost += record.price * record.quantity + record.fee;
-      } else if (record.action === "sell") {
-        const averageCost = quantity === 0 ? 0 : cost / quantity;
-        quantity -= record.quantity;
-        cost -= averageCost * record.quantity;
-      } else if (record.action === "stockDividend") {
-        quantity += record.quantity;
-      } else if (record.action === "capitalReduction") {
-        cost = Math.max(0, cost - record.price * record.quantity);
-      } else if (record.action === "stockSplit" && record.quantity > 0) {
-        quantity *= record.quantity;
-      }
-    }
+    // Single source of truth for moving-average quantity + cost (see
+    // domain/portfolioMetrics). Keeps unrealized and realized P/L on the same
+    // basis and applies the corrected capital-reduction model (cuts shares).
+    const metrics = buildPositionMetrics(assetRecords);
     return {
       ...asset,
-      totalQuantity: quantity,
-      averageCost: quantity === 0 ? 0 : cost / quantity,
+      totalQuantity: metrics.quantity,
+      averageCost: metrics.averageCost,
     };
   });
 }

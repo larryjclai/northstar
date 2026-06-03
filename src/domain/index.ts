@@ -15,5 +15,6 @@ export * from "./investmentCash";
 export * from "./ledgerTrust";
 export * from "./ledgerSuggestions";
 export * from "./portfolioCalculator";
+export * from "./portfolioMetrics";
 export * from "./transferBuilder";
 export * from "./types";

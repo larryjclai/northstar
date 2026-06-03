@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { useFinanceData } from "../data/hooks";
-import { calculateFifo, formatNumber, formatPrice, formatQuantity, resolveAssetName } from "../domain";
+import { buildPositionMetrics, calculateFifo, calculateXirr, formatNumber, formatPrice, formatQuantity, resolveAssetName } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { AssetLogo } from "../components/AssetLogo";
 import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
@@ -80,6 +80,15 @@ export function HoldingDetailRoute() {
   const unrealizedGainPercent = costBasis === 0 ? 0 : (unrealizedGain / costBasis) * 100;
   const pos = unrealizedGain >= 0;
 
+  // Moving-average position metrics: realized P/L, dividends, and the dated
+  // cash-flow stream that drives money-weighted (XIRR) return.
+  const metrics = useMemo(() => buildPositionMetrics(txns), [txns]);
+  const realizedGain = metrics.realizedGain;
+  const xirr = useMemo(
+    () => calculateXirr(metrics.cashflows, { date: new Date().toISOString().slice(0, 10), amount: marketValue }),
+    [metrics, marketValue],
+  );
+
   // 持倉天數：自最早一筆買進算起；若沒有任何交易紀錄（手動持倉），則自
   // 新增持倉（Add Holdings）的日期起算。
   const earliestBuyDate = txns.filter((t) => t.action === "buy").map((t) => t.date).sort()[0];
@@ -87,11 +96,12 @@ export function HoldingDetailRoute() {
   const holdingDays = holdingSince
     ? Math.max(0, Math.floor((Date.now() - new Date(holdingSince).getTime()) / 86_400_000))
     : null;
-  // 配息 YTD：本年度現金股利（cashDividend 以 price 存總額）。
+  // 配息 YTD：本年度現金股利。新列以 price 存總額(quantity=0)；舊列為
+  // 「每股股利 × 股數」，兩者都要正確加總。
   const thisYear = new Date().toISOString().slice(0, 4);
   const dividendYtd = txns
     .filter((t) => t.action === "cashDividend" && t.date.startsWith(thisYear))
-    .reduce((sum, t) => sum + t.price, 0);
+    .reduce((sum, t) => sum + (t.quantity > 0 ? t.price * t.quantity : t.price) - t.fee, 0);
 
   const markColor = ticker.includes(".TW") || ticker.length === 4 
     ? "var(--ns-chart-1)" 
@@ -195,13 +205,15 @@ export function HoldingDetailRoute() {
             cards line up top and bottom; stats distribute to fill. */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div className="ns-card" style={{ padding: 20, flex: 1, display: "flex", flexDirection: "column" }}>
-            <div className="ns-eyebrow" style={{ marginBottom: 12 }}>Your position · FIFO</div>
+            <div className="ns-eyebrow" style={{ marginBottom: 12 }}>Your position · 平均成本</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, flex: 1, alignContent: "space-between" }}>
               {[
                 ["市值", formatNumber(marketValue), null],
-                ["FIFO 成本", formatNumber(costBasis), null],
+                ["成本基礎", formatNumber(costBasis), null],
                 ["未實現損益", (pos ? "+" : "") + formatNumber(unrealizedGain), pos ? "pos" : "neg"],
-                ["報酬率", (pos ? "+" : "") + unrealizedGainPercent.toFixed(2) + "%", pos ? "pos" : "neg"],
+                ["總報酬率", (pos ? "+" : "") + unrealizedGainPercent.toFixed(2) + "%", pos ? "pos" : "neg"],
+                ["已實現損益", (realizedGain >= 0 ? "+" : "") + formatNumber(realizedGain), realizedGain >= 0 ? "pos" : "neg"],
+                ["年化報酬 (XIRR)", xirr === null ? "–" : (xirr >= 0 ? "+" : "") + (xirr * 100).toFixed(2) + "%", xirr === null ? null : xirr >= 0 ? "pos" : "neg"],
                 ["配息 YTD", formatNumber(dividendYtd), null],
                 ["持倉天數", holdingDays !== null ? `${holdingDays} 天` : "–", null],
               ].map(([l, v, c]) => (
@@ -215,12 +227,13 @@ export function HoldingDetailRoute() {
         </div>
       </div>
 
-      {/* Open lots */}
+      {/* Open lots — FIFO tax-lot view (kept separate from the moving-average
+          P/L above; useful for lot-level tax planning). */}
       <div className="ns-card" style={{ padding: 0, marginBottom: 16 }}>
         <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center" }}>
-          <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>Open lots · {lots.length}</h3>
+          <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>稅務批次 (FIFO) · {lots.length}</h3>
           <div style={{ flex: 1 }} />
-          <span className="muted mono" style={{ fontSize: 11 }}>FIFO cost basis</span>
+          <span className="muted mono" style={{ fontSize: 11 }}>FIFO 批次成本，僅供稅務參考</span>
         </div>
         <div
           style={{

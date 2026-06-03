@@ -1,3 +1,4 @@
+import { buildPositionMetrics } from "./portfolioMetrics";
 import type { HoldingPosition, InvestmentRecord, PortfolioAsset } from "./types";
 
 export interface MarketQuote {
@@ -94,46 +95,30 @@ export function buildHoldingPositionsByAccount(
       continue;
     }
 
-    // Transaction-based: split records by accountId and aggregate each
-    // account's quantity + cost basis independently.
-    const sortedRecords = records
-      .filter((record) => record.assetId === asset.id && record.deletedAt === null)
-      .sort((a, b) => a.date.localeCompare(b.date));
-
-    const buckets = new Map<string, { quantity: number; cost: number }>();
-    for (const record of sortedRecords) {
+    // Transaction-based: split records by accountId and run the canonical
+    // moving-average engine (domain/portfolioMetrics) per account so quantity,
+    // cost basis, and capital-reduction handling match the rest of the app.
+    const byAccount = new Map<string, InvestmentRecord[]>();
+    for (const record of records) {
+      if (record.assetId !== asset.id || record.deletedAt !== null) continue;
       const key = record.linkedAccountId ?? "__unassigned__";
-      const bucket = buckets.get(key) ?? { quantity: 0, cost: 0 };
-      if (record.action === "buy") {
-        bucket.quantity += record.quantity;
-        bucket.cost += record.price * record.quantity + record.fee;
-      } else if (record.action === "sell") {
-        const avg = bucket.quantity === 0 ? 0 : bucket.cost / bucket.quantity;
-        bucket.quantity -= record.quantity;
-        bucket.cost -= avg * record.quantity;
-      } else if (record.action === "stockDividend") {
-        bucket.quantity += record.quantity;
-      } else if (record.action === "capitalReduction") {
-        bucket.cost = Math.max(0, bucket.cost - record.price * record.quantity);
-      } else if (record.action === "stockSplit" && record.quantity > 0) {
-        bucket.quantity *= record.quantity;
-      }
-      buckets.set(key, bucket);
+      byAccount.set(key, [...(byAccount.get(key) ?? []), record]);
     }
 
-    for (const [accountKey, bucket] of buckets) {
-      if (bucket.quantity <= 0) continue;
+    for (const [accountKey, accountRecords] of byAccount) {
+      const metrics = buildPositionMetrics(accountRecords);
+      if (metrics.quantity <= 0) continue;
       const accountId = accountKey === "__unassigned__" ? null : accountKey;
-      const averageCost = bucket.quantity === 0 ? 0 : bucket.cost / bucket.quantity;
-      const marketValue = marketPrice === null ? 0 : bucket.quantity * marketPrice;
-      const costBasis = bucket.quantity * averageCost;
+      const averageCost = metrics.averageCost;
+      const marketValue = marketPrice === null ? 0 : metrics.quantity * marketPrice;
+      const costBasis = metrics.costBasis;
       const unrealizedGain = marketValue - costBasis;
       positions.push({
         assetId: asset.id,
         ticker: asset.ticker,
         name: asset.name,
         currency: asset.currency,
-        quantity: bucket.quantity,
+        quantity: metrics.quantity,
         averageCost,
         marketPrice,
         marketValue,

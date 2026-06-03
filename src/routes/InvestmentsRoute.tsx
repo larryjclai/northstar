@@ -16,6 +16,8 @@ import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { PortfolioAssetDraft } from "../data/repositories";
 import {
   buildHoldingPositionsByAccount,
+  buildPositionMetrics,
+  calculateXirr,
   createFxConverter,
   formatMoney,
   formatNumber,
@@ -208,12 +210,24 @@ export function InvestmentsRoute() {
         bucket.cost -= costOfSold;
       } else if (record.action === "cashDividend") {
         if (isCurrentYear) {
-          dYTD += toPrimary(record.price, asset.currency, record.date); // price stores the total dividend amount
+          // New rows store the total in `price` (quantity 0); legacy rows used
+          // 每股股利 × 股數. Net of any withholding fee.
+          const gross = record.quantity > 0 ? record.price * record.quantity : record.price;
+          dYTD += toPrimary(gross - record.fee, asset.currency, record.date);
         }
       } else if (record.action === "stockDividend") {
         bucket.quantity += record.quantity;
       } else if (record.action === "capitalReduction") {
-        bucket.cost = Math.max(0, bucket.cost - record.price * record.quantity);
+        // Matches the engine: cancels shares and returns capital (lowers basis);
+        // any cash above remaining basis is a realized gain.
+        const cancelled = Math.min(record.quantity, bucket.quantity);
+        const cashReturned = record.price * record.quantity;
+        const basisReduced = Math.min(cashReturned, bucket.cost);
+        if (isCurrentYear && cashReturned > basisReduced) {
+          rYTD += toPrimary(cashReturned - basisReduced, asset.currency, record.date);
+        }
+        bucket.cost -= basisReduced;
+        bucket.quantity -= cancelled;
       } else if (record.action === "stockSplit" && record.quantity > 0) {
         bucket.quantity *= record.quantity;
       }
@@ -221,6 +235,26 @@ export function InvestmentsRoute() {
     }
     return { realizedYTD: rYTD, dividendsYTD: dYTD };
   }, [recordRows, assetRows, toPrimary]);
+
+  // Portfolio-level money-weighted return (XIRR): every buy/sell/dividend cash
+  // flow across all transaction-based holdings, valued to a terminal market
+  // value today. Manual snapshots with no transaction history are excluded from
+  // both sides so they can't distort the rate.
+  const portfolioXirr = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const flows: { date: string; amount: number }[] = [];
+    let terminal = 0;
+    for (const asset of assetRows) {
+      if (asset.deletedAt !== null) continue;
+      const recs = recordRows.filter((r) => r.assetId === asset.id && r.deletedAt === null);
+      if (recs.length === 0) continue;
+      const m = buildPositionMetrics(recs);
+      for (const cf of m.cashflows) flows.push({ date: cf.date, amount: toPrimary(cf.amount, asset.currency, cf.date) });
+      const price = quoteMap[asset.ticker]?.price ?? asset.averageCost;
+      terminal += toPrimary(m.quantity * price, asset.currency, today);
+    }
+    return calculateXirr(flows, { date: today, amount: terminal });
+  }, [assetRows, recordRows, quoteMap, toPrimary]);
 
   return (
     <div style={{ padding: '24px 32px 120px', maxWidth: 1180, margin: '0 auto' }}>
@@ -270,12 +304,13 @@ export function InvestmentsRoute() {
       {tab === "portfolio" ? (
         <>
           {/* Top KPIs */}
-          <div className="ns-holdings-kpis grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-5">
+          <div className="ns-holdings-kpis grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-5">
             {([
               // [label, compact display, exact value (tooltip), pct, positive]
               ['Market value', `NT$${formatCompactNumber(totalValue)}`, `NT$${formatNumber(totalValue)}`, '', true],
               ['Cost basis', `NT$${formatCompactNumber(totalCost)}`, `NT$${formatNumber(totalCost)}`, '', true],
               ['Unrealized P/L', `NT$${formatCompactNumber(Math.abs(totalPnL))}`, `NT$${formatNumber(Math.abs(totalPnL))}`, totalPnL >= 0 ? `+${returnPct.toFixed(2)}%` : `${returnPct.toFixed(2)}%`, totalPnL >= 0],
+              ['年化報酬 XIRR', portfolioXirr === null ? '–' : `${portfolioXirr >= 0 ? '+' : ''}${(portfolioXirr * 100).toFixed(2)}%`, '資金加權年化報酬（含買賣、配息、手續費）', '', portfolioXirr === null ? true : portfolioXirr >= 0],
               ['Realized YTD', `NT$${formatCompactNumber(Math.abs(realizedYTD))}`, `NT$${formatNumber(Math.abs(realizedYTD))}`, realizedYTD >= 0 ? '' : 'Loss', realizedYTD >= 0],
               ['Dividends YTD', `NT$${formatCompactNumber(dividendsYTD)}`, `NT$${formatNumber(dividendsYTD)}`, '', true],
             ] as const).map(([label, val, exact, pct, pos], i) => (
