@@ -121,8 +121,8 @@ Order = highest user value / highest inline-style debt first, while starting wit
 | 6 ✅ | `FIRECalculatorRoute` + `GoalsRoute` | 102 + 56 | **DONE.** Cards/buttons across metric/chart/slider cards + goal hero/list. ns-input + goal-switcher pills kept. |
 | 7 ✅ | `SettingsRoute` | 213 | **DONE.** ~50 buttons + cards + badges across all settings panels. |
 | 8 ✅ | Remaining tabs/panels | tail | **DONE.** `Categories*`, `Merchants*`, `Recurring*`, `Reconcile`, `Transactions` + shared panels (QuickAdd, TransactionDetailPanel, CategoryManagementDrawer). Done via a brace/quote-aware codemod (scratch, not committed) + manual leftovers. |
-| 9 | `AppShell` + nav chrome + shared primitives | 31 | Shell + the shared `ActionButton`, `SegmentedControl`, `ui/month-picker`, `ui/date-picker` (still on `ns-btn`/`ns-seg`). Do last so screens are stable underneath. |
-| 10 | Teardown | — | Delete `ns-*` utility classes and old `components/ui/*` duplicates; remove the token bridge aliases if fully cut over. |
+| 9 ✅ | `AppShell` + nav chrome + shared primitives | 31 | **DONE.** ActionButton/SegmentedControl wrap COSS Button/ToggleGroup; AppShell quick-add/demo buttons → Button; month/date pickers use `buttonVariants`. |
+| 10 ✅ | Teardown | — | **DONE.** Removed dead `.ns-btn`/`.ns-card`/`.ns-pill`/`.ns-seg` from globals.css. Token bridge + `.ns-input`/`.ns-eyebrow`/`.ns-surface`/utility classes kept (still used). |
 
 **Per-screen checklist (repeat each phase):**
 
@@ -252,8 +252,11 @@ independently shippable and revertible.
 
 ---
 
-_Status: Phases 0–8 complete as of 2026-06-03 — all route screens + shared panels
-migrated to COSS Card/Button/Badge/ToggleGroup. Remaining: Phase 9 (AppShell + shared
-chrome: ActionButton, SegmentedControl, month/date pickers) and Phase 10 (teardown:
-delete unused ns-* utility classes). Native ns-input fields are still pending a separate
-input/select pass (see §4 deferral notes)._
+_Status: **Phases 0–10 COMPLETE as of 2026-06-03.** Every route screen, shared panel, and
+the AppShell/chrome are on COSS Card/Button/Badge/ToggleGroup; dead `ns-*` component
+classes removed. The COSS token bridge maps semantic tokens onto Northstar's themed
+`ns-*` values (light/dark). **Remaining (separate, optional follow-up):** migrate native
+`ns-input`/`<select>` fields to COSS `Input`/`Select` (deliberately deferred — interaction
+changes need their own QA pass), optionally fix the `dark:` Tailwind variant to key off
+`data-theme` (currently inert; ~79 untested usages), and consolidate the two Base UI
+packages (`@base-ui/react` vs `@base-ui-components/react`)._
