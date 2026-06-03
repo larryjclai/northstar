@@ -2,6 +2,7 @@ import { X, Bank } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { HoldingForm, makeEmptyHoldingDraft } from "../components/HoldingForm";
+import { NumberField } from "../components/NumberField";
 import { StatusText } from "../components/StatusText";
 import { TickerSearchField } from "../components/TickerSearchField";
 import { useRepositoryMutation } from "../data/hooks";
@@ -18,12 +19,6 @@ const NUM_INPUT_STYLE: React.CSSProperties = {
   textAlign: "right",
   fontVariantNumeric: "tabular-nums lining-nums",
 };
-
-function fmtNumField(value: number, focused: boolean, decimals = 0): string {
-  if (focused) return value || value === 0 ? String(value) : "";
-  if (!value && value !== 0) return "";
-  return value === 0 ? "" : value.toLocaleString("zh-TW", { maximumFractionDigits: decimals, minimumFractionDigits: 0 });
-}
 
 /**
  * Surface the real cause when a save fails. Errors thrown by the SQLite layer
@@ -131,7 +126,6 @@ export function InvestmentEntryDrawer({
   const [message, setMessage] = useState("");
   const [batchMode, setBatchMode] = useState(false);
   const [batchAccounts, setBatchAccounts] = useState<string[]>([]);
-  const [focusedNumField, setFocusedNumField] = useState<string | null>(null);
 
   const createHolding = useRepositoryMutation(
     (repository, input: PortfolioAssetDraft) => repository.createManualHolding(input),
@@ -475,12 +469,10 @@ export function InvestmentEntryDrawer({
               {side === "split" ? (
                 <div>
                   <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>拆股比例（1 股 → N 股）</label>
-                  <input
-                    className="ns-input mono"
-                    value={fmtNumField(transactionForm.quantity, focusedNumField === "qty", 4)}
-                    onFocus={() => setFocusedNumField("qty")}
-                    onBlur={() => setFocusedNumField(null)}
-                    onChange={(e) => setTransactionForm({ ...transactionForm, quantity: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })}
+                  <NumberField
+                    value={transactionForm.quantity}
+                    onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })}
+                    decimals={4}
                     placeholder="3"
                     style={NUM_INPUT_STYLE}
                   />
@@ -506,7 +498,7 @@ export function InvestmentEntryDrawer({
                   {isStockDividend(transactionForm.action) ? (
                     <div>
                       <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>配發股數</label>
-                      <input className="ns-input mono" value={fmtNumField(transactionForm.quantity, focusedNumField === "sd-qty", 4)} onFocus={() => setFocusedNumField("sd-qty")} onBlur={() => setFocusedNumField(null)} onChange={(e) => setTransactionForm({ ...transactionForm, quantity: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="100" style={NUM_INPUT_STYLE} />
+                      <NumberField value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={4} placeholder="100" style={NUM_INPUT_STYLE} />
                       <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
                         配股不涉及現金：股數增加、總成本不變，因此平均成本會下降。
                       </div>
@@ -515,11 +507,11 @@ export function InvestmentEntryDrawer({
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                       <div>
                         <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>股利金額（總額）</label>
-                        <input className="ns-input mono" value={fmtNumField(transactionForm.price, focusedNumField === "div-price", 2)} onFocus={() => setFocusedNumField("div-price")} onBlur={() => setFocusedNumField(null)} onChange={(e) => setTransactionForm({ ...transactionForm, price: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="3,500" style={NUM_INPUT_STYLE} />
+                        <NumberField value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={2} placeholder="3,500" style={NUM_INPUT_STYLE} />
                       </div>
                       <div>
                         <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>代扣稅 / 手續費</label>
-                        <input className="ns-input" value={fmtNumField(transactionForm.fee, focusedNumField === "div-fee")} onFocus={() => setFocusedNumField("div-fee")} onBlur={() => setFocusedNumField(null)} onChange={(e) => setTransactionForm({ ...transactionForm, fee: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="0" style={NUM_INPUT_STYLE} />
+                        <NumberField value={transactionForm.fee} onChange={(fee) => setTransactionForm({ ...transactionForm, fee })} placeholder="0" style={NUM_INPUT_STYLE} />
                       </div>
                     </div>
                   )}
@@ -528,11 +520,11 @@ export function InvestmentEntryDrawer({
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                   <div>
                     <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>被註銷股數</label>
-                    <input className="ns-input mono" value={fmtNumField(transactionForm.quantity, focusedNumField === "cr-qty", 4)} onFocus={() => setFocusedNumField("cr-qty")} onBlur={() => setFocusedNumField(null)} onChange={(e) => setTransactionForm({ ...transactionForm, quantity: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="20" style={NUM_INPUT_STYLE} />
+                    <NumberField value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={4} placeholder="20" style={NUM_INPUT_STYLE} />
                   </div>
                   <div>
                     <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>每股退回現金</label>
-                    <input className="ns-input mono" value={fmtNumField(transactionForm.price, focusedNumField === "cr-price", 2)} onFocus={() => setFocusedNumField("cr-price")} onBlur={() => setFocusedNumField(null)} onChange={(e) => setTransactionForm({ ...transactionForm, price: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="10" style={NUM_INPUT_STYLE} />
+                    <NumberField value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={2} placeholder="10" style={NUM_INPUT_STYLE} />
                     <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
                       現金減資填每股退回金額；彌補虧損減資（不退現金）填 0。
                     </div>
@@ -543,16 +535,16 @@ export function InvestmentEntryDrawer({
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                     <div>
                       <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Shares</label>
-                      <input className="ns-input mono" value={fmtNumField(transactionForm.quantity, focusedNumField === "qty", 4)} onFocus={() => setFocusedNumField("qty")} onBlur={() => setFocusedNumField(null)} onChange={(e) => setTransactionForm({ ...transactionForm, quantity: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="100" style={NUM_INPUT_STYLE} />
+                      <NumberField value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={4} placeholder="100" style={NUM_INPUT_STYLE} />
                     </div>
                     <div>
                       <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Price per share</label>
-                      <input className="ns-input mono" value={fmtNumField(transactionForm.price, focusedNumField === "price", 2)} onFocus={() => setFocusedNumField("price")} onBlur={() => setFocusedNumField(null)} onChange={(e) => setTransactionForm({ ...transactionForm, price: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="1,042.00" style={NUM_INPUT_STYLE} />
+                      <NumberField value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={2} placeholder="1,042.00" style={NUM_INPUT_STYLE} />
                     </div>
                   </div>
                   <div>
                     <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Commission / fee</label>
-                    <input className="ns-input" value={fmtNumField(transactionForm.fee, focusedNumField === "fee")} onFocus={() => setFocusedNumField("fee")} onBlur={() => setFocusedNumField(null)} onChange={(e) => setTransactionForm({ ...transactionForm, fee: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="Optional · e.g. 220" style={NUM_INPUT_STYLE} />
+                    <NumberField value={transactionForm.fee} onChange={(fee) => setTransactionForm({ ...transactionForm, fee })} placeholder="Optional · e.g. 220" style={NUM_INPUT_STYLE} />
                   </div>
                 </>
               )}

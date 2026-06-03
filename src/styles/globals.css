@@ -407,9 +407,13 @@ textarea:focus-visible {
   cursor: pointer;
   transition: background var(--ns-dur-fast) var(--ns-ease);
 }
-.ns-seg button[aria-selected="true"] {
-  background: var(--ns-bg-card);
+.ns-seg button:hover:not([aria-selected="true"]) {
   color: var(--ns-fg);
+  background: var(--ns-bg-hover);
+}
+.ns-seg button[aria-selected="true"] {
+  background: var(--ns-accent);
+  color: var(--ns-on-accent);
   box-shadow: var(--ns-shadow-1);
 }
 

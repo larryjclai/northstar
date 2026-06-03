@@ -26,6 +26,7 @@ import { MerchantsTab } from "./MerchantsTab";
 import { RecurringRulesTab } from "./RecurringRulesTab";
 import { MonthPicker } from "../components/ui/month-picker";
 import { AccountFilter } from "../components/AccountFilter";
+import { NumberField } from "../components/NumberField";
 import { Glyph } from "../lib/icons";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
@@ -609,9 +610,8 @@ export function CashFlowRoute() {
             記帳
           </h1>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          
-          <MonthPicker 
+        <div style={{ display: "flex", gap: 8, flexWrap: "nowrap" }}>
+          <MonthPicker
             value={selectedMonth} 
             onChange={setSelectedMonth} 
             triggerClassName="h-[36px] whitespace-nowrap"
@@ -1333,25 +1333,23 @@ function EntryDrawer({
                 </span>
               )}
               {type === "transfer" ? (
-                <input
+                <NumberField
+                  className=""
                   style={{
                     flex: 1, border: "none", outline: "none", background: "transparent",
                     padding: "0 14px", fontSize: 22, fontFamily: "var(--ns-font-mono)",
                     color: meta.color, textAlign: "right", height: "100%",
                     fontVariantNumeric: "tabular-nums lining-nums",
                   }}
-                  value={amountFocused
-                    ? (transferForm.sourceAmount || "")
-                    : (transferForm.sourceAmount ? transferForm.sourceAmount.toLocaleString("zh-TW") : "")}
+                  decimals={2}
+                  value={transferForm.sourceAmount}
                   onFocus={() => setAmountFocused(true)}
                   onBlur={() => setAmountFocused(false)}
-                  onChange={(e) => {
-                    const v = Number(e.target.value.replace(/[^\d.]/g, "")) || 0;
+                  onChange={(v) => {
                     const sameCcy = transferForm.sourceCurrency === transferForm.destinationCurrency;
                     setTransferForm({ ...transferForm, sourceAmount: v, destinationAmount: sameCcy ? v : transferForm.destinationAmount });
                   }}
                   placeholder="0"
-                  inputMode="decimal"
                 />
               ) : (
                 <input
