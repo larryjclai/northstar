@@ -114,7 +114,7 @@ Order = highest user value / highest inline-style debt first, while starting wit
 | Phase | Screen(s) | Inline styles | Why this order |
 | --- | --- | --- | --- |
 | 1 (pilot) ✅ | `InvestmentsAddSheet` | 60 | **DONE (first pass).** Self-contained drawer; exercises forms + segmented control + `NumberField`. Reference for the rest. See "Pilot results" below. |
-| 2 | `DashboardRoute` | 138 | Highest-traffic screen; sets card/stat/chart-shell patterns. |
+| 2 ✅ | `DashboardRoute` | 138 | **DONE.** Established the Card/Badge/Button pattern: all `ns-card`→`Card`, `ns-btn`→`Button`, `ns-pill`→`Badge`. Charts + layout grids kept. |
 | 3 | `CashFlowRoute` | 155 | Most-used feature; tabs, tables, drawers, filters. |
 | 4 | `InvestmentsRoute` + `HoldingDetailRoute` | 60 + 61 | Tables + detail patterns; reuse Dashboard cards. |
 | 5 | `AccountsRoute` + account wizard | 111 | Multi-step wizard = good COSS dialog/section test. |
@@ -163,6 +163,26 @@ low-risk; these are the refinement backlog for this screen:
 
 So inline-style/`ns-*` count on this screen is **reduced, not yet zero** — full teardown
 happens in a later pass once the input/select patterns are settled.
+
+### Phase 2 results — `DashboardRoute` (2026-06-03)
+
+Established the reusable surface patterns every later screen reuses:
+
+- **`ns-card` → COSS `Card`** (12 surfaces incl. the `KpiCard` helper). `Card` has no
+  built-in padding, so default cards pass `style={{ padding: "var(--ns-pad-card)" }}`
+  (keeps density responsiveness); `padding:0` cards just become `<Card>`; horizontal
+  cards (KPI accent-bar rows) need `flexDirection:"row"` since `Card` is `flex-col`.
+- **`ns-btn*` → COSS `Button`** — header `更新`/`新增` pinned to `h-9 sm:h-9` (36px) to
+  line up with the shared MonthPicker/AccountFilter; section/inline links use
+  `render={<Link …/>}` with `variant="ghost" size="xs"`.
+- **`ns-pill` → COSS `Badge`** — `solid-pos/neg` → `success`/`error`; chart-coloured
+  AR/AP/recurring tags → `variant="outline"` + inline `color`/`borderColor`.
+- Recharts charts and the `ns-dash-*` / `ns-row` layout grids kept as-is.
+
+**Bridge correction (made here):** `--success/--warning/--info/--destructive-foreground`
+were initially white; COSS uses them as text on a *soft* tint (e.g. `Badge success` =
+`bg-success/8 text-success-foreground`), so they're now the saturated colour. Solid
+fills hardcode `text-white` separately, so nothing regressed.
 
 ## 5. Component & token mapping (cheat-sheet)
 
@@ -232,5 +252,5 @@ independently shippable and revertible.
 
 ---
 
-_Status: Phase 0 (foundations) + Phase 1 (pilot, first pass) complete as of 2026-06-03.
-Phases 2–10 not yet started._
+_Status: Phase 0 (foundations) + Phase 1 (pilot) + Phase 2 (Dashboard) complete as of
+2026-06-03. Phases 3–10 not yet started. Next: Phase 3 — CashFlowRoute._
