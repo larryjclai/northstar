@@ -36,21 +36,30 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-/** The 4 transaction sides surfaced in the prototype, mapped to data-layer actions. */
-type TxSide = "buy" | "sell" | "dividend" | "split";
+/** Transaction sides surfaced in the entry sheet, mapped to data-layer actions.
+ *  The "dividend" side covers both cash and stock dividends via a sub-toggle. */
+type TxSide = "buy" | "sell" | "dividend" | "split" | "reduction";
 const SIDE_TO_ACTION: Record<TxSide, InvestmentAction> = {
   buy: "buy",
   sell: "sell",
   dividend: "cashDividend",
   split: "stockSplit",
+  reduction: "capitalReduction",
 };
-const SIDE_LABEL: Record<TxSide, string> = { buy: "Buy", sell: "Sell", dividend: "Dividend", split: "Split" };
-const SIDE_CONFIRM: Record<TxSide, string> = { buy: "確認買入", sell: "確認賣出", dividend: "確認股利", split: "確認拆股" };
+const SIDE_LABEL: Record<TxSide, string> = { buy: "Buy", sell: "Sell", dividend: "股利", split: "拆股", reduction: "減資" };
+const SIDE_CONFIRM: Record<TxSide, string> = {
+  buy: "確認買入",
+  sell: "確認賣出",
+  dividend: "確認股利",
+  split: "確認拆股",
+  reduction: "確認減資",
+};
 
 function sideFromAction(action: InvestmentAction): TxSide {
   if (action === "sell") return "sell";
   if (action === "cashDividend" || action === "stockDividend") return "dividend";
   if (action === "stockSplit") return "split";
+  if (action === "capitalReduction") return "reduction";
   return "buy";
 }
 
@@ -79,10 +88,20 @@ export function emptyTransactionDraft(timezone: string): InvestmentDraft {
 
 /** Normalise per-action so cash/quantity math stays consistent with the data layer. */
 function normalizeTransactionDraft(input: InvestmentDraft): InvestmentDraft {
+  // cashDividend: `price` holds the total dividend amount; no share change.
   if (input.action === "cashDividend") return { ...input, quantity: 0 };
+  // stockDividend (配股): `quantity` holds shares received; no cash / cost.
+  if (input.action === "stockDividend") return { ...input, price: 0, fee: 0 };
   // stockSplit: `quantity` holds the ratio (holding ×= ratio); no price / fee.
   if (input.action === "stockSplit") return { ...input, price: 0, fee: 0 };
+  // capitalReduction (減資): `quantity` = shares cancelled, `price` = cash
+  // returned per cancelled share (0 for a deficit-offset reduction); no fee.
+  if (input.action === "capitalReduction") return { ...input, fee: 0 };
   return input;
+}
+
+function isStockDividend(action: InvestmentAction) {
+  return action === "stockDividend";
 }
 
 export function InvestmentEntryDrawer({
@@ -208,7 +227,10 @@ export function InvestmentEntryDrawer({
         if (!transactionForm.linkedAccountId) throw new Error("請選擇連動帳戶 / 券商。");
       }
       if (side === "split" && transactionForm.quantity <= 0) throw new Error("請輸入拆股比例（例如 3 = 1 股拆 3 股）。");
-      
+      if (side === "reduction" && transactionForm.quantity <= 0) throw new Error("請輸入被註銷的股數。");
+      if (side === "dividend" && isStockDividend(transactionForm.action) && transactionForm.quantity <= 0) throw new Error("請輸入配發的股數。");
+      if (side === "dividend" && !isStockDividend(transactionForm.action) && transactionForm.price <= 0) throw new Error("請輸入股利金額。");
+
       const payload = normalizeTransactionDraft(transactionForm);
       if (transactionPreset?.id) {
         await updateRecord.mutateAsync({ ...payload, id: transactionPreset.id });
@@ -266,11 +288,25 @@ export function InvestmentEntryDrawer({
     totalValue = qty * price - fee;
     newQty = Math.max(0, curQty - qty);
     newAvg = curAvg;
+  } else if (side === "dividend" && isStockDividend(transactionForm.action)) {
+    // 配股：股數增加、總成本不變 → 均價下降。
+    totalLabel = "配發股數";
+    totalValue = qty;
+    newQty = curQty + qty;
+    newAvg = newQty > 0 ? curCost / newQty : 0;
   } else if (side === "dividend") {
     totalLabel = "股利收入";
-    totalValue = price;
+    totalValue = price - fee;
     newQty = curQty;
     newAvg = curAvg;
+  } else if (side === "reduction") {
+    // 減資：扣除股數、退回現金降低成本基礎（彌補虧損減資退現金為 0）。
+    totalLabel = "退回現金";
+    const cashReturned = qty * price;
+    totalValue = cashReturned;
+    newQty = Math.max(0, curQty - qty);
+    const newCost = Math.max(0, curCost - cashReturned);
+    newAvg = newQty > 0 ? newCost / newQty : 0;
   } else {
     // split: quantity = ratio
     totalLabel = "拆股比例";
@@ -281,7 +317,9 @@ export function InvestmentEntryDrawer({
   }
   const newMarketValue = newQty * (price || curAvg);
   const confirmAmount =
-    side === "split" ? `×${qty || 0}` : `${currency === "TWD" ? "NT$" : ""}${formatNumber(Math.round(totalValue))}`;
+    side === "split" ? `×${qty || 0}`
+      : side === "dividend" && isStockDividend(transactionForm.action) ? `+${formatNumber(qty || 0)} 股`
+        : `${currency === "TWD" ? "NT$" : ""}${formatNumber(Math.round(totalValue))}`;
 
   // T+2 settlement warning (TWD buys only).
   const cashDelta = calculateInvestmentCashDelta(normalizeTransactionDraft(transactionForm));
@@ -451,14 +489,53 @@ export function InvestmentEntryDrawer({
                   </div>
                 </div>
               ) : side === "dividend" ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {/* 現金股利 vs 股票股利(配股) sub-toggle */}
+                  <div className="ns-seg" style={{ width: "100%" }}>
+                    <button
+                      style={{ flex: 1 }}
+                      aria-selected={!isStockDividend(transactionForm.action)}
+                      onClick={() => setTransactionForm((c) => normalizeTransactionDraft({ ...c, action: "cashDividend" }))}
+                    >現金股利</button>
+                    <button
+                      style={{ flex: 1 }}
+                      aria-selected={isStockDividend(transactionForm.action)}
+                      onClick={() => setTransactionForm((c) => normalizeTransactionDraft({ ...c, action: "stockDividend" }))}
+                    >股票股利 (配股)</button>
+                  </div>
+                  {isStockDividend(transactionForm.action) ? (
+                    <div>
+                      <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>配發股數</label>
+                      <input className="ns-input mono" value={fmtNumField(transactionForm.quantity, focusedNumField === "sd-qty", 4)} onFocus={() => setFocusedNumField("sd-qty")} onBlur={() => setFocusedNumField(null)} onChange={(e) => setTransactionForm({ ...transactionForm, quantity: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="100" style={NUM_INPUT_STYLE} />
+                      <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+                        配股不涉及現金：股數增加、總成本不變，因此平均成本會下降。
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      <div>
+                        <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>股利金額（總額）</label>
+                        <input className="ns-input mono" value={fmtNumField(transactionForm.price, focusedNumField === "div-price", 2)} onFocus={() => setFocusedNumField("div-price")} onBlur={() => setFocusedNumField(null)} onChange={(e) => setTransactionForm({ ...transactionForm, price: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="3,500" style={NUM_INPUT_STYLE} />
+                      </div>
+                      <div>
+                        <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>代扣稅 / 手續費</label>
+                        <input className="ns-input" value={fmtNumField(transactionForm.fee, focusedNumField === "div-fee")} onFocus={() => setFocusedNumField("div-fee")} onBlur={() => setFocusedNumField(null)} onChange={(e) => setTransactionForm({ ...transactionForm, fee: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="0" style={NUM_INPUT_STYLE} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : side === "reduction" ? (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                   <div>
-                    <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>股利金額</label>
-                    <input className="ns-input mono" value={fmtNumField(transactionForm.price, focusedNumField === "div-price", 2)} onFocus={() => setFocusedNumField("div-price")} onBlur={() => setFocusedNumField(null)} onChange={(e) => setTransactionForm({ ...transactionForm, price: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="3,500" style={NUM_INPUT_STYLE} />
+                    <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>被註銷股數</label>
+                    <input className="ns-input mono" value={fmtNumField(transactionForm.quantity, focusedNumField === "cr-qty", 4)} onFocus={() => setFocusedNumField("cr-qty")} onBlur={() => setFocusedNumField(null)} onChange={(e) => setTransactionForm({ ...transactionForm, quantity: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="20" style={NUM_INPUT_STYLE} />
                   </div>
                   <div>
-                    <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>代扣稅 / 手續費</label>
-                    <input className="ns-input" value={fmtNumField(transactionForm.fee, focusedNumField === "div-fee")} onFocus={() => setFocusedNumField("div-fee")} onBlur={() => setFocusedNumField(null)} onChange={(e) => setTransactionForm({ ...transactionForm, fee: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="0" style={NUM_INPUT_STYLE} />
+                    <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>每股退回現金</label>
+                    <input className="ns-input mono" value={fmtNumField(transactionForm.price, focusedNumField === "cr-price", 2)} onFocus={() => setFocusedNumField("cr-price")} onBlur={() => setFocusedNumField(null)} onChange={(e) => setTransactionForm({ ...transactionForm, price: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="10" style={NUM_INPUT_STYLE} />
+                    <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+                      現金減資填每股退回金額；彌補虧損減資（不退現金）填 0。
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -488,12 +565,12 @@ export function InvestmentEntryDrawer({
 
               {/* FIFO impact preview */}
               <div style={{ padding: 16, borderRadius: "var(--ns-r-md)", background: "var(--ns-accent-soft)", border: "1px solid var(--ns-accent)" }}>
-                <div className="ns-eyebrow" style={{ marginBottom: 10, color: "var(--ns-accent)" }}>FIFO impact preview</div>
+                <div className="ns-eyebrow" style={{ marginBottom: 10, color: "var(--ns-accent)" }}>部位影響預覽</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13 }}>
-                  <div><span className="muted">{totalLabel}</span><br /><span className="num" style={{ fontSize: 16, fontWeight: 500 }}>{side === "split" ? `×${formatNumber(totalValue)}` : `NT$${formatNumber(Math.round(totalValue))}`}</span></div>
-                  <div><span className="muted">New avg cost (FIFO)</span><br /><span className="num" style={{ fontSize: 16, fontWeight: 500 }}>NT${formatNumber(Math.round(newAvg * 100) / 100)}</span></div>
-                  <div><span className="muted">New position</span><br /><span className="num" style={{ fontSize: 16, fontWeight: 500 }}>{formatNumber(newQty)} 股</span></div>
-                  <div><span className="muted">New market value</span><br /><span className="num pos" style={{ fontSize: 16, fontWeight: 500 }}>NT${formatNumber(Math.round(newMarketValue))}</span></div>
+                  <div><span className="muted">{totalLabel}</span><br /><span className="num" style={{ fontSize: 16, fontWeight: 500 }}>{side === "split" ? `×${formatNumber(totalValue)}` : side === "dividend" && isStockDividend(transactionForm.action) ? `+${formatNumber(totalValue)} 股` : `NT$${formatNumber(Math.round(totalValue))}`}</span></div>
+                  <div><span className="muted">新平均成本</span><br /><span className="num" style={{ fontSize: 16, fontWeight: 500 }}>NT${formatNumber(Math.round(newAvg * 100) / 100)}</span></div>
+                  <div><span className="muted">新部位股數</span><br /><span className="num" style={{ fontSize: 16, fontWeight: 500 }}>{formatNumber(newQty)} 股</span></div>
+                  <div><span className="muted">新市值</span><br /><span className="num pos" style={{ fontSize: 16, fontWeight: 500 }}>NT${formatNumber(Math.round(newMarketValue))}</span></div>
                 </div>
               </div>
 
