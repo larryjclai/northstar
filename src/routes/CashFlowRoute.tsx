@@ -27,6 +27,9 @@ import { RecurringRulesTab } from "./RecurringRulesTab";
 import { MonthPicker } from "../components/ui/month-picker";
 import { AccountFilter } from "../components/AccountFilter";
 import { NumberField } from "../components/NumberField";
+import { Badge } from "../components/coss/badge";
+import { Button } from "../components/coss/button";
+import { Card } from "../components/coss/card";
 import { Glyph } from "../lib/icons";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
@@ -632,9 +635,9 @@ export function CashFlowRoute() {
             <CaretDown size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--ns-muted)" }} />
           </div>
 
-          <button className="ns-btn primary" style={{ height: 36, boxSizing: "border-box", whiteSpace: "nowrap" }} onClick={() => openCreate("expense")}>
+          <Button className="h-9 sm:h-9 whitespace-nowrap" onClick={() => openCreate("expense")}>
             <Plus size={14} weight="bold" />記一筆
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -658,33 +661,33 @@ export function CashFlowRoute() {
       {activeTab === "overview" && (
         <>
           {missingFx.length > 0 ? (
-            <div className="ns-card" style={{ padding: "10px 14px", marginBottom: 14, color: "var(--ns-neg)", fontSize: 13 }}>
+            <Card style={{ padding: "10px 14px", marginBottom: 14, color: "var(--ns-neg)", fontSize: 13 }}>
               總額不完整：缺少匯率 {missingFx.join("、")}。請至設定更新匯率；原幣交易仍會保留。
-            </div>
+            </Card>
           ) : null}
           {/* Outstanding receivables / payables reminder */}
           {settlements.items.length > 0 ? (
-            <div className="ns-card" style={{ padding: "12px 16px", marginBottom: 14, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <Card style={{ padding: "12px 16px", marginBottom: 14, flexDirection: "row", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
               <span className="ns-eyebrow">未結清</span>
               {settlements.receivableTotal > 0 ? (
                 <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                  <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px", color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收 {settlements.receivableCount}</span>
+                  <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收 {settlements.receivableCount}</Badge>
                   <span className="num" style={{ fontSize: 15, color: "var(--ns-pos)" }}>+{primaryCurrency} {formatNumber(settlements.receivableTotal)}</span>
                 </div>
               ) : null}
               {settlements.payableTotal > 0 ? (
                 <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                  <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px", color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}>應付 {settlements.payableCount}</span>
+                  <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}>應付 {settlements.payableCount}</Badge>
                   <span className="num" style={{ fontSize: 15, color: "var(--ns-neg)" }}>−{primaryCurrency} {formatNumber(settlements.payableTotal)}</span>
                 </div>
               ) : null}
               <span className="muted" style={{ fontSize: 12, marginLeft: "auto" }}>結清後會計入收支 · 在下方明細點 ✓ 結清</span>
-            </div>
+            </Card>
           ) : null}
           {/* Summary layer */}
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 20, marginBottom: 20 }}>
         {/* Cashflow Chart */}
-        <div className="ns-card" id="cashflow-chart" style={{ padding: 24, display: "flex", flexDirection: "column" }}>
+        <Card id="cashflow-chart" style={{ padding: 24 }}>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 16, marginBottom: 14, flexWrap: "wrap" }}>
             <div>
               <div className="ns-eyebrow" style={{ marginBottom: 6 }}>本月現金流 · Net</div>
@@ -730,15 +733,15 @@ export function CashFlowRoute() {
           <div className="dim mono" style={{ fontSize: 10.5, marginTop: 6, display: "flex", justifyContent: "space-between" }}>
             <span>1號</span><span>15號</span><span>月底</span>
           </div>
-        </div>
+        </Card>
 
-        <div className="ns-card" style={{ padding: 20, display: "flex", flexDirection: "column" }}>
+        <Card style={{ padding: 20 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <div className="ns-eyebrow">分類支出 · {monthLabel}</div>
             {selectedCategory !== "all" && (
-              <button className="ns-btn ghost" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => setSelectedCategory("all")}>
+              <Button variant="ghost" size="xs" onClick={() => setSelectedCategory("all")}>
                 <X size={10} weight="bold" />清除篩選
-              </button>
+              </Button>
             )}
           </div>
 
@@ -778,11 +781,11 @@ export function CashFlowRoute() {
           ) : (
             <div className="muted" style={{ fontSize: 13, textAlign: "center", padding: "30px 0" }}>本月尚無支出</div>
           )}
-        </div>
+        </Card>
       </div>
 
       {preview ? (
-        <div className="ns-card" style={{ marginBottom: 16 }}>
+        <Card style={{ marginBottom: 16, padding: "var(--ns-pad-card)" }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>
             匯入預覽：{preview.valid.length} valid / {preview.invalid.length} invalid
           </div>
@@ -790,8 +793,7 @@ export function CashFlowRoute() {
             <div key={item.row} style={{ fontSize: 13, color: "var(--ns-neg)" }}>Row {item.row}: {item.reason}</div>
           ))}
           <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-            <button
-              className="ns-btn primary"
+            <Button
               onClick={async () => {
                 const rows = preview.valid.map((item) => item.value);
                 await importLedger.mutateAsync(rows);
@@ -801,15 +803,15 @@ export function CashFlowRoute() {
               }}
             >
               確認匯入
-            </button>
-            <button className="ns-btn" onClick={() => setPreview(null)}>取消</button>
+            </Button>
+            <Button variant="outline" onClick={() => setPreview(null)}>取消</Button>
           </div>
-        </div>
+        </Card>
       ) : null}
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-5 items-start">
         {/* Transactions grouped by day */}
-        <div className="ns-card" style={{ padding: 0 }}>
+        <Card style={{ padding: 0 }}>
            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "14px 20px", borderBottom: "1px solid var(--ns-border)", flexWrap: "wrap" }}>
              <span style={{ fontWeight: 600, fontSize: 15 }}>Recent activity</span>
              <label style={{ position: "relative", minWidth: 180, flex: "0 1 260px" }}>
@@ -825,7 +827,7 @@ export function CashFlowRoute() {
                 <Receipt size={24} weight="duotone" />
               </div>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>還沒有記帳資料</div>
-              <button className="ns-btn primary" onClick={() => openCreate("expense")}><Plus size={14} weight="bold" />新增交易</button>
+              <Button onClick={() => openCreate("expense")}><Plus size={14} weight="bold" />新增交易</Button>
             </div>
            ) : (
             dayGroups.map((g, gi) => (
@@ -860,7 +862,7 @@ export function CashFlowRoute() {
               </div>
             ))
            )}
-        </div>
+        </Card>
 
         {/* Side rankings */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -989,8 +991,8 @@ function LedgerRow({
           <span style={{ fontSize: 14, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {row.name || row.category || (isTransfer ? "轉帳" : "未命名")}
           </span>
-          {isReceivable ? <span className="ns-pill" style={{ color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收</span> : null}
-          {isPayable ? <span className="ns-pill" style={{ color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}>應付</span> : null}
+          {isReceivable ? <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收</Badge> : null}
+          {isPayable ? <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}>應付</Badge> : null}
         </div>
         <div className="muted" style={{ fontSize: 11.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subtitle}</div>
       </div>
@@ -1006,12 +1008,12 @@ function LedgerRow({
       </div>
       <div className="ns-cf-actions" style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
         {(isReceivable || isPayable) ? (
-          <button className="ns-btn ghost icon" title="結清" onClick={onSettle}><Check size={14} /></button>
+          <Button variant="ghost" size="icon-sm" title="結清" onClick={onSettle}><Check size={14} /></Button>
         ) : null}
         {!isTransfer ? (
-          <button className="ns-btn ghost icon" title="編輯" onClick={onEdit}><PencilSimple size={13} /></button>
+          <Button variant="ghost" size="icon-sm" title="編輯" onClick={onEdit}><PencilSimple size={13} /></Button>
         ) : null}
-        <button className="ns-btn ghost icon" title="刪除" onClick={onDelete} style={{ color: "var(--ns-neg)" }}><Trash size={13} /></button>
+        <Button variant="ghost" size="icon-sm" title="刪除" onClick={onDelete} style={{ color: "var(--ns-neg)" }}><Trash size={13} /></Button>
       </div>
     </div>
   );
@@ -1022,17 +1024,17 @@ function LedgerRow({
 function StatCard({ label, value, tone }: { label: string; value: string; tone: "pos" | "neg" | "muted" }) {
   const color = tone === "pos" ? "var(--ns-pos)" : tone === "neg" ? "var(--ns-neg)" : "var(--ns-fg)";
   return (
-    <div className="ns-card" style={{ padding: 18 }}>
+    <Card style={{ padding: 18 }}>
       <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{label}</div>
       <div className="num" style={{ fontSize: 22, fontWeight: 500, color }}>{value}</div>
-    </div>
+    </Card>
   );
 }
 
 function RankingCard({ title, rows, emptyText, currency }: { title: string; rows: Array<{ name: string; amount: number }>; emptyText: string; currency: string }) {
   const max = rows[0]?.amount ?? 1;
   return (
-    <div className="ns-card">
+    <Card style={{ padding: "var(--ns-pad-card)" }}>
       <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14 }}>{title}</div>
       {rows.length === 0 ? (
         <div className="muted" style={{ fontSize: 13 }}>{emptyText}</div>
@@ -1051,7 +1053,7 @@ function RankingCard({ title, rows, emptyText, currency }: { title: string; rows
           ))}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -1067,7 +1069,7 @@ function UpcomingPayments({ recurringRows, accountName, onPost, posting }: { rec
     .sort((a, b) => a.nextRunDate.localeCompare(b.nextRunDate));
 
   return (
-    <div className="ns-card">
+    <Card style={{ padding: "var(--ns-pad-card)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <CalendarBlank size={15} weight="duotone" style={{ color: "var(--ns-accent)" }} />
         <span style={{ fontWeight: 600, fontSize: 14 }}>近 2 週固定收支</span>
@@ -1085,12 +1087,12 @@ function UpcomingPayments({ recurringRows, accountName, onPost, posting }: { rec
               <span className="num" style={{ color: row.entryType === "income" ? "var(--ns-pos)" : "var(--ns-neg)", whiteSpace: "nowrap" }}>
                 {row.entryType === "income" ? "+" : "−"}{row.currency} {formatNumber(Math.abs(row.amount))}
               </span>
-              <button className="ns-btn ghost" style={{ fontSize: 11, padding: "3px 8px", minHeight: "auto", whiteSpace: "nowrap" }} disabled={posting} onClick={() => onPost(row.id)} title="立即記入這筆交易">記入</button>
+              <Button variant="ghost" size="xs" className="whitespace-nowrap" disabled={posting} onClick={() => onPost(row.id)} title="立即記入這筆交易">記入</Button>
             </div>
           ))}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -1253,7 +1255,7 @@ function EntryDrawer({
             {editing ? "編輯交易" : "新增交易"}
           </h2>
           <div style={{ flex: 1 }} />
-          <button className="ns-btn ghost icon" onClick={onClose} aria-label="關閉"><X size={16} /></button>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="關閉"><X size={16} /></Button>
         </div>
 
         {/* Type tabs */}
@@ -1715,15 +1717,15 @@ function EntryDrawer({
 
         {/* Footer */}
         <div style={{ padding: "14px 24px", borderTop: "1px solid var(--ns-border)", display: "flex", gap: 8 }}>
-          <button className="ns-btn ghost" style={{ flex: "0 0 80px", justifyContent: "center" }} onClick={onClose}>取消</button>
-          <button
-            className="ns-btn primary"
-            style={{ flex: 1, justifyContent: "center", background: meta.color, borderColor: meta.color, color: "#fff" }}
+          <Button variant="outline" className="shrink-0 grow-0 basis-20 justify-center" onClick={onClose}>取消</Button>
+          <Button
+            className="flex-1 justify-center"
+            style={{ background: meta.color, borderColor: meta.color, color: "#fff" }}
             onClick={type === "transfer" ? onSubmitTransfer : onSubmitLedger}
           >
             <Check size={14} weight="bold" />
             {editing ? "儲存變更" : type === "ar" ? "記錄應收" : type === "ap" ? "記錄應付" : type === "transfer" ? "建立轉帳" : "儲存交易"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
