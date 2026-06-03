@@ -64,6 +64,15 @@ export function confirmRecoveryKit(): void {
 }
 
 /**
+ * True once the user has a confirmed Recovery Kit on this device.
+ * Cloud-backed sync is gated on this — see `canEnableCloudBackedFeature`
+ * in policies.ts and the guard in `runSync`.
+ */
+export function isRecoveryKitConfirmed(): boolean {
+  return Boolean(loadLocalRecoveryKitStatus()?.confirmedAt);
+}
+
+/**
  * Restore the vault key from a Recovery Kit code entered by the user.
  * Accepts both formatted ("AABB…-CCDD…") and raw hex strings.
  */

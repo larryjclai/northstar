@@ -1,4 +1,4 @@
-import { ArrowsClockwise, CheckCircle, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, PencilSimple, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X, CaretDown, CaretRight, Backspace, Gear, Bank, Target, DeviceMobile, Desktop, Spinner, WifiHigh, CopySimple, QrCode } from "@phosphor-icons/react";
+import { ArrowsClockwise, CheckCircle, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, PencilSimple, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X, CaretDown, CaretRight, Backspace, Gear, Bank, Target, DeviceMobile, Desktop, Spinner, WifiHigh, CopySimple, QrCode, Warning } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ActionButton } from "../components/ActionButton";
@@ -15,7 +15,8 @@ import { useUiPreferences, type ClockMode, type NameLocalePreference } from "../
 import { getOrCreateDeviceIdentity } from "../state/deviceIdentity";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import EmojiPicker from "emoji-picker-react";
+import { IconPicker } from "../components/IconPicker";
+import { Glyph } from "../lib/icons";
 import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
 import QRCode from "react-qr-code";
 import {
@@ -136,7 +137,7 @@ function SettingsCategories({ form, setForm, submit, t, renameCategory }: any) {
   const toast = useToast();
   const [editId, setEditId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const [newCat, setNewCat] = useState({ name: '', iconName: '📦', color: '#9fe870', budget: '' });
+  const [newCat, setNewCat] = useState({ name: '', iconName: 'Tag', color: '#9fe870', budget: '' });
   const [expandId, setExpandId] = useState<string | null>(null);
   // Inline subcategory editing (prompt() is unsupported in the Tauri webview).
   const [editingSub, setEditingSub] = useState<{ cat: string; sub: string } | null>(null);
@@ -174,7 +175,7 @@ function SettingsCategories({ form, setForm, submit, t, renameCategory }: any) {
     const nextCat = { name: newCat.name, children: [], iconName: newCat.iconName, color: newCat.color, budget: newCat.budget ? +newCat.budget : undefined };
     const nextForm = { ...form, categories: [...form.categories, nextCat] };
     submit(nextForm);
-    setNewCat({ name: '', iconName: '📦', color: '#9fe870', budget: '' });
+    setNewCat({ name: '', iconName: 'Tag', color: '#9fe870', budget: '' });
     setAdding(false);
     toast.success("已新增分類");
   }
@@ -239,13 +240,12 @@ function SettingsCategories({ form, setForm, submit, t, renameCategory }: any) {
                   background:'var(--ns-bg-hover)',
                   border:'1px solid var(--ns-border)',
                   cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
-                  {newCat.iconName}
+                  <Glyph name={newCat.iconName} size={18} />
                 </PopoverTrigger>
                 <PopoverContent className="z-[150] shadow-xl rounded-xl w-auto p-0">
-                  <EmojiPicker
-                    onEmojiClick={(emojiData) => setNewCat(n=>({...n,iconName: emojiData.emoji}))}
-                    width={300}
-                    height={400}
+                  <IconPicker
+                    value={newCat.iconName}
+                    onSelect={(name) => setNewCat(n=>({...n,iconName: name}))}
                   />
                 </PopoverContent>
               </Popover>
@@ -296,7 +296,7 @@ function SettingsCategories({ form, setForm, submit, t, renameCategory }: any) {
               }}>
                 <div style={{ display:'flex', alignItems:'center', gap:12, cursor:'pointer' }} onClick={() => setExpandId(expandId===c.name ? null : c.name)}>
                   <div style={{ width:34,height:34,borderRadius:'var(--ns-r-sm)',fontSize:18,
-                    background:(c.color||'#868685')+'28',display:'flex',alignItems:'center',justifyContent:'center' }}>{c.iconName||'📦'}</div>
+                    background:(c.color||'#868685')+'28',display:'flex',alignItems:'center',justifyContent:'center' }}><Glyph name={c.iconName || 'Tag'} size={18} /></div>
                   <div>
                     <div style={{ fontSize:13.5,fontWeight:500 }}>{c.name}</div>
                     <div className="muted mono" style={{ fontSize:10.5 }}>{c.children?.length||0} {t('settings.subcategories')}</div>
@@ -404,7 +404,7 @@ function SettingsCategories({ form, setForm, submit, t, renameCategory }: any) {
 
 function EditCatForm({ cat, colors, onSave, onCancel }: any) {
   const [name,   setName]   = useState(cat.name);
-  const [icon,   setIcon]   = useState(cat.iconName || '📦');
+  const [icon,   setIcon]   = useState(cat.iconName || 'Tag');
   const [color,  setColor]  = useState(cat.color || '#868685');
   const [budget, setBudget] = useState(cat.budget || '');
   return (
@@ -425,14 +425,10 @@ function EditCatForm({ cat, colors, onSave, onCancel }: any) {
               background:'var(--ns-bg-hover)',
               border:'1px solid var(--ns-border)',
               cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
-              {icon}
+              <Glyph name={icon} size={18} />
             </PopoverTrigger>
             <PopoverContent className="z-[150] shadow-xl rounded-xl w-auto p-0">
-              <EmojiPicker 
-                onEmojiClick={(emojiData) => setIcon(emojiData.emoji)} 
-                width={300} 
-                height={400} 
-              />
+              <IconPicker value={icon} onSelect={(name) => setIcon(name)} />
             </PopoverContent>
           </Popover>
         </div>
@@ -917,6 +913,28 @@ function PlatformIcon({ platform }: { platform: string }) {
     : <Desktop size={14} />;
 }
 
+function formatRelativeTime(iso: string, now: number): string {
+  const diff = Math.max(0, now - new Date(iso).getTime());
+  const s = Math.floor(diff / 1000);
+  if (s < 10) return "剛剛";
+  if (s < 60) return `${s} 秒前`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} 分鐘前`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} 小時前`;
+  return new Date(iso).toLocaleDateString("zh-Hant");
+}
+
+/** Live "X 秒前" label that re-renders every 10s while mounted. */
+function RelativeTime({ iso }: { iso: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 10_000);
+    return () => clearInterval(id);
+  }, []);
+  return <>{formatRelativeTime(iso, now)}</>;
+}
+
 function ConnectStatus() {
   const toast = useToast();
   const [identity] = useState(() => getOrCreateDeviceIdentity());
@@ -1152,6 +1170,10 @@ function ConnectStatus() {
   // ── Manual sync ──
   async function handleManualSync() {
     if (syncStatus.phase === "pushing" || syncStatus.phase === "pulling") return;
+    if (!kitStatus?.confirmedAt) {
+      toast.error("請先備份並確認 Recovery Kit 才能開始同步");
+      return;
+    }
     syncStatus.setPhase("pushing");
     try {
       const repo = await getFinanceRepository();
@@ -1278,12 +1300,17 @@ function ConnectStatus() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <h3 className="font-semibold">Connect 同步</h3>
-          <span className="ns-pill" style={{ fontSize: 10.5, background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}>已啟用</span>
+          {kitStatus?.confirmedAt ? (
+            <span className="ns-pill" style={{ fontSize: 10.5, background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}>已啟用</span>
+          ) : (
+            <span className="ns-pill" style={{ fontSize: 10.5, background: "var(--ns-warn-soft, var(--ns-bg-hover))", color: "var(--ns-warn, #b45309)" }}>待備份備援碼</span>
+          )}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="ns-btn ghost" style={{ fontSize: 12 }}
             onClick={handleManualSync}
-            disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
+            title={!kitStatus?.confirmedAt ? "請先備份並確認 Recovery Kit" : undefined}
+            disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling" || !kitStatus?.confirmedAt}>
             <ArrowsClockwise size={13} style={{ animation: (syncStatus.phase === "pushing" || syncStatus.phase === "pulling") ? "spin 1s linear infinite" : undefined }} />
             {syncStatus.phase === "pushing" ? "上傳中…" : syncStatus.phase === "pulling" ? "下載中…" : "立即同步"}
           </button>
@@ -1293,18 +1320,31 @@ function ConnectStatus() {
         </div>
       </div>
 
+      {/* Recovery Kit gate — sync is blocked until the kit is confirmed */}
+      {!kitStatus?.confirmedAt && (
+        <div style={{ fontSize: 12, marginBottom: 10, padding: "10px 12px", borderRadius: "var(--ns-r-sm)",
+          background: "var(--ns-warn-soft, var(--ns-bg-hover))", color: "var(--ns-warn, #b45309)",
+          display: "flex", alignItems: "flex-start", gap: 8 }}>
+          <Warning size={15} weight="fill" style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>同步尚未啟動。請先在下方「Recovery Kit 備援碼」產生並確認備份 —— 這是萬一所有裝置遺失時還原加密資料的唯一方法，確認後才會開始自動同步。</span>
+        </div>
+      )}
+
       {/* Sync status bar */}
-      {(syncStatus.phase === "done" || syncStatus.phase === "error" || syncStatus.lastSyncAt) && (
+      {(syncStatus.phase !== "idle" || syncStatus.lastSyncAt) && (
         <div style={{ fontSize: 11.5, marginBottom: 10, padding: "7px 10px", borderRadius: "var(--ns-r-sm)",
+          display: "flex", alignItems: "center", gap: 6,
           background: syncStatus.phase === "error" ? "var(--ns-neg-soft)" : "var(--ns-bg-hover)",
           color: syncStatus.phase === "error" ? "var(--ns-neg)" : "var(--ns-fg-muted)" }}>
-          {syncStatus.phase === "error"
-            ? `⚠ ${syncStatus.error}`
-            : syncStatus.phase === "done"
-              ? `✓ 已同步：上傳 ${syncStatus.lastPushed} 筆，下載並套用 ${syncStatus.lastApplied} 筆`
-              : syncStatus.lastSyncAt
-                ? `上次同步：${new Date(syncStatus.lastSyncAt).toLocaleString("zh-Hant")}`
-                : null}
+          {syncStatus.phase === "pushing" || syncStatus.phase === "pulling" ? (
+            <><Spinner size={13} className="animate-spin" style={{ flexShrink: 0 }} /><span>{syncStatus.phase === "pushing" ? "上傳變更中…" : "下載並套用中…"}</span></>
+          ) : syncStatus.phase === "error" ? (
+            <><Warning size={13} weight="fill" style={{ flexShrink: 0 }} /><span>{syncStatus.error}</span></>
+          ) : syncStatus.phase === "done" ? (
+            <><CheckCircle size={13} weight="fill" style={{ flexShrink: 0, color: "var(--ns-pos)" }} /><span>{`已同步：上傳 ${syncStatus.lastPushed} 筆，下載並套用 ${syncStatus.lastApplied} 筆`}</span></>
+          ) : syncStatus.lastSyncAt ? (
+            <span>上次同步：<RelativeTime iso={syncStatus.lastSyncAt} /></span>
+          ) : null}
         </div>
       )}
 
@@ -1459,8 +1499,8 @@ function ConnectStatus() {
                 return acc;
               }, []).join("-").split("\n-").join("\n")}
             </div>
-            <p className="text-sm" style={{ color: "var(--ns-warn, #b45309)", marginBottom: 12, fontSize: 11.5 }}>
-              ⚠ 請將此碼列印或抄寫到安全的地方。關閉後無法再次檢視。
+            <p className="text-sm" style={{ color: "var(--ns-warn, #b45309)", marginBottom: 12, fontSize: 11.5, display: "flex", alignItems: "center", gap: 6 }}>
+              <Warning size={13} weight="fill" style={{ flexShrink: 0 }} />請將此碼列印或抄寫到安全的地方。關閉後無法再次檢視。
             </p>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="ns-btn primary" onClick={handleDownloadKit}>

@@ -11,7 +11,11 @@
 import type { FinanceRepository } from "../../../data/repositories";
 import { getOrCreateDeviceIdentity, setRemotePullCursor } from "../../../state/deviceIdentity";
 import { loadVaultKey } from "../crypto/vault";
+import { isRecoveryKitConfirmed } from "../crypto/recovery-kit";
 import { loadSyncAccount } from "./account";
+
+/** Thrown by runSync when the Recovery Kit has not been confirmed yet. */
+export const RECOVERY_KIT_REQUIRED = "請先備份並確認 Recovery Kit 才能開始同步";
 import { pushPendingChanges } from "./push";
 import { pullAndApply } from "./pull";
 import { saveBackup } from "./backup";
@@ -49,6 +53,11 @@ async function _doSync(repo: FinanceRepository): Promise<SyncResult> {
 
   const vaultKey = await loadVaultKey();
   if (!vaultKey) throw new Error("加密金鑰尚未初始化");
+
+  // Gate: a confirmed Recovery Kit is required before any cloud-backed sync.
+  // Without the kit, a lost device means permanently lost data — see
+  // canEnableCloudBackedFeature in policies.ts.
+  if (!isRecoveryKitConfirmed()) throw new Error(RECOVERY_KIT_REQUIRED);
 
   const device = getOrCreateDeviceIdentity();
 

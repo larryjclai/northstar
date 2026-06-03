@@ -11,6 +11,7 @@ import {
   decryptBundle,
 } from "../crypto/pairing";
 import { getOrCreateSyncAccount, setSyncAccount } from "./account";
+import { confirmRecoveryKit } from "../crypto/recovery-kit";
 import { createPairingSession, claimPairingSession, addDevice } from "./client";
 import { getOrCreateDeviceIdentity } from "../../../state/deviceIdentity";
 
@@ -86,6 +87,11 @@ export async function joinWithCode(
 
   const vaultKey = await importVaultKey(bundle.vaultKeyB64);
   await saveVaultKey(vaultKey);
+
+  // This device inherited the vault key from the already-paired device, where
+  // the Recovery Kit was created. Mark it confirmed locally so the sync gate
+  // (see runSync) doesn't block this device from syncing.
+  confirmRecoveryKit();
 
   setSyncAccount({ userId: bundle.userId, apiSecret: bundle.apiSecret });
 

@@ -28,6 +28,7 @@ import { MagnifyingGlass } from "@phosphor-icons/react";
 import { getFinanceRepository } from "../data/repositories";
 import { loadSyncAccount } from "../features/connect/sync/account";
 import { loadVaultKey } from "../features/connect/crypto/vault";
+import { isRecoveryKitConfirmed } from "../features/connect/crypto/recovery-kit";
 import { runSync, isSyncRunning, isTauriRuntime } from "../features/connect/sync/sync-manager";
 import { useSyncStatus } from "../state/syncStatus";
 import { queryKeys } from "../data/hooks";
@@ -408,6 +409,7 @@ const MIN_SYNC_INTERVAL_MS = 60_000;
 
 function useAutoSync() {
   const { setPhase, setSyncDone, setError } = useSyncStatus();
+  const autoSyncQueryClient = useQueryClient();
   const lastSyncRef = useRef<number>(0);
 
   const triggerSync = useCallback(async () => {
@@ -416,6 +418,10 @@ function useAutoSync() {
     if (!account) return;
     const vaultKey = await loadVaultKey();
     if (!vaultKey) return;
+
+    // Skip silently until the Recovery Kit is confirmed — the user is guided to
+    // do this in Settings, and runSync would otherwise throw on every focus.
+    if (!isRecoveryKitConfirmed()) return;
 
     // Skip if another sync is already running (e.g. manual sync from Settings)
     if (isSyncRunning()) return;
@@ -430,6 +436,10 @@ function useAutoSync() {
       setPhase("pulling");
       const result = await runSync(repo);
       setSyncDone(result.pushed, result.pulled, result.applied);
+      // Refresh the UI if remote changes were merged into SQLite. Without this
+      // the React Query cache keeps serving stale data until the next manual
+      // refresh or route change.
+      if (result.applied > 0) await autoSyncQueryClient.invalidateQueries();
     } catch (e) {
       // Silently skip "already running" — user already sees status from manual sync
       const msg = e instanceof Error ? e.message
@@ -439,7 +449,7 @@ function useAutoSync() {
       console.error("[sync] auto-sync failed:", e);
       setError(msg);
     }
-  }, [setPhase, setSyncDone, setError]);
+  }, [setPhase, setSyncDone, setError, autoSyncQueryClient]);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
