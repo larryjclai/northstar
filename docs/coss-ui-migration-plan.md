@@ -116,8 +116,8 @@ Order = highest user value / highest inline-style debt first, while starting wit
 | 1 (pilot) ✅ | `InvestmentsAddSheet` | 60 | **DONE (first pass).** Self-contained drawer; exercises forms + segmented control + `NumberField`. Reference for the rest. See "Pilot results" below. |
 | 2 ✅ | `DashboardRoute` | 138 | **DONE.** Established the Card/Badge/Button pattern: all `ns-card`→`Card`, `ns-btn`→`Button`, `ns-pill`→`Badge`. Charts + layout grids kept. |
 | 3 ✅ | `CashFlowRoute` | 155 | **DONE.** ns-card→Card, ns-btn→Button, ns-pill→Badge across the route + StatCard/RankingCard/UpcomingPayments helpers. Bespoke multi-colour drawer type-tabs and native inputs kept. |
-| 4 | `InvestmentsRoute` + `HoldingDetailRoute` | 60 + 61 | Tables + detail patterns; reuse Dashboard cards. |
-| 5 | `AccountsRoute` + account wizard | 111 | Multi-step wizard = good COSS dialog/section test. |
+| 4 ✅ | `InvestmentsRoute` + `HoldingDetailRoute` | 60 + 61 | **DONE.** Also migrated the shared `components/Card.tsx` to wrap COSS Card (covers TransactionsRoute too). HoldingDetail price range selector → COSS ToggleGroup. Verified end-to-end with a real holding. |
+| 5 | `AccountsRoute` + account wizard | 111 | Multi-step wizard = good COSS dialog/section test. **Note:** the shared `components/Card.tsx` is already COSS-backed (Phase 4). |
 | 6 | `FIRECalculatorRoute` + `GoalsRoute` | 102 + 56 | Forms + viz. |
 | 7 | `SettingsRoute` | 213 | Largest; do last once every pattern exists. |
 | 8 | Remaining tabs/panels | tail | `Categories*`, `Merchants*`, `Recurring*`, `Reconcile`, `Transactions`, shared panels. |
@@ -252,6 +252,6 @@ independently shippable and revertible.
 
 ---
 
-_Status: Phase 0 (foundations) + Phase 1 (pilot) + Phase 2 (Dashboard) + Phase 3
-(CashFlow) complete as of 2026-06-03. Phases 4–10 not yet started. Next: Phase 4 —
-InvestmentsRoute + HoldingDetailRoute._
+_Status: Phases 0–4 complete as of 2026-06-03 (foundations, pilot, Dashboard, CashFlow,
+Investments+HoldingDetail; shared components/Card.tsx now COSS-backed). Phases 5–10 not
+yet started. Next: Phase 5 — AccountsRoute + account wizard._
