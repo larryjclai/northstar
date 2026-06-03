@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { projectRetirement, resolveAnnualSpending } from "./retirementProjection";
+import { projectRetirement, projectRetirementScenarios, resolveAnnualSpending } from "./retirementProjection";
 import type { FinancialGoal } from "./types";
 
 function baseGoal(overrides: Partial<FinancialGoal> = {}): FinancialGoal {
@@ -123,6 +123,60 @@ describe("projectRetirement", () => {
     expect(todayLast.plannedSpending).toBe(600_000);
     // ...and clearly inflated by 40 years of 2% in nominal mode (~2.2×).
     expect(nominalLast.plannedSpending).toBeGreaterThan(1_200_000);
+  });
+
+  it("treats withdrawalRate stored as a percent the same as a decimal", () => {
+    const decimal = projectRetirement({ goal: baseGoal({ withdrawalRate: 0.04 }), currentValue: 100_000 });
+    const percent = projectRetirement({ goal: baseGoal({ withdrawalRate: 4 }), currentValue: 100_000 });
+    // Both mean a 4% SWR → identical 25× target, not a 100% withdrawal.
+    expect(percent.targetAtRetirement).toBe(decimal.targetAtRetirement);
+    expect(decimal.targetAtRetirement).toBe(15_000_000);
+  });
+
+  it("post-retirement return inherits pre-retirement when unset (no spurious depletion)", () => {
+    // A portfolio at the 25× target with steady contributions and an unset post
+    // return should not collapse purely because of a disconnected default.
+    const inherited = projectRetirement({
+      goal: baseGoal({ postRetirementReturn: null, preRetirementReturn: 0.07, monthlyContribution: 50_000 }),
+      currentValue: 5_000_000,
+    });
+    const last = inherited.series[inherited.series.length - 1];
+    expect(last.endBalance).toBeGreaterThan(0);
+    expect(inherited.onTrack).toBe(true);
+  });
+
+  it("income items honor the inflation-linked toggle in nominal mode", () => {
+    const linked = projectRetirement({
+      goal: baseGoal({
+        displayMode: "nominal",
+        incomeItems: [{ id: "p1", name: "Pension", monthlyAmount: 20_000, startAge: 65, endAge: 90, inflationLinked: true }],
+      }),
+      currentValue: 1_000_000,
+    });
+    const fixed = projectRetirement({
+      goal: baseGoal({
+        displayMode: "nominal",
+        incomeItems: [{ id: "p1", name: "Pension", monthlyAmount: 20_000, startAge: 65, endAge: 90, inflationLinked: false }],
+      }),
+      currentValue: 1_000_000,
+    });
+    const linkedAt80 = linked.series.find((r) => r.age === 80)!;
+    const fixedAt80 = fixed.series.find((r) => r.age === 80)!;
+    // Linked pension has grown with inflation; fixed stays at its nominal level.
+    expect(linkedAt80.retirementIncome).toBeGreaterThan(fixedAt80.retirementIncome);
+    expect(fixedAt80.retirementIncome).toBeCloseTo(240_000, 0);
+  });
+
+  it("projectRetirementScenarios brackets the neutral case and counts solvency", () => {
+    const set = projectRetirementScenarios({
+      goal: baseGoal({ monthlyContribution: 50_000 }),
+      currentValue: 1_000_000,
+    });
+    const endOf = (p: typeof set.neutral) => p.projection.series[p.projection.series.length - 1].endBalance;
+    expect(endOf(set.optimistic)).toBeGreaterThan(endOf(set.neutral));
+    expect(endOf(set.neutral)).toBeGreaterThan(endOf(set.pessimistic));
+    expect(set.scenariosOnTrack).toBeGreaterThanOrEqual(0);
+    expect(set.scenariosOnTrack).toBeLessThanOrEqual(3);
   });
 
   it("uses spendingItems sum when present, otherwise legacy annualSpending", () => {

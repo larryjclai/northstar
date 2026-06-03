@@ -96,7 +96,7 @@ export function projectRetirement(input: ProjectionInput): RetirementProjection 
   const { currentAge, retirementAge, planThroughAge, preReturn, postReturn, fee, inflation, contributionGrowth } = params;
 
   const annualSpending = resolveAnnualSpending(goal);
-  const wr = clamp(goal.withdrawalRate || PROJECTION_DEFAULTS.withdrawalRate, 0.0001, 1);
+  const wr = clamp(normalizeRate(goal.withdrawalRate) || PROJECTION_DEFAULTS.withdrawalRate, 0.0001, 1);
   const baseTarget = annualSpending / wr;
 
   // Convert spending into today's-money or nominal-money depending on mode.
@@ -164,8 +164,10 @@ export function projectRetirement(input: ProjectionInput): RetirementProjection 
   // a hairline pass that doesn't survive any variance.
   const onTrack = endBalance > 0;
 
-  // Coast FIRE: minimum balance today that grows at the *gross* pre-retirement
-  // return to fund retirement spending without any further contribution.
+  // Coast FIRE: minimum balance today that, with no further contributions,
+  // compounds at the effective pre-retirement return (real in "today" mode,
+  // nominal otherwise — same basis as the projection) up to the retirement
+  // target.
   const yearsToRetirement = Math.max(0, retirementAge - currentAge);
   const coastFireAmount = baseTarget / Math.pow(1 + effectivePreReturn, yearsToRetirement);
 
@@ -182,6 +184,54 @@ export function projectRetirement(input: ProjectionInput): RetirementProjection 
     effectivePostReturn,
     annualSpending,
   };
+}
+
+export type ScenarioKey = "pessimistic" | "neutral" | "optimistic";
+
+export interface ScenarioProjection {
+  key: ScenarioKey;
+  /** Return adjustment applied to both pre- and post-retirement returns. */
+  returnDelta: number;
+  projection: RetirementProjection;
+}
+
+export interface ScenarioSet {
+  pessimistic: ScenarioProjection;
+  neutral: ScenarioProjection;
+  optimistic: ScenarioProjection;
+  /** How many of the three scenarios stay solvent to plan-through age (0–3). */
+  scenariosOnTrack: number;
+}
+
+/**
+ * Lightweight sequence-of-returns sensitivity: re-run the deterministic
+ * projection at a lower and higher return to bracket the central case. This is
+ * the simple three-scenario stand-in for a full Monte Carlo — enough to show
+ * that "on track" isn't a single-path certainty. `spread` is the ± adjustment
+ * applied to both the pre- and post-retirement returns (default ±2.5pp, the
+ * bear/bull band the calculator used before).
+ */
+export function projectRetirementScenarios(input: ProjectionInput, spread = 0.025): ScenarioSet {
+  const run = (key: ScenarioKey, returnDelta: number): ScenarioProjection => {
+    const preBase = input.goal.preRetirementReturn ?? input.goal.expectedAnnualReturn ?? PROJECTION_DEFAULTS.preRetirementReturn;
+    const postBase = input.goal.postRetirementReturn ?? preBase;
+    const projection = projectRetirement({
+      ...input,
+      goal: {
+        ...input.goal,
+        preRetirementReturn: preBase + returnDelta,
+        postRetirementReturn: postBase + returnDelta,
+        // Keep the legacy field aligned so downstream readers stay consistent.
+        expectedAnnualReturn: preBase + returnDelta,
+      },
+    });
+    return { key, returnDelta, projection };
+  };
+  const pessimistic = run("pessimistic", -spread);
+  const neutral = run("neutral", 0);
+  const optimistic = run("optimistic", spread);
+  const scenariosOnTrack = [pessimistic, neutral, optimistic].filter((s) => s.projection.onTrack).length;
+  return { pessimistic, neutral, optimistic, scenariosOnTrack };
 }
 
 /** Sum of spending items × 12, falling back to the legacy `annualSpending`. */
@@ -209,7 +259,14 @@ function resolveParameters(goal: FinancialGoal): ResolvedParameters {
     retirementAge: validAge(goal.retirementAge, PROJECTION_DEFAULTS.retirementAge),
     planThroughAge: validAge(goal.planThroughAge, PROJECTION_DEFAULTS.planThroughAge),
     preReturn: validRate(goal.preRetirementReturn ?? goal.expectedAnnualReturn, PROJECTION_DEFAULTS.preRetirementReturn),
-    postReturn: validRate(goal.postRetirementReturn, PROJECTION_DEFAULTS.postRetirementReturn),
+    // Post-retirement return inherits the accumulation return when not set
+    // explicitly. A disconnected flat default made a portfolio that reached the
+    // 25× SWR target spuriously deplete ("存到 25× 卻顯示未達標"); inheriting the
+    // pre-retirement return keeps the target and the drawdown sim coherent.
+    postReturn: validRate(
+      goal.postRetirementReturn ?? goal.preRetirementReturn ?? goal.expectedAnnualReturn,
+      PROJECTION_DEFAULTS.postRetirementReturn,
+    ),
     fee: validRate(goal.annualFee, PROJECTION_DEFAULTS.annualFee),
     inflation: validRate(goal.inflationRate, PROJECTION_DEFAULTS.inflationRate),
     contributionGrowth: validRate(goal.contributionGrowthRate, PROJECTION_DEFAULTS.contributionGrowthRate),
@@ -251,14 +308,19 @@ function incomeForYear(
   mode: GoalDisplayMode,
 ): number {
   if (!items || items.length === 0) return 0;
-  const annual = items.reduce((sum, item) => {
+  const years = Math.max(0, age - baseAge);
+  return items.reduce((sum, item) => {
     if (age < item.startAge || age > item.endAge) return sum;
-    return sum + Math.max(0, item.monthlyAmount) * 12;
+    const annual = Math.max(0, item.monthlyAmount) * 12;
+    const linked = item.inflationLinked ?? false;
+    if (mode === "nominal") {
+      // Inflation-linked income grows with prices; fixed income stays flat.
+      return sum + (linked ? annual * Math.pow(1 + inflation, years) : annual);
+    }
+    // today's-money mode: linked income keeps its real value; fixed income
+    // loses purchasing power year over year.
+    return sum + (linked ? annual : annual / Math.pow(1 + inflation, years));
   }, 0);
-  if (mode === "nominal") {
-    return annual * Math.pow(1 + inflation, Math.max(0, age - baseAge));
-  }
-  return annual;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -272,7 +334,18 @@ function validAge(value: number | null, fallback: number): number {
 
 function validRate(value: number | null | undefined, fallback: number): number {
   if (value === null || value === undefined || !Number.isFinite(value)) return fallback;
-  return value;
+  return normalizeRate(value);
+}
+
+/**
+ * Accept rates stored either as a decimal (0.04) or a percentage (4). Any value
+ * greater than 1 is unambiguously a percentage for the inputs we deal with
+ * (returns, withdrawal rates), so divide by 100. This keeps the engine correct
+ * regardless of which convention a saved goal used — the FIRE calculator used
+ * to persist percentages while the projection math expects decimals.
+ */
+function normalizeRate(value: number): number {
+  return value > 1 ? value / 100 : value;
 }
 
 function roundCents(value: number): number {

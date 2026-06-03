@@ -342,6 +342,13 @@ export interface IncomeItem {
   monthlyAmount: number;
   startAge: number;
   endAge: number;
+  /**
+   * Whether this income grows with inflation (a fully COLA-indexed pension) or
+   * is fixed in nominal terms (most annuities, partially-indexed 勞保). Defaults
+   * to false — the conservative assumption that purchasing power erodes over
+   * time. Optional so old backups load cleanly.
+   */
+  inflationLinked?: boolean;
 }
 
 /**

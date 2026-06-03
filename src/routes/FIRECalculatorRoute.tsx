@@ -1,8 +1,8 @@
-import { DownloadSimple, Star, Info, ChartLineUp } from "@phosphor-icons/react";
+import { DownloadSimple, Star, Info, ChartLineUp, X } from "@phosphor-icons/react";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine, Line, LineChart } from "recharts";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { formatNumber, todayInTimezone } from "../domain";
+import { formatNumber, projectRetirementScenarios, todayInTimezone, type FinancialGoal, type IncomeItem } from "../domain";
 import { computeNetWorthInCurrency } from "../features/goals/netWorth";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useToast } from "../components/Toast";
@@ -41,6 +41,9 @@ export function FIRECalculatorRoute() {
   
   const [cagr, setCagr] = useState(7.2);
 
+  // Retirement income (pensions / 勞保 / annuities) offsets portfolio withdrawals.
+  const [incomeItems, setIncomeItems] = useState<IncomeItem[]>([]);
+
   // currentAssets is always synced from real data
   const currentAssets = realNetWorth;
 
@@ -59,44 +62,64 @@ export function FIRECalculatorRoute() {
     if (goal.annualSpending) setAnnualExpense(goal.annualSpending);
     if (goal.withdrawalRate) setSwr(goal.withdrawalRate <= 1 ? goal.withdrawalRate * 100 : goal.withdrawalRate);
     if (goal.expectedAnnualReturn) setCagr(goal.expectedAnnualReturn <= 1 ? goal.expectedAnnualReturn * 100 : goal.expectedAnnualReturn);
+    if (Array.isArray(goal.incomeItems)) setIncomeItems(goal.incomeItems);
   }, [editingGoalId, financialGoals.data]);
 
   const editingGoal = editingGoalId ? (financialGoals.data ?? []).find((g) => g.id === editingGoalId && g.deletedAt === null) ?? null : null;
   const isEditing = Boolean(editingGoal);
 
   const fireTarget = annualExpense / (swr / 100);
-  
-  // Calculate Base projection
-  const projection = useMemo(() => {
-    let balance = currentAssets;
-    let age = currentAge;
-    const series = [];
-    let fiAge: number | null = null;
+  const savingsRatePct = annualSavings + annualExpense > 0
+    ? Math.round((annualSavings / (annualSavings + annualExpense)) * 100)
+    : 0;
 
-    // Bear/Bull rates
-    const bearCagr = Math.max(cagr - 2.5, 1);
-    const bullCagr = cagr + 2.5;
-    let bearBal = currentAssets;
-    let bullBal = currentAssets;
-    
-    for (let i = 0; i <= 40; i++) {
-      if (balance >= fireTarget && !fiAge) {
-        fiAge = age;
-      }
-      series.push({
-        age,
-        balance,
-        bearBalance: bearBal,
-        bullBalance: bullBal,
-        fireTarget
-      });
-      balance = balance * (1 + cagr / 100) + annualSavings;
-      bearBal = bearBal * (1 + bearCagr / 100) + annualSavings;
-      bullBal = bullBal * (1 + bullCagr / 100) + annualSavings;
-      age++;
-    }
-    return { series, fiAge, bearCagr, bullCagr };
-  }, [currentAge, currentAssets, annualSavings, annualExpense, swr, cagr, fireTarget]);
+  // Drive the calculator from the same engine the saved goal + Goals page use
+  // (domain/retirementProjection) so the math is consistent everywhere:
+  // inflation, fees, and post-retirement returns are all modeled, instead of
+  // the old ad-hoc nominal loop.
+  const goalInput = useMemo<FinancialGoal>(() => ({
+    id: editingGoalId ?? "fire-calc",
+    spaceId: "", revision: 1, createdAt: "", updatedAt: "", deletedAt: null,
+    kind: "fire", name: "FIRE", currency: primaryCurrency,
+    annualSpending: annualExpense,
+    withdrawalRate: swr / 100,
+    expectedAnnualReturn: cagr / 100,
+    monthlyContribution: annualSavings / 12,
+    targetAmount: null,
+    startDate: new Date().toISOString().slice(0, 10),
+    currentAge, retirementAge: targetAge, planThroughAge: null,
+    preRetirementReturn: cagr / 100, postRetirementReturn: null,
+    inflationRate: null, annualFee: null, contributionGrowthRate: null,
+    spendingItems: [], incomeItems, displayMode: "today", accountShareMap: {},
+  }), [editingGoalId, primaryCurrency, annualExpense, swr, cagr, annualSavings, currentAge, targetAge, incomeItems]);
+
+  const scenarios = useMemo(
+    () => projectRetirementScenarios({ goal: goalInput, currentValue: currentAssets }),
+    [goalInput, currentAssets],
+  );
+
+  // Reshape the three scenarios into the series/fields the chart already reads.
+  const projection = useMemo(() => {
+    const base = scenarios.neutral.projection;
+    const bearByAge = new Map(scenarios.pessimistic.projection.series.map((r) => [r.age, r.endBalance]));
+    const bullByAge = new Map(scenarios.optimistic.projection.series.map((r) => [r.age, r.endBalance]));
+    const series = base.series.map((r) => ({
+      age: r.age,
+      balance: r.endBalance,
+      bearBalance: bearByAge.get(r.age) ?? r.endBalance,
+      bullBalance: bullByAge.get(r.age) ?? r.endBalance,
+      fireTarget,
+    }));
+    return {
+      series,
+      fiAge: base.fiAge,
+      bearCagr: cagr - 2.5,
+      bullCagr: cagr + 2.5,
+      coastFireAmount: base.coastFireAmount,
+      onTrack: base.onTrack,
+      scenariosOnTrack: scenarios.scenariosOnTrack,
+    };
+  }, [scenarios, fireTarget, cagr]);
 
   const yearsToFi = projection.fiAge ? projection.fiAge - currentAge : null;
 
@@ -115,6 +138,7 @@ export function FIRECalculatorRoute() {
         startDate: editingGoal?.startDate ?? new Date().toISOString().slice(0, 10),
         currentAge,
         retirementAge: targetAge,
+        incomeItems,
       });
       toast.success(isEditing ? "已儲存變更" : "成功存為目標！");
       navigate({ to: "/goals" });
@@ -175,7 +199,13 @@ export function FIRECalculatorRoute() {
           <SliderSection title="投資報酬">
             <SliderRow label="預期年化報酬 (CAGR)" value={`${cagr.toFixed(1)}%`} min={2.0} max={15.0} step={0.1} minLabel="2.0%" maxLabel="15.0%" val={cagr} setVal={setCagr} />
           </SliderSection>
-          
+
+          <RetirementIncomeSection
+            items={incomeItems}
+            setItems={setIncomeItems}
+            defaultStartAge={targetAge}
+          />
+
         </div>
 
         {/* Main Content */}
@@ -185,8 +215,8 @@ export function FIRECalculatorRoute() {
           <div style={{ display: "flex", gap: 16 }}>
             <MetricCard title="FIRE 目標" value={`NT$${(fireTarget / 1000000).toFixed(2)}M`} sub={`年支出 × ${Math.round(100/swr)} 倍`} />
             <MetricCard title="達成年份" value={`+${yearsToFi ?? "-"}y · ${projection.fiAge ?? "-"}歲`} sub={yearsToFi ? `預計 ${new Date().getFullYear() + yearsToFi} 年` : "-"} />
-            <MetricCard title="COAST-FIRE" value="+1y · 31歲" sub="屆時停止儲蓄仍可達成" />
-            <MetricCard title="每月需存" value={`NT$${formatNumber(Math.round(annualSavings / 12))}`} sub={`年存 NT$${formatNumber(annualSavings)}`} />
+            <MetricCard title="COAST-FIRE" value={`NT$${(projection.coastFireAmount / 1000000).toFixed(2)}M`} sub="達到此金額後即使停止儲蓄也能自然成長到 FIRE" />
+            <MetricCard title="情境穩健度" value={`${projection.scenariosOnTrack} / 3`} sub="悲觀／中性／樂觀情境下仍能撐到計畫年齡的數量" />
           </div>
 
           {/* Chart Card */}
@@ -220,7 +250,7 @@ export function FIRECalculatorRoute() {
                 </LineChart>
               </ResponsiveContainer>
               <div style={{ position: "absolute", bottom: -20, left: 0, fontSize: 11, color: "var(--ns-fg-dim)" }}>
-                陰影區間：悲觀 ↔ 樂觀 ±2.5% · Coast-FIRE 達成於 +1y (可停止儲蓄後仍能自然成長到 FIRE)
+                區間：悲觀 ↔ 樂觀 報酬 ±2.5% · 數值以今日購買力計（已計入通膨與費用）
               </div>
             </div>
           </div>
@@ -274,7 +304,7 @@ export function FIRECalculatorRoute() {
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14 }}>
                   <div style={{ color: "var(--ns-fg-dim)" }}>目前儲蓄率</div>
-                  <div style={{ fontWeight: 500 }}>29%</div>
+                  <div style={{ fontWeight: 500 }}>{savingsRatePct}%</div>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14 }}>
                   <div style={{ color: "var(--ns-fg-dim)" }}>多存 10%</div>
@@ -294,6 +324,109 @@ export function FIRECalculatorRoute() {
           
         </div>
       </div>
+    </div>
+  );
+}
+
+function RetirementIncomeSection({
+  items,
+  setItems,
+  defaultStartAge,
+}: {
+  items: IncomeItem[];
+  setItems: (next: IncomeItem[]) => void;
+  defaultStartAge: number;
+}) {
+  const update = (id: string, patch: Partial<IncomeItem>) =>
+    setItems(items.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+  const numFromInput = (raw: string) => Number(raw.replace(/[^\d.]/g, "")) || 0;
+
+  return (
+    <div className="ns-card" style={{ padding: "20px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ fontSize: 13, color: "var(--ns-fg-muted)" }}>退休收入（選填）</div>
+        <button
+          className="ns-btn ghost"
+          style={{ fontSize: 12, padding: "4px 10px", minHeight: "auto" }}
+          onClick={() =>
+            setItems([
+              ...items,
+              { id: crypto.randomUUID(), name: "", monthlyAmount: 0, startAge: defaultStartAge, endAge: 90, inflationLinked: false },
+            ])
+          }
+        >
+          ＋ 新增
+        </button>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>
+          勞保年金、企業年金、被動收入等會減少投資組合的提領壓力。新增後可設定金額、適用年齡與是否隨通膨調整。
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {items.map((item) => (
+            <div key={item.id} style={{ display: "flex", flexDirection: "column", gap: 8, paddingBottom: 12, borderBottom: "1px solid var(--ns-border)" }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  className="ns-input"
+                  style={{ flex: 1 }}
+                  placeholder="名稱（如 勞保年金）"
+                  value={item.name}
+                  onChange={(e) => update(item.id, { name: e.target.value })}
+                />
+                <button
+                  className="ns-btn ghost icon"
+                  aria-label="移除"
+                  onClick={() => setItems(items.filter((it) => it.id !== item.id))}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                <div>
+                  <label className="ns-eyebrow" style={{ display: "block", marginBottom: 4, fontSize: 10 }}>月收入</label>
+                  <input
+                    className="ns-input mono"
+                    style={{ textAlign: "right" }}
+                    value={item.monthlyAmount ? item.monthlyAmount.toLocaleString("zh-TW") : ""}
+                    placeholder="20,000"
+                    onChange={(e) => update(item.id, { monthlyAmount: numFromInput(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <label className="ns-eyebrow" style={{ display: "block", marginBottom: 4, fontSize: 10 }}>起始年齡</label>
+                  <input
+                    className="ns-input mono"
+                    style={{ textAlign: "right" }}
+                    value={item.startAge || ""}
+                    placeholder="65"
+                    onChange={(e) => update(item.id, { startAge: numFromInput(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <label className="ns-eyebrow" style={{ display: "block", marginBottom: 4, fontSize: 10 }}>結束年齡</label>
+                  <input
+                    className="ns-input mono"
+                    style={{ textAlign: "right" }}
+                    value={item.endAge || ""}
+                    placeholder="90"
+                    onChange={(e) => update(item.id, { endAge: numFromInput(e.target.value) })}
+                  />
+                </div>
+              </div>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--ns-fg-dim)", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={item.inflationLinked ?? false}
+                  onChange={(e) => update(item.id, { inflationLinked: e.target.checked })}
+                />
+                隨通膨調整（如完全 COLA 連動的年金；勞保僅部分連動，建議不勾）
+              </label>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
