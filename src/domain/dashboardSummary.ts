@@ -1,4 +1,4 @@
-import type { Account, PortfolioAsset } from "./types";
+import type { Account, LedgerTransaction, PortfolioAsset } from "./types";
 
 export interface DashboardQuote {
   symbol: string;
@@ -98,6 +98,64 @@ export function buildCreditCardReminders(
     });
   }
   return reminders.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+}
+
+export interface OutstandingSettlementItem {
+  id: string;
+  kind: "receivable" | "payable";
+  name: string;
+  counterparty: string;
+  date: string;
+  amount: number;
+  currency: string;
+}
+
+export interface OutstandingSettlements {
+  receivableTotal: number;
+  payableTotal: number;
+  receivableCount: number;
+  payableCount: number;
+  items: OutstandingSettlementItem[];
+}
+
+/**
+ * Unsettled accounts receivable / payable. AR (`receivable`) is money owed to
+ * you; AP (`payable`) is money you owe. Both are stored as ledger rows whose
+ * `settlementStatus` is not yet `settled`. Totals are in the primary currency;
+ * items are sorted oldest-first so the most overdue surfaces at the top.
+ */
+export function buildOutstandingSettlements(
+  ledger: LedgerTransaction[],
+  toPrimary: (amount: number, currency: string) => number,
+): OutstandingSettlements {
+  const items: OutstandingSettlementItem[] = [];
+  let receivableTotal = 0;
+  let payableTotal = 0;
+  for (const row of ledger) {
+    if (row.deletedAt !== null) continue;
+    if (row.settlementStatus !== "receivable" && row.settlementStatus !== "payable") continue;
+    const amount = Math.abs(row.amount);
+    const primary = toPrimary(amount, row.currency);
+    if (row.settlementStatus === "receivable") receivableTotal += primary;
+    else payableTotal += primary;
+    items.push({
+      id: row.id,
+      kind: row.settlementStatus,
+      name: row.name || row.merchant || row.category || (row.settlementStatus === "receivable" ? "應收款項" : "應付款項"),
+      counterparty: row.merchant,
+      date: row.date,
+      amount,
+      currency: row.currency,
+    });
+  }
+  items.sort((a, b) => a.date.localeCompare(b.date));
+  return {
+    receivableTotal,
+    payableTotal,
+    receivableCount: items.filter((i) => i.kind === "receivable").length,
+    payableCount: items.filter((i) => i.kind === "payable").length,
+    items,
+  };
 }
 
 export function buildTopHoldingSummaries(

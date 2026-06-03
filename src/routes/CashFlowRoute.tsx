@@ -32,7 +32,7 @@ import { DatePicker } from "../components/ui/date-picker";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { useToast } from "../components/Toast";
 import type { LedgerDraft, TransferDraft } from "../data/repositories";
-import { buildLedgerSuggestions, buildMerchantCategoryMap, evaluateAmountExpression, formatNumber, nowAsDatetimeLocal, recurringFrequencyLabels, todayInTimezone } from "../domain";
+import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, evaluateAmountExpression, formatNumber, nowAsDatetimeLocal, recurringFrequencyLabels, todayInTimezone } from "../domain";
 import { convertCurrency } from "../domain/currency";
 import type { LedgerTransaction, RecurringTransaction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
@@ -588,6 +588,15 @@ export function CashFlowRoute() {
 
   const monthLabel = monthKey.replace("-", " / ");
 
+  // Unsettled receivables / payables (respecting the account filter).
+  const settlements = useMemo(
+    () => buildOutstandingSettlements(
+      selectedAccount === "all" ? ledgerRows : ledgerRows.filter((r) => r.accountId === selectedAccount),
+      (amount, currency) => convertCurrency(amount, currency, primaryCurrency, appSettings, { dailyRates: fxHistory }) ?? amount,
+    ),
+    [ledgerRows, selectedAccount, appSettings, fxHistory, primaryCurrency],
+  );
+
   return (
     <div style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
       {/* Header */}
@@ -660,6 +669,25 @@ export function CashFlowRoute() {
           {missingFx.length > 0 ? (
             <div className="ns-card" style={{ padding: "10px 14px", marginBottom: 14, color: "var(--ns-neg)", fontSize: 13 }}>
               總額不完整：缺少匯率 {missingFx.join("、")}。請至設定更新匯率；原幣交易仍會保留。
+            </div>
+          ) : null}
+          {/* Outstanding receivables / payables reminder */}
+          {settlements.items.length > 0 ? (
+            <div className="ns-card" style={{ padding: "12px 16px", marginBottom: 14, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+              <span className="ns-eyebrow">未結清</span>
+              {settlements.receivableTotal > 0 ? (
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                  <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px", color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收 {settlements.receivableCount}</span>
+                  <span className="num" style={{ fontSize: 15, color: "var(--ns-pos)" }}>+{primaryCurrency} {formatNumber(settlements.receivableTotal)}</span>
+                </div>
+              ) : null}
+              {settlements.payableTotal > 0 ? (
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                  <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px", color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}>應付 {settlements.payableCount}</span>
+                  <span className="num" style={{ fontSize: 15, color: "var(--ns-neg)" }}>−{primaryCurrency} {formatNumber(settlements.payableTotal)}</span>
+                </div>
+              ) : null}
+              <span className="muted" style={{ fontSize: 12, marginLeft: "auto" }}>結清後會計入收支 · 在下方明細點 ✓ 結清</span>
             </div>
           ) : null}
           {/* Summary layer */}

@@ -15,6 +15,7 @@ import {
   calculateAlternativeAssets,
   calculateLiabilities,
   buildCreditCardReminders,
+  buildOutstandingSettlements,
   convertCurrency,
   createFxConverter,
   formatMoney,
@@ -45,7 +46,7 @@ const CHART_COLORS = [
 ];
 
 export function DashboardRoute() {
-  const { accounts, ledger, assets, quotes, settings, dailyFxRates, recurring, financialGoals } = useFinanceData();
+  const { accounts, ledger, assets, quotes, settings, dailyFxRates, recurring, recurringInvestments, financialGoals } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
   const timezone = useUiPreferences((state) => state.timezone);
   const queryClient = useQueryClient();
@@ -76,6 +77,7 @@ export function DashboardRoute() {
   const appSettings = settings.data;
   const fxHistory = dailyFxRates.data ?? [];
   const recurringRows = recurring.data ?? [];
+  const recurringInvestmentRows = recurringInvestments.data ?? [];
   const goalRows = financialGoals.data ?? [];
 
   const { primaryCurrency, toPrimary } = createFxConverter(appSettings, fxHistory);
@@ -201,6 +203,26 @@ export function DashboardRoute() {
   const creditReminders = useMemo(
     () => buildCreditCardReminders(filteredAccounts, todayInTimezone(timezone), (amount, currency) => toPrimary(amount, currency)).filter((r) => r.daysUntilDue <= 45),
     [filteredAccounts, timezone],
+  );
+
+  // Recurring investment plans due soon (next ~7 days or overdue) — a nudge to
+  // top up the 交割款 before posting.
+  const dueRecurringInvestments = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    const horizon = todayInTimezone(timezone, d);
+    return recurringInvestmentRows
+      .filter((r) => r.isActive && r.nextRunDate <= horizon)
+      .sort((a, b) => a.nextRunDate.localeCompare(b.nextRunDate));
+  }, [recurringInvestmentRows, timezone]);
+
+  // Unsettled accounts receivable / payable.
+  const settlements = useMemo(
+    () => buildOutstandingSettlements(
+      selectedAccount === "all" ? ledgerRows : ledgerRows.filter((r) => r.accountId === selectedAccount),
+      (amount, currency) => toPrimary(amount, currency),
+    ),
+    [ledgerRows, selectedAccount, toPrimary],
   );
 
   // FX rates (latest per pair) for the Market card.
@@ -439,6 +461,60 @@ export function DashboardRoute() {
                   <div className="num" style={{ fontSize: 13.5, color: "var(--ns-neg)" }}>−NT${formatNumber(r.outstanding)}</div>
                   <div className="mono" style={{ fontSize: 11, color: soon ? "var(--ns-neg)" : "var(--ns-fg-dim)" }}>{soon ? "即將到期" : "對帳 →"}</div>
                 </div>
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {/* Outstanding receivables / payables */}
+      {settlements.items.length > 0 ? (
+        <div className="ns-card" style={{ padding: 0, marginBottom: 16 }}>
+          <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Receivables &amp; payables</div>
+              <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>應收 / 應付未結清</h3>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {settlements.receivableTotal > 0 ? <span className="ns-pill" style={{ fontSize: 11, color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收 NT${formatNumber(settlements.receivableTotal)}</span> : null}
+              {settlements.payableTotal > 0 ? <span className="ns-pill" style={{ fontSize: 11, color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}>應付 NT${formatNumber(settlements.payableTotal)}</span> : null}
+            </div>
+          </div>
+          {settlements.items.slice(0, 5).map((item, i) => (
+            <Link key={item.id} to="/cash-flow" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none", textDecoration: "none", color: "inherit" }}>
+              <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px", color: item.kind === "receivable" ? "var(--ns-chart-3)" : "var(--ns-chart-5)", borderColor: item.kind === "receivable" ? "var(--ns-chart-3)" : "var(--ns-chart-5)" }}>{item.kind === "receivable" ? "應收" : "應付"}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.counterparty || item.name}</div>
+                <div className="muted" style={{ fontSize: 11.5 }}>{item.date.slice(0, 10)}</div>
+              </div>
+              <div className="num" style={{ fontSize: 13.5, color: item.kind === "receivable" ? "var(--ns-pos)" : "var(--ns-neg)" }}>
+                {item.kind === "receivable" ? "+" : "−"}NT${formatNumber(toPrimary(item.amount, item.currency) ?? item.amount)}
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : null}
+
+      {/* Recurring investments due — top up the 交割款 */}
+      {dueRecurringInvestments.length > 0 ? (
+        <div className="ns-card" style={{ padding: 0, marginBottom: 16 }}>
+          <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Recurring investments</div>
+              <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>定期定額提醒</h3>
+            </div>
+            <Link to="/investments" className="ns-btn ghost" style={{ fontSize: 12 }}>前往投資 →</Link>
+          </div>
+          {dueRecurringInvestments.map((r, i) => {
+            const cash = (r.mode === "fixedShares" ? (r.quantity || 0) * (r.price || 0) : (r.amount || 0)) + (r.fee || 0);
+            return (
+              <Link key={r.id} to="/investments" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none", textDecoration: "none", color: "inherit" }}>
+                <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px", color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }}>{r.mode === "fixedShares" ? "定期定股" : "定期定額"}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name || r.ticker}</div>
+                  <div className="muted" style={{ fontSize: 11.5 }}>{r.nextRunDate.slice(5)} 投入 · 請備妥交割款</div>
+                </div>
+                <div className="num" style={{ fontSize: 13.5, color: "var(--ns-neg)" }}>−NT${formatNumber(Math.round(cash))}</div>
               </Link>
             );
           })}
