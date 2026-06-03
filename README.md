@@ -39,8 +39,22 @@ Northstar 是一個 local-first、隱私優先的個人與家庭財務應用，�
 ## 下載 Alpha 版本試用
 
 我們已經開始在 GitHub Releases 提供 Alpha 版本的編譯檔，你可以前往 **[Releases 頁面](https://github.com/larryjclai/northstar/releases)** 下載最新的安裝檔：
-- **macOS**: 下載 `.dmg` 檔案，開啟並拖曳至 Applications 即可。*(註：由於尚未經過 Apple 開發者公證，第一次開啟請到「系統設定 -> 隱私權與安全性」中點擊強制打開)*
+- **macOS**: 下載 `.dmg`，開啟並拖曳至 Applications。第一次開啟請見下方說明。
 - **Windows**: (即將支援) 下載 `.msi` 或 `.exe`。
+
+### macOS 首次開啟
+
+Northstar 尚未經過 Apple 公證（需要付費的 Apple Developer 帳號），所以 macOS 第一次開啟會被 Gatekeeper 攔下。擇一即可：
+
+- **一般情況（顯示「無法驗證開發者」）**：到「系統設定 → 隱私權與安全性」，往下找到 Northstar 被阻擋的訊息，按「**強制開啟**」。
+  > macOS 15 (Sequoia) 起已移除舊版「右鍵 → 開啟」的繞過方式，請改用上面的「強制開啟」。
+
+- **若顯示「已損毀，應移到垃圾桶」（常見於透過 AirDrop 傳送）**：開啟「終端機」執行以下指令移除隔離屬性，再正常開啟：
+  ```bash
+  xattr -dr com.apple.quarantine /Applications/Northstar.app
+  ```
+
+> 💡 建議從 [Releases 頁面](https://github.com/larryjclai/northstar/releases)下載 `.dmg` 安裝，而非用 AirDrop 傳 `.app` —— AirDrop 較容易觸發「已損毀」。應用程式內建的自動更新（minisign 簽章）與 Apple 公證無關，仍可正常運作。
 
 ## 技術棧
 
