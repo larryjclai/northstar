@@ -1,44 +1,38 @@
 import type { ButtonHTMLAttributes, PropsWithChildren } from "react";
+import { Button } from "./coss/button";
 
 export function ActionButton({
   children,
   variant = "primary",
   size = "md",
   loading = false,
+  className,
+  style,
   ...props
 }: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "danger" | "ghost";
   size?: "sm" | "md";
   loading?: boolean;
 }>) {
-  const variantClass =
+  const cossVariant =
     variant === "primary"
-      ? "ns-btn primary"
+      ? "default"
       : variant === "ghost"
-        ? "ns-btn ghost"
+        ? "ghost"
         : variant === "danger"
-          ? "ns-btn"
-          : "ns-btn";
-
-  const dangerStyle =
-    variant === "danger"
-      ? { color: "var(--ns-neg)", borderColor: "var(--ns-border)" }
-      : {};
-
-  const sizeStyle =
-    size === "sm"
-      ? { padding: "6px 10px", fontSize: 12 }
-      : { padding: "9px 14px", fontSize: "var(--ns-t-ui)" };
+          ? "destructive-outline"
+          : "outline";
 
   return (
-    <button
+    <Button
       {...props}
-      disabled={props.disabled || loading}
-      aria-busy={loading}
-      className={`${variantClass} ${props.className ?? ""}`}
-      style={{ ...sizeStyle, ...dangerStyle, ...props.style }}
+      variant={cossVariant}
+      size={size === "sm" ? "sm" : "default"}
+      loading={loading}
+      className={className}
+      style={style}
     >
-      {loading ? "處理中…" : children}
-    </button>
+      {children}
+    </Button>
   );
 }

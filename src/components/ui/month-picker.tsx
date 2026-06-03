@@ -1,6 +1,7 @@
 import { CalendarBlank, CaretLeft, CaretRight } from "@phosphor-icons/react";
 import * as React from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
+import { buttonVariants } from "../coss/button";
 import { cn } from "../../lib/utils";
 
 interface MonthPickerProps {
@@ -32,10 +33,11 @@ export function MonthPicker({ value, onChange, className, triggerClassName }: Mo
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <div className="flex items-center gap-1">
-      <button type="button" className="ns-btn icon" aria-label="上一個月" onClick={() => shiftMonth(-1)}><CaretLeft size={15} /></button>
+      <button type="button" className={buttonVariants({ variant: "outline", size: "icon" })} aria-label="上一個月" onClick={() => shiftMonth(-1)}><CaretLeft size={15} /></button>
       <PopoverTrigger
         className={cn(
-          "ns-btn bg-[var(--ns-bg)] border border-[var(--ns-border)] hover:bg-[var(--ns-bg-hover)] flex items-center gap-2",
+          buttonVariants({ variant: "outline" }),
+          "gap-2",
           !value && "text-[var(--ns-fg-muted)]",
           triggerClassName
         )}
@@ -43,7 +45,7 @@ export function MonthPicker({ value, onChange, className, triggerClassName }: Mo
         <CalendarBlank size={16} />
         <span style={{ fontSize: 14 }}>{value || "Select month"}</span>
       </PopoverTrigger>
-      <button type="button" className="ns-btn icon" aria-label="下一個月" onClick={() => shiftMonth(1)}><CaretRight size={15} /></button>
+      <button type="button" className={buttonVariants({ variant: "outline", size: "icon" })} aria-label="下一個月" onClick={() => shiftMonth(1)}><CaretRight size={15} /></button>
       </div>
       <PopoverContent className={cn("w-64 p-3", className)} align="start">
         <div className="flex items-center justify-between mb-4">

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { ToggleGroup, ToggleGroupItem } from "./coss/toggle-group";
 
 export interface SegmentOption<TValue extends string> {
   value: TValue;
@@ -16,21 +17,25 @@ export function SegmentedControl<TValue extends string>({
   onChange: (value: TValue) => void;
 }) {
   return (
-    <div className="ns-seg">
-      {options.map((option) => {
-        const selected = option.value === value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            aria-selected={selected}
-            onClick={() => onChange(option.value)}
-          >
-            {option.icon}
-            {option.label}
-          </button>
-        );
-      })}
-    </div>
+    <ToggleGroup
+      variant="outline"
+      value={[value]}
+      onValueChange={(next) => {
+        const v = next[0] as TValue | undefined;
+        if (v) onChange(v);
+      }}
+    >
+      {options.map((option) => (
+        <ToggleGroupItem
+          key={option.value}
+          value={option.value}
+          size="sm"
+          className="gap-1.5 data-pressed:border-primary data-pressed:bg-primary data-pressed:text-primary-foreground"
+        >
+          {option.icon}
+          {option.label}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
   );
 }

@@ -12,6 +12,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { Link, Outlet } from "@tanstack/react-router";
+import { Button } from "./coss/button";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -139,18 +140,16 @@ export function AppShell() {
 
         {/* Quick Add trigger */}
         <div style={{ padding: "0 8px 8px" }}>
-          <button
-            type="button"
+          <Button
             onClick={() => setQuickAddOpen(true)}
-            className="ns-btn primary"
-            style={{ width: "100%", justifyContent: "center", gap: 8 }}
+            className="w-full justify-center gap-2"
           >
             <Plus size={15} weight="bold" />
             <span className="flex-1 text-left">快速記帳</span>
             <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded px-1.5 font-mono text-[10px] font-medium" style={{ background: "color-mix(in srgb, var(--ns-accent-fg) 18%, transparent)", color: "var(--ns-accent-fg)" }}>
               <span className="text-xs">⌘</span>N
             </kbd>
-          </button>
+          </Button>
         </div>
 
         {/* Nav items */}
@@ -230,9 +229,9 @@ export function AppShell() {
             <span style={{ flex: 1, minWidth: 0, color: "var(--ns-fg-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               你的資料已安全保存，結束後會還原。
             </span>
-            <button type="button" className="ns-btn" style={{ height: 30, flexShrink: 0 }} onClick={handleExitDemo} disabled={demoExiting}>
+            <Button variant="outline" style={{ height: 30, flexShrink: 0 }} onClick={handleExitDemo} loading={demoExiting}>
               {demoExiting ? "還原中…" : "結束示範"}
-            </button>
+            </Button>
           </div>
         ) : null}
         <Outlet />
