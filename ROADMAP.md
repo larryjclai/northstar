@@ -16,29 +16,27 @@ This roadmap is organized into **Now (近期執行)**, **Next (中期規劃)**, 
 - **Connect Sync — 加密層 + Worker + 配對 UI** — Cloudflare Worker + D1 relay（`northstar-sync.larrynote.workers.dev`）；AES-GCM-256 vault key；PBKDF2 短配對碼（`XXXX-XXXX`）+ QR Code 雙路徑；push/pull encrypted envelopes；設定頁完整裝置管理 UI（啟用、顯示配對碼、輸入配對碼、撤銷裝置）。
 - **Connect Sync — Full Record Payload + Recovery Kit** — push 帶完整 record 序列化；pull 解密後 last-write-wins merge 寫回 SQLite；Recovery Kit（64-char hex，下載 .txt，確認流程）。
 - **其他修復** — 子分類內嵌編輯（修 Tauri prompt 失效）、週期交易自動入帳 + 時區修正、跨幣轉帳金額、商家自動分類。
+- **Connect Sync — 背景自動同步** — app focus（`tauri://focus`）與啟動時自動執行 `pushPendingChanges` + `pullAndApply`（60 秒冷卻、與手動同步共用互斥鎖）；套用遠端變更後自動 invalidate React Query 快取讓畫面即時更新；設定頁「同步中…」spinner 與「上次同步：X 秒前」即時相對時間。
+- **介面精修（UI Polish）** — 帳戶篩選改為可搜尋 / 分組 / 帶圖示的 Combobox（取代原生 `<select>`，Dashboard + 記帳共用 `AccountFilter`）；以 Phosphor 圖示系統（`src/lib/icons.tsx` + `IconPicker`）取代 emoji 作為帳戶 / 分類圖示，舊 emoji 資料向後相容渲染；移除 `emoji-picker-react` 依賴；散落的裝飾性符號（📊 ⚠ ✓）改用 Phosphor 圖示。
+- **Recovery Kit 強制前置條件** — 同步在 `runSync` 層集中守門，未確認備援碼前 push/pull 一律擋下（`RECOVERY_KIT_REQUIRED`）；自動同步在未確認時靜默略過、手動同步按鈕停用並顯示守門提示；配對加入的裝置自動視為已備份（繼承主裝置金鑰）；設定頁「待備份備援碼」狀態 + 守門橫幅。對應 `policies.ts` 的 `canEnableCloudBackedFeature`。
 
 ---
 
 ## 🟢 NOW (近期執行)
-*Focus: 背景自動同步，讓資料在裝置間無感流動。*
+*Focus: 散佈與安裝體驗。*
 
-### 1. Connect Sync — 背景自動同步
-- **已完成**: Cloudflare Worker relay、加密 envelope 傳輸、full record payload push/pull、last-write-wins merge、Recovery Kit UI。
-- **待辦**:
-  - **自動觸發** — 在 Tauri 的 app focus 事件（`tauri://focus`）或視窗切換時自動執行 `pushPendingChanges` + `pullAndApply`，讓使用者不需手動同步。
-  - **同步狀態指示** — 設定頁顯示「同步中…」spinner 與「上次同步：X 秒前」的即時更新。
+### 1. Apple Notarization（解決 AirDrop 安裝問題）
+- **Problem**: AirDrop 傳送的 `.app` 會被 macOS Gatekeeper 標記為「已損壞」，需要手動執行 `xattr -cr` 解除。
+- **Action**: 設定 Apple Developer 帳號、codesign + notarize Tauri 打包流程，讓 `.app` 可直接在任何 Mac 上開啟。
 
 ---
 
 ## 🟡 NEXT (中期規劃)
 *Focus: 穩健性與進階帳務。*
 
-### 1. Recovery Kit 強制前置條件
-- **Action**: 在啟用同步時，強制要求 Recovery Kit 已確認（`kitStatus.confirmedAt` 非 null）才允許啟動同步，符合 `policies.ts` 中 `canEnableCloudBackedFeature` 的設計意圖。
-
-### 2. Apple Notarization（解決 AirDrop 安裝問題）
-- **Problem**: AirDrop 傳送的 `.app` 會被 macOS Gatekeeper 標記為「已損壞」，需要手動執行 `xattr -cr` 解除。
-- **Action**: 設定 Apple Developer 帳號、codesign + notarize Tauri 打包流程，讓 `.app` 可直接在任何 Mac 上開啟。
+### 1. 持續介面精修
+- 其他下拉選單（分類篩選、幣別、週期）一致化為帶搜尋 / 分組的元件。
+- 圖示選擇器導入「最近使用」與更多分類圖示。
 
 ---
 
