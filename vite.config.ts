@@ -25,7 +25,6 @@ export default defineConfig({
         // are additionally code-split via lazyRouteComponent (see router.tsx).
         manualChunks: {
           charts: ["recharts"],
-          emoji: ["emoji-picker-react"],
           tanstack: [
             "@tanstack/react-router",
             "@tanstack/react-query",
