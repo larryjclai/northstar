@@ -1,4 +1,5 @@
 import { ArrowRight, ArrowsClockwise, CalendarBlank, PencilSimple, Receipt, Storefront, Tag, Trash, Wallet, X } from "@phosphor-icons/react";
+import { Button } from "./coss/button";
 import type { LedgerTransaction, RecurringTransaction } from "../domain";
 import { formatNumber, recurringFrequencyLabels } from "../domain";
 
@@ -63,9 +64,9 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDelete, account
             <Receipt size={16} />
             交易詳情
           </div>
-          <button className="ns-btn ghost icon" onClick={onClose} style={{ padding: 6 }}>
+          <Button variant="ghost" size="icon-sm" onClick={onClose} style={{ padding: 6 }}>
             <X size={16} />
-          </button>
+          </Button>
         </div>
 
         {/* Content */}
@@ -151,8 +152,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDelete, account
 
         {/* Footer Actions */}
         <div style={{ padding: "16px 24px", borderTop: "1px solid var(--ns-border)", display: "flex", gap: 10 }}>
-          <button
-            className="ns-btn"
+          <Button variant="outline"
             style={{ flex: 1, justifyContent: "center", color: "var(--ns-neg)" }}
             onClick={() => {
               if (window.confirm("確定要刪除這筆交易嗎？")) {
@@ -161,10 +161,10 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDelete, account
             }}
           >
             <Trash size={14} />刪除
-          </button>
-          <button className="ns-btn primary" style={{ flex: 2, justifyContent: "center" }} onClick={() => onEdit(row)}>
+          </Button>
+          <Button style={{ flex: 2, justifyContent: "center" }} onClick={() => onEdit(row)}>
             <PencilSimple size={14} />編輯交易
-          </button>
+          </Button>
         </div>
       </div>
 

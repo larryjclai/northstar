@@ -1,4 +1,7 @@
 import { CaretRight, CaretDown, CheckCircle, Circle, CurrencyCircleDollar } from "@phosphor-icons/react";
+import { Badge } from "../components/coss/badge";
+import { Button } from "../components/coss/button";
+import { Card } from "../components/coss/card";
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -137,22 +140,22 @@ export function ReconcileRoute() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           {account.type === "credit" && account.paymentDueDay && (
-            <button
-              className={`ns-btn${isPaid ? " primary" : ""}`}
+            <Button
+              variant={isPaid ? "default" : "outline"}
               onClick={markPaid}
-              disabled={updateAccount.isPending}
+              loading={updateAccount.isPending}
               title={isPaid ? `已繳款至 ${account.creditPaymentPaidUntil}` : "標記本期帳單已繳款，提醒面板暫時隱藏"}
             >
               <CurrencyCircleDollar size={14} weight={isPaid ? "fill" : "regular"} />
               {isPaid ? "已繳款" : "標記已繳款"}
-            </button>
+            </Button>
           )}
         </div>
       </div>
 
       {/* Summary — current open cycle. */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 }}>
-        <div className="ns-card" style={{ padding: 16 }}>
+        <Card style={{ padding: 16 }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>本期消費</div>
           <div className="num" style={{ fontSize: 19, color: currentSpend > 0 ? "var(--ns-neg)" : undefined }}>NT${formatNumber(currentSpend)}</div>
           {currentRefunds > 0.5 ? (
@@ -160,15 +163,15 @@ export function ReconcileRoute() {
               退款 −NT${formatNumber(currentRefunds)} · 淨額 NT${formatNumber(currentNet)}
             </div>
           ) : null}
-        </div>
-        <div className="ns-card" style={{ padding: 16 }}>
+        </Card>
+        <Card style={{ padding: 16 }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>本期已對帳 / 筆數</div>
           <div className="num" style={{ fontSize: 19 }}>{currentReconciled} / {currentCount}</div>
-        </div>
-        <div className="ns-card" style={{ padding: 16 }}>
+        </Card>
+        <Card style={{ padding: 16 }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>卡片未繳總額</div>
           <div className="num" style={{ fontSize: 19, color: owed > 0 ? "var(--ns-neg)" : undefined }}>NT${formatNumber(owed)}</div>
-        </div>
+        </Card>
       </div>
       {currentUnreconciled > 0 ? (
         <div className="muted" style={{ fontSize: 12.5, marginBottom: 12 }}>本期尚有 NT${formatNumber(currentUnreconciled)} 未對帳。</div>
@@ -176,14 +179,14 @@ export function ReconcileRoute() {
 
       {/* Statement periods */}
       {periods.length === 0 ? (
-        <div className="ns-card"><div className="muted" style={{ padding: 40, textAlign: "center", fontSize: 13 }}>此帳戶尚無交易紀錄。</div></div>
+        <Card style={{ padding: "var(--ns-pad-card)" }}><div className="muted" style={{ padding: 40, textAlign: "center", fontSize: 13 }}>此帳戶尚無交易紀錄。</div></Card>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {periods.map((period) => {
             const open = isOpen(period.key);
             const unreconciled = period.rows.filter((r) => !r.isReviewed).length;
             return (
-              <div key={period.key} className="ns-card" style={{ padding: 0 }}>
+              <Card key={period.key} style={{ padding: 0 }}>
                 <div
                   onClick={() => toggleExpand(period.key)}
                   style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", borderBottom: open ? "1px solid var(--ns-border)" : "none" }}
@@ -191,9 +194,9 @@ export function ReconcileRoute() {
                   {open ? <CaretDown size={14} /> : <CaretRight size={14} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14.5, fontWeight: 500 }}>
-                      {period.isCurrent ? <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px" }}>本期</span> : null}
+                      {period.isCurrent ? <Badge variant="outline" className="rounded-full" style={{ fontSize: 10.5, padding: "2px 7px" }}>本期</Badge> : null}
                       {period.label}
-                      {period.isPaid ? <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px", color: "var(--ns-pos)", borderColor: "var(--ns-pos)" }}>已繳款</span> : null}
+                      {period.isPaid ? <Badge variant="outline" className="rounded-full" style={{ fontSize: 10.5, padding: "2px 7px", color: "var(--ns-pos)", borderColor: "var(--ns-pos)" }}>已繳款</Badge> : null}
                     </div>
                     <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>
                       {period.rows.length} 筆 · 已對帳 {period.reconciledCount}/{period.rows.length}
@@ -209,14 +212,13 @@ export function ReconcileRoute() {
                     ) : null}
                   </div>
                   {open && unreconciled > 0 ? (
-                    <button
-                      className="ns-btn ghost"
+                    <Button variant="ghost"
                       style={{ fontSize: 12, padding: "4px 10px", minHeight: "auto" }}
                       onClick={(e) => { e.stopPropagation(); markAll(period.key, true); }}
                       disabled={setReviewed.isPending}
                     >
                       全部對帳
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
                 {open ? (
@@ -241,7 +243,7 @@ export function ReconcileRoute() {
                     ))
                   )
                 ) : null}
-              </div>
+              </Card>
             );
           })}
         </div>

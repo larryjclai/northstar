@@ -1,4 +1,6 @@
 import { ArrowsDownUp, Bank, ChartLineUp, FunnelSimple, MagnifyingGlass, PencilSimple, PlusCircle, Trash, UploadSimple } from "@phosphor-icons/react";
+import { Button } from "../components/coss/button";
+import { Card as CossCard } from "../components/coss/card";
 import { ChangeEvent, ReactNode, useMemo, useState, useEffect } from "react";
 import { ActionButton } from "../components/ActionButton";
 import { Card } from "../components/Card";
@@ -280,7 +282,7 @@ export function TransactionsRoute() {
             onChange={setBrokerFilter}
           />
           {(typeFilter.size > 0 || brokerFilter.size > 0) ? (
-            <button className="ns-btn ghost" style={{ fontSize: 12.5 }} onClick={() => { setTypeFilter(new Set()); setBrokerFilter(new Set()); }}>清除篩選</button>
+            <Button variant="ghost" style={{ fontSize: 12.5 }} onClick={() => { setTypeFilter(new Set()); setBrokerFilter(new Set()); }}>清除篩選</Button>
           ) : null}
         </div>
 
@@ -376,9 +378,9 @@ export function TransactionsRoute() {
             </div>
             {totalPages > 1 && (
               <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 24, marginBottom: 24 }}>
-                <button className="ns-btn" disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>上一頁</button>
+                <Button variant="outline" disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>上一頁</Button>
                 <span style={{ fontSize: 13, alignSelf: 'center', color: 'var(--ns-fg-muted)' }}>{page} / {totalPages}</span>
-                <button className="ns-btn" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>下一頁</button>
+                <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>下一頁</Button>
               </div>
             )}
           </>
@@ -463,12 +465,12 @@ function SummaryCard({
   sublabel: string;
 }) {
   return (
-    <div className="ns-card p-4 sm:p-5">
+    <CossCard className="p-4 sm:p-5">
       <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <div className="num" style={{ fontSize: 22, fontWeight: 500 }}>{value}</div>
         {sublabel && <div className="num" style={{ fontSize: 13, color: 'var(--ns-muted)' }}>{sublabel}</div>}
       </div>
-    </div>
+    </CossCard>
   );
 }
