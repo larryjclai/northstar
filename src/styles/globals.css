@@ -59,14 +59,18 @@
   --muted-foreground: var(--ns-fg-muted);
   --accent: var(--ns-bg-hover);
   --accent-foreground: var(--ns-fg);
+  /* The *-foreground tokens here are used by COSS as text on a *soft* tint
+     (e.g. Badge `success` = bg-success/8 + text-success-foreground), so they
+     must be the saturated colour, not white. Solid fills (Button destructive)
+     hardcode text-white separately. */
   --destructive: var(--ns-neg);
-  --destructive-foreground: #ffffff;
+  --destructive-foreground: var(--ns-neg);
   --success: var(--ns-pos);
-  --success-foreground: #ffffff;
+  --success-foreground: var(--ns-pos);
   --warning: var(--ns-warn);
-  --warning-foreground: #ffffff;
+  --warning-foreground: var(--ns-warn);
   --info: var(--ns-info);
-  --info-foreground: #ffffff;
+  --info-foreground: var(--ns-info);
   --border: var(--ns-border);
   --input: var(--ns-border);
   --ring: var(--ns-accent);
