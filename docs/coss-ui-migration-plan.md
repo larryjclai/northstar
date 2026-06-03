@@ -60,28 +60,49 @@ our repo, we own them, no new runtime lock-in beyond Base UI (already a dependen
 
 ---
 
-## 3. Phase 0 — Foundations (no screens migrated yet)
+## 3. Phase 0 — Foundations ✅ DONE (2026-06-03)
 
 **Goal:** make it possible to drop a COSS component into any file and have it match.
 
-- [ ] Install the COSS agent skill so the assistant generates idiomatic components:
-      `npx skills add cosscom/coss` (or `pnpm dlx skills add cosscom/coss`).
-- [ ] Confirm `components.json` is COSS-compatible (currently `style: base-nova`,
-      `baseColor: neutral`, `cssVariables: true`). Adjust per COSS get-started if needed.
-- [ ] **Token bridge** in `globals.css`: define COSS's semantic Tailwind tokens
-      (`--background`, `--foreground`, `--primary`, `--border`, `--card`, `--muted`,
-      `--radius`, …) **as aliases of existing `ns-*` values**, for both `:root` and the
-      dark variant. This is the single most important step — it lets COSS components
-      inherit Northstar's exact look (Space Grotesk, the green accent, radii, chart
-      palette) on day one, so migrated and un-migrated screens are visually seamless.
-- [ ] Add 2–3 COSS primitives we'll lean on (button, input, dialog/sheet) **alongside**
-      the current `components/ui/*` — do not delete the originals yet.
-- [ ] Write a one-page "component mapping" cheat-sheet (section 5) and put it in this doc.
-- [ ] Verification harness: confirm `preview_start` (vite, browser fallback repo) renders
-      every route; capture baseline screenshots of all screens for before/after diffing.
+- [x] COSS components install via the **shadcn CLI** with the built-in `@coss`
+      registry (`https://coss.com/ui/r/{name}.json`). Example used:
+      `npx shadcn@latest add @coss/button @coss/toggle-group @coss/card …`.
+      (The `npx skills add cosscom/coss` agent skill is optional extra knowledge.)
+- [x] `components.json` confirmed COSS-compatible (`style: base-nova`, `cssVariables: true`).
+- [x] **Token bridge** in `globals.css`: the semantic tokens (`--background`,
+      `--primary`, `--border`, `--card`, `--muted`, `--radius`, `--success/--warning/--info`,
+      and `--font-sans/-mono/-heading` via `@theme inline`) now alias the themed `ns-*`
+      tokens. Because `ns-*` already theme via `[data-theme]` / `prefers-color-scheme`,
+      the aliases follow light/dark automatically — verified `--primary` resolves to
+      `#5fb83a` (light) / `#9fe870` (dark). No per-component `dark:` variants needed.
+- [x] COSS primitives installed **into `src/components/coss/`** (NOT `components/ui/`)
+      by temporarily pointing the `ui` alias there during install, so existing
+      `components/ui/*` consumers are untouched. Added: button, toggle-group (+toggle,
+      separator), card, badge, checkbox, input, field, label, select, spinner.
+- [x] **Vite `resolve.dedupe: ["react","react-dom"]`** — COSS pulls `@base-ui/react`,
+      which Vite pre-bundles separately; without dedupe a second React instance caused
+      "Invalid hook call". Fixed and verified (console clean, prod build passes).
+- [x] Component mapping cheat-sheet — section 5.
+- [x] Verification harness: `preview_start` (vite + IndexedDB `BrowserFinanceRepository`
+      fallback) renders all routes; created a test investment account so the
+      transaction drawer renders for before/after diffing.
 
-**Exit criteria:** a COSS button rendered next to an `ns-btn` is visually
-indistinguishable in both themes. No screen migrated yet.
+**Exit criteria met:** COSS components render with Northstar's identity in light + dark,
+no console errors, `tsc` + production build clean.
+
+### Phase 0 notes / decisions
+
+- **Two Base UI packages coexist:** existing `components/ui/*` use the older
+  `@base-ui-components/react` (1.0.0-beta); COSS uses the newer `@base-ui/react` (1.5.0).
+  Both work side-by-side (single React via dedupe). Consolidating onto one Base UI is a
+  later cleanup, not required for the migration.
+- **`dark:` variant left as-is** (`@custom-variant dark (&:is(.dark *))`, keyed off a
+  `.dark` class the app never sets — it themes via `data-theme`). COSS components rely on
+  token-carried colors, which theme correctly. ~79 inert `dark:` utilities already exist
+  in un-migrated code; making `dark:` work off `data-theme` would activate them untested,
+  so it is a **separate, QA-gated task**, deliberately out of scope here.
+- **The generic `.dark { … }` token block in `globals.css` is dead code** (never matches).
+  Left untouched to minimise churn; the `:root` bridge is the single source of truth.
 
 ---
 
@@ -92,7 +113,7 @@ Order = highest user value / highest inline-style debt first, while starting wit
 
 | Phase | Screen(s) | Inline styles | Why this order |
 | --- | --- | --- | --- |
-| 1 (pilot) | `InvestmentsAddSheet` | 60 | Self-contained drawer, just-touched, exercises forms + segmented control + `NumberField`. Best reference. |
+| 1 (pilot) ✅ | `InvestmentsAddSheet` | 60 | **DONE (first pass).** Self-contained drawer; exercises forms + segmented control + `NumberField`. Reference for the rest. See "Pilot results" below. |
 | 2 | `DashboardRoute` | 138 | Highest-traffic screen; sets card/stat/chart-shell patterns. |
 | 3 | `CashFlowRoute` | 155 | Most-used feature; tabs, tables, drawers, filters. |
 | 4 | `InvestmentsRoute` + `HoldingDetailRoute` | 60 + 61 | Tables + detail patterns; reuse Dashboard cards. |
@@ -117,7 +138,33 @@ Order = highest user value / highest inline-style debt first, while starting wit
 
 ---
 
-## 5. Component & token mapping (cheat-sheet — fill during Phase 0)
+### Pilot results — `InvestmentsAddSheet` (2026-06-03)
+
+**Migrated to COSS** (verified light + dark, interactions, no console errors, `tsc` +
+prod build clean):
+
+- Side selector (Buy/Sell/股利/拆股/減資) and dividend sub-toggle → COSS `ToggleGroup`
+  + `ToggleGroupItem`, with a shared `SEG_ITEM_CLASS` overriding `data-pressed` to an
+  **accent fill** (COSS's default pressed state is a faint gray — same low-contrast
+  problem as the original bug #1).
+- All buttons (header, ticker chips, footer confirm/cancel, empty-state link via the
+  `render` prop) → COSS `Button` (variants: ghost / outline / default; `loading` prop).
+- FIFO impact preview panel → COSS `Card` (accent-soft override).
+- Batch-account checkboxes + "批次多帳戶" → COSS `Checkbox`.
+
+**Deliberately deferred** (kept on bridged `ns-*`, no behaviour change) to keep the pilot
+low-risk; these are the refinement backlog for this screen:
+
+- Account `<select>` → COSS `Select` (Base UI; changes interaction model — needs care).
+- `datetime-local` + note `<input>` → COSS `Input`.
+- `NumberField` keeps `.ns-input` styling (it's already a tested, self-contained
+  component; COSS also ships a `number-field` we could adopt later).
+- Drawer shell (overlay/panel/animation) and `ns-eyebrow` labels — intentionally kept.
+
+So inline-style/`ns-*` count on this screen is **reduced, not yet zero** — full teardown
+happens in a later pass once the input/select patterns are settled.
+
+## 5. Component & token mapping (cheat-sheet)
 
 | Northstar today | COSS UI replacement | Notes |
 | --- | --- | --- |
@@ -185,4 +232,5 @@ independently shippable and revertible.
 
 ---
 
-_Status: PLAN ONLY — no application code changed by this document._
+_Status: Phase 0 (foundations) + Phase 1 (pilot, first pass) complete as of 2026-06-03.
+Phases 2–10 not yet started._

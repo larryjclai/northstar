@@ -1,6 +1,10 @@
 import { X, Bank } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { Button } from "../components/coss/button";
+import { Card } from "../components/coss/card";
+import { Checkbox } from "../components/coss/checkbox";
+import { ToggleGroup, ToggleGroupItem } from "../components/coss/toggle-group";
 import { HoldingForm, makeEmptyHoldingDraft } from "../components/HoldingForm";
 import { NumberField } from "../components/NumberField";
 import { StatusText } from "../components/StatusText";
@@ -12,6 +16,12 @@ import { YahooFinanceProvider } from "../features/market-data/yahooFinanceProvid
 import { useUiPreferences } from "../state/uiPreferences";
 
 export type InvestmentEntryMode = "snapshot" | "transaction";
+
+/** COSS ToggleGroup segmented-item styling — accent fill when selected, so the
+ *  active option is unmistakable (the COSS default `data-pressed` is a faint gray
+ *  that reads as unselected). Mirrors the .ns-seg accent convention. */
+const SEG_ITEM_CLASS =
+  "flex-1 data-pressed:border-primary data-pressed:bg-primary data-pressed:text-primary-foreground";
 
 const NUM_INPUT_STYLE: React.CSSProperties = {
   fontFamily: "var(--ns-font-mono)",
@@ -341,15 +351,15 @@ export function InvestmentEntryDrawer({
           </h2>
           <div style={{ flex: 1 }} />
           {!isEditingTransaction ? (
-            <button
-              className="ns-btn ghost"
-              style={{ fontSize: 12.5 }}
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => { setMode(mode === "snapshot" ? "transaction" : "snapshot"); setMessage(""); }}
             >
               {mode === "snapshot" ? "改記一筆交易" : "匯入現有持倉"}
-            </button>
+            </Button>
           ) : null}
-          <button className="ns-btn ghost icon" onClick={onClose} aria-label="關閉"><X size={16} /></button>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="關閉"><X size={16} /></Button>
         </div>
 
         {eligibleAccounts.length === 0 ? (
@@ -363,7 +373,7 @@ export function InvestmentEntryDrawer({
                 在開始記錄投資交易前，您需要先建立至少一個「投資種類」的帳戶。
               </p>
             </div>
-            <Link to="/accounts" onClick={onClose} className="ns-btn primary" style={{ marginTop: 8 }}>前往建立帳戶</Link>
+            <Button render={<Link to="/accounts" onClick={onClose} />} className="mt-2">前往建立帳戶</Button>
           </div>
         ) : mode === "snapshot" ? (
           <div style={{ flex: 1, overflow: "auto", padding: "20px 24px" }}>
@@ -380,13 +390,21 @@ export function InvestmentEntryDrawer({
           <>
             {/* Side tabs */}
             <div style={{ padding: "18px 24px 0" }}>
-              <div className="ns-seg" style={{ width: "100%" }}>
+              <ToggleGroup
+                variant="outline"
+                className="w-full"
+                value={[side]}
+                onValueChange={(value) => {
+                  const next = value[0] as TxSide | undefined;
+                  if (next) setAction(next);
+                }}
+              >
                 {(Object.keys(SIDE_TO_ACTION) as TxSide[]).map((s) => (
-                  <button key={s} style={{ flex: 1 }} aria-selected={side === s} onClick={() => setAction(s)}>
+                  <ToggleGroupItem key={s} value={s} className={SEG_ITEM_CLASS}>
                     {SIDE_LABEL[s]}
-                  </button>
+                  </ToggleGroupItem>
                 ))}
-              </div>
+              </ToggleGroup>
             </div>
 
             <div style={{ flex: 1, overflow: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
@@ -410,9 +428,9 @@ export function InvestmentEntryDrawer({
                 />
                 <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {["2330.TW", "0050.TW", "AAPL", "VTI", "VWRA"].map((s) => (
-                    <button key={s} className="ns-pill" style={{ cursor: "pointer" }} onClick={() => setTransactionForm({ ...transactionForm, ticker: s })}>
-                      <span className="mono" style={{ fontSize: 11.5 }}>{s}</span>
-                    </button>
+                    <Button key={s} variant="outline" size="xs" className="font-mono" onClick={() => setTransactionForm({ ...transactionForm, ticker: s })}>
+                      {s}
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -427,8 +445,8 @@ export function InvestmentEntryDrawer({
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                     <label className="ns-eyebrow">Account</label>
                     {!isEditingTransaction ? (
-                      <label style={{ fontSize: 11.5, display: "flex", alignItems: "center", gap: 4, cursor: "pointer", color: "var(--ns-accent)" }}>
-                        <input type="checkbox" checked={batchMode} onChange={(e) => { setBatchMode(e.target.checked); setBatchAccounts(transactionForm.linkedAccountId ? [transactionForm.linkedAccountId] : []); }} />
+                      <label style={{ fontSize: 11.5, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", color: "var(--ns-accent)" }}>
+                        <Checkbox checked={batchMode} onCheckedChange={(checked) => { setBatchMode(checked === true); setBatchAccounts(transactionForm.linkedAccountId ? [transactionForm.linkedAccountId] : []); }} />
                         批次多帳戶
                       </label>
                     ) : null}
@@ -436,9 +454,9 @@ export function InvestmentEntryDrawer({
                   {batchMode ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 120, overflowY: "auto", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-sm)", padding: 8 }}>
                       {eligibleAccounts.map((a) => (
-                        <label key={a.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
-                          <input type="checkbox" checked={batchAccounts.includes(a.id)} onChange={(e) => {
-                            if (e.target.checked) setBatchAccounts([...batchAccounts, a.id]);
+                        <label key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+                          <Checkbox checked={batchAccounts.includes(a.id)} onCheckedChange={(checked) => {
+                            if (checked) setBatchAccounts([...batchAccounts, a.id]);
                             else setBatchAccounts(batchAccounts.filter((id) => id !== a.id));
                           }} />
                           {a.name} ({a.currency})
@@ -483,18 +501,18 @@ export function InvestmentEntryDrawer({
               ) : side === "dividend" ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   {/* 現金股利 vs 股票股利(配股) sub-toggle */}
-                  <div className="ns-seg" style={{ width: "100%" }}>
-                    <button
-                      style={{ flex: 1 }}
-                      aria-selected={!isStockDividend(transactionForm.action)}
-                      onClick={() => setTransactionForm((c) => normalizeTransactionDraft({ ...c, action: "cashDividend" }))}
-                    >現金股利</button>
-                    <button
-                      style={{ flex: 1 }}
-                      aria-selected={isStockDividend(transactionForm.action)}
-                      onClick={() => setTransactionForm((c) => normalizeTransactionDraft({ ...c, action: "stockDividend" }))}
-                    >股票股利 (配股)</button>
-                  </div>
+                  <ToggleGroup
+                    variant="outline"
+                    className="w-full"
+                    value={[isStockDividend(transactionForm.action) ? "stock" : "cash"]}
+                    onValueChange={(value) => {
+                      const next = value[0];
+                      if (next) setTransactionForm((c) => normalizeTransactionDraft({ ...c, action: next === "stock" ? "stockDividend" : "cashDividend" }));
+                    }}
+                  >
+                    <ToggleGroupItem value="cash" className={SEG_ITEM_CLASS}>現金股利</ToggleGroupItem>
+                    <ToggleGroupItem value="stock" className={SEG_ITEM_CLASS}>股票股利 (配股)</ToggleGroupItem>
+                  </ToggleGroup>
                   {isStockDividend(transactionForm.action) ? (
                     <div>
                       <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>配發股數</label>
@@ -556,7 +574,7 @@ export function InvestmentEntryDrawer({
               </div>
 
               {/* FIFO impact preview */}
-              <div style={{ padding: 16, borderRadius: "var(--ns-r-md)", background: "var(--ns-accent-soft)", border: "1px solid var(--ns-accent)" }}>
+              <Card className="gap-0 rounded-[var(--ns-r-md)] border-[var(--ns-accent)] bg-[var(--ns-accent-soft)] p-4 shadow-none before:hidden">
                 <div className="ns-eyebrow" style={{ marginBottom: 10, color: "var(--ns-accent)" }}>部位影響預覽</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13 }}>
                   <div><span className="muted">{totalLabel}</span><br /><span className="num" style={{ fontSize: 16, fontWeight: 500 }}>{side === "split" ? `×${formatNumber(totalValue)}` : side === "dividend" && isStockDividend(transactionForm.action) ? `+${formatNumber(totalValue)} 股` : `NT$${formatNumber(Math.round(totalValue))}`}</span></div>
@@ -564,7 +582,7 @@ export function InvestmentEntryDrawer({
                   <div><span className="muted">新部位股數</span><br /><span className="num" style={{ fontSize: 16, fontWeight: 500 }}>{formatNumber(newQty)} 股</span></div>
                   <div><span className="muted">新市值</span><br /><span className="num pos" style={{ fontSize: 16, fontWeight: 500 }}>NT${formatNumber(Math.round(newMarketValue))}</span></div>
                 </div>
-              </div>
+              </Card>
 
               {twdTopUpShortfall > 0 ? (
                 <div style={{ fontSize: 12.5, color: "var(--ns-warn)" }}>
@@ -576,15 +594,14 @@ export function InvestmentEntryDrawer({
 
             {/* Footer */}
             <div style={{ padding: "16px 24px", borderTop: "1px solid var(--ns-border)", display: "flex", gap: 10 }}>
-              <button className="ns-btn ghost" style={{ flex: 1, justifyContent: "center" }} onClick={onClose}>取消</button>
-              <button
-                className="ns-btn primary"
-                style={{ flex: 2, justifyContent: "center" }}
+              <Button variant="outline" className="flex-1" onClick={onClose}>取消</Button>
+              <Button
+                className="flex-[2]"
                 onClick={submitTransaction}
-                disabled={createRecord.isPending || updateRecord.isPending}
+                loading={createRecord.isPending || updateRecord.isPending}
               >
                 {(createRecord.isPending || updateRecord.isPending) ? "儲存中…" : isEditingTransaction ? "儲存交易" : batchMode ? `批次建立 ${batchAccounts.length} 筆交易` : `${SIDE_CONFIRM[side]} · ${confirmAmount}`}
-              </button>
+              </Button>
             </div>
           </>
         )}
