@@ -6,6 +6,8 @@ import { formatNumber, projectRetirementScenarios, todayInTimezone, type Financi
 import { computeNetWorthInCurrency } from "../features/goals/netWorth";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useToast } from "../components/Toast";
+import { Button } from "../components/coss/button";
+import { Card } from "../components/coss/card";
 import type { FinancialGoalDraft } from "../data/repositories";
 
 export function FIRECalculatorRoute() {
@@ -159,12 +161,12 @@ export function FIRECalculatorRoute() {
           </h1>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
-          <button className="ns-btn ghost" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, fontSize: 14 }}>
+          <Button variant="ghost">
             <DownloadSimple size={16} /> 匯出報告
-          </button>
-          <button onClick={handleSaveGoal} className="ns-btn primary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, fontSize: 14 }}>
+          </Button>
+          <Button onClick={handleSaveGoal}>
             <Star size={16} weight="bold" /> {isEditing ? "儲存變更" : "存為目標"}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -220,7 +222,7 @@ export function FIRECalculatorRoute() {
           </div>
 
           {/* Chart Card */}
-          <div className="ns-card" style={{ padding: "24px", flex: 1, display: "flex", flexDirection: "column", minHeight: 350 }}>
+          <Card style={{ padding: "24px", flex: 1, minHeight: 350 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
               <div>
                 <div style={{ fontSize: 11, fontFamily: "var(--ns-font-mono)", color: "var(--ns-fg-muted)", letterSpacing: 1, marginBottom: 8 }}>PROJECTION · 拖動滑桿即時更新</div>
@@ -253,12 +255,12 @@ export function FIRECalculatorRoute() {
                 區間：悲觀 ↔ 樂觀 報酬 ±2.5% · 數值以今日購買力計（已計入通膨與費用）
               </div>
             </div>
-          </div>
+          </Card>
 
           {/* Bottom 2 Cards */}
           <div style={{ display: "flex", gap: 16 }}>
             {/* 3 FIRE Types with explanations */}
-            <div className="ns-card" style={{ padding: "20px 24px", flex: 1 }}>
+            <Card style={{ padding: "20px 24px", flex: 1 }}>
               <div style={{ fontSize: 13, color: "var(--ns-fg-muted)", marginBottom: 20 }}>FIRE 三種型態</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 <div>
@@ -295,10 +297,10 @@ export function FIRECalculatorRoute() {
                   </div>
                 </div>
               </div>
-            </div>
+            </Card>
 
             {/* Sensitivity */}
-            <div className="ns-card" style={{ padding: "20px 24px", flex: 1.5 }}>
+            <Card style={{ padding: "20px 24px", flex: 1.5 }}>
               <div style={{ fontSize: 13, color: "var(--ns-fg-muted)", marginBottom: 20 }}>達成敏感度</div>
               <div style={{ fontSize: 14, marginBottom: 16 }}>儲蓄率每增加 10%，退休提前：</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -319,9 +321,9 @@ export function FIRECalculatorRoute() {
                   <div style={{ fontWeight: 500 }}>約提早 2-3 年</div>
                 </div>
               </div>
-            </div>
+            </Card>
           </div>
-          
+
         </div>
       </div>
     </div>
@@ -342,12 +344,12 @@ function RetirementIncomeSection({
   const numFromInput = (raw: string) => Number(raw.replace(/[^\d.]/g, "")) || 0;
 
   return (
-    <div className="ns-card" style={{ padding: "20px" }}>
+    <Card style={{ padding: "20px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div style={{ fontSize: 13, color: "var(--ns-fg-muted)" }}>退休收入（選填）</div>
-        <button
-          className="ns-btn ghost"
-          style={{ fontSize: 12, padding: "4px 10px", minHeight: "auto" }}
+        <Button
+          variant="ghost"
+          size="xs"
           onClick={() =>
             setItems([
               ...items,
@@ -356,7 +358,7 @@ function RetirementIncomeSection({
           }
         >
           ＋ 新增
-        </button>
+        </Button>
       </div>
 
       {items.length === 0 ? (
@@ -375,13 +377,14 @@ function RetirementIncomeSection({
                   value={item.name}
                   onChange={(e) => update(item.id, { name: e.target.value })}
                 />
-                <button
-                  className="ns-btn ghost icon"
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
                   aria-label="移除"
                   onClick={() => setItems(items.filter((it) => it.id !== item.id))}
                 >
                   <X size={14} />
-                </button>
+                </Button>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                 <div>
@@ -427,18 +430,18 @@ function RetirementIncomeSection({
           ))}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
 function SliderSection({ title, children }: { title: string, children: React.ReactNode }) {
   return (
-    <div className="ns-card" style={{ padding: "20px" }}>
+    <Card style={{ padding: "20px" }}>
       <div style={{ fontSize: 13, color: "var(--ns-fg-muted)", marginBottom: 20 }}>{title}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         {children}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -515,10 +518,10 @@ function SliderRow({ label, value, min, max, step = 1, minLabel, maxLabel, val, 
 
 function MetricCard({ title, value, sub }: { title: string, value: string, sub: string }) {
   return (
-    <div className="ns-card" style={{ padding: "20px", flex: 1 }}>
+    <Card style={{ padding: "20px", flex: 1 }}>
       <div style={{ fontSize: 12, color: "var(--ns-fg-muted)", marginBottom: 12 }}>{title}</div>
       <div style={{ fontSize: 24, fontWeight: 500, marginBottom: 8 }}>{value}</div>
       <div style={{ fontSize: 11, color: "var(--ns-fg-dim)" }}>{sub}</div>
-    </div>
+    </Card>
   );
 }
