@@ -115,7 +115,7 @@ Order = highest user value / highest inline-style debt first, while starting wit
 | --- | --- | --- | --- |
 | 1 (pilot) ✅ | `InvestmentsAddSheet` | 60 | **DONE (first pass).** Self-contained drawer; exercises forms + segmented control + `NumberField`. Reference for the rest. See "Pilot results" below. |
 | 2 ✅ | `DashboardRoute` | 138 | **DONE.** Established the Card/Badge/Button pattern: all `ns-card`→`Card`, `ns-btn`→`Button`, `ns-pill`→`Badge`. Charts + layout grids kept. |
-| 3 | `CashFlowRoute` | 155 | Most-used feature; tabs, tables, drawers, filters. |
+| 3 ✅ | `CashFlowRoute` | 155 | **DONE.** ns-card→Card, ns-btn→Button, ns-pill→Badge across the route + StatCard/RankingCard/UpcomingPayments helpers. Bespoke multi-colour drawer type-tabs and native inputs kept. |
 | 4 | `InvestmentsRoute` + `HoldingDetailRoute` | 60 + 61 | Tables + detail patterns; reuse Dashboard cards. |
 | 5 | `AccountsRoute` + account wizard | 111 | Multi-step wizard = good COSS dialog/section test. |
 | 6 | `FIRECalculatorRoute` + `GoalsRoute` | 102 + 56 | Forms + viz. |
@@ -252,5 +252,6 @@ independently shippable and revertible.
 
 ---
 
-_Status: Phase 0 (foundations) + Phase 1 (pilot) + Phase 2 (Dashboard) complete as of
-2026-06-03. Phases 3–10 not yet started. Next: Phase 3 — CashFlowRoute._
+_Status: Phase 0 (foundations) + Phase 1 (pilot) + Phase 2 (Dashboard) + Phase 3
+(CashFlow) complete as of 2026-06-03. Phases 4–10 not yet started. Next: Phase 4 —
+InvestmentsRoute + HoldingDetailRoute._
