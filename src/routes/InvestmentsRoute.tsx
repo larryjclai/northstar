@@ -6,6 +6,9 @@ import { ActionButton } from "../components/ActionButton";
 import { AssetLogo } from "../components/AssetLogo";
 import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
+import { Badge } from "../components/coss/badge";
+import { Button } from "../components/coss/button";
+import { Card as CossCard } from "../components/coss/card";
 import { EmptyState } from "../components/EmptyState";
 import { Field, TextInput } from "../components/Field";
 import { HoldingForm } from "../components/HoldingForm";
@@ -265,23 +268,23 @@ export function InvestmentsRoute() {
           <h1 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>投資</h1>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="ns-btn" onClick={refreshLatestQuotes} disabled={refreshQuotes.isPending}>
+          <Button variant="outline" onClick={refreshLatestQuotes} loading={refreshQuotes.isPending}>
             <ArrowsClockwise size={14} />{refreshQuotes.isPending ? "更新中" : "更新報價"}
-          </button>
-          <button className="ns-btn primary" onClick={() => setAddOpen(true)}>
+          </Button>
+          <Button onClick={() => setAddOpen(true)}>
             <PlusCircle size={14} weight="bold" />Buy / Sell
-          </button>
+          </Button>
         </div>
       </div>
 
       {statusMessage ? <div className="mt-4"><StatusText>{statusMessage}</StatusText></div> : null}
 
       {tab !== "recurring" && dueRecurringCount > 0 ? (
-        <div className="ns-card" style={{ marginTop: 16, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px", color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }}>定期定額</span>
+        <CossCard style={{ marginTop: 16, padding: "12px 16px", flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }}>定期定額</Badge>
           <span style={{ fontSize: 13.5 }}>有 {dueRecurringCount} 個定期定額計畫待投入，記得備妥交割款。</span>
-          <button className="ns-btn ghost" style={{ marginLeft: "auto", fontSize: 12 }} onClick={() => setTab("recurring")}>前往處理 →</button>
-        </div>
+          <Button variant="ghost" size="xs" className="ml-auto" onClick={() => setTab("recurring")}>前往處理 →</Button>
+        </CossCard>
       ) : null}
 
       {/* Page-level tabs: 持倉 | 交易紀錄 | 定期定額 */}
@@ -314,14 +317,14 @@ export function InvestmentsRoute() {
               ['Realized YTD', `NT$${formatCompactNumber(Math.abs(realizedYTD))}`, `NT$${formatNumber(Math.abs(realizedYTD))}`, realizedYTD >= 0 ? '' : 'Loss', realizedYTD >= 0],
               ['Dividends YTD', `NT$${formatCompactNumber(dividendsYTD)}`, `NT$${formatNumber(dividendsYTD)}`, '', true],
             ] as const).map(([label, val, exact, pct, pos], i) => (
-              <div key={i} className="ns-card p-4 sm:p-5 flex flex-col min-w-0">
+              <CossCard key={i} className="p-4 sm:p-5 min-w-0">
                 <div className="ns-eyebrow" style={{ marginBottom: 8, flexShrink: 0 }}>{label}</div>
                 {/* Value takes the full card width (compact 萬/億 keeps it short);
                     the % change sits on its own line so it never squeezes the
                     number into an ellipsis. */}
                 <div className="num" style={{ fontSize: "clamp(16px, 1.9vw, 22px)", fontWeight: 500, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={exact}>{val}</div>
                 {pct ? <div className="num" style={{ fontSize: 12.5, marginTop: 2, color: pos ? 'var(--ns-pos)' : 'var(--ns-neg)' }}>{pct}</div> : null}
-              </div>
+              </CossCard>
             ))}
           </div>
 
@@ -803,7 +806,7 @@ function HoldingsAllocation({ positions, assetsById, nameLocale, toPrimary, prim
   if (data.length === 0) return null;
 
   return (
-    <div className="ns-card" style={{ padding: 20, marginBottom: 20 }}>
+    <CossCard style={{ padding: 20, marginBottom: 20 }}>
       <div className="ns-eyebrow" style={{ marginBottom: 14 }}>Allocation · 持倉配置</div>
       <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ width: 168, height: 168, flexShrink: 0 }}>
@@ -831,7 +834,7 @@ function HoldingsAllocation({ positions, assetsById, nameLocale, toPrimary, prim
           ))}
         </div>
       </div>
-    </div>
+    </CossCard>
   );
 }
 
@@ -1099,15 +1102,15 @@ function HoldingsTab({
         </div>
         {totalPages > 1 && (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--ns-border)' }}>
-            <button className="ns-btn ghost" disabled={page === 1} onClick={() => setPage(p => p - 1)}>
+            <Button variant="ghost" disabled={page === 1} onClick={() => setPage(p => p - 1)}>
               <CaretLeft size={16} />上一頁
-            </button>
+            </Button>
             <div style={{ fontSize: 13, color: 'var(--ns-fg-muted)' }}>
               第 {page} 頁 / 共 {totalPages} 頁
             </div>
-            <button className="ns-btn ghost" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>
+            <Button variant="ghost" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>
               下一頁<CaretRight size={16} />
-            </button>
+            </Button>
           </div>
         )}
         <div className="mt-4 flex flex-wrap gap-3 text-xs" style={{ color: "var(--ns-muted)" }}>
