@@ -180,6 +180,41 @@ export interface RecurringTransaction extends SyncFields {
   isActive: boolean;
 }
 
+export type RecurringInvestmentMode = "fixedAmount" | "fixedShares";
+
+export const recurringInvestmentModeLabels: Record<RecurringInvestmentMode, string> = {
+  fixedAmount: "定期定額",
+  fixedShares: "定期定股",
+};
+
+/**
+ * A scheduled investment plan — the investing counterpart of
+ * `RecurringTransaction`. "Post" materializes a buy `InvestmentRecord` and the
+ * matching cash settlement (交割款) drawn from `accountId`. Like recurring
+ * ledger rules it is surfaced as a reminder; posting is a manual one-tap so the
+ * user can confirm the reference price first.
+ */
+export interface RecurringInvestment extends SyncFields {
+  /** Cash / settlement account the 交割款 is drawn from. */
+  accountId: string;
+  ticker: string;
+  name: string;
+  currency: CurrencyCode;
+  mode: RecurringInvestmentMode;
+  /** fixedAmount: cash invested each period. */
+  amount: number;
+  /** fixedShares: shares purchased each period. */
+  quantity: number;
+  /** Reference price used to derive the missing side at post time. */
+  price: number;
+  fee: number;
+  frequency: RecurringFrequency;
+  dayOfMonth: number;
+  nextRunDate: string;
+  isActive: boolean;
+  note: string;
+}
+
 export interface HoldingPosition {
   assetId: string;
   ticker: string;

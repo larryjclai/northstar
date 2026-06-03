@@ -21,6 +21,7 @@ export type SyncEntity =
   | "asset"
   | "investment"
   | "recurring"
+  | "recurringInvestment"
   | "goal"
   | "settings";
 
@@ -71,6 +72,7 @@ export interface SyncSource {
   portfolioAssets: SyncSourceRecord[];
   investmentRecords: SyncSourceRecord[];
   recurringTransactions: SyncSourceRecord[];
+  recurringInvestments?: SyncSourceRecord[];
   financialGoals?: SyncSourceRecord[];
   appSettings?: SyncSourceRecord[];
 }
@@ -81,6 +83,7 @@ const ENTITY_BY_KEY: Record<keyof SyncSource, SyncEntity> = {
   portfolioAssets: "asset",
   investmentRecords: "investment",
   recurringTransactions: "recurring",
+  recurringInvestments: "recurringInvestment",
   financialGoals: "goal",
   appSettings: "settings",
 };

@@ -200,6 +200,33 @@ export const migrations: Migration[] = [
       create index if not exists idx_manual_price_snapshots_asset_date on manual_price_snapshots (asset_id, date);
     `,
   },
+  {
+    id: 4,
+    description: "Recurring investment plans (定期定額 / 定期定股)",
+    sql: `
+      create table if not exists recurring_investments (
+        id text primary key,
+        space_id text not null,
+        revision integer not null,
+        created_at text not null,
+        updated_at text not null,
+        deleted_at text,
+        account_id text not null,
+        ticker text not null,
+        name text not null default '',
+        currency text not null,
+        mode text not null default 'fixedAmount',
+        amount real not null default 0,
+        quantity real not null default 0,
+        price real not null default 0,
+        fee real not null default 0,
+        frequency text not null default 'monthly',
+        day_of_month integer not null default 1,
+        next_run_date text not null,
+        is_active integer not null default 1
+      );
+    `,
+  },
   // NOTE: extension columns for `financial_goals` (retirement projection
   // inputs) are added via `ensureSqliteColumn` calls inside the SQLite
   // initialize() routine, not via a sql migration. SQLite's bare

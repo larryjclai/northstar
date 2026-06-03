@@ -15,6 +15,8 @@ import type {
   ManualPriceSnapshot,
   PortfolioAsset,
   RecalculationReport,
+  RecurringInvestment,
+  RecurringInvestmentMode,
   RecurringTransaction,
   SpendingItem,
 } from "../domain/types";
@@ -79,6 +81,23 @@ export interface RecurringDraft {
   dayOfMonth: number;
   nextRunDate: string;
   isActive: boolean;
+}
+
+export interface RecurringInvestmentDraft {
+  accountId: string;
+  ticker: string;
+  name: string;
+  currency: string;
+  mode: RecurringInvestmentMode;
+  amount: number;
+  quantity: number;
+  price: number;
+  fee: number;
+  frequency: import("../domain").RecurringFrequency;
+  dayOfMonth: number;
+  nextRunDate: string;
+  isActive: boolean;
+  note: string;
 }
 
 export interface TransferDraft {
@@ -189,6 +208,12 @@ export interface FinanceRepository {
    * Returns the number of ledger rows created.
    */
   postDueRecurringTransactions(today: string): Promise<number>;
+  listRecurringInvestments(): Promise<RecurringInvestment[]>;
+  createRecurringInvestment(input: RecurringInvestmentDraft): Promise<void>;
+  updateRecurringInvestment(id: string, input: RecurringInvestmentDraft): Promise<void>;
+  deleteRecurringInvestment(id: string): Promise<void>;
+  /** Materialize a buy InvestmentRecord for the rule's current occurrence and advance it. */
+  postRecurringInvestment(id: string): Promise<void>;
   listMarketQuotes(): Promise<StoredMarketQuote[]>;
   saveMarketQuotes(quotes: MarketQuote[], source: string): Promise<void>;
   getAppSettings(): Promise<AppSettings>;
@@ -229,6 +254,7 @@ export interface RepositorySnapshot {
   portfolioAssets: PortfolioAsset[];
   investmentRecords: InvestmentRecord[];
   recurringTransactions: RecurringTransaction[];
+  recurringInvestments?: RecurringInvestment[];
   marketQuotes: StoredMarketQuote[];
   settings: AppSettings;
   settingsRevision?: number;
@@ -264,6 +290,7 @@ interface RepositoryData {
   portfolioAssets: PortfolioAsset[];
   investmentRecords: InvestmentRecord[];
   recurringTransactions: RecurringTransaction[];
+  recurringInvestments: RecurringInvestment[];
   marketQuotes: StoredMarketQuote[];
   settings: AppSettings;
   settingsRevision: number;
@@ -857,6 +884,44 @@ class BrowserFinanceRepository implements FinanceRepository {
     return posted;
   }
 
+  async listRecurringInvestments() {
+    return active(this.data.recurringInvestments).map((row) => ({
+      ...row,
+      frequency: (row.frequency ?? "monthly") as import("../domain").RecurringFrequency,
+      mode: (row.mode ?? "fixedAmount") as RecurringInvestmentMode,
+    }));
+  }
+
+  async createRecurringInvestment(input: RecurringInvestmentDraft) {
+    this.data.recurringInvestments.push(createRecurringInvestmentRow(input));
+    await this.persist();
+  }
+
+  async updateRecurringInvestment(id: string, input: RecurringInvestmentDraft) {
+    this.data.recurringInvestments = this.data.recurringInvestments.map((row) =>
+      row.id === id ? bump({ ...row, ...input }) : row,
+    );
+    await this.persist();
+  }
+
+  async deleteRecurringInvestment(id: string) {
+    this.data.recurringInvestments = this.data.recurringInvestments.map((row) =>
+      row.id === id ? bump({ ...row, deletedAt: nowIso() }) : row,
+    );
+    await this.persist();
+  }
+
+  async postRecurringInvestment(id: string) {
+    const rule = this.data.recurringInvestments.find((row) => row.id === id && row.deletedAt === null);
+    if (!rule) throw new Error("找不到定期定額計畫。");
+    // createInvestmentRecord persists + recomputes; then advance the schedule.
+    await this.createInvestmentRecord(recurringInvestmentToDraft(rule));
+    this.data.recurringInvestments = this.data.recurringInvestments.map((row) =>
+      row.id === id ? bump({ ...row, nextRunDate: nextRecurringDate(row.nextRunDate, row.frequency ?? "monthly", row.dayOfMonth) }) : row,
+    );
+    await this.persist();
+  }
+
   async adjustAccountBalance(accountId: string, targetBalance: number, date: string, note: string) {
     const account = this.data.accounts.find((row) => row.id === accountId && row.deletedAt === null);
     if (!account) throw new Error("找不到帳戶。");
@@ -1141,6 +1206,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       portfolioAssets: this.data.portfolioAssets,
       investmentRecords: this.data.investmentRecords,
       recurringTransactions: this.data.recurringTransactions,
+      recurringInvestments: this.data.recurringInvestments,
       marketQuotes: this.data.marketQuotes,
       settings: this.data.settings,
       settingsRevision: this.data.settingsRevision,
@@ -1162,6 +1228,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       portfolioAssets: this.data.portfolioAssets,
       investmentRecords: this.data.investmentRecords,
       recurringTransactions: this.data.recurringTransactions,
+      recurringInvestments: this.data.recurringInvestments,
       financialGoals: this.data.financialGoals,
       appSettings: [{
         id: "app_settings",
@@ -1219,6 +1286,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       asset: this.data.portfolioAssets,
       investment: this.data.investmentRecords,
       recurring: this.data.recurringTransactions,
+      recurringInvestment: this.data.recurringInvestments,
       goal: this.data.financialGoals,
     };
     return (rowsByEntity[entity].find((row) => row.id === entityId) as unknown as Record<string, unknown> | undefined) ?? null;
@@ -1231,6 +1299,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       portfolioAssets: snapshot.portfolioAssets,
       investmentRecords: snapshot.investmentRecords,
       recurringTransactions: snapshot.recurringTransactions,
+      recurringInvestments: snapshot.recurringInvestments,
       marketQuotes: snapshot.marketQuotes,
       settings: snapshot.settings,
       settingsRevision: snapshot.settingsRevision,
@@ -1262,6 +1331,7 @@ class BrowserFinanceRepository implements FinanceRepository {
         asset: "portfolioAssets",
         investment: "investmentRecords",
         recurring: "recurringTransactions",
+        recurringInvestment: "recurringInvestments",
         goal: "financialGoals",
       } as const;
       const key = keyByEntity[change.entity];
@@ -2142,6 +2212,54 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     return posted;
   }
 
+  private recurringInvestmentSelect = `select
+    id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
+    account_id as accountId, ticker, name, currency, mode, amount, quantity, price, fee, frequency,
+    day_of_month as dayOfMonth, next_run_date as nextRunDate, is_active as isActive
+    from recurring_investments`;
+
+  override async listRecurringInvestments() {
+    return (await this.db.select<RecurringInvestment[]>(
+      `${this.recurringInvestmentSelect} where deleted_at is null order by next_run_date`,
+    )).map((row) => ({
+      ...row,
+      frequency: (row.frequency ?? "monthly") as import("../domain").RecurringFrequency,
+      mode: (row.mode ?? "fixedAmount") as RecurringInvestmentMode,
+      isActive: Boolean(row.isActive),
+    }));
+  }
+
+  override async createRecurringInvestment(input: RecurringInvestmentDraft) {
+    await this.insertRecurringInvestmentRow(createRecurringInvestmentRow(input));
+  }
+
+  override async updateRecurringInvestment(id: string, input: RecurringInvestmentDraft) {
+    await this.db.execute(
+      `update recurring_investments set revision = revision + 1, updated_at = $1, account_id = $2, ticker = $3, name = $4, currency = $5, mode = $6, amount = $7, quantity = $8, price = $9, fee = $10, frequency = $11, day_of_month = $12, next_run_date = $13, is_active = $14 where id = $15`,
+      [nowIso(), input.accountId, input.ticker.trim().toUpperCase(), input.name, input.currency.trim().toUpperCase(), input.mode, input.amount, input.quantity, input.price, input.fee, input.frequency ?? "monthly", input.dayOfMonth, input.nextRunDate, Number(input.isActive), id],
+    );
+  }
+
+  override async deleteRecurringInvestment(id: string) {
+    await this.db.execute(`update recurring_investments set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`, [nowIso(), id]);
+  }
+
+  override async postRecurringInvestment(id: string) {
+    const rows = await this.db.select<RecurringInvestment[]>(`${this.recurringInvestmentSelect} where id = $1 and deleted_at is null`, [id]);
+    const rule = rows[0];
+    if (!rule) throw new Error("找不到定期定額計畫。");
+    // createInvestmentRecord runs its own transaction (asset + ledger + record).
+    await this.createInvestmentRecord(recurringInvestmentToDraft({
+      ...rule,
+      mode: (rule.mode ?? "fixedAmount") as RecurringInvestmentMode,
+    }));
+    const freq = (rule.frequency ?? "monthly") as import("../domain").RecurringFrequency;
+    await this.db.execute(
+      `update recurring_investments set next_run_date = $1, updated_at = $2, revision = revision + 1 where id = $3`,
+      [nextRecurringDate(rule.nextRunDate, freq, rule.dayOfMonth), nowIso(), id],
+    );
+  }
+
   override async adjustAccountBalance(accountId: string, targetBalance: number, date: string, note: string) {
     const rows = await this.db.select<Array<{ balance: number; currency: string }>>(
       `select balance, currency from accounts where id = $1 and deleted_at is null`, [accountId],
@@ -2696,12 +2814,13 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async exportSnapshot(): Promise<RepositorySnapshot> {
-    const [accounts, ledger, assetsList, investments, recurring, quotes, settings, fx, prices, goals, manualSnapshots] = await Promise.all([
+    const [accounts, ledger, assetsList, investments, recurring, recurringInvestments, quotes, settings, fx, prices, goals, manualSnapshots] = await Promise.all([
       this.listAccounts(),
       this.listLedgerTransactions(),
       this.listPortfolioAssets(),
       this.listInvestmentRecords(),
       this.listRecurringTransactions(),
+      this.listRecurringInvestments(),
       this.listMarketQuotes(),
       this.getAppSettings(),
       this.listDailyFxRates(),
@@ -2719,6 +2838,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       portfolioAssets: assetsList,
       investmentRecords: investments,
       recurringTransactions: recurring,
+      recurringInvestments,
       marketQuotes: quotes,
       settings,
       settingsRevision: meta.revision ?? 1,
@@ -2735,12 +2855,13 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       this.db.select<Array<{ id: string; revision: number; updatedAt: string; deletedAt: string | null }>>(
         `select id, revision, updated_at as updatedAt, deleted_at as deletedAt from ${table}`,
       );
-    const [accounts, ledger, assets, investments, recurring, goals] = await Promise.all([
+    const [accounts, ledger, assets, investments, recurring, recurringInvestments, goals] = await Promise.all([
       q("accounts"),
       q("ledger_transactions"),
       q("portfolio_assets"),
       q("investment_records"),
       q("recurring_transactions"),
+      q("recurring_investments"),
       q("financial_goals"),
     ]);
     const metaRows = await this.db.select<Array<{ value: string }>>(`select value from app_settings where key = '__settingsMeta'`);
@@ -2751,6 +2872,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       portfolioAssets: assets,
       investmentRecords: investments,
       recurringTransactions: recurring,
+      recurringInvestments,
       financialGoals: goals,
       appSettings: [{ id: "app_settings", revision: meta.revision ?? 1, updatedAt: meta.updatedAt ?? nowIso(), deletedAt: null }],
     };
@@ -2833,6 +2955,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         asset: "portfolio_assets",
         investment: "investment_records",
         recurring: "recurring_transactions",
+        recurringInvestment: "recurring_investments",
         goal: "financial_goals",
       };
       await this.db.execute(
@@ -2857,6 +2980,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       asset: "portfolio_assets",
       investment: "investment_records",
       recurring: "recurring_transactions",
+      recurringInvestment: "recurring_investments",
       goal: "financial_goals",
     };
     const rows = await this.db.select<Array<Record<string, unknown>>>(
@@ -2915,6 +3039,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       await this.db.execute("delete from daily_prices");
       await this.db.execute("delete from manual_price_snapshots");
       await this.db.execute("delete from recurring_transactions");
+      await this.db.execute("delete from recurring_investments");
       await this.db.execute("delete from investment_records");
       await this.db.execute("delete from ledger_transactions");
       await this.db.execute("delete from portfolio_assets");
@@ -2952,6 +3077,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
       for (const row of snapshot.recurringTransactions) await this.insertRecurringRow(row);
       console.log(`[import] inserted ${snapshot.recurringTransactions.length} recurring_transactions`);
+
+      for (const row of snapshot.recurringInvestments ?? []) await this.insertRecurringInvestmentRow(row);
+      console.log(`[import] inserted ${(snapshot.recurringInvestments ?? []).length} recurring_investments`);
 
       if (snapshot.marketQuotes.length) {
         await this.saveMarketQuotes(snapshot.marketQuotes, snapshot.marketQuotes[0]?.source ?? "import");
@@ -3187,6 +3315,35 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     );
   }
 
+  private async insertRecurringInvestmentRow(row: RecurringInvestment) {
+    const now = nowIso();
+    await this.db.execute(
+      `insert into recurring_investments (id, space_id, revision, created_at, updated_at, deleted_at, account_id, ticker, name, currency, mode, amount, quantity, price, fee, frequency, day_of_month, next_run_date, is_active)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+      [
+        row.id,
+        row.spaceId ?? personalSpace,
+        row.revision ?? 1,
+        row.createdAt ?? now,
+        row.updatedAt ?? now,
+        row.deletedAt ?? null,
+        row.accountId ?? "",
+        row.ticker ?? "",
+        row.name ?? "",
+        row.currency ?? "",
+        row.mode ?? "fixedAmount",
+        row.amount ?? 0,
+        row.quantity ?? 0,
+        row.price ?? 0,
+        row.fee ?? 0,
+        row.frequency ?? "monthly",
+        row.dayOfMonth ?? 1,
+        row.nextRunDate ?? "",
+        Number(row.isActive ?? true),
+      ],
+    );
+  }
+
   private async insertInvestmentRow(row: InvestmentRecord) {
     const now = nowIso();
     await this.db.execute(
@@ -3369,6 +3526,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       ["portfolio_assets", "asset"],
       ["investment_records", "investment"],
       ["recurring_transactions", "recurring"],
+      ["recurring_investments", "recurringInvestment"],
       ["financial_goals", "goal"],
     ];
     for (const [table, entity] of tables) {
@@ -3435,6 +3593,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       ["portfolio_assets", "asset"],
       ["investment_records", "investment"],
       ["recurring_transactions", "recurring"],
+      ["recurring_investments", "recurringInvestment"],
       ["financial_goals", "goal"],
     ];
     for (const [table, entity] of tables) {
@@ -3473,6 +3632,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       asset: "portfolio_assets",
       investment: "investment_records",
       recurring: "recurring_transactions",
+      recurringInvestment: "recurring_investments",
       goal: "financial_goals",
     };
     await this.db.execute(`delete from ${tableByEntity[change.entity]} where id = $1`, [String(payload.id)]);
@@ -3482,6 +3642,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       case "asset": await this.insertAssetRow(payload as unknown as PortfolioAsset); break;
       case "investment": await this.insertInvestmentRow(payload as unknown as InvestmentRecord); break;
       case "recurring": await this.insertRecurringRow(payload as unknown as RecurringTransaction); break;
+      case "recurringInvestment": await this.insertRecurringInvestmentRow(payload as unknown as RecurringInvestment); break;
       case "goal": await this.insertGoalRow(payload as unknown as FinancialGoal); break;
     }
   }
@@ -3601,6 +3762,7 @@ function normalizeSqliteSyncPayload(entity: SyncEntity, row: Record<string, unkn
   if (entity === "ledger") payload.isReviewed = Boolean(payload.isReviewed);
   if (entity === "investment") payload.isReviewed = Boolean(payload.isReviewed);
   if (entity === "recurring") payload.isActive = Boolean(payload.isActive);
+  if (entity === "recurringInvestment") payload.isActive = Boolean(payload.isActive);
   if (entity === "goal") {
     payload.spendingItems = parseJsonValue(payload.spendingItems, []);
     payload.incomeItems = parseJsonValue(payload.incomeItems, []);
@@ -3626,6 +3788,7 @@ function createInitialData(): RepositoryData {
     portfolioAssets: [...seedAssets],
     investmentRecords: [...seedInvestmentRecords],
     recurringTransactions: [...seedRecurringTransactions],
+    recurringInvestments: [],
     marketQuotes: [] as StoredMarketQuote[],
     settings: defaultSettings,
     settingsRevision: 1,
@@ -3665,6 +3828,17 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
       merchant: row.merchant ?? "",
       entryType: row.entryType ?? (row.amount >= 0 ? "income" : "expense"),
       settlementStatus: row.settlementStatus ?? "settled",
+    })),
+    recurringInvestments: (data.recurringInvestments ?? []).map((row) => ({
+      ...row,
+      mode: (row.mode ?? "fixedAmount") as RecurringInvestmentMode,
+      frequency: (row.frequency ?? "monthly") as import("../domain").RecurringFrequency,
+      name: row.name ?? "",
+      amount: row.amount ?? 0,
+      quantity: row.quantity ?? 0,
+      price: row.price ?? 0,
+      fee: row.fee ?? 0,
+      note: row.note ?? "",
     })),
     marketQuotes: data.marketQuotes ?? [],
     settings: normalizeSettings(data.settings ?? defaultSettings),
@@ -4014,6 +4188,49 @@ function createRecurringRow(input: RecurringDraft): RecurringTransaction {
     ...input,
     frequency,
     nextRunDate: firstFutureRunDate(input.nextRunDate, frequency, input.dayOfMonth),
+  };
+}
+
+function createRecurringInvestmentRow(input: RecurringInvestmentDraft): RecurringInvestment {
+  const timestamp = nowIso();
+  const frequency = input.frequency ?? "monthly";
+  return {
+    id: createId("recinv"),
+    spaceId: personalSpace,
+    revision: 1,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    deletedAt: null,
+    ...input,
+    ticker: input.ticker.trim().toUpperCase(),
+    currency: input.currency.trim().toUpperCase(),
+    frequency,
+    nextRunDate: firstFutureRunDate(input.nextRunDate, frequency, input.dayOfMonth),
+  };
+}
+
+// Resolve the buy InvestmentDraft for one occurrence of a recurring investment.
+// fixedShares uses the stored share count; fixedAmount derives shares from the
+// reference price. The 交割款 (cash settlement) is drawn from `accountId`.
+function recurringInvestmentToDraft(rule: RecurringInvestment): InvestmentDraft {
+  const price = Math.max(0, rule.price || 0);
+  const quantity = rule.mode === "fixedShares"
+    ? Math.max(0, rule.quantity || 0)
+    : price > 0 ? rule.amount / price : 0;
+  if (!(price > 0) || !(quantity > 0)) {
+    throw new Error("請先設定參考價格與金額／股數，才能記錄這期定期定額。");
+  }
+  return {
+    ticker: rule.ticker,
+    name: rule.name || rule.ticker,
+    currency: rule.currency,
+    linkedAccountId: rule.accountId,
+    date: `${rule.nextRunDate}T09:00`,
+    action: "buy",
+    price,
+    quantity,
+    fee: Math.max(0, rule.fee || 0),
+    note: rule.note || "定期定額",
   };
 }
 

@@ -348,6 +348,7 @@ export async function clearAllData(repo: FinanceRepository): Promise<void> {
     portfolioAssets: [],
     investmentRecords: [],
     recurringTransactions: [],
+    recurringInvestments: [],
     marketQuotes: [],
     settings,
     dailyFxRates: [],

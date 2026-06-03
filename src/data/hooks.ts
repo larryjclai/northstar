@@ -9,6 +9,7 @@ const keys = {
   assets: ["assets"] as const,
   investments: ["investments"] as const,
   recurring: ["recurring"] as const,
+  recurringInvestments: ["recurringInvestments"] as const,
   quotes: ["quotes"] as const,
   settings: ["settings"] as const,
   dailyFxRates: ["dailyFxRates"] as const,
@@ -53,6 +54,11 @@ export function useFinanceData() {
     queryFn: () => repository.data!.listRecurringTransactions(),
     enabled,
   });
+  const recurringInvestments = useQuery({
+    queryKey: keys.recurringInvestments,
+    queryFn: () => repository.data!.listRecurringInvestments(),
+    enabled,
+  });
   const quotes = useQuery({
     queryKey: keys.quotes,
     queryFn: () => repository.data!.listMarketQuotes(),
@@ -91,6 +97,7 @@ export function useFinanceData() {
     assets,
     investments,
     recurring,
+    recurringInvestments,
     quotes,
     settings,
     dailyFxRates,

@@ -35,12 +35,13 @@ import {
 import { useBackfillAssetProfiles, useRefreshDailyPrices, useRefreshQuotes } from "../features/market-data/useMarketRefresh";
 import { useUiPreferences, type NameLocalePreference } from "../state/uiPreferences";
 import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
+import { RecurringInvestmentsTab } from "./RecurringInvestmentsTab";
 import { TransactionsRoute } from "./TransactionsRoute";
 
 export function InvestmentsRoute() {
-  const [tab, setTab] = useState<"portfolio" | "transactions">("portfolio");
+  const [tab, setTab] = useState<"portfolio" | "transactions" | "recurring">("portfolio");
 
-  const { accounts, assets, investments, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots } = useFinanceData();
+  const { accounts, assets, investments, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots, recurringInvestments } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
   const refreshDailyPrices = useRefreshDailyPrices();
   const backfillAssetProfiles = useBackfillAssetProfiles();
@@ -77,6 +78,14 @@ export function InvestmentsRoute() {
     () => accountRows.filter((account) => account.type === "investment"),
     [accountRows],
   );
+
+  const timezoneForDue = useUiPreferences((state) => state.timezone);
+  const dueRecurringCount = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    const horizon = todayInTimezone(timezoneForDue, d);
+    return (recurringInvestments.data ?? []).filter((r) => r.isActive && r.nextRunDate <= horizon).length;
+  }, [recurringInvestments.data, timezoneForDue]);
 
   const positions = useMemo(
     () => buildHoldingPositionsByAccount(assetRows, recordRows, quoteMap),
@@ -233,11 +242,20 @@ export function InvestmentsRoute() {
 
       {statusMessage ? <div className="mt-4"><StatusText>{statusMessage}</StatusText></div> : null}
 
-      {/* Page-level tabs: 持倉 | 交易紀錄 */}
+      {tab !== "recurring" && dueRecurringCount > 0 ? (
+        <div className="ns-card" style={{ marginTop: 16, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px", color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }}>定期定額</span>
+          <span style={{ fontSize: 13.5 }}>有 {dueRecurringCount} 個定期定額計畫待投入，記得備妥交割款。</span>
+          <button className="ns-btn ghost" style={{ marginLeft: "auto", fontSize: 12 }} onClick={() => setTab("recurring")}>前往處理 →</button>
+        </div>
+      ) : null}
+
+      {/* Page-level tabs: 持倉 | 交易紀錄 | 定期定額 */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--ns-border)', marginTop: 20, marginBottom: 22 }}>
         {[
           { id: 'portfolio', label: '持倉', active: tab === 'portfolio' },
           { id: 'transactions', label: '交易紀錄', active: tab === 'transactions' },
+          { id: 'recurring', label: '定期定額', active: tab === 'recurring' },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id as any)} style={{
             padding: '10px 20px', background: 'none', border: 'none', cursor: 'pointer',
@@ -293,6 +311,8 @@ export function InvestmentsRoute() {
       ) : null}
 
       {tab === "transactions" ? <TransactionsRoute /> : null}
+
+      {tab === "recurring" ? <RecurringInvestmentsTab /> : null}
 
       <InvestmentEntryDrawer
         open={addOpen}
