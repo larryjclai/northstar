@@ -1,5 +1,6 @@
 export * from "./amountExpression";
 export * from "./assetName";
+export * from "./creditCardStatements";
 export * from "./currency";
 export * from "./dashboardSummary";
 export * from "./datetime";

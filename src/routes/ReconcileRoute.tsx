@@ -1,8 +1,8 @@
-import { CaretRight, CheckCircle, Circle, CurrencyCircleDollar } from "@phosphor-icons/react";
+import { CaretRight, CaretDown, CheckCircle, Circle, CurrencyCircleDollar } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { formatNumber, todayInTimezone } from "../domain";
+import { buildStatementPeriods, formatNumber, todayInTimezone } from "../domain";
 import { useToast } from "../components/Toast";
 import { useUiPreferences } from "../state/uiPreferences";
 import type { AccountDraft } from "../data/repositories";
@@ -13,7 +13,7 @@ export function ReconcileRoute() {
   const toast = useToast();
   const timezone = useUiPreferences((s) => s.timezone);
   const { accounts, ledger } = useFinanceData();
-  const [onlyUnreconciled, setOnlyUnreconciled] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const setReviewed = useRepositoryMutation(
     (repository, input: { id: string; reviewed: boolean }) => repository.setLedgerReviewed(input.id, input.reviewed),
@@ -32,10 +32,31 @@ export function ReconcileRoute() {
     [ledger.data, accountId],
   );
 
-  const reconciledCount = rows.filter((r) => r.isReviewed).length;
-  const unreconciled = rows.filter((r) => !r.isReviewed);
-  const unreconciledTotal = unreconciled.reduce((sum, r) => sum + Math.abs(r.amount), 0);
-  const visible = onlyUnreconciled ? unreconciled : rows;
+  const today = todayInTimezone(timezone);
+  const periods = useMemo(
+    () => account
+      ? buildStatementPeriods(rows, {
+          statementDay: account.statementDay,
+          paymentDueDay: account.paymentDueDay,
+          creditPaymentPaidUntil: account.creditPaymentPaidUntil,
+          today,
+        })
+      : [],
+    [rows, account, today],
+  );
+
+  const currentPeriod = periods.find((p) => p.isCurrent) ?? periods[0];
+  const isOpen = (key: string) => expanded.has(key) || key === currentPeriod?.key;
+
+  function toggleExpand(key: string) {
+    setExpanded((current) => {
+      const next = new Set(current);
+      // The current period defaults to open; toggling it needs an explicit
+      // "collapsed" marker, so we just allow opening past periods here.
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
 
   async function toggle(id: string, current: boolean) {
     try {
@@ -45,11 +66,13 @@ export function ReconcileRoute() {
     }
   }
 
-  async function markAll(reviewed: boolean) {
-    const targets = reviewed ? unreconciled : rows.filter((r) => r.isReviewed);
+  async function markAll(periodKey: string, reviewed: boolean) {
+    const period = periods.find((p) => p.key === periodKey);
+    if (!period) return;
+    const targets = period.rows.filter((r) => r.isReviewed !== reviewed);
     try {
       for (const row of targets) await setReviewed.mutateAsync({ id: row.id, reviewed });
-      toast.success(reviewed ? "已全部標記對帳" : "已清除對帳狀態");
+      toast.success(reviewed ? "已標記本期已對帳" : "已清除對帳狀態");
     } catch {
       toast.error("更新失敗");
     }
@@ -57,13 +80,11 @@ export function ReconcileRoute() {
 
   async function markPaid() {
     if (!account?.paymentDueDay) return;
-    const today = todayInTimezone(timezone);
-    const [y, m] = today.split("-").map(Number);
-    const day = account.paymentDueDay;
-    // next occurrence of paymentDueDay on-or-after today
-    const nm = day >= Number(today.slice(8)) ? m : m === 12 ? 1 : m + 1;
-    const ny = day >= Number(today.slice(8)) ? y : m === 12 ? y + 1 : y;
-    const dueDate = `${ny}-${String(nm).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    // Mark the most recently closed unpaid statement's due date as paid so the
+    // reminder for that cycle is suppressed.
+    const dueDate = currentPeriod?.dueDate
+      ?? periods.find((p) => p.dueDate && !p.isPaid)?.dueDate;
+    if (!dueDate) return;
     try {
       await updateAccount.mutateAsync({
         id: account.id,
@@ -87,6 +108,10 @@ export function ReconcileRoute() {
 
   const owed = Math.max(0, -account.balance);
   const isPaid = account.creditPaymentPaidUntil != null;
+  const currentSpend = currentPeriod?.spend ?? 0;
+  const currentReconciled = currentPeriod?.reconciledCount ?? 0;
+  const currentCount = currentPeriod?.rows.length ?? 0;
+  const currentUnreconciled = (currentPeriod?.rows ?? []).filter((r) => !r.isReviewed).reduce((s, r) => s + Math.abs(r.amount), 0);
 
   return (
     <div style={{ height: "100%", overflow: "auto", padding: "24px 32px 100px" }}>
@@ -102,7 +127,7 @@ export function ReconcileRoute() {
           <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Reconciliation · {account.currency}</div>
           <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 26, margin: 0, fontWeight: 600 }}>{account.name} 對帳</h1>
           <p className="muted" style={{ fontSize: 13, marginTop: 4, marginBottom: 0 }}>
-            核對每筆刷卡紀錄是否與銀行帳單吻合。
+            依結帳日將交易分期核對。
             {account.statementDay ? ` 結帳日每月 ${account.statementDay} 號。` : ""}
             {account.paymentDueDay ? ` 繳款日每月 ${account.paymentDueDay} 號。` : ""}
           </p>
@@ -119,56 +144,95 @@ export function ReconcileRoute() {
               {isPaid ? "已繳款" : "標記已繳款"}
             </button>
           )}
-          <button className="ns-btn" onClick={() => markAll(true)} disabled={setReviewed.isPending || unreconciled.length === 0}>全部標記已對帳</button>
         </div>
       </div>
 
-      {/* Summary */}
+      {/* Summary — current open cycle. */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 }}>
         <div className="ns-card" style={{ padding: 16 }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>本期應繳</div>
+          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>本期消費</div>
+          <div className="num" style={{ fontSize: 19, color: currentSpend > 0 ? "var(--ns-neg)" : undefined }}>NT${formatNumber(currentSpend)}</div>
+        </div>
+        <div className="ns-card" style={{ padding: 16 }}>
+          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>本期已對帳 / 筆數</div>
+          <div className="num" style={{ fontSize: 19 }}>{currentReconciled} / {currentCount}</div>
+        </div>
+        <div className="ns-card" style={{ padding: 16 }}>
+          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>卡片未繳總額</div>
           <div className="num" style={{ fontSize: 19, color: owed > 0 ? "var(--ns-neg)" : undefined }}>NT${formatNumber(owed)}</div>
         </div>
-        <div className="ns-card" style={{ padding: 16 }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>已對帳 / 總筆數</div>
-          <div className="num" style={{ fontSize: 19 }}>{reconciledCount} / {rows.length}</div>
-        </div>
-        <div className="ns-card" style={{ padding: 16 }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>未對帳金額</div>
-          <div className="num" style={{ fontSize: 19, color: unreconciledTotal > 0 ? "var(--ns-neg)" : undefined }}>NT${formatNumber(unreconciledTotal)}</div>
-        </div>
       </div>
+      {currentUnreconciled > 0 ? (
+        <div className="muted" style={{ fontSize: 12.5, marginBottom: 12 }}>本期尚有 NT${formatNumber(currentUnreconciled)} 未對帳。</div>
+      ) : null}
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
-          <input type="checkbox" checked={onlyUnreconciled} onChange={(e) => setOnlyUnreconciled(e.target.checked)} />
-          只看未對帳
-        </label>
-      </div>
-
-      {/* Transactions */}
-      <div className="ns-card" style={{ padding: 0 }}>
-        {visible.length === 0 ? (
-          <div className="muted" style={{ padding: 40, textAlign: "center", fontSize: 13 }}>{onlyUnreconciled ? "全部已對帳 🎉" : "此帳戶尚無交易紀錄。"}</div>
-        ) : (
-          visible.map((row, i) => (
-            <div
-              key={row.id}
-              onClick={() => toggle(row.id, row.isReviewed)}
-              style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none", cursor: "pointer", opacity: row.isReviewed ? 0.6 : 1 }}
-            >
-              {row.isReviewed ? <CheckCircle size={20} weight="fill" style={{ color: "var(--ns-accent)", flexShrink: 0 }} /> : <Circle size={20} style={{ color: "var(--ns-fg-dim)", flexShrink: 0 }} />}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.merchant || row.name || row.category || "交易"}</div>
-                <div className="muted" style={{ fontSize: 11.5 }}>{row.date.slice(0, 10)}{row.category ? ` · ${row.category}` : ""}</div>
+      {/* Statement periods */}
+      {periods.length === 0 ? (
+        <div className="ns-card"><div className="muted" style={{ padding: 40, textAlign: "center", fontSize: 13 }}>此帳戶尚無交易紀錄。</div></div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {periods.map((period) => {
+            const open = isOpen(period.key);
+            const unreconciled = period.rows.filter((r) => !r.isReviewed).length;
+            return (
+              <div key={period.key} className="ns-card" style={{ padding: 0 }}>
+                <div
+                  onClick={() => toggleExpand(period.key)}
+                  style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", borderBottom: open ? "1px solid var(--ns-border)" : "none" }}
+                >
+                  {open ? <CaretDown size={14} /> : <CaretRight size={14} />}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14.5, fontWeight: 500 }}>
+                      {period.isCurrent ? <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px" }}>本期</span> : null}
+                      {period.label}
+                      {period.isPaid ? <span className="ns-pill" style={{ fontSize: 10.5, padding: "2px 7px", color: "var(--ns-pos)", borderColor: "var(--ns-pos)" }}>已繳款</span> : null}
+                    </div>
+                    <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+                      {period.rows.length} 筆 · 已對帳 {period.reconciledCount}/{period.rows.length}
+                      {period.dueDate ? ` · 繳款日 ${period.dueDate.slice(5)}` : ""}
+                    </div>
+                  </div>
+                  <div className="num" style={{ fontSize: 15, fontWeight: 500, color: period.spend > 0 ? "var(--ns-neg)" : "var(--ns-fg-dim)" }}>
+                    NT${formatNumber(period.spend)}
+                  </div>
+                  {open && unreconciled > 0 ? (
+                    <button
+                      className="ns-btn ghost"
+                      style={{ fontSize: 12, padding: "4px 10px", minHeight: "auto" }}
+                      onClick={(e) => { e.stopPropagation(); markAll(period.key, true); }}
+                      disabled={setReviewed.isPending}
+                    >
+                      全部對帳
+                    </button>
+                  ) : null}
+                </div>
+                {open ? (
+                  period.rows.length === 0 ? (
+                    <div className="muted" style={{ padding: "16px 18px", fontSize: 13 }}>本期尚無交易。</div>
+                  ) : (
+                    period.rows.map((row, i) => (
+                      <div
+                        key={row.id}
+                        onClick={() => toggle(row.id, row.isReviewed)}
+                        style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none", cursor: "pointer", opacity: row.isReviewed ? 0.6 : 1 }}
+                      >
+                        {row.isReviewed ? <CheckCircle size={20} weight="fill" style={{ color: "var(--ns-accent)", flexShrink: 0 }} /> : <Circle size={20} style={{ color: "var(--ns-fg-dim)", flexShrink: 0 }} />}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.merchant || row.name || row.category || "交易"}</div>
+                          <div className="muted" style={{ fontSize: 11.5 }}>{row.date.slice(0, 10)}{row.category ? ` · ${row.category}` : ""}</div>
+                        </div>
+                        <div className="num" style={{ fontSize: 14, color: row.amount < 0 ? "var(--ns-neg)" : "var(--ns-pos)", whiteSpace: "nowrap" }}>
+                          {row.amount < 0 ? "−" : "+"}NT${formatNumber(Math.abs(row.amount))}
+                        </div>
+                      </div>
+                    ))
+                  )
+                ) : null}
               </div>
-              <div className="num" style={{ fontSize: 14, color: row.amount < 0 ? "var(--ns-neg)" : "var(--ns-pos)", whiteSpace: "nowrap" }}>
-                {row.amount < 0 ? "−" : "+"}NT${formatNumber(Math.abs(row.amount))}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

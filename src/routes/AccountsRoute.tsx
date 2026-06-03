@@ -296,7 +296,6 @@ export function AccountsRoute() {
               </div>
               {!collapsedGroups.has(g.key) && g.rows.map((a, i) => {
                 const base = toBase(a.balance, a.currency);
-                const share = totals.gross ? (Math.abs(base) / totals.gross) * 100 : 0;
                 const groupCredit = a.type === "credit" && a.creditLimitGroup ? calculateCreditGroup(a.creditLimitGroup, rows) : null;
                 const subgroup = a.customGroup || "未分組";
                 const showSubgroup = i === 0 || (g.rows[i - 1].customGroup || "未分組") !== subgroup;
@@ -322,14 +321,6 @@ export function AccountsRoute() {
                         {groupCredit ? ` · 共用 ${groupCredit.name}` : ""}
                         {a.type === "loan" && a.annualInterestRate !== null ? ` · 年利率 ${a.annualInterestRate}%` : ""}
                       </div>
-                    </div>
-                    {/* Net-worth weight bar — grows to fill the middle so a wide
-                        desktop row isn't a void between name and balance. */}
-                    <div className="hidden lg:flex" style={{ flex: 1, minWidth: 0, alignItems: "center", gap: 10, paddingLeft: 8 }}>
-                      <div style={{ flex: 1, height: 6, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
-                        <div style={{ width: `${Math.min(100, share)}%`, height: "100%", background: a.balance < 0 ? "var(--ns-neg)" : (a.color || MARK_COLORS[i % MARK_COLORS.length]) }} />
-                      </div>
-                      <span className="mono dim" style={{ fontSize: 11, flexShrink: 0, width: 38, textAlign: "right" }}>{share.toFixed(0)}%</span>
                     </div>
                     <div style={{ textAlign: "right", marginLeft: "auto" }}>
                       <div className="num" style={{ fontSize: 15, fontWeight: 500, color: a.balance < 0 ? "var(--ns-neg)" : undefined }}>
