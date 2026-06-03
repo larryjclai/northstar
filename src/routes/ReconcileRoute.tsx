@@ -109,6 +109,9 @@ export function ReconcileRoute() {
   const owed = Math.max(0, -account.balance);
   const isPaid = account.creditPaymentPaidUntil != null;
   const currentSpend = currentPeriod?.spend ?? 0;
+  // 淨額 = 毛消費 − 退款 = −total（total 為帶號加總）。退款讓「請款金額」低於刷卡金額。
+  const currentNet = -(currentPeriod?.total ?? 0);
+  const currentRefunds = currentSpend - currentNet;
   const currentReconciled = currentPeriod?.reconciledCount ?? 0;
   const currentCount = currentPeriod?.rows.length ?? 0;
   const currentUnreconciled = (currentPeriod?.rows ?? []).filter((r) => !r.isReviewed).reduce((s, r) => s + Math.abs(r.amount), 0);
@@ -152,6 +155,11 @@ export function ReconcileRoute() {
         <div className="ns-card" style={{ padding: 16 }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>本期消費</div>
           <div className="num" style={{ fontSize: 19, color: currentSpend > 0 ? "var(--ns-neg)" : undefined }}>NT${formatNumber(currentSpend)}</div>
+          {currentRefunds > 0.5 ? (
+            <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+              退款 −NT${formatNumber(currentRefunds)} · 淨額 NT${formatNumber(currentNet)}
+            </div>
+          ) : null}
         </div>
         <div className="ns-card" style={{ padding: 16 }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>本期已對帳 / 筆數</div>
@@ -192,8 +200,13 @@ export function ReconcileRoute() {
                       {period.dueDate ? ` · 繳款日 ${period.dueDate.slice(5)}` : ""}
                     </div>
                   </div>
-                  <div className="num" style={{ fontSize: 15, fontWeight: 500, color: period.spend > 0 ? "var(--ns-neg)" : "var(--ns-fg-dim)" }}>
-                    NT${formatNumber(period.spend)}
+                  <div style={{ textAlign: "right" }}>
+                    <div className="num" style={{ fontSize: 15, fontWeight: 500, color: period.spend > 0 ? "var(--ns-neg)" : "var(--ns-fg-dim)" }}>
+                      NT${formatNumber(period.spend)}
+                    </div>
+                    {period.spend + period.total > 0.5 ? (
+                      <div className="muted" style={{ fontSize: 10.5, marginTop: 1 }}>淨額 NT${formatNumber(-period.total)}</div>
+                    ) : null}
                   </div>
                   {open && unreconciled > 0 ? (
                     <button
