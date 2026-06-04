@@ -222,7 +222,7 @@ export function AccountsRoute() {
   }
 
   return (
-    <div style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
+    <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]" style={{ maxWidth: 1180, margin: "0 auto" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 22, gap: 16, flexWrap: "wrap" }}>
         <div>
@@ -239,7 +239,7 @@ export function AccountsRoute() {
       {/* Balance-sheet summary — always a full 3-up so a single-currency user
           doesn't see one lonely card in a 4-wide grid. */}
       {rows.length > 0 ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))", gap: 14, marginBottom: 14 }}>
           {([
             { label: "總資產", value: totals.assets, color: "var(--ns-chart-2)", tone: undefined },
             { label: "總負債", value: totals.liabilities, color: "var(--ns-chart-5)", tone: "neg" as const },
@@ -260,7 +260,7 @@ export function AccountsRoute() {
 
       {/* Currency split — only meaningful with more than one currency. */}
       {currencyBreakdown.length > 1 ? (
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(${currencyBreakdown.length}, 1fr)`, gap: 14, marginBottom: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(130px, 100%), 1fr))", gap: 14, marginBottom: 20 }}>
           {currencyBreakdown.map((c) => (
             <Card key={c.ccy} style={{ padding: 16 }}>
               <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{c.ccy}</div>
@@ -306,7 +306,7 @@ export function AccountsRoute() {
                 return (
                   <div key={a.id}>
                   {showSubgroup ? <div className="ns-eyebrow" style={{ padding: "10px 22px 4px", borderTop: i ? "1px solid var(--ns-border)" : "none" }}>{subgroup}</div> : null}
-                  <div className="ns-acct-row" style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 22px", borderTop: !showSubgroup && i ? "1px solid var(--ns-border)" : "none" }}>
+                  <div className="ns-acct-row" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 14, rowGap: 10, padding: "12px 18px", borderTop: !showSubgroup && i ? "1px solid var(--ns-border)" : "none" }}>
                     <div style={{ width: 36, height: 36, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: a.color || MARK_COLORS[i % MARK_COLORS.length], color: "var(--ns-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600 }}>
                       <Glyph name={a.iconName || DEFAULT_ACCOUNT_ICON[a.type]} size={20} color="var(--ns-bg)" fallbackText={a.name.slice(0, 2)} />
                     </div>
@@ -326,19 +326,24 @@ export function AccountsRoute() {
                         {a.type === "loan" && a.annualInterestRate !== null ? ` · 年利率 ${a.annualInterestRate}%` : ""}
                       </div>
                     </div>
-                    <div style={{ textAlign: "right", marginLeft: "auto" }}>
-                      <div className="num" style={{ fontSize: 15, fontWeight: 500, color: a.balance < 0 ? "var(--ns-neg)" : undefined }}>
-                        {a.balance < 0 ? "−" : ""}{formatNumber(Math.abs(base))}
+                    {/* Amount + actions travel together as the right cluster so
+                        they wrap to a second line as a unit on a narrow phone
+                        instead of forcing the row (and card) wider than screen. */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginLeft: "auto" }}>
+                      <div style={{ textAlign: "right" }}>
+                        <div className="num" style={{ fontSize: 15, fontWeight: 500, color: a.balance < 0 ? "var(--ns-neg)" : undefined }}>
+                          {a.balance < 0 ? "−" : ""}{formatNumber(Math.abs(base))}
+                        </div>
+                        {a.currency !== primaryCurrency ? <div className="muted mono" style={{ fontSize: 11.5 }}>{formatNumber(a.balance)} {a.currency}</div> : null}
                       </div>
-                      {a.currency !== primaryCurrency ? <div className="muted mono" style={{ fontSize: 11.5 }}>{formatNumber(a.balance)} {a.currency}</div> : null}
-                    </div>
-                    <div className="ns-acct-actions" style={{ display: "flex", gap: 4 }}>
-                      {a.type === "credit" ? (
-                        <Button variant="ghost" size="icon-sm" title="對帳" onClick={() => navigate({ to: "/cash-flow/reconcile/$accountId", params: { accountId: a.id } })}><ListChecks size={14} /></Button>
-                      ) : null}
-                      <Button variant="ghost" size="icon-sm" title="編輯" onClick={() => startEdit(a)}><PencilSimple size={14} /></Button>
-                      <Button variant="ghost" size="icon-sm" title="調整餘額" onClick={() => openAdjust(a)}><Scales size={14} /></Button>
-                      <Button variant="ghost" size="icon-sm" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={async () => { try { await deleteAccount.mutateAsync(a.id); } catch (e) { setMessage(e instanceof Error ? e.message : "刪除失敗。"); } }}><Trash size={14} /></Button>
+                      <div className="ns-acct-actions" style={{ display: "flex", gap: 4 }}>
+                        {a.type === "credit" ? (
+                          <Button variant="ghost" size="icon-sm" title="對帳" onClick={() => navigate({ to: "/cash-flow/reconcile/$accountId", params: { accountId: a.id } })}><ListChecks size={14} /></Button>
+                        ) : null}
+                        <Button variant="ghost" size="icon-sm" title="編輯" onClick={() => startEdit(a)}><PencilSimple size={14} /></Button>
+                        <Button variant="ghost" size="icon-sm" title="調整餘額" onClick={() => openAdjust(a)}><Scales size={14} /></Button>
+                        <Button variant="ghost" size="icon-sm" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={async () => { try { await deleteAccount.mutateAsync(a.id); } catch (e) { setMessage(e instanceof Error ? e.message : "刪除失敗。"); } }}><Trash size={14} /></Button>
+                      </div>
                     </div>
                   </div>
                   </div>

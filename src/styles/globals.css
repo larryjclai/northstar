@@ -273,6 +273,14 @@
 
 html, body, #root { min-height: 100%; }
 
+/* Stop any single over-wide element from stretching the whole page past the
+   screen. On iOS that horizontal overflow makes WKWebView widen its layout
+   viewport (shrink-to-fit), which silently breaks every width breakpoint
+   app-wide (desktop grids leak onto the phone). `clip` (not `hidden`) avoids
+   creating a scroll container and won't break `position: sticky`. Wide tables
+   must scroll inside their OWN overflow-x:auto wrapper, never rely on this. */
+html, body { max-width: 100%; overflow-x: clip; }
+
 body {
   margin: 0;
   background: var(--ns-bg);
@@ -280,6 +288,53 @@ body {
   font-family: var(--ns-font-ui);
   font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;
+}
+
+/* ── Native-feel base (native-feel-skill § 06 native-conventions) ──────────
+   Stop the WebView from telegraphing "web app": no selecting UI chrome, no iOS
+   tap-highlight flash, no long-press callout/magnifier, no rubber-band
+   overscroll, no auto text inflation. Selection + callout are re-enabled on
+   real inputs and anything tagged `.ns-selectable` (e.g. a value worth copying). */
+:root {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+html, body { overscroll-behavior: none; }
+input, textarea, select, [contenteditable="true"], .ns-selectable {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+/* Native apps cut between views; honor the OS "reduce motion" setting. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+/* If the View Transitions API ever engages, don't cross-fade sibling views
+   (its default has a transparent mid-gap that reads as a flicker). */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+
+/* Native cursor model: the hand/pointer is a web affordance. Native apps keep
+   the arrow on buttons, rows and links; only editable text shows an I-beam.
+   !important is safe here — the app uses no resize/grab/move cursors, only the
+   59 `cursor: pointer` tells we're overriding. */
+* { cursor: default !important; }
+input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]),
+textarea, [contenteditable="true"] { cursor: text !important; }
+
+/* Native press feedback: a real control visibly depresses on press (web styles
+   usually only style :hover). Subtle 1px nudge, no bounce. */
+button:not(:disabled):active,
+[role="button"]:not([aria-disabled="true"]):active {
+  transform: translateY(1px);
 }
 
 button, input, select, textarea { font: inherit; }
@@ -409,16 +464,35 @@ textarea:focus-visible {
 /* Row 1: full-width net-worth hero (big chart) with the KPI breakdown as a
    horizontal strip beneath it — uses the desktop width instead of squeezing
    the KPIs into a narrow side column. */
+/* Content-driven (auto-fit), NOT viewport breakpoints. Columns are added only
+   when the row itself is wide enough to hold another `min`-wide card, so a phone
+   always gets a single column even if the webview misreports its viewport. The
+   `min(...,100%)` stops a lone card from overflowing a narrow row. Mirrors
+   <AutoGrid> in coss/layout.tsx. */
 .ns-dash-row1 { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
-.ns-dash-row2 { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; align-items: stretch; }
-.ns-dash-row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; align-items: stretch; }
+.ns-dash-row2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 16px; margin-bottom: 16px; align-items: stretch; }
+.ns-dash-row3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 16px; margin-bottom: 16px; align-items: stretch; }
+.ns-dash-kpi-stack { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 12px; }
 
-/* KPI strip: equal cards across the full width. auto-fit handles 4 or 5 cards
-   and reflows to 2-up / 1-up on narrower windows without media queries. */
-.ns-dash-kpi-stack { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-
-@media (max-width: 900px) {
-  .ns-dash-row2, .ns-dash-row3 { grid-template-columns: 1fr; }
+/* ── Container-query split layout (powers <SplitLayout> in coss/layout.tsx) ──
+   Stacks until the CONTAINER itself is wide enough, so it never depends on the
+   viewport width — immune to the iOS webview widening its layout viewport when
+   something overflows. */
+.coss-split { container-type: inline-size; }
+.coss-split-inner {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--coss-split-gap, 20px);
+  align-items: start;
+}
+.coss-split-inner > * { min-width: 0; }
+@container (min-width: 768px) {
+  .coss-split-inner[data-side="end"] {
+    grid-template-columns: minmax(0, 1fr) var(--coss-split-side, 320px);
+  }
+  .coss-split-inner[data-side="start"] {
+    grid-template-columns: var(--coss-split-side, 320px) minmax(0, 1fr);
+  }
 }
 
 /* ── DS shorthand color utilities (mirrors the mockup classes) ── */

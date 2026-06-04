@@ -330,12 +330,27 @@ async function createFinanceRepository(): Promise<FinanceRepository> {
     const db = await mod.default.load("sqlite:northstar.db");
     // WAL mode lets reads (React Query refetches) run concurrently with the
     // long write transaction in importSnapshot(); busy_timeout makes SQLite
-    // wait-and-retry for up to 5s instead of immediately failing with
-    // "database is locked" (SQLITE_BUSY, code 5) when two operations overlap.
+    // wait-and-retry instead of immediately failing with "database is locked"
+    // (SQLITE_BUSY, code 5) when two operations overlap.
+    //
+    // iOS storage is markedly slower than desktop: a bulk forceFullResync can
+    // hold the WAL write lock well past the old 5s window, so a concurrent op
+    // would still fail. 15s gives heavy imports room to finish. We also read
+    // journal_mode back — on some iOS sandboxes the WAL switch can silently
+    // fail, leaving rollback-journal mode where readers block writers and slow
+    // I/O turns ordinary overlaps into persistent locks. Logging the effective
+    // mode makes that diagnosable from `tauri ios dev` console output.
     try {
       await db.execute("PRAGMA journal_mode=WAL;");
-      await db.execute("PRAGMA busy_timeout=5000;");
+      await db.execute("PRAGMA busy_timeout=15000;");
       await db.execute("PRAGMA foreign_keys=ON;");
+      const journal = await db.select<{ journal_mode: string }[]>("PRAGMA journal_mode;");
+      const mode = journal?.[0]?.journal_mode ?? "unknown";
+      if (mode.toLowerCase() !== "wal") {
+        console.warn(`[db] journal_mode is '${mode}', expected 'wal' — lock contention is more likely on this platform`);
+      } else {
+        console.info("[db] journal_mode=wal, busy_timeout=15000");
+      }
     } catch (e) {
       console.warn("[db] failed to set pragmas", e);
     }

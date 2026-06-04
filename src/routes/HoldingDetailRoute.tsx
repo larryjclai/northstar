@@ -149,7 +149,7 @@ export function HoldingDetailRoute() {
       </div>
 
       {/* Price + position */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 18, marginBottom: 20 }}>
+      <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-[1fr_360px]" style={{ marginBottom: 20 }}>
         {/* Chart card */}
         <Card style={{ padding: 22 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>

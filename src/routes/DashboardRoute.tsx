@@ -282,7 +282,7 @@ export function DashboardRoute() {
   const monthLabel = monthKey.replace("-", " / ");
 
   return (
-    <div style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
+    <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]" style={{ maxWidth: 1180, margin: "0 auto" }}>
       {missingFxPairs.length ? (
         <div style={{ padding: "10px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-warn-soft)", border: "1px solid var(--ns-border)", marginBottom: 14, fontSize: 13 }}>
           總額不完整：缺少 {missingFxPairs.join("、")} 匯率。<Link to="/settings" style={{ marginLeft: 8 }}>前往更新匯率</Link>
@@ -305,12 +305,17 @@ export function DashboardRoute() {
           <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Overview · {monthLabel}</div>
           <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>{greeting}</h1>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} />
-          <MonthPicker value={monthKey} onChange={setMonthKey} triggerClassName="h-[36px] whitespace-nowrap" />
-          <Button variant="outline" className="h-9 sm:h-9" onClick={refreshMarket} loading={refreshingMarket} disabled={refreshingMarket || (assetRows.length === 0 && (appSettings?.exchangeRates?.length ?? 0) === 0)}>
-            <ArrowsClockwise size={14} />{refreshingMarket ? "更新中" : "更新"}
-          </Button>
+        {/* Phone: account filter on its own full-width row, then [month | 更新]
+            on the next row. Avoids the 3 fixed-width controls wrapping into an
+            uneven jumble. From sm it's a single right-aligned wrapping row. */}
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} style={{ maxWidth: "none" }} />
+          <div className="flex items-center gap-2">
+            <MonthPicker value={monthKey} onChange={setMonthKey} triggerClassName="h-[36px] whitespace-nowrap flex-1 justify-center sm:flex-none" />
+            <Button variant="outline" className="h-9 shrink-0 sm:h-9" onClick={refreshMarket} loading={refreshingMarket} disabled={refreshingMarket || (assetRows.length === 0 && (appSettings?.exchangeRates?.length ?? 0) === 0)}>
+              <ArrowsClockwise size={14} />{refreshingMarket ? "更新中" : "更新"}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -651,7 +656,7 @@ export function DashboardRoute() {
         {recent.length === 0 ? (
           <div className="muted" style={{ fontSize: 13, padding: "18px 22px" }}>還沒有交易紀錄。</div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))" }}>
             {recent.map((r, i) => (
               <div key={r.id} className="ns-row" style={{ gap: 12, paddingLeft: 22, paddingRight: 22, borderLeft: i % 2 === 1 ? "1px solid var(--ns-border)" : "none" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>

@@ -4,6 +4,11 @@ import { defineConfig, type Plugin } from "vite";
 
 import path from "node:path";
 
+// When running `tauri ios dev` / `android dev`, Tauri sets TAURI_DEV_HOST to the
+// machine's LAN IP so a physical device can reach the dev server. Bind Vite (and
+// its HMR websocket) to that host on mobile; on desktop it stays on localhost.
+const tauriDevHost = process.env.TAURI_DEV_HOST;
+
 export default defineConfig({
   base: "./",
   plugins: [react(), tailwindcss(), yahooFinanceProxy()],
@@ -18,8 +23,12 @@ export default defineConfig({
   },
   clearScreen: false,
   server: {
+    host: tauriDevHost || false,
     strictPort: true,
     port: 5173,
+    hmr: tauriDevHost
+      ? { protocol: "ws", host: tauriDevHost, port: 5174 }
+      : undefined,
   },
   build: {
     rollupOptions: {

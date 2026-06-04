@@ -1,6 +1,7 @@
 import { Gear, CaretRight } from "@phosphor-icons/react";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
+import { SplitLayout } from "../components/coss/layout";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
@@ -99,8 +100,10 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, primaryCur
         </Card>
       </div>
 
-      {/* Main Content */}
-      <div style={{ display: "grid", gridTemplateColumns: "300px minmax(0,1fr)", gap: 20 }}>
+      {/* Main Content — donut (fixed-width side) + table (main). SplitLayout
+          stacks them on a phone and goes 2-up only when the container is wide
+          enough (container query, not a viewport breakpoint). */}
+      <SplitLayout sideWidth={300} sidePosition="start">
         {/* Left: Donut Chart */}
         <Card style={{ padding: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
@@ -160,6 +163,34 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, primaryCur
 
         {/* Right: Table */}
         <Card style={{ padding: "var(--ns-pad-card)",  overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          {/* Mobile: a 4-column table can't fit a phone — each category is a
+              tappable card. The full table returns at sm+. */}
+          <div className="flex flex-col gap-2 sm:hidden">
+            {allCategorySpend.map((r) => {
+              const pct = totalMonthSpend > 0 ? (r.amount / totalMonthSpend) * 100 : 0;
+              return (
+                <Link
+                  to="/cash-flow/categories/$categoryName"
+                  params={{ categoryName: r.name }}
+                  key={`m-${r.name}`}
+                  className="flex items-center gap-3 rounded-xl border p-3 no-underline"
+                  style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)", color: "inherit" }}
+                >
+                  <div style={{ width: 34, height: 34, borderRadius: 9, background: "var(--ns-bg-hover)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Glyph name={r.icon} size={16} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate" style={{ fontWeight: 500 }}>{r.name}</div>
+                    <div className="muted truncate" style={{ fontSize: 12 }}>{r.count} 筆 · {pct.toFixed(1)}%{r.topMerchant ? ` · ${r.topMerchant}` : ""}</div>
+                  </div>
+                  <div className="num" style={{ whiteSpace: "nowrap", fontSize: 14 }}>−{primaryCurrency} {formatNumber(r.ytdAmount)}</div>
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Desktop: full table */}
+          <div className="hidden sm:contents">
           <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", fontSize: 12, fontWeight: 500, color: "var(--ns-fg-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
             <div>分類</div>
             <div>筆數</div>
@@ -226,8 +257,9 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, primaryCur
               </div>
             )}
           </div>
+          </div>
         </Card>
-      </div>
+      </SplitLayout>
     </div>
   );
 }

@@ -10,6 +10,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   </head>
   <body>
+    <!-- Prewarm CJK + emoji fallback fonts so the first real render doesn't
+         stutter mapping in PingFang/Noto/Apple Color Emoji on a cold start
+         (native-feel-skill § A.9 fallback-font cold start). aria-hidden + fully
+         offscreen so it never affects layout or assistive tech. -->
+    <div aria-hidden="true" style="position:absolute;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;white-space:nowrap;pointer-events:none">總覽投資記帳帳戶目標設定資產現金流動股利匯率 0123456789 ↑↓✓✕＄€¥ 📈📉💰⭐️🔒</div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

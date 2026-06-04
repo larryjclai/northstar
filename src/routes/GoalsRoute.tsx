@@ -104,7 +104,7 @@ export function GoalsRoute() {
   const chartColor = !isFire ? "var(--ns-accent)" : activeProjection === "bear" ? "var(--ns-neg)" : activeProjection === "bull" ? "var(--ns-accent)" : "var(--ns-pos)";
 
   return (
-    <div style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
+    <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]" style={{ maxWidth: 1180, margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 22, gap: 16, flexWrap: "wrap" }}>
         <div>
           <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Long-term progress</div>
@@ -123,9 +123,9 @@ export function GoalsRoute() {
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         {/* Main goal hero card — shows whichever active goal is selected. */}
         {selectedGoal && stats ? (
-          <Card style={{ padding: 32, flexDirection: "row", gap: 48, flexWrap: "wrap" }}>
+          <Card style={{ padding: 20, flexDirection: "row", gap: 32, flexWrap: "wrap" }}>
             {/* Left column */}
-            <div style={{ flex: "0 0 320px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+            <div style={{ flex: "1 1 280px", minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <div>
                 {/* Goal switcher — only when there's more than one active goal. */}
                 {goals.length > 1 ? (
@@ -163,7 +163,7 @@ export function GoalsRoute() {
                   {stats.progress.toFixed(1)}% · {stats.years !== null ? `預估 ${stats.years} 年後達成 (${new Date().getFullYear() + stats.years})` : "尚無法預估"}
                 </div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginTop: 48 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))", gap: 24, marginTop: 48 }}>
                 {isFire ? (
                   <>
                     <Stat label="年儲蓄" value={`NT$${formatNumber(stats.annualSaving)}`} />
@@ -272,25 +272,25 @@ export function GoalsRoute() {
                 const Icon = goal.kind === "fire" ? Star : Target;
                 const color = goal.kind === "fire" ? "var(--ns-pos)" : "var(--ns-accent)";
                 return (
-                  <div key={goal.id} style={{ display: "flex", alignItems: "center", padding: "16px 32px", borderBottom: i < goals.length - 1 ? "1px solid var(--ns-border)" : "none" }}>
+                  <div key={goal.id} style={{ display: "flex", alignItems: "center", flexWrap: "wrap", rowGap: 12, padding: "14px 18px", borderBottom: i < goals.length - 1 ? "1px solid var(--ns-border)" : "none" }}>
                     <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--ns-surface-strong)", display: "flex", alignItems: "center", justifyContent: "center", marginRight: 16, flexShrink: 0 }}>
                       <Icon size={20} color={color} weight={goal.kind === "fire" ? "fill" : "regular"} />
                     </div>
-                    <div style={{ flex: "0 0 200px", minWidth: 0 }}>
+                    <div style={{ flex: "1 1 140px", minWidth: 0 }}>
                       <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{goal.name}</div>
                       <div style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>{goal.kind === "fire" ? "FIRE · 依淨值估算" : "一般目標"}</div>
                     </div>
-                    <div style={{ flex: "0 0 180px" }}>
-                      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>NT${formatNumber(current)}</div>
-                      <div style={{ fontSize: 12, color: "var(--ns-fg-dim)" }}>/ NT${formatNumber(target)}</div>
+                    <div style={{ flex: "0 0 auto", textAlign: "right" }}>
+                      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4, whiteSpace: "nowrap" }}>NT${formatNumber(current)}</div>
+                      <div style={{ fontSize: 12, color: "var(--ns-fg-dim)", whiteSpace: "nowrap" }}>/ NT${formatNumber(target)}</div>
                     </div>
-                    <div style={{ flex: 1, paddingRight: 48, display: "flex", alignItems: "center", gap: 16 }}>
+                    <div style={{ flex: "1 1 180px", display: "flex", alignItems: "center", gap: 12 }}>
                       <div style={{ flex: 1, height: 6, borderRadius: 3, background: "var(--ns-surface-strong)", overflow: "hidden" }}>
                         <div style={{ height: "100%", width: `${progress}%`, background: color, borderRadius: 3 }} />
                       </div>
-                      <div style={{ fontSize: 13, color: "var(--ns-fg-dim)", width: 48, textAlign: "right" }}>{progress.toFixed(1)}%</div>
+                      <div style={{ fontSize: 13, color: "var(--ns-fg-dim)", width: 48, textAlign: "right", flexShrink: 0 }}>{progress.toFixed(1)}%</div>
                     </div>
-                    <div style={{ flex: "0 0 120px", display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 16 }}>
+                    <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 12, marginLeft: "auto" }}>
                       {achieved ? (
                         <span style={{ fontSize: 13, color: "var(--ns-pos)", display: "flex", alignItems: "center", gap: 4 }}><CheckCircle size={14} weight="fill" /> 達成</span>
                       ) : (

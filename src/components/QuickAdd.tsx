@@ -136,7 +136,11 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
       }
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "儲存失敗。");
+      // plugin-sql surfaces DB errors as bare strings, not Error instances —
+      // a plain `instanceof Error` check would swallow them and show the generic
+      // fallback (the cause of "儲存失敗" appearing even on real DB errors).
+      const message = e instanceof Error ? e.message : typeof e === "string" ? e : "儲存失敗。";
+      setError(message);
     }
   }
 

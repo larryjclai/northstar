@@ -8,7 +8,6 @@
     "sql:default",
     "sql:allow-execute",
     "stronghold:default",
-    "updater:default",
     "process:default"
   ]
 }

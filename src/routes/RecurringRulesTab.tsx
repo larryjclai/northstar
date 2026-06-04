@@ -107,7 +107,7 @@ export function RecurringRulesTab() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--ns-gap-card)" }}>
       {/* Summary KPI strip */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))", gap: 12 }}>
         <KpiCard label="月收入（預估）" value={`NT$${formatNumber(monthlyIncome)}`} color="var(--ns-pos)" />
         <KpiCard label="月支出（預估）" value={`NT$${formatNumber(monthlyExpense)}`} color="var(--ns-neg)" />
         <KpiCard
@@ -149,6 +149,42 @@ export function RecurringRulesTab() {
           ))}
         </div>
 
+        {/* Mobile: a 6-column table can't fit a phone, so each rule is a
+            tappable card. The full table returns at sm+. */}
+        <div className="flex flex-col gap-2 p-3 sm:hidden">
+          {filtered.length === 0 ? (
+            <div className="muted" style={{ padding: "20px", textAlign: "center", fontSize: 13 }}>
+              {filter === "paused" ? "沒有暫停中的規則。" : "還沒有週期規則，點擊「新增規則」建立第一條。"}
+            </div>
+          ) : filtered.map((rule) => (
+            <button
+              key={`m-${rule.id}`}
+              type="button"
+              onClick={() => openEdit(rule)}
+              className="flex flex-col gap-1.5 rounded-xl border p-3 text-left outline-none"
+              style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)", opacity: rule.isActive ? 1 : 0.55 }}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate" style={{ fontWeight: 500, fontSize: 14 }}>{rule.merchant || rule.category}</span>
+                <span className="num" style={{ fontSize: 14, fontWeight: 500, whiteSpace: "nowrap", color: rule.entryType === "income" ? "var(--ns-pos)" : "var(--ns-neg)" }}>
+                  {rule.entryType === "income" ? "+" : "−"}NT${formatNumber(Math.abs(monthlyEquivalent(rule)))}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="muted truncate" style={{ fontSize: 12 }}>
+                  {rule.category}{rule.subcategory ? ` / ${rule.subcategory}` : ""} · {freqLabel(rule)} · {accountName(rule.accountId)}
+                </span>
+                <span style={{ flexShrink: 0, display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 500, background: rule.isActive ? "var(--ns-pos-soft)" : "var(--ns-border)", color: rule.isActive ? "var(--ns-pos)" : "var(--ns-fg-muted)" }}>
+                  {rule.isActive ? "啟用" : "暫停"}
+                </span>
+              </div>
+              <div className="muted" style={{ fontSize: 11 }}>下次 {rule.nextRunDate}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* Desktop: full table */}
+        <div className="hidden sm:contents">
         {/* Column header */}
         {filtered.length > 0 && (
           <div style={{
@@ -219,6 +255,7 @@ export function RecurringRulesTab() {
             </div>
           ))
         )}
+        </div>
       </Card>
 
       {/* Edit Sheet */}
