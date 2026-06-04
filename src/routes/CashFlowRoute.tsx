@@ -26,11 +26,13 @@ import { MerchantsTab } from "./MerchantsTab";
 import { RecurringRulesTab } from "./RecurringRulesTab";
 import { MonthPicker } from "../components/ui/month-picker";
 import { AccountFilter } from "../components/AccountFilter";
+import { CategoryFilter } from "../components/CategoryFilter";
 import { NumberField } from "../components/NumberField";
 import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
 import { Glyph } from "../lib/icons";
+import { readableTextColor } from "../lib/color";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -40,7 +42,7 @@ import { useToast } from "../components/Toast";
 import type { LedgerDraft, TransferDraft } from "../data/repositories";
 import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, evaluateAmountExpression, formatNumber, nowAsDatetimeLocal, recurringFrequencyLabels, todayInTimezone } from "../domain";
 import { convertCurrency } from "../domain/currency";
-import type { LedgerTransaction, RecurringTransaction } from "../domain";
+import type { Account, LedgerTransaction, RecurringTransaction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useNumericField } from "../hooks/useNumericField";
 
@@ -622,18 +624,7 @@ export function CashFlowRoute() {
 
           <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} style={{ minWidth: 116, fontSize: 13 }} />
 
-          <div style={{ position: "relative" }}>
-            <select
-              className="ns-input"
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              style={{ appearance: "none", padding: "0 28px 0 12px", height: 36, boxSizing: "border-box", fontSize: 13, minWidth: 116 }}
-            >
-              <option value="all">所有分類</option>
-              {categories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-            </select>
-            <CaretDown size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--ns-muted)" }} />
-          </div>
+          <CategoryFilter categories={categories} value={selectedCategory} onChange={setSelectedCategory} />
 
           <Button className="h-9 sm:h-9 whitespace-nowrap" onClick={() => openCreate("expense")}>
             <Plus size={14} weight="bold" />記一筆
@@ -812,13 +803,16 @@ export function CashFlowRoute() {
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-5 items-start">
         {/* Transactions grouped by day */}
         <Card style={{ padding: 0 }}>
-           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "14px 20px", borderBottom: "1px solid var(--ns-border)", flexWrap: "wrap" }}>
-             <span style={{ fontWeight: 600, fontSize: 15 }}>Recent activity</span>
-             <label style={{ position: "relative", minWidth: 180, flex: "0 1 260px" }}>
+           <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--ns-border)" }}>
+             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+               <span style={{ fontWeight: 600, fontSize: 15 }}>Recent activity</span>
+               <span className="muted" style={{ fontSize: 12.5 }}>{activityRows.length} events</span>
+             </div>
+             {/* Search on its own row below the title (B9). */}
+             <label style={{ position: "relative", display: "block", marginTop: 10 }}>
                <MagnifyingGlass size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--ns-muted)" }} />
                <input className="ns-input" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜尋商家、分類或備註" style={{ width: "100%", height: 34, padding: "0 12px 0 30px", fontSize: 12.5 }} />
              </label>
-             <span className="muted" style={{ fontSize: 12.5 }}>{activityRows.length} events</span>
            </div>
 
            {dayGroups.length === 0 ? (
@@ -854,6 +848,7 @@ export function CashFlowRoute() {
                       accountName={accountName}
                       categoryIcon={catGroup?.iconName || undefined}
                       onEdit={() => setDetailRow(r)}
+                      onOpenEdit={() => startEdit(r)}
                       onDelete={() => handleDelete(r.id)}
                       onSettle={() => markSettled(r)}
                     />
@@ -953,13 +948,17 @@ function LedgerRow({
   accountName,
   categoryIcon,
   onEdit,
+  onOpenEdit,
   onDelete,
   onSettle,
 }: {
   row: LedgerTransaction;
   accountName: (id: string) => string;
   categoryIcon?: string;
+  /** Row click → open the detail panel. */
   onEdit: () => void;
+  /** Pencil → jump straight into edit mode (B10). */
+  onOpenEdit: () => void;
   onDelete: () => void;
   onSettle: () => void;
 }) {
@@ -1011,7 +1010,7 @@ function LedgerRow({
           <Button variant="ghost" size="icon-sm" title="結清" onClick={onSettle}><Check size={14} /></Button>
         ) : null}
         {!isTransfer ? (
-          <Button variant="ghost" size="icon-sm" title="編輯" onClick={onEdit}><PencilSimple size={13} /></Button>
+          <Button variant="ghost" size="icon-sm" title="編輯" onClick={onOpenEdit}><PencilSimple size={13} /></Button>
         ) : null}
         <Button variant="ghost" size="icon-sm" title="刪除" onClick={onDelete} style={{ color: "var(--ns-neg)" }}><Trash size={13} /></Button>
       </div>
@@ -1154,7 +1153,7 @@ function EntryDrawer({
   merchantSuggestions: string[];
   categorySuggestions: { merchants: string[]; accountIds: string[] };
   categoryForMerchant: (merchant: string) => { category: string; subcategory: string } | null;
-  accountRows: Array<{ id: string; name: string; currency: string }>;
+  accountRows: Array<Pick<Account, "id" | "name" | "currency" | "type" | "iconName" | "color">>;
   onSubmitLedger: () => void;
   onSubmitTransfer: () => void;
   message: string;
@@ -1231,7 +1230,7 @@ function EntryDrawer({
   const accountChips = hasCategory && !ledgerForm.accountId
     ? categorySuggestions.accountIds
         .map((id) => accountRows.find((a) => a.id === id))
-        .filter((a): a is { id: string; name: string; currency: string } => Boolean(a))
+        .filter((a): a is (typeof accountRows)[number] => Boolean(a))
     : [];
 
   return (
@@ -1395,18 +1394,17 @@ function EntryDrawer({
               </DrawerField>
               {type !== "transfer" ? (
                 <DrawerField label={type === "ap" ? "支出帳戶" : "收入帳戶"} required>
-                  <select
-                    className="ns-input"
-                    style={{ appearance: "none" }}
+                  <AccountFilter
+                    accounts={accountRows}
                     value={ledgerForm.accountId}
-                    onChange={(e) => {
-                      const account = accountRows.find((a) => a.id === e.target.value);
-                      setLedgerForm({ ...ledgerForm, accountId: e.target.value, currency: account?.currency ?? ledgerForm.currency });
+                    onChange={(id) => {
+                      const account = accountRows.find((a) => a.id === id);
+                      setLedgerForm({ ...ledgerForm, accountId: id, currency: account?.currency ?? ledgerForm.currency });
                     }}
-                  >
-                    <option value="">選擇帳戶</option>
-                    {accountRows.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
+                    allowAll={false}
+                    placeholder="選擇帳戶"
+                    style={{ width: "100%", maxWidth: "none", minWidth: 0 }}
+                  />
                 </DrawerField>
               ) : (
                 <DrawerField label="幣別">
@@ -1420,34 +1418,32 @@ function EntryDrawer({
           {type === "transfer" && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               <DrawerField label="從（轉出）" required>
-                <select
-                  className="ns-input"
-                  style={{ appearance: "none" }}
+                <AccountFilter
+                  accounts={accountRows}
                   value={transferForm.sourceAccountId}
-                  onChange={(e) => {
-                    const account = accountRows.find((a) => a.id === e.target.value);
-                    setTransferForm({ ...transferForm, sourceAccountId: e.target.value, sourceCurrency: account?.currency ?? transferForm.sourceCurrency });
+                  onChange={(id) => {
+                    const account = accountRows.find((a) => a.id === id);
+                    setTransferForm({ ...transferForm, sourceAccountId: id, sourceCurrency: account?.currency ?? transferForm.sourceCurrency });
                   }}
-                >
-                  <option value="">選擇帳戶</option>
-                  {accountRows.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
+                  allowAll={false}
+                  placeholder="選擇帳戶"
+                  style={{ width: "100%", maxWidth: "none", minWidth: 0 }}
+                />
               </DrawerField>
               <DrawerField label="至（轉入）" required>
-                <select
-                  className="ns-input"
-                  style={{ appearance: "none" }}
+                <AccountFilter
+                  accounts={accountRows}
                   value={transferForm.destinationAccountId}
-                  onChange={(e) => {
-                    const account = accountRows.find((a) => a.id === e.target.value);
+                  onChange={(id) => {
+                    const account = accountRows.find((a) => a.id === id);
                     const destCurrency = account?.currency ?? transferForm.destinationCurrency;
                     const sameCcy = transferForm.sourceCurrency === destCurrency;
-                    setTransferForm({ ...transferForm, destinationAccountId: e.target.value, destinationCurrency: destCurrency, destinationAmount: sameCcy ? transferForm.sourceAmount : transferForm.destinationAmount });
+                    setTransferForm({ ...transferForm, destinationAccountId: id, destinationCurrency: destCurrency, destinationAmount: sameCcy ? transferForm.sourceAmount : transferForm.destinationAmount });
                   }}
-                >
-                  <option value="">選擇帳戶</option>
-                  {accountRows.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
+                  allowAll={false}
+                  placeholder="選擇帳戶"
+                  style={{ width: "100%", maxWidth: "none", minWidth: 0 }}
+                />
               </DrawerField>
             </div>
           )}
@@ -1499,8 +1495,10 @@ function EntryDrawer({
                         style={{
                           padding: "5px 11px", borderRadius: 999, fontSize: 12.5, cursor: "pointer",
                           background: active ? color : "var(--ns-bg-card)",
-                          color: active ? "#fff" : "var(--ns-fg)",
-                          border: active ? "none" : "1px solid var(--ns-border)",
+                          // Contrast-aware text so light category colors don't swallow
+                          // the label; faint border gives light chips edge definition (B14).
+                          color: active ? readableTextColor(color) : "var(--ns-fg)",
+                          border: active ? "1px solid rgba(0,0,0,0.12)" : "1px solid var(--ns-border)",
                           fontFamily: "inherit", transition: "all 0.12s",
                           display: "flex", alignItems: "center", gap: 4,
                         }}
@@ -1540,18 +1538,17 @@ function EntryDrawer({
               <div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                   <DrawerField label={type === "expense" ? "支出帳戶" : "收入帳戶"} required>
-                    <select
-                      className="ns-input"
-                      style={{ appearance: "none" }}
+                    <AccountFilter
+                      accounts={accountRows}
                       value={ledgerForm.accountId}
-                      onChange={(e) => {
-                        const account = accountRows.find((a) => a.id === e.target.value);
-                        setLedgerForm({ ...ledgerForm, accountId: e.target.value, currency: account?.currency ?? ledgerForm.currency });
+                      onChange={(id) => {
+                        const account = accountRows.find((a) => a.id === id);
+                        setLedgerForm({ ...ledgerForm, accountId: id, currency: account?.currency ?? ledgerForm.currency });
                       }}
-                    >
-                      <option value="">選擇帳戶</option>
-                      {accountRows.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                    </select>
+                      allowAll={false}
+                      placeholder="選擇帳戶"
+                      style={{ width: "100%", maxWidth: "none", minWidth: 0 }}
+                    />
                   </DrawerField>
                   <DrawerField label="日期">
                     <input className="ns-input" type="datetime-local" value={ledgerForm.date} onChange={(e) => setLedgerForm({ ...ledgerForm, date: e.target.value })} />
@@ -1649,7 +1646,7 @@ function EntryDrawer({
               <DrawerField label={type === "ar" ? "對象（欠款方）" : "對象（收款方）"} required>
                 <input className="ns-input" value={counterparty} onChange={(e) => setCounterparty(e.target.value)} placeholder={type === "ar" ? "例：小明、ABC 公司" : "例：房東、供應商"} />
               </DrawerField>
-              <DrawerField label={type === "ar" ? "預計收款日" : "付款截止日"}>
+              <DrawerField label={type === "ar" ? "預計收款日（選填）" : "付款截止日（選填）"}>
                 <input className="ns-input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={{ fontFamily: "var(--ns-font-mono)" }} />
               </DrawerField>
               <DrawerField label="分類">
@@ -1663,8 +1660,8 @@ function EntryDrawer({
                         style={{
                           padding: "5px 11px", borderRadius: 999, fontSize: 12.5, cursor: "pointer",
                           background: active ? (c.color || "var(--ns-accent)") : "var(--ns-bg-card)",
-                          color: active ? "#fff" : "var(--ns-fg)",
-                          border: active ? "none" : "1px solid var(--ns-border)",
+                          color: active ? readableTextColor(c.color || "var(--ns-accent)") : "var(--ns-fg)",
+                          border: active ? "1px solid rgba(0,0,0,0.12)" : "1px solid var(--ns-border)",
                           fontFamily: "inherit",
                           display: "flex", alignItems: "center", gap: 4,
                         }}

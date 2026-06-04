@@ -1,8 +1,10 @@
 import { CaretRight } from "@phosphor-icons/react";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Card } from "../components/coss/card";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { formatNumber, type LedgerTransaction } from "../domain";
+import { formatNumber, formatCompactMoney, type LedgerTransaction } from "../domain";
+import { readableTextColor } from "../lib/color";
 
 export function MerchantsTab({ filterMonth, ledgerRows, primaryCurrency, toPrimary }: { filterMonth: string; ledgerRows: LedgerTransaction[]; primaryCurrency: string; toPrimary: (row: LedgerTransaction) => number | null }) {
   const currentYear = filterMonth.slice(0, 4);
@@ -39,6 +41,13 @@ export function MerchantsTab({ filterMonth, ledgerRows, primaryCurrency, toPrima
   
   const defaultColors = ["#f87171", "#fb923c", "#facc15", "#4ade80", "#2dd4bf", "#60a5fa", "#a78bfa", "#f472b6"];
 
+  // Top-5 spend merchants for the pie, with the remainder folded into 其他 (B22).
+  const top5Pie = useMemo(() => {
+    const top = allMerchantSpend.slice(0, 5).map((m, i) => ({ name: m.name, value: m.amount, color: defaultColors[i % defaultColors.length] }));
+    const rest = allMerchantSpend.slice(5).reduce((sum, m) => sum + m.amount, 0);
+    return rest > 0 ? [...top, { name: "其他", value: rest, color: "var(--ns-border)" }] : top;
+  }, [allMerchantSpend]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {/* Top Cards */}
@@ -62,6 +71,40 @@ export function MerchantsTab({ filterMonth, ledgerRows, primaryCurrency, toPrima
           </div>
         </Card>
       </div>
+
+      {/* Top 5 spend merchants pie (B22) */}
+      {top5Pie.length > 0 ? (
+        <Card style={{ padding: "var(--ns-pad-card)" }}>
+          <div className="ns-eyebrow" style={{ marginBottom: 12 }}>Top 5 支出商家 · {currentYear}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: 24, alignItems: "center" }}>
+            <div style={{ width: 180, height: 180 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={top5Pie} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} stroke="none" paddingAngle={2}>
+                    {top5Pie.map((m) => <Cell key={m.name} fill={m.color} />)}
+                  </Pie>
+                  <Tooltip
+                    formatter={(v: any) => [`${primaryCurrency} ${formatNumber(v as number)}`, "支出"]}
+                    contentStyle={{ background: "var(--ns-surface)", border: "1px solid var(--ns-border)", borderRadius: 6, fontSize: 12 }}
+                    itemStyle={{ color: "var(--ns-fg)" }}
+                    labelStyle={{ color: "var(--ns-fg)" }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {top5Pie.map((m) => (
+                <div key={m.name} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, borderBottom: "1px solid var(--ns-border)", paddingBottom: 6 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 3, background: m.color, flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0, lineHeight: 1.25, wordBreak: "break-word" }}>{m.name}</span>
+                  <span className="num muted" style={{ fontSize: 12, flexShrink: 0 }}>{formatCompactMoney(m.value, primaryCurrency)}</span>
+                  <span className="num" style={{ minWidth: 44, textAlign: "right", flexShrink: 0 }}>{totalSpend > 0 ? ((m.value / totalSpend) * 100).toFixed(1) : "0.0"}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       {/* Main Content */}
       <Card style={{ padding: "var(--ns-pad-card)",  overflow: "hidden", display: "flex", flexDirection: "column" }}>
@@ -92,7 +135,7 @@ export function MerchantsTab({ filterMonth, ledgerRows, primaryCurrency, toPrima
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 10, background: bg, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 600 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: bg, color: readableTextColor(bg), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 600 }}>
                         {getInitials(r.name)}
                       </div>
                       <div>

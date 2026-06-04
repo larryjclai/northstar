@@ -198,6 +198,18 @@ export function InvestmentEntryDrawer({
     );
   }, [portfolioAssets, transactionForm.ticker, transactionForm.linkedAccountId]);
 
+  // Quick-pick chips follow the user's own holdings, most recently added first —
+  // never a hardcoded list, so we don't suggest tickers they never bought (B15).
+  const tickerSuggestions = useMemo(() => {
+    const seen = new Set<string>();
+    return [...portfolioAssets]
+      .filter((a) => a.deletedAt === null && a.ticker)
+      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
+      .map((a) => a.ticker.toUpperCase())
+      .filter((t) => (seen.has(t) ? false : (seen.add(t), true)))
+      .slice(0, 6);
+  }, [portfolioAssets]);
+
   if (!open) return null;
 
   const side = sideFromAction(transactionForm.action);
@@ -426,13 +438,15 @@ export function InvestmentEntryDrawer({
                     void enrichTransactionClassification(next);
                   }}
                 />
-                <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {["2330.TW", "0050.TW", "AAPL", "VTI", "VWRA"].map((s) => (
-                    <Button key={s} variant="outline" size="xs" className="font-mono" onClick={() => setTransactionForm({ ...transactionForm, ticker: s })}>
-                      {s}
-                    </Button>
-                  ))}
-                </div>
+                {tickerSuggestions.length > 0 ? (
+                  <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {tickerSuggestions.map((s) => (
+                      <Button key={s} variant="outline" size="xs" className="font-mono" onClick={() => setTransactionForm({ ...transactionForm, ticker: s })}>
+                        {s}
+                      </Button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
               {/* Date + account */}

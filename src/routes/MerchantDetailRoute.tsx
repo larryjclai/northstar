@@ -71,6 +71,8 @@ export function MerchantDetailRoute() {
                     <Tooltip 
                       cursor={{ fill: "var(--ns-bg-hover)" }}
                       contentStyle={{ background: "var(--ns-surface)", border: "1px solid var(--ns-border)", borderRadius: 6, fontSize: 12 }}
+                      itemStyle={{ color: "var(--ns-fg)" }}
+                      labelStyle={{ color: "var(--ns-fg)" }}
                       formatter={(v: any) => [formatMoney(v as number, primaryCurrency), "支出"]}
                       labelFormatter={(v) => String(v).replace("-", " / ")}
                     />

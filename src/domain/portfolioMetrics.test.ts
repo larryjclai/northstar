@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCostBasisTimeline, buildPositionMetrics, calculateXirr } from "./portfolioMetrics";
+import { buildCostBasisTimeline, buildPositionMetrics, calculateXirr, cashflowSpanDays } from "./portfolioMetrics";
 import type { InvestmentRecord } from "./types";
 
 function record(partial: Partial<InvestmentRecord>): InvestmentRecord {
@@ -138,6 +138,24 @@ describe("buildCostBasisTimeline", () => {
       record({ date: "2024-03-01", action: "stockDividend", quantity: 3 }),
     ]);
     expect(t).toEqual([{ date: "2024-01-01", delta: 1000 }]);
+  });
+});
+
+describe("cashflowSpanDays", () => {
+  it("returns 0 for no cash flows", () => {
+    expect(cashflowSpanDays([], "2025-01-01")).toBe(0);
+  });
+
+  it("measures days from the earliest flow to asOf", () => {
+    const flows = [
+      { date: "2025-01-10", amount: -500 },
+      { date: "2025-01-01", amount: -1000 },
+    ];
+    expect(cashflowSpanDays(flows, "2025-01-31")).toBe(30);
+  });
+
+  it("ignores datetime suffixes (uses the date portion)", () => {
+    expect(cashflowSpanDays([{ date: "2025-01-01T09:30:00Z", amount: -1 }], "2025-01-06")).toBe(5);
   });
 });
 

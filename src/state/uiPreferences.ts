@@ -15,6 +15,8 @@ export interface UiPreferences {
   theme: ThemeMode;
   /** Opt-in: fetch brand logos for tickers from a third-party CDN. Off by default. */
   assetLogosEnabled: boolean;
+  /** Which optional columns the holdings table shows (B21). */
+  holdingsColumns: HoldingsColumnKey[];
   setPrivacyMode: (value: boolean) => void;
   togglePrivacyMode: () => void;
   setNameLocale: (value: NameLocalePreference) => void;
@@ -22,7 +24,19 @@ export interface UiPreferences {
   setTimezone: (value: string) => void;
   setTheme: (value: ThemeMode) => void;
   setAssetLogosEnabled: (value: boolean) => void;
+  setHoldingsColumns: (value: HoldingsColumnKey[]) => void;
 }
+
+/** Toggleable holdings-table columns (the rest are always shown). */
+export type HoldingsColumnKey =
+  | "account"
+  | "averageCost"
+  | "marketPrice"
+  | "assetType"
+  | "costBasis";
+
+export const HOLDINGS_COLUMN_DEFAULTS: HoldingsColumnKey[] = ["account", "averageCost", "marketPrice"];
+const HOLDINGS_COLUMN_ALL: HoldingsColumnKey[] = ["account", "averageCost", "marketPrice", "assetType", "costBasis"];
 
 const STORAGE_KEY = "northstar.uiPreferences.v1";
 
@@ -33,6 +47,7 @@ interface PersistedShape {
   timezone: string;
   theme: ThemeMode;
   assetLogosEnabled: boolean;
+  holdingsColumns: HoldingsColumnKey[];
 }
 
 export type ClockMode = "24h" | "12h";
@@ -45,6 +60,7 @@ function loadPersisted(): PersistedShape {
     timezone: resolveSystemTimezone(),
     theme: "system",
     assetLogosEnabled: false,
+    holdingsColumns: HOLDINGS_COLUMN_DEFAULTS,
   };
   if (typeof window === "undefined") return fallback;
   try {
@@ -66,6 +82,9 @@ function loadPersisted(): PersistedShape {
       timezone: tz,
       theme,
       assetLogosEnabled: typeof parsed.assetLogosEnabled === "boolean" ? parsed.assetLogosEnabled : false,
+      holdingsColumns: Array.isArray(parsed.holdingsColumns)
+        ? parsed.holdingsColumns.filter((k): k is HoldingsColumnKey => HOLDINGS_COLUMN_ALL.includes(k as HoldingsColumnKey))
+        : HOLDINGS_COLUMN_DEFAULTS,
     };
   } catch {
     return fallback;
@@ -104,6 +123,7 @@ function snapshot(state: UiPreferences): PersistedShape {
     timezone: state.timezone,
     theme: state.theme,
     assetLogosEnabled: state.assetLogosEnabled,
+    holdingsColumns: state.holdingsColumns,
   };
 }
 
@@ -114,6 +134,7 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   timezone: initial.timezone,
   theme: initial.theme,
   assetLogosEnabled: initial.assetLogosEnabled,
+  holdingsColumns: initial.holdingsColumns,
   setPrivacyMode(value) {
     setPrivacyMaskOn(value);
     set({ privacyMode: value });
@@ -147,6 +168,10 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   },
   setAssetLogosEnabled(value) {
     set({ assetLogosEnabled: value });
+    persist(snapshot(get()));
+  },
+  setHoldingsColumns(value) {
+    set({ holdingsColumns: value });
     persist(snapshot(get()));
   },
 }));

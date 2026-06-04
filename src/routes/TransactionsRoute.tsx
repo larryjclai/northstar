@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popove
 import { downloadCsv, exportInvestmentCsv, parseInvestmentCsv, type ImportPreview } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { InvestmentDraft } from "../data/repositories";
-import { formatNumber, todayInTimezone } from "../domain";
+import { createFxConverter, formatMoney, formatNumber, todayInTimezone } from "../domain";
 import type { InvestmentAction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { InvestmentEntryDrawer, type TransactionPreset } from "./InvestmentsAddSheet";
@@ -53,8 +53,9 @@ interface UnifiedTx {
 }
 
 export function TransactionsRoute() {
-  const { accounts, assets, investments, ledger } = useFinanceData();
+  const { accounts, assets, investments, ledger, settings, dailyFxRates } = useFinanceData();
   const timezone = useUiPreferences((state) => state.timezone);
+  const { primaryCurrency, toPrimary } = createFxConverter(settings.data, dailyFxRates.data ?? []);
   const [preview, setPreview] = useState<ImportPreview<InvestmentDraft> | null>(null);
   const [message, setMessage] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -186,6 +187,26 @@ export function TransactionsRoute() {
     };
   }, [assetRows, editingRecordId, recordRows]);
 
+  // Summary cards aggregate across currencies, so each record is converted to
+  // the primary currency at its trade date before summing (USD buys no longer
+  // get added to TWD buys at face value).
+  const totals = useMemo(() => {
+    let bought = 0;
+    let sold = 0;
+    let dividends = 0;
+    for (const record of recordRows) {
+      const currency = assetFor(record.assetId)?.currency ?? "TWD";
+      if (record.action === "buy") {
+        bought += toPrimary(record.price * record.quantity, currency, record.date);
+      } else if (record.action === "sell") {
+        sold += toPrimary(record.price * record.quantity, currency, record.date);
+      } else if (record.action === "cashDividend") {
+        dividends += toPrimary(record.price, currency, record.date);
+      }
+    }
+    return { bought, sold, dividends };
+  }, [recordRows, assetRows, toPrimary]);
+
   const monthKey = todayInTimezone(timezone).slice(0, 7);
 
   const [page, setPage] = useState(1);
@@ -231,9 +252,9 @@ export function TransactionsRoute() {
       {/* Add lives in the page header ("Buy / Sell"); no duplicate here. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <SummaryCard label="Records (All time)" value={`${recordRows.length}`} sublabel="總筆數" />
-        <SummaryCard label="Total Bought (All time)" value={formatNumber(recordRows.filter(r => r.action === "buy").reduce((s, r) => s + r.price * r.quantity, 0))} sublabel="總買入金額" />
-        <SummaryCard label="Total Sold (All time)" value={formatNumber(recordRows.filter(r => r.action === "sell").reduce((s, r) => s + r.price * r.quantity, 0))} sublabel="總賣出金額" />
-        <SummaryCard label="Dividends (All time)" value={formatNumber(recordRows.filter(r => r.action === "cashDividend").reduce((s, r) => s + r.price, 0))} sublabel="總股利" />
+        <SummaryCard label="Total Bought (All time)" value={formatMoney(totals.bought, primaryCurrency)} sublabel="總買入金額" />
+        <SummaryCard label="Total Sold (All time)" value={formatMoney(totals.sold, primaryCurrency)} sublabel="總賣出金額" />
+        <SummaryCard label="Dividends (All time)" value={formatMoney(totals.dividends, primaryCurrency)} sublabel="總股利" />
       </div>
 
       {message ? <div className="mb-4"><StatusText>{message}</StatusText></div> : null}
@@ -244,10 +265,11 @@ export function TransactionsRoute() {
         action={
           <div className="flex flex-wrap gap-2">
             <ActionButton variant="secondary" onClick={() => downloadCsv("northstar-investments.csv", exportInvestmentCsv(recordRows, assetFor))}>匯出 CSV</ActionButton>
-            <label>
-              <input className="hidden" type="file" accept=".csv,text/csv" onChange={handleCsv} />
-              <span className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface-elevated)" }}><UploadSimple size={16} />匯入 CSV</span>
-            </label>
+            {/* Render the coss Button as a <label> so the file-picker trigger has
+                the exact same size/variant as 匯出 (A1). The hidden input sits
+                outside and is wired via htmlFor. */}
+            <input id="invest-csv-import" className="hidden" type="file" accept=".csv,text/csv" onChange={handleCsv} />
+            <Button variant="outline" render={<label htmlFor="invest-csv-import" />}><UploadSimple />匯入 CSV</Button>
           </div>
         }
       >
@@ -265,7 +287,10 @@ export function TransactionsRoute() {
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <label className="relative block min-w-[12rem] flex-1 max-w-sm">
             <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--ns-muted)" }} />
-            <input className="ns-input w-full pl-9" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜尋股票、券商、動作或備註" />
+            {/* paddingLeft via inline style so it wins over .ns-input's `padding`
+                shorthand (equal specificity → later rule wins), which otherwise
+                resets pl-9 and makes the text overlap the icon. */}
+            <input className="ns-input w-full" style={{ paddingLeft: "2.25rem" }} value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜尋股票、券商、動作或備註" />
           </label>
           <MultiSelectFilter
             icon={<FunnelSimple size={14} />}

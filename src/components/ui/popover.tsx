@@ -15,6 +15,7 @@ function PopoverTrigger({ ...props }: PopoverPrimitive.Trigger.Props) {
 
 function PopoverContent({
   className,
+  positionerClassName,
   align = "center",
   alignOffset = 0,
   side = "bottom",
@@ -24,7 +25,11 @@ function PopoverContent({
   Pick<
     PopoverPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset"
-  >) {
+  > & {
+    /** Override the positioner classes — e.g. a higher z-index when the popover
+        is anchored inside a high-z overlay (QuickAdd sits at z-80). */
+    positionerClassName?: string
+  }) {
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Positioner
@@ -32,7 +37,7 @@ function PopoverContent({
         alignOffset={alignOffset}
         side={side}
         sideOffset={sideOffset}
-        className="isolate z-50"
+        className={cn("isolate z-50", positionerClassName)}
       >
         <PopoverPrimitive.Popup
           data-slot="popover-content"
