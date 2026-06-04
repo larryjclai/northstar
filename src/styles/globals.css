@@ -290,6 +290,53 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ── Native-feel base (native-feel-skill § 06 native-conventions) ──────────
+   Stop the WebView from telegraphing "web app": no selecting UI chrome, no iOS
+   tap-highlight flash, no long-press callout/magnifier, no rubber-band
+   overscroll, no auto text inflation. Selection + callout are re-enabled on
+   real inputs and anything tagged `.ns-selectable` (e.g. a value worth copying). */
+:root {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+html, body { overscroll-behavior: none; }
+input, textarea, select, [contenteditable="true"], .ns-selectable {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+/* Native apps cut between views; honor the OS "reduce motion" setting. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+/* If the View Transitions API ever engages, don't cross-fade sibling views
+   (its default has a transparent mid-gap that reads as a flicker). */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+
+/* Native cursor model: the hand/pointer is a web affordance. Native apps keep
+   the arrow on buttons, rows and links; only editable text shows an I-beam.
+   !important is safe here — the app uses no resize/grab/move cursors, only the
+   59 `cursor: pointer` tells we're overriding. */
+* { cursor: default !important; }
+input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]),
+textarea, [contenteditable="true"] { cursor: text !important; }
+
+/* Native press feedback: a real control visibly depresses on press (web styles
+   usually only style :hover). Subtle 1px nudge, no bounce. */
+button:not(:disabled):active,
+[role="button"]:not([aria-disabled="true"]):active {
+  transform: translateY(1px);
+}
+
 button, input, select, textarea { font: inherit; }
 
 a:focus-visible,

@@ -16,7 +16,10 @@
         "width": 1240,
         "height": 820,
         "minWidth": 1024,
-        "minHeight": 680
+        "minHeight": 680,
+        "windowEffects": {
+          "effects": ["mica", "sidebar"]
+        }
       }
     ],
     "security": {
