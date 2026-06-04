@@ -7,6 +7,9 @@ import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { buildLedgerSuggestions, buildMerchantCategoryMap, formatMoney, nowAsDatetimeLocal, parseQuickAdd, type QuickAddParsed } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useToast } from "./Toast";
+import { AccountFilter } from "./AccountFilter";
+import { Glyph } from "../lib/icons";
+import { readableTextColor } from "../lib/color";
 
 type LedgerConfirm = { kind: "ledger"; entryType: "expense" | "income"; amount: string; accountId: string; name: string; merchant: string; category: string; subcategory: string };
 type InvestmentConfirm = { kind: "investment"; action: "buy" | "sell"; ticker: string; quantity: string; price: string; accountId: string };
@@ -73,10 +76,6 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
       ? buildLedgerSuggestions(ledgerRows, { category: confirm.category || undefined, merchant: confirm.merchant || undefined })
       : { merchants: [], accountIds: [] },
     [confirm, ledgerRows],
-  );
-  const merchantOptions = useMemo(
-    () => [...new Set([...ledgerSuggestions.merchants, ...merchantCat.keys()])].slice(0, 20),
-    [ledgerSuggestions.merchants, merchantCat],
   );
 
   if (!open) return null;
@@ -180,24 +179,75 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                   onChange={(e) => setConfirm({ ...confirm, amount: e.target.value.replace(/[^\d.]/g, "") })}
                 /></Field>
                 <Field label="分類">
-                  <input className="ns-input" value={confirm.category} onChange={(e) => setConfirm({ ...confirm, category: e.target.value })} placeholder="選填" />
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 7 }}>
-                    {categoryGroups.slice(0, 8).map((category) => (
-                      <Button key={category.name} variant="outline" size="xs" onClick={() => setConfirm({ ...confirm, category: category.name })}>
-                        {category.iconName || "•"} {category.name}
-                      </Button>
-                    ))}
+                  {/* Two-level picker: category chips (icon glyph + name, contrast-aware
+                      when active) then its subcategories below (B11 + B14). */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                    {categoryGroups.map((category) => {
+                      const active = confirm.category === category.name;
+                      const color = category.color || "var(--ns-accent)";
+                      return (
+                        <button
+                          key={category.name}
+                          type="button"
+                          onClick={() => setConfirm({ ...confirm, category: active ? "" : category.name, subcategory: "" })}
+                          style={{
+                            padding: "4px 10px", borderRadius: 999, fontSize: 12, cursor: "pointer",
+                            background: active ? color : "var(--ns-bg-card)",
+                            color: active ? readableTextColor(color) : "var(--ns-fg)",
+                            border: active ? "1px solid rgba(0,0,0,0.12)" : "1px solid var(--ns-border)",
+                            display: "inline-flex", alignItems: "center", gap: 4, fontFamily: "inherit",
+                          }}
+                        >
+                          {category.iconName && <Glyph name={category.iconName} size={13} />}
+                          {category.name}
+                        </button>
+                      );
+                    })}
                   </div>
+                  {(() => {
+                    const subs = categoryGroups.find((c) => c.name === confirm.category)?.children ?? [];
+                    return subs.length ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 7, paddingLeft: 8, borderLeft: "2px solid var(--ns-border)" }}>
+                        {subs.map((s) => {
+                          const active = confirm.subcategory === s;
+                          return (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => setConfirm({ ...confirm, subcategory: active ? "" : s })}
+                              style={{
+                                padding: "3px 9px", borderRadius: 999, fontSize: 11.5, cursor: "pointer", fontFamily: "inherit",
+                                background: active ? "var(--ns-accent)" : "var(--ns-bg-hover)",
+                                color: active ? "#fff" : "var(--ns-fg-muted)",
+                                border: "none",
+                              }}
+                            >
+                              {s}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null;
+                  })()}
                 </Field>
                 <Field label="名稱">
                   <input className="ns-input" value={confirm.name} onChange={(e) => setConfirm({ ...confirm, name: e.target.value })} placeholder="交易名稱" />
                 </Field>
                 <Field label="商家">
-                  <input className="ns-input" list="quick-add-merchants" value={confirm.merchant} onChange={(e) => chooseMerchant(e.target.value)} placeholder="選填" />
-                  <datalist id="quick-add-merchants">{merchantOptions.map((merchant) => <option key={merchant} value={merchant} />)}</datalist>
+                  {/* Plain input + app-styled suggestion chips below (the OS-native
+                      datalist popup didn't match the app) (B11). */}
+                  <input className="ns-input" value={confirm.merchant} onChange={(e) => chooseMerchant(e.target.value)} placeholder="選填" />
                 </Field>
                 <Field label="帳戶">
-                  <select className="ns-input" style={{ appearance: "none" }} value={confirm.accountId} onChange={(e) => setConfirm({ ...confirm, accountId: e.target.value })}><option value="">選擇帳戶</option>{accountRows.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
+                  <AccountFilter
+                    accounts={accountRows}
+                    value={confirm.accountId}
+                    onChange={(id) => setConfirm({ ...confirm, accountId: id })}
+                    allowAll={false}
+                    placeholder="選擇帳戶"
+                    style={{ width: "100%", maxWidth: "none", minWidth: 0 }}
+                    positionerClassName="z-[90]"
+                  />
                 </Field>
                 <div style={{ gridColumn: "1 / -1", fontSize: 12 }}>
                   {(ledgerSuggestions.merchants.length > 0 || ledgerSuggestions.accountIds.length > 0) ? (
@@ -220,7 +270,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <Field label="代號"><input className="ns-input" value={confirm.ticker} onChange={(e) => setConfirm({ ...confirm, ticker: e.target.value })} /></Field>
-                <Field label="帳戶"><select className="ns-input" style={{ appearance: "none" }} value={confirm.accountId} onChange={(e) => setConfirm({ ...confirm, accountId: e.target.value })}><option value="">未指定</option>{accountRows.filter((a) => a.type === "investment").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
+                <Field label="帳戶"><AccountFilter accounts={accountRows.filter((a) => a.type === "investment")} value={confirm.accountId} onChange={(id) => setConfirm({ ...confirm, accountId: id })} allowAll={false} placeholder="未指定" style={{ width: "100%", maxWidth: "none", minWidth: 0 }} positionerClassName="z-[90]" /></Field>
                 <Field label="股數"><input className="ns-input" inputMode="decimal" value={confirm.quantity} onChange={(e) => setConfirm({ ...confirm, quantity: e.target.value.replace(/[^\d.]/g, "") })} /></Field>
                 <Field label="價格"><input className="ns-input" inputMode="decimal" value={confirm.price} onChange={(e) => setConfirm({ ...confirm, price: e.target.value.replace(/[^\d.]/g, "") })} /></Field>
               </div>

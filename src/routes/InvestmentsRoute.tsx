@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowsClockwise, ArrowsDownUp, ArrowUp, Bank, ChartLineUp, ListChecks, PencilSimple, PlusCircle, X, CaretLeft, CaretRight } from "@phosphor-icons/react";
+import { ArrowDown, ArrowsClockwise, ArrowsDownUp, ArrowUp, Bank, ChartLineUp, ListChecks, PencilSimple, PlusCircle, Sliders, X, CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -21,6 +21,8 @@ import {
   buildHoldingPositionsByAccount,
   buildPositionMetrics,
   calculateXirr,
+  cashflowSpanDays,
+  XIRR_MIN_DAYS,
   createFxConverter,
   formatMoney,
   formatNumber,
@@ -29,6 +31,7 @@ import {
   formatQuantity,
   resolveAssetName,
   todayInTimezone,
+  assetTypeLabels,
   type Account,
   type DailyPrice,
   type HoldingPosition,
@@ -38,7 +41,8 @@ import {
   type PortfolioAsset,
 } from "../domain";
 import { useBackfillAssetProfiles, useRefreshDailyPrices, useRefreshQuotes } from "../features/market-data/useMarketRefresh";
-import { useUiPreferences, type NameLocalePreference } from "../state/uiPreferences";
+import { useUiPreferences, type NameLocalePreference, type HoldingsColumnKey } from "../state/uiPreferences";
+import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
 import { RecurringInvestmentsTab } from "./RecurringInvestmentsTab";
 import { TransactionsRoute } from "./TransactionsRoute";
@@ -256,7 +260,10 @@ export function InvestmentsRoute() {
       const price = quoteMap[asset.ticker]?.price ?? asset.averageCost;
       terminal += toPrimary(m.quantity * price, asset.currency, today);
     }
-    return calculateXirr(flows, { date: today, amount: terminal });
+    // Suppress the annualized figure for very short holding spans (B1): it would
+    // annualize into meaningless thousands of %.
+    const reliable = cashflowSpanDays(flows, today) >= XIRR_MIN_DAYS;
+    return { value: calculateXirr(flows, { date: today, amount: terminal }), reliable };
   }, [assetRows, recordRows, quoteMap, toPrimary]);
 
   return (
@@ -307,13 +314,20 @@ export function InvestmentsRoute() {
       {tab === "portfolio" ? (
         <>
           {/* Top KPIs */}
-          <div className="ns-holdings-kpis grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-5">
+          {/* 6 KPI tiles only split into 6 columns at 2xl (≥1536px); at 13"
+              (~1280px) stay at 3 columns so compact values like "NT$2.43萬"
+              never clip. */}
+          <div className="ns-holdings-kpis grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-4 mb-5">
             {([
               // [label, compact display, exact value (tooltip), pct, positive]
               ['Market value', `NT$${formatCompactNumber(totalValue)}`, `NT$${formatNumber(totalValue)}`, '', true],
               ['Cost basis', `NT$${formatCompactNumber(totalCost)}`, `NT$${formatNumber(totalCost)}`, '', true],
               ['Unrealized P/L', `NT$${formatCompactNumber(Math.abs(totalPnL))}`, `NT$${formatNumber(Math.abs(totalPnL))}`, totalPnL >= 0 ? `+${returnPct.toFixed(2)}%` : `${returnPct.toFixed(2)}%`, totalPnL >= 0],
-              ['年化報酬 XIRR', portfolioXirr === null ? '–' : `${portfolioXirr >= 0 ? '+' : ''}${(portfolioXirr * 100).toFixed(2)}%`, '資金加權年化報酬（含買賣、配息、手續費）', '', portfolioXirr === null ? true : portfolioXirr >= 0],
+              ['年化報酬 XIRR',
+                (portfolioXirr.value === null || !portfolioXirr.reliable) ? '–' : `${portfolioXirr.value >= 0 ? '+' : ''}${(portfolioXirr.value * 100).toFixed(2)}%`,
+                portfolioXirr.value !== null && !portfolioXirr.reliable ? `持有期間少於 ${XIRR_MIN_DAYS} 天，年化報酬不具參考意義` : '資金加權年化報酬（含買賣、配息、手續費）',
+                '',
+                portfolioXirr.value === null ? true : portfolioXirr.value >= 0],
               ['Realized YTD', `NT$${formatCompactNumber(Math.abs(realizedYTD))}`, `NT$${formatNumber(Math.abs(realizedYTD))}`, realizedYTD >= 0 ? '' : 'Loss', realizedYTD >= 0],
               ['Dividends YTD', `NT$${formatCompactNumber(dividendsYTD)}`, `NT$${formatNumber(dividendsYTD)}`, '', true],
             ] as const).map(([label, val, exact, pct, pos], i) => (
@@ -322,7 +336,7 @@ export function InvestmentsRoute() {
                 {/* Value takes the full card width (compact 萬/億 keeps it short);
                     the % change sits on its own line so it never squeezes the
                     number into an ellipsis. */}
-                <div className="num" style={{ fontSize: "clamp(16px, 1.9vw, 22px)", fontWeight: 500, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={exact}>{val}</div>
+                <div className="num" style={{ fontSize: "clamp(14px, 1.7vw, 22px)", fontWeight: 500, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={exact}>{val}</div>
                 {pct ? <div className="num" style={{ fontSize: 12.5, marginTop: 2, color: pos ? 'var(--ns-pos)' : 'var(--ns-neg)' }}>{pct}</div> : null}
               </CossCard>
             ))}
@@ -838,6 +852,16 @@ function HoldingsAllocation({ positions, assetsById, nameLocale, toPrimary, prim
   );
 }
 
+// Optional, user-toggleable holdings columns (B21). Ticker / 名稱 / 股數 / 市值 /
+// 損益 / 報酬率 / 操作 are always shown.
+const HOLDINGS_COLUMN_OPTIONS: { key: HoldingsColumnKey; label: string }[] = [
+  { key: "account", label: "券商" },
+  { key: "averageCost", label: "均價" },
+  { key: "marketPrice", label: "現價" },
+  { key: "assetType", label: "類型" },
+  { key: "costBasis", label: "成本基礎" },
+];
+
 function HoldingsTab({
   positions,
   accountMap,
@@ -857,6 +881,11 @@ function HoldingsTab({
 }) {
   const navigate = useNavigate();
   const timezone = useUiPreferences((state) => state.timezone);
+  const holdingsColumns = useUiPreferences((state) => state.holdingsColumns);
+  const setHoldingsColumns = useUiPreferences((state) => state.setHoldingsColumns);
+  const visibleCol = (key: HoldingsColumnKey) => holdingsColumns.includes(key);
+  const toggleCol = (key: HoldingsColumnKey) =>
+    setHoldingsColumns(holdingsColumns.includes(key) ? holdingsColumns.filter((k) => k !== key) : [...holdingsColumns, key]);
   const [editingAsset, setEditingAsset] = useState<PortfolioAsset | null>(null);
   const [editForm, setEditForm] = useState<PortfolioAssetDraft | null>(null);
   const [message, setMessage] = useState("");
@@ -983,54 +1012,82 @@ function HoldingsTab({
 
   return (
     <>
-      <Card title={
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-          <span>持倉 ({filteredPositions.length})</span>
-          <select 
-            className="ns-input" 
-            style={{ width: 140, height: 32, fontSize: 13, padding: '0 8px' }}
-            value={filterAccount} 
-            onChange={e => setFilterAccount(e.target.value)}
-          >
-            <option value="all">所有券商</option>
-            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-        </div>
-      }>
+      <Card
+        title={<span>持倉 ({filteredPositions.length})</span>}
+        action={
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <select
+              className="ns-input"
+              style={{ width: 160, height: 32, fontSize: 13, padding: '0 8px' }}
+              value={filterAccount}
+              onChange={e => setFilterAccount(e.target.value)}
+            >
+              <option value="all">所有券商</option>
+              {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+            <Popover>
+              <PopoverTrigger
+                className="inline-flex items-center gap-1.5 rounded-lg border px-3 text-sm font-medium"
+                style={{ height: 32, borderColor: "var(--ns-border)", background: "var(--ns-surface-elevated)", color: "var(--ns-fg)" }}
+                title="自訂顯示欄位"
+              >
+                <Sliders size={14} />欄位
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-44">
+                <div className="mb-1 px-1 text-xs" style={{ color: "var(--ns-muted)" }}>顯示欄位</div>
+                <div className="max-h-64 overflow-y-auto">
+                  {HOLDINGS_COLUMN_OPTIONS.map((opt) => (
+                    <label key={opt.key} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/5">
+                      <input type="checkbox" checked={visibleCol(opt.key)} onChange={() => toggleCol(opt.key)} />
+                      <span>{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        }
+      >
         <div className="overflow-x-auto">
           <table className="w-full table-auto text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
                 <SortableHeader label="Ticker" sortKey="ticker" sort={sort} onToggle={toggleSort} />
                 <SortableHeader label="名稱" sortKey="name" sort={sort} onToggle={toggleSort} />
-                <SortableHeader label="券商" sortKey="account" sort={sort} onToggle={toggleSort} />
+                {visibleCol("account") ? <SortableHeader label="券商" sortKey="account" sort={sort} onToggle={toggleSort} /> : null}
                 <SortableHeader label="股數" sortKey="quantity" sort={sort} onToggle={toggleSort} align="right" />
-                <th className="hidden py-2 text-right 2xl:table-cell">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("averageCost")}
-                    className="inline-flex items-center gap-1 select-none text-xs uppercase tracking-wide outline-none transition hover:opacity-80"
-                    style={{ color: sort.key === "averageCost" ? "var(--ns-accent)" : "var(--ns-muted)" }}
-                  >
-                    <span>均價</span>
-                    {sort.key === "averageCost"
-                      ? (sort.direction === "asc" ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />)
-                      : <ArrowsDownUp size={11} weight="bold" />}
-                  </button>
-                </th>
-                <th className="hidden py-2 text-right 2xl:table-cell">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("marketPrice")}
-                    className="inline-flex items-center gap-1 select-none text-xs uppercase tracking-wide outline-none transition hover:opacity-80"
-                    style={{ color: sort.key === "marketPrice" ? "var(--ns-accent)" : "var(--ns-muted)" }}
-                  >
-                    <span>現價</span>
-                    {sort.key === "marketPrice"
-                      ? (sort.direction === "asc" ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />)
-                      : <ArrowsDownUp size={11} weight="bold" />}
-                  </button>
-                </th>
+                {visibleCol("averageCost") ? (
+                  <th className="py-2 text-right">
+                    <button
+                      type="button"
+                      onClick={() => toggleSort("averageCost")}
+                      className="inline-flex items-center gap-1 select-none text-xs uppercase tracking-wide outline-none transition hover:opacity-80"
+                      style={{ color: sort.key === "averageCost" ? "var(--ns-accent)" : "var(--ns-muted)" }}
+                    >
+                      <span>均價</span>
+                      {sort.key === "averageCost"
+                        ? (sort.direction === "asc" ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />)
+                        : <ArrowsDownUp size={11} weight="bold" />}
+                    </button>
+                  </th>
+                ) : null}
+                {visibleCol("marketPrice") ? (
+                  <th className="py-2 text-right">
+                    <button
+                      type="button"
+                      onClick={() => toggleSort("marketPrice")}
+                      className="inline-flex items-center gap-1 select-none text-xs uppercase tracking-wide outline-none transition hover:opacity-80"
+                      style={{ color: sort.key === "marketPrice" ? "var(--ns-accent)" : "var(--ns-muted)" }}
+                    >
+                      <span>現價</span>
+                      {sort.key === "marketPrice"
+                        ? (sort.direction === "asc" ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />)
+                        : <ArrowsDownUp size={11} weight="bold" />}
+                    </button>
+                  </th>
+                ) : null}
+                {visibleCol("assetType") ? <th className="py-2 text-left">類型</th> : null}
+                {visibleCol("costBasis") ? <th className="py-2 text-right">成本基礎</th> : null}
                 <SortableHeader label="市值" sortKey="marketValue" sort={sort} onToggle={toggleSort} align="right" />
                 <SortableHeader label="損益" sortKey="unrealizedGain" sort={sort} onToggle={toggleSort} align="right" />
                 <SortableHeader label="報酬率" sortKey="unrealizedGainPercent" sort={sort} onToggle={toggleSort} align="right" />
@@ -1061,22 +1118,37 @@ function HoldingsTab({
                     <td className="max-w-[14rem] py-3" title={displayName}>
                       <span className="block truncate">{displayName}</span>
                     </td>
-                    <td className="max-w-[11rem] py-3" title={account ? account.name : "未指定"}>
-                      <span className="block truncate">{account ? account.name : "未指定"}</span>
-                    </td>
+                    {visibleCol("account") ? (
+                      <td className="max-w-[11rem] py-3" title={account ? account.name : "未指定"}>
+                        <span className="block truncate">{account ? account.name : "未指定"}</span>
+                      </td>
+                    ) : null}
                     <td className="py-3 text-right tabular whitespace-nowrap">{formatQuantity(position.quantity)}</td>
-                    <td className="hidden py-3 text-right tabular whitespace-nowrap 2xl:table-cell">{formatPrice(position.averageCost)}</td>
-                    <td className="hidden py-3 text-right tabular whitespace-nowrap 2xl:table-cell">
-                      {position.marketPrice !== null ? formatPrice(position.marketPrice) : "—"}
-                    </td>
-                    <td className="py-3 text-right tabular whitespace-nowrap">
-                      {formatNumber(position.marketValue)} <span style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
+                    {visibleCol("averageCost") ? <td className="py-3 text-right tabular whitespace-nowrap">{formatPrice(position.averageCost)}</td> : null}
+                    {visibleCol("marketPrice") ? (
+                      <td className="py-3 text-right tabular whitespace-nowrap">
+                        {position.marketPrice !== null ? formatPrice(position.marketPrice) : "—"}
+                      </td>
+                    ) : null}
+                    {visibleCol("assetType") ? (
+                      <td className="py-3 whitespace-nowrap" style={{ color: "var(--ns-muted)" }}>
+                        {asset?.assetType ? assetTypeLabels[asset.assetType] : "—"}
+                      </td>
+                    ) : null}
+                    {visibleCol("costBasis") ? (
+                      <td className="py-3 text-right tabular whitespace-nowrap" title={`${formatNumber(position.costBasis)} ${position.currency}`}>
+                        {formatCompactNumber(position.costBasis)} <span style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
+                      </td>
+                    ) : null}
+                    <td className="py-3 text-right tabular whitespace-nowrap" title={`${formatNumber(position.marketValue)} ${position.currency}`}>
+                      {formatCompactNumber(position.marketValue)} <span style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
                     </td>
                     <td
                       className="py-3 text-right tabular whitespace-nowrap"
                       style={{ color: pnlTone === "positive" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}
+                      title={`${position.unrealizedGain >= 0 ? "+" : ""}${formatNumber(position.unrealizedGain)} ${position.currency}`}
                     >
-                      {position.unrealizedGain >= 0 ? "+" : ""}{formatNumber(position.unrealizedGain)}
+                      {position.unrealizedGain >= 0 ? "+" : ""}{formatCompactNumber(position.unrealizedGain)}
                     </td>
                     <td
                       className="py-3 text-right tabular whitespace-nowrap"
@@ -1084,10 +1156,10 @@ function HoldingsTab({
                     >
                       {position.unrealizedGainPercent >= 0 ? "+" : ""}{position.unrealizedGainPercent.toFixed(2)}%
                     </td>
-                    <td className="py-3 text-right whitespace-nowrap">
+                    <td className="py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <ActionButton
                         variant="ghost"
-                        onClick={() => asset ? startEdit(asset) : undefined}
+                        onClick={(e) => { e.stopPropagation(); if (asset) startEdit(asset); }}
                         disabled={!asset}
                         title={asset?.holdingSource === "transactions" ? "編輯分類資料" : "編輯持倉"}
                       >

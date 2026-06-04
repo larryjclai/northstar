@@ -57,15 +57,28 @@ export function AccountFilter({
   value,
   onChange,
   allLabel = "所有帳戶",
+  allowAll = true,
+  placeholder = "選擇帳戶",
   className,
   style,
+  contentClassName,
+  positionerClassName,
 }: {
   accounts: AccountLike[];
   value: string;
   onChange: (value: string) => void;
   allLabel?: string;
+  /** When false, hides the "all" row and renders as a required single-account picker. */
+  allowAll?: boolean;
+  /** Trigger text shown when nothing is selected (picker mode). */
+  placeholder?: string;
   className?: string;
   style?: React.CSSProperties;
+  /** Extra classes for the popover content. */
+  contentClassName?: string;
+  /** Override popover positioner classes — e.g. a higher z-index when used
+      inside a high-z overlay like QuickAdd (z-80). */
+  positionerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -108,24 +121,26 @@ export function AccountFilter({
             {selected ? (
               <AccountMark account={selected} index={indexById.get(selected.id) ?? 0} size={20} />
             ) : null}
-            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
-              {selected ? selected.name : allLabel}
+            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", color: selected ? undefined : "var(--ns-fg-dim)" }}>
+              {selected ? selected.name : allowAll ? allLabel : placeholder}
             </span>
             <CaretUpDown size={14} style={{ flexShrink: 0, color: "var(--ns-fg-dim)" }} />
           </button>
         }
       />
-      <PopoverContent align="start" className="w-64 p-0" style={{ width: 256 }}>
+      <PopoverContent align="start" className={`w-64 p-0 ${contentClassName ?? ""}`} positionerClassName={positionerClassName} style={{ width: 256 }}>
         <Command>
           <CommandInput placeholder="搜尋帳戶…" />
           <CommandList>
             <CommandEmpty>找不到帳戶</CommandEmpty>
-            <CommandGroup>
-              <CommandItem value={`${allLabel} all`} onSelect={() => select("all")}>
-                <span style={{ flex: 1 }}>{allLabel}</span>
-                {value === "all" ? <Check size={14} /> : null}
-              </CommandItem>
-            </CommandGroup>
+            {allowAll ? (
+              <CommandGroup>
+                <CommandItem value={`${allLabel} all`} onSelect={() => select("all")}>
+                  <span style={{ flex: 1 }}>{allLabel}</span>
+                  {value === "all" ? <Check size={14} /> : null}
+                </CommandItem>
+              </CommandGroup>
+            ) : null}
             {groups.map((g) => (
               <CommandGroup key={g.key} heading={g.label}>
                 {g.rows.map((a) => (

@@ -152,7 +152,7 @@ export function RecurringRulesTab() {
         {/* Column header */}
         {filtered.length > 0 && (
           <div style={{
-            display: "grid", gridTemplateColumns: "1fr 90px 100px 100px 120px 80px",
+            display: "grid", gridTemplateColumns: "1fr 90px 110px 110px 120px 80px", columnGap: 16,
             padding: "8px 20px", borderBottom: "1px solid var(--ns-border)",
             fontSize: 11, color: "var(--ns-fg-muted)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em",
           }}>
@@ -176,7 +176,7 @@ export function RecurringRulesTab() {
               key={rule.id}
               onClick={() => openEdit(rule)}
               style={{
-                display: "grid", gridTemplateColumns: "1fr 90px 100px 100px 120px 80px",
+                display: "grid", gridTemplateColumns: "1fr 90px 110px 110px 120px 80px", columnGap: 16,
                 padding: "12px 20px", borderBottom: "1px solid var(--ns-border)",
                 cursor: "pointer", transition: "background 0.12s",
                 opacity: rule.isActive ? 1 : 0.5,

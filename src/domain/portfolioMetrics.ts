@@ -181,6 +181,24 @@ export function buildCostBasisTimeline(records: InvestmentRecord[]): CostBasisDe
 }
 
 /**
+ * Minimum holding span before an annualized (XIRR) figure is shown. Below this,
+ * annualizing a short period explodes into meaningless numbers (a few % over a
+ * handful of days → thousands of %/yr), so callers display "—" instead. See B1.
+ */
+export const XIRR_MIN_DAYS = 30;
+
+/**
+ * Whole days between the earliest cash flow and `asOf` (today). Returns 0 when
+ * there are no flows. Used to gate the annualized-return display.
+ */
+export function cashflowSpanDays(cashflows: Cashflow[], asOf: string): number {
+  if (cashflows.length === 0) return 0;
+  let earliest = cashflows[0].date;
+  for (const f of cashflows) if (f.date < earliest) earliest = f.date;
+  return Math.round((Date.parse(day(asOf)) - Date.parse(day(earliest))) / 86_400_000);
+}
+
+/**
  * Money-weighted annualized return (XIRR). Solves for the rate where the NPV of
  * all cash flows (plus an optional terminal market-value inflow) is zero.
  *

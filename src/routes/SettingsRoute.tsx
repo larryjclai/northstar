@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ActionButton } from "../components/ActionButton";
 import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
+import { downloadCsv, exportInvestmentCsv, exportLedgerCsv } from "../data/csv";
 import { getFinanceRepository, type RepositorySnapshot } from "../data/repositories";
 import { enterDemoMode, exitDemoMode, clearAllData } from "../data/demoData";
 import { useDemoMode } from "../state/demoMode";
@@ -652,7 +653,7 @@ function SettingsFX({ form, submit, dailyFxRates, t }: any) {
             <div key={i} style={{ display:'grid',gridTemplateColumns:'80px 1fr 1fr 1fr 56px',
               alignItems:'center',padding:'14px 20px', borderTop:i?'1px solid var(--ns-border)':'none' }}>
               <input className="ns-input" value={r.from} onChange={e=>updateRate(i, { from: e.target.value.toUpperCase() })} />
-              <input className="ns-input" type="number" step="0.01" style={{textAlign:'right'}} value={r.rate} onChange={e=>updateRate(i, { rate: +e.target.value })} />
+              <input className="ns-input" type="number" step="0.000001" style={{textAlign:'right'}} value={r.rate} onChange={e=>updateRate(i, { rate: Math.round(+e.target.value * 1e6) / 1e6 })} />
               <input className="ns-input" style={{textAlign:'right'}} value={r.to || form.primaryCurrency} onChange={e=>updateRate(i, { to: e.target.value.toUpperCase() })} />
               <div className="dim" style={{fontSize: 11, textAlign: 'right'}}>{stat ? `${stat.count} records` : 'No history'}</div>
               <div style={{display:'flex',justifyContent:'flex-end'}}>
@@ -669,6 +670,7 @@ function SettingsFX({ form, submit, dailyFxRates, t }: any) {
 // ─────── General & Export Tab ───────
 function SettingsGeneral({ form, t }: any) {
   const toast = useToast();
+  const { accounts, assets, investments, ledger } = useFinanceData();
   const [recalculating, setRecalculating] = useState(false);
   const [recalculationSummary, setRecalculationSummary] = useState<string | null>(null);
   const privacyMode = useUiPreferences((state) => state.privacyMode);
@@ -733,6 +735,24 @@ function SettingsGeneral({ form, t }: any) {
       setDemoBusy(null);
       setConfirmClear(false);
     }
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  function exportInvestmentsCsv() {
+    const records = investments.data ?? [];
+    if (records.length === 0) { toast.error("沒有股票交易紀錄可匯出"); return; }
+    const assetRows = assets.data ?? [];
+    const assetFor = (id: string) => assetRows.find((a) => a.id === id);
+    downloadCsv(`northstar-investments-${today}.csv`, exportInvestmentCsv(records, assetFor));
+    toast.success("已匯出股票交易紀錄");
+  }
+  function exportLedgerCsvFile() {
+    const rows = ledger.data ?? [];
+    if (rows.length === 0) { toast.error("沒有記帳紀錄可匯出"); return; }
+    const accountRows = accounts.data ?? [];
+    const accountName = (id: string) => accountRows.find((a) => a.id === id)?.name ?? id;
+    downloadCsv(`northstar-ledger-${today}.csv`, exportLedgerCsv(rows, accountName));
+    toast.success("已匯出記帳紀錄");
   }
 
   async function exportBackup() {
@@ -884,7 +904,7 @@ function SettingsGeneral({ form, t }: any) {
       <Card className="p-5">
         <h3 className="font-semibold mb-2">{t('settings.backupTitle')}</h3>
         <p className="text-sm muted mb-4">{t('settings.backupDesc')}</p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button onClick={exportBackup}><DownloadSimple size={14}/>{t('settings.exportJson')}</Button>
           <Button variant="ghost" onClick={()=>fileInputRef.current?.click()}><UploadSimple size={14}/>{t('settings.importBackup')}</Button>
           <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={(e)=>{
@@ -892,6 +912,13 @@ function SettingsGeneral({ form, t }: any) {
             if (file) importBackup(file);
             e.target.value = '';
           }} />
+        </div>
+        <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--ns-border)" }}>
+          <p className="text-sm muted mb-3">匯出 CSV（可用 Excel / Google 試算表開啟）</p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={exportInvestmentsCsv}><DownloadSimple size={14}/>股票交易紀錄 CSV</Button>
+            <Button variant="outline" onClick={exportLedgerCsvFile}><DownloadSimple size={14}/>記帳紀錄 CSV</Button>
+          </div>
         </div>
       </Card>
 

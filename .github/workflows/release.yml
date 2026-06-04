@@ -12,6 +12,12 @@ on:
         description: 'Tag to release (e.g. v0.1.0-alpha.7)'
         required: true
 
+# A re-tag / re-dispatch of the SAME tag cancels the previous in-flight run so
+# we don't burn duplicate runner minutes. Different tags use different groups.
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   publish-tauri:
     permissions:
@@ -39,7 +45,13 @@ jobs:
           - platform: windows-latest
             args: ''
 
-    runs-on: ${{ matrix.platform }}
+    # macOS runners are billed at 10× on private repos and dominate the cost of
+    # a release. Set the repo variable `MACOS_RUNNER` (Settings → Actions →
+    # Variables) to a self-hosted label (e.g. `self-hosted`) once you've
+    # registered your Mac as a runner — those minutes are free. Until then it
+    # defaults to GitHub-hosted `macos-latest`, so releases keep working as-is.
+    # Linux/Windows always use hosted runners (cheap at 1×/2×).
+    runs-on: ${{ startsWith(matrix.platform, 'macos') && (vars.MACOS_RUNNER || 'macos-latest') || matrix.platform }}
 
     steps:
       - name: Checkout

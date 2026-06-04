@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowsClockwise, ArrowUp, Plus } from "@phosphor-icons/react";
+import { ArrowDown, ArrowsClockwise, ArrowUp } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -12,7 +12,6 @@ import { AccountFilter } from "../components/AccountFilter";
 import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
-import { useQuickAdd } from "../state/quickAdd";
 import {
   assetTypeLabels,
   buildNetWorthBreakdown,
@@ -33,7 +32,7 @@ import {
   type PortfolioAsset,
   todayInTimezone,
 } from "../domain";
-import { useRefreshQuotes } from "../features/market-data/useMarketRefresh";
+import { useRefreshQuotes, useRefreshFxRates } from "../features/market-data/useMarketRefresh";
 import { useState } from "react";
 import { MonthPicker } from "../components/ui/month-picker";
 import { useUiPreferences } from "../state/uiPreferences";
@@ -52,10 +51,10 @@ const CHART_COLORS = [
 export function DashboardRoute() {
   const { accounts, ledger, assets, quotes, settings, dailyFxRates, recurring, recurringInvestments, financialGoals, investments } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
+  const refreshFxRates = useRefreshFxRates();
   const timezone = useUiPreferences((state) => state.timezone);
   const queryClient = useQueryClient();
   const toast = useToast();
-  const openQuickAdd = useQuickAdd((state) => state.setOpen);
   const [monthKey, setMonthKey] = useState(() => new Date().toISOString().slice(0, 7));
   const [selectedAccount, setSelectedAccount] = useState<string>("all");
   const [demoLoading, setDemoLoading] = useState(false);
@@ -86,6 +85,21 @@ export function DashboardRoute() {
   const goalRows = financialGoals.data ?? [];
 
   const { primaryCurrency, toPrimary } = createFxConverter(appSettings, fxHistory);
+
+  // "更新" refreshes stock quotes and FX rates together (B6).
+  const refreshingMarket = refreshQuotes.isPending || refreshFxRates.isPending;
+  async function refreshMarket() {
+    const tickers = assetRows.map((a) => a.ticker);
+    const pairs = (appSettings?.exchangeRates ?? []).map((r) => ({ from: r.from, to: r.to || primaryCurrency }));
+    const tasks: Promise<unknown>[] = [];
+    if (tickers.length) tasks.push(refreshQuotes.mutateAsync(tickers));
+    if (pairs.length) tasks.push(refreshFxRates.mutateAsync({ pairs, range: "1y" }));
+    if (!tasks.length) return;
+    const results = await Promise.allSettled(tasks);
+    if (results.some((r) => r.status === "rejected")) toast.error("部分更新失敗");
+    else toast.success("已更新股價與匯率");
+  }
+
   const missingFxPairs = useMemo(() => {
     const currencies = new Set([
       ...accountRows.map((account) => account.currency),
@@ -294,10 +308,9 @@ export function DashboardRoute() {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} />
           <MonthPicker value={monthKey} onChange={setMonthKey} triggerClassName="h-[36px] whitespace-nowrap" />
-          <Button variant="outline" className="h-9 sm:h-9" onClick={() => refreshQuotes.mutate(assetRows.map((a) => a.ticker))} loading={refreshQuotes.isPending} disabled={refreshQuotes.isPending || assetRows.length === 0}>
-            <ArrowsClockwise size={14} />{refreshQuotes.isPending ? "更新中" : "更新"}
+          <Button variant="outline" className="h-9 sm:h-9" onClick={refreshMarket} loading={refreshingMarket} disabled={refreshingMarket || (assetRows.length === 0 && (appSettings?.exchangeRates?.length ?? 0) === 0)}>
+            <ArrowsClockwise size={14} />{refreshingMarket ? "更新中" : "更新"}
           </Button>
-          <Button className="h-9 sm:h-9" onClick={() => openQuickAdd(true)}><Plus size={14} weight="bold" />新增</Button>
         </div>
       </div>
 
@@ -331,7 +344,11 @@ export function DashboardRoute() {
             ) : null}
           </div>
           {trend.length > 1 ? (
-            <div style={{ flex: 1, minHeight: 160 }}>
+            // position:relative + absolute inner so ResponsiveContainer gets a
+            // definite height inside the flex column (otherwise it measures 0
+            // and the area never draws).
+            <div style={{ flex: 1, minHeight: 160, position: "relative" }}>
+              <div style={{ position: "absolute", inset: 0 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trend}>
                   <defs>
@@ -346,6 +363,7 @@ export function DashboardRoute() {
                   <Area type="monotone" dataKey="value" stroke="var(--ns-accent)" fill="url(#netWorth)" strokeWidth={2} />
                 </AreaChart>
               </ResponsiveContainer>
+              </div>
             </div>
           ) : (
             // No meaningful trend yet → collapse to a slim hint instead of a tall
@@ -562,7 +580,9 @@ export function DashboardRoute() {
                 {allocation.map((a) => (
                   <div key={a.label} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, borderBottom: "1px solid var(--ns-border)", paddingBottom: 5 }}>
                     <span style={{ width: 8, height: 8, background: a.color, borderRadius: 2, flexShrink: 0 }} />
-                    <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.label}</span>
+                    {/* Wrap rather than ellipsis-truncate so class labels stay
+                        fully readable on the narrow 3-card row (B17). */}
+                    <span style={{ flex: 1, minWidth: 0, lineHeight: 1.25, wordBreak: "break-word" }} title={a.label}>{a.label}</span>
                     {/* Compact (萬/億 · K/M) so the value never forces the label to
                         wrap vertically on a narrow card. */}
                     <span className="num muted" style={{ fontSize: 11, flexShrink: 0 }} title={formatMoney(a.value, primaryCurrency)}>{formatCompactMoney(a.value, primaryCurrency)}</span>
@@ -712,17 +732,29 @@ function buildNetWorthTrend(
   ].filter(Boolean);
   if (startCandidates.length === 0 && settledRows.length === 0) return [];
 
+  // Pick bucket granularity from the overall span: histories shorter than ~2
+  // calendar months bucket by day, so a single month of activity still draws a
+  // real curve instead of collapsing to one monthly point (B5). Longer
+  // histories stay monthly to keep the point count sane.
+  const earliest = (startCandidates.length ? [...startCandidates].sort()[0] : dateOnly(settledRows[0].date));
+  const earliestDate = new Date(`${earliest}T00:00:00`);
+  const now = new Date();
+  const spanMonths = (now.getFullYear() - earliestDate.getFullYear()) * 12 + (now.getMonth() - earliestDate.getMonth());
+  const granularity: "day" | "month" = spanMonths >= 2 ? "month" : "day";
+  const keyOf = (date: string) => (granularity === "month" ? monthKey(date) : dateOnly(date));
+  const labelOf = (key: string) => (granularity === "month" ? formatMonth(key) : formatDay(key));
+
   // Cash side: opening balances + every settled ledger movement (which already
   // includes the cash leg of investment buys/sells).
   const cashDelta = new Map<string, number>();
   for (const account of accounts) {
     const joinedDate = dateOnly(account.createdAt);
     if (!joinedDate) continue;
-    const key = monthKey(joinedDate);
+    const key = keyOf(joinedDate);
     cashDelta.set(key, (cashDelta.get(key) ?? 0) + toPrimary(account.openingBalance, account.currency, joinedDate));
   }
   for (const row of settledRows) {
-    const key = monthKey(row.date);
+    const key = keyOf(row.date);
     cashDelta.set(key, (cashDelta.get(key) ?? 0) + toPrimary(row.amount, row.currency, row.date));
   }
 
@@ -741,23 +773,21 @@ function buildNetWorthTrend(
   for (const [assetId, records] of recordsByAsset) {
     const currency = currencyByAsset.get(assetId) ?? "TWD";
     for (const { date, delta } of buildCostBasisTimeline(records)) {
-      const key = monthKey(date);
+      const key = keyOf(date);
       holdingsCostDelta.set(key, (holdingsCostDelta.get(key) ?? 0) + toPrimary(delta, currency, date));
     }
   }
 
-  const startMonth = startCandidates.length
-    ? monthKey([...startCandidates].sort()[0])
-    : monthKey(settledRows[0].date);
-  const orderedMonths = [...new Set([startMonth, ...cashDelta.keys(), ...holdingsCostDelta.keys()])].sort();
+  const startKey = keyOf(earliest);
+  const orderedKeys = [...new Set([startKey, ...cashDelta.keys(), ...holdingsCostDelta.keys()])].sort();
 
   let cashRunning = 0;
   let holdingsRunning = 0;
   const timeline: Array<{ date: string; value: number }> = [];
-  for (const key of orderedMonths) {
+  for (const key of orderedKeys) {
     cashRunning += cashDelta.get(key) ?? 0;
     holdingsRunning += holdingsCostDelta.get(key) ?? 0;
-    timeline.push({ date: formatMonth(key), value: cashRunning + holdingsRunning });
+    timeline.push({ date: labelOf(key), value: cashRunning + holdingsRunning });
   }
 
   const quoteFor = (ticker: string) => quotes.find((quote) => quote.symbol.toUpperCase() === ticker.toUpperCase());
@@ -766,9 +796,10 @@ function buildNetWorthTrend(
     const value = quote ? quote.price * asset.totalQuantity : asset.averageCost * asset.totalQuantity;
     return sum + toPrimary(value, quote?.currency ?? asset.currency);
   }, 0);
-  // Replace accrued cost with live market value at the current point so the last
-  // reading matches the headline net worth (cash + market value of holdings).
-  if (currentHoldingsValue > 0 || holdingsRunning > 0) {
+  // Always close the trend at "現在" (today's net worth, holdings valued at live
+  // market price). This both swaps accrued cost for market value and guarantees a
+  // second point so the chart renders even from a single bucket (B5).
+  if (timeline.length > 0) {
     timeline.push({ date: "現在", value: cashRunning + currentHoldingsValue });
   }
   return timeline;
@@ -778,6 +809,12 @@ function formatMonth(value: string) {
   const date = new Date(`${value}-01T00:00:00`);
   if (Number.isNaN(date.getTime())) return value.slice(0, 7);
   return date.toLocaleDateString("zh-TW", { year: "numeric", month: "short" });
+}
+
+function formatDay(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value.slice(5, 10);
+  return date.toLocaleDateString("zh-TW", { month: "numeric", day: "numeric" });
 }
 
 function dateOnly(value: string | null | undefined) {

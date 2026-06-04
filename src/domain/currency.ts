@@ -140,11 +140,20 @@ export function formatPercent(value: number, fractionDigits = 2) {
 export function formatQuantity(amount: number) {
   if (__privacyMaskOn) return MASKED_TEXT;
   if (Number.isInteger(amount)) return amount.toLocaleString("zh-TW");
-  return amount.toLocaleString("zh-TW", { maximumFractionDigits: 4 });
+  // Up to 6 decimals (fractional shares / split-adjusted lots), trailing zeros
+  // dropped so "10" never renders as "10.000000". See B18 precision policy.
+  return amount.toLocaleString("zh-TW", { maximumFractionDigits: 6 });
 }
 
-export function formatPrice(value: number, fractionDigits = 2) {
+export function formatPrice(value: number, fractionDigits?: number) {
   if (__privacyMaskOn) return MASKED_TEXT;
+  // Default: 2–6 decimals. US fractional-share prices can carry up to 6
+  // meaningful digits; normal prices still read as "100.00" because trailing
+  // zeros beyond the 2-decimal minimum are dropped. Pass an explicit count to
+  // pin a fixed number of decimals. See B18 precision policy.
+  if (fractionDigits === undefined) {
+    return value.toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+  }
   return value.toLocaleString("zh-TW", {
     maximumFractionDigits: fractionDigits,
     minimumFractionDigits: fractionDigits,

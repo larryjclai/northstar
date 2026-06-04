@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { useFinanceData } from "../data/hooks";
-import { buildPositionMetrics, calculateFifo, calculateXirr, formatNumber, formatPrice, formatQuantity, resolveAssetName } from "../domain";
+import { buildPositionMetrics, calculateFifo, calculateXirr, formatNumber, formatPrice, formatQuantity, resolveAssetName, XIRR_MIN_DAYS } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { AssetLogo } from "../components/AssetLogo";
 import { Badge } from "../components/coss/badge";
@@ -100,6 +100,7 @@ export function HoldingDetailRoute() {
   const holdingDays = holdingSince
     ? Math.max(0, Math.floor((Date.now() - new Date(holdingSince).getTime()) / 86_400_000))
     : null;
+  const xirrTooShort = xirr !== null && holdingDays !== null && holdingDays < XIRR_MIN_DAYS;
   // 配息 YTD：本年度現金股利。新列以 price 存總額(quantity=0)；舊列為
   // 「每股股利 × 股數」，兩者都要正確加總。
   const thisYear = new Date().toISOString().slice(0, 4);
@@ -221,13 +222,17 @@ export function HoldingDetailRoute() {
                 ["未實現損益", (pos ? "+" : "") + formatNumber(unrealizedGain), pos ? "pos" : "neg"],
                 ["總報酬率", (pos ? "+" : "") + unrealizedGainPercent.toFixed(2) + "%", pos ? "pos" : "neg"],
                 ["已實現損益", (realizedGain >= 0 ? "+" : "") + formatNumber(realizedGain), realizedGain >= 0 ? "pos" : "neg"],
-                ["年化報酬 (XIRR)", xirr === null ? "–" : (xirr >= 0 ? "+" : "") + (xirr * 100).toFixed(2) + "%", xirr === null ? null : xirr >= 0 ? "pos" : "neg"],
+                // B1: annualized return is meaningless for short holding spans —
+                // suppress to "—" with an explanatory tooltip below XIRR_MIN_DAYS.
+                xirrTooShort
+                  ? ["年化報酬 (XIRR)", "–", null, `持有期間少於 ${XIRR_MIN_DAYS} 天，年化報酬不具參考意義`]
+                  : ["年化報酬 (XIRR)", xirr === null ? "–" : (xirr >= 0 ? "+" : "") + (xirr * 100).toFixed(2) + "%", xirr === null ? null : xirr >= 0 ? "pos" : "neg"],
                 ["配息 YTD", formatNumber(dividendYtd), null],
                 ["持倉天數", holdingDays !== null ? `${holdingDays} 天` : "–", null],
-              ].map(([l, v, c]) => (
+              ].map(([l, v, c, t]) => (
                 <div key={l}>
                   <div className="muted" style={{ fontSize: 11 }}>{l}</div>
-                  <div className={"num " + (c || "")} style={{ fontSize: 16, fontWeight: 500 }}>{v}</div>
+                  <div className={"num " + (c || "")} style={{ fontSize: 16, fontWeight: 500 }} title={t ?? undefined}>{v}</div>
                 </div>
               ))}
             </div>

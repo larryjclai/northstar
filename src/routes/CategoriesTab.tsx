@@ -128,6 +128,8 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, primaryCur
                 </Pie>
                 <Tooltip 
                   contentStyle={{ background: "var(--ns-surface)", border: "1px solid var(--ns-border)", borderRadius: 6, fontSize: 12 }}
+                  itemStyle={{ color: "var(--ns-fg)" }}
+                  labelStyle={{ color: "var(--ns-fg)" }}
                   formatter={(v: any) => [`${primaryCurrency} ${formatNumber(v as number)}`, "支出"]}
                 />
               </PieChart>

@@ -16,7 +16,9 @@ export function ReconcileRoute() {
   const toast = useToast();
   const timezone = useUiPreferences((s) => s.timezone);
   const { accounts, ledger } = useFinanceData();
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Per-period open/closed override. Absent → falls back to the default (the
+  // current period starts open, past periods start collapsed).
+  const [expandOverride, setExpandOverride] = useState<Record<string, boolean>>({});
 
   const setReviewed = useRepositoryMutation(
     (repository, input: { id: string; reviewed: boolean }) => repository.setLedgerReviewed(input.id, input.reviewed),
@@ -49,16 +51,13 @@ export function ReconcileRoute() {
   );
 
   const currentPeriod = periods.find((p) => p.isCurrent) ?? periods[0];
-  const isOpen = (key: string) => expanded.has(key) || key === currentPeriod?.key;
+  const defaultOpen = (key: string) => key === currentPeriod?.key;
+  const isOpen = (key: string) => (key in expandOverride ? expandOverride[key] : defaultOpen(key));
 
   function toggleExpand(key: string) {
-    setExpanded((current) => {
-      const next = new Set(current);
-      // The current period defaults to open; toggling it needs an explicit
-      // "collapsed" marker, so we just allow opening past periods here.
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
+    // Flip relative to the current open state so every period — including the
+    // current one (which defaults open) — can be collapsed and re-expanded (B7).
+    setExpandOverride((current) => ({ ...current, [key]: !isOpen(key) }));
   }
 
   async function toggle(id: string, current: boolean) {
