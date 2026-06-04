@@ -51,7 +51,7 @@ export function MerchantsTab({ filterMonth, ledgerRows, primaryCurrency, toPrima
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {/* Top Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))", gap: 20 }}>
         <Card style={{ padding: "20px 24px" }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>Top Merchant</div>
           <div style={{ fontSize: 18, fontWeight: 500 }}>
@@ -76,7 +76,7 @@ export function MerchantsTab({ filterMonth, ledgerRows, primaryCurrency, toPrima
       {top5Pie.length > 0 ? (
         <Card style={{ padding: "var(--ns-pad-card)" }}>
           <div className="ns-eyebrow" style={{ marginBottom: 12 }}>Top 5 支出商家 · {currentYear}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: 24, alignItems: "center" }}>
+          <div className="grid grid-cols-1 items-center gap-5 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-6">
             <div style={{ width: 180, height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -108,6 +108,35 @@ export function MerchantsTab({ filterMonth, ledgerRows, primaryCurrency, toPrima
 
       {/* Main Content */}
       <Card style={{ padding: "var(--ns-pad-card)",  overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        {/* Mobile: a 4-column table can't fit a phone, so each merchant is a
+            tappable card (avatar, name, category · visits, YTD spend). The full
+            table returns at sm+. */}
+        <div className="flex flex-col gap-2 sm:hidden">
+          {allMerchantSpend.length === 0 ? (
+            <div className="muted" style={{ padding: 24, textAlign: "center", fontSize: 13 }}>無商家紀錄</div>
+          ) : allMerchantSpend.map((r, idx) => {
+            const bg = defaultColors[idx % defaultColors.length];
+            return (
+              <Link
+                to="/cash-flow/merchants/$merchantName"
+                params={{ merchantName: r.name }}
+                key={`m-${r.name}`}
+                className="flex items-center gap-3 rounded-xl border p-3 no-underline"
+                style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)", color: "inherit" }}
+              >
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: bg, color: readableTextColor(bg), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 600, flexShrink: 0 }}>{getInitials(r.name)}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate" style={{ fontWeight: 500 }}>{r.name}</div>
+                  <div className="muted truncate" style={{ fontSize: 12 }}>{r.category} · {r.visits} 次</div>
+                </div>
+                <div className="num" style={{ whiteSpace: "nowrap", fontSize: 14 }}>−{primaryCurrency} {formatNumber(r.amount)}</div>
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Desktop: full table */}
+        <div className="hidden sm:contents">
         <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", fontSize: 12, fontWeight: 500, color: "var(--ns-fg-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
           <div>Merchant</div>
           <div>Category</div>
@@ -154,6 +183,7 @@ export function MerchantsTab({ filterMonth, ledgerRows, primaryCurrency, toPrima
               );
             })
           )}
+        </div>
         </div>
       </Card>
     </div>
