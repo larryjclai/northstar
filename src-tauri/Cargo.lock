@@ -2722,7 +2722,7 @@ dependencies = [
 
 [[package]]
 name = "northstar"
-version = "0.1.0-alpha.22"
+version = "0.1.0-alpha.23"
 dependencies = [
  "reqwest 0.12.28",
  "serde",

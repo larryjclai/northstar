@@ -19,7 +19,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Extract this version's "what's new" from CHANGELOG.md once, so both the
+  # private-repo release body and the mirrored public-repo release body include
+  # the feature notes (falls back to just the install table if the version has
+  # no CHANGELOG section).
+  notes:
+    runs-on: ubuntu-latest
+    outputs:
+      body: ${{ steps.extract.outputs.body }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: extract
+        env:
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          VERSION="${TAG#v}"
+          {
+            echo "body<<__NOTES_EOF__"
+            node scripts/changelog-notes.mjs "$VERSION" || true
+            echo "__NOTES_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
   publish-tauri:
+    needs: notes
     permissions:
       contents: write   # required to create GitHub Releases
 
@@ -114,6 +136,8 @@ jobs:
           tagName: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           releaseName: Northstar ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           releaseBody: |
+            ${{ needs.notes.outputs.body }}
+
             ## 安裝方式
 
             | 平台 | 檔案 |
@@ -140,7 +164,7 @@ jobs:
   # signed binaries anonymously. latest.json's per-platform URLs are rewritten
   # from the private repo to the public one; signatures are unchanged.
   mirror-to-public:
-    needs: publish-tauri
+    needs: [publish-tauri, notes]
     runs-on: ubuntu-latest
     permissions:
       contents: read   # read this (private) repo's release assets
@@ -180,8 +204,16 @@ jobs:
           # Fine-grained PAT with contents:write on larryjclai/northstar-releases.
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
           TAG: ${{ steps.tag.outputs.tag }}
+          # This version's CHANGELOG section (may be empty) — passed via env so we
+          # don't fight YAML/heredoc indentation when interpolating multiline text.
+          CHANGELOG_NOTES: ${{ needs.notes.outputs.body }}
         run: |
-          NOTES=$'Northstar 桌面版下載與自動更新來源（app 原始碼為 private）。\n\n| 平台 | 檔案 |\n|------|------|\n| macOS (Apple Silicon) | `Northstar_*_aarch64.dmg` |\n| macOS (Intel) | `Northstar_*_x64.dmg` |\n| Windows | `Northstar_*_x64-setup.exe` |\n| Linux (Debian/Ubuntu) | `northstar_*_amd64.deb` |\n| Linux (通用) | `northstar_*_amd64.AppImage` |\n\n**macOS 首次開啟**：若出現「無法驗證開發者」，右鍵點擊 app → 選「開啟」。'
+          INSTALL=$'Northstar 桌面版下載與自動更新來源（app 原始碼為 private）。\n\n| 平台 | 檔案 |\n|------|------|\n| macOS (Apple Silicon) | `Northstar_*_aarch64.dmg` |\n| macOS (Intel) | `Northstar_*_x64.dmg` |\n| Windows | `Northstar_*_x64-setup.exe` |\n| Linux (Debian/Ubuntu) | `northstar_*_amd64.deb` |\n| Linux (通用) | `northstar_*_amd64.AppImage` |\n\n**macOS 首次開啟**：若出現「無法驗證開發者」，右鍵點擊 app → 選「開啟」。'
+          if [ -n "${CHANGELOG_NOTES//[$' \t\n']/}" ]; then
+            NOTES="$(printf '%s\n\n%s' "$CHANGELOG_NOTES" "$INSTALL")"
+          else
+            NOTES="$INSTALL"
+          fi
           if gh release view "$TAG" --repo larryjclai/northstar-releases >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --repo larryjclai/northstar-releases --clobber
           else
