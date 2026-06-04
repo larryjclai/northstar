@@ -63,11 +63,25 @@ jobs:
           node-version: lts/*
           cache: npm
 
+      # GitHub-hosted runners: install the toolchain via the action.
       - name: Install Rust (stable)
+        if: runner.environment == 'github-hosted'
         uses: dtolnay/rust-toolchain@stable
         with:
           # aarch64 cross-compilation target for Apple Silicon builds
           targets: ${{ startsWith(matrix.platform, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      # Self-hosted runners already have a working toolchain (running rustup-init
+      # again errors with "cannot install while Rust is installed"). Just make
+      # sure the cross-compile targets are present, idempotently.
+      - name: Ensure Rust targets (self-hosted)
+        if: runner.environment == 'self-hosted' && startsWith(matrix.platform, 'macos')
+        run: |
+          if command -v rustup >/dev/null 2>&1; then
+            rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          else
+            echo "rustup not found — assuming the local toolchain already provides the targets."
+          fi
 
       - name: Cache Rust build
         uses: swatinem/rust-cache@v2
