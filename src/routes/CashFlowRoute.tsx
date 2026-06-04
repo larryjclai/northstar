@@ -606,7 +606,7 @@ export function CashFlowRoute() {
   );
 
   return (
-    <div style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
+    <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]" style={{ maxWidth: 1180, margin: "0 auto" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginBottom: 22, flexWrap: "wrap" }}>
         <div>
@@ -615,7 +615,7 @@ export function CashFlowRoute() {
             記帳
           </h1>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "nowrap" }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
           <MonthPicker
             value={selectedMonth} 
             onChange={setSelectedMonth} 
@@ -675,8 +675,11 @@ export function CashFlowRoute() {
               <span className="muted" style={{ fontSize: 12, marginLeft: "auto" }}>結清後會計入收支 · 在下方明細點 ✓ 結清</span>
             </Card>
           ) : null}
-          {/* Summary layer */}
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 20, marginBottom: 20 }}>
+          {/* Summary layer — single column on phones (the chart + category cards
+              stack), 2-up only from lg. The old fixed `minmax(0,1fr) 320px` grid
+              had no breakpoint, so on a phone the 320px column crushed the chart
+              card to a few px and the two cards jammed together. */}
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]" style={{ marginBottom: 20 }}>
         {/* Cashflow Chart */}
         <Card id="cashflow-chart" style={{ padding: 24 }}>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 16, marginBottom: 14, flexWrap: "wrap" }}>

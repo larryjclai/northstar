@@ -222,7 +222,7 @@ export function AccountsRoute() {
   }
 
   return (
-    <div style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
+    <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]" style={{ maxWidth: 1180, margin: "0 auto" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 22, gap: 16, flexWrap: "wrap" }}>
         <div>
@@ -239,7 +239,7 @@ export function AccountsRoute() {
       {/* Balance-sheet summary — always a full 3-up so a single-currency user
           doesn't see one lonely card in a 4-wide grid. */}
       {rows.length > 0 ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))", gap: 14, marginBottom: 14 }}>
           {([
             { label: "總資產", value: totals.assets, color: "var(--ns-chart-2)", tone: undefined },
             { label: "總負債", value: totals.liabilities, color: "var(--ns-chart-5)", tone: "neg" as const },
@@ -260,7 +260,7 @@ export function AccountsRoute() {
 
       {/* Currency split — only meaningful with more than one currency. */}
       {currencyBreakdown.length > 1 ? (
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(${currencyBreakdown.length}, 1fr)`, gap: 14, marginBottom: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(130px, 100%), 1fr))", gap: 14, marginBottom: 20 }}>
           {currencyBreakdown.map((c) => (
             <Card key={c.ccy} style={{ padding: 16 }}>
               <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{c.ccy}</div>

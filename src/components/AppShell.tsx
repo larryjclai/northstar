@@ -219,7 +219,18 @@ export function AppShell() {
       </aside>
 
       {/* ── Main content ── */}
-      <main key={privacyMode ? "privacy-on" : "privacy-off"} className="pb-20 lg:pb-0">
+      {/* pt safe-area clears the notch / Dynamic Island on iOS (0 on desktop, so
+          it's a no-op there). Each route keeps its own top padding on top of it. */}
+      <main
+        key={privacyMode ? "privacy-on" : "privacy-off"}
+        className="pb-20 lg:pb-0"
+        // overflowX clip is a second line of defense (besides html/body): it
+        // contains any route-level horizontal overflow here so a single wide
+        // element can't push content off-screen or trip the iOS webview into
+        // widening its layout viewport. Wide tables still scroll in their own
+        // overflow-x:auto wrapper.
+        style={{ paddingTop: "env(safe-area-inset-top)", overflowX: "clip" }}
+      >
         {demoActive ? (
           <div
             className="flex items-center gap-3"
@@ -288,7 +299,7 @@ export function AppShell() {
       {/* ── Mobile bottom nav ── */}
       <nav
         className="fixed inset-x-0 bottom-0 grid grid-cols-5 border-t lg:hidden"
-        style={{ background: "var(--ns-bg-elev)", borderColor: "var(--ns-border)" }}
+        style={{ background: "var(--ns-bg-elev)", borderColor: "var(--ns-border)", paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         {mobilePrimaryNav.map((item) => (
           <Link
@@ -306,7 +317,11 @@ export function AppShell() {
           type="button"
           onClick={() => setMoreOpen(true)}
           className="flex flex-col items-center gap-1 px-1 py-2 text-[11px] outline-none"
-          style={{ background: "none", border: "none", cursor: "pointer", color: moreOpen ? "var(--ns-accent)" : "var(--ns-fg-muted)" }}
+          // fontSize is pinned inline because an unlayered global `button` rule
+          // overrides the text-[11px] utility (Tailwind v4 ranks unlayered CSS
+          // above utilities), which otherwise renders this label at 16px while
+          // the sibling <a> nav items stay at 11px.
+          style={{ fontSize: 11, lineHeight: 1.4, background: "none", border: "none", cursor: "pointer", color: moreOpen ? "var(--ns-accent)" : "var(--ns-fg-muted)" }}
           aria-label="更多"
           aria-expanded={moreOpen}
         >

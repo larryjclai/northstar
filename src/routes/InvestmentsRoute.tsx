@@ -1051,7 +1051,49 @@ function HoldingsTab({
           </div>
         }
       >
-        <div className="overflow-x-auto">
+        {/* Mobile: card stack — a 10-column table can't fit a phone, so each
+            position becomes a tappable card showing the at-a-glance essentials
+            (ticker, name, holdings, market value, P/L). Full per-column detail
+            lives on the holding-detail page. The full table returns at sm+. */}
+        <div className="flex flex-col gap-2 sm:hidden">
+          {paginated.map((position) => {
+            const account = position.accountId ? accountMap.get(position.accountId) : null;
+            const asset = assetsById.get(position.assetId) ?? null;
+            const displayName = asset ? resolveAssetName(asset, nameLocale) : position.name;
+            const pnlUp = position.unrealizedGain >= 0;
+            const pnlColor = pnlUp ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)";
+            return (
+              <button
+                type="button"
+                key={`m-${position.assetId}-${position.accountId ?? "none"}`}
+                onClick={() => navigate({ to: '/holdings/$ticker', params: { ticker: position.ticker } })}
+                className="flex items-center gap-3 rounded-xl border p-3 text-left outline-none transition active:opacity-90"
+                style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}
+              >
+                <AssetLogo ticker={position.ticker} name={position.name} size={34} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold whitespace-nowrap">{position.ticker}</span>
+                    <span className="truncate text-xs" style={{ color: "var(--ns-muted)" }}>{displayName}</span>
+                  </div>
+                  <div className="mt-0.5 truncate text-xs tabular" style={{ color: "var(--ns-muted)" }}>
+                    {formatQuantity(position.quantity)} 股 · {account ? account.name : "未指定"}
+                  </div>
+                </div>
+                <div className="text-right tabular">
+                  <div className="font-semibold whitespace-nowrap">
+                    {formatCompactNumber(position.marketValue)} <span className="text-xs" style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
+                  </div>
+                  <div className="mt-0.5 whitespace-nowrap text-xs" style={{ color: pnlColor }}>
+                    {pnlUp ? "+" : ""}{formatCompactNumber(position.unrealizedGain)} · {pnlUp ? "+" : ""}{position.unrealizedGainPercent.toFixed(2)}%
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="hidden overflow-x-auto sm:block">
           <table className="w-full table-auto text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>

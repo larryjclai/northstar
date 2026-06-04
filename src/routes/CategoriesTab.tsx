@@ -1,6 +1,7 @@
 import { Gear, CaretRight } from "@phosphor-icons/react";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
+import { SplitLayout } from "../components/coss/layout";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
@@ -99,8 +100,10 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, primaryCur
         </Card>
       </div>
 
-      {/* Main Content */}
-      <div style={{ display: "grid", gridTemplateColumns: "300px minmax(0,1fr)", gap: 20 }}>
+      {/* Main Content — donut (fixed-width side) + table (main). SplitLayout
+          stacks them on a phone and goes 2-up only when the container is wide
+          enough (container query, not a viewport breakpoint). */}
+      <SplitLayout sideWidth={300} sidePosition="start">
         {/* Left: Donut Chart */}
         <Card style={{ padding: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
@@ -227,7 +230,7 @@ export function CategoriesTab({ filterMonth, ledgerRows, appSettings, primaryCur
             )}
           </div>
         </Card>
-      </div>
+      </SplitLayout>
     </div>
   );
 }

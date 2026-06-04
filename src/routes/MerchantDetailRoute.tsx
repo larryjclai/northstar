@@ -45,7 +45,7 @@ export function MerchantDetailRoute() {
   }, [rows, appSettings, fxHistory, primaryCurrency]);
 
   return (
-    <div style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
+    <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]" style={{ maxWidth: 1180, margin: "0 auto" }}>
       <div style={{ marginBottom: 24 }}>
         <Button variant="ghost" render={<Link to="/cash-flow" />} style={{ marginBottom: 8 }}>
           <CaretLeft size={14} /> 返回記帳
@@ -55,7 +55,7 @@ export function MerchantDetailRoute() {
         </h1>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 300px", gap: 20 }}>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <Card style={{ padding: 24 }}>
             <div className="ns-eyebrow" style={{ marginBottom: 4 }}>總支出</div>

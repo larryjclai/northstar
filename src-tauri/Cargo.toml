@@ -17,10 +17,26 @@ tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-stronghold = "2"
 tauri-plugin-process = "2"
-
-[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-updater = "2"
+# Cross-platform deps. serde_json is needed by tauri::generate_context!, and
+# reqwest/url/serde back the fetch_yahoo command — all required on mobile too,
+# so they must live here, not under the desktop-only target block below.
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 url = "2"
+
+# Desktop-only: the self-updater is compiled out on iOS/Android (see lib.rs
+# cfg(desktop) gate and capabilities/desktop.json).
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+
+# Pin tauri-plugin-sql to a vendored copy that forces the SQLite pool to a
+# single connection (vendor/tauri-plugin-sql/src/wrapper.rs). Upstream uses a
+# 10-connection pool, which splits multi-statement transactions across
+# connections on slow iOS storage → "cannot commit - no transaction is active"
+# (code 1) + "database is locked" (code 5). See src/data/repositories.ts
+# serializeDatabase() for the JS side of the same invariant.
+# When bumping tauri-plugin-sql, re-vendor from the registry and re-apply the
+# one-line max_connections(1) change.
+[patch.crates-io]
+tauri-plugin-sql = { path = "vendor/tauri-plugin-sql" }
