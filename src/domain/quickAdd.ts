@@ -14,6 +14,14 @@ export interface QuickAddAccount {
 export interface QuickAddContext {
   accounts: QuickAddAccount[];
   merchantCategory?: Map<string, { category: string; subcategory: string }>;
+  /**
+   * When set, forces the parser down a specific path instead of guessing:
+   *   - "investment" treats the whole line as a buy/sell even without a
+   *     leading 買/賣 verb (the verb only flips action).
+   *   - "ledger" never routes to investment.
+   * Left undefined for the legacy auto-detect behaviour.
+   */
+  mode?: "ledger" | "investment";
 }
 
 export type QuickAddParsed =
@@ -52,19 +60,26 @@ export function parseQuickAdd(raw: string, ctx: QuickAddContext): QuickAddParsed
   const text = raw.trim();
   if (!text) return { kind: "unknown", text: "" };
 
-  // ── Investment: leading 買/賣/buy/sell ──
+  // ── Investment ──
+  // Auto mode triggers only on a leading 買/賣/buy/sell verb; "investment" mode
+  // treats the whole line as a trade regardless of verb (the verb, if present,
+  // only flips buy↔sell).
   const inv = /^(買|賣|buy|sell)\s+(.+)$/i.exec(text);
-  if (inv) {
-    const action: "buy" | "sell" = /買|buy/i.test(inv[1]) ? "buy" : "sell";
-    const rest = inv[2];
-    // ticker = first token; qty = first number (optionally 股/shares); price = number after @ or 元.
+  if (ctx.mode !== "ledger" && (inv || ctx.mode === "investment")) {
+    const verb = inv?.[1] ?? "";
+    const rest = inv?.[2] ?? text;
+    const action: "buy" | "sell" = /賣|sell/i.test(verb || rest) ? "sell" : "buy";
+    // ticker = first alnum token; qty = first number (optionally 股/張/shares);
+    // price = number after @ or 元.
     const tickerMatch = /([A-Za-z0-9]+(?:\.[A-Za-z]{1,4})?)/.exec(rest);
     const ticker = (tickerMatch?.[1] ?? "").toUpperCase();
     const afterTicker = tickerMatch ? rest.slice(tickerMatch.index + tickerMatch[0].length) : rest;
-    const qtyMatch = /(\d+(?:\.\d+)?)\s*(?:股|shares?)?/i.exec(afterTicker);
+    const qtyMatch = /(\d+(?:\.\d+)?)\s*(?:股|張|shares?)?/i.exec(afterTicker);
     const priceMatch = /(?:@|＠|價|單價|each)\s*(\d[\d,]*(?:\.\d+)?)/i.exec(rest) || /(\d[\d,]*(?:\.\d+)?)\s*元/.exec(rest);
     const accountMatch = matchAccount(rest, ctx.accounts);
-    if (ticker) {
+    // In forced investment mode, return a (possibly partial) draft for the user
+    // to finish even when no ticker was confidently read.
+    if (ticker || ctx.mode === "investment") {
       return {
         kind: "investment",
         action,

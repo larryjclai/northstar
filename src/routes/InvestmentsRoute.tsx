@@ -253,6 +253,9 @@ export function InvestmentsRoute() {
     let terminal = 0;
     for (const asset of assetRows) {
       if (asset.deletedAt !== null) continue;
+      // Manual holdings now carry a cashless opening-balance record, so every
+      // held position has ≥1 record and flows through the canonical engine —
+      // the opening buy supplies the −cost cashflow that anchors the return.
       const recs = recordRows.filter((r) => r.assetId === asset.id && r.deletedAt === null);
       if (recs.length === 0) continue;
       const m = buildPositionMetrics(recs);

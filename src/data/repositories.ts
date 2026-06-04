@@ -127,6 +127,8 @@ export interface InvestmentDraft {
   assetType?: AssetType | null;
   sector?: string | null;
   industry?: string | null;
+  /** Opening-balance lot: skip the cash/交割 ledger leg. See InvestmentRecord.cashless. */
+  cashless?: boolean;
 }
 
 export interface PortfolioAssetDraft {
@@ -373,16 +375,17 @@ function recomputeAssets(assets: PortfolioAsset[], records: InvestmentRecord[]) 
   const activeRecords = active(records);
   return assets.map((asset) => {
     if (asset.deletedAt !== null) return asset;
-    if (asset.holdingSource === "manual") {
-      const linkedRecords = activeRecords.filter((r) => r.assetId === asset.id);
-      if (linkedRecords.length === 0) return asset;
-      const baseQty = asset.baseQuantity ?? asset.totalQuantity;
-      return { ...asset, totalQuantity: Math.max(0, calculateInvestmentQuantity(linkedRecords, asset.id, baseQty)) };
-    }
     const assetRecords = activeRecords.filter((record) => record.assetId === asset.id);
     // Single source of truth for moving-average quantity + cost (see
-    // domain/portfolioMetrics). Keeps unrealized and realized P/L on the same
-    // basis and applies the corrected capital-reduction model (cuts shares).
+    // domain/portfolioMetrics). Manual holdings now carry a cashless "opening
+    // balance" record, so every asset — manual or transaction-based — derives
+    // quantity and blended cost from its records uniformly. This keeps
+    // unrealized and realized P/L on the same basis and blends later buys into
+    // a manual snapshot's average cost (previously frozen).
+    //
+    // Defensive fallback: a manual snapshot with no records yet (pre-migration
+    // edge) keeps its stored quantity/cost rather than collapsing to zero.
+    if (assetRecords.length === 0) return asset;
     const metrics = buildPositionMetrics(assetRecords);
     return {
       ...asset,
@@ -660,14 +663,35 @@ class BrowserFinanceRepository implements FinanceRepository {
   }
 
   async createManualHolding(input: PortfolioAssetDraft) {
-    this.data.portfolioAssets.push(createManualHoldingRow(input));
+    const asset = createManualHoldingRow(input);
+    this.data.portfolioAssets.push(asset);
+    // Materialize the opening-balance lot so quantity, blended cost, P/L, XIRR,
+    // and the net-worth trend all derive from records uniformly.
+    this.data.investmentRecords.push(buildOpeningRecord(asset, input));
+    this.recompute();
     await this.persist();
   }
 
   async updateManualHolding(id: string, input: PortfolioAssetDraft) {
-    this.data.portfolioAssets = this.data.portfolioAssets.map((asset) =>
-      asset.id === id && asset.holdingSource === "manual" ? bump({ ...asset, ...manualHoldingFields(input) }) : asset,
+    const asset = this.data.portfolioAssets.find((a) => a.id === id && a.holdingSource === "manual");
+    if (!asset) return;
+    this.data.portfolioAssets = this.data.portfolioAssets.map((a) =>
+      a.id === id && a.holdingSource === "manual" ? bump({ ...a, ...manualHoldingFields(input) }) : a,
     );
+    // The snapshot's numbers live on the opening record (single source of truth);
+    // keep it in sync with the edited qty/price/date/account.
+    const openingId = openingRecordId(id);
+    const rebuilt = buildOpeningRecord({ id, accountId: input.accountId || null }, input);
+    if (this.data.investmentRecords.some((r) => r.id === openingId)) {
+      this.data.investmentRecords = this.data.investmentRecords.map((r) =>
+        r.id === openingId
+          ? bump({ ...r, deletedAt: null, linkedAccountId: rebuilt.linkedAccountId, date: rebuilt.date, price: rebuilt.price, quantity: rebuilt.quantity })
+          : r,
+      );
+    } else {
+      this.data.investmentRecords.push(rebuilt);
+    }
+    this.recompute();
     await this.persist();
   }
 
@@ -679,11 +703,18 @@ class BrowserFinanceRepository implements FinanceRepository {
   }
 
   async deleteManualHolding(id: string) {
-    const hasRecords = this.data.investmentRecords.some((record) => record.assetId === id && record.deletedAt === null);
-    if (hasRecords) throw new Error("已有逐筆交易的持倉不能直接刪除。");
+    // The opening-balance lot is cashless and ours to remove; only real trades
+    // (cashless === false) block direct deletion.
+    const hasRealRecords = this.data.investmentRecords.some((record) => record.assetId === id && record.deletedAt === null && !record.cashless);
+    if (hasRealRecords) throw new Error("已有逐筆交易的持倉不能直接刪除。");
+    const timestamp = nowIso();
     this.data.portfolioAssets = this.data.portfolioAssets.map((asset) =>
-      asset.id === id && asset.holdingSource === "manual" ? bump({ ...asset, deletedAt: nowIso() }) : asset,
+      asset.id === id && asset.holdingSource === "manual" ? bump({ ...asset, deletedAt: timestamp }) : asset,
     );
+    this.data.investmentRecords = this.data.investmentRecords.map((record) =>
+      record.id === openingRecordId(id) && record.deletedAt === null ? bump({ ...record, deletedAt: timestamp }) : record,
+    );
+    this.recompute();
     await this.persist();
   }
 
@@ -1388,13 +1419,10 @@ class BrowserFinanceRepository implements FinanceRepository {
 
     if (input.action === "sell") {
       if (!existingAsset) throw new Error("賣出股數大於目前庫存。");
-      let available: number;
-      if (existingAsset.holdingSource === "manual") {
-        const baseQty = existingAsset.baseQuantity ?? existingAsset.totalQuantity;
-        available = Math.max(0, calculateInvestmentQuantity(this.data.investmentRecords, existingAsset.id, baseQty, options.excludeRecordId));
-      } else {
-        available = calculateInvestmentAccountQuantity(this.data.investmentRecords, existingAsset.id, account.id, options.excludeRecordId);
-      }
+      // Manual holdings now carry their opening lot as a record in the same
+      // account, so available quantity is the per-account record sum for both
+      // manual and transaction-based holdings.
+      const available = calculateInvestmentAccountQuantity(this.data.investmentRecords, existingAsset.id, account.id, options.excludeRecordId);
       if (input.quantity > available + 0.000001) throw new Error(`賣出股數大於目前庫存，可賣出 ${available} 股。`);
     }
 
@@ -1709,6 +1737,22 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.db.execute(
       `update portfolio_assets set base_quantity = total_quantity where holding_source = 'manual' and base_quantity is null`,
     );
+    // Opening-balance lot model: every manual holding is backed by a cashless
+    // "opening" investment record so quantity, blended cost, P/L, XIRR and the
+    // net-worth trend all derive from records uniformly. Materialize one for any
+    // manual holding that lacks it. Idempotent via the deterministic id
+    // (`inv_open_<assetId>`) — re-running, or two synced devices, converge on a
+    // single row instead of duplicating the opening lot.
+    await this.ensureSqliteColumn("investment_records", "cashless", "integer not null default 0");
+    await this.db.execute(
+      `insert into investment_records (id, space_id, revision, created_at, updated_at, deleted_at, asset_id, linked_account_id, date, action, price, quantity, fee, note, is_reviewed, linked_ledger_transaction_id, cashless)
+       select 'inv_open_' || a.id, a.space_id, 1, $1, $1, null, a.id, a.account_id,
+         coalesce(a.acquisition_date, substr(a.created_at, 1, 10)), 'buy', a.average_cost, coalesce(a.base_quantity, a.total_quantity), 0, '期初部位', 0, null, 1
+       from portfolio_assets a
+       where a.holding_source = 'manual' and a.deleted_at is null
+         and not exists (select 1 from investment_records r where r.id = 'inv_open_' || a.id)`,
+      [nowIso()],
+    );
     // Retirement-projection extensions for financial_goals. Each one is
     // optional at the DB level — readers coalesce missing values to the
     // sane defaults documented in `goalFieldsFromDraft`.
@@ -1939,15 +1983,34 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async createManualHolding(input: PortfolioAssetDraft) {
-    await this.insertAssetRow(createManualHoldingRow(input));
+    await this.withTransaction(async () => {
+      const asset = createManualHoldingRow(input);
+      await this.insertAssetRow(asset);
+      await this.insertInvestmentRow(buildOpeningRecord(asset, input));
+      await this.recomputeSqliteAssets();
+    });
   }
 
   override async updateManualHolding(id: string, input: PortfolioAssetDraft) {
     const classification = assetClassificationFields(input);
-    await this.db.execute(
-      `update portfolio_assets set revision = revision + 1, updated_at = $1, ticker = $2, name = $3, currency = $4, total_quantity = $5, average_cost = $6, acquisition_date = $7, account_id = $8, asset_type = $9, sector = $10, industry = $11 where id = $12 and holding_source = 'manual'`,
-      [nowIso(), input.ticker.trim().toUpperCase(), input.name.trim() || input.ticker.trim().toUpperCase(), input.currency.trim().toUpperCase(), input.totalQuantity, input.averageCost, input.acquisitionDate || null, input.accountId || null, classification.assetType, classification.sector, classification.industry, id],
-    );
+    await this.withTransaction(async () => {
+      await this.db.execute(
+        `update portfolio_assets set revision = revision + 1, updated_at = $1, ticker = $2, name = $3, currency = $4, acquisition_date = $5, account_id = $6, asset_type = $7, sector = $8, industry = $9, base_quantity = null where id = $10 and holding_source = 'manual'`,
+        [nowIso(), input.ticker.trim().toUpperCase(), input.name.trim() || input.ticker.trim().toUpperCase(), input.currency.trim().toUpperCase(), input.acquisitionDate || null, input.accountId || null, classification.assetType, classification.sector, classification.industry, id],
+      );
+      // Upsert the opening-balance record (single source of truth for qty/cost).
+      const rebuilt = buildOpeningRecord({ id, accountId: input.accountId || null }, input);
+      const existing = await this.db.select<Array<{ id: string }>>(`select id from investment_records where id = $1`, [rebuilt.id]);
+      if (existing[0]) {
+        await this.db.execute(
+          `update investment_records set revision = revision + 1, updated_at = $1, deleted_at = null, linked_account_id = $2, date = $3, price = $4, quantity = $5 where id = $6`,
+          [nowIso(), rebuilt.linkedAccountId, rebuilt.date, rebuilt.price, rebuilt.quantity, rebuilt.id],
+        );
+      } else {
+        await this.insertInvestmentRow(rebuilt);
+      }
+      await this.recomputeSqliteAssets();
+    });
   }
 
   override async updateAssetClassification(id: string, input: Pick<PortfolioAssetDraft, "assetType" | "sector" | "industry">) {
@@ -1959,11 +2022,17 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async deleteManualHolding(id: string) {
+    // Only real trades (cashless = 0) block deletion; the cashless opening lot
+    // is ours to soft-delete alongside the asset.
     const linked = await this.db.select<Array<{ count: number }>>(
-      `select count(*) as count from investment_records where asset_id = $1 and deleted_at is null`,
+      `select count(*) as count from investment_records where asset_id = $1 and deleted_at is null and cashless = 0`,
       [id],
     );
     if ((linked[0]?.count ?? 0) > 0) throw new Error("已有逐筆交易的持倉不能直接刪除。");
+    await this.db.execute(
+      `update investment_records set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2 and deleted_at is null`,
+      [nowIso(), openingRecordId(id)],
+    );
     await this.db.execute(
       `update portfolio_assets set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2 and holding_source = 'manual'`,
       [nowIso(), id],
@@ -1974,7 +2043,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     return this.db.select<InvestmentRecord[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       asset_id as assetId, linked_account_id as linkedAccountId, date, action, price, quantity, fee, note,
-      is_reviewed as isReviewed, linked_ledger_transaction_id as linkedLedgerTransactionId
+      is_reviewed as isReviewed, linked_ledger_transaction_id as linkedLedgerTransactionId, cashless
       from investment_records where deleted_at is null order by date desc, created_at desc`);
   }
 
@@ -2002,7 +2071,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     const existingRows = await this.db.select<InvestmentRecord[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       asset_id as assetId, linked_account_id as linkedAccountId, date, action, price, quantity, fee, note,
-      is_reviewed as isReviewed, linked_ledger_transaction_id as linkedLedgerTransactionId
+      is_reviewed as isReviewed, linked_ledger_transaction_id as linkedLedgerTransactionId, cashless
       from investment_records where id = $1 and deleted_at is null`, [id]);
     const existingRecord = existingRows[0];
     if (!existingRecord) throw new Error("找不到投資交易。");
@@ -3334,8 +3403,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   private async insertInvestmentRow(row: InvestmentRecord) {
     const now = nowIso();
     await this.db.execute(
-      `insert into investment_records (id, space_id, revision, created_at, updated_at, deleted_at, asset_id, linked_account_id, date, action, price, quantity, fee, note, is_reviewed, linked_ledger_transaction_id)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      `insert into investment_records (id, space_id, revision, created_at, updated_at, deleted_at, asset_id, linked_account_id, date, action, price, quantity, fee, note, is_reviewed, linked_ledger_transaction_id, cashless)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
       [
         row.id,
         row.spaceId ?? personalSpace,
@@ -3353,6 +3422,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         row.note ?? "",
         Number(row.isReviewed ?? false),
         row.linkedLedgerTransactionId ?? null,
+        Number(row.cashless ?? false),
       ],
     );
   }
@@ -3462,18 +3532,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     if (input.action === "sell") {
       if (!assetId) throw new Error("賣出股數大於目前庫存。");
       const records = await this.listInvestmentRecords();
-      const assetRows = await this.db.select<Array<{ holdingSource: string; baseQuantity: number | null; totalQuantity: number }>>(
-        `select holding_source as holdingSource, base_quantity as baseQuantity, total_quantity as totalQuantity from portfolio_assets where id = $1`,
-        [assetId],
-      );
-      const assetRow = assetRows[0];
-      let available: number;
-      if (assetRow?.holdingSource === "manual") {
-        const baseQty = assetRow.baseQuantity ?? assetRow.totalQuantity;
-        available = Math.max(0, calculateInvestmentQuantity(records, assetId, baseQty, options.excludeRecordId));
-      } else {
-        available = calculateInvestmentAccountQuantity(records, assetId, account.id, options.excludeRecordId);
-      }
+      // Manual holdings carry their opening lot as a record in the same account,
+      // so available quantity is the per-account record sum for both kinds.
+      const available = calculateInvestmentAccountQuantity(records, assetId, account.id, options.excludeRecordId);
       if (input.quantity > available + 0.000001) throw new Error(`賣出股數大於目前庫存，可賣出 ${available} 股。`);
     }
 
@@ -3728,12 +3789,11 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     const assets = await this.listPortfolioAssets();
     const records = await this.listInvestmentRecords();
     for (const asset of recomputeAssets(assets, records)) {
-      if (asset.holdingSource === "manual") {
-        if (!records.some((r) => r.assetId === asset.id)) continue;
-        await this.db.execute(`update portfolio_assets set total_quantity = $1 where id = $2`, [asset.totalQuantity, asset.id]);
-      } else {
-        await this.db.execute(`update portfolio_assets set total_quantity = $1, average_cost = $2 where id = $3`, [asset.totalQuantity, asset.averageCost, asset.id]);
-      }
+      // Manual holdings now carry their opening lot as a record, so every asset
+      // with records persists both derived quantity AND blended average cost.
+      // Skip assets with no records (manual snapshot pre-migration edge).
+      if (!records.some((r) => r.assetId === asset.id)) continue;
+      await this.db.execute(`update portfolio_assets set total_quantity = $1, average_cost = $2 where id = $3`, [asset.totalQuantity, asset.averageCost, asset.id]);
     }
   }
 }
@@ -3747,7 +3807,10 @@ function normalizeSqliteSyncPayload(entity: SyncEntity, row: Record<string, unkn
   );
   if (entity === "account") payload.isSharedToHousehold = Boolean(payload.isSharedToHousehold);
   if (entity === "ledger") payload.isReviewed = Boolean(payload.isReviewed);
-  if (entity === "investment") payload.isReviewed = Boolean(payload.isReviewed);
+  if (entity === "investment") {
+    payload.isReviewed = Boolean(payload.isReviewed);
+    payload.cashless = Boolean(payload.cashless);
+  }
   if (entity === "recurring") payload.isActive = Boolean(payload.isActive);
   if (entity === "recurringInvestment") payload.isActive = Boolean(payload.isActive);
   if (entity === "goal") {
@@ -3788,7 +3851,32 @@ function createInitialData(): RepositoryData {
   };
 }
 
+/**
+ * Default `cashless` on legacy records and ensure every manual holding owns its
+ * opening-balance lot. Deterministic id (`inv_open_<assetId>`) makes this
+ * idempotent across reloads and safe under sync (no duplicate openings).
+ */
+function materializeOpeningRecords(assets: PortfolioAsset[], records: InvestmentRecord[]): InvestmentRecord[] {
+  const normalized = records.map((row) => ({ ...row, cashless: row.cashless ?? false }));
+  const existingIds = new Set(normalized.map((row) => row.id));
+  for (const asset of assets) {
+    if (asset.holdingSource !== "manual" || asset.deletedAt !== null) continue;
+    if (existingIds.has(openingRecordId(asset.id))) continue;
+    normalized.push(buildOpeningRecord(asset, {
+      ticker: asset.ticker,
+      name: asset.name,
+      currency: asset.currency,
+      totalQuantity: asset.baseQuantity ?? asset.totalQuantity,
+      averageCost: asset.averageCost,
+      acquisitionDate: asset.acquisitionDate,
+      accountId: asset.accountId,
+    }));
+  }
+  return normalized;
+}
+
 function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
+  const portfolioAssets = (data.portfolioAssets ?? []).map(normalizePortfolioAsset);
   return {
     accounts: (data.accounts ?? []).map((account) => ({
       ...account,
@@ -3807,8 +3895,8 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
       originalCurrency: row.originalCurrency ?? null,
       recurringOccurrenceKey: row.recurringOccurrenceKey ?? null,
     })),
-    portfolioAssets: (data.portfolioAssets ?? []).map(normalizePortfolioAsset),
-    investmentRecords: data.investmentRecords ?? [],
+    portfolioAssets,
+    investmentRecords: materializeOpeningRecords(portfolioAssets, data.investmentRecords ?? []),
     recurringTransactions: (data.recurringTransactions ?? []).map((row) => ({
       ...row,
       subcategory: row.subcategory ?? "",
@@ -4044,7 +4132,46 @@ function manualHoldingFields(input: PortfolioAssetDraft) {
     acquisitionDate: input.acquisitionDate || null,
     ...assetClassificationFields(input),
     accountId: input.accountId || null,
-    baseQuantity: totalQuantity,
+    // baseQuantity is vestigial now that quantity derives from records (incl.
+    // the opening-balance lot). Kept as a nullable column for back-compat.
+    baseQuantity: null,
+  };
+}
+
+/**
+ * Deterministic id for a manual holding's opening-balance record. Deriving it
+ * from the asset id means two devices that create/migrate the same lot converge
+ * on one row (sync upsert dedups instead of producing duplicate openings).
+ */
+function openingRecordId(assetId: string) {
+  return `inv_open_${assetId}`;
+}
+
+/**
+ * The cashless "opening balance" lot that backs a manual holding: the snapshot's
+ * quantity/avgCost/date expressed as the position's first buy. Cashless so it
+ * never posts a 交割 ledger leg (it records an already-held position).
+ */
+function buildOpeningRecord(asset: Pick<PortfolioAsset, "id" | "accountId">, draft: PortfolioAssetDraft): InvestmentRecord {
+  const timestamp = nowIso();
+  return {
+    id: openingRecordId(asset.id),
+    spaceId: personalSpace,
+    revision: 1,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    deletedAt: null,
+    assetId: asset.id,
+    linkedAccountId: asset.accountId ?? null,
+    date: draft.acquisitionDate || timestamp.slice(0, 10),
+    action: "buy",
+    price: Math.max(0, Number(draft.averageCost) || 0),
+    quantity: Math.max(0, Number(draft.totalQuantity) || 0),
+    fee: 0,
+    note: "期初部位",
+    isReviewed: false,
+    linkedLedgerTransactionId: null,
+    cashless: true,
   };
 }
 
@@ -4116,6 +4243,8 @@ function recurringKey(ruleId: string, occurrenceDate: string) {
 }
 
 function createInvestmentLedgerRow(input: InvestmentDraft, investmentRecordId: string): LedgerTransaction | null {
+  // Opening-balance lots record an already-held position — they never move cash.
+  if (input.cashless) return null;
   const amount = calculateInvestmentCashDelta(input);
   if (amount === 0) return null;
   const timestamp = nowIso();
@@ -4293,6 +4422,7 @@ function investmentDraftFields(input: InvestmentDraft) {
     quantity: input.quantity,
     fee: input.fee,
     note: input.note,
+    cashless: input.cashless ?? false,
   };
 }
 

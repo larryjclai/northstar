@@ -113,6 +113,11 @@ export function HoldingForm({
           <TextInput type="date" value={value.acquisitionDate ?? ""} disabled={classificationOnly} onChange={(event) => onChange({ ...value, acquisitionDate: event.target.value || null })} />
         </Field>
       </div>
+      {!classificationOnly ? (
+        <p className="muted" style={{ fontSize: 12, marginTop: -2 }}>
+          平均成本與起始日期會建立一筆「期初部位」作為成本基準；之後的買賣會在此基礎上加權計算平均成本與報酬。若不確定原始成本，可填入目前市值，報酬將自起始日期起計。
+        </p>
+      ) : null}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Field label="類型">
           <SelectInput

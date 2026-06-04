@@ -54,6 +54,7 @@ const buyRecord: InvestmentRecord = {
   note: "",
   isReviewed: true,
   linkedLedgerTransactionId: null,
+  cashless: false,
 };
 
 describe("portfolio calculator", () => {

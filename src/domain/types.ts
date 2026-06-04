@@ -153,6 +153,14 @@ export interface InvestmentRecord extends SyncFields {
   note: string;
   isReviewed: boolean;
   linkedLedgerTransactionId: string | null;
+  /**
+   * When true, this record does NOT post a cash/交割 ledger leg. Used for the
+   * "opening balance" lot that backs a manual holding (an already-held position
+   * being recorded, not a purchase happening now). Still participates fully in
+   * moving-average cost, realized/unrealized P/L, XIRR cashflows, and the
+   * net-worth trend — it only suppresses the ledger cash movement.
+   */
+  cashless: boolean;
 }
 
 export type RecurringFrequency = "weekly" | "biweekly" | "monthly" | "yearly";

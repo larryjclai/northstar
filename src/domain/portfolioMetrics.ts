@@ -12,6 +12,19 @@ import type { InvestmentRecord } from "./types";
 
 const EPS = 1e-7;
 
+/**
+ * Order records for sequential moving-average processing. A cashless
+ * "opening balance" lot is the position's starting point and must be processed
+ * before any dated transaction — even one backdated earlier than the opening's
+ * own date (which falls back to "today" when no acquisition date is known).
+ * Otherwise a backdated sell would settle against zero inventory and the
+ * opening shares would be added afterward, inflating the final quantity.
+ */
+function openingFirst(a: InvestmentRecord, b: InvestmentRecord): number {
+  if (a.cashless !== b.cashless) return a.cashless ? -1 : 1;
+  return a.date.localeCompare(b.date);
+}
+
 export interface Cashflow {
   /** YYYY-MM-DD */
   date: string;
@@ -50,7 +63,7 @@ const day = (s: string) => s.slice(0, 10);
 export function buildPositionMetrics(records: InvestmentRecord[]): PositionMetrics {
   const sorted = records
     .filter((r) => r.deletedAt === null)
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .sort(openingFirst);
 
   let quantity = 0;
   let cost = 0;
@@ -136,7 +149,7 @@ export interface CostBasisDelta {
 export function buildCostBasisTimeline(records: InvestmentRecord[]): CostBasisDelta[] {
   const sorted = records
     .filter((r) => r.deletedAt === null)
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .sort(openingFirst);
   const deltas: CostBasisDelta[] = [];
   let quantity = 0;
   let cost = 0;

@@ -44,6 +44,21 @@ describe("parseQuickAdd", () => {
     expect(r).toMatchObject({ kind: "investment", action: "sell", ticker: "AAPL", quantity: 10, price: 1200, accountId: "a_fubon" });
   });
 
+  it("forces an investment parse without a 買/賣 verb in investment mode", () => {
+    const r = parseQuickAdd("2330.TW 5股 @1042", { ...ctx, mode: "investment" });
+    expect(r).toMatchObject({ kind: "investment", action: "buy", ticker: "2330.TW", quantity: 5, price: 1042 });
+  });
+
+  it("still reads 賣/sell as a sell in investment mode", () => {
+    const r = parseQuickAdd("賣 AAPL 10 @180 富邦證券", { ...ctx, mode: "investment" });
+    expect(r).toMatchObject({ kind: "investment", action: "sell", ticker: "AAPL", quantity: 10, price: 180, accountId: "a_fubon" });
+  });
+
+  it("never routes to investment in ledger mode, even with a 買 verb", () => {
+    const r = parseQuickAdd("買 便當 90 錢包", { ...ctx, mode: "ledger" });
+    expect(r).toMatchObject({ kind: "ledger", amount: 90, accountId: "a_cash" });
+  });
+
   it("returns unknown when there is no amount", () => {
     expect(parseQuickAdd("拿鐵", ctx)).toEqual({ kind: "unknown", text: "拿鐵" });
     expect(parseQuickAdd("   ", ctx)).toEqual({ kind: "unknown", text: "" });

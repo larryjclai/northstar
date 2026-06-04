@@ -39,6 +39,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
   const categoryGroups = settings.data?.categories ?? [];
 
   const [text, setText] = useState("");
+  const [mode, setMode] = useState<"ledger" | "investment">("ledger");
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [error, setError] = useState("");
   const [amountFocused, setAmountFocused] = useState(false);
@@ -56,6 +57,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
   useEffect(() => {
     if (open) {
       setText("");
+      setMode("ledger");
       setConfirm(null);
       setError("");
       setTimeout(() => inputRef.current?.focus(), 30);
@@ -82,7 +84,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
 
   function parse() {
     if (!text.trim()) return;
-    const parsed = parseQuickAdd(text, { accounts: accountRows, merchantCategory: merchantCat });
+    const parsed = parseQuickAdd(text, { accounts: accountRows, merchantCategory: merchantCat, mode });
     setConfirm(toConfirm(parsed, text));
     setError("");
   }
@@ -283,6 +285,33 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
           </Card>
         ) : null}
 
+        {/* Type toggle — let the user pick 記帳 vs 投資 so the parser routes
+            correctly instead of guessing (investment input rarely starts with
+            a 買/賣 verb). Hidden once a confirm card is open. */}
+        {!confirm ? (
+          <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
+            {([["ledger", "記帳"], ["investment", "投資"]] as const).map(([value, label]) => {
+              const active = mode === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setMode(value)}
+                  style={{
+                    padding: "5px 16px", borderRadius: 999, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit",
+                    background: active ? "var(--ns-accent)" : "var(--ns-bg-card)",
+                    color: active ? "#fff" : "var(--ns-fg-muted)",
+                    border: active ? "1px solid var(--ns-accent)" : "1px solid var(--ns-border)",
+                    boxShadow: active ? "var(--ns-shadow-sm)" : "none",
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
         {/* Input bar */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--ns-bg-card)", border: "1px solid var(--ns-border)", borderRadius: 999, padding: "6px 6px 6px 18px", boxShadow: "var(--ns-shadow-xl)" }}>
           <Plus size={16} weight="bold" style={{ color: "var(--ns-accent)", flexShrink: 0 }} />
@@ -291,7 +320,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") parse(); }}
-            placeholder="快速記帳 · 試試「拿鐵 120 信用卡」或「買 2330.TW 5股 @1042」"
+            placeholder={mode === "investment" ? "投資 · 試試「2330.TW 5股 @1042」或「賣 AAPL 10 @180」" : "記帳 · 試試「拿鐵 120 信用卡」或「+ 接案 5000 富邦」"}
             style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--ns-fg)", fontFamily: "inherit", fontSize: 13.5, padding: "8px" }}
           />
           <Badge variant="outline" className="rounded-full" style={{ fontSize: 10.5 }}><span className="mono">⌘N</span></Badge>

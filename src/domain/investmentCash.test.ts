@@ -19,6 +19,7 @@ const baseRecord: InvestmentRecord = {
   note: "",
   isReviewed: false,
   linkedLedgerTransactionId: null,
+  cashless: false,
 };
 
 describe("investment cash helpers", () => {

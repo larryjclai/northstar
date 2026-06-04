@@ -73,8 +73,15 @@ export function buildHoldingPositionsByAccount(
     const quote = quotes[asset.ticker];
     const marketPrice = quote?.price ?? null;
 
-    if (asset.holdingSource === "manual") {
-      // Manual snapshot already maps 1:1 to a brokerage account.
+    const assetRecords = records.filter((record) => record.assetId === asset.id && record.deletedAt === null);
+
+    // Defensive fallback for a manual snapshot with no records yet
+    // (pre-migration edge): one row from the asset's stored (derived) fields.
+    // Migrated manual holdings carry a cashless opening record, so they flow
+    // through the per-account record path below — which also splits correctly
+    // when the same ticker is later bought in a different brokerage.
+    if (assetRecords.length === 0) {
+      if (asset.totalQuantity <= 0) continue;
       const marketValue = marketPrice === null ? 0 : asset.totalQuantity * marketPrice;
       const costBasis = asset.totalQuantity * asset.averageCost;
       const unrealizedGain = marketValue - costBasis;
@@ -95,12 +102,11 @@ export function buildHoldingPositionsByAccount(
       continue;
     }
 
-    // Transaction-based: split records by accountId and run the canonical
-    // moving-average engine (domain/portfolioMetrics) per account so quantity,
-    // cost basis, and capital-reduction handling match the rest of the app.
+    // Split records by accountId and run the canonical moving-average engine
+    // (domain/portfolioMetrics) per account so quantity, cost basis, and
+    // capital-reduction handling match the rest of the app.
     const byAccount = new Map<string, InvestmentRecord[]>();
-    for (const record of records) {
-      if (record.assetId !== asset.id || record.deletedAt !== null) continue;
+    for (const record of assetRecords) {
       const key = record.linkedAccountId ?? "__unassigned__";
       byAccount.set(key, [...(byAccount.get(key) ?? []), record]);
     }

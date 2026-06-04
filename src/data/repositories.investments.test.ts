@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createMemoryFinanceRepositoryForTests, type InvestmentDraft, type PortfolioAssetDraft } from "./repositories";
-import type { Account } from "../domain";
+import type { Account, PortfolioAsset } from "../domain";
 
 const account: Account = {
   id: "acct_broker",
@@ -154,6 +154,120 @@ describe("investment repository cash posting", () => {
     expect(await repo.listLedgerTransactions()).toHaveLength(0);
     [broker] = await repo.listAccounts();
     expect(broker.balance).toBe(1000);
+  });
+});
+
+describe("manual holdings as opening-balance lots", () => {
+  const snapshot: PortfolioAssetDraft = {
+    ticker: "VOO",
+    name: "Vanguard S&P 500",
+    currency: "USD",
+    totalQuantity: 10,
+    averageCost: 400,
+    acquisitionDate: "2026-01-02",
+    accountId: "acct_broker",
+  };
+
+  it("creates a single cashless opening record and posts no cash leg", async () => {
+    const repo = repository();
+    await repo.createManualHolding(snapshot);
+
+    const records = await repo.listInvestmentRecords();
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ action: "buy", cashless: true, quantity: 10, price: 400, date: "2026-01-02" });
+
+    // The opening lot records an already-held position — no 交割 ledger leg, so
+    // the linked account cash is untouched.
+    expect(await repo.listLedgerTransactions()).toHaveLength(0);
+    const [broker] = await repo.listAccounts();
+    expect(broker.balance).toBe(1000);
+
+    const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
+    expect(asset.totalQuantity).toBe(10);
+    expect(asset.averageCost).toBeCloseTo(400, 6);
+  });
+
+  it("blends average cost when a later real buy is recorded (and that buy posts a cash leg)", async () => {
+    const repo = repository();
+    await repo.createManualHolding(snapshot);
+    // Real buy: 10 @ 50 (affordable within the 1000 balance). Blended average =
+    // (10*400 + 10*50) / 20 = 4500 / 20 = 225.
+    await repo.createInvestmentRecord({
+      ticker: "VOO", name: "Vanguard S&P 500", currency: "USD", linkedAccountId: "acct_broker",
+      date: "2026-03-01", action: "buy", price: 50, quantity: 10, fee: 0, note: "",
+    });
+
+    const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
+    expect(asset.totalQuantity).toBe(20);
+    expect(asset.averageCost).toBeCloseTo(225, 6);
+
+    // The real buy posted a cash leg; the opening did not.
+    const ledgers = await repo.listLedgerTransactions();
+    expect(ledgers).toHaveLength(1);
+    expect(ledgers[0].amount).toBe(-500);
+  });
+
+  it("deletes a pure snapshot (removing its opening lot)", async () => {
+    const repo = repository();
+    await repo.createManualHolding(snapshot);
+    const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
+    await repo.deleteManualHolding(asset.id);
+    expect(await repo.listPortfolioAssets()).toHaveLength(0);
+    expect(await repo.listInvestmentRecords()).toHaveLength(0);
+  });
+
+  it("blocks deletion once a real trade exists", async () => {
+    const repo = repository();
+    await repo.createManualHolding(snapshot);
+    const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
+    await repo.createInvestmentRecord({
+      ticker: "VOO", name: "Vanguard S&P 500", currency: "USD", linkedAccountId: "acct_broker",
+      date: "2026-03-01", action: "buy", price: 50, quantity: 1, fee: 0, note: "",
+    });
+    await expect(repo.deleteManualHolding(asset.id)).rejects.toThrow("已有逐筆交易");
+  });
+
+  it("migrates a legacy manual holding into an opening lot, idempotently", async () => {
+    const legacyAsset: PortfolioAsset = {
+      id: "asset_legacy",
+      spaceId: "space_test",
+      revision: 1,
+      createdAt: "2026-01-02T00:00:00.000Z",
+      updatedAt: "2026-01-02T00:00:00.000Z",
+      deletedAt: null,
+      ticker: "VOO",
+      name: "Vanguard S&P 500",
+      nameZh: null,
+      nameEn: null,
+      currency: "USD",
+      totalQuantity: 10,
+      averageCost: 400,
+      holdingSource: "manual",
+      acquisitionDate: "2026-01-02",
+      assetType: null,
+      sector: null,
+      industry: null,
+      accountId: "acct_broker",
+      baseQuantity: 10,
+    };
+    const repo = createMemoryFinanceRepositoryForTests({ accounts: [account], portfolioAssets: [legacyAsset], investmentRecords: [] });
+
+    // normalizeStoredData (run on load) materializes the opening lot.
+    const records = await repo.listInvestmentRecords();
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ id: "inv_open_asset_legacy", assetId: "asset_legacy", cashless: true, quantity: 10, price: 400 });
+
+    // Deriving from the opening lot reproduces the snapshot quantity + cost.
+    await repo.recalculateDerivedData();
+    const [asset] = await repo.listPortfolioAssets();
+    expect(asset.totalQuantity).toBe(10);
+    expect(asset.averageCost).toBeCloseTo(400, 6);
+
+    // Idempotent: export → re-import does not duplicate the opening lot.
+    const exported = await repo.exportSnapshot();
+    const repo2 = createMemoryFinanceRepositoryForTests();
+    await repo2.importSnapshot(exported);
+    expect(await repo2.listInvestmentRecords()).toHaveLength(1);
   });
 });
 

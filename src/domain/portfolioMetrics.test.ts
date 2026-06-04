@@ -20,6 +20,7 @@ function record(partial: Partial<InvestmentRecord>): InvestmentRecord {
     note: "",
     isReviewed: false,
     linkedLedgerTransactionId: null,
+    cashless: false,
     ...partial,
   };
 }
@@ -107,6 +108,18 @@ describe("buildPositionMetrics (moving average)", () => {
     expect(m.quantity).toBe(80);
     expect(m.costBasis).toBeCloseTo(10000, 6);
     expect(m.averageCost).toBeCloseTo(125, 6);
+  });
+
+  it("processes a cashless opening lot before backdated transactions", () => {
+    // Opening lot dated AFTER the sell (acquisitionDate unknown → falls back to
+    // today). It must still settle first, else the sell hits zero inventory.
+    const m = buildPositionMetrics([
+      record({ id: "sell", date: "2026-05-26", action: "sell", price: 90, quantity: 2 }),
+      record({ id: "open", date: "2026-06-04", action: "buy", price: 88, quantity: 11, cashless: true }),
+    ]);
+    expect(m.quantity).toBe(9);
+    // The opening still contributes its −cost cashflow (anchors XIRR).
+    expect(m.cashflows.some((cf) => cf.amount === -(88 * 11))).toBe(true);
   });
 });
 

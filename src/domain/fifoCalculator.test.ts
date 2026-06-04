@@ -19,6 +19,7 @@ const baseRecord: InvestmentRecord = {
   note: "",
   isReviewed: true,
   linkedLedgerTransactionId: null,
+  cashless: false,
 };
 
 describe("fifo calculator", () => {
