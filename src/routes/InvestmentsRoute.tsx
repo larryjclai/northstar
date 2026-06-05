@@ -1094,7 +1094,7 @@ function HoldingsTab({
         </div>
 
         <div className="hidden overflow-x-auto sm:block">
-          <table className="w-full table-auto text-sm">
+          <table className="w-full table-auto text-sm [&_td]:px-3 [&_th]:px-3 [&_td:first-child]:pl-0 [&_th:first-child]:pl-0 [&_td:last-child]:pr-0 [&_th:last-child]:pr-0">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
                 <SortableHeader label="Ticker" sortKey="ticker" sort={sort} onToggle={toggleSort} />

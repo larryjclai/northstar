@@ -193,6 +193,52 @@ export function buildCostBasisTimeline(records: InvestmentRecord[]): CostBasisDe
   return deltas;
 }
 
+export interface QuantityDelta {
+  /** YYYY-MM-DD */
+  date: string;
+  /** Net share change on this date. */
+  delta: number;
+}
+
+/**
+ * Dated share-count changes for an asset. A net-worth series can multiply the
+ * running quantity by the asset's *current* price to value holdings at market
+ * across the whole history (mark-to-market throughout), so the endpoint equals
+ * today's holdings value with no "flat cost then jump to market" artifact. The
+ * cumulative sum equals the position's final quantity (see
+ * `buildPositionMetrics`), so callers get an exact endpoint.
+ */
+export function buildQuantityTimeline(records: InvestmentRecord[]): QuantityDelta[] {
+  const sorted = records
+    .filter((r) => r.deletedAt === null)
+    .sort(openingFirst);
+  const deltas: QuantityDelta[] = [];
+  let quantity = 0;
+  for (const r of sorted) {
+    if (r.action === "buy" || r.action === "stockDividend") {
+      quantity += r.quantity;
+      deltas.push({ date: day(r.date), delta: r.quantity });
+    } else if (r.action === "sell") {
+      const soldQty = Math.min(r.quantity, quantity);
+      quantity -= soldQty;
+      if (quantity <= EPS) quantity = 0;
+      deltas.push({ date: day(r.date), delta: -soldQty });
+    } else if (r.action === "stockSplit" && r.quantity > 0) {
+      // Shares scale by the split ratio; the added shares are valued at the
+      // (already split-adjusted) current price like any other quantity.
+      const added = quantity * (r.quantity - 1);
+      quantity *= r.quantity;
+      if (Math.abs(added) > EPS) deltas.push({ date: day(r.date), delta: added });
+    } else if (r.action === "capitalReduction") {
+      const cancelled = Math.min(r.quantity, quantity);
+      quantity -= cancelled;
+      if (quantity <= EPS) quantity = 0;
+      if (cancelled > EPS) deltas.push({ date: day(r.date), delta: -cancelled });
+    }
+  }
+  return deltas;
+}
+
 /**
  * Minimum holding span before an annualized (XIRR) figure is shown. Below this,
  * annualizing a short period explodes into meaningless numbers (a few % over a

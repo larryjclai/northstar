@@ -23,6 +23,7 @@ import type {
 import type { MarketQuote } from "../features/market-data";
 import { calculateInvestmentAccountQuantity, calculateInvestmentCashDelta, calculateInvestmentQuantity, isEffectivelyNegative } from "../domain/investmentCash";
 import { buildPositionMetrics } from "../domain/portfolioMetrics";
+import { firstFutureRunDate, nextRecurringDate } from "../domain/recurringDates";
 import { assertLedgerInvariants, assertTransferInvariants, buildRecalculationReport, deriveAccountBalances, findMissingFxPairs } from "../domain/ledgerTrust";
 import {
   buildPendingChanges,
@@ -4363,53 +4364,6 @@ function recurringInvestmentToDraft(rule: RecurringInvestment): InvestmentDraft 
     fee: Math.max(0, rule.fee || 0),
     note: rule.note || "定期定額",
   };
-}
-
-// A recurring rule created from an existing (often past-dated) transaction must
-// fire on its *next* occurrence, not the original date — otherwise upcoming-bill
-// widgets that filter `nextRunDate >= today` never surface it.
-function firstFutureRunDate(value: string, frequency: import("../domain").RecurringFrequency, dayOfMonth: number): string {
-  const today = new Date().toISOString().slice(0, 10);
-  let next = value.slice(0, 10);
-  let guard = 0;
-  while (next < today && guard < 600) {
-    next = nextRecurringDate(next, frequency, dayOfMonth);
-    guard += 1;
-  }
-  return next;
-}
-
-// All recurring-date math is done in UTC to keep the YYYY-MM-DD string stable
-// regardless of the machine timezone (local Date + toISOString shifts the day).
-function nextMonthlyDate(value: string, dayOfMonth: number) {
-  const [year, month] = value.slice(0, 10).split("-").map(Number); // month is 1-based
-  const nextYear = month === 12 ? year + 1 : year;
-  const nextMonthZeroBased = month % 12; // next month, 0-based
-  const day = Math.min(dayOfMonth, daysInMonth(nextYear, nextMonthZeroBased));
-  return new Date(Date.UTC(nextYear, nextMonthZeroBased, day)).toISOString().slice(0, 10);
-}
-
-function nextRecurringDate(value: string, frequency: import("../domain").RecurringFrequency, dayOfMonth: number): string {
-  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  switch (frequency) {
-    case "weekly":
-      date.setUTCDate(date.getUTCDate() + 7);
-      return date.toISOString().slice(0, 10);
-    case "biweekly":
-      date.setUTCDate(date.getUTCDate() + 14);
-      return date.toISOString().slice(0, 10);
-    case "yearly":
-      date.setUTCFullYear(date.getUTCFullYear() + 1);
-      return date.toISOString().slice(0, 10);
-    case "monthly":
-    default:
-      return nextMonthlyDate(value, dayOfMonth);
-  }
-}
-
-function daysInMonth(year: number, zeroBasedMonth: number) {
-  return new Date(Date.UTC(year, zeroBasedMonth + 1, 0)).getUTCDate();
 }
 
 function createInvestmentRow(input: InvestmentDraft, assetId: string): InvestmentRecord {

@@ -11,7 +11,7 @@ import { StatusText } from "../components/StatusText";
 import { TickerSearchField } from "../components/TickerSearchField";
 import { useRepositoryMutation } from "../data/hooks";
 import type { InvestmentDraft, PortfolioAssetDraft } from "../data/repositories";
-import { calculateInvestmentCashDelta, formatNumber, nowAsDatetimeLocal, type Account, type InvestmentAction, type PortfolioAsset } from "../domain";
+import { calculateInvestmentCashDelta, formatNumber, formatQuantity, nowAsDatetimeLocal, type Account, type InvestmentAction, type PortfolioAsset } from "../domain";
 import { YahooFinanceProvider } from "../features/market-data/yahooFinanceProvider";
 import { useUiPreferences } from "../state/uiPreferences";
 
@@ -335,7 +335,7 @@ export function InvestmentEntryDrawer({
   const confirmAmount =
     side === "split" ? `×${qty || 0}`
       : side === "dividend" && isStockDividend(transactionForm.action) ? `+${formatNumber(qty || 0)} 股`
-        : `${currency === "TWD" ? "NT$" : ""}${formatNumber(Math.round(totalValue))}`;
+        : formatPreviewMoney(totalValue, currency);
 
   // T+2 settlement warning (TWD buys only).
   const cashDelta = calculateInvestmentCashDelta(normalizeTransactionDraft(transactionForm));
@@ -563,22 +563,20 @@ export function InvestmentEntryDrawer({
                   </div>
                 </div>
               ) : (
-                <>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <div>
-                      <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Shares</label>
-                      <NumberField value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={4} placeholder="100" style={NUM_INPUT_STYLE} />
-                    </div>
-                    <div>
-                      <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Price per share</label>
-                      <NumberField value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={2} placeholder="1,042.00" style={NUM_INPUT_STYLE} />
-                    </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
+                  <div>
+                    <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Shares</label>
+                    <NumberField value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={4} placeholder="100" style={NUM_INPUT_STYLE} />
+                  </div>
+                  <div>
+                    <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Price per share</label>
+                    <NumberField value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={2} placeholder="1,042.00" style={NUM_INPUT_STYLE} />
                   </div>
                   <div>
                     <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Commission / fee</label>
-                    <NumberField value={transactionForm.fee} onChange={(fee) => setTransactionForm({ ...transactionForm, fee })} placeholder="Optional · e.g. 220" style={NUM_INPUT_STYLE} />
+                    <NumberField value={transactionForm.fee} onChange={(fee) => setTransactionForm({ ...transactionForm, fee })} decimals={2} placeholder="Optional" style={NUM_INPUT_STYLE} />
                   </div>
-                </>
+                </div>
               )}
 
               {/* Note */}
@@ -591,10 +589,10 @@ export function InvestmentEntryDrawer({
               <Card className="gap-0 rounded-[var(--ns-r-md)] border-[var(--ns-accent)] bg-[var(--ns-accent-soft)] p-4 shadow-none before:hidden">
                 <div className="ns-eyebrow" style={{ marginBottom: 10, color: "var(--ns-accent)" }}>部位影響預覽</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13 }}>
-                  <div><span className="muted">{totalLabel}</span><br /><span className="num" style={{ fontSize: 16, fontWeight: 500 }}>{side === "split" ? `×${formatNumber(totalValue)}` : side === "dividend" && isStockDividend(transactionForm.action) ? `+${formatNumber(totalValue)} 股` : `NT$${formatNumber(Math.round(totalValue))}`}</span></div>
-                  <div><span className="muted">新平均成本</span><br /><span className="num" style={{ fontSize: 16, fontWeight: 500 }}>NT${formatNumber(Math.round(newAvg * 100) / 100)}</span></div>
-                  <div><span className="muted">新部位股數</span><br /><span className="num" style={{ fontSize: 16, fontWeight: 500 }}>{formatNumber(newQty)} 股</span></div>
-                  <div><span className="muted">新市值</span><br /><span className="num pos" style={{ fontSize: 16, fontWeight: 500 }}>NT${formatNumber(Math.round(newMarketValue))}</span></div>
+                  <div><span className="muted">{totalLabel}</span><br /><span className="num" style={{ fontSize: 16, fontWeight: 500 }}>{side === "split" ? `×${formatNumber(totalValue)}` : side === "dividend" && isStockDividend(transactionForm.action) ? `+${formatQuantity(totalValue)} 股` : formatPreviewMoney(totalValue, currency)}</span></div>
+                  <div><span className="muted">新平均成本</span><br /><span className="num" style={{ fontSize: 16, fontWeight: 500 }}>{formatPreviewMoney(newAvg, currency)}</span></div>
+                  <div><span className="muted">新部位股數</span><br /><span className="num" style={{ fontSize: 16, fontWeight: 500 }}>{formatQuantity(newQty)} 股</span></div>
+                  <div><span className="muted">新市值</span><br /><span className="num pos" style={{ fontSize: 16, fontWeight: 500 }}>{formatPreviewMoney(newMarketValue, currency)}</span></div>
                 </div>
               </Card>
 
@@ -631,4 +629,14 @@ function addDays(value: string, days: number) {
   if (Number.isNaN(date.getTime())) return "";
   date.setDate(date.getDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+function formatPreviewMoney(value: number, currency: string) {
+  const normalizedCurrency = currency.trim().toUpperCase() || "TWD";
+  const prefix = normalizedCurrency === "TWD" ? "NT$" : `${normalizedCurrency} `;
+  const fractionOptions: Intl.NumberFormatOptions =
+    normalizedCurrency === "TWD"
+      ? { maximumFractionDigits: 0 }
+      : { minimumFractionDigits: 2, maximumFractionDigits: 6 };
+  return `${prefix}${formatNumber(value, fractionOptions)}`;
 }

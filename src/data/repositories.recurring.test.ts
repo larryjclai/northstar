@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createMemoryFinanceRepositoryForTests } from "./repositories";
+import { nextRecurringDate } from "../domain";
 import type { Account, RecurringTransaction } from "../domain";
 
 const account: Account = {
@@ -78,5 +79,43 @@ describe("postDueRecurringTransactions", () => {
     const repo = createMemoryFinanceRepositoryForTests({ accounts: [account], recurringTransactions: [recurring({ isActive: false })] });
     const posted = await repo.postDueRecurringTransactions("2026-05-29");
     expect(posted).toBe(0);
+  });
+
+  it("does not duplicate the seed transaction when a new monthly rule starts next period", async () => {
+    const repo = createMemoryFinanceRepositoryForTests({ accounts: [account] });
+    await repo.createLedgerTransaction({
+      accountId: "acct_cash",
+      date: "2026-06-05T09:00",
+      name: "定錨產業筆記",
+      amount: -399,
+      currency: "TWD",
+      category: "訂閱",
+      subcategory: "串流媒體",
+      merchant: "定錨產業筆記",
+      entryType: "expense",
+      settlementStatus: "settled",
+      note: "",
+    });
+    await repo.createRecurringTransaction({
+      accountId: "acct_cash",
+      amount: -399,
+      currency: "TWD",
+      category: "訂閱",
+      subcategory: "串流媒體",
+      merchant: "定錨產業筆記",
+      entryType: "expense",
+      settlementStatus: "settled",
+      note: "",
+      frequency: "monthly",
+      dayOfMonth: 5,
+      nextRunDate: nextRecurringDate("2026-06-05", "monthly", 5),
+      isActive: true,
+    });
+
+    expect(await repo.postDueRecurringTransactions("2026-06-05")).toBe(0);
+    expect(await repo.listLedgerTransactions()).toHaveLength(1);
+
+    expect(await repo.postDueRecurringTransactions("2026-07-05")).toBe(1);
+    expect(await repo.listLedgerTransactions()).toHaveLength(2);
   });
 });

@@ -10,6 +10,7 @@ export * from "./retirementProjection";
 export * from "./groupClassifier";
 export * from "./merchantCategory";
 export * from "./quickAdd";
+export * from "./recurringDates";
 export * from "./sync";
 export * from "./investmentCash";
 export * from "./ledgerTrust";

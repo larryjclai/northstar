@@ -1,139 +1,186 @@
-import { CaretLeft } from "@phosphor-icons/react";
+import { CaretLeft, DownloadSimple, PencilSimple, Sparkle, Tag } from "@phosphor-icons/react";
+import { Link, useParams } from "@tanstack/react-router";
+import type { ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
-import { Link, useParams } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 import { useFinanceData } from "../data/hooks";
 import { convertCurrency, formatMoney, type LedgerTransaction } from "../domain";
-import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
+
+type MonthPoint = { key: string; label: string; amount: number; partial: boolean };
 
 export function MerchantDetailRoute() {
   const { merchantName } = useParams({ strict: false }) as { merchantName: string };
   const { ledger, accounts, settings, dailyFxRates } = useFinanceData();
   const [detailRow, setDetailRow] = useState<LedgerTransaction | null>(null);
+  const [subcategoryFilter, setSubcategoryFilter] = useState("all");
 
   const ledgerRows = ledger.data ?? [];
   const accountRows = accounts.data ?? [];
   const appSettings = settings.data;
   const primaryCurrency = appSettings?.primaryCurrency ?? "TWD";
   const fxHistory = dailyFxRates.data ?? [];
-  
-  const accountName = (id: string) => accountRows.find(a => a.id === id)?.name ?? id;
+  const now = new Date();
+  const year = now.getFullYear().toString();
+
+  const accountName = (id: string) => accountRows.find((account) => account.id === id)?.name ?? id;
 
   const rows = useMemo(
     () =>
       ledgerRows
-        .filter((r) => r.merchant === merchantName && r.entryType === "expense" && r.settlementStatus === "settled")
+        .filter((row) => row.merchant === merchantName && row.entryType === "expense" && row.settlementStatus === "settled")
         .sort((a, b) => b.date.localeCompare(a.date)),
-    [ledgerRows, merchantName]
+    [ledgerRows, merchantName],
   );
 
-  const convertedAmount = (row: LedgerTransaction) => convertCurrency(Math.abs(row.amount), row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date });
-  const missingFxPairs = [...new Set(rows.filter((row) => convertedAmount(row) === null).map((row) => `${row.currency}/${primaryCurrency}`))];
-  const totalSpent = rows.reduce((s, r) => s + (convertedAmount(r) ?? 0), 0);
+  function convertedAmount(row: LedgerTransaction) {
+    return convertCurrency(Math.abs(row.amount), row.currency, primaryCurrency, appSettings, {
+      dailyRates: fxHistory,
+      asOfDate: row.date,
+    });
+  }
 
-  const monthlyData = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const r of rows) {
-      const m = r.date.slice(0, 7);
-      map.set(m, (map.get(m) ?? 0) + (convertedAmount(r) ?? 0));
+  const ytdRows = rows.filter((row) => row.date.startsWith(year));
+  const categoryHit = mostCommon(ytdRows.map((row) => row.category).filter(Boolean));
+  const subcategoryHit = mostCommon(ytdRows.map((row) => row.subcategory).filter(Boolean));
+  const categorySetting = appSettings?.categories.find((category) => category.name === categoryHit.value);
+  const categoryColor = categorySetting?.color ?? "var(--ns-accent)";
+  const filterOptions = [...new Set(rows.map((row) => row.subcategory || row.category).filter(Boolean))];
+  const visibleRows = rows.filter((row) => subcategoryFilter === "all" || row.subcategory === subcategoryFilter || row.category === subcategoryFilter);
+  const ytdVisibleRows = visibleRows.filter((row) => row.date.startsWith(year));
+  const ytdTotal = ytdRows.reduce((sum, row) => sum + (convertedAmount(row) ?? 0), 0);
+  const filteredTotal = ytdVisibleRows.reduce((sum, row) => sum + (convertedAmount(row) ?? 0), 0);
+  const avgPerVisit = ytdRows.length ? ytdTotal / ytdRows.length : 0;
+  const currentMonth = now.getMonth() + 1;
+  const monthlyAverage = currentMonth > 0 ? ytdTotal / currentMonth : ytdTotal;
+  const monthlyData = useMemo(() => buildMonthPoints(rows, convertedAmount), [rows, appSettings, fxHistory, primaryCurrency]);
+  const weekdayData = useMemo(() => buildWeekdayData(ytdRows), [ytdRows]);
+  const peakWeekday = weekdayData.reduce((best, item) => (item.count > best.count ? item : best), weekdayData[0]);
+  const lastVisit = ytdRows[0]?.date ?? rows[0]?.date ?? "—";
+  const accountNames = [...new Set(ytdRows.map((row) => accountName(row.accountId)))];
+
+  const relatedMerchants = useMemo(() => {
+    if (!categoryHit.value) return [];
+    const map = new Map<string, { amount: number; count: number }>();
+    for (const row of ledgerRows) {
+      if (row.merchant === merchantName || row.entryType !== "expense" || row.settlementStatus !== "settled" || row.category !== categoryHit.value || !row.merchant) continue;
+      const current = map.get(row.merchant) ?? { amount: 0, count: 0 };
+      current.amount += convertCurrency(Math.abs(row.amount), row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date }) ?? 0;
+      current.count += 1;
+      map.set(row.merchant, current);
     }
     return [...map.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([month, amount]) => ({ month, amount }));
-  }, [rows, appSettings, fxHistory, primaryCurrency]);
+      .map(([name, value]) => ({ name, ...value }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 4);
+  }, [ledgerRows, merchantName, categoryHit.value, appSettings, fxHistory, primaryCurrency]);
 
   return (
-    <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]" style={{ maxWidth: 1180, margin: "0 auto" }}>
-      <div style={{ marginBottom: 24 }}>
-        <Button variant="ghost" render={<Link to="/cash-flow" />} style={{ marginBottom: 8 }}>
-          <CaretLeft size={14} /> 返回記帳
-        </Button>
-        <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, fontWeight: 600 }}>
-          {merchantName}
-        </h1>
+    <div className="ns-detail-page">
+      <div className="ns-detail-header">
+        <div className="min-w-0">
+          <Button variant="ghost" render={<Link to="/cash-flow" />} className="mb-2">
+            <CaretLeft size={14} />返回記帳
+          </Button>
+          <div className="ns-detail-title-row">
+            <Initials name={merchantName} color={categoryColor} large />
+            <div className="min-w-0">
+              <div className="ns-eyebrow">Cash Flow / Merchants</div>
+              <h1 className="ns-detail-title">{merchantName}</h1>
+              <div className="ns-pill-row">
+                {categoryHit.value ? <span className="ns-filter-pill" data-active>{categoryHit.value}</span> : null}
+                {subcategoryHit.value ? <span className="ns-filter-pill">{subcategoryHit.value}</span> : null}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="ns-detail-actions">
+          <Button variant="outline" disabled title="商家重新命名目前仍在管理流程中處理">
+            <PencilSimple size={14} />Rename
+          </Button>
+          <Button variant="outline" disabled title="CSV 匯出尚未接上商家詳情範圍">
+            <DownloadSimple size={14} />Export
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <Card style={{ padding: 24 }}>
-            <div className="ns-eyebrow" style={{ marginBottom: 4 }}>總支出</div>
-            <div className="num" style={{ fontSize: 28, fontWeight: 500, marginBottom: 20 }}>
-              {formatMoney(totalSpent, primaryCurrency)}
-            </div>
-            {missingFxPairs.length ? <div className="muted" style={{ fontSize: 12, marginBottom: 12 }}>總額不完整：缺少 {missingFxPairs.join("、")} 匯率。<Link to="/settings">前往更新</Link></div> : null}
-            
-            {monthlyData.length > 0 && (
-              <div style={{ height: 160 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={monthlyData}>
-                    <Tooltip 
-                      cursor={{ fill: "var(--ns-bg-hover)" }}
-                      contentStyle={{ background: "var(--ns-surface)", border: "1px solid var(--ns-border)", borderRadius: 6, fontSize: 12 }}
-                      itemStyle={{ color: "var(--ns-fg)" }}
-                      labelStyle={{ color: "var(--ns-fg)" }}
-                      formatter={(v: any) => [formatMoney(v as number, primaryCurrency), "支出"]}
-                      labelFormatter={(v) => String(v).replace("-", " / ")}
-                    />
-                    <Bar dataKey="amount" radius={[2, 2, 0, 0]}>
-                      {monthlyData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill="var(--ns-accent)" />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </Card>
+      <div className="ns-metric-strip">
+        <InsightTile label="YTD 支出" value={formatMoney(ytdTotal, primaryCurrency)} tone="accent" />
+        <InsightTile label="消費次數" value={`${ytdRows.length} 次`} />
+        <InsightTile label="每次均值" value={formatMoney(avgPerVisit, primaryCurrency)} />
+        <InsightTile label="月均支出" value={formatMoney(monthlyAverage, primaryCurrency)} />
+      </div>
 
-          <Card style={{ padding: "var(--ns-pad-card)" }}>
-            <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--ns-border)", fontWeight: 600 }}>
-              交易紀錄
+      <div className="ns-detail-grid">
+        <div className="ns-detail-main">
+          <Panel eyebrow="Spending trend" title="月支出 · 近 6 個月">
+            <MiniBars data={monthlyData} color={categoryColor} currency={primaryCurrency} />
+          </Panel>
+
+          <Panel eyebrow="Transactions" title={`${visibleRows.length} 筆交易紀錄`}>
+            <div className="ns-pill-row ns-transaction-filter-row">
+              <button type="button" className="ns-filter-pill" data-active={subcategoryFilter === "all" || undefined} onClick={() => setSubcategoryFilter("all")}>全部</button>
+              {filterOptions.map((filter) => (
+                <button key={filter} type="button" className="ns-filter-pill" data-active={subcategoryFilter === filter || undefined} onClick={() => setSubcategoryFilter(filter)}>
+                  {filter}
+                </button>
+              ))}
             </div>
-            {rows.length === 0 ? (
-              <div className="muted" style={{ padding: "40px", textAlign: "center", fontSize: 13 }}>
-                無交易紀錄
+            <TransactionRows rows={visibleRows} total={filteredTotal} accountName={accountName} primaryCurrency={primaryCurrency} onSelect={setDetailRow} />
+          </Panel>
+        </div>
+
+        <div className="ns-detail-side">
+          <Panel eyebrow="Visit pattern" title={peakWeekday ? `${peakWeekday.name}曜日 最頻繁` : "星期分佈"}>
+            <WeekdayBars data={weekdayData} />
+          </Panel>
+
+          <Panel eyebrow="Auto-categorization" title="自動分類">
+            {categoryHit.value ? (
+              <div className="ns-rule-hint">
+                <Sparkle size={18} />
+                <div>
+                  <strong>已根據歷史交易推導</strong>
+                  <span>{merchantName.toUpperCase()} → {categoryHit.value}{subcategoryHit.value ? ` › ${subcategoryHit.value}` : ""}</span>
+                </div>
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                {rows.map((row) => (
-                  <div
-                    key={row.id}
-                    onClick={() => setDetailRow(row)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "16px 24px",
-                      borderBottom: "1px solid var(--ns-border)",
-                      cursor: "pointer",
-                      transition: "background 0.15s ease",
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--ns-bg-hover)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                  >
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                        <span style={{ fontWeight: 500 }}>{row.name || row.merchant}</span>
-                        {row.note && <span className="muted" style={{ fontSize: 11 }}>{row.note}</span>}
-                      </div>
-                      <div className="muted" style={{ fontSize: 12 }}>
-                        {row.date} · {accountName(row.accountId)} {row.category ? `· ${row.category}` : ""}
-                      </div>
-                    </div>
-                    <div className="num" style={{ fontWeight: 500 }}>
-                      {formatMoney(Math.abs(row.amount), row.currency)}
-                    </div>
-                  </div>
+              <EmptyPanel icon={<Tag size={22} />} text="交易不足，還無法推導常用分類。" />
+            )}
+          </Panel>
+
+          <Panel eyebrow="Stats · YTD" title="商家摘要">
+            <InfoList
+              rows={[
+                ["Last visit", lastVisit],
+                ["Accounts used", accountNames.length ? accountNames.join("、") : "—"],
+                ["分類命中率", categoryHit.total ? `${((categoryHit.count / categoryHit.total) * 100).toFixed(0)}%` : "—"],
+              ]}
+            />
+          </Panel>
+
+          <Panel eyebrow={`同類商家${categoryHit.value ? ` · ${categoryHit.value}` : ""}`} title="同類商家">
+            {relatedMerchants.length ? (
+              <div className="ns-compact-list">
+                {relatedMerchants.map((merchant) => (
+                  <Link key={merchant.name} to="/cash-flow/merchants/$merchantName" params={{ merchantName: merchant.name }} className="ns-compact-row">
+                    <Initials name={merchant.name} />
+                    <span className="min-w-0">
+                      <span className="truncate font-medium">{merchant.name}</span>
+                      <span className="muted text-xs">{merchant.count} 次</span>
+                    </span>
+                    <span className="num ml-auto">{formatMoney(merchant.amount, primaryCurrency)}</span>
+                  </Link>
                 ))}
               </div>
+            ) : (
+              <EmptyPanel icon={<Tag size={22} />} text="尚無同分類商家。" />
             )}
-          </Card>
+          </Panel>
         </div>
-        <div></div>
       </div>
-      
+
       <TransactionDetailPanel
         row={detailRow}
         onClose={() => setDetailRow(null)}
@@ -143,4 +190,181 @@ export function MerchantDetailRoute() {
       />
     </div>
   );
+}
+
+function TransactionRows({
+  rows,
+  total,
+  accountName,
+  primaryCurrency,
+  onSelect,
+}: {
+  rows: LedgerTransaction[];
+  total: number;
+  accountName: (id: string) => string;
+  primaryCurrency: string;
+  onSelect: (row: LedgerTransaction) => void;
+}) {
+  if (!rows.length) return <EmptyPanel icon={<Tag size={22} />} text="沒有符合篩選的交易。" />;
+  return (
+    <>
+      <div className="ns-detail-table-wrap">
+        <table className="ns-detail-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th>Account</th>
+              <th className="text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.id} onClick={() => onSelect(row)}>
+                <td className="mono muted">{row.date.slice(5, 10)}</td>
+                <td>{row.name || row.merchant || "未命名交易"}</td>
+                <td className="muted">{accountName(row.accountId)}</td>
+                <td className="num text-right neg">−{formatMoney(Math.abs(row.amount), row.currency)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={3}>Total · {rows.length} transactions shown</td>
+              <td className="num text-right neg">−{formatMoney(total, primaryCurrency)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div className="ns-mobile-transaction-list">
+        {rows.map((row) => (
+          <button key={row.id} type="button" className="ns-mobile-transaction-row" onClick={() => onSelect(row)}>
+            <span className="mono muted">{row.date.slice(5, 10)}</span>
+            <span className="truncate">{row.name || row.merchant || "未命名交易"}</span>
+            <span className="num neg">−{formatMoney(Math.abs(row.amount), row.currency)}</span>
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function Panel({ eyebrow, title, children }: { eyebrow: string; title: string; children: ReactNode }) {
+  return (
+    <Card className="ns-analysis-panel">
+      <div className="ns-eyebrow">{eyebrow}</div>
+      <h2>{title}</h2>
+      {children}
+    </Card>
+  );
+}
+
+function InsightTile({ label, value, tone }: { label: string; value: string; tone?: "accent" }) {
+  return (
+    <Card className="ns-insight-tile">
+      <div className="ns-eyebrow">{label}</div>
+      <div className="num" data-tone={tone}>{value}</div>
+    </Card>
+  );
+}
+
+function MiniBars({ data, color, currency }: { data: MonthPoint[]; color: string; currency: string }) {
+  const max = Math.max(1, ...data.map((item) => item.amount));
+  return (
+    <div className="ns-mini-bars">
+      {data.map((item) => (
+        <div key={item.key} className="ns-mini-bar-cell" title={`${item.key}: ${formatMoney(item.amount, currency)}`}>
+          <div
+            className="ns-mini-bar"
+            data-partial={item.partial || undefined}
+            style={{ height: `${Math.max(6, (item.amount / max) * 112)}px`, background: color }}
+          />
+          <span>{item.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WeekdayBars({ data }: { data: Array<{ key: number; name: string; count: number }> }) {
+  const max = Math.max(1, ...data.map((item) => item.count));
+  return (
+    <div className="ns-weekday-bars">
+      {data.map((item) => (
+        <div key={item.key} className="ns-weekday-cell" data-peak={item.count === max && item.count > 0 || undefined}>
+          <div style={{ height: `${Math.max(4, (item.count / max) * 54)}px` }} />
+          <span>{item.name}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function InfoList({ rows }: { rows: Array<[string, string]> }) {
+  return (
+    <div className="ns-info-list">
+      {rows.map(([label, value]) => (
+        <div key={label}>
+          <span>{label}</span>
+          <strong>{value}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyPanel({ icon, text }: { icon: ReactNode; text: string }) {
+  return (
+    <div className="ns-empty-panel">
+      {icon}
+      <span>{text}</span>
+    </div>
+  );
+}
+
+function Initials({ name, color, large }: { name: string; color?: string; large?: boolean }) {
+  return (
+    <span className={large ? "ns-initials ns-initials-lg" : "ns-initials"} style={{ background: color }}>
+      {name.slice(0, 2).toUpperCase()}
+    </span>
+  );
+}
+
+function buildMonthPoints(rows: LedgerTransaction[], amountFor: (row: LedgerTransaction) => number | null): MonthPoint[] {
+  const now = new Date();
+  return Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const amount = rows.filter((row) => row.date.startsWith(key)).reduce((sum, row) => sum + (amountFor(row) ?? 0), 0);
+    return {
+      key,
+      label: `${date.getMonth() + 1}月`,
+      amount,
+      partial: index === 5,
+    };
+  });
+}
+
+function buildWeekdayData(rows: LedgerTransaction[]) {
+  const names = ["日", "一", "二", "三", "四", "五", "六"];
+  const counts = new Map<number, number>();
+  for (const row of rows) {
+    const day = new Date(row.date).getDay();
+    counts.set(day, (counts.get(day) ?? 0) + 1);
+  }
+  return [1, 2, 3, 4, 5, 6, 0].map((key) => ({ key, name: names[key], count: counts.get(key) ?? 0 }));
+}
+
+function mostCommon(values: string[]) {
+  const counts = new Map<string, number>();
+  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
+  let best = "";
+  let count = 0;
+  for (const [value, valueCount] of counts) {
+    if (valueCount > count) {
+      best = value;
+      count = valueCount;
+    }
+  }
+  return { value: best, count, total: values.length };
 }

@@ -1,9 +1,10 @@
-import { ArrowsDownUp, Bank, ChartLineUp, FunnelSimple, MagnifyingGlass, PencilSimple, PlusCircle, Trash, UploadSimple } from "@phosphor-icons/react";
+import { ArrowsDownUp, Bank, FunnelSimple, MagnifyingGlass, PencilSimple, PlusCircle, Trash, UploadSimple } from "@phosphor-icons/react";
 import { Button } from "../components/coss/button";
 import { Card as CossCard } from "../components/coss/card";
+import { AssetLogo } from "../components/AssetLogo";
+import { Badge } from "../components/coss/badge";
 import { ChangeEvent, ReactNode, useMemo, useState, useEffect } from "react";
 import { ActionButton } from "../components/ActionButton";
-import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { StatusText } from "../components/StatusText";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
@@ -30,6 +31,15 @@ const actionLabels: Record<InvestmentAction, string> = {
 const DEPOSIT = "deposit";
 const depositLabel = "入金";
 const allActionLabels: Record<string, string> = { ...actionLabels, [DEPOSIT]: depositLabel };
+const actionShortLabels: Record<string, string> = {
+  buy: "BUY",
+  sell: "SELL",
+  cashDividend: "DIV",
+  stockDividend: "STK",
+  capitalReduction: "CAP",
+  stockSplit: "SPLIT",
+  [DEPOSIT]: "DEP",
+};
 
 type TxKind = "investment" | "deposit";
 
@@ -41,6 +51,7 @@ interface UnifiedTx {
   actionKey: string; // InvestmentAction | "deposit"
   ticker: string;
   name: string;
+  assetType: string | null;
   recordId: string | null; // investment record id for edit/delete; null for deposits
   quantity: number;
   price: number;
@@ -61,6 +72,7 @@ export function TransactionsRoute() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [assetTypeFilter, setAssetTypeFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set());
   const [brokerFilter, setBrokerFilter] = useState<Set<string>>(new Set());
 
@@ -95,6 +107,7 @@ export function TransactionsRoute() {
         actionKey: record.action,
         ticker: asset?.ticker ?? record.assetId,
         name: asset?.name || "未命名資產",
+        assetType: asset?.assetType ?? null,
         recordId: record.id,
         quantity: record.quantity,
         price: record.price,
@@ -119,6 +132,7 @@ export function TransactionsRoute() {
           actionKey: DEPOSIT,
           ticker: "—",
           name: row.name || row.note || "資金轉入",
+          assetType: "cash",
           recordId: null,
           quantity: 0,
           price: 0,
@@ -139,13 +153,14 @@ export function TransactionsRoute() {
     return allTx
       .filter((tx) => {
         if (typeFilter.size > 0 && !typeFilter.has(tx.actionKey)) return false;
+        if (assetTypeFilter !== "all" && tx.assetType !== assetTypeFilter) return false;
         if (brokerFilter.size > 0 && !brokerFilter.has(tx.brokerId ?? "none")) return false;
         if (!query) return true;
         return [tx.ticker, tx.name, tx.brokerName, tx.note, allActionLabels[tx.actionKey]]
           .some((value) => value?.toLocaleLowerCase().includes(query));
       })
       .sort((a, b) => `${b.date}-${b.createdAt}`.localeCompare(`${a.date}-${a.createdAt}`));
-  }, [allTx, searchQuery, typeFilter, brokerFilter]);
+  }, [allTx, searchQuery, assetTypeFilter, typeFilter, brokerFilter]);
 
   const groupedTx = useMemo(() => {
     const groups: Array<{ date: string; rows: UnifiedTx[] }> = [];
@@ -214,14 +229,13 @@ export function TransactionsRoute() {
 
   useEffect(() => {
     setPage(1);
-  }, [monthKey, searchQuery, typeFilter, brokerFilter]);
+  }, [monthKey, searchQuery, assetTypeFilter, typeFilter, brokerFilter]);
 
   const paginatedGroups = useMemo(() => groupedTx.slice((page - 1) * pageSize, page * pageSize), [groupedTx, page]);
   const totalPages = Math.ceil(groupedTx.length / pageSize);
 
   // Filter dropdown options. Broker list includes an "unspecified" bucket when
   // any row lacks a broker so those rows remain reachable.
-  const typeOptions = useMemo(() => Object.entries(allActionLabels).map(([value, label]) => ({ value, label })), []);
   const brokerOptions = useMemo(() => {
     const opts = investmentAccounts.map((a) => ({ value: a.id, label: a.name }));
     if (allTx.some((tx) => !tx.brokerId)) opts.push({ value: "none", label: "未指定" });
@@ -248,31 +262,67 @@ export function TransactionsRoute() {
   }
 
   return (
-    <div className="mt-4">
-      {/* Add lives in the page header ("Buy / Sell"); no duplicate here. */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-        <SummaryCard label="Records (All time)" value={`${recordRows.length}`} sublabel="總筆數" />
-        <SummaryCard label="Total Bought (All time)" value={formatMoney(totals.bought, primaryCurrency)} sublabel="總買入金額" />
-        <SummaryCard label="Total Sold (All time)" value={formatMoney(totals.sold, primaryCurrency)} sublabel="總賣出金額" />
-        <SummaryCard label="Dividends (All time)" value={formatMoney(totals.dividends, primaryCurrency)} sublabel="總股利" />
+    <div className="mt-4 ns-investment-transactions">
+      <div className="ns-invest-summary">
+        <SummaryCard label="Records" value={`${recordRows.length} txns`} sublabel="總筆數" />
+        <SummaryCard label="Total Bought" value={formatMoney(totals.bought, primaryCurrency)} sublabel="總買入" />
+        <SummaryCard label="Total Sold" value={formatMoney(totals.sold, primaryCurrency)} sublabel="總賣出" />
+        <SummaryCard label="Dividends" value={formatMoney(totals.dividends, primaryCurrency)} sublabel="總股利" />
       </div>
 
       {message ? <div className="mb-4"><StatusText>{message}</StatusText></div> : null}
 
-      <Card
-        title="交易紀錄"
-        variant="raised"
-        action={
-          <div className="flex flex-wrap gap-2">
+      <CossCard className="ns-invest-panel">
+        <div className="ns-invest-toolbar">
+          <div className="ns-invest-segments" aria-label="資產類型">
+            {[
+              ["all", "All"],
+              ["equity", "Stocks"],
+              ["etf", "ETF"],
+              ["crypto", "Crypto"],
+              ["cash", "Cash"],
+            ].map(([value, label]) => (
+              <button key={value} type="button" data-active={assetTypeFilter === value || undefined} onClick={() => setAssetTypeFilter(value)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="ns-invest-segments" aria-label="交易種類">
+            {[
+              ["all", "All types"],
+              ["buy", "Buy"],
+              ["sell", "Sell"],
+              ["cashDividend", "Dividend"],
+              ["stockSplit", "Split"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                data-active={(value === "all" ? typeFilter.size === 0 : typeFilter.has(value)) || undefined}
+                onClick={() => setTypeFilter(value === "all" ? new Set() : new Set([value]))}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <label className="ns-invest-search">
+            <MagnifyingGlass size={15} />
+            <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search ticker..." />
+          </label>
+          <MultiSelectFilter
+            icon={<Bank size={14} />}
+            label="券商"
+            options={brokerOptions}
+            selected={brokerFilter}
+            onChange={setBrokerFilter}
+          />
+          <div className="ns-invest-actions">
             <ActionButton variant="secondary" onClick={() => downloadCsv("northstar-investments.csv", exportInvestmentCsv(recordRows, assetFor))}>匯出 CSV</ActionButton>
-            {/* Render the coss Button as a <label> so the file-picker trigger has
-                the exact same size/variant as 匯出 (A1). The hidden input sits
-                outside and is wired via htmlFor. */}
             <input id="invest-csv-import" className="hidden" type="file" accept=".csv,text/csv" onChange={handleCsv} />
             <Button variant="outline" render={<label htmlFor="invest-csv-import" />}><UploadSimple />匯入 CSV</Button>
           </div>
-        }
-      >
+        </div>
+
         {preview ? (
           <div className="mb-4 rounded-lg border p-4" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface-subtle)" }}>
             <div className="font-semibold">匯入預覽：{preview.valid.length} valid / {preview.invalid.length} invalid</div>
@@ -284,32 +334,11 @@ export function TransactionsRoute() {
           </div>
         ) : null}
 
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <label className="relative block min-w-[12rem] flex-1 max-w-sm">
-            <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--ns-muted)" }} />
-            {/* paddingLeft via inline style so it wins over .ns-input's `padding`
-                shorthand (equal specificity → later rule wins), which otherwise
-                resets pl-9 and makes the text overlap the icon. */}
-            <input className="ns-input w-full" style={{ paddingLeft: "2.25rem" }} value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜尋股票、券商、動作或備註" />
-          </label>
-          <MultiSelectFilter
-            icon={<FunnelSimple size={14} />}
-            label="交易種類"
-            options={typeOptions}
-            selected={typeFilter}
-            onChange={setTypeFilter}
-          />
-          <MultiSelectFilter
-            icon={<Bank size={14} />}
-            label="券商"
-            options={brokerOptions}
-            selected={brokerFilter}
-            onChange={setBrokerFilter}
-          />
-          {(typeFilter.size > 0 || brokerFilter.size > 0) ? (
-            <Button variant="ghost" style={{ fontSize: 12.5 }} onClick={() => { setTypeFilter(new Set()); setBrokerFilter(new Set()); }}>清除篩選</Button>
-          ) : null}
-        </div>
+        {(typeFilter.size > 0 || brokerFilter.size > 0 || assetTypeFilter !== "all" || searchQuery) ? (
+          <div className="ns-invest-clear">
+            <Button variant="ghost" size="xs" onClick={() => { setTypeFilter(new Set()); setBrokerFilter(new Set()); setAssetTypeFilter("all"); setSearchQuery(""); }}>清除篩選</Button>
+          </div>
+        ) : null}
 
         {paginatedGroups.length === 0 ? (
           allTx.length === 0 ? (
@@ -324,81 +353,26 @@ export function TransactionsRoute() {
               icon={<FunnelSimple size={24} weight="duotone" />}
               title="沒有符合篩選的交易"
               description="試著放寬交易種類或券商的篩選條件。"
-              action={<ActionButton variant="secondary" onClick={() => { setTypeFilter(new Set()); setBrokerFilter(new Set()); setSearchQuery(""); }}>清除篩選</ActionButton>}
+              action={<ActionButton variant="secondary" onClick={() => { setTypeFilter(new Set()); setBrokerFilter(new Set()); setAssetTypeFilter("all"); setSearchQuery(""); }}>清除篩選</ActionButton>}
             />
           )
         ) : (
           <>
-            <div className="space-y-5">
+            <div className="ns-invest-months">
               {paginatedGroups.map((group) => (
-                <section key={group.date} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold" style={{ color: "var(--ns-muted)" }}>{group.date}</h3>
-                    <span className="text-xs tabular" style={{ color: "var(--ns-muted)" }}>{group.rows.length} 筆</span>
-                  </div>
-                  <div className="space-y-2">
-                    {group.rows.map((tx) => {
-                      const isDeposit = tx.kind === "deposit";
-                      const tone = tx.signed >= 0 ? "var(--ns-positive)" : "var(--ns-danger)";
-                      return (
-                        <div key={tx.id} className="rounded-lg border p-3" style={{ borderColor: "var(--ns-panel-border)", background: "var(--ns-panel-surface)" }}>
-                          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px_260px] lg:items-center">
-                            <div className="flex items-center gap-3">
-                              <div className="grid size-9 place-items-center rounded-md" style={{ background: isDeposit ? "var(--ns-chart-2-soft, var(--ns-accent-soft))" : "var(--ns-accent-soft)", color: isDeposit ? "var(--ns-chart-2, var(--ns-accent))" : "var(--ns-accent)" }}>
-                                {isDeposit ? <Bank size={18} weight="duotone" /> : <ChartLineUp size={18} weight="duotone" />}
-                              </div>
-                              <div className="min-w-0">
-                                <div className="truncate font-semibold">{isDeposit ? tx.name : tx.ticker}</div>
-                                <div className="truncate text-xs" style={{ color: "var(--ns-muted)" }}>{isDeposit ? "資金轉入" : (tx.name || "未命名資產")}{tx.date.length > 10 ? ` · ${tx.date.slice(11, 16)}` : ""}</div>
-                              </div>
-                            </div>
-
-                            <div className="text-sm">
-                              <div className="inline-flex rounded-full border px-2 py-1 text-xs font-semibold" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface-elevated)", color: "var(--ns-muted)" }}>
-                                {allActionLabels[tx.actionKey]}
-                              </div>
-                              <div className="mt-1 tabular" style={{ color: "var(--ns-muted)" }}>
-                                {isDeposit ? "—" : tx.actionKey === "cashDividend" ? `股利 ${formatNumber(tx.price)}` : `${formatNumber(tx.quantity)} × ${formatNumber(tx.price)}`}
-                              </div>
-                            </div>
-
-                            <div className="flex flex-wrap items-center justify-between gap-3 lg:justify-end">
-                              <div className="tabular text-right">
-                                <div className="font-semibold" style={{ color: tone }}>
-                                  {tx.signed >= 0 ? "+" : ""}{formatNumber(tx.signed)} <span className="text-xs" style={{ color: "var(--ns-muted)" }}>{tx.currency}</span>
-                                </div>
-                                <div className="text-xs" style={{ color: "var(--ns-muted)" }}>
-                                  {isDeposit ? tx.brokerName : `${tx.brokerName} · Fee ${formatNumber(tx.fee)}`}
-                                </div>
-                              </div>
-                              {tx.recordId ? (
-                                <div className="flex gap-2">
-                                  <ActionButton variant="secondary" size="sm" onClick={() => openEdit(tx.recordId!)}><PencilSimple size={14} />編輯</ActionButton>
-                                  <ActionButton
-                                    variant="danger"
-                                    size="sm"
-                                    onClick={async () => {
-                                      try {
-                                        await deleteRecord.mutateAsync(tx.recordId!);
-                                        if (editingRecordId === tx.recordId) setEditingRecordId(null);
-                                      } catch (error) {
-                                        setMessage(error instanceof Error ? error.message : "刪除失敗。");
-                                      }
-                                    }}
-                                  >
-                                    <Trash size={14} />刪除
-                                  </ActionButton>
-                                </div>
-                              ) : (
-                                <span className="text-xs" style={{ color: "var(--ns-muted)" }}>於記帳管理</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
+                <InvestmentMonthGroup
+                  key={group.date}
+                  group={group}
+                  onEdit={openEdit}
+                  onDelete={async (recordId) => {
+                    try {
+                      await deleteRecord.mutateAsync(recordId);
+                      if (editingRecordId === recordId) setEditingRecordId(null);
+                    } catch (error) {
+                      setMessage(error instanceof Error ? error.message : "刪除失敗。");
+                    }
+                  }}
+                />
               ))}
             </div>
             {totalPages > 1 && (
@@ -410,7 +384,7 @@ export function TransactionsRoute() {
             )}
           </>
         )}
-      </Card>
+      </CossCard>
 
       <InvestmentEntryDrawer
         open={drawerOpen}
@@ -480,6 +454,146 @@ function MultiSelectFilter({
   );
 }
 
+function InvestmentMonthGroup({
+  group,
+  onEdit,
+  onDelete,
+}: {
+  group: { date: string; rows: UnifiedTx[] };
+  onEdit: (recordId: string) => void;
+  onDelete: (recordId: string) => Promise<void>;
+}) {
+  return (
+    <section className="ns-invest-month">
+      <div className="ns-invest-month-head">
+        <h3>{formatMonthLabel(group.date)}</h3>
+        <span>{group.rows.length} 筆</span>
+      </div>
+
+      <div className="ns-invest-table-wrap">
+        <table className="ns-invest-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Asset</th>
+              <th>Type</th>
+              <th className="text-right">Qty</th>
+              <th className="text-right">Price</th>
+              <th className="text-right">Fee</th>
+              <th className="text-right">Total</th>
+              <th>Account</th>
+              <th className="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {group.rows.map((tx) => (
+              <InvestmentTransactionRow key={tx.id} tx={tx} onEdit={onEdit} onDelete={onDelete} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="ns-invest-mobile-list">
+        {group.rows.map((tx) => (
+          <InvestmentTransactionMobile key={tx.id} tx={tx} onEdit={onEdit} onDelete={onDelete} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function InvestmentTransactionRow({
+  tx,
+  onEdit,
+  onDelete,
+}: {
+  tx: UnifiedTx;
+  onEdit: (recordId: string) => void;
+  onDelete: (recordId: string) => Promise<void>;
+}) {
+  const isDeposit = tx.kind === "deposit";
+  return (
+    <tr>
+      <td className="mono muted">{tx.date.slice(5, 10)}</td>
+      <td>
+        <div className="ns-invest-asset-cell">
+          {isDeposit ? (
+            <span className="ns-invest-cash-logo"><Bank size={16} weight="duotone" /></span>
+          ) : (
+            <AssetLogo ticker={tx.ticker} name={tx.name} size={30} />
+          )}
+          <span className="min-w-0">
+            <strong>{isDeposit ? "Cash" : tx.ticker}</strong>
+            <span>{tx.name}</span>
+          </span>
+        </div>
+      </td>
+      <td>
+        <Badge variant={actionBadgeVariant(tx.actionKey)} className="rounded-full uppercase">{actionShortLabels[tx.actionKey] ?? tx.actionKey}</Badge>
+      </td>
+      <td className="num text-right">{isDeposit ? "—" : formatNumber(tx.quantity)}</td>
+      <td className="num text-right">{isDeposit ? "—" : formatNumber(tx.price)}</td>
+      <td className="num text-right muted">{tx.fee ? formatNumber(tx.fee) : "—"}</td>
+      <td className={`num text-right ${tx.signed >= 0 ? "pos" : "neg"}`}>
+        {tx.signed >= 0 ? "+" : "−"}{formatMoney(Math.abs(tx.signed), tx.currency)}
+      </td>
+      <td className="muted">{tx.brokerName}</td>
+      <td className="text-right">
+        {tx.recordId ? (
+          <div className="ns-invest-row-actions">
+            <Button variant="ghost" size="icon-xs" aria-label="編輯交易" onClick={() => onEdit(tx.recordId!)}><PencilSimple size={13} /></Button>
+            <Button variant="ghost" size="icon-xs" aria-label="刪除交易" onClick={() => void onDelete(tx.recordId!)}><Trash size={13} /></Button>
+          </div>
+        ) : (
+          <span className="muted text-xs">記帳</span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function InvestmentTransactionMobile({
+  tx,
+  onEdit,
+  onDelete,
+}: {
+  tx: UnifiedTx;
+  onEdit: (recordId: string) => void;
+  onDelete: (recordId: string) => Promise<void>;
+}) {
+  const isDeposit = tx.kind === "deposit";
+  return (
+    <div className="ns-invest-mobile-row">
+      {isDeposit ? (
+        <span className="ns-invest-cash-logo"><Bank size={16} weight="duotone" /></span>
+      ) : (
+        <AssetLogo ticker={tx.ticker} name={tx.name} size={34} />
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="ns-invest-mobile-title">
+          <strong>{isDeposit ? tx.name : tx.ticker}</strong>
+          <Badge variant={actionBadgeVariant(tx.actionKey)} className="rounded-full uppercase">{actionShortLabels[tx.actionKey] ?? tx.actionKey}</Badge>
+        </div>
+        <div className="muted text-xs tabular">
+          {isDeposit ? tx.date.slice(5, 10) : `${tx.date.slice(5, 10)} · ${formatNumber(tx.quantity)} @ ${formatNumber(tx.price)}`}
+        </div>
+      </div>
+      <div className="ns-invest-mobile-amount">
+        <strong className={tx.signed >= 0 ? "pos" : "neg"}>
+          {tx.signed >= 0 ? "+" : "−"}{formatMoney(Math.abs(tx.signed), tx.currency)}
+        </strong>
+        <span>{tx.brokerName}</span>
+      </div>
+      {tx.recordId ? (
+        <div className="ns-invest-mobile-actions">
+          <Button variant="ghost" size="icon-xs" aria-label="編輯交易" onClick={() => onEdit(tx.recordId!)}><PencilSimple size={13} /></Button>
+          <Button variant="ghost" size="icon-xs" aria-label="刪除交易" onClick={() => void onDelete(tx.recordId!)}><Trash size={13} /></Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function SummaryCard({
   label,
   value,
@@ -498,4 +612,17 @@ function SummaryCard({
       </div>
     </CossCard>
   );
+}
+
+function formatMonthLabel(month: string) {
+  const date = new Date(`${month}-01T00:00:00`);
+  return `${date.toLocaleString("en-US", { month: "long" }).toUpperCase()} ${date.getFullYear()}`;
+}
+
+function actionBadgeVariant(action: string): "success" | "error" | "warning" | "info" | "secondary" | "outline" {
+  if (action === "buy") return "success";
+  if (action === "sell") return "error";
+  if (action === "cashDividend" || action === "stockDividend") return "warning";
+  if (action === DEPOSIT) return "info";
+  return "secondary";
 }

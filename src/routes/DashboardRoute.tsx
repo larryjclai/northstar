@@ -15,7 +15,7 @@ import { Card } from "../components/coss/card";
 import {
   assetTypeLabels,
   buildNetWorthBreakdown,
-  buildCostBasisTimeline,
+  buildQuantityTimeline,
   buildCreditCardReminders,
   buildOutstandingSettlements,
   convertCurrency,
@@ -763,49 +763,63 @@ function buildNetWorthTrend(
     cashDelta.set(key, (cashDelta.get(key) ?? 0) + toPrimary(row.amount, row.currency, row.date));
   }
 
-  // Holdings side: accrue cost basis over time so historical points include
-  // investments (paired with the cash leg a buy nets to zero on its date; a
-  // sell surfaces the realized gain). The final point swaps cost for market
-  // value to capture unrealized gains, removing the old "flat then jump"
-  // artifact where holdings only appeared at the very end.
-  const currencyByAsset = new Map(assets.map((asset) => [asset.id, asset.currency]));
-  const holdingsCostDelta = new Map<string, number>();
+  // Holdings side: value every holding at its *current* market price across the
+  // whole series (mark-to-market throughout). Paired with the cash leg of each
+  // buy/sell, the running holdings line ends exactly at today's market value, so
+  // the trend closes on the hero net-worth number with no "flat cost basis then
+  // jump to market" spike. We lack historical prices, so older points apply
+  // today's price retroactively — the standard, far-less-misleading fallback.
+  const quoteFor = (ticker: string) => quotes.find((quote) => quote.symbol.toUpperCase() === ticker.toUpperCase());
   const recordsByAsset = new Map<string, InvestmentRecord[]>();
   for (const record of investments) {
     if (record.deletedAt !== null) continue;
     recordsByAsset.set(record.assetId, [...(recordsByAsset.get(record.assetId) ?? []), record]);
   }
-  for (const [assetId, records] of recordsByAsset) {
-    const currency = currencyByAsset.get(assetId) ?? "TWD";
-    for (const { date, delta } of buildCostBasisTimeline(records)) {
+  const holdingsValueDelta = new Map<string, number>();
+  for (const asset of assets) {
+    const quote = quoteFor(asset.ticker);
+    const pricePerShare = quote ? quote.price : asset.averageCost;
+    const currency = quote?.currency ?? asset.currency;
+    const assetValue = toPrimary(pricePerShare * asset.totalQuantity, currency);
+
+    const qtyTimeline = buildQuantityTimeline(recordsByAsset.get(asset.id) ?? []);
+    let accrued = 0;
+    let lastKey = keyOf(dateOnly(asset.acquisitionDate || asset.createdAt));
+    for (const { date, delta } of qtyTimeline) {
       const key = keyOf(date);
-      holdingsCostDelta.set(key, (holdingsCostDelta.get(key) ?? 0) + toPrimary(delta, currency, date));
+      const valueDelta = toPrimary(delta * pricePerShare, currency);
+      holdingsValueDelta.set(key, (holdingsValueDelta.get(key) ?? 0) + valueDelta);
+      accrued += valueDelta;
+      lastKey = key;
+    }
+    // Reconcile rounding and manual holdings (no records → empty timeline) so the
+    // accrued series lands exactly on the asset's current market value.
+    const residual = assetValue - accrued;
+    if (Math.abs(residual) > 1e-6) {
+      holdingsValueDelta.set(lastKey, (holdingsValueDelta.get(lastKey) ?? 0) + residual);
     }
   }
 
   const startKey = keyOf(earliest);
-  const orderedKeys = [...new Set([startKey, ...cashDelta.keys(), ...holdingsCostDelta.keys()])].sort();
+  const orderedKeys = [...new Set([startKey, ...cashDelta.keys(), ...holdingsValueDelta.keys()])].sort();
 
   let cashRunning = 0;
   let holdingsRunning = 0;
   const timeline: Array<{ date: string; value: number }> = [];
   for (const key of orderedKeys) {
     cashRunning += cashDelta.get(key) ?? 0;
-    holdingsRunning += holdingsCostDelta.get(key) ?? 0;
+    holdingsRunning += holdingsValueDelta.get(key) ?? 0;
     timeline.push({ date: labelOf(key), value: cashRunning + holdingsRunning });
   }
 
-  const quoteFor = (ticker: string) => quotes.find((quote) => quote.symbol.toUpperCase() === ticker.toUpperCase());
-  const currentHoldingsValue = assets.reduce((sum, asset) => {
-    const quote = quoteFor(asset.ticker);
-    const value = quote ? quote.price * asset.totalQuantity : asset.averageCost * asset.totalQuantity;
-    return sum + toPrimary(value, quote?.currency ?? asset.currency);
-  }, 0);
-  // Always close the trend at "現在" (today's net worth, holdings valued at live
-  // market price). This both swaps accrued cost for market value and guarantees a
-  // second point so the chart renders even from a single bucket (B5).
-  if (timeline.length > 0) {
-    timeline.push({ date: "現在", value: cashRunning + currentHoldingsValue });
+  // The series already ends at today's net worth, so we don't bolt on a separate
+  // "現在" point that would duplicate today's bucket. Only extend a flat segment
+  // to "現在" when the last bucket predates today; a lone bucket gets a second
+  // point so the chart still draws a line (B5).
+  const todayKey = keyOf(dateOnly(now.toISOString()));
+  const lastKey = orderedKeys[orderedKeys.length - 1];
+  if (timeline.length === 1 || (timeline.length > 1 && lastKey !== todayKey)) {
+    timeline.push({ date: "現在", value: cashRunning + holdingsRunning });
   }
   return timeline;
 }

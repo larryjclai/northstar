@@ -40,9 +40,9 @@ import { DatePicker } from "../components/ui/date-picker";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { useToast } from "../components/Toast";
 import type { LedgerDraft, TransferDraft } from "../data/repositories";
-import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, evaluateAmountExpression, formatNumber, nowAsDatetimeLocal, recurringFrequencyLabels, todayInTimezone } from "../domain";
+import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, evaluateAmountExpression, formatNumber, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, todayInTimezone } from "../domain";
 import { convertCurrency } from "../domain/currency";
-import type { Account, LedgerTransaction, RecurringTransaction } from "../domain";
+import type { Account, LedgerTransaction, RecurringFrequency, RecurringTransaction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useNumericField } from "../hooks/useNumericField";
 
@@ -392,9 +392,11 @@ export function CashFlowRoute() {
         await updateLedger.mutateAsync({ ...payload, id: editingId });
         toast.success("已更新交易");
         if (drawerRecurringFreq !== "none") {
+          const frequency = drawerRecurringFreq as RecurringFrequency;
+          const dayOfMonth = parseInt(payload.date.slice(8, 10));
           await createRecurring.mutateAsync({
-             frequency: drawerRecurringFreq as any,
-             dayOfMonth: parseInt(payload.date.slice(8, 10)),
+             frequency,
+             dayOfMonth,
              accountId: payload.accountId,
              amount: payload.amount,
              currency: payload.currency,
@@ -404,7 +406,7 @@ export function CashFlowRoute() {
              entryType: payload.entryType as "income" | "expense",
              settlementStatus: payload.settlementStatus,
              note: payload.note,
-             nextRunDate: payload.date.slice(0, 10),
+             nextRunDate: nextRecurringDate(payload.date.slice(0, 10), frequency, dayOfMonth),
              isActive: true
           });
           toast.success("已建立週期規則");
@@ -413,9 +415,11 @@ export function CashFlowRoute() {
         await createLedger.mutateAsync(payload);
         toast.success("已新增交易");
         if (drawerRecurringFreq !== "none") {
+          const frequency = drawerRecurringFreq as RecurringFrequency;
+          const dayOfMonth = parseInt(payload.date.slice(8, 10));
           await createRecurring.mutateAsync({
-             frequency: drawerRecurringFreq as any,
-             dayOfMonth: parseInt(payload.date.slice(8, 10)),
+             frequency,
+             dayOfMonth,
              accountId: payload.accountId,
              amount: payload.amount,
              currency: payload.currency,
@@ -425,7 +429,7 @@ export function CashFlowRoute() {
              entryType: payload.entryType as "income" | "expense",
              settlementStatus: payload.settlementStatus,
              note: payload.note,
-             nextRunDate: payload.date.slice(0, 10),
+             nextRunDate: nextRecurringDate(payload.date.slice(0, 10), frequency, dayOfMonth),
              isActive: true
           });
         }
