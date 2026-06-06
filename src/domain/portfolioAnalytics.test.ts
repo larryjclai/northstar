@@ -14,11 +14,9 @@ import {
   sharpeRatio,
   sortinoRatio,
   toCumulativeReturnSeries,
-  topMovers,
-  topMoversFromHistory,
+  dayChangeMovers,
   TRADING_DAYS_PER_YEAR,
   type AnalyticsPosition,
-  type MoverQuote,
 } from "./portfolioAnalytics";
 import type { DailyPrice, ManualPriceSnapshot } from "./types";
 
@@ -337,59 +335,62 @@ describe("allocationDriftSeries", () => {
   });
 });
 
-describe("topMovers", () => {
-  const quotes: MoverQuote[] = [
-    { symbol: "AAA", changePercent: 1.8, name: "Alpha", marketTime: "14:30" },
-    { symbol: "BBB", changePercent: -2.1, name: "Beta" },
-    { symbol: "CCC", changePercent: 0.4, name: "Gamma" },
-    { symbol: "ZZZ", changePercent: 5.0, name: "NotHeld" },
-  ];
-
-  it("filters to held tickers and sorts best → worst", () => {
-    const movers = topMovers(quotes, ["aaa", "BBB", "ccc"]);
-    expect(movers.map((m) => m.ticker)).toEqual(["AAA", "CCC", "BBB"]);
-    expect(movers.map((m) => m.changePercent)).toEqual([1.8, 0.4, -2.1]);
-  });
-  it("respects the limit", () => {
-    expect(topMovers(quotes, ["AAA", "BBB", "CCC"], { limit: 2 })).toHaveLength(2);
-  });
-  it("uses the name resolver, falling back to quote name then ticker", () => {
-    const movers = topMovers(quotes, ["AAA"], { nameFor: () => "台積電" });
-    expect(movers[0].name).toBe("台積電");
-    const noName = topMovers([{ symbol: "AAA", changePercent: 1 }], ["AAA"]);
-    expect(noName[0].name).toBe("AAA");
-  });
-  it("drops non-finite change percentages", () => {
-    const movers = topMovers([{ symbol: "AAA", changePercent: NaN }], ["AAA"]);
-    expect(movers).toEqual([]);
-  });
-});
-
-describe("topMoversFromHistory", () => {
-  it("computes day change from the last two closes, sorted best → worst", () => {
+describe("dayChangeMovers", () => {
+  it("intraday: live quote vs the latest (yesterday) close", () => {
+    // Today is 01-03; today's close not in daily_prices yet → live price vs 昨收.
     const dailyPrices = [
-      price("AAA", "2024-01-01", 100), price("AAA", "2024-01-02", 110), // +10%
-      price("BBB", "2024-01-01", 50), price("BBB", "2024-01-02", 45), // −10%
-      price("CCC", "2024-01-01", 20), price("CCC", "2024-01-02", 21), // +5%
-      price("ZZZ", "2024-01-01", 10), price("ZZZ", "2024-01-02", 99), // not held
+      price("AAA", "2024-01-01", 100), price("AAA", "2024-01-02", 110), // latest close 110
+      price("BBB", "2024-01-01", 60), price("BBB", "2024-01-02", 50), // latest close 50
     ];
-    const movers = topMoversFromHistory(dailyPrices, ["aaa", "BBB", "ccc"]);
-    expect(movers.map((m) => m.ticker)).toEqual(["AAA", "CCC", "BBB"]);
+    const quotes = [
+      { symbol: "AAA", price: 121, marketTime: "2024-01-03T05:30:00Z" }, // +10% vs 110
+      { symbol: "BBB", price: 45, marketTime: "2024-01-03T05:30:00Z" }, // −10% vs 50
+    ];
+    const movers = dayChangeMovers({ dailyPrices, quotes, heldTickers: ["AAA", "BBB"], today: "2024-01-03" });
+    expect(movers.map((m) => m.ticker)).toEqual(["AAA", "BBB"]);
     expect(movers[0].changePercent).toBeCloseTo(10, 6);
-    expect(movers[2].changePercent).toBeCloseTo(-10, 6);
+    expect(movers[1].changePercent).toBeCloseTo(-10, 6);
+    expect(movers[0].marketTime).toBe("2024-01-03T05:30:00Z");
+  });
+
+  it("after close: today's close already recorded → current vs the prior session", () => {
+    // Today is 01-03 and its close (121) is in daily_prices; reference must be
+    // the 01-02 close (110), not 01-03 itself.
+    const dailyPrices = [
+      price("AAA", "2024-01-02", 110), price("AAA", "2024-01-03", 121),
+    ];
+    const quotes = [{ symbol: "AAA", price: 121, marketTime: "2024-01-03T09:00:00Z" }];
+    const movers = dayChangeMovers({ dailyPrices, quotes, heldTickers: ["AAA"], today: "2024-01-03" });
+    expect(movers[0].changePercent).toBeCloseTo(10, 6);
+  });
+
+  it("no quote: falls back to the two most recent daily closes", () => {
+    const dailyPrices = [
+      price("AAA", "2024-01-01", 100), price("AAA", "2024-01-02", 90), // −10%
+    ];
+    const movers = dayChangeMovers({ dailyPrices, quotes: [], heldTickers: ["AAA"], today: "2024-01-03" });
+    expect(movers[0].changePercent).toBeCloseTo(-10, 6);
     expect(movers[0].marketTime).toBe("2024-01-02");
   });
-  it("skips tickers with fewer than two closes or a non-positive prior close", () => {
+
+  it("filters to held tickers, honors limit and the name resolver", () => {
     const dailyPrices = [
-      price("AAA", "2024-01-02", 110), // single close
-      price("BBB", "2024-01-01", 0), price("BBB", "2024-01-02", 5), // prior close 0
+      price("AAA", "2024-01-01", 100), price("AAA", "2024-01-02", 110),
+      price("ZZZ", "2024-01-01", 10), price("ZZZ", "2024-01-02", 99), // not held
     ];
-    expect(topMoversFromHistory(dailyPrices, ["AAA", "BBB"])).toEqual([]);
-  });
-  it("uses the name resolver", () => {
-    const dailyPrices = [price("2330.TW", "2024-01-01", 100), price("2330.TW", "2024-01-02", 101)];
-    const movers = topMoversFromHistory(dailyPrices, ["2330.TW"], { nameFor: () => "台積電" });
+    const quotes = [{ symbol: "AAA", price: 110, marketTime: null }];
+    const movers = dayChangeMovers({ dailyPrices, quotes, heldTickers: ["AAA"], today: "2024-01-03", nameFor: () => "台積電" });
+    expect(movers).toHaveLength(1);
     expect(movers[0].name).toBe("台積電");
+  });
+
+  it("skips a ticker with a live quote but no prior close, and ignores bad quote prices", () => {
+    const dailyPrices = [price("AAA", "2024-01-03", 121)]; // only today's close, no prior
+    const quotes = [
+      { symbol: "AAA", price: 121, marketTime: "2024-01-03T09:00:00Z" },
+      { symbol: "BBB", price: 0 }, // non-positive price ignored
+    ];
+    expect(dayChangeMovers({ dailyPrices, quotes, heldTickers: ["AAA", "BBB"], today: "2024-01-03" })).toEqual([]);
   });
 });
 

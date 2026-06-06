@@ -524,77 +524,97 @@ export function allocationDriftSeries(opts: {
 
 // ─── Top movers ──────────────────────────────────────────────────────────────
 
-export interface MoverQuote {
-  symbol: string;
-  changePercent: number;
-  name?: string | null;
-  marketTime?: string | null;
-}
-
 export interface Mover {
   ticker: string;
   name: string;
   changePercent: number;
+  /** Best-known timestamp/date for the current price (quote time or close date). */
   marketTime: string | null;
 }
 
-/**
- * Today's biggest movers among *held* tickers, sorted best → worst. Driven by
- * each quote's real `changePercent` (day move vs previous close). Tickers with
- * no quote are simply absent. `nameFor` lets callers supply a localized holding
- * name; otherwise the quote's own name (or ticker) is used.
- */
-export function topMovers(
-  quotes: MoverQuote[],
-  heldTickers: Iterable<string>,
-  opts?: { limit?: number; nameFor?: (ticker: string) => string | null | undefined },
-): Mover[] {
-  const held = new Set([...heldTickers].map((t) => t.toUpperCase()));
-  const limit = opts?.limit ?? 7;
-  return quotes
-    .filter((q) => held.has(q.symbol.toUpperCase()) && Number.isFinite(q.changePercent))
-    .map((q) => ({
-      ticker: q.symbol,
-      name: opts?.nameFor?.(q.symbol) || q.name || q.symbol,
-      changePercent: q.changePercent,
-      marketTime: q.marketTime ?? null,
-    }))
-    .sort((a, b) => b.changePercent - a.changePercent)
-    .slice(0, limit);
+export interface DayChangeQuote {
+  symbol: string;
+  /** Live / latest price. */
+  price: number;
+  marketTime?: string | null;
 }
 
 /**
- * Today's movers from the two most recent daily closes of each held ticker —
- * the latest completed session vs the prior one ("vs 前一日"). Preferred over a
- * live quote's `changePercent`, which explodes when a provider reports a bad
- * previous close (e.g. a post-spinoff or newly-listed ticker showing +3000%).
- * Sorted best → worst.
+ * Today's movers among *held* tickers, correct both intraday and after-hours.
+ *
+ * The **reference** is always the prior session's close taken from daily_prices
+ * (reliable), never a live quote's `previousClose` — which can be garbage for
+ * post-spinoff / newly-listed tickers and produced the bogus "+3000%" values.
+ *
+ * The **current** price prefers the live quote:
+ *   - Intraday: today's close isn't in daily_prices yet, so current = live quote
+ *     and reference = the latest close (yesterday) → live vs 昨收.
+ *   - After close: current = live quote (≈ today's close); reference = the latest
+ *     close strictly *before* today, so even if today's close is already recorded
+ *     it's treated as the current session, not the reference → 今收 vs 昨收.
+ *   - No quote at all: fall back to the two most recent daily closes.
+ *
+ * Sorted best → worst, limited to `limit` (default 7).
  */
-export function topMoversFromHistory(
-  dailyPrices: DailyPrice[],
-  heldTickers: Iterable<string>,
-  opts?: { limit?: number; nameFor?: (ticker: string) => string | null | undefined },
-): Mover[] {
-  const held = new Set([...heldTickers].map((t) => t.toUpperCase()));
-  const byTicker = new Map<string, DailyPrice[]>();
-  for (const row of dailyPrices) {
+export function dayChangeMovers(opts: {
+  dailyPrices: DailyPrice[];
+  quotes: DayChangeQuote[];
+  heldTickers: Iterable<string>;
+  /** Today's date (YYYY-MM-DD) in the user's timezone — the session boundary. */
+  today: string;
+  limit?: number;
+  nameFor?: (ticker: string) => string | null | undefined;
+}): Mover[] {
+  const held = new Set([...opts.heldTickers].map((t) => t.toUpperCase()));
+  const td = day(opts.today);
+  const limit = opts.limit ?? 7;
+
+  const closesByTicker = new Map<string, DailyPrice[]>();
+  for (const row of opts.dailyPrices) {
     const key = row.ticker.toUpperCase();
     if (!held.has(key)) continue;
-    (byTicker.get(key) ?? byTicker.set(key, []).get(key)!).push(row);
+    (closesByTicker.get(key) ?? closesByTicker.set(key, []).get(key)!).push(row);
   }
-  const limit = opts?.limit ?? 7;
+  for (const rows of closesByTicker.values()) rows.sort((a, b) => a.date.localeCompare(b.date));
+
+  const quoteByTicker = new Map<string, DayChangeQuote>();
+  for (const q of opts.quotes) {
+    if (Number.isFinite(q.price) && q.price > 0) quoteByTicker.set(q.symbol.toUpperCase(), q);
+  }
+
   const movers: Mover[] = [];
-  for (const [ticker, rows] of byTicker) {
-    if (rows.length < 2) continue;
-    rows.sort((a, b) => a.date.localeCompare(b.date));
-    const last = rows[rows.length - 1];
-    const prev = rows[rows.length - 2];
-    if (!(prev.close > EPS)) continue;
+  for (const ticker of held) {
+    const closes = closesByTicker.get(ticker) ?? [];
+    const quote = quoteByTicker.get(ticker);
+    let current: number | null = null;
+    let reference: number | null = null;
+    let asOf: string | null = null;
+
+    if (quote) {
+      current = quote.price;
+      asOf = quote.marketTime ?? (closes.length ? closes[closes.length - 1].date : null);
+      // Reference = latest close strictly before today (the prior session).
+      for (let i = closes.length - 1; i >= 0; i -= 1) {
+        if (day(closes[i].date) < td) {
+          reference = closes[i].close;
+          break;
+        }
+      }
+      // Only today's close exists (no prior session before today): use the one
+      // before it if present.
+      if (reference == null && closes.length >= 2) reference = closes[closes.length - 2].close;
+    } else if (closes.length >= 2) {
+      current = closes[closes.length - 1].close;
+      reference = closes[closes.length - 2].close;
+      asOf = closes[closes.length - 1].date;
+    }
+
+    if (current == null || reference == null || !(reference > EPS)) continue;
     movers.push({
       ticker,
-      name: opts?.nameFor?.(ticker) || ticker,
-      changePercent: (last.close / prev.close - 1) * 100,
-      marketTime: last.date,
+      name: opts.nameFor?.(ticker) || ticker,
+      changePercent: (current / reference - 1) * 100,
+      marketTime: asOf,
     });
   }
   return movers.sort((a, b) => b.changePercent - a.changePercent).slice(0, limit);

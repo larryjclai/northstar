@@ -22,7 +22,7 @@ import {
   buildBenchmarkSeries,
   alignByDate,
   cumulativeReturnPct,
-  topMoversFromHistory,
+  dayChangeMovers,
   resolveAssetName,
   convertCurrency,
   createFxConverter,
@@ -282,17 +282,23 @@ export function DashboardRoute() {
     return { portfolio, benchmark, alpha };
   }, [analyticsPositions, dailyPriceRows, manualSnapshotRows, toPrimary, stripPeriod, benchmarkTicker]);
 
-  // Today's Top Movers among held tickers, computed from the two most recent
-  // daily closes ("vs 前一日") — robust against bad live-quote previous closes.
+  // Today's Top Movers among held tickers. Intraday → live quote vs the prior
+  // session's close; after close → today's close vs the prior session's. The
+  // reference close always comes from daily_prices (reliable), never the live
+  // quote's previousClose (which can be garbage for post-spinoff tickers).
   const heldAssetCount = useMemo(() => assetRows.filter((a) => a.deletedAt === null && a.totalQuantity > 0).length, [assetRows]);
   const movers = useMemo(() => {
     const assetByTicker = new Map(assetRows.map((a) => [a.ticker.toUpperCase(), a]));
     const heldTickers = assetRows.filter((a) => a.deletedAt === null && a.totalQuantity > 0).map((a) => a.ticker);
-    return topMoversFromHistory(dailyPriceRows, heldTickers, {
+    return dayChangeMovers({
+      dailyPrices: dailyPriceRows,
+      quotes: quoteRows.map((q) => ({ symbol: q.symbol, price: q.price, marketTime: q.marketTime })),
+      heldTickers,
+      today: todayInTimezone(timezone),
       limit: 7,
       nameFor: (t) => resolveAssetName(assetByTicker.get(t.toUpperCase()), nameLocale),
     });
-  }, [dailyPriceRows, assetRows, nameLocale]);
+  }, [dailyPriceRows, quoteRows, assetRows, nameLocale, timezone]);
   const moversMax = movers.reduce((mx, m) => Math.max(mx, Math.abs(m.changePercent)), 0) || 1;
 
   // Goals — approximate progress = net worth / target (dashboard glance only).
@@ -749,12 +755,10 @@ export function DashboardRoute() {
             ))
           )}
         </Card>
-
-        {/* Top Movers */}
-        {heldAssetCount > 0 ? <TopMoversCard movers={movers} moversMax={moversMax} /> : null}
       </div>
 
-      {/* Row 4 · Recent activity */}
+      {/* Row 4 · Recent activity + Top Movers (shared row so neither is cramped) */}
+      <div className={heldAssetCount > 0 ? "grid gap-4 items-start lg:grid-cols-[1.7fr_1fr]" : ""} style={{ marginBottom: 16 }}>
       <Card>
         <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
           <div>
@@ -781,6 +785,8 @@ export function DashboardRoute() {
           </div>
         )}
       </Card>
+        {heldAssetCount > 0 ? <TopMoversCard movers={movers} moversMax={moversMax} /> : null}
+      </div>
     </div>
   );
 }
