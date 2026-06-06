@@ -357,30 +357,56 @@ function priceBasket(opts: {
   }
   if (priced.length === 0) return { ...blank, excluded };
 
-  // Coverage start = the latest "first price" across the basket: only from here
-  // on can every component be priced (via carry-forward), giving a clean index.
-  const coverageStart = priced.reduce((mx, p) => (p.firstDate > mx ? p.firstDate : mx), priced[0].firstDate);
-  const effectiveStart = coverageStart > start ? coverageStart : start;
-  if (effectiveStart > end) return { ...blank, excluded, coverageStart };
+  // Naively pinning the window to the latest "first price" lets a single new or
+  // sparsely-priced holding (e.g. a manual lot with one recent snapshot, or a
+  // freshly bought ticker) collapse the entire series. Instead, value-weight the
+  // basket and pick the earliest start from which positions covering at least
+  // COVERAGE_THRESHOLD of basket value already have prices. Newer positions are
+  // excluded from the (still fixed) basket and reported, rather than truncating
+  // everyone to their short history.
+  const COVERAGE_THRESHOLD = 0.7;
+  const weightOf = (p: Priced) =>
+    Math.max(0, toPrimary(p.source[p.source.length - 1].price * p.pos.quantity, p.pos.currency, end));
+  const totalWeight = priced.reduce((s, p) => s + weightOf(p), 0);
+  const byFirstDate = [...priced].sort((a, b) => a.firstDate.localeCompare(b.firstDate));
+  let thresholdStart = byFirstDate[byFirstDate.length - 1].firstDate; // fallback: require all
+  if (totalWeight > EPS) {
+    let cum = 0;
+    for (const p of byFirstDate) {
+      cum += weightOf(p);
+      if (cum >= COVERAGE_THRESHOLD * totalWeight) {
+        thresholdStart = p.firstDate;
+        break;
+      }
+    }
+  }
+  const effectiveStart = thresholdStart > start ? thresholdStart : start;
+  if (effectiveStart > end) return { ...blank, excluded, coverageStart: effectiveStart };
 
-  // Candidate dates = union of all source dates within [effectiveStart, end].
+  // Spanning positions can be priced across the whole window; newer ones are
+  // excluded (disclosed) so the basket stays fixed and contamination-free.
+  const spanning = priced.filter((p) => p.firstDate <= effectiveStart);
+  for (const p of priced) if (p.firstDate > effectiveStart) excluded.push(p.pos);
+  if (spanning.length === 0) return { ...blank, excluded, coverageStart: effectiveStart };
+
+  // Candidate dates = union of spanning positions' source dates within window.
   const dateSet = new Set<string>();
-  for (const p of priced) {
+  for (const p of spanning) {
     for (const s of p.source) {
       if (s.date >= effectiveStart && s.date <= end) dateSet.add(s.date);
     }
   }
   const dates = [...dateSet].sort();
-  if (dates.length === 0) return { ...blank, excluded, coverageStart };
+  if (dates.length === 0) return { ...blank, excluded, coverageStart: effectiveStart };
 
-  const positionValues = priced.map(({ pos, source }) =>
+  const positionValues = spanning.map(({ pos, source }) =>
     dates.map((date) => {
-      const hit = latestOnOrBefore(source, date)!; // guaranteed: date ≥ coverageStart ≥ firstDate
+      const hit = latestOnOrBefore(source, date)!; // guaranteed: date ≥ effectiveStart ≥ firstDate
       return toPrimary(hit.price * pos.quantity, pos.currency, date);
     }),
   );
 
-  return { dates, positionValues, positions: priced.map((p) => p.pos), excluded, coverageStart };
+  return { dates, positionValues, positions: spanning.map((p) => p.pos), excluded, coverageStart: effectiveStart };
 }
 
 export interface PortfolioValueSeries {
@@ -535,4 +561,41 @@ export function topMovers(
     }))
     .sort((a, b) => b.changePercent - a.changePercent)
     .slice(0, limit);
+}
+
+/**
+ * Today's movers from the two most recent daily closes of each held ticker —
+ * the latest completed session vs the prior one ("vs 前一日"). Preferred over a
+ * live quote's `changePercent`, which explodes when a provider reports a bad
+ * previous close (e.g. a post-spinoff or newly-listed ticker showing +3000%).
+ * Sorted best → worst.
+ */
+export function topMoversFromHistory(
+  dailyPrices: DailyPrice[],
+  heldTickers: Iterable<string>,
+  opts?: { limit?: number; nameFor?: (ticker: string) => string | null | undefined },
+): Mover[] {
+  const held = new Set([...heldTickers].map((t) => t.toUpperCase()));
+  const byTicker = new Map<string, DailyPrice[]>();
+  for (const row of dailyPrices) {
+    const key = row.ticker.toUpperCase();
+    if (!held.has(key)) continue;
+    (byTicker.get(key) ?? byTicker.set(key, []).get(key)!).push(row);
+  }
+  const limit = opts?.limit ?? 7;
+  const movers: Mover[] = [];
+  for (const [ticker, rows] of byTicker) {
+    if (rows.length < 2) continue;
+    rows.sort((a, b) => a.date.localeCompare(b.date));
+    const last = rows[rows.length - 1];
+    const prev = rows[rows.length - 2];
+    if (!(prev.close > EPS)) continue;
+    movers.push({
+      ticker,
+      name: opts?.nameFor?.(ticker) || ticker,
+      changePercent: (last.close / prev.close - 1) * 100,
+      marketTime: last.date,
+    });
+  }
+  return movers.sort((a, b) => b.changePercent - a.changePercent).slice(0, limit);
 }

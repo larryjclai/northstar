@@ -22,7 +22,7 @@ import {
   buildBenchmarkSeries,
   alignByDate,
   cumulativeReturnPct,
-  topMovers,
+  topMoversFromHistory,
   resolveAssetName,
   convertCurrency,
   createFxConverter,
@@ -42,7 +42,6 @@ import {
 } from "../domain";
 import { useRefreshQuotes, useRefreshFxRates } from "../features/market-data/useMarketRefresh";
 import { useState } from "react";
-import { MonthPicker } from "../components/ui/month-picker";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { useUiPreferences } from "../state/uiPreferences";
 
@@ -181,6 +180,17 @@ export function DashboardRoute() {
   const momChange = lastValue - prevValue;
   const momPct = prevValue > 0 ? (momChange / prevValue) * 100 : 0;
 
+  // The period control slices the net-worth chart to the selected range. The
+  // headline month-over-month figures stay on the full trend; only the chart
+  // view is scoped. Falls back to the full trend when a short range would leave
+  // too few points to draw (e.g. monthly buckets + a 1W range).
+  const visibleTrend = useMemo(() => {
+    if (trend.length < 2) return trend;
+    const startIso = stripStartDate(stripPeriod, new Date().toISOString().slice(0, 10));
+    const filtered = trend.filter((p) => p.iso >= startIso);
+    return filtered.length >= 2 ? filtered : trend;
+  }, [trend, stripPeriod]);
+
   const hasAnyData = accountRows.length > 0 || ledgerRows.length > 0 || assetRows.length > 0;
 
   // Budget health — current-month expense per category vs configured budget.
@@ -272,17 +282,17 @@ export function DashboardRoute() {
     return { portfolio, benchmark, alpha };
   }, [analyticsPositions, dailyPriceRows, manualSnapshotRows, toPrimary, stripPeriod, benchmarkTicker]);
 
-  // Today's Top Movers among held tickers, from each quote's real day change.
+  // Today's Top Movers among held tickers, computed from the two most recent
+  // daily closes ("vs 前一日") — robust against bad live-quote previous closes.
   const heldAssetCount = useMemo(() => assetRows.filter((a) => a.deletedAt === null && a.totalQuantity > 0).length, [assetRows]);
   const movers = useMemo(() => {
     const assetByTicker = new Map(assetRows.map((a) => [a.ticker.toUpperCase(), a]));
     const heldTickers = assetRows.filter((a) => a.deletedAt === null && a.totalQuantity > 0).map((a) => a.ticker);
-    return topMovers(
-      quoteRows.map((q) => ({ symbol: q.symbol, changePercent: q.changePercent, name: q.name, marketTime: q.marketTime })),
-      heldTickers,
-      { limit: 7, nameFor: (t) => resolveAssetName(assetByTicker.get(t.toUpperCase()), nameLocale) },
-    );
-  }, [quoteRows, assetRows, nameLocale]);
+    return topMoversFromHistory(dailyPriceRows, heldTickers, {
+      limit: 7,
+      nameFor: (t) => resolveAssetName(assetByTicker.get(t.toUpperCase()), nameLocale),
+    });
+  }, [dailyPriceRows, assetRows, nameLocale]);
   const moversMax = movers.reduce((mx, m) => Math.max(mx, Math.abs(m.changePercent)), 0) || 1;
 
   // Goals — approximate progress = net worth / target (dashboard glance only).
@@ -392,47 +402,52 @@ export function DashboardRoute() {
           <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Overview · {monthLabel}</div>
           <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>{greeting}</h1>
         </div>
-        {/* Phone: account filter on its own full-width row, then [month | 更新]
-            on the next row. Avoids the 3 fixed-width controls wrapping into an
-            uneven jumble. From sm it's a single right-aligned wrapping row. */}
+        {/* Account filter + 更新. The single time-range control lives on the net
+            worth card (the period segmented control), matching the prototype. */}
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
           <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} style={{ maxWidth: "none" }} />
-          <div className="flex items-center gap-2">
-            <MonthPicker value={monthKey} onChange={setMonthKey} triggerClassName="h-[36px] whitespace-nowrap flex-1 justify-center sm:flex-none" />
-            <Button variant="outline" className="h-9 shrink-0 sm:h-9" onClick={refreshMarket} loading={refreshingMarket} disabled={refreshingMarket || (assetRows.length === 0 && (appSettings?.exchangeRates?.length ?? 0) === 0)}>
-              <ArrowsClockwise size={14} />{refreshingMarket ? "更新中" : "更新"}
-            </Button>
-          </div>
+          <Button variant="outline" className="h-9 shrink-0 sm:h-9" onClick={refreshMarket} loading={refreshingMarket} disabled={refreshingMarket || (assetRows.length === 0 && (appSettings?.exchangeRates?.length ?? 0) === 0)}>
+            <ArrowsClockwise size={14} />{refreshingMarket ? "更新中" : "更新"}
+          </Button>
         </div>
       </div>
 
       {/* Row 1 · Net worth + KPI stack */}
       <div className="ns-dash-row1">
         <Card style={{ padding: 22, display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <div style={{ marginBottom: 14 }}>
-            <div className="ns-eyebrow" style={{ marginBottom: 5 }}>Net worth · {primaryCurrency}</div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap", minWidth: 0 }}>
-              <span style={{ fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums lining-nums",
-                fontSize: "clamp(28px, 4vw, 56px)", letterSpacing: "-0.025em", fontWeight: 500,
-                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%",
-                flexShrink: 1 }}>
-                {formatMoney(netWorth, primaryCurrency)}
-              </span>
-              {trend.length >= 2 ? (
-                <Badge variant={momChange >= 0 ? "success" : "error"} className="gap-1 rounded-full px-2">
-                  {momChange >= 0 ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />}
-                  <span className="num">{momChange >= 0 ? "+" : "−"}{formatNumber(Math.abs(momChange))} · {Math.abs(momPct).toFixed(2)}%</span>
-                </Badge>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+            <div style={{ minWidth: 0 }}>
+              <div className="ns-eyebrow" style={{ marginBottom: 5 }}>Net worth · {primaryCurrency}</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap", minWidth: 0 }}>
+                <span style={{ fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums lining-nums",
+                  fontSize: "clamp(28px, 4vw, 56px)", letterSpacing: "-0.025em", fontWeight: 500,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%",
+                  flexShrink: 1 }}>
+                  {formatMoney(netWorth, primaryCurrency)}
+                </span>
+                {trend.length >= 2 ? (
+                  <Badge variant={momChange >= 0 ? "success" : "error"} className="gap-1 rounded-full px-2">
+                    {momChange >= 0 ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />}
+                    <span className="num">{momChange >= 0 ? "+" : "−"}{formatNumber(Math.abs(momChange))} · {Math.abs(momPct).toFixed(2)}%</span>
+                  </Badge>
+                ) : null}
+              </div>
+              {Math.abs(netSettlement) > 0.5 ? (
+                <div className="muted" style={{ fontSize: 12, marginTop: 4 }} title="現金基礎淨值加計應收、減去應付">
+                  調整後淨值（含應收應付）{" "}
+                  <span className="num" style={{ color: "var(--ns-fg)" }}>{formatMoney(adjustedNetWorth, primaryCurrency)}</span>
+                  <span style={{ marginLeft: 6 }}>
+                    ({netSettlement >= 0 ? "+" : "−"}{formatNumber(Math.abs(netSettlement))})
+                  </span>
+                </div>
               ) : null}
             </div>
-            {Math.abs(netSettlement) > 0.5 ? (
-              <div className="muted" style={{ fontSize: 12, marginTop: 4 }} title="現金基礎淨值加計應收、減去應付">
-                調整後淨值（含應收應付）{" "}
-                <span className="num" style={{ color: "var(--ns-fg)" }}>{formatMoney(adjustedNetWorth, primaryCurrency)}</span>
-                <span style={{ marginLeft: 6 }}>
-                  ({netSettlement >= 0 ? "+" : "−"}{formatNumber(Math.abs(netSettlement))})
-                </span>
-              </div>
+            {trend.length > 1 ? (
+              <SegmentedControl
+                value={stripPeriod}
+                onChange={setStripPeriod}
+                options={(["1W", "1M", "3M", "YTD", "1Y"] as StripPeriod[]).map((v) => ({ value: v, label: v }))}
+              />
             ) : null}
           </div>
           {trend.length > 1 ? (
@@ -442,7 +457,7 @@ export function DashboardRoute() {
             <div style={{ flex: 1, minHeight: 160, position: "relative" }}>
               <div style={{ position: "absolute", inset: 0 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trend}>
+                <AreaChart data={visibleTrend}>
                   <defs>
                     <linearGradient id="netWorth" x1="0" x2="0" y1="0" y2="1">
                       <stop offset="5%" stopColor="var(--ns-accent)" stopOpacity={0.35} />
@@ -476,7 +491,7 @@ export function DashboardRoute() {
           )}
 
           {analyticsPositions.length > 0 ? (
-            <PortfolioStrip period={stripPeriod} onPeriod={setStripPeriod} data={stripData} benchmarkTicker={benchmarkTicker} />
+            <PortfolioStrip period={stripPeriod} data={stripData} benchmarkTicker={benchmarkTicker} />
           ) : null}
         </Card>
 
@@ -661,8 +676,8 @@ export function DashboardRoute() {
           {allocation.length === 0 ? (
             <div className="muted" style={{ fontSize: 13 }}>尚無資產可顯示配置。</div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 18, alignItems: "center" }}>
-              <div style={{ width: 120, height: 120 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
+              <div style={{ width: 120, height: 120, flexShrink: 0 }}>
                 <ResponsiveContainer>
                   <PieChart>
                     <Pie data={allocation} dataKey="value" nameKey="label" cx="50%" cy="50%" innerRadius={42} outerRadius={60} stroke="none" paddingAngle={2}>
@@ -672,13 +687,14 @@ export function DashboardRoute() {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ flex: 1, minWidth: 160, display: "flex", flexDirection: "column", gap: 6 }}>
                 {allocation.map((a) => (
                   <div key={a.label} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, borderBottom: "1px solid var(--ns-border)", paddingBottom: 5 }}>
                     <span style={{ width: 8, height: 8, background: a.color, borderRadius: 2, flexShrink: 0 }} />
-                    {/* Wrap rather than ellipsis-truncate so class labels stay
-                        fully readable on the narrow 3-card row (B17). */}
-                    <span style={{ flex: 1, minWidth: 0, lineHeight: 1.25, wordBreak: "break-word" }} title={a.label}>{a.label}</span>
+                    {/* Single-line with ellipsis; the legend now takes the card's
+                        full width (wraps below the donut on narrow cards) so short
+                        class labels never split mid-character. */}
+                    <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={a.label}>{a.label}</span>
                     {/* Compact (萬/億 · K/M) so the value never forces the label to
                         wrap vertically on a narrow card. */}
                     <span className="num muted" style={{ fontSize: 11, flexShrink: 0 }} title={formatMoney(a.value, primaryCurrency)}>{formatCompactMoney(a.value, primaryCurrency)}</span>
@@ -791,9 +807,8 @@ function fmtPctSigned(v: number | null): string {
   return `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}%`;
 }
 
-function PortfolioStrip({ period, onPeriod, data, benchmarkTicker }: {
+function PortfolioStrip({ period, data, benchmarkTicker }: {
   period: StripPeriod;
-  onPeriod: (p: StripPeriod) => void;
   data: { portfolio: number | null; benchmark: number | null; alpha: number | null };
   benchmarkTicker: string;
 }) {
@@ -804,14 +819,7 @@ function PortfolioStrip({ period, onPeriod, data, benchmarkTicker }: {
   ];
   return (
     <div style={{ marginTop: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-        <div className="ns-eyebrow">投資組合 vs Benchmark · {period}</div>
-        <SegmentedControl
-          value={period}
-          onChange={onPeriod}
-          options={(["1W", "1M", "3M", "YTD", "1Y"] as StripPeriod[]).map((v) => ({ value: v, label: v }))}
-        />
-      </div>
+      <div className="ns-eyebrow" style={{ marginBottom: 8 }}>投資組合 vs Benchmark · {period}</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", overflow: "hidden" }}>
         {cells.map((c, i) => (
           <div key={c.label} style={{ padding: "10px 14px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)", minWidth: 0 }}>
@@ -844,7 +852,7 @@ function TopMoversCard({ movers, moversMax }: { movers: Mover[]; moversMax: numb
         <Button variant="ghost" size="xs" render={<Link to="/investments" />}>詳細 →</Button>
       </div>
       {movers.length === 0 ? (
-        <div className="muted" style={{ fontSize: 13, padding: "16px 18px" }}>更新報價後顯示當日漲跌幅。</div>
+        <div className="muted" style={{ fontSize: 13, padding: "16px 18px" }}>回補歷史股價後顯示當日漲跌幅。</div>
       ) : (
         movers.map((m, i) => {
           const isPos = m.changePercent >= 0;
@@ -933,6 +941,8 @@ function buildNetWorthTrend(
   const granularity: "day" | "month" = spanMonths >= 2 ? "month" : "day";
   const keyOf = (date: string) => (granularity === "month" ? monthKey(date) : dateOnly(date));
   const labelOf = (key: string) => (granularity === "month" ? formatMonth(key) : formatDay(key));
+  // Sortable ISO date per bucket so the period control can slice the chart.
+  const isoOf = (key: string) => (granularity === "month" ? `${key}-01` : key);
 
   // Cash side: opening balances + every settled ledger movement (which already
   // includes the cash leg of investment buys/sells).
@@ -990,11 +1000,11 @@ function buildNetWorthTrend(
 
   let cashRunning = 0;
   let holdingsRunning = 0;
-  const timeline: Array<{ date: string; value: number }> = [];
+  const timeline: Array<{ date: string; value: number; iso: string }> = [];
   for (const key of orderedKeys) {
     cashRunning += cashDelta.get(key) ?? 0;
     holdingsRunning += holdingsValueDelta.get(key) ?? 0;
-    timeline.push({ date: labelOf(key), value: cashRunning + holdingsRunning });
+    timeline.push({ date: labelOf(key), value: cashRunning + holdingsRunning, iso: isoOf(key) });
   }
 
   // The series already ends at today's net worth, so we don't bolt on a separate
@@ -1004,7 +1014,7 @@ function buildNetWorthTrend(
   const todayKey = keyOf(dateOnly(now.toISOString()));
   const lastKey = orderedKeys[orderedKeys.length - 1];
   if (timeline.length === 1 || (timeline.length > 1 && lastKey !== todayKey)) {
-    timeline.push({ date: "現在", value: cashRunning + holdingsRunning });
+    timeline.push({ date: "現在", value: cashRunning + holdingsRunning, iso: dateOnly(now.toISOString()) });
   }
   return timeline;
 }

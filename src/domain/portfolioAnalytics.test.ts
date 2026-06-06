@@ -15,6 +15,7 @@ import {
   sortinoRatio,
   toCumulativeReturnSeries,
   topMovers,
+  topMoversFromHistory,
   TRADING_DAYS_PER_YEAR,
   type AnalyticsPosition,
   type MoverQuote,
@@ -234,6 +235,47 @@ describe("buildPortfolioValueSeries", () => {
     expect(series[0].value).toBe(3000);
   });
 
+  it("does not let a small new/manual holding collapse the window", () => {
+    // AAA spans the whole window and dominates value; BBB is a tiny lot that
+    // only starts near the end. The basket should still span AAA's full history,
+    // with BBB excluded (disclosed) rather than truncating everything to 2 days.
+    const positions = [
+      pos({ assetId: "a", ticker: "AAA", quantity: 100 }),
+      pos({ assetId: "b", ticker: "BBB", quantity: 1 }),
+    ];
+    const dailyPrices = [
+      price("AAA", "2024-01-01", 10), price("AAA", "2024-01-02", 10), price("AAA", "2024-01-03", 10),
+      price("AAA", "2024-01-04", 10), price("AAA", "2024-01-05", 10),
+      price("BBB", "2024-01-04", 5), price("BBB", "2024-01-05", 5),
+    ];
+    const { series, excludedTickers, coverageStart } = buildPortfolioValueSeries({
+      positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-01", end: "2024-01-05",
+    });
+    expect(coverageStart).toBe("2024-01-01");
+    expect(series.length).toBe(5);
+    expect(excludedTickers).toEqual(["BBB"]);
+    expect(series.map((p) => p.value)).toEqual([1000, 1000, 1000, 1000, 1000]); // AAA only
+  });
+
+  it("keeps a late holding when it dominates basket value (window shrinks instead)", () => {
+    // Here BBB is the bulk of value but only has recent history → the window
+    // shrinks to where ≥70% of value is priced, rather than excluding BBB.
+    const positions = [
+      pos({ assetId: "a", ticker: "AAA", quantity: 1 }),
+      pos({ assetId: "b", ticker: "BBB", quantity: 100 }),
+    ];
+    const dailyPrices = [
+      price("AAA", "2024-01-01", 10), price("AAA", "2024-01-02", 10), price("AAA", "2024-01-03", 10),
+      price("BBB", "2024-01-02", 50), price("BBB", "2024-01-03", 50),
+    ];
+    const { series, coverageStart } = buildPortfolioValueSeries({
+      positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-01", end: "2024-01-03",
+    });
+    expect(coverageStart).toBe("2024-01-02"); // BBB (dominant) prices from here
+    expect(series.length).toBe(2);
+    expect(series[0].value).toBe(5010); // AAA 10 + BBB 5000
+  });
+
   it("ignores zero-quantity positions", () => {
     const positions = [pos({ assetId: "a", ticker: "AAA", quantity: 0 })];
     const dailyPrices = [price("AAA", "2024-01-01", 10)];
@@ -320,6 +362,34 @@ describe("topMovers", () => {
   it("drops non-finite change percentages", () => {
     const movers = topMovers([{ symbol: "AAA", changePercent: NaN }], ["AAA"]);
     expect(movers).toEqual([]);
+  });
+});
+
+describe("topMoversFromHistory", () => {
+  it("computes day change from the last two closes, sorted best → worst", () => {
+    const dailyPrices = [
+      price("AAA", "2024-01-01", 100), price("AAA", "2024-01-02", 110), // +10%
+      price("BBB", "2024-01-01", 50), price("BBB", "2024-01-02", 45), // −10%
+      price("CCC", "2024-01-01", 20), price("CCC", "2024-01-02", 21), // +5%
+      price("ZZZ", "2024-01-01", 10), price("ZZZ", "2024-01-02", 99), // not held
+    ];
+    const movers = topMoversFromHistory(dailyPrices, ["aaa", "BBB", "ccc"]);
+    expect(movers.map((m) => m.ticker)).toEqual(["AAA", "CCC", "BBB"]);
+    expect(movers[0].changePercent).toBeCloseTo(10, 6);
+    expect(movers[2].changePercent).toBeCloseTo(-10, 6);
+    expect(movers[0].marketTime).toBe("2024-01-02");
+  });
+  it("skips tickers with fewer than two closes or a non-positive prior close", () => {
+    const dailyPrices = [
+      price("AAA", "2024-01-02", 110), // single close
+      price("BBB", "2024-01-01", 0), price("BBB", "2024-01-02", 5), // prior close 0
+    ];
+    expect(topMoversFromHistory(dailyPrices, ["AAA", "BBB"])).toEqual([]);
+  });
+  it("uses the name resolver", () => {
+    const dailyPrices = [price("2330.TW", "2024-01-01", 100), price("2330.TW", "2024-01-02", 101)];
+    const movers = topMoversFromHistory(dailyPrices, ["2330.TW"], { nameFor: () => "台積電" });
+    expect(movers[0].name).toBe("台積電");
   });
 });
 

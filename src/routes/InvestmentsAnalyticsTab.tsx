@@ -159,10 +159,10 @@ export function InvestmentsAnalyticsTab({
   // ── Period-scoped portfolio series + risk metrics (KPI strip) ──────────────
   const core = useMemo(() => {
     const start = periodStart(period, end);
-    const { series } = buildPortfolioValueSeries({ positions, dailyPrices, manualSnapshots, toPrimary, start, end });
+    const { series, excludedTickers } = buildPortfolioValueSeries({ positions, dailyPrices, manualSnapshots, toPrimary, start, end });
     const values = series.map((p) => p.value);
     const returns = dailyReturns(values);
-    return { series, values, returns };
+    return { series, values, returns, excludedTickers };
   }, [positions, dailyPrices, manualSnapshots, toPrimary, period, end]);
 
   const enough = hasEnoughReturns(core.returns);
@@ -341,6 +341,11 @@ export function InvestmentsAnalyticsTab({
             <span className="muted">{perf.hasBenchmark ? `${benchmarkTicker} 指標` : `尚無 ${benchmarkTicker} 歷史股價`}</span>
           </span>
         </div>
+        {core.excludedTickers.length > 0 ? (
+          <div className="muted" style={{ fontSize: 11, marginTop: 8, lineHeight: 1.5 }}>
+            部分標的歷史股價不足，本期間未納入分析：{core.excludedTickers.join("、")}。回補更長區間的歷史股價即可納入。
+          </div>
+        ) : null}
       </CossCard>
 
       {/* ── Allocation drift + Rolling volatility ── */}
