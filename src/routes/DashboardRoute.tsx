@@ -294,11 +294,10 @@ export function DashboardRoute() {
       dailyPrices: dailyPriceRows,
       quotes: quoteRows.map((q) => ({ symbol: q.symbol, price: q.price, marketTime: q.marketTime })),
       heldTickers,
-      today: todayInTimezone(timezone),
       limit: 7,
       nameFor: (t) => resolveAssetName(assetByTicker.get(t.toUpperCase()), nameLocale),
     });
-  }, [dailyPriceRows, quoteRows, assetRows, nameLocale, timezone]);
+  }, [dailyPriceRows, quoteRows, assetRows, nameLocale]);
   const moversMax = movers.reduce((mx, m) => Math.max(mx, Math.abs(m.changePercent)), 0) || 1;
 
   // Goals — approximate progress = net worth / target (dashboard glance only).

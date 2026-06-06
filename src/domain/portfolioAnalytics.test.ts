@@ -214,13 +214,27 @@ describe("buildPortfolioValueSeries", () => {
     expect(series.map((p) => p.value)).toEqual([100, 200]);
   });
 
-  it("prices manual holdings off their snapshots", () => {
+  it("prices manual holdings off their snapshots when the ticker has no daily history", () => {
     const positions = [pos({ assetId: "m1", ticker: "MAN", quantity: 10, isManual: true })];
     const manualSnapshots = [snapshot("m1", "2024-01-01", 7), snapshot("m1", "2024-01-02", 8)];
     const { series } = buildPortfolioValueSeries({
       positions, dailyPrices: [], manualSnapshots, toPrimary: identity, start: "2024-01-01", end: "2024-01-02",
     });
     expect(series.map((p) => p.value)).toEqual([70, 80]);
+  });
+
+  it("prices a MANUAL holding off its ticker's daily history when available (not its lone snapshot)", () => {
+    // The key manual-holding fix: a manually-tracked lot of a listed ticker uses
+    // the backfilled daily_prices, so it isn't collapsed to its creation snapshot.
+    const positions = [pos({ assetId: "m1", ticker: "AAA", quantity: 10, isManual: true })];
+    const dailyPrices = [price("AAA", "2024-01-01", 10), price("AAA", "2024-01-02", 11), price("AAA", "2024-01-03", 12)];
+    const manualSnapshots = [snapshot("m1", "2024-01-03", 99)]; // stale single snapshot, ignored
+    const { series, coverageStart, excludedTickers } = buildPortfolioValueSeries({
+      positions, dailyPrices, manualSnapshots, toPrimary: identity, start: "2024-01-01", end: "2024-01-03",
+    });
+    expect(coverageStart).toBe("2024-01-01");
+    expect(series.map((p) => p.value)).toEqual([100, 110, 120]);
+    expect(excludedTickers).toEqual([]);
   });
 
   it("applies the currency converter with the as-of date", () => {
@@ -336,8 +350,8 @@ describe("allocationDriftSeries", () => {
 });
 
 describe("dayChangeMovers", () => {
-  it("intraday: live quote vs the latest (yesterday) close", () => {
-    // Today is 01-03; today's close not in daily_prices yet → live price vs 昨收.
+  it("intraday: quote newer than the latest close → live vs 昨收", () => {
+    // Today's close isn't recorded yet; quote is dated after the latest close.
     const dailyPrices = [
       price("AAA", "2024-01-01", 100), price("AAA", "2024-01-02", 110), // latest close 110
       price("BBB", "2024-01-01", 60), price("BBB", "2024-01-02", 50), // latest close 50
@@ -346,29 +360,37 @@ describe("dayChangeMovers", () => {
       { symbol: "AAA", price: 121, marketTime: "2024-01-03T05:30:00Z" }, // +10% vs 110
       { symbol: "BBB", price: 45, marketTime: "2024-01-03T05:30:00Z" }, // −10% vs 50
     ];
-    const movers = dayChangeMovers({ dailyPrices, quotes, heldTickers: ["AAA", "BBB"], today: "2024-01-03" });
+    const movers = dayChangeMovers({ dailyPrices, quotes, heldTickers: ["AAA", "BBB"] });
     expect(movers.map((m) => m.ticker)).toEqual(["AAA", "BBB"]);
     expect(movers[0].changePercent).toBeCloseTo(10, 6);
     expect(movers[1].changePercent).toBeCloseTo(-10, 6);
     expect(movers[0].marketTime).toBe("2024-01-03T05:30:00Z");
   });
 
-  it("after close: today's close already recorded → current vs the prior session", () => {
-    // Today is 01-03 and its close (121) is in daily_prices; reference must be
-    // the 01-02 close (110), not 01-03 itself.
-    const dailyPrices = [
-      price("AAA", "2024-01-02", 110), price("AAA", "2024-01-03", 121),
-    ];
+  it("after close: quote same session as the latest close → current vs the prior session", () => {
+    // 01-03 close (121) is recorded and the quote is also dated 01-03; the
+    // reference must step back to the 01-02 close, not compare 01-03 to itself.
+    const dailyPrices = [price("AAA", "2024-01-02", 110), price("AAA", "2024-01-03", 121)];
     const quotes = [{ symbol: "AAA", price: 121, marketTime: "2024-01-03T09:00:00Z" }];
-    const movers = dayChangeMovers({ dailyPrices, quotes, heldTickers: ["AAA"], today: "2024-01-03" });
+    const movers = dayChangeMovers({ dailyPrices, quotes, heldTickers: ["AAA"] });
     expect(movers[0].changePercent).toBeCloseTo(10, 6);
   });
 
-  it("no quote: falls back to the two most recent daily closes", () => {
+  it("weekend: Friday close (== quote) vs Thursday, not 0%", () => {
+    // Saturday: latest close is Friday and the live quote is still Friday's. The
+    // change must be Friday vs Thursday (the reference steps back), not 0%.
     const dailyPrices = [
-      price("AAA", "2024-01-01", 100), price("AAA", "2024-01-02", 90), // −10%
+      price("AAA", "2024-01-04", 100), // Thursday
+      price("AAA", "2024-01-05", 105), // Friday
     ];
-    const movers = dayChangeMovers({ dailyPrices, quotes: [], heldTickers: ["AAA"], today: "2024-01-03" });
+    const quotes = [{ symbol: "AAA", price: 105, marketTime: "2024-01-05T13:30:00Z" }]; // Friday close
+    const movers = dayChangeMovers({ dailyPrices, quotes, heldTickers: ["AAA"] });
+    expect(movers[0].changePercent).toBeCloseTo(5, 6); // 105 vs 100, not 0
+  });
+
+  it("no quote: falls back to the two most recent daily closes", () => {
+    const dailyPrices = [price("AAA", "2024-01-01", 100), price("AAA", "2024-01-02", 90)]; // −10%
+    const movers = dayChangeMovers({ dailyPrices, quotes: [], heldTickers: ["AAA"] });
     expect(movers[0].changePercent).toBeCloseTo(-10, 6);
     expect(movers[0].marketTime).toBe("2024-01-02");
   });
@@ -378,19 +400,19 @@ describe("dayChangeMovers", () => {
       price("AAA", "2024-01-01", 100), price("AAA", "2024-01-02", 110),
       price("ZZZ", "2024-01-01", 10), price("ZZZ", "2024-01-02", 99), // not held
     ];
-    const quotes = [{ symbol: "AAA", price: 110, marketTime: null }];
-    const movers = dayChangeMovers({ dailyPrices, quotes, heldTickers: ["AAA"], today: "2024-01-03", nameFor: () => "台積電" });
+    const quotes = [{ symbol: "AAA", price: 121, marketTime: "2024-01-03T00:00:00Z" }];
+    const movers = dayChangeMovers({ dailyPrices, quotes, heldTickers: ["AAA"], nameFor: () => "台積電" });
     expect(movers).toHaveLength(1);
     expect(movers[0].name).toBe("台積電");
   });
 
   it("skips a ticker with a live quote but no prior close, and ignores bad quote prices", () => {
-    const dailyPrices = [price("AAA", "2024-01-03", 121)]; // only today's close, no prior
+    const dailyPrices = [price("AAA", "2024-01-03", 121)]; // only one close, no prior session
     const quotes = [
       { symbol: "AAA", price: 121, marketTime: "2024-01-03T09:00:00Z" },
       { symbol: "BBB", price: 0 }, // non-positive price ignored
     ];
-    expect(dayChangeMovers({ dailyPrices, quotes, heldTickers: ["AAA", "BBB"], today: "2024-01-03" })).toEqual([]);
+    expect(dayChangeMovers({ dailyPrices, quotes, heldTickers: ["AAA", "BBB"] })).toEqual([]);
   });
 });
 

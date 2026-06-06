@@ -341,14 +341,19 @@ function priceBasket(opts: {
   }
   for (const rows of snapsByAsset.values()) rows.sort((a, b) => a.date.localeCompare(b.date));
 
-  // Resolve each position's source list and first available date.
+  // Resolve each position's price source. Prefer real market history by *ticker*
+  // — this is the key fix for manual holdings: a manually-tracked lot of a listed
+  // ticker (e.g. 2330.TW) should use its backfilled daily_prices, exactly like a
+  // transaction-based holding, instead of its lone creation snapshot. Manual
+  // snapshots are only the fallback for genuinely non-market assets (no ticker
+  // history at all, e.g. real estate). `isManual` no longer gates this.
   interface Priced { pos: AnalyticsPosition; source: Array<{ date: string; price: number }>; firstDate: string }
   const priced: Priced[] = [];
   const excluded: AnalyticsPosition[] = [];
   for (const pos of held) {
-    const source = pos.isManual
-      ? (snapsByAsset.get(pos.assetId) ?? []).map((s) => ({ date: day(s.date), price: s.price }))
-      : (pricesByTicker.get(pos.ticker.toUpperCase()) ?? []).map((p) => ({ date: day(p.date), price: p.close }));
+    const tickerHistory = (pricesByTicker.get(pos.ticker.toUpperCase()) ?? []).map((p) => ({ date: day(p.date), price: p.close }));
+    const snapHistory = (snapsByAsset.get(pos.assetId) ?? []).map((s) => ({ date: day(s.date), price: s.price }));
+    const source = tickerHistory.length >= 2 ? tickerHistory : snapHistory.length > 0 ? snapHistory : tickerHistory;
     if (source.length === 0) {
       excluded.push(pos);
       continue;
@@ -540,33 +545,33 @@ export interface DayChangeQuote {
 }
 
 /**
- * Today's movers among *held* tickers, correct both intraday and after-hours.
+ * Today's movers among *held* tickers — correct intraday, after-hours, and on
+ * weekends/holidays. The change is always **the current session vs the session
+ * before it**, never "vs today" (which reads 0% on a non-trading day because the
+ * live price already equals the latest recorded close).
  *
- * The **reference** is always the prior session's close taken from daily_prices
- * (reliable), never a live quote's `previousClose` — which can be garbage for
- * post-spinoff / newly-listed tickers and produced the bogus "+3000%" values.
+ * The reference close comes from daily_prices, never a live quote's
+ * `previousClose` (which can be garbage for post-spinoff tickers → +3000%).
  *
- * The **current** price prefers the live quote:
- *   - Intraday: today's close isn't in daily_prices yet, so current = live quote
- *     and reference = the latest close (yesterday) → live vs 昨收.
- *   - After close: current = live quote (≈ today's close); reference = the latest
- *     close strictly *before* today, so even if today's close is already recorded
- *     it's treated as the current session, not the reference → 今收 vs 昨收.
- *   - No quote at all: fall back to the two most recent daily closes.
+ * Let `lastClose` be the most recent daily close and `prevClose` the one before:
+ *   - With a live quote, compare its session date to `lastClose`:
+ *       · quote newer than lastClose (intraday — today's close not recorded yet):
+ *         current = live quote, reference = lastClose (the prior session).
+ *       · quote same session as lastClose (after close, or a weekend showing the
+ *         last session): current = live quote, reference = prevClose.
+ *   - No quote: current = lastClose, reference = prevClose.
  *
- * Sorted best → worst, limited to `limit` (default 7).
+ * So on a Saturday the latest close is Friday and the reference is Thursday —
+ * exactly "Friday vs Thursday". Sorted best → worst, limited to `limit` (7).
  */
 export function dayChangeMovers(opts: {
   dailyPrices: DailyPrice[];
   quotes: DayChangeQuote[];
   heldTickers: Iterable<string>;
-  /** Today's date (YYYY-MM-DD) in the user's timezone — the session boundary. */
-  today: string;
   limit?: number;
   nameFor?: (ticker: string) => string | null | undefined;
 }): Mover[] {
   const held = new Set([...opts.heldTickers].map((t) => t.toUpperCase()));
-  const td = day(opts.today);
   const limit = opts.limit ?? 7;
 
   const closesByTicker = new Map<string, DailyPrice[]>();
@@ -585,28 +590,25 @@ export function dayChangeMovers(opts: {
   const movers: Mover[] = [];
   for (const ticker of held) {
     const closes = closesByTicker.get(ticker) ?? [];
+    const lastClose = closes.length ? closes[closes.length - 1] : null;
+    const prevClose = closes.length >= 2 ? closes[closes.length - 2] : null;
     const quote = quoteByTicker.get(ticker);
+
     let current: number | null = null;
     let reference: number | null = null;
     let asOf: string | null = null;
 
-    if (quote) {
+    if (quote && lastClose) {
       current = quote.price;
-      asOf = quote.marketTime ?? (closes.length ? closes[closes.length - 1].date : null);
-      // Reference = latest close strictly before today (the prior session).
-      for (let i = closes.length - 1; i >= 0; i -= 1) {
-        if (day(closes[i].date) < td) {
-          reference = closes[i].close;
-          break;
-        }
-      }
-      // Only today's close exists (no prior session before today): use the one
-      // before it if present.
-      if (reference == null && closes.length >= 2) reference = closes[closes.length - 2].close;
-    } else if (closes.length >= 2) {
-      current = closes[closes.length - 1].close;
-      reference = closes[closes.length - 2].close;
-      asOf = closes[closes.length - 1].date;
+      asOf = quote.marketTime ?? lastClose.date;
+      const quoteDate = quote.marketTime ? day(quote.marketTime) : null;
+      // Quote dated after the last recorded close → that close is the prior
+      // session. Otherwise the quote is the latest recorded session → step back.
+      reference = quoteDate && quoteDate > lastClose.date ? lastClose.close : prevClose?.close ?? null;
+    } else if (lastClose && prevClose) {
+      current = lastClose.close;
+      reference = prevClose.close;
+      asOf = lastClose.date;
     }
 
     if (current == null || reference == null || !(reference > EPS)) continue;
