@@ -312,8 +312,9 @@ function NSDesktopHoldings({ onNavigate } = {}) {
         {/* Page-level tabs: Portfolio | Transactions */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--ns-border)', marginTop: 20, marginBottom: 22 }}>
           {[
-            { id: 'portfolio', label: 'Portfolio',    active: true,  nav: null },
+            { id: 'portfolio',  label: 'Portfolio',    active: true,  nav: null },
             { id: 'txns',      label: 'Transactions', active: false, nav: 'holdings-txns' },
+            { id: 'analytics', label: 'Analytics',    active: false, nav: 'holdings-analytics' },
           ].map(tab => (
             <button key={tab.id} onClick={() => tab.nav && onNavigate && onNavigate(tab.nav)} style={{
               padding: '10px 20px', background: 'none', border: 'none', cursor: 'pointer',

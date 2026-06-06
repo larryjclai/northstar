@@ -8,6 +8,7 @@ function NSPrototype() {
     'holding-detail': NSDesktopHoldingDetail,
     'inv-add':        NSDesktopInvestAddSheet,
     'holdings-txns':  NSDesktopHoldingsTxns,
+    'holdings-analytics': NSDesktopHoldingsAnalytics,
     cashflow:         NSDesktopCashFlow,
     'cf-detail':      NSDesktopCashFlowDetail,
     merchant:         NSDesktopMerchantDetail,

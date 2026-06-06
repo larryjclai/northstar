@@ -102,6 +102,9 @@ function NSRoot() {
           <DCArtboard id="d-holdings-txns" label="Holdings · All Transactions tab" width={1440} height={900}>
             <NSDesktopHoldingsTxns />
           </DCArtboard>
+          <DCArtboard id="d-holdings-analytics" label="Holdings · Analytics tab ★" width={1440} height={900}>
+            <NSDesktopHoldingsAnalytics />
+          </DCArtboard>
           <DCArtboard id="d-inv-add" label="Investments · Add sheet" width={1440} height={900}>
             <NSDesktopInvestAddSheet />
           </DCArtboard>

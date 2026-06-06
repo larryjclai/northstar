@@ -86,8 +86,9 @@ function NSDesktopHoldingsTxns({ onNavigate } = {}) {
 
         {/* Page-level tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--ns-border)', marginTop: 20, marginBottom: 20 }}>
-          <TabBtn id="portfolio" label="Portfolio"     active={false} onClick={() => onNavigate && onNavigate('holdings')} />
+          <TabBtn id="portfolio"  label="Portfolio"     active={false} onClick={() => onNavigate && onNavigate('holdings')} />
           <TabBtn id="txns"      label="Transactions"  active={true}  onClick={() => {}} />
+          <TabBtn id="analytics" label="Analytics"     active={false} onClick={() => onNavigate && onNavigate('holdings-analytics')} />
         </div>
 
         {/* Filter bar */}

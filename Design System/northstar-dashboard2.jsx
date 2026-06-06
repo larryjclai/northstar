@@ -44,6 +44,26 @@ function NSDesktopDashboardV2({ onNavigate } = {}) {
     { name: 'NASDAQ',  val: '16,782', pct: -0.31 },
   ];
 
+  const movers = [
+    { sym: '2330.TW', name: '台積電',         day: +1.82 },
+    { sym: 'AAPL',    name: 'Apple',          day: +0.91 },
+    { sym: '0050.TW', name: '元大台灣50',      day: +0.42 },
+    { sym: 'VWRA',    name: 'FTSE All-World', day: +0.31 },
+    { sym: 'VTI',     name: 'Vanguard Total', day: -0.18 },
+    { sym: '2454.TW', name: '聯發科',          day: -1.25 },
+    { sym: 'BTC',     name: 'Bitcoin',        day: -2.13 },
+  ];
+  const moversMax = Math.max(...movers.map(m => Math.abs(m.day)));
+
+  const portByPeriod = {
+    '1W':  { port: +1.20, bench: +0.78 },
+    '1M':  { port: +2.23, bench: +1.45 },
+    '3M':  { port: +6.84, bench: +4.22 },
+    'YTD': { port: +8.52, bench: +5.84 },
+    '1Y':  { port: +18.5, bench: +11.2 },
+  };
+  const pv = portByPeriod[period] || portByPeriod['1M'];
+
   const recentTxns = [
     { mark: 'TS', color: 'var(--ns-chart-1)', name: '台積電配息',    sub: '證券戶 · 配息入帳',     amt: +3500   },
     { mark: 'UB', color: 'var(--ns-chart-4)', name: 'Uber',          sub: '14:32 · 信用卡 · 交通', amt: -250    },
@@ -133,6 +153,31 @@ function NSDesktopDashboardV2({ onNavigate } = {}) {
                 <span className="muted">0050.TW benchmark</span>
               </span>
               <span className="dim" style={{ marginLeft: 'auto' }}>Hover to scrub →</span>
+            </div>
+
+            {/* Portfolio vs Benchmark strip — updates with period selector */}
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(3,1fr)',
+              marginTop: 12, borderRadius: 'var(--ns-r-md)',
+              border: '1px solid var(--ns-border)', overflow: 'hidden',
+            }}>
+              {[
+                { label: 'Portfolio',  val: (pv.port  >= 0 ? '+' : '') + pv.port.toFixed(2)  + '%', color: 'var(--ns-pos)'      },
+                { label: '0050 Bench', val: (pv.bench >= 0 ? '+' : '') + pv.bench.toFixed(2) + '%', color: 'var(--ns-fg-muted)' },
+                { label: 'Alpha',      val: (pv.port - pv.bench >= 0 ? '+' : '') + (pv.port - pv.bench).toFixed(2) + '%', color: 'var(--ns-accent)' },
+              ].map((s, i) => (
+                <div key={s.label} style={{
+                  padding: '10px 14px',
+                  borderLeft: i ? '1px solid var(--ns-border)' : 'none',
+                  background: 'var(--ns-bg-hover)',
+                }}>
+                  <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 3 }}>{s.label} · {period}</div>
+                  <div style={{
+                    fontSize: 19, fontWeight: 600, fontFamily: 'var(--ns-font-mono)',
+                    color: s.color, fontVariantNumeric: 'tabular-nums',
+                  }}>{s.val}</div>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -248,8 +293,8 @@ function NSDesktopDashboardV2({ onNavigate } = {}) {
           </div>
         </div>
 
-        {/* ── Row 3 · Allocation + Goals + Market ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr 0.82fr', gap: 16, marginBottom: 16 }}>
+        {/* ── Row 3 · Allocation + Goals + Market + Top Movers ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.95fr 0.72fr 0.82fr', gap: 16, marginBottom: 16 }}>
 
           {/* Asset allocation */}
           <div className="ns-card">
@@ -358,6 +403,54 @@ function NSDesktopDashboardV2({ onNavigate } = {}) {
             <div style={{ padding: '8px 18px', borderTop: '1px solid var(--ns-border)', fontSize: 10.5, color: 'var(--ns-fg-dim)' }}>
               更新 14:32 · Yahoo Finance
             </div>
+          </div>
+
+          {/* Top Movers */}
+          <div className="ns-card" style={{ padding: 0 }}>
+            <div style={{ padding: '14px 18px 10px', borderBottom: '1px solid var(--ns-border)', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+              <div>
+                <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Today · 6/5</div>
+                <h3 style={{ margin: 0, fontFamily: 'var(--ns-font-display)', fontSize: 16, fontWeight: 500 }}>Top Movers</h3>
+              </div>
+              <button className="ns-btn ghost" style={{ fontSize: 11 }}
+                onClick={() => onNavigate && onNavigate('holdings-analytics')}>詳細 →</button>
+            </div>
+            {movers.map((m, i) => {
+              const isPos  = m.day >= 0;
+              const barPct = (Math.abs(m.day) / moversMax) * 100;
+              return (
+                <div key={m.sym}
+                  style={{
+                    display: 'grid', gridTemplateColumns: '14px 1fr 50px',
+                    alignItems: 'center', gap: 8,
+                    padding: '9px 14px',
+                    borderTop: i ? '1px solid var(--ns-border)' : 'none',
+                    cursor: 'pointer', transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--ns-bg-hover)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  onClick={() => onNavigate && onNavigate('holdings-analytics')}>
+                  <span className="mono dim" style={{ fontSize: 10, textAlign: 'right' }}>{i + 1}</span>
+                  <div>
+                    <div style={{ marginBottom: 3 }}>
+                      <span className="mono" style={{ fontSize: 12, fontWeight: 600 }}>{m.sym}</span>
+                    </div>
+                    <div style={{ height: 3, borderRadius: 99, background: 'var(--ns-bg-hover)', overflow: 'hidden', position: 'relative' }}>
+                      <div style={{
+                        position: 'absolute',
+                        left: isPos ? 0 : undefined, right: isPos ? undefined : 0,
+                        width: barPct + '%', height: '100%', borderRadius: 99,
+                        background: isPos ? 'var(--ns-pos)' : 'var(--ns-neg)',
+                      }} />
+                    </div>
+                  </div>
+                  <span className={'num ' + (isPos ? 'pos' : 'neg')} style={{
+                    fontSize: 12.5, fontWeight: 600, textAlign: 'right',
+                    fontFamily: 'var(--ns-font-mono)', fontVariantNumeric: 'tabular-nums',
+                  }}>{isPos ? '+' : ''}{m.day.toFixed(2)}%</span>
+                </div>
+              );
+            })}
           </div>
         </div>
 
