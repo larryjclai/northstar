@@ -290,15 +290,18 @@ export function DashboardRoute() {
   const movers = useMemo(() => {
     const assetByTicker = new Map(assetRows.map((a) => [a.ticker.toUpperCase(), a]));
     const heldTickers = assetRows.filter((a) => a.deletedAt === null && a.totalQuantity > 0).map((a) => a.ticker);
-    return dayChangeMovers({
+    const all = dayChangeMovers({
       dailyPrices: dailyPriceRows,
       quotes: quoteRows.map((q) => ({ symbol: q.symbol, price: q.price, marketTime: q.marketTime })),
       heldTickers,
-      limit: 7,
+      limit: 1000,
       nameFor: (t) => resolveAssetName(assetByTicker.get(t.toUpperCase()), nameLocale),
     });
+    // Top 3 up / top 3 down (best → worst within each column).
+    const gainers = all.filter((m) => m.changePercent > 0).slice(0, 3);
+    const losers = all.filter((m) => m.changePercent < 0).sort((a, b) => a.changePercent - b.changePercent).slice(0, 3);
+    return { gainers, losers, count: all.length };
   }, [dailyPriceRows, quoteRows, assetRows, nameLocale]);
-  const moversMax = movers.reduce((mx, m) => Math.max(mx, Math.abs(m.changePercent)), 0) || 1;
 
   // Goals — approximate progress = net worth / target (dashboard glance only).
   const goals = useMemo(() => {
@@ -784,7 +787,7 @@ export function DashboardRoute() {
           </div>
         )}
       </Card>
-        {heldAssetCount > 0 ? <TopMoversCard movers={movers} moversMax={moversMax} /> : null}
+        {heldAssetCount > 0 ? <TopMoversCard gainers={movers.gainers} losers={movers.losers} /> : null}
       </div>
     </div>
   );
@@ -846,7 +849,50 @@ function PortfolioStrip({ period, data, benchmarkTicker }: {
   );
 }
 
-function TopMoversCard({ movers, moversMax }: { movers: Mover[]; moversMax: number }) {
+function MoverRow({ mover }: { mover: Mover }) {
+  const isPos = mover.changePercent >= 0;
+  return (
+    <Link
+      to="/holdings/$ticker"
+      params={{ ticker: mover.ticker }}
+      style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", textDecoration: "none", color: "inherit", minWidth: 0 }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="mono" style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{mover.ticker}</div>
+        <div className="muted" style={{ fontSize: 10.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{mover.name}</div>
+      </div>
+      <span
+        className="num"
+        style={{
+          flexShrink: 0, fontSize: 11.5, fontWeight: 600, fontVariantNumeric: "tabular-nums",
+          fontFamily: "var(--ns-font-mono)", padding: "2px 7px", borderRadius: 999,
+          color: isPos ? "var(--ns-pos)" : "var(--ns-neg)",
+          background: `color-mix(in srgb, ${isPos ? "var(--ns-pos)" : "var(--ns-neg)"} 12%, transparent)`,
+        }}
+      >
+        {isPos ? "+" : "−"}{Math.abs(mover.changePercent).toFixed(2)}%
+      </span>
+    </Link>
+  );
+}
+
+function MoverColumn({ label, tone, movers }: { label: string; tone: "pos" | "neg"; movers: Mover[] }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 4, color: tone === "pos" ? "var(--ns-pos)" : "var(--ns-neg)" }}>
+        {label}
+      </div>
+      {movers.length === 0 ? (
+        <div className="dim" style={{ fontSize: 12, padding: "8px 0" }}>—</div>
+      ) : (
+        movers.map((m) => <MoverRow key={m.ticker} mover={m} />)
+      )}
+    </div>
+  );
+}
+
+function TopMoversCard({ gainers, losers }: { gainers: Mover[]; losers: Mover[] }) {
+  const empty = gainers.length === 0 && losers.length === 0;
   return (
     <Card style={{ padding: 0 }}>
       <div style={{ padding: "14px 18px 10px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
@@ -856,35 +902,13 @@ function TopMoversCard({ movers, moversMax }: { movers: Mover[]; moversMax: numb
         </div>
         <Button variant="ghost" size="xs" render={<Link to="/investments" />}>詳細 →</Button>
       </div>
-      {movers.length === 0 ? (
+      {empty ? (
         <div className="muted" style={{ fontSize: 13, padding: "16px 18px" }}>回補歷史股價後顯示當日漲跌幅。</div>
       ) : (
-        movers.map((m, i) => {
-          const isPos = m.changePercent >= 0;
-          const barPct = (Math.abs(m.changePercent) / moversMax) * 100;
-          return (
-            <Link
-              key={m.ticker}
-              to="/holdings/$ticker"
-              params={{ ticker: m.ticker }}
-              style={{ display: "grid", gridTemplateColumns: "14px 1fr 56px", alignItems: "center", gap: 8, padding: "9px 14px", borderTop: i ? "1px solid var(--ns-border)" : "none", textDecoration: "none", color: "inherit" }}
-            >
-              <span className="mono dim" style={{ fontSize: 10, textAlign: "right" }}>{i + 1}</span>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ marginBottom: 3, display: "flex", justifyContent: "space-between", gap: 6, alignItems: "baseline" }}>
-                  <span className="mono" style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.ticker}</span>
-                  <span className="muted" style={{ fontSize: 10.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 84 }}>{m.name}</span>
-                </div>
-                <div style={{ height: 3, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden", position: "relative" }}>
-                  <div style={{ position: "absolute", left: isPos ? 0 : undefined, right: isPos ? undefined : 0, width: `${barPct}%`, height: "100%", borderRadius: 99, background: isPos ? "var(--ns-pos)" : "var(--ns-neg)" }} />
-                </div>
-              </div>
-              <span className={"num " + (isPos ? "pos" : "neg")} style={{ fontSize: 12.5, fontWeight: 600, textAlign: "right", fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums" }}>
-                {isPos ? "+" : "−"}{Math.abs(m.changePercent).toFixed(2)}%
-              </span>
-            </Link>
-          );
-        })
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, padding: "12px 18px 16px" }}>
+          <MoverColumn label="Gainers" tone="pos" movers={gainers} />
+          <MoverColumn label="Losers" tone="neg" movers={losers} />
+        </div>
       )}
     </Card>
   );

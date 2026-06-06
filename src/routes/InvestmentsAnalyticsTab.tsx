@@ -4,6 +4,7 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  ComposedChart,
   Line,
   ReferenceLine,
   ResponsiveContainer,
@@ -308,7 +309,9 @@ export function InvestmentsAnalyticsTab({
 
         <div style={{ height: 220 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={perf.data}>
+            {/* ComposedChart (not AreaChart) so the benchmark <Line> renders
+                alongside the portfolio <Area> — AreaChart silently drops Lines. */}
+            <ComposedChart data={perf.data}>
               <defs>
                 <linearGradient id="analyticsPort" x1="0" x2="0" y1="0" y2="1">
                   <stop offset="5%" stopColor="var(--ns-accent)" stopOpacity={0.35} />
@@ -326,9 +329,9 @@ export function InvestmentsAnalyticsTab({
               />
               <Area type="monotone" dataKey="port" stroke="var(--ns-accent)" fill="url(#analyticsPort)" strokeWidth={2} isAnimationActive={false} />
               {perf.hasBenchmark ? (
-                <Line type="monotone" dataKey="bench" stroke="var(--ns-fg-dim)" strokeWidth={1.5} strokeDasharray="4 4" dot={false} connectNulls isAnimationActive={false} />
+                <Line type="monotone" dataKey="bench" stroke="var(--ns-fg-dim)" strokeWidth={1.5} strokeDasharray="5 4" dot={false} connectNulls isAnimationActive={false} />
               ) : null}
-            </AreaChart>
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
         <div style={{ display: "flex", gap: 16, marginTop: 10, fontSize: 11.5, flexWrap: "wrap" }}>
