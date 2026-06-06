@@ -15,7 +15,8 @@ import { COMMON_TIMEZONES, isValidTimezone } from "../domain";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../domain";
 import type { SyncConflictRecord } from "../domain/sync";
 import { useRefreshFxRates } from "../features/market-data/useMarketRefresh";
-import { useUiPreferences, type ClockMode, type NameLocalePreference } from "../state/uiPreferences";
+import { useUiPreferences, DEFAULT_BENCHMARK_TICKER, type ClockMode, type NameLocalePreference } from "../state/uiPreferences";
+import { TickerSearchField } from "../components/TickerSearchField";
 import { getOrCreateDeviceIdentity } from "../state/deviceIdentity";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -681,6 +682,9 @@ function SettingsGeneral({ form, t }: any) {
   const setTimezone = useUiPreferences((state) => state.setTimezone);
   const assetLogosEnabled = useUiPreferences((state) => state.assetLogosEnabled);
   const setAssetLogosEnabled = useUiPreferences((state) => state.setAssetLogosEnabled);
+  const benchmarkTicker = useUiPreferences((state) => state.benchmarkTicker);
+  const setBenchmarkTicker = useUiPreferences((state) => state.setBenchmarkTicker);
+  const [benchmarkDraft, setBenchmarkDraft] = useState(benchmarkTicker);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -899,6 +903,28 @@ function SettingsGeneral({ form, t }: any) {
             <div className="text-xs muted">開啟後會向第三方服務 (assets.parqet.com) 請求各標的的 LOGO 圖示。<strong style={{ color: "var(--ns-fg)" }}>隱私風險：你持有的股票代號會傳送到該第三方</strong>。關閉時一律顯示本地產生的字母標記，不會發出任何請求。</div>
           </div>
         </button>
+
+        <h3 className="font-semibold mb-2 mt-6">投資 Benchmark 指標</h3>
+        <p className="text-xs muted mb-3">「投資 → 分析」與總覽的「投資組合 vs Benchmark」會用這個標的當比較基準。預設 {DEFAULT_BENCHMARK_TICKER}（元大台灣50）。首次開啟分析時會自動回補它的歷史股價。</p>
+        <TickerSearchField
+          value={benchmarkDraft}
+          onChange={(v) => { setBenchmarkDraft(v); if (v.trim()) setBenchmarkTicker(v); }}
+          onSelect={(result) => { setBenchmarkDraft(result.symbol); setBenchmarkTicker(result.symbol); }}
+          placeholder={DEFAULT_BENCHMARK_TICKER}
+        />
+        <div className="mt-2 flex items-center gap-3 text-xs muted">
+          <span>目前基準：<span className="mono" style={{ color: "var(--ns-fg)" }}>{benchmarkTicker}</span></span>
+          {benchmarkTicker !== DEFAULT_BENCHMARK_TICKER ? (
+            <button
+              type="button"
+              className="underline"
+              style={{ color: "var(--ns-accent)" }}
+              onClick={() => { setBenchmarkTicker(DEFAULT_BENCHMARK_TICKER); setBenchmarkDraft(DEFAULT_BENCHMARK_TICKER); }}
+            >
+              還原預設
+            </button>
+          ) : null}
+        </div>
       </Card>
 
       <Card className="p-5">

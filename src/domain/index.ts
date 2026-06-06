@@ -15,6 +15,7 @@ export * from "./sync";
 export * from "./investmentCash";
 export * from "./ledgerTrust";
 export * from "./ledgerSuggestions";
+export * from "./portfolioAnalytics";
 export * from "./portfolioCalculator";
 export * from "./portfolioMetrics";
 export * from "./transferBuilder";

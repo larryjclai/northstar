@@ -32,6 +32,7 @@ import {
   resolveAssetName,
   todayInTimezone,
   assetTypeLabels,
+  type AnalyticsPosition,
   type Account,
   type DailyPrice,
   type HoldingPosition,
@@ -44,11 +45,12 @@ import { useBackfillAssetProfiles, useRefreshDailyPrices, useRefreshQuotes } fro
 import { useUiPreferences, type NameLocalePreference, type HoldingsColumnKey } from "../state/uiPreferences";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
+import { InvestmentsAnalyticsTab } from "./InvestmentsAnalyticsTab";
 import { RecurringInvestmentsTab } from "./RecurringInvestmentsTab";
 import { TransactionsRoute } from "./TransactionsRoute";
 
 export function InvestmentsRoute() {
-  const [tab, setTab] = useState<"portfolio" | "transactions" | "recurring">("portfolio");
+  const [tab, setTab] = useState<"portfolio" | "transactions" | "recurring" | "analytics">("portfolio");
 
   const { accounts, assets, investments, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots, recurringInvestments } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
@@ -58,6 +60,7 @@ export function InvestmentsRoute() {
   // auto → zh-TW). Resolve it to zh-Hant so holdings show Chinese names rather
   // than whatever the OS/browser locale happens to be.
   const nameLocale = useUiPreferences((state) => (state.nameLocale === "auto" ? "zh-Hant" : state.nameLocale));
+  const benchmarkTicker = useUiPreferences((state) => state.benchmarkTicker);
   const toast = useToast();
 
   const accountRows = accounts.data ?? [];
@@ -100,6 +103,33 @@ export function InvestmentsRoute() {
     () => buildHoldingPositionsByAccount(assetRows, recordRows, quoteMap),
     [assetRows, recordRows, quoteMap],
   );
+
+  // Current holdings in the shape the analytics engine consumes (fixed-basket).
+  const analyticsPositions = useMemo<AnalyticsPosition[]>(
+    () => assetRows
+      .filter((a) => a.deletedAt === null && a.totalQuantity > 0)
+      .map((a) => ({
+        assetId: a.id,
+        ticker: a.ticker,
+        quantity: a.totalQuantity,
+        currency: a.currency,
+        isManual: a.holdingSource === "manual",
+        assetClass: a.assetType ? assetTypeLabels[a.assetType] : undefined,
+      })),
+    [assetRows],
+  );
+
+  // Best-effort: pull the benchmark's 1Y daily history so the analytics tab can
+  // draw the comparison line. Silent on failure — the chart degrades gracefully.
+  async function ensureBenchmarkHistory(ticker: string) {
+    const t = ticker.trim().toUpperCase();
+    if (!t) return;
+    try {
+      await refreshDailyPrices.mutateAsync({ tickers: [t], range: "1y" });
+    } catch {
+      // ignore — benchmark line is optional.
+    }
+  }
 
   const [statusMessage, setStatusMessage] = useState("");
   const [addOpen, setAddOpen] = useState(false);
@@ -303,6 +333,7 @@ export function InvestmentsRoute() {
           { id: 'portfolio', label: '持倉', active: tab === 'portfolio' },
           { id: 'transactions', label: '交易紀錄', active: tab === 'transactions' },
           { id: 'recurring', label: '定期定額', active: tab === 'recurring' },
+          { id: 'analytics', label: '分析', active: tab === 'analytics' },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id as any)} style={{
             padding: '10px 20px', background: 'none', border: 'none', cursor: 'pointer',
@@ -368,6 +399,19 @@ export function InvestmentsRoute() {
       {tab === "transactions" ? <TransactionsRoute /> : null}
 
       {tab === "recurring" ? <RecurringInvestmentsTab /> : null}
+
+      {tab === "analytics" ? (
+        <InvestmentsAnalyticsTab
+          positions={analyticsPositions}
+          dailyPrices={dailyPriceRows}
+          manualSnapshots={manualSnapshotRows}
+          toPrimary={toPrimary}
+          benchmarkTicker={benchmarkTicker}
+          onBackfillHoldings={backfillHistoricalPrices}
+          onEnsureBenchmark={ensureBenchmarkHistory}
+          backfilling={refreshDailyPrices.isPending}
+        />
+      ) : null}
 
       <InvestmentEntryDrawer
         open={addOpen}

@@ -7,6 +7,9 @@ import { isValidTimezone, resolveSystemTimezone } from "../domain/datetime";
 export type { NameLocalePreference };
 export type ThemeMode = "system" | "dark" | "light";
 
+/** Default investment benchmark when the user hasn't picked one. */
+export const DEFAULT_BENCHMARK_TICKER = "0050.TW";
+
 export interface UiPreferences {
   privacyMode: boolean;
   nameLocale: NameLocalePreference;
@@ -17,6 +20,8 @@ export interface UiPreferences {
   assetLogosEnabled: boolean;
   /** Which optional columns the holdings table shows (B21). */
   holdingsColumns: HoldingsColumnKey[];
+  /** Ticker used as the benchmark in investment analytics (e.g. 0050.TW). */
+  benchmarkTicker: string;
   setPrivacyMode: (value: boolean) => void;
   togglePrivacyMode: () => void;
   setNameLocale: (value: NameLocalePreference) => void;
@@ -25,6 +30,7 @@ export interface UiPreferences {
   setTheme: (value: ThemeMode) => void;
   setAssetLogosEnabled: (value: boolean) => void;
   setHoldingsColumns: (value: HoldingsColumnKey[]) => void;
+  setBenchmarkTicker: (value: string) => void;
 }
 
 /** Toggleable holdings-table columns (the rest are always shown). */
@@ -48,6 +54,7 @@ interface PersistedShape {
   theme: ThemeMode;
   assetLogosEnabled: boolean;
   holdingsColumns: HoldingsColumnKey[];
+  benchmarkTicker: string;
 }
 
 export type ClockMode = "24h" | "12h";
@@ -61,6 +68,7 @@ function loadPersisted(): PersistedShape {
     theme: "system",
     assetLogosEnabled: false,
     holdingsColumns: HOLDINGS_COLUMN_DEFAULTS,
+    benchmarkTicker: DEFAULT_BENCHMARK_TICKER,
   };
   if (typeof window === "undefined") return fallback;
   try {
@@ -85,6 +93,10 @@ function loadPersisted(): PersistedShape {
       holdingsColumns: Array.isArray(parsed.holdingsColumns)
         ? parsed.holdingsColumns.filter((k): k is HoldingsColumnKey => HOLDINGS_COLUMN_ALL.includes(k as HoldingsColumnKey))
         : HOLDINGS_COLUMN_DEFAULTS,
+      benchmarkTicker:
+        typeof parsed.benchmarkTicker === "string" && parsed.benchmarkTicker.trim()
+          ? parsed.benchmarkTicker.trim()
+          : fallback.benchmarkTicker,
     };
   } catch {
     return fallback;
@@ -124,6 +136,7 @@ function snapshot(state: UiPreferences): PersistedShape {
     theme: state.theme,
     assetLogosEnabled: state.assetLogosEnabled,
     holdingsColumns: state.holdingsColumns,
+    benchmarkTicker: state.benchmarkTicker,
   };
 }
 
@@ -135,6 +148,7 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   theme: initial.theme,
   assetLogosEnabled: initial.assetLogosEnabled,
   holdingsColumns: initial.holdingsColumns,
+  benchmarkTicker: initial.benchmarkTicker,
   setPrivacyMode(value) {
     setPrivacyMaskOn(value);
     set({ privacyMode: value });
@@ -172,6 +186,11 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   },
   setHoldingsColumns(value) {
     set({ holdingsColumns: value });
+    persist(snapshot(get()));
+  },
+  setBenchmarkTicker(value) {
+    const next = value.trim() || DEFAULT_BENCHMARK_TICKER;
+    set({ benchmarkTicker: next });
     persist(snapshot(get()));
   },
 }));

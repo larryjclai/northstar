@@ -18,11 +18,19 @@ import {
   buildQuantityTimeline,
   buildCreditCardReminders,
   buildOutstandingSettlements,
+  buildPortfolioValueSeries,
+  buildBenchmarkSeries,
+  alignByDate,
+  cumulativeReturnPct,
+  topMovers,
+  resolveAssetName,
   convertCurrency,
   createFxConverter,
   formatMoney,
   formatCompactMoney,
   formatNumber,
+  type AnalyticsPosition,
+  type Mover,
   type Account,
   type AppSettings,
   type DailyFxRate,
@@ -35,7 +43,19 @@ import {
 import { useRefreshQuotes, useRefreshFxRates } from "../features/market-data/useMarketRefresh";
 import { useState } from "react";
 import { MonthPicker } from "../components/ui/month-picker";
+import { SegmentedControl } from "../components/SegmentedControl";
 import { useUiPreferences } from "../state/uiPreferences";
+
+type StripPeriod = "1W" | "1M" | "3M" | "YTD" | "1Y";
+
+/** Inclusive start date for a Portfolio-Strip period, relative to `end` (today). */
+function stripStartDate(period: StripPeriod, end: string): string {
+  if (period === "YTD") return `${end.slice(0, 4)}-01-01`;
+  const days: Record<Exclude<StripPeriod, "YTD">, number> = { "1W": 7, "1M": 31, "3M": 92, "1Y": 365 };
+  const d = new Date(`${end}T00:00:00`);
+  d.setDate(d.getDate() - days[period]);
+  return d.toISOString().slice(0, 10);
+}
 
 
 const CHART_COLORS = [
@@ -49,10 +69,13 @@ const CHART_COLORS = [
 ];
 
 export function DashboardRoute() {
-  const { accounts, ledger, assets, quotes, settings, dailyFxRates, recurring, recurringInvestments, financialGoals, investments } = useFinanceData();
+  const { accounts, ledger, assets, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots, recurring, recurringInvestments, financialGoals, investments } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
   const refreshFxRates = useRefreshFxRates();
   const timezone = useUiPreferences((state) => state.timezone);
+  const nameLocale = useUiPreferences((state) => state.nameLocale);
+  const benchmarkTicker = useUiPreferences((state) => state.benchmarkTicker);
+  const [stripPeriod, setStripPeriod] = useState<StripPeriod>("1M");
   const queryClient = useQueryClient();
   const toast = useToast();
   const [monthKey, setMonthKey] = useState(() => new Date().toISOString().slice(0, 7));
@@ -79,6 +102,8 @@ export function DashboardRoute() {
   const quoteRows = quotes.data ?? [];
   const appSettings = settings.data;
   const fxHistory = dailyFxRates.data ?? [];
+  const dailyPriceRows = dailyPrices.data ?? [];
+  const manualSnapshotRows = manualPriceSnapshots.data ?? [];
   const recurringRows = recurring.data ?? [];
   const recurringInvestmentRows = recurringInvestments.data ?? [];
   const investmentRows = investments.data ?? [];
@@ -197,6 +222,68 @@ export function DashboardRoute() {
       .map(([label, value], i) => ({ label, value, color: CHART_COLORS[i % CHART_COLORS.length], pct: total > 0 ? (value / total) * 100 : 0 }))
       .sort((a, b) => b.value - a.value);
   }, [filteredAssets, quoteRows, availableCash, alternativeAssets, toPrimary]);
+
+  // Investment positions (current holdings) for the fixed-basket analytics that
+  // power the Portfolio Strip. Mirror the page's account filter so the strip
+  // matches the rest of the dashboard.
+  const analyticsPositions = useMemo<AnalyticsPosition[]>(() => {
+    const list = selectedAccount === "all" ? assetRows : assetRows.filter((a) => a.accountId === selectedAccount);
+    return list
+      .filter((a) => a.deletedAt === null && a.totalQuantity > 0)
+      .map((a) => ({
+        assetId: a.id,
+        ticker: a.ticker,
+        quantity: a.totalQuantity,
+        currency: a.currency,
+        isManual: a.holdingSource === "manual",
+        assetClass: a.assetType ? assetTypeLabels[a.assetType] : undefined,
+      }));
+  }, [assetRows, selectedAccount]);
+
+  // Portfolio Strip: cumulative price return of the current basket vs the
+  // benchmark over the selected period. Fixed-basket (see portfolioAnalytics) so
+  // it reflects price moves, not contributions; Alpha is computed on the dates
+  // both series share so the three figures stay internally consistent. Returns
+  // null fields when there isn't enough daily history (gated, like XIRR).
+  const stripData = useMemo(() => {
+    const end = new Date().toISOString().slice(0, 10);
+    const start = stripStartDate(stripPeriod, end);
+    const { series } = buildPortfolioValueSeries({
+      positions: analyticsPositions,
+      dailyPrices: dailyPriceRows,
+      manualSnapshots: manualSnapshotRows,
+      toPrimary,
+      start,
+      end,
+    });
+    if (series.length < 2) return { portfolio: null as number | null, benchmark: null as number | null, alpha: null as number | null };
+    let portfolio = cumulativeReturnPct(series.map((p) => p.value));
+    let benchmark: number | null = null;
+    let alpha: number | null = null;
+    const bench = buildBenchmarkSeries(dailyPriceRows, benchmarkTicker, start, end);
+    if (bench.length >= 2) {
+      const aligned = alignByDate(series, bench);
+      if (aligned.a.length >= 2 && aligned.b.length >= 2) {
+        portfolio = cumulativeReturnPct(aligned.a.map((p) => p.value));
+        benchmark = cumulativeReturnPct(aligned.b.map((p) => p.value));
+        alpha = portfolio - benchmark;
+      }
+    }
+    return { portfolio, benchmark, alpha };
+  }, [analyticsPositions, dailyPriceRows, manualSnapshotRows, toPrimary, stripPeriod, benchmarkTicker]);
+
+  // Today's Top Movers among held tickers, from each quote's real day change.
+  const heldAssetCount = useMemo(() => assetRows.filter((a) => a.deletedAt === null && a.totalQuantity > 0).length, [assetRows]);
+  const movers = useMemo(() => {
+    const assetByTicker = new Map(assetRows.map((a) => [a.ticker.toUpperCase(), a]));
+    const heldTickers = assetRows.filter((a) => a.deletedAt === null && a.totalQuantity > 0).map((a) => a.ticker);
+    return topMovers(
+      quoteRows.map((q) => ({ symbol: q.symbol, changePercent: q.changePercent, name: q.name, marketTime: q.marketTime })),
+      heldTickers,
+      { limit: 7, nameFor: (t) => resolveAssetName(assetByTicker.get(t.toUpperCase()), nameLocale) },
+    );
+  }, [quoteRows, assetRows, nameLocale]);
+  const moversMax = movers.reduce((mx, m) => Math.max(mx, Math.abs(m.changePercent)), 0) || 1;
 
   // Goals — approximate progress = net worth / target (dashboard glance only).
   const goals = useMemo(() => {
@@ -387,6 +474,10 @@ export function DashboardRoute() {
               </span>
             </div>
           )}
+
+          {analyticsPositions.length > 0 ? (
+            <PortfolioStrip period={stripPeriod} onPeriod={setStripPeriod} data={stripData} benchmarkTicker={benchmarkTicker} />
+          ) : null}
         </Card>
 
         {/* KPI stack */}
@@ -642,6 +733,9 @@ export function DashboardRoute() {
             ))
           )}
         </Card>
+
+        {/* Top Movers */}
+        {heldAssetCount > 0 ? <TopMoversCard movers={movers} moversMax={moversMax} /> : null}
       </div>
 
       {/* Row 4 · Recent activity */}
@@ -688,6 +782,97 @@ function KpiCard({ label, value, color, tone }: { label: string; value: string; 
           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
         }}>{value}</div>
       </div>
+    </Card>
+  );
+}
+
+function fmtPctSigned(v: number | null): string {
+  if (v == null) return "—";
+  return `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}%`;
+}
+
+function PortfolioStrip({ period, onPeriod, data, benchmarkTicker }: {
+  period: StripPeriod;
+  onPeriod: (p: StripPeriod) => void;
+  data: { portfolio: number | null; benchmark: number | null; alpha: number | null };
+  benchmarkTicker: string;
+}) {
+  const cells = [
+    { label: "投資組合", val: data.portfolio, color: data.portfolio == null ? "var(--ns-fg-muted)" : data.portfolio >= 0 ? "var(--ns-pos)" : "var(--ns-neg)" },
+    { label: `${benchmarkTicker} 指標`, val: data.benchmark, color: "var(--ns-fg-muted)" },
+    { label: "Alpha", val: data.alpha, color: data.alpha == null ? "var(--ns-fg-muted)" : data.alpha >= 0 ? "var(--ns-accent)" : "var(--ns-neg)" },
+  ];
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+        <div className="ns-eyebrow">投資組合 vs Benchmark · {period}</div>
+        <SegmentedControl
+          value={period}
+          onChange={onPeriod}
+          options={(["1W", "1M", "3M", "YTD", "1Y"] as StripPeriod[]).map((v) => ({ value: v, label: v }))}
+        />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", overflow: "hidden" }}>
+        {cells.map((c, i) => (
+          <div key={c.label} style={{ padding: "10px 14px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)", minWidth: 0 }}>
+            <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.label}</div>
+            <div className="num" style={{ fontSize: 19, fontWeight: 600, fontFamily: "var(--ns-font-mono)", color: c.color, fontVariantNumeric: "tabular-nums" }}>{fmtPctSigned(c.val)}</div>
+          </div>
+        ))}
+      </div>
+      {data.portfolio == null ? (
+        <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+          需要更多每日股價才能計算期間報酬。<Link to="/investments" style={{ color: "var(--ns-accent)" }}>前往回補 →</Link>
+        </div>
+      ) : data.benchmark == null ? (
+        <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+          尚無 {benchmarkTicker} 歷史股價，無法比較 benchmark。<Link to="/investments" style={{ color: "var(--ns-accent)" }}>前往投資 →</Link>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TopMoversCard({ movers, moversMax }: { movers: Mover[]; moversMax: number }) {
+  return (
+    <Card style={{ padding: 0 }}>
+      <div style={{ padding: "14px 18px 10px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+        <div>
+          <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Today</div>
+          <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>Top Movers</h3>
+        </div>
+        <Button variant="ghost" size="xs" render={<Link to="/investments" />}>詳細 →</Button>
+      </div>
+      {movers.length === 0 ? (
+        <div className="muted" style={{ fontSize: 13, padding: "16px 18px" }}>更新報價後顯示當日漲跌幅。</div>
+      ) : (
+        movers.map((m, i) => {
+          const isPos = m.changePercent >= 0;
+          const barPct = (Math.abs(m.changePercent) / moversMax) * 100;
+          return (
+            <Link
+              key={m.ticker}
+              to="/holdings/$ticker"
+              params={{ ticker: m.ticker }}
+              style={{ display: "grid", gridTemplateColumns: "14px 1fr 56px", alignItems: "center", gap: 8, padding: "9px 14px", borderTop: i ? "1px solid var(--ns-border)" : "none", textDecoration: "none", color: "inherit" }}
+            >
+              <span className="mono dim" style={{ fontSize: 10, textAlign: "right" }}>{i + 1}</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ marginBottom: 3, display: "flex", justifyContent: "space-between", gap: 6, alignItems: "baseline" }}>
+                  <span className="mono" style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.ticker}</span>
+                  <span className="muted" style={{ fontSize: 10.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 84 }}>{m.name}</span>
+                </div>
+                <div style={{ height: 3, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden", position: "relative" }}>
+                  <div style={{ position: "absolute", left: isPos ? 0 : undefined, right: isPos ? undefined : 0, width: `${barPct}%`, height: "100%", borderRadius: 99, background: isPos ? "var(--ns-pos)" : "var(--ns-neg)" }} />
+                </div>
+              </div>
+              <span className={"num " + (isPos ? "pos" : "neg")} style={{ fontSize: 12.5, fontWeight: 600, textAlign: "right", fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums" }}>
+                {isPos ? "+" : "−"}{Math.abs(m.changePercent).toFixed(2)}%
+              </span>
+            </Link>
+          );
+        })
+      )}
     </Card>
   );
 }
