@@ -1,4 +1,4 @@
-import type { Account, InvestmentRecord, LedgerTransaction, PortfolioAsset } from "../domain";
+import type { Account, DailyFxRate, InvestmentRecord, LedgerTransaction, PortfolioAsset } from "../domain";
 import type { InvestmentDraft, LedgerDraft } from "./repositories";
 
 export interface ImportPreview<T> {
@@ -22,9 +22,16 @@ export function exportAccountsCsv(accounts: Account[]) {
   );
 }
 
-export function exportLedgerCsv(rows: LedgerTransaction[], accountName: (id: string) => string) {
+export function exportLedgerCsv(
+  rows: LedgerTransaction[],
+  accountName: (id: string) => string,
+  opts: { includeNotes?: boolean } = {},
+) {
+  const includeNotes = opts.includeNotes !== false;
+  const headers = ["date", "account", "name", "entryType", "settlementStatus", "amount", "currency", "category", "subcategory", "merchant"];
+  if (includeNotes) headers.push("note");
   return toCsv(
-    ["date", "account", "name", "entryType", "settlementStatus", "amount", "currency", "category", "subcategory", "merchant", "note"],
+    headers,
     rows.map((row) => ({
       date: row.date,
       account: accountName(row.accountId),
@@ -37,6 +44,19 @@ export function exportLedgerCsv(rows: LedgerTransaction[], accountName: (id: str
       subcategory: row.subcategory,
       merchant: row.merchant,
       note: row.note,
+    })),
+  );
+}
+
+export function exportFxRatesCsv(rates: DailyFxRate[]) {
+  return toCsv(
+    ["date", "from", "to", "rate", "source"],
+    rates.map((rate) => ({
+      date: rate.date,
+      from: rate.from,
+      to: rate.to,
+      rate: rate.rate,
+      source: rate.source,
     })),
   );
 }
@@ -140,7 +160,7 @@ function previewRows<T>(text: string, parse: (row: Record<string, string>) => T)
   return preview;
 }
 
-function parseCsv(text: string) {
+function splitCsvRecords(text: string, delimiter: string): string[][] {
   const records: string[][] = [];
   let record: string[] = [];
   let value = "";
@@ -152,7 +172,7 @@ function parseCsv(text: string) {
       index += 1;
     } else if (char === '"') {
       quoted = !quoted;
-    } else if (char === "," && !quoted) {
+    } else if (char === delimiter && !quoted) {
       record.push(value);
       value = "";
     } else if ((char === "\n" || char === "\r") && !quoted) {
@@ -167,11 +187,42 @@ function parseCsv(text: string) {
   }
   record.push(value);
   if (record.some((cell) => cell.trim())) records.push(record);
+  return records;
+}
+
+function parseCsv(text: string) {
+  const records = splitCsvRecords(text, ",");
   const [headers, ...rows] = records;
   if (!headers) return [];
   return rows.map((values) =>
     Object.fromEntries(headers.map((header, index) => [header.trim(), values[index]?.trim() ?? ""])),
   );
+}
+
+/** Guess the most likely column delimiter from the header line. */
+export function detectDelimiter(text: string): string {
+  const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
+  const candidates = [",", ";", "\t", "|"];
+  let best = ",";
+  let bestCount = -1;
+  for (const delimiter of candidates) {
+    const count = firstLine.split(delimiter).length - 1;
+    if (count > bestCount) { bestCount = count; best = delimiter; }
+  }
+  return best;
+}
+
+/** Parse a CSV into its header list + row objects, with a chosen/auto delimiter. */
+export function parseCsvTable(text: string, delimiter?: string): { headers: string[]; rows: Record<string, string>[] } {
+  const delim = delimiter ?? detectDelimiter(text);
+  const records = splitCsvRecords(text, delim);
+  const [headerRow, ...rest] = records;
+  if (!headerRow) return { headers: [], rows: [] };
+  const headers = headerRow.map((header) => header.trim());
+  const rows = rest.map((values) =>
+    Object.fromEntries(headers.map((header, index) => [header, values[index]?.trim() ?? ""])),
+  );
+  return { headers, rows };
 }
 
 function toCsv(headers: string[], rows: Array<Record<string, unknown>>) {

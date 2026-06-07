@@ -249,7 +249,7 @@ export function AccountsRoute() {
               <div style={{ width: 4, height: 38, borderRadius: 99, background: c.color, flexShrink: 0 }} />
               <div style={{ minWidth: 0 }}>
                 <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{c.label}</div>
-                <div className={c.tone === "neg" ? "neg" : ""} style={{ fontSize: 20, fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums", fontWeight: 500 }}>
+                <div className={c.tone === "neg" ? "neg" : ""} style={{ fontSize: 20, fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
                   {c.tone === "neg" && c.value !== 0 ? "−" : ""}{formatNumber(Math.abs(c.value))}
                 </div>
               </div>
@@ -264,7 +264,7 @@ export function AccountsRoute() {
           {currencyBreakdown.map((c) => (
             <Card key={c.ccy} style={{ padding: 16 }}>
               <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{c.ccy}</div>
-              <div style={{ fontSize: 19, fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums" }}>{formatNumber(c.base)}</div>
+              <div style={{ fontSize: 19, fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums" }}>{formatNumber(c.base)}</div>
               <div style={{ height: 6, borderRadius: 99, background: "var(--ns-bg-hover)", marginTop: 8, overflow: "hidden" }}>
                 <div style={{ width: `${c.pct}%`, height: "100%", background: c.color }} />
               </div>
@@ -635,7 +635,7 @@ function AccountDrawer({
                 <DrawerField label={`${form.type === "alternative" ? "目前市值" : "當前餘額"}（${form.currency}）`}>
                   <input
                     className="ns-input"
-                    style={{ fontSize: 22, fontFamily: 'var(--ns-font-mono)', fontVariantNumeric: 'tabular-nums', height: 56 }}
+                    style={{ fontSize: 22, fontFamily: 'var(--ns-font-num)', fontVariantNumeric: 'tabular-nums', height: 56 }}
                     placeholder="0"
                     {...openingBalanceField}
                   />

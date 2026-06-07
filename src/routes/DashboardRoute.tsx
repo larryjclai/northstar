@@ -428,8 +428,8 @@ export function DashboardRoute() {
             <div style={{ minWidth: 0 }}>
               <div className="ns-eyebrow" style={{ marginBottom: 5 }}>Net worth · {primaryCurrency}</div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap", minWidth: 0 }}>
-                <span style={{ fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums lining-nums",
-                  fontSize: "clamp(28px, 4vw, 56px)", letterSpacing: "-0.025em", fontWeight: 500,
+                <span style={{ fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums lining-nums",
+                  fontSize: "clamp(28px, 4vw, 56px)", letterSpacing: "-0.025em", fontWeight: 600,
                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%",
                   flexShrink: 1 }}>
                   {formatMoney(netWorth, primaryCurrency)}
@@ -516,7 +516,7 @@ export function DashboardRoute() {
               <div className="ns-eyebrow" style={{ fontSize: 10 }}>本月現金流</div>
               <div className={monthNet >= 0 ? "pos" : "neg"} style={{
                 fontSize: "clamp(13px, 1.4vw, 18px)",
-                fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums",
+                fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums",
                 fontWeight: 500, marginTop: 1,
                 whiteSpace: "nowrap", overflow: "hidden",
               }}>
@@ -802,7 +802,7 @@ function KpiCard({ label, value, color, tone }: { label: string; value: string; 
         <div className="ns-eyebrow" style={{ fontSize: 10 }}>{label}</div>
         <div className={tone === "neg" ? "neg" : ""} style={{
           fontSize: "clamp(13px, 1.4vw, 18px)",
-          fontFamily: "var(--ns-font-mono)", fontVariantNumeric: "tabular-nums",
+          fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums",
           fontWeight: 500, marginTop: 1,
           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
         }}>{value}</div>
@@ -833,7 +833,7 @@ function PortfolioStrip({ period, data, benchmarkTicker }: {
         {cells.map((c, i) => (
           <div key={c.label} style={{ padding: "10px 14px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)", minWidth: 0 }}>
             <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.label}</div>
-            <div className="num" style={{ fontSize: 19, fontWeight: 600, fontFamily: "var(--ns-font-mono)", color: c.color, fontVariantNumeric: "tabular-nums" }}>{fmtPctSigned(c.val)}</div>
+            <div className="num" style={{ fontSize: 19, fontWeight: 600, fontFamily: "var(--ns-font-num)", color: c.color, fontVariantNumeric: "tabular-nums" }}>{fmtPctSigned(c.val)}</div>
           </div>
         ))}
       </div>
@@ -866,7 +866,7 @@ function MoverRow({ mover }: { mover: Mover }) {
         className="num"
         style={{
           flexShrink: 0, fontSize: 11.5, fontWeight: 600, fontVariantNumeric: "tabular-nums",
-          fontFamily: "var(--ns-font-mono)", padding: "2px 7px", borderRadius: 999,
+          fontFamily: "var(--ns-font-num)", padding: "2px 7px", borderRadius: 999,
           color: isPos ? "var(--ns-pos)" : "var(--ns-neg)",
           background: `color-mix(in srgb, ${isPos ? "var(--ns-pos)" : "var(--ns-neg)"} 12%, transparent)`,
         }}
