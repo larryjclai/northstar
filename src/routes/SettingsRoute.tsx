@@ -7,7 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ActionButton } from "../components/ActionButton";
 import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { downloadCsv, exportInvestmentCsv, exportLedgerCsv } from "../data/csv";
+import { downloadCsv, exportInvestmentCsv, exportLedgerCsv, exportFxRatesCsv } from "../data/csv";
 import { getFinanceRepository, type RepositorySnapshot } from "../data/repositories";
 import { enterDemoMode, exitDemoMode, clearAllData } from "../data/demoData";
 import { useDemoMode } from "../state/demoMode";
@@ -94,6 +94,7 @@ export function SettingsRoute() {
     { id: 'categories', label: t('settings.categories'), icon: <Tag size={14} /> },
     { id: 'merchants',  label: t('settings.merchants'), icon: <Bank size={14} /> },
     { id: 'fx',         label: t('settings.fx'), icon: <CurrencyCircleDollar size={14} /> },
+    { id: 'export',     label: t('settings.export'), icon: <DownloadSimple size={14} /> },
     { id: 'general',    label: t('settings.general'), icon: <Gear size={14} /> },
   ];
 
@@ -131,6 +132,7 @@ export function SettingsRoute() {
         {tab === 'categories' && <SettingsCategories form={form} setForm={setForm} submit={submit} t={t} renameCategory={(o: string, n: string) => renameCategoryMutation.mutateAsync({ oldName: o, newName: n })} />}
         {tab === 'merchants'  && <SettingsMerchants form={form} setForm={setForm} submit={submit} t={t} renameMerchant={(o: string, n: string) => renameMerchantMutation.mutateAsync({ oldName: o, newName: n })} />}
         {tab === 'fx'         && <SettingsFX form={form} setForm={setForm} submit={submit} dailyFxRates={dailyFxRates.data || []} t={t} />}
+        {tab === 'export'     && <SettingsExport form={form} t={t} />}
         {tab === 'general'    && <SettingsGeneral form={form} t={t} />}
       </main>
     </div>
@@ -144,6 +146,8 @@ function SettingsCategories({ form, setForm, submit, t, renameCategory }: any) {
   const [adding, setAdding] = useState(false);
   const [newCat, setNewCat] = useState({ name: '', iconName: 'Tag', color: '#9fe870', budget: '' });
   const [expandId, setExpandId] = useState<string | null>(null);
+  // Inline two-click delete confirm (window.confirm is a no-op in the Tauri webview).
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   // Inline subcategory editing (prompt() is unsupported in the Tauri webview).
   const [editingSub, setEditingSub] = useState<{ cat: string; sub: string } | null>(null);
   const [editSubValue, setEditSubValue] = useState('');
@@ -186,9 +190,9 @@ function SettingsCategories({ form, setForm, submit, t, renameCategory }: any) {
   }
 
   function deleteCategory(name: string) {
-    if (!window.confirm("確定刪除此分類？")) return;
     const nextForm = { ...form, categories: form.categories.filter((c: any) => c.name !== name) };
     submit(nextForm);
+    setConfirmDeleteId(null);
     toast.success("已刪除分類");
   }
 
@@ -330,9 +334,20 @@ function SettingsCategories({ form, setForm, submit, t, renameCategory }: any) {
                   <Button variant="ghost" size="icon-sm" style={{padding:6}} onClick={() => setEditId(isEdit?null:c.name)}>
                     <Gear size={14} />
                   </Button>
-                  <Button variant="ghost" size="icon-sm" style={{padding:6,color:'var(--ns-neg)'}} onClick={() => deleteCategory(c.name)}>
-                    <Backspace size={14} />
-                  </Button>
+                  {confirmDeleteId === c.name ? (
+                    <>
+                      <Button variant="ghost" size="icon-sm" style={{padding:6,color:'var(--ns-neg)'}} title="確定刪除" onClick={() => deleteCategory(c.name)}>
+                        <CheckCircle size={14} weight="bold" />
+                      </Button>
+                      <Button variant="ghost" size="icon-sm" style={{padding:6}} title="取消" onClick={() => setConfirmDeleteId(null)}>
+                        <X size={14} />
+                      </Button>
+                    </>
+                  ) : (
+                    <Button variant="ghost" size="icon-sm" style={{padding:6,color:'var(--ns-neg)'}} onClick={() => setConfirmDeleteId(c.name)}>
+                      <Backspace size={14} />
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -668,10 +683,255 @@ function SettingsFX({ form, submit, dailyFxRates, t }: any) {
   );
 }
 
+// ─────── Export Tab ───────
+type ExportFormat = "csv" | "json";
+type TimeRangeOption = "thisMonth" | "lastMonth" | "ytd" | "lastYear" | "allTime" | "custom";
+type AccountScope = "all" | "cash" | "investment" | "credit";
+
+const ACCOUNT_SCOPES: { id: AccountScope; label: string; types: string[] | null }[] = [
+  { id: "all", label: "所有帳戶", types: null },
+  { id: "cash", label: "現金 & 存款", types: ["cash", "depository"] },
+  { id: "investment", label: "投資帳戶", types: ["investment", "alternative"] },
+  { id: "credit", label: "信用卡 & 負債", types: ["credit", "loan"] },
+];
+
+function computeRange(option: TimeRangeOption, customStart: string, customEnd: string): { start?: string; end?: string } {
+  if (option === "allTime") return {};
+  if (option === "custom") return { start: customStart || undefined, end: customEnd || undefined };
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  switch (option) {
+    case "thisMonth": return { start: iso(new Date(y, m, 1)), end: iso(new Date(y, m + 1, 0)) };
+    case "lastMonth": return { start: iso(new Date(y, m - 1, 1)), end: iso(new Date(y, m, 0)) };
+    case "ytd": return { start: `${y}-01-01`, end: iso(now) };
+    case "lastYear": return { start: `${y - 1}-01-01`, end: `${y - 1}-12-31` };
+    default: return {};
+  }
+}
+
+function SettingsExport({ t }: any) {
+  const toast = useToast();
+  const { accounts, assets, investments, ledger, dailyFxRates } = useFinanceData();
+
+  const [format, setFormat] = useState<ExportFormat>("csv");
+  const [range, setRange] = useState<TimeRangeOption>("allTime");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [scope, setScope] = useState<AccountScope>("all");
+  const [includeTransfers, setIncludeTransfers] = useState(true);
+  const [includeInvestments, setIncludeInvestments] = useState(true);
+  const [includeNotes, setIncludeNotes] = useState(true);
+  const [includeFx, setIncludeFx] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const accountRows = accounts.data ?? [];
+  const ledgerRows = ledger.data ?? [];
+  const investmentRows = investments.data ?? [];
+  const assetRows = assets.data ?? [];
+  const fxRows = dailyFxRates.data ?? [];
+  const jsonMode = format === "json";
+
+  const { start, end } = computeRange(range, customStart, customEnd);
+  const scopeDef = ACCOUNT_SCOPES.find((s) => s.id === scope)!;
+  const accountById = useMemo(() => new Map(accountRows.map((a: any) => [a.id, a])), [accountRows]);
+
+  const inRange = (date: string) => {
+    const d = date.slice(0, 10);
+    if (start && d < start) return false;
+    if (end && d > end) return false;
+    return true;
+  };
+  const accountInScope = (id: string) => {
+    if (!scopeDef.types) return true;
+    const acc = accountById.get(id);
+    return acc ? scopeDef.types.includes(acc.type) : false;
+  };
+
+  const filteredLedger = useMemo(
+    () => ledgerRows.filter((row: any) =>
+      !row.deletedAt && inRange(row.date) && accountInScope(row.accountId) && (includeTransfers || row.entryType !== "transfer")),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ledgerRows, start, end, scope, includeTransfers],
+  );
+  const filteredInvestments = useMemo(
+    () => investmentRows.filter((rec: any) => !rec.deletedAt && inRange(rec.date)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [investmentRows, start, end],
+  );
+  const filteredFx = useMemo(
+    () => fxRows.filter((r: any) => inRange(r.date)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fxRows, start, end],
+  );
+
+  const estimatedCount = filteredLedger.length + (includeInvestments ? filteredInvestments.length : 0);
+  const today = new Date().toISOString().slice(0, 10);
+
+  async function runExport() {
+    setBusy(true);
+    try {
+      if (jsonMode) {
+        const repository = await getFinanceRepository();
+        const snapshot = await repository.exportSnapshot();
+        const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `northstar-backup-${today}.json`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        toast.success("已匯出完整資料庫 JSON");
+        return;
+      }
+      let files = 0;
+      if (filteredLedger.length) {
+        const accountName = (id: string) => accountById.get(id)?.name ?? id;
+        downloadCsv(`northstar-ledger-${today}.csv`, exportLedgerCsv(filteredLedger, accountName, { includeNotes }));
+        files += 1;
+      }
+      if (includeInvestments && filteredInvestments.length) {
+        const assetFor = (id: string) => assetRows.find((a: any) => a.id === id);
+        downloadCsv(`northstar-investments-${today}.csv`, exportInvestmentCsv(filteredInvestments, assetFor));
+        files += 1;
+      }
+      if (includeFx && filteredFx.length) {
+        downloadCsv(`northstar-fx-rates-${today}.csv`, exportFxRatesCsv(filteredFx));
+        files += 1;
+      }
+      if (files === 0) { toast.error("選取範圍內沒有可匯出的資料"); return; }
+      toast.success(`已匯出 ${files} 個 CSV 檔`);
+    } catch (e) {
+      toast.error(e instanceof Error ? `匯出失敗：${e.message}` : "匯出失敗");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const formatCards: { id: ExportFormat; title: string; desc: string }[] = [
+    { id: "csv", title: "CSV", desc: "通用格式，支援 Excel / Numbers" },
+    { id: "json", title: "JSON", desc: "完整資料庫，適合備份與還原" },
+  ];
+  const fieldToggles = [
+    { key: "transfers", on: includeTransfers, set: setIncludeTransfers, label: t("settings.transfers") },
+    { key: "investments", on: includeInvestments, set: setIncludeInvestments, label: t("settings.investments") },
+    { key: "notes", on: includeNotes, set: setIncludeNotes, label: t("settings.notes") },
+    { key: "fx", on: includeFx, set: setIncludeFx, label: t("settings.fxSnapshot") },
+  ];
+
+  return (
+    <div className="max-w-4xl space-y-6">
+      <div>
+        <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Export</div>
+        <h2 style={{ fontFamily: "var(--ns-font-display)", fontSize: 24, margin: 0, fontWeight: 600 }}>{t("settings.dataExport")}</h2>
+        <p className="muted" style={{ fontSize: 13, marginTop: 4, marginBottom: 0 }}>{t("settings.dataExportDesc")}</p>
+      </div>
+
+      <Card className="p-5">
+        <div className="ns-eyebrow" style={{ marginBottom: 10 }}>{t("settings.format")}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {formatCards.map((f) => (
+            <button key={f.id} type="button" onClick={() => setFormat(f.id)} style={{
+              textAlign: "left", padding: 14, borderRadius: "var(--ns-r-md)", cursor: "pointer",
+              border: `1.5px solid ${format === f.id ? "var(--ns-accent)" : "var(--ns-border)"}`,
+              background: format === f.id ? "var(--ns-accent-soft)" : "transparent", color: "var(--ns-fg)",
+            }}>
+              <div style={{ fontWeight: 600, marginBottom: 2 }}>{f.title}</div>
+              <div className="muted" style={{ fontSize: 12 }}>{f.desc}</div>
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      {jsonMode ? (
+        <Card className="p-5">
+          <div className="flex items-start gap-2 text-sm muted">
+            <Warning size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+            <span>JSON 為<strong style={{ color: "var(--ns-fg)" }}>整份資料庫</strong>的完整備份（含帳戶、交易、投資、設定、匯率），不套用下方的時間 / 帳戶 / 欄位篩選。可於「{t("settings.general")}」分頁用此檔還原。</span>
+          </div>
+        </Card>
+      ) : (
+        <>
+          <Card className="p-5">
+            <div className="ns-eyebrow" style={{ marginBottom: 10 }}>{t("settings.timeRange")}</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {([
+                ["thisMonth", t("settings.thisMonth")],
+                ["lastMonth", t("settings.lastMonth")],
+                ["ytd", t("settings.ytd")],
+                ["lastYear", t("settings.lastYear")],
+                ["allTime", t("settings.allTime")],
+                ["custom", t("settings.custom")],
+              ] as [TimeRangeOption, string][]).map(([id, label]) => (
+                <Button key={id} variant="outline" onClick={() => setRange(id)}
+                  style={{ borderColor: range === id ? "var(--ns-accent)" : "var(--ns-border)", background: range === id ? "var(--ns-accent-soft)" : "transparent" }}>
+                  {label}
+                </Button>
+              ))}
+            </div>
+            {range === "custom" && (
+              <div style={{ display: "flex", gap: 10, marginTop: 12, alignItems: "center" }}>
+                <input type="date" className="ns-input" value={customStart} onChange={(e) => setCustomStart(e.target.value)} />
+                <span className="muted">→</span>
+                <input type="date" className="ns-input" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} />
+              </div>
+            )}
+          </Card>
+
+          <Card className="p-5">
+            <div className="ns-eyebrow" style={{ marginBottom: 10 }}>帳戶範圍</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {ACCOUNT_SCOPES.map((s) => {
+                const count = s.types ? accountRows.filter((a: any) => s.types!.includes(a.type)).length : accountRows.length;
+                return (
+                  <Button key={s.id} variant="outline" onClick={() => setScope(s.id)}
+                    style={{ borderColor: scope === s.id ? "var(--ns-accent)" : "var(--ns-border)", background: scope === s.id ? "var(--ns-accent-soft)" : "transparent" }}>
+                    {s.label}<span className="mono muted" style={{ marginLeft: 6, fontSize: 11 }}>{count}</span>
+                  </Button>
+                );
+              })}
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <div className="ns-eyebrow" style={{ marginBottom: 10 }}>{t("settings.includedFields")}</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {fieldToggles.map((f) => (
+                <button key={f.key} type="button" onClick={() => f.set(!f.on)} style={{
+                  display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px",
+                  borderRadius: 99, cursor: "pointer", fontSize: 13, color: "var(--ns-fg)",
+                  border: `1px solid ${f.on ? "var(--ns-accent)" : "var(--ns-border)"}`,
+                  background: f.on ? "var(--ns-accent-soft)" : "transparent",
+                }}>
+                  {f.on ? <CheckCircle size={14} weight="bold" /> : <Plus size={14} />}{f.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs muted mt-3">投資交易與 FX 快照會各自匯出成獨立的 CSV 檔。</p>
+          </Card>
+        </>
+      )}
+
+      <Card className="p-5">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="text-sm muted">
+            {jsonMode ? "將匯出整份資料庫" : <>預計匯出 <span className="mono font-medium" style={{ color: "var(--ns-fg)" }}>{estimatedCount.toLocaleString()}</span> 筆交易</>}
+          </div>
+          <Button onClick={runExport} disabled={busy}>
+            <DownloadSimple size={14} />{busy ? "匯出中…" : t("settings.export")}
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // ─────── General & Export Tab ───────
 function SettingsGeneral({ form, t }: any) {
   const toast = useToast();
-  const { accounts, assets, investments, ledger } = useFinanceData();
   const [recalculating, setRecalculating] = useState(false);
   const [recalculationSummary, setRecalculationSummary] = useState<string | null>(null);
   const privacyMode = useUiPreferences((state) => state.privacyMode);
@@ -688,6 +948,10 @@ function SettingsGeneral({ form, t }: any) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
+  // Import restore: stage the chosen file, then confirm inline (window.confirm is
+  // a no-op in the Tauri webview, which is why the old import silently did nothing).
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
 
   // Demo data + reset. window.confirm is a no-op in the Tauri webview, so these
   // use a two-click inline confirm instead.
@@ -741,24 +1005,6 @@ function SettingsGeneral({ form, t }: any) {
     }
   }
 
-  const today = new Date().toISOString().slice(0, 10);
-  function exportInvestmentsCsv() {
-    const records = investments.data ?? [];
-    if (records.length === 0) { toast.error("沒有股票交易紀錄可匯出"); return; }
-    const assetRows = assets.data ?? [];
-    const assetFor = (id: string) => assetRows.find((a) => a.id === id);
-    downloadCsv(`northstar-investments-${today}.csv`, exportInvestmentCsv(records, assetFor));
-    toast.success("已匯出股票交易紀錄");
-  }
-  function exportLedgerCsvFile() {
-    const rows = ledger.data ?? [];
-    if (rows.length === 0) { toast.error("沒有記帳紀錄可匯出"); return; }
-    const accountRows = accounts.data ?? [];
-    const accountName = (id: string) => accountRows.find((a) => a.id === id)?.name ?? id;
-    downloadCsv(`northstar-ledger-${today}.csv`, exportLedgerCsv(rows, accountName));
-    toast.success("已匯出記帳紀錄");
-  }
-
   async function exportBackup() {
     try {
       const repository = await getFinanceRepository();
@@ -778,18 +1024,20 @@ function SettingsGeneral({ form, t }: any) {
   }
 
   async function importBackup(file: File) {
-    if (!window.confirm("匯入會覆蓋目前所有資料，確定要繼續嗎？")) return;
+    setImporting(true);
     try {
       const text = await file.text();
       const parsed = JSON.parse(text) as RepositorySnapshot;
-      if (!parsed || !Array.isArray(parsed.accounts)) throw new Error("無效檔案");
-      
+      if (!parsed || !Array.isArray(parsed.accounts)) throw new Error("無效的備份檔（缺少 accounts 欄位）");
       const repository = await getFinanceRepository();
       await repository.importSnapshot(parsed);
       await queryClient.invalidateQueries();
-      toast.success("匯入成功");
+      toast.success("匯入成功，已還原備份資料");
     } catch (e) {
-      toast.error("匯入失敗");
+      toast.error(e instanceof Error ? `匯入失敗：${e.message}` : "匯入失敗");
+    } finally {
+      setImporting(false);
+      setPendingImportFile(null);
     }
   }
 
@@ -932,20 +1180,30 @@ function SettingsGeneral({ form, t }: any) {
         <p className="text-sm muted mb-4">{t('settings.backupDesc')}</p>
         <div className="flex flex-wrap gap-2">
           <Button onClick={exportBackup}><DownloadSimple size={14}/>{t('settings.exportJson')}</Button>
-          <Button variant="ghost" onClick={()=>fileInputRef.current?.click()}><UploadSimple size={14}/>{t('settings.importBackup')}</Button>
-          <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={(e)=>{
+          <Button variant="ghost" onClick={()=>fileInputRef.current?.click()} disabled={importing}><UploadSimple size={14}/>{t('settings.importBackup')}</Button>
+          <input type="file" ref={fileInputRef} className="hidden" accept=".json,application/json" onChange={(e)=>{
             const file = e.target.files?.[0];
-            if (file) importBackup(file);
+            if (file) setPendingImportFile(file);
             e.target.value = '';
           }} />
         </div>
-        <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--ns-border)" }}>
-          <p className="text-sm muted mb-3">匯出 CSV（可用 Excel / Google 試算表開啟）</p>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={exportInvestmentsCsv}><DownloadSimple size={14}/>股票交易紀錄 CSV</Button>
-            <Button variant="outline" onClick={exportLedgerCsvFile}><DownloadSimple size={14}/>記帳紀錄 CSV</Button>
+        {pendingImportFile && (
+          <div className="ns-surface mt-4 p-3" style={{ border: "1px solid var(--ns-neg)" }}>
+            <div className="flex items-start gap-2 mb-3">
+              <Warning size={18} style={{ color: "var(--ns-neg)", flexShrink: 0, marginTop: 1 }} />
+              <div className="text-sm">
+                即將以 <span className="mono font-medium">{pendingImportFile.name}</span> 覆蓋目前<strong>所有</strong>資料，此動作無法復原。建議先按上方「{t('settings.exportJson')}」備份。
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} disabled={importing} onClick={() => importBackup(pendingImportFile)}>
+                <UploadSimple size={14} />{importing ? "匯入中…" : "確定匯入（覆蓋現有資料）"}
+              </Button>
+              <Button variant="ghost" disabled={importing} onClick={() => setPendingImportFile(null)}>取消</Button>
+            </div>
           </div>
-        </div>
+        )}
+        <p className="text-xs muted mt-3">想要 CSV / 篩選範圍的匯出，請到上方「{t('settings.export')}」分頁。</p>
       </Card>
 
       <UpdateChecker />

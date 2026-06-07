@@ -300,7 +300,7 @@ export function InvestmentsAnalyticsTab({
           ].map((s, i) => (
             <div key={s.label} style={{ padding: "12px 16px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)", minWidth: 0 }}>
               <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.label}</div>
-              <div className="num" style={{ fontSize: 22, fontWeight: 600, fontFamily: "var(--ns-font-mono)", color: s.color, fontVariantNumeric: "tabular-nums" }}>
+              <div className="num" style={{ fontSize: 22, fontWeight: 600, fontFamily: "var(--ns-font-num)", color: s.color, fontVariantNumeric: "tabular-nums" }}>
                 {s.val == null ? "—" : `${s.val >= 0 ? "+" : "−"}${Math.abs(s.val).toFixed(1)}%`}
               </div>
             </div>
@@ -435,7 +435,7 @@ export function InvestmentsAnalyticsTab({
                   <div key={r.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ width: 8, height: 8, borderRadius: 99, background: r.dot, flexShrink: 0 }} />
                     <span className="muted" style={{ flex: 1, fontSize: 12.5 }}>{r.label}</span>
-                    <span className="num" style={{ fontSize: 13, fontFamily: "var(--ns-font-mono)", color: r.dot, fontVariantNumeric: "tabular-nums" }}>{r.value}</span>
+                    <span className="num" style={{ fontSize: 13, fontFamily: "var(--ns-font-num)", color: r.dot, fontVariantNumeric: "tabular-nums" }}>{r.value}</span>
                     {r.note ? <span className="dim" style={{ fontSize: 10.5 }}>{r.note}</span> : null}
                   </div>
                 ))}
@@ -463,7 +463,7 @@ function KpiCard({ label, note, value, color, spark, sub }: {
         <span className="mono dim" style={{ fontSize: 10 }}>{note}</span>
       </div>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-        <div className="num" style={{ fontSize: "clamp(20px, 2.4vw, 26px)", fontWeight: 600, fontFamily: "var(--ns-font-mono)", color, fontVariantNumeric: "tabular-nums lining-nums", letterSpacing: -0.01, whiteSpace: "nowrap" }}>{value}</div>
+        <div className="num" style={{ fontSize: "clamp(20px, 2.4vw, 26px)", fontWeight: 600, fontFamily: "var(--ns-font-num)", color, fontVariantNumeric: "tabular-nums lining-nums", letterSpacing: -0.01, whiteSpace: "nowrap" }}>{value}</div>
         <Sparkline data={spark} color={color} />
       </div>
       <div className="muted" style={{ fontSize: 11, lineHeight: 1.45 }}>{sub}</div>

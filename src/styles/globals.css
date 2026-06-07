@@ -14,6 +14,9 @@
   --ns-font-display: "Space Grotesk", ui-sans-serif, system-ui, "Noto Sans TC", sans-serif;
   --ns-font-ui:      "Space Grotesk", ui-sans-serif, system-ui, "Noto Sans TC", sans-serif;
   --ns-font-mono:    "IBM Plex Mono", "JetBrains Mono", "Geist Mono", ui-monospace, "SF Mono", monospace;
+  /* Numeric figures — WISE-style: a legible proportional sans with tabular
+     alignment, not a monospace face. "Geist Variable" is the bundled font. */
+  --ns-font-num:     "Geist Variable", ui-sans-serif, system-ui, "Noto Sans TC", sans-serif;
 
   /* Spacing scale */
   --ns-s-0: 0px;   --ns-s-1: 4px;  --ns-s-2: 8px;   --ns-s-3: 12px;
@@ -446,10 +449,10 @@ textarea:focus-visible {
 .ns-nav-link:hover:not(.active) { background: var(--ns-bg-hover); color: var(--ns-fg); }
 
 /* Number display sizes */
-.ns-num-xl  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; font-size: 56px; letter-spacing: -0.025em; font-weight: 500; }
-.ns-num-lg  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; font-size: 40px; letter-spacing: -0.02em;  font-weight: 500; }
-.ns-num-md  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; font-size: 28px; letter-spacing: -0.015em; font-weight: 500; }
-.ns-num-sm  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; font-size: 16px; letter-spacing: -0.005em; font-weight: 500; }
+.ns-num-xl  { font-family: var(--ns-font-num); font-variant-numeric: tabular-nums lining-nums; font-size: 56px; letter-spacing: -0.025em; font-weight: 600; }
+.ns-num-lg  { font-family: var(--ns-font-num); font-variant-numeric: tabular-nums lining-nums; font-size: 40px; letter-spacing: -0.02em;  font-weight: 600; }
+.ns-num-md  { font-family: var(--ns-font-num); font-variant-numeric: tabular-nums lining-nums; font-size: 28px; letter-spacing: -0.015em; font-weight: 600; }
+.ns-num-sm  { font-family: var(--ns-font-num); font-variant-numeric: tabular-nums lining-nums; font-size: 16px; letter-spacing: -0.005em; font-weight: 600; }
 
 /* Mono utility */
 .ns-mono { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; letter-spacing: -0.01em; }
@@ -500,7 +503,7 @@ textarea:focus-visible {
 .neg  { color: var(--ns-neg); }
 .muted { color: var(--ns-fg-muted); }
 .dim  { color: var(--ns-fg-dim); }
-.num  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; }
+.num  { font-family: var(--ns-font-num); font-variant-numeric: tabular-nums lining-nums; }
 .mono { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; letter-spacing: -0.01em; }
 
 /* ── Detail pages: cash-flow category / merchant ── */
@@ -677,7 +680,8 @@ textarea:focus-visible {
 }
 .ns-info-list > div:last-child { border-bottom: 0; }
 .ns-info-list strong {
-  font-family: var(--ns-font-mono);
+  font-family: var(--ns-font-num);
+  font-variant-numeric: tabular-nums lining-nums;
   font-weight: 650;
   text-align: right;
 }
@@ -1015,7 +1019,8 @@ textarea:focus-visible {
   text-align: right;
 }
 .ns-invest-mobile-amount strong {
-  font-family: var(--ns-font-mono);
+  font-family: var(--ns-font-num);
+  font-variant-numeric: tabular-nums lining-nums;
   font-size: 13px;
   white-space: nowrap;
 }

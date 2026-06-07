@@ -87,7 +87,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDelete, account
             >
               <Receipt size={26} color={meta.color} weight="duotone" />
             </div>
-            <div style={{ fontSize: 32, fontWeight: 600, fontFamily: "var(--ns-font-mono)", color: meta.color, letterSpacing: -1 }}>
+            <div style={{ fontSize: 32, fontWeight: 600, fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums lining-nums", color: meta.color, letterSpacing: -1 }}>
               {meta.sign}{row.currency === "TWD" ? "NT$" : row.currency + " "}{formatNumber(Math.abs(row.amount))}
             </div>
             <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}>

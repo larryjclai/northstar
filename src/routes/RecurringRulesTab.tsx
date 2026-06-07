@@ -406,7 +406,7 @@ function RuleEditSheet({
             <input
               className="ns-input"
               placeholder="0"
-              style={{ fontFamily: "var(--ns-font-mono)" }}
+              style={{ fontFamily: "var(--ns-font-num)" }}
               {...amountField}
             />
           </RuleField>
@@ -434,7 +434,7 @@ function RuleEditSheet({
                 max={31}
                 value={form.dayOfMonth}
                 onChange={(e) => setForm({ ...form, dayOfMonth: Math.max(1, Math.min(31, parseInt(e.target.value) || 1)) })}
-                style={{ fontFamily: "var(--ns-font-mono)" }}
+                style={{ fontFamily: "var(--ns-font-num)" }}
               />
             </RuleField>
           </div>

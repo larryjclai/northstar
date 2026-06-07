@@ -3,14 +3,15 @@ import { Button } from "../components/coss/button";
 import { Card as CossCard } from "../components/coss/card";
 import { AssetLogo } from "../components/AssetLogo";
 import { Badge } from "../components/coss/badge";
-import { ChangeEvent, ReactNode, useMemo, useState, useEffect } from "react";
+import { ReactNode, useMemo, useState, useEffect } from "react";
 import { ActionButton } from "../components/ActionButton";
 import { EmptyState } from "../components/EmptyState";
 import { StatusText } from "../components/StatusText";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
-import { downloadCsv, exportInvestmentCsv, parseInvestmentCsv, type ImportPreview } from "../data/csv";
+import { downloadCsv, exportInvestmentCsv } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { InvestmentDraft } from "../data/repositories";
+import { InvestmentImportWizard } from "./InvestmentImportWizard";
 import { createFxConverter, formatMoney, formatNumber, todayInTimezone } from "../domain";
 import type { InvestmentAction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
@@ -67,7 +68,7 @@ export function TransactionsRoute() {
   const { accounts, assets, investments, ledger, settings, dailyFxRates } = useFinanceData();
   const timezone = useUiPreferences((state) => state.timezone);
   const { primaryCurrency, toPrimary } = createFxConverter(settings.data, dailyFxRates.data ?? []);
-  const [preview, setPreview] = useState<ImportPreview<InvestmentDraft> | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
@@ -254,13 +255,6 @@ export function TransactionsRoute() {
     setDrawerOpen(true);
   }
 
-  async function handleCsv(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setPreview(parseInvestmentCsv(await file.text()));
-    event.target.value = "";
-  }
-
   return (
     <div className="mt-4 ns-investment-transactions">
       <div className="ns-invest-summary">
@@ -318,21 +312,16 @@ export function TransactionsRoute() {
           />
           <div className="ns-invest-actions">
             <ActionButton variant="secondary" onClick={() => downloadCsv("northstar-investments.csv", exportInvestmentCsv(recordRows, assetFor))}>匯出 CSV</ActionButton>
-            <input id="invest-csv-import" className="hidden" type="file" accept=".csv,text/csv" onChange={handleCsv} />
-            <Button variant="outline" render={<label htmlFor="invest-csv-import" />}><UploadSimple />匯入 CSV</Button>
+            <Button variant="outline" onClick={() => setImportOpen(true)}><UploadSimple />匯入 CSV</Button>
           </div>
         </div>
 
-        {preview ? (
-          <div className="mb-4 rounded-lg border p-4" style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface-subtle)" }}>
-            <div className="font-semibold">匯入預覽：{preview.valid.length} valid / {preview.invalid.length} invalid</div>
-            {preview.invalid.map((item) => <div key={item.row} className="text-sm" style={{ color: "var(--ns-negative)" }}>Row {item.row}: {item.reason}</div>)}
-            <div className="mt-3 flex gap-2">
-              <ActionButton onClick={async () => { await importRecords.mutateAsync(preview.valid.map((item) => item.value)); setPreview(null); }}>確認匯入</ActionButton>
-              <ActionButton variant="secondary" onClick={() => setPreview(null)}>取消</ActionButton>
-            </div>
-          </div>
-        ) : null}
+        <InvestmentImportWizard
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          accounts={accountRows}
+          onImport={(input) => importRecords.mutateAsync(input)}
+        />
 
         {(typeFilter.size > 0 || brokerFilter.size > 0 || assetTypeFilter !== "all" || searchQuery) ? (
           <div className="ns-invest-clear">

@@ -24,7 +24,7 @@ const SEG_ITEM_CLASS =
   "flex-1 data-pressed:border-primary data-pressed:bg-primary data-pressed:text-primary-foreground";
 
 const NUM_INPUT_STYLE: React.CSSProperties = {
-  fontFamily: "var(--ns-font-mono)",
+  fontFamily: "var(--ns-font-num)",
   fontSize: 18,
   textAlign: "right",
   fontVariantNumeric: "tabular-nums lining-nums",

@@ -19,7 +19,7 @@ import {
 } from "@phosphor-icons/react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ChangeEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { Area, AreaChart, Bar, BarChart, ResponsiveContainer, Tooltip, Cell, PieChart, Pie, XAxis } from "recharts";
+import { Bar, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 import { CategoriesTab } from "./CategoriesTab";
 import { MerchantsTab } from "./MerchantsTab";
@@ -140,6 +140,8 @@ export function CashFlowRoute() {
   const [selectedAccount, setSelectedAccount] = useState(accountParam ?? "all");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [activeTab, setActiveTab] = useState<"overview" | "categories" | "merchants" | "recurring">("overview");
+  // Cashflow chart bucketing granularity (日/週/月/年).
+  const [chartGranularity, setChartGranularity] = useState<ChartGranularity>("day");
   const [detailRow, setDetailRow] = useState<LedgerTransaction | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -628,27 +630,32 @@ export function CashFlowRoute() {
       .slice(0, 5);
   }, [monthRows, toPrimary]);
 
-  const dailyNetData = useMemo(() => {
-    const [year, month] = monthKey.split("-").map(Number);
-    const daysInMonth = new Date(year, month, 0).getDate();
-    const data = [];
-    let cum = 0;
-    for (let i = 1; i <= daysInMonth; i++) {
-      const dateStr = `${monthKey}-${i.toString().padStart(2, "0")}`;
-      let net = 0;
-      for (const row of monthRows) {
-        if (row.date.startsWith(dateStr) && !isNeutralLedgerRow(row) && row.settlementStatus === "settled") {
-          net += toPrimary(row) ?? 0;
-        }
-      }
-      cum += net;
-      // `cum` is the running net cash flow through the month — a smooth
-      // trajectory that stays readable even when only a few days have activity
-      // (unlike scattered per-day bars).
-      data.push({ date: i, net, cum });
+  // Cashflow bars: income (up) + expense (down) per bucket, with a net line.
+  // The granularity (日/週/月/年) controls both bucket size and the visible
+  // window, anchored to the selected month. Respects the account/category
+  // filters; transfers and pass-through rows are excluded (neutral movements).
+  const cashflowBars = useMemo(() => {
+    const rows = ledgerRows.filter((row) => {
+      if (selectedAccount !== "all" && row.accountId !== selectedAccount) return false;
+      if (selectedCategory !== "all" && row.category !== selectedCategory) return false;
+      if (row.settlementStatus !== "settled") return false;
+      if (isNeutralLedgerRow(row)) return false;
+      return row.entryType === "income" || row.entryType === "expense";
+    });
+    const slots = buildCashflowBuckets(chartGranularity, monthKey).map((b) => ({
+      ...b, income: 0, expense: 0, net: 0,
+    }));
+    const byKey = new Map(slots.map((s) => [s.key, s]));
+    for (const row of rows) {
+      const slot = byKey.get(cashflowBucketKey(chartGranularity, row.date));
+      if (!slot) continue;
+      const value = toPrimary(row) ?? 0;
+      if (row.entryType === "income") slot.income += Math.max(0, value);
+      else slot.expense -= Math.abs(value); // negative → bar grows downward
     }
-    return data;
-  }, [monthRows, monthKey, toPrimary]);
+    for (const s of slots) s.net = s.income + s.expense;
+    return slots;
+  }, [ledgerRows, selectedAccount, selectedCategory, chartGranularity, monthKey, toPrimary]);
 
 
   const [page, setPage] = useState(1);
@@ -779,28 +786,48 @@ export function CashFlowRoute() {
               ))}
             </div>
           </div>
-          <div style={{ height: 200 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={dailyNetData}>
-                <defs>
-                  <linearGradient id="cashflowCum" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="5%" stopColor="var(--ns-accent)" stopOpacity={0.32} />
-                    <stop offset="95%" stopColor="var(--ns-accent)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="date" hide />
-                <Tooltip
-                  cursor={{ stroke: resolveColor("var(--ns-border)") }}
-                  contentStyle={{ background: "var(--ns-surface)", border: "1px solid var(--ns-border)", borderRadius: 6, fontSize: 12 }}
-                  formatter={(v: any) => [`${primaryCurrency} ${formatNumber(v as number)}`, "累積淨額"]}
-                  labelFormatter={(v) => `${monthLabel} / ${v}`}
-                />
-                <Area type="monotone" dataKey="cum" stroke="var(--ns-accent)" fill="url(#cashflowCum)" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
+          {/* Legend + 日/週/月/年 granularity selector */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              {([
+                { label: "收入", color: "var(--ns-pos)" },
+                { label: "支出", color: "var(--ns-neg)" },
+                { label: "淨額", color: "var(--ns-fg)" },
+              ]).map((l) => (
+                <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <span style={{ width: 9, height: 9, borderRadius: 2, background: l.color, flexShrink: 0 }} />
+                  <span className="muted" style={{ fontSize: 11.5 }}>{l.label}</span>
+                </div>
+              ))}
+            </div>
+            <SegmentedControl value={chartGranularity} options={CHART_GRANULARITY_OPTIONS} onChange={setChartGranularity} />
           </div>
-          <div className="dim mono" style={{ fontSize: 10.5, marginTop: 6, display: "flex", justifyContent: "space-between" }}>
-            <span>1號</span><span>15號</span><span>月底</span>
+          <div style={{ height: 220 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={cashflowBars} margin={{ top: 6, right: 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap={chartGranularity === "day" ? "12%" : "24%"}>
+                <ReferenceLine y={0} stroke={resolveColor("var(--ns-border-strong)")} />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 10.5, fill: resolveColor("var(--ns-fg-dim)") }}
+                  tickLine={false}
+                  axisLine={false}
+                  interval={chartGranularity === "day" ? 3 : 0}
+                  minTickGap={4}
+                />
+                <Tooltip
+                  cursor={{ fill: resolveColor("var(--ns-bg-hover)") }}
+                  contentStyle={{ background: "var(--ns-surface)", border: "1px solid var(--ns-border)", borderRadius: 6, fontSize: 12 }}
+                  formatter={(v: any, name: any) => {
+                    const labelMap: Record<string, string> = { income: "收入", expense: "支出", net: "淨額" };
+                    return [`${primaryCurrency} ${formatNumber(Math.abs(v as number))}`, labelMap[name] ?? name];
+                  }}
+                  labelFormatter={(v) => (chartGranularity === "day" ? `${monthLabel} / ${v}` : String(v))}
+                />
+                <Bar dataKey="income" fill="var(--ns-pos)" radius={[2, 2, 0, 0]} maxBarSize={22} />
+                <Bar dataKey="expense" fill="var(--ns-neg)" radius={[0, 0, 2, 2]} maxBarSize={22} />
+                <Line type="monotone" dataKey="net" stroke="var(--ns-fg)" strokeWidth={1.5} dot={false} />
+              </ComposedChart>
+            </ResponsiveContainer>
           </div>
         </Card>
 
@@ -1197,9 +1224,9 @@ function LedgerRow({
           <div className="muted" style={{ fontSize: 11.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subtitleParts.join(" · ")}</div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div className="num" style={{ fontSize: 14.5, color: "var(--ns-fg)" }}>−{currencySymbol(source.currency)}{formatNumber(Math.abs(source.amount))}</div>
+          <div className="num" style={{ fontSize: 14.5, color: "var(--ns-fg)" }}>{currencySymbol(source.currency)}{formatNumber(Math.abs(source.amount))}</div>
           {crossCcy ? (
-            <div className="muted" style={{ fontSize: 10.5, fontFamily: "var(--ns-font-mono)" }}>→ {currencySymbol(dest.currency)}{formatNumber(Math.abs(dest.amount))}</div>
+            <div className="muted" style={{ fontSize: 10.5, fontFamily: "var(--ns-font-num)" }}>→ {currencySymbol(dest.currency)}{formatNumber(Math.abs(dest.amount))}</div>
           ) : null}
         </div>
         <div className="ns-cf-actions" style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
@@ -1245,7 +1272,7 @@ function LedgerRow({
         {row.originalCurrency && row.originalAmount != null ? (
           <>
             <div className="num" style={{ fontSize: 14.5, color }}>{sign}{currencySymbol(row.originalCurrency)}{formatNumber(Math.abs(row.originalAmount))}</div>
-            <div className="muted" style={{ fontSize: 10.5, fontFamily: "var(--ns-font-mono)" }}>≈ {currencySymbol(row.currency)}{formatNumber(Math.abs(row.amount))}</div>
+            <div className="muted" style={{ fontSize: 10.5, fontFamily: "var(--ns-font-num)" }}>≈ {currencySymbol(row.currency)}{formatNumber(Math.abs(row.amount))}</div>
           </>
         ) : (
           <div className="num" style={{ fontSize: 14.5, color }}>{sign}{currencySymbol(row.currency)}{formatNumber(Math.abs(row.amount))}</div>
@@ -1584,7 +1611,7 @@ function EntryDrawer({
                   className=""
                   style={{
                     flex: 1, border: "none", outline: "none", background: "transparent",
-                    padding: "0 14px", fontSize: 22, fontFamily: "var(--ns-font-mono)",
+                    padding: "0 14px", fontSize: 22, fontFamily: "var(--ns-font-num)",
                     color: meta.color, textAlign: "right", height: "100%",
                     fontVariantNumeric: "tabular-nums lining-nums",
                   }}
@@ -1602,7 +1629,7 @@ function EntryDrawer({
                 <input
                   style={{
                     flex: 1, border: "none", outline: "none", background: "transparent",
-                    padding: "0 14px", fontSize: 22, fontFamily: "var(--ns-font-mono)",
+                    padding: "0 14px", fontSize: 22, fontFamily: "var(--ns-font-num)",
                     color: meta.color, textAlign: "right", height: "100%",
                     fontVariantNumeric: "tabular-nums lining-nums",
                   }}
@@ -1688,7 +1715,7 @@ function EntryDrawer({
               <input
                 className="ns-input"
                 placeholder="0"
-                style={{ fontFamily: "var(--ns-font-mono)" }}
+                style={{ fontFamily: "var(--ns-font-num)" }}
                 {...destAmountField}
               />
               <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
@@ -1706,7 +1733,7 @@ function EntryDrawer({
               <input
                 className="ns-input"
                 placeholder="0"
-                style={{ fontFamily: "var(--ns-font-mono)" }}
+                style={{ fontFamily: "var(--ns-font-num)" }}
                 {...transferFeeField}
               />
               <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>跨行/跨國轉帳手續費，將從轉出帳戶另計一筆「手續費」支出。</div>
@@ -1844,7 +1871,7 @@ function EntryDrawer({
                       <input
                         className="ns-input"
                         placeholder="0"
-                        style={{ fontFamily: "var(--ns-font-mono)" }}
+                        style={{ fontFamily: "var(--ns-font-num)" }}
                         {...expenseFeeField}
                       />
                       <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>海外刷卡/跨國交易手續費，將另計一筆「手續費」支出。</div>
@@ -2012,6 +2039,72 @@ function mergeTransferRows(rows: LedgerTransaction[], allRows: LedgerTransaction
     }
   }
   return out;
+}
+
+/* ─────────── Cashflow chart bucketing (日/週/月/年) ─────────── */
+type ChartGranularity = "day" | "week" | "month" | "year";
+
+const CHART_GRANULARITY_OPTIONS: Array<{ value: ChartGranularity; label: string }> = [
+  { value: "day", label: "日" },
+  { value: "week", label: "週" },
+  { value: "month", label: "月" },
+  { value: "year", label: "年" },
+];
+
+/** Local-time `YYYY-MM-DD` (avoids the UTC shift of `Date.toISOString`). */
+function isoLocal(dt: Date): string {
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
+/** Monday (ISO week start) of the week containing `dateStr`. */
+function mondayOf(dateStr: string): string {
+  const dt = new Date(dateStr.slice(0, 10) + "T00:00:00");
+  const dow = (dt.getDay() + 6) % 7; // 0 = Monday
+  dt.setDate(dt.getDate() - dow);
+  return isoLocal(dt);
+}
+
+/** Which bucket a row's date falls into, for the given granularity. */
+function cashflowBucketKey(granularity: ChartGranularity, dateStr: string): string {
+  const d = dateStr.slice(0, 10);
+  if (granularity === "day") return d;
+  if (granularity === "month") return d.slice(0, 7);
+  if (granularity === "year") return d.slice(0, 4);
+  return mondayOf(d); // week
+}
+
+/** Ordered list of buckets ({key, label}) for the visible window. */
+function buildCashflowBuckets(granularity: ChartGranularity, monthKey: string): Array<{ key: string; label: string }> {
+  const [year, month] = monthKey.split("-").map(Number);
+  if (granularity === "day") {
+    const days = new Date(year, month, 0).getDate();
+    return Array.from({ length: days }, (_, i) => {
+      const dd = String(i + 1).padStart(2, "0");
+      return { key: `${monthKey}-${dd}`, label: String(i + 1) };
+    });
+  }
+  if (granularity === "month") {
+    return Array.from({ length: 12 }, (_, i) => {
+      const dt = new Date(year, month - 1 - (11 - i), 1);
+      return {
+        key: `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`,
+        label: `${dt.getMonth() + 1}月`,
+      };
+    });
+  }
+  if (granularity === "year") {
+    return Array.from({ length: 6 }, (_, i) => {
+      const yr = year - (5 - i);
+      return { key: String(yr), label: String(yr) };
+    });
+  }
+  // week: trailing 12 weeks ending at the week of the month's last day
+  const anchorMonday = new Date(mondayOf(isoLocal(new Date(year, month, 0))) + "T00:00:00");
+  return Array.from({ length: 12 }, (_, i) => {
+    const dt = new Date(anchorMonday);
+    dt.setDate(dt.getDate() - (11 - i) * 7);
+    return { key: isoLocal(dt), label: `${dt.getMonth() + 1}/${dt.getDate()}` };
+  });
 }
 
 function groupByDay<T extends LedgerTransaction>(rows: T[], toPrimary: (row: LedgerTransaction, amount?: number) => number | null) {
