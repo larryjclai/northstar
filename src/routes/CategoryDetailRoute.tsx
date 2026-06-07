@@ -6,11 +6,10 @@ import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
+import { MiniBars, WeekdayBars, type MonthPoint } from "../components/DetailCharts";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { convertCurrency, formatMoney, type CategoryGroup, type LedgerTransaction } from "../domain";
 import { Glyph } from "../lib/icons";
-
-type MonthPoint = { key: string; label: string; amount: number; partial: boolean };
 
 export function CategoryDetailRoute() {
   const { categoryName } = useParams({ strict: false }) as { categoryName: string };
@@ -52,7 +51,7 @@ export function CategoryDetailRoute() {
   const rows = useMemo(
     () =>
       ledgerRows
-        .filter((row) => row.category === categoryName && row.entryType === "expense" && row.settlementStatus === "settled")
+        .filter((row) => row.category === categoryName && row.entryType === "expense" && row.settlementStatus === "settled" && !row.counterAccountId)
         .sort((a, b) => b.date.localeCompare(a.date)),
     [ledgerRows, categoryName],
   );
@@ -69,7 +68,7 @@ export function CategoryDetailRoute() {
   const currentMonth = now.getMonth() + 1;
   const monthlyAverage = currentMonth > 0 ? ytdTotal / currentMonth : ytdTotal;
   const allYtdExpense = ledgerRows
-    .filter((row) => row.entryType === "expense" && row.settlementStatus === "settled" && row.date.startsWith(year))
+    .filter((row) => row.entryType === "expense" && row.settlementStatus === "settled" && !row.counterAccountId && row.date.startsWith(year))
     .reduce((sum, row) => sum + (convertCurrency(Math.abs(row.amount), row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date }) ?? 0), 0);
   const share = allYtdExpense > 0 ? (ytdTotal / allYtdExpense) * 100 : 0;
 
@@ -193,6 +192,10 @@ export function CategoryDetailRoute() {
               <EmptyPanel icon={<FolderSimple size={22} />} text="這個分類尚未累積今年支出。" />
             )}
           </Panel>
+
+          <Panel eyebrow="Day-of-week pattern" title={peakWeekday ? `高峰：${peakWeekday.name}曜日` : "星期分佈"}>
+            <WeekdayBars data={weekdayData} />
+          </Panel>
         </div>
 
         <div className="ns-detail-side">
@@ -205,10 +208,6 @@ export function CategoryDetailRoute() {
                 ["使用帳戶數", `${accountsUsed} 個帳戶`],
               ]}
             />
-          </Panel>
-
-          <Panel eyebrow="Day-of-week pattern" title={peakWeekday ? `高峰：${peakWeekday.name}曜日` : "星期分佈"}>
-            <WeekdayBars data={weekdayData} />
           </Panel>
 
           <Panel eyebrow="Top merchants" title="此分類的商家">
@@ -366,38 +365,6 @@ function InsightTile({ label, value, tone }: { label: string; value: string; ton
       <div className="ns-eyebrow">{label}</div>
       <div className="num" data-tone={tone}>{value}</div>
     </Card>
-  );
-}
-
-function MiniBars({ data, color, currency }: { data: MonthPoint[]; color: string; currency: string }) {
-  const max = Math.max(1, ...data.map((item) => item.amount));
-  return (
-    <div className="ns-mini-bars">
-      {data.map((item) => (
-        <div key={item.key} className="ns-mini-bar-cell" title={`${item.key}: ${formatMoney(item.amount, currency)}`}>
-          <div
-            className="ns-mini-bar"
-            data-partial={item.partial || undefined}
-            style={{ height: `${Math.max(6, (item.amount / max) * 112)}px`, background: color }}
-          />
-          <span>{item.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function WeekdayBars({ data }: { data: Array<{ key: number; name: string; count: number }> }) {
-  const max = Math.max(1, ...data.map((item) => item.count));
-  return (
-    <div className="ns-weekday-bars">
-      {data.map((item) => (
-        <div key={item.key} className="ns-weekday-cell" data-peak={item.count === max && item.count > 0 || undefined}>
-          <div style={{ height: `${Math.max(4, (item.count / max) * 54)}px` }} />
-          <span>{item.name}</span>
-        </div>
-      ))}
-    </div>
   );
 }
 

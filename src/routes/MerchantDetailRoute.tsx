@@ -5,10 +5,9 @@ import { useMemo, useState } from "react";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
+import { MiniBars, WeekdayBars, type MonthPoint } from "../components/DetailCharts";
 import { useFinanceData } from "../data/hooks";
 import { convertCurrency, formatMoney, type LedgerTransaction } from "../domain";
-
-type MonthPoint = { key: string; label: string; amount: number; partial: boolean };
 
 export function MerchantDetailRoute() {
   const { merchantName } = useParams({ strict: false }) as { merchantName: string };
@@ -29,7 +28,7 @@ export function MerchantDetailRoute() {
   const rows = useMemo(
     () =>
       ledgerRows
-        .filter((row) => row.merchant === merchantName && row.entryType === "expense" && row.settlementStatus === "settled")
+        .filter((row) => row.merchant === merchantName && row.entryType === "expense" && row.settlementStatus === "settled" && !row.counterAccountId)
         .sort((a, b) => b.date.localeCompare(a.date)),
     [ledgerRows, merchantName],
   );
@@ -118,6 +117,10 @@ export function MerchantDetailRoute() {
             <MiniBars data={monthlyData} color={categoryColor} currency={primaryCurrency} />
           </Panel>
 
+          <Panel eyebrow="Visit pattern" title={peakWeekday ? `${peakWeekday.name}曜日 最頻繁` : "星期分佈"}>
+            <WeekdayBars data={weekdayData} />
+          </Panel>
+
           <Panel eyebrow="Transactions" title={`${visibleRows.length} 筆交易紀錄`}>
             <div className="ns-pill-row ns-transaction-filter-row">
               <button type="button" className="ns-filter-pill" data-active={subcategoryFilter === "all" || undefined} onClick={() => setSubcategoryFilter("all")}>全部</button>
@@ -132,10 +135,6 @@ export function MerchantDetailRoute() {
         </div>
 
         <div className="ns-detail-side">
-          <Panel eyebrow="Visit pattern" title={peakWeekday ? `${peakWeekday.name}曜日 最頻繁` : "星期分佈"}>
-            <WeekdayBars data={weekdayData} />
-          </Panel>
-
           <Panel eyebrow="Auto-categorization" title="自動分類">
             {categoryHit.value ? (
               <div className="ns-rule-hint">
@@ -265,38 +264,6 @@ function InsightTile({ label, value, tone }: { label: string; value: string; ton
       <div className="ns-eyebrow">{label}</div>
       <div className="num" data-tone={tone}>{value}</div>
     </Card>
-  );
-}
-
-function MiniBars({ data, color, currency }: { data: MonthPoint[]; color: string; currency: string }) {
-  const max = Math.max(1, ...data.map((item) => item.amount));
-  return (
-    <div className="ns-mini-bars">
-      {data.map((item) => (
-        <div key={item.key} className="ns-mini-bar-cell" title={`${item.key}: ${formatMoney(item.amount, currency)}`}>
-          <div
-            className="ns-mini-bar"
-            data-partial={item.partial || undefined}
-            style={{ height: `${Math.max(6, (item.amount / max) * 112)}px`, background: color }}
-          />
-          <span>{item.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function WeekdayBars({ data }: { data: Array<{ key: number; name: string; count: number }> }) {
-  const max = Math.max(1, ...data.map((item) => item.count));
-  return (
-    <div className="ns-weekday-bars">
-      {data.map((item) => (
-        <div key={item.key} className="ns-weekday-cell" data-peak={item.count === max && item.count > 0 || undefined}>
-          <div style={{ height: `${Math.max(4, (item.count / max) * 54)}px` }} />
-          <span>{item.name}</span>
-        </div>
-      ))}
-    </div>
   );
 }
 
