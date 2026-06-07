@@ -24,7 +24,7 @@ import type { MarketQuote } from "../features/market-data";
 import { calculateInvestmentAccountQuantity, calculateInvestmentCashDelta, calculateInvestmentQuantity, isEffectivelyNegative } from "../domain/investmentCash";
 import { buildPositionMetrics } from "../domain/portfolioMetrics";
 import { firstFutureRunDate, nextRecurringDate } from "../domain/recurringDates";
-import { assertLedgerInvariants, assertTransferInvariants, buildRecalculationReport, deriveAccountBalances, findMissingFxPairs } from "../domain/ledgerTrust";
+import { accountBalanceDelta, assertLedgerInvariants, assertTransferInvariants, buildRecalculationReport, deriveAccountBalances, findMissingFxPairs } from "../domain/ledgerTrust";
 import {
   buildPendingChanges,
   type SyncApplyChange,
@@ -48,6 +48,8 @@ export interface StoredMarketQuote extends MarketQuote {
 
 export interface LedgerDraft {
   accountId: string;
+  /** Reimbursement (代墊) counter account. See LedgerTransaction.counterAccountId. */
+  counterAccountId?: string | null;
   date: string;
   name: string;
   amount: number;
@@ -71,6 +73,7 @@ export type AccountDraft = Pick<Account, "name" | "currency" | "openingBalance" 
 
 export interface RecurringDraft {
   accountId: string;
+  counterAccountId?: string | null;
   amount: number;
   currency: string;
   category: string;
@@ -84,6 +87,9 @@ export interface RecurringDraft {
   nextRunDate: string;
   isActive: boolean;
 }
+
+/** Scope for editing a recurring-rule-generated ledger occurrence. */
+export type RecurringEditScope = "this" | "future" | "all";
 
 export interface RecurringInvestmentDraft {
   accountId: string;
@@ -189,6 +195,15 @@ export interface FinanceRepository {
   updateLedgerTransaction(id: string, input: LedgerDraft): Promise<void>;
   setLedgerReviewed(id: string, reviewed: boolean): Promise<void>;
   deleteLedgerTransaction(id: string): Promise<void>;
+  /**
+   * Edit a ledger row that was materialized from a recurring rule, applying the
+   * change at the requested scope (calendar-style):
+   * - "this": only this occurrence.
+   * - "future": this occurrence + the rule template (affects future postings).
+   * - "all": this occurrence + the rule + every already-posted occurrence
+   *   (money/classification fields only — each sibling keeps its own date).
+   */
+  applyRecurringScopeEdit(id: string, scope: RecurringEditScope, input: LedgerDraft): Promise<void>;
   createTransfer(input: TransferDraft): Promise<void>;
   importLedgerTransactions(rows: LedgerDraft[]): Promise<void>;
   listPortfolioAssets(): Promise<PortfolioAsset[]>;
@@ -587,7 +602,7 @@ class BrowserFinanceRepository implements FinanceRepository {
   async updateLedgerTransaction(id: string, input: LedgerDraft) {
     assertLedgerInvariants(input, this.data.accounts, { allowTransfer: input.entryType === "transfer" });
     this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
-      row.id === id ? bump({ ...row, ...input, groupId: input.groupId ?? null }) : row,
+      row.id === id ? bump({ ...row, ...input, counterAccountId: input.counterAccountId ?? null, groupId: input.groupId ?? null }) : row,
     );
     this.recompute();
     await this.persist();
@@ -610,6 +625,60 @@ class BrowserFinanceRepository implements FinanceRepository {
     );
     this.recompute();
     await this.persist();
+  }
+
+  async applyRecurringScopeEdit(id: string, scope: RecurringEditScope, input: LedgerDraft) {
+    // Implemented with the public CRUD methods so the SQLite subclass inherits
+    // it unchanged (its overrides of update/list are picked up via `this`).
+    const ledger = await this.listLedgerTransactions();
+    const target = ledger.find((row) => row.id === id);
+    // Always update the edited occurrence itself.
+    await this.updateLedgerTransaction(id, input);
+    const ruleId = target?.recurringRuleId ?? null;
+    if (scope === "this" || !ruleId) return;
+
+    // Update the rule template (money/classification fields) for "future"/"all".
+    const rules = await this.listRecurringTransactions();
+    const rule = rules.find((r) => r.id === ruleId);
+    if (rule && (input.entryType === "income" || input.entryType === "expense")) {
+      await this.updateRecurringTransaction(ruleId, {
+        ...rule,
+        accountId: input.accountId,
+        counterAccountId: input.counterAccountId ?? null,
+        amount: input.amount,
+        currency: input.currency,
+        category: input.category,
+        subcategory: input.subcategory,
+        merchant: input.merchant,
+        entryType: input.entryType,
+        settlementStatus: input.settlementStatus,
+        note: input.note,
+      });
+    }
+    if (scope !== "all") return;
+
+    // Rewrite every other already-posted occurrence, preserving each one's own
+    // date (and FX original amount / group), per the agreed "全部" semantics.
+    const siblings = ledger.filter((row) => row.recurringRuleId === ruleId && row.id !== id);
+    for (const sib of siblings) {
+      await this.updateLedgerTransaction(sib.id, {
+        accountId: input.accountId,
+        counterAccountId: input.counterAccountId ?? null,
+        date: sib.date,
+        name: input.name,
+        amount: input.amount,
+        currency: input.currency,
+        originalAmount: sib.originalAmount,
+        originalCurrency: sib.originalCurrency,
+        category: input.category,
+        subcategory: input.subcategory,
+        merchant: input.merchant,
+        entryType: input.entryType,
+        settlementStatus: input.settlementStatus,
+        note: input.note,
+        groupId: sib.groupId,
+      });
+    }
   }
 
   async createTransfer(input: TransferDraft) {
@@ -831,7 +900,7 @@ class BrowserFinanceRepository implements FinanceRepository {
   async updateRecurringTransaction(id: string, input: RecurringDraft) {
     assertLedgerInvariants(input, this.data.accounts);
     this.data.recurringTransactions = this.data.recurringTransactions.map((row) =>
-      row.id === id ? bump({ ...row, ...input }) : row,
+      row.id === id ? bump({ ...row, ...input, counterAccountId: input.counterAccountId ?? null }) : row,
     );
     await this.persist();
   }
@@ -852,6 +921,7 @@ class BrowserFinanceRepository implements FinanceRepository {
     }
     this.data.ledgerTransactions.push(createLedgerRow({
       accountId: recurring.accountId,
+      counterAccountId: recurring.counterAccountId ?? null,
       date: `${recurring.nextRunDate}T09:00`,
       name: recurring.merchant || recurring.category,
       amount: recurring.amount,
@@ -889,6 +959,7 @@ class BrowserFinanceRepository implements FinanceRepository {
         }
         this.data.ledgerTransactions.push(createLedgerRow({
           accountId: rule.accountId,
+          counterAccountId: rule.counterAccountId ?? null,
           date: `${next}T09:00`,
           name: rule.merchant || rule.category,
           amount: rule.amount,
@@ -1788,6 +1859,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("ledger_transactions", "original_amount", "real");
     await this.ensureSqliteColumn("ledger_transactions", "original_currency", "text");
     await this.ensureSqliteColumn("ledger_transactions", "recurring_occurrence_key", "text");
+    await this.ensureSqliteColumn("ledger_transactions", "counter_account_id", "text");
+    await this.ensureSqliteColumn("recurring_transactions", "counter_account_id", "text");
     await this.db.execute(`create unique index if not exists idx_ledger_recurring_occurrence on ledger_transactions (recurring_occurrence_key) where recurring_occurrence_key is not null and deleted_at is null`);
     await this.ensureSyncInfrastructure();
     await this.backfillUnassignedAccount();
@@ -1856,7 +1929,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   override async listLedgerTransactions() {
     return this.db.select<LedgerTransaction[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
-      account_id as accountId, date, name, amount, currency, original_amount as originalAmount, original_currency as originalCurrency,
+      account_id as accountId, counter_account_id as counterAccountId, date, name, amount, currency, original_amount as originalAmount, original_currency as originalCurrency,
       category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note,
       linked_investment_record_id as linkedInvestmentRecordId, group_id as groupId,
       is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId, recurring_rule_id as recurringRuleId,
@@ -1894,8 +1967,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   override async updateLedgerTransaction(id: string, input: LedgerDraft) {
     assertLedgerInvariants(input, await this.listAccounts(), { allowTransfer: input.entryType === "transfer" });
     await this.db.execute(
-      `update ledger_transactions set revision = revision + 1, updated_at = $1, account_id = $2, date = $3, name = $4, amount = $5, currency = $6, original_amount = $7, original_currency = $8, category = $9, subcategory = $10, merchant = $11, entry_type = $12, settlement_status = $13, note = $14, group_id = $15 where id = $16`,
-      [nowIso(), input.accountId, input.date, input.name, input.amount, input.currency, input.originalAmount ?? null, input.originalCurrency ?? null, input.category, input.subcategory, input.merchant, input.entryType, input.settlementStatus, input.note, input.groupId ?? null, id],
+      `update ledger_transactions set revision = revision + 1, updated_at = $1, account_id = $2, date = $3, name = $4, amount = $5, currency = $6, original_amount = $7, original_currency = $8, category = $9, subcategory = $10, merchant = $11, entry_type = $12, settlement_status = $13, note = $14, group_id = $15, counter_account_id = $17 where id = $16`,
+      [nowIso(), input.accountId, input.date, input.name, input.amount, input.currency, input.originalAmount ?? null, input.originalCurrency ?? null, input.category, input.subcategory, input.merchant, input.entryType, input.settlementStatus, input.note, input.groupId ?? null, id, input.counterAccountId ?? null],
     );
     await this.recomputeSqliteAccounts();
   }
@@ -2175,7 +2248,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   override async listRecurringTransactions() {
     return (await this.db.select<RecurringTransaction[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
-      account_id as accountId, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, frequency, day_of_month as dayOfMonth, next_run_date as nextRunDate, is_active as isActive
+      account_id as accountId, counter_account_id as counterAccountId, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, frequency, day_of_month as dayOfMonth, next_run_date as nextRunDate, is_active as isActive
       from recurring_transactions where deleted_at is null order by next_run_date`)).map((row) => ({
         ...row,
         frequency: (row.frequency ?? "monthly") as import("../domain").RecurringFrequency,
@@ -2191,8 +2264,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   override async updateRecurringTransaction(id: string, input: RecurringDraft) {
     assertLedgerInvariants(input, await this.listAccounts());
     await this.db.execute(
-      `update recurring_transactions set revision = revision + 1, updated_at = $1, account_id = $2, amount = $3, currency = $4, category = $5, subcategory = $6, merchant = $7, entry_type = $8, settlement_status = $9, note = $10, frequency = $11, day_of_month = $12, next_run_date = $13, is_active = $14 where id = $15`,
-      [nowIso(), input.accountId, input.amount, input.currency, input.category, input.subcategory, input.merchant, input.entryType, input.settlementStatus, input.note, input.frequency ?? "monthly", input.dayOfMonth, input.nextRunDate, Number(input.isActive), id],
+      `update recurring_transactions set revision = revision + 1, updated_at = $1, account_id = $2, amount = $3, currency = $4, category = $5, subcategory = $6, merchant = $7, entry_type = $8, settlement_status = $9, note = $10, frequency = $11, day_of_month = $12, next_run_date = $13, is_active = $14, counter_account_id = $16 where id = $15`,
+      [nowIso(), input.accountId, input.amount, input.currency, input.category, input.subcategory, input.merchant, input.entryType, input.settlementStatus, input.note, input.frequency ?? "monthly", input.dayOfMonth, input.nextRunDate, Number(input.isActive), id, input.counterAccountId ?? null],
     );
   }
 
@@ -2203,7 +2276,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   override async postRecurringTransaction(id: string) {
     const rows = await this.db.select<RecurringTransaction[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
-      account_id as accountId, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, frequency, day_of_month as dayOfMonth, next_run_date as nextRunDate, is_active as isActive
+      account_id as accountId, counter_account_id as counterAccountId, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, frequency, day_of_month as dayOfMonth, next_run_date as nextRunDate, is_active as isActive
       from recurring_transactions where id = $1 and deleted_at is null`, [id]);
     const recurring = rows[0];
     if (!recurring) throw new Error("找不到週期事件。");
@@ -2216,6 +2289,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.withTransaction(async () => {
       await this.insertLedgerRow(createLedgerRow({
         accountId: recurring.accountId,
+        counterAccountId: recurring.counterAccountId ?? null,
         date: `${recurring.nextRunDate}T09:00`,
         name: recurring.merchant || recurring.category,
         amount: recurring.amount,
@@ -2237,7 +2311,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   override async postDueRecurringTransactions(today: string) {
     const rules = await this.db.select<RecurringTransaction[]>(`select
-      id, account_id as accountId, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, frequency, day_of_month as dayOfMonth, next_run_date as nextRunDate, is_active as isActive
+      id, account_id as accountId, counter_account_id as counterAccountId, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, frequency, day_of_month as dayOfMonth, next_run_date as nextRunDate, is_active as isActive
       from recurring_transactions where deleted_at is null and is_active = 1`);
     let posted = 0;
     await this.withTransaction(async () => {
@@ -2258,6 +2332,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
           }
           await this.insertLedgerRow(createLedgerRow({
             accountId: rule.accountId,
+            counterAccountId: rule.counterAccountId ?? null,
             date: `${next}T09:00`,
             name: rule.merchant || rule.category,
             amount: rule.amount,
@@ -3326,8 +3401,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   private async insertLedgerRow(row: LedgerTransaction) {
     const now = nowIso();
     await this.db.execute(
-      `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, date, name, amount, currency, original_amount, original_currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id, recurring_rule_id, recurring_occurrence_key)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
+      `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, counter_account_id, date, name, amount, currency, original_amount, original_currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id, recurring_rule_id, recurring_occurrence_key)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
       [
         row.id,
         row.spaceId ?? personalSpace,
@@ -3336,6 +3411,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         row.updatedAt ?? now,
         row.deletedAt ?? null,
         row.accountId ?? "",
+        row.counterAccountId ?? null,
         row.date ?? "",
         row.name ?? "",
         row.amount ?? 0,
@@ -3361,8 +3437,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   private async insertRecurringRow(row: RecurringTransaction) {
     const now = nowIso();
     await this.db.execute(
-      `insert into recurring_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, amount, currency, category, subcategory, merchant, entry_type, settlement_status, note, frequency, day_of_month, next_run_date, is_active)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+      `insert into recurring_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, counter_account_id, amount, currency, category, subcategory, merchant, entry_type, settlement_status, note, frequency, day_of_month, next_run_date, is_active)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
       [
         row.id,
         row.spaceId ?? personalSpace,
@@ -3371,6 +3447,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         row.updatedAt ?? now,
         row.deletedAt ?? null,
         row.accountId ?? "",
+        row.counterAccountId ?? null,
         row.amount ?? 0,
         row.currency ?? "",
         row.category ?? "",
@@ -3559,9 +3636,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     if (allowsTwdTPlus2Buffer(input, account.currency)) return;
     const ledgerRows = await this.db.select<LedgerTransaction[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
-      account_id as accountId, date, name, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, linked_investment_record_id as linkedInvestmentRecordId,
+      account_id as accountId, counter_account_id as counterAccountId, date, name, amount, currency, category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, linked_investment_record_id as linkedInvestmentRecordId,
       group_id as groupId, is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId
-      from ledger_transactions where account_id = $1`, [account.id]);
+      from ledger_transactions where account_id = $1 or counter_account_id = $1`, [account.id]);
     const baseBalance = computeAccountBalance(account, ledgerRows, options.excludeLedgerId ?? null);
     const nextBalance = baseBalance + cashDelta;
     if (isEffectivelyNegative(nextBalance)) throw new Error(`購買力不足，目前餘額 ${formatPlainAmount(baseBalance)} ${account.currency}。`);
@@ -3793,7 +3870,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       from accounts`);
     const ledger = await this.db.select<LedgerTransaction[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
-      account_id as accountId, date, name, amount, currency, original_amount as originalAmount, original_currency as originalCurrency,
+      account_id as accountId, counter_account_id as counterAccountId, date, name, amount, currency, original_amount as originalAmount, original_currency as originalCurrency,
       category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, linked_investment_record_id as linkedInvestmentRecordId,
       group_id as groupId, is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId, recurring_occurrence_key as recurringOccurrenceKey from ledger_transactions`);
     for (const account of recomputeAccounts(accounts, ledger)) {
@@ -4233,6 +4310,7 @@ function createLedgerRow(input: LedgerDraft & { recurringRuleId?: string | null 
     updatedAt: timestamp,
     deletedAt: null,
     accountId: input.accountId,
+    counterAccountId: input.counterAccountId ?? null,
     date: input.date,
     name: input.name,
     amount: input.amount,
@@ -4271,6 +4349,7 @@ function createInvestmentLedgerRow(input: InvestmentDraft, investmentRecordId: s
     createdAt: timestamp,
     updatedAt: timestamp,
     deletedAt: null,
+    counterAccountId: null,
     isReviewed: false,
     receiptAttachmentId: null,
     recurringRuleId: null,
@@ -4318,6 +4397,7 @@ function createRecurringRow(input: RecurringDraft): RecurringTransaction {
     updatedAt: timestamp,
     deletedAt: null,
     ...input,
+    counterAccountId: input.counterAccountId ?? null,
     frequency,
     nextRunDate: firstFutureRunDate(input.nextRunDate, frequency, input.dayOfMonth),
   };
@@ -4397,13 +4477,8 @@ function investmentDraftFields(input: InvestmentDraft) {
 
 function computeAccountBalance(account: Account, ledgerRows: LedgerTransaction[], excludeLedgerId: string | null) {
   const total = ledgerRows
-    .filter((row) =>
-      row.deletedAt === null &&
-      row.settlementStatus === "settled" &&
-      row.accountId === account.id &&
-      row.id !== excludeLedgerId
-    )
-    .reduce((sum, row) => sum + row.amount, 0);
+    .filter((row) => row.id !== excludeLedgerId)
+    .reduce((sum, row) => sum + accountBalanceDelta(row, account.id), 0);
   return account.openingBalance + total;
 }
 

@@ -29,6 +29,7 @@ import {
   formatMoney,
   formatCompactMoney,
   formatNumber,
+  isNeutralLedgerRow,
   type AnalyticsPosition,
   type Mover,
   type Account,
@@ -152,7 +153,7 @@ export function DashboardRoute() {
   const liabilities = breakdown.liabilities;
   const netWorth = breakdown.netWorth;
 
-  const monthRows = ledgerRows.filter((row) => row.date.startsWith(monthKey) && row.settlementStatus === "settled" && (selectedAccount === "all" || row.accountId === selectedAccount));
+  const monthRows = ledgerRows.filter((row) => row.date.startsWith(monthKey) && row.settlementStatus === "settled" && !isNeutralLedgerRow(row) && (selectedAccount === "all" || row.accountId === selectedAccount));
   const monthIncome = monthRows.filter((row) => row.entryType === "income").reduce((sum, row) => sum + toPrimary(Math.max(0, row.amount), row.currency, row.date), 0);
   const monthExpense = monthRows.filter((row) => row.entryType === "expense").reduce((sum, row) => sum + toPrimary(Math.abs(row.amount), row.currency, row.date), 0);
   const monthNet = monthIncome - monthExpense;
@@ -982,9 +983,21 @@ function buildNetWorthTrend(
     const key = keyOf(joinedDate);
     cashDelta.set(key, (cashDelta.get(key) ?? 0) + toPrimary(account.openingBalance, account.currency, joinedDate));
   }
-  for (const row of settledRows) {
+  for (const row of ledgerRows) {
+    if (row.deletedAt !== null) continue;
+    // Total account-cash delta of a row, honoring 代墊 pass-through: the counter
+    // leg (-amount) posts immediately, the main leg (+amount) on settle. Over a
+    // reimbursement's full lifecycle the two legs net to zero, so net worth dips
+    // while the money is fronted and recovers once repaid.
+    let delta = 0;
+    if (row.counterAccountId) {
+      delta = -row.amount + (row.settlementStatus === "settled" ? row.amount : 0);
+    } else if (row.settlementStatus === "settled") {
+      delta = row.amount;
+    }
+    if (delta === 0) continue;
     const key = keyOf(row.date);
-    cashDelta.set(key, (cashDelta.get(key) ?? 0) + toPrimary(row.amount, row.currency, row.date));
+    cashDelta.set(key, (cashDelta.get(key) ?? 0) + toPrimary(delta, row.currency, row.date));
   }
 
   // Holdings side: value every holding at its *current* market price across the

@@ -37,6 +37,7 @@ function recurring(overrides: Partial<RecurringTransaction> = {}): RecurringTran
     updatedAt: "2026-01-01T00:00:00.000Z",
     deletedAt: null,
     accountId: "acct_cash",
+    counterAccountId: null,
     amount: -1000,
     currency: "TWD",
     category: "居住",
@@ -117,5 +118,76 @@ describe("postDueRecurringTransactions", () => {
 
     expect(await repo.postDueRecurringTransactions("2026-07-05")).toBe(1);
     expect(await repo.listLedgerTransactions()).toHaveLength(2);
+  });
+
+  it("carries counterAccountId from a 代墊 rule into each posted occurrence", async () => {
+    const repo = createMemoryFinanceRepositoryForTests({
+      accounts: [account],
+      recurringTransactions: [recurring({ settlementStatus: "receivable", entryType: "income", amount: 500, counterAccountId: "acct_pay" })],
+    });
+    await repo.postDueRecurringTransactions("2026-05-29");
+    const ledger = await repo.listLedgerTransactions();
+    expect(ledger.length).toBeGreaterThan(0);
+    expect(ledger.every((row) => row.counterAccountId === "acct_pay")).toBe(true);
+  });
+});
+
+describe("applyRecurringScopeEdit", () => {
+  async function setup() {
+    const repo = createMemoryFinanceRepositoryForTests({ accounts: [account], recurringTransactions: [recurring()] });
+    await repo.postDueRecurringTransactions("2026-05-29"); // posts 03-05, 04-05, 05-05
+    const ledger = await repo.listLedgerTransactions();
+    return { repo, ledger };
+  }
+
+  function draftFrom(row: Awaited<ReturnType<typeof setup>>["ledger"][number]) {
+    return {
+      accountId: row.accountId,
+      counterAccountId: row.counterAccountId,
+      date: row.date,
+      name: row.name,
+      amount: -2000,
+      currency: row.currency,
+      category: "居住",
+      subcategory: "房租",
+      merchant: "新房東",
+      entryType: "expense" as const,
+      settlementStatus: "settled" as const,
+      note: "調漲",
+    };
+  }
+
+  it("scope=this updates only the edited occurrence", async () => {
+    const { repo, ledger } = await setup();
+    const target = ledger[0];
+    await repo.applyRecurringScopeEdit(target.id, "this", draftFrom(target));
+    const after = await repo.listLedgerTransactions();
+    expect(after.filter((r) => r.amount === -2000)).toHaveLength(1);
+    const [rule] = await repo.listRecurringTransactions();
+    expect(rule.amount).toBe(-1000); // rule untouched
+  });
+
+  it("scope=future updates the edited occurrence and the rule", async () => {
+    const { repo, ledger } = await setup();
+    const target = ledger[0];
+    await repo.applyRecurringScopeEdit(target.id, "future", draftFrom(target));
+    const after = await repo.listLedgerTransactions();
+    expect(after.filter((r) => r.amount === -2000)).toHaveLength(1); // only this occurrence
+    const [rule] = await repo.listRecurringTransactions();
+    expect(rule.amount).toBe(-2000); // rule updated
+    expect(rule.merchant).toBe("新房東");
+  });
+
+  it("scope=all rewrites every occurrence but keeps each original date", async () => {
+    const { repo, ledger } = await setup();
+    const dates = ledger.map((r) => r.date).sort();
+    const target = ledger.find((r) => r.date === dates[1])!; // edit a middle one
+    await repo.applyRecurringScopeEdit(target.id, "all", { ...draftFrom(target), date: "2026-09-09T09:00" });
+    const after = await repo.listLedgerTransactions();
+    expect(after.every((r) => r.amount === -2000 && r.merchant === "新房東")).toBe(true);
+    // The edited row keeps its new date; siblings keep their originals.
+    expect(after.map((r) => r.date).sort()).toEqual([dates[0], dates[2], "2026-09-09T09:00"].sort());
+    const [rule] = await repo.listRecurringTransactions();
+    expect(rule.amount).toBe(-2000);
   });
 });

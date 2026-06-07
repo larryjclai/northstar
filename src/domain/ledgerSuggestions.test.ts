@@ -5,7 +5,7 @@ import type { LedgerTransaction } from "./types";
 function row(id: string, merchant: string, accountId: string, category = "餐飲"): LedgerTransaction {
   return {
     id, spaceId: "space", revision: 1, createdAt: "", updatedAt: "", deletedAt: null,
-    accountId, date: "2026-06-01", name: merchant, amount: -100, currency: "TWD",
+    accountId, counterAccountId: null, date: "2026-06-01", name: merchant, amount: -100, currency: "TWD",
     originalAmount: null, originalCurrency: null, category, subcategory: "", merchant,
     entryType: "expense", settlementStatus: "settled", note: "", linkedInvestmentRecordId: null,
     groupId: null, isReviewed: true, receiptAttachmentId: null, recurringRuleId: null,

@@ -12,6 +12,17 @@ import { convertCurrency } from "./currency";
 
 const epsilon = 0.000001;
 
+/**
+ * A ledger row that should be excluded from income/expense (and category /
+ * merchant) aggregations because it represents a neutral money movement, not
+ * real spending or earning: transfers between own accounts, and 代墊
+ * pass-through receivable/payable rows (those with a `counterAccountId`, which
+ * net to zero across their two legs).
+ */
+export function isNeutralLedgerRow(row: Pick<LedgerTransaction, "entryType" | "counterAccountId">): boolean {
+  return row.entryType === "transfer" || row.counterAccountId != null;
+}
+
 export interface LedgerInvariantInput {
   accountId: string;
   amount: number;
@@ -33,11 +44,17 @@ export function assertLedgerInvariants(
   accounts: Account[],
   options: { allowTransfer?: boolean } = {},
 ) {
-  const account = accounts.find((row) => row.id === input.accountId && row.deletedAt === null);
-  if (!account) throw new Error("找不到帳戶。");
   if (!Number.isFinite(input.amount) || Math.abs(input.amount) <= epsilon) throw new Error("金額必須大於 0。");
-  if (input.currency.trim().toUpperCase() !== account.currency.trim().toUpperCase()) {
-    throw new Error(`交易幣別必須與帳戶幣別 ${account.currency} 一致。`);
+  // Receivable/payable rows may be created before the settle account is known
+  // (the counterparty hasn't said which account they'll pay into yet), so an
+  // empty accountId is allowed — the account is chosen at settle time. When an
+  // accountId IS provided it must exist and match the transaction currency.
+  if (input.accountId) {
+    const account = accounts.find((row) => row.id === input.accountId && row.deletedAt === null);
+    if (!account) throw new Error("找不到帳戶。");
+    if (input.currency.trim().toUpperCase() !== account.currency.trim().toUpperCase()) {
+      throw new Error(`交易幣別必須與帳戶幣別 ${account.currency} 一致。`);
+    }
   }
   if (input.entryType === "transfer" && !options.allowTransfer) {
     throw new Error("轉帳必須使用成對的轉帳功能建立。");
@@ -68,11 +85,39 @@ export function assertTransferInvariants(input: TransferInvariantInput, accounts
   }
 }
 
+/**
+ * Signed contribution of one ledger row to a given account's balance.
+ *
+ * Reimbursement (代墊) rows carry a `counterAccountId` and behave as a
+ * pass-through: the counter leg (`-amount`) hits `counterAccountId` immediately
+ * (on creation, regardless of settlement), while the main leg (`+amount`) hits
+ * `accountId` only once settled. A normal row contributes `amount` to its
+ * `accountId` only when settled. Deleted rows contribute nothing.
+ */
+export function accountBalanceDelta(row: LedgerTransaction, accountId: string): number {
+  if (row.deletedAt !== null) return 0;
+  let delta = 0;
+  if (row.counterAccountId) {
+    if (row.counterAccountId === accountId) delta -= row.amount; // counter leg, always
+    if (row.settlementStatus === "settled" && row.accountId === accountId) delta += row.amount; // main leg on settle
+  } else if (row.settlementStatus === "settled" && row.accountId === accountId) {
+    delta += row.amount;
+  }
+  return delta;
+}
+
 export function deriveAccountBalances(accounts: Account[], ledger: LedgerTransaction[]) {
   const totals = new Map<string, number>();
+  const add = (accountId: string, value: number) => totals.set(accountId, (totals.get(accountId) ?? 0) + value);
   for (const row of ledger) {
-    if (row.deletedAt !== null || row.settlementStatus !== "settled") continue;
-    totals.set(row.accountId, (totals.get(row.accountId) ?? 0) + row.amount);
+    if (row.deletedAt !== null) continue;
+    if (row.counterAccountId) {
+      // 代墊 pass-through: counter leg posts immediately, main leg on settle.
+      add(row.counterAccountId, -row.amount);
+      if (row.settlementStatus === "settled") add(row.accountId, row.amount);
+    } else if (row.settlementStatus === "settled") {
+      add(row.accountId, row.amount);
+    }
   }
   return accounts.map((account) =>
     account.deletedAt === null

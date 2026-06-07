@@ -17,8 +17,8 @@ function resolveColor(color: string): string {
 export function CategoriesTab({ filterMonth, ledgerRows, appSettings, primaryCurrency, toPrimary, onSettingsClick }: { filterMonth: string; ledgerRows: LedgerTransaction[]; appSettings: any; primaryCurrency: string; toPrimary: (row: LedgerTransaction) => number | null; onSettingsClick: () => void }) {
   const currentYear = filterMonth.slice(0, 4);
   
-  const monthRows = useMemo(() => ledgerRows.filter(r => r.date.startsWith(filterMonth) && r.entryType === "expense" && r.settlementStatus === "settled"), [ledgerRows, filterMonth]);
-  const ytdRows = useMemo(() => ledgerRows.filter(r => r.date.startsWith(currentYear) && r.date <= filterMonth + "-31" && r.entryType === "expense" && r.settlementStatus === "settled"), [ledgerRows, currentYear, filterMonth]);
+  const monthRows = useMemo(() => ledgerRows.filter(r => r.date.startsWith(filterMonth) && r.entryType === "expense" && r.settlementStatus === "settled" && !r.counterAccountId), [ledgerRows, filterMonth]);
+  const ytdRows = useMemo(() => ledgerRows.filter(r => r.date.startsWith(currentYear) && r.date <= filterMonth + "-31" && r.entryType === "expense" && r.settlementStatus === "settled" && !r.counterAccountId), [ledgerRows, currentYear, filterMonth]);
   
   const monthMap = new Map<string, { amount: number, count: number }>();
   let uncategorizedAmount = 0;

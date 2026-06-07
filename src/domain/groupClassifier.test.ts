@@ -10,6 +10,7 @@ const base: LedgerTransaction = {
   updatedAt: "2026-01-01T00:00:00.000Z",
   deletedAt: null,
   accountId: "acct_test",
+  counterAccountId: null,
   date: "2026-01-01T10:00",
   name: "咖啡",
   amount: -100,

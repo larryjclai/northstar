@@ -5,7 +5,7 @@ import type { Account, LedgerTransaction, PortfolioAsset } from "./types";
 function ledgerRow(overrides: Partial<LedgerTransaction>): LedgerTransaction {
   return {
     id: "tx", spaceId: "s", revision: 1, createdAt: "", updatedAt: "", deletedAt: null,
-    accountId: "a", date: "2026-05-01T00:00", name: "", amount: 0, currency: "TWD",
+    accountId: "a", counterAccountId: null, date: "2026-05-01T00:00", name: "", amount: 0, currency: "TWD",
     originalAmount: null, originalCurrency: null, category: "", subcategory: "", merchant: "",
     entryType: "expense", settlementStatus: "settled", note: "", linkedInvestmentRecordId: null,
     groupId: null, isReviewed: false, receiptAttachmentId: null, recurringRuleId: null,

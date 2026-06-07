@@ -36,6 +36,11 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDelete, account
 
   const isSettled = row.settlementStatus === "settled";
   const settlementLabel = row.settlementStatus === "receivable" ? "應收" : row.settlementStatus === "payable" ? "應付" : "";
+  const isReimbursement = row.counterAccountId != null;
+  // For 代墊 rows the two legs hit different accounts. accountId is the leg that
+  // posts on settle; counterAccountId is the leg that posted on creation.
+  // 應收: counter = 付款帳戶, main = 收款帳戶. 應付: counter = 收款帳戶, main = 付款帳戶.
+  const isReceivable = row.settlementStatus === "receivable";
 
   return (
     <>
@@ -104,6 +109,16 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDelete, account
                   {settlementLabel}
                 </span>
               )}
+              {isReimbursement && (
+                <span
+                  style={{
+                    padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 500,
+                    background: "var(--ns-chart-4)" + "18", color: "var(--ns-chart-4)",
+                  }}
+                >
+                  代墊
+                </span>
+              )}
               {row.recurringRuleId ? (
                 <span
                   style={{
@@ -135,7 +150,14 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDelete, account
               row.subcategory ? `${row.category} / ${row.subcategory}` : row.category || "未分類"
             } />
             <DetailField icon={<Storefront size={15} />} label="商家" value={row.merchant || "—"} />
-            <DetailField icon={<Wallet size={15} />} label="帳戶" value={accountName(row.accountId)} />
+            {isReimbursement ? (
+              <>
+                <DetailField icon={<Wallet size={15} />} label={isReceivable ? "付款帳戶（代墊）" : "收款帳戶（代墊）"} value={accountName(row.counterAccountId!)} />
+                <DetailField icon={<Wallet size={15} />} label={isReceivable ? "收款帳戶" : "付款帳戶"} value={row.accountId ? accountName(row.accountId) : "結清時指定"} />
+              </>
+            ) : (
+              <DetailField icon={<Wallet size={15} />} label="帳戶" value={row.accountId ? accountName(row.accountId) : (isSettled ? "—" : "結清時指定")} />
+            )}
             <DetailField icon={<CalendarBlank size={15} />} label="日期" value={formattedDate} />
             {linkedRule && (
               <DetailField

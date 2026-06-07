@@ -9,7 +9,7 @@ import { readableTextColor } from "../lib/color";
 export function MerchantsTab({ filterMonth, ledgerRows, primaryCurrency, toPrimary }: { filterMonth: string; ledgerRows: LedgerTransaction[]; primaryCurrency: string; toPrimary: (row: LedgerTransaction) => number | null }) {
   const currentYear = filterMonth.slice(0, 4);
   
-  const ytdRows = useMemo(() => ledgerRows.filter(r => r.date.startsWith(currentYear) && r.date <= filterMonth + "-31" && r.entryType === "expense" && r.settlementStatus === "settled" && r.merchant), [ledgerRows, currentYear, filterMonth]);
+  const ytdRows = useMemo(() => ledgerRows.filter(r => r.date.startsWith(currentYear) && r.date <= filterMonth + "-31" && r.entryType === "expense" && r.settlementStatus === "settled" && !r.counterAccountId && r.merchant), [ledgerRows, currentYear, filterMonth]);
   
   const ytdMap = new Map<string, { amount: number, visits: number, category: string, lastVisit: string }>();
   

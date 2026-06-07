@@ -87,6 +87,20 @@ export interface Account extends SyncFields {
 
 export interface LedgerTransaction extends SyncFields {
   accountId: string;
+  /**
+   * Reimbursement (代墊) counter account for receivable/payable rows. When set,
+   * the row is a pass-through: the counter leg (`-amount`) hits this account
+   * immediately on creation, the main leg (`+amount` to `accountId`) hits only
+   * on settle, and the row is excluded from income/expense entirely (net zero).
+   *
+   * - 應收 (receivable): `accountId` = 收款帳戶 (lands on settle),
+   *   `counterAccountId` = 付款帳戶 (paid out now).
+   * - 應付 (payable): `accountId` = 付款帳戶 (paid on settle),
+   *   `counterAccountId` = 收款帳戶 (received now).
+   *
+   * Null = legacy single-account behavior (counts as income/expense on settle).
+   */
+  counterAccountId: string | null;
   date: string;
   name: string;
   amount: number;
@@ -174,6 +188,9 @@ export const recurringFrequencyLabels: Record<RecurringFrequency, string> = {
 
 export interface RecurringTransaction extends SyncFields {
   accountId: string;
+  /** Reimbursement (代墊) counter account, carried into each posted occurrence.
+   * See `LedgerTransaction.counterAccountId`. Null for normal rules. */
+  counterAccountId: string | null;
   amount: number;
   currency: CurrencyCode;
   category: string;

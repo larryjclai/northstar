@@ -40,7 +40,7 @@ import { DatePicker } from "../components/ui/date-picker";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { useToast } from "../components/Toast";
 import type { LedgerDraft, TransferDraft } from "../data/repositories";
-import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, evaluateAmountExpression, formatNumber, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, todayInTimezone } from "../domain";
+import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, evaluateAmountExpression, formatNumber, isNeutralLedgerRow, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, todayInTimezone } from "../domain";
 import { convertCurrency } from "../domain/currency";
 import type { Account, LedgerTransaction, RecurringFrequency, RecurringTransaction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
@@ -77,6 +77,7 @@ function settlementFor(type: CashType): LedgerDraft["settlementStatus"] {
 function makeEmptyLedger(timezone: string): LedgerDraft {
   return {
     accountId: "",
+    counterAccountId: null,
     date: nowAsDatetimeLocal(timezone),
     name: "",
     amount: 0,
@@ -115,6 +116,11 @@ export function CashFlowRoute() {
   const [drawerType, setDrawerType] = useState<CashType>("expense");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingRecurringRuleId, setEditingRecurringRuleId] = useState<string | null>(null);
+  // When editing a recurring-rule occurrence, the pending edit waits here while
+  // the user picks the scope (this / future / all).
+  const [recurringEditPrompt, setRecurringEditPrompt] = useState<(LedgerDraft & { id: string }) | null>(null);
+  // A receivable/payable awaiting its settle-account choice.
+  const [settlePrompt, setSettlePrompt] = useState<LedgerTransaction | null>(null);
   const [drawerRecurringFreq, setDrawerRecurringFreq] = useState("none");
   const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
 
@@ -193,6 +199,11 @@ export function CashFlowRoute() {
     (repository, input: LedgerDraft & { id: string }) => repository.updateLedgerTransaction(input.id, input),
     ["ledger", "accounts"],
   );
+  const applyRecurringEdit = useRepositoryMutation(
+    (repository, input: { id: string; scope: import("../data/repositories").RecurringEditScope; draft: LedgerDraft }) =>
+      repository.applyRecurringScopeEdit(input.id, input.scope, input.draft),
+    ["ledger", "accounts", "recurring"],
+  );
   const deleteLedger = useRepositoryMutation(
     (repository, id: string) => repository.deleteLedgerTransaction(id),
     ["ledger", "accounts"],
@@ -268,6 +279,10 @@ export function CashFlowRoute() {
     setDrawerOpen(true);
     setEditingId(null);
     setEditingRecurringRuleId(null);
+    // Always default a fresh entry to a one-off transaction. The control is
+    // component-level state, so without this reset it would "stick" to whatever
+    // recurrence the previous entry used.
+    setDrawerRecurringFreq("none");
     setMessage("");
     setCounterparty("");
     setDueDate("");
@@ -303,10 +318,16 @@ export function CashFlowRoute() {
     if (next === "transfer") {
       setTransferForm({ ...emptyTransfer, date: nowAsDatetimeLocal(timezone) });
     } else {
+      const toRp = next === "ar" || next === "ap";
       setLedgerForm((current) => ({
         ...current,
         entryType: entryTypeFor(next),
         settlementStatus: settlementFor(next),
+        // Receivable/payable pick their settle account at 結清 time, so clear any
+        // account carried over from an expense/income draft.
+        accountId: toRp ? "" : current.accountId,
+        // 代墊 counter account only applies to 應收/應付; clear it otherwise.
+        counterAccountId: toRp ? current.counterAccountId ?? null : null,
       }));
     }
   }
@@ -326,6 +347,7 @@ export function CashFlowRoute() {
     setDueDate("");
     setLedgerForm({
       accountId: row.accountId,
+      counterAccountId: row.counterAccountId ?? null,
       date: row.date,
       name: row.name,
       amount: row.amount,
@@ -374,6 +396,8 @@ export function CashFlowRoute() {
         ...ledgerForm,
         entryType,
         settlementStatus: settlementFor(drawerType),
+        // 代墊 counter account only applies to 應收/應付.
+        counterAccountId: isReceivablePayable ? (ledgerForm.counterAccountId || null) : null,
         amount: signedAmount,
         originalAmount,
         originalCurrency,
@@ -386,9 +410,18 @@ export function CashFlowRoute() {
         // 手續費 leg. Edits and non-expense rows never carry a fee.
         feeAmount: !editingId && entryType === "expense" ? (ledgerForm.feeAmount || 0) : 0,
       };
-      if (!payload.accountId) throw new Error("請選擇帳戶。");
+      // Expense/income/transfer need an account up front; receivable/payable
+      // defer the settle account to 結清 time (only the optional 代墊 account
+      // may be set now).
+      if (!isReceivablePayable && !payload.accountId) throw new Error("請選擇帳戶。");
       if (isReceivablePayable && !payload.merchant) throw new Error("請填寫對象。");
       if (editingId) {
+        // Editing an occurrence generated by a recurring rule → ask the user
+        // whether the change applies to this one, future ones, or all of them.
+        if (editingRecurringRuleId) {
+          setRecurringEditPrompt({ ...payload, id: editingId });
+          return;
+        }
         await updateLedger.mutateAsync({ ...payload, id: editingId });
         toast.success("已更新交易");
         if (drawerRecurringFreq !== "none") {
@@ -398,6 +431,7 @@ export function CashFlowRoute() {
              frequency,
              dayOfMonth,
              accountId: payload.accountId,
+             counterAccountId: payload.counterAccountId ?? null,
              amount: payload.amount,
              currency: payload.currency,
              category: payload.category,
@@ -421,6 +455,7 @@ export function CashFlowRoute() {
              frequency,
              dayOfMonth,
              accountId: payload.accountId,
+             counterAccountId: payload.counterAccountId ?? null,
              amount: payload.amount,
              currency: payload.currency,
              category: payload.category,
@@ -438,6 +473,22 @@ export function CashFlowRoute() {
       rememberMerchantNames([payload.merchant]);
       closeDrawer();
     } catch (error) {
+      setMessage(error instanceof Error ? error.message : "收支儲存失敗。");
+    }
+  }
+
+  async function applyRecurringScope(scope: import("../data/repositories").RecurringEditScope) {
+    if (!recurringEditPrompt) return;
+    const { id, ...draft } = recurringEditPrompt;
+    try {
+      await applyRecurringEdit.mutateAsync({ id, scope, draft });
+      toast.success(scope === "this" ? "已更新此筆" : scope === "future" ? "已更新此筆與未來" : "已更新全部");
+      await rememberCategories.mutateAsync([{ category: draft.category, subcategory: draft.subcategory }]);
+      rememberMerchantNames([draft.merchant]);
+      setRecurringEditPrompt(null);
+      closeDrawer();
+    } catch (error) {
+      setRecurringEditPrompt(null);
       setMessage(error instanceof Error ? error.message : "收支儲存失敗。");
     }
   }
@@ -464,21 +515,40 @@ export function CashFlowRoute() {
     }
   }
 
-  async function markSettled(row: LedgerTransaction) {
-    await updateLedger.mutateAsync({
-      id: row.id,
-      accountId: row.accountId,
-      date: row.date,
-      name: row.name,
-      amount: row.amount,
-      currency: row.currency,
-      category: row.category,
-      subcategory: row.subcategory,
-      merchant: row.merchant,
-      entryType: row.entryType,
-      settlementStatus: "settled",
-      note: row.note,
-    });
+  // The settle account is only known now (the counterparty has paid), so ✓
+  // opens a chooser instead of settling immediately.
+  function markSettled(row: LedgerTransaction) {
+    setSettlePrompt(row);
+  }
+
+  async function confirmSettle(settleAccountId: string) {
+    if (!settlePrompt) return;
+    const row = settlePrompt;
+    const account = accountRows.find((a) => a.id === settleAccountId);
+    try {
+      await updateLedger.mutateAsync({
+        id: row.id,
+        accountId: settleAccountId,
+        counterAccountId: row.counterAccountId ?? null,
+        date: row.date,
+        name: row.name,
+        amount: row.amount,
+        // The money actually lands in this account, so adopt its currency to keep
+        // the balance maths consistent (most AR/AP is single-currency anyway).
+        currency: account?.currency ?? row.currency,
+        category: row.category,
+        subcategory: row.subcategory,
+        merchant: row.merchant,
+        entryType: row.entryType,
+        settlementStatus: "settled",
+        note: row.note,
+      });
+      toast.success(row.settlementStatus === "receivable" ? "已收款結清" : "已付款結清");
+      setSettlePrompt(null);
+    } catch (error) {
+      setSettlePrompt(null);
+      toast.error(error instanceof Error ? error.message : "結清失敗");
+    }
   }
 
   async function handleCsv(event: ChangeEvent<HTMLInputElement>) {
@@ -508,15 +578,15 @@ export function CashFlowRoute() {
     ].some((value) => value.toLocaleLowerCase().includes(query)));
   }, [monthRows, searchQuery, accountRows]);
   const monthIncome = monthRows
-    .filter((row) => row.entryType === "income" && row.settlementStatus === "settled")
+    .filter((row) => row.entryType === "income" && row.settlementStatus === "settled" && !isNeutralLedgerRow(row))
     .reduce((sum, row) => sum + Math.max(0, toPrimary(row) ?? 0), 0);
   const monthExpense = monthRows
-    .filter((row) => row.entryType === "expense" && row.settlementStatus === "settled")
+    .filter((row) => row.entryType === "expense" && row.settlementStatus === "settled" && !isNeutralLedgerRow(row))
     .reduce((sum, row) => sum + Math.abs(toPrimary(row) ?? 0), 0);
   const monthNet = monthIncome - monthExpense;
   const monthTransferCount = new Set(monthRows.filter((row) => row.entryType === "transfer").map((row) => row.groupId ?? row.id)).size;
   const missingFx = [...new Set(monthRows
-    .filter((row) => row.entryType !== "transfer" && row.settlementStatus === "settled" && toPrimary(row) === null)
+    .filter((row) => !isNeutralLedgerRow(row) && row.settlementStatus === "settled" && toPrimary(row) === null)
     .map((row) => `${row.currency} → ${primaryCurrency}`))];
 
   // Category spending for donut chart (all categories, not just top 5)
@@ -529,7 +599,7 @@ export function CashFlowRoute() {
       return true;
     });
     for (const row of baseRows) {
-      if (row.entryType !== "expense" || row.settlementStatus !== "settled") continue;
+      if (row.entryType !== "expense" || row.settlementStatus !== "settled" || isNeutralLedgerRow(row)) continue;
       const key = row.category || "未分類";
       map.set(key, (map.get(key) ?? 0) + Math.abs(toPrimary(row) ?? 0));
     }
@@ -549,7 +619,7 @@ export function CashFlowRoute() {
   const topMerchantSpend = useMemo(() => {
     const map = new Map<string, number>();
     for (const row of monthRows) {
-      if (row.entryType !== "expense" || row.settlementStatus !== "settled" || !row.merchant) continue;
+      if (row.entryType !== "expense" || row.settlementStatus !== "settled" || !row.merchant || isNeutralLedgerRow(row)) continue;
       map.set(row.merchant, (map.get(row.merchant) ?? 0) + Math.abs(toPrimary(row) ?? 0));
     }
     return [...map.entries()]
@@ -567,7 +637,7 @@ export function CashFlowRoute() {
       const dateStr = `${monthKey}-${i.toString().padStart(2, "0")}`;
       let net = 0;
       for (const row of monthRows) {
-        if (row.date.startsWith(dateStr) && row.entryType !== "transfer" && row.settlementStatus === "settled") {
+        if (row.date.startsWith(dateStr) && !isNeutralLedgerRow(row) && row.settlementStatus === "settled") {
           net += toPrimary(row) ?? 0;
         }
       }
@@ -594,8 +664,9 @@ export function CashFlowRoute() {
     [ledgerRows],
   );
 
-  const totalPages = Math.ceil(activityRows.length / pageSize);
-  const paginatedRows = useMemo(() => activityRows.slice((page - 1) * pageSize, page * pageSize), [activityRows, page]);
+  const displayRows = useMemo(() => mergeTransferRows(activityRows, ledgerRows), [activityRows, ledgerRows]);
+  const totalPages = Math.ceil(displayRows.length / pageSize);
+  const paginatedRows = useMemo(() => displayRows.slice((page - 1) * pageSize, page * pageSize), [displayRows, page]);
   const dayGroups = useMemo(() => groupByDay(paginatedRows, toPrimary), [paginatedRows, toPrimary]);
 
   const monthLabel = monthKey.replace("-", " / ");
@@ -813,7 +884,7 @@ export function CashFlowRoute() {
            <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--ns-border)" }}>
              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                <span style={{ fontWeight: 600, fontSize: 15 }}>Recent activity</span>
-               <span className="muted" style={{ fontSize: 12.5 }}>{activityRows.length} events</span>
+               <span className="muted" style={{ fontSize: 12.5 }}>{displayRows.length} events</span>
              </div>
              {/* Search on its own row below the title (B9). */}
              <label style={{ position: "relative", display: "block", marginTop: 10 }}>
@@ -852,6 +923,7 @@ export function CashFlowRoute() {
                     <LedgerRow
                       key={r.id}
                       row={r}
+                      transferPair={r.transferPair}
                       accountName={accountName}
                       categoryIcon={catGroup?.iconName || undefined}
                       onEdit={() => setDetailRow(r)}
@@ -944,6 +1016,128 @@ export function CashFlowRoute() {
         accountName={accountName}
         recurringRows={recurringRows}
       />
+      {recurringEditPrompt && (
+        <RecurringScopeModal
+          pending={applyRecurringEdit.isPending}
+          onCancel={() => setRecurringEditPrompt(null)}
+          onChoose={applyRecurringScope}
+        />
+      )}
+      {settlePrompt && (
+        <SettleModal
+          row={settlePrompt}
+          accounts={accountRows}
+          pending={updateLedger.isPending}
+          onCancel={() => setSettlePrompt(null)}
+          onConfirm={confirmSettle}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─────────── Receivable/payable settle-account chooser ─────────── */
+
+function SettleModal({
+  row,
+  accounts,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  row: LedgerTransaction;
+  accounts: Account[];
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: (accountId: string) => void;
+}) {
+  const isReceivable = row.settlementStatus === "receivable";
+  const [accountId, setAccountId] = useState(row.accountId || "");
+  const amountLabel = `${currencySymbol(row.currency)}${formatNumber(Math.abs(row.amount))}`;
+  return (
+    <div
+      onClick={onCancel}
+      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)", padding: 20 }}
+      >
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{isReceivable ? "收款結清" : "付款結清"}</div>
+        <div style={{ fontSize: 12.5, color: "var(--ns-fg-muted)", marginBottom: 16, lineHeight: 1.6 }}>
+          {row.merchant || row.name || (isReceivable ? "應收款項" : "應付款項")} · {amountLabel}
+          <br />
+          {isReceivable ? "款項實際收到哪個帳戶？" : "從哪個帳戶付款？"}
+        </div>
+        <DrawerField label={isReceivable ? "收款帳戶" : "付款帳戶"} required>
+          <AccountFilter
+            accounts={accounts}
+            value={accountId}
+            onChange={setAccountId}
+            allowAll={false}
+            placeholder="選擇帳戶"
+            style={{ width: "100%", maxWidth: "none", minWidth: 0 }}
+          />
+        </DrawerField>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+          <Button variant="outline" onClick={onCancel} disabled={pending}>取消</Button>
+          <Button onClick={() => accountId && onConfirm(accountId)} disabled={pending || !accountId}>
+            <Check size={14} weight="bold" />結清
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────── Recurring edit scope chooser ─────────── */
+
+function RecurringScopeModal({
+  pending,
+  onCancel,
+  onChoose,
+}: {
+  pending: boolean;
+  onCancel: () => void;
+  onChoose: (scope: import("../data/repositories").RecurringEditScope) => void;
+}) {
+  const options: { scope: import("../data/repositories").RecurringEditScope; label: string; desc: string }[] = [
+    { scope: "this", label: "只改此次紀錄", desc: "僅更新這一筆，不影響規則與其他紀錄。" },
+    { scope: "future", label: "此次與未來紀錄", desc: "更新這一筆，並修改週期規則（影響日後產生的紀錄）。" },
+    { scope: "all", label: "全部紀錄（過去＋現在＋未來）", desc: "更新規則與所有已產生的紀錄（保留各自日期）。" },
+  ];
+  return (
+    <div
+      onClick={onCancel}
+      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)", padding: 20 }}
+      >
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>套用變更範圍</div>
+        <div style={{ fontSize: 12.5, color: "var(--ns-fg-muted)", marginBottom: 16 }}>這是由週期規則產生的紀錄，請選擇要套用的範圍。</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {options.map((o) => (
+            <button
+              key={o.scope}
+              disabled={pending}
+              onClick={() => onChoose(o.scope)}
+              style={{
+                textAlign: "left", padding: "12px 14px", borderRadius: "var(--ns-r-md)",
+                border: "1px solid var(--ns-border)", background: "var(--ns-bg-card)",
+                cursor: pending ? "default" : "pointer", fontFamily: "inherit", opacity: pending ? 0.6 : 1,
+              }}
+            >
+              <div style={{ fontSize: 13.5, fontWeight: 500, color: "var(--ns-fg)" }}>{o.label}</div>
+              <div style={{ fontSize: 12, color: "var(--ns-fg-muted)", marginTop: 3, lineHeight: 1.5 }}>{o.desc}</div>
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+          <Button variant="outline" onClick={onCancel} disabled={pending}>取消</Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -952,6 +1146,7 @@ export function CashFlowRoute() {
 
 function LedgerRow({
   row,
+  transferPair,
   accountName,
   categoryIcon,
   onEdit,
@@ -960,6 +1155,8 @@ function LedgerRow({
   onSettle,
 }: {
   row: LedgerTransaction;
+  /** When set, this row is a collapsed transfer (both legs) — render 來源 → 目標. */
+  transferPair?: { source: LedgerTransaction; dest: LedgerTransaction };
   accountName: (id: string) => string;
   categoryIcon?: string;
   /** Row click → open the detail panel. */
@@ -970,6 +1167,48 @@ function LedgerRow({
   onSettle: () => void;
 }) {
   const isTransfer = row.entryType === "transfer";
+
+  // Collapsed transfer: one row, 來源帳戶 → 目標帳戶, source outflow as the
+  // headline figure plus the destination amount (and rate when cross-currency).
+  if (isTransfer && transferPair) {
+    const { source, dest } = transferPair;
+    const crossCcy = source.currency !== dest.currency;
+    const rate = crossCcy && dest.amount !== 0 ? Math.abs(source.amount) / Math.abs(dest.amount) : null;
+    const subtitleParts = [
+      `${accountName(source.accountId)} → ${accountName(dest.accountId)}`,
+      rate ? `@${rate.toFixed(rate >= 100 ? 2 : 4).replace(/0+$/, "").replace(/\.$/, "")}` : null,
+      source.note || null,
+    ].filter(Boolean);
+    return (
+      <div
+        className="ns-cf-row"
+        onClick={onEdit}
+        style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderBottom: "1px solid var(--ns-border)", cursor: "pointer" }}
+      >
+        <div style={{ width: 34, height: 34, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <ArrowsLeftRight size={15} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 14, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              轉帳{crossCcy ? ` · ${source.currency} → ${dest.currency}` : ""}
+            </span>
+          </div>
+          <div className="muted" style={{ fontSize: 11.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subtitleParts.join(" · ")}</div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div className="num" style={{ fontSize: 14.5, color: "var(--ns-fg)" }}>−{currencySymbol(source.currency)}{formatNumber(Math.abs(source.amount))}</div>
+          {crossCcy ? (
+            <div className="muted" style={{ fontSize: 10.5, fontFamily: "var(--ns-font-mono)" }}>→ {currencySymbol(dest.currency)}{formatNumber(Math.abs(dest.amount))}</div>
+          ) : null}
+        </div>
+        <div className="ns-cf-actions" style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
+          <Button variant="ghost" size="icon-sm" title="刪除" onClick={onDelete} style={{ color: "var(--ns-neg)" }}><Trash size={13} /></Button>
+        </div>
+      </div>
+    );
+  }
+
   const isReceivable = row.settlementStatus === "receivable";
   const isPayable = row.settlementStatus === "payable";
   const positive = row.amount >= 0;
@@ -978,7 +1217,7 @@ function LedgerRow({
   const subtitle = [
     row.category ? `${row.category}${row.subcategory ? ` / ${row.subcategory}` : ""}` : null,
     row.merchant || null,
-    accountName(row.accountId),
+    row.accountId ? accountName(row.accountId) : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -1383,10 +1622,12 @@ function EntryDrawer({
             )}
           </DrawerField>
 
-          {/* Date + account/currency — for transfer & receivable/payable.
-              Expense/income render date + account inside the progressive block. */}
+          {/* Date (+ currency for transfer). Expense/income render date + account
+              inside the progressive block. Receivable/payable do NOT pick a
+              settle account here — it's chosen at 結清 time (the counterparty
+              may not have said which account they'll use yet). */}
           {!isAcct && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: type === "transfer" ? "1fr 1fr" : "1fr", gap: 14 }}>
               <DrawerField label="日期">
                 <input
                   className="ns-input"
@@ -1399,21 +1640,7 @@ function EntryDrawer({
                   }
                 />
               </DrawerField>
-              {type !== "transfer" ? (
-                <DrawerField label={type === "ap" ? "支出帳戶" : "收入帳戶"} required>
-                  <AccountFilter
-                    accounts={accountRows}
-                    value={ledgerForm.accountId}
-                    onChange={(id) => {
-                      const account = accountRows.find((a) => a.id === id);
-                      setLedgerForm({ ...ledgerForm, accountId: id, currency: account?.currency ?? ledgerForm.currency });
-                    }}
-                    allowAll={false}
-                    placeholder="選擇帳戶"
-                    style={{ width: "100%", maxWidth: "none", minWidth: 0 }}
-                  />
-                </DrawerField>
-              ) : (
+              {type === "transfer" && (
                 <DrawerField label="幣別">
                   <input className="ns-input" value={transferForm.sourceCurrency} disabled />
                 </DrawerField>
@@ -1648,10 +1875,23 @@ function EntryDrawer({
           {isRp && (
             <>
               <div style={{ padding: "12px 14px", borderRadius: "var(--ns-r-md)", background: `color-mix(in srgb, ${meta.color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${meta.color} 25%, transparent)`, fontSize: 12.5, color: "var(--ns-fg-muted)", lineHeight: 1.6 }}>
-                {type === "ar" ? "應收帳款：對方欠你的錢，尚未入帳。結清後計入收入。" : "應付帳款：你欠對方的錢，尚未付款。結清後計入支出。"}
+                {type === "ar"
+                  ? "應收帳款：對方欠你的錢。若你已先用某帳戶代墊，選下方「付款帳戶」會在建立時立即扣款，對方還款時點 ✓ 結清會入「收款帳戶」，整筆代墊不計收支；留空則結清後才計入收入。"
+                  : "應付帳款：你欠對方的錢。若你已先收到款項，選下方「收款帳戶」會在建立時立即入帳，付款時點 ✓ 結清會由「付款帳戶」扣款，整筆代墊不計收支；留空則結清後才計入支出。"}
               </div>
               <DrawerField label={type === "ar" ? "對象（欠款方）" : "對象（收款方）"} required>
                 <input className="ns-input" value={counterparty} onChange={(e) => setCounterparty(e.target.value)} placeholder={type === "ar" ? "例：小明、ABC 公司" : "例：房東、供應商"} />
+              </DrawerField>
+              <DrawerField label={type === "ar" ? "付款帳戶（我先墊付，建立時扣款，選填）" : "收款帳戶（我先收到，建立時入帳，選填）"}>
+                <AccountFilter
+                  accounts={accountRows}
+                  value={ledgerForm.counterAccountId ?? "all"}
+                  onChange={(id) => setLedgerForm({ ...ledgerForm, counterAccountId: id === "all" ? null : id })}
+                  allowAll
+                  allLabel={type === "ar" ? "不指定（結清後才計收入）" : "不指定（結清後才計支出）"}
+                  placeholder="選擇帳戶"
+                  style={{ width: "100%", maxWidth: "none", minWidth: 0 }}
+                />
               </DrawerField>
               <DrawerField label={type === "ar" ? "預計收款日（選填）" : "付款截止日（選填）"}>
                 <input className="ns-input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={{ fontFamily: "var(--ns-font-mono)" }} />
@@ -1750,8 +1990,32 @@ function DrawerField({ label, required, children }: { label: string; required?: 
 
 /* ─────────────── helpers ─────────────── */
 
-function groupByDay(rows: LedgerTransaction[], toPrimary: (row: LedgerTransaction, amount?: number) => number | null) {
-  const map = new Map<string, LedgerTransaction[]>();
+/** A transfer's two legs (same groupId) collapse into one display row so the
+ * activity list shows "來源 → 目標" once instead of a 轉出/轉入 pair. */
+type DisplayRow = LedgerTransaction & { transferPair?: { source: LedgerTransaction; dest: LedgerTransaction } };
+
+function mergeTransferRows(rows: LedgerTransaction[], allRows: LedgerTransaction[]): DisplayRow[] {
+  const seen = new Set<string>();
+  const out: DisplayRow[] = [];
+  for (const row of rows) {
+    if (row.entryType === "transfer" && row.groupId) {
+      if (seen.has(row.groupId)) continue;
+      seen.add(row.groupId);
+      // Look the pair up from the full ledger so an account/search filter that
+      // matched only one leg still renders the complete transfer.
+      const legs = allRows.filter((r) => r.groupId === row.groupId && r.entryType === "transfer" && r.deletedAt === null);
+      const source = legs.find((l) => l.amount < 0) ?? row;
+      const dest = legs.find((l) => l.id !== source.id) ?? row;
+      out.push({ ...source, transferPair: { source, dest } });
+    } else {
+      out.push(row);
+    }
+  }
+  return out;
+}
+
+function groupByDay<T extends LedgerTransaction>(rows: T[], toPrimary: (row: LedgerTransaction, amount?: number) => number | null) {
+  const map = new Map<string, T[]>();
   for (const row of rows) {
     const day = row.date.slice(0, 10);
     map.set(day, [...(map.get(day) ?? []), row]);
@@ -1759,7 +2023,7 @@ function groupByDay(rows: LedgerTransaction[], toPrimary: (row: LedgerTransactio
   return [...map.entries()].map(([date, dayRows]) => ({
     date,
     rows: dayRows,
-    net: dayRows.reduce((sum, row) => (row.entryType === "transfer" ? sum : sum + (toPrimary(row) ?? 0)), 0),
+    net: dayRows.reduce((sum, row) => (isNeutralLedgerRow(row) ? sum : sum + (toPrimary(row) ?? 0)), 0),
   }));
 }
 

@@ -43,6 +43,7 @@ export function buildTransfer(input: TransferInput): LedgerTransaction[] {
     entryType: "transfer" as const,
     settlementStatus: "settled" as const,
     note: input.note ?? "",
+    counterAccountId: null,
     linkedInvestmentRecordId: null,
     groupId: input.groupId,
     isReviewed: false,
