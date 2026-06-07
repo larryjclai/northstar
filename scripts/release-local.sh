@@ -20,6 +20,27 @@
 
 set -euo pipefail
 
+# Load local secrets (signing key + password, optional GH token) from .env so
+# builds never prompt interactively. .env is gitignored — keep secrets there,
+# never in tracked files. See .env.example for the expected keys.
+ENV_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.env"
+if [[ -f "$ENV_FILE" ]]; then
+  set -a            # export everything sourced
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+  echo "▶ Loaded secrets from .env"
+fi
+
+# Resolve the signing key from its file if not provided inline. The secret key
+# stays in ~/.tauri/northstar.key (or $TAURI_SIGNING_KEY_PATH); .env only needs
+# the PASSWORD, never a copy of the key itself.
+KEY_PATH="${TAURI_SIGNING_KEY_PATH:-$HOME/.tauri/northstar.key}"
+if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" && -f "$KEY_PATH" ]]; then
+  export TAURI_SIGNING_PRIVATE_KEY="$(cat "$KEY_PATH")"
+  echo "▶ Loaded signing key from $KEY_PATH"
+fi
+
 TAG="${1:-}"
 PUBLIC_REPO="${PUBLIC_REPO:-larryjclai/northstar-releases}"
 TARGET="universal-apple-darwin"
