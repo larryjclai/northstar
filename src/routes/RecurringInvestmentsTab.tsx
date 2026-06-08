@@ -2,6 +2,7 @@ import { ArrowsClockwise, CalendarBlank, Check, PencilSimple, Plus, Trash, X } f
 import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
+import { AppSelect } from "../components/AppSelect";
 import { useMemo, useState } from "react";
 import { useToast } from "../components/Toast";
 import { TickerSearchField } from "../components/TickerSearchField";
@@ -282,18 +283,27 @@ function RecurringInvestmentSheet({
               <input className="ns-input" type="number" value={draft.fee || ""} onChange={(e) => setDraft({ ...draft, fee: Number(e.target.value) || 0 })} placeholder="0" />
             </Field>
             <Field label="投資帳戶（扣交割款）*">
-              <select className="ns-input" style={{ appearance: "none" }} value={draft.accountId} onChange={(e) => { const a = accounts.find((x) => x.id === e.target.value); setDraft({ ...draft, accountId: e.target.value, currency: a?.currency ?? draft.currency }); }}>
-                <option value="">選擇帳戶</option>
-                {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}（{a.currency}）</option>)}
-              </select>
+              <AppSelect
+                value={draft.accountId || "all"}
+                onChange={(id) => {
+                  const a = accounts.find((x) => x.id === id);
+                  setDraft({ ...draft, accountId: id === "all" ? "" : id, currency: a?.currency ?? draft.currency });
+                }}
+                options={[{ value: "all", label: "選擇帳戶" }, ...accounts.map((account) => ({ value: account.id, label: account.name, description: account.currency }))]}
+                placeholder="選擇帳戶"
+                style={{ width: "100%", height: 40 }}
+              />
             </Field>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <Field label="頻率">
-              <select className="ns-input" style={{ appearance: "none" }} value={draft.frequency} onChange={(e) => setDraft({ ...draft, frequency: e.target.value as RecurringFrequency })}>
-                {(Object.keys(recurringFrequencyLabels) as RecurringFrequency[]).map((f) => <option key={f} value={f}>{recurringFrequencyLabels[f]}</option>)}
-              </select>
+              <AppSelect
+                value={draft.frequency}
+                onChange={(frequency) => setDraft({ ...draft, frequency: frequency as RecurringFrequency })}
+                options={(Object.keys(recurringFrequencyLabels) as RecurringFrequency[]).map((f) => ({ value: f, label: recurringFrequencyLabels[f] }))}
+                style={{ width: "100%", height: 40 }}
+              />
             </Field>
             <Field label="每月日期">
               <input className="ns-input" type="number" min={1} max={31} value={draft.dayOfMonth} onChange={(e) => setDraft({ ...draft, dayOfMonth: Math.min(31, Math.max(1, Number(e.target.value) || 1)) })} />

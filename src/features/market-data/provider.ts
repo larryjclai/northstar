@@ -28,6 +28,8 @@ export interface SymbolSearchResult {
 
 export interface AssetProfile {
   symbol: string;
+  nameZh?: string | null;
+  nameEn?: string | null;
   assetType: AssetType | null;
   sector: string | null;
   industry: string | null;

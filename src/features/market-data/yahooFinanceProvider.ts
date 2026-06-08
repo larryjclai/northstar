@@ -132,11 +132,13 @@ export class YahooFinanceProvider implements MarketDataProvider {
       q: trimmed,
       quotesCount: "10",
       newsCount: "0",
+      lang: "zh-Hant-TW",
+      region: "TW",
     });
 
     const envelope = await fetchYahooJson<YahooSearchEnvelope>("/v1/finance/search", searchParams);
     if (envelope.northstarError) throw new Error(envelope.northstarError);
-    const allowed = new Set(["EQUITY", "ETF", "MUTUALFUND", "INDEX"]);
+    const allowed = new Set(["EQUITY", "ETF", "MUTUALFUND", "INDEX", "CRYPTOCURRENCY", "CRYPTO"]);
     return envelope.quotes
       .filter((item) => item.symbol && (!item.quoteType || allowed.has(item.quoteType.toUpperCase())))
       .map((item) => ({

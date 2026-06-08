@@ -2,6 +2,7 @@ import {
   ArrowsLeftRight,
   CalendarBlank,
   Check,
+  CopySimple,
   DownloadSimple,
   Plus,
   Receipt,
@@ -19,13 +20,14 @@ import {
 } from "@phosphor-icons/react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ChangeEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { Bar, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from "recharts";
+import { Bar, BarChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 import { CategoriesTab } from "./CategoriesTab";
 import { MerchantsTab } from "./MerchantsTab";
 import { RecurringRulesTab } from "./RecurringRulesTab";
-import { MonthPicker } from "../components/ui/month-picker";
+import { DateScopeControl } from "../components/DateScopeControl";
 import { AccountFilter } from "../components/AccountFilter";
+import { AppSelect } from "../components/AppSelect";
 import { CategoryFilter } from "../components/CategoryFilter";
 import { NumberField } from "../components/NumberField";
 import { Badge } from "../components/coss/badge";
@@ -40,7 +42,7 @@ import { DatePicker } from "../components/ui/date-picker";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { useToast } from "../components/Toast";
 import type { LedgerDraft, TransferDraft } from "../data/repositories";
-import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, evaluateAmountExpression, formatNumber, isNeutralLedgerRow, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, todayInTimezone } from "../domain";
+import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, evaluateAmountExpression, formatNumber, isNeutralLedgerRow, isWithinDateScope, makeDefaultDateScope, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, resolveDateScope, todayInTimezone } from "../domain";
 import { convertCurrency } from "../domain/currency";
 import type { Account, LedgerTransaction, RecurringFrequency, RecurringTransaction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
@@ -63,7 +65,13 @@ const TYPE_META: Record<CashType, { label: string; color: string; sign: string; 
   ap: { label: "應付帳款", color: "var(--ns-chart-5)", sign: "−", eyebrow: "應付金額" },
 };
 
-const TYPE_ORDER: CashType[] = ["expense", "income", "transfer", "ar", "ap"];
+const TYPE_ORDER: CashType[] = ["expense", "income", "ar", "ap", "transfer"];
+const RECURRING_OPTIONS = [
+  { value: "none", label: "單次交易（不重複）" },
+  { value: "weekly", label: "每週" },
+  { value: "monthly", label: "每月" },
+  { value: "yearly", label: "每年" },
+];
 
 function entryTypeFor(type: CashType): LedgerDraft["entryType"] {
   return type === "income" || type === "ar" ? "income" : "expense";
@@ -134,7 +142,7 @@ export function CashFlowRoute() {
   const [preview, setPreview] = useState<ImportPreview<LedgerDraft> | null>(null);
   const [message, setMessage] = useState("");
   const toast = useToast();
-  const [selectedMonth, setSelectedMonth] = useState(() => todayInTimezone(timezone).slice(0, 7));
+  const [dateScope, setDateScope] = useState(() => makeDefaultDateScope(timezone, "month"));
   // `?account=<id>` deep-link from the Accounts page pre-selects that account.
   const { account: accountParam } = useSearch({ strict: false }) as { account?: string };
   const [selectedAccount, setSelectedAccount] = useState(accountParam ?? "all");
@@ -153,6 +161,10 @@ export function CashFlowRoute() {
     if (accountParam) setSelectedAccount(accountParam);
   }, [accountParam]);
 
+  useEffect(() => {
+    if (dateScope.preset !== "month" && chartGranularity === "day") setChartGranularity("week");
+  }, [dateScope.preset, chartGranularity]);
+
   const appSettings = settings.data;
   const accountRows = accounts.data ?? [];
   const ledgerRows = ledger.data ?? [];
@@ -166,6 +178,7 @@ export function CashFlowRoute() {
   const categories = appSettings?.categories.length ? appSettings.categories : [];
   const categoryNames = categories.map((category) => category.name);
   const subcategories = categories.find((category) => category.name === ledgerForm.category)?.children ?? [];
+  const dateRange = useMemo(() => resolveDateScope(dateScope, timezone), [dateScope, timezone]);
 
   const merchants = appSettings?.merchants ?? [];
   const merchantPool = useMemo(
@@ -334,15 +347,19 @@ export function CashFlowRoute() {
     }
   }
 
+  function cashTypeFromRow(row: LedgerTransaction): CashType {
+    if (row.entryType === "transfer") return "transfer";
+    return row.settlementStatus === "receivable"
+      ? "ar"
+      : row.settlementStatus === "payable"
+        ? "ap"
+        : row.entryType === "income"
+          ? "income"
+          : "expense";
+  }
+
   function startEdit(row: LedgerTransaction) {
-    const type: CashType =
-      row.settlementStatus === "receivable"
-        ? "ar"
-        : row.settlementStatus === "payable"
-          ? "ap"
-          : row.entryType === "income"
-            ? "income"
-            : "expense";
+    const type = cashTypeFromRow(row);
     setDrawerType(type);
     setEditingId(row.id);
     setCounterparty(row.settlementStatus === "settled" ? "" : row.merchant);
@@ -368,6 +385,54 @@ export function CashFlowRoute() {
     setDrawerRecurringFreq("none");
     setEditingRecurringRuleId(row.recurringRuleId ?? null);
     setMessage("");
+    setDrawerOpen(true);
+  }
+
+  function startDuplicate(row: LedgerTransaction, transferPair?: { source: LedgerTransaction; dest: LedgerTransaction }) {
+    const type = cashTypeFromRow(row);
+    setDrawerType(type);
+    setEditingId(null);
+    setEditingRecurringRuleId(null);
+    setDrawerRecurringFreq("none");
+    setCounterparty(row.settlementStatus === "settled" ? "" : row.merchant);
+    setDueDate("");
+    setMessage("");
+
+    if (type === "transfer") {
+      const source = transferPair?.source ?? row;
+      const dest = transferPair?.dest;
+      setTransferForm({
+        date: source.date,
+        sourceAccountId: source.accountId,
+        destinationAccountId: dest?.accountId ?? "",
+        sourceCurrency: source.currency,
+        destinationCurrency: dest?.currency ?? source.currency,
+        sourceAmount: Math.abs(source.amount),
+        destinationAmount: Math.abs(dest?.amount ?? source.amount),
+        note: source.note,
+        feeAmount: 0,
+      });
+    } else {
+      setLedgerForm({
+        accountId: row.accountId,
+        counterAccountId: row.counterAccountId ?? null,
+        date: row.date,
+        name: row.name,
+        amount: row.amount,
+        currency: row.currency,
+        originalAmount: row.originalAmount,
+        originalCurrency: row.originalCurrency,
+        category: row.category,
+        subcategory: row.subcategory,
+        merchant: row.merchant,
+        entryType: row.entryType ?? (row.amount >= 0 ? "income" : "expense"),
+        settlementStatus: row.settlementStatus ?? "settled",
+        note: row.note,
+        feeAmount: 0,
+      });
+      setEntryDisplayCurrency(row.originalCurrency ?? row.currency);
+      setAmountExpression(String(Math.abs(row.originalAmount ?? row.amount)));
+    }
     setDrawerOpen(true);
   }
 
@@ -560,17 +625,16 @@ export function CashFlowRoute() {
     event.target.value = "";
   }
 
-  const monthKey = selectedMonth;
-  const monthRows = useMemo(() => ledgerRows.filter((row) => {
-    if (!row.date.startsWith(monthKey)) return false;
+  const scopedRows = useMemo(() => ledgerRows.filter((row) => {
+    if (!isWithinDateScope(row.date, dateRange)) return false;
     if (selectedAccount !== "all" && row.accountId !== selectedAccount) return false;
     if (selectedCategory !== "all" && row.category !== selectedCategory) return false;
     return true;
-  }), [ledgerRows, monthKey, selectedAccount, selectedCategory]);
+  }), [ledgerRows, dateRange, selectedAccount, selectedCategory]);
   const activityRows = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase();
-    if (!query) return monthRows;
-    return monthRows.filter((row) => [
+    if (!query) return scopedRows;
+    return scopedRows.filter((row) => [
       row.name,
       row.merchant,
       row.category,
@@ -578,16 +642,16 @@ export function CashFlowRoute() {
       row.note,
       accountName(row.accountId),
     ].some((value) => value.toLocaleLowerCase().includes(query)));
-  }, [monthRows, searchQuery, accountRows]);
-  const monthIncome = monthRows
+  }, [scopedRows, searchQuery, accountRows]);
+  const periodIncome = scopedRows
     .filter((row) => row.entryType === "income" && row.settlementStatus === "settled" && !isNeutralLedgerRow(row))
     .reduce((sum, row) => sum + Math.max(0, toPrimary(row) ?? 0), 0);
-  const monthExpense = monthRows
+  const periodExpense = scopedRows
     .filter((row) => row.entryType === "expense" && row.settlementStatus === "settled" && !isNeutralLedgerRow(row))
     .reduce((sum, row) => sum + Math.abs(toPrimary(row) ?? 0), 0);
-  const monthNet = monthIncome - monthExpense;
-  const monthTransferCount = new Set(monthRows.filter((row) => row.entryType === "transfer").map((row) => row.groupId ?? row.id)).size;
-  const missingFx = [...new Set(monthRows
+  const periodNet = periodIncome - periodExpense;
+  const periodTransferCount = new Set(scopedRows.filter((row) => row.entryType === "transfer").map((row) => row.groupId ?? row.id)).size;
+  const missingFx = [...new Set(scopedRows
     .filter((row) => !isNeutralLedgerRow(row) && row.settlementStatus === "settled" && toPrimary(row) === null)
     .map((row) => `${row.currency} → ${primaryCurrency}`))];
 
@@ -596,7 +660,7 @@ export function CashFlowRoute() {
     const map = new Map<string, number>();
     // Use unfiltered-by-category rows for the donut so it always shows all categories
     const baseRows = ledgerRows.filter((row) => {
-      if (!row.date.startsWith(monthKey)) return false;
+      if (!isWithinDateScope(row.date, dateRange)) return false;
       if (selectedAccount !== "all" && row.accountId !== selectedAccount) return false;
       return true;
     });
@@ -612,7 +676,7 @@ export function CashFlowRoute() {
         return { name, amount, color: catSetting?.color || defaultColors[idx % defaultColors.length], icon: catSetting?.iconName || 'Tag' };
       })
       .sort((a, b) => b.amount - a.amount);
-  }, [ledgerRows, monthKey, selectedAccount, appSettings, toPrimary]);
+  }, [ledgerRows, dateRange, selectedAccount, appSettings, toPrimary]);
 
   const totalCategorySpend = allCategorySpend.reduce((s, c) => s + c.amount, 0);
 
@@ -620,7 +684,7 @@ export function CashFlowRoute() {
 
   const topMerchantSpend = useMemo(() => {
     const map = new Map<string, number>();
-    for (const row of monthRows) {
+    for (const row of scopedRows) {
       if (row.entryType !== "expense" || row.settlementStatus !== "settled" || !row.merchant || isNeutralLedgerRow(row)) continue;
       map.set(row.merchant, (map.get(row.merchant) ?? 0) + Math.abs(toPrimary(row) ?? 0));
     }
@@ -628,9 +692,9 @@ export function CashFlowRoute() {
       .map(([name, amount]) => ({ name, amount }))
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 5);
-  }, [monthRows, toPrimary]);
+  }, [scopedRows, toPrimary]);
 
-  // Cashflow bars: income (up) + expense (down) per bucket, with a net line.
+  // Cashflow bars: income (up) + expense (down) per bucket.
   // The granularity (日/週/月/年) controls both bucket size and the visible
   // window, anchored to the selected month. Respects the account/category
   // filters; transfers and pass-through rows are excluded (neutral movements).
@@ -642,8 +706,8 @@ export function CashFlowRoute() {
       if (isNeutralLedgerRow(row)) return false;
       return row.entryType === "income" || row.entryType === "expense";
     });
-    const slots = buildCashflowBuckets(chartGranularity, monthKey).map((b) => ({
-      ...b, income: 0, expense: 0, net: 0,
+    const slots = buildCashflowBuckets(chartGranularity, dateRange).map((b) => ({
+      ...b, income: 0, expenseDown: 0, net: 0,
     }));
     const byKey = new Map(slots.map((s) => [s.key, s]));
     for (const row of rows) {
@@ -651,11 +715,11 @@ export function CashFlowRoute() {
       if (!slot) continue;
       const value = toPrimary(row) ?? 0;
       if (row.entryType === "income") slot.income += Math.max(0, value);
-      else slot.expense -= Math.abs(value); // negative → bar grows downward
+      else slot.expenseDown -= Math.abs(value); // negative → bar grows downward
     }
-    for (const s of slots) s.net = s.income + s.expense;
+    for (const s of slots) s.net = s.income + s.expenseDown;
     return slots;
-  }, [ledgerRows, selectedAccount, selectedCategory, chartGranularity, monthKey, toPrimary]);
+  }, [ledgerRows, selectedAccount, selectedCategory, chartGranularity, dateRange, toPrimary]);
 
 
   const [page, setPage] = useState(1);
@@ -663,7 +727,7 @@ export function CashFlowRoute() {
   
   useEffect(() => {
     setPage(1);
-  }, [monthKey, selectedAccount, selectedCategory, searchQuery]);
+  }, [dateRange, selectedAccount, selectedCategory, searchQuery]);
   
   const sortedRows = useMemo(
 
@@ -676,7 +740,7 @@ export function CashFlowRoute() {
   const paginatedRows = useMemo(() => displayRows.slice((page - 1) * pageSize, page * pageSize), [displayRows, page]);
   const dayGroups = useMemo(() => groupByDay(paginatedRows, toPrimary), [paginatedRows, toPrimary]);
 
-  const monthLabel = monthKey.replace("-", " / ");
+  const periodLabel = dateRange.label;
 
   // Unsettled receivables / payables (respecting the account filter).
   const settlements = useMemo(
@@ -692,17 +756,13 @@ export function CashFlowRoute() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginBottom: 22, flexWrap: "wrap" }}>
         <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{monthLabel}</div>
+          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{periodLabel}</div>
           <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>
             記帳
           </h1>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-          <MonthPicker
-            value={selectedMonth} 
-            onChange={setSelectedMonth} 
-            triggerClassName="h-[36px] whitespace-nowrap"
-          />
+          <DateScopeControl value={dateScope} onChange={setDateScope} />
 
           <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} style={{ minWidth: 116, fontSize: 13 }} />
 
@@ -766,18 +826,18 @@ export function CashFlowRoute() {
         <Card id="cashflow-chart" style={{ padding: 24 }}>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 16, marginBottom: 14, flexWrap: "wrap" }}>
             <div>
-              <div className="ns-eyebrow" style={{ marginBottom: 6 }}>本月現金流 · Net</div>
-              <div className={"ns-num-lg " + (monthNet >= 0 ? "pos" : "neg")}>
-                {monthNet >= 0 ? "+" : "−"}{primaryCurrency} {formatNumber(Math.abs(monthNet))}
+              <div className="ns-eyebrow" style={{ marginBottom: 6 }}>現金流 · Net</div>
+              <div className={"ns-num-lg " + (periodNet >= 0 ? "pos" : "neg")}>
+                {periodNet >= 0 ? "+" : "−"}{primaryCurrency} {formatNumber(Math.abs(periodNet))}
               </div>
             </div>
             <div style={{ flex: 1 }}/>
             {/* Income / Spending / Savings as side-by-side comparison cards. */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(92px, 1fr))", gap: 8 }}>
               {([
-                { label: "收入", value: `${primaryCurrency} ${formatNumber(monthIncome)}`, cls: "pos" },
-                { label: "支出", value: `${primaryCurrency} ${formatNumber(monthExpense)}`, cls: "neg" },
-                { label: "儲蓄率", value: monthIncome > 0 ? `${((monthNet / monthIncome) * 100).toFixed(1)}%` : "—", cls: monthIncome > 0 && monthNet >= 0 ? "pos" : "muted" },
+                { label: "收入", value: `${primaryCurrency} ${formatNumber(periodIncome)}`, cls: "pos" },
+                { label: "支出", value: `${primaryCurrency} ${formatNumber(periodExpense)}`, cls: "neg" },
+                { label: "儲蓄率", value: periodIncome > 0 ? `${((periodNet / periodIncome) * 100).toFixed(1)}%` : "—", cls: periodIncome > 0 && periodNet >= 0 ? "pos" : "muted" },
               ]).map((s) => (
                 <div key={s.label} className="ns-surface" style={{ padding: "8px 12px", borderRadius: "var(--ns-r-sm)" }}>
                   <div className="muted" style={{ fontSize: 11 }}>{s.label}</div>
@@ -792,7 +852,6 @@ export function CashFlowRoute() {
               {([
                 { label: "收入", color: "var(--ns-pos)" },
                 { label: "支出", color: "var(--ns-neg)" },
-                { label: "淨額", color: "var(--ns-fg)" },
               ]).map((l) => (
                 <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
                   <span style={{ width: 9, height: 9, borderRadius: 2, background: l.color, flexShrink: 0 }} />
@@ -804,7 +863,7 @@ export function CashFlowRoute() {
           </div>
           <div style={{ height: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={cashflowBars} margin={{ top: 6, right: 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap={chartGranularity === "day" ? "12%" : "24%"}>
+              <BarChart data={cashflowBars} margin={{ top: 6, right: 4, bottom: 0, left: 4 }} barCategoryGap={chartGranularity === "day" ? "18%" : "30%"}>
                 <ReferenceLine y={0} stroke={resolveColor("var(--ns-border-strong)")} />
                 <XAxis
                   dataKey="label"
@@ -818,22 +877,25 @@ export function CashFlowRoute() {
                   cursor={{ fill: resolveColor("var(--ns-bg-hover)") }}
                   contentStyle={{ background: "var(--ns-surface)", border: "1px solid var(--ns-border)", borderRadius: 6, fontSize: 12 }}
                   formatter={(v: any, name: any) => {
-                    const labelMap: Record<string, string> = { income: "收入", expense: "支出", net: "淨額" };
+                    const labelMap: Record<string, string> = { income: "收入", expenseDown: "支出" };
                     return [`${primaryCurrency} ${formatNumber(Math.abs(v as number))}`, labelMap[name] ?? name];
                   }}
-                  labelFormatter={(v) => (chartGranularity === "day" ? `${monthLabel} / ${v}` : String(v))}
+                  labelFormatter={(v) => String(v)}
                 />
-                <Bar dataKey="income" fill="var(--ns-pos)" radius={[2, 2, 0, 0]} maxBarSize={22} />
-                <Bar dataKey="expense" fill="var(--ns-neg)" radius={[0, 0, 2, 2]} maxBarSize={22} />
-                <Line type="monotone" dataKey="net" stroke="var(--ns-fg)" strokeWidth={1.5} dot={false} />
-              </ComposedChart>
+                {/* Same stackId → income stacks up and expenseDown stacks down
+                    from the y=0 baseline, both centred on one shared x band.
+                    (The old barGap={-20} pixel hack mis-aligned once bars were
+                    narrower than 20px.) */}
+                <Bar dataKey="income" stackId="flow" fill="var(--ns-pos)" radius={[2, 2, 0, 0]} maxBarSize={20} />
+                <Bar dataKey="expenseDown" stackId="flow" fill="var(--ns-neg)" radius={[0, 0, 2, 2]} maxBarSize={20} />
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
         <Card style={{ padding: 20 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <div className="ns-eyebrow">分類支出 · {monthLabel}</div>
+            <div className="ns-eyebrow">分類支出 · {periodLabel}</div>
             {selectedCategory !== "all" && (
               <Button variant="ghost" size="xs" onClick={() => setSelectedCategory("all")}>
                 <X size={10} weight="bold" />清除篩選
@@ -955,6 +1017,7 @@ export function CashFlowRoute() {
                       categoryIcon={catGroup?.iconName || undefined}
                       onEdit={() => setDetailRow(r)}
                       onOpenEdit={() => startEdit(r)}
+                      onDuplicate={() => startDuplicate(r, r.transferPair)}
                       onDelete={() => handleDelete(r.id)}
                       onSettle={() => markSettled(r)}
                     />
@@ -967,7 +1030,7 @@ export function CashFlowRoute() {
 
         {/* Side rankings */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <RankingCard title="商家花費排行" rows={topMerchantSpend} emptyText="本月尚無商家資料" currency={primaryCurrency} />
+          <RankingCard title="商家花費排行" rows={topMerchantSpend} emptyText="此期間尚無商家資料" currency={primaryCurrency} />
           <UpcomingPayments recurringRows={recurringRows} accountName={accountName} onPost={async (id) => { try { await postRecurring.mutateAsync(id); toast.success("已記入交易"); } catch { toast.error("記入失敗"); } }} posting={postRecurring.isPending} />
         </div>
       </div>
@@ -975,11 +1038,11 @@ export function CashFlowRoute() {
       )}
 
       {activeTab === "categories" && (
-        <CategoriesTab filterMonth={selectedMonth} ledgerRows={ledgerRows} appSettings={appSettings} primaryCurrency={primaryCurrency} toPrimary={toPrimary} onSettingsClick={() => setCategoryDrawerOpen(true)} />
+        <CategoriesTab dateRange={dateRange} ledgerRows={ledgerRows} appSettings={appSettings} primaryCurrency={primaryCurrency} toPrimary={toPrimary} onSettingsClick={() => setCategoryDrawerOpen(true)} />
       )}
 
       {activeTab === "merchants" && (
-        <MerchantsTab filterMonth={selectedMonth} ledgerRows={ledgerRows} primaryCurrency={primaryCurrency} toPrimary={toPrimary} />
+        <MerchantsTab dateRange={dateRange} ledgerRows={ledgerRows} primaryCurrency={primaryCurrency} toPrimary={toPrimary} />
       )}
 
       {activeTab === "recurring" && (
@@ -1039,6 +1102,7 @@ export function CashFlowRoute() {
         row={detailRow}
         onClose={() => setDetailRow(null)}
         onEdit={(row) => { setDetailRow(null); startEdit(row); }}
+        onDuplicate={(row) => { setDetailRow(null); startDuplicate(row, (row as LedgerTransaction & { transferPair?: { source: LedgerTransaction; dest: LedgerTransaction } }).transferPair); }}
         onDelete={(id) => { setDetailRow(null); handleDelete(id); }}
         accountName={accountName}
         recurringRows={recurringRows}
@@ -1178,6 +1242,7 @@ function LedgerRow({
   categoryIcon,
   onEdit,
   onOpenEdit,
+  onDuplicate,
   onDelete,
   onSettle,
 }: {
@@ -1190,6 +1255,7 @@ function LedgerRow({
   onEdit: () => void;
   /** Pencil → jump straight into edit mode (B10). */
   onOpenEdit: () => void;
+  onDuplicate: () => void;
   onDelete: () => void;
   onSettle: () => void;
 }) {
@@ -1230,6 +1296,7 @@ function LedgerRow({
           ) : null}
         </div>
         <div className="ns-cf-actions" style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
+          <Button variant="ghost" size="icon-sm" title="複製" onClick={onDuplicate}><CopySimple size={13} /></Button>
           <Button variant="ghost" size="icon-sm" title="刪除" onClick={onDelete} style={{ color: "var(--ns-neg)" }}><Trash size={13} /></Button>
         </div>
       </div>
@@ -1285,6 +1352,7 @@ function LedgerRow({
         {!isTransfer ? (
           <Button variant="ghost" size="icon-sm" title="編輯" onClick={onOpenEdit}><PencilSimple size={13} /></Button>
         ) : null}
+        <Button variant="ghost" size="icon-sm" title="複製" onClick={onDuplicate}><CopySimple size={13} /></Button>
         <Button variant="ghost" size="icon-sm" title="刪除" onClick={onDelete} style={{ color: "var(--ns-neg)" }}><Trash size={13} /></Button>
       </div>
     </div>
@@ -1581,20 +1649,19 @@ function EntryDrawer({
               transition: "border-color 0.12s, box-shadow 0.12s",
             }}>
               {isAcct && entryCurrencies.length > 1 ? (
-                <select
+                <AppSelect
                   value={entryDisplayCurrency}
-                  onChange={(e) => setEntryDisplayCurrency(e.target.value)}
+                  onChange={setEntryDisplayCurrency}
+                  options={entryCurrencies.map((currency) => ({ value: currency, label: currency }))}
+                  searchPlaceholder="搜尋幣別…"
                   style={{
                     padding: "0 10px 0 14px", fontSize: 16, color: meta.color,
                     fontFamily: "var(--ns-font-mono)", fontWeight: 500,
                     flexShrink: 0, borderRight: "1px solid var(--ns-border)",
                     height: "100%", background: "transparent", border: "none",
-                    outline: "none", cursor: "pointer", appearance: "none",
-                    minWidth: 80,
+                    width: 92, minWidth: 92,
                   }}
-                >
-                  {entryCurrencies.map((c) => <option key={c} value={c}>{meta.sign}{c}</option>)}
-                </select>
+                />
               ) : (
                 <span style={{
                   padding: "0 14px", fontSize: 20, color: meta.color,
@@ -1603,7 +1670,7 @@ function EntryDrawer({
                   height: "100%", display: "flex", alignItems: "center",
                   userSelect: "none",
                 }}>
-                  {meta.sign}{type === "transfer" ? transferForm.sourceCurrency : entryDisplayCurrency}
+                  {type === "transfer" ? transferForm.sourceCurrency : entryDisplayCurrency}
                 </span>
               )}
               {type === "transfer" ? (
@@ -1613,6 +1680,7 @@ function EntryDrawer({
                     flex: 1, border: "none", outline: "none", background: "transparent",
                     padding: "0 14px", fontSize: 22, fontFamily: "var(--ns-font-num)",
                     color: meta.color, textAlign: "right", height: "100%",
+                    minWidth: 0, width: "100%",
                     fontVariantNumeric: "tabular-nums lining-nums",
                   }}
                   decimals={2}
@@ -1631,6 +1699,7 @@ function EntryDrawer({
                     flex: 1, border: "none", outline: "none", background: "transparent",
                     padding: "0 14px", fontSize: 22, fontFamily: "var(--ns-font-num)",
                     color: meta.color, textAlign: "right", height: "100%",
+                    minWidth: 0, width: "100%",
                     fontVariantNumeric: "tabular-nums lining-nums",
                   }}
                   value={amountFocused ? amountExpression : fmtAmountDisplay(amountExpression)}
@@ -1878,17 +1947,12 @@ function EntryDrawer({
                     </DrawerField>
                   )}
                   <DrawerField label="週期交易">
-                    <select
-                      className="ns-input"
+                    <AppSelect
                       value={drawerRecurringFreq}
-                      onChange={(e) => setDrawerRecurringFreq(e.target.value)}
-                      style={{ appearance: "none" }}
-                    >
-                      <option value="none">單次交易 (不重複)</option>
-                      <option value="weekly">每週</option>
-                      <option value="monthly">每月</option>
-                      <option value="yearly">每年</option>
-                    </select>
+                      onChange={setDrawerRecurringFreq}
+                      options={RECURRING_OPTIONS}
+                      style={{ width: "100%", height: 40 }}
+                    />
                   </DrawerField>
                   <DrawerField label="備註">
                     <input className="ns-input" value={ledgerForm.note} onChange={(e) => setLedgerForm({ ...ledgerForm, note: e.target.value })} placeholder="選填" />
@@ -1955,17 +2019,12 @@ function EntryDrawer({
           {!isAcct && (
             <>
               <DrawerField label="週期交易">
-                <select
-                  className="ns-input"
+                <AppSelect
                   value={drawerRecurringFreq}
-                  onChange={(e) => setDrawerRecurringFreq(e.target.value)}
-                  style={{ appearance: "none" }}
-                >
-                  <option value="none">單次交易 (不重複)</option>
-                  <option value="weekly">每週</option>
-                  <option value="monthly">每月</option>
-                  <option value="yearly">每年</option>
-                </select>
+                  onChange={setDrawerRecurringFreq}
+                  options={RECURRING_OPTIONS}
+                  style={{ width: "100%", height: 40 }}
+                />
               </DrawerField>
 
               <DrawerField label="備註">
@@ -2074,37 +2133,61 @@ function cashflowBucketKey(granularity: ChartGranularity, dateStr: string): stri
 }
 
 /** Ordered list of buckets ({key, label}) for the visible window. */
-function buildCashflowBuckets(granularity: ChartGranularity, monthKey: string): Array<{ key: string; label: string }> {
-  const [year, month] = monthKey.split("-").map(Number);
+function buildCashflowBuckets(granularity: ChartGranularity, range: { start: string | null; end: string | null }): Array<{ key: string; label: string }> {
+  const start = range.start ?? isoLocal(new Date());
+  const end = range.end ?? start;
   if (granularity === "day") {
-    const days = new Date(year, month, 0).getDate();
-    return Array.from({ length: days }, (_, i) => {
-      const dd = String(i + 1).padStart(2, "0");
-      return { key: `${monthKey}-${dd}`, label: String(i + 1) };
-    });
+    return enumerateDays(start, end).map((day) => ({ key: day, label: day.slice(5) }));
   }
   if (granularity === "month") {
-    return Array.from({ length: 12 }, (_, i) => {
-      const dt = new Date(year, month - 1 - (11 - i), 1);
-      return {
-        key: `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`,
-        label: `${dt.getMonth() + 1}月`,
-      };
-    });
+    return enumerateMonths(start, end).map((month) => ({ key: month, label: `${Number(month.slice(5, 7))}月` }));
   }
   if (granularity === "year") {
-    return Array.from({ length: 6 }, (_, i) => {
-      const yr = year - (5 - i);
-      return { key: String(yr), label: String(yr) };
-    });
+    return enumerateYears(start, end).map((year) => ({ key: year, label: year }));
   }
-  // week: trailing 12 weeks ending at the week of the month's last day
-  const anchorMonday = new Date(mondayOf(isoLocal(new Date(year, month, 0))) + "T00:00:00");
-  return Array.from({ length: 12 }, (_, i) => {
-    const dt = new Date(anchorMonday);
-    dt.setDate(dt.getDate() - (11 - i) * 7);
-    return { key: isoLocal(dt), label: `${dt.getMonth() + 1}/${dt.getDate()}` };
+  return enumerateWeeks(start, end).map((week) => {
+    const dt = new Date(`${week}T00:00:00`);
+    return { key: week, label: `${dt.getMonth() + 1}/${dt.getDate()}` };
   });
+}
+
+function enumerateDays(start: string, end: string) {
+  const out: string[] = [];
+  const cursor = new Date(`${start}T00:00:00`);
+  const last = new Date(`${end}T00:00:00`);
+  while (cursor <= last) {
+    out.push(isoLocal(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return out;
+}
+
+function enumerateWeeks(start: string, end: string) {
+  const out: string[] = [];
+  const cursor = new Date(`${mondayOf(start)}T00:00:00`);
+  const last = new Date(`${end}T00:00:00`);
+  while (cursor <= last) {
+    out.push(isoLocal(cursor));
+    cursor.setDate(cursor.getDate() + 7);
+  }
+  return out;
+}
+
+function enumerateMonths(start: string, end: string) {
+  const out: string[] = [];
+  const cursor = new Date(`${start.slice(0, 7)}-01T00:00:00`);
+  const last = end.slice(0, 7);
+  while (isoLocal(cursor).slice(0, 7) <= last) {
+    out.push(isoLocal(cursor).slice(0, 7));
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return out;
+}
+
+function enumerateYears(start: string, end: string) {
+  const first = Number(start.slice(0, 4));
+  const last = Number(end.slice(0, 4));
+  return Array.from({ length: Math.max(0, last - first + 1) }, (_, index) => String(first + index));
 }
 
 function groupByDay<T extends LedgerTransaction>(rows: T[], toPrimary: (row: LedgerTransaction, amount?: number) => number | null) {

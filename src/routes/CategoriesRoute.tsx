@@ -1,13 +1,13 @@
 import { Gear, Plus, X } from "@phosphor-icons/react";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
-import { ToggleGroup, ToggleGroupItem } from "../components/coss/toggle-group";
+import { DateScopeControl } from "../components/DateScopeControl";
 import { Glyph } from "../lib/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { convertCurrency, formatMoney, formatNumber, todayInTimezone } from "../domain";
+import { convertCurrency, formatMoney, formatNumber, isWithinDateScope, makeDefaultDateScope, resolveDateScope } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { useToast } from "../components/Toast";
@@ -22,8 +22,8 @@ export function CategoriesRoute() {
   const primaryCurrency = appSettings?.primaryCurrency ?? "TWD";
   const fxHistory = dailyFxRates.data ?? [];
 
-  const [filterMonth, setFilterMonth] = useState(() => todayInTimezone(timezone).slice(0, 7));
-  const [timeRange, setTimeRange] = useState<"month" | "ytd" | "custom">("month");
+  const [dateScope, setDateScope] = useState(() => makeDefaultDateScope(timezone, "month"));
+  const dateRange = useMemo(() => resolveDateScope(dateScope, timezone), [dateScope, timezone]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
   const toast = useToast();
@@ -36,18 +36,8 @@ export function CategoriesRoute() {
   );
 
   const filteredRows = useMemo(() => {
-    const today = todayInTimezone(timezone);
-    if (timeRange === "month") {
-      const monthPrefix = filterMonth;
-      return ledgerRows.filter((row) => row.date.startsWith(monthPrefix));
-    } else if (timeRange === "ytd") {
-      const yearPrefix = filterMonth.slice(0, 4);
-      return ledgerRows.filter((row) => row.date.startsWith(yearPrefix) && row.date <= today);
-    } else {
-      // custom: for now just return all
-      return ledgerRows;
-    }
-  }, [ledgerRows, filterMonth, timeRange, timezone]);
+    return ledgerRows.filter((row) => isWithinDateScope(row.date, dateRange));
+  }, [ledgerRows, dateRange]);
 
   const allExpenseRows = filteredRows.filter((row) => row.entryType === "expense" && !row.counterAccountId);
   const convertedAmount = (row: (typeof allExpenseRows)[number]) => convertCurrency(Math.abs(row.amount), row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date });
@@ -95,42 +85,21 @@ export function CategoriesRoute() {
   
   const overSpentCats = categoryStats.filter(cat => cat.budget && cat.amount > cat.budget);
 
-  // Format date for display
-  const displayDate = useMemo(() => {
-    const d = new Date(filterMonth + "-01");
-    return d.toLocaleString('en-US', { month: 'short', year: 'numeric' }).toUpperCase();
-  }, [filterMonth]);
-
   return (
     <div style={{ padding: "32px 40px 100px", overflowY: "auto", minHeight: "100vh" }}>
       {/* Header Area */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 32 }}>
         <div>
           <div style={{ fontSize: 11, fontFamily: "var(--ns-font-mono)", letterSpacing: 1.5, color: "var(--ns-fg-muted)", marginBottom: 8 }}>
-            {displayDate} · {categoryStats.length} CATEGORIES
+            {dateRange.label} · {categoryStats.length} 個分類
           </div>
           <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 32, margin: 0, letterSpacing: -0.5, fontWeight: 600 }}>
-            Categories
+            分類
           </h1>
         </div>
         
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <ToggleGroup
-            variant="outline"
-            value={[timeRange]}
-            onValueChange={(value) => { const next = value[0]; if (next) setTimeRange(next as typeof timeRange); }}
-          >
-            {(["month", "ytd", "custom"] as const).map(mode => (
-              <ToggleGroupItem
-                key={mode}
-                value={mode}
-                size="sm"
-                className="data-pressed:border-primary data-pressed:bg-primary data-pressed:text-primary-foreground"
-              >
-                {mode === "month" ? "本月" : mode === "ytd" ? "YTD" : "自訂"}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
+          <DateScopeControl value={dateScope} onChange={setDateScope} />
           <Button onClick={() => setCategoryDrawerOpen(true)}>
             <Plus size={14} weight="bold" /> 管理分類
           </Button>

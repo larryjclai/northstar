@@ -1,7 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../../data/hooks";
 import { getFinanceRepository } from "../../data/repositories";
+import { expandMarketDataSymbols } from "../../domain/marketSymbols";
 import type { DailyFxRate, DailyPrice } from "../../domain/types";
+import { TaiwanMarketDataProvider } from "./taiwanMarketDataProvider";
 import { YahooFinanceProvider } from "./yahooFinanceProvider";
 
 export async function refreshLatestMarketData() {
@@ -11,7 +13,7 @@ export async function refreshLatestMarketData() {
     repository.listPortfolioAssets(),
     repository.getAppSettings(),
   ]);
-  const symbols = [...new Set(assets.map((asset) => asset.ticker.trim().toUpperCase()).filter(Boolean))];
+  const symbols = expandMarketDataSymbols(assets.map((asset) => asset.ticker));
   const quotesBySymbol = symbols.length ? await provider.fetchQuotes(symbols) : {};
   const quotes = Object.values(quotesBySymbol);
   if (quotes.length) await repository.saveMarketQuotes(quotes, provider.sourceName);
@@ -46,7 +48,7 @@ export function useRefreshQuotes() {
     mutationFn: async (symbols: string[]) => {
       const provider = new YahooFinanceProvider();
       const repository = await getFinanceRepository();
-      const quotesBySymbol = await provider.fetchQuotes(symbols);
+      const quotesBySymbol = await provider.fetchQuotes(expandMarketDataSymbols(symbols));
       const quotes = Object.values(quotesBySymbol);
       if (quotes.length === 0) throw new Error("報價來源暫時限制更新，請稍後再試。既有快取仍會保留。");
       await repository.saveMarketQuotes(quotes, provider.sourceName);
@@ -68,16 +70,26 @@ export function useBackfillAssetProfiles() {
   return useMutation({
     mutationFn: async ({ force = false, onProgress }: BackfillAssetProfilesInput = {}) => {
       const provider = new YahooFinanceProvider();
+      const taiwanProvider = new TaiwanMarketDataProvider();
       const repository = await getFinanceRepository();
       const assets = await repository.listPortfolioAssets();
       const candidates = assets.filter((asset) => {
         if (!asset.ticker.trim()) return false;
-        return force || !asset.assetType;
+        const ticker = asset.ticker.trim().toUpperCase();
+        const taiwanNeedsProfile = isTaiwanTicker(ticker) && (!asset.nameZh || !asset.industry || !asset.sector);
+        return force || !asset.assetType || taiwanNeedsProfile;
       });
       const symbols = [...new Set(candidates.map((asset) => asset.ticker.trim().toUpperCase()))];
       if (symbols.length === 0) return { updated: 0, total: 0, failed: [] as string[] };
 
-      const profiles = await provider.fetchAssetProfiles(symbols, onProgress);
+      const [taiwanResult, yahooProfiles] = await Promise.all([
+        taiwanProvider.fetchAssetProfiles(symbols).catch((error) => {
+          console.warn("[market] unable to fetch Taiwan company profiles", error);
+          return {};
+        }),
+        provider.fetchAssetProfiles(symbols, onProgress),
+      ]);
+      const profiles = { ...yahooProfiles, ...taiwanResult };
       let updated = 0;
       const failed = symbols.filter((symbol) => !profiles[symbol]);
 
@@ -88,6 +100,8 @@ export function useBackfillAssetProfiles() {
           assetType: profile.assetType,
           sector: profile.sector,
           industry: profile.industry,
+          nameZh: profile.nameZh ?? null,
+          nameEn: profile.nameEn ?? null,
         });
         updated += 1;
       }
@@ -98,6 +112,10 @@ export function useBackfillAssetProfiles() {
       await queryClient.invalidateQueries({ queryKey: queryKeys.assets });
     },
   });
+}
+
+function isTaiwanTicker(ticker: string) {
+  return /^\d{4,6}$/.test(ticker) || /^\d{4,6}\.(TW|TWO)$/.test(ticker);
 }
 
 export interface RefreshFxRatesInput {
@@ -185,7 +203,7 @@ export function useRefreshDailyPrices() {
       const failed: string[] = [];
       const updatedAt = new Date().toISOString();
 
-      const normalizedTickers = [...new Set(tickers.map((ticker) => ticker.trim().toUpperCase()).filter(Boolean))];
+      const normalizedTickers = expandMarketDataSymbols(tickers);
       for (const ticker of normalizedTickers) {
         try {
           const points = await provider.fetchHistory(ticker, range, "1d");

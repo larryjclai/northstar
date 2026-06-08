@@ -3,6 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ActionButton } from "../components/ActionButton";
+import { AccountFilter } from "../components/AccountFilter";
 import { AssetLogo } from "../components/AssetLogo";
 import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
@@ -20,6 +21,8 @@ import type { PortfolioAssetDraft } from "../data/repositories";
 import {
   buildHoldingPositionsByAccount,
   buildPositionMetrics,
+  buildDailyPriceLookup,
+  priceAssetOnDate,
   calculateXirr,
   cashflowSpanDays,
   XIRR_MIN_DAYS,
@@ -48,6 +51,7 @@ import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
 import { InvestmentsAnalyticsTab } from "./InvestmentsAnalyticsTab";
 import { RecurringInvestmentsTab } from "./RecurringInvestmentsTab";
 import { TransactionsRoute } from "./TransactionsRoute";
+import { quoteLookupKeys } from "../domain/marketSymbols";
 
 export function InvestmentsRoute() {
   const [tab, setTab] = useState<"portfolio" | "transactions" | "recurring" | "analytics">("portfolio");
@@ -76,11 +80,14 @@ export function InvestmentsRoute() {
   const quoteMap = useMemo(() => {
     const map: Record<string, DomainMarketQuote | undefined> = {};
     for (const quote of quoteRows) {
-      map[quote.symbol.toUpperCase()] = {
+      const normalizedQuote = {
         symbol: quote.symbol,
         price: quote.price,
         currency: quote.currency,
       };
+      for (const key of quoteLookupKeys(quote.symbol)) {
+        if (!map[key]) map[key] = normalizedQuote;
+      }
     }
     return map;
   }, [quoteRows]);
@@ -99,9 +106,14 @@ export function InvestmentsRoute() {
     return (recurringInvestments.data ?? []).filter((r) => r.isActive && r.nextRunDate <= horizon).length;
   }, [recurringInvestments.data, timezoneForDue]);
 
+  // Shared valuation context so market value here matches the Dashboard / net
+  // worth trend: live quote → latest daily close → average cost.
+  const valuationToday = todayInTimezone(timezoneForDue);
+  const dailyPriceLookup = useMemo(() => buildDailyPriceLookup(dailyPriceRows), [dailyPriceRows]);
+
   const positions = useMemo(
-    () => buildHoldingPositionsByAccount(assetRows, recordRows, quoteMap),
-    [assetRows, recordRows, quoteMap],
+    () => buildHoldingPositionsByAccount(assetRows, recordRows, quoteMap, { dailyPrices: dailyPriceRows, asOf: valuationToday }),
+    [assetRows, recordRows, quoteMap, dailyPriceRows, valuationToday],
   );
 
   // Current holdings in the shape the analytics engine consumes (fixed-basket).
@@ -290,29 +302,31 @@ export function InvestmentsRoute() {
       if (recs.length === 0) continue;
       const m = buildPositionMetrics(recs);
       for (const cf of m.cashflows) flows.push({ date: cf.date, amount: toPrimary(cf.amount, asset.currency, cf.date) });
-      const price = quoteMap[asset.ticker]?.price ?? asset.averageCost;
-      terminal += toPrimary(m.quantity * price, asset.currency, today);
+      // Terminal value uses the canonical primitive (quote → close → cost) so it
+      // agrees with the holdings market value shown above and on the Dashboard.
+      const price = priceAssetOnDate(asset, today, { todayIso: today, dailyPriceLookup, quote: quoteMap[asset.ticker] });
+      terminal += toPrimary(m.quantity * price.value, price.currency, today);
     }
     // Suppress the annualized figure for very short holding spans (B1): it would
     // annualize into meaningless thousands of %.
     const reliable = cashflowSpanDays(flows, today) >= XIRR_MIN_DAYS;
     return { value: calculateXirr(flows, { date: today, amount: terminal }), reliable };
-  }, [assetRows, recordRows, quoteMap, toPrimary]);
+  }, [assetRows, recordRows, quoteMap, dailyPriceLookup, toPrimary]);
 
   return (
-    <div style={{ padding: '24px 32px 120px', maxWidth: 1180, margin: '0 auto' }}>
+    <div className="ns-invest-page" style={{ padding: '24px 32px 120px', maxWidth: 1180, margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 0 }}>
+      <div className="ns-invest-header" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 0 }}>
         <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Portfolio</div>
+          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>投資組合</div>
           <h1 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>投資</h1>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="ns-invest-header-actions" style={{ display: 'flex', gap: 8 }}>
           <Button variant="outline" onClick={refreshLatestQuotes} loading={refreshQuotes.isPending}>
             <ArrowsClockwise size={14} />{refreshQuotes.isPending ? "更新中" : "更新報價"}
           </Button>
           <Button onClick={() => setAddOpen(true)}>
-            <PlusCircle size={14} weight="bold" />Buy / Sell
+            <PlusCircle size={14} weight="bold" />新增交易
           </Button>
         </div>
       </div>
@@ -328,7 +342,7 @@ export function InvestmentsRoute() {
       ) : null}
 
       {/* Page-level tabs: 持倉 | 交易紀錄 | 定期定額 */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--ns-border)', marginTop: 20, marginBottom: 22 }}>
+      <div className="ns-page-tabs" style={{ display: 'flex', borderBottom: '1px solid var(--ns-border)', marginTop: 20, marginBottom: 22 }}>
         {[
           { id: 'portfolio', label: '持倉', active: tab === 'portfolio' },
           { id: 'transactions', label: '交易紀錄', active: tab === 'transactions' },
@@ -351,19 +365,19 @@ export function InvestmentsRoute() {
           {/* 6 KPI tiles only split into 6 columns at 2xl (≥1536px); at 13"
               (~1280px) stay at 3 columns so compact values like "NT$2.43萬"
               never clip. */}
-          <div className="ns-holdings-kpis grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-4 mb-5">
+          <div className="ns-holdings-kpis ns-invest-kpi-grid mb-5">
             {([
               // [label, compact display, exact value (tooltip), pct, positive]
-              ['Market value', `NT$${formatCompactNumber(totalValue)}`, `NT$${formatNumber(totalValue)}`, '', true],
-              ['Cost basis', `NT$${formatCompactNumber(totalCost)}`, `NT$${formatNumber(totalCost)}`, '', true],
-              ['Unrealized P/L', `NT$${formatCompactNumber(Math.abs(totalPnL))}`, `NT$${formatNumber(Math.abs(totalPnL))}`, totalPnL >= 0 ? `+${returnPct.toFixed(2)}%` : `${returnPct.toFixed(2)}%`, totalPnL >= 0],
+              ['目前市值', `NT$${formatCompactNumber(totalValue)}`, `NT$${formatNumber(totalValue)}`, '', true],
+              ['投入成本', `NT$${formatCompactNumber(totalCost)}`, `NT$${formatNumber(totalCost)}`, '', true],
+              ['未實現損益', `NT$${formatCompactNumber(Math.abs(totalPnL))}`, `NT$${formatNumber(Math.abs(totalPnL))}`, totalPnL >= 0 ? `+${returnPct.toFixed(2)}%` : `${returnPct.toFixed(2)}%`, totalPnL >= 0],
               ['年化報酬 XIRR',
                 (portfolioXirr.value === null || !portfolioXirr.reliable) ? '–' : `${portfolioXirr.value >= 0 ? '+' : ''}${(portfolioXirr.value * 100).toFixed(2)}%`,
                 portfolioXirr.value !== null && !portfolioXirr.reliable ? `持有期間少於 ${XIRR_MIN_DAYS} 天，年化報酬不具參考意義` : '資金加權年化報酬（含買賣、配息、手續費）',
                 '',
                 portfolioXirr.value === null ? true : portfolioXirr.value >= 0],
-              ['Realized YTD', `NT$${formatCompactNumber(Math.abs(realizedYTD))}`, `NT$${formatNumber(Math.abs(realizedYTD))}`, realizedYTD >= 0 ? '' : 'Loss', realizedYTD >= 0],
-              ['Dividends YTD', `NT$${formatCompactNumber(dividendsYTD)}`, `NT$${formatNumber(dividendsYTD)}`, '', true],
+              ['今年已實現', `NT$${formatCompactNumber(Math.abs(realizedYTD))}`, `NT$${formatNumber(Math.abs(realizedYTD))}`, realizedYTD >= 0 ? '' : '虧損', realizedYTD >= 0],
+              ['今年股利', `NT$${formatCompactNumber(dividendsYTD)}`, `NT$${formatNumber(dividendsYTD)}`, '', true],
             ] as const).map(([label, val, exact, pct, pos], i) => (
               <CossCard key={i} className="p-4 sm:p-5 min-w-0">
                 <div className="ns-eyebrow" style={{ marginBottom: 8, flexShrink: 0 }}>{label}</div>
@@ -407,6 +421,7 @@ export function InvestmentsRoute() {
           manualSnapshots={manualSnapshotRows}
           toPrimary={toPrimary}
           benchmarkTicker={benchmarkTicker}
+          primaryCurrency={primaryCurrency}
           onBackfillHoldings={backfillHistoricalPrices}
           onEnsureBenchmark={ensureBenchmarkHistory}
           backfilling={refreshDailyPrices.isPending}
@@ -418,7 +433,7 @@ export function InvestmentsRoute() {
         onClose={() => setAddOpen(false)}
         accounts={accountRows}
         portfolioAssets={assetRows}
-        title="New transaction"
+        title="新增交易"
         initialMode="transaction"
       />
     </div>
@@ -867,10 +882,10 @@ function HoldingsAllocation({ positions, assetsById, nameLocale, toPrimary, prim
   if (data.length === 0) return null;
 
   return (
-    <CossCard style={{ padding: 20, marginBottom: 20 }}>
-      <div className="ns-eyebrow" style={{ marginBottom: 14 }}>Allocation · 持倉配置</div>
-      <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
-        <div style={{ width: 168, height: 168, flexShrink: 0 }}>
+    <CossCard className="ns-holdings-allocation" style={{ padding: 20, marginBottom: 20 }}>
+      <div className="ns-eyebrow" style={{ marginBottom: 14 }}>持倉配置</div>
+      <div className="ns-holdings-allocation-body">
+        <div className="ns-holdings-allocation-chart">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie data={data} dataKey="value" nameKey="name" innerRadius={50} outerRadius={82} paddingAngle={2} stroke="none">
@@ -885,7 +900,7 @@ function HoldingsAllocation({ positions, assetsById, nameLocale, toPrimary, prim
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <div style={{ flex: 1, minWidth: 220, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: "9px 20px" }}>
+        <div className="ns-holdings-allocation-list">
           {data.map((d, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, minWidth: 0 }}>
               <span style={{ width: 9, height: 9, borderRadius: 2, background: ALLOCATION_COLORS[i % ALLOCATION_COLORS.length], flexShrink: 0 }} />
@@ -1063,15 +1078,14 @@ function HoldingsTab({
         title={<span>持倉 ({filteredPositions.length})</span>}
         action={
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <select
-              className="ns-input"
-              style={{ width: 160, height: 32, fontSize: 13, padding: '0 8px' }}
+            <AccountFilter
+              accounts={accounts}
               value={filterAccount}
-              onChange={e => setFilterAccount(e.target.value)}
-            >
-              <option value="all">所有券商</option>
-              {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
+              onChange={setFilterAccount}
+              allLabel="所有券商"
+              placeholder="選擇券商"
+              style={{ width: 160, height: 32, maxWidth: 160, fontSize: 13 }}
+            />
             <Popover>
               <PopoverTrigger
                 className="inline-flex items-center gap-1.5 rounded-lg border px-3 text-sm font-medium"

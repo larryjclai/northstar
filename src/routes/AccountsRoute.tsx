@@ -5,6 +5,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popove
 import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
+import { AppSelect } from "../components/AppSelect";
 import { IconPicker } from "../components/IconPicker";
 import { Glyph, DEFAULT_ACCOUNT_ICON } from "../lib/icons";
 import { downloadCsv, exportAccountsCsv } from "../data/csv";
@@ -511,7 +512,7 @@ function AccountDrawer({
         <div style={{ flex: 1, overflow: "auto", padding: "24px" }}>
           {step === 0 && !isEditing && (
             <div>
-              <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Step 1 of 4</div>
+              <div className="ns-eyebrow" style={{ marginBottom: 6 }}>步驟 1 / 4</div>
               <h3 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 20, fontWeight: 600, margin: '0 0 6px' }}>選擇帳戶類型</h3>
               <p className="muted" style={{ fontSize: 13, margin: '0 0 20px', lineHeight: 1.5 }}>帳戶類型決定記帳方式與報表歸類，之後仍可更改。</p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -542,7 +543,7 @@ function AccountDrawer({
 
           {step === 1 && (
             <div>
-              {!isEditing && <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Step 2 of 4</div>}
+              {!isEditing && <div className="ns-eyebrow" style={{ marginBottom: 6 }}>步驟 2 / 4</div>}
               <h3 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 20, fontWeight: 600, margin: '0 0 6px' }}>
                 {isEditing ? "帳戶基本資料" : "帳戶基本資料"}
               </h3>
@@ -552,9 +553,13 @@ function AccountDrawer({
                   <input className="ns-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="例：玉山活存、富邦證券" />
                 </DrawerField>
                 <DrawerField label="幣別">
-                  <select className="ns-input" style={{ appearance: "none" }} value={selectedCurrency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
-                    {currencyOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  <AppSelect
+                    value={selectedCurrency}
+                    onChange={(currency) => setForm({ ...form, currency })}
+                    options={currencyOptions.map((currency) => ({ value: currency, label: currency }))}
+                    searchPlaceholder="搜尋幣別…"
+                    style={{ width: "100%", height: 40 }}
+                  />
                 </DrawerField>
                 <DrawerField label="自訂群組（選填）">
                   <input className="ns-input" value={form.customGroup} onChange={(e) => setForm({ ...form, customGroup: e.target.value })} placeholder="例：台灣、海外、家庭" />
@@ -625,7 +630,7 @@ function AccountDrawer({
 
           {step === 2 && (
             <div>
-              <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Step 3 of 4</div>
+              <div className="ns-eyebrow" style={{ marginBottom: 6 }}>步驟 3 / 4</div>
               <h3 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 20, fontWeight: 600, margin: '0 0 6px' }}>初始餘額與匯入</h3>
               <p className="muted" style={{ fontSize: 13, margin: '0 0 18px', lineHeight: 1.5 }}>
                 設定今天的帳戶餘額。也可以直接匯入 CSV 交易紀錄。

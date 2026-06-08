@@ -151,11 +151,23 @@ export interface PortfolioAssetDraft {
   industry?: string | null;
 }
 
+type AssetClassificationInput = Pick<PortfolioAssetDraft, "assetType" | "sector" | "industry"> & {
+  nameZh?: string | null;
+  nameEn?: string | null;
+};
+
 export interface ManualPriceSnapshotDraft {
   assetId: string;
   date: string;
   price: number;
   note: string;
+}
+
+type ImportMeta = { importRow?: number; importLabel?: string };
+
+export interface InvestmentActivityImportDraft {
+  investments: Array<InvestmentDraft & ImportMeta>;
+  cash: Array<LedgerDraft & ImportMeta>;
 }
 
 export interface FinancialGoalDraft {
@@ -209,13 +221,14 @@ export interface FinanceRepository {
   listPortfolioAssets(): Promise<PortfolioAsset[]>;
   createManualHolding(input: PortfolioAssetDraft): Promise<void>;
   updateManualHolding(id: string, input: PortfolioAssetDraft): Promise<void>;
-  updateAssetClassification(id: string, input: Pick<PortfolioAssetDraft, "assetType" | "sector" | "industry">): Promise<void>;
+  updateAssetClassification(id: string, input: AssetClassificationInput): Promise<void>;
   deleteManualHolding(id: string): Promise<void>;
   listInvestmentRecords(): Promise<InvestmentRecord[]>;
   createInvestmentRecord(input: InvestmentDraft): Promise<void>;
   updateInvestmentRecord(id: string, input: InvestmentDraft): Promise<void>;
   deleteInvestmentRecord(id: string): Promise<void>;
   importInvestmentRecords(rows: InvestmentDraft[]): Promise<void>;
+  importInvestmentActivity(input: InvestmentActivityImportDraft): Promise<void>;
   listRecurringTransactions(): Promise<RecurringTransaction[]>;
   createRecurringTransaction(input: RecurringDraft): Promise<void>;
   updateRecurringTransaction(id: string, input: RecurringDraft): Promise<void>;
@@ -780,9 +793,17 @@ class BrowserFinanceRepository implements FinanceRepository {
     await this.persist();
   }
 
-  async updateAssetClassification(id: string, input: Pick<PortfolioAssetDraft, "assetType" | "sector" | "industry">) {
+  async updateAssetClassification(id: string, input: AssetClassificationInput) {
+    const classification = assetClassificationFields(input);
     this.data.portfolioAssets = this.data.portfolioAssets.map((asset) =>
-      asset.id === id && asset.deletedAt === null ? bump({ ...asset, ...assetClassificationFields(input) }) : asset,
+      asset.id === id && asset.deletedAt === null
+        ? bump({
+            ...asset,
+            ...classification,
+            nameZh: input.nameZh ?? asset.nameZh ?? null,
+            nameEn: input.nameEn ?? asset.nameEn ?? null,
+          })
+        : asset,
     );
     await this.persist();
   }
@@ -879,6 +900,38 @@ class BrowserFinanceRepository implements FinanceRepository {
         this.data.ledgerTransactions.push(ledger);
       }
       this.data.investmentRecords.push(record);
+    }
+    this.recompute();
+    await this.persist();
+  }
+
+  async importInvestmentActivity(input: InvestmentActivityImportDraft) {
+    const rows = [
+      ...input.cash.map((row) => ({ kind: "cash" as const, row })),
+      ...input.investments.map((row) => ({ kind: "investment" as const, row })),
+    ].sort((a, b) => (a.row.importRow ?? Number.MAX_SAFE_INTEGER) - (b.row.importRow ?? Number.MAX_SAFE_INTEGER));
+
+    for (const item of rows) {
+      try {
+        if (item.kind === "cash") {
+          assertLedgerInvariants(item.row, this.data.accounts, { allowTransfer: item.row.entryType === "transfer" });
+          this.data.ledgerTransactions.push(createLedgerRow(item.row));
+        } else {
+          const row = item.row;
+          const existingAsset = this.findTransactionAsset(row) ?? this.findManualAsset(row);
+          this.validateInvestmentDraft(row, existingAsset);
+          const asset = this.findOrCreateAsset(row);
+          const record = createInvestmentRow(row, asset.id);
+          const ledger = createInvestmentLedgerRow(row, record.id);
+          if (ledger) {
+            record.linkedLedgerTransactionId = ledger.id;
+            this.data.ledgerTransactions.push(ledger);
+          }
+          this.data.investmentRecords.push(record);
+        }
+      } catch (error) {
+        throw formatImportError(item.row, error);
+      }
     }
     this.recompute();
     await this.persist();
@@ -2102,11 +2155,14 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     });
   }
 
-  override async updateAssetClassification(id: string, input: Pick<PortfolioAssetDraft, "assetType" | "sector" | "industry">) {
+  override async updateAssetClassification(id: string, input: AssetClassificationInput) {
     const classification = assetClassificationFields(input);
     await this.db.execute(
-      `update portfolio_assets set revision = revision + 1, updated_at = $1, asset_type = $2, sector = $3, industry = $4 where id = $5 and deleted_at is null`,
-      [nowIso(), classification.assetType, classification.sector, classification.industry, id],
+      `update portfolio_assets
+       set revision = revision + 1, updated_at = $1, asset_type = $2, sector = $3, industry = $4,
+           name_zh = coalesce($5, name_zh), name_en = coalesce($6, name_en)
+       where id = $7 and deleted_at is null`,
+      [nowIso(), classification.assetType, classification.sector, classification.industry, input.nameZh ?? null, input.nameEn ?? null, id],
     );
   }
 
@@ -2239,6 +2295,44 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
           await this.insertLedgerRow(ledger);
         }
         await this.insertInvestmentRow(record);
+      }
+      await this.recomputeSqliteAccounts();
+      await this.recomputeSqliteAssets();
+    });
+  }
+
+  override async importInvestmentActivity(input: InvestmentActivityImportDraft) {
+    const accounts = await this.listAccounts();
+    const rows = [
+      ...input.cash.map((row) => ({ kind: "cash" as const, row })),
+      ...input.investments.map((row) => ({ kind: "investment" as const, row })),
+    ].sort((a, b) => (a.row.importRow ?? Number.MAX_SAFE_INTEGER) - (b.row.importRow ?? Number.MAX_SAFE_INTEGER));
+
+    await this.withTransaction(async () => {
+      for (const item of rows) {
+        try {
+          if (item.kind === "cash") {
+            assertLedgerInvariants(item.row, accounts, { allowTransfer: item.row.entryType === "transfer" });
+            await this.insertLedgerRow(createLedgerRow(item.row));
+          } else {
+            const row = item.row;
+            const rowTicker = row.ticker.trim().toUpperCase();
+            const txAssetId = await this.findSqliteTransactionAssetId(row);
+            const manualId = !txAssetId ? (await this.findSqliteManualAsset(rowTicker, row.linkedAccountId ?? null))?.id : undefined;
+            const existingAssetId = txAssetId ?? manualId;
+            await this.validateSqliteInvestmentDraft(row, existingAssetId);
+            const assetId = await this.findOrCreateSqliteAsset(row);
+            const record = createInvestmentRow(row, assetId);
+            const ledger = createInvestmentLedgerRow(row, record.id);
+            if (ledger) {
+              record.linkedLedgerTransactionId = ledger.id;
+              await this.insertLedgerRow(ledger);
+            }
+            await this.insertInvestmentRow(record);
+          }
+        } catch (error) {
+          throw formatImportError(item.row, error);
+        }
       }
       await this.recomputeSqliteAccounts();
       await this.recomputeSqliteAssets();
@@ -4330,6 +4424,13 @@ function createLedgerRow(input: LedgerDraft & { recurringRuleId?: string | null 
     recurringRuleId: input.recurringRuleId ?? null,
     recurringOccurrenceKey: input.recurringOccurrenceKey ?? null,
   };
+}
+
+function formatImportError(row: ImportMeta, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "無效資料");
+  const prefix = row.importRow ? `第 ${row.importRow} 列` : "匯入資料";
+  const label = row.importLabel ? `（${row.importLabel}）` : "";
+  return new Error(`${prefix}${label}：${message}`);
 }
 
 function recurringKey(ruleId: string, occurrenceDate: string) {

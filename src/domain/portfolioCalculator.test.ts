@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildHoldingPositions, buildHoldingPositionsByAccount } from "./portfolioCalculator";
-import type { InvestmentRecord, PortfolioAsset } from "./types";
+import type { DailyPrice, InvestmentRecord, PortfolioAsset } from "./types";
 
 const manualAsset: PortfolioAsset = {
   id: "asset_manual",
@@ -107,5 +107,41 @@ describe("portfolio calculator", () => {
     expect(positions).toHaveLength(1);
     expect(positions[0].accountId).toBe("acct_test");
     expect(positions[0].quantity).toBe(3000);
+  });
+});
+
+describe("portfolio calculator — daily-close valuation fallback", () => {
+  const closeRow = (date: string, value: number): DailyPrice => ({
+    ticker: "0050.TW",
+    date,
+    close: value,
+    currency: "TWD",
+    source: "test",
+    updatedAt: `${date}T00:00:00.000Z`,
+  });
+  const valuation = { dailyPrices: [closeRow("2026-06-06", 58)], asOf: "2026-06-08" };
+
+  it("values an unquoted holding at its latest daily close instead of zero", () => {
+    const [position] = buildHoldingPositionsByAccount([manualAsset], [], {}, valuation);
+    expect(position.marketPrice).toBe(58);
+    expect(position.marketValue).toBe(3000 * 58);
+  });
+
+  it("falls back to average cost (honest 0 P/L) when there is no quote or close", () => {
+    const [position] = buildHoldingPositionsByAccount([manualAsset], [], {}, { dailyPrices: [], asOf: "2026-06-08" });
+    expect(position.marketPrice).toBeNull();
+    expect(position.marketValue).toBe(3000 * 50);
+    expect(position.unrealizedGain).toBe(0);
+  });
+
+  it("still prefers a live quote over the daily close", () => {
+    const [position] = buildHoldingPositionsByAccount(
+      [manualAsset],
+      [],
+      { "0050.TW": { symbol: "0050.TW", price: 60, currency: "TWD" } },
+      valuation,
+    );
+    expect(position.marketPrice).toBe(60);
+    expect(position.marketValue).toBe(3000 * 60);
   });
 });

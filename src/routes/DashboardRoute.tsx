@@ -20,6 +20,9 @@ import {
   buildOutstandingSettlements,
   buildPortfolioValueSeries,
   buildBenchmarkSeries,
+  buildDailyPriceLookup,
+  priceAssetOnDate,
+  holdingsMarketValue,
   alignByDate,
   cumulativeReturnPct,
   dayChangeMovers,
@@ -34,6 +37,7 @@ import {
   type Mover,
   type Account,
   type AppSettings,
+  type DailyPrice,
   type DailyFxRate,
   type FinancialGoal,
   type InvestmentRecord,
@@ -41,10 +45,11 @@ import {
   type PortfolioAsset,
   todayInTimezone,
 } from "../domain";
-import { useRefreshQuotes, useRefreshFxRates } from "../features/market-data/useMarketRefresh";
+import { useRefreshQuotes, useRefreshFxRates, useRefreshDailyPrices } from "../features/market-data/useMarketRefresh";
 import { useState } from "react";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { useUiPreferences } from "../state/uiPreferences";
+import { buildQuoteLookup, findQuoteForTicker, quoteLookupKeys } from "../domain/marketSymbols";
 
 type StripPeriod = "1W" | "1M" | "3M" | "YTD" | "1Y";
 
@@ -72,6 +77,7 @@ export function DashboardRoute() {
   const { accounts, ledger, assets, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots, recurring, recurringInvestments, financialGoals, investments } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
   const refreshFxRates = useRefreshFxRates();
+  const refreshDailyPrices = useRefreshDailyPrices();
   const timezone = useUiPreferences((state) => state.timezone);
   const nameLocale = useUiPreferences((state) => state.nameLocale);
   const benchmarkTicker = useUiPreferences((state) => state.benchmarkTicker);
@@ -112,12 +118,13 @@ export function DashboardRoute() {
   const { primaryCurrency, toPrimary } = createFxConverter(appSettings, fxHistory);
 
   // "更新" refreshes stock quotes and FX rates together (B6).
-  const refreshingMarket = refreshQuotes.isPending || refreshFxRates.isPending;
+  const refreshingMarket = refreshQuotes.isPending || refreshFxRates.isPending || refreshDailyPrices.isPending;
   async function refreshMarket() {
     const tickers = assetRows.map((a) => a.ticker);
     const pairs = (appSettings?.exchangeRates ?? []).map((r) => ({ from: r.from, to: r.to || primaryCurrency }));
     const tasks: Promise<unknown>[] = [];
     if (tickers.length) tasks.push(refreshQuotes.mutateAsync(tickers));
+    if (tickers.length) tasks.push(refreshDailyPrices.mutateAsync({ tickers, range: "1y" }));
     if (pairs.length) tasks.push(refreshFxRates.mutateAsync({ pairs, range: "1y" }));
     if (!tasks.length) return;
     const results = await Promise.allSettled(tasks);
@@ -138,13 +145,20 @@ export function DashboardRoute() {
   }, [accountRows, ledgerRows, assetRows, quoteRows, primaryCurrency, appSettings, fxHistory]);
   const filteredAccounts = selectedAccount === "all" ? accountRows : accountRows.filter(a => a.id === selectedAccount);
 
-  const quoteFor = (ticker: string) => quoteRows.find((quote) => quote.symbol.toUpperCase() === ticker.toUpperCase());
+  const quoteLookup = useMemo(() => buildQuoteLookup(quoteRows), [quoteRows]);
+  const quoteFor = (ticker: string) => findQuoteForTicker(quoteLookup, ticker);
   const filteredAssets = selectedAccount === "all" ? assetRows : assetRows.filter(a => a.accountId === selectedAccount);
-  const marketValue = filteredAssets.reduce((sum, asset) => {
-    const quote = quoteFor(asset.ticker);
-    const value = quote ? quote.price * asset.totalQuantity : asset.averageCost * asset.totalQuantity;
-    return sum + toPrimary(value, quote?.currency ?? asset.currency);
-  }, 0);
+
+  // Single valuation context shared by the KPI market value, the allocation
+  // donut, and the net-worth trend endpoint so all three agree: live quote →
+  // latest daily close → average cost (see domain/valuation).
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const dailyPriceLookup = useMemo(() => buildDailyPriceLookup(dailyPriceRows), [dailyPriceRows]);
+  const marketValue = holdingsMarketValue(filteredAssets, todayIso, toPrimary, {
+    todayIso,
+    dailyPriceLookup,
+    quoteFor,
+  });
 
   // Reconciling partition: 資產 − 負債 = 淨值 always holds.
   const breakdown = buildNetWorthBreakdown(filteredAccounts, marketValue, toPrimary);
@@ -172,9 +186,9 @@ export function DashboardRoute() {
       selectedAccount === "all" ? ledgerRows : ledgerRows.filter(r => r.accountId === selectedAccount),
       selectedAccount === "all" ? assetRows : assetRows.filter(a => a.accountId === selectedAccount),
       selectedAccount === "all" ? investmentRows : investmentRows.filter(r => r.linkedAccountId === selectedAccount),
-      quoteRows, appSettings, fxHistory
+      quoteRows, dailyPriceRows, appSettings, fxHistory
     ),
-    [accountRows, ledgerRows, assetRows, investmentRows, quoteRows, appSettings, fxHistory],
+    [accountRows, ledgerRows, assetRows, investmentRows, quoteRows, dailyPriceRows, appSettings, fxHistory],
   );
   const prevValue = trend.length >= 2 ? trend[trend.length - 2].value : 0;
   const lastValue = trend.length >= 1 ? trend[trend.length - 1].value : netWorth;
@@ -220,8 +234,8 @@ export function DashboardRoute() {
   const allocation = useMemo(() => {
     const byClass = new Map<string, number>();
     for (const asset of filteredAssets) {
-      const quote = quoteFor(asset.ticker);
-      const value = toPrimary((quote ? quote.price : asset.averageCost) * asset.totalQuantity, quote?.currency ?? asset.currency);
+      const price = priceAssetOnDate(asset, todayIso, { todayIso, dailyPriceLookup, quote: quoteFor(asset.ticker) });
+      const value = toPrimary(price.value * asset.totalQuantity, price.currency, todayIso);
       if (value <= 0) continue;
       const label = asset.assetType ? assetTypeLabels[asset.assetType] : "其他";
       byClass.set(label, (byClass.get(label) ?? 0) + value);
@@ -232,7 +246,7 @@ export function DashboardRoute() {
     return [...byClass.entries()]
       .map(([label, value], i) => ({ label, value, color: CHART_COLORS[i % CHART_COLORS.length], pct: total > 0 ? (value / total) * 100 : 0 }))
       .sort((a, b) => b.value - a.value);
-  }, [filteredAssets, quoteRows, availableCash, alternativeAssets, toPrimary]);
+  }, [filteredAssets, quoteRows, availableCash, alternativeAssets, toPrimary, dailyPriceLookup, todayIso]);
 
   // Investment positions (current holdings) for the fixed-basket analytics that
   // power the Portfolio Strip. Mirror the page's account filter so the strip
@@ -761,8 +775,8 @@ export function DashboardRoute() {
       </div>
 
       {/* Row 4 · Recent activity + Top Movers (shared row so neither is cramped) */}
-      <div className={heldAssetCount > 0 ? "grid gap-4 items-start lg:grid-cols-[1.7fr_1fr]" : ""} style={{ marginBottom: 16 }}>
-      <Card>
+      <div className={heldAssetCount > 0 ? "ns-dash-activity-grid" : ""} style={{ marginBottom: 16 }}>
+      <Card className="ns-dash-activity-card">
         <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
           <div>
             <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Recent activity</div>
@@ -895,7 +909,7 @@ function MoverColumn({ label, tone, movers }: { label: string; tone: "pos" | "ne
 function TopMoversCard({ gainers, losers }: { gainers: Mover[]; losers: Mover[] }) {
   const empty = gainers.length === 0 && losers.length === 0;
   return (
-    <Card style={{ padding: 0 }}>
+    <Card className="ns-dash-activity-card" style={{ padding: 0 }}>
       <div style={{ padding: "14px 18px 10px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
         <div>
           <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Today</div>
@@ -947,6 +961,7 @@ function buildNetWorthTrend(
   assets: PortfolioAsset[],
   investments: InvestmentRecord[],
   quotes: StoredMarketQuote[],
+  dailyPrices: DailyPrice[],
   settings: AppSettings | undefined,
   dailyFxRates: DailyFxRate[],
 ) {
@@ -973,6 +988,7 @@ function buildNetWorthTrend(
   const labelOf = (key: string) => (granularity === "month" ? formatMonth(key) : formatDay(key));
   // Sortable ISO date per bucket so the period control can slice the chart.
   const isoOf = (key: string) => (granularity === "month" ? `${key}-01` : key);
+  const valuationDateOf = (key: string) => (granularity === "month" ? monthEndIso(key) : key);
 
   // Cash side: opening balances + every settled ledger movement (which already
   // includes the cash leg of investment buys/sells).
@@ -1000,63 +1016,81 @@ function buildNetWorthTrend(
     cashDelta.set(key, (cashDelta.get(key) ?? 0) + toPrimary(delta, row.currency, row.date));
   }
 
-  // Holdings side: value every holding at its *current* market price across the
-  // whole series (mark-to-market throughout). Paired with the cash leg of each
-  // buy/sell, the running holdings line ends exactly at today's market value, so
-  // the trend closes on the hero net-worth number with no "flat cost basis then
-  // jump to market" spike. We lack historical prices, so older points apply
-  // today's price retroactively — the standard, far-less-misleading fallback.
-  const quoteFor = (ticker: string) => quotes.find((quote) => quote.symbol.toUpperCase() === ticker.toUpperCase());
+  // Holdings side: rebuild quantity by bucket, then mark that quantity using the
+  // latest daily close available on/before that bucket. This is the missing piece
+  // for a real net-worth curve; current quotes are only a fallback when no daily
+  // snapshot exists for a symbol/date.
+  const quoteLookup = buildQuoteLookup(quotes);
+  const quoteFor = (ticker: string) => findQuoteForTicker(quoteLookup, ticker);
+  const dailyPriceLookup = buildDailyPriceLookup(dailyPrices);
   const recordsByAsset = new Map<string, InvestmentRecord[]>();
   for (const record of investments) {
     if (record.deletedAt !== null) continue;
     recordsByAsset.set(record.assetId, [...(recordsByAsset.get(record.assetId) ?? []), record]);
   }
-  const holdingsValueDelta = new Map<string, number>();
-  for (const asset of assets) {
-    const quote = quoteFor(asset.ticker);
-    const pricePerShare = quote ? quote.price : asset.averageCost;
-    const currency = quote?.currency ?? asset.currency;
-    const assetValue = toPrimary(pricePerShare * asset.totalQuantity, currency);
+  const quantityEvents = new Map<string, Map<string, number>>();
+  const addQuantityEvent = (assetId: string, date: string, delta: number) => {
+    if (delta === 0) return;
+    const key = keyOf(date);
+    const bucket = quantityEvents.get(key) ?? new Map<string, number>();
+    bucket.set(assetId, (bucket.get(assetId) ?? 0) + delta);
+    quantityEvents.set(key, bucket);
+  };
 
+  for (const asset of assets) {
     const qtyTimeline = buildQuantityTimeline(recordsByAsset.get(asset.id) ?? []);
-    let accrued = 0;
-    let lastKey = keyOf(dateOnly(asset.acquisitionDate || asset.createdAt));
-    for (const { date, delta } of qtyTimeline) {
-      const key = keyOf(date);
-      const valueDelta = toPrimary(delta * pricePerShare, currency);
-      holdingsValueDelta.set(key, (holdingsValueDelta.get(key) ?? 0) + valueDelta);
-      accrued += valueDelta;
-      lastKey = key;
-    }
-    // Reconcile rounding and manual holdings (no records → empty timeline) so the
-    // accrued series lands exactly on the asset's current market value.
-    const residual = assetValue - accrued;
-    if (Math.abs(residual) > 1e-6) {
-      holdingsValueDelta.set(lastKey, (holdingsValueDelta.get(lastKey) ?? 0) + residual);
+    if (qtyTimeline.length > 0) {
+      for (const { date, delta } of qtyTimeline) addQuantityEvent(asset.id, date, delta);
+    } else if (asset.totalQuantity !== 0) {
+      addQuantityEvent(asset.id, dateOnly(asset.acquisitionDate || asset.createdAt), asset.totalQuantity);
     }
   }
 
   const startKey = keyOf(earliest);
-  const orderedKeys = [...new Set([startKey, ...cashDelta.keys(), ...holdingsValueDelta.keys()])].sort();
+  const todayIso = dateOnly(now.toISOString());
+  const todayKey = keyOf(todayIso);
+  const relevantTickers = new Set(assets.flatMap((asset) => quoteLookupKeys(asset.ticker)));
+  const priceKeys = dailyPrices
+    .filter((row) => relevantTickers.has(row.ticker.trim().toUpperCase()))
+    .map((row) => keyOf(row.date));
+  const orderedKeys = [...new Set([startKey, todayKey, ...cashDelta.keys(), ...quantityEvents.keys(), ...priceKeys])].sort();
 
   let cashRunning = 0;
-  let holdingsRunning = 0;
+  const quantities = new Map<string, number>();
   const timeline: Array<{ date: string; value: number; iso: string }> = [];
   for (const key of orderedKeys) {
     cashRunning += cashDelta.get(key) ?? 0;
-    holdingsRunning += holdingsValueDelta.get(key) ?? 0;
-    timeline.push({ date: labelOf(key), value: cashRunning + holdingsRunning, iso: isoOf(key) });
+    const events = quantityEvents.get(key);
+    if (events) {
+      for (const [assetId, delta] of events) {
+        quantities.set(assetId, (quantities.get(assetId) ?? 0) + delta);
+      }
+    }
+    const valuationDate = valuationDateOf(key);
+    const holdingsValue = assets.reduce((sum, asset) => {
+      const quantity = quantities.get(asset.id) ?? 0;
+      if (Math.abs(quantity) < 1e-9) return sum;
+      const quote = quoteFor(asset.ticker);
+      const price = priceAssetOnDate(asset, valuationDate, { todayIso, dailyPriceLookup, quote });
+      return sum + toPrimary(price.value * quantity, price.currency, valuationDate);
+    }, 0);
+    timeline.push({ date: labelOf(key), value: cashRunning + holdingsValue, iso: isoOf(key) });
   }
 
   // The series already ends at today's net worth, so we don't bolt on a separate
   // "現在" point that would duplicate today's bucket. Only extend a flat segment
   // to "現在" when the last bucket predates today; a lone bucket gets a second
   // point so the chart still draws a line (B5).
-  const todayKey = keyOf(dateOnly(now.toISOString()));
   const lastKey = orderedKeys[orderedKeys.length - 1];
   if (timeline.length === 1 || (timeline.length > 1 && lastKey !== todayKey)) {
-    timeline.push({ date: "現在", value: cashRunning + holdingsRunning, iso: dateOnly(now.toISOString()) });
+    const holdingsValue = assets.reduce((sum, asset) => {
+      const quantity = quantities.get(asset.id) ?? 0;
+      if (Math.abs(quantity) < 1e-9) return sum;
+      const quote = quoteFor(asset.ticker);
+      const price = priceAssetOnDate(asset, todayIso, { todayIso, dailyPriceLookup, quote });
+      return sum + toPrimary(price.value * quantity, price.currency, todayIso);
+    }, 0);
+    timeline.push({ date: "現在", value: cashRunning + holdingsValue, iso: todayIso });
   }
   return timeline;
 }
@@ -1080,4 +1114,10 @@ function dateOnly(value: string | null | undefined) {
 
 function monthKey(value: string) {
   return value.slice(0, 7);
+}
+
+function monthEndIso(key: string) {
+  const [year, month] = key.split("-").map((part) => Number(part));
+  const date = new Date(year, month, 0);
+  return date.toISOString().slice(0, 10);
 }

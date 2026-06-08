@@ -4,25 +4,27 @@ import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
+import { DateScopeControl } from "../components/DateScopeControl";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 import { MiniBars, WeekdayBars, type MonthPoint } from "../components/DetailCharts";
 import { useFinanceData } from "../data/hooks";
-import { convertCurrency, formatMoney, type LedgerTransaction } from "../domain";
+import { convertCurrency, formatMoney, isWithinDateScope, makeDefaultDateScope, resolveDateScope, type LedgerTransaction } from "../domain";
+import { useUiPreferences } from "../state/uiPreferences";
 
 export function MerchantDetailRoute() {
   const { merchantName } = useParams({ strict: false }) as { merchantName: string };
   const { ledger, accounts, settings, dailyFxRates } = useFinanceData();
+  const timezone = useUiPreferences((state) => state.timezone);
   const [detailRow, setDetailRow] = useState<LedgerTransaction | null>(null);
   const [subcategoryFilter, setSubcategoryFilter] = useState("all");
+  const [dateScope, setDateScope] = useState(() => makeDefaultDateScope(timezone, "ytd"));
+  const dateRange = useMemo(() => resolveDateScope(dateScope, timezone), [dateScope, timezone]);
 
   const ledgerRows = ledger.data ?? [];
   const accountRows = accounts.data ?? [];
   const appSettings = settings.data;
   const primaryCurrency = appSettings?.primaryCurrency ?? "TWD";
   const fxHistory = dailyFxRates.data ?? [];
-  const now = new Date();
-  const year = now.getFullYear().toString();
-
   const accountName = (id: string) => accountRows.find((account) => account.id === id)?.name ?? id;
 
   const rows = useMemo(
@@ -40,30 +42,28 @@ export function MerchantDetailRoute() {
     });
   }
 
-  const ytdRows = rows.filter((row) => row.date.startsWith(year));
-  const categoryHit = mostCommon(ytdRows.map((row) => row.category).filter(Boolean));
-  const subcategoryHit = mostCommon(ytdRows.map((row) => row.subcategory).filter(Boolean));
+  const periodRows = rows.filter((row) => isWithinDateScope(row.date, dateRange));
+  const categoryHit = mostCommon(periodRows.map((row) => row.category).filter(Boolean));
+  const subcategoryHit = mostCommon(periodRows.map((row) => row.subcategory).filter(Boolean));
   const categorySetting = appSettings?.categories.find((category) => category.name === categoryHit.value);
   const categoryColor = categorySetting?.color ?? "var(--ns-accent)";
   const filterOptions = [...new Set(rows.map((row) => row.subcategory || row.category).filter(Boolean))];
-  const visibleRows = rows.filter((row) => subcategoryFilter === "all" || row.subcategory === subcategoryFilter || row.category === subcategoryFilter);
-  const ytdVisibleRows = visibleRows.filter((row) => row.date.startsWith(year));
-  const ytdTotal = ytdRows.reduce((sum, row) => sum + (convertedAmount(row) ?? 0), 0);
-  const filteredTotal = ytdVisibleRows.reduce((sum, row) => sum + (convertedAmount(row) ?? 0), 0);
-  const avgPerVisit = ytdRows.length ? ytdTotal / ytdRows.length : 0;
-  const currentMonth = now.getMonth() + 1;
-  const monthlyAverage = currentMonth > 0 ? ytdTotal / currentMonth : ytdTotal;
+  const visibleRows = periodRows.filter((row) => subcategoryFilter === "all" || row.subcategory === subcategoryFilter || row.category === subcategoryFilter);
+  const periodTotal = periodRows.reduce((sum, row) => sum + (convertedAmount(row) ?? 0), 0);
+  const filteredTotal = visibleRows.reduce((sum, row) => sum + (convertedAmount(row) ?? 0), 0);
+  const avgPerVisit = periodRows.length ? periodTotal / periodRows.length : 0;
+  const monthlyAverage = periodTotal / Math.max(1, countMonthsInRange(dateRange.start, dateRange.end));
   const monthlyData = useMemo(() => buildMonthPoints(rows, convertedAmount), [rows, appSettings, fxHistory, primaryCurrency]);
-  const weekdayData = useMemo(() => buildWeekdayData(ytdRows), [ytdRows]);
+  const weekdayData = useMemo(() => buildWeekdayData(periodRows), [periodRows]);
   const peakWeekday = weekdayData.reduce((best, item) => (item.count > best.count ? item : best), weekdayData[0]);
-  const lastVisit = ytdRows[0]?.date ?? rows[0]?.date ?? "—";
-  const accountNames = [...new Set(ytdRows.map((row) => accountName(row.accountId)))];
+  const lastVisit = periodRows[0]?.date ?? rows[0]?.date ?? "—";
+  const accountNames = [...new Set(periodRows.map((row) => accountName(row.accountId)))];
 
   const relatedMerchants = useMemo(() => {
     if (!categoryHit.value) return [];
     const map = new Map<string, { amount: number; count: number }>();
     for (const row of ledgerRows) {
-      if (row.merchant === merchantName || row.entryType !== "expense" || row.settlementStatus !== "settled" || row.category !== categoryHit.value || !row.merchant) continue;
+      if (row.merchant === merchantName || row.entryType !== "expense" || row.settlementStatus !== "settled" || row.category !== categoryHit.value || !row.merchant || !isWithinDateScope(row.date, dateRange)) continue;
       const current = map.get(row.merchant) ?? { amount: 0, count: 0 };
       current.amount += convertCurrency(Math.abs(row.amount), row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date }) ?? 0;
       current.count += 1;
@@ -73,7 +73,7 @@ export function MerchantDetailRoute() {
       .map(([name, value]) => ({ name, ...value }))
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 4);
-  }, [ledgerRows, merchantName, categoryHit.value, appSettings, fxHistory, primaryCurrency]);
+  }, [ledgerRows, merchantName, categoryHit.value, dateRange, appSettings, fxHistory, primaryCurrency]);
 
   return (
     <div className="ns-detail-page">
@@ -85,7 +85,7 @@ export function MerchantDetailRoute() {
           <div className="ns-detail-title-row">
             <Initials name={merchantName} color={categoryColor} large />
             <div className="min-w-0">
-              <div className="ns-eyebrow">Cash Flow / Merchants</div>
+              <div className="ns-eyebrow">記帳 / 商家</div>
               <h1 className="ns-detail-title">{merchantName}</h1>
               <div className="ns-pill-row">
                 {categoryHit.value ? <span className="ns-filter-pill" data-active>{categoryHit.value}</span> : null}
@@ -95,33 +95,34 @@ export function MerchantDetailRoute() {
           </div>
         </div>
         <div className="ns-detail-actions">
+          <DateScopeControl value={dateScope} onChange={setDateScope} />
           <Button variant="outline" disabled title="商家重新命名目前仍在管理流程中處理">
-            <PencilSimple size={14} />Rename
+            <PencilSimple size={14} />重新命名
           </Button>
           <Button variant="outline" disabled title="CSV 匯出尚未接上商家詳情範圍">
-            <DownloadSimple size={14} />Export
+            <DownloadSimple size={14} />匯出
           </Button>
         </div>
       </div>
 
       <div className="ns-metric-strip">
-        <InsightTile label="YTD 支出" value={formatMoney(ytdTotal, primaryCurrency)} tone="accent" />
-        <InsightTile label="消費次數" value={`${ytdRows.length} 次`} />
+        <InsightTile label={`${dateRange.label} 支出`} value={formatMoney(periodTotal, primaryCurrency)} tone="accent" />
+        <InsightTile label="消費次數" value={`${periodRows.length} 次`} />
         <InsightTile label="每次均值" value={formatMoney(avgPerVisit, primaryCurrency)} />
         <InsightTile label="月均支出" value={formatMoney(monthlyAverage, primaryCurrency)} />
       </div>
 
       <div className="ns-detail-grid">
         <div className="ns-detail-main">
-          <Panel eyebrow="Spending trend" title="月支出 · 近 6 個月">
+          <Panel eyebrow="支出趨勢" title="月支出 · 近 6 個月">
             <MiniBars data={monthlyData} color={categoryColor} currency={primaryCurrency} />
           </Panel>
 
-          <Panel eyebrow="Visit pattern" title={peakWeekday ? `${peakWeekday.name}曜日 最頻繁` : "星期分佈"}>
+          <Panel eyebrow="消費模式" title={peakWeekday ? `${peakWeekday.name}曜日 最頻繁` : "星期分佈"}>
             <WeekdayBars data={weekdayData} />
           </Panel>
 
-          <Panel eyebrow="Transactions" title={`${visibleRows.length} 筆交易紀錄`}>
+          <Panel eyebrow="交易紀錄" title={`${visibleRows.length} 筆交易紀錄`}>
             <div className="ns-pill-row ns-transaction-filter-row">
               <button type="button" className="ns-filter-pill" data-active={subcategoryFilter === "all" || undefined} onClick={() => setSubcategoryFilter("all")}>全部</button>
               {filterOptions.map((filter) => (
@@ -135,7 +136,7 @@ export function MerchantDetailRoute() {
         </div>
 
         <div className="ns-detail-side">
-          <Panel eyebrow="Auto-categorization" title="自動分類">
+          <Panel eyebrow="自動分類" title="自動分類">
             {categoryHit.value ? (
               <div className="ns-rule-hint">
                 <Sparkle size={18} />
@@ -149,11 +150,11 @@ export function MerchantDetailRoute() {
             )}
           </Panel>
 
-          <Panel eyebrow="Stats · YTD" title="商家摘要">
+          <Panel eyebrow="統計" title="商家摘要">
             <InfoList
               rows={[
-                ["Last visit", lastVisit],
-                ["Accounts used", accountNames.length ? accountNames.join("、") : "—"],
+                ["最近消費", lastVisit],
+                ["使用帳戶", accountNames.length ? accountNames.join("、") : "—"],
                 ["分類命中率", categoryHit.total ? `${((categoryHit.count / categoryHit.total) * 100).toFixed(0)}%` : "—"],
               ]}
             />
@@ -211,10 +212,10 @@ function TransactionRows({
         <table className="ns-detail-table">
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Description</th>
-              <th>Account</th>
-              <th className="text-right">Amount</th>
+              <th>日期</th>
+              <th>說明</th>
+              <th>帳戶</th>
+              <th className="text-right">金額</th>
             </tr>
           </thead>
           <tbody>
@@ -229,7 +230,7 @@ function TransactionRows({
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={3}>Total · {rows.length} transactions shown</td>
+              <td colSpan={3}>合計 · 顯示 {rows.length} 筆交易</td>
               <td className="num text-right neg">−{formatMoney(total, primaryCurrency)}</td>
             </tr>
           </tfoot>
@@ -320,6 +321,13 @@ function buildWeekdayData(rows: LedgerTransaction[]) {
     counts.set(day, (counts.get(day) ?? 0) + 1);
   }
   return [1, 2, 3, 4, 5, 6, 0].map((key) => ({ key, name: names[key], count: counts.get(key) ?? 0 }));
+}
+
+function countMonthsInRange(start: string | null, end: string | null) {
+  if (!start || !end) return 12;
+  const [startYear, startMonth] = start.split("-").map(Number);
+  const [endYear, endMonth] = end.split("-").map(Number);
+  return Math.max(1, (endYear - startYear) * 12 + (endMonth - startMonth) + 1);
 }
 
 function mostCommon(values: string[]) {

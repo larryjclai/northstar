@@ -9,6 +9,7 @@ import {
 } from "@phosphor-icons/react";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
+import { AppSelect } from "../components/AppSelect";
 import { useState } from "react";
 import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -414,17 +415,17 @@ function RuleEditSheet({
           {/* Frequency + day */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <RuleField label="週期">
-              <select
-                className="ns-input"
+              <AppSelect
                 value={form.frequency}
-                onChange={(e) => setForm({ ...form, frequency: e.target.value as RecurringDraft["frequency"] })}
-                style={{ appearance: "none" }}
-              >
-                <option value="weekly">每週</option>
-                <option value="biweekly">每兩週</option>
-                <option value="monthly">每月</option>
-                <option value="yearly">每年</option>
-              </select>
+                onChange={(frequency) => setForm({ ...form, frequency: frequency as RecurringDraft["frequency"] })}
+                options={[
+                  { value: "weekly", label: "每週" },
+                  { value: "biweekly", label: "每兩週" },
+                  { value: "monthly", label: "每月" },
+                  { value: "yearly", label: "每年" },
+                ]}
+                style={{ width: "100%", height: 40 }}
+              />
             </RuleField>
             <RuleField label="觸發日（幾號）">
               <input
@@ -441,18 +442,16 @@ function RuleEditSheet({
 
           {/* Account */}
           <RuleField label="帳戶" required>
-            <select
-              className="ns-input"
-              value={form.accountId}
-              onChange={(e) => {
-                const acct = accountRows.find((a) => a.id === e.target.value);
-                setForm({ ...form, accountId: e.target.value, currency: acct?.currency ?? form.currency });
+            <AppSelect
+              value={form.accountId || "all"}
+              onChange={(id) => {
+                const acct = accountRows.find((a) => a.id === id);
+                setForm({ ...form, accountId: id === "all" ? "" : id, currency: acct?.currency ?? form.currency });
               }}
-              style={{ appearance: "none" }}
-            >
-              <option value="">選擇帳戶</option>
-              {accountRows.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
+              options={[{ value: "all", label: "選擇帳戶" }, ...accountRows.map((account) => ({ value: account.id, label: account.name, description: account.currency }))]}
+              placeholder="選擇帳戶"
+              style={{ width: "100%", height: 40 }}
+            />
           </RuleField>
 
           {/* Category */}

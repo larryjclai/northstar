@@ -5,26 +5,29 @@ import { useMemo, useState } from "react";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
+import { DateScopeControl } from "../components/DateScopeControl";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 import { MiniBars, WeekdayBars, type MonthPoint } from "../components/DetailCharts";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { convertCurrency, formatMoney, type CategoryGroup, type LedgerTransaction } from "../domain";
+import { convertCurrency, formatMoney, isWithinDateScope, makeDefaultDateScope, resolveDateScope, type CategoryGroup, type LedgerTransaction } from "../domain";
 import { Glyph } from "../lib/icons";
+import { useUiPreferences } from "../state/uiPreferences";
 
 export function CategoryDetailRoute() {
   const { categoryName } = useParams({ strict: false }) as { categoryName: string };
   const { ledger, settings, accounts, dailyFxRates } = useFinanceData();
+  const timezone = useUiPreferences((state) => state.timezone);
   const [detailRow, setDetailRow] = useState<LedgerTransaction | null>(null);
   const [subcategoryFilter, setSubcategoryFilter] = useState("all");
   const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
+  const [dateScope, setDateScope] = useState(() => makeDefaultDateScope(timezone, "ytd"));
+  const dateRange = useMemo(() => resolveDateScope(dateScope, timezone), [dateScope, timezone]);
 
   const ledgerRows = ledger.data ?? [];
   const appSettings = settings.data;
   const primaryCurrency = appSettings?.primaryCurrency ?? "TWD";
   const fxHistory = dailyFxRates.data ?? [];
   const accountRows = accounts.data ?? [];
-  const now = new Date();
-  const year = now.getFullYear().toString();
 
   const updateSettingsMutation = useRepositoryMutation(
     (repository, categories: CategoryGroup[]) => {
@@ -57,30 +60,31 @@ export function CategoryDetailRoute() {
   );
 
   const visibleRows = useMemo(
-    () => rows.filter((row) => subcategoryFilter === "all" || (row.subcategory || "其他") === subcategoryFilter),
-    [rows, subcategoryFilter],
+    () => rows.filter((row) => isWithinDateScope(row.date, dateRange) && (subcategoryFilter === "all" || (row.subcategory || "其他") === subcategoryFilter)),
+    [rows, dateRange, subcategoryFilter],
   );
 
-  const ytdRows = rows.filter((row) => row.date.startsWith(year));
-  const ytdVisibleRows = visibleRows.filter((row) => row.date.startsWith(year));
-  const ytdTotal = ytdRows.reduce((sum, row) => sum + (convertedAmount(row) ?? 0), 0);
-  const filteredTotal = ytdVisibleRows.reduce((sum, row) => sum + (convertedAmount(row) ?? 0), 0);
-  const currentMonth = now.getMonth() + 1;
-  const monthlyAverage = currentMonth > 0 ? ytdTotal / currentMonth : ytdTotal;
-  const allYtdExpense = ledgerRows
-    .filter((row) => row.entryType === "expense" && row.settlementStatus === "settled" && !row.counterAccountId && row.date.startsWith(year))
+  const periodRows = rows.filter((row) => isWithinDateScope(row.date, dateRange));
+  const periodTotal = periodRows.reduce((sum, row) => sum + (convertedAmount(row) ?? 0), 0);
+  const filteredTotal = visibleRows.reduce((sum, row) => sum + (convertedAmount(row) ?? 0), 0);
+  const monthlyAverage = periodTotal / Math.max(1, countMonthsInRange(dateRange.start, dateRange.end));
+  const allPeriodExpense = ledgerRows
+    .filter((row) => row.entryType === "expense" && row.settlementStatus === "settled" && !row.counterAccountId && isWithinDateScope(row.date, dateRange))
     .reduce((sum, row) => sum + (convertCurrency(Math.abs(row.amount), row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date }) ?? 0), 0);
-  const share = allYtdExpense > 0 ? (ytdTotal / allYtdExpense) * 100 : 0;
+  const share = allPeriodExpense > 0 ? (periodTotal / allPeriodExpense) * 100 : 0;
 
-  const previousYearTotal = rows
-    .filter((row) => row.date.startsWith(String(Number(year) - 1)))
-    .reduce((sum, row) => sum + (convertedAmount(row) ?? 0), 0);
-  const yoy = previousYearTotal > 0 ? ((ytdTotal - previousYearTotal) / previousYearTotal) * 100 : null;
+  const previousYearRange = dateRange.start && dateRange.end ? { start: shiftYear(dateRange.start, -1), end: shiftYear(dateRange.end, -1) } : null;
+  const previousYearTotal = previousYearRange
+    ? rows
+        .filter((row) => row.date.slice(0, 10) >= previousYearRange.start && row.date.slice(0, 10) <= previousYearRange.end)
+        .reduce((sum, row) => sum + (convertedAmount(row) ?? 0), 0)
+    : 0;
+  const yoy = previousYearTotal > 0 ? ((periodTotal - previousYearTotal) / previousYearTotal) * 100 : null;
 
   const monthlyData = useMemo(() => buildMonthPoints(rows, convertedAmount), [rows, appSettings, fxHistory, primaryCurrency]);
   const subcategoryData = useMemo(() => {
     const map = new Map<string, { amount: number; count: number }>();
-    for (const row of ytdRows) {
+    for (const row of periodRows) {
       const key = row.subcategory || "其他";
       const current = map.get(key) ?? { amount: 0, count: 0 };
       current.amount += convertedAmount(row) ?? 0;
@@ -88,15 +92,15 @@ export function CategoryDetailRoute() {
       map.set(key, current);
     }
     return [...map.entries()]
-      .map(([name, value]) => ({ name, ...value, pct: ytdTotal > 0 ? (value.amount / ytdTotal) * 100 : 0 }))
+      .map(([name, value]) => ({ name, ...value, pct: periodTotal > 0 ? (value.amount / periodTotal) * 100 : 0 }))
       .sort((a, b) => b.amount - a.amount);
-  }, [ytdRows, ytdTotal, appSettings, fxHistory, primaryCurrency]);
+  }, [periodRows, periodTotal, appSettings, fxHistory, primaryCurrency]);
 
-  const weekdayData = useMemo(() => buildWeekdayData(ytdRows), [ytdRows]);
+  const weekdayData = useMemo(() => buildWeekdayData(periodRows), [periodRows]);
   const peakWeekday = weekdayData.reduce((best, item) => (item.count > best.count ? item : best), weekdayData[0]);
   const topMerchants = useMemo(() => {
     const map = new Map<string, { amount: number; count: number }>();
-    for (const row of ytdRows) {
+    for (const row of periodRows) {
       const merchant = row.merchant || "未指定商家";
       const current = map.get(merchant) ?? { amount: 0, count: 0 };
       current.amount += convertedAmount(row) ?? 0;
@@ -107,11 +111,11 @@ export function CategoryDetailRoute() {
       .map(([name, value]) => ({ name, ...value }))
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 4);
-  }, [ytdRows, appSettings, fxHistory, primaryCurrency]);
+  }, [periodRows, appSettings, fxHistory, primaryCurrency]);
 
-  const maxTransaction = ytdRows.reduce((max, row) => Math.max(max, convertedAmount(row) ?? 0), 0);
-  const accountsUsed = new Set(ytdRows.map((row) => row.accountId)).size;
-  const avgPerTransaction = ytdRows.length ? ytdTotal / ytdRows.length : 0;
+  const maxTransaction = periodRows.reduce((max, row) => Math.max(max, convertedAmount(row) ?? 0), 0);
+  const accountsUsed = new Set(periodRows.map((row) => row.accountId)).size;
+  const avgPerTransaction = periodRows.length ? periodTotal / periodRows.length : 0;
 
   return (
     <div className="ns-detail-page">
@@ -147,29 +151,30 @@ export function CategoryDetailRoute() {
           </div>
         </div>
         <div className="ns-detail-actions">
+          <DateScopeControl value={dateScope} onChange={setDateScope} />
           <Button variant="outline" onClick={() => setCategoryDrawerOpen(true)}>
             <PencilSimple size={14} />管理分類
           </Button>
           <Button variant="outline" disabled title="CSV 匯出尚未接上分類詳情範圍">
-            <DownloadSimple size={14} />Export
+            <DownloadSimple size={14} />匯出
           </Button>
         </div>
       </div>
 
       <div className="ns-metric-strip">
-        <InsightTile label="YTD 總支出" value={formatMoney(ytdTotal, primaryCurrency)} tone="accent" />
-        <InsightTile label="交易筆數" value={`${ytdRows.length} 筆`} />
+        <InsightTile label={`${dateRange.label} 總支出`} value={formatMoney(periodTotal, primaryCurrency)} tone="accent" />
+        <InsightTile label="交易筆數" value={`${periodRows.length} 筆`} />
         <InsightTile label="月均支出" value={formatMoney(monthlyAverage, primaryCurrency)} />
         <InsightTile label="佔總支出" value={`${share.toFixed(1)}%`} />
       </div>
 
       <div className="ns-detail-grid">
         <div className="ns-detail-main">
-          <Panel eyebrow="Monthly trend" title="近 6 個月支出">
+          <Panel eyebrow="月支出趨勢" title="近 6 個月支出">
             <MiniBars data={monthlyData} color={color} currency={primaryCurrency} />
           </Panel>
 
-          <Panel eyebrow="Sub-category breakdown" title="各子分類佔比">
+          <Panel eyebrow="子分類拆解" title="各子分類佔比">
             {subcategoryData.length ? (
               <div className="ns-breakdown-list">
                 {subcategoryData.map((item, index) => (
@@ -189,28 +194,28 @@ export function CategoryDetailRoute() {
                 ))}
               </div>
             ) : (
-              <EmptyPanel icon={<FolderSimple size={22} />} text="這個分類尚未累積今年支出。" />
+              <EmptyPanel icon={<FolderSimple size={22} />} text="這個分類在此期間尚無支出。" />
             )}
           </Panel>
 
-          <Panel eyebrow="Day-of-week pattern" title={peakWeekday ? `高峰：${peakWeekday.name}曜日` : "星期分佈"}>
+          <Panel eyebrow="星期分佈" title={peakWeekday ? `高峰：${peakWeekday.name}曜日` : "星期分佈"}>
             <WeekdayBars data={weekdayData} />
           </Panel>
         </div>
 
         <div className="ns-detail-side">
-          <Panel eyebrow="Statistics" title="統計">
+          <Panel eyebrow="統計" title="統計">
             <InfoList
               rows={[
                 ["每筆均消", formatMoney(avgPerTransaction, primaryCurrency)],
                 ["最高單筆", formatMoney(maxTransaction, primaryCurrency)],
-                ["YTD vs 去年同期", yoy === null ? "資料不足" : `${yoy >= 0 ? "↑ +" : "↓ "}${yoy.toFixed(1)}%`],
+                ["去年同期間", yoy === null ? "資料不足" : `${yoy >= 0 ? "↑ +" : "↓ "}${yoy.toFixed(1)}%`],
                 ["使用帳戶數", `${accountsUsed} 個帳戶`],
               ]}
             />
           </Panel>
 
-          <Panel eyebrow="Top merchants" title="此分類的商家">
+          <Panel eyebrow="商家排行" title="此分類的商家">
             {topMerchants.length ? (
               <div className="ns-compact-list">
                 {topMerchants.map((merchant) => (
@@ -237,7 +242,7 @@ export function CategoryDetailRoute() {
       </div>
 
       <TransactionsPanel
-        title="Transactions"
+        title="交易紀錄"
         rows={visibleRows}
         total={filteredTotal}
         primaryCurrency={primaryCurrency}
@@ -312,7 +317,7 @@ function TransactionsPanel({
             <table className="ns-detail-table">
               <thead>
                 <tr>
-                  <th>Date</th>
+                  <th>日期</th>
                   <th>名稱</th>
                   <th>子分類</th>
                   <th>帳戶</th>
@@ -407,6 +412,19 @@ function buildMonthPoints(rows: LedgerTransaction[], amountFor: (row: LedgerTran
       partial: index === 5,
     };
   });
+}
+
+function shiftYear(date: string, delta: number) {
+  const next = new Date(`${date}T00:00:00`);
+  next.setFullYear(next.getFullYear() + delta);
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
+}
+
+function countMonthsInRange(start: string | null, end: string | null) {
+  if (!start || !end) return 12;
+  const [startYear, startMonth] = start.split("-").map(Number);
+  const [endYear, endMonth] = end.split("-").map(Number);
+  return Math.max(1, (endYear - startYear) * 12 + (endMonth - startMonth) + 1);
 }
 
 function buildWeekdayData(rows: LedgerTransaction[]) {

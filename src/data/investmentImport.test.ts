@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseCsvTable } from "./csv";
 import {
   applyInvestmentMapping, autoDetectActivityMap, autoDetectFields, distinctValues,
-  parseImportDate, type InvestmentImportMapping,
+  parseImportDate, WITHDRAW_ACTION, type InvestmentImportMapping,
 } from "./investmentImport";
 
 // A Firstrade-style export with Chinese headers + 買進/賣出 values + MM/DD/YYYY dates.
@@ -31,6 +31,18 @@ describe("autoDetectFields", () => {
     expect(fields.name).toBe("說明");
     expect(fields.quantity).toBe("數量");
     expect(fields.price).toBe("價格");
+  });
+
+  it("recognizes Northstar activity export fields instead of the internal symbol id", () => {
+    const { headers } = parseCsvTable([
+      "id,accountId,symbol,activityType,date,quantity,unitPrice,currency,fee,amount,accountName,assetSymbol,assetName,exchangeMic",
+      "r1,a1,asset_uuid,BUY,2026-06-04T11:08:58.897+00:00,100,165,TWD,14,16500,KGI,5347,Vanguard International Semiconductor Corporation,XTAI_OTC",
+    ].join("\n"), ",");
+    const fields = autoDetectFields(headers);
+    expect(fields.action).toBe("activityType");
+    expect(fields.ticker).toBe("assetSymbol");
+    expect(fields.name).toBe("assetName");
+    expect(fields.price).toBe("unitPrice");
   });
 });
 
@@ -71,9 +83,13 @@ describe("applyInvestmentMapping", () => {
     expect(preview.invalid).toHaveLength(0);
     expect(preview.valid).toHaveLength(2);
     const buy = preview.valid[0].value;
-    expect(buy).toMatchObject({ action: "buy", ticker: "VTI", quantity: 1, date: "2026-06-05", linkedAccountId: "acc1", currency: "USD" });
+    expect(buy).toMatchObject({ kind: "investment" });
+    if (buy.kind !== "investment") throw new Error("expected investment");
+    expect(buy.draft).toMatchObject({ action: "buy", ticker: "VTI", quantity: 1, date: "2026-06-05", linkedAccountId: "acc1", currency: "USD" });
     const sell = preview.valid[1].value;
-    expect(sell).toMatchObject({ action: "sell", ticker: "BE", quantity: 2 }); // -2 → magnitude
+    expect(sell).toMatchObject({ kind: "investment" });
+    if (sell.kind !== "investment") throw new Error("expected investment");
+    expect(sell.draft).toMatchObject({ action: "sell", ticker: "BE", quantity: 2 }); // -2 → magnitude
   });
 
   it("flags unmapped action values", () => {
@@ -99,7 +115,69 @@ describe("applyInvestmentMapping", () => {
     const mapping: InvestmentImportMapping = { ...baseMapping, activityMap: { 買進: "ignore", 賣出: "sell" } };
     const preview = applyInvestmentMapping(rows, mapping, { linkedAccountId: "acc1", accountCurrency: "USD" });
     expect(preview.valid).toHaveLength(1);
-    expect(preview.valid[0].value.action).toBe("sell");
+    expect(preview.valid[0].value.kind).toBe("investment");
+    if (preview.valid[0].value.kind !== "investment") throw new Error("expected investment");
+    expect(preview.valid[0].value.draft.action).toBe("sell");
     expect(preview.invalid).toHaveLength(0);
+  });
+
+  it("imports Northstar activity exports with per-row accounts", () => {
+    const csv = [
+      "id,accountId,symbol,activityType,date,quantity,unitPrice,currency,fee,amount,accountName,assetSymbol,assetName,exchangeMic",
+      "r1,old-kgi,asset_uuid,BUY,2026-06-04T11:08:58.897+00:00,100,165,TWD,14,16500,KGI,5347,Vanguard International Semiconductor Corporation,XTAI_OTC",
+      "r2,old-kgi,,DEPOSIT,2026-06-04T11:08:21.084+00:00,,,TWD,,4000,KGI,,,",
+      "r3,old-kgi,,WITHDRAW,2026-06-05T11:08:21.084+00:00,,,TWD,,1250,KGI,,,",
+      "r4,old-first,asset_uuid2,SELL,2026-06-01T16:00:00+00:00,4,84.065,USD,,336.25,Firstrade,NFLX,Netflix Inc.,XNAS",
+    ].join("\n");
+    const { headers, rows } = parseCsvTable(csv, ",");
+    const fields = autoDetectFields(headers);
+    const mapping: InvestmentImportMapping = {
+      fields,
+      activityMap: autoDetectActivityMap(distinctValues(rows, fields.action)),
+      dateFormat: "auto",
+    };
+    const preview = applyInvestmentMapping(rows, mapping, {
+      linkedAccountId: "",
+      accountCurrency: "",
+      accounts: [
+        { id: "local-kgi", name: "KGI", type: "investment", currency: "TWD", deletedAt: null },
+        { id: "local-first", name: "Firstrade", type: "investment", currency: "USD", deletedAt: null },
+      ] as any,
+    });
+    expect(preview.invalid).toHaveLength(0);
+    expect(preview.valid).toHaveLength(4);
+    expect(preview.valid[0].value.kind).toBe("investment");
+    if (preview.valid[0].value.kind !== "investment") throw new Error("expected investment");
+    expect(preview.valid[0].value.draft).toMatchObject({
+      action: "buy",
+      ticker: "5347",
+      linkedAccountId: "local-kgi",
+      currency: "TWD",
+    });
+    expect(preview.valid[1].value.kind).toBe("cash");
+    if (preview.valid[1].value.kind !== "cash") throw new Error("expected cash");
+    expect(preview.valid[1].value.draft).toMatchObject({
+      amount: 4000,
+      accountId: "local-kgi",
+      subcategory: "入金",
+      entryType: "transfer",
+    });
+    expect(preview.valid[2].value.kind).toBe("cash");
+    if (preview.valid[2].value.kind !== "cash") throw new Error("expected cash");
+    expect(preview.valid[2].value.draft).toMatchObject({
+      amount: -1250,
+      accountId: "local-kgi",
+      subcategory: "出金",
+      entryType: "transfer",
+    });
+    expect(preview.valid[3].value.kind).toBe("investment");
+    if (preview.valid[3].value.kind !== "investment") throw new Error("expected investment");
+    expect(preview.valid[3].value.draft).toMatchObject({
+      action: "sell",
+      ticker: "NFLX",
+      linkedAccountId: "local-first",
+      currency: "USD",
+    });
+    expect(autoDetectActivityMap(["WITHDRAW"]).WITHDRAW).toBe(WITHDRAW_ACTION);
   });
 });

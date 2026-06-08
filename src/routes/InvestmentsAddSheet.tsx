@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
-import { Checkbox } from "../components/coss/checkbox";
+import { AccountFilter } from "../components/AccountFilter";
 import { ToggleGroup, ToggleGroupItem } from "../components/coss/toggle-group";
 import { HoldingForm, makeEmptyHoldingDraft } from "../components/HoldingForm";
 import { NumberField } from "../components/NumberField";
@@ -12,6 +12,7 @@ import { TickerSearchField } from "../components/TickerSearchField";
 import { useRepositoryMutation } from "../data/hooks";
 import type { InvestmentDraft, PortfolioAssetDraft } from "../data/repositories";
 import { calculateInvestmentCashDelta, formatNumber, formatQuantity, nowAsDatetimeLocal, type Account, type InvestmentAction, type PortfolioAsset } from "../domain";
+import { TaiwanMarketDataProvider } from "../features/market-data/taiwanMarketDataProvider";
 import { YahooFinanceProvider } from "../features/market-data/yahooFinanceProvider";
 import { useUiPreferences } from "../state/uiPreferences";
 
@@ -51,7 +52,7 @@ const SIDE_TO_ACTION: Record<TxSide, InvestmentAction> = {
   split: "stockSplit",
   reduction: "capitalReduction",
 };
-const SIDE_LABEL: Record<TxSide, string> = { buy: "Buy", sell: "Sell", dividend: "股利", split: "拆股", reduction: "減資" };
+const SIDE_LABEL: Record<TxSide, string> = { buy: "買進", sell: "賣出", dividend: "股利", split: "拆股", reduction: "減資" };
 const SIDE_CONFIRM: Record<TxSide, string> = {
   buy: "確認買入",
   sell: "確認賣出",
@@ -114,7 +115,7 @@ export function InvestmentEntryDrawer({
   onClose,
   accounts,
   portfolioAssets = [],
-  title = "New transaction",
+  title = "新增交易",
   initialMode = "transaction",
   onSubmitted,
   transactionPreset,
@@ -134,8 +135,6 @@ export function InvestmentEntryDrawer({
   const [snapshotForm, setSnapshotForm] = useState<PortfolioAssetDraft>(emptyHoldingDraft);
   const [transactionForm, setTransactionForm] = useState<InvestmentDraft>(() => emptyTransactionDraft(timezone));
   const [message, setMessage] = useState("");
-  const [batchMode, setBatchMode] = useState(false);
-  const [batchAccounts, setBatchAccounts] = useState<string[]>([]);
 
   const createHolding = useRepositoryMutation(
     (repository, input: PortfolioAssetDraft) => repository.createManualHolding(input),
@@ -163,8 +162,6 @@ export function InvestmentEntryDrawer({
       setMode(initialMode);
     }
     setMessage("");
-    setBatchMode(false);
-    setBatchAccounts([]);
   }, [open, emptyHoldingDraft, timezone, initialMode, transactionPreset]);
 
   useEffect(() => {
@@ -237,11 +234,7 @@ export function InvestmentEntryDrawer({
     setMessage("");
     try {
       if (!transactionForm.ticker.trim()) throw new Error("請輸入 ticker。");
-      if (batchMode) {
-        if (batchAccounts.length === 0) throw new Error("請選擇至少一個連動帳戶。");
-      } else {
-        if (!transactionForm.linkedAccountId) throw new Error("請選擇連動帳戶 / 券商。");
-      }
+      if (!transactionForm.linkedAccountId) throw new Error("請選擇連動帳戶 / 券商。");
       if (side === "split" && transactionForm.quantity <= 0) throw new Error("請輸入拆股比例（例如 3 = 1 股拆 3 股）。");
       if (side === "reduction" && transactionForm.quantity <= 0) throw new Error("請輸入被註銷的股數。");
       if (side === "dividend" && isStockDividend(transactionForm.action) && transactionForm.quantity <= 0) throw new Error("請輸入配發的股數。");
@@ -251,14 +244,7 @@ export function InvestmentEntryDrawer({
       if (transactionPreset?.id) {
         await updateRecord.mutateAsync({ ...payload, id: transactionPreset.id });
       } else {
-        if (batchMode) {
-          await Promise.all(batchAccounts.map(async (accId) => {
-            const acc = eligibleAccounts.find(a => a.id === accId);
-            return createRecord.mutateAsync({ ...payload, linkedAccountId: accId, currency: acc?.currency ?? payload.currency });
-          }));
-        } else {
-          await createRecord.mutateAsync(payload);
-        }
+        await createRecord.mutateAsync(payload);
       }
       onSubmitted?.();
       onClose();
@@ -269,13 +255,24 @@ export function InvestmentEntryDrawer({
 
   async function enrichTransactionClassification(draft: InvestmentDraft) {
     try {
-      const provider = new YahooFinanceProvider();
-      const profiles = await provider.fetchAssetProfiles([draft.ticker]);
+      const yahooProvider = new YahooFinanceProvider();
+      const taiwanProvider = new TaiwanMarketDataProvider();
+      const [yahooProfiles, taiwanProfiles] = await Promise.all([
+        yahooProvider.fetchAssetProfiles([draft.ticker]).catch(() => ({})),
+        taiwanProvider.fetchAssetProfiles([draft.ticker]).catch(() => ({})),
+      ]);
+      const profiles = { ...yahooProfiles, ...taiwanProfiles };
       const profile = profiles[draft.ticker.trim().toUpperCase()];
       if (!profile) throw new Error("No profile");
       setTransactionForm((current) =>
         current.ticker.trim().toUpperCase() === draft.ticker.trim().toUpperCase()
-          ? { ...current, assetType: profile.assetType ?? current.assetType, sector: profile.sector ?? current.sector, industry: profile.industry ?? current.industry }
+          ? {
+              ...current,
+              name: profile.nameZh ?? current.name,
+              assetType: profile.assetType ?? current.assetType,
+              sector: profile.sector ?? current.sector,
+              industry: profile.industry ?? current.industry,
+            }
           : current,
       );
     } catch {
@@ -291,7 +288,7 @@ export function InvestmentEntryDrawer({
   const price = Math.max(0, transactionForm.price || 0);
   const fee = Math.max(0, transactionForm.fee || 0);
 
-  let totalLabel = "Total cost";
+  let totalLabel = "投入成本";
   let totalValue = 0;
   let newQty = curQty;
   let newAvg = curAvg;
@@ -362,7 +359,7 @@ export function InvestmentEntryDrawer({
             {mode === "snapshot" ? "建立目前部位" : title}
           </h2>
           <div style={{ flex: 1 }} />
-          {!isEditingTransaction ? (
+          {!transactionPreset ? (
             <Button
               variant="ghost"
               size="sm"
@@ -422,7 +419,7 @@ export function InvestmentEntryDrawer({
             <div style={{ flex: 1, overflow: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
               {/* Ticker + quick chips */}
               <div>
-                <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Ticker / Symbol</label>
+                <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>股票代號 / Symbol</label>
                 <TickerSearchField
                   value={transactionForm.ticker}
                   onChange={(ticker) => setTransactionForm({ ...transactionForm, ticker })}
@@ -452,48 +449,28 @@ export function InvestmentEntryDrawer({
               {/* Date + account */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                 <div>
-                  <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Date</label>
+                  <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>日期</label>
                   <input className="ns-input" type="datetime-local" value={transactionForm.date} onChange={(e) => setTransactionForm({ ...transactionForm, date: e.target.value })} />
                 </div>
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                    <label className="ns-eyebrow">Account</label>
-                    {!isEditingTransaction ? (
-                      <label style={{ fontSize: 11.5, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", color: "var(--ns-accent)" }}>
-                        <Checkbox checked={batchMode} onCheckedChange={(checked) => { setBatchMode(checked === true); setBatchAccounts(transactionForm.linkedAccountId ? [transactionForm.linkedAccountId] : []); }} />
-                        批次多帳戶
-                      </label>
-                    ) : null}
-                  </div>
-                  {batchMode ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 120, overflowY: "auto", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-sm)", padding: 8 }}>
-                      {eligibleAccounts.map((a) => (
-                        <label key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
-                          <Checkbox checked={batchAccounts.includes(a.id)} onCheckedChange={(checked) => {
-                            if (checked) setBatchAccounts([...batchAccounts, a.id]);
-                            else setBatchAccounts(batchAccounts.filter((id) => id !== a.id));
-                          }} />
-                          {a.name} ({a.currency})
-                        </label>
-                      ))}
-                    </div>
-                  ) : (
-                    <select
-                      className="ns-input"
-                      style={{ appearance: "none" }}
-                      value={transactionForm.linkedAccountId ?? ""}
-                      onChange={(e) =>
-                        setTransactionForm({
-                          ...transactionForm,
-                          linkedAccountId: e.target.value || null,
-                          currency: eligibleAccounts.find((a) => a.id === e.target.value)?.currency ?? transactionForm.currency,
-                        })
-                      }
-                    >
-                      <option value="">— 選擇券商 —</option>
-                      {eligibleAccounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>)}
-                    </select>
-                  )}
+                  <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>券商 / 帳戶</label>
+                  <AccountFilter
+                    accounts={eligibleAccounts}
+                    value={transactionForm.linkedAccountId ?? "all"}
+                    onChange={(id) =>
+                      setTransactionForm({
+                        ...transactionForm,
+                        linkedAccountId: id === "all" ? null : id,
+                        currency: eligibleAccounts.find((a) => a.id === id)?.currency ?? transactionForm.currency,
+                      })
+                    }
+                    allowAll
+                    allLabel="選擇券商"
+                    placeholder="選擇券商"
+                    style={{ width: "100%", maxWidth: "none", minWidth: 0, height: 40 }}
+                    contentClassName="z-80"
+                    positionerClassName="z-80"
+                  />
                 </div>
               </div>
 
@@ -565,24 +542,24 @@ export function InvestmentEntryDrawer({
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
                   <div>
-                    <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Shares</label>
+                    <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>股數</label>
                     <NumberField value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={4} placeholder="100" style={NUM_INPUT_STYLE} />
                   </div>
                   <div>
-                    <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Price per share</label>
+                    <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>每股價格</label>
                     <NumberField value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={2} placeholder="1,042.00" style={NUM_INPUT_STYLE} />
                   </div>
                   <div>
-                    <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Commission / fee</label>
-                    <NumberField value={transactionForm.fee} onChange={(fee) => setTransactionForm({ ...transactionForm, fee })} decimals={2} placeholder="Optional" style={NUM_INPUT_STYLE} />
+                    <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>手續費</label>
+                    <NumberField value={transactionForm.fee} onChange={(fee) => setTransactionForm({ ...transactionForm, fee })} decimals={2} placeholder="選填" style={NUM_INPUT_STYLE} />
                   </div>
                 </div>
               )}
 
               {/* Note */}
               <div>
-                <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>Note</label>
-                <input className="ns-input" value={transactionForm.note} onChange={(e) => setTransactionForm({ ...transactionForm, note: e.target.value })} placeholder="Optional" />
+                <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>備註</label>
+                <input className="ns-input" value={transactionForm.note} onChange={(e) => setTransactionForm({ ...transactionForm, note: e.target.value })} placeholder="選填" />
               </div>
 
               {/* FIFO impact preview */}
@@ -612,7 +589,7 @@ export function InvestmentEntryDrawer({
                 onClick={submitTransaction}
                 loading={createRecord.isPending || updateRecord.isPending}
               >
-                {(createRecord.isPending || updateRecord.isPending) ? "儲存中…" : isEditingTransaction ? "儲存交易" : batchMode ? `批次建立 ${batchAccounts.length} 筆交易` : `${SIDE_CONFIRM[side]} · ${confirmAmount}`}
+                {(createRecord.isPending || updateRecord.isPending) ? "儲存中…" : isEditingTransaction ? "儲存交易" : `${SIDE_CONFIRM[side]} · ${confirmAmount}`}
               </Button>
             </div>
           </>
