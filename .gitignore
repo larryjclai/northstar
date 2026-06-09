@@ -68,3 +68,7 @@ supabase/.temp/
 DerivedData/
 *.xcuserstate
 xcuserdata/
+
+# ─── Installed Claude skills (impeccable) — local tooling, not app code ──
+.claude/skills/
+.github/skills/
