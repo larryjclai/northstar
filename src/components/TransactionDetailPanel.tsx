@@ -1,4 +1,4 @@
-import { ArrowRight, ArrowsClockwise, CalendarBlank, PencilSimple, Receipt, Storefront, Tag, Trash, Wallet, X } from "@phosphor-icons/react";
+import { ArrowsClockwise, CalendarBlank, CopySimple, PencilSimple, Receipt, Storefront, Tag, Trash, Wallet, X } from "@phosphor-icons/react";
 import { Button } from "./coss/button";
 import type { LedgerTransaction, RecurringTransaction } from "../domain";
 import { formatNumber, recurringFrequencyLabels } from "../domain";
@@ -7,6 +7,7 @@ interface TransactionDetailPanelProps {
   row: LedgerTransaction | null;
   onClose: () => void;
   onEdit: (row: LedgerTransaction) => void;
+  onDuplicate?: (row: LedgerTransaction) => void;
   onDelete: (id: string) => void;
   accountName: (id: string) => string;
   recurringRows?: RecurringTransaction[];
@@ -18,7 +19,7 @@ const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }
   transfer: { label: "轉帳", color: "var(--ns-accent)", sign: "" },
 };
 
-export function TransactionDetailPanel({ row, onClose, onEdit, onDelete, accountName, recurringRows }: TransactionDetailPanelProps) {
+export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDelete, accountName, recurringRows }: TransactionDetailPanelProps) {
   if (!row) return null;
 
   const meta = TYPE_LABELS[row.entryType] || TYPE_LABELS.expense;
@@ -184,6 +185,11 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDelete, account
           >
             <Trash size={14} />刪除
           </Button>
+          {onDuplicate ? (
+            <Button variant="outline" style={{ flex: 1, justifyContent: "center" }} onClick={() => onDuplicate(row)}>
+              <CopySimple size={14} />複製
+            </Button>
+          ) : null}
           <Button style={{ flex: 2, justifyContent: "center" }} onClick={() => onEdit(row)}>
             <PencilSimple size={14} />編輯交易
           </Button>

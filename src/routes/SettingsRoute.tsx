@@ -5,6 +5,7 @@ import { Card } from "../components/coss/card";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ActionButton } from "../components/ActionButton";
+import { AppSelect } from "../components/AppSelect";
 import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { downloadCsv, exportInvestmentCsv, exportLedgerCsv, exportFxRatesCsv } from "../data/csv";
@@ -15,7 +16,7 @@ import { COMMON_TIMEZONES, isValidTimezone } from "../domain";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../domain";
 import type { SyncConflictRecord } from "../domain/sync";
 import { useRefreshFxRates } from "../features/market-data/useMarketRefresh";
-import { useUiPreferences, DEFAULT_BENCHMARK_TICKER, type ClockMode, type NameLocalePreference } from "../state/uiPreferences";
+import { useUiPreferences, DEFAULT_BENCHMARK_TICKER, type ClockMode, type NameLocalePreference, type ThemeMode } from "../state/uiPreferences";
 import { TickerSearchField } from "../components/TickerSearchField";
 import { getOrCreateDeviceIdentity } from "../state/deviceIdentity";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -938,6 +939,8 @@ function SettingsGeneral({ form, t }: any) {
   const togglePrivacy = useUiPreferences((state) => state.togglePrivacyMode);
   const nameLocale = useUiPreferences((state) => state.nameLocale);
   const setNameLocale = useUiPreferences((state) => state.setNameLocale);
+  const theme = useUiPreferences((state) => state.theme);
+  const setTheme = useUiPreferences((state) => state.setTheme);
   const timezone = useUiPreferences((state) => state.timezone);
   const setTimezone = useUiPreferences((state) => state.setTimezone);
   const assetLogosEnabled = useUiPreferences((state) => state.assetLogosEnabled);
@@ -1125,6 +1128,28 @@ function SettingsGeneral({ form, t }: any) {
           </div>
         </button>
 
+        <h3 className="font-semibold mb-4 mt-6">佈景主題</h3>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { v: "system", l: "跟隨系統" },
+            { v: "light", l: "淺色" },
+            { v: "dark", l: "深色" },
+          ].map((option) => (
+            <Button
+              variant="outline"
+              key={option.v}
+              onClick={() => setTheme(option.v as ThemeMode)}
+              style={{
+                borderColor: theme === option.v ? "var(--ns-accent)" : "var(--ns-border)",
+                background: theme === option.v ? "var(--ns-accent-soft)" : undefined,
+              }}
+            >
+              {option.l}
+            </Button>
+          ))}
+        </div>
+        <p className="text-xs muted mt-2 mb-0">深色和淺色會立即套用；跟隨系統會回到裝置的外觀設定。</p>
+
         <h3 className="font-semibold mb-4 mt-6">{t('settings.language')}</h3>
         <div className="grid grid-cols-3 gap-2">
           {[{v:'auto',l:'Auto'},{v:'en',l:'English'},{v:'zh-Hant',l:'繁體中文'}].map(o => (
@@ -1135,9 +1160,13 @@ function SettingsGeneral({ form, t }: any) {
         </div>
 
         <h3 className="font-semibold mb-4 mt-6">{t('settings.timezone')}</h3>
-        <select value={timezone} onChange={e=>setTimezone(e.target.value)} className="ns-input w-full">
-          {COMMON_TIMEZONES.map(tz => <option key={tz.id} value={tz.id}>{tz.label}</option>)}
-        </select>
+        <AppSelect
+          value={timezone}
+          onChange={setTimezone}
+          options={COMMON_TIMEZONES.map((tz) => ({ value: tz.id, label: tz.label }))}
+          searchPlaceholder="搜尋時區…"
+          style={{ width: "100%", height: 40 }}
+        />
 
         <h3 className="font-semibold mb-4 mt-6">投資標的 LOGO</h3>
         <button

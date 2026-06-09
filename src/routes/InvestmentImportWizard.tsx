@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle, FileCsv, UploadSimple, Warning, X, Trash, FloppyDisk } from "@phosphor-icons/react";
 import { Button } from "../components/coss/button";
+import { AccountFilter } from "../components/AccountFilter";
+import { AppSelect } from "../components/AppSelect";
 import { useToast } from "../components/Toast";
 import { detectDelimiter, parseCsvTable } from "../data/csv";
-import type { InvestmentDraft } from "../data/repositories";
-import type { Account, InvestmentAction } from "../domain";
+import type { InvestmentDraft, LedgerDraft } from "../data/repositories";
+import type { Account } from "../domain";
 import {
-  ACTION_LABELS, ACTION_VALUES, DATE_FORMAT_LABELS, FIELD_LABELS, INVESTMENT_FIELDS, REQUIRED_FIELDS,
+  DATE_FORMAT_LABELS, FIELD_LABELS, IMPORT_ACTION_LABELS, IMPORT_ACTION_VALUES, INVESTMENT_FIELDS, REQUIRED_FIELDS,
   applyInvestmentMapping, autoDetectActivityMap, autoDetectFields, distinctValues, emptyMapping,
   missingRequiredFields, unmappedActions,
-  type DateFormat, type InvestmentField, type InvestmentImportMapping,
+  type DateFormat, type ImportActivity, type InvestmentField, type InvestmentImportMapping, type InvestmentImportValue,
 } from "../data/investmentImport";
 import {
   deleteImportTemplate, loadImportTemplates, newTemplateId, upsertImportTemplate, type ImportTemplate,
@@ -21,7 +23,12 @@ interface Props {
   open: boolean;
   onClose: () => void;
   accounts: Account[];
-  onImport: (rows: InvestmentDraft[]) => Promise<void>;
+  onImport: (plan: InvestmentActivityImportPlan) => Promise<void>;
+}
+
+export interface InvestmentActivityImportPlan {
+  investments: Array<InvestmentDraft & { importRow?: number; importLabel?: string }>;
+  cash: Array<LedgerDraft & { importRow?: number; importLabel?: string }>;
 }
 
 /** Reconcile a saved/auto mapping against the current file's headers + values. */
@@ -58,6 +65,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
   const [templateId, setTemplateId] = useState<string>("");
   const [templateName, setTemplateName] = useState<string>("");
   const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -67,13 +75,20 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
     setAccountId(investAccounts.length === 1 ? investAccounts[0].id : "");
     setFileName(""); setHeaders([]); setRows([]); setMapping(emptyMapping());
     setTemplateId(""); setTemplateName("");
+    setImportError("");
   }, [open, investAccounts]);
 
   const account = investAccounts.find((a) => a.id === accountId);
+  const hasRowAccount = headers.some((header) => ["accountName", "accountId"].includes(header));
   const preview = useMemo(() => {
-    if (step !== "review" || !account) return null;
-    return applyInvestmentMapping(rows, mapping, { linkedAccountId: account.id, accountCurrency: account.currency });
-  }, [step, account, rows, mapping]);
+    if (step !== "review") return null;
+    if (!account && !hasRowAccount) return null;
+    return applyInvestmentMapping(rows, mapping, {
+      linkedAccountId: account?.id ?? "",
+      accountCurrency: account?.currency ?? "",
+      accounts: investAccounts,
+    });
+  }, [step, account, hasRowAccount, rows, mapping, investAccounts]);
 
   if (!open) return null;
 
@@ -123,7 +138,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
     });
   }
 
-  function setActivity(value: string, action: InvestmentAction | "ignore") {
+  function setActivity(value: string, action: ImportActivity | "ignore") {
     setMapping((prev) => ({ ...prev, activityMap: { ...prev.activityMap, [value]: action } }));
   }
 
@@ -146,18 +161,24 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
 
   const missing = missingRequiredFields(mapping);
   const pendingActions = unmappedActions(actionValues, mapping);
-  const canMap = headers.length > 0 && !!accountId;
+  const canMap = headers.length > 0 && (!!accountId || hasRowAccount);
   const canReview = missing.length === 0 && pendingActions.length === 0;
 
   async function runImport() {
     if (!preview || preview.valid.length === 0) return;
     setImporting(true);
+    setImportError("");
     try {
-      await onImport(preview.valid.map((item) => item.value));
-      toast.success(`已匯入 ${preview.valid.length} 筆交易`);
+      const plan = buildImportPlan(preview.valid);
+      await onImport(plan);
+      const cashCount = plan.cash.length;
+      const investmentCount = plan.investments.length;
+      toast.success(`已匯入 ${investmentCount} 筆交易${cashCount ? `、${cashCount} 筆入出金` : ""}`);
       onClose();
     } catch (error) {
-      toast.error(error instanceof Error ? `匯入失敗：${error.message}` : "匯入失敗");
+      const message = error instanceof Error ? error.message : "匯入失敗";
+      setImportError(message);
+      toast.error(`匯入失敗：${message}`);
     } finally {
       setImporting(false);
     }
@@ -208,11 +229,22 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
                     尚無投資帳戶。請先到「帳戶」新增一個類型為「投資」的帳戶，匯入的交易會記在該帳戶並以其幣別交割。
                   </div>
                 ) : (
-                  <select className="ns-input w-full" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-                    <option value="">— 請選擇 —</option>
-                    {investAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}（{a.currency}）</option>)}
-                  </select>
+                  <AccountFilter
+                    accounts={investAccounts}
+                    value={accountId}
+                    onChange={setAccountId}
+                    allowAll={false}
+                    allLabel="請選擇"
+                    placeholder="選擇投資帳戶"
+                    positionerClassName="z-[260]"
+                    style={{ width: "100%", maxWidth: "none", minWidth: 0, height: 40 }}
+                  />
                 )}
+                {hasRowAccount ? (
+                  <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                    這份 CSV 含有帳戶欄位，預覽時會優先用每列的 accountName / accountId；上方帳戶只作為找不到對應時的預設值。
+                  </div>
+                ) : null}
               </div>
 
               <div>
@@ -228,17 +260,20 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
               {templates.length > 0 && (
                 <div>
                   <div className="ns-eyebrow" style={{ marginBottom: 8 }}>3 · 套用範本（選用）</div>
-                  <select className="ns-input w-full" value={templateId} onChange={(e) => applyTemplate(e.target.value)}>
-                    <option value="">不套用（自動偵測）</option>
-                    {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
+                  <AppSelect
+                    value={templateId}
+                    onChange={applyTemplate}
+                    options={[{ value: "", label: "不套用（自動偵測）" }, ...templates.map((template) => ({ value: template.id, label: template.name }))]}
+                    positionerClassName="z-[260]"
+                    style={{ width: "100%", height: 40 }}
+                  />
                 </div>
               )}
 
               {headers.length > 0 && (
                 <div>
                   <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>預覽（前 5 列）</div>
-                  <PreviewTable headers={headers} rows={rows.slice(0, 5)} />
+                  <PreviewTable headers={previewHeaders(headers, mapping)} totalColumns={headers.length} rows={rows.slice(0, 5)} />
                 </div>
               )}
             </div>
@@ -258,19 +293,26 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
                         <label style={{ fontSize: 12, display: "block", marginBottom: 4, color: unset ? "var(--ns-neg)" : "var(--ns-fg-muted)" }}>
                           {FIELD_LABELS[field]}{required && <span style={{ color: "var(--ns-neg)" }}> *</span>}
                         </label>
-                        <select className="ns-input w-full" value={mapping.fields[field] ?? ""} onChange={(e) => setField(field, e.target.value)}
-                          style={{ borderColor: unset ? "var(--ns-neg)" : undefined }}>
-                          <option value="">— 略過 —</option>
-                          {headers.map((h) => <option key={h} value={h}>{h}</option>)}
-                        </select>
+                        <AppSelect
+                          value={mapping.fields[field] ?? ""}
+                          onChange={(header) => setField(field, header)}
+                          options={[{ value: "", label: "略過" }, ...headers.map((header) => ({ value: header, label: header }))]}
+                          searchPlaceholder="搜尋欄位…"
+                          positionerClassName="z-[260]"
+                          style={{ width: "100%", height: 40, borderColor: unset ? "var(--ns-neg)" : undefined }}
+                        />
                       </div>
                     );
                   })}
                   <div>
                     <label style={{ fontSize: 12, display: "block", marginBottom: 4, color: "var(--ns-fg-muted)" }}>日期格式</label>
-                    <select className="ns-input w-full" value={mapping.dateFormat} onChange={(e) => setMapping((p) => ({ ...p, dateFormat: e.target.value as DateFormat }))}>
-                      {(Object.keys(DATE_FORMAT_LABELS) as DateFormat[]).map((f) => <option key={f} value={f}>{DATE_FORMAT_LABELS[f]}</option>)}
-                    </select>
+                    <AppSelect
+                      value={mapping.dateFormat}
+                      onChange={(dateFormat) => setMapping((p) => ({ ...p, dateFormat: dateFormat as DateFormat }))}
+                      options={(Object.keys(DATE_FORMAT_LABELS) as DateFormat[]).map((f) => ({ value: f, label: DATE_FORMAT_LABELS[f] }))}
+                      positionerClassName="z-[260]"
+                      style={{ width: "100%", height: 40 }}
+                    />
                   </div>
                 </div>
               </div>
@@ -289,12 +331,17 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
                       return (
                         <div key={value} style={{ display: "grid", gridTemplateColumns: "1fr 200px", gap: 10, alignItems: "center" }}>
                           <span className="mono" style={{ fontSize: 13 }}>{value}</span>
-                          <select className="ns-input" value={cur ?? ""} onChange={(e) => setActivity(value, e.target.value as InvestmentAction | "ignore")}
-                            style={{ borderColor: pending ? "var(--ns-neg)" : undefined }}>
-                            {pending && <option value="">— 請選擇 —</option>}
-                            {ACTION_VALUES.map((a) => <option key={a} value={a}>{ACTION_LABELS[a]}</option>)}
-                            <option value="ignore">略過此類</option>
-                          </select>
+                          <AppSelect
+                            value={cur ?? ""}
+                            onChange={(action) => setActivity(value, action as ImportActivity | "ignore")}
+                            options={[
+                              ...(pending ? [{ value: "", label: "請選擇" }] : []),
+                              ...IMPORT_ACTION_VALUES.map((action) => ({ value: action, label: IMPORT_ACTION_LABELS[action] })),
+                              { value: "ignore", label: "略過此類" },
+                            ]}
+                            positionerClassName="z-[260]"
+                            style={{ width: "100%", height: 40, borderColor: pending ? "var(--ns-neg)" : undefined }}
+                          />
                         </div>
                       );
                     })}
@@ -323,7 +370,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                 <StatPill label="可匯入" value={preview.valid.length} tone="ok" />
                 <StatPill label="略過 / 錯誤" value={preview.invalid.length} tone={preview.invalid.length ? "warn" : "muted"} />
-                <StatPill label="目標帳戶" value={account ? `${account.name}` : "—"} tone="muted" />
+                <StatPill label="目標帳戶" value={hasRowAccount ? "依 CSV 每列" : account ? `${account.name}` : "—"} tone="muted" />
               </div>
 
               {preview.invalid.length > 0 && (
@@ -335,6 +382,13 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
                 </div>
               )}
 
+              {importError ? (
+                <div className="ns-surface" style={{ border: "1px solid var(--ns-neg)", borderRadius: "var(--ns-r-md)", padding: 12 }}>
+                  <div className="text-sm font-medium mb-1" style={{ color: "var(--ns-neg)" }}>匯入失敗</div>
+                  <div className="text-xs" style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{importError}</div>
+                </div>
+              ) : null}
+
               {preview.valid.length > 0 && (
                 <div>
                   <div className="muted text-sm mb-2">前 {Math.min(8, preview.valid.length)} 筆預覽</div>
@@ -342,20 +396,11 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
                     <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
                       <thead>
                         <tr style={{ textAlign: "left", color: "var(--ns-fg-dim)" }}>
-                          {["日期", "類別", "代號", "數量", "價格", "手續費"].map((h) => <th key={h} style={{ padding: "6px 10px", borderBottom: "1px solid var(--ns-border)" }}>{h}</th>)}
+                          {["列", "日期", "類別", "內容", "數量", "價格 / 金額", "手續費"].map((h) => <th key={h} style={{ padding: "6px 10px", borderBottom: "1px solid var(--ns-border)" }}>{h}</th>)}
                         </tr>
                       </thead>
                       <tbody>
-                        {preview.valid.slice(0, 8).map((item) => (
-                          <tr key={item.row}>
-                            <td style={{ padding: "6px 10px" }} className="mono">{item.value.date}</td>
-                            <td style={{ padding: "6px 10px" }}>{ACTION_LABELS[item.value.action]}</td>
-                            <td style={{ padding: "6px 10px" }} className="mono">{item.value.ticker}</td>
-                            <td style={{ padding: "6px 10px" }} className="num">{item.value.quantity}</td>
-                            <td style={{ padding: "6px 10px" }} className="num">{item.value.price}</td>
-                            <td style={{ padding: "6px 10px" }} className="num">{item.value.fee}</td>
-                          </tr>
-                        ))}
+                        {preview.valid.slice(0, 8).map((item) => <ImportPreviewRow key={item.row} item={item} />)}
                       </tbody>
                     </table>
                   </div>
@@ -396,24 +441,97 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
   );
 }
 
-function PreviewTable({ headers, rows }: { headers: string[]; rows: Record<string, string>[] }) {
+function buildImportPlan(items: Array<{ row: number; value: InvestmentImportValue }>): InvestmentActivityImportPlan {
+  const plan: InvestmentActivityImportPlan = { investments: [], cash: [] };
+  for (const item of items) {
+    if (item.value.kind === "investment") {
+      plan.investments.push({ ...item.value.draft, importRow: item.row, importLabel: item.value.label });
+    } else {
+      plan.cash.push({ ...item.value.draft, importRow: item.row, importLabel: item.value.label });
+    }
+  }
+  return plan;
+}
+
+function previewHeaders(headers: string[], mapping: InvestmentImportMapping) {
+  const preferred = [
+    mapping.fields.date,
+    mapping.fields.action,
+    "accountName",
+    "accountId",
+    mapping.fields.ticker,
+    mapping.fields.name,
+    mapping.fields.quantity,
+    mapping.fields.price,
+    "amount",
+    mapping.fields.currency,
+    mapping.fields.fee,
+    mapping.fields.note,
+  ];
+  const visible = new Set<string>();
+  for (const header of preferred) {
+    if (header && headers.includes(header)) visible.add(header);
+    if (visible.size >= 10) break;
+  }
+  for (const header of headers) {
+    if (visible.size >= 8) break;
+    visible.add(header);
+  }
+  return [...visible];
+}
+
+function PreviewTable({ headers, totalColumns, rows }: { headers: string[]; totalColumns: number; rows: Record<string, string>[] }) {
   return (
-    <div style={{ overflowX: "auto", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-md)" }}>
-      <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse", whiteSpace: "nowrap" }}>
+    <div>
+      {totalColumns > headers.length ? (
+        <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>只顯示 {headers.length} 個關鍵欄位，另有 {totalColumns - headers.length} 欄會在匯入時保留解析。</div>
+      ) : null}
+      <div style={{ overflowX: "auto", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-md)", maxWidth: "100%" }}>
+      <table style={{ width: "100%", minWidth: Math.min(760, headers.length * 120), fontSize: 12, borderCollapse: "collapse", tableLayout: "fixed" }}>
         <thead>
           <tr style={{ textAlign: "left", color: "var(--ns-fg-dim)" }}>
-            {headers.map((h) => <th key={h} style={{ padding: "6px 10px", borderBottom: "1px solid var(--ns-border)" }}>{h}</th>)}
+            {headers.map((h) => <th key={h} style={{ padding: "6px 10px", borderBottom: "1px solid var(--ns-border)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h}</th>)}
           </tr>
         </thead>
         <tbody>
           {rows.map((row, i) => (
             <tr key={i}>
-              {headers.map((h) => <td key={h} style={{ padding: "6px 10px", borderBottom: "1px solid var(--ns-border)" }}>{row[h]}</td>)}
+              {headers.map((h) => <td key={h} title={row[h]} style={{ padding: "6px 10px", borderBottom: "1px solid var(--ns-border)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row[h]}</td>)}
             </tr>
           ))}
         </tbody>
       </table>
+      </div>
     </div>
+  );
+}
+
+function ImportPreviewRow({ item }: { item: { row: number; value: InvestmentImportValue } }) {
+  const value = item.value;
+  if (value.kind === "cash") {
+    const sign = value.draft.amount >= 0 ? "+" : "-";
+    return (
+      <tr>
+        <td style={{ padding: "6px 10px" }} className="mono">{item.row}</td>
+        <td style={{ padding: "6px 10px" }} className="mono">{value.draft.date}</td>
+        <td style={{ padding: "6px 10px" }}>{value.draft.subcategory}</td>
+        <td style={{ padding: "6px 10px" }}>{value.draft.name}</td>
+        <td style={{ padding: "6px 10px" }} className="muted">—</td>
+        <td style={{ padding: "6px 10px" }} className="num">{sign}{value.draft.currency} {Math.abs(value.draft.amount)}</td>
+        <td style={{ padding: "6px 10px" }} className="muted">—</td>
+      </tr>
+    );
+  }
+  return (
+    <tr>
+      <td style={{ padding: "6px 10px" }} className="mono">{item.row}</td>
+      <td style={{ padding: "6px 10px" }} className="mono">{value.draft.date}</td>
+      <td style={{ padding: "6px 10px" }}>{IMPORT_ACTION_LABELS[value.draft.action]}</td>
+      <td style={{ padding: "6px 10px" }} className="mono">{value.draft.ticker}</td>
+      <td style={{ padding: "6px 10px" }} className="num">{value.draft.quantity}</td>
+      <td style={{ padding: "6px 10px" }} className="num">{value.draft.price}</td>
+      <td style={{ padding: "6px 10px" }} className="num">{value.draft.fee}</td>
+    </tr>
   );
 }
 

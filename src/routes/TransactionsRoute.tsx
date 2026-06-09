@@ -1,6 +1,7 @@
-import { ArrowsDownUp, Bank, FunnelSimple, MagnifyingGlass, PencilSimple, PlusCircle, Trash, UploadSimple } from "@phosphor-icons/react";
+import { ArrowsDownUp, Bank, CopySimple, FunnelSimple, MagnifyingGlass, PencilSimple, PlusCircle, Trash, UploadSimple } from "@phosphor-icons/react";
 import { Button } from "../components/coss/button";
 import { Card as CossCard } from "../components/coss/card";
+import { DateScopeControl } from "../components/DateScopeControl";
 import { AssetLogo } from "../components/AssetLogo";
 import { Badge } from "../components/coss/badge";
 import { ReactNode, useMemo, useState, useEffect } from "react";
@@ -10,9 +11,9 @@ import { StatusText } from "../components/StatusText";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { downloadCsv, exportInvestmentCsv } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import type { InvestmentDraft } from "../data/repositories";
-import { InvestmentImportWizard } from "./InvestmentImportWizard";
-import { createFxConverter, formatMoney, formatNumber, todayInTimezone } from "../domain";
+import type { InvestmentActivityImportDraft } from "../data/repositories";
+import { InvestmentImportWizard, type InvestmentActivityImportPlan } from "./InvestmentImportWizard";
+import { createFxConverter, formatMoney, formatNumber, isWithinDateScope, makeDefaultDateScope, resolveDateScope } from "../domain";
 import type { InvestmentAction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { InvestmentEntryDrawer, type TransactionPreset } from "./InvestmentsAddSheet";
@@ -30,26 +31,29 @@ const actionLabels: Record<InvestmentAction, string> = {
 // brokerage account (存錢進券商), surfaced here alongside trades so the page
 // shows the full money trail. Its label lives outside actionLabels.
 const DEPOSIT = "deposit";
+const WITHDRAW = "withdraw";
 const depositLabel = "入金";
-const allActionLabels: Record<string, string> = { ...actionLabels, [DEPOSIT]: depositLabel };
+const withdrawLabel = "出金";
+const allActionLabels: Record<string, string> = { ...actionLabels, [DEPOSIT]: depositLabel, [WITHDRAW]: withdrawLabel };
 const actionShortLabels: Record<string, string> = {
-  buy: "BUY",
-  sell: "SELL",
-  cashDividend: "DIV",
-  stockDividend: "STK",
-  capitalReduction: "CAP",
-  stockSplit: "SPLIT",
-  [DEPOSIT]: "DEP",
+  buy: "買",
+  sell: "賣",
+  cashDividend: "息",
+  stockDividend: "股",
+  capitalReduction: "減",
+  stockSplit: "拆",
+  [DEPOSIT]: "入",
+  [WITHDRAW]: "出",
 };
 
-type TxKind = "investment" | "deposit";
+type TxKind = "investment" | "cash";
 
 interface UnifiedTx {
   id: string;
   kind: TxKind;
   date: string;
   createdAt: string;
-  actionKey: string; // InvestmentAction | "deposit"
+  actionKey: string; // InvestmentAction | "deposit" | "withdraw"
   ticker: string;
   name: string;
   assetType: string | null;
@@ -72,13 +76,16 @@ export function TransactionsRoute() {
   const [message, setMessage] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+  const [duplicatingRecordId, setDuplicatingRecordId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [assetTypeFilter, setAssetTypeFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set());
   const [brokerFilter, setBrokerFilter] = useState<Set<string>>(new Set());
+  const [dateScope, setDateScope] = useState(() => makeDefaultDateScope(timezone, "all"));
+  const dateRange = useMemo(() => resolveDateScope(dateScope, timezone), [dateScope, timezone]);
 
   const deleteRecord = useRepositoryMutation((repository, id: string) => repository.deleteInvestmentRecord(id), ["investments", "assets", "accounts", "ledger"]);
-  const importRecords = useRepositoryMutation((repository, input: InvestmentDraft[]) => repository.importInvestmentRecords(input), ["investments", "assets", "accounts", "ledger"]);
+  const importRecords = useRepositoryMutation((repository, input: InvestmentActivityImportDraft) => repository.importInvestmentActivity(input), ["investments", "assets", "accounts", "ledger"]);
 
   const assetRows = assets.data ?? [];
   const recordRows = investments.data ?? [];
@@ -90,8 +97,8 @@ export function TransactionsRoute() {
   const investmentAccounts = useMemo(() => accountRows.filter((a) => a.type === "investment"), [accountRows]);
   const investmentAccountIds = useMemo(() => new Set(investmentAccounts.map((a) => a.id)), [investmentAccounts]);
 
-  // Unified rows: each investment record, plus each cash transfer INTO a
-  // brokerage account (the inflow side, amount > 0). Transfers that belong to a
+  // Unified rows: each investment record, plus cash transfers into/out of a
+  // brokerage account. Transfers that belong to a
   // trade carry linkedInvestmentRecordId and are already represented by the
   // record itself, so they're excluded to avoid double counting.
   const allTx = useMemo<UnifiedTx[]>(() => {
@@ -121,18 +128,19 @@ export function TransactionsRoute() {
       };
     });
 
-    const depositTx: UnifiedTx[] = ledgerRows
-      .filter((row) => row.entryType === "transfer" && row.amount > 0 && investmentAccountIds.has(row.accountId) && !row.linkedInvestmentRecordId)
+    const cashTx: UnifiedTx[] = ledgerRows
+      .filter((row) => row.entryType === "transfer" && row.amount !== 0 && investmentAccountIds.has(row.accountId) && !row.linkedInvestmentRecordId)
       .map((row) => {
         const account = accountMap.get(row.accountId);
+        const isDeposit = row.amount >= 0;
         return {
           id: row.id,
-          kind: "deposit",
+          kind: "cash",
           date: row.date,
           createdAt: row.createdAt,
-          actionKey: DEPOSIT,
+          actionKey: isDeposit ? DEPOSIT : WITHDRAW,
           ticker: "—",
-          name: row.name || row.note || "資金轉入",
+          name: row.name || row.note || (isDeposit ? "資金轉入" : "資金轉出"),
           assetType: "cash",
           recordId: null,
           quantity: 0,
@@ -146,7 +154,7 @@ export function TransactionsRoute() {
         };
       });
 
-    return [...investmentTx, ...depositTx];
+    return [...investmentTx, ...cashTx];
   }, [accountMap, assetRows, recordRows, ledgerRows, investmentAccountIds]);
 
   const filteredTx = useMemo(() => {
@@ -154,6 +162,7 @@ export function TransactionsRoute() {
     return allTx
       .filter((tx) => {
         if (typeFilter.size > 0 && !typeFilter.has(tx.actionKey)) return false;
+        if (!isWithinDateScope(tx.date, dateRange)) return false;
         if (assetTypeFilter !== "all" && tx.assetType !== assetTypeFilter) return false;
         if (brokerFilter.size > 0 && !brokerFilter.has(tx.brokerId ?? "none")) return false;
         if (!query) return true;
@@ -161,7 +170,7 @@ export function TransactionsRoute() {
           .some((value) => value?.toLocaleLowerCase().includes(query));
       })
       .sort((a, b) => `${b.date}-${b.createdAt}`.localeCompare(`${a.date}-${a.createdAt}`));
-  }, [allTx, searchQuery, assetTypeFilter, typeFilter, brokerFilter]);
+  }, [allTx, searchQuery, dateRange, assetTypeFilter, typeFilter, brokerFilter]);
 
   const groupedTx = useMemo(() => {
     const groups: Array<{ date: string; rows: UnifiedTx[] }> = [];
@@ -178,13 +187,16 @@ export function TransactionsRoute() {
     return groups;
   }, [filteredTx]);
 
+  const periodRecordRows = useMemo(() => recordRows.filter((record) => isWithinDateScope(record.date, dateRange)), [recordRows, dateRange]);
+
   const editingPreset = useMemo<TransactionPreset | undefined>(() => {
-    if (!editingRecordId) return undefined;
-    const record = recordRows.find((row) => row.id === editingRecordId);
+    const recordId = editingRecordId ?? duplicatingRecordId;
+    if (!recordId) return undefined;
+    const record = recordRows.find((row) => row.id === recordId);
     if (!record) return undefined;
     const asset = assetFor(record.assetId);
     return {
-      id: record.id,
+      id: editingRecordId ? record.id : undefined,
       draft: {
         ticker: asset?.ticker ?? "",
         name: asset?.name ?? "",
@@ -201,7 +213,7 @@ export function TransactionsRoute() {
         industry: asset?.industry ?? null,
       },
     };
-  }, [assetRows, editingRecordId, recordRows]);
+  }, [assetRows, duplicatingRecordId, editingRecordId, recordRows]);
 
   // Summary cards aggregate across currencies, so each record is converted to
   // the primary currency at its trade date before summing (USD buys no longer
@@ -210,7 +222,7 @@ export function TransactionsRoute() {
     let bought = 0;
     let sold = 0;
     let dividends = 0;
-    for (const record of recordRows) {
+    for (const record of periodRecordRows) {
       const currency = assetFor(record.assetId)?.currency ?? "TWD";
       if (record.action === "buy") {
         bought += toPrimary(record.price * record.quantity, currency, record.date);
@@ -221,19 +233,18 @@ export function TransactionsRoute() {
       }
     }
     return { bought, sold, dividends };
-  }, [recordRows, assetRows, toPrimary]);
-
-  const monthKey = todayInTimezone(timezone).slice(0, 7);
+  }, [periodRecordRows, assetRows, toPrimary]);
 
   const [page, setPage] = useState(1);
   const pageSize = 50;
 
   useEffect(() => {
     setPage(1);
-  }, [monthKey, searchQuery, assetTypeFilter, typeFilter, brokerFilter]);
+  }, [searchQuery, dateRange, assetTypeFilter, typeFilter, brokerFilter]);
 
   const paginatedGroups = useMemo(() => groupedTx.slice((page - 1) * pageSize, page * pageSize), [groupedTx, page]);
   const totalPages = Math.ceil(groupedTx.length / pageSize);
+  const hasActiveFilters = typeFilter.size > 0 || brokerFilter.size > 0 || assetTypeFilter !== "all" || Boolean(searchQuery) || dateScope.preset !== "all";
 
   // Filter dropdown options. Broker list includes an "unspecified" bucket when
   // any row lacks a broker so those rows remain reachable.
@@ -245,23 +256,40 @@ export function TransactionsRoute() {
 
   function openCreate() {
     setEditingRecordId(null);
+    setDuplicatingRecordId(null);
     setMessage("");
     setDrawerOpen(true);
   }
 
   function openEdit(recordId: string) {
     setEditingRecordId(recordId);
+    setDuplicatingRecordId(null);
     setMessage("");
     setDrawerOpen(true);
+  }
+
+  function openDuplicate(recordId: string) {
+    setEditingRecordId(null);
+    setDuplicatingRecordId(recordId);
+    setMessage("");
+    setDrawerOpen(true);
+  }
+
+  function clearFilters() {
+    setTypeFilter(new Set());
+    setBrokerFilter(new Set());
+    setAssetTypeFilter("all");
+    setSearchQuery("");
+    setDateScope(makeDefaultDateScope(timezone, "all"));
   }
 
   return (
     <div className="mt-4 ns-investment-transactions">
       <div className="ns-invest-summary">
-        <SummaryCard label="Records" value={`${recordRows.length} txns`} sublabel="總筆數" />
-        <SummaryCard label="Total Bought" value={formatMoney(totals.bought, primaryCurrency)} sublabel="總買入" />
-        <SummaryCard label="Total Sold" value={formatMoney(totals.sold, primaryCurrency)} sublabel="總賣出" />
-        <SummaryCard label="Dividends" value={formatMoney(totals.dividends, primaryCurrency)} sublabel="總股利" />
+        <SummaryCard label="交易筆數" value={`${periodRecordRows.length} 筆`} sublabel={dateRange.label} />
+        <SummaryCard label="總買入" value={formatMoney(totals.bought, primaryCurrency)} sublabel="期間買入金額" />
+        <SummaryCard label="總賣出" value={formatMoney(totals.sold, primaryCurrency)} sublabel="期間賣出金額" />
+        <SummaryCard label="總股利" value={formatMoney(totals.dividends, primaryCurrency)} sublabel="現金股利" />
       </div>
 
       {message ? <div className="mb-4"><StatusText>{message}</StatusText></div> : null}
@@ -270,11 +298,11 @@ export function TransactionsRoute() {
         <div className="ns-invest-toolbar">
           <div className="ns-invest-segments" aria-label="資產類型">
             {[
-              ["all", "All"],
-              ["equity", "Stocks"],
+              ["all", "全部"],
+              ["equity", "股票"],
               ["etf", "ETF"],
-              ["crypto", "Crypto"],
-              ["cash", "Cash"],
+              ["crypto", "加密貨幣"],
+              ["cash", "現金"],
             ].map(([value, label]) => (
               <button key={value} type="button" data-active={assetTypeFilter === value || undefined} onClick={() => setAssetTypeFilter(value)}>
                 {label}
@@ -283,11 +311,11 @@ export function TransactionsRoute() {
           </div>
           <div className="ns-invest-segments" aria-label="交易種類">
             {[
-              ["all", "All types"],
-              ["buy", "Buy"],
-              ["sell", "Sell"],
-              ["cashDividend", "Dividend"],
-              ["stockSplit", "Split"],
+              ["all", "全部類型"],
+              ["buy", "買進"],
+              ["sell", "賣出"],
+              ["cashDividend", "股利"],
+              ["stockSplit", "拆股"],
             ].map(([value, label]) => (
               <button
                 key={value}
@@ -301,8 +329,13 @@ export function TransactionsRoute() {
           </div>
           <label className="ns-invest-search">
             <MagnifyingGlass size={15} />
-            <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search ticker..." />
+            <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜尋代號、名稱或備註…" />
           </label>
+          <DateScopeControl
+            value={dateScope}
+            onChange={setDateScope}
+            presets={["month", "ytd", "last12m", "all", "custom"]}
+          />
           <MultiSelectFilter
             icon={<Bank size={14} />}
             label="券商"
@@ -310,6 +343,9 @@ export function TransactionsRoute() {
             selected={brokerFilter}
             onChange={setBrokerFilter}
           />
+          <div className="ns-invest-clear-inline" data-visible={hasActiveFilters || undefined}>
+            <Button variant="ghost" size="xs" disabled={!hasActiveFilters} onClick={clearFilters}>清除篩選</Button>
+          </div>
           <div className="ns-invest-actions">
             <ActionButton variant="secondary" onClick={() => downloadCsv("northstar-investments.csv", exportInvestmentCsv(recordRows, assetFor))}>匯出 CSV</ActionButton>
             <Button variant="outline" onClick={() => setImportOpen(true)}><UploadSimple />匯入 CSV</Button>
@@ -320,14 +356,8 @@ export function TransactionsRoute() {
           open={importOpen}
           onClose={() => setImportOpen(false)}
           accounts={accountRows}
-          onImport={(input) => importRecords.mutateAsync(input)}
+          onImport={(input: InvestmentActivityImportPlan) => importRecords.mutateAsync(input)}
         />
-
-        {(typeFilter.size > 0 || brokerFilter.size > 0 || assetTypeFilter !== "all" || searchQuery) ? (
-          <div className="ns-invest-clear">
-            <Button variant="ghost" size="xs" onClick={() => { setTypeFilter(new Set()); setBrokerFilter(new Set()); setAssetTypeFilter("all"); setSearchQuery(""); }}>清除篩選</Button>
-          </div>
-        ) : null}
 
         {paginatedGroups.length === 0 ? (
           allTx.length === 0 ? (
@@ -341,8 +371,8 @@ export function TransactionsRoute() {
             <EmptyState
               icon={<FunnelSimple size={24} weight="duotone" />}
               title="沒有符合篩選的交易"
-              description="試著放寬交易種類或券商的篩選條件。"
-              action={<ActionButton variant="secondary" onClick={() => { setTypeFilter(new Set()); setBrokerFilter(new Set()); setAssetTypeFilter("all"); setSearchQuery(""); }}>清除篩選</ActionButton>}
+              description="試著放寬日期、交易種類或券商的篩選條件。"
+              action={<ActionButton variant="secondary" onClick={clearFilters}>清除篩選</ActionButton>}
             />
           )
         ) : (
@@ -353,6 +383,7 @@ export function TransactionsRoute() {
                   key={group.date}
                   group={group}
                   onEdit={openEdit}
+                  onDuplicate={openDuplicate}
                   onDelete={async (recordId) => {
                     try {
                       await deleteRecord.mutateAsync(recordId);
@@ -380,13 +411,15 @@ export function TransactionsRoute() {
         onClose={() => {
           setDrawerOpen(false);
           setEditingRecordId(null);
+          setDuplicatingRecordId(null);
         }}
         accounts={accountRows}
         portfolioAssets={assetRows}
-        title={editingPreset ? "編輯交易" : "新增交易"}
+        title={editingRecordId ? "編輯交易" : duplicatingRecordId ? "複製交易" : "新增交易"}
         initialMode="transaction"
         onSubmitted={() => {
           setEditingRecordId(null);
+          setDuplicatingRecordId(null);
           setMessage("");
         }}
         transactionPreset={editingPreset}
@@ -446,10 +479,12 @@ function MultiSelectFilter({
 function InvestmentMonthGroup({
   group,
   onEdit,
+  onDuplicate,
   onDelete,
 }: {
   group: { date: string; rows: UnifiedTx[] };
   onEdit: (recordId: string) => void;
+  onDuplicate: (recordId: string) => void;
   onDelete: (recordId: string) => Promise<void>;
 }) {
   return (
@@ -463,20 +498,20 @@ function InvestmentMonthGroup({
         <table className="ns-invest-table">
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Asset</th>
-              <th>Type</th>
-              <th className="text-right">Qty</th>
-              <th className="text-right">Price</th>
-              <th className="text-right">Fee</th>
-              <th className="text-right">Total</th>
-              <th>Account</th>
-              <th className="text-right">Actions</th>
+              <th>日期</th>
+              <th>標的</th>
+              <th>類型</th>
+              <th className="text-right">股數</th>
+              <th className="text-right">價格</th>
+              <th className="text-right">手續費</th>
+              <th className="text-right">總額</th>
+              <th>帳戶</th>
+              <th className="text-right">操作</th>
             </tr>
           </thead>
           <tbody>
             {group.rows.map((tx) => (
-              <InvestmentTransactionRow key={tx.id} tx={tx} onEdit={onEdit} onDelete={onDelete} />
+              <InvestmentTransactionRow key={tx.id} tx={tx} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} />
             ))}
           </tbody>
         </table>
@@ -484,7 +519,7 @@ function InvestmentMonthGroup({
 
       <div className="ns-invest-mobile-list">
         {group.rows.map((tx) => (
-          <InvestmentTransactionMobile key={tx.id} tx={tx} onEdit={onEdit} onDelete={onDelete} />
+          <InvestmentTransactionMobile key={tx.id} tx={tx} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} />
         ))}
       </div>
     </section>
@@ -494,25 +529,27 @@ function InvestmentMonthGroup({
 function InvestmentTransactionRow({
   tx,
   onEdit,
+  onDuplicate,
   onDelete,
 }: {
   tx: UnifiedTx;
   onEdit: (recordId: string) => void;
+  onDuplicate: (recordId: string) => void;
   onDelete: (recordId: string) => Promise<void>;
 }) {
-  const isDeposit = tx.kind === "deposit";
+  const isCash = tx.kind === "cash";
   return (
     <tr>
       <td className="mono muted">{tx.date.slice(5, 10)}</td>
       <td>
         <div className="ns-invest-asset-cell">
-          {isDeposit ? (
+          {isCash ? (
             <span className="ns-invest-cash-logo"><Bank size={16} weight="duotone" /></span>
           ) : (
             <AssetLogo ticker={tx.ticker} name={tx.name} size={30} />
           )}
           <span className="min-w-0">
-            <strong>{isDeposit ? "Cash" : tx.ticker}</strong>
+            <strong>{isCash ? "現金" : tx.ticker}</strong>
             <span>{tx.name}</span>
           </span>
         </div>
@@ -520,8 +557,8 @@ function InvestmentTransactionRow({
       <td>
         <Badge variant={actionBadgeVariant(tx.actionKey)} className="rounded-full uppercase">{actionShortLabels[tx.actionKey] ?? tx.actionKey}</Badge>
       </td>
-      <td className="num text-right">{isDeposit ? "—" : formatNumber(tx.quantity)}</td>
-      <td className="num text-right">{isDeposit ? "—" : formatNumber(tx.price)}</td>
+      <td className="num text-right">{isCash ? "—" : formatNumber(tx.quantity)}</td>
+      <td className="num text-right">{isCash ? "—" : formatNumber(tx.price)}</td>
       <td className="num text-right muted">{tx.fee ? formatNumber(tx.fee) : "—"}</td>
       <td className={`num text-right ${tx.signed >= 0 ? "pos" : "neg"}`}>
         {tx.signed >= 0 ? "+" : "−"}{formatMoney(Math.abs(tx.signed), tx.currency)}
@@ -531,6 +568,7 @@ function InvestmentTransactionRow({
         {tx.recordId ? (
           <div className="ns-invest-row-actions">
             <Button variant="ghost" size="icon-xs" aria-label="編輯交易" onClick={() => onEdit(tx.recordId!)}><PencilSimple size={13} /></Button>
+            <Button variant="ghost" size="icon-xs" aria-label="複製交易" onClick={() => onDuplicate(tx.recordId!)}><CopySimple size={13} /></Button>
             <Button variant="ghost" size="icon-xs" aria-label="刪除交易" onClick={() => void onDelete(tx.recordId!)}><Trash size={13} /></Button>
           </div>
         ) : (
@@ -544,27 +582,29 @@ function InvestmentTransactionRow({
 function InvestmentTransactionMobile({
   tx,
   onEdit,
+  onDuplicate,
   onDelete,
 }: {
   tx: UnifiedTx;
   onEdit: (recordId: string) => void;
+  onDuplicate: (recordId: string) => void;
   onDelete: (recordId: string) => Promise<void>;
 }) {
-  const isDeposit = tx.kind === "deposit";
+  const isCash = tx.kind === "cash";
   return (
     <div className="ns-invest-mobile-row">
-      {isDeposit ? (
+      {isCash ? (
         <span className="ns-invest-cash-logo"><Bank size={16} weight="duotone" /></span>
       ) : (
         <AssetLogo ticker={tx.ticker} name={tx.name} size={34} />
       )}
       <div className="min-w-0 flex-1">
         <div className="ns-invest-mobile-title">
-          <strong>{isDeposit ? tx.name : tx.ticker}</strong>
+          <strong>{isCash ? tx.name : tx.ticker}</strong>
           <Badge variant={actionBadgeVariant(tx.actionKey)} className="rounded-full uppercase">{actionShortLabels[tx.actionKey] ?? tx.actionKey}</Badge>
         </div>
         <div className="muted text-xs tabular">
-          {isDeposit ? tx.date.slice(5, 10) : `${tx.date.slice(5, 10)} · ${formatNumber(tx.quantity)} @ ${formatNumber(tx.price)}`}
+          {isCash ? tx.date.slice(5, 10) : `${tx.date.slice(5, 10)} · ${formatNumber(tx.quantity)} @ ${formatNumber(tx.price)}`}
         </div>
       </div>
       <div className="ns-invest-mobile-amount">
@@ -576,6 +616,7 @@ function InvestmentTransactionMobile({
       {tx.recordId ? (
         <div className="ns-invest-mobile-actions">
           <Button variant="ghost" size="icon-xs" aria-label="編輯交易" onClick={() => onEdit(tx.recordId!)}><PencilSimple size={13} /></Button>
+          <Button variant="ghost" size="icon-xs" aria-label="複製交易" onClick={() => onDuplicate(tx.recordId!)}><CopySimple size={13} /></Button>
           <Button variant="ghost" size="icon-xs" aria-label="刪除交易" onClick={() => void onDelete(tx.recordId!)}><Trash size={13} /></Button>
         </div>
       ) : null}
@@ -612,6 +653,6 @@ function actionBadgeVariant(action: string): "success" | "error" | "warning" | "
   if (action === "buy") return "success";
   if (action === "sell") return "error";
   if (action === "cashDividend" || action === "stockDividend") return "warning";
-  if (action === DEPOSIT) return "info";
+  if (action === DEPOSIT || action === WITHDRAW) return "info";
   return "secondary";
 }

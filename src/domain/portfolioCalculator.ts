@@ -1,5 +1,6 @@
 import { buildPositionMetrics } from "./portfolioMetrics";
-import type { HoldingPosition, InvestmentRecord, PortfolioAsset } from "./types";
+import type { DailyPrice, HoldingPosition, InvestmentRecord, PortfolioAsset } from "./types";
+import { buildDailyPriceLookup, findDailyPriceAtOrBefore, type DailyPriceLookup } from "./valuation";
 
 export interface MarketQuote {
   symbol: string;
@@ -7,11 +8,51 @@ export interface MarketQuote {
   currency: string;
 }
 
+/**
+ * Optional daily-close fallback for market value. When supplied, a holding with
+ * no live quote is valued at its latest recorded close (then average cost) — the
+ * same canonical order as {@link priceAssetOnDate} — instead of reading 0. This
+ * keeps the 投資 page market value in lock-step with the Dashboard / net-worth
+ * trend. Omit it to keep the legacy quote-only behaviour (value 0 when unpriced).
+ */
+export interface HoldingValuation {
+  dailyPrices: DailyPrice[];
+  /** Valuation date (today, YYYY-MM-DD) for the close lookup. */
+  asOf: string;
+}
+
+/**
+ * Resolve a holding's per-unit market price and the price used to value it.
+ *   - `marketPrice` is the honest *market* price (quote → latest close, else
+ *     null when no market price is known at all).
+ *   - `valuePrice` is what the position is valued at: marketPrice, or the
+ *     asset's average cost when no market price exists (so value never reads 0).
+ */
+function resolveHoldingPrice(
+  ticker: string,
+  averageCost: number,
+  quote: MarketQuote | undefined,
+  lookup: DailyPriceLookup | null,
+  asOf: string | null,
+): { marketPrice: number | null; valuePrice: number } {
+  const quotePrice = quote?.price ?? null;
+  const closePrice = lookup && asOf ? findDailyPriceAtOrBefore(lookup, ticker, asOf)?.close ?? null : null;
+  const marketPrice = quotePrice ?? closePrice;
+  // Cost fallback only applies once a valuation context exists; without it we
+  // preserve the legacy "0 when unpriced" behaviour (marketPrice stays null and
+  // callers compute marketValue = 0).
+  const valuePrice = marketPrice ?? (lookup ? averageCost : 0);
+  return { marketPrice, valuePrice };
+}
+
 export function buildHoldingPositions(
   assets: PortfolioAsset[],
   records: InvestmentRecord[],
   quotes: Record<string, MarketQuote | undefined>,
+  valuation?: HoldingValuation,
 ): HoldingPosition[] {
+  const lookup = valuation ? buildDailyPriceLookup(valuation.dailyPrices) : null;
+  const asOf = valuation?.asOf ?? null;
   return assets
     .filter((asset) => asset.deletedAt === null)
     .map((asset) => {
@@ -27,8 +68,8 @@ export function buildHoldingPositions(
             return sum;
           }, 0);
       const quote = quotes[asset.ticker];
-      const marketPrice = quote?.price ?? null;
-      const marketValue = marketPrice === null ? 0 : quantity * marketPrice;
+      const { marketPrice, valuePrice } = resolveHoldingPrice(asset.ticker, asset.averageCost, quote, lookup, asOf);
+      const marketValue = quantity * valuePrice;
       const costBasis = quantity * asset.averageCost;
       const unrealizedGain = marketValue - costBasis;
       const unrealizedGainPercent = costBasis === 0 ? 0 : (unrealizedGain / costBasis) * 100;
@@ -65,13 +106,16 @@ export function buildHoldingPositionsByAccount(
   assets: PortfolioAsset[],
   records: InvestmentRecord[],
   quotes: Record<string, MarketQuote | undefined>,
+  valuation?: HoldingValuation,
 ): HoldingPosition[] {
   const positions: HoldingPosition[] = [];
+  const lookup = valuation ? buildDailyPriceLookup(valuation.dailyPrices) : null;
+  const asOf = valuation?.asOf ?? null;
 
   for (const asset of assets) {
     if (asset.deletedAt !== null) continue;
     const quote = quotes[asset.ticker];
-    const marketPrice = quote?.price ?? null;
+    const { marketPrice, valuePrice } = resolveHoldingPrice(asset.ticker, asset.averageCost, quote, lookup, asOf);
 
     const assetRecords = records.filter((record) => record.assetId === asset.id && record.deletedAt === null);
 
@@ -82,7 +126,7 @@ export function buildHoldingPositionsByAccount(
     // when the same ticker is later bought in a different brokerage.
     if (assetRecords.length === 0) {
       if (asset.totalQuantity <= 0) continue;
-      const marketValue = marketPrice === null ? 0 : asset.totalQuantity * marketPrice;
+      const marketValue = asset.totalQuantity * valuePrice;
       const costBasis = asset.totalQuantity * asset.averageCost;
       const unrealizedGain = marketValue - costBasis;
       positions.push({
@@ -116,7 +160,10 @@ export function buildHoldingPositionsByAccount(
       if (metrics.quantity <= 0) continue;
       const accountId = accountKey === "__unassigned__" ? null : accountKey;
       const averageCost = metrics.averageCost;
-      const marketValue = marketPrice === null ? 0 : metrics.quantity * marketPrice;
+      // Per-account cost fallback: when no market price exists, value at this
+      // account's own average cost so its unrealized P/L reads an honest 0.
+      const acctValuePrice = marketPrice ?? (lookup ? averageCost : 0);
+      const marketValue = metrics.quantity * acctValuePrice;
       const costBasis = metrics.costBasis;
       const unrealizedGain = marketValue - costBasis;
       positions.push({

@@ -402,6 +402,15 @@ textarea:focus-visible {
   .ns-settings-category-budget, .ns-settings-category-usage { display: none !important; }
   .ns-holdings-kpis { display: flex !important; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
   .ns-holdings-kpis > * { flex: 0 0 min(78vw, 280px); scroll-snap-align: start; }
+  .ns-date-scope {
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .ns-date-scope[data-align="end"] {
+    justify-content: flex-start;
+  }
 }
 /* Input */
 .ns-input {
@@ -476,6 +485,16 @@ textarea:focus-visible {
 .ns-dash-row2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 16px; margin-bottom: 16px; align-items: stretch; }
 .ns-dash-row3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 16px; margin-bottom: 16px; align-items: stretch; }
 .ns-dash-kpi-stack { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 12px; }
+.ns-dash-activity-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+.ns-dash-activity-card {
+  height: 100%;
+  min-width: 0;
+}
 
 /* ── Container-query split layout (powers <SplitLayout> in coss/layout.tsx) ──
    Stacks until the CONTAINER itself is wide enough, so it never depends on the
@@ -831,7 +850,113 @@ textarea:focus-visible {
   margin-bottom: 14px;
 }
 
+/* Stable date scope controls: preset buttons keep their position while the
+   secondary month/range area changes content. */
+.ns-date-scope {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  max-width: 100%;
+  white-space: nowrap;
+}
+.ns-date-scope[data-align="end"] {
+  justify-content: flex-end;
+}
+.ns-date-scope__presets,
+.ns-date-scope__detail {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.ns-date-scope__detail {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  width: 206px;
+}
+.ns-date-scope[data-detail="custom"] .ns-date-scope__detail {
+  width: 360px;
+}
+.ns-date-scope__summary {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  min-width: 100%;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: var(--ns-bg-hover);
+  color: var(--ns-fg-muted);
+  padding: 0 12px;
+  font-family: var(--ns-font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+.ns-date-scope__custom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 /* ── Investment transactions ── */
+.ns-invest-page {
+  min-width: 0;
+  width: 100%;
+  overflow-x: clip;
+}
+.ns-invest-header,
+.ns-invest-header-actions,
+.ns-page-tabs {
+  min-width: 0;
+}
+.ns-invest-header {
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.ns-invest-header-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 100%;
+  margin-left: auto;
+}
+.ns-invest-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 16px;
+}
+.ns-page-tabs {
+  overflow-x: auto;
+}
+.ns-page-tabs button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.ns-holdings-allocation {
+  min-width: 0;
+  overflow: hidden;
+}
+.ns-holdings-allocation-body {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.ns-holdings-allocation-chart {
+  width: 168px;
+  height: 168px;
+  flex: 0 0 auto;
+}
+.ns-holdings-allocation-list {
+  flex: 1 1 280px;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+  gap: 9px 20px;
+}
+.ns-holdings-allocation-list > * {
+  min-width: 0;
+}
 .ns-invest-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -901,6 +1026,20 @@ textarea:focus-visible {
   display: flex;
   gap: 8px;
   margin-left: auto;
+}
+.ns-invest-clear-inline {
+  display: flex;
+  align-items: center;
+  flex: 0 0 78px;
+  justify-content: center;
+  margin-left: auto;
+  visibility: hidden;
+}
+.ns-invest-clear-inline[data-visible] {
+  visibility: visible;
+}
+.ns-invest-clear-inline + .ns-invest-actions {
+  margin-left: 0;
 }
 .ns-invest-clear {
   padding: 8px 18px 0;
@@ -1038,6 +1177,30 @@ textarea:focus-visible {
 }
 
 @media (max-width: 900px) {
+  .ns-dash-activity-grid {
+    grid-template-columns: 1fr;
+  }
+  .ns-invest-page {
+    padding: 18px 16px 110px !important;
+  }
+  .ns-invest-header {
+    align-items: flex-start !important;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .ns-invest-header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+  .ns-holdings-allocation-body {
+    align-items: flex-start;
+  }
+  .ns-holdings-allocation-chart {
+    width: 140px;
+    height: 140px;
+  }
   .ns-detail-page {
     padding: 18px 16px 110px;
   }

@@ -1,4 +1,5 @@
 import type { DailyPrice, ManualPriceSnapshot } from "./types";
+import { buildQuoteLookup, findQuoteForTicker, quoteLookupKeys } from "./marketSymbols";
 
 /**
  * Portfolio analytics engine — risk metrics and time-series used by the
@@ -571,28 +572,27 @@ export function dayChangeMovers(opts: {
   limit?: number;
   nameFor?: (ticker: string) => string | null | undefined;
 }): Mover[] {
-  const held = new Set([...opts.heldTickers].map((t) => t.toUpperCase()));
+  const heldTickers = [...opts.heldTickers].map((t) => t.toUpperCase());
+  const held = new Set(heldTickers.flatMap(quoteLookupKeys));
   const limit = opts.limit ?? 7;
 
   const closesByTicker = new Map<string, DailyPrice[]>();
   for (const row of opts.dailyPrices) {
-    const key = row.ticker.toUpperCase();
-    if (!held.has(key)) continue;
-    (closesByTicker.get(key) ?? closesByTicker.set(key, []).get(key)!).push(row);
+    const keys = quoteLookupKeys(row.ticker).filter((key) => held.has(key));
+    for (const key of keys) {
+      (closesByTicker.get(key) ?? closesByTicker.set(key, []).get(key)!).push(row);
+    }
   }
   for (const rows of closesByTicker.values()) rows.sort((a, b) => a.date.localeCompare(b.date));
 
-  const quoteByTicker = new Map<string, DayChangeQuote>();
-  for (const q of opts.quotes) {
-    if (Number.isFinite(q.price) && q.price > 0) quoteByTicker.set(q.symbol.toUpperCase(), q);
-  }
+  const quoteByTicker = buildQuoteLookup(opts.quotes.filter((q) => Number.isFinite(q.price) && q.price > 0));
 
   const movers: Mover[] = [];
-  for (const ticker of held) {
+  for (const ticker of heldTickers) {
     const closes = closesByTicker.get(ticker) ?? [];
     const lastClose = closes.length ? closes[closes.length - 1] : null;
     const prevClose = closes.length >= 2 ? closes[closes.length - 2] : null;
-    const quote = quoteByTicker.get(ticker);
+    const quote = findQuoteForTicker(quoteByTicker, ticker);
 
     let current: number | null = null;
     let reference: number | null = null;

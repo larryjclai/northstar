@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { useFinanceData } from "../data/hooks";
-import { buildPositionMetrics, calculateFifo, calculateXirr, formatNumber, formatPrice, formatQuantity, resolveAssetName, XIRR_MIN_DAYS } from "../domain";
+import { buildPositionMetrics, buildDailyPriceLookup, priceAssetOnDate, calculateFifo, calculateXirr, formatNumber, formatPrice, formatQuantity, resolveAssetName, XIRR_MIN_DAYS } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { AssetLogo } from "../components/AssetLogo";
 import { Badge } from "../components/coss/badge";
@@ -35,6 +35,15 @@ export function HoldingDetailRoute() {
   const asset = useMemo(() => assetRows.find((a) => a.ticker.toUpperCase() === ticker.toUpperCase()), [assetRows, ticker]);
   const quote = useMemo(() => quoteRows.find((q) => q.symbol.toUpperCase() === ticker.toUpperCase()), [quoteRows, ticker]);
 
+  // Canonical valuation (quote → latest daily close → average cost) so this
+  // page's market value agrees with the Dashboard and the 投資 list.
+  const today = new Date().toISOString().slice(0, 10);
+  const dailyPriceLookup = useMemo(() => buildDailyPriceLookup(dailyPriceRows), [dailyPriceRows]);
+  const priced = useMemo(
+    () => (asset ? priceAssetOnDate(asset, today, { todayIso: today, dailyPriceLookup, quote }) : null),
+    [asset, today, dailyPriceLookup, quote],
+  );
+
   const series = useMemo(() => {
     const cutoff = rangeCutoff(seg);
     return dailyPriceRows
@@ -52,8 +61,11 @@ export function HoldingDetailRoute() {
 
   const lots = useMemo(() => {
     if (!asset) return [];
+    // Use the canonical market price (quote → latest close); fall back to the
+    // lot's own cost only when no market price exists at all (P/L reads 0).
+    const marketRef = priced && priced.source !== "cost" ? priced.value : null;
     return calculateFifo(txns).openLots.map((lot) => {
-      const last = quote?.price ?? lot.costPerShare;
+      const last = marketRef ?? lot.costPerShare;
       const pl = (last - lot.costPerShare) * lot.quantity;
       const pct = lot.costPerShare ? ((last - lot.costPerShare) / lot.costPerShare) * 100 : 0;
       return {
@@ -66,7 +78,7 @@ export function HoldingDetailRoute() {
         pct,
       };
     });
-  }, [txns, quote, asset]);
+  }, [txns, asset, priced]);
 
   if (!asset) {
     return (
@@ -77,7 +89,8 @@ export function HoldingDetailRoute() {
     );
   }
 
-  const marketPrice = quote?.price ?? asset.averageCost;
+  // priced is non-null here (asset is defined past the guard above).
+  const marketPrice = priced ? priced.value : asset.averageCost;
   const marketValue = marketPrice * asset.totalQuantity;
   const costBasis = asset.averageCost * asset.totalQuantity;
   const unrealizedGain = marketValue - costBasis;
@@ -143,7 +156,7 @@ export function HoldingDetailRoute() {
           <Button variant="ghost" onClick={() => setEditOpen(true)}><PencilSimple size={14} />編輯持倉</Button>
           <Button variant="outline"><DownloadSimple size={14} />匯出</Button>
           <Button onClick={() => setAddOpen(true)}>
-            <Plus size={14} strokeWidth={2} />Buy / Sell
+            <Plus size={14} strokeWidth={2} />新增交易
           </Button>
         </div>
       </div>

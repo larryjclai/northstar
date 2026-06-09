@@ -229,7 +229,7 @@ export function AppShell() {
         // element can't push content off-screen or trip the iOS webview into
         // widening its layout viewport. Wide tables still scroll in their own
         // overflow-x:auto wrapper.
-        style={{ paddingTop: "env(safe-area-inset-top)", overflowX: "clip" }}
+        style={{ paddingTop: "env(safe-area-inset-top)", overflowX: "clip", minWidth: 0 }}
       >
         {demoActive ? (
           <div

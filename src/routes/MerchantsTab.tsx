@@ -3,31 +3,30 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Card } from "../components/coss/card";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { formatNumber, formatCompactMoney, type LedgerTransaction } from "../domain";
+import { formatNumber, formatCompactMoney, isWithinDateScope, type LedgerTransaction, type ResolvedDateScope } from "../domain";
 import { readableTextColor } from "../lib/color";
 
-export function MerchantsTab({ filterMonth, ledgerRows, primaryCurrency, toPrimary }: { filterMonth: string; ledgerRows: LedgerTransaction[]; primaryCurrency: string; toPrimary: (row: LedgerTransaction) => number | null }) {
-  const currentYear = filterMonth.slice(0, 4);
+export function MerchantsTab({ dateRange, ledgerRows, primaryCurrency, toPrimary }: { dateRange: ResolvedDateScope; ledgerRows: LedgerTransaction[]; primaryCurrency: string; toPrimary: (row: LedgerTransaction) => number | null }) {
   
-  const ytdRows = useMemo(() => ledgerRows.filter(r => r.date.startsWith(currentYear) && r.date <= filterMonth + "-31" && r.entryType === "expense" && r.settlementStatus === "settled" && !r.counterAccountId && r.merchant), [ledgerRows, currentYear, filterMonth]);
+  const periodRows = useMemo(() => ledgerRows.filter(r => isWithinDateScope(r.date, dateRange) && r.entryType === "expense" && r.settlementStatus === "settled" && !r.counterAccountId && r.merchant), [ledgerRows, dateRange]);
   
-  const ytdMap = new Map<string, { amount: number, visits: number, category: string, lastVisit: string }>();
+  const periodMap = new Map<string, { amount: number, visits: number, category: string, lastVisit: string }>();
   
-  for (const row of ytdRows) {
+  for (const row of periodRows) {
     const key = row.merchant;
     if (!key) continue;
     
-    const curr = ytdMap.get(key) ?? { amount: 0, visits: 0, category: row.category || "未分類", lastVisit: row.date };
+    const curr = periodMap.get(key) ?? { amount: 0, visits: 0, category: row.category || "未分類", lastVisit: row.date };
     curr.amount += Math.abs(toPrimary(row) ?? 0);
     curr.visits += 1;
     if (row.date > curr.lastVisit) {
       curr.lastVisit = row.date;
       curr.category = row.category || curr.category;
     }
-    ytdMap.set(key, curr);
+    periodMap.set(key, curr);
   }
   
-  const allMerchantSpend = [...ytdMap.entries()]
+  const allMerchantSpend = [...periodMap.entries()]
     .map(([name, stats]) => ({ name, ...stats }))
     .sort((a, b) => b.amount - a.amount);
     
@@ -53,21 +52,21 @@ export function MerchantsTab({ filterMonth, ledgerRows, primaryCurrency, toPrima
       {/* Top Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))", gap: 20 }}>
         <Card style={{ padding: "20px 24px" }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>Top Merchant</div>
+          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>最高支出商家</div>
           <div style={{ fontSize: 18, fontWeight: 500 }}>
             {maxSpendMerchant ? `${maxSpendMerchant.name} · ${primaryCurrency} ${formatNumber(maxSpendMerchant.amount)}` : "無"}
           </div>
         </Card>
         <Card style={{ padding: "20px 24px" }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>Most Frequent</div>
+          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>最常消費</div>
           <div style={{ fontSize: 18, fontWeight: 500 }}>
             {maxVisitsMerchant ? `${maxVisitsMerchant.name} · ${maxVisitsMerchant.visits} 次` : "無"}
           </div>
         </Card>
         <Card style={{ padding: "20px 24px" }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>Total Spending YTD</div>
+          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{dateRange.label} 總支出</div>
           <div style={{ fontSize: 18, fontWeight: 500 }}>
-            {primaryCurrency} {formatNumber(totalSpend)} · {allMerchantSpend.length} merchants
+            {primaryCurrency} {formatNumber(totalSpend)} · {allMerchantSpend.length} 個商家
           </div>
         </Card>
       </div>
@@ -75,7 +74,7 @@ export function MerchantsTab({ filterMonth, ledgerRows, primaryCurrency, toPrima
       {/* Top 5 spend merchants pie (B22) */}
       {top5Pie.length > 0 ? (
         <Card style={{ padding: "var(--ns-pad-card)" }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 12 }}>Top 5 支出商家 · {currentYear}</div>
+          <div className="ns-eyebrow" style={{ marginBottom: 12 }}>Top 5 支出商家 · {dateRange.label}</div>
           <div className="grid grid-cols-1 items-center gap-5 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-6">
             <div style={{ width: 180, height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -109,7 +108,7 @@ export function MerchantsTab({ filterMonth, ledgerRows, primaryCurrency, toPrima
       {/* Main Content */}
       <Card style={{ padding: "var(--ns-pad-card)",  overflow: "hidden", display: "flex", flexDirection: "column" }}>
         {/* Mobile: a 4-column table can't fit a phone, so each merchant is a
-            tappable card (avatar, name, category · visits, YTD spend). The full
+            tappable card (avatar, name, category · visits, period spend). The full
             table returns at sm+. */}
         <div className="flex flex-col gap-2 sm:hidden">
           {allMerchantSpend.length === 0 ? (
@@ -138,10 +137,10 @@ export function MerchantsTab({ filterMonth, ledgerRows, primaryCurrency, toPrima
         {/* Desktop: full table */}
         <div className="hidden sm:contents">
         <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", fontSize: 12, fontWeight: 500, color: "var(--ns-fg-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-          <div>Merchant</div>
-          <div>Category</div>
-          <div>Visits YTD</div>
-          <div>Spending YTD</div>
+          <div>商家</div>
+          <div>分類</div>
+          <div>期間次數</div>
+          <div>期間支出</div>
           <div></div>
         </div>
         
@@ -169,7 +168,7 @@ export function MerchantsTab({ filterMonth, ledgerRows, primaryCurrency, toPrima
                       </div>
                       <div>
                         <div style={{ fontWeight: 500 }}>{r.name}</div>
-                        <div className="muted" style={{ fontSize: 12 }}>Last: {r.lastVisit}</div>
+                        <div className="muted" style={{ fontSize: 12 }}>最近：{r.lastVisit}</div>
                       </div>
                     </div>
                     <div>{r.category}</div>

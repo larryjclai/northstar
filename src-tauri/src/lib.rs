@@ -4,6 +4,7 @@ use tauri::Manager;
 async fn fetch_yahoo(path_and_query: String) -> Result<String, String> {
     if path_and_query.starts_with("/v8/finance/chart/") == false
         && path_and_query.starts_with("/v1/finance/search") == false
+        && path_and_query.starts_with("/v10/finance/quoteSummary/") == false
     {
         return Err("Unsupported Yahoo Finance path.".into());
     }
@@ -37,6 +38,46 @@ async fn fetch_yahoo(path_and_query: String) -> Result<String, String> {
     Err(format!("Yahoo Finance returned HTTP {}.", last_status))
 }
 
+#[tauri::command]
+async fn fetch_market_data(url: String, response_type: String) -> Result<String, String> {
+    let parsed = url::Url::parse(&url).map_err(|error| error.to_string())?;
+    if is_allowed_market_data_url(&parsed) == false {
+        return Err("Unsupported market data URL.".into());
+    }
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(parsed)
+        .header("Accept", "application/json,text/csv,text/plain,*/*")
+        .header("Accept-Language", "zh-TW,zh;q=0.9,en;q=0.8")
+        .header("User-Agent", "Mozilla/5.0 Northstar/0.1")
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+
+    if response.status().is_success() == false {
+        return Err(format!("Market data returned HTTP {}.", response.status()));
+    }
+
+    let _ = response_type;
+    response.text().await.map_err(|error| error.to_string())
+}
+
+fn is_allowed_market_data_url(url: &url::Url) -> bool {
+    if url.scheme() != "https" {
+        return false;
+    }
+
+    match url.host_str() {
+        Some("openapi.twse.com.tw") => url.path().starts_with("/v1/opendata/t187ap03_L"),
+        Some("www.tpex.org.tw") => url.path().starts_with("/openapi/v1/mopsfin_t187ap03_O"),
+        Some("mopsfin.twse.com.tw") => {
+            url.path() == "/opendata/t187ap03_L.csv" || url.path() == "/opendata/t187ap03_O.csv"
+        }
+        _ => false,
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -64,7 +105,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![fetch_yahoo])
+        .invoke_handler(tauri::generate_handler![fetch_yahoo, fetch_market_data])
         .run(tauri::generate_context!())
         .expect("error while running Northstar");
 }
