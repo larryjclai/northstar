@@ -17,7 +17,10 @@
   "dependencies": {
     "@base-ui-components/react": "^1.0.0-beta.4",
     "@base-ui/react": "^1.5.0",
-    "@fontsource-variable/geist": "^5.2.9",
+    "@fontsource/ibm-plex-mono": "^5.2.7",
+    "@fontsource/ibm-plex-sans": "^5.2.8",
+    "@fontsource/space-grotesk": "^5.2.10",
+    "@ibm/plex-sans-tc": "^1.1.1",
     "@phosphor-icons/react": "^2.1.10",
     "@tailwindcss/vite": "^4.1.8",
     "@tanstack/react-query": "^5.80.6",

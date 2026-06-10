@@ -112,7 +112,7 @@ export function AppShell() {
           <img src={appIconUrl} alt="" style={{ width: 26, height: 26, borderRadius: 7 }} />
           <span
             style={{
-              fontFamily: "var(--ns-font-display)",
+              fontFamily: "var(--ns-font-brand)",
               fontWeight: 600,
               fontSize: 15,
               letterSpacing: -0.01,

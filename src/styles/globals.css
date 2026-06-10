@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "./fonts.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -10,13 +10,18 @@
    ═══════════════════════════════════════════════════════════ */
 
 :root {
-  /* Type families */
-  --ns-font-display: "Space Grotesk", ui-sans-serif, system-ui, "Noto Sans TC", sans-serif;
-  --ns-font-ui:      "Space Grotesk", ui-sans-serif, system-ui, "Noto Sans TC", sans-serif;
-  --ns-font-mono:    "IBM Plex Mono", "JetBrains Mono", "Geist Mono", ui-monospace, "SF Mono", monospace;
-  /* Numeric figures — WISE-style: a legible proportional sans with tabular
-     alignment, not a monospace face. "Geist Variable" is the bundled font. */
-  --ns-font-num:     "Geist Variable", ui-sans-serif, system-ui, "Noto Sans TC", sans-serif;
+  /* Type families — IBM Plex unification (2026-06):
+     UI text + headings use Plex Sans, Chinese uses the same-DNA Plex Sans TC,
+     dense data (table figures, timestamps, chart axes, eyebrows) uses
+     Plex Mono. Space Grotesk survives only in the brand wordmark. */
+  --ns-font-display: "IBM Plex Sans", "IBM Plex Sans TC", ui-sans-serif, system-ui, sans-serif;
+  --ns-font-ui:      "IBM Plex Sans", "IBM Plex Sans TC", ui-sans-serif, system-ui, sans-serif;
+  --ns-font-mono:    "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+  /* Hero numerics — WISE-style: a legible proportional sans with tabular
+     alignment (tabular-nums set on the .ns-num-* classes), not a mono face. */
+  --ns-font-num:     "IBM Plex Sans", "IBM Plex Sans TC", ui-sans-serif, system-ui, sans-serif;
+  /* Brand wordmark only — do not use for UI text. */
+  --ns-font-brand:   "Space Grotesk", "IBM Plex Sans", ui-sans-serif, sans-serif;
 
   /* Spacing scale */
   --ns-s-0: 0px;   --ns-s-1: 4px;  --ns-s-2: 8px;   --ns-s-3: 12px;
@@ -47,7 +52,7 @@
      Northstar's ns-* tokens. The ns-* color values are redefined per theme
      ([data-theme] / prefers-color-scheme) below, so these aliases follow
      light/dark automatically — COSS components inherit our green accent,
-     Space Grotesk type, and radii without any per-component `dark:` variants. */
+     IBM Plex type, and radii without any per-component `dark:` variants. */
   --background: var(--ns-bg);
   --foreground: var(--ns-fg);
   --card: var(--ns-bg-card);
