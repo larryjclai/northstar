@@ -39,7 +39,9 @@ export function GoalEditorSheet({
   const [targetAmount, setTargetAmount] = useState(0);
   const [monthlyContribution, setMonthlyContribution] = useState(0);
   const [expectedReturnPct, setExpectedReturnPct] = useState(0);
-  const [linkedIds, setLinkedIds] = useState<Set<string>>(new Set());
+  // Bound accounts → share percentage (1–100). Stored as a 0–1 fraction in
+  // accountShareMap; percentages here keep the inputs human-friendly.
+  const [linked, setLinked] = useState<Record<string, number>>({});
 
   useEffect(() => {
     setName(goal?.name ?? "");
@@ -48,7 +50,11 @@ export function GoalEditorSheet({
     setMonthlyContribution(goal?.monthlyContribution ?? 0);
     const raw = goal?.expectedAnnualReturn ?? 0;
     setExpectedReturnPct(raw > 1 ? raw : raw * 100);
-    setLinkedIds(new Set(Object.keys(goal?.accountShareMap ?? {}).filter((id) => (goal?.accountShareMap[id] ?? 0) > 0)));
+    const shares: Record<string, number> = {};
+    for (const [id, weight] of Object.entries(goal?.accountShareMap ?? {})) {
+      if (weight > 0) shares[id] = Math.round(Math.min(1, weight) * 100);
+    }
+    setLinked(shares);
   }, [goal, primaryCurrency]);
 
   const bindableAccounts = useMemo(
@@ -69,19 +75,24 @@ export function GoalEditorSheet({
   );
 
   function toggleAccount(id: string) {
-    setLinkedIds((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+    setLinked((current) => {
+      const next = { ...current };
+      if (id in next) delete next[id];
+      else next[id] = 100;
       return next;
     });
+  }
+
+  function setShare(id: string, pct: number) {
+    const clamped = Math.min(100, Math.max(1, Math.round(pct) || 100));
+    setLinked((current) => ({ ...current, [id]: clamped }));
   }
 
   async function handleSave() {
     if (!name.trim()) { toast.error("請輸入目標名稱"); return; }
     if (!(targetAmount > 0)) { toast.error("請輸入目標金額"); return; }
     const accountShareMap: Record<string, number> = {};
-    for (const id of linkedIds) accountShareMap[id] = 1;
+    for (const [id, pct] of Object.entries(linked)) accountShareMap[id] = pct / 100;
     try {
       await save.mutateAsync({
         id: goal?.id,
@@ -163,7 +174,7 @@ export function GoalEditorSheet({
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>綁定帳戶</div>
             <div className="muted" style={{ fontSize: 12, marginBottom: 8, lineHeight: 1.5 }}>
-              目標進度 = 綁定帳戶的餘額加總（依匯率換算成目標幣別）。建議為目標開一個專屬帳戶。
+              目標進度 = 綁定帳戶的餘額 × 比例加總（依匯率換算成目標幣別）。共用帳戶可只計入部分比例，例如同一帳戶 50% 算旅遊、50% 算買車。
             </div>
             {bindableAccounts.length === 0 ? (
               <div className="muted" style={{ fontSize: 12.5, padding: "10px 12px", borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)" }}>
@@ -172,7 +183,8 @@ export function GoalEditorSheet({
             ) : (
               <div style={{ border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-sm)", overflow: "hidden" }}>
                 {bindableAccounts.map((account, index) => {
-                  const checked = linkedIds.has(account.id);
+                  const pct = linked[account.id];
+                  const checked = pct !== undefined;
                   return (
                     <label
                       key={account.id}
@@ -189,6 +201,22 @@ export function GoalEditorSheet({
                       <span className="num muted" style={{ fontSize: 12.5, fontVariantNumeric: "tabular-nums" }}>
                         {account.currency} {formatNumber(account.balance)}
                       </span>
+                      {checked && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }} onClick={(e) => e.preventDefault()}>
+                          <input
+                            type="number"
+                            min={1}
+                            max={100}
+                            value={pct}
+                            onChange={(e) => setShare(account.id, Number(e.target.value))}
+                            onClick={(e) => e.stopPropagation()}
+                            aria-label={`${account.name} 計入比例`}
+                            className="ns-input mono"
+                            style={{ width: 58, padding: "3px 6px", fontSize: 12.5, textAlign: "right" }}
+                          />
+                          <span className="muted" style={{ fontSize: 12 }}>%</span>
+                        </span>
+                      )}
                     </label>
                   );
                 })}
