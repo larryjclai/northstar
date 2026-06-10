@@ -76,24 +76,30 @@ Wordmark 在 `AppShell.tsx` sidebar：app icon 圖檔 + "Northstar" 文字。
 | Dark | `#9fe870`（lime green） | `#0a1a02` | accent 18% mix |
 | Light | `#5fb83a` | `#ffffff` | accent 14% mix |
 
-### 2.4 語意色（Gain / Loss）
+### 2.4 語意色：固定 pos/neg vs 行情 gain/loss
 
-三組盈虧配色，透過 `[data-gainloss]` 切換（設定 → 佈景主題下方「盈虧配色」，持久化於 uiPreferences）：
+**兩組分離的語意 token，不可混用：**
 
-| 組合 | `--ns-pos` dark / light | `--ns-neg` dark / light |
+- `--ns-pos` / `--ns-neg`（+soft）— **固定**綠/紅。用於：成功/錯誤提示（toast、badge）、現金流收支正負、金額符號（+收入/−支出、轉入/轉出）、預算超標、到期警示。永不受配色切換影響。
+- `--ns-gain` / `--ns-loss`（+soft）— **行情**漲跌。用於：投資損益、報酬率、漲跌幅、個股 movers、Portfolio/Alpha 指標。預設等於 pos/neg，透過 `[data-gainloss]` 切換（設定 → 「盈虧配色」，持久化於 uiPreferences）。
+- 文字輔助 class 對應：`.pos`/`.neg`（固定）、`.gain`/`.loss`（行情）。
+
+| 組合 | `--ns-gain` dark / light | `--ns-loss` dark / light |
 |---|---|---|
-| **US** 綠漲紅跌（預設，無屬性） | `#6ee49a` / `#157040` | `#ff7d6b` / `#c22a1e` |
+| **US** 綠漲紅跌（預設，無屬性） | = `--ns-pos` | = `--ns-neg` |
 | **TW** 紅漲綠跌（`data-gainloss="tw"`） | `#ff6363` / `#c22a1e` | `#3fbf6c` / `#157040` |
 | **Neutral** 藍綠/琥珀（`data-gainloss="neutral"`） | `#34c5b0` / `#0c8577` | `#f0a050` / `#b06a10` |
 
-其他語意色：
+固定組與其他語意色：
 
 | Token | Dark | Light |
 |---|---|---|
+| `--ns-pos` | `#6ee49a` | `#157040` |
+| `--ns-neg` | `#ff7d6b` | `#c22a1e` |
 | `--ns-warn` | `#f0c050` | `#c98a18` |
 | `--ns-info` | `#6fb3ff` | `#2c6df0` |
 
-各有 `-soft` 變體（12–16% color-mix）。盈虧變體只重新映射 `--ns-pos`/`--ns-neg`(+soft)，所有引用它們的別名與圖表自動跟隨。
+各有 `-soft` 變體（12–16% color-mix）。新寫損益/漲跌相關 UI 時一律取 gain/loss，判斷準則：「台股使用者會不會預期這個數字紅漲綠跌？」會 → gain/loss；不會 → pos/neg。
 
 ### 2.5 圖表系列色
 

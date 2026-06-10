@@ -401,7 +401,7 @@ export function InvestmentsRoute() {
                     the % change sits on its own line so it never squeezes the
                     number into an ellipsis. */}
                 <div className="num" style={{ fontSize: "clamp(14px, 1.7vw, 22px)", fontWeight: 500, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={exact}>{val}</div>
-                {pct ? <div className="num" style={{ fontSize: 12.5, marginTop: 2, color: pos ? 'var(--ns-pos)' : 'var(--ns-neg)' }}>{pct}</div> : null}
+                {pct ? <div className="num" style={{ fontSize: 12.5, marginTop: 2, color: pos ? 'var(--ns-gain)' : 'var(--ns-loss)' }}>{pct}</div> : null}
               </CossCard>
             ))}
           </div>
@@ -560,7 +560,7 @@ function AccountList({
       <div className="max-h-[70vh] overflow-y-auto">
         {sorted.map((aggregate) => {
           const active = aggregate.account.id === selectedId;
-          const pnlColor = aggregate.pnl >= 0 ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)";
+          const pnlColor = aggregate.pnl >= 0 ? "var(--ns-gain)" : "var(--ns-loss)";
           return (
             <button
               key={aggregate.account.id}
@@ -624,7 +624,7 @@ function AccountDetail({
           </div>
           <div className="tabular text-right">
             <div className="text-lg font-semibold">{formatMoney(marketValue, primaryCurrency)}</div>
-            <div className="text-xs" style={{ color: pnl >= 0 ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}>
+            <div className="text-xs" style={{ color: pnl >= 0 ? "var(--ns-gain)" : "var(--ns-loss)" }}>
               損益 {pnl >= 0 ? "+" : ""}{formatNumber(pnl)} {primaryCurrency}（{pnl >= 0 ? "+" : ""}{returnPercent.toFixed(2)}%）
             </div>
           </div>
@@ -1135,7 +1135,7 @@ function HoldingsTab({
             const asset = assetsById.get(position.assetId) ?? null;
             const displayName = asset ? resolveAssetName(asset, nameLocale) : position.name;
             const pnlUp = position.unrealizedGain >= 0;
-            const pnlColor = pnlUp ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)";
+            const pnlColor = pnlUp ? "var(--ns-gain)" : "var(--ns-loss)";
             return (
               <button
                 type="button"
@@ -1264,14 +1264,14 @@ function HoldingsTab({
                     </td>
                     <td
                       className="py-3 text-right tabular whitespace-nowrap"
-                      style={{ color: pnlTone === "positive" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}
+                      style={{ color: pnlTone === "positive" ? "var(--ns-gain)" : "var(--ns-loss)" }}
                       title={`${position.unrealizedGain >= 0 ? "+" : ""}${formatNumber(position.unrealizedGain)} ${position.currency}`}
                     >
                       {position.unrealizedGain >= 0 ? "+" : ""}{formatCompactNumber(position.unrealizedGain)}
                     </td>
                     <td
                       className="py-3 text-right tabular whitespace-nowrap"
-                      style={{ color: pnlTone === "positive" ? "var(--ns-positive, var(--ns-accent))" : "var(--ns-danger, #c0392b)" }}
+                      style={{ color: pnlTone === "positive" ? "var(--ns-gain)" : "var(--ns-loss)" }}
                     >
                       {position.unrealizedGainPercent >= 0 ? "+" : ""}{position.unrealizedGainPercent.toFixed(2)}%
                     </td>
@@ -1510,9 +1510,9 @@ function comparePositions(
 
 function SummaryCell({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "neutral" | "positive" | "negative" }) {
   const color = tone === "positive"
-    ? "var(--ns-positive, var(--ns-accent))"
+    ? "var(--ns-gain)"
     : tone === "negative"
-      ? "var(--ns-danger, #c0392b)"
+      ? "var(--ns-loss)"
       : "var(--ns-fg)";
   return (
     <div className="rounded-md border p-3" style={{ borderColor: "var(--ns-border)" }}>

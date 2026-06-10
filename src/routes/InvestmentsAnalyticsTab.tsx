@@ -346,9 +346,9 @@ export function InvestmentsAnalyticsTab({
         {/* Summary strip */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", overflow: "hidden", marginBottom: 14 }}>
           {[
-            { label: "投資組合", val: perf.portFinal, color: perf.portFinal != null && perf.portFinal >= 0 ? "var(--ns-pos)" : "var(--ns-neg)" },
+            { label: "投資組合", val: perf.portFinal, color: perf.portFinal != null && perf.portFinal >= 0 ? "var(--ns-gain)" : "var(--ns-loss)" },
             { label: `${benchmarkTicker} 指標`, val: perf.benchFinal, color: "var(--ns-fg-muted)" },
-            { label: "Alpha", val: perf.alpha, color: perf.alpha != null && perf.alpha >= 0 ? "var(--ns-accent)" : "var(--ns-neg)", help: "投資組合報酬減掉指標報酬。正數代表本期間跑贏指標，負數代表落後。" },
+            { label: "Alpha", val: perf.alpha, color: perf.alpha != null && perf.alpha >= 0 ? "var(--ns-accent)" : "var(--ns-loss)", help: "投資組合報酬減掉指標報酬。正數代表本期間跑贏指標，負數代表落後。" },
           ].map((s, i) => (
             <div key={s.label} style={{ padding: "12px 16px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)", minWidth: 0 }}>
               <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: 4 }}>
@@ -488,7 +488,7 @@ function SummaryMetricCard({ label, value, tone = "muted", help }: {
   tone?: "pos" | "neg" | "muted";
   help: string;
 }) {
-  const color = tone === "pos" ? "var(--ns-pos)" : tone === "neg" ? "var(--ns-neg)" : "var(--ns-fg)";
+  const color = tone === "pos" ? "var(--ns-gain)" : tone === "neg" ? "var(--ns-loss)" : "var(--ns-fg)";
   return (
     <CossCard style={{ padding: "16px 18px" }}>
       <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 8, display: "flex", alignItems: "center", gap: 5 }}>

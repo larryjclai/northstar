@@ -837,9 +837,9 @@ function PortfolioStrip({ period, data, benchmarkTicker }: {
   benchmarkTicker: string;
 }) {
   const cells = [
-    { label: "投資組合", val: data.portfolio, color: data.portfolio == null ? "var(--ns-fg-muted)" : data.portfolio >= 0 ? "var(--ns-pos)" : "var(--ns-neg)" },
+    { label: "投資組合", val: data.portfolio, color: data.portfolio == null ? "var(--ns-fg-muted)" : data.portfolio >= 0 ? "var(--ns-gain)" : "var(--ns-loss)" },
     { label: `${benchmarkTicker} 指標`, val: data.benchmark, color: "var(--ns-fg-muted)" },
-    { label: "Alpha", val: data.alpha, color: data.alpha == null ? "var(--ns-fg-muted)" : data.alpha >= 0 ? "var(--ns-accent)" : "var(--ns-neg)" },
+    { label: "Alpha", val: data.alpha, color: data.alpha == null ? "var(--ns-fg-muted)" : data.alpha >= 0 ? "var(--ns-accent)" : "var(--ns-loss)" },
   ];
   return (
     <div style={{ marginTop: 14 }}>
@@ -882,8 +882,8 @@ function MoverRow({ mover }: { mover: Mover }) {
         style={{
           flexShrink: 0, fontSize: 11.5, fontWeight: 600, fontVariantNumeric: "tabular-nums",
           padding: "2px 7px", borderRadius: 999,
-          color: isPos ? "var(--ns-pos)" : "var(--ns-neg)",
-          background: `color-mix(in srgb, ${isPos ? "var(--ns-pos)" : "var(--ns-neg)"} 12%, transparent)`,
+          color: isPos ? "var(--ns-gain)" : "var(--ns-loss)",
+          background: `color-mix(in srgb, ${isPos ? "var(--ns-gain)" : "var(--ns-loss)"} 12%, transparent)`,
         }}
       >
         {isPos ? "+" : "−"}{Math.abs(mover.changePercent).toFixed(2)}%
@@ -895,7 +895,7 @@ function MoverRow({ mover }: { mover: Mover }) {
 function MoverColumn({ label, tone, movers }: { label: string; tone: "pos" | "neg"; movers: Mover[] }) {
   return (
     <div style={{ minWidth: 0 }}>
-      <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 4, color: tone === "pos" ? "var(--ns-pos)" : "var(--ns-neg)" }}>
+      <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 4, color: tone === "pos" ? "var(--ns-gain)" : "var(--ns-loss)" }}>
         {label}
       </div>
       {movers.length === 0 ? (

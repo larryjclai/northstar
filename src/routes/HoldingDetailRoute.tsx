@@ -230,14 +230,14 @@ export function HoldingDetailRoute() {
               {[
                 ["市值", formatNumber(marketValue), null],
                 ["成本基礎", formatNumber(costBasis), null],
-                ["未實現損益", (pos ? "+" : "") + formatNumber(unrealizedGain), pos ? "pos" : "neg"],
-                ["總報酬率", (pos ? "+" : "") + unrealizedGainPercent.toFixed(2) + "%", pos ? "pos" : "neg"],
-                ["已實現損益", (realizedGain >= 0 ? "+" : "") + formatNumber(realizedGain), realizedGain >= 0 ? "pos" : "neg"],
+                ["未實現損益", (pos ? "+" : "") + formatNumber(unrealizedGain), pos ? "gain" : "loss"],
+                ["總報酬率", (pos ? "+" : "") + unrealizedGainPercent.toFixed(2) + "%", pos ? "gain" : "loss"],
+                ["已實現損益", (realizedGain >= 0 ? "+" : "") + formatNumber(realizedGain), realizedGain >= 0 ? "gain" : "loss"],
                 // B1: annualized return is meaningless for short holding spans —
                 // suppress to "—" with an explanatory tooltip below XIRR_MIN_DAYS.
                 xirrTooShort
                   ? ["年化報酬 (XIRR)", "–", null, `持有期間少於 ${XIRR_MIN_DAYS} 天，年化報酬不具參考意義`]
-                  : ["年化報酬 (XIRR)", xirr === null ? "–" : (xirr >= 0 ? "+" : "") + (xirr * 100).toFixed(2) + "%", xirr === null ? null : xirr >= 0 ? "pos" : "neg"],
+                  : ["年化報酬 (XIRR)", xirr === null ? "–" : (xirr >= 0 ? "+" : "") + (xirr * 100).toFixed(2) + "%", xirr === null ? null : xirr >= 0 ? "gain" : "loss"],
                 ["配息 YTD", formatNumber(dividendYtd), null],
                 ["持倉天數", holdingDays !== null ? `${holdingDays} 天` : "–", null],
               ].map(([l, v, c, t]) => (
@@ -286,10 +286,10 @@ export function HoldingDetailRoute() {
             <span className="num" style={{ textAlign: "right", fontSize: 13 }}>{formatQuantity(l.qty)}</span>
             <span className="num muted" style={{ textAlign: "right", fontSize: 13 }}>{formatPrice(l.cost)}</span>
             <span className="num" style={{ textAlign: "right", fontSize: 13 }}>{formatPrice(l.last)}</span>
-            <span className={"num " + (l.pl >= 0 ? "pos" : "neg")} style={{ textAlign: "right", fontSize: 14, fontWeight: 500 }}>
+            <span className={"num " + (l.pl >= 0 ? "gain" : "loss")} style={{ textAlign: "right", fontSize: 14, fontWeight: 500 }}>
               {l.pl >= 0 ? "+" : ""}{formatNumber(l.pl)}
             </span>
-            <span className={"num " + (l.pct >= 0 ? "pos" : "neg")} style={{ textAlign: "right", fontSize: 14 }}>
+            <span className={"num " + (l.pct >= 0 ? "gain" : "loss")} style={{ textAlign: "right", fontSize: 14 }}>
               {l.pct >= 0 ? "+" : ""}{l.pct.toFixed(2)}%
             </span>
           </div>
