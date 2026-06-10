@@ -64,9 +64,6 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
   const setTimezone = useUiPreferences((state) => state.setTimezone);
   const assetLogosEnabled = useUiPreferences((state) => state.assetLogosEnabled);
   const setAssetLogosEnabled = useUiPreferences((state) => state.setAssetLogosEnabled);
-  const benchmarkTicker = useUiPreferences((state) => state.benchmarkTicker);
-  const setBenchmarkTicker = useUiPreferences((state) => state.setBenchmarkTicker);
-  const [benchmarkDraft, setBenchmarkDraft] = useState(benchmarkTicker);
   const gainLossPalette = useUiPreferences((state) => state.gainLossPalette);
   const setGainLossPalette = useUiPreferences((state) => state.setGainLossPalette);
   const density = useUiPreferences((state) => state.density);
@@ -378,27 +375,8 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
           </div>
         </button>
 
-        <h3 className="font-semibold mb-2 mt-6">投資 Benchmark 指標</h3>
-        <p className="text-xs muted mb-3">「投資 → 分析」與總覽的「投資組合 vs Benchmark」會用這個標的當比較基準。預設 {DEFAULT_BENCHMARK_TICKER}（元大台灣50）。首次開啟分析時會自動回補它的歷史股價。</p>
-        <TickerSearchField
-          value={benchmarkDraft}
-          onChange={(v) => { setBenchmarkDraft(v); if (v.trim()) setBenchmarkTicker(v); }}
-          onSelect={(result) => { setBenchmarkDraft(result.symbol); setBenchmarkTicker(result.symbol); }}
-          placeholder={DEFAULT_BENCHMARK_TICKER}
-        />
-        <div className="mt-2 flex items-center gap-3 text-xs muted">
-          <span>目前基準：<span className="mono" style={{ color: "var(--ns-fg)" }}>{benchmarkTicker}</span></span>
-          {benchmarkTicker !== DEFAULT_BENCHMARK_TICKER ? (
-            <button
-              type="button"
-              className="underline"
-              style={{ color: "var(--ns-accent)" }}
-              onClick={() => { setBenchmarkTicker(DEFAULT_BENCHMARK_TICKER); setBenchmarkDraft(DEFAULT_BENCHMARK_TICKER); }}
-            >
-              還原預設
-            </button>
-          ) : null}
-        </div>
+        {/* Benchmark 指標已移到「投資 → 分析 → 投資組合 vs 指標」就地切換
+            （uiPreferences.benchmarkTicker 同一份設定）。 */}
       </Card>
 
       <Card className="p-5">

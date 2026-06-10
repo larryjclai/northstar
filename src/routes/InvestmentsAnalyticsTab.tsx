@@ -16,6 +16,9 @@ import { Card as CossCard } from "../components/coss/card";
 import { Button } from "../components/coss/button";
 import { EmptyState } from "../components/EmptyState";
 import { SegmentedControl } from "../components/SegmentedControl";
+import { TickerSearchField } from "../components/TickerSearchField";
+import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
+import { useUiPreferences } from "../state/uiPreferences";
 import {
   alignByDate,
   allocationDriftSeries,
@@ -49,6 +52,75 @@ const CHART_COLORS = [
 ];
 
 const VOL_THRESHOLD = 20; // % annualized — high-volatility marker on the rolling chart.
+
+/** Wealthfolio-style quick picks for the in-chart benchmark switcher. */
+const BENCHMARK_PRESETS: Array<{ ticker: string; name: string; note: string }> = [
+  { ticker: "0050.TW", name: "元大台灣50", note: "台股大盤代理" },
+  { ticker: "^TWII", name: "加權指數", note: "台股大盤" },
+  { ticker: "^GSPC", name: "S&P 500", note: "美股大型股" },
+  { ticker: "^NDX", name: "Nasdaq 100", note: "美股科技股" },
+  { ticker: "VT", name: "Vanguard Total World", note: "全球股市 ETF" },
+];
+
+/** Benchmark chip + popover: preset list on top, free Yahoo symbol search
+ *  below. Writes the shared uiPreferences benchmark so the whole analytics
+ *  tab (and its auto-backfill) follows. */
+function BenchmarkPicker({ current }: { current: string }) {
+  const setBenchmarkTicker = useUiPreferences((state) => state.setBenchmarkTicker);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  function choose(ticker: string) {
+    setBenchmarkTicker(ticker);
+    setQuery("");
+    setOpen(false);
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger render={
+        <button
+          type="button"
+          className="ns-input"
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", fontSize: 12.5, cursor: "pointer" }}
+          title="更換比較指標"
+        >
+          <ChartLineUp size={13} />
+          <span className="mono">{current}</span>
+          <span className="muted" style={{ fontSize: 11 }}>更換指標</span>
+        </button>
+      } />
+      <PopoverContent align="end" style={{ width: 300, padding: 10 }}>
+        <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 8 }}>常用指標</div>
+        <div style={{ display: "flex", flexDirection: "column", marginBottom: 10 }}>
+          {BENCHMARK_PRESETS.map((preset) => (
+            <button
+              key={preset.ticker}
+              type="button"
+              onClick={() => choose(preset.ticker)}
+              style={{
+                display: "flex", alignItems: "baseline", gap: 8, padding: "7px 8px", borderRadius: "var(--ns-r-xs)",
+                cursor: "pointer", textAlign: "left", border: "none",
+                background: preset.ticker === current ? "var(--ns-accent-soft)" : "transparent",
+              }}
+            >
+              <span className="mono" style={{ fontSize: 12.5, fontWeight: 600, flexShrink: 0 }}>{preset.ticker}</span>
+              <span style={{ fontSize: 12.5, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{preset.name}</span>
+              <span className="dim" style={{ fontSize: 10.5, marginLeft: "auto", flexShrink: 0 }}>{preset.note}</span>
+            </button>
+          ))}
+        </div>
+        <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 6 }}>或搜尋任意代號</div>
+        <TickerSearchField
+          value={query}
+          onChange={setQuery}
+          onSelect={(result) => choose(result.symbol)}
+          placeholder="例：QQQ、VWRA.L、2330.TW"
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 type AnalyticsPeriod = "3M" | "6M" | "YTD" | "1Y" | "ALL";
 const PERIODS: AnalyticsPeriod[] = ["3M", "6M", "YTD", "1Y", "ALL"];
@@ -341,6 +413,7 @@ export function InvestmentsAnalyticsTab({
               help="把目前持倉和指標都換算成同一期間的累積報酬，方便看你的組合是否跑贏參考標的。"
             />
           </div>
+          <BenchmarkPicker current={benchmarkTicker} />
         </div>
 
         {/* Summary strip */}
