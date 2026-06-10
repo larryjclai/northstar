@@ -13,6 +13,7 @@ import { useRepositoryMutation } from "../data/hooks";
 import type { InvestmentDraft, PortfolioAssetDraft } from "../data/repositories";
 import { calculateInvestmentCashDelta, formatNumber, formatQuantity, nowAsDatetimeLocal, type Account, type InvestmentAction, type PortfolioAsset } from "../domain";
 import { TaiwanMarketDataProvider } from "../features/market-data/taiwanMarketDataProvider";
+import { assertExplicitMarketSuffix } from "../domain/marketSymbols";
 import { YahooFinanceProvider } from "../features/market-data/yahooFinanceProvider";
 import { useUiPreferences } from "../state/uiPreferences";
 
@@ -221,6 +222,7 @@ export function InvestmentEntryDrawer({
     setMessage("");
     try {
       if (!snapshotForm.ticker.trim()) throw new Error("請輸入 ticker。");
+      assertExplicitMarketSuffix(snapshotForm.ticker);
       if (!snapshotForm.accountId) throw new Error("請選擇券商 / 帳戶。");
       await createHolding.mutateAsync(snapshotForm);
       onSubmitted?.();
@@ -234,6 +236,7 @@ export function InvestmentEntryDrawer({
     setMessage("");
     try {
       if (!transactionForm.ticker.trim()) throw new Error("請輸入 ticker。");
+      assertExplicitMarketSuffix(transactionForm.ticker);
       if (!transactionForm.linkedAccountId) throw new Error("請選擇連動帳戶 / 券商。");
       if (side === "split" && transactionForm.quantity <= 0) throw new Error("請輸入拆股比例（例如 3 = 1 股拆 3 股）。");
       if (side === "reduction" && transactionForm.quantity <= 0) throw new Error("請輸入被註銷的股數。");

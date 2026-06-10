@@ -52,6 +52,22 @@ export function expandMarketDataSymbols(symbols: string[]) {
   return [...expanded];
 }
 
+/**
+ * Bare numeric tickers (2330, 0050, 0700) are ambiguous across markets —
+ * .TW 上市 / .TWO 上櫃 / .HK 港股 all use digits. Entry points reject them so
+ * the stored ticker always carries the market the user actually picked, and
+ * quote lookups never have to guess (the .TW/.TWO expansion below remains
+ * only as a fallback for legacy rows saved before this guard).
+ */
+export function assertExplicitMarketSuffix(ticker: string): void {
+  const normalized = normalizeMarketSymbol(ticker);
+  if (/^\d{4,6}$/.test(normalized)) {
+    throw new Error(
+      `「${normalized}」缺少市場後綴，無法分辨上市/上櫃/港股等市場。請從搜尋結果選擇正確市場（例如 ${normalized}.TW、${normalized}.TWO 或 ${normalized}.HK）。`,
+    );
+  }
+}
+
 export function tickerFromExchangeMic(symbol: string, exchangeMic: string | undefined) {
   const normalized = normalizeMarketSymbol(symbol);
   const mic = exchangeMic?.trim().toUpperCase();
