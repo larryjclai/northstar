@@ -1661,8 +1661,12 @@ function ConnectStatus() {
   }
 
   // ── Restore backup ──
+  // Two-click confirm via confirmRestoreTs — window.confirm is a no-op in
+  // the Tauri webview, so the old guard silently blocked every restore.
+  const [confirmRestoreTs, setConfirmRestoreTs] = useState<string | null>(null);
+
   async function handleRestore(timestamp: string) {
-    if (!window.confirm("確定要還原到此備份？目前的資料將被覆蓋。")) return;
+    setConfirmRestoreTs(null);
     try {
       const repo = await getFinanceRepository();
       await restoreBackup(timestamp, repo);
@@ -2014,10 +2018,18 @@ function ConnectStatus() {
                     <div style={{ fontSize: 12.5, fontWeight: 500 }}>{b.label}</div>
                     <div className="mono muted" style={{ fontSize: 10.5 }}>{b.timestamp.slice(0, 19).replace("T", " ")}</div>
                   </div>
-                  <Button variant="ghost" style={{ fontSize: 11.5, color: "var(--ns-warn, #b45309)" }}
-                    onClick={() => handleRestore(b.timestamp)}>
-                    還原
-                  </Button>
+                  {confirmRestoreTs === b.timestamp ? (
+                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <span className="muted" style={{ fontSize: 11 }}>目前資料將被覆蓋</span>
+                      <Button variant="ghost" style={{ fontSize: 11.5, color: "var(--ns-neg)" }} onClick={() => handleRestore(b.timestamp)}>確定還原</Button>
+                      <Button variant="ghost" style={{ fontSize: 11.5 }} onClick={() => setConfirmRestoreTs(null)}>取消</Button>
+                    </span>
+                  ) : (
+                    <Button variant="ghost" style={{ fontSize: 11.5, color: "var(--ns-warn, #b45309)" }}
+                      onClick={() => setConfirmRestoreTs(b.timestamp)}>
+                      還原
+                    </Button>
+                  )}
                 </div>
               ))
             }

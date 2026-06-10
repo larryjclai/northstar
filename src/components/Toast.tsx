@@ -138,9 +138,24 @@ function ToastItem({ toast, onDismiss }: { toast: ToastDescriptor; onDismiss: (i
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Clipboard may be unavailable in some Tauri contexts — fall back to
-      // showing the text in a one-shot prompt so it's still recoverable.
-      window.prompt("複製錯誤內容", toast.detail);
+      // Clipboard API can be unavailable in some webview contexts, and
+      // window.prompt is a no-op in Tauri. Fall back to a hidden textarea +
+      // execCommand("copy"), which works in WKWebView/WebView2.
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = toast.detail;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        textarea.remove();
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      } catch {
+        // Both clipboard paths failed — the detail stays expandable on screen.
+        setShowDetail(true);
+      }
     }
   }
 

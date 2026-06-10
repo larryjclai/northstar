@@ -1,4 +1,5 @@
 import { ArrowsClockwise, CalendarBlank, CopySimple, PencilSimple, Receipt, Storefront, Tag, Trash, Wallet, X } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
 import { Button } from "./coss/button";
 import type { LedgerTransaction, RecurringTransaction } from "../domain";
 import { formatNumber, recurringFrequencyLabels } from "../domain";
@@ -20,6 +21,10 @@ const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }
 };
 
 export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDelete, accountName, recurringRows }: TransactionDetailPanelProps) {
+  // Two-click delete confirm — window.confirm is a no-op in the Tauri webview.
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  useEffect(() => { setConfirmDelete(false); }, [row?.id]);
+
   if (!row) return null;
 
   const meta = TYPE_LABELS[row.entryType] || TYPE_LABELS.expense;
@@ -175,16 +180,26 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
 
         {/* Footer Actions */}
         <div style={{ padding: "16px 24px", borderTop: "1px solid var(--ns-border)", display: "flex", gap: 10 }}>
-          <Button variant="outline"
-            style={{ flex: 1, justifyContent: "center", color: "var(--ns-neg)" }}
-            onClick={() => {
-              if (window.confirm("確定要刪除這筆交易嗎？")) {
-                onDelete(row.id);
-              }
-            }}
-          >
-            <Trash size={14} />刪除
-          </Button>
+          {confirmDelete ? (
+            <>
+              <Button variant="outline"
+                style={{ flex: 1, justifyContent: "center", color: "var(--ns-neg)" }}
+                onClick={() => onDelete(row.id)}
+              >
+                <Trash size={14} />確定刪除
+              </Button>
+              <Button variant="ghost" style={{ flex: 0.7, justifyContent: "center" }} onClick={() => setConfirmDelete(false)}>
+                取消
+              </Button>
+            </>
+          ) : (
+            <Button variant="outline"
+              style={{ flex: 1, justifyContent: "center", color: "var(--ns-neg)" }}
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash size={14} />刪除
+            </Button>
+          )}
           {onDuplicate ? (
             <Button variant="outline" style={{ flex: 1, justifyContent: "center" }} onClick={() => onDuplicate(row)}>
               <CopySimple size={14} />複製

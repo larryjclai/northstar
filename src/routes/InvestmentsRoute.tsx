@@ -145,6 +145,7 @@ export function InvestmentsRoute() {
 
   const [statusMessage, setStatusMessage] = useState("");
   const [addOpen, setAddOpen] = useState(false);
+  const [backfillArmed, setBackfillArmed] = useState(false);
 
   async function refreshLatestQuotes() {
     setStatusMessage("");
@@ -194,8 +195,15 @@ export function InvestmentsRoute() {
       setStatusMessage("所有持倉都已有類型資料。");
       return;
     }
-    const confirmed = window.confirm(`將透過 Yahoo Finance 回補 ${candidates.length} 筆持倉分類，可能會發出數十次查詢。要繼續嗎？`);
-    if (!confirmed) return;
+    // Two-click confirm — window.confirm is a no-op in the Tauri webview.
+    if (!backfillArmed) {
+      setBackfillArmed(true);
+      toast.info(`將回補 ${candidates.length} 筆持倉分類`, {
+        description: "透過 Yahoo Finance 查詢，可能發出數十次請求。再按一次「回補分類」確認執行。",
+      });
+      return;
+    }
+    setBackfillArmed(false);
 
     const progressId = toast.info("回補分類中", { description: `0 / ${candidates.length}`, durationMs: 0 });
     try {
@@ -322,6 +330,14 @@ export function InvestmentsRoute() {
           <h1 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>投資</h1>
         </div>
         <div className="ns-invest-header-actions" style={{ display: 'flex', gap: 8 }}>
+          {/* Entry point restored — it was lost in the holdings→portfolio tab
+              rename, leaving backfillClassifications unreachable. */}
+          {tab === "portfolio" ? (
+            <Button variant="outline" onClick={backfillClassifications} loading={backfillAssetProfiles.isPending}
+              style={backfillArmed ? { borderColor: "var(--ns-warn)", color: "var(--ns-warn)" } : undefined}>
+              <ArrowsClockwise size={14} />{backfillAssetProfiles.isPending ? "回補中" : backfillArmed ? "再按一次確認" : "回補分類"}
+            </Button>
+          ) : null}
           <Button variant="outline" onClick={refreshLatestQuotes} loading={refreshQuotes.isPending}>
             <ArrowsClockwise size={14} />{refreshQuotes.isPending ? "更新中" : "更新報價"}
           </Button>

@@ -27,6 +27,8 @@ export function CategoryManagementDrawer({
   const [addingSubFor, setAddingSubFor] = useState<string | null>(null);
   const [draftSub, setDraftSub] = useState("");
   const [renamingSub, setRenamingSub] = useState<{ main: string; sub: string } | null>(null);
+  // Two-click delete confirm — window.confirm is a no-op in the Tauri webview.
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [draftRename, setDraftRename] = useState("");
 
   if (!open) return null;
@@ -88,9 +90,8 @@ export function CategoryManagementDrawer({
   }
 
   function removeMainCategory(name: string) {
-    if (confirm(`確定要刪除主分類「${name}」及其所有子分類嗎？`)) {
-      setLocal(local.filter(c => c.name !== name));
-    }
+    setLocal(local.filter(c => c.name !== name));
+    setConfirmRemove(null);
   }
 
   return (
@@ -176,9 +177,18 @@ export function CategoryManagementDrawer({
                       )}
                     </div>
                     <div style={{ display: "flex", gap: 4 }}>
-                      <Button variant="ghost" size="icon-sm" onClick={() => { setAddingSubFor(group.name); setDraftSub(""); setExpanded(prev => ({ ...prev, [group.name]: true })); }}><Plus size={14} /></Button>
-                      <Button variant="ghost" size="icon-sm" onClick={() => { setRenamingMain(group.name); setDraftRename(group.name); }}><PencilSimple size={14} /></Button>
-                      <Button variant="ghost" size="icon-sm" style={{ color: "var(--ns-danger)" }} onClick={() => removeMainCategory(group.name)}><Trash size={14} /></Button>
+                      {confirmRemove === group.name ? (
+                        <>
+                          <Button variant="ghost" size="sm" style={{ color: "var(--ns-danger)", fontSize: 12 }} onClick={() => removeMainCategory(group.name)}>確定刪除</Button>
+                          <Button variant="ghost" size="sm" style={{ fontSize: 12 }} onClick={() => setConfirmRemove(null)}>取消</Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button variant="ghost" size="icon-sm" onClick={() => { setAddingSubFor(group.name); setDraftSub(""); setExpanded(prev => ({ ...prev, [group.name]: true })); }}><Plus size={14} /></Button>
+                          <Button variant="ghost" size="icon-sm" onClick={() => { setRenamingMain(group.name); setDraftRename(group.name); }}><PencilSimple size={14} /></Button>
+                          <Button variant="ghost" size="icon-sm" style={{ color: "var(--ns-danger)" }} onClick={() => setConfirmRemove(group.name)}><Trash size={14} /></Button>
+                        </>
+                      )}
                     </div>
                   </div>
 
