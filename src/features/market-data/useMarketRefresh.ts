@@ -77,7 +77,11 @@ export function useBackfillAssetProfiles() {
         if (!asset.ticker.trim()) return false;
         const ticker = asset.ticker.trim().toUpperCase();
         const taiwanNeedsProfile = isTaiwanTicker(ticker) && (!asset.nameZh || !asset.industry || !asset.sector);
-        return force || !asset.assetType || taiwanNeedsProfile;
+        // Equities anywhere (not just TW) re-qualify while sector/industry are
+        // missing — Yahoo's profile fetch was crumb-broken for a long time, so
+        // many rows have assetType but no classification.
+        const equityNeedsSector = asset.assetType === "equity" && (!asset.sector || !asset.industry);
+        return force || !asset.assetType || equityNeedsSector || taiwanNeedsProfile;
       });
       const symbols = [...new Set(candidates.map((asset) => asset.ticker.trim().toUpperCase()))];
       if (symbols.length === 0) return { updated: 0, total: 0, failed: [] as string[] };

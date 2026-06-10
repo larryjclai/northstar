@@ -39,32 +39,11 @@ interface YahooSearchEnvelope {
     exchange?: string;
     quoteType?: string;
     typeDisp?: string;
+    sector?: string;
+    sectorDisp?: string;
+    industry?: string;
+    industryDisp?: string;
   }>;
-}
-
-interface YahooQuoteSummaryEnvelope {
-  northstarError?: string;
-  quoteSummary: {
-    result?: YahooQuoteSummaryResult[];
-    error?: { description?: string };
-  };
-}
-
-interface YahooQuoteSummaryResult {
-  quoteType?: {
-    quoteType?: string;
-  };
-  assetProfile?: {
-    sector?: string;
-    industry?: string;
-  };
-  summaryProfile?: {
-    sector?: string;
-    industry?: string;
-  };
-  fundProfile?: {
-    categoryName?: string;
-  };
 }
 
 const quoteCache = new Map<string, { quote: MarketQuote; updatedAt: number }>();
@@ -236,27 +215,32 @@ export class YahooFinanceProvider implements MarketDataProvider {
   }
 
   private async fetchAssetProfile(symbol: string): Promise<AssetProfile> {
-    const encodedSymbol = encodeURIComponent(symbol);
+    // /v10/quoteSummary has required a crumb + cookie since Yahoo's 2023 API
+    // change and now answers plain requests with "Invalid Crumb" — US/ETF
+    // classification silently failed for as long as it was used. The crumb-free
+    // /v1/finance/search payload carries quoteType + sector/industry for
+    // equities, so classification reads from there instead.
     const searchParams = new URLSearchParams({
-      modules: "assetProfile,summaryProfile,quoteType,fundProfile",
+      q: symbol,
+      quotesCount: "6",
+      newsCount: "0",
+      lang: "zh-Hant-TW",
+      region: "TW",
     });
-    const envelope = await fetchYahooJson<YahooQuoteSummaryEnvelope>(`/v10/finance/quoteSummary/${encodedSymbol}`, searchParams);
-    const result = envelope.quoteSummary.result?.[0];
-    if (!result) {
-      throw new Error(envelope.northstarError ?? envelope.quoteSummary.error?.description ?? `Yahoo Finance did not return profile data for ${symbol}.`);
+    const envelope = await fetchYahooJson<YahooSearchEnvelope>("/v1/finance/search", searchParams);
+    if (envelope.northstarError) throw new Error(envelope.northstarError);
+    const match = envelope.quotes.find((item) => item.symbol?.toUpperCase() === symbol.toUpperCase());
+    if (!match) {
+      throw new Error(`Yahoo Finance did not return profile data for ${symbol}.`);
     }
-
-    const assetType = mapYahooAssetType(result.quoteType?.quoteType);
-    const equitySector = cleanText(result.assetProfile?.sector) ?? cleanText(result.summaryProfile?.sector);
-    const equityIndustry = cleanText(result.assetProfile?.industry) ?? cleanText(result.summaryProfile?.industry);
-    const fundCategory = cleanText(result.fundProfile?.categoryName);
-    const useFundCategory = assetType === "etf" || assetType === "mutual_fund";
 
     return {
       symbol,
-      assetType,
-      sector: useFundCategory ? fundCategory : equitySector ?? fundCategory,
-      industry: useFundCategory ? null : equityIndustry,
+      assetType: mapYahooAssetType(match.quoteType),
+      // ETFs/funds don't carry sector in the search payload — assetType alone
+      // still classifies them; TW equities are enriched by the TWSE provider.
+      sector: cleanText(match.sectorDisp) ?? cleanText(match.sector),
+      industry: cleanText(match.industryDisp) ?? cleanText(match.industry),
     };
   }
 }

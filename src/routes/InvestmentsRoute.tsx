@@ -189,17 +189,23 @@ export function InvestmentsRoute() {
 
   async function backfillClassifications() {
     setStatusMessage("");
-    const candidates = assetRows.filter((asset) => asset.ticker.trim() && !asset.assetType);
+    // Mirror useBackfillAssetProfiles' candidate rule — the old `!assetType`
+    // gate reported「沒有需要回補」even when sector/industry were missing.
+    const candidates = assetRows.filter((asset) => {
+      if (!asset.ticker.trim()) return false;
+      if (!asset.assetType) return true;
+      return asset.assetType === "equity" && (!asset.sector || !asset.industry);
+    });
     if (candidates.length === 0) {
-      toast.info("沒有需要回補的持倉");
-      setStatusMessage("所有持倉都已有類型資料。");
+      toast.info("沒有需要回補的持倉", { description: "所有持倉都已有類型與產業分類；個別調整可用持倉列的「編輯持倉」。" });
+      setStatusMessage("所有持倉都已有類型與產業分類。");
       return;
     }
     // Two-click confirm — window.confirm is a no-op in the Tauri webview.
     if (!backfillArmed) {
       setBackfillArmed(true);
       toast.info(`將回補 ${candidates.length} 筆持倉分類`, {
-        description: "透過 Yahoo Finance 查詢，可能發出數十次請求。再按一次「回補分類」確認執行。",
+        description: "資料來源：台股用證交所公司資料、其餘用 Yahoo Finance。再按一次「回補分類」確認執行。",
       });
       return;
     }
