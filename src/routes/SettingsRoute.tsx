@@ -1456,6 +1456,10 @@ function ConnectStatus() {
       await joinWithCode(joinCode, joinDeviceName, getDevicePlatform());
       const joined = loadSyncAccount()!;
       setAccount(joined);
+      // joinWithCode() already confirmed the Recovery Kit (the vault key was
+      // inherited from the paired device) — refresh the stale React state so
+      // the UI doesn't keep demanding a new kit until the next app restart.
+      setKitStatus(loadLocalRecoveryKitStatus());
       const devs = await listDevices(joined.apiSecret);
       setDevices(devs);
       setShowDialog(false);
