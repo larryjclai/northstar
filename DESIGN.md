@@ -78,16 +78,22 @@ Wordmark 在 `AppShell.tsx` sidebar：app icon 圖檔 + "Northstar" 文字。
 
 ### 2.4 語意色（Gain / Loss）
 
-目前僅實作 **US 綠漲紅跌** 一組（TW 紅漲綠跌、Neutral 為待辦，見 §13）：
+三組盈虧配色，透過 `[data-gainloss]` 切換（設定 → 佈景主題下方「盈虧配色」，持久化於 uiPreferences）：
+
+| 組合 | `--ns-pos` dark / light | `--ns-neg` dark / light |
+|---|---|---|
+| **US** 綠漲紅跌（預設，無屬性） | `#6ee49a` / `#157040` | `#ff7d6b` / `#c22a1e` |
+| **TW** 紅漲綠跌（`data-gainloss="tw"`） | `#ff6363` / `#c22a1e` | `#3fbf6c` / `#157040` |
+| **Neutral** 藍綠/琥珀（`data-gainloss="neutral"`） | `#34c5b0` / `#0c8577` | `#f0a050` / `#b06a10` |
+
+其他語意色：
 
 | Token | Dark | Light |
 |---|---|---|
-| `--ns-pos` | `#6ee49a` | `#157040` |
-| `--ns-neg` | `#ff7d6b` | `#c22a1e` |
 | `--ns-warn` | `#f0c050` | `#c98a18` |
 | `--ns-info` | `#6fb3ff` | `#2c6df0` |
 
-各有 `-soft` 變體（12–16% color-mix）。
+各有 `-soft` 變體（12–16% color-mix）。盈虧變體只重新映射 `--ns-pos`/`--ns-neg`(+soft)，所有引用它們的別名與圖表自動跟隨。
 
 ### 2.5 圖表系列色
 
@@ -213,7 +219,7 @@ COSS bridge：`--radius: var(--ns-r-sm)`。
 
 ## 5. 密度變體
 
-CSS 透過 `[data-density]` 切換（**注意：目前沒有 UI 入口設定此屬性**，僅 CSS 就緒）：
+透過 `[data-density]` 切換（設定 → 「介面密度」，持久化於 uiPreferences；圓角同理為「圓角」三選項）：
 
 | 密度 | `--ns-row-h` | `--ns-pad-card` | `--ns-gap-card` |
 |---|---|---|---|
@@ -344,6 +350,7 @@ import { Star, Target, Trash, PencilSimple } from "@phosphor-icons/react";
 
 規則：
 - **隱私遮罩**：`setPrivacyMaskOn(true)` 後所有 helper 輸出遮罩字串 — 自行手刻 `toLocaleString` 會漏掉遮罩，禁止繞過
+- **負號用 MINUS SIGN（U+2212 `−`）**：所有 helper 已內建轉換（`typographicMinus`），在 tabular figures 下與 `+` 等寬。輸入解析仍接受 ASCII `-`
 - 表格金額欄必須 `textAlign: 'right'` + `tabular-nums`（`.num` class 或 inline `fontVariantNumeric`）
 - 提領率（withdrawalRate）以**小數**儲存（0.04 = 4%），顯示時轉換；目標金額推導一律用 `resolveTargetAmount()`（`domain/fireGoal.ts`）
 
@@ -435,10 +442,8 @@ const monthlyAmt = r.freq === 'yearly'  ? r.amt / 12
 
 ## 13. 已知缺口與待辦
 
+2026-06-10 批次完成：U+2212 負號（§9）、TW/Neutral 盈虧配色（§2.4）、密度/圓角設定 UI（§5）、備援碼還原入口（設定 → Connect 同步 → 用備援碼還原）、自訂目標帳戶比例（GoalEditorSheet 每帳戶 1–100%）。
+
 | 項目 | 狀態 |
 |---|---|
-| 負號統一用 U+2212 `−`（取代 ASCII `-`） | 未實作 — 應加進 `currency.ts` helpers |
-| TW 紅漲綠跌 / Neutral 盈虧配色切換 | 未實作 — tokens 與設定 UI 都缺 |
-| `[data-density]` / `[data-radius]` 設定 UI | CSS 就緒，無使用者入口 |
-| Recovery Kit「輸入備援碼還原」UI | `restoreFromRecoveryKit()` 存在但無入口 |
-| 自訂目標帳戶權重（`accountShareMap` 比例 < 100%） | 資料模型支援，編輯器目前固定 100% |
+| 表格數字字體統一 | 約 24 處 inline `--ns-font-num` 表格儲存格（readable-numbers 批次遺留）與主流 `.num`/`.mono`（Plex Mono）並存，視覺接近但未統一 |
