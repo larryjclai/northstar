@@ -938,30 +938,6 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   min-height: 36px;
-  width: 206px;
-}
-.ns-date-scope[data-detail="custom"] .ns-date-scope__detail {
-  width: 360px;
-}
-.ns-date-scope__summary {
-  display: inline-flex;
-  align-items: center;
-  height: 36px;
-  min-width: 100%;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: var(--ns-bg-hover);
-  color: var(--ns-fg-muted);
-  padding: 0 12px;
-  font-family: var(--ns-font-mono);
-  font-size: 12px;
-  letter-spacing: 0.06em;
-}
-.ns-date-scope__custom {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
 }
 
 /* ── Investment transactions ── */
