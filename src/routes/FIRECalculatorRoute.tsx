@@ -1,4 +1,4 @@
-import { DownloadSimple, Star, Info, ChartLineUp, ChartBar, X } from "@phosphor-icons/react";
+import { CaretLeft, Star, Info, ChartLineUp, ChartBar, X } from "@phosphor-icons/react";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine, Line, LineChart } from "recharts";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -155,6 +155,9 @@ export function FIRECalculatorRoute() {
     <div style={{ padding: "32px 40px 100px", minHeight: "100vh", display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 32, flexShrink: 0 }}>
         <div>
+          <Button variant="ghost" render={<Link to="/goals" />} style={{ marginLeft: -10, marginBottom: 6 }}>
+            <CaretLeft size={14} />返回目標
+          </Button>
           <div style={{ fontSize: 11, fontFamily: "var(--ns-font-mono)", letterSpacing: 1.5, color: "var(--ns-fg-muted)", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
             INTERACTIVE · 即時更新
           </div>
@@ -163,9 +166,6 @@ export function FIRECalculatorRoute() {
           </h1>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
-          <Button variant="ghost">
-            <DownloadSimple size={16} /> 匯出報告
-          </Button>
           <Button onClick={handleSaveGoal}>
             <Star size={16} weight="bold" /> {isEditing ? "儲存變更" : "存為目標"}
           </Button>

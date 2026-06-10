@@ -1,4 +1,4 @@
-import { CaretRight, DownloadSimple, Plus, Star, ArrowUp } from "@phosphor-icons/react";
+import { CaretRight, Plus, ArrowUp } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
@@ -152,9 +152,7 @@ export function HoldingDetailRoute() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <Button variant="ghost"><Star size={14} />追蹤</Button>
           <Button variant="ghost" onClick={() => setEditOpen(true)}><PencilSimple size={14} />編輯持倉</Button>
-          <Button variant="outline"><DownloadSimple size={14} />匯出</Button>
           <Button onClick={() => setAddOpen(true)}>
             <Plus size={14} strokeWidth={2} />新增交易
           </Button>
