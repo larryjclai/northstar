@@ -3290,10 +3290,10 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       await this.db.execute("delete from accounts");
       await this.db.execute("delete from app_settings");
       await this.db.execute("delete from financial_goals");
-      console.log("[import] cleared existing tables");
+      console.debug("[import] cleared existing tables");
 
       for (const account of snapshot.accounts) await this.insertAccountRow(account);
-      console.log(`[import] inserted ${snapshot.accounts.length} accounts`);
+      console.debug(`[import] inserted ${snapshot.accounts.length} accounts`);
 
       for (const asset of snapshot.portfolioAssets) {
         // Older backups (pre Phase 2/3) don't carry name_zh, name_en, or
@@ -3309,33 +3309,33 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
           accountId: asset.accountId ?? null,
         });
       }
-      console.log(`[import] inserted ${snapshot.portfolioAssets.length} portfolio_assets`);
+      console.debug(`[import] inserted ${snapshot.portfolioAssets.length} portfolio_assets`);
 
       for (const row of snapshot.investmentRecords) await this.insertInvestmentRow(row);
-      console.log(`[import] inserted ${snapshot.investmentRecords.length} investment_records`);
+      console.debug(`[import] inserted ${snapshot.investmentRecords.length} investment_records`);
 
       for (const row of snapshot.ledgerTransactions) {
         await this.insertLedgerRow({ ...row, name: row.name ?? row.merchant ?? "" });
       }
-      console.log(`[import] inserted ${snapshot.ledgerTransactions.length} ledger_transactions`);
+      console.debug(`[import] inserted ${snapshot.ledgerTransactions.length} ledger_transactions`);
 
       for (const row of snapshot.recurringTransactions) await this.insertRecurringRow(row);
-      console.log(`[import] inserted ${snapshot.recurringTransactions.length} recurring_transactions`);
+      console.debug(`[import] inserted ${snapshot.recurringTransactions.length} recurring_transactions`);
 
       for (const row of snapshot.recurringInvestments ?? []) await this.insertRecurringInvestmentRow(row);
-      console.log(`[import] inserted ${(snapshot.recurringInvestments ?? []).length} recurring_investments`);
+      console.debug(`[import] inserted ${(snapshot.recurringInvestments ?? []).length} recurring_investments`);
 
       if (snapshot.marketQuotes.length) {
         await this.saveMarketQuotes(snapshot.marketQuotes, snapshot.marketQuotes[0]?.source ?? "import");
-        console.log(`[import] saved ${snapshot.marketQuotes.length} market_quotes`);
+        console.debug(`[import] saved ${snapshot.marketQuotes.length} market_quotes`);
       }
       if (snapshot.dailyFxRates.length) {
         await this.saveDailyFxRates(snapshot.dailyFxRates);
-        console.log(`[import] saved ${snapshot.dailyFxRates.length} fx_rates`);
+        console.debug(`[import] saved ${snapshot.dailyFxRates.length} fx_rates`);
       }
       if (snapshot.dailyPrices.length) {
         await this.saveDailyPrices(snapshot.dailyPrices);
-        console.log(`[import] saved ${snapshot.dailyPrices.length} daily_prices`);
+        console.debug(`[import] saved ${snapshot.dailyPrices.length} daily_prices`);
       }
       if (snapshot.financialGoals?.length) {
         for (const goal of snapshot.financialGoals) {
@@ -3378,7 +3378,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
             ],
           );
         }
-        console.log(`[import] inserted ${snapshot.financialGoals.length} financial_goals`);
+        console.debug(`[import] inserted ${snapshot.financialGoals.length} financial_goals`);
       }
       if (snapshot.manualPriceSnapshots?.length) {
         for (const row of snapshot.manualPriceSnapshots) {
@@ -3388,7 +3388,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
             [row.id, row.assetId ?? "", row.date ?? "", row.price ?? 0, row.note ?? "", row.createdAt ?? now],
           );
         }
-        console.log(`[import] inserted ${snapshot.manualPriceSnapshots.length} manual_price_snapshots`);
+        console.debug(`[import] inserted ${snapshot.manualPriceSnapshots.length} manual_price_snapshots`);
       }
       await this.updateAppSettings(snapshot.settings);
       await this.upsertSetting("__settingsMeta", JSON.stringify({
@@ -3402,7 +3402,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       await this.recomputeSqliteAccounts();
       await this.recomputeSqliteAssets();
       const elapsed = Math.round(performance.now() - t0);
-      console.log(`[import] complete in ${elapsed}ms`);
+      console.debug(`[import] complete in ${elapsed}ms`);
     } catch (error) {
       // withTransaction already issued ROLLBACK; just surface the failure.
       console.error("[import] failed, rolled back", error);

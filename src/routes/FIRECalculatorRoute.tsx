@@ -447,7 +447,18 @@ function SliderSection({ title, children }: { title: string, children: React.Rea
   );
 }
 
-function SliderRow({ label, value, min, max, step = 1, minLabel, maxLabel, val, setVal }: any) {
+function SliderRow({ label, value, min, max, step = 1, minLabel, maxLabel, val, setVal }: {
+  label: string;
+  /** Formatted display value, e.g. "NT$300,000" or "45 歲". */
+  value: string;
+  min: number;
+  max: number;
+  step?: number;
+  minLabel?: string;
+  maxLabel?: string;
+  val: number;
+  setVal: (next: number) => void;
+}) {
   const percentage = ((val - min) / (max - min)) * 100;
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState("");

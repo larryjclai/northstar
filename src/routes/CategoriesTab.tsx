@@ -5,7 +5,7 @@ import { SplitLayout } from "../components/coss/layout";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { formatNumber, isWithinDateScope, type LedgerTransaction, type ResolvedDateScope } from "../domain";
+import { formatNumber, isWithinDateScope, type AppSettings, type LedgerTransaction, type ResolvedDateScope } from "../domain";
 import { Glyph } from "../lib/icons";
 
 function resolveColor(color: string): string {
@@ -14,7 +14,7 @@ function resolveColor(color: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || color;
 }
 
-export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurrency, toPrimary, onSettingsClick }: { dateRange: ResolvedDateScope; ledgerRows: LedgerTransaction[]; appSettings: any; primaryCurrency: string; toPrimary: (row: LedgerTransaction) => number | null; onSettingsClick: () => void }) {
+export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurrency, toPrimary, onSettingsClick }: { dateRange: ResolvedDateScope; ledgerRows: LedgerTransaction[]; appSettings: AppSettings | undefined; primaryCurrency: string; toPrimary: (row: LedgerTransaction) => number | null; onSettingsClick: () => void }) {
   const periodRows = useMemo(() => ledgerRows.filter(r => isWithinDateScope(r.date, dateRange) && r.entryType === "expense" && r.settlementStatus === "settled" && !r.counterAccountId), [ledgerRows, dateRange]);
   
   const periodMap = new Map<string, { amount: number, count: number, merchants: Map<string, number> }>();
@@ -46,7 +46,7 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
   
   const allCategorySpend = [...periodMap.entries()]
     .map(([name, stats], idx) => {
-      const catSetting = appSettings?.categories?.find((c: any) => c.name === name);
+      const catSetting = appSettings?.categories?.find((c) => c.name === name);
       let topMerchant = "無";
       if (stats.merchants.size > 0) {
         topMerchant = [...stats.merchants.entries()].sort((a, b) => b[1] - a[1])[0][0];

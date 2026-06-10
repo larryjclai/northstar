@@ -1007,7 +1007,7 @@ export function CashFlowRoute() {
                   </span>
                 </div>
                 {g.rows.map((r, i) => {
-                  const catGroup = appSettings?.categories.find((c: any) => c.name === r.category);
+                  const catGroup = appSettings?.categories.find((c) => c.name === r.category);
                   return (
                     <LedgerRow
                       key={r.id}
