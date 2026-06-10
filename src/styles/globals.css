@@ -260,6 +260,55 @@
   --ns-panel-border:     var(--ns-border);
 }
 
+/* ─── Gain/Loss palette variants (DESIGN.md §2.4) ───
+   Default (no attribute) = US green-up/red-down. These blocks only remap
+   --ns-pos/--ns-neg (+soft); every alias and chart colour referencing them
+   follows automatically. Order matters: they sit after the theme blocks so
+   the equal-specificity explicit-theme selectors win by source order. */
+
+/* TW 紅漲綠跌 — light */
+[data-gainloss="tw"] {
+  --ns-pos:      #c22a1e;
+  --ns-pos-soft: color-mix(in srgb, #c22a1e 12%, transparent);
+  --ns-neg:      #157040;
+  --ns-neg-soft: color-mix(in srgb, #157040 12%, transparent);
+}
+/* Neutral 藍綠/琥珀（無漲跌語意暗示）— light */
+[data-gainloss="neutral"] {
+  --ns-pos:      #0c8577;
+  --ns-pos-soft: color-mix(in srgb, #0c8577 12%, transparent);
+  --ns-neg:      #b06a10;
+  --ns-neg-soft: color-mix(in srgb, #b06a10 12%, transparent);
+}
+/* Dark-mode values (system preference) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"])[data-gainloss="tw"] {
+    --ns-pos:      #ff6363;
+    --ns-pos-soft: color-mix(in srgb, #ff6363 16%, transparent);
+    --ns-neg:      #3fbf6c;
+    --ns-neg-soft: color-mix(in srgb, #3fbf6c 16%, transparent);
+  }
+  :root:not([data-theme="light"])[data-gainloss="neutral"] {
+    --ns-pos:      #34c5b0;
+    --ns-pos-soft: color-mix(in srgb, #34c5b0 16%, transparent);
+    --ns-neg:      #f0a050;
+    --ns-neg-soft: color-mix(in srgb, #f0a050 16%, transparent);
+  }
+}
+/* Dark-mode values (explicit theme) */
+[data-theme="dark"][data-gainloss="tw"] {
+  --ns-pos:      #ff6363;
+  --ns-pos-soft: color-mix(in srgb, #ff6363 16%, transparent);
+  --ns-neg:      #3fbf6c;
+  --ns-neg-soft: color-mix(in srgb, #3fbf6c 16%, transparent);
+}
+[data-theme="dark"][data-gainloss="neutral"] {
+  --ns-pos:      #34c5b0;
+  --ns-pos-soft: color-mix(in srgb, #34c5b0 16%, transparent);
+  --ns-neg:      #f0a050;
+  --ns-neg-soft: color-mix(in srgb, #f0a050 16%, transparent);
+}
+
 /* ─── Density variants ─── */
 [data-density="loose"]  { --ns-row-h: 64px; --ns-pad-card: 28px; --ns-gap-card: 24px; }
 [data-density="medium"] { --ns-row-h: 52px; --ns-pad-card: 20px; --ns-gap-card: 16px; }

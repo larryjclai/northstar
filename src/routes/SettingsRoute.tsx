@@ -45,7 +45,7 @@ import { listBackups, restoreBackup, type BackupEntry } from "../features/connec
 import { useSyncStatus } from "../state/syncStatus";
 import {
   generateRecoveryKit, confirmRecoveryKit, downloadRecoveryKit,
-  loadLocalRecoveryKitStatus, type LocalRecoveryKitStatus,
+  restoreFromRecoveryKit, loadLocalRecoveryKitStatus, type LocalRecoveryKitStatus,
 } from "../features/connect/crypto/recovery-kit";
 
 const emptySettings: AppSettings = {
@@ -948,6 +948,12 @@ function SettingsGeneral({ form, t }: any) {
   const benchmarkTicker = useUiPreferences((state) => state.benchmarkTicker);
   const setBenchmarkTicker = useUiPreferences((state) => state.setBenchmarkTicker);
   const [benchmarkDraft, setBenchmarkDraft] = useState(benchmarkTicker);
+  const gainLossPalette = useUiPreferences((state) => state.gainLossPalette);
+  const setGainLossPalette = useUiPreferences((state) => state.setGainLossPalette);
+  const density = useUiPreferences((state) => state.density);
+  const setDensity = useUiPreferences((state) => state.setDensity);
+  const radius = useUiPreferences((state) => state.radius);
+  const setRadius = useUiPreferences((state) => state.setRadius);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -1150,6 +1156,78 @@ function SettingsGeneral({ form, t }: any) {
         </div>
         <p className="text-xs muted mt-2 mb-0">深色和淺色會立即套用；跟隨系統會回到裝置的外觀設定。</p>
 
+        <h3 className="font-semibold mb-4 mt-6">盈虧配色</h3>
+        <div className="grid grid-cols-3 gap-2">
+          {([
+            { v: "us", l: "綠漲紅跌", d: "國際慣例" },
+            { v: "tw", l: "紅漲綠跌", d: "台股慣例" },
+            { v: "neutral", l: "中性色", d: "藍綠／琥珀" },
+          ] as const).map((option) => (
+            <Button
+              variant="outline"
+              key={option.v}
+              onClick={() => setGainLossPalette(option.v)}
+              style={{
+                height: "auto", padding: "10px 8px", flexDirection: "column", gap: 4,
+                borderColor: gainLossPalette === option.v ? "var(--ns-accent)" : "var(--ns-border)",
+                background: gainLossPalette === option.v ? "var(--ns-accent-soft)" : undefined,
+              }}
+            >
+              <span>{option.l}</span>
+              <span className="muted" style={{ fontSize: 11 }}>{option.d}</span>
+            </Button>
+          ))}
+        </div>
+        <p className="text-xs mt-2 mb-0">
+          預覽：<span style={{ color: "var(--ns-pos)", fontWeight: 600 }}>+2.34%</span>
+          <span className="muted">（漲）　</span>
+          <span style={{ color: "var(--ns-neg)", fontWeight: 600 }}>−1.21%</span>
+          <span className="muted">（跌）— 全站圖表與損益同步套用。</span>
+        </p>
+
+        <h3 className="font-semibold mb-4 mt-6">介面密度</h3>
+        <div className="grid grid-cols-4 gap-2">
+          {([
+            { v: "loose", l: "寬鬆" },
+            { v: "default", l: "標準" },
+            { v: "medium", l: "適中" },
+            { v: "tight", l: "緊湊" },
+          ] as const).map((option) => (
+            <Button
+              variant="outline"
+              key={option.v}
+              onClick={() => setDensity(option.v)}
+              style={{
+                borderColor: density === option.v ? "var(--ns-accent)" : "var(--ns-border)",
+                background: density === option.v ? "var(--ns-accent-soft)" : undefined,
+              }}
+            >
+              {option.l}
+            </Button>
+          ))}
+        </div>
+
+        <h3 className="font-semibold mb-4 mt-6">圓角</h3>
+        <div className="grid grid-cols-3 gap-2">
+          {([
+            { v: "sharp", l: "銳利" },
+            { v: "default", l: "標準" },
+            { v: "round", l: "圓潤" },
+          ] as const).map((option) => (
+            <Button
+              variant="outline"
+              key={option.v}
+              onClick={() => setRadius(option.v)}
+              style={{
+                borderColor: radius === option.v ? "var(--ns-accent)" : "var(--ns-border)",
+                background: radius === option.v ? "var(--ns-accent-soft)" : undefined,
+              }}
+            >
+              {option.l}
+            </Button>
+          ))}
+        </div>
+
         <h3 className="font-semibold mb-4 mt-6">{t('settings.language')}</h3>
         <div className="grid grid-cols-3 gap-2">
           {[{v:'auto',l:'Auto'},{v:'en',l:'English'},{v:'zh-Hant',l:'繁體中文'}].map(o => (
@@ -1296,6 +1374,27 @@ function ConnectStatus() {
   const [kitCode, setKitCode] = useState<string | null>(null);
   const [kitLoading, setKitLoading] = useState(false);
 
+  // Recovery Kit restore (all-devices-lost path): enter the saved code to
+  // bring the original vault key back onto this device.
+  const [showRestore, setShowRestore] = useState(false);
+  const [restoreCode, setRestoreCode] = useState("");
+  const [restoreLoading, setRestoreLoading] = useState(false);
+
+  async function handleRestoreKit() {
+    setRestoreLoading(true);
+    try {
+      await restoreFromRecoveryKit(restoreCode);
+      setKitStatus(loadLocalRecoveryKitStatus());
+      setShowRestore(false);
+      setRestoreCode("");
+      toast.success("加密金鑰已還原。接著「啟用同步」即可沿用原金鑰繼續使用。");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "備援碼還原失敗");
+    } finally {
+      setRestoreLoading(false);
+    }
+  }
+
   // Sync status + backups
   const syncStatus = useSyncStatus();
   const [backups, setBackups] = useState<BackupEntry[]>([]);
@@ -1408,7 +1507,9 @@ function ConnectStatus() {
   async function handleSetup() {
     setLoading(true);
     try {
-      const vaultKey = await generateVaultKey();
+      // Reuse an existing vault key (e.g. just restored from a Recovery Kit)
+      // so re-enabling sync keeps previously-encrypted data decryptable.
+      const vaultKey = (await loadVaultKey()) ?? (await generateVaultKey());
       await saveVaultKey(vaultKey);
 
       const newAccount = getOrCreateSyncAccount();
@@ -1606,7 +1707,7 @@ function ConnectStatus() {
             placeholder="My Mac"
           />
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <Button onClick={handleSetup} disabled={loading || !joinDeviceName.trim()}>
             {loading ? <Spinner size={14} className="animate-spin" /> : <WifiHigh size={14} />}
             {loading ? "啟用中…" : "啟用同步"}
@@ -1614,7 +1715,33 @@ function ConnectStatus() {
           <Button variant="ghost" onClick={() => openDialog("join")}>
             我有配對碼
           </Button>
+          <Button variant="ghost" onClick={() => setShowRestore(!showRestore)}>
+            <Key size={14} />用備援碼還原
+          </Button>
         </div>
+
+        {/* Recovery Kit restore — for when every paired device is gone but the
+            user still has the printed/downloaded Recovery Kit code. */}
+        {showRestore && (
+          <div style={{ marginTop: 14, padding: "12px 14px", borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)" }}>
+            <p className="text-sm muted" style={{ marginBottom: 8, fontSize: 12 }}>
+              輸入當初儲存的備援碼（8 組、每組 8 個字元）即可還原加密金鑰。還原後再按「啟用同步」，新帳號會沿用原金鑰，舊的加密備份仍可解密。
+            </p>
+            <input
+              className="ns-input mono"
+              style={{ width: "100%", fontSize: 12.5, letterSpacing: 0.5, marginBottom: 8 }}
+              value={restoreCode}
+              onChange={(e) => setRestoreCode(e.target.value)}
+              placeholder="XXXXXXXX-XXXXXXXX-…（可含連字號或空白）"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <Button onClick={handleRestoreKit} disabled={restoreLoading || !restoreCode.trim()}>
+              {restoreLoading ? <Spinner size={14} className="animate-spin" /> : <Key size={14} />}
+              {restoreLoading ? "還原中…" : "還原金鑰"}
+            </Button>
+          </div>
+        )}
 
         {/* Join dialog (for device B before account exists) */}
         {showDialog && (

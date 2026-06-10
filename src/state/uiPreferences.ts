@@ -6,6 +6,12 @@ import { isValidTimezone, resolveSystemTimezone } from "../domain/datetime";
 
 export type { NameLocalePreference };
 export type ThemeMode = "system" | "dark" | "light";
+/** Gain/loss colour semantics: US green-up (default), TW red-up, neutral teal/amber. */
+export type GainLossPalette = "us" | "tw" | "neutral";
+/** Row-height / card-padding density. "default" maps to no data-density attribute. */
+export type DensityMode = "loose" | "default" | "medium" | "tight";
+/** Corner-radius scale. "default" maps to no data-radius attribute. */
+export type RadiusMode = "sharp" | "default" | "round";
 
 /** Default investment benchmark when the user hasn't picked one. */
 export const DEFAULT_BENCHMARK_TICKER = "0050.TW";
@@ -22,6 +28,9 @@ export interface UiPreferences {
   holdingsColumns: HoldingsColumnKey[];
   /** Ticker used as the benchmark in investment analytics (e.g. 0050.TW). */
   benchmarkTicker: string;
+  gainLossPalette: GainLossPalette;
+  density: DensityMode;
+  radius: RadiusMode;
   setPrivacyMode: (value: boolean) => void;
   togglePrivacyMode: () => void;
   setNameLocale: (value: NameLocalePreference) => void;
@@ -31,6 +40,9 @@ export interface UiPreferences {
   setAssetLogosEnabled: (value: boolean) => void;
   setHoldingsColumns: (value: HoldingsColumnKey[]) => void;
   setBenchmarkTicker: (value: string) => void;
+  setGainLossPalette: (value: GainLossPalette) => void;
+  setDensity: (value: DensityMode) => void;
+  setRadius: (value: RadiusMode) => void;
 }
 
 /** Toggleable holdings-table columns (the rest are always shown). */
@@ -55,6 +67,9 @@ interface PersistedShape {
   assetLogosEnabled: boolean;
   holdingsColumns: HoldingsColumnKey[];
   benchmarkTicker: string;
+  gainLossPalette: GainLossPalette;
+  density: DensityMode;
+  radius: RadiusMode;
 }
 
 export type ClockMode = "24h" | "12h";
@@ -69,6 +84,9 @@ function loadPersisted(): PersistedShape {
     assetLogosEnabled: false,
     holdingsColumns: HOLDINGS_COLUMN_DEFAULTS,
     benchmarkTicker: DEFAULT_BENCHMARK_TICKER,
+    gainLossPalette: "us",
+    density: "default",
+    radius: "default",
   };
   if (typeof window === "undefined") return fallback;
   try {
@@ -97,6 +115,15 @@ function loadPersisted(): PersistedShape {
         typeof parsed.benchmarkTicker === "string" && parsed.benchmarkTicker.trim()
           ? parsed.benchmarkTicker.trim()
           : fallback.benchmarkTicker,
+      gainLossPalette:
+        parsed.gainLossPalette === "tw" || parsed.gainLossPalette === "neutral"
+          ? parsed.gainLossPalette
+          : "us",
+      density:
+        parsed.density === "loose" || parsed.density === "medium" || parsed.density === "tight"
+          ? parsed.density
+          : "default",
+      radius: parsed.radius === "sharp" || parsed.radius === "round" ? parsed.radius : "default",
     };
   } catch {
     return fallback;
@@ -114,8 +141,12 @@ function persist(state: PersistedShape) {
 
 const initial = loadPersisted();
 
-// Apply initial theme immediately before React mounts to avoid flash.
+// Apply initial appearance attributes immediately before React mounts to
+// avoid a flash of the default theme/palette/density.
 applyThemeAttribute(initial.theme);
+applyRootAttribute("data-gainloss", initial.gainLossPalette, "us");
+applyRootAttribute("data-density", initial.density, "default");
+applyRootAttribute("data-radius", initial.radius, "default");
 
 function applyThemeAttribute(theme: ThemeMode) {
   if (typeof document === "undefined") return;
@@ -124,6 +155,17 @@ function applyThemeAttribute(theme: ThemeMode) {
     el.removeAttribute("data-theme");
   } else {
     el.setAttribute("data-theme", theme);
+  }
+}
+
+/** Set a root data attribute, removing it entirely when at the default value. */
+function applyRootAttribute(name: string, value: string, defaultValue: string) {
+  if (typeof document === "undefined") return;
+  const el = document.documentElement;
+  if (value === defaultValue) {
+    el.removeAttribute(name);
+  } else {
+    el.setAttribute(name, value);
   }
 }
 
@@ -137,6 +179,9 @@ function snapshot(state: UiPreferences): PersistedShape {
     assetLogosEnabled: state.assetLogosEnabled,
     holdingsColumns: state.holdingsColumns,
     benchmarkTicker: state.benchmarkTicker,
+    gainLossPalette: state.gainLossPalette,
+    density: state.density,
+    radius: state.radius,
   };
 }
 
@@ -149,6 +194,9 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   assetLogosEnabled: initial.assetLogosEnabled,
   holdingsColumns: initial.holdingsColumns,
   benchmarkTicker: initial.benchmarkTicker,
+  gainLossPalette: initial.gainLossPalette,
+  density: initial.density,
+  radius: initial.radius,
   setPrivacyMode(value) {
     setPrivacyMaskOn(value);
     set({ privacyMode: value });
@@ -191,6 +239,21 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   setBenchmarkTicker(value) {
     const next = value.trim() || DEFAULT_BENCHMARK_TICKER;
     set({ benchmarkTicker: next });
+    persist(snapshot(get()));
+  },
+  setGainLossPalette(value) {
+    applyRootAttribute("data-gainloss", value, "us");
+    set({ gainLossPalette: value });
+    persist(snapshot(get()));
+  },
+  setDensity(value) {
+    applyRootAttribute("data-density", value, "default");
+    set({ density: value });
+    persist(snapshot(get()));
+  },
+  setRadius(value) {
+    applyRootAttribute("data-radius", value, "default");
+    set({ radius: value });
     persist(snapshot(get()));
   },
 }));
