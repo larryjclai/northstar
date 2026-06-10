@@ -1,6 +1,7 @@
 # NorthStar — Design System 文件
-> 最後更新：2026-06-08
-> 本文件從 `northstar-tokens.css`、`northstar-shared.jsx`、`northstar-foundations.jsx` 及 `HANDOVER.md` 自動整理。
+> 最後更新：2026-06-10
+> 本文件描述 **實際 app**（`src/`）的設計系統。正準來源：`src/styles/globals.css`（tokens 與 utility classes）、`src/styles/fonts.css`（字體載入）、`src/components/coss/`（元件庫）。
+> 早期 prototype（`Design System/` 資料夾）僅供歷史參考，與本文件不同步。
 
 ---
 
@@ -18,32 +19,29 @@
 10. [動態與動畫](#10-動態與動畫)
 11. [頁面架構與路由](#11-頁面架構與路由)
 12. [設計慣例](#12-設計慣例)
-13. [待辦事項](#13-待辦事項)
+13. [已知缺口與待辦](#13-已知缺口與待辦)
 
 ---
 
 ## 1. 品牌概覽
 
-**產品名稱**：NorthStar  
-**產品定位**：個人財務管理 — 帳戶、現金流、投資組合、目標與 FIRE 試算的一站式介面  
-**目標平台**：Desktop（主力）+ Mobile iOS（companion）  
-**語言支援**：繁體中文為主，英文 labels 輔助（ticker、帳戶代號等）
+**產品名稱**：NorthStar
+**產品定位**：個人財務管理 — 帳戶、現金流、投資組合、目標與 FIRE 試算的一站式介面
+**目標平台**：Desktop（Tauri，主力）+ Mobile iOS（companion）
+**語言支援**：繁體中文為主，英文 labels 輔助（ticker、eyebrow、帳戶代號等）
 
-### Logo
+### 品牌識別
 
-```jsx
-<NSLogo size={22} />
-// 星形 SVG + "Northstar" wordmark
-// 顏色使用 --ns-accent (lime green)
-```
+Wordmark 在 `AppShell.tsx` sidebar：app icon 圖檔 + "Northstar" 文字。
+文字使用 `--ns-font-brand`（Space Grotesk 600）— **這是 Space Grotesk 在 app 中唯一的使用處**，不得用於其他 UI 文字。
 
 ---
 
 ## 2. 顏色系統
 
-設計採用 **oklch()** 色彩空間，確保感知均勻性。預設 **Dark Mode**，Light Mode 透過 `[data-theme="light"]` 切換。
+採用 **oklch()** 色彩空間。預設跟隨系統（`prefers-color-scheme`），可透過 `[data-theme="light|dark"]` 強制指定。
 
-### 2.1 Dark Mode（預設）
+### 2.1 Dark Mode
 
 | Token | 值 | 用途 |
 |---|---|---|
@@ -66,32 +64,30 @@
 | `--ns-bg-card` | `oklch(0.998 0 0)` |
 | `--ns-bg-hover` | `oklch(0.965 0.005 250)` |
 | `--ns-border` | `oklch(0.91 0.005 250)` |
+| `--ns-border-strong` | `oklch(0.82 0.008 250)` |
 | `--ns-fg` | `oklch(0.2 0.01 250)` |
 | `--ns-fg-muted` | `oklch(0.45 0.01 250)` |
 | `--ns-fg-dim` | `oklch(0.6 0.008 250)` |
 
 ### 2.3 Accent（品牌色）
 
-| Theme | `--ns-accent` | `--ns-accent-fg` |
-|---|---|---|
-| Dark | `#9fe870`（lime green） | `#0a1a02` |
-| Light | `#5fb83a` | `#ffffff` |
-
-Soft variant：`color-mix(in srgb, var(--ns-accent) 14–18%, transparent)`
+| Theme | `--ns-accent` | `--ns-accent-fg` | `--ns-accent-soft` |
+|---|---|---|---|
+| Dark | `#9fe870`（lime green） | `#0a1a02` | accent 18% mix |
+| Light | `#5fb83a` | `#ffffff` | accent 14% mix |
 
 ### 2.4 語意色（Gain / Loss）
 
-三組可透過 Tweaks 切換的盈虧配色：
+目前僅實作 **US 綠漲紅跌** 一組（TW 紅漲綠跌、Neutral 為待辦，見 §13）：
 
-| 組合 | `--ns-pos` (dark) | `--ns-neg` (dark) | `--ns-pos` (light) | `--ns-neg` (light) |
-|---|---|---|---|---|
-| **US** 綠漲紅跌（預設） | `#6ee49a` | `#ff7d6b` | `#157040` | `#c22a1e` |
-| **TW** 紅漲綠跌 | `#ff6363` | `#3fbf6c` | — | — |
-| **Neutral** 藍/琥珀 | `#34c5b0` | `#f0a050` | — | — |
+| Token | Dark | Light |
+|---|---|---|
+| `--ns-pos` | `#6ee49a` | `#157040` |
+| `--ns-neg` | `#ff7d6b` | `#c22a1e` |
+| `--ns-warn` | `#f0c050` | `#c98a18` |
+| `--ns-info` | `#6fb3ff` | `#2c6df0` |
 
-其他語意色：
-- `--ns-warn`：Dark `#f0c050` / Light `#c98a18`
-- `--ns-info`：Dark `#6fb3ff` / Light `#2c6df0`
+各有 `-soft` 變體（12–16% color-mix）。
 
 ### 2.5 圖表系列色
 
@@ -108,30 +104,45 @@ Soft variant：`color-mix(in srgb, var(--ns-accent) 14–18%, transparent)`
 | Token | 用途 |
 |---|---|
 | `--ns-shadow-1` | 卡片微浮（含 inset highlight） |
-| `--ns-shadow-2` | Modal / 覆蓋層（60px blur，50% opacity dark） |
+| `--ns-shadow-2` | Modal / 覆蓋層 |
+
+### 2.7 語意別名與 COSS bridge
+
+`globals.css` 把 ns-* tokens 映射到兩組別名，**新程式碼優先用 ns-* 原始 token**：
+
+- 語意別名：`--ns-surface`、`--ns-surface-strong`、`--ns-positive`、`--ns-danger`、`--ns-warning-soft`…
+- COSS UI / shadcn bridge：`--background`、`--primary`、`--destructive`、`--ring`、`--chart-1..5`、`--sidebar-*`… — COSS 元件透過這層自動跟隨主題，不需 per-component `dark:` variants。
 
 ---
 
 ## 3. 字體系統
 
-### 3.1 字族（Font Families）
+**IBM Plex 家族統一**（2026-06 決定）：UI 文字與標題用 Plex Sans、繁體中文用同 DNA 的 Plex Sans TC、密集數據用 Plex Mono。Space Grotesk 只保留在品牌 wordmark。
 
-| Token | 預設值 | 用途 |
+### 3.1 字族 Tokens
+
+| Token | 值 | 用途 |
 |---|---|---|
-| `--ns-font-display` | Space Grotesk, Noto Sans TC | 標題、品牌文字 |
-| `--ns-font-ui` | Space Grotesk, Noto Sans TC | 介面文字 |
-| `--ns-font-mono` | IBM Plex Mono, JetBrains Mono | 財務數字、程式碼、eyebrow |
+| `--ns-font-display` | IBM Plex Sans + Sans TC | 標題 |
+| `--ns-font-ui` | IBM Plex Sans + Sans TC | 介面文字、內文 |
+| `--ns-font-mono` | IBM Plex Mono | 表格金額、時間戳、圖表軸線、eyebrow |
+| `--ns-font-num` | IBM Plex Sans + Sans TC | Hero 大數字（搭配 tabular-nums，見 §3.4） |
+| `--ns-font-brand` | Space Grotesk | **僅限 wordmark** |
 
-### 3.2 字族變體（Tweaks）
+分工原則：**核心數據用 Mono**（交易金額、記帳數字、時間、圖表數據）；**展示型大數字用 Sans tabular**（淨資產 hero、KPI）；**文字介面用 Sans**。
 
-透過 `[data-fonts]` attribute 切換：
+### 3.2 字體載入
 
-| 值 | Display / UI | Mono |
+全部打包進 app bundle（`src/styles/fonts.css`），**不使用 CDN**，離線首次渲染即正確：
+
+| 字體 | 來源 | 字重 |
 |---|---|---|
-| 預設 | Space Grotesk | IBM Plex Mono |
-| `geist` | Geist | Geist Mono |
-| `ibm` | IBM Plex Sans | IBM Plex Mono |
-| `serif` | Newsreader | JetBrains Mono |
+| IBM Plex Sans | `@fontsource/ibm-plex-sans` | 400 / 500 / 600 / 700 |
+| IBM Plex Sans TC | `@ibm/plex-sans-tc`（complete woff2，約 2.4MB/字重） | 400 / 500 / 600 |
+| IBM Plex Mono | `@fontsource/ibm-plex-mono` | 400 / 500 |
+| Space Grotesk | `@fontsource/space-grotesk` | 600 |
+
+新增字重前先確認 bundle 體積影響（TC 每字重 +2.4MB）。
 
 ### 3.3 字級系統
 
@@ -146,28 +157,29 @@ Soft variant：`color-mix(in srgb, var(--ns-accent) 14–18%, transparent)`
 | `--ns-t-ui` | 14px | 介面標籤 |
 | `--ns-t-caption` | 12px | 輔助說明 |
 
-### 3.4 數字顯示尺寸（Mono）
+### 3.4 數字顯示尺寸（`.ns-num-*`）
 
-| Class | 大小 | 字重 | Letter-spacing | 用途 |
-|---|---|---|---|---|
-| `.ns-num-xl` | 56px | 500 | -0.025em | 淨資產等主要數字 |
-| `.ns-num-lg` | 40px | 500 | -0.02em | 次要大數字 |
-| `.ns-num-md` | 28px | 500 | -0.015em | KPI 卡片數字 |
-| `.ns-num-sm` | 16px | 500 | -0.005em | 表格金額 |
+| Class | 大小 | 字重 | Letter-spacing |
+|---|---|---|---|
+| `.ns-num-xl` | 56px | 600 | -0.025em |
+| `.ns-num-lg` | 40px | 600 | -0.02em |
+| `.ns-num-md` | 28px | 600 | -0.015em |
+| `.ns-num-sm` | 16px | 600 | -0.005em |
 
-所有數字 class 均包含：`font-variant-numeric: tabular-nums lining-nums`
+使用 `--ns-font-num` 並包含 `font-variant-numeric: tabular-nums lining-nums`。
+IBM Plex 的數字預設即為 tabular（等寬對齊），mono 與 sans 兩者皆然。
 
-### 3.5 Eyebrow 標籤
+### 3.5 Eyebrow 標籤（`.ns-eyebrow`）
 
 ```css
-.ns-eyebrow {
-  font-family: var(--ns-font-mono);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ns-fg-muted);
-}
+font-family: var(--ns-font-mono);
+font-size: 11px;
+letter-spacing: 0.12em;
+text-transform: uppercase;
+color: var(--ns-fg-muted);
 ```
+
+慣例：頁首使用「英文 eyebrow + 中文 h1」（例：`LONG-TERM PROGRESS` / `目標・FIRE`）。
 
 ---
 
@@ -175,49 +187,38 @@ Soft variant：`color-mix(in srgb, var(--ns-accent) 14–18%, transparent)`
 
 ### 4.1 間距比例尺
 
-| Token | 值 |
-|---|---|
-| `--ns-s-0` | 0px |
-| `--ns-s-1` | 4px |
-| `--ns-s-2` | 8px |
-| `--ns-s-3` | 12px |
-| `--ns-s-4` | 16px |
-| `--ns-s-5` | 20px |
-| `--ns-s-6` | 24px |
-| `--ns-s-7` | 32px |
-| `--ns-s-8` | 40px |
-| `--ns-s-9` | 56px |
-| `--ns-s-10` | 80px |
+| Token | 值 | Token | 值 |
+|---|---|---|---|
+| `--ns-s-0` | 0px | `--ns-s-6` | 24px |
+| `--ns-s-1` | 4px | `--ns-s-7` | 32px |
+| `--ns-s-2` | 8px | `--ns-s-8` | 40px |
+| `--ns-s-3` | 12px | `--ns-s-9` | 56px |
+| `--ns-s-4` | 16px | `--ns-s-10` | 80px |
+| `--ns-s-5` | 20px | | |
 
 ### 4.2 圓角
 
-| Token | 值 | 用途 |
-|---|---|---|
-| `--ns-r-xs` | 6px | 小型標籤、chip |
-| `--ns-r-sm` | 10px | 按鈕、輸入框 |
-| `--ns-r-md` | 14px | 小卡片 |
-| `--ns-r-lg` | 18px | 主卡片（`.ns-card`） |
-| `--ns-r-xl` | 24px | Modal、大型面板 |
-| `--ns-r-full` | 999px | 膠囊形 pill |
+| Token | 預設 | `[data-radius="sharp"]` | `[data-radius="round"]` |
+|---|---|---|---|
+| `--ns-r-xs` | 6px | 2px | 10px |
+| `--ns-r-sm` | 10px | 3px | 14px |
+| `--ns-r-md` | 14px | 4px | 18px |
+| `--ns-r-lg` | 18px | 6px | 24px |
+| `--ns-r-xl` | 24px | 8px | 32px |
+| `--ns-r-full` | 999px | — | — |
 
-圓角變體（Tweaks）：
-
-| `[data-radius]` | xs / sm / md / lg / xl |
-|---|---|
-| `sharp` | 2 / 3 / 4 / 6 / 8 px |
-| 預設 | 6 / 10 / 14 / 18 / 24 px |
-| `round` | 10 / 14 / 18 / 24 / 32 px |
+COSS bridge：`--radius: var(--ns-r-sm)`。
 
 ---
 
 ## 5. 密度變體
 
-透過 `[data-density]` 全域切換：
+CSS 透過 `[data-density]` 切換（**注意：目前沒有 UI 入口設定此屬性**，僅 CSS 就緒）：
 
 | 密度 | `--ns-row-h` | `--ns-pad-card` | `--ns-gap-card` |
 |---|---|---|---|
-| `loose` | 68px | 30px | 26px |
-| 預設（medium） | 56px | 24px | 20px |
+| `loose` | 64px | 28px | 24px |
+| 預設 | 56px | 24px | 20px |
 | `medium` | 52px | 20px | 16px |
 | `tight` | 40px | 14px | 10px |
 
@@ -227,222 +228,124 @@ Soft variant：`color-mix(in srgb, var(--ns-accent) 14–18%, transparent)`
 
 ## 6. 元件庫
 
-### 6.1 卡片（`.ns-card`）
+元件分三層，**優先順序由上而下**：
 
-```css
-background: var(--ns-bg-card);
-border: 1px solid var(--ns-border);
-border-radius: var(--ns-r-lg);
-padding: var(--ns-pad-card);
-```
+### 6.1 COSS UI 元件（`src/components/coss/`）
 
-### 6.2 表面（`.ns-surface`）
+Base UI + Tailwind v4 的受控元件，透過 §2.7 的 bridge tokens 自動跟隨主題：
 
-較卡片更薄的浮起層（用於 sidebar section、sub-area）：
-
-```css
-background: var(--ns-bg-elev);
-border: 1px solid var(--ns-border);
-border-radius: var(--ns-r-md);
-```
-
-### 6.3 列（`.ns-row`）
-
-```css
-display: flex; align-items: center;
-min-height: var(--ns-row-h);
-padding: 0 var(--ns-s-5);
-border-bottom: 1px solid var(--ns-border);
-```
-
-最後一個子元素自動移除底線（`:last-child { border-bottom: none }`）
-
-### 6.4 按鈕（`.ns-btn`）
-
-| Variant | Class | 說明 |
-|---|---|---|
-| 預設 | `.ns-btn` | 邊線 + 底色 bg-elev |
-| 主要 | `.ns-btn.primary` | Accent 背景 |
-| 幽靈 | `.ns-btn.ghost` | 無背景、無邊線、muted 文字 |
-| 圖示 | `.ns-btn.icon` | 正方形 padding 8px |
-
-所有按鈕：hover `bg-hover`、active `translateY(1px)`
-
-### 6.5 Pills（`.ns-pill`）
-
-```css
-display: inline-flex; align-items: center; gap: 6px;
-padding: 3px 9px; border-radius: var(--ns-r-full);
-font-size: 11.5px; font-weight: 500;
-```
-
-| 修飾 class | 用途 |
+| 元件 | 重點 API |
 |---|---|
-| 預設 | 邊線 + 透明底 + muted 文字 |
-| `.solid-accent` | Accent 底色 |
-| `.solid-pos` | 盈利（正色 soft 底） |
-| `.solid-neg` | 虧損（負色 soft 底） |
+| `Button` | variant: `default` / `outline` / `ghost` / `secondary` / `link` / `destructive` / `destructive-outline`；size: `xs` / `sm` / `default` / `lg` / `xl` / `icon-*`；`render={<Link …/>}` 可變身路由連結 |
+| `Card` | 卡片容器 |
+| `Badge` | 圓角 pill 標籤，搭配 soft 底色 |
+| `Input` / `Field` / `Label` / `Checkbox` / `Select` / `Separator` / `Spinner` / `Toggle` / `ToggleGroup` | 表單與基礎元件 |
 
-### 6.6 分段控制（`.ns-seg`）
+### 6.2 App 共用元件（`src/components/`）
 
-```css
-display: inline-flex; padding: 3px; gap: 2px;
-background: var(--ns-bg-elev); border: 1px solid var(--ns-border);
-border-radius: var(--ns-r-sm);
-```
+| 元件 | 用途 |
+|---|---|
+| `Field` / `TextInput` / `SelectInput` / `TextAreaInput` | 簡單表單欄位（label + input） |
+| `NumberField` | 千分位數字輸入（預設 class `ns-input mono`） |
+| `AppSelect` | 可搜尋下拉選單 |
+| `SegmentedControl` | 分段切換 |
+| `DateTimeField` / `DateScopeControl` | 日期輸入與範圍切換 |
+| `AccountFilter` / `CategoryFilter` / `TickerSearchField` | 領域篩選器 |
+| `EmptyState` / `StatusText` / `Metric` / `ActionButton` | 狀態與展示 |
+| `Toast`（`useToast`） | 操作回饋，成功/失敗訊息 |
+| `QuickAdd` | 全域快速記帳（右下浮動 +） |
+| `GlobalSearch` | ⌘K 指令面板 |
+| `AssetLogo` / `IconPicker` | 識別圖示 |
 
-啟用狀態：`aria-selected="true"` → `bg-card` + `shadow-1`
+### 6.3 ns- Utility Classes（`globals.css`）
 
-### 6.7 輸入框（`.ns-input`）
+仍在使用的全域 class：
 
-```css
-background: var(--ns-bg-elev);
-border: 1px solid var(--ns-border);
-padding: 10px 12px; border-radius: var(--ns-r-sm);
-```
+| Class | 用途 |
+|---|---|
+| `.ns-surface` | 薄抬升層（bg-elev + border + r-md） |
+| `.ns-row` | 列表列（min-height row-h、底線、`:last-child` 去線） |
+| `.ns-input` | 原生輸入框樣式（focus ring 用 accent） |
+| `.ns-nav-link` | Sidebar 導航連結（`.active` 反白） |
+| `.ns-eyebrow` | §3.5 |
+| `.ns-num-xl/lg/md/sm` | §3.4 |
+| `.muted` / `.dim` / `.pos` / `.neg` / `.mono` / `.num` | 文字層級輔助 |
 
-Focus：`border-color: --ns-accent` + `box-shadow: 0 0 0 3px --ns-accent-soft`
+另有大量頁面層級 class（`.ns-dash-*`、`.ns-invest-*`、`.ns-detail-*`、`.ns-settings-*`…）為各路由的版型專用。
 
-### 6.8 Sidebar 導航連結（`.ns-nav-link`）
+### 6.4 Modal / Sheet 模式
 
-```css
-display: flex; align-items: center; gap: 11px;
-padding: 9px 11px; border-radius: var(--ns-r-sm);
-font-size: 13.5px; color: var(--ns-fg-muted);
-```
-
-啟用：`.active` → `bg-card` + `inset border`
-
-### 6.9 KPI 卡片（`<NSKpi>`）
+無共用 Dialog 元件；慣例為 fixed overlay（參考 `HoldingEditModal.tsx`、`GoalEditorSheet.tsx`）：
 
 ```jsx
-<NSKpi
-  label="淨資產"
-  value="NT$8,452K"
-  sub="HKD · USD · NTD"
-  trend={2.34}        // 正數=漲，負數=跌，null=不顯示
-  spark={nsSeries(20, 100)}  // 可選 sparkline 資料
-/>
+<div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center" onClick={onClose}>
+  <div className="w-full max-w-lg rounded-lg border shadow-xl"
+       style={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}
+       onClick={(e) => e.stopPropagation()}>
+    {/* header(border-b) / 內容(max-h-[70vh] overflow-y-auto) / footer(border-t) */}
+  </div>
+</div>
 ```
 
-### 6.10 品牌識別元件
-
-| 元件 | 說明 |
-|---|---|
-| `<NSLogo size={22}>` | 星形 + Wordmark |
-| `<NSMark label="FD" color="#xxx" size={36}>` | 帳戶 / 持股方塊 icon |
+手機（窄幅）時 `items-end` 自然形成 bottom sheet。
 
 ---
 
 ## 7. 圖示系統
 
-使用 `<NSIcon name="…" size={18} strokeWidth={1.6} />` 調用。
+使用 **Phosphor Icons**（`@phosphor-icons/react`）：
 
-所有圖示均為 stroke-based SVG，`viewBox="0 0 20 20"`。
+```jsx
+import { Star, Target, Trash, PencilSimple } from "@phosphor-icons/react";
+<Star size={14} weight="fill" color="var(--ns-pos)" />
+```
 
-| name | 描述 | name | 描述 |
-|---|---|---|---|
-| `home` | 首頁 | `chart` | 折線圖 |
-| `wallet` | 帳戶 | `coin` | 貨幣 |
-| `target` | 目標 | `settings` | 設定齒輪 |
-| `plus` | 新增 | `search` | 搜尋 |
-| `filter` | 篩選 | `download` | 下載 |
-| `upload` | 上傳 | `arrowUp/Down/Left/Right` | 方向箭頭 |
-| `chevDown/Left/Right/Up` | 三角箭頭 | `refresh` | 重新整理 |
-| `eye` | 查看 | `dots` | 更多 (⋯) |
-| `bell` | 通知 | `star` | 星星 |
-| `calendar` | 日曆 | `tag` | 標籤 |
-| `transfer` | 轉帳 | `bank` | 銀行 |
-| `pie` | 圓餅圖 | `swap` | 交換 |
-| `sparkle` | 閃爍 | `check` | 勾選 |
-| `lock` | 鎖 | `users` | 使用者群 |
-| `backspace` | 退格 | `arrowLeft` | 返回（Mobile） |
-| `chevLeft` | 返回三角 | — | — |
+慣例：
+- 一般 UI 圖示 `size={13–16}`、列表/卡片圖示 `size={18–26}`
+- `weight="fill"` 用於強調狀態（達成、警告）、`weight="bold"` 用於按鈕內的 + 號
+- 顏色一律用 ns token，不寫死色碼
 
 ---
 
 ## 8. 數據視覺化
 
-### 8.1 `<NSSparkline>` — 迷你折線圖
+使用 **Recharts**（`AreaChart`、`BarChart`、`PieChart`…），統一樣式慣例：
 
 ```jsx
-<NSSparkline data={[…]} w={80} h={24} pos={true} fillOpacity={0.18} />
+<CartesianGrid strokeDasharray="3 3" stroke="var(--ns-border)" vertical={false} />
+<XAxis tick={{ fill: "var(--ns-fg-muted)", fontSize: 11 }} tickLine={false} axisLine={false} />
+<YAxis tick={{ fill: "var(--ns-fg-muted)", fontSize: 11 }} tickLine={false} axisLine={false}
+       tickFormatter={(v) => formatCompactNumber(Number(v))} />
+<Tooltip contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }}
+         itemStyle={{ color: "var(--ns-fg)" }} labelStyle={{ color: "var(--ns-fg-muted)" }} />
 ```
 
-### 8.2 `<NSAreaChart>` — 互動區域圖
-
-```jsx
-<NSAreaChart
-  data={[…]}          // 主系列
-  secondary={[…]}     // 次要虛線（可選）
-  w={720} h={280}
-  color="var(--ns-accent)"
-  yFormat={(v) => `NT$${v.toFixed(0)}`}
-  xLabels={['1月','2月', …]}
-/>
-```
-
-特性：hover 十字線 + tooltip、次要系列虛線、漸層填色
-
-### 8.3 `<NSDonut>` — 甜甜圈圖（資產配置）
-
-```jsx
-<NSDonut
-  data={[{ label: '台股', v: 45, color: 'var(--ns-chart-1)' }, …]}
-  size={140} thickness={18}
-/>
-```
-
-### 8.4 `<NSBars>` — 迷你長條圖（月度現金流）
-
-```jsx
-<NSBars data={[{ v: 72000 }, { v: -24000 }, …]} w={280} h={80} neutral={false} />
-```
-
-正值用 `--ns-pos`，負值用 `--ns-neg`；`neutral={true}` 全部用 chart-2 藍色
+- 軸線標籤固定 `fontSize: 11`
+- 面積圖漸層：主色 20% → 0（`<linearGradient>`）
+- 目標/基準線用 `<ReferenceLine>` + `--ns-border-strong` 虛線
+- 系列色依序取 `--ns-chart-1..5`；盈虧語意用 `--ns-pos` / `--ns-neg`
+- 動畫關閉（`isAnimationActive={false}`），hover 即時響應
 
 ---
 
 ## 9. 數字格式規範
 
-### 9.1 千分位
+正準實作在 `src/domain/currency.ts`，**所有金額顯示必須走這些 helper**（內建隱私遮罩支援）：
 
-全站動態數字使用 `toLocaleString('zh-TW')`：
+| Helper | 行為 | 範例 |
+|---|---|---|
+| `formatNumber(v, opts?)` | `toLocaleString("zh-TW")`，預設 0 小數 | `47,430` |
+| `formatMoney(v, ccy)` | 幣別 + 千分位 | `TWD 47,430` |
+| `formatSignedMoney(v, ccy)` | 正負號前綴 | `+TWD 1,200` |
+| `formatCompactNumber(v)` | 中文壓縮單位 | `1,305萬` |
+| `formatCompactMoney(v, ccy)` | 壓縮 + 幣別 | — |
+| `formatPercent(v, digits?)` | 百分比 | `27.4%` |
+| `formatQuantity(v)` / `formatPrice(v)` | 股數 / 價格精度 | — |
 
-```js
-// ✅ 正確
-(47430).toLocaleString('zh-TW')  // → "47,430"
-
-// ✅ 含小數
-(1234.5).toLocaleString('zh-TW', { minimumFractionDigits: 2 })  // → "1,234.50"
-```
-
-### 9.2 正負符號
-
-使用 MINUS SIGN（U+2212 `−`），不用 ASCII `-`：
-
-```js
-const sign = v >= 0 ? '+' : '−';
-`${sign}NT$${Math.abs(v).toLocaleString('zh-TW')}`
-```
-
-### 9.3 `nsFmt()` 輔助函式
-
-```js
-nsFmt(v, { decimals=0, sign=false, prefix='', suffix='' })
-
-// 範例
-nsFmt(-47430, { prefix: 'NT$', sign: true })  // → '−NT$47,430'
-nsFmt(2.345, { decimals: 2, sign: true })      // → '+2.35'
-```
-
-### 9.4 CSS 數字樣式
-
-表格金額欄必須加上：
-
-```jsx
-style={{ fontVariantNumeric: 'tabular-nums lining-nums', textAlign: 'right' }}
-```
+規則：
+- **隱私遮罩**：`setPrivacyMaskOn(true)` 後所有 helper 輸出遮罩字串 — 自行手刻 `toLocaleString` 會漏掉遮罩，禁止繞過
+- 表格金額欄必須 `textAlign: 'right'` + `tabular-nums`（`.num` class 或 inline `fontVariantNumeric`）
+- 提領率（withdrawalRate）以**小數**儲存（0.04 = 4%），顯示時轉換；目標金額推導一律用 `resolveTargetAmount()`（`domain/fireGoal.ts`）
 
 ---
 
@@ -456,72 +359,32 @@ style={{ fontVariantNumeric: 'tabular-nums lining-nums', textAlign: 'right' }}
 
 使用原則：
 - 按鈕 hover/active 用 `--ns-dur-fast`
-- Side sheet 滑出用 `--ns-dur`（200ms）
-- 圖表 hover crosshair 不需 transition（即時）
-- Bottom sheet（mobile）：`borderRadius: '20px 20px 0 0'`
+- Sheet / 面板滑出用 `--ns-dur`
+- 圖表 hover 不加 transition（即時）
 
 ---
 
 ## 11. 頁面架構與路由
 
-### 11.1 Desktop 路由表
+TanStack Router（`src/routes/router.tsx`），lazy route + `manualChunks` code-splitting：
 
-| 路由 key | 元件 | 檔案 |
+| 路由 | 元件 | 說明 |
 |---|---|---|
-| `dashboard` | `NSDesktopDashboardV2` | `northstar-dashboard2.jsx` |
-| `holdings` | `NSDesktopHoldings` | `northstar-desktop.jsx` |
-| `holding-detail` | `NSDesktopHoldingDetail` | `northstar-detail.jsx` |
-| `inv-add` | `NSDesktopInvestAddSheet` | `northstar-desktop.jsx` |
-| `holdings-txns` | `NSDesktopHoldingsTxns` | `northstar-holdings-txns.jsx` |
-| `cashflow` | `NSDesktopCashFlow` | `northstar-desktop.jsx` |
-| `cf-detail` | `NSDesktopCashFlowDetail` | `northstar-cashflow-detail.jsx` |
-| `cf-new` | `NSDesktopNewTxSheet` | `northstar-desktop.jsx` |
-| `merchant` | `NSDesktopMerchantDetail` | `northstar-merchant.jsx` |
-| `cat-detail` | `NSDesktopCategoryDetail` | `northstar-category-detail.jsx` |
-| `cat-mgmt` | `NSDesktopCategoryMgmt` | `northstar-desktop.jsx` |
-| `recurring` | `NSDesktopRecurringRules` | `northstar-recurring.jsx` |
-| `accounts` | `NSDesktopAccounts` | `northstar-desktop.jsx` |
-| `acct-add` | `NSDesktopAddAccountFlow` | `northstar-acct-flow.jsx` |
-| `goals` | `NSDesktopGoals` | `northstar-desktop.jsx` |
-| `fire-calc` | `NSDesktopFireCalc` | `northstar-fire-calc.jsx` |
-| `connect` | `NSDesktopConnect` | `northstar-desktop.jsx` |
-| `settings` | `NSDesktopSettingsV2` | `northstar-settings-detail.jsx` |
+| `/` | `DashboardRoute` | 總覽（KPI、近期帳單、資產配置、目標、匯率、最近交易） |
+| `/investments` | `InvestmentsRoute` | 投資組合（含投資分析 tab） |
+| `/holdings/$ticker` | `HoldingDetailRoute` | 個股明細 |
+| `/transactions` | `TransactionsRoute` | 交易列表 |
+| `/cash-flow` | `CashFlowRoute` | 現金流總覽 |
+| `/cash-flow/categories` | `CategoriesRoute` | 分類管理 |
+| `/cash-flow/categories/$categoryName` | `CategoryDetailRoute` | 分類明細 |
+| `/cash-flow/merchants/$merchantName` | `MerchantDetailRoute` | 商家明細 |
+| `/cash-flow/reconcile/$accountId` | `ReconcileRoute` | 對帳 |
+| `/accounts` | `AccountsRoute` | 帳戶管理（建立精靈） |
+| `/goals` | `GoalsRoute` | 目標（FIRE + 自訂目標、`GoalEditorSheet`） |
+| `/goals/fire` | `FIRECalculatorRoute` | FIRE 計算機（`?id=` 編輯既有目標） |
+| `/settings` | `SettingsRoute` | 設定（含 Connect 同步、Recovery Kit、備份） |
 
-### 11.2 Cash Flow Tab 結構（4 tabs）
-
-```
-Transactions  |  分類  |  Merchants  |  週期規則
-```
-
-- **Transactions**：每日分組的交易列表
-- **分類**：Donut + 分類表格，點擊進 `cat-detail`
-- **Merchants**：商家表格，點擊進 `merchant`
-- **週期規則**：定期規則管理，點擊進 `RuleEditSheet`
-
-### 11.3 Holdings Tab 結構（2 tabs）
-
-```
-Portfolio  |  Transactions
-```
-
-### 11.4 跨頁面互連
-
-| 起點 | 終點 | 方式 |
-|---|---|---|
-| CF Detail 商家名 | Merchant Detail | "View →" 按鈕 |
-| Cash Flow Merchants tab | Merchant Detail | 點擊商家列 |
-| Cash Flow 分類 tab | Category Detail | 點擊分類列 |
-| Merchant Detail Hero | Category Detail | "🚗 交通 分類 ›" 按鈕 |
-| Category Detail Top Merchants | Merchant Detail | 點擊商家列 |
-
-### 11.5 Mobile 畫面（iOS Frame）
-
-| 元件 | 對應 desktop 路由 |
-|---|---|
-| `NSMobileHoldingsTxns` | `holdings-txns` |
-| `NSMobileMerchantDetail` | `merchant` |
-| `NSMobileCategoryDetail` | `cat-detail` |
-| `NSMobileEditTxSheet` | Bottom sheet |
+導航：Desktop 為左側 sidebar（`.ns-nav-link`）；窄幅為底部 tab bar + 「更多」。
 
 ---
 
@@ -538,54 +401,29 @@ Portfolio  |  Transactions
 .num    → font-family: --ns-font-mono, tabular-nums lining-nums
 ```
 
-### 12.2 日期格式
+### 12.2 刪除二次確認
 
-```js
-// 統一格式
-'今天 · 5/27 (二)'
-'昨天 · 5/26 (一)'
-'5/25 (六)'
-```
+所有破壞性操作使用 inline 兩段式確認（第一次點擊顯示「確定刪除？」+「取消」，第二次才執行）。
+**`window.confirm` 在 Tauri webview 是 no-op，禁止使用。**
+參考實作：`RecurringRulesTab`、`SettingsRoute`（裝置移除）、`GoalsRoute`。
 
-### 12.3 卡片 Hover 互動
-
-需要點擊的卡片加上：
-
-```jsx
-style={{ cursor: 'pointer', transition: 'background 0.12s' }}
-onMouseEnter={e => e.currentTarget.style.background = 'var(--ns-bg-hover)'}
-onMouseLeave={e => e.currentTarget.style.background = 'var(--ns-bg-card)'}
-```
-
-### 12.4 刪除二次確認模式
-
-所有破壞性操作使用 `confirmDelete` state，第一次點擊顯示確認訊息，第二次才執行刪除。
-
-### 12.5 右對齊金額欄
+### 12.3 右對齊金額欄
 
 所有表格的金額欄（qty / price / fee / total / 餘額）必須 `textAlign: 'right'`。
 
-### 12.6 圖表軸線文字
+### 12.4 卡片 Hover 互動
 
-所有 chart 的軸線標籤統一使用 `fontSize="11"`。
+可點擊的卡片/列加 `cursor: pointer` + hover 背景 `--ns-bg-hover`（transition 用 `--ns-dur-fast`）。
 
-### 12.7 Search Input Pattern（Sidebar）
+### 12.5 Toast 回饋
 
-```jsx
-<div style={{ position: 'relative' }}>
-  <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }}>
-    <NSIcon name="search" size={14}/>
-  </span>
-  <span className="dim mono" style={{ position: 'absolute', right: 10 }}>⌘K</span>
-  <input className="ns-input" placeholder="Search…" style={{ paddingLeft: 32, paddingRight: 36 }}/>
-</div>
-```
+每個 mutation 成功/失敗都要 `toast.success()` / `toast.error()`，訊息用繁體中文。
 
-### 12.8 進行中月份標示
+### 12.6 空狀態
 
-月度長條圖中，當前進行中的月份使用**斜線填色**（`fill: url(#hatch)`），而非實色。
+用置中 icon（accent-soft 圓角方塊）+ 標題 + 說明 + 主要 CTA（參考 `GoalsRoute` 空狀態、`EmptyState` 元件）。
 
-### 12.9 週期規則月化計算
+### 12.7 週期規則月化計算
 
 ```js
 const monthlyAmt = r.freq === 'yearly'  ? r.amt / 12
@@ -594,3 +432,13 @@ const monthlyAmt = r.freq === 'yearly'  ? r.amt / 12
 ```
 
 ---
+
+## 13. 已知缺口與待辦
+
+| 項目 | 狀態 |
+|---|---|
+| 負號統一用 U+2212 `−`（取代 ASCII `-`） | 未實作 — 應加進 `currency.ts` helpers |
+| TW 紅漲綠跌 / Neutral 盈虧配色切換 | 未實作 — tokens 與設定 UI 都缺 |
+| `[data-density]` / `[data-radius]` 設定 UI | CSS 就緒，無使用者入口 |
+| Recovery Kit「輸入備援碼還原」UI | `restoreFromRecoveryKit()` 存在但無入口 |
+| 自訂目標帳戶權重（`accountShareMap` 比例 < 100%） | 資料模型支援，編輯器目前固定 100% |
