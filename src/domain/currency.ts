@@ -68,6 +68,15 @@ let __privacyMaskOn = false;
 const MASKED_TEXT = "＊＊＊＊＊＊";
 const MASKED_PERCENT = "＊＊.＊＊%";
 
+// Typographic minus (U+2212) — same width as "+" in tabular figures, unlike
+// the ASCII hyphen-minus (DESIGN.md §9). Applied to *display* strings only;
+// parsing (NumberField etc.) keeps accepting ASCII input.
+const MINUS = "−";
+
+function typographicMinus(formatted: string): string {
+  return formatted.replace(/-/g, MINUS);
+}
+
 export function setPrivacyMaskOn(value: boolean) {
   __privacyMaskOn = value;
 }
@@ -90,13 +99,13 @@ export function setCompactLocale(locale: string) {
 export function formatCompactNumber(amount: number): string {
   if (__privacyMaskOn) return MASKED_TEXT;
   const abs = Math.abs(amount);
-  const sign = amount < 0 ? "-" : "";
+  const sign = amount < 0 ? MINUS : "";
   if (__compactLocale === "en") {
-    if (abs < 1000) return amount.toLocaleString("en", { maximumFractionDigits: 0 });
-    return amount.toLocaleString("en", { notation: "compact", maximumFractionDigits: 2 });
+    if (abs < 1000) return typographicMinus(amount.toLocaleString("en", { maximumFractionDigits: 0 }));
+    return typographicMinus(amount.toLocaleString("en", { notation: "compact", maximumFractionDigits: 2 }));
   }
   // zh-TW: switch to 萬 (10^4) then 億 (10^8).
-  if (abs < 10_000) return amount.toLocaleString("zh-TW", { maximumFractionDigits: 0 });
+  if (abs < 10_000) return typographicMinus(amount.toLocaleString("zh-TW", { maximumFractionDigits: 0 }));
   if (abs < 100_000_000) return `${sign}${trimUnit(abs / 10_000)}萬`;
   return `${sign}${trimUnit(abs / 100_000_000)}億`;
 }
@@ -118,31 +127,31 @@ export function isPrivacyMaskOn() {
 
 export function formatMoney(amount: number, currency: string) {
   if (__privacyMaskOn) return `${currency} ${MASKED_TEXT}`;
-  return `${currency} ${amount.toLocaleString("zh-TW", { maximumFractionDigits: 0 })}`;
+  return `${currency} ${typographicMinus(amount.toLocaleString("zh-TW", { maximumFractionDigits: 0 }))}`;
 }
 
 export function formatNumber(amount: number, options?: Intl.NumberFormatOptions) {
   if (__privacyMaskOn) return MASKED_TEXT;
-  return amount.toLocaleString("zh-TW", { maximumFractionDigits: 0, ...options });
+  return typographicMinus(amount.toLocaleString("zh-TW", { maximumFractionDigits: 0, ...options }));
 }
 
 export function formatSignedMoney(amount: number, currency: string) {
   if (__privacyMaskOn) return `${currency} ${MASKED_TEXT}`;
-  const sign = amount < 0 ? "-" : "+";
+  const sign = amount < 0 ? MINUS : "+";
   return `${sign}${currency} ${Math.abs(amount).toLocaleString("zh-TW", { maximumFractionDigits: 0 })}`;
 }
 
 export function formatPercent(value: number, fractionDigits = 2) {
   if (__privacyMaskOn) return MASKED_PERCENT;
-  return `${(value * 100).toFixed(fractionDigits)}%`;
+  return typographicMinus(`${(value * 100).toFixed(fractionDigits)}%`);
 }
 
 export function formatQuantity(amount: number) {
   if (__privacyMaskOn) return MASKED_TEXT;
-  if (Number.isInteger(amount)) return amount.toLocaleString("zh-TW");
+  if (Number.isInteger(amount)) return typographicMinus(amount.toLocaleString("zh-TW"));
   // Up to 6 decimals (fractional shares / split-adjusted lots), trailing zeros
   // dropped so "10" never renders as "10.000000". See B18 precision policy.
-  return amount.toLocaleString("zh-TW", { maximumFractionDigits: 6 });
+  return typographicMinus(amount.toLocaleString("zh-TW", { maximumFractionDigits: 6 }));
 }
 
 export function formatPrice(value: number, fractionDigits?: number) {
@@ -152,10 +161,10 @@ export function formatPrice(value: number, fractionDigits?: number) {
   // zeros beyond the 2-decimal minimum are dropped. Pass an explicit count to
   // pin a fixed number of decimals. See B18 precision policy.
   if (fractionDigits === undefined) {
-    return value.toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+    return typographicMinus(value.toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 6 }));
   }
-  return value.toLocaleString("zh-TW", {
+  return typographicMinus(value.toLocaleString("zh-TW", {
     maximumFractionDigits: fractionDigits,
     minimumFractionDigits: fractionDigits,
-  });
+  }));
 }
