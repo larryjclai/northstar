@@ -27,6 +27,7 @@ import {
   cumulativeReturnPct,
   dayChangeMovers,
   resolveAssetName,
+  resolveTargetAmount,
   convertCurrency,
   createFxConverter,
   formatMoney,
@@ -950,9 +951,7 @@ function greetingForHour(hour: number) {
 }
 
 function goalTarget(goal: FinancialGoal): number {
-  if (goal.targetAmount && goal.targetAmount > 0) return goal.targetAmount;
-  if (goal.annualSpending > 0 && goal.withdrawalRate > 0) return goal.annualSpending / (goal.withdrawalRate / 100);
-  return 0;
+  return resolveTargetAmount(goal);
 }
 
 function buildNetWorthTrend(

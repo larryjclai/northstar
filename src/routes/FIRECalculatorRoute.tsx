@@ -62,8 +62,10 @@ export function FIRECalculatorRoute() {
     if (goal.retirementAge != null) setTargetAge(goal.retirementAge);
     if (goal.monthlyContribution) setAnnualSavings(Math.round(goal.monthlyContribution * 12));
     if (goal.annualSpending) setAnnualExpense(goal.annualSpending);
-    if (goal.withdrawalRate) setSwr(goal.withdrawalRate <= 1 ? goal.withdrawalRate * 100 : goal.withdrawalRate);
-    if (goal.expectedAnnualReturn) setCagr(goal.expectedAnnualReturn <= 1 ? goal.expectedAnnualReturn * 100 : goal.expectedAnnualReturn);
+    // Stored rates are canonical decimals (0.04 = 4%) — repositories normalize
+    // legacy percent-unit rows on load. Sliders run in percent.
+    if (goal.withdrawalRate) setSwr(+(goal.withdrawalRate * 100).toFixed(1));
+    if (goal.expectedAnnualReturn) setCagr(+(goal.expectedAnnualReturn * 100).toFixed(1));
     if (Array.isArray(goal.incomeItems)) setIncomeItems(goal.incomeItems);
   }, [editingGoalId, financialGoals.data]);
 
@@ -133,8 +135,8 @@ export function FIRECalculatorRoute() {
         name: editingGoal?.name ?? "FIRE · 財務獨立",
         currency: editingGoal?.currency ?? primaryCurrency,
         annualSpending: annualExpense,
-        withdrawalRate: swr,
-        expectedAnnualReturn: cagr,
+        withdrawalRate: swr / 100,
+        expectedAnnualReturn: cagr / 100,
         monthlyContribution: annualSavings / 12,
         targetAmount: fireTarget,
         startDate: editingGoal?.startDate ?? new Date().toISOString().slice(0, 10),

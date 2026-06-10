@@ -394,7 +394,11 @@ export interface FinancialGoal extends SyncFields {
   currency: CurrencyCode;
   // Legacy / fallback inputs:
   annualSpending: number;
+  /** Safe withdrawal rate as a decimal fraction (0.04 = 4%), like every other
+   * rate on this type. Repositories normalize legacy percent-unit rows
+   * (4 = 4%) to decimals on load and on upsert (normalizeRateUnit). */
   withdrawalRate: number;
+  /** Decimal fraction (0.07 = 7%) — same normalization as withdrawalRate. */
   expectedAnnualReturn: number;
   monthlyContribution: number;
   /** Optional override; when null/0 we derive from annualSpending / withdrawalRate. */

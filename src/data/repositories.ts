@@ -2950,6 +2950,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     return rows.map((row) => ({
       ...row,
       kind: (row.kind === "custom" ? "custom" : "fire") as GoalKind,
+      // Legacy rows may hold percent-unit rates; normalize to canonical decimal.
+      withdrawalRate: normalizeRateUnit(row.withdrawalRate) ?? 0.04,
+      expectedAnnualReturn: normalizeRateUnit(row.expectedAnnualReturn) ?? 0.07,
       targetAmount: row.targetAmount ?? null,
       spendingItems: parseJsonArray<SpendingItem>(row.spendingItems),
       incomeItems: parseJsonArray<IncomeItem>(row.incomeItems),
@@ -4121,9 +4124,24 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
  * `null`-aware guard. We keep null-vs-undefined uniform across the whole
  * surface.
  */
+/**
+ * Canonical unit for goal rates is the decimal fraction (0.04 = 4%), the same
+ * convention as every other rate on FinancialGoal (preRetirementReturn,
+ * inflationRate, annualFee…). The FIRE calculator used to persist percentages
+ * (4 for 4%), so any stored value above 1 is unambiguously legacy percent and
+ * gets divided once. Applied on every load path AND in goalFieldsFromDraft so
+ * old backups/synced rows converge to decimals.
+ */
+function normalizeRateUnit(value: number | null | undefined): number | null {
+  if (value === null || value === undefined || !Number.isFinite(value)) return null;
+  return value > 1 ? value / 100 : value;
+}
+
 function normalizeFinancialGoal(goal: FinancialGoal): FinancialGoal {
   return {
     ...goal,
+    withdrawalRate: normalizeRateUnit(goal.withdrawalRate) ?? 0.04,
+    expectedAnnualReturn: normalizeRateUnit(goal.expectedAnnualReturn) ?? 0.07,
     currentAge: goal.currentAge ?? null,
     retirementAge: goal.retirementAge ?? null,
     planThroughAge: goal.planThroughAge ?? null,
@@ -4213,14 +4231,15 @@ function normalizePortfolioAsset(asset: PortfolioAsset): PortfolioAsset {
 }
 
 function goalFieldsFromDraft(input: FinancialGoalDraft) {
+  const withdrawalRate = normalizeRateUnit(input.withdrawalRate);
+  const expectedAnnualReturn = normalizeRateUnit(input.expectedAnnualReturn);
   return {
     kind: input.kind === "custom" ? ("custom" as const) : ("fire" as const),
     name: input.name.trim() || "FIRE 目標",
     currency: (input.currency || "TWD").toUpperCase(),
     annualSpending: Math.max(0, Number(input.annualSpending) || 0),
-    withdrawalRate:
-      Number.isFinite(input.withdrawalRate) && input.withdrawalRate > 0 ? input.withdrawalRate : 0.04,
-    expectedAnnualReturn: Number.isFinite(input.expectedAnnualReturn) ? input.expectedAnnualReturn : 0.07,
+    withdrawalRate: withdrawalRate !== null && withdrawalRate > 0 ? withdrawalRate : 0.04,
+    expectedAnnualReturn: expectedAnnualReturn ?? 0.07,
     monthlyContribution: Math.max(0, Number(input.monthlyContribution) || 0),
     targetAmount: input.targetAmount && input.targetAmount > 0 ? input.targetAmount : null,
     startDate: input.startDate || new Date().toISOString().slice(0, 10),
