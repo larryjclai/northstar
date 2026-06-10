@@ -6,14 +6,9 @@ import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { useToast } from "../components/Toast";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
-import { computeNetWorthInCurrency } from "../features/goals/netWorth";
-import { projectRetirement, formatNumber, formatCompactNumber, type FinancialGoal } from "../domain";
-
-function goalTargetAmount(goal: FinancialGoal): number {
-  if (goal.targetAmount && goal.targetAmount > 0) return goal.targetAmount;
-  if (goal.annualSpending > 0 && goal.withdrawalRate > 0) return goal.annualSpending / (goal.withdrawalRate / 100);
-  return 0;
-}
+import { computeLinkedAccountsValue, computeNetWorthInCurrency } from "../features/goals/netWorth";
+import { GoalEditorSheet } from "../features/goals/GoalEditorSheet";
+import { projectRetirement, resolveTargetAmount, formatNumber, formatCompactNumber, type FinancialGoal } from "../domain";
 
 export function GoalsRoute() {
   const { financialGoals, accounts, assets, quotes, settings, dailyFxRates } = useFinanceData();
@@ -31,14 +26,22 @@ export function GoalsRoute() {
     ["financialGoals"]
   );
 
+  // Two-click delete confirm (DESIGN.md §12.4) — first click arms the row,
+  // second click deletes. window.confirm is a no-op in the Tauri webview.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
   async function handleDeleteGoal(id: string) {
     try {
       await deleteGoal.mutateAsync(id);
+      setConfirmDeleteId(null);
       toast.success("已刪除目標");
     } catch (e) {
       toast.error("刪除目標失敗");
     }
   }
+
+  // Custom-goal create/edit sheet. `{ goal: null }` = create mode.
+  const [editor, setEditor] = useState<{ goal: FinancialGoal | null } | null>(null);
 
   const [activeProjection, setActiveProjection] = useState<"bear" | "base" | "bull">("base");
 
@@ -51,10 +54,19 @@ export function GoalsRoute() {
   const selectedGoal = goals.find((g) => g.id === selectedGoalId) ?? fireGoal ?? goals[0] ?? null;
   const isFire = selectedGoal?.kind === "fire";
 
-  const currentValue = useMemo(
-    () => (selectedGoal ? computeNetWorthInCurrency(selectedGoal.currency, accountRows, assetRows, quoteRows, appSettings, fxHistory) : 0),
-    [selectedGoal, accountRows, assetRows, quoteRows, appSettings, fxHistory],
-  );
+  // Per-goal "current" value: FIRE tracks total net worth; custom goals track
+  // the balances of their bound accounts (and report 0 when nothing is bound).
+  const goalCurrentValues = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const g of goals) {
+      map[g.id] = g.kind === "fire"
+        ? computeNetWorthInCurrency(g.currency, accountRows, assetRows, quoteRows, appSettings, fxHistory)
+        : computeLinkedAccountsValue(g.currency, g.accountShareMap, accountRows, appSettings, fxHistory);
+    }
+    return map;
+  }, [goals, accountRows, assetRows, quoteRows, appSettings, fxHistory]);
+
+  const currentValue = selectedGoal ? goalCurrentValues[selectedGoal.id] ?? 0 : 0;
 
   const projectionRates = { bear: 0.05, base: 0.072, bull: 0.1 };
   const activeRate = projectionRates[activeProjection];
@@ -71,8 +83,9 @@ export function GoalsRoute() {
     if (!selectedGoal) return null;
     const annualSaving = (selectedGoal.monthlyContribution || 0) * 12;
     const annualSpending = selectedGoal.annualSpending;
-    const swr = selectedGoal.withdrawalRate;
-    const target = goalTargetAmount(selectedGoal);
+    // withdrawalRate is a canonical decimal (0.04 = 4%); show it in percent.
+    const swrPct = +(selectedGoal.withdrawalRate * 100).toFixed(1);
+    const target = resolveTargetAmount(selectedGoal);
     const rawReturn = selectedGoal.expectedAnnualReturn || 0;
     const rate = isFire ? activeRate : rawReturn > 1 ? rawReturn / 100 : rawReturn;
     let balance = currentValue;
@@ -82,7 +95,7 @@ export function GoalsRoute() {
       balance = balance * (1 + rate) + annualSaving;
     }
     const progress = target > 0 ? Math.min(100, (currentValue / target) * 100) : 0;
-    return { annualSaving, annualSpending, swr, target, years, progress, rate };
+    return { annualSaving, annualSpending, swrPct, target, years, progress, rate };
   }, [selectedGoal, isFire, currentValue, activeRate]);
 
   // Unified, labelled chart series. FIRE uses the age-based retirement
@@ -114,7 +127,7 @@ export function GoalsRoute() {
           <Button variant="ghost" render={<Link to="/goals/fire" />}>
             <Calculator size={16} /> FIRE Calculator
           </Button>
-          <Button render={<Link to="/goals/fire" />}>
+          <Button onClick={() => setEditor({ goal: null })}>
             <Plus size={16} weight="bold" /> 新目標
           </Button>
         </div>
@@ -153,14 +166,25 @@ export function GoalsRoute() {
                   <div style={{ fontSize: 12, color: "var(--ns-fg-muted)", marginBottom: 12, letterSpacing: 0.5 }}>{selectedGoal.name}</div>
                 )}
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 16 }}>
-                  <span style={{ fontSize: 40, fontWeight: 600, letterSpacing: -1 }}>NT${(currentValue / 1_000_000).toFixed(2)}M</span>
-                  <span style={{ fontSize: 14, color: "var(--ns-fg-muted)" }}>/ NT${(stats.target / 1_000_000).toFixed(stats.target >= 10_000_000 ? 0 : 2)}M</span>
+                  {isFire ? (
+                    <>
+                      <span style={{ fontSize: 40, fontWeight: 600, letterSpacing: -1 }}>NT${(currentValue / 1_000_000).toFixed(2)}M</span>
+                      <span style={{ fontSize: 14, color: "var(--ns-fg-muted)" }}>/ NT${(stats.target / 1_000_000).toFixed(stats.target >= 10_000_000 ? 0 : 2)}M</span>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: 40, fontWeight: 600, letterSpacing: -1 }}>{selectedGoal.currency} {formatNumber(currentValue)}</span>
+                      <span style={{ fontSize: 14, color: "var(--ns-fg-muted)" }}>/ {formatNumber(stats.target)}</span>
+                    </>
+                  )}
                 </div>
                 <div style={{ height: 6, borderRadius: 3, background: "var(--ns-surface-strong)", overflow: "hidden", marginBottom: 12 }}>
                   <div style={{ width: `${stats.progress.toFixed(1)}%`, height: "100%", background: "linear-gradient(90deg, var(--ns-accent), var(--ns-pos))", borderRadius: 3 }} />
                 </div>
                 <div style={{ fontSize: 13, color: "var(--ns-fg-dim)" }}>
-                  {stats.progress.toFixed(1)}% · {stats.years !== null ? `預估 ${stats.years} 年後達成 (${new Date().getFullYear() + stats.years})` : "尚無法預估"}
+                  {!isFire && Object.values(selectedGoal.accountShareMap ?? {}).filter((w) => w > 0).length === 0
+                    ? <>尚未綁定帳戶 — <button onClick={() => setEditor({ goal: selectedGoal })} style={{ color: "var(--ns-accent)", cursor: "pointer", background: "none", border: "none", padding: 0, font: "inherit" }}>編輯目標</button> 以追蹤進度</>
+                    : <>{stats.progress.toFixed(1)}% · {stats.years !== null ? `預估 ${stats.years} 年後達成 (${new Date().getFullYear() + stats.years})` : "尚無法預估"}</>}
                 </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))", gap: 24, marginTop: 48 }}>
@@ -169,13 +193,13 @@ export function GoalsRoute() {
                     <Stat label="年儲蓄" value={`NT$${formatNumber(stats.annualSaving)}`} />
                     <Stat label="假設報酬率" value={`${(activeRate * 100).toFixed(1)}%`} />
                     <Stat label="年支出基準" value={`NT$${formatNumber(stats.annualSpending)}`} />
-                    <Stat label="SWR" value={`${stats.swr}%`} />
+                    <Stat label="SWR" value={`${stats.swrPct}%`} />
                   </>
                 ) : (
                   <>
-                    <Stat label="目前淨值" value={`NT$${formatNumber(currentValue)}`} />
-                    <Stat label="目標金額" value={`NT$${formatNumber(stats.target)}`} />
-                    <Stat label="年儲蓄" value={`NT$${formatNumber(stats.annualSaving)}`} />
+                    <Stat label="已存金額" value={`${selectedGoal.currency} ${formatNumber(currentValue)}`} />
+                    <Stat label="目標金額" value={`${selectedGoal.currency} ${formatNumber(stats.target)}`} />
+                    <Stat label="年儲蓄" value={`${selectedGoal.currency} ${formatNumber(stats.annualSaving)}`} />
                     <Stat label="假設報酬率" value={`${(stats.rate * 100).toFixed(1)}%`} />
                   </>
                 )}
@@ -246,9 +270,12 @@ export function GoalsRoute() {
             <div style={{ width: 56, height: 56, borderRadius: "var(--ns-r-md)", background: "var(--ns-accent-soft)", color: "var(--ns-accent)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
               <Star size={26} weight="fill" />
             </div>
-            <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 6 }}>還沒有 FIRE 目標</div>
-            <div className="muted" style={{ fontSize: 13, marginBottom: 18 }}>設定年支出、提領率與報酬假設，Northstar 會用你的真實淨值估算何時財務自由。</div>
-            <Button render={<Link to="/goals/fire" />} className="mx-auto"><Calculator size={14} />開啟 FIRE 計算機</Button>
+            <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 6 }}>還沒有目標</div>
+            <div className="muted" style={{ fontSize: 13, marginBottom: 18 }}>用 FIRE 計算機追蹤財務自由進度，或建立旅遊、買車等自訂儲蓄目標。</div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <Button render={<Link to="/goals/fire" />}><Calculator size={14} />開啟 FIRE 計算機</Button>
+              <Button variant="outline" onClick={() => setEditor({ goal: null })}><Plus size={14} />新增自訂目標</Button>
+            </div>
           </Card>
         )}
 
@@ -265,10 +292,11 @@ export function GoalsRoute() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column" }}>
               {goals.map((goal, i) => {
-                const target = goalTargetAmount(goal);
-                const current = goal.kind === "fire" ? currentValue : (currentValue / goalTargetAmount(goal)) * 100;
+                const target = resolveTargetAmount(goal);
+                const current = goalCurrentValues[goal.id] ?? 0;
                 const progress = target > 0 ? Math.min(100, (current / target) * 100) : 0;
                 const achieved = progress >= 100;
+                const boundCount = Object.values(goal.accountShareMap ?? {}).filter((w) => w > 0).length;
                 const Icon = goal.kind === "fire" ? Star : Target;
                 const color = goal.kind === "fire" ? "var(--ns-pos)" : "var(--ns-accent)";
                 return (
@@ -278,11 +306,15 @@ export function GoalsRoute() {
                     </div>
                     <div style={{ flex: "1 1 140px", minWidth: 0 }}>
                       <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{goal.name}</div>
-                      <div style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>{goal.kind === "fire" ? "FIRE · 依淨值估算" : "一般目標"}</div>
+                      <div style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>
+                        {goal.kind === "fire"
+                          ? "FIRE · 依淨值估算"
+                          : boundCount > 0 ? `自訂目標 · 綁定 ${boundCount} 個帳戶` : "自訂目標 · 尚未綁定帳戶"}
+                      </div>
                     </div>
                     <div style={{ flex: "0 0 auto", textAlign: "right" }}>
-                      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4, whiteSpace: "nowrap" }}>NT${formatNumber(current)}</div>
-                      <div style={{ fontSize: 12, color: "var(--ns-fg-dim)", whiteSpace: "nowrap" }}>/ NT${formatNumber(target)}</div>
+                      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4, whiteSpace: "nowrap" }}>{goal.currency} {formatNumber(current)}</div>
+                      <div style={{ fontSize: 12, color: "var(--ns-fg-dim)", whiteSpace: "nowrap" }}>/ {formatNumber(target)}</div>
                     </div>
                     <div style={{ flex: "1 1 180px", display: "flex", alignItems: "center", gap: 12 }}>
                       <div style={{ flex: 1, height: 6, borderRadius: 3, background: "var(--ns-surface-strong)", overflow: "hidden" }}>
@@ -296,9 +328,21 @@ export function GoalsRoute() {
                       ) : (
                         <span style={{ fontSize: 13, color: "var(--ns-fg-dim)" }}>追蹤中</span>
                       )}
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <Button variant="ghost" size="icon-sm" title="編輯" onClick={() => navigate({ to: goal.kind === "fire" ? "/goals/fire" : "/goals", search: { id: goal.id } })}><PencilSimple size={14} /></Button>
-                        <Button variant="ghost" size="icon-sm" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={() => handleDeleteGoal(goal.id)}><Trash size={14} /></Button>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        {confirmDeleteId === goal.id ? (
+                          <>
+                            <Button variant="outline" size="sm" style={{ fontSize: 12, color: "var(--ns-neg)" }} onClick={() => handleDeleteGoal(goal.id)}>確定刪除</Button>
+                            <Button variant="ghost" size="sm" style={{ fontSize: 12 }} onClick={() => setConfirmDeleteId(null)}>取消</Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              variant="ghost" size="icon-sm" title="編輯"
+                              onClick={() => goal.kind === "fire" ? navigate({ to: "/goals/fire", search: { id: goal.id } }) : setEditor({ goal })}
+                            ><PencilSimple size={14} /></Button>
+                            <Button variant="ghost" size="icon-sm" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={() => setConfirmDeleteId(goal.id)}><Trash size={14} /></Button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -308,6 +352,15 @@ export function GoalsRoute() {
           )}
         </Card>
       </div>
+
+      {editor !== null && (
+        <GoalEditorSheet
+          goal={editor.goal}
+          accounts={accountRows}
+          primaryCurrency={appSettings?.primaryCurrency ?? "TWD"}
+          onClose={() => setEditor(null)}
+        />
+      )}
     </div>
   );
 }

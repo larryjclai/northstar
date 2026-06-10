@@ -46,3 +46,28 @@ export function computeNetWorthInCurrency(
   const goalConverter = createFxConverter({ ...appSettings, primaryCurrency: goalCurrency.toUpperCase() }, fxHistory);
   return goalConverter.toPrimary(netInPrimary, primary);
 }
+
+/**
+ * Progress source for custom goals: the weighted sum of the balances of the
+ * accounts the user bound to the goal (`accountShareMap`, weight 0–1),
+ * converted into the goal currency. A goal with no bound accounts reports 0 —
+ * the UI nudges the user to bind one instead of falling back to total net
+ * worth, which would instantly "achieve" any savings-sized goal.
+ */
+export function computeLinkedAccountsValue(
+  goalCurrency: string,
+  accountShareMap: Record<string, number>,
+  accountRows: Account[],
+  appSettings: AppSettings | undefined,
+  fxHistory: DailyFxRate[],
+): number {
+  if (!appSettings) return 0;
+  const entries = Object.entries(accountShareMap ?? {}).filter(([, weight]) => weight > 0);
+  if (entries.length === 0) return 0;
+  const converter = createFxConverter({ ...appSettings, primaryCurrency: goalCurrency.toUpperCase() }, fxHistory);
+  return entries.reduce((sum, [accountId, weight]) => {
+    const account = accountRows.find((row) => row.id === accountId);
+    if (!account) return sum;
+    return sum + converter.toPrimary(account.balance, account.currency) * Math.min(1, weight);
+  }, 0);
+}
