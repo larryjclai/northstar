@@ -31,18 +31,26 @@ export default defineConfig({
       : undefined,
   },
   build: {
+    // Main chunk is ~580 kB: the four eager tab routes + repositories/domain.
+    // Acceptable for Tauri (chunks load from disk); vendors are split below.
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
         // Split heavy third-party libraries out of the main entry so the
         // initial load isn't a single multi-MB chunk. Low-frequency routes
         // are additionally code-split via lazyRouteComponent (see router.tsx).
-        manualChunks: {
-          charts: ["recharts"],
-          tanstack: [
-            "@tanstack/react-router",
-            "@tanstack/react-query",
-            "@tanstack/react-table",
-          ],
+        // Function form: the object form resolves package *roots* only, so
+        // subpath imports like react-dom/client never matched and react-dom
+        // stayed in the main chunk.
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return "react";
+          if (id.includes("node_modules/recharts") || /node_modules\/(d3-|victory-)/.test(id)) return "charts";
+          if (id.includes("node_modules/@tanstack/")) return "tanstack";
+          if (id.includes("node_modules/@phosphor-icons/") || id.includes("node_modules/lucide-react/")) return "icons";
+          if (/node_modules\/(i18next|react-i18next)/.test(id)) return "i18n";
+          if (id.includes("node_modules/@base-ui/")) return "baseui";
+          return undefined;
         },
       },
     },

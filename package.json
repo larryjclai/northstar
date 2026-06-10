@@ -15,7 +15,6 @@
     "version": "node scripts/version-bump.mjs"
   },
   "dependencies": {
-    "@base-ui-components/react": "^1.0.0-beta.4",
     "@base-ui/react": "^1.5.0",
     "@fontsource/ibm-plex-mono": "^5.2.7",
     "@fontsource/ibm-plex-sans": "^5.2.8",
