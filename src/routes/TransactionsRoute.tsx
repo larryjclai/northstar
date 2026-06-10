@@ -8,6 +8,7 @@ import { ReactNode, useMemo, useState, useEffect } from "react";
 import { ActionButton } from "../components/ActionButton";
 import { EmptyState } from "../components/EmptyState";
 import { StatusText } from "../components/StatusText";
+import { SegmentedControl } from "../components/SegmentedControl";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { downloadCsv, exportInvestmentCsv } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -296,37 +297,31 @@ export function TransactionsRoute() {
 
       <CossCard className="ns-invest-panel">
         <div className="ns-invest-toolbar">
-          <div className="ns-invest-segments" aria-label="資產類型">
-            {[
-              ["all", "全部"],
-              ["equity", "股票"],
-              ["etf", "ETF"],
-              ["crypto", "加密貨幣"],
-              ["cash", "現金"],
-            ].map(([value, label]) => (
-              <button key={value} type="button" data-active={assetTypeFilter === value || undefined} onClick={() => setAssetTypeFilter(value)}>
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="ns-invest-segments" aria-label="交易種類">
-            {[
-              ["all", "全部類型"],
-              ["buy", "買進"],
-              ["sell", "賣出"],
-              ["cashDividend", "股利"],
-              ["stockSplit", "拆股"],
-            ].map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                data-active={(value === "all" ? typeFilter.size === 0 : typeFilter.has(value)) || undefined}
-                onClick={() => setTypeFilter(value === "all" ? new Set() : new Set([value]))}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {/* Same SegmentedControl as the date presets — the toolbar previously
+              mixed two segment styles (custom pills vs ToggleGroup), which the
+              user flagged as visually inconsistent. */}
+          <SegmentedControl
+            value={assetTypeFilter}
+            onChange={setAssetTypeFilter}
+            options={[
+              { value: "all", label: "全部" },
+              { value: "equity", label: "股票" },
+              { value: "etf", label: "ETF" },
+              { value: "crypto", label: "加密貨幣" },
+              { value: "cash", label: "現金" },
+            ]}
+          />
+          <SegmentedControl
+            value={typeFilter.size === 0 ? "all" : [...typeFilter][0]}
+            onChange={(next) => setTypeFilter(next === "all" ? new Set() : new Set([next]))}
+            options={[
+              { value: "all", label: "全部類型" },
+              { value: "buy", label: "買進" },
+              { value: "sell", label: "賣出" },
+              { value: "cashDividend", label: "股利" },
+              { value: "stockSplit", label: "拆股" },
+            ]}
+          />
           <label className="ns-invest-search">
             <MagnifyingGlass size={15} />
             <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜尋代號、名稱或備註…" />

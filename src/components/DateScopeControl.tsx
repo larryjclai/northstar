@@ -1,4 +1,6 @@
-import { dateScopePresetLabel, type DateScopePreset, type DateScopeValue } from "../domain/dateScope";
+import { CalendarBlank } from "@phosphor-icons/react";
+import { dateScopePresetLabel, resolveDateScope, type DateScopePreset, type DateScopeValue } from "../domain/dateScope";
+import { useUiPreferences } from "../state/uiPreferences";
 import { SegmentedControl } from "./SegmentedControl";
 import { MonthPicker } from "./ui/month-picker";
 import { DateRangePicker } from "./ui/date-picker";
@@ -17,14 +19,23 @@ export function DateScopeControl({
   className?: string;
   align?: "start" | "end";
 }) {
-  const detailMode = value.preset === "custom" ? "custom" : "compact";
+  const timezone = useUiPreferences((state) => state.timezone);
+
+  // Switch to custom seeded with the currently-resolved range, so opening the
+  // calendar from YTD/近12個月/全部 starts from what's already on screen.
+  function enterCustom() {
+    const resolved = resolveDateScope(value, timezone);
+    const fallback = resolveDateScope({ ...value, preset: "last12m" }, timezone);
+    onChange({
+      ...value,
+      preset: "custom",
+      start: resolved.start ?? fallback.start ?? value.start,
+      end: resolved.end ?? fallback.end ?? value.end,
+    });
+  }
 
   return (
-    <div
-      className={cn("ns-date-scope", className)}
-      data-align={align}
-      data-detail={detailMode}
-    >
+    <div className={cn("ns-date-scope", className)} data-align={align}>
       <div className="ns-date-scope__presets">
         <SegmentedControl
           value={value.preset}
@@ -33,28 +44,37 @@ export function DateScopeControl({
         />
       </div>
 
-      {/* Detail control only when the preset needs input — the resolved range
-          of ytd/last12m/all is self-evident from the active segment, so the
-          old grey summary chip was noise (Wealthfolio-style cleanup). */}
-      {value.preset === "month" ? (
-        <div className="ns-date-scope__detail">
+      {/* Fixed-width detail slot, ALWAYS rendered — the control must occupy
+          the same footprint for every preset, otherwise the toolbar reflows
+          and the whole filter row jumps around when switching presets. */}
+      <div className="ns-date-scope__detail">
+        {value.preset === "month" ? (
           <MonthPicker
             value={value.month}
             onChange={(month) => onChange({ ...value, month })}
             triggerClassName="h-[36px] min-w-[112px] whitespace-nowrap"
           />
-        </div>
-      ) : value.preset === "custom" ? (
-        <div className="ns-date-scope__detail">
+        ) : value.preset === "custom" ? (
           <DateRangePicker
             start={value.start}
             end={value.end}
             align={align}
-            className="h-[36px] text-[13px]"
+            className="h-[36px] w-full text-[13px]"
             onChange={({ start, end }) => onChange({ ...value, start, end })}
           />
-        </div>
-      ) : null}
+        ) : (
+          <button
+            type="button"
+            className="ns-input"
+            title="切換為自訂區間"
+            onClick={enterCustom}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 10px", fontSize: 12.5, cursor: "pointer", color: "var(--ns-fg-muted)" }}
+          >
+            <CalendarBlank size={14} />
+            自訂區間
+          </button>
+        )}
+      </div>
     </div>
   );
 }
