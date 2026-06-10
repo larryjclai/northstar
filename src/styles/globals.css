@@ -576,7 +576,9 @@ textarea:focus-visible {
 .neg  { color: var(--ns-neg); }
 .muted { color: var(--ns-fg-muted); }
 .dim  { color: var(--ns-fg-dim); }
-.num  { font-family: var(--ns-font-num); font-variant-numeric: tabular-nums lining-nums; }
+/* .num = table/list figures → Plex Mono (DESIGN.md §3.1 division). Hero/KPI
+   display numbers use .ns-num-* / --ns-font-num (Plex Sans tabular) instead. */
+.num  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; }
 .mono { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; letter-spacing: -0.01em; }
 
 /* ── Detail pages: cash-flow category / merchant ── */
@@ -753,7 +755,7 @@ textarea:focus-visible {
 }
 .ns-info-list > div:last-child { border-bottom: 0; }
 .ns-info-list strong {
-  font-family: var(--ns-font-num);
+  font-family: var(--ns-font-mono);
   font-variant-numeric: tabular-nums lining-nums;
   font-weight: 650;
   text-align: right;
@@ -1212,7 +1214,7 @@ textarea:focus-visible {
   text-align: right;
 }
 .ns-invest-mobile-amount strong {
-  font-family: var(--ns-font-num);
+  font-family: var(--ns-font-mono);
   font-variant-numeric: tabular-nums lining-nums;
   font-size: 13px;
   white-space: nowrap;

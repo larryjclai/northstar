@@ -881,7 +881,7 @@ function MoverRow({ mover }: { mover: Mover }) {
         className="num"
         style={{
           flexShrink: 0, fontSize: 11.5, fontWeight: 600, fontVariantNumeric: "tabular-nums",
-          fontFamily: "var(--ns-font-num)", padding: "2px 7px", borderRadius: 999,
+          padding: "2px 7px", borderRadius: 999,
           color: isPos ? "var(--ns-pos)" : "var(--ns-neg)",
           background: `color-mix(in srgb, ${isPos ? "var(--ns-pos)" : "var(--ns-neg)"} 12%, transparent)`,
         }}

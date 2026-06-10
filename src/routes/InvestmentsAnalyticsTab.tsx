@@ -565,7 +565,7 @@ function RollingVolatilityCard({ rolling }: {
               <div key={r.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ width: 8, height: 8, borderRadius: 99, background: r.dot, flexShrink: 0 }} />
                 <span className="muted" style={{ flex: 1, fontSize: 12.5 }}>{r.label}</span>
-                <span className="num" style={{ fontSize: 13, fontFamily: "var(--ns-font-num)", color: r.dot, fontVariantNumeric: "tabular-nums" }}>{r.value}</span>
+                <span className="num" style={{ fontSize: 13, color: r.dot, fontVariantNumeric: "tabular-nums" }}>{r.value}</span>
                 {r.note ? <span className="dim" style={{ fontSize: 10.5 }}>{r.note}</span> : null}
               </div>
             ))}

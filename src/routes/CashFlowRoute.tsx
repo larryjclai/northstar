@@ -1292,7 +1292,7 @@ function LedgerRow({
         <div style={{ textAlign: "right" }}>
           <div className="num" style={{ fontSize: 14.5, color: "var(--ns-fg)" }}>{currencySymbol(source.currency)}{formatNumber(Math.abs(source.amount))}</div>
           {crossCcy ? (
-            <div className="muted" style={{ fontSize: 10.5, fontFamily: "var(--ns-font-num)" }}>→ {currencySymbol(dest.currency)}{formatNumber(Math.abs(dest.amount))}</div>
+            <div className="muted" style={{ fontSize: 10.5, fontFamily: "var(--ns-font-mono)" }}>→ {currencySymbol(dest.currency)}{formatNumber(Math.abs(dest.amount))}</div>
           ) : null}
         </div>
         <div className="ns-cf-actions" style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
@@ -1339,7 +1339,7 @@ function LedgerRow({
         {row.originalCurrency && row.originalAmount != null ? (
           <>
             <div className="num" style={{ fontSize: 14.5, color }}>{sign}{currencySymbol(row.originalCurrency)}{formatNumber(Math.abs(row.originalAmount))}</div>
-            <div className="muted" style={{ fontSize: 10.5, fontFamily: "var(--ns-font-num)" }}>≈ {currencySymbol(row.currency)}{formatNumber(Math.abs(row.amount))}</div>
+            <div className="muted" style={{ fontSize: 10.5, fontFamily: "var(--ns-font-mono)" }}>≈ {currencySymbol(row.currency)}{formatNumber(Math.abs(row.amount))}</div>
           </>
         ) : (
           <div className="num" style={{ fontSize: 14.5, color }}>{sign}{currencySymbol(row.currency)}{formatNumber(Math.abs(row.amount))}</div>
@@ -1678,7 +1678,7 @@ function EntryDrawer({
                   className=""
                   style={{
                     flex: 1, border: "none", outline: "none", background: "transparent",
-                    padding: "0 14px", fontSize: 22, fontFamily: "var(--ns-font-num)",
+                    padding: "0 14px", fontSize: 22, fontFamily: "var(--ns-font-mono)",
                     color: meta.color, textAlign: "right", height: "100%",
                     minWidth: 0, width: "100%",
                     fontVariantNumeric: "tabular-nums lining-nums",
@@ -1697,7 +1697,7 @@ function EntryDrawer({
                 <input
                   style={{
                     flex: 1, border: "none", outline: "none", background: "transparent",
-                    padding: "0 14px", fontSize: 22, fontFamily: "var(--ns-font-num)",
+                    padding: "0 14px", fontSize: 22, fontFamily: "var(--ns-font-mono)",
                     color: meta.color, textAlign: "right", height: "100%",
                     minWidth: 0, width: "100%",
                     fontVariantNumeric: "tabular-nums lining-nums",
@@ -1784,7 +1784,7 @@ function EntryDrawer({
               <input
                 className="ns-input"
                 placeholder="0"
-                style={{ fontFamily: "var(--ns-font-num)" }}
+                style={{ fontFamily: "var(--ns-font-mono)" }}
                 {...destAmountField}
               />
               <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
@@ -1802,7 +1802,7 @@ function EntryDrawer({
               <input
                 className="ns-input"
                 placeholder="0"
-                style={{ fontFamily: "var(--ns-font-num)" }}
+                style={{ fontFamily: "var(--ns-font-mono)" }}
                 {...transferFeeField}
               />
               <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>跨行/跨國轉帳手續費，將從轉出帳戶另計一筆「手續費」支出。</div>
@@ -1940,7 +1940,7 @@ function EntryDrawer({
                       <input
                         className="ns-input"
                         placeholder="0"
-                        style={{ fontFamily: "var(--ns-font-num)" }}
+                        style={{ fontFamily: "var(--ns-font-mono)" }}
                         {...expenseFeeField}
                       />
                       <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>海外刷卡/跨國交易手續費，將另計一筆「手續費」支出。</div>

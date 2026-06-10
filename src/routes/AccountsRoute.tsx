@@ -640,7 +640,7 @@ function AccountDrawer({
                 <DrawerField label={`${form.type === "alternative" ? "目前市值" : "當前餘額"}（${form.currency}）`}>
                   <input
                     className="ns-input"
-                    style={{ fontSize: 22, fontFamily: 'var(--ns-font-num)', fontVariantNumeric: 'tabular-nums', height: 56 }}
+                    style={{ fontSize: 22, fontFamily: 'var(--ns-font-mono)', fontVariantNumeric: 'tabular-nums', height: 56 }}
                     placeholder="0"
                     {...openingBalanceField}
                   />

@@ -442,8 +442,6 @@ const monthlyAmt = r.freq === 'yearly'  ? r.amt / 12
 
 ## 13. 已知缺口與待辦
 
-2026-06-10 批次完成：U+2212 負號（§9）、TW/Neutral 盈虧配色（§2.4）、密度/圓角設定 UI（§5）、備援碼還原入口（設定 → Connect 同步 → 用備援碼還原）、自訂目標帳戶比例（GoalEditorSheet 每帳戶 1–100%）。
+2026-06-10 批次完成：U+2212 負號（§9）、TW/Neutral 盈虧配色（§2.4）、密度/圓角設定 UI（§5）、備援碼還原入口（設定 → Connect 同步 → 用備援碼還原）、自訂目標帳戶比例（GoalEditorSheet 每帳戶 1–100%）、表格數字字體統一（`.num` 與表格列/輸入框 → Plex Mono；KPI/hero 保留 `--ns-font-num` Plex Sans tabular）。
 
-| 項目 | 狀態 |
-|---|---|
-| 表格數字字體統一 | 約 24 處 inline `--ns-font-num` 表格儲存格（readable-numbers 批次遺留）與主流 `.num`/`.mono`（Plex Mono）並存，視覺接近但未統一 |
+目前無已知缺口。新發現的缺口請列在這裡並附狀態。

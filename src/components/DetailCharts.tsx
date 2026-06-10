@@ -17,7 +17,7 @@ function Tooltip({ text }: { text: string }) {
         background: "var(--ns-fg)",
         color: "var(--ns-bg)",
         fontSize: 11,
-        fontFamily: "var(--ns-font-num)",
+        fontFamily: "var(--ns-font-mono)",
         fontVariantNumeric: "tabular-nums lining-nums",
         whiteSpace: "nowrap",
         pointerEvents: "none",
