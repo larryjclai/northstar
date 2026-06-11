@@ -26,6 +26,8 @@ export interface UiPreferences {
   assetLogosEnabled: boolean;
   /** Which optional columns the holdings table shows (B21). */
   holdingsColumns: HoldingsColumnKey[];
+  /** Dashboard card keys the user has hidden via 編輯版面. */
+  dashboardHiddenCards: string[];
   /** Ticker used as the benchmark in investment analytics (e.g. 0050.TW). */
   benchmarkTicker: string;
   gainLossPalette: GainLossPalette;
@@ -46,6 +48,7 @@ export interface UiPreferences {
   setDensity: (value: DensityMode) => void;
   setRadius: (value: RadiusMode) => void;
   setShowTradeMarkers: (value: boolean) => void;
+  setDashboardHiddenCards: (value: string[]) => void;
 }
 
 /** Toggleable holdings-table columns (the rest are always shown). */
@@ -74,6 +77,7 @@ interface PersistedShape {
   density: DensityMode;
   radius: RadiusMode;
   showTradeMarkers: boolean;
+  dashboardHiddenCards: string[];
 }
 
 export type ClockMode = "24h" | "12h";
@@ -92,6 +96,7 @@ function loadPersisted(): PersistedShape {
     density: "default",
     radius: "default",
     showTradeMarkers: true,
+    dashboardHiddenCards: [],
   };
   if (typeof window === "undefined") return fallback;
   try {
@@ -130,6 +135,9 @@ function loadPersisted(): PersistedShape {
           : "default",
       radius: parsed.radius === "sharp" || parsed.radius === "round" ? parsed.radius : "default",
       showTradeMarkers: typeof parsed.showTradeMarkers === "boolean" ? parsed.showTradeMarkers : true,
+      dashboardHiddenCards: Array.isArray(parsed.dashboardHiddenCards)
+        ? parsed.dashboardHiddenCards.filter((k): k is string => typeof k === "string")
+        : [],
     };
   } catch {
     return fallback;
@@ -189,6 +197,7 @@ function snapshot(state: UiPreferences): PersistedShape {
     density: state.density,
     radius: state.radius,
     showTradeMarkers: state.showTradeMarkers,
+    dashboardHiddenCards: state.dashboardHiddenCards,
   };
 }
 
@@ -205,6 +214,7 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   density: initial.density,
   radius: initial.radius,
   showTradeMarkers: initial.showTradeMarkers,
+  dashboardHiddenCards: initial.dashboardHiddenCards,
   setPrivacyMode(value) {
     setPrivacyMaskOn(value);
     set({ privacyMode: value });
@@ -266,6 +276,10 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   },
   setShowTradeMarkers(value) {
     set({ showTradeMarkers: value });
+    persist(snapshot(get()));
+  },
+  setDashboardHiddenCards(value) {
+    set({ dashboardHiddenCards: value });
     persist(snapshot(get()));
   },
 }));

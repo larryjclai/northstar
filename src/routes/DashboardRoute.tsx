@@ -51,8 +51,24 @@ import { useState } from "react";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { useUiPreferences } from "../state/uiPreferences";
 import { buildQuoteLookup, findQuoteForTicker, quoteLookupKeys } from "../domain/marketSymbols";
+import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
+import { SquaresFour } from "@phosphor-icons/react";
 
 type StripPeriod = "1W" | "1M" | "3M" | "YTD" | "1Y";
+
+/** Dashboard cards the user can hide via 編輯版面 (net-worth hero + KPI stay). */
+const DASHBOARD_CARDS: Array<{ key: string; label: string }> = [
+  { key: "budget", label: "預算進度" },
+  { key: "upcoming", label: "近期帳單" },
+  { key: "creditCards", label: "信用卡繳款提醒" },
+  { key: "settlements", label: "應收 / 應付" },
+  { key: "recurringInvestments", label: "定期定額提醒" },
+  { key: "allocation", label: "資產配置" },
+  { key: "goals", label: "目標" },
+  { key: "market", label: "匯率" },
+  { key: "recentActivity", label: "最近交易" },
+  { key: "topMovers", label: "今日漲跌" },
+];
 
 /** Inclusive start date for a Portfolio-Strip period, relative to `end` (today). */
 function stripStartDate(period: StripPeriod, end: string): string {
@@ -82,6 +98,16 @@ export function DashboardRoute() {
   const timezone = useUiPreferences((state) => state.timezone);
   const nameLocale = useUiPreferences((state) => state.nameLocale);
   const benchmarkTicker = useUiPreferences((state) => state.benchmarkTicker);
+  const dashboardHiddenCards = useUiPreferences((state) => state.dashboardHiddenCards);
+  const setDashboardHiddenCards = useUiPreferences((state) => state.setDashboardHiddenCards);
+  const cardVisible = (key: string) => !dashboardHiddenCards.includes(key);
+  const toggleCard = (key: string) => {
+    setDashboardHiddenCards(
+      dashboardHiddenCards.includes(key)
+        ? dashboardHiddenCards.filter((k) => k !== key)
+        : [...dashboardHiddenCards, key],
+    );
+  };
   const [stripPeriod, setStripPeriod] = useState<StripPeriod>("1M");
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -491,6 +517,24 @@ export function DashboardRoute() {
           <Button variant="outline" className="h-9 shrink-0 sm:h-9" onClick={refreshMarket} loading={refreshingMarket} disabled={refreshingMarket || (assetRows.length === 0 && (appSettings?.exchangeRates?.length ?? 0) === 0)}>
             <ArrowsClockwise size={14} />{refreshingMarket ? "更新中" : "更新"}
           </Button>
+          {hasAnyData ? (
+            <Popover>
+              <PopoverTrigger render={<Button variant="outline" className="h-9 shrink-0 sm:h-9" />}>
+                <SquaresFour size={14} />版面
+              </PopoverTrigger>
+              <PopoverContent align="end" style={{ width: 220, padding: 8 }}>
+                <div className="ns-eyebrow" style={{ padding: "6px 8px 8px" }}>編輯版面 · 顯示卡片</div>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {DASHBOARD_CARDS.map((c) => (
+                    <label key={c.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 8px", borderRadius: "var(--ns-r-sm)", cursor: "pointer", fontSize: 13 }}>
+                      <input type="checkbox" checked={cardVisible(c.key)} onChange={() => toggleCard(c.key)} />
+                      {c.label}
+                    </label>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          ) : null}
         </div>
       </div>
 
@@ -607,6 +651,7 @@ export function DashboardRoute() {
 
       {/* Row 2 · Budget + Upcoming */}
       <div className="ns-dash-row2">
+        {cardVisible("budget") ? (
         <Card style={{ padding: "var(--ns-pad-card)" }}>
           <SectionHead eyebrow={`Budget · ${todayLabel.slice(0, todayLabel.indexOf("月") + 1) || "本月"}`} title="預算進度" action={<Button variant="ghost" size="xs" render={<Link to="/cash-flow/categories" />}>管理分類 →</Button>} />
           {budgetCats.length === 0 ? (
@@ -638,7 +683,9 @@ export function DashboardRoute() {
             </div>
           )}
         </Card>
+        ) : null}
 
+        {cardVisible("upcoming") ? (
         <Card>
           <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
@@ -666,10 +713,11 @@ export function DashboardRoute() {
             ))
           )}
         </Card>
+        ) : null}
       </div>
 
       {/* Credit-card payment reminders */}
-      {creditReminders.length > 0 ? (
+      {cardVisible("creditCards") && creditReminders.length > 0 ? (
         <Card style={{ marginBottom: 16 }}>
           <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
@@ -697,7 +745,7 @@ export function DashboardRoute() {
       ) : null}
 
       {/* Outstanding receivables / payables */}
-      {settlements.items.length > 0 ? (
+      {cardVisible("settlements") && settlements.items.length > 0 ? (
         <Card style={{ marginBottom: 16 }}>
           <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
@@ -725,7 +773,7 @@ export function DashboardRoute() {
       ) : null}
 
       {/* Recurring investments due — top up the 交割款 */}
-      {dueRecurringInvestments.length > 0 ? (
+      {cardVisible("recurringInvestments") && dueRecurringInvestments.length > 0 ? (
         <Card style={{ marginBottom: 16 }}>
           <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
@@ -753,6 +801,7 @@ export function DashboardRoute() {
       {/* Row 3 · Allocation + Goals + Market */}
       <div className="ns-dash-row3">
         {/* Allocation */}
+        {cardVisible("allocation") ? (
         <Card style={{ padding: "var(--ns-pad-card)" }}>
           <SectionHead eyebrow="Asset allocation" title="資產配置" />
           {allocation.length === 0 ? (
@@ -787,8 +836,10 @@ export function DashboardRoute() {
             </div>
           )}
         </Card>
+        ) : null}
 
         {/* Goals */}
+        {cardVisible("goals") ? (
         <Card style={{ padding: "var(--ns-pad-card)" }}>
           <SectionHead eyebrow="Goals" title={`${goals.length} active`} action={<Button variant="ghost" size="xs" render={<Link to="/goals" />}>全部 →</Button>} />
           {goals.length === 0 ? (
@@ -813,8 +864,10 @@ export function DashboardRoute() {
             </div>
           )}
         </Card>
+        ) : null}
 
         {/* Market FX */}
+        {cardVisible("market") ? (
         <Card>
           <div style={{ padding: "14px 18px 10px", borderBottom: "1px solid var(--ns-border)" }}>
             <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Market</div>
@@ -831,10 +884,12 @@ export function DashboardRoute() {
             ))
           )}
         </Card>
+        ) : null}
       </div>
 
       {/* Row 4 · Recent activity + Top Movers (shared row so neither is cramped) */}
-      <div className={heldAssetCount > 0 ? "ns-dash-activity-grid" : ""} style={{ marginBottom: 16 }}>
+      <div className={cardVisible("topMovers") && heldAssetCount > 0 ? "ns-dash-activity-grid" : ""} style={{ marginBottom: 16 }}>
+      {cardVisible("recentActivity") ? (
       <Card className="ns-dash-activity-card">
         <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
           <div>
@@ -861,7 +916,8 @@ export function DashboardRoute() {
           </div>
         )}
       </Card>
-        {heldAssetCount > 0 ? <TopMoversCard gainers={movers.gainers} losers={movers.losers} /> : null}
+      ) : null}
+        {cardVisible("topMovers") && heldAssetCount > 0 ? <TopMoversCard gainers={movers.gainers} losers={movers.losers} /> : null}
       </div>
     </div>
   );
