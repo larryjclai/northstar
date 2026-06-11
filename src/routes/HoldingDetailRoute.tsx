@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { useFinanceData } from "../data/hooks";
-import { buildPositionMetrics, buildDailyPriceLookup, priceAssetOnDate, calculateFifo, calculateXirr, formatNumber, formatPrice, formatQuantity, resolveAssetName, XIRR_MIN_DAYS } from "../domain";
+import { buildPositionMetrics, buildDailyPriceLookup, priceAssetOnDate, calculateFifo, calculateXirr, formatNumber, formatPrice, formatQuantity, resolveAssetName, resolveSectorLabel, XIRR_MIN_DAYS } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { AssetLogo } from "../components/AssetLogo";
 import { Badge } from "../components/coss/badge";
@@ -149,7 +149,7 @@ export function HoldingDetailRoute() {
               {resolveAssetName(asset, nameLocale)}
             </h1>
             <div style={{ display: "flex", gap: 8 }}>
-              {asset.sector && <Badge variant="outline" className="rounded-full">{asset.sector}</Badge>}
+              {resolveSectorLabel(asset.sector, nameLocale) && <Badge variant="outline" className="rounded-full">{resolveSectorLabel(asset.sector, nameLocale)}</Badge>}
               <Badge variant="outline" className="rounded-full">{formatQuantity(asset.totalQuantity)} 股</Badge>
             </div>
           </div>
