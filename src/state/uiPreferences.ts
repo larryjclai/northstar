@@ -31,6 +31,8 @@ export interface UiPreferences {
   gainLossPalette: GainLossPalette;
   density: DensityMode;
   radius: RadiusMode;
+  /** Show buy/sell markers on the holding price chart. On by default. */
+  showTradeMarkers: boolean;
   setPrivacyMode: (value: boolean) => void;
   togglePrivacyMode: () => void;
   setNameLocale: (value: NameLocalePreference) => void;
@@ -43,6 +45,7 @@ export interface UiPreferences {
   setGainLossPalette: (value: GainLossPalette) => void;
   setDensity: (value: DensityMode) => void;
   setRadius: (value: RadiusMode) => void;
+  setShowTradeMarkers: (value: boolean) => void;
 }
 
 /** Toggleable holdings-table columns (the rest are always shown). */
@@ -70,6 +73,7 @@ interface PersistedShape {
   gainLossPalette: GainLossPalette;
   density: DensityMode;
   radius: RadiusMode;
+  showTradeMarkers: boolean;
 }
 
 export type ClockMode = "24h" | "12h";
@@ -87,6 +91,7 @@ function loadPersisted(): PersistedShape {
     gainLossPalette: "us",
     density: "default",
     radius: "default",
+    showTradeMarkers: true,
   };
   if (typeof window === "undefined") return fallback;
   try {
@@ -124,6 +129,7 @@ function loadPersisted(): PersistedShape {
           ? parsed.density
           : "default",
       radius: parsed.radius === "sharp" || parsed.radius === "round" ? parsed.radius : "default",
+      showTradeMarkers: typeof parsed.showTradeMarkers === "boolean" ? parsed.showTradeMarkers : true,
     };
   } catch {
     return fallback;
@@ -182,6 +188,7 @@ function snapshot(state: UiPreferences): PersistedShape {
     gainLossPalette: state.gainLossPalette,
     density: state.density,
     radius: state.radius,
+    showTradeMarkers: state.showTradeMarkers,
   };
 }
 
@@ -197,6 +204,7 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   gainLossPalette: initial.gainLossPalette,
   density: initial.density,
   radius: initial.radius,
+  showTradeMarkers: initial.showTradeMarkers,
   setPrivacyMode(value) {
     setPrivacyMaskOn(value);
     set({ privacyMode: value });
@@ -254,6 +262,10 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   setRadius(value) {
     applyRootAttribute("data-radius", value, "default");
     set({ radius: value });
+    persist(snapshot(get()));
+  },
+  setShowTradeMarkers(value) {
+    set({ showTradeMarkers: value });
     persist(snapshot(get()));
   },
 }));

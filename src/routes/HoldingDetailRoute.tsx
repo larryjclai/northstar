@@ -1,7 +1,7 @@
 import { CaretRight, Plus, ArrowUp } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
-import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
+import { Area, AreaChart, ReferenceDot, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { useFinanceData } from "../data/hooks";
 import { buildPositionMetrics, buildDailyPriceLookup, priceAssetOnDate, calculateFifo, calculateXirr, formatNumber, formatPrice, formatQuantity, resolveAssetName, resolveSectorLabel, XIRR_MIN_DAYS } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
@@ -22,6 +22,8 @@ export function HoldingDetailRoute() {
   const { assets, quotes, dailyPrices, accounts, investments } = useFinanceData();
   // "auto" follows the Chinese-first app language (see i18n.ts) → zh-Hant.
   const nameLocale = useUiPreferences((state) => (state.nameLocale === "auto" ? "zh-Hant" : state.nameLocale));
+  const showTradeMarkers = useUiPreferences((state) => state.showTradeMarkers);
+  const setShowTradeMarkers = useUiPreferences((state) => state.setShowTradeMarkers);
   const [seg, setSeg] = useState("1y");
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -59,6 +61,33 @@ export function HoldingDetailRoute() {
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [recordRows, asset]);
 
+  // Buy/sell markers for the price chart. A trade's date is snapped to the
+  // nearest charted close date (trades can land on non-trading days) so the
+  // ReferenceDot's category-axis x always matches a data point; y uses the
+  // trade's own price so the marker sits where you actually transacted.
+  const tradeMarkers = useMemo(() => {
+    if (series.length === 0) return [] as Array<{ date: string; price: number; action: "buy" | "sell" }>;
+    const seriesDates = series.map((p) => p.date);
+    const snap = (date: string): string | null => {
+      const d = date.slice(0, 10);
+      if (d < seriesDates[0] || d > seriesDates[seriesDates.length - 1]) return null;
+      let best = seriesDates[0];
+      let bestGap = Infinity;
+      for (const sd of seriesDates) {
+        const gap = Math.abs(Date.parse(sd) - Date.parse(d));
+        if (gap < bestGap) { bestGap = gap; best = sd; }
+      }
+      return best;
+    };
+    return txns
+      .filter((t) => t.action === "buy" || t.action === "sell")
+      .map((t) => {
+        const snapped = snap(t.date);
+        return snapped ? { date: snapped, price: t.price, action: t.action as "buy" | "sell" } : null;
+      })
+      .filter((m): m is { date: string; price: number; action: "buy" | "sell" } => m !== null);
+  }, [txns, series]);
+
   const lots = useMemo(() => {
     if (!asset) return [];
     // Use the canonical market price (quote → latest close); fall back to the
@@ -80,6 +109,16 @@ export function HoldingDetailRoute() {
     });
   }, [txns, asset, priced]);
 
+  // Moving-average position metrics + money-weighted (XIRR) return. Computed
+  // before the early return below so the Hooks order stays stable while
+  // `asset` is still loading (null). Terminal market value is null-safe here.
+  const metrics = useMemo(() => buildPositionMetrics(txns), [txns]);
+  const xirrMarketValue = asset ? (priced ? priced.value : asset.averageCost) * asset.totalQuantity : 0;
+  const xirr = useMemo(
+    () => calculateXirr(metrics.cashflows, { date: new Date().toISOString().slice(0, 10), amount: xirrMarketValue }),
+    [metrics, xirrMarketValue],
+  );
+
   if (!asset) {
     return (
       <div style={{ padding: "24px 32px 100px" }}>
@@ -97,14 +136,7 @@ export function HoldingDetailRoute() {
   const unrealizedGainPercent = costBasis === 0 ? 0 : (unrealizedGain / costBasis) * 100;
   const pos = unrealizedGain >= 0;
 
-  // Moving-average position metrics: realized P/L, dividends, and the dated
-  // cash-flow stream that drives money-weighted (XIRR) return.
-  const metrics = useMemo(() => buildPositionMetrics(txns), [txns]);
   const realizedGain = metrics.realizedGain;
-  const xirr = useMemo(
-    () => calculateXirr(metrics.cashflows, { date: new Date().toISOString().slice(0, 10), amount: marketValue }),
-    [metrics, marketValue],
-  );
 
   // 持倉天數：自最早一筆買進算起；若沒有任何交易紀錄（手動持倉），則自
   // 新增持倉（Add Holdings）的日期起算。
@@ -210,6 +242,16 @@ export function HoldingDetailRoute() {
                   <YAxis domain={['auto', 'auto']} hide />
                   <Tooltip />
                   <Area type="monotone" dataKey="price" stroke={markColor} fillOpacity={1} fill="url(#colorPrice)" isAnimationActive={false} />
+                  {showTradeMarkers && tradeMarkers.map((m, i) => (
+                    <ReferenceDot
+                      key={`${m.date}-${i}`}
+                      x={m.date}
+                      y={m.price}
+                      r={0}
+                      ifOverflow="extendDomain"
+                      shape={(props: { cx?: number; cy?: number }) => <TradeMarker cx={props.cx ?? 0} cy={props.cy ?? 0} action={m.action} />}
+                    />
+                  ))}
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
@@ -224,6 +266,27 @@ export function HoldingDetailRoute() {
               </div>
             )}
           </div>
+          {/* Buy/sell marker legend + toggle (only when there are trades to mark) */}
+          {series.length > 0 && tradeMarkers.length > 0 ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, cursor: "pointer", color: "var(--ns-fg-muted)" }}>
+                <input type="checkbox" checked={showTradeMarkers} onChange={(e) => setShowTradeMarkers(e.target.checked)} />
+                顯示買賣標記
+              </label>
+              {showTradeMarkers ? (
+                <div style={{ display: "flex", gap: 14, fontSize: 11.5 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <svg width={11} height={11} viewBox="0 0 11 11"><path d="M5.5 1 L10 9 L1 9 Z" fill="var(--ns-gain)" /></svg>
+                    <span className="muted">買進</span>
+                  </span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <svg width={11} height={11} viewBox="0 0 11 11"><path d="M5.5 10 L10 2 L1 2 Z" fill="var(--ns-loss)" /></svg>
+                    <span className="muted">賣出</span>
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </Card>
 
         {/* Position summary — stretches to the chart card's height so the two
@@ -356,6 +419,16 @@ export function HoldingDetailRoute() {
       )}
     </div>
   );
+}
+
+/** Triangle marker on the price chart: up (buy, green) / down (sell, red). */
+function TradeMarker({ cx, cy, action }: { cx: number; cy: number; action: "buy" | "sell" }) {
+  const color = action === "buy" ? "var(--ns-gain)" : "var(--ns-loss)";
+  // Buy points up and sits just below the line; sell points down and sits above.
+  const d = action === "buy"
+    ? `M ${cx} ${cy + 2} L ${cx - 5} ${cy + 11} L ${cx + 5} ${cy + 11} Z`
+    : `M ${cx} ${cy - 2} L ${cx - 5} ${cy - 11} L ${cx + 5} ${cy - 11} Z`;
+  return <path d={d} fill={color} stroke="var(--ns-bg-elev)" strokeWidth={1} />;
 }
 
 function rangeCutoff(range: string) {
