@@ -10,6 +10,7 @@
  * identically in the browser (IndexedDB) and the desktop app (SQLite).
  */
 import type { FinanceRepository, InvestmentDraft, LedgerDraft, RecurringDraft } from "./repositories";
+import type { DailyFxRate, DailyPrice } from "../domain/types";
 
 /** Marker stored on demo accounts' customGroup so demo data can be detected. */
 export const DEMO_GROUP = "示範";
@@ -156,6 +157,93 @@ const QUOTES: Array<{ symbol: string; nameZh: string; price: number; changePerce
   { symbol: "00878.TW", nameZh: "國泰永續高股息", price: 23.6, changePercent: 0.21 },
 ];
 
+// ── Synthetic daily price / FX history ──────────────────────────────────────
+// Demo holdings need ~1y of daily closes so the whole analytics suite (TWR,
+// risk metrics, allocation drift, benchmark comparison) computes without
+// relying on a live network backfill. Each series is a smooth interpolation
+// through anchor points that PASS THROUGH the demo's own transaction prices
+// (so TWR stays consistent with the trades) plus a small deterministic wobble,
+// making the data reproducible run-to-run.
+
+/** Deterministic ±1 pseudo-noise from a string+index seed (no Math.random). */
+function wobble(seed: string, i: number): number {
+  let h = 2166136261;
+  for (let k = 0; k < seed.length; k += 1) { h ^= seed.charCodeAt(k); h = Math.imul(h, 16777619); }
+  h ^= i; h = Math.imul(h, 16777619);
+  // Map to [-1, 1).
+  return ((h >>> 0) / 0xffffffff) * 2 - 1;
+}
+
+/** Linear-interpolate a price for `daysAgo` through anchors sorted desc by daysAgo. */
+function interpAnchors(anchors: Array<[daysAgo: number, price: number]>, daysAgo: number): number {
+  const sorted = [...anchors].sort((a, b) => b[0] - a[0]);
+  if (daysAgo >= sorted[0][0]) return sorted[0][1];
+  if (daysAgo <= sorted[sorted.length - 1][0]) return sorted[sorted.length - 1][1];
+  for (let i = 0; i < sorted.length - 1; i += 1) {
+    const [d0, p0] = sorted[i];
+    const [d1, p1] = sorted[i + 1];
+    if (daysAgo <= d0 && daysAgo >= d1) {
+      const t = (d0 - daysAgo) / (d0 - d1);
+      return p0 + (p1 - p0) * t;
+    }
+  }
+  return sorted[sorted.length - 1][1];
+}
+
+/** Anchors per ticker: [daysAgo, price]. Includes buy/sell dates so the daily
+ *  series threads the transaction prices and ends at today's quote. */
+const PRICE_ANCHORS: Record<string, Array<[number, number]>> = {
+  "2330.TW": [[380, 820], [180, 910], [64, 980], [14, 1_075], [5, 1_120], [0, 1_140]],
+  "0050.TW": [[380, 148], [180, 160], [58, 168], [20, 181], [0, 189.5]],
+  "2412.TW": [[380, 116], [180, 120], [50, 124], [0, 131.5]],
+  "00878.TW": [[380, 19.4], [180, 20.6], [40, 21.8], [0, 23.6]],
+};
+
+const PRICE_HISTORY_DAYS = 380;
+
+function buildDemoDailyPrices(): DailyPrice[] {
+  const now = new Date();
+  const rows: DailyPrice[] = [];
+  for (const [ticker, anchors] of Object.entries(PRICE_ANCHORS)) {
+    const amplitude = anchors[0][1] * 0.006; // ~0.6% daily wobble, scaled to price
+    for (let daysAgo = PRICE_HISTORY_DAYS; daysAgo >= 0; daysAgo -= 1) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - daysAgo);
+      const base = interpAnchors(anchors, daysAgo);
+      // No wobble on the endpoints so buy/sell/quote prices stay exact.
+      const onAnchor = anchors.some(([ad]) => ad === daysAgo);
+      const close = onAnchor ? base : Math.max(0.01, base + amplitude * wobble(ticker, daysAgo));
+      const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      rows.push({ ticker, date, close: +close.toFixed(2), currency: "TWD", source: "demo", updatedAt: `${date}T13:30:00.000Z` });
+    }
+  }
+  return rows;
+}
+
+/** Light FX history so the Market card / data-health have fresh rates. */
+const FX_ANCHORS: Record<string, [number, number]> = {
+  "USD/TWD": [31.2, 31.65],
+  "JPY/TWD": [0.205, 0.1951],
+};
+
+function buildDemoFxRates(): DailyFxRate[] {
+  const now = new Date();
+  const rows: DailyFxRate[] = [];
+  for (const [pair, [startRate, endRate]] of Object.entries(FX_ANCHORS)) {
+    const [from, to] = pair.split("/");
+    for (let daysAgo = PRICE_HISTORY_DAYS; daysAgo >= 0; daysAgo -= 1) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - daysAgo);
+      const t = (PRICE_HISTORY_DAYS - daysAgo) / PRICE_HISTORY_DAYS;
+      const base = startRate + (endRate - startRate) * t;
+      const rate = daysAgo === 0 ? endRate : base * (1 + 0.003 * wobble(pair, daysAgo));
+      const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      rows.push({ from, to, date, rate: +rate.toFixed(4), source: "demo", updatedAt: `${date}T13:30:00.000Z` });
+    }
+  }
+  return rows;
+}
+
 /**
  * Populate the repository with the demo dataset. Assumes the repository is
  * currently empty — callers should clear existing data first if needed.
@@ -239,6 +327,11 @@ export async function loadDemoData(repo: FinanceRepository): Promise<void> {
     })),
     "demo",
   );
+
+  // 4b. Synthetic daily price + FX history so the analytics suite computes
+  //     offline (TWR, risk, allocation drift, benchmark) without a live backfill.
+  await repo.saveDailyPrices(buildDemoDailyPrices());
+  await repo.saveDailyFxRates(buildDemoFxRates());
 
   // 5. FIRE goal
   await repo.upsertFinancialGoal({
