@@ -148,7 +148,17 @@
 - 瀏覽器實測 6 個 demo 帳戶全部正確解析品牌、opt-in 才發請求、沙箱無外網→優雅退回。
 - **階段二未做**：自訂圖片上傳（SQLite blob、隨同步）。
 
-### 4.3 按鈕位置與資訊架構審視
+### ✅ 4.3 按鈕位置與資訊架構審視 — 已完成（commit e3f03efc）
+- Dashboard「更新」→「更新行情」+ tooltip 列明範圍；投資分析 header 常駐「回補歷史股價」按鈕（Dashboard 連過來不再找不到入口）。
+- 確認其餘兩項已成立：結束示範有頂部 banner 常駐入口；備份/還原已在「一般」分頁成對。
+
+### 🔶 4.4 設計一致性 — 玻璃材質層完成（commit 9a586556），逐頁收斂進行中
+- 玻璃 token + .ns-sidebar/.ns-mobile-dock；macOS 原生 vibrancy 接通（transparent window + macos-private-api + data-native-glass），prefers-reduced-transparency 退場。
+- 原生 vibrancy 需在 mac app 內目視確認（npm run tauri dev）。
+- 剩餘：逐頁 inline style → DS token、i18n 文案、數字排版統一（併入 docs/coss-ui-migration-plan.md）。
+
+<details><summary>原 4.3 工作項（已完成，存檔）</summary>
+
 - **Problem**: 部分操作位置依開發順序長出來，需以使用者動線重審。已知候選：
   - Dashboard「更新」按鈕同時更新股價+匯率+歷史價，label 只有「更新」——不明確（建議「更新行情」+ tooltip 列明範圍）。
   - 「載入示範資料」只在空狀態出現（合理），但退出示範模式入口在設定深處。
@@ -157,10 +167,15 @@
 - **Action**: 以上逐項修正 + 用一次 walkthrough（新使用者從 0 記第一筆帳→建立持倉→看到分析）記錄卡點清單再批次修。
 - **驗收**: walkthrough 中無「找不到入口」的停頓點。
 
-### 4.4 設計一致性收斂（接軌 COSS UI 遷移計畫）
+</details>
+
+<details><summary>原 4.4 工作項（玻璃層完成，逐頁收斂進行中，存檔）</summary>
+
 - **Problem**: 大量 inline style（13.5px、11.5px 等 ad-hoc 字級）與 Tailwind/COSS 元件混用；持倉詳情等頁仍有英文殘留；同語意的數字字色/字重在不同卡片不一致。整體觀感是「同一個設計語言、但施工精度不一」。
 - **Action**: 不另起爐灶，併入 `docs/coss-ui-migration-plan.md` 的逐頁遷移：每遷一頁同時 (a) inline style → DS token/元件 class，(b) 文案過 i18n，(c) 數字排版統一（tabular nums、漲跌色、typographic minus 已有規範，落實到每處）。
 - **驗收**: 遷移完成頁面 grep 不到 `style={{ fontSize:`（白名單除外）。
+
+</details>
 
 ---
 
