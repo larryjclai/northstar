@@ -37,12 +37,27 @@ import { refreshLatestMarketData } from "../features/market-data/useMarketRefres
 
 const appIconUrl = new URL("../../src-tauri/icons/icon.png", import.meta.url).href;
 
+/**
+ * Mark the document for native vibrancy — macOS Tauri only. tauri.conf's
+ * windowEffects(sidebar) puts an NSVisualEffectView behind the (transparent)
+ * webview; this attribute lets globals.css open the shell up so the system
+ * material shows through the sidebar. Touch devices (Tauri iOS) and plain
+ * browsers keep the CSS-only glass, so nothing changes for them.
+ */
+function applyNativeGlassAttribute() {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  const isTauri = "__TAURI_INTERNALS__" in window;
+  const isMacDesktop = navigator.platform.toUpperCase().includes("MAC") && navigator.maxTouchPoints === 0;
+  if (isTauri && isMacDesktop) document.documentElement.setAttribute("data-native-glass", "");
+}
+
 
 
 
 
 export function AppShell() {
   const { t } = useTranslation();
+  useEffect(applyNativeGlassAttribute, []);
 
   const navItems = [
     { to: "/", label: t("nav.dashboard"), icon: House },
@@ -94,15 +109,13 @@ export function AppShell() {
 
   return (
     <div
-      className="min-h-screen lg:grid"
-      style={{ gridTemplateColumns: "240px 1fr", background: "var(--ns-bg)" }}
+      className="ns-app-shell min-h-screen lg:grid"
+      style={{ gridTemplateColumns: "240px 1fr" }}
     >
       {/* ── Desktop sidebar ── */}
       <aside
-        className="hidden lg:flex lg:flex-col lg:sticky lg:top-0 lg:h-screen lg:self-start"
+        className="ns-sidebar hidden lg:flex lg:flex-col lg:sticky lg:top-0 lg:h-screen lg:self-start"
         style={{
-          background: "var(--ns-bg-elev)",
-          borderRight: "1px solid var(--ns-border)",
           padding: "22px 14px 14px",
           gap: 4,
         }}
@@ -223,7 +236,7 @@ export function AppShell() {
           it's a no-op there). Each route keeps its own top padding on top of it. */}
       <main
         key={privacyMode ? "privacy-on" : "privacy-off"}
-        className="pb-20 lg:pb-0"
+        className="ns-app-main pb-20 lg:pb-0"
         // overflowX clip is a second line of defense (besides html/body): it
         // contains any route-level horizontal overflow here so a single wide
         // element can't push content off-screen or trip the iOS webview into
@@ -298,8 +311,8 @@ export function AppShell() {
 
       {/* ── Mobile bottom nav ── */}
       <nav
-        className="fixed inset-x-0 bottom-0 grid grid-cols-5 border-t lg:hidden"
-        style={{ background: "var(--ns-bg-elev)", borderColor: "var(--ns-border)", paddingBottom: "env(safe-area-inset-bottom)" }}
+        className="ns-mobile-dock fixed inset-x-0 bottom-0 grid grid-cols-5 lg:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         {mobilePrimaryNav.map((item) => (
           <Link

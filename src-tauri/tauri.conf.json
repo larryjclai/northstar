@@ -10,6 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "Northstar",
@@ -17,6 +18,7 @@
         "height": 820,
         "minWidth": 1024,
         "minHeight": 680,
+        "transparent": true,
         "windowEffects": {
           "effects": [
             "mica",

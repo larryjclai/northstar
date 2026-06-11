@@ -372,6 +372,65 @@ input, textarea, select, [contenteditable="true"], .ns-selectable {
   user-select: text;
   -webkit-touch-callout: default;
 }
+
+/* ── Glass material (native-feel § Liquid Glass) ───────────────────────────
+   One material, three layers:
+   1. `.ns-glass` — translucent surface + backdrop blur. In the browser it
+      blurs whatever scrolls beneath (mobile dock, sticky bars). Tokens derive
+      from --ns-bg-elev via color-mix, so light/dark themes adapt for free.
+   2. App-chrome surfaces (.ns-sidebar / .ns-mobile-dock) apply the material —
+      glass belongs on chrome, not on content cards.
+   3. `html[data-native-glass]` — set at runtime ONLY in the macOS Tauri app,
+      where tauri.conf's windowEffects(sidebar) puts a real NSVisualEffectView
+      behind the webview. The shell goes transparent so the system material
+      (true vibrancy: desktop tint, wallpaper bleed) shows through the chrome,
+      while <main> keeps painting --ns-bg — Finder/Notes-style sidebar.
+   Accessibility: prefers-reduced-transparency (and no-backdrop-filter engines)
+   collapse everything back to the solid --ns-bg-elev surface. */
+:root {
+  --ns-glass-bg: color-mix(in srgb, var(--ns-bg-elev) 72%, transparent);
+  --ns-glass-blur: 20px;
+  --ns-glass-saturate: 1.6;
+}
+
+.ns-app-shell { background: var(--ns-bg); }
+
+.ns-glass,
+.ns-sidebar,
+.ns-mobile-dock {
+  background: var(--ns-glass-bg);
+  -webkit-backdrop-filter: blur(var(--ns-glass-blur)) saturate(var(--ns-glass-saturate));
+  backdrop-filter: blur(var(--ns-glass-blur)) saturate(var(--ns-glass-saturate));
+}
+.ns-sidebar { border-right: 1px solid var(--ns-border); }
+.ns-mobile-dock { border-top: 1px solid var(--ns-border); }
+
+/* Solid fallbacks: engines without backdrop-filter, or the user asked for
+   less transparency. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .ns-glass, .ns-sidebar, .ns-mobile-dock { background: var(--ns-bg-elev); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .ns-glass, .ns-sidebar, .ns-mobile-dock {
+    background: var(--ns-bg-elev);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  html[data-native-glass], html[data-native-glass] body,
+  html[data-native-glass] .ns-app-shell { background: var(--ns-bg); }
+}
+
+/* Native vibrancy (macOS Tauri only — attribute set by AppShell at runtime).
+   The window material must shine through the chrome, so everything between it
+   and the sidebar goes transparent; content keeps its own opaque canvas. */
+html[data-native-glass],
+html[data-native-glass] body,
+html[data-native-glass] .ns-app-shell { background: transparent; }
+html[data-native-glass] .ns-sidebar {
+  /* Lighter wash over the system material — vibrancy does the heavy lifting. */
+  background: color-mix(in srgb, var(--ns-bg-elev) 38%, transparent);
+}
+html[data-native-glass] .ns-app-main { background: var(--ns-bg); }
 /* Native apps cut between views; honor the OS "reduce motion" setting. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
