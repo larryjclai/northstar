@@ -40,7 +40,8 @@ export function CategoriesRoute() {
   }, [ledgerRows, dateRange]);
 
   const allExpenseRows = filteredRows.filter((row) => row.entryType === "expense" && !row.counterAccountId);
-  const convertedAmount = (row: (typeof allExpenseRows)[number]) => convertCurrency(Math.abs(row.amount), row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date });
+  // Signed spend (−amount): refunds (positive-amount expenses) net out.
+  const convertedAmount = (row: (typeof allExpenseRows)[number]) => convertCurrency(-row.amount, row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date });
   const missingFxPairs = [...new Set(allExpenseRows.filter((row) => convertedAmount(row) === null).map((row) => `${row.currency}/${primaryCurrency}`))];
   const totalExpense = allExpenseRows.reduce((sum, row) => sum + (convertedAmount(row) ?? 0), 0);
   const expenseRows = selectedCategory

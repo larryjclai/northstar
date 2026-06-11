@@ -1,5 +1,6 @@
 export * from "./amountExpression";
 export * from "./dataHealth";
+export * from "./installments";
 export * from "./assetName";
 export * from "./creditCardStatements";
 export * from "./currency";

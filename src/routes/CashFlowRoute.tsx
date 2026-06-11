@@ -42,7 +42,7 @@ import { DatePicker } from "../components/ui/date-picker";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { useToast } from "../components/Toast";
 import type { LedgerDraft, TransferDraft } from "../data/repositories";
-import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, evaluateAmountExpression, formatNumber, isNeutralLedgerRow, isWithinDateScope, makeDefaultDateScope, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, resolveDateScope, todayInTimezone } from "../domain";
+import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, evaluateAmountExpression, formatNumber, installmentLabel, isNeutralLedgerRow, isWithinDateScope, makeDefaultDateScope, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, resolveDateScope, todayInTimezone } from "../domain";
 import { convertCurrency, formatCompactNumber } from "../domain/currency";
 import type { Account, LedgerTransaction, RecurringFrequency, RecurringTransaction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
@@ -131,6 +131,10 @@ export function CashFlowRoute() {
   const [settlePrompt, setSettlePrompt] = useState<LedgerTransaction | null>(null);
   const [drawerRecurringFreq, setDrawerRecurringFreq] = useState("none");
   const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
+  const [installmentPeriods, setInstallmentPeriods] = useState(0);
+  // Installment delete prompt: the row whose delete button was pressed, used to
+  // show the three-option chooser (this period / this and later / whole group).
+  const [installmentDeletePrompt, setInstallmentDeletePrompt] = useState<LedgerTransaction | null>(null);
 
   const [ledgerForm, setLedgerForm] = useState<LedgerDraft>(emptyLedger);
   const [amountExpression, setAmountExpression] = useState(String(Math.abs(emptyLedger.amount)));
@@ -243,6 +247,16 @@ export function CashFlowRoute() {
     (repository, input: LedgerDraft[]) => repository.importLedgerTransactions(input),
     ["ledger", "accounts"],
   );
+  const createInstallmentPlan = useRepositoryMutation(
+    (repository, input: { draft: LedgerDraft; periods: number }) =>
+      repository.createInstallmentPlan(input.draft, input.periods),
+    ["ledger", "accounts"],
+  );
+  const deleteInstallmentPlan = useRepositoryMutation(
+    (repository, input: { groupId: string; fromIndex?: number }) =>
+      repository.deleteInstallmentPlan(input.groupId, input.fromIndex !== undefined ? { fromIndex: input.fromIndex } : undefined),
+    ["ledger", "accounts"],
+  );
 
   const rememberMerchants = useRepositoryMutation(async (repository, input: string[]) => {
     const nextNames = uniqueClean(input);
@@ -298,6 +312,7 @@ export function CashFlowRoute() {
     // component-level state, so without this reset it would "stick" to whatever
     // recurrence the previous entry used.
     setDrawerRecurringFreq("none");
+    setInstallmentPeriods(0);
     setMessage("");
     setCounterparty("");
     setDueDate("");
@@ -325,6 +340,7 @@ export function CashFlowRoute() {
     setDrawerOpen(false);
     setEditingId(null);
     setEditingRecurringRuleId(null);
+    setInstallmentPeriods(0);
     setMessage("");
   }
 
@@ -383,6 +399,7 @@ export function CashFlowRoute() {
     setEntryDisplayCurrency(row.originalCurrency ?? row.currency);
     setAmountExpression(String(Math.abs(row.originalAmount ?? row.amount)));
     setDrawerRecurringFreq("none");
+    setInstallmentPeriods(0);
     setEditingRecurringRuleId(row.recurringRuleId ?? null);
     setMessage("");
     setDrawerOpen(true);
@@ -513,6 +530,9 @@ export function CashFlowRoute() {
           });
           toast.success("已建立週期規則");
         }
+      } else if (installmentPeriods >= 2) {
+        await createInstallmentPlan.mutateAsync({ draft: payload, periods: installmentPeriods });
+        toast.success(`已建立 ${installmentPeriods} 期分期計畫`);
       } else {
         await createLedger.mutateAsync(payload);
         toast.success("已新增交易");
@@ -578,6 +598,34 @@ export function CashFlowRoute() {
     try {
       await deleteLedger.mutateAsync(id);
       toast.success("已刪除交易");
+    } catch (e) {
+      toast.error("刪除失敗");
+    }
+  }
+
+  function requestDelete(row: LedgerTransaction) {
+    if (row.installmentGroupId) {
+      setInstallmentDeletePrompt(row);
+    } else {
+      void handleDelete(row.id);
+    }
+  }
+
+  async function handleInstallmentDelete(mode: "this" | "later" | "all") {
+    if (!installmentDeletePrompt) return;
+    const row = installmentDeletePrompt;
+    setInstallmentDeletePrompt(null);
+    try {
+      if (mode === "this") {
+        await deleteLedger.mutateAsync(row.id);
+        toast.success("已刪除此期分期");
+      } else if (mode === "later") {
+        await deleteInstallmentPlan.mutateAsync({ groupId: row.installmentGroupId!, fromIndex: row.installmentIndex ?? undefined });
+        toast.success("已刪除此期與之後的分期");
+      } else {
+        await deleteInstallmentPlan.mutateAsync({ groupId: row.installmentGroupId! });
+        toast.success("已刪除整組分期");
+      }
     } catch (e) {
       toast.error("刪除失敗");
     }
@@ -649,7 +697,9 @@ export function CashFlowRoute() {
     .reduce((sum, row) => sum + Math.max(0, toPrimary(row) ?? 0), 0);
   const periodExpense = scopedRows
     .filter((row) => row.entryType === "expense" && row.settlementStatus === "settled" && !isNeutralLedgerRow(row))
-    .reduce((sum, row) => sum + Math.abs(toPrimary(row) ?? 0), 0);
+    // Signed: expense amounts are negative, so −amount is positive spend; a
+    // refund (positive-amount expense) nets back out instead of adding.
+    .reduce((sum, row) => sum - (toPrimary(row) ?? 0), 0);
   const periodNet = periodIncome - periodExpense;
   const periodTransferCount = new Set(scopedRows.filter((row) => row.entryType === "transfer").map((row) => row.groupId ?? row.id)).size;
   const missingFx = [...new Set(scopedRows
@@ -668,10 +718,14 @@ export function CashFlowRoute() {
     for (const row of baseRows) {
       if (row.entryType !== "expense" || row.settlementStatus !== "settled" || isNeutralLedgerRow(row)) continue;
       const key = row.category || "未分類";
-      map.set(key, (map.get(key) ?? 0) + Math.abs(toPrimary(row) ?? 0));
+      // Signed (−amount): refunds net against the category they refund.
+      map.set(key, (map.get(key) ?? 0) - (toPrimary(row) ?? 0));
     }
     const defaultColors = ["var(--ns-chart-1)","var(--ns-chart-2)","var(--ns-chart-3)","var(--ns-chart-4)","var(--ns-chart-5)","#2dd4bf","#fb923c","#a78bfa","#f472b6","#facc15"];
     return [...map.entries()]
+      // A category can net negative if refunds exceed spend in the period;
+      // hide it from the spend donut rather than drawing a negative slice.
+      .filter(([, amount]) => amount > 0)
       .map(([name, amount], idx) => {
         const catSetting = appSettings?.categories.find(c => c.name === name);
         return { name, amount, color: catSetting?.color || defaultColors[idx % defaultColors.length], icon: catSetting?.iconName || 'Tag' };
@@ -687,9 +741,11 @@ export function CashFlowRoute() {
     const map = new Map<string, number>();
     for (const row of scopedRows) {
       if (row.entryType !== "expense" || row.settlementStatus !== "settled" || !row.merchant || isNeutralLedgerRow(row)) continue;
-      map.set(row.merchant, (map.get(row.merchant) ?? 0) + Math.abs(toPrimary(row) ?? 0));
+      // Signed (−amount): refunds net against the merchant they refund.
+      map.set(row.merchant, (map.get(row.merchant) ?? 0) - (toPrimary(row) ?? 0));
     }
     return [...map.entries()]
+      .filter(([, amount]) => amount > 0)
       .map(([name, amount]) => ({ name, amount }))
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 5);
@@ -715,8 +771,10 @@ export function CashFlowRoute() {
       const slot = byKey.get(cashflowBucketKey(chartGranularity, row.date));
       if (!slot) continue;
       const value = toPrimary(row) ?? 0;
+      // value is signed: expense negative (bar grows down), refund positive
+      // (shrinks the down-bar). Adding the signed value handles both.
       if (row.entryType === "income") slot.income += Math.max(0, value);
-      else slot.expenseDown -= Math.abs(value); // negative → bar grows downward
+      else slot.expenseDown += value;
     }
     for (const s of slots) s.net = s.income + s.expenseDown;
     return slots;
@@ -1040,7 +1098,7 @@ export function CashFlowRoute() {
                       onEdit={() => setDetailRow(r)}
                       onOpenEdit={() => startEdit(r)}
                       onDuplicate={() => startDuplicate(r, r.transferPair)}
-                      onDelete={() => handleDelete(r.id)}
+                      onDelete={() => requestDelete(r)}
                       onSettle={() => markSettled(r)}
                     />
                   );
@@ -1109,6 +1167,8 @@ export function CashFlowRoute() {
         setDrawerRecurringFreq={setDrawerRecurringFreq}
         editingRecurringRuleId={editingRecurringRuleId}
         recurringRows={recurringRows}
+        installmentPeriods={installmentPeriods}
+        setInstallmentPeriods={setInstallmentPeriods}
       />
       <CategoryManagementDrawer
         open={categoryDrawerOpen}
@@ -1125,15 +1185,46 @@ export function CashFlowRoute() {
         onClose={() => setDetailRow(null)}
         onEdit={(row) => { setDetailRow(null); startEdit(row); }}
         onDuplicate={(row) => { setDetailRow(null); startDuplicate(row, (row as LedgerTransaction & { transferPair?: { source: LedgerTransaction; dest: LedgerTransaction } }).transferPair); }}
-        onDelete={(id) => { setDetailRow(null); handleDelete(id); }}
+        onDelete={(row) => { setDetailRow(null); requestDelete(row); }}
         accountName={accountName}
         recurringRows={recurringRows}
+        onRefund={async (row, refundAmount, refundDate, refundNote) => {
+          // A refund is a positive-amount expense linked to the original row.
+          // It nets against the same category's spend instead of inflating
+          // income (see assertLedgerInvariants + refundOfLedgerId).
+          await createLedger.mutateAsync({
+            accountId: row.accountId,
+            counterAccountId: null,
+            date: refundDate,
+            name: `${row.name || row.category || "支出"} 退款`,
+            amount: Math.abs(refundAmount),
+            currency: row.currency,
+            originalAmount: null,
+            originalCurrency: null,
+            category: row.category,
+            subcategory: row.subcategory,
+            merchant: row.merchant,
+            entryType: "expense",
+            settlementStatus: "settled",
+            note: refundNote,
+            refundOfLedgerId: row.id,
+          });
+          setDetailRow(null);
+        }}
       />
       {recurringEditPrompt && (
         <RecurringScopeModal
           pending={applyRecurringEdit.isPending}
           onCancel={() => setRecurringEditPrompt(null)}
           onChoose={applyRecurringScope}
+        />
+      )}
+      {installmentDeletePrompt && (
+        <InstallmentDeleteModal
+          row={installmentDeletePrompt}
+          pending={deleteLedger.isPending || deleteInstallmentPlan.isPending}
+          onCancel={() => setInstallmentDeletePrompt(null)}
+          onChoose={handleInstallmentDelete}
         />
       )}
       {settlePrompt && (
@@ -1255,6 +1346,63 @@ function RecurringScopeModal({
   );
 }
 
+/* ─────────── Installment delete scope chooser ─────────── */
+
+function InstallmentDeleteModal({
+  row,
+  pending,
+  onCancel,
+  onChoose,
+}: {
+  row: LedgerTransaction;
+  pending: boolean;
+  onCancel: () => void;
+  onChoose: (mode: "this" | "later" | "all") => void;
+}) {
+  const label = installmentLabel(row);
+  const options: { mode: "this" | "later" | "all"; label: string; desc: string }[] = [
+    { mode: "this", label: "僅刪除此期", desc: "只刪除這一期分期紀錄，其餘各期保留。" },
+    { mode: "later", label: "此期與之後", desc: `刪除第 ${row.installmentIndex ?? "?"} 期及之後所有未到期的分期紀錄。` },
+    { mode: "all", label: "整組分期", desc: "刪除這筆購物的全部分期紀錄（共 " + (row.installmentTotal ?? "?") + " 期）。" },
+  ];
+  return (
+    <div
+      onClick={onCancel}
+      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)", padding: 20 }}
+      >
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>刪除分期紀錄</div>
+        <div style={{ fontSize: 12.5, color: "var(--ns-fg-muted)", marginBottom: 16 }}>
+          {label ? `這是第 ${row.installmentIndex}/${row.installmentTotal} 期的分期紀錄，請選擇刪除範圍。` : "請選擇刪除範圍。"}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {options.map((o) => (
+            <button
+              key={o.mode}
+              disabled={pending}
+              onClick={() => onChoose(o.mode)}
+              style={{
+                textAlign: "left", padding: "12px 14px", borderRadius: "var(--ns-r-md)",
+                border: "1px solid var(--ns-border)", background: "var(--ns-bg-card)",
+                cursor: pending ? "default" : "pointer", fontFamily: "inherit", opacity: pending ? 0.6 : 1,
+              }}
+            >
+              <div style={{ fontSize: 13.5, fontWeight: 500, color: o.mode === "all" ? "var(--ns-neg)" : "var(--ns-fg)" }}>{o.label}</div>
+              <div style={{ fontSize: 12, color: "var(--ns-fg-muted)", marginTop: 3, lineHeight: 1.5 }}>{o.desc}</div>
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+          <Button variant="outline" onClick={onCancel} disabled={pending}>取消</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─────────────── Ledger row ─────────────── */
 
 function LedgerRow({
@@ -1354,6 +1502,7 @@ function LedgerRow({
           </span>
           {isReceivable ? <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收</Badge> : null}
           {isPayable ? <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}>應付</Badge> : null}
+          {installmentLabel(row) ? <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-accent)", borderColor: "var(--ns-accent)" }}>{installmentLabel(row)}</Badge> : null}
         </div>
         <div className="muted" style={{ fontSize: 11.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subtitle}</div>
       </div>
@@ -1492,6 +1641,8 @@ function EntryDrawer({
   setDrawerRecurringFreq,
   editingRecurringRuleId,
   recurringRows,
+  installmentPeriods,
+  setInstallmentPeriods,
 }: {
   open: boolean;
   type: CashType;
@@ -1524,10 +1675,26 @@ function EntryDrawer({
   setDrawerRecurringFreq: (v: string) => void;
   editingRecurringRuleId: string | null;
   recurringRows: import("../domain").RecurringTransaction[];
+  installmentPeriods: number;
+  setInstallmentPeriods: (v: number) => void;
 }) {
   const [amountFocused, setAmountFocused] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   useEffect(() => { if (open) setShowAdvanced(false); }, [open]);
+
+  // Installment: valid when type=expense, account is credit, not editing, and periods >= 2.
+  const selectedAccount = accountRows.find((a) => a.id === ledgerForm.accountId);
+  const isCreditAccount = selectedAccount?.type === "credit";
+  const canInstallment = type === "expense" && isCreditAccount && !editing;
+  const activeInstallment = canInstallment && installmentPeriods >= 2;
+
+  // Per-period preview amount
+  const installmentPreviewAmount = (() => {
+    if (!activeInstallment) return null;
+    const raw = Math.abs(Number(amountExpression) || 0);
+    if (!raw) return null;
+    return Math.round(raw / installmentPeriods);
+  })();
 
   const destAmountField = useNumericField(
     transferForm.destinationAmount ?? 0,
@@ -1736,6 +1903,11 @@ function EntryDrawer({
             {convertedHint && (
               <div className="muted" style={{ fontSize: 11.5, marginTop: 5 }}>
                 ≈ {ledgerForm.currency} {formatNumber(convertedHint.converted)}（1 {entryDisplayCurrency} ≈ {convertedHint.rate} {ledgerForm.currency}）
+              </div>
+            )}
+            {activeInstallment && installmentPreviewAmount !== null && (
+              <div className="muted" style={{ fontSize: 11.5, marginTop: 5 }}>
+                每期約 {entryDisplayCurrency} {formatNumber(installmentPreviewAmount)}，共 {installmentPeriods} 期
               </div>
             )}
           </DrawerField>
@@ -1957,7 +2129,30 @@ function EntryDrawer({
               </div>
               {showAdvanced && (
                 <>
-                  {(type === "expense" || type === "income") && !editing && (
+                  {canInstallment && (
+                    <DrawerField label="分期付款">
+                      <input
+                        className="ns-input"
+                        type="number"
+                        min={0}
+                        max={60}
+                        step={1}
+                        placeholder="0"
+                        style={{ fontFamily: "var(--ns-font-mono)" }}
+                        value={installmentPeriods === 0 ? "" : installmentPeriods}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value, 10);
+                          setInstallmentPeriods(Number.isNaN(v) || v < 0 ? 0 : Math.min(60, v));
+                        }}
+                      />
+                      <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
+                        {activeInstallment
+                          ? `總額將平均拆成 ${installmentPeriods} 筆，逐月入帳到對應的帳單週期。`
+                          : "輸入 2–60（期數）啟用分期；留空或填 0 表示不分期。"}
+                      </div>
+                    </DrawerField>
+                  )}
+                  {(type === "expense" || type === "income") && !editing && !activeInstallment && (
                     <DrawerField label={`外加手續費（選填） · ${ledgerForm.currency}`}>
                       <input
                         className="ns-input"
@@ -1972,14 +2167,16 @@ function EntryDrawer({
                       </div>
                     </DrawerField>
                   )}
-                  <DrawerField label="週期交易">
-                    <AppSelect
-                      value={drawerRecurringFreq}
-                      onChange={setDrawerRecurringFreq}
-                      options={RECURRING_OPTIONS}
-                      style={{ width: "100%", height: 40 }}
-                    />
-                  </DrawerField>
+                  {!activeInstallment && (
+                    <DrawerField label="週期交易">
+                      <AppSelect
+                        value={drawerRecurringFreq}
+                        onChange={setDrawerRecurringFreq}
+                        options={RECURRING_OPTIONS}
+                        style={{ width: "100%", height: 40 }}
+                      />
+                    </DrawerField>
+                  )}
                   <DrawerField label="備註">
                     <input className="ns-input" value={ledgerForm.note} onChange={(e) => setLedgerForm({ ...ledgerForm, note: e.target.value })} placeholder="選填" />
                   </DrawerField>

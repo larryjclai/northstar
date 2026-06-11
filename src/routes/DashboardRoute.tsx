@@ -181,7 +181,9 @@ export function DashboardRoute() {
 
   const monthRows = ledgerRows.filter((row) => row.date.startsWith(monthKey) && row.settlementStatus === "settled" && !isNeutralLedgerRow(row) && (selectedAccount === "all" || row.accountId === selectedAccount));
   const monthIncome = monthRows.filter((row) => row.entryType === "income").reduce((sum, row) => sum + toPrimary(Math.max(0, row.amount), row.currency, row.date), 0);
-  const monthExpense = monthRows.filter((row) => row.entryType === "expense").reduce((sum, row) => sum + toPrimary(Math.abs(row.amount), row.currency, row.date), 0);
+  // Signed (−amount): expense amounts are negative → positive spend; a refund
+  // (positive-amount expense) nets back out instead of inflating spend.
+  const monthExpense = monthRows.filter((row) => row.entryType === "expense").reduce((sum, row) => sum + toPrimary(-row.amount, row.currency, row.date), 0);
   const monthNet = monthIncome - monthExpense;
   // Savings rate stays honest in deficit months: with no income but real
   // spending we surface a negative rate (net flow over spend) instead of a
@@ -225,7 +227,8 @@ export function DashboardRoute() {
     const spendByCat = new Map<string, number>();
     for (const row of monthRows) {
       if (row.entryType !== "expense" || !row.category) continue;
-      spendByCat.set(row.category, (spendByCat.get(row.category) ?? 0) + Math.abs(toPrimary(row.amount, row.currency, row.date)));
+      // Signed (−amount): refunds reduce the category's spend against budget.
+      spendByCat.set(row.category, (spendByCat.get(row.category) ?? 0) - toPrimary(row.amount, row.currency, row.date));
     }
     const cats = (appSettings?.categories ?? []).map((c, i) => ({
       name: c.name,

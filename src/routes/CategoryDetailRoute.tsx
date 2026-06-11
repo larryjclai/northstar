@@ -44,8 +44,10 @@ export function CategoryDetailRoute() {
   const icon = category?.iconName ?? "Tag";
   const children = category?.children ?? [];
 
+  // Signed spend (−amount): normal expenses are negative → positive spend; a
+  // refund (positive-amount expense) nets back out of the category total.
   function convertedAmount(row: LedgerTransaction) {
-    return convertCurrency(Math.abs(row.amount), row.currency, primaryCurrency, appSettings, {
+    return convertCurrency(-row.amount, row.currency, primaryCurrency, appSettings, {
       dailyRates: fxHistory,
       asOfDate: row.date,
     });
@@ -70,7 +72,7 @@ export function CategoryDetailRoute() {
   const monthlyAverage = periodTotal / Math.max(1, countMonthsInRange(dateRange.start, dateRange.end));
   const allPeriodExpense = ledgerRows
     .filter((row) => row.entryType === "expense" && row.settlementStatus === "settled" && !row.counterAccountId && isWithinDateScope(row.date, dateRange))
-    .reduce((sum, row) => sum + (convertCurrency(Math.abs(row.amount), row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date }) ?? 0), 0);
+    .reduce((sum, row) => sum + (convertCurrency(-row.amount, row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date }) ?? 0), 0);
   const share = allPeriodExpense > 0 ? (periodTotal / allPeriodExpense) * 100 : 0;
 
   const previousYearRange = dateRange.start && dateRange.end ? { start: shiftYear(dateRange.start, -1), end: shiftYear(dateRange.end, -1) } : null;
@@ -331,7 +333,7 @@ function TransactionsPanel({
                     <td>{row.name || row.merchant || "未命名交易"}</td>
                     <td className="muted">{row.subcategory || "其他"}</td>
                     <td className="muted">{accountName(row.accountId)}</td>
-                    <td className="num text-right neg">−{formatMoney(Math.abs(row.amount), row.currency)}</td>
+                    <td className={`num text-right ${row.amount > 0 ? "pos" : "neg"}`}>{row.amount > 0 ? "+" : "−"}{formatMoney(Math.abs(row.amount), row.currency)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -342,7 +344,7 @@ function TransactionsPanel({
               <button key={row.id} type="button" className="ns-mobile-transaction-row" onClick={() => onSelect(row)}>
                 <span className="mono muted">{row.date.slice(5, 10)}</span>
                 <span className="truncate">{row.name || row.merchant || "未命名交易"}</span>
-                <span className="num neg">−{formatMoney(Math.abs(row.amount), row.currency)}</span>
+                <span className={`num ${row.amount > 0 ? "pos" : "neg"}`}>{row.amount > 0 ? "+" : "−"}{formatMoney(Math.abs(row.amount), row.currency)}</span>
               </button>
             ))}
           </div>

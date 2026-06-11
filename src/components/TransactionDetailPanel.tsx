@@ -1,17 +1,19 @@
 import { ArrowsClockwise, CalendarBlank, CopySimple, PencilSimple, Receipt, Storefront, Tag, Trash, Wallet, X } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { Button } from "./coss/button";
+import { Badge } from "./coss/badge";
 import type { LedgerTransaction, RecurringTransaction } from "../domain";
-import { formatNumber, recurringFrequencyLabels } from "../domain";
+import { formatNumber, installmentLabel, recurringFrequencyLabels, todayInTimezone } from "../domain";
 
 interface TransactionDetailPanelProps {
   row: LedgerTransaction | null;
   onClose: () => void;
   onEdit: (row: LedgerTransaction) => void;
   onDuplicate?: (row: LedgerTransaction) => void;
-  onDelete: (id: string) => void;
+  onDelete: (row: LedgerTransaction) => void;
   accountName: (id: string) => string;
   recurringRows?: RecurringTransaction[];
+  onRefund?: (row: LedgerTransaction, refundAmount: number, refundDate: string, refundNote: string) => Promise<void>;
 }
 
 const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }> = {
@@ -20,12 +22,49 @@ const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }
   transfer: { label: "轉帳", color: "var(--ns-accent)", sign: "" },
 };
 
-export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDelete, accountName, recurringRows }: TransactionDetailPanelProps) {
+export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDelete, accountName, recurringRows, onRefund }: TransactionDetailPanelProps) {
   // Two-click delete confirm — window.confirm is a no-op in the Tauri webview.
   const [confirmDelete, setConfirmDelete] = useState(false);
-  useEffect(() => { setConfirmDelete(false); }, [row?.id]);
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundDate, setRefundDate] = useState("");
+  const [refundNote, setRefundNote] = useState("");
+  const [refundError, setRefundError] = useState("");
+  const [refundSubmitting, setRefundSubmitting] = useState(false);
+  useEffect(() => {
+    setConfirmDelete(false);
+    setRefundOpen(false);
+    setRefundError("");
+    setRefundSubmitting(false);
+  }, [row?.id]);
 
   if (!row) return null;
+
+  const isRefund = Boolean(row.refundOfLedgerId);
+  // 可記退款的條件：一般支出（負數），且不是退款本身、不是代墊
+  const canRefund = onRefund != null
+    && row.entryType === "expense"
+    && row.amount < 0
+    && !row.refundOfLedgerId
+    && !row.counterAccountId;
+
+  async function submitRefund() {
+    if (!onRefund || !row) return;
+    const maxAbs = Math.abs(row.amount);
+    const parsed = parseFloat(refundAmount);
+    if (isNaN(parsed) || parsed <= 0) { setRefundError("請輸入有效金額"); return; }
+    if (parsed > maxAbs) { setRefundError(`退款金額不能超過 ${maxAbs}`); return; }
+    setRefundSubmitting(true);
+    setRefundError("");
+    try {
+      await onRefund(row, parsed, refundDate || new Date().toISOString().slice(0, 10), refundNote);
+      setRefundOpen(false);
+    } catch (e) {
+      setRefundError(e instanceof Error ? e.message : "退款建立失敗");
+    } finally {
+      setRefundSubmitting(false);
+    }
+  }
 
   const meta = TYPE_LABELS[row.entryType] || TYPE_LABELS.expense;
   const linkedRule = row.recurringRuleId && recurringRows
@@ -146,6 +185,16 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
                   單筆交易
                 </span>
               )}
+              {installmentLabel(row) ? (
+                <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-accent)", borderColor: "var(--ns-accent)", fontSize: 11, padding: "3px 10px" }}>
+                  {installmentLabel(row)}
+                </Badge>
+              ) : null}
+              {isRefund ? (
+                <span style={{ padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 500, background: "var(--ns-pos)" + "18", color: "var(--ns-pos)" }}>
+                  退款
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -172,10 +221,60 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
                 value={`${linkedRule.merchant || linkedRule.category} · ${recurringFrequencyLabels[linkedRule.frequency]}`}
               />
             )}
+            {row.installmentGroupId && row.installmentIndex != null && row.installmentTotal != null && (
+              <DetailField
+                icon={<Receipt size={15} />}
+                label="分期"
+                value={`第 ${row.installmentIndex} 期，共 ${row.installmentTotal} 期`}
+              />
+            )}
             {row.note && (
               <DetailField icon={<Receipt size={15} />} label="備註" value={row.note} />
             )}
           </div>
+
+          {/* Refund (退款沖銷): a refund posts a positive-amount expense linked
+              to this row, so it nets against the original category's spend
+              instead of inflating income. Only offered for ordinary expenses. */}
+          {canRefund ? (
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--ns-border)" }}>
+              {!refundOpen ? (
+                <Button variant="outline" style={{ width: "100%", justifyContent: "center" }} onClick={() => { setRefundOpen(true); setRefundAmount(String(Math.abs(row.amount))); setRefundError(""); }}>
+                  <ArrowsClockwise size={14} />記一筆退款
+                </Button>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>記退款</div>
+                  <div className="muted" style={{ fontSize: 12, lineHeight: 1.5 }}>
+                    退款會沖減此筆「{row.category || "未分類"}」分類的支出，不會被當成收入。
+                  </div>
+                  <label style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>
+                    退款金額 · {row.currency}
+                    <input className="ns-input" inputMode="decimal" value={refundAmount}
+                      onChange={(e) => setRefundAmount(e.target.value)}
+                      style={{ marginTop: 4, fontFamily: "var(--ns-font-num)" }} />
+                  </label>
+                  <label style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>
+                    退款日期
+                    <input className="ns-input" type="date" value={refundDate || row.date.slice(0, 10)}
+                      onChange={(e) => setRefundDate(e.target.value)} style={{ marginTop: 4 }} />
+                  </label>
+                  <label style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>
+                    備註（選填）
+                    <input className="ns-input" value={refundNote} placeholder="退貨 / 部分退款…"
+                      onChange={(e) => setRefundNote(e.target.value)} style={{ marginTop: 4 }} />
+                  </label>
+                  {refundError ? <div style={{ fontSize: 12, color: "var(--ns-neg)" }}>{refundError}</div> : null}
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <Button style={{ flex: 1, justifyContent: "center" }} disabled={refundSubmitting} onClick={submitRefund}>
+                      {refundSubmitting ? "建立中…" : "確認退款"}
+                    </Button>
+                    <Button variant="ghost" style={{ flex: 0.6, justifyContent: "center" }} onClick={() => setRefundOpen(false)}>取消</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
         </div>
 
         {/* Footer Actions */}
@@ -184,7 +283,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
             <>
               <Button variant="outline"
                 style={{ flex: 1, justifyContent: "center", color: "var(--ns-neg)" }}
-                onClick={() => onDelete(row.id)}
+                onClick={() => onDelete(row)}
               >
                 <Trash size={14} />確定刪除
               </Button>
@@ -195,7 +294,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
           ) : (
             <Button variant="outline"
               style={{ flex: 1, justifyContent: "center", color: "var(--ns-neg)" }}
-              onClick={() => setConfirmDelete(true)}
+              onClick={() => row.installmentGroupId ? onDelete(row) : setConfirmDelete(true)}
             >
               <Trash size={14} />刪除
             </Button>

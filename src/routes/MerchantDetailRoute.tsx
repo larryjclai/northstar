@@ -35,8 +35,9 @@ export function MerchantDetailRoute() {
     [ledgerRows, merchantName],
   );
 
+  // Signed spend (−amount): refunds (positive-amount expenses) net out.
   function convertedAmount(row: LedgerTransaction) {
-    return convertCurrency(Math.abs(row.amount), row.currency, primaryCurrency, appSettings, {
+    return convertCurrency(-row.amount, row.currency, primaryCurrency, appSettings, {
       dailyRates: fxHistory,
       asOfDate: row.date,
     });
@@ -65,7 +66,7 @@ export function MerchantDetailRoute() {
     for (const row of ledgerRows) {
       if (row.merchant === merchantName || row.entryType !== "expense" || row.settlementStatus !== "settled" || row.category !== categoryHit.value || !row.merchant || !isWithinDateScope(row.date, dateRange)) continue;
       const current = map.get(row.merchant) ?? { amount: 0, count: 0 };
-      current.amount += convertCurrency(Math.abs(row.amount), row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date }) ?? 0;
+      current.amount += convertCurrency(-row.amount, row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date }) ?? 0;
       current.count += 1;
       map.set(row.merchant, current);
     }
@@ -224,14 +225,14 @@ function TransactionRows({
                 <td className="mono muted">{row.date.slice(5, 10)}</td>
                 <td>{row.name || row.merchant || "未命名交易"}</td>
                 <td className="muted">{accountName(row.accountId)}</td>
-                <td className="num text-right neg">−{formatMoney(Math.abs(row.amount), row.currency)}</td>
+                <td className={`num text-right ${row.amount > 0 ? "pos" : "neg"}`}>{row.amount > 0 ? "+" : "−"}{formatMoney(Math.abs(row.amount), row.currency)}</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr>
               <td colSpan={3}>合計 · 顯示 {rows.length} 筆交易</td>
-              <td className="num text-right neg">−{formatMoney(total, primaryCurrency)}</td>
+              <td className={`num text-right ${total < 0 ? "pos" : "neg"}`}>{total < 0 ? "+" : "−"}{formatMoney(Math.abs(total), primaryCurrency)}</td>
             </tr>
           </tfoot>
         </table>
@@ -241,7 +242,7 @@ function TransactionRows({
           <button key={row.id} type="button" className="ns-mobile-transaction-row" onClick={() => onSelect(row)}>
             <span className="mono muted">{row.date.slice(5, 10)}</span>
             <span className="truncate">{row.name || row.merchant || "未命名交易"}</span>
-            <span className="num neg">−{formatMoney(Math.abs(row.amount), row.currency)}</span>
+            <span className={`num ${row.amount > 0 ? "pos" : "neg"}`}>{row.amount > 0 ? "+" : "−"}{formatMoney(Math.abs(row.amount), row.currency)}</span>
           </button>
         ))}
       </div>

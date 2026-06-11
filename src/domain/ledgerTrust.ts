@@ -28,6 +28,8 @@ export interface LedgerInvariantInput {
   amount: number;
   currency: string;
   entryType: "income" | "expense" | "transfer";
+  /** Set when this row is a refund (退款) against an existing expense row. */
+  refundOfLedgerId?: string | null;
 }
 
 export interface TransferInvariantInput {
@@ -60,7 +62,14 @@ export function assertLedgerInvariants(
     throw new Error("轉帳必須使用成對的轉帳功能建立。");
   }
   if (input.entryType === "income" && input.amount < 0) throw new Error("收入金額必須為正數。");
-  if (input.entryType === "expense" && input.amount > 0) throw new Error("支出金額必須為負數。");
+  // Refund rows are positive-amount expenses: the inflow offsets the original
+  // category's spend instead of inflating income. Everything else keeps the
+  // expense-negative invariant.
+  if (input.entryType === "expense" && input.refundOfLedgerId) {
+    if (input.amount < 0) throw new Error("退款金額必須為正數。");
+  } else if (input.entryType === "expense" && input.amount > 0) {
+    throw new Error("支出金額必須為負數。");
+  }
 }
 
 export function assertTransferInvariants(input: TransferInvariantInput, accounts: Account[]) {

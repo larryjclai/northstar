@@ -66,6 +66,14 @@ describe("ledger trust rules", () => {
     expect(() => assertLedgerInvariants({ accountId: account.id, amount: 20, currency: "USD", entryType: "income" }, [account])).toThrow();
   });
 
+  it("allows positive expense only for refund rows (退款沖銷)", () => {
+    // Plain positive expense stays rejected.
+    expect(() => assertLedgerInvariants({ accountId: account.id, amount: 400, currency: "TWD", entryType: "expense" }, [account])).toThrow();
+    // Refund rows must be positive.
+    expect(() => assertLedgerInvariants({ accountId: account.id, amount: 400, currency: "TWD", entryType: "expense", refundOfLedgerId: "ledger_original" }, [account])).not.toThrow();
+    expect(() => assertLedgerInvariants({ accountId: account.id, amount: -400, currency: "TWD", entryType: "expense", refundOfLedgerId: "ledger_original" }, [account])).toThrow();
+  });
+
   it("rejects same-account and unbalanced same-currency transfers", () => {
     const destination = { ...account, id: "acct_destination" };
     expect(() => assertTransferInvariants({ sourceAccountId: account.id, destinationAccountId: account.id, sourceCurrency: "TWD", destinationCurrency: "TWD", sourceAmount: 10 }, [account])).toThrow();

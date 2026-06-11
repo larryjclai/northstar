@@ -118,6 +118,24 @@ export interface LedgerTransaction extends SyncFields {
   note: string;
   linkedInvestmentRecordId: string | null;
   groupId: string | null;
+  /**
+   * Installment plan id shared by every period of one 分期 purchase. Unlike
+   * `groupId` (fee/transfer legs that cascade-delete together), installment
+   * rows can be deleted individually or scoped to "this and later periods"
+   * via `deleteInstallmentPlan`. Optional (like recurringOccurrenceKey) so
+   * pre-installment rows and fixtures stay valid.
+   */
+  installmentGroupId?: string | null;
+  /** 1-based period number within the installment plan. */
+  installmentIndex?: number | null;
+  /** Total number of periods in the installment plan. */
+  installmentTotal?: number | null;
+  /**
+   * Id of the original expense row this refund offsets (退款/沖銷). Refund
+   * rows are positive-amount expenses so they net against the original
+   * category's spend instead of inflating income (see assertLedgerInvariants).
+   */
+  refundOfLedgerId?: string | null;
   isReviewed: boolean;
   receiptAttachmentId: string | null;
   recurringRuleId: string | null;

@@ -49,7 +49,11 @@ export const migrations: Migration[] = [
         group_id text,
         is_reviewed integer not null default 0,
         receipt_attachment_id text,
-        recurring_occurrence_key text
+        recurring_occurrence_key text,
+        installment_group_id text,
+        installment_index integer,
+        installment_total integer,
+        refund_of_ledger_id text
       );
 
       create table if not exists portfolio_assets (

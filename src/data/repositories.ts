@@ -24,6 +24,7 @@ import type { MarketQuote } from "../features/market-data";
 import { calculateInvestmentAccountQuantity, calculateInvestmentCashDelta, calculateInvestmentQuantity, isEffectivelyNegative } from "../domain/investmentCash";
 import { buildPositionMetrics } from "../domain/portfolioMetrics";
 import { firstFutureRunDate, nextRecurringDate } from "../domain/recurringDates";
+import { buildInstallmentSchedule } from "../domain/installments";
 import { accountBalanceDelta, assertLedgerInvariants, assertTransferInvariants, buildRecalculationReport, deriveAccountBalances, findMissingFxPairs } from "../domain/ledgerTrust";
 import {
   buildPendingChanges,
@@ -64,6 +65,10 @@ export interface LedgerDraft {
   note: string;
   groupId?: string | null;
   feeAmount?: number;
+  installmentGroupId?: string | null;
+  installmentIndex?: number | null;
+  installmentTotal?: number | null;
+  refundOfLedgerId?: string | null;
   recurringOccurrenceKey?: string | null;
 }
 
@@ -204,6 +209,17 @@ export interface FinanceRepository {
   deleteAccount(id: string): Promise<void>;
   listLedgerTransactions(): Promise<LedgerTransaction[]>;
   createLedgerTransaction(input: LedgerDraft): Promise<void>;
+  /**
+   * Split one purchase into `periods` monthly ledger rows (信用卡分期). Rows
+   * share an installmentGroupId; amounts sum exactly to `input.amount` and
+   * dates step monthly from `input.date` (day clamped to month end).
+   */
+  createInstallmentPlan(input: LedgerDraft, periods: number): Promise<void>;
+  /**
+   * Soft-delete installment rows. With `fromIndex`, only that period and the
+   * later ones go (提前清償/部分取消); without it the whole plan goes.
+   */
+  deleteInstallmentPlan(installmentGroupId: string, opts?: { fromIndex?: number }): Promise<void>;
   updateLedgerTransaction(id: string, input: LedgerDraft): Promise<void>;
   setLedgerReviewed(id: string, reviewed: boolean): Promise<void>;
   deleteLedgerTransaction(id: string): Promise<void>;
@@ -634,6 +650,40 @@ class BrowserFinanceRepository implements FinanceRepository {
     const groupId = target?.groupId;
     this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
       row.id === id || (groupId && row.groupId === groupId)
+        ? bump({ ...row, deletedAt: nowIso() })
+        : row,
+    );
+    this.recompute();
+    await this.persist();
+  }
+
+  async createInstallmentPlan(input: LedgerDraft, periods: number) {
+    assertLedgerInvariants(input, this.data.accounts);
+    const schedule = buildInstallmentSchedule({ totalAmount: input.amount, periods, startDate: input.date });
+    const installmentGroupId = createId("inst");
+    for (const period of schedule) {
+      this.data.ledgerTransactions.push(createLedgerRow({
+        ...input,
+        date: period.date,
+        amount: period.amount,
+        // Installments never carry a fee leg; the fee field is hidden in the UI.
+        feeAmount: 0,
+        groupId: null,
+        installmentGroupId,
+        installmentIndex: period.index,
+        installmentTotal: periods,
+      }));
+    }
+    this.recompute();
+    await this.persist();
+  }
+
+  async deleteInstallmentPlan(installmentGroupId: string, opts?: { fromIndex?: number }) {
+    const fromIndex = opts?.fromIndex;
+    this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
+      row.installmentGroupId === installmentGroupId
+        && row.deletedAt === null
+        && (fromIndex === undefined || (row.installmentIndex ?? 0) >= fromIndex)
         ? bump({ ...row, deletedAt: nowIso() })
         : row,
     );
@@ -1914,6 +1964,10 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("ledger_transactions", "original_currency", "text");
     await this.ensureSqliteColumn("ledger_transactions", "recurring_occurrence_key", "text");
     await this.ensureSqliteColumn("ledger_transactions", "counter_account_id", "text");
+    await this.ensureSqliteColumn("ledger_transactions", "installment_group_id", "text");
+    await this.ensureSqliteColumn("ledger_transactions", "installment_index", "integer");
+    await this.ensureSqliteColumn("ledger_transactions", "installment_total", "integer");
+    await this.ensureSqliteColumn("ledger_transactions", "refund_of_ledger_id", "text");
     await this.ensureSqliteColumn("recurring_transactions", "counter_account_id", "text");
     await this.db.execute(`create unique index if not exists idx_ledger_recurring_occurrence on ledger_transactions (recurring_occurrence_key) where recurring_occurrence_key is not null and deleted_at is null`);
     await this.ensureSyncInfrastructure();
@@ -1986,6 +2040,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       account_id as accountId, counter_account_id as counterAccountId, date, name, amount, currency, original_amount as originalAmount, original_currency as originalCurrency,
       category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note,
       linked_investment_record_id as linkedInvestmentRecordId, group_id as groupId,
+      installment_group_id as installmentGroupId, installment_index as installmentIndex, installment_total as installmentTotal,
+      refund_of_ledger_id as refundOfLedgerId,
       is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId, recurring_rule_id as recurringRuleId,
       recurring_occurrence_key as recurringOccurrenceKey
       from ledger_transactions where deleted_at is null order by date desc, created_at desc`);
@@ -2042,6 +2098,45 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       await this.db.execute(`update ledger_transactions set deleted_at = $1, updated_at = $1, revision = revision + 1 where group_id = $2`, [nowIso(), groupId]);
     } else {
       await this.db.execute(`update ledger_transactions set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`, [nowIso(), id]);
+    }
+    await this.recomputeSqliteAccounts();
+  }
+
+  override async createInstallmentPlan(input: LedgerDraft, periods: number) {
+    assertLedgerInvariants(input, await this.listAccounts());
+    const schedule = buildInstallmentSchedule({ totalAmount: input.amount, periods, startDate: input.date });
+    const installmentGroupId = createId("inst");
+    await this.withTransaction(async () => {
+      for (const period of schedule) {
+        await this.insertLedgerRow(createLedgerRow({
+          ...input,
+          date: period.date,
+          amount: period.amount,
+          feeAmount: 0,
+          groupId: null,
+          installmentGroupId,
+          installmentIndex: period.index,
+          installmentTotal: periods,
+        }));
+      }
+      await this.recomputeSqliteAccounts();
+    });
+  }
+
+  override async deleteInstallmentPlan(installmentGroupId: string, opts?: { fromIndex?: number }) {
+    const fromIndex = opts?.fromIndex;
+    if (fromIndex !== undefined) {
+      await this.db.execute(
+        `update ledger_transactions set deleted_at = $1, updated_at = $1, revision = revision + 1
+         where installment_group_id = $2 and deleted_at is null and installment_index >= $3`,
+        [nowIso(), installmentGroupId, fromIndex],
+      );
+    } else {
+      await this.db.execute(
+        `update ledger_transactions set deleted_at = $1, updated_at = $1, revision = revision + 1
+         where installment_group_id = $2 and deleted_at is null`,
+        [nowIso(), installmentGroupId],
+      );
     }
     await this.recomputeSqliteAccounts();
   }
@@ -3500,8 +3595,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   private async insertLedgerRow(row: LedgerTransaction) {
     const now = nowIso();
     await this.db.execute(
-      `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, counter_account_id, date, name, amount, currency, original_amount, original_currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id, recurring_rule_id, recurring_occurrence_key)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
+      `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, counter_account_id, date, name, amount, currency, original_amount, original_currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id, recurring_rule_id, recurring_occurrence_key, installment_group_id, installment_index, installment_total, refund_of_ledger_id)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)`,
       [
         row.id,
         row.spaceId ?? personalSpace,
@@ -3529,6 +3624,10 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         row.receiptAttachmentId ?? null,
         row.recurringRuleId ?? null,
         row.recurringOccurrenceKey ?? null,
+        row.installmentGroupId ?? null,
+        row.installmentIndex ?? null,
+        row.installmentTotal ?? null,
+        row.refundOfLedgerId ?? null,
       ],
     );
   }
@@ -4440,6 +4539,10 @@ function createLedgerRow(input: LedgerDraft & { recurringRuleId?: string | null 
     note: input.note,
     linkedInvestmentRecordId: null,
     groupId: input.groupId ?? null,
+    installmentGroupId: input.installmentGroupId ?? null,
+    installmentIndex: input.installmentIndex ?? null,
+    installmentTotal: input.installmentTotal ?? null,
+    refundOfLedgerId: input.refundOfLedgerId ?? null,
     isReviewed: false,
     receiptAttachmentId: null,
     recurringRuleId: input.recurringRuleId ?? null,
