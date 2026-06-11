@@ -138,20 +138,15 @@
 
 ## 🔵 Phase 4 — 個人化與一致性（約 2–3 週）
 
-### 4.1 Dashboard 卡片自訂
-- **Problem**: 總覽目前 13+ 種卡片全量顯示（淨值、KPI、預算、帳單、信用卡、應收應付、定期定額、配置、目標、匯率、最近交易、Top Movers），沒投資的使用者看到 Top Movers、單幣別使用者看到匯率卡——資訊過載且無法調整。
-- **Action**:
-  - 「編輯版面」模式：每張卡可顯示/隱藏（順序調整可後做），偏好存 uiPreferences 並隨裝置同步。
-  - 預設智慧收斂：無持倉 → 自動隱藏 Top Movers/Portfolio Strip；單幣別 → 隱藏匯率卡（已部分有條件渲染，補齊一致規則）。
-  - 匯率卡降級：併入資料健康/市場狀態列，不佔一張卡（保留可手動開回）。
-- **驗收**: 新使用者（無資料）首屏不超過 4 張卡；隱藏設定跨重啟保留。
+### ✅ 4.1 Dashboard 卡片自訂 — 已完成（commit 17b7a301）
+- uiPreferences `dashboardHiddenCards`（持久化）；總覽 header「版面」popover 勾選顯示/隱藏 10 張卡片；淨值 hero + KPI 為核心恆顯示。
+- 每張卡 `cardVisible(key)` 把關，疊在既有資料條件上（無資料仍自動隱藏）。瀏覽器實測隱藏/還原/持久化正常。
+- **未做**：卡片順序拖拉、匯率卡併入狀態列（先用隱藏取代）。
 
-### 4.2 帳戶自訂圖示與銀行 Logo
-- **Problem**: 帳戶只能選 Phosphor 圖示 + 顏色，多帳戶（同銀行多卡）辨識度低。
-- **Action**:
-  - 第一階段（低成本）：沿用 `AssetLogo` 的模式做 `BankLogo` ——內建台灣常見銀行/券商的 domain 對照表（玉山 esunbank.com.tw、國泰 cathaybk.com.tw…），用 favicon 服務（`google.com/s2/favicons` 或 logo.dev）抓圖，失敗退回現有圖示；與 AssetLogo 同樣**預設關閉**、設定頁開啟（隱私一致性）。
-  - 第二階段：自訂圖片上傳（裁切成 64×64，存 SQLite blob，隨同步走；單檔 < 50KB）。
-- **驗收**: IconPicker 增加「銀行」分頁可搜尋；離線時優雅退回字母/圖示標記。
+### ✅ 4.2 帳戶銀行 Logo — 階段一完成（commit d2677d83）
+- `domain/bankBrands` 台灣銀行/券商/電子支付關鍵字→網域對照；`BankLogo` opt-in（預設關）抓 logo.clearbit.com，失敗/無對應/關閉退回 Glyph；設定頁開關（隱私說明）。
+- 瀏覽器實測 6 個 demo 帳戶全部正確解析品牌、opt-in 才發請求、沙箱無外網→優雅退回。
+- **階段二未做**：自訂圖片上傳（SQLite blob、隨同步）。
 
 ### 4.3 按鈕位置與資訊架構審視
 - **Problem**: 部分操作位置依開發順序長出來，需以使用者動線重審。已知候選：
