@@ -120,10 +120,13 @@
 - **Action**: 配置區新增「幣別曝險」卡：各幣別資產佔比（含現金帳戶）、本月匯率變動對淨值的貢獻估算。
 - **驗收**: 佔比加總 100%；單一幣別使用者不顯示。
 
-### 3.5 持倉線圖買賣標記
-- **Problem**: 價格圖（`HoldingDetailRoute.tsx`）看不到自己的買賣時點，無法檢視「買在哪、賣在哪」。
-- **Action**: 在 AreaChart 疊 `ReferenceDot`：買進綠色 ▲、賣出紅色 ▼（股利可選小圓點），tooltip 顯示日期/股數/價格；卡片角落 toggle 開關（記住偏好，存 uiPreferences）。
-- **驗收**: 標記落點與交易日期對齊；範圍切換後仍正確；toggle 關閉即隱藏。
+### ✅ 3.5 持倉線圖買賣標記 — 已完成（commit 4aaa8bdb）
+- `HoldingDetailRoute` 價格圖疊 `ReferenceDot`：買進綠 ▲、賣出紅 ▼，落在交易價×日期（交易日 snap 到最近繪圖日避免非交易日消失）。
+- 圖下「顯示買賣標記」勾選 + 圖例；偏好存 `uiPreferences.showTradeMarkers`（預設開、跨重啟保留）。瀏覽器實測 2330.TW 3 個標記座標正確、toggle 隱藏與持久化正常。
+- 順手修掉既有 Rules-of-Hooks 違規（metrics/xirr 在 `if (!asset)` 守衛後 → 移到守衛前）。
+
+### ✅ 附帶：demo 補種每日股價與匯率（commit 09bb6c40）
+- demo 先前 `dailyPrices: []`，分析功能全靠線上回補；改以錨點插值（通過交易價）+ 確定性雜訊合成 4 檔約 380 天日價 + FX，分析套件可離線完整展示與驗證。
 
 ---
 
