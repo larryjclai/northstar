@@ -1,5 +1,6 @@
-import type { DailyPrice, ManualPriceSnapshot } from "./types";
+import type { DailyPrice, InvestmentRecord, ManualPriceSnapshot } from "./types";
 import { buildQuoteLookup, findQuoteForTicker, quoteLookupKeys } from "./marketSymbols";
+import { buildQuantityTimeline } from "./portfolioMetrics";
 
 /**
  * Portfolio analytics engine — risk metrics and time-series used by the
@@ -444,6 +445,178 @@ export function buildPortfolioValueSeries(opts: {
     series,
     excludedTickers: [...new Set(basket.excluded.map((p) => p.ticker))],
     coverageStart: basket.coverageStart,
+  };
+}
+
+// ─── True time-weighted return (TWR) ─────────────────────────────────────────
+
+export interface PortfolioTwr {
+  /** Cumulative TWR (%) over the window, or null when too few observations. */
+  twrPct: number | null;
+  /** Cumulative TWR index as a return % per date, for charting / benchmark overlay. */
+  series: Array<{ date: string; pct: number }>;
+  /** Daily return observations actually chained (where prior value > 0). */
+  observations: number;
+  /** Held tickers with no usable price history in the window (disclosed). */
+  excludedTickers: string[];
+}
+
+/**
+ * True time-weighted return of the current holdings, using their **historical**
+ * share counts (not the fixed basket). TWR removes the effect of when capital
+ * was added or withdrawn, so it measures investing skill rather than cash-flow
+ * timing — the opposite question from XIRR (money-weighted), and shown beside it.
+ *
+ * Method — daily-valuation TWR with income:
+ *   r_t = (V_t − V_{t−1} − contribution_t + income_t) / V_{t−1},  TWR = Π(1+r_t) − 1
+ * where V is the securities value (Σ historical shares × close, in primary),
+ * contributions are buys (+) / sells & cash capital-reductions (−), and income
+ * is cash dividends (added back so total return includes them). A buy raises V
+ * and contribution together, so it nets to ~0 return that day — that is the
+ * cash-flow neutrality TWR is prized for.
+ *
+ * Scope (v1): the currently-held basket's transaction history. Fully-exited
+ * positions are out of scope (no current ticker/currency to value); held
+ * tickers with no price history are excluded and disclosed. Gated on
+ * {@link MIN_ANALYTICS_DAYS} like every other annualizable metric.
+ */
+export function buildPortfolioTwr(opts: {
+  positions: AnalyticsPosition[];
+  records: InvestmentRecord[];
+  dailyPrices: DailyPrice[];
+  toPrimary: (value: number, currency: string, asOf?: string) => number;
+  start: string;
+  end: string;
+}): PortfolioTwr {
+  const { positions, records, dailyPrices, toPrimary } = opts;
+  const start = day(opts.start);
+  const end = day(opts.end);
+
+  const posById = new Map(positions.map((p) => [p.assetId, p]));
+  const assetIds = new Set(posById.keys());
+  const heldTickers = new Set(positions.map((p) => p.ticker.toUpperCase()));
+
+  // Per-ticker close series (≤ end so the opening date can be valued from a
+  // prior close), sorted ascending.
+  const closesByTicker = new Map<string, Array<{ date: string; price: number }>>();
+  for (const p of dailyPrices) {
+    const t = p.ticker.toUpperCase();
+    if (!heldTickers.has(t) || day(p.date) > end) continue;
+    let arr = closesByTicker.get(t);
+    if (!arr) { arr = []; closesByTicker.set(t, arr); }
+    arr.push({ date: day(p.date), price: p.close });
+  }
+  for (const arr of closesByTicker.values()) arr.sort((a, b) => a.date.localeCompare(b.date));
+
+  // Per-asset cumulative share step function from the canonical quantity timeline.
+  const sharesByAsset = new Map<string, Array<{ date: string; qty: number }>>();
+  for (const id of assetIds) {
+    let cum = 0;
+    const steps = buildQuantityTimeline(records.filter((r) => r.assetId === id)).map((d) => {
+      cum += d.delta;
+      return { date: d.date, qty: cum };
+    });
+    sharesByAsset.set(id, steps);
+  }
+  const sharesAt = (assetId: string, d: string): number => {
+    const steps = sharesByAsset.get(assetId);
+    if (!steps) return 0;
+    let q = 0;
+    for (const s of steps) { if (s.date <= d) q = s.qty; else break; }
+    return q;
+  };
+  const closeOnOrBefore = (ticker: string, d: string): number | null => {
+    const arr = closesByTicker.get(ticker);
+    if (!arr) return null;
+    const hit = latestOnOrBefore(arr, d);
+    return hit ? hit.price : null;
+  };
+
+  const excludedTickers = [...heldTickers].filter((t) => !closesByTicker.has(t));
+
+  // Valuation grid: in-window trading dates across held tickers.
+  const gridSet = new Set<string>();
+  for (const arr of closesByTicker.values()) {
+    for (const c of arr) if (c.date >= start && c.date <= end) gridSet.add(c.date);
+  }
+  const grid = [...gridSet].sort();
+  if (grid.length < 2) return { twrPct: null, series: [], observations: 0, excludedTickers };
+
+  const valueOn = (d: string): number => {
+    let v = 0;
+    for (const p of positions) {
+      const qty = sharesAt(p.assetId, d);
+      if (Math.abs(qty) < EPS) continue;
+      const close = closeOnOrBefore(p.ticker.toUpperCase(), d);
+      if (close == null) continue;
+      v += toPrimary(close * qty, p.currency, d);
+    }
+    return v;
+  };
+
+  // First grid date a ticker is priced at — contributions are aligned here so a
+  // buy whose price history starts mid-window doesn't fake a loss-then-jump.
+  const firstPricedGrid = (ticker: string): string | null => {
+    for (const g of grid) if (closeOnOrBefore(ticker, g) != null) return g;
+    return null;
+  };
+  const gridOnOrAfter = (d: string): string | null => {
+    for (const g of grid) if (g >= d) return g;
+    return null;
+  };
+
+  // Contributions (buy +, sell/cash-reduction −) and income (cash dividends),
+  // bucketed to the first in-window grid date ≥ the record date, advanced to
+  // where the ticker is actually priced.
+  const contribByDate = new Map<string, number>();
+  const incomeByDate = new Map<string, number>();
+  for (const r of records) {
+    if (!assetIds.has(r.assetId) || r.deletedAt !== null) continue;
+    const rd = day(r.date);
+    // Pre-window flows are already baked into the opening value; skip them.
+    if (rd < start || rd > end) continue;
+    const pos = posById.get(r.assetId)!;
+    const t = pos.ticker.toUpperCase();
+    let bucket = gridOnOrAfter(rd);
+    const priced = firstPricedGrid(t);
+    if (bucket && priced && priced > bucket) bucket = priced;
+    if (!bucket) continue;
+    if (r.action === "buy") {
+      contribByDate.set(bucket, (contribByDate.get(bucket) ?? 0) + toPrimary(r.price * r.quantity + r.fee, pos.currency, rd));
+    } else if (r.action === "sell") {
+      contribByDate.set(bucket, (contribByDate.get(bucket) ?? 0) - toPrimary(r.price * r.quantity - r.fee, pos.currency, rd));
+    } else if (r.action === "capitalReduction" && r.price > 0) {
+      contribByDate.set(bucket, (contribByDate.get(bucket) ?? 0) - toPrimary(r.price * r.quantity, pos.currency, rd));
+    } else if (r.action === "cashDividend") {
+      const total = r.quantity > 0 ? r.price * r.quantity : r.price;
+      incomeByDate.set(bucket, (incomeByDate.get(bucket) ?? 0) + toPrimary(total - r.fee, pos.currency, rd));
+    }
+  }
+
+  // Chain daily factors where the prior value is positive; a zero prior value
+  // (fresh capital entering an empty portfolio) starts a new sub-period without
+  // attributing a return.
+  const series: Array<{ date: string; pct: number }> = [{ date: grid[0], pct: 0 }];
+  let index = 1;
+  let observations = 0;
+  let prevV = valueOn(grid[0]);
+  for (let i = 1; i < grid.length; i += 1) {
+    const d = grid[i];
+    const v = valueOn(d);
+    if (prevV > EPS) {
+      const r = (v - prevV - (contribByDate.get(d) ?? 0) + (incomeByDate.get(d) ?? 0)) / prevV;
+      index *= 1 + r;
+      observations += 1;
+    }
+    series.push({ date: d, pct: (index - 1) * 100 });
+    prevV = v;
+  }
+
+  return {
+    twrPct: observations >= MIN_ANALYTICS_DAYS ? (index - 1) * 100 : null,
+    series,
+    observations,
+    excludedTickers,
   };
 }
 
