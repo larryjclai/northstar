@@ -8,6 +8,7 @@ import { Card } from "../components/coss/card";
 import { AppSelect } from "../components/AppSelect";
 import { IconPicker } from "../components/IconPicker";
 import { Glyph, DEFAULT_ACCOUNT_ICON } from "../lib/icons";
+import { BankLogo } from "../components/BankLogo";
 import { downloadCsv, exportAccountsCsv } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { getFinanceRepository } from "../data/repositories";
@@ -308,8 +309,9 @@ export function AccountsRoute() {
                   <div key={a.id}>
                   {showSubgroup ? <div className="ns-eyebrow" style={{ padding: "10px 22px 4px", borderTop: i ? "1px solid var(--ns-border)" : "none" }}>{subgroup}</div> : null}
                   <div className="ns-acct-row" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 14, rowGap: 10, padding: "12px 18px", borderTop: !showSubgroup && i ? "1px solid var(--ns-border)" : "none" }}>
-                    <div style={{ width: 36, height: 36, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: a.color || MARK_COLORS[i % MARK_COLORS.length], color: "var(--ns-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600 }}>
+                    <div style={{ position: "relative", width: 36, height: 36, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: a.color || MARK_COLORS[i % MARK_COLORS.length], color: "var(--ns-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, overflow: "hidden" }}>
                       <Glyph name={a.iconName || DEFAULT_ACCOUNT_ICON[a.type]} size={20} color="var(--ns-bg)" fallbackText={a.name.slice(0, 2)} />
+                      <BankLogo accountName={a.name} size={36} />
                     </div>
                     <div
                       style={{ minWidth: 0, maxWidth: 280, flexShrink: 1, cursor: "pointer" }}

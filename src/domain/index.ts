@@ -4,6 +4,7 @@ export * from "./installments";
 export * from "./sectorLabels";
 export * from "./dividendAnalysis";
 export * from "./currencyExposure";
+export * from "./bankBrands";
 export * from "./assetName";
 export * from "./creditCardStatements";
 export * from "./currency";
