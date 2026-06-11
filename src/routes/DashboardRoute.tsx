@@ -514,8 +514,8 @@ export function DashboardRoute() {
             worth card (the period segmented control), matching the prototype. */}
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
           <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} style={{ maxWidth: "none" }} />
-          <Button variant="outline" className="h-9 shrink-0 sm:h-9" onClick={refreshMarket} loading={refreshingMarket} disabled={refreshingMarket || (assetRows.length === 0 && (appSettings?.exchangeRates?.length ?? 0) === 0)}>
-            <ArrowsClockwise size={14} />{refreshingMarket ? "更新中" : "更新"}
+          <Button variant="outline" className="h-9 shrink-0 sm:h-9" onClick={refreshMarket} loading={refreshingMarket} disabled={refreshingMarket || (assetRows.length === 0 && (appSettings?.exchangeRates?.length ?? 0) === 0)} title="更新持倉報價、匯率與每日歷史股價">
+            <ArrowsClockwise size={14} />{refreshingMarket ? "更新中" : "更新行情"}
           </Button>
           {hasAnyData ? (
             <Popover>

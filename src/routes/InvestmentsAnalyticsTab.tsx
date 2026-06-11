@@ -1,4 +1,4 @@
-import { ChartLineUp, Info } from "@phosphor-icons/react";
+import { ArrowsClockwise, ChartLineUp, Info } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Area,
@@ -444,7 +444,14 @@ export function InvestmentsAnalyticsTab({
           <div className="ns-eyebrow" style={{ marginBottom: 4 }}>績效</div>
           <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>期間總覽</h3>
         </div>
-        <SegmentedControl value={period} onChange={setPeriod} options={periodOptions} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {/* Always-available backfill — the Dashboard's 前往回補 link lands here,
+              so the entry point can't live only in the empty state. */}
+          <Button variant="outline" size="sm" onClick={() => onBackfillHoldings("1y")} loading={backfilling} disabled={backfilling} title="抓取所有持倉近 1 年的每日歷史股價">
+            <ArrowsClockwise size={13} />{backfilling ? "回補中…" : "回補歷史股價"}
+          </Button>
+          <SegmentedControl value={period} onChange={setPeriod} options={periodOptions} />
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <SummaryMetricCard
