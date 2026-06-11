@@ -26,6 +26,7 @@ import {
   buildBenchmarkSeries,
   buildPortfolioTwr,
   buildPortfolioValueSeries,
+  buildCurrencyExposure,
   buildDividendAnalysis,
   buildPositionMetrics,
   buildReturnAttribution,
@@ -391,6 +392,15 @@ export function InvestmentsAnalyticsTab({
     const largestClass = rows[0] ?? null;
     const topHoldingPct = largestHolding && total > 0 ? (largestHolding.value / total) * 100 : null;
     return { rows, total, largestClass, largestHolding, topHoldingPct };
+  }, [positions, dailyPrices, manualSnapshots, toPrimary, end]);
+
+  // ── 幣別曝險 (current holdings, grouped by asset currency) ─────────────────
+  const currencyExposure = useMemo(() => {
+    const entries = positions.map((p) => ({
+      currency: p.currency,
+      value: latestPositionValue(p, dailyPrices, manualSnapshots, toPrimary, end),
+    }));
+    return buildCurrencyExposure(entries);
   }, [positions, dailyPrices, manualSnapshots, toPrimary, end]);
 
   // ── 股利分析 (all-time; yield uses current market value) ───────────────────
@@ -777,6 +787,33 @@ export function InvestmentsAnalyticsTab({
         </CossCard>
         <AllocationSummaryCard summary={allocationSummary} primaryCurrency={primaryCurrency} />
       </div>
+
+      {/* 幣別曝險 — only meaningful when holdings span more than one currency */}
+      {currencyExposure.currencyCount >= 2 ? (
+        <CossCard style={{ padding: 22 }}>
+          <div style={{ marginBottom: 14 }}>
+            <div className="ns-eyebrow" style={{ marginBottom: 4 }}>幣別曝險</div>
+            <HeadingWithHelp
+              title="持倉的幣別分布"
+              help="目前持倉依計價幣別的市值佔比（已換算成主幣比較）。海外持倉的佔比同時代表你承擔的匯率風險。僅計投資持倉，不含現金帳戶。"
+            />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {currencyExposure.items.map((it, i) => (
+              <div key={it.currency} style={{ display: "grid", gridTemplateColumns: "64px 1fr 150px", gap: 12, alignItems: "center" }}>
+                <span className="mono" style={{ fontSize: 12.5 }}>{it.currency}</span>
+                <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
+                  <div style={{ width: `${it.pct}%`, height: "100%", background: CHART_COLORS[i % CHART_COLORS.length], borderRadius: 99 }} />
+                </div>
+                <div style={{ textAlign: "right", fontSize: 12.5, display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                  <span className="num muted">{formatMoney(it.value, primaryCurrency)}</span>
+                  <span className="num" style={{ minWidth: 46, textAlign: "right" }}>{it.pct.toFixed(1)}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CossCard>
+      ) : null}
     </div>
   );
 }

@@ -52,6 +52,7 @@ const ACCOUNTS: AccountBlueprint[] = [
   { name: "街口支付", type: "cash", openingBalance: 3_800, currency: "TWD", iconName: "DeviceMobile" },
   { name: "玉山 Pi 拍錢包卡", type: "credit", openingBalance: 0, currency: "TWD", iconName: "CreditCard", creditLimit: 150_000, statementDay: 5, paymentDueDay: 23 },
   { name: "凱基證券", type: "investment", openingBalance: 210_000, currency: "TWD", iconName: "ChartLineUp" },
+  { name: "Firstrade", type: "investment", openingBalance: 3_000, currency: "USD", iconName: "ChartLineUp" },
 ];
 
 // ── Ledger blueprints (account referenced by name, resolved after creation) ──
@@ -137,6 +138,9 @@ interface InvestmentBlueprint {
   quantity: number;
   fee: number;
   assetType: "etf" | "equity";
+  /** Defaults to TWD / 凱基證券. A USD holding sits in the Firstrade account. */
+  currency?: string;
+  account?: string;
 }
 
 const INVESTMENTS: InvestmentBlueprint[] = [
@@ -147,6 +151,8 @@ const INVESTMENTS: InvestmentBlueprint[] = [
   { daysAgo: 20, ticker: "0050.TW", name: "元大台灣50", action: "buy", price: 181, quantity: 100, fee: 26, assetType: "etf" },
   { daysAgo: 14, ticker: "2330.TW", name: "台積電", action: "buy", price: 1_075, quantity: 20, fee: 31, assetType: "equity" },
   { daysAgo: 5, ticker: "2330.TW", name: "台積電", action: "sell", price: 1_120, quantity: 10, fee: 16, assetType: "equity" },
+  // A US holding → gives the portfolio real USD currency exposure.
+  { daysAgo: 45, ticker: "VOO", name: "Vanguard S&P 500 ETF", action: "buy", price: 480, quantity: 5, fee: 0, assetType: "etf", currency: "USD", account: "Firstrade" },
 ];
 
 // Cash dividends so the 股利分析 (dividend) view has data. Total-amount form:
@@ -162,11 +168,12 @@ const DIVIDENDS: DividendBlueprint[] = [
 ];
 
 // Current market prices so holdings show live value & unrealized P/L.
-const QUOTES: Array<{ symbol: string; nameZh: string; price: number; changePercent: number }> = [
+const QUOTES: Array<{ symbol: string; nameZh: string; price: number; changePercent: number; currency?: string }> = [
   { symbol: "2330.TW", nameZh: "台積電", price: 1_140, changePercent: 0.86 },
   { symbol: "0050.TW", nameZh: "元大台灣50", price: 189.5, changePercent: 0.45 },
   { symbol: "2412.TW", nameZh: "中華電", price: 131.5, changePercent: -0.19 },
   { symbol: "00878.TW", nameZh: "國泰永續高股息", price: 23.6, changePercent: 0.21 },
+  { symbol: "VOO", nameZh: "Vanguard S&P 500 ETF", price: 540, changePercent: 0.32, currency: "USD" },
 ];
 
 // ── Synthetic daily price / FX history ──────────────────────────────────────
@@ -202,13 +209,14 @@ function interpAnchors(anchors: Array<[daysAgo: number, price: number]>, daysAgo
   return sorted[sorted.length - 1][1];
 }
 
-/** Anchors per ticker: [daysAgo, price]. Includes buy/sell dates so the daily
- *  series threads the transaction prices and ends at today's quote. */
-const PRICE_ANCHORS: Record<string, Array<[number, number]>> = {
-  "2330.TW": [[380, 820], [180, 910], [64, 980], [14, 1_075], [5, 1_120], [0, 1_140]],
-  "0050.TW": [[380, 148], [180, 160], [58, 168], [20, 181], [0, 189.5]],
-  "2412.TW": [[380, 116], [180, 120], [50, 124], [0, 131.5]],
-  "00878.TW": [[380, 19.4], [180, 20.6], [40, 21.8], [0, 23.6]],
+/** Anchors per ticker: currency + [daysAgo, price]. Includes buy/sell dates so
+ *  the daily series threads the transaction prices and ends at today's quote. */
+const PRICE_ANCHORS: Record<string, { currency: string; anchors: Array<[number, number]> }> = {
+  "2330.TW": { currency: "TWD", anchors: [[380, 820], [180, 910], [64, 980], [14, 1_075], [5, 1_120], [0, 1_140]] },
+  "0050.TW": { currency: "TWD", anchors: [[380, 148], [180, 160], [58, 168], [20, 181], [0, 189.5]] },
+  "2412.TW": { currency: "TWD", anchors: [[380, 116], [180, 120], [50, 124], [0, 131.5]] },
+  "00878.TW": { currency: "TWD", anchors: [[380, 19.4], [180, 20.6], [40, 21.8], [0, 23.6]] },
+  "VOO": { currency: "USD", anchors: [[380, 430], [180, 455], [45, 480], [0, 540]] },
 };
 
 const PRICE_HISTORY_DAYS = 380;
@@ -216,7 +224,7 @@ const PRICE_HISTORY_DAYS = 380;
 function buildDemoDailyPrices(): DailyPrice[] {
   const now = new Date();
   const rows: DailyPrice[] = [];
-  for (const [ticker, anchors] of Object.entries(PRICE_ANCHORS)) {
+  for (const [ticker, { currency, anchors }] of Object.entries(PRICE_ANCHORS)) {
     const amplitude = anchors[0][1] * 0.006; // ~0.6% daily wobble, scaled to price
     for (let daysAgo = PRICE_HISTORY_DAYS; daysAgo >= 0; daysAgo -= 1) {
       const d = new Date(now);
@@ -226,7 +234,7 @@ function buildDemoDailyPrices(): DailyPrice[] {
       const onAnchor = anchors.some(([ad]) => ad === daysAgo);
       const close = onAnchor ? base : Math.max(0.01, base + amplitude * wobble(ticker, daysAgo));
       const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-      rows.push({ ticker, date, close: +close.toFixed(2), currency: "TWD", source: "demo", updatedAt: `${date}T13:30:00.000Z` });
+      rows.push({ ticker, date, close: +close.toFixed(2), currency, source: "demo", updatedAt: `${date}T13:30:00.000Z` });
     }
   }
   return rows;
@@ -307,13 +315,13 @@ export async function loadDemoData(repo: FinanceRepository): Promise<void> {
   }));
   await repo.importLedgerTransactions(ledgerRows);
 
-  // 3. Investments (linked to the brokerage account)
+  // 3. Investments (TWD holdings in 凱基證券; USD holdings in Firstrade)
   const brokerageId = idFor("凱基證券");
   const investmentRows: InvestmentDraft[] = INVESTMENTS.map((r) => ({
     ticker: r.ticker,
     name: r.name,
-    currency: "TWD",
-    linkedAccountId: brokerageId,
+    currency: r.currency ?? "TWD",
+    linkedAccountId: r.account ? idFor(r.account) : brokerageId,
     date: dtLocal(r.daysAgo, 10, 30),
     action: r.action,
     price: r.price,
@@ -344,7 +352,7 @@ export async function loadDemoData(repo: FinanceRepository): Promise<void> {
       name: q.nameZh,
       nameZh: q.nameZh,
       nameEn: null,
-      currency: "TWD",
+      currency: q.currency ?? "TWD",
       price: q.price,
       change: +(q.price * q.changePercent / 100).toFixed(2),
       changePercent: q.changePercent,
