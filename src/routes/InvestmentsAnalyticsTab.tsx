@@ -27,6 +27,7 @@ import {
   buildPortfolioTwr,
   buildPortfolioValueSeries,
   buildPositionMetrics,
+  buildReturnAttribution,
   calculateXirr,
   cashflowSpanDays,
   cumulativeReturnPct,
@@ -314,6 +315,12 @@ export function InvestmentsAnalyticsTab({
     return { xirr, gated: false };
   }, [positions, records, dailyPrices, manualSnapshots, toPrimary, end]);
 
+  /** 報酬貢獻：各持倉在此期間貢獻的損益（fixed-basket，加總＝期間市值變化）。 */
+  const attribution = useMemo(() => {
+    const start = periodStart(period, end);
+    return buildReturnAttribution({ positions, dailyPrices, manualSnapshots, toPrimary, start, end });
+  }, [positions, dailyPrices, manualSnapshots, toPrimary, period, end]);
+
   // ── Portfolio vs Benchmark (cumulative return, aligned dates) ──────────────
   const perf = useMemo(() => {
     const start = periodStart(period, end);
@@ -497,6 +504,59 @@ export function InvestmentsAnalyticsTab({
           </div>
         ) : null}
       </CossCard>
+
+      {/* ── 報酬貢獻 (attribution) ── */}
+      {attribution.items.length > 0 ? (
+        <CossCard style={{ padding: 22 }}>
+          <div style={{ marginBottom: 14 }}>
+            <div className="ns-eyebrow" style={{ marginBottom: 4 }}>報酬貢獻</div>
+            <HeadingWithHelp
+              title="哪些持倉驅動了報酬"
+              help="各持倉在此期間貢獻的損益（以目前持股 × 期間價格變化計算），加總等於上方的期間市值變化。正數綠色、負數紅色。"
+            />
+          </div>
+          {(() => {
+            const TOP = 6;
+            const shown = attribution.items.slice(0, TOP);
+            const rest = attribution.items.slice(TOP);
+            const restSum = rest.reduce((s, it) => s + it.contribution, 0);
+            const rows = [...shown.map((it) => ({ label: it.ticker, contribution: it.contribution, pct: it.pct }))];
+            if (rest.length > 0) rows.push({ label: `其他 ${rest.length} 檔`, contribution: restSum, pct: Math.abs(attribution.total) > 0 ? (restSum / attribution.total) * 100 : 0 });
+            const maxAbs = Math.max(...rows.map((r) => Math.abs(r.contribution)), 1);
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {rows.map((r) => {
+                  const up = r.contribution >= 0;
+                  const color = up ? "var(--ns-gain)" : "var(--ns-loss)";
+                  return (
+                    <div key={r.label} style={{ display: "grid", gridTemplateColumns: "96px 1fr 150px", gap: 12, alignItems: "center" }}>
+                      <span className="mono" style={{ fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.label}</span>
+                      <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
+                        <div style={{ width: `${(Math.abs(r.contribution) / maxAbs) * 100}%`, height: "100%", background: color, borderRadius: 99 }} />
+                      </div>
+                      <div style={{ textAlign: "right", fontSize: 12.5, display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                        <span className="num" style={{ color }}>{up ? "+" : "−"}{formatMoney(Math.abs(r.contribution), primaryCurrency)}</span>
+                        <span className="num muted" style={{ minWidth: 48, textAlign: "right" }}>{r.pct >= 0 ? "+" : "−"}{Math.abs(r.pct).toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div style={{ marginTop: 6, paddingTop: 10, borderTop: "1px solid var(--ns-border)", display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
+                  <span className="muted">期間合計</span>
+                  <span className="num" style={{ color: attribution.total >= 0 ? "var(--ns-gain)" : "var(--ns-loss)", fontWeight: 600 }}>
+                    {attribution.total >= 0 ? "+" : "−"}{formatMoney(Math.abs(attribution.total), primaryCurrency)}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+          {attribution.excludedTickers.length > 0 ? (
+            <div className="muted" style={{ fontSize: 11, marginTop: 8, lineHeight: 1.5 }}>
+              部分標的歷史股價不足，未納入貢獻分析：{attribution.excludedTickers.join("、")}。
+            </div>
+          ) : null}
+        </CossCard>
+      ) : null}
 
       {/* ── Portfolio vs Benchmark ── */}
       <CossCard style={{ padding: 22 }}>

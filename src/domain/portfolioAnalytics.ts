@@ -448,6 +448,63 @@ export function buildPortfolioValueSeries(opts: {
   };
 }
 
+// ─── Return attribution ──────────────────────────────────────────────────────
+
+export interface AttributionItem {
+  assetId: string;
+  ticker: string;
+  /** Period gain/loss this holding contributed (primary currency). */
+  contribution: number;
+  /** Share of the total period gain (%). Signed; sums to ~100 when total ≠ 0. */
+  pct: number;
+}
+
+export interface ReturnAttribution {
+  items: AttributionItem[];
+  /** Total period gain across all priced positions = Σ contributions. */
+  total: number;
+  excludedTickers: string[];
+}
+
+/**
+ * Per-holding contribution to the portfolio's period gain, on the same
+ * fixed-basket valuation as {@link buildPortfolioValueSeries} — so the
+ * contributions sum exactly to the basket's period value change (and match the
+ * "期間市值變化" figure). Answers "which holdings drove the result?".
+ *
+ * Contribution = current shares × (price_end − price_start) in primary,
+ * isolating price movement from contributions just like the rest of the engine.
+ * Sorted by absolute contribution (biggest movers first).
+ */
+export function buildReturnAttribution(opts: {
+  positions: AnalyticsPosition[];
+  dailyPrices: DailyPrice[];
+  manualSnapshots: ManualPriceSnapshot[];
+  toPrimary: (value: number, currency: string, asOf?: string) => number;
+  start: string;
+  end: string;
+}): ReturnAttribution {
+  const basket = priceBasket(opts);
+  const lastIdx = basket.dates.length - 1;
+  const items: AttributionItem[] = [];
+  let total = 0;
+  if (lastIdx >= 1) {
+    basket.positions.forEach((pos, i) => {
+      const row = basket.positionValues[i];
+      const contribution = row[lastIdx] - row[0];
+      total += contribution;
+      items.push({ assetId: pos.assetId, ticker: pos.ticker, contribution, pct: 0 });
+    });
+  }
+  for (const item of items) item.pct = Math.abs(total) > EPS ? (item.contribution / total) * 100 : 0;
+  items.sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+  return {
+    items,
+    total,
+    excludedTickers: [...new Set(basket.excluded.map((p) => p.ticker))],
+  };
+}
+
 // ─── True time-weighted return (TWR) ─────────────────────────────────────────
 
 export interface PortfolioTwr {
