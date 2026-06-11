@@ -24,7 +24,11 @@ import {
   allocationDriftSeries,
   annualizedVolatilityPct,
   buildBenchmarkSeries,
+  buildPortfolioTwr,
   buildPortfolioValueSeries,
+  buildPositionMetrics,
+  calculateXirr,
+  cashflowSpanDays,
   cumulativeReturnPct,
   dailyReturns,
   DEFAULT_RISK_FREE_RATE,
@@ -35,8 +39,10 @@ import {
   sharpeRatio,
   sortinoRatio,
   toCumulativeReturnSeries,
+  XIRR_MIN_DAYS,
   type AnalyticsPosition,
   type DailyPrice,
+  type InvestmentRecord,
   type ManualPriceSnapshot,
   formatMoney,
 } from "../domain";
@@ -194,6 +200,7 @@ function Sparkline({ data, color, width = 60, height = 26 }: { data: Array<numbe
 
 interface Props {
   positions: AnalyticsPosition[];
+  records: InvestmentRecord[];
   dailyPrices: DailyPrice[];
   manualSnapshots: ManualPriceSnapshot[];
   toPrimary: (value: number, currency: string, asOf?: string) => number;
@@ -208,6 +215,7 @@ interface Props {
 
 export function InvestmentsAnalyticsTab({
   positions,
+  records,
   dailyPrices,
   manualSnapshots,
   toPrimary,
@@ -269,6 +277,42 @@ export function InvestmentsAnalyticsTab({
       ddSpark: underwaterSeries(values),
     };
   }, [core, enough]);
+
+  // ── 三口徑報酬 ─────────────────────────────────────────────────────────────
+  /** 期間 TWR（時間加權報酬）：排除加減碼時機影響，衡量持倉本身表現。 */
+  const twrResult = useMemo(() => {
+    const start = periodStart(period, end);
+    return buildPortfolioTwr({ positions, records, dailyPrices, toPrimary, start, end });
+  }, [positions, records, dailyPrices, toPrimary, period, end]);
+
+  /** 年化 XIRR（金額加權報酬）：全期不受 period 影響，用所有持倉 cashflows。 */
+  const xirrResult = useMemo(() => {
+    // 把所有持倉的 records 依 assetId 分組，合併所有 cashflows。
+    const byAsset = new Map<string, InvestmentRecord[]>();
+    for (const r of records) {
+      if (r.deletedAt !== null) continue;
+      const arr = byAsset.get(r.assetId) ?? [];
+      arr.push(r);
+      byAsset.set(r.assetId, arr);
+    }
+    const allCashflows: Array<{ date: string; amount: number }> = [];
+    for (const recs of byAsset.values()) {
+      const { cashflows } = buildPositionMetrics(recs);
+      allCashflows.push(...cashflows);
+    }
+    if (allCashflows.length === 0) return { xirr: null, gated: true };
+
+    const span = cashflowSpanDays(allCashflows, end);
+    if (span < XIRR_MIN_DAYS) return { xirr: null, gated: true };
+
+    // Terminal value = 目前持倉總市值（最後一點 buildPortfolioValueSeries 全期 value）。
+    const fullSeries = buildPortfolioValueSeries({ positions, dailyPrices, manualSnapshots, toPrimary, start: "1900-01-01", end });
+    const lastValue = fullSeries.series.length > 0 ? fullSeries.series[fullSeries.series.length - 1].value : 0;
+    const terminal = { date: end, amount: lastValue };
+
+    const xirr = calculateXirr(allCashflows, terminal);
+    return { xirr, gated: false };
+  }, [positions, records, dailyPrices, manualSnapshots, toPrimary, end]);
 
   // ── Portfolio vs Benchmark (cumulative return, aligned dates) ──────────────
   const perf = useMemo(() => {
@@ -402,6 +446,57 @@ export function InvestmentsAnalyticsTab({
           help="把期間內每日市值序列轉成累積報酬，會跟上方時間區間一起變動。"
         />
       </div>
+
+      {/* ── 報酬口徑 ── */}
+      <CossCard style={{ padding: 22 }}>
+        <div style={{ marginBottom: 14 }}>
+          <div className="ns-eyebrow" style={{ marginBottom: 4 }}>報酬口徑</div>
+          <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>三種報酬怎麼看</h3>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", overflow: "hidden" }}>
+          {[
+            {
+              label: "期間 TWR",
+              val: twrResult.twrPct,
+              help: "時間加權報酬：衡量持倉本身的表現，不受你加碼/減碼時點影響。",
+            },
+            {
+              label: "年化 XIRR",
+              val: xirrResult.gated ? null : (xirrResult.xirr != null ? xirrResult.xirr * 100 : null),
+              help: "金額加權年化報酬：把資金投入的時點與多寡也算進來，反映你實際的資金成果。",
+            },
+            {
+              label: "期間價格報酬",
+              val: periodSummary.changePct,
+              help: "目前持倉籃子在此期間的價格漲跌，不含加減碼與配息。",
+            },
+          ].map((s, i) => (
+            <div key={s.label} style={{ padding: "12px 16px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)", minWidth: 0 }}>
+              <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                {s.label}
+                <MetricHelp text={s.help} />
+              </div>
+              <div
+                className="num"
+                style={{
+                  fontSize: 22,
+                  fontWeight: 600,
+                  fontFamily: "var(--ns-font-num)",
+                  fontVariantNumeric: "tabular-nums",
+                  color: s.val == null ? "var(--ns-fg)" : s.val >= 0 ? "var(--ns-gain)" : "var(--ns-loss)",
+                }}
+              >
+                {s.val == null ? "—" : `${s.val >= 0 ? "+" : "−"}${Math.abs(s.val).toFixed(1)}%`}
+              </div>
+            </div>
+          ))}
+        </div>
+        {twrResult.excludedTickers && twrResult.excludedTickers.length > 0 ? (
+          <div className="muted" style={{ fontSize: 11, marginTop: 8, lineHeight: 1.5 }}>
+            部分標的歷史股價不足，未納入 TWR 計算：{twrResult.excludedTickers.join("、")}。
+          </div>
+        ) : null}
+      </CossCard>
 
       {/* ── Portfolio vs Benchmark ── */}
       <CossCard style={{ padding: 22 }}>

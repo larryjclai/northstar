@@ -439,6 +439,7 @@ export function InvestmentsRoute() {
       {tab === "analytics" ? (
         <InvestmentsAnalyticsTab
           positions={analyticsPositions}
+          records={recordRows}
           dailyPrices={dailyPriceRows}
           manualSnapshots={manualSnapshotRows}
           toPrimary={toPrimary}

@@ -577,6 +577,10 @@ export function buildPortfolioTwr(opts: {
     if (rd < start || rd > end) continue;
     const pos = posById.get(r.assetId)!;
     const t = pos.ticker.toUpperCase();
+    // Excluded tickers (no daily price history) contribute neither value nor
+    // flows — counting their cash flows without a matching value would blow up
+    // the daily return (a big contribution against a V that never moved).
+    if (!closesByTicker.has(t)) continue;
     let bucket = gridOnOrAfter(rd);
     const priced = firstPricedGrid(t);
     if (bucket && priced && priced > bucket) bucket = priced;

@@ -82,6 +82,27 @@ describe("buildPortfolioTwr", () => {
     expect(twr.twrPct!).toBeCloseTo(5, 6);
   });
 
+  it("ignores flows from unpriced (excluded) tickers so they can't corrupt TWR", () => {
+    // AAA priced & flat → its TWR is 0%. BBB has no price history but real
+    // buys/sells; its flows must not leak into the daily return (the bug that
+    // produced an impossible −109% before the fix).
+    const prices = dailySeries("AAA", "2026-01-01", 35, () => 100);
+    const records = [
+      record({ assetId: "a", date: "2025-12-01", action: "buy", price: 100, quantity: 10 }),
+      record({ assetId: "b", date: "2026-01-10", action: "buy", price: 980, quantity: 50 }), // unpriced ticker
+      record({ assetId: "b", date: "2026-01-20", action: "sell", price: 1100, quantity: 20 }),
+    ];
+    const positions: AnalyticsPosition[] = [
+      { ...position, quantity: 10 },
+      { assetId: "b", ticker: "BBB", quantity: 30, currency: "USD", isManual: false },
+    ];
+    const twr = buildPortfolioTwr({ positions, records, dailyPrices: prices, toPrimary: identity, start: "2026-01-01", end: "2026-02-04" });
+
+    expect(twr.excludedTickers).toContain("BBB");
+    expect(twr.twrPct).not.toBeNull();
+    expect(twr.twrPct!).toBeCloseTo(0, 6); // BBB's flows didn't leak in
+  });
+
   it("gates on too-few observations and discloses unpriced tickers", () => {
     const prices = dailySeries("AAA", "2026-01-01", 5, () => 100); // only 5 days
     const records = [record({ assetId: "a", date: "2025-12-01", action: "buy", price: 100, quantity: 10 })];
