@@ -149,6 +149,18 @@ const INVESTMENTS: InvestmentBlueprint[] = [
   { daysAgo: 5, ticker: "2330.TW", name: "台積電", action: "sell", price: 1_120, quantity: 10, fee: 16, assetType: "equity" },
 ];
 
+// Cash dividends so the 股利分析 (dividend) view has data. Total-amount form:
+// quantity 0, price = net cash received. All dated AFTER each holding's first
+// buy (00878 day-40, 0050 day-58, 2412 day-50) so they're never received
+// before the position existed. 00878 高股息 pays monthly → two recent payouts.
+interface DividendBlueprint { daysAgo: number; ticker: string; name: string; total: number; assetType: "etf" | "equity"; }
+const DIVIDENDS: DividendBlueprint[] = [
+  { daysAgo: 33, ticker: "00878.TW", name: "國泰永續高股息", total: 1_180, assetType: "etf" },
+  { daysAgo: 30, ticker: "0050.TW", name: "元大台灣50", total: 980, assetType: "etf" },
+  { daysAgo: 18, ticker: "2412.TW", name: "中華電", total: 470, assetType: "equity" },
+  { daysAgo: 3, ticker: "00878.TW", name: "國泰永續高股息", total: 1_240, assetType: "etf" },
+];
+
 // Current market prices so holdings show live value & unrealized P/L.
 const QUOTES: Array<{ symbol: string; nameZh: string; price: number; changePercent: number }> = [
   { symbol: "2330.TW", nameZh: "台積電", price: 1_140, changePercent: 0.86 },
@@ -310,7 +322,20 @@ export async function loadDemoData(repo: FinanceRepository): Promise<void> {
     note: "",
     assetType: r.assetType,
   }));
-  await repo.importInvestmentRecords(investmentRows);
+  const dividendRows: InvestmentDraft[] = DIVIDENDS.map((d) => ({
+    ticker: d.ticker,
+    name: d.name,
+    currency: "TWD",
+    linkedAccountId: brokerageId,
+    date: dtLocal(d.daysAgo, 10, 0),
+    action: "cashDividend",
+    price: d.total, // total-amount form (quantity 0)
+    quantity: 0,
+    fee: 0,
+    note: "現金股利",
+    assetType: d.assetType,
+  }));
+  await repo.importInvestmentRecords([...investmentRows, ...dividendRows]);
 
   // 4. Current market quotes
   await repo.saveMarketQuotes(

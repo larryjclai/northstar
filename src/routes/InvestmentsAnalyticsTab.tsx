@@ -26,6 +26,7 @@ import {
   buildBenchmarkSeries,
   buildPortfolioTwr,
   buildPortfolioValueSeries,
+  buildDividendAnalysis,
   buildPositionMetrics,
   buildReturnAttribution,
   calculateXirr,
@@ -392,6 +393,12 @@ export function InvestmentsAnalyticsTab({
     return { rows, total, largestClass, largestHolding, topHoldingPct };
   }, [positions, dailyPrices, manualSnapshots, toPrimary, end]);
 
+  // ── 股利分析 (all-time; yield uses current market value) ───────────────────
+  const dividends = useMemo(() => {
+    const assetMeta = new Map(positions.map((p) => [p.assetId, { ticker: p.ticker, currency: p.currency }]));
+    return buildDividendAnalysis({ records, assetMeta, toPrimary, currentMarketValue: allocationSummary.total, asOf: end });
+  }, [records, positions, toPrimary, allocationSummary.total, end]);
+
   // ── Whole-tab gating ───────────────────────────────────────────────────────
   if (positions.length === 0) {
     return (
@@ -632,6 +639,70 @@ export function InvestmentsAnalyticsTab({
           </div>
         ) : null}
       </CossCard>
+
+      {/* ── 股利分析 ── */}
+      {dividends.total > 0 ? (
+        <>
+          <AnalyticsSectionHeading title="股利" description="現金股利的年度與個股分布，以及以目前市值計算的近一年殖利率。" />
+          <CossCard style={{ padding: 22 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", overflow: "hidden", marginBottom: 16 }}>
+              {[
+                { label: "近一年股利 (TTM)", value: formatMoney(dividends.ttmTotal, primaryCurrency), help: "近 365 天收到的現金股利合計。" },
+                { label: "近一年殖利率", value: dividends.yieldPct == null ? "—" : `${dividends.yieldPct.toFixed(2)}%`, help: "近一年股利 ÷ 目前持倉市值。" },
+                { label: "累計股利", value: formatMoney(dividends.total, primaryCurrency), help: "有紀錄以來的現金股利合計（淨額）。" },
+              ].map((s, i) => (
+                <div key={s.label} style={{ padding: "12px 16px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)", minWidth: 0 }}>
+                  <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>{s.label}<MetricHelp text={s.help} /></div>
+                  <div className="num" style={{ fontSize: 20, fontWeight: 600, fontFamily: "var(--ns-font-num)", color: "var(--ns-gain)", fontVariantNumeric: "tabular-nums" }}>{s.value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              {/* Annual dividends */}
+              <div>
+                <div className="ns-eyebrow" style={{ marginBottom: 10 }}>年度股利</div>
+                {(() => {
+                  const max = Math.max(...dividends.byYear.map((y) => y.total), 1);
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                      {dividends.byYear.map((y) => (
+                        <div key={y.year} style={{ display: "grid", gridTemplateColumns: "48px 1fr 110px", gap: 10, alignItems: "center" }}>
+                          <span className="mono muted" style={{ fontSize: 12.5 }}>{y.year}</span>
+                          <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
+                            <div style={{ width: `${(y.total / max) * 100}%`, height: "100%", background: "var(--ns-gain)", borderRadius: 99 }} />
+                          </div>
+                          <span className="num" style={{ textAlign: "right", fontSize: 12.5 }}>{formatMoney(y.total, primaryCurrency)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+              {/* Per-holding dividends */}
+              <div>
+                <div className="ns-eyebrow" style={{ marginBottom: 10 }}>個股股利貢獻</div>
+                {(() => {
+                  const max = Math.max(...dividends.byHolding.map((h) => h.total), 1);
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                      {dividends.byHolding.slice(0, 6).map((h) => (
+                        <div key={h.assetId} style={{ display: "grid", gridTemplateColumns: "96px 1fr 110px", gap: 10, alignItems: "center" }}>
+                          <span className="mono" style={{ fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.ticker}</span>
+                          <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
+                            <div style={{ width: `${(h.total / max) * 100}%`, height: "100%", background: "var(--ns-chart-3)", borderRadius: 99 }} />
+                          </div>
+                          <span className="num" style={{ textAlign: "right", fontSize: 12.5 }}>{formatMoney(h.total, primaryCurrency)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </CossCard>
+        </>
+      ) : null}
 
       <AnalyticsSectionHeading title="風險" description="這些指標用來看波動、下跌壓力，以及報酬是否足以補償承擔的風險。" />
 
