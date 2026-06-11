@@ -459,6 +459,13 @@ export function DashboardRoute() {
             </div>
           ) : null}
         </div>
+      ) : hasAnyData ? (
+        // All green → collapse to one quiet line so the feature stays
+        // discoverable instead of vanishing entirely.
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-pos-soft, var(--ns-bg-hover))", border: "1px solid var(--ns-border)", marginBottom: 14, fontSize: 12.5, color: "var(--ns-fg-muted)" }}>
+          <span style={{ width: 7, height: 7, borderRadius: 99, background: "var(--ns-pos)", flexShrink: 0 }} />
+          資料健康：報價、匯率與帳戶餘額都正常。
+        </div>
       ) : null}
       {/* Over-budget alert */}
       {overBudget.length > 0 ? (

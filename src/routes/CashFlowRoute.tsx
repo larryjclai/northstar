@@ -2135,6 +2135,32 @@ function EntryDrawer({
                 )}
               </div>
 
+              {/* Installment — surfaced in the main body (not buried in 更多選項)
+                  so picking a credit card immediately reveals the option. */}
+              {canInstallment && (
+                <DrawerField label="分期付款（信用卡）">
+                  <input
+                    className="ns-input"
+                    type="number"
+                    min={0}
+                    max={60}
+                    step={1}
+                    placeholder="0"
+                    style={{ fontFamily: "var(--ns-font-mono)" }}
+                    value={installmentPeriods === 0 ? "" : installmentPeriods}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value, 10);
+                      setInstallmentPeriods(Number.isNaN(v) || v < 0 ? 0 : Math.min(60, v));
+                    }}
+                  />
+                  <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
+                    {activeInstallment
+                      ? `總額將平均拆成 ${installmentPeriods} 筆，逐月入帳到對應的帳單週期。`
+                      : "輸入 2–60（期數）啟用分期；留空或填 0 表示不分期。"}
+                  </div>
+                </DrawerField>
+              )}
+
               {/* 4 · Advanced: fee, recurring, note */}
               <div>
                 <button
@@ -2148,29 +2174,6 @@ function EntryDrawer({
               </div>
               {showAdvanced && (
                 <>
-                  {canInstallment && (
-                    <DrawerField label="分期付款">
-                      <input
-                        className="ns-input"
-                        type="number"
-                        min={0}
-                        max={60}
-                        step={1}
-                        placeholder="0"
-                        style={{ fontFamily: "var(--ns-font-mono)" }}
-                        value={installmentPeriods === 0 ? "" : installmentPeriods}
-                        onChange={(e) => {
-                          const v = parseInt(e.target.value, 10);
-                          setInstallmentPeriods(Number.isNaN(v) || v < 0 ? 0 : Math.min(60, v));
-                        }}
-                      />
-                      <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
-                        {activeInstallment
-                          ? `總額將平均拆成 ${installmentPeriods} 筆，逐月入帳到對應的帳單週期。`
-                          : "輸入 2–60（期數）啟用分期；留空或填 0 表示不分期。"}
-                      </div>
-                    </DrawerField>
-                  )}
                   {(type === "expense" || type === "income") && !editing && !activeInstallment && (
                     <DrawerField label={`外加手續費（選填） · ${ledgerForm.currency}`}>
                       <input
