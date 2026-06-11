@@ -751,7 +751,8 @@ export function CashFlowRoute() {
       .slice(0, 5);
   }, [scopedRows, toPrimary]);
 
-  // Cashflow bars: income (up) + expense (down) per bucket.
+  // Cashflow chart data: per-bucket income + expense as side-by-side bars, plus
+  // a running cumulative net across the period (drawn on a secondary axis).
   // The granularity (日/週/月/年) controls both bucket size and the visible
   // window, anchored to the selected month. Respects the account/category
   // filters; transfers and pass-through rows are excluded (neutral movements).
@@ -764,19 +765,27 @@ export function CashFlowRoute() {
       return row.entryType === "income" || row.entryType === "expense";
     });
     const slots = buildCashflowBuckets(chartGranularity, dateRange).map((b) => ({
-      ...b, income: 0, expenseDown: 0, net: 0,
+      ...b, income: 0, expense: 0, net: 0, cumulativeNet: 0,
     }));
     const byKey = new Map(slots.map((s) => [s.key, s]));
     for (const row of rows) {
       const slot = byKey.get(cashflowBucketKey(chartGranularity, row.date));
       if (!slot) continue;
       const value = toPrimary(row) ?? 0;
-      // value is signed: expense negative (bar grows down), refund positive
-      // (shrinks the down-bar). Adding the signed value handles both.
+      // value is signed (expense negative). Both bars grow upward, so expense
+      // is its positive magnitude; a refund (positive expense) nets it down.
       if (row.entryType === "income") slot.income += Math.max(0, value);
-      else slot.expenseDown += value;
+      else slot.expense += -value;
     }
-    for (const s of slots) s.net = s.income + s.expenseDown;
+    // Cumulative net = running total of (income − expense) across the window,
+    // so the line shows the period's savings trajectory rather than echoing
+    // the per-bucket bars.
+    let running = 0;
+    for (const s of slots) {
+      s.net = s.income - s.expense;
+      running += s.net;
+      s.cumulativeNet = running;
+    }
     return slots;
   }, [ledgerRows, selectedAccount, selectedCategory, chartGranularity, dateRange, toPrimary]);
 
@@ -917,27 +926,40 @@ export function CashFlowRoute() {
                   <span className="muted" style={{ fontSize: 11.5 }}>{l.label}</span>
                 </div>
               ))}
-              {/* Net line legend uses a horizontal stroke rather than a square swatch */}
+              {/* Cumulative-net line legend uses a horizontal stroke */}
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                 <span style={{ width: 12, height: 2, background: "var(--ns-accent)", flexShrink: 0, borderRadius: 1 }} />
-                <span className="muted" style={{ fontSize: 11.5 }}>淨額</span>
+                <span className="muted" style={{ fontSize: 11.5 }}>累積淨額</span>
               </div>
             </div>
             <SegmentedControl value={chartGranularity} options={CHART_GRANULARITY_OPTIONS} onChange={setChartGranularity} />
           </div>
           <div style={{ height: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
-              {/* ComposedChart lets us overlay a net Line on top of the mirror Bars */}
-              <ComposedChart data={cashflowBars} margin={{ top: 6, right: 4, bottom: 0, left: 4 }} barCategoryGap={chartGranularity === "day" ? "18%" : "30%"}>
-                <ReferenceLine y={0} stroke={resolveColor("var(--ns-border-strong)")} />
-                {/* Compact Y-axis: narrow, no lines, compact-number ticks */}
+              {/* Grouped income/expense bars (left axis) + a cumulative-net line
+                  on a secondary right axis so the running total doesn't get
+                  squashed by the per-bucket bar scale. */}
+              <ComposedChart data={cashflowBars} margin={{ top: 6, right: 6, bottom: 0, left: 4 }} barCategoryGap={chartGranularity === "day" ? "12%" : "24%"} barGap={2}>
+                {/* Left axis: per-bucket bar magnitudes */}
                 <YAxis
+                  yAxisId="bars"
                   width={44}
                   tick={{ fontSize: 10.5, fill: resolveColor("var(--ns-fg-dim)") }}
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={(v) => formatCompactNumber(Math.abs(v as number))}
                 />
+                {/* Right axis: cumulative net (can go negative) */}
+                <YAxis
+                  yAxisId="cum"
+                  orientation="right"
+                  width={44}
+                  tick={{ fontSize: 10.5, fill: resolveColor("var(--ns-accent)") }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => formatCompactNumber(v as number)}
+                />
+                <ReferenceLine yAxisId="cum" y={0} stroke={resolveColor("var(--ns-border-strong)")} />
                 <XAxis
                   dataKey="label"
                   tick={{ fontSize: 10.5, fill: resolveColor("var(--ns-fg-dim)") }}
@@ -950,24 +972,21 @@ export function CashFlowRoute() {
                   cursor={{ fill: resolveColor("var(--ns-bg-hover)") }}
                   contentStyle={{ background: "var(--ns-surface)", border: "1px solid var(--ns-border)", borderRadius: 6, fontSize: 12 }}
                   formatter={(v: any, name: any) => {
-                    const labelMap: Record<string, string> = { income: "收入", expenseDown: "支出", net: "淨額" };
+                    const labelMap: Record<string, string> = { income: "收入", expense: "支出", cumulativeNet: "累積淨額" };
                     const val = v as number;
-                    // Net shows explicit sign; income/expense show absolute value
-                    const display = name === "net"
-                      ? `${val >= 0 ? "+" : ""}${primaryCurrency} ${formatNumber(val)}`
+                    // Cumulative net shows explicit sign; bars show their magnitude.
+                    const display = name === "cumulativeNet"
+                      ? `${val >= 0 ? "+" : "−"}${primaryCurrency} ${formatNumber(Math.abs(val))}`
                       : `${primaryCurrency} ${formatNumber(Math.abs(val))}`;
                     return [display, labelMap[name] ?? name];
                   }}
                   labelFormatter={(v) => String(v)}
                 />
-                {/* Same stackId → income stacks up and expenseDown stacks down
-                    from the y=0 baseline, both centred on one shared x band.
-                    (The old barGap={-20} pixel hack mis-aligned once bars were
-                    narrower than 20px.) */}
-                <Bar dataKey="income" stackId="flow" fill="var(--ns-pos)" radius={[2, 2, 0, 0]} maxBarSize={20} />
-                <Bar dataKey="expenseDown" stackId="flow" fill="var(--ns-neg)" radius={[0, 0, 2, 2]} maxBarSize={20} />
-                {/* Net income−expense overlay; dot off to keep dense series clean */}
-                <Line dataKey="net" stroke="var(--ns-accent)" strokeWidth={1.5} dot={false} type="monotone" />
+                {/* Side-by-side bars (no stackId → grouped), both grow upward */}
+                <Bar yAxisId="bars" dataKey="income" fill="var(--ns-pos)" radius={[2, 2, 0, 0]} maxBarSize={18} />
+                <Bar yAxisId="bars" dataKey="expense" fill="var(--ns-neg)" radius={[2, 2, 0, 0]} maxBarSize={18} />
+                {/* Cumulative net trajectory across the period */}
+                <Line yAxisId="cum" dataKey="cumulativeNet" stroke="var(--ns-accent)" strokeWidth={1.75} dot={false} type="monotone" />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
