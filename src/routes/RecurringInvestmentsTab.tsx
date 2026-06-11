@@ -8,7 +8,7 @@ import { useToast } from "../components/Toast";
 import { TickerSearchField } from "../components/TickerSearchField";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { RecurringInvestmentDraft } from "../data/repositories";
-import { formatNumber, recurringFrequencyLabels, recurringInvestmentModeLabels, todayInTimezone } from "../domain";
+import { formatNumber, formatQuantity, recurringFrequencyLabels, recurringInvestmentModeLabels, todayInTimezone } from "../domain";
 import type { RecurringFrequency, RecurringInvestment, RecurringInvestmentMode } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 
@@ -178,7 +178,7 @@ export function RecurringInvestmentsTab() {
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div className="num" style={{ fontSize: 14, fontWeight: 500 }}>
-                    {rule.mode === "fixedShares" ? `${formatNumber(rule.quantity)} 股` : `NT$${formatNumber(rule.amount)}`}
+                    {rule.mode === "fixedShares" ? `${formatQuantity(rule.quantity)} 股` : `NT$${formatNumber(rule.amount)}`}
                   </div>
                   <div className="muted mono" style={{ fontSize: 11 }}>交割約 NT${formatNumber(Math.round(perPeriodCash(rule)))}</div>
                 </div>

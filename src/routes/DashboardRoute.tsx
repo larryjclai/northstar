@@ -14,6 +14,7 @@ import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
 import {
   assetTypeLabels,
+  buildDataHealthReport,
   buildNetWorthBreakdown,
   buildQuantityTimeline,
   buildCreditCardReminders,
@@ -28,7 +29,6 @@ import {
   dayChangeMovers,
   resolveAssetName,
   resolveTargetAmount,
-  convertCurrency,
   createFxConverter,
   formatMoney,
   formatCompactMoney,
@@ -85,7 +85,9 @@ export function DashboardRoute() {
   const [stripPeriod, setStripPeriod] = useState<StripPeriod>("1M");
   const queryClient = useQueryClient();
   const toast = useToast();
-  const [monthKey, setMonthKey] = useState(() => new Date().toISOString().slice(0, 7));
+  // Current month for the cash-flow KPI and budget card. Recomputed each
+  // render; there is intentionally no month switcher on the dashboard.
+  const monthKey = new Date().toISOString().slice(0, 7);
   const [selectedAccount, setSelectedAccount] = useState<string>("all");
   const [demoLoading, setDemoLoading] = useState(false);
 
@@ -133,17 +135,26 @@ export function DashboardRoute() {
     else toast.success("已更新股價與匯率");
   }
 
-  const missingFxPairs = useMemo(() => {
-    const currencies = new Set([
-      ...accountRows.map((account) => account.currency),
-      ...ledgerRows.map((row) => row.currency),
-      ...assetRows.map((asset) => asset.currency),
-      ...quoteRows.map((quote) => quote.currency),
-    ]);
-    return [...currencies]
-      .filter((currency) => currency !== primaryCurrency && convertCurrency(1, currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: new Date().toISOString() }) === null)
-      .map((currency) => `${currency}/${primaryCurrency}`);
-  }, [accountRows, ledgerRows, assetRows, quoteRows, primaryCurrency, appSettings, fxHistory]);
+  const [healthExpanded, setHealthExpanded] = useState(false);
+
+  // Single source of truth for "today" used by valuations and health checks.
+  // Declared here (before the useMemos that depend on it) so references are safe.
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  const dataHealthReport = useMemo(
+    () =>
+      buildDataHealthReport({
+        accounts: accountRows,
+        ledger: ledgerRows,
+        assets: assetRows,
+        quotes: quoteRows.map((q) => ({ symbol: q.symbol, updatedAt: q.updatedAt })),
+        dailyPrices: dailyPriceRows,
+        dailyFxRates: fxHistory,
+        settings: appSettings,
+        todayIso: todayIso,
+      }),
+    [accountRows, ledgerRows, assetRows, quoteRows, dailyPriceRows, fxHistory, appSettings, todayIso],
+  );
   const filteredAccounts = selectedAccount === "all" ? accountRows : accountRows.filter(a => a.id === selectedAccount);
 
   const quoteLookup = useMemo(() => buildQuoteLookup(quoteRows), [quoteRows]);
@@ -153,7 +164,7 @@ export function DashboardRoute() {
   // Single valuation context shared by the KPI market value, the allocation
   // donut, and the net-worth trend endpoint so all three agree: live quote →
   // latest daily close → average cost (see domain/valuation).
-  const todayIso = new Date().toISOString().slice(0, 10);
+  // (todayIso is declared earlier, before dataHealthReport, so both can share it.)
   const dailyPriceLookup = useMemo(() => buildDailyPriceLookup(dailyPriceRows), [dailyPriceRows]);
   const marketValue = holdingsMarketValue(filteredAssets, todayIso, toPrimary, {
     todayIso,
@@ -404,9 +415,46 @@ export function DashboardRoute() {
 
   return (
     <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]" style={{ maxWidth: 1180, margin: "0 auto" }}>
-      {missingFxPairs.length ? (
-        <div style={{ padding: "10px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-warn-soft)", border: "1px solid var(--ns-border)", marginBottom: 14, fontSize: 13 }}>
-          總額不完整：缺少 {missingFxPairs.join("、")} 匯率。<Link to="/settings" style={{ marginLeft: 8 }}>前往更新匯率</Link>
+      {!dataHealthReport.healthy ? (
+        <div
+          style={{
+            padding: "10px 14px",
+            borderRadius: "var(--ns-r-md)",
+            background: dataHealthReport.errorCount > 0 ? "var(--ns-neg-soft)" : "var(--ns-warn-soft)",
+            border: "1px solid var(--ns-border)",
+            marginBottom: 14,
+            fontSize: 13,
+          }}
+        >
+          <div
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, cursor: "pointer", userSelect: "none" }}
+            onClick={() => setHealthExpanded((v) => !v)}
+          >
+            <span>
+              <strong>資料健康：{dataHealthReport.issues.length} 項提醒</strong>
+              {!healthExpanded && dataHealthReport.issues.length > 0 ? (
+                <span style={{ marginLeft: 8, color: "var(--ns-fg-muted)" }}>{dataHealthReport.issues[0].message}</span>
+              ) : null}
+            </span>
+            <span style={{ fontSize: 11, color: "var(--ns-fg-muted)", flexShrink: 0 }}>{healthExpanded ? "收合 ▲" : "展開 ▼"}</span>
+          </div>
+          {healthExpanded ? (
+            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+              {dataHealthReport.issues.map((issue) => (
+                <div key={issue.id} style={{ fontSize: 12, color: issue.severity === "error" ? "var(--ns-neg)" : "var(--ns-fg-muted)" }}>
+                  {issue.severity === "error" ? "⚠ " : "· "}{issue.message}
+                </div>
+              ))}
+              <div style={{ marginTop: 6, display: "flex", gap: 16, flexWrap: "wrap" }}>
+                {dataHealthReport.issues.some((i) => i.kind === "missing-fx" || i.kind === "stale-fx") ? (
+                  <Link to="/settings" style={{ fontSize: 12 }}>前往更新匯率</Link>
+                ) : null}
+                {dataHealthReport.issues.some((i) => i.kind === "missing-price-history" || i.kind === "stale-quote") ? (
+                  <Link to="/investments" style={{ fontSize: 12 }}>前往投資回補</Link>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
       {/* Over-budget alert */}

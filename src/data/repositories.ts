@@ -597,7 +597,8 @@ class BrowserFinanceRepository implements FinanceRepository {
           amount: -Math.abs(input.feeAmount),
           currency: input.currency,
           category: "手續費",
-          subcategory: "海外交易手續費",
+          // Income fees are bank/remittance charges, not FX surcharges.
+          subcategory: input.entryType === "income" ? "收入手續費" : "海外交易手續費",
           merchant: input.merchant,
           entryType: "expense",
           settlementStatus: "settled",
@@ -2003,7 +2004,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
           amount: -Math.abs(input.feeAmount),
           currency: input.currency,
           category: "手續費",
-          subcategory: "海外交易手續費",
+          // Income fees are bank/remittance charges, not FX surcharges.
+          subcategory: input.entryType === "income" ? "收入手續費" : "海外交易手續費",
           merchant: input.merchant,
           entryType: "expense",
           settlementStatus: "settled",

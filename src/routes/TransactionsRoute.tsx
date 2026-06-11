@@ -14,7 +14,7 @@ import { downloadCsv, exportInvestmentCsv } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { InvestmentActivityImportDraft } from "../data/repositories";
 import { InvestmentImportWizard, type InvestmentActivityImportPlan } from "./InvestmentImportWizard";
-import { createFxConverter, formatMoney, formatNumber, isWithinDateScope, makeDefaultDateScope, resolveDateScope } from "../domain";
+import { createFxConverter, formatMoney, formatNumber, formatPrice, formatQuantity, isWithinDateScope, makeDefaultDateScope, resolveDateScope } from "../domain";
 import type { InvestmentAction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { InvestmentEntryDrawer, type TransactionPreset } from "./InvestmentsAddSheet";
@@ -552,8 +552,8 @@ function InvestmentTransactionRow({
       <td>
         <Badge variant={actionBadgeVariant(tx.actionKey)} className="rounded-full uppercase">{actionShortLabels[tx.actionKey] ?? tx.actionKey}</Badge>
       </td>
-      <td className="num text-right">{isCash ? "—" : formatNumber(tx.quantity)}</td>
-      <td className="num text-right">{isCash ? "—" : formatNumber(tx.price)}</td>
+      <td className="num text-right">{isCash ? "—" : formatQuantity(tx.quantity)}</td>
+      <td className="num text-right">{isCash ? "—" : formatPrice(tx.price)}</td>
       <td className="num text-right muted">{tx.fee ? formatNumber(tx.fee) : "—"}</td>
       <td className={`num text-right ${tx.signed >= 0 ? "pos" : "neg"}`}>
         {tx.signed >= 0 ? "+" : "−"}{formatMoney(Math.abs(tx.signed), tx.currency)}
@@ -599,7 +599,7 @@ function InvestmentTransactionMobile({
           <Badge variant={actionBadgeVariant(tx.actionKey)} className="rounded-full uppercase">{actionShortLabels[tx.actionKey] ?? tx.actionKey}</Badge>
         </div>
         <div className="muted text-xs tabular">
-          {isCash ? tx.date.slice(5, 10) : `${tx.date.slice(5, 10)} · ${formatNumber(tx.quantity)} @ ${formatNumber(tx.price)}`}
+          {isCash ? tx.date.slice(5, 10) : `${tx.date.slice(5, 10)} · ${formatQuantity(tx.quantity)} @ ${formatPrice(tx.price)}`}
         </div>
       </div>
       <div className="ns-invest-mobile-amount">

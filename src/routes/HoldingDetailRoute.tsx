@@ -83,8 +83,8 @@ export function HoldingDetailRoute() {
   if (!asset) {
     return (
       <div style={{ padding: "24px 32px 100px" }}>
-        <Button variant="ghost" onClick={() => navigate({ to: "/investments" })}>Back to Investments</Button>
-        <div style={{ marginTop: 20 }}>Holding not found.</div>
+        <Button variant="ghost" onClick={() => navigate({ to: "/investments" })}>返回投資</Button>
+        <div style={{ marginTop: 20 }}>找不到此持倉。</div>
       </div>
     );
   }
@@ -121,9 +121,12 @@ export function HoldingDetailRoute() {
     .filter((t) => t.action === "cashDividend" && t.date.startsWith(thisYear))
     .reduce((sum, t) => sum + (t.quantity > 0 ? t.price * t.quantity : t.price) - t.fee, 0);
 
-  const markColor = ticker.includes(".TW") || ticker.length === 4 
-    ? "var(--ns-chart-1)" 
-    : ["BTC", "ETH"].includes(ticker) ? "var(--ns-chart-3)" : "var(--ns-chart-2)";
+  // Market by explicit ticker suffix only (no length-based guessing — tickers
+  // are stored with their market suffix since the forced-suffix change).
+  const upperTicker = ticker.toUpperCase();
+  const markColor = upperTicker.endsWith(".TW") || upperTicker.endsWith(".TWO")
+    ? "var(--ns-chart-1)"
+    : asset?.assetType === "crypto" ? "var(--ns-chart-3)" : "var(--ns-chart-2)";
 
   return (
     <div style={{ height: "100%", overflow: "auto", padding: "24px 32px 100px" }}>
@@ -166,7 +169,7 @@ export function HoldingDetailRoute() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-                <span className="ns-num-lg mono">{formatNumber(marketPrice)}</span>
+                <span className="ns-num-lg mono">{formatPrice(marketPrice)}</span>
                 <span className="dim mono" style={{ fontSize: 13 }}>{asset.currency}</span>
               </div>
               <div style={{ display: "flex", gap: 10, marginTop: 4, alignItems: "center" }}>
@@ -185,7 +188,9 @@ export function HoldingDetailRoute() {
               value={[seg]}
               onValueChange={(value) => { const next = value[0]; if (next) setSeg(next); }}
             >
-              {["1D", "1W", "1M", "3M", "YTD", "1Y", "ALL"].map((v) => (
+              {/* No "1D": the chart draws daily closes, so a one-day window has
+                  at most a single point and renders blank. */}
+              {["1W", "1M", "3M", "YTD", "1Y", "ALL"].map((v) => (
                 <ToggleGroupItem key={v} value={v.toLowerCase()} size="sm" className="data-pressed:border-primary data-pressed:bg-primary data-pressed:text-primary-foreground">{v}</ToggleGroupItem>
               ))}
             </ToggleGroup>
@@ -299,10 +304,10 @@ export function HoldingDetailRoute() {
       {/* Transaction history */}
       <Card style={{ padding: 0 }}>
         <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center" }}>
-          <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>Transaction history · {txns.length} records</h3>
+          <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>交易紀錄 · {txns.length} 筆</h3>
           <div style={{ flex: 1 }} />
           <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
-            <Plus size={13} strokeWidth={2} /> Add
+            <Plus size={13} strokeWidth={2} /> 新增
           </Button>
         </div>
         {txns.map((tx, i) => (

@@ -20,7 +20,7 @@ import {
 } from "@phosphor-icons/react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ChangeEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { Bar, BarChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from "recharts";
+import { Bar, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 import { CategoriesTab } from "./CategoriesTab";
 import { MerchantsTab } from "./MerchantsTab";
@@ -43,7 +43,7 @@ import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer
 import { useToast } from "../components/Toast";
 import type { LedgerDraft, TransferDraft } from "../data/repositories";
 import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, evaluateAmountExpression, formatNumber, isNeutralLedgerRow, isWithinDateScope, makeDefaultDateScope, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, resolveDateScope, todayInTimezone } from "../domain";
-import { convertCurrency } from "../domain/currency";
+import { convertCurrency, formatCompactNumber } from "../domain/currency";
 import type { Account, LedgerTransaction, RecurringFrequency, RecurringTransaction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useNumericField } from "../hooks/useNumericField";
@@ -473,9 +473,10 @@ export function CashFlowRoute() {
         subcategory: ledgerForm.subcategory.trim(),
         merchant: (isReceivablePayable ? counterparty : ledgerForm.merchant).trim(),
         note,
-        // Fees only attach to newly-created expenses; the repo emits a linked
-        // 手續費 leg. Edits and non-expense rows never carry a fee.
-        feeAmount: !editingId && entryType === "expense" ? (ledgerForm.feeAmount || 0) : 0,
+        // Fees attach to newly-created income/expense rows; the repo emits a
+        // linked 手續費 expense leg. Edits never carry a fee (consistent with
+        // transfer behaviour: re-editing can't retroactively add fee legs).
+        feeAmount: !editingId && (entryType === "expense" || entryType === "income") ? (ledgerForm.feeAmount || 0) : 0,
       };
       // Expense/income/transfer need an account up front; receivable/payable
       // defer the settle account to 結清 time (only the optional 代墊 account
@@ -858,13 +859,27 @@ export function CashFlowRoute() {
                   <span className="muted" style={{ fontSize: 11.5 }}>{l.label}</span>
                 </div>
               ))}
+              {/* Net line legend uses a horizontal stroke rather than a square swatch */}
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ width: 12, height: 2, background: "var(--ns-accent)", flexShrink: 0, borderRadius: 1 }} />
+                <span className="muted" style={{ fontSize: 11.5 }}>淨額</span>
+              </div>
             </div>
             <SegmentedControl value={chartGranularity} options={CHART_GRANULARITY_OPTIONS} onChange={setChartGranularity} />
           </div>
           <div style={{ height: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={cashflowBars} margin={{ top: 6, right: 4, bottom: 0, left: 4 }} barCategoryGap={chartGranularity === "day" ? "18%" : "30%"}>
+              {/* ComposedChart lets us overlay a net Line on top of the mirror Bars */}
+              <ComposedChart data={cashflowBars} margin={{ top: 6, right: 4, bottom: 0, left: 4 }} barCategoryGap={chartGranularity === "day" ? "18%" : "30%"}>
                 <ReferenceLine y={0} stroke={resolveColor("var(--ns-border-strong)")} />
+                {/* Compact Y-axis: narrow, no lines, compact-number ticks */}
+                <YAxis
+                  width={44}
+                  tick={{ fontSize: 10.5, fill: resolveColor("var(--ns-fg-dim)") }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => formatCompactNumber(Math.abs(v as number))}
+                />
                 <XAxis
                   dataKey="label"
                   tick={{ fontSize: 10.5, fill: resolveColor("var(--ns-fg-dim)") }}
@@ -877,8 +892,13 @@ export function CashFlowRoute() {
                   cursor={{ fill: resolveColor("var(--ns-bg-hover)") }}
                   contentStyle={{ background: "var(--ns-surface)", border: "1px solid var(--ns-border)", borderRadius: 6, fontSize: 12 }}
                   formatter={(v: any, name: any) => {
-                    const labelMap: Record<string, string> = { income: "收入", expenseDown: "支出" };
-                    return [`${primaryCurrency} ${formatNumber(Math.abs(v as number))}`, labelMap[name] ?? name];
+                    const labelMap: Record<string, string> = { income: "收入", expenseDown: "支出", net: "淨額" };
+                    const val = v as number;
+                    // Net shows explicit sign; income/expense show absolute value
+                    const display = name === "net"
+                      ? `${val >= 0 ? "+" : ""}${primaryCurrency} ${formatNumber(val)}`
+                      : `${primaryCurrency} ${formatNumber(Math.abs(val))}`;
+                    return [display, labelMap[name] ?? name];
                   }}
                   labelFormatter={(v) => String(v)}
                 />
@@ -888,7 +908,9 @@ export function CashFlowRoute() {
                     narrower than 20px.) */}
                 <Bar dataKey="income" stackId="flow" fill="var(--ns-pos)" radius={[2, 2, 0, 0]} maxBarSize={20} />
                 <Bar dataKey="expenseDown" stackId="flow" fill="var(--ns-neg)" radius={[0, 0, 2, 2]} maxBarSize={20} />
-              </BarChart>
+                {/* Net income−expense overlay; dot off to keep dense series clean */}
+                <Line dataKey="net" stroke="var(--ns-accent)" strokeWidth={1.5} dot={false} type="monotone" />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         </Card>
@@ -1935,7 +1957,7 @@ function EntryDrawer({
               </div>
               {showAdvanced && (
                 <>
-                  {type === "expense" && !editing && (
+                  {(type === "expense" || type === "income") && !editing && (
                     <DrawerField label={`外加手續費（選填） · ${ledgerForm.currency}`}>
                       <input
                         className="ns-input"
@@ -1943,7 +1965,11 @@ function EntryDrawer({
                         style={{ fontFamily: "var(--ns-font-mono)" }}
                         {...expenseFeeField}
                       />
-                      <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>海外刷卡/跨國交易手續費，將另計一筆「手續費」支出。</div>
+                      <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
+                        {type === "income"
+                          ? "薪轉/跨行/海外匯入手續費，將另計一筆「手續費」支出。收入以總額（gross）計入，帳戶實際入帳為總額扣除手續費。"
+                          : "海外刷卡/跨國交易手續費，將另計一筆「手續費」支出。"}
+                      </div>
                     </DrawerField>
                   )}
                   <DrawerField label="週期交易">

@@ -1,6 +1,6 @@
 # Northstar Roadmap
 
-This roadmap is organized into **Now (近期執行)**, **Next (中期規劃)**, and **Later (遠期願景)** to ensure we stay focused on delivering real value while building towards a complete local-first and multi-device finance OS.
+本 roadmap 依 2026-06 的全面產品健檢（以「一般使用者 + 資深財務」視角逐頁檢查）重新整理，分為 5 個可依序執行的 Phase。每個項目都附 Problem / Action / 驗收條件，可以直接當作開發任務執行。
 
 ## ✅ SHIPPED (已完成)
 *以下項目已實作並合併進 main。*
@@ -8,48 +8,196 @@ This roadmap is organized into **Now (近期執行)**, **Next (中期規劃)**, 
 - **Ledger Refinement (手續費與海外交易)** — 轉帳手續費欄位、海外支出「外加手續費」模式（自動產生連結的手續費分錄）。
 - **Account & Asset Customization (帳戶與客製化資產)** — 新增「實體資產」帳戶類型（手動更新市值、Dashboard 獨立淨值卡），帳戶 Emoji/顏色客製化。
 - **Visual Trust & Branding (投資標的 LOGO)** — `AssetLogo` 元件，依 ticker 抓品牌圖、失敗退回字母標記；**預設關閉**，設定中可開啟（含隱私風險提示）。
-- **App Maintenance (內建檢查更新)** — 接上 Tauri Updater + process plugin 與「檢查更新」按鈕；發佈簽章/endpoint 設定見 `HANDOVER.md §11`。
+- **App Maintenance (內建檢查更新)** — 接上 Tauri Updater + process plugin 與「檢查更新」按鈕。
 - **Credit Card Reconciliation (信用卡對帳與結帳日提醒)** — 結帳日/繳款日欄位、Dashboard 繳款提醒、對帳模式（逐筆勾選核對）。
-- **Quick Add (快速記帳)** — ⌘N 全域自然語言輸入列，解析支出/收入/投資買賣 → 預填確認後送出；側邊欄按鈕 + 手機 FAB 入口。
-- **Connect Sync 前置（裝置身份 + 變更追蹤）** — 本地裝置身份；以既有 SyncFields 推導的待同步變更清單（含軟刪除）；設定頁「Connect 同步 · 準備中」狀態卡。
-- **Dashboard 卡片高度一致** — 淨值卡改為 flex column，圖表 `flex:1` 填滿高度，與右側 KPI stack 等高無空白。
-- **Connect Sync — 加密層 + Worker + 配對 UI** — Cloudflare Worker + D1 relay（`northstar-sync.larrynote.workers.dev`）；AES-GCM-256 vault key；PBKDF2 短配對碼（`XXXX-XXXX`）+ QR Code 雙路徑；push/pull encrypted envelopes；設定頁完整裝置管理 UI（啟用、顯示配對碼、輸入配對碼、撤銷裝置）。
-- **Connect Sync — Full Record Payload + Recovery Kit** — push 帶完整 record 序列化；pull 解密後 last-write-wins merge 寫回 SQLite；Recovery Kit（64-char hex，下載 .txt，確認流程）。
-- **其他修復** — 子分類內嵌編輯（修 Tauri prompt 失效）、週期交易自動入帳 + 時區修正、跨幣轉帳金額、商家自動分類。
-- **Connect Sync — 背景自動同步** — app focus（`tauri://focus`）與啟動時自動執行 `pushPendingChanges` + `pullAndApply`（60 秒冷卻、與手動同步共用互斥鎖）；套用遠端變更後自動 invalidate React Query 快取讓畫面即時更新；設定頁「同步中…」spinner 與「上次同步：X 秒前」即時相對時間。
-- **介面精修（UI Polish）** — 帳戶篩選改為可搜尋 / 分組 / 帶圖示的 Combobox（取代原生 `<select>`，Dashboard + 記帳共用 `AccountFilter`）；以 Phosphor 圖示系統（`src/lib/icons.tsx` + `IconPicker`）取代 emoji 作為帳戶 / 分類圖示，舊 emoji 資料向後相容渲染；移除 `emoji-picker-react` 依賴；散落的裝飾性符號（📊 ⚠ ✓）改用 Phosphor 圖示。
-- **Recovery Kit 強制前置條件** — 同步在 `runSync` 層集中守門，未確認備援碼前 push/pull 一律擋下（`RECOVERY_KIT_REQUIRED`）；自動同步在未確認時靜默略過、手動同步按鈕停用並顯示守門提示；配對加入的裝置自動視為已備份（繼承主裝置金鑰）；設定頁「待備份備援碼」狀態 + 守門橫幅。對應 `policies.ts` 的 `canEnableCloudBackedFeature`。
+- **Quick Add (快速記帳)** — ⌘N 全域自然語言輸入列，解析支出/收入/投資買賣 → 預填確認後送出。
+- **Connect Sync 全套** — 裝置身份、E2E 加密（AES-GCM-256 vault key）、PBKDF2 配對碼 + QR、push/pull encrypted envelopes、LWW merge、Recovery Kit 強制前置、背景自動同步（focus/啟動 + 60s 冷卻 + 互斥鎖）、同步前自動備份（保留 3 份）可還原、裝置管理 UI。
+- **Dashboard Analytics + 投資分析分頁** — fixed-basket 期間報酬 vs benchmark + Alpha、風險指標（年化波動、Sharpe、Sortino、最大回撤、滾動 30 日波動）、配置漂移與集中度、XIRR 30 天 gating、benchmark 就地切換。
+- **記帳 CSV 匯入/匯出** — 匯入預覽（valid/invalid 分列）、JSON 全庫備份與還原、CSV 篩選匯出（時間/帳戶/欄位）。
+- **介面精修** — Phosphor 圖示系統 + IconPicker、可搜尋帳戶 Combobox、Wealthfolio 式 range 日曆、交易/持倉強制帶市場後綴。
+- **其他** — 應收應付（代墊）、週期交易自動入帳、定期定額/定股、FIRE 計算器、商家自動分類、示範模式、隱私遮罩、深淺色主題、zh-TW/en i18n。
 
 ---
 
-## 🟢 NOW (近期執行)
-*Focus: 散佈與安裝體驗。*
+## 📋 產品健檢結論（2026-06）
 
-### 1. Apple Notarization（解決 AirDrop 安裝問題）
-- **Problem**: AirDrop 傳送的 `.app` 會被 macOS Gatekeeper 標記為「已損壞」，需要手動執行 `xattr -cr` 解除。
-- **Action**: 設定 Apple Developer 帳號、codesign + notarize Tauri 打包流程，讓 `.app` 可直接在任何 Mac 上開啟。
+逐頁對照程式碼後的總評：**資料模型與計算引擎成熟度高（domain 層有完整測試），同步與備份架構完整；主要缺口在「顯示精度」「記帳場景覆蓋」「績效口徑（缺 TWR）」「資料健康可視化」與「UI 一致性」。** 各項詳見下方 Phase 任務。
 
----
+幾個與直覺不同的發現：
 
-## 🟡 NEXT (中期規劃)
-*Focus: 穩健性與進階帳務。*
-
-### 1. 持續介面精修
-- 其他下拉選單（分類篩選、幣別、週期）一致化為帶搜尋 / 分組的元件。
-- 圖示選擇器導入「最近使用」與更多分類圖示。
+1. **持倉表小數位其實是對的** — `formatPrice`（2–6 位）/`formatQuantity`（最多 6 位）已存在且持倉表有用；被四捨五入到整數的是「交易紀錄」分頁和持倉詳情頁的現價（用錯 `formatNumber`）。是局部 bug，不是系統性缺陷。
+2. **收入/支出已在同一條長條上**（mirror chart：收入向上、支出向下、共用 0 軸）。問題不是「不能放一起」，而是沒有 Y 軸刻度與淨額參考線，一般使用者難以讀出量級。
+3. **備份還原已大致完整**（JSON 全庫匯出 + 設定頁還原 + 同步前自動備份 3 份）。缺的是「排程自動備份」與「還原前預覽」。
+4. **同步機制已相當完善**（加密、配對、Recovery Kit 守門、衝突紀錄、自動同步）。剩餘是進階題：欄位級 merge、變更即推送、同步歷史。
 
 ---
 
-## 🔴 LATER (遠期願景：跨平台與家庭協作)
-*Focus: Expand to new platforms and multi-user environments.*
+## 🟢 Phase 1 — 數據正確性與信任（最高優先，約 1–2 週）
+*財務軟體的底線：使用者必須能相信看到的每一個數字。*
 
-### 1. Mobile Expansion (iOS App 開發上架)
-- **Problem**: 目前依賴電腦，無法隨時隨地記帳。
-- **User Impact**: 實現真正的「消費當下立即記帳」，完整使用者的記帳習慣。
+### 1.1 修正小數位精度（投資顯示）
+- **Problem**: 交易紀錄分頁 `TransactionsRoute.tsx:555-556,602` 的價格/股數用 `formatNumber`（四捨五入到整數）；持倉詳情 `HoldingDetailRoute.tsx:169` 現價同樣取整。美股價格（如 184.25）與零股股數直接失真。
+- **Action**: 價格一律改 `formatPrice`、股數一律改 `formatQuantity`；全 repo grep `formatNumber(` 清查所有「價格/股數」誤用點（金額類維持整數正確）。
+- **驗收**: 美股交易顯示 2 位小數；零股顯示完整小數；台股整數價不出現多餘的 `.00`（formatPrice 已自動處理）。
+
+### 1.2 收入手續費
+- **Problem**: 手續費僅支援支出（外加手續費）與轉帳；收入（薪資入帳扣手續費、海外匯入款、平台撥款抽成）無法記錄，`CashFlowRoute.tsx:478` 明確排除非 expense。
+- **Action**: 收入表單加入「手續費（選填）」，沿用既有 linked-fee-leg 模式：主分錄記總額（gross），自動產生一筆連結的手續費支出分錄。
+- **驗收**: 記一筆「薪資 50,000、手續費 30」→ 帳戶入帳 49,970、收入統計 50,000、支出統計多 30 手續費，兩筆連動刪除。
+
+### 1.3 資料健康中心（Data Health）
+- **Problem**: 目前只有「缺匯率」警示。股價幾天沒更新、手動資產很久沒重估、持倉沒有歷史價格（圖表/分析算不出來）、現金帳戶出現負餘額、應收掛帳過久——使用者無從得知數字可能失真。
+- **Action**: 新增 `domain/dataHealth.ts`（純函式 + 測試），規則包含：
+  - 報價過期（最後報價 > 3 個交易日）
+  - 匯率過期（> 7 天）/ 缺匯率對（既有規則併入）
+  - 持倉缺每日價格歷史（分析卡因此被 gating 的標的清單）
+  - 手動實體資產 > 90 天未更新市值
+  - 現金/存款帳戶負餘額
+  - 應收/應付掛帳 > 60 天
+  - Dashboard 顯示一張「資料健康」摘要卡（全綠則收斂成一行），點擊展開明細並提供一鍵修復入口（更新報價/匯率、前往回補）。
+- **驗收**: 模擬每種異常都會亮警示；全部正常時不佔版面。
+
+### 1.4 現金流圖可讀性
+- **Problem**: mirror chart（收入向上/支出向下）方向語意正確，但 (a) 沒有 Y 軸刻度，量級全靠 tooltip；(b) 淨額（最重要的數字）只在頂部摘要，圖上看不出哪個月入不敷出。
+- **Action**: 保留 mirror 設計（優於 grouped bars：x 軸空間省一半、方向直覺），補上三件事：
+  - 加回精簡 Y 軸（compact 格式：1萬、5萬）
+  - 疊一條「淨額」折線（或每根 bar 頂部淨額小點），負值月份一眼可辨
+  - 首次進入顯示一次性的圖例說明（「上=收入、下=支出」）
+- **驗收**: 不開 tooltip 也能讀出量級與赤字月份。
+
+### 1.5 持倉詳情頁收尾
+- **Problem**: (a) 殘留未翻譯英文（"Back to Investments"、"Your position"、"Transaction history · N records"），違反中文-first 慣例；(b) 範圍選 1D 但資料只有每日收盤 → 圖空白；(c) `markColor` 用 `ticker.length === 4` 猜市場，與「不再猜市場」的方向矛盾；(d) Dashboard `monthKey` state 有 setter 但無 UI，是死碼。
+- **Action**: 中文化文案；1D 改為隱藏或以即時報價 + 前收構成兩點；markColor 改用 ticker 後綴判斷；移除或補上月份切換 UI。
+- **驗收**: 全頁無英文殘留（eyebrow 慣例除外）；任何 range 都不出現空白圖。
+
+---
+
+## 🟡 Phase 2 — 記帳場景補完（約 2–3 週）
+*把日常會遇到、目前記不了的交易型態補齊。*
+
+### 2.1 分期付款（信用卡分期）
+- **Problem**: 無法記錄分期。一筆 12,000 分 12 期的消費，目前只能記成一次性支出（當月爆量）或手動記 12 筆。
 - **Action**:
-  - 針對手機重新設計 Touch-friendly 介面。
-  - App Store 上架與 ASO 最佳化。
-  - **前置條件**：必須先完成 Connect Sync (雲端同步)，否則手機與電腦資料無法連動。
+  - `LedgerTransaction` 增加分期欄位（`installmentGroupId`、`installmentIndex/Total`）或以既有 `groupId` + 新 `RecurringTransaction` 變體實作（建議前者，語意清楚且利於對帳）。
+  - 支出表單（信用卡帳戶）新增「分期」選項：輸入總額 + 期數（+ 選填手續費/利率），自動展開為 N 筆未來分錄，各落在對應的結帳週期。
+  - 消費當下的「全額負債、未來分期攤還」兩種視角：帳單對帳吃每期分錄；淨值上信用卡負債反映尚未出帳的剩餘期數。
+  - 編輯/刪除任一期時詢問「僅此期 / 全部剩餘期」。
+- **驗收**: 12 期分期在 12 個月的現金流、信用卡對帳、繳款提醒中各出現一期；提前清償可一鍵結清剩餘期。
 
-### 2. Household Sharing (家庭財務協作)
-- **Action**: 建立家庭空間，讓伴侶可以共同檢視或編輯指定的帳戶與資產。
+### 2.2 收據附件
+- **Problem**: 資料模型已有 `receiptAttachmentId` 欄位但完全沒有 UI（model-only 殘骸）。報帳、保固、對帳都需要附件。
+- **Action**: 交易明細加入附件（拍照/選檔），本地存檔 + 縮圖；同步策略第一版可標記「附件不同步、僅本機」（避免 relay 流量爆炸），設定頁註明。若短期不做，刪掉欄位避免誤導。
+- **驗收**: 新增/檢視/刪除附件；備份 JSON 註明附件不在內或一併打包。
+
+### 2.3 退款與沖銷
+- **Problem**: 退貨/退款目前只能記成一筆收入，會虛增收入並讓分類統計失真（資深財務視角：應沖減原支出科目）。
+- **Action**: 交易明細加「記退款」動作：產生一筆與原交易同分類、金額為負的支出（linked），分類統計自動沖減；月報表中收入不受影響。
+- **驗收**: 原支出 1,000、退款 400 → 該分類當期支出 600，收入統計 0。
+
+---
+
+## 🟠 Phase 3 — 投資分析升級（約 3–4 週）
+*補上正式的報酬口徑，讓數字經得起財務專業檢驗。*
+
+### 3.1 True TWR（時間加權報酬）
+- **Problem**: 現有「期間報酬」是 fixed-basket（拿今天的持倉籃子回算歷史價格）——這衡量「目前持股的價格表現」，不是投資組合的真實歷程：期間內的買賣、入金出金都被忽略；和 XIRR（金額加權）也無法對照。
+- **Action**:
+  - `domain/portfolioAnalytics.ts` 新增 TWR 引擎：以每日持倉市值序列（依交易紀錄重建每日數量 × 每日收盤價）+ 現金流日切分子期間，幾何連乘（daily valuation TWR；資料不足的日期段落用 Modified Dietz 退化處理）。
+  - 投資分析分頁「績效」區改為三口徑並列：**TWR（投資能力）/ XIRR（實際資金成果）/ 期間價格報酬（現行 fixed-basket，重新命名清楚標示）**，各附一句白話解釋（「不受入金時點影響」vs「含入金時點」）。
+  - Benchmark 比較與 Alpha 改基於 TWR（同口徑才可比）。
+  - 沿用 `MIN_ANALYTICS_DAYS` gating；缺價格的日期區段在資料健康中心揭示。
+- **驗收**: 建構測試案例（期中大額入金後上漲）驗證 TWR ≠ XIRR 且方向正確；與手算值誤差 < 1bp。
+
+### 3.2 個股貢獻分析（Attribution）
+- **Problem**: 看得到組合輸贏 benchmark，看不到「誰貢獻的」。
+- **Action**: 新增「報酬貢獻」卡：期間內各持倉的損益貢獻（金額 + 佔組合報酬百分比）瀑布圖/排序列表，前 5 + 其他。
+- **驗收**: 各標的貢獻加總 = 組合期間損益（容差內）。
+
+### 3.3 股利與收益分析
+- **Problem**: 股利資料已入帳（cashDividend），但只有持倉頁一個 YTD 數字；存股族（台灣大宗使用者）需要年度視角。
+- **Action**: 投資分析新增「股利」區：年度股利長條（近 5 年）、各持倉股利貢獻、組合殖利率（TTM 股利 / 現市值）、已實現損益年度報表（賣出 + 股利，可供報稅參考）。
+- **驗收**: 與交易紀錄逐筆加總一致；無股利資料時整區收合。
+
+### 3.4 幣別曝險
+- **Problem**: 跨幣資產（美股 + 台股 + 現金）沒有任何幣別維度的視圖；匯率波動對淨值的影響不可見。
+- **Action**: 配置區新增「幣別曝險」卡：各幣別資產佔比（含現金帳戶）、本月匯率變動對淨值的貢獻估算。
+- **驗收**: 佔比加總 100%；單一幣別使用者不顯示。
+
+### 3.5 持倉線圖買賣標記
+- **Problem**: 價格圖（`HoldingDetailRoute.tsx`）看不到自己的買賣時點，無法檢視「買在哪、賣在哪」。
+- **Action**: 在 AreaChart 疊 `ReferenceDot`：買進綠色 ▲、賣出紅色 ▼（股利可選小圓點），tooltip 顯示日期/股數/價格；卡片角落 toggle 開關（記住偏好，存 uiPreferences）。
+- **驗收**: 標記落點與交易日期對齊；範圍切換後仍正確；toggle 關閉即隱藏。
+
+---
+
+## 🔵 Phase 4 — 個人化與一致性（約 2–3 週）
+
+### 4.1 Dashboard 卡片自訂
+- **Problem**: 總覽目前 13+ 種卡片全量顯示（淨值、KPI、預算、帳單、信用卡、應收應付、定期定額、配置、目標、匯率、最近交易、Top Movers），沒投資的使用者看到 Top Movers、單幣別使用者看到匯率卡——資訊過載且無法調整。
+- **Action**:
+  - 「編輯版面」模式：每張卡可顯示/隱藏（順序調整可後做），偏好存 uiPreferences 並隨裝置同步。
+  - 預設智慧收斂：無持倉 → 自動隱藏 Top Movers/Portfolio Strip；單幣別 → 隱藏匯率卡（已部分有條件渲染，補齊一致規則）。
+  - 匯率卡降級：併入資料健康/市場狀態列，不佔一張卡（保留可手動開回）。
+- **驗收**: 新使用者（無資料）首屏不超過 4 張卡；隱藏設定跨重啟保留。
+
+### 4.2 帳戶自訂圖示與銀行 Logo
+- **Problem**: 帳戶只能選 Phosphor 圖示 + 顏色，多帳戶（同銀行多卡）辨識度低。
+- **Action**:
+  - 第一階段（低成本）：沿用 `AssetLogo` 的模式做 `BankLogo` ——內建台灣常見銀行/券商的 domain 對照表（玉山 esunbank.com.tw、國泰 cathaybk.com.tw…），用 favicon 服務（`google.com/s2/favicons` 或 logo.dev）抓圖，失敗退回現有圖示；與 AssetLogo 同樣**預設關閉**、設定頁開啟（隱私一致性）。
+  - 第二階段：自訂圖片上傳（裁切成 64×64，存 SQLite blob，隨同步走；單檔 < 50KB）。
+- **驗收**: IconPicker 增加「銀行」分頁可搜尋；離線時優雅退回字母/圖示標記。
+
+### 4.3 按鈕位置與資訊架構審視
+- **Problem**: 部分操作位置依開發順序長出來，需以使用者動線重審。已知候選：
+  - Dashboard「更新」按鈕同時更新股價+匯率+歷史價，label 只有「更新」——不明確（建議「更新行情」+ tooltip 列明範圍）。
+  - 「載入示範資料」只在空狀態出現（合理），但退出示範模式入口在設定深處。
+  - 備份還原拆在「匯出」（備份）與「一般」（還原）兩個分頁——應同分頁成對出現。
+  - 投資頁「回補歷史價格」入口在持倉編輯內，但提示文案從 Dashboard 連過來——動線斷裂。
+- **Action**: 以上逐項修正 + 用一次 walkthrough（新使用者從 0 記第一筆帳→建立持倉→看到分析）記錄卡點清單再批次修。
+- **驗收**: walkthrough 中無「找不到入口」的停頓點。
+
+### 4.4 設計一致性收斂（接軌 COSS UI 遷移計畫）
+- **Problem**: 大量 inline style（13.5px、11.5px 等 ad-hoc 字級）與 Tailwind/COSS 元件混用；持倉詳情等頁仍有英文殘留；同語意的數字字色/字重在不同卡片不一致。整體觀感是「同一個設計語言、但施工精度不一」。
+- **Action**: 不另起爐灶，併入 `docs/coss-ui-migration-plan.md` 的逐頁遷移：每遷一頁同時 (a) inline style → DS token/元件 class，(b) 文案過 i18n，(c) 數字排版統一（tabular nums、漲跌色、typographic minus 已有規範，落實到每處）。
+- **驗收**: 遷移完成頁面 grep 不到 `style={{ fontSize:`（白名單除外）。
+
+---
+
+## 🟣 Phase 5 — 備份與同步強化（約 2 週）
+
+### 5.1 排程自動本地備份
+- **Problem**: 自動備份目前只在「同步前」觸發（保留 3 份）；不開同步的純本機使用者沒有任何自動備份。
+- **Action**: 每日首次啟動時自動產生本地 JSON 備份（沿用 `exportSnapshot`），保留策略：近 7 天每日 + 近 4 週每週；設定頁顯示備份清單與「立即備份」。
+- **驗收**: 連續使用 30 天後備份目錄 ≤ 11 份；還原任一份成功。
+
+### 5.2 還原前預覽
+- **Problem**: JSON 還原與備份還原都是直接覆蓋，使用者看不到「會還原成什麼」。
+- **Action**: 還原前顯示摘要 diff：備份的時間點、帳戶/交易/持倉筆數 vs 目前筆數，紅字標示會減少的部分；確認字句輸入（如輸入「還原」）取代單純按鈕。
+- **驗收**: 選錯舊備份時，使用者在預覽即可發現筆數異常並中止。
+
+### 5.3 同步進階（視使用回饋排程）
+- **Problem**: LWW 是 record 級——兩台裝置改同一筆的不同欄位會整筆覆蓋；變更要等 focus/啟動才推送。
+- **Action**（依序）:
+  1. 變更後 debounce 自動 push（例如 30 秒靜默期），縮短兩機差距視窗。
+  2. 同步歷史頁：最近 N 次 push/pull 的時間、筆數、衝突數，衝突可展開看被覆蓋的值（`summarizeConflict` 已有基礎）。
+  3. 欄位級 merge（大工程，僅在實際出現覆蓋災情後再投入）。
+- **驗收**: 兩機同時編輯不同欄位的衝突率顯著下降；使用者可自行追溯「這筆怎麼變的」。
+
+---
+
+## 🔭 LATER（遠期，順序未定）
+
+- **iOS App Store 上架** — 前置（同步、免費佈建測試）已就緒；待 Phase 1–2 穩定後申請正式開發者帳號、Touch-first 介面調整、ASO。SOP 見 `docs/ios-mobile-plan.md`。
+- **Apple Notarization** — 解決 AirDrop 安裝被 Gatekeeper 攔截問題（需 Apple Developer 帳號，與上架共用）。
+- **Household Sharing（家庭協作）** — 家庭空間、指定帳戶共享檢視/編輯；資料模型已有 `isSharedToHousehold` 預留。
+- **預算進階** — 預算 rollover（當月沒花完滾入下月）、年度預算視圖。
+- **報表匯出** — 月度/年度財務摘要 PDF（收支、淨值變化、投資績效），供報稅與家庭會議用。
+
+---
+
+## 執行原則
+
+1. **正確性 > 功能數**：Phase 1 全部完成前不開新 Phase。
+2. 每個 domain 計算改動必附單元測試（既有慣例，延續）。
+3. 每個 Phase 結束跑一次 demo-mode walkthrough + 截圖記錄，作為 release notes 素材。
+4. 口徑變更（如 TWR 導入）需在 UI 標示計算方式說明，遵循「financial calculations must be explainable」原則（PRODUCT.md）。
