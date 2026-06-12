@@ -218,7 +218,7 @@ export function FIRECalculatorRoute() {
           {/* Top 4 Cards */}
           <div style={{ display: "flex", gap: 16 }}>
             <MetricCard title="FIRE 目標" value={`NT$${(fireTarget / 1000000).toFixed(2)}M`} sub={`年支出 × ${Math.round(100/swr)} 倍`} />
-            <MetricCard title="達成年份" value={`+${yearsToFi ?? "-"}y · ${projection.fiAge ?? "-"}歲`} sub={yearsToFi ? `預計 ${new Date().getFullYear() + yearsToFi} 年` : "-"} />
+            <MetricCard title="達成年份" value={`+${yearsToFi ?? "—"}y · ${projection.fiAge ?? "—"}歲`} sub={yearsToFi ? `預計 ${new Date().getFullYear() + yearsToFi} 年` : "—"} />
             <MetricCard title="COAST-FIRE" value={`NT$${(projection.coastFireAmount / 1000000).toFixed(2)}M`} sub="達到此金額後即使停止儲蓄也能自然成長到 FIRE" />
             <MetricCard title="情境穩健度" value={`${projection.scenariosOnTrack} / 3`} sub="悲觀／中性／樂觀情境下仍能撐到計畫年齡的數量" />
           </div>

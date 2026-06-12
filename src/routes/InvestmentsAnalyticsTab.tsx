@@ -90,13 +90,13 @@ function BenchmarkPicker({ current }: { current: string }) {
       <PopoverTrigger render={
         <button
           type="button"
-          className="ns-input"
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", fontSize: 12.5, cursor: "pointer" }}
+          className="ns-input text-xs"
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", cursor: "pointer" }}
           title="更換比較指標"
         >
           <ChartLineUp size={13} />
           <span className="mono">{current}</span>
-          <span className="muted" style={{ fontSize: 11 }}>更換指標</span>
+          <span className="muted text-caption">更換指標</span>
         </button>
       } />
       <PopoverContent align="end" style={{ width: 300, padding: 10 }}>
@@ -113,9 +113,9 @@ function BenchmarkPicker({ current }: { current: string }) {
                 background: preset.ticker === current ? "var(--ns-accent-soft)" : "transparent",
               }}
             >
-              <span className="mono" style={{ fontSize: 12.5, fontWeight: 600, flexShrink: 0 }}>{preset.ticker}</span>
-              <span style={{ fontSize: 12.5, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{preset.name}</span>
-              <span className="dim" style={{ fontSize: 10.5, marginLeft: "auto", flexShrink: 0 }}>{preset.note}</span>
+              <span className="mono text-xs" style={{ fontWeight: 600, flexShrink: 0 }}>{preset.ticker}</span>
+              <span className="text-xs" style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{preset.name}</span>
+              <span className="dim text-micro" style={{ marginLeft: "auto", flexShrink: 0 }}>{preset.note}</span>
             </button>
           ))}
         </div>
@@ -442,7 +442,7 @@ export function InvestmentsAnalyticsTab({
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div>
           <div className="ns-eyebrow" style={{ marginBottom: 4 }}>績效</div>
-          <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>期間總覽</h3>
+          <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>期間總覽</h3>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           {/* Always-available backfill — the Dashboard's 前往回補 link lands here,
@@ -482,7 +482,7 @@ export function InvestmentsAnalyticsTab({
       <CossCard style={{ padding: 22 }}>
         <div style={{ marginBottom: 14 }}>
           <div className="ns-eyebrow" style={{ marginBottom: 4 }}>報酬口徑</div>
-          <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>三種報酬怎麼看</h3>
+          <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>三種報酬怎麼看</h3>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", overflow: "hidden" }}>
           {[
@@ -508,9 +508,8 @@ export function InvestmentsAnalyticsTab({
                 <MetricHelp text={s.help} />
               </div>
               <div
-                className="num"
+                className="num text-stat"
                 style={{
-                  fontSize: 22,
                   fontWeight: 600,
                   fontFamily: "var(--ns-font-num)",
                   fontVariantNumeric: "tabular-nums",
@@ -523,7 +522,7 @@ export function InvestmentsAnalyticsTab({
           ))}
         </div>
         {twrResult.excludedTickers && twrResult.excludedTickers.length > 0 ? (
-          <div className="muted" style={{ fontSize: 11, marginTop: 8, lineHeight: 1.5 }}>
+          <div className="muted text-caption" style={{ marginTop: 8, lineHeight: 1.5 }}>
             部分標的歷史股價不足，未納入 TWR 計算：{twrResult.excludedTickers.join("、")}。
           </div>
         ) : null}
@@ -554,18 +553,18 @@ export function InvestmentsAnalyticsTab({
                   const color = up ? "var(--ns-gain)" : "var(--ns-loss)";
                   return (
                     <div key={r.label} style={{ display: "grid", gridTemplateColumns: "96px 1fr 150px", gap: 12, alignItems: "center" }}>
-                      <span className="mono" style={{ fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.label}</span>
+                      <span className="mono text-xs" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.label}</span>
                       <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
                         <div style={{ width: `${(Math.abs(r.contribution) / maxAbs) * 100}%`, height: "100%", background: color, borderRadius: 99 }} />
                       </div>
-                      <div style={{ textAlign: "right", fontSize: 12.5, display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                      <div className="text-xs" style={{ textAlign: "right", display: "flex", justifyContent: "flex-end", gap: 6 }}>
                         <span className="num" style={{ color }}>{up ? "+" : "−"}{formatMoney(Math.abs(r.contribution), primaryCurrency)}</span>
                         <span className="num muted" style={{ minWidth: 48, textAlign: "right" }}>{r.pct >= 0 ? "+" : "−"}{Math.abs(r.pct).toFixed(0)}%</span>
                       </div>
                     </div>
                   );
                 })}
-                <div style={{ marginTop: 6, paddingTop: 10, borderTop: "1px solid var(--ns-border)", display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
+                <div className="text-xs" style={{ marginTop: 6, paddingTop: 10, borderTop: "1px solid var(--ns-border)", display: "flex", justifyContent: "space-between" }}>
                   <span className="muted">期間合計</span>
                   <span className="num" style={{ color: attribution.total >= 0 ? "var(--ns-gain)" : "var(--ns-loss)", fontWeight: 600 }}>
                     {attribution.total >= 0 ? "+" : "−"}{formatMoney(Math.abs(attribution.total), primaryCurrency)}
@@ -575,7 +574,7 @@ export function InvestmentsAnalyticsTab({
             );
           })()}
           {attribution.excludedTickers.length > 0 ? (
-            <div className="muted" style={{ fontSize: 11, marginTop: 8, lineHeight: 1.5 }}>
+            <div className="muted text-caption" style={{ marginTop: 8, lineHeight: 1.5 }}>
               部分標的歷史股價不足，未納入貢獻分析：{attribution.excludedTickers.join("、")}。
             </div>
           ) : null}
@@ -606,7 +605,7 @@ export function InvestmentsAnalyticsTab({
               <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: 4 }}>
                 {s.label}{s.help ? <MetricHelp text={s.help} /> : null}
               </div>
-              <div className="num" style={{ fontSize: 22, fontWeight: 600, fontFamily: "var(--ns-font-num)", color: s.color, fontVariantNumeric: "tabular-nums" }}>
+              <div className="num text-stat" style={{ fontWeight: 600, fontFamily: "var(--ns-font-num)", color: s.color, fontVariantNumeric: "tabular-nums" }}>
                 {s.val == null ? "—" : `${s.val >= 0 ? "+" : "−"}${Math.abs(s.val).toFixed(1)}%`}
               </div>
             </div>
@@ -640,7 +639,7 @@ export function InvestmentsAnalyticsTab({
             </ComposedChart>
           </ResponsiveContainer>
         </div>
-        <div style={{ display: "flex", gap: 16, marginTop: 10, fontSize: 11.5, flexWrap: "wrap" }}>
+        <div className="text-caption" style={{ display: "flex", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ width: 14, height: 2, background: "var(--ns-accent)" }} />
             <span className="muted">投資組合（累積報酬）</span>
@@ -651,7 +650,7 @@ export function InvestmentsAnalyticsTab({
           </span>
         </div>
         {core.excludedTickers.length > 0 ? (
-          <div className="muted" style={{ fontSize: 11, marginTop: 8, lineHeight: 1.5 }}>
+          <div className="muted text-caption" style={{ marginTop: 8, lineHeight: 1.5 }}>
             部分標的歷史股價不足，本期間未納入分析：{core.excludedTickers.join("、")}。回補更長區間的歷史股價即可納入。
           </div>
         ) : null}
@@ -670,7 +669,7 @@ export function InvestmentsAnalyticsTab({
               ].map((s, i) => (
                 <div key={s.label} style={{ padding: "12px 16px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)", minWidth: 0 }}>
                   <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>{s.label}<MetricHelp text={s.help} /></div>
-                  <div className="num" style={{ fontSize: 20, fontWeight: 600, fontFamily: "var(--ns-font-num)", color: "var(--ns-gain)", fontVariantNumeric: "tabular-nums" }}>{s.value}</div>
+                  <div className="num text-xl" style={{ fontWeight: 600, fontFamily: "var(--ns-font-num)", color: "var(--ns-gain)", fontVariantNumeric: "tabular-nums" }}>{s.value}</div>
                 </div>
               ))}
             </div>
@@ -685,11 +684,11 @@ export function InvestmentsAnalyticsTab({
                     <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                       {dividends.byYear.map((y) => (
                         <div key={y.year} style={{ display: "grid", gridTemplateColumns: "48px 1fr 110px", gap: 10, alignItems: "center" }}>
-                          <span className="mono muted" style={{ fontSize: 12.5 }}>{y.year}</span>
+                          <span className="mono muted text-xs">{y.year}</span>
                           <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
                             <div style={{ width: `${(y.total / max) * 100}%`, height: "100%", background: "var(--ns-gain)", borderRadius: 99 }} />
                           </div>
-                          <span className="num" style={{ textAlign: "right", fontSize: 12.5 }}>{formatMoney(y.total, primaryCurrency)}</span>
+                          <span className="num text-xs" style={{ textAlign: "right" }}>{formatMoney(y.total, primaryCurrency)}</span>
                         </div>
                       ))}
                     </div>
@@ -705,11 +704,11 @@ export function InvestmentsAnalyticsTab({
                     <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                       {dividends.byHolding.slice(0, 6).map((h) => (
                         <div key={h.assetId} style={{ display: "grid", gridTemplateColumns: "96px 1fr 110px", gap: 10, alignItems: "center" }}>
-                          <span className="mono" style={{ fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.ticker}</span>
+                          <span className="mono text-xs" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.ticker}</span>
                           <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
                             <div style={{ width: `${(h.total / max) * 100}%`, height: "100%", background: "var(--ns-chart-3)", borderRadius: 99 }} />
                           </div>
-                          <span className="num" style={{ textAlign: "right", fontSize: 12.5 }}>{formatMoney(h.total, primaryCurrency)}</span>
+                          <span className="num text-xs" style={{ textAlign: "right" }}>{formatMoney(h.total, primaryCurrency)}</span>
                         </div>
                       ))}
                     </div>
@@ -760,7 +759,7 @@ export function InvestmentsAnalyticsTab({
             />
           </div>
           {drift.data.length < 2 || drift.classes.length === 0 ? (
-            <div className="muted" style={{ fontSize: 13, padding: "24px 0" }}>歷史股價不足，無法顯示配置漂移。</div>
+            <div className="muted text-body" style={{ padding: "24px 0" }}>歷史股價不足，無法顯示配置漂移。</div>
           ) : (
             <>
               <div style={{ height: 200 }}>
@@ -783,7 +782,7 @@ export function InvestmentsAnalyticsTab({
               </div>
               <div style={{ display: "flex", gap: 14, marginTop: 12, flexWrap: "wrap" }}>
                 {drift.classes.map((c, i) => (
-                  <span key={c} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5 }}>
+                  <span key={c} className="text-caption" style={{ display: "flex", alignItems: "center", gap: 5 }}>
                     <span style={{ width: 10, height: 10, borderRadius: 2, background: CHART_COLORS[i % CHART_COLORS.length], flexShrink: 0 }} />
                     <span className="muted">{c}</span>
                   </span>
@@ -808,11 +807,11 @@ export function InvestmentsAnalyticsTab({
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {currencyExposure.items.map((it, i) => (
               <div key={it.currency} style={{ display: "grid", gridTemplateColumns: "64px 1fr 150px", gap: 12, alignItems: "center" }}>
-                <span className="mono" style={{ fontSize: 12.5 }}>{it.currency}</span>
+                <span className="mono text-xs">{it.currency}</span>
                 <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
                   <div style={{ width: `${it.pct}%`, height: "100%", background: CHART_COLORS[i % CHART_COLORS.length], borderRadius: 99 }} />
                 </div>
-                <div style={{ textAlign: "right", fontSize: 12.5, display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                <div className="text-xs" style={{ textAlign: "right", display: "flex", justifyContent: "flex-end", gap: 6 }}>
                   <span className="num muted">{formatMoney(it.value, primaryCurrency)}</span>
                   <span className="num" style={{ minWidth: 46, textAlign: "right" }}>{it.pct.toFixed(1)}%</span>
                 </div>
@@ -849,8 +848,8 @@ function AnalyticsSectionHeading({ title, description }: { title: string; descri
   return (
     <div style={{ marginTop: 4 }}>
       <div className="ns-eyebrow" style={{ marginBottom: 4 }}>投資分析</div>
-      <h2 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 18, fontWeight: 600 }}>{title}</h2>
-      <p className="muted" style={{ margin: "4px 0 0", fontSize: 12.5, lineHeight: 1.5 }}>{description}</p>
+      <h2 className="text-lg" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>{title}</h2>
+      <p className="muted text-xs" style={{ margin: "4px 0 0", lineHeight: 1.5 }}>{description}</p>
     </div>
   );
 }
@@ -873,7 +872,7 @@ function RollingVolatilityCard({ rolling }: {
         />
       </div>
       {rolling.data.length < 2 ? (
-        <div className="muted" style={{ fontSize: 13, padding: "24px 0" }}>歷史股價不足，無法計算滾動波動率。</div>
+        <div className="muted text-body" style={{ padding: "24px 0" }}>歷史股價不足，無法計算滾動波動率。</div>
       ) : (
         <>
           <div style={{ height: 168 }}>
@@ -907,9 +906,9 @@ function RollingVolatilityCard({ rolling }: {
             ].map((r) => (
               <div key={r.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ width: 8, height: 8, borderRadius: 99, background: r.dot, flexShrink: 0 }} />
-                <span className="muted" style={{ flex: 1, fontSize: 12.5 }}>{r.label}</span>
-                <span className="num" style={{ fontSize: 13, color: r.dot, fontVariantNumeric: "tabular-nums" }}>{r.value}</span>
-                {r.note ? <span className="dim" style={{ fontSize: 10.5 }}>{r.note}</span> : null}
+                <span className="muted text-xs" style={{ flex: 1 }}>{r.label}</span>
+                <span className="num text-body" style={{ color: r.dot, fontVariantNumeric: "tabular-nums" }}>{r.value}</span>
+                {r.note ? <span className="dim text-micro">{r.note}</span> : null}
               </div>
             ))}
           </div>
@@ -938,21 +937,21 @@ function DrawdownStatusCard({ drawdown, values, primaryCurrency }: {
       </div>
       <div style={{ display: "grid", gap: 12 }}>
         <div className="ns-surface" style={{ padding: "12px 14px" }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>期間最大回撤</div>
-          <div className="num neg" style={{ fontSize: 26, fontWeight: 650 }}>{fmtPct(drawdown.drawdownPct, 1)}</div>
-          <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
+          <div className="muted text-xs" style={{ marginBottom: 4 }}>期間最大回撤</div>
+          <div className="num neg text-[26px]" style={{ fontWeight: 650 }}>{fmtPct(drawdown.drawdownPct, 1)}</div>
+          <div className="muted text-caption" style={{ marginTop: 4 }}>
             {drawdown.peakDate && drawdown.troughDate ? `${drawdown.peakDate} → ${drawdown.troughDate}` : "資料不足"}
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
           <div className="ns-surface" style={{ padding: "10px 12px" }}>
-            <div className="muted" style={{ fontSize: 11 }}>恢復狀態</div>
+            <div className="muted text-caption">恢復狀態</div>
             <div style={{ marginTop: 4, fontWeight: 600, color: drawdown.recovered ? "var(--ns-pos)" : "var(--ns-warn)" }}>
               {drawdown.recovered ? "已回到高點" : "尚未恢復"}
             </div>
           </div>
           <div className="ns-surface" style={{ padding: "10px 12px" }}>
-            <div className="muted" style={{ fontSize: 11 }}>距離高點</div>
+            <div className="muted text-caption">距離高點</div>
             <div className="num" style={{ marginTop: 4, fontWeight: 600 }}>
               {gap == null ? "—" : formatMoney(Math.max(0, gap), primaryCurrency)}
             </div>
@@ -983,33 +982,33 @@ function AllocationSummaryCard({ summary, primaryCurrency }: {
         />
       </div>
       {summary.rows.length === 0 ? (
-        <div className="muted" style={{ fontSize: 13, padding: "24px 0" }}>目前持倉缺少最新價格，無法估算配置。</div>
+        <div className="muted text-body" style={{ padding: "24px 0" }}>目前持倉缺少最新價格，無法估算配置。</div>
       ) : (
         <div style={{ display: "grid", gap: 14 }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
             <div className="ns-surface" style={{ padding: "10px 12px" }}>
-              <div className="muted" style={{ fontSize: 11 }}>最大資產類別</div>
+              <div className="muted text-caption">最大資產類別</div>
               <div style={{ marginTop: 4, fontWeight: 650 }}>{summary.largestClass?.label ?? "—"}</div>
-              <div className="mono muted" style={{ fontSize: 11 }}>{summary.largestClass ? `${summary.largestClass.pct.toFixed(1)}%` : "—"}</div>
+              <div className="mono muted text-caption">{summary.largestClass ? `${summary.largestClass.pct.toFixed(1)}%` : "—"}</div>
             </div>
             <div className="ns-surface" style={{ padding: "10px 12px" }}>
-              <div className="muted" style={{ fontSize: 11 }}>最大單一持倉</div>
+              <div className="muted text-caption">最大單一持倉</div>
               <div className="mono" style={{ marginTop: 4, fontWeight: 650 }}>{summary.largestHolding?.label ?? "—"}</div>
-              <div className="mono muted" style={{ fontSize: 11 }}>{summary.topHoldingPct == null ? "—" : `${summary.topHoldingPct.toFixed(1)}%`}</div>
+              <div className="mono muted text-caption">{summary.topHoldingPct == null ? "—" : `${summary.topHoldingPct.toFixed(1)}%`}</div>
             </div>
           </div>
           <div style={{ display: "grid", gap: 8 }}>
             {summary.rows.slice(0, 5).map((row) => (
               <div key={row.label} style={{ display: "grid", gridTemplateColumns: "minmax(0, 84px) minmax(0, 1fr) auto", gap: 10, alignItems: "center" }}>
-                <span className="muted" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.label}</span>
+                <span className="muted text-xs" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.label}</span>
                 <div style={{ height: 7, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
                   <div style={{ width: `${Math.min(100, row.pct)}%`, height: "100%", borderRadius: 99, background: row.color }} />
                 </div>
-                <span className="mono" style={{ fontSize: 12 }}>{row.pct.toFixed(1)}%</span>
+                <span className="mono text-xs">{row.pct.toFixed(1)}%</span>
               </div>
             ))}
           </div>
-          <div className="muted" style={{ fontSize: 11.5 }}>
+          <div className="muted text-caption">
             可計價市值 {formatMoney(summary.total, primaryCurrency)}
           </div>
         </div>
@@ -1053,20 +1052,20 @@ function KpiCard({ label, note, value, color, spark, sub, help }: {
           {label}
           <MetricHelp text={help} />
         </div>
-        <span className="mono dim" style={{ fontSize: 10 }}>{note}</span>
+        <span className="mono dim text-micro">{note}</span>
       </div>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
         <div className="num" style={{ fontSize: "clamp(20px, 2.4vw, 26px)", fontWeight: 600, fontFamily: "var(--ns-font-num)", color, fontVariantNumeric: "tabular-nums lining-nums", letterSpacing: -0.01, whiteSpace: "nowrap" }}>{value}</div>
         <Sparkline data={spark} color={color} />
       </div>
-      <div className="muted" style={{ fontSize: 11, lineHeight: 1.45 }}>{sub}</div>
+      <div className="muted text-caption" style={{ lineHeight: 1.45 }}>{sub}</div>
     </CossCard>
   );
 }
 
 function HeadingWithHelp({ title, help }: { title: string; help: string }) {
   return (
-    <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
+    <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
       {title}
       <MetricHelp text={help} />
     </h3>

@@ -509,7 +509,7 @@ function PreviewTable({ headers, totalColumns, rows }: { headers: string[]; tota
 function ImportPreviewRow({ item }: { item: { row: number; value: InvestmentImportValue } }) {
   const value = item.value;
   if (value.kind === "cash") {
-    const sign = value.draft.amount >= 0 ? "+" : "-";
+    const sign = value.draft.amount >= 0 ? "+" : "−";
     return (
       <tr>
         <td style={{ padding: "6px 10px" }} className="mono">{item.row}</td>

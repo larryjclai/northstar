@@ -1417,6 +1417,19 @@ textarea:focus-visible {
   --font-heading: var(--ns-font-display);
   --font-sans: var(--ns-font-ui);
   --font-mono: var(--ns-font-mono);
+  /* Type scale (4.4 收斂): integer ladder absorbing the ad-hoc .5px sizes.
+     micro 10 (chart ticks/tiny eyebrows) · caption 11 (help/legends) ·
+     xs 12 (built-in, secondary) · body 13 (primary content) ·
+     sm 14 / base 16 / lg 18 / xl 20 (built-ins) · stat 22 (card hero numbers).
+     Mapping rule for migration: 10.5→micro, 11.5→caption, 12.5→xs, 13.5→body. */
+  --text-micro: 10px;
+  --text-micro--line-height: 1.4;
+  --text-caption: 11px;
+  --text-caption--line-height: 1.5;
+  --text-body: 13px;
+  --text-body--line-height: 1.55;
+  --text-stat: 22px;
+  --text-stat--line-height: 1.2;
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);

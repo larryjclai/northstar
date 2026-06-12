@@ -249,7 +249,7 @@ export function CategoriesRoute() {
                   {/* Budget */}
                   <div style={{ flex: "0 0 240px", paddingLeft: 48 }}>
                     <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
-                      {hasBudget ? formatMoney(cat.budget!, primaryCurrency) : "-"}
+                      {hasBudget ? formatMoney(cat.budget!, primaryCurrency) : "—"}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--ns-fg-muted)" }}>
                       {hasBudget ? (
