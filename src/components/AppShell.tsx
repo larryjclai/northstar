@@ -25,6 +25,7 @@ import { usePostDueRecurring } from "../data/hooks";
 import { todayInTimezone } from "../domain";
 import { GlobalSearch } from "./GlobalSearch";
 import { QuickAdd } from "./QuickAdd";
+import { useToast } from "./Toast";
 import { OnboardingOverlay, openOnboarding } from "./OnboardingOverlay";
 import { useTranslation } from "react-i18next";
 import { MagnifyingGlass } from "@phosphor-icons/react";
@@ -77,6 +78,7 @@ export function AppShell() {
   usePrivacyShortcut();
   useAutoSync();
   useAutoMarketRefresh();
+  useAutoUpdateCheck();
   const timezone = useUiPreferences((state) => state.timezone);
   usePostDueRecurring(todayInTimezone(timezone));
   const privacyMode = useUiPreferences((state) => state.privacyMode);
@@ -393,6 +395,72 @@ function useAutoMarketRefresh() {
     window.addEventListener("focus", triggerRefresh);
     return () => window.removeEventListener("focus", triggerRefresh);
   }, [triggerRefresh, demoActive]);
+}
+
+// ── Proactive "new version available" prompt ───────────────────────────────
+// On desktop launch (and on window focus, throttled) the app quietly asks the
+// updater whether a newer signed release exists. If so it raises a sticky toast
+// with a one-tap "立即更新" action — the user never has to dig into 設定 to find
+// out an update is waiting. The manual UpdateChecker in ConnectSection stays as
+// the explicit "force a check now" path.
+
+const MIN_UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60_000; // at most once per 6h
+
+function useAutoUpdateCheck() {
+  const toast = useToast();
+  // One in-flight prompt at a time, and don't re-raise the same version after
+  // the user dismisses it within a session.
+  const checkedRef = useRef(false);
+  const promptedVersionRef = useRef<string | null>(null);
+  const lastCheckRef = useRef(0);
+
+  const runInstall = useCallback(async (version: string, download: () => Promise<void>) => {
+    const progressId = toast.info(`正在下載 v${version}…`, { durationMs: 0, description: "下載完成後將自動重新啟動。" });
+    try {
+      await download();
+      toast.dismiss(progressId);
+      const { relaunch } = await import("@tauri-apps/plugin-process");
+      toast.success("更新完成，正在重新啟動…", { durationMs: 0 });
+      await relaunch();
+    } catch (error) {
+      toast.dismiss(progressId);
+      const detail = error instanceof Error ? error.message : String(error);
+      toast.error("更新失敗", { description: "請稍後再試，或到「設定 → 應用程式更新」手動更新。", detail });
+    }
+  }, [toast]);
+
+  const checkForUpdate = useCallback(async () => {
+    if (!("__TAURI_INTERNALS__" in window)) return;
+    if (Date.now() - lastCheckRef.current < MIN_UPDATE_CHECK_INTERVAL_MS) return;
+    lastCheckRef.current = Date.now();
+    try {
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const update = await check();
+      if (!update) return;
+      // Avoid nagging: only one toast per version per session.
+      if (promptedVersionRef.current === update.version) return;
+      promptedVersionRef.current = update.version;
+      const notes = update.body?.trim();
+      toast.info(`有新版本可下載 · v${update.version}`, {
+        durationMs: 0,
+        description: notes
+          ? (notes.length > 140 ? `${notes.slice(0, 140)}…` : notes)
+          : "已備妥一個新版本，更新後即可使用最新功能。",
+        action: { label: "立即更新", onClick: () => void runInstall(update.version, () => update.downloadAndInstall()) },
+      });
+    } catch {
+      // Offline / no release yet / dev build — stay silent; the manual checker
+      // surfaces errors when the user explicitly asks.
+    }
+  }, [toast, runInstall]);
+
+  useEffect(() => {
+    if (checkedRef.current) return; // guard StrictMode double-mount
+    checkedRef.current = true;
+    void checkForUpdate();
+    window.addEventListener("focus", checkForUpdate);
+    return () => window.removeEventListener("focus", checkForUpdate);
+  }, [checkForUpdate]);
 }
 
 function useQuickAddShortcut(toggle: () => void) {

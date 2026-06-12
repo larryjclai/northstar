@@ -15,7 +15,7 @@ import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { getFinanceRepository } from "../data/repositories";
 import type { Account, AccountType, AppSettings } from "../domain";
 import { convertCurrency, formatNumber, nowAsDatetimeLocal } from "../domain";
-import { BANK_BRANDS } from "../domain/bankBrands";
+import { BANK_BRANDS, resolveBankBrand } from "../domain/bankBrands";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useNumericField } from "../hooks/useNumericField";
 
@@ -312,11 +312,29 @@ export function AccountsRoute() {
                 const groupCredit = a.type === "credit" && a.creditLimitGroup ? calculateCreditGroup(a.creditLimitGroup, rows) : null;
                 const subgroup = a.customGroup || "未分組";
                 const showSubgroup = i === 0 || (g.rows[i - 1].customGroup || "未分組") !== subgroup;
+
+                // Accent color: user color > brand color > chart palette fallback
+                const brand = resolveBankBrand(a.name, a.bankBrandDomain);
+                const accentColor = a.color || brand?.brandColor || MARK_COLORS[i % MARK_COLORS.length];
+
+                // Credit utilization bar (per-card; group limit used when set)
+                const creditLimit = groupCredit?.limit || a.creditLimit;
+                const creditUsed = groupCredit ? groupCredit.used : Math.max(0, -a.balance);
+                const utilPct = a.type === "credit" && creditLimit ? Math.min(100, (creditUsed / creditLimit) * 100) : null;
+                const utilBarColor = utilPct !== null && utilPct >= 80 ? "var(--ns-neg)" : accentColor;
+
                 return (
                   <div key={a.id}>
                   {showSubgroup ? <div className="ns-eyebrow" style={{ padding: "10px 22px 4px", borderTop: i ? "1px solid var(--ns-border)" : "none" }}>{subgroup}</div> : null}
-                  <div className="ns-acct-row" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 14, rowGap: 10, padding: "12px 18px", borderTop: !showSubgroup && i ? "1px solid var(--ns-border)" : "none" }}>
-                    <div style={{ position: "relative", width: 36, height: 36, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: a.color || MARK_COLORS[i % MARK_COLORS.length], color: "var(--ns-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, overflow: "hidden" }}>
+                  <div
+                    className="ns-acct-row"
+                    style={{
+                      display: "flex", alignItems: "center", flexWrap: "wrap", gap: 14, rowGap: 10,
+                      padding: "12px 18px",
+                      borderTop: !showSubgroup && i ? "1px solid var(--ns-border)" : "none",
+                    }}
+                  >
+                    <div style={{ position: "relative", width: 36, height: 36, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: a.color || brand?.brandColor || MARK_COLORS[i % MARK_COLORS.length], color: "var(--ns-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, overflow: "hidden" }}>
                       <Glyph name={a.iconName || DEFAULT_ACCOUNT_ICON[a.type]} size={20} color="var(--ns-bg)" fallbackText={a.name.slice(0, 2)} />
                       <BankLogo accountName={a.name} bankBrandDomain={a.bankBrandDomain} size={36} />
                     </div>
@@ -334,7 +352,15 @@ export function AccountsRoute() {
                         {a.type === "credit" && a.creditLimit ? ` · 額度 ${formatNumber(a.creditLimit)}` : ""}
                         {groupCredit ? ` · 共用 ${groupCredit.name}` : ""}
                         {a.type === "loan" && a.annualInterestRate !== null ? ` · 年利率 ${a.annualInterestRate}%` : ""}
+                        {a.type === "credit" && a.paymentDueDay ? ` · 繳款 ${a.paymentDueDay} 日` : ""}
                       </div>
+                      {utilPct !== null ? (
+                        <div style={{ marginTop: 5 }}>
+                          <div style={{ height: 3, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
+                            <div style={{ width: `${utilPct}%`, height: "100%", borderRadius: 99, background: utilBarColor, transition: "width 0.3s ease" }} />
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                     {/* Amount + actions travel together as the right cluster so
                         they wrap to a second line as a unit on a narrow phone
