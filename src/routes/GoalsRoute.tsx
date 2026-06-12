@@ -121,7 +121,7 @@ export function GoalsRoute() {
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 22, gap: 16, flexWrap: "wrap" }}>
         <div>
           <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Long-term progress</div>
-          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>目標・FIRE</h1>
+          <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>目標・FIRE</h1>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <Button variant="ghost" render={<Link to="/goals/fire" />}>
@@ -149,8 +149,9 @@ export function GoalsRoute() {
                         <button
                           key={g.id}
                           onClick={() => setSelectedGoalId(g.id)}
+                          className="text-xs"
                           style={{
-                            display: "flex", alignItems: "center", gap: 5, fontSize: 12, padding: "4px 10px", borderRadius: 999, cursor: "pointer", border: "1px solid",
+                            display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, cursor: "pointer", border: "1px solid",
                             background: active ? "var(--ns-surface-strong)" : "transparent",
                             borderColor: active ? "var(--ns-border)" : "transparent",
                             color: active ? "var(--ns-fg)" : "var(--ns-fg-muted)",
@@ -163,25 +164,25 @@ export function GoalsRoute() {
                     })}
                   </div>
                 ) : (
-                  <div style={{ fontSize: 12, color: "var(--ns-fg-muted)", marginBottom: 12, letterSpacing: 0.5 }}>{selectedGoal.name}</div>
+                  <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginBottom: 12, letterSpacing: 0.5 }}>{selectedGoal.name}</div>
                 )}
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 16 }}>
                   {isFire ? (
                     <>
-                      <span style={{ fontSize: 40, fontWeight: 600, letterSpacing: -1 }}>NT${(currentValue / 1_000_000).toFixed(2)}M</span>
-                      <span style={{ fontSize: 14, color: "var(--ns-fg-muted)" }}>/ NT${(stats.target / 1_000_000).toFixed(stats.target >= 10_000_000 ? 0 : 2)}M</span>
+                      <span className="text-[40px]" style={{ fontWeight: 600, letterSpacing: -1 }}>NT${(currentValue / 1_000_000).toFixed(2)}M</span>
+                      <span className="text-sm" style={{ color: "var(--ns-fg-muted)" }}>/ NT${(stats.target / 1_000_000).toFixed(stats.target >= 10_000_000 ? 0 : 2)}M</span>
                     </>
                   ) : (
                     <>
-                      <span style={{ fontSize: 40, fontWeight: 600, letterSpacing: -1 }}>{selectedGoal.currency} {formatNumber(currentValue)}</span>
-                      <span style={{ fontSize: 14, color: "var(--ns-fg-muted)" }}>/ {formatNumber(stats.target)}</span>
+                      <span className="text-[40px]" style={{ fontWeight: 600, letterSpacing: -1 }}>{selectedGoal.currency} {formatNumber(currentValue)}</span>
+                      <span className="text-sm" style={{ color: "var(--ns-fg-muted)" }}>/ {formatNumber(stats.target)}</span>
                     </>
                   )}
                 </div>
                 <div style={{ height: 6, borderRadius: 3, background: "var(--ns-surface-strong)", overflow: "hidden", marginBottom: 12 }}>
                   <div style={{ width: `${stats.progress.toFixed(1)}%`, height: "100%", background: "linear-gradient(90deg, var(--ns-accent), var(--ns-pos))", borderRadius: 3 }} />
                 </div>
-                <div style={{ fontSize: 13, color: "var(--ns-fg-dim)" }}>
+                <div className="text-body" style={{ color: "var(--ns-fg-dim)" }}>
                   {!isFire && Object.values(selectedGoal.accountShareMap ?? {}).filter((w) => w > 0).length === 0
                     ? <>尚未綁定帳戶 — <button onClick={() => setEditor({ goal: selectedGoal })} style={{ color: "var(--ns-accent)", cursor: "pointer", background: "none", border: "none", padding: 0, font: "inherit" }}>編輯目標</button> 以追蹤進度</>
                     : <>{stats.progress.toFixed(1)}% · {stats.years !== null ? `預估 ${stats.years} 年後達成 (${new Date().getFullYear() + stats.years})` : "尚無法預估"}</>}
@@ -209,15 +210,16 @@ export function GoalsRoute() {
             {/* Right column: chart */}
             <div style={{ flex: 1, minWidth: 280, display: "flex", flexDirection: "column" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <div style={{ fontSize: 11, fontFamily: "var(--ns-font-mono)", color: "var(--ns-fg-muted)", letterSpacing: 1 }}>PROJECTION</div>
+                <div className="text-caption" style={{ fontFamily: "var(--ns-font-mono)", color: "var(--ns-fg-muted)", letterSpacing: 1 }}>PROJECTION</div>
                 {isFire ? (
                   <div style={{ display: "flex", gap: 8 }}>
                     {([["bear", "保守 5%"], ["base", "基準 7.2%"], ["bull", "樂觀 10%"]] as const).map(([k, label]) => (
                       <button
                         key={k}
                         onClick={() => setActiveProjection(k)}
+                        className="text-xs"
                         style={{
-                          fontSize: 12, padding: "4px 10px", borderRadius: 12, cursor: "pointer", border: "1px solid",
+                          padding: "4px 10px", borderRadius: 12, cursor: "pointer", border: "1px solid",
                           background: activeProjection === k ? "var(--ns-surface-strong)" : "transparent",
                           borderColor: activeProjection === k ? "var(--ns-border)" : "transparent",
                           color: activeProjection === k ? "var(--ns-fg)" : "var(--ns-fg-muted)",
@@ -228,7 +230,7 @@ export function GoalsRoute() {
                     ))}
                   </div>
                 ) : (
-                  <div style={{ fontSize: 11, color: "var(--ns-fg-dim)" }}>依年儲蓄推估</div>
+                  <div className="text-caption" style={{ color: "var(--ns-fg-dim)" }}>依年儲蓄推估</div>
                 )}
               </div>
               <div style={{ flex: 1, minHeight: 220, width: "100%" }}>
@@ -258,7 +260,7 @@ export function GoalsRoute() {
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="muted" style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>
+                  <div className="muted text-body" style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     補上年齡 / 報酬假設後即可預估退休曲線。
                   </div>
                 )}
@@ -270,8 +272,8 @@ export function GoalsRoute() {
             <div style={{ width: 56, height: 56, borderRadius: "var(--ns-r-md)", background: "var(--ns-accent-soft)", color: "var(--ns-accent)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
               <Star size={26} weight="fill" />
             </div>
-            <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 6 }}>還沒有目標</div>
-            <div className="muted" style={{ fontSize: 13, marginBottom: 18 }}>用 FIRE 計算機追蹤財務自由進度，或建立旅遊、買車等自訂儲蓄目標。</div>
+            <div className="text-base" style={{ fontWeight: 600, marginBottom: 6 }}>還沒有目標</div>
+            <div className="muted text-body" style={{ marginBottom: 18 }}>用 FIRE 計算機追蹤財務自由進度，或建立旅遊、買車等自訂儲蓄目標。</div>
             <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
               <Button render={<Link to="/goals/fire" />}><Calculator size={14} />開啟 FIRE 計算機</Button>
               <Button variant="outline" onClick={() => setEditor({ goal: null })}><Plus size={14} />新增自訂目標</Button>
@@ -282,11 +284,11 @@ export function GoalsRoute() {
         {/* Goals list */}
         <Card style={{ padding: "24px 0", overflow: "hidden" }}>
           <div style={{ padding: "0 32px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>{goals.length} active {goals.length === 1 ? "goal" : "goals"}</h2>
+            <h2 className="text-lg" style={{ fontWeight: 500, margin: 0 }}>{goals.length} active {goals.length === 1 ? "goal" : "goals"}</h2>
           </div>
 
           {goals.length === 0 ? (
-            <div className="muted" style={{ padding: "8px 32px 8px", fontSize: 13 }}>
+            <div className="muted text-body" style={{ padding: "8px 32px 8px" }}>
               還沒有目標。到 <Link to="/goals/fire" style={{ color: "var(--ns-accent)" }}>FIRE 計算機</Link> 建立第一個目標。
             </div>
           ) : (
@@ -305,34 +307,34 @@ export function GoalsRoute() {
                       <Icon size={20} color={color} weight={goal.kind === "fire" ? "fill" : "regular"} />
                     </div>
                     <div style={{ flex: "1 1 140px", minWidth: 0 }}>
-                      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{goal.name}</div>
-                      <div style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>
+                      <div className="text-[15px]" style={{ fontWeight: 500, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{goal.name}</div>
+                      <div className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>
                         {goal.kind === "fire"
                           ? "FIRE · 依淨值估算"
                           : boundCount > 0 ? `自訂目標 · 綁定 ${boundCount} 個帳戶` : "自訂目標 · 尚未綁定帳戶"}
                       </div>
                     </div>
                     <div style={{ flex: "0 0 auto", textAlign: "right" }}>
-                      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4, whiteSpace: "nowrap" }}>{goal.currency} {formatNumber(current)}</div>
-                      <div style={{ fontSize: 12, color: "var(--ns-fg-dim)", whiteSpace: "nowrap" }}>/ {formatNumber(target)}</div>
+                      <div className="text-sm" style={{ fontWeight: 500, marginBottom: 4, whiteSpace: "nowrap" }}>{goal.currency} {formatNumber(current)}</div>
+                      <div className="text-xs" style={{ color: "var(--ns-fg-dim)", whiteSpace: "nowrap" }}>/ {formatNumber(target)}</div>
                     </div>
                     <div style={{ flex: "1 1 180px", display: "flex", alignItems: "center", gap: 12 }}>
                       <div style={{ flex: 1, height: 6, borderRadius: 3, background: "var(--ns-surface-strong)", overflow: "hidden" }}>
                         <div style={{ height: "100%", width: `${progress}%`, background: color, borderRadius: 3 }} />
                       </div>
-                      <div style={{ fontSize: 13, color: "var(--ns-fg-dim)", width: 48, textAlign: "right", flexShrink: 0 }}>{progress.toFixed(1)}%</div>
+                      <div className="text-body" style={{ color: "var(--ns-fg-dim)", width: 48, textAlign: "right", flexShrink: 0 }}>{progress.toFixed(1)}%</div>
                     </div>
                     <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 12, marginLeft: "auto" }}>
                       {achieved ? (
-                        <span style={{ fontSize: 13, color: "var(--ns-pos)", display: "flex", alignItems: "center", gap: 4 }}><CheckCircle size={14} weight="fill" /> 達成</span>
+                        <span className="text-body" style={{ color: "var(--ns-pos)", display: "flex", alignItems: "center", gap: 4 }}><CheckCircle size={14} weight="fill" /> 達成</span>
                       ) : (
-                        <span style={{ fontSize: 13, color: "var(--ns-fg-dim)" }}>追蹤中</span>
+                        <span className="text-body" style={{ color: "var(--ns-fg-dim)" }}>追蹤中</span>
                       )}
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                         {confirmDeleteId === goal.id ? (
                           <>
-                            <Button variant="outline" size="sm" style={{ fontSize: 12, color: "var(--ns-neg)" }} onClick={() => handleDeleteGoal(goal.id)}>確定刪除</Button>
-                            <Button variant="ghost" size="sm" style={{ fontSize: 12 }} onClick={() => setConfirmDeleteId(null)}>取消</Button>
+                            <Button variant="outline" size="sm" className="text-xs" style={{ color: "var(--ns-neg)" }} onClick={() => handleDeleteGoal(goal.id)}>確定刪除</Button>
+                            <Button variant="ghost" size="sm" className="text-xs" onClick={() => setConfirmDeleteId(null)}>取消</Button>
                           </>
                         ) : (
                           <>
@@ -368,8 +370,8 @@ export function GoalsRoute() {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div style={{ fontSize: 12, color: "var(--ns-fg-muted)", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 500 }}>{value}</div>
+      <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginBottom: 4 }}>{label}</div>
+      <div className="text-lg" style={{ fontWeight: 500 }}>{value}</div>
     </div>
   );
 }

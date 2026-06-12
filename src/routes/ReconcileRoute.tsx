@@ -121,7 +121,7 @@ export function ReconcileRoute() {
   return (
     <div style={{ height: "100%", overflow: "auto", padding: "24px 32px 100px" }}>
       {/* Breadcrumb */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18, fontSize: 13, color: "var(--ns-fg-muted)" }}>
+      <div className="text-body" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18, color: "var(--ns-fg-muted)" }}>
         <span style={{ cursor: "pointer" }} onClick={() => navigate({ to: "/accounts" })}>帳戶</span>
         <CaretRight size={13} />
         <span style={{ fontWeight: 500, color: "var(--ns-fg)" }}>{account.name} · 對帳</span>
@@ -130,8 +130,8 @@ export function ReconcileRoute() {
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, gap: 16, flexWrap: "wrap" }}>
         <div>
           <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Reconciliation · {account.currency}</div>
-          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 26, margin: 0, fontWeight: 600 }}>{account.name} 對帳</h1>
-          <p className="muted" style={{ fontSize: 13, marginTop: 4, marginBottom: 0 }}>
+          <h1 className="text-[26px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, fontWeight: 600 }}>{account.name} 對帳</h1>
+          <p className="muted text-body" style={{ marginTop: 4, marginBottom: 0 }}>
             依結帳日將交易分期核對。
             {account.statementDay ? ` 結帳日每月 ${account.statementDay} 號。` : ""}
             {account.paymentDueDay ? ` 繳款日每月 ${account.paymentDueDay} 號。` : ""}
@@ -156,29 +156,29 @@ export function ReconcileRoute() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 }}>
         <Card style={{ padding: 16 }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>本期消費</div>
-          <div className="num" style={{ fontSize: 19, color: currentSpend > 0 ? "var(--ns-neg)" : undefined }}>NT${formatNumber(currentSpend)}</div>
+          <div className="num text-[19px]" style={{ color: currentSpend > 0 ? "var(--ns-neg)" : undefined }}>NT${formatNumber(currentSpend)}</div>
           {currentRefunds > 0.5 ? (
-            <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+            <div className="muted text-caption" style={{ marginTop: 4 }}>
               退款 −NT${formatNumber(currentRefunds)} · 淨額 NT${formatNumber(currentNet)}
             </div>
           ) : null}
         </Card>
         <Card style={{ padding: 16 }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>本期已對帳 / 筆數</div>
-          <div className="num" style={{ fontSize: 19 }}>{currentReconciled} / {currentCount}</div>
+          <div className="num text-[19px]">{currentReconciled} / {currentCount}</div>
         </Card>
         <Card style={{ padding: 16 }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>卡片未繳總額</div>
-          <div className="num" style={{ fontSize: 19, color: owed > 0 ? "var(--ns-neg)" : undefined }}>NT${formatNumber(owed)}</div>
+          <div className="num text-[19px]" style={{ color: owed > 0 ? "var(--ns-neg)" : undefined }}>NT${formatNumber(owed)}</div>
         </Card>
       </div>
       {currentUnreconciled > 0 ? (
-        <div className="muted" style={{ fontSize: 12.5, marginBottom: 12 }}>本期尚有 NT${formatNumber(currentUnreconciled)} 未對帳。</div>
+        <div className="muted text-xs" style={{ marginBottom: 12 }}>本期尚有 NT${formatNumber(currentUnreconciled)} 未對帳。</div>
       ) : null}
 
       {/* Statement periods */}
       {periods.length === 0 ? (
-        <Card style={{ padding: "var(--ns-pad-card)" }}><div className="muted" style={{ padding: 40, textAlign: "center", fontSize: 13 }}>此帳戶尚無交易紀錄。</div></Card>
+        <Card style={{ padding: "var(--ns-pad-card)" }}><div className="muted text-body" style={{ padding: 40, textAlign: "center" }}>此帳戶尚無交易紀錄。</div></Card>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {periods.map((period) => {
@@ -192,27 +192,28 @@ export function ReconcileRoute() {
                 >
                   {open ? <CaretDown size={14} /> : <CaretRight size={14} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14.5, fontWeight: 500 }}>
-                      {period.isCurrent ? <Badge variant="outline" className="rounded-full" style={{ fontSize: 10.5, padding: "2px 7px" }}>本期</Badge> : null}
+                    <div className="text-sm" style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 500 }}>
+                      {period.isCurrent ? <Badge variant="outline" className="rounded-full text-micro" style={{ padding: "2px 7px" }}>本期</Badge> : null}
                       {period.label}
-                      {period.isPaid ? <Badge variant="outline" className="rounded-full" style={{ fontSize: 10.5, padding: "2px 7px", color: "var(--ns-pos)", borderColor: "var(--ns-pos)" }}>已繳款</Badge> : null}
+                      {period.isPaid ? <Badge variant="outline" className="rounded-full text-micro" style={{ padding: "2px 7px", color: "var(--ns-pos)", borderColor: "var(--ns-pos)" }}>已繳款</Badge> : null}
                     </div>
-                    <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+                    <div className="muted text-caption" style={{ marginTop: 2 }}>
                       {period.rows.length} 筆 · 已對帳 {period.reconciledCount}/{period.rows.length}
                       {period.dueDate ? ` · 繳款日 ${period.dueDate.slice(5)}` : ""}
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div className="num" style={{ fontSize: 15, fontWeight: 500, color: period.spend > 0 ? "var(--ns-neg)" : "var(--ns-fg-dim)" }}>
+                    <div className="num text-[15px]" style={{ fontWeight: 500, color: period.spend > 0 ? "var(--ns-neg)" : "var(--ns-fg-dim)" }}>
                       NT${formatNumber(period.spend)}
                     </div>
                     {period.spend + period.total > 0.5 ? (
-                      <div className="muted" style={{ fontSize: 10.5, marginTop: 1 }}>淨額 NT${formatNumber(-period.total)}</div>
+                      <div className="muted text-micro" style={{ marginTop: 1 }}>淨額 NT${formatNumber(-period.total)}</div>
                     ) : null}
                   </div>
                   {open && unreconciled > 0 ? (
                     <Button variant="ghost"
-                      style={{ fontSize: 12, padding: "4px 10px", minHeight: "auto" }}
+                      className="text-xs"
+                      style={{ padding: "4px 10px", minHeight: "auto" }}
                       onClick={(e) => { e.stopPropagation(); markAll(period.key, true); }}
                       disabled={setReviewed.isPending}
                     >
@@ -222,7 +223,7 @@ export function ReconcileRoute() {
                 </div>
                 {open ? (
                   period.rows.length === 0 ? (
-                    <div className="muted" style={{ padding: "16px 18px", fontSize: 13 }}>本期尚無交易。</div>
+                    <div className="muted text-body" style={{ padding: "16px 18px" }}>本期尚無交易。</div>
                   ) : (
                     period.rows.map((row, i) => (
                       <div
@@ -232,10 +233,10 @@ export function ReconcileRoute() {
                       >
                         {row.isReviewed ? <CheckCircle size={20} weight="fill" style={{ color: "var(--ns-accent)", flexShrink: 0 }} /> : <Circle size={20} style={{ color: "var(--ns-fg-dim)", flexShrink: 0 }} />}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 14, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.merchant || row.name || row.category || "交易"}</div>
-                          <div className="muted" style={{ fontSize: 11.5 }}>{row.date.slice(0, 10)}{row.category ? ` · ${row.category}` : ""}</div>
+                          <div className="text-sm" style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.merchant || row.name || row.category || "交易"}</div>
+                          <div className="muted text-caption">{row.date.slice(0, 10)}{row.category ? ` · ${row.category}` : ""}</div>
                         </div>
-                        <div className="num" style={{ fontSize: 14, color: row.amount < 0 ? "var(--ns-neg)" : "var(--ns-pos)", whiteSpace: "nowrap" }}>
+                        <div className="num text-sm" style={{ color: row.amount < 0 ? "var(--ns-neg)" : "var(--ns-pos)", whiteSpace: "nowrap" }}>
                           {row.amount < 0 ? "−" : "+"}NT${formatNumber(Math.abs(row.amount))}
                         </div>
                       </div>

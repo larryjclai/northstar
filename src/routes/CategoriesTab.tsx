@@ -77,19 +77,19 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
         <Card style={{ padding: "20px 24px" }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>最大支出</div>
-          <div style={{ fontSize: 18, fontWeight: 500 }}>
+          <div className="text-lg" style={{ fontWeight: 500 }}>
             {maxSpendCat ? `${maxSpendCat.name} · ${primaryCurrency} ${formatNumber(maxSpendCat.amount)}` : "無"}
           </div>
         </Card>
         <Card style={{ padding: "20px 24px" }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>交易最多</div>
-          <div style={{ fontSize: 18, fontWeight: 500 }}>
+          <div className="text-lg" style={{ fontWeight: 500 }}>
             {maxCountCat ? `${maxCountCat.name} · ${maxCountCat.count} 筆` : "無"}
           </div>
         </Card>
         <Card style={{ padding: "20px 24px" }}>
           <div className="ns-eyebrow" style={{ marginBottom: 8 }}>未分類</div>
-          <div style={{ fontSize: 18, fontWeight: 500 }}>
+          <div className="text-lg" style={{ fontWeight: 500 }}>
             {uncategorizedCount} 筆 · {uncategorizedPct.toFixed(1)}%
           </div>
         </Card>
@@ -104,7 +104,7 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
             <div>
               <div className="ns-eyebrow" style={{ marginBottom: 4 }}>{dateRange.label} 支出</div>
-              <div className="num" style={{ fontSize: 24, fontWeight: 500 }}>{primaryCurrency} {formatNumber(totalPeriodSpend)}</div>
+              <div className="num text-[24px]" style={{ fontWeight: 500 }}>{primaryCurrency} {formatNumber(totalPeriodSpend)}</div>
             </div>
             <Button variant="ghost" size="icon-sm" onClick={onSettingsClick}><Gear size={16} /></Button>
           </div>
@@ -136,7 +136,7 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
           
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {allCategorySpend.map(r => (
-              <div key={r.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
+              <div key={r.name} className="text-body" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ width: 8, height: 8, borderRadius: "50%", background: r.color }} />
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Glyph name={r.icon} size={14} /> {r.name}</span>
@@ -145,7 +145,7 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
               </div>
             ))}
             {uncategorizedAmount > 0 && (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
+              <div className="text-body" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--ns-muted)" }} />
                   <span>... 其他</span>
@@ -176,9 +176,9 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate" style={{ fontWeight: 500 }}>{r.name}</div>
-                    <div className="muted truncate" style={{ fontSize: 12 }}>{r.count} 筆 · {pct.toFixed(1)}%{r.topMerchant ? ` · ${r.topMerchant}` : ""}</div>
+                    <div className="muted truncate text-xs">{r.count} 筆 · {pct.toFixed(1)}%{r.topMerchant ? ` · ${r.topMerchant}` : ""}</div>
                   </div>
-                  <div className="num" style={{ whiteSpace: "nowrap", fontSize: 14 }}>−{primaryCurrency} {formatNumber(r.periodAmount)}</div>
+                  <div className="num text-sm" style={{ whiteSpace: "nowrap" }}>−{primaryCurrency} {formatNumber(r.periodAmount)}</div>
                 </Link>
               );
             })}
@@ -186,7 +186,7 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
 
           {/* Desktop: full table */}
           <div className="hidden sm:contents">
-          <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", fontSize: 12, fontWeight: 500, color: "var(--ns-fg-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+          <div className="text-xs" style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", fontWeight: 500, color: "var(--ns-fg-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
             <div>分類</div>
             <div>筆數</div>
             <div>期間支出</div>
@@ -204,12 +204,13 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
                   style={{ display: "block", textDecoration: "none", color: "inherit" }}
                 >
                   <div 
-                    style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", alignItems: "center", fontSize: 14, cursor: "pointer", transition: "background 0.15s" }}
+                    className="text-sm"
+                    style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", alignItems: "center", cursor: "pointer", transition: "background 0.15s" }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = "var(--ns-bg-hover)")}
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--ns-bg-hover)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
+                      <div className="text-base" style={{ width: 32, height: 32, borderRadius: 8, background: "var(--ns-bg-hover)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <Glyph name={r.icon} size={16} />
                       </div>
                       <span style={{ fontWeight: 500 }}>{r.name}</span>
@@ -217,10 +218,10 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
                     <div>{r.count} 筆</div>
                     <div className="num">−{primaryCurrency} {formatNumber(r.periodAmount)}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ background: "var(--ns-bg-hover)", color: r.color, padding: "2px 6px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
+                      <span className="text-caption" style={{ background: "var(--ns-bg-hover)", color: r.color, padding: "2px 6px", borderRadius: 99, fontWeight: 600 }}>
                         {pct.toFixed(1)}%
                       </span>
-                      <span className="muted" style={{ fontSize: 13 }}>{r.topMerchant}</span>
+                      <span className="muted text-body">{r.topMerchant}</span>
                     </div>
                     <div style={{ display: "flex", justifyContent: "flex-end" }}>
                       <CaretRight size={16} className="muted" />
@@ -231,9 +232,9 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
             })}
             
             {uncategorizedAmount > 0 && (
-              <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", alignItems: "center", fontSize: 14 }}>
+              <div className="text-sm" style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", alignItems: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--ns-bg-hover)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "var(--ns-fg-muted)" }}>
+                  <div className="text-base" style={{ width: 32, height: 32, borderRadius: 8, background: "var(--ns-bg-hover)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ns-fg-muted)" }}>
                     ...
                   </div>
                   <span style={{ fontWeight: 500 }}>其他</span>
@@ -241,10 +242,10 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
                 <div>{uncategorizedCount} 筆</div>
                 <div className="num">−{primaryCurrency} {formatNumber(uncategorizedAmount)}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)", padding: "2px 6px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
+                  <span className="text-caption" style={{ background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)", padding: "2px 6px", borderRadius: 99, fontWeight: 600 }}>
                     {uncategorizedPct.toFixed(1)}%
                   </span>
-                  <span className="muted" style={{ fontSize: 13 }}>{uncategorizedTopMerchant}</span>
+                  <span className="muted text-body">{uncategorizedTopMerchant}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
                   <CaretRight size={16} className="muted" />

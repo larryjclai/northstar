@@ -163,7 +163,7 @@ export function HoldingDetailRoute() {
   return (
     <div style={{ height: "100%", overflow: "auto", padding: "24px 32px 100px" }}>
       {/* Breadcrumb */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18, fontSize: 13, color: "var(--ns-fg-muted)" }}>
+      <div className="text-body" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18, color: "var(--ns-fg-muted)" }}>
         <span style={{ cursor: "pointer" }} onClick={() => navigate({ to: "/investments" })}>持倉投資</span>
         <CaretRight size={13} />
         <span className="mono" style={{ fontWeight: 500, color: "var(--ns-fg)" }}>{asset.ticker}</span>
@@ -174,10 +174,10 @@ export function HoldingDetailRoute() {
         <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
           <AssetLogo ticker={asset.ticker} name={resolveAssetName(asset, nameLocale)} size={52} />
           <div>
-            <div className="mono" style={{ fontSize: 13, marginBottom: 2, letterSpacing: 0.04, color: "var(--ns-fg-muted)", textTransform: "uppercase" }}>
+            <div className="mono text-body" style={{ marginBottom: 2, letterSpacing: 0.04, color: "var(--ns-fg-muted)", textTransform: "uppercase" }}>
               {asset.assetType || "Asset"} · {asset.ticker}
             </div>
-            <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 24, margin: "0 0 4px", fontWeight: 600, letterSpacing: -0.02 }}>
+            <h1 className="text-[24px]" style={{ fontFamily: "var(--ns-font-display)", margin: "0 0 4px", fontWeight: 600, letterSpacing: -0.02 }}>
               {resolveAssetName(asset, nameLocale)}
             </h1>
             <div style={{ display: "flex", gap: 8 }}>
@@ -202,7 +202,7 @@ export function HoldingDetailRoute() {
             <div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
                 <span className="ns-num-lg mono">{formatPrice(marketPrice)}</span>
-                <span className="dim mono" style={{ fontSize: 13 }}>{asset.currency}</span>
+                <span className="dim mono text-body">{asset.currency}</span>
               </div>
               <div style={{ display: "flex", gap: 10, marginTop: 4, alignItems: "center" }}>
                 <Badge variant={pos ? "success" : "error"} className="gap-1 rounded-full px-2">
@@ -212,7 +212,7 @@ export function HoldingDetailRoute() {
                 <Badge variant={pos ? "success" : "error"} className="rounded-full px-2">
                   <span className="num">{pos ? "+" : ""}{unrealizedGainPercent.toFixed(2)}% (Total)</span>
                 </Badge>
-                {quote?.updatedAt && <span className="muted mono" style={{ fontSize: 12 }}>更新 {new Date(quote.updatedAt).toLocaleTimeString()}</span>}
+                {quote?.updatedAt && <span className="muted mono text-xs">更新 {new Date(quote.updatedAt).toLocaleTimeString()}</span>}
               </div>
             </div>
             <ToggleGroup
@@ -259,8 +259,8 @@ export function HoldingDetailRoute() {
                 <div style={{ background: "rgba(164, 219, 108, 0.2)", borderRadius: 12, padding: 12, marginBottom: 16 }}>
                   <ChartLineUp size={24} color="var(--ns-chart-1)" />
                 </div>
-                <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 15 }}>還沒有足夠的歷史股價</div>
-                <div className="muted" style={{ fontSize: 13, textAlign: "center", maxWidth: 360, lineHeight: 1.6 }}>
+                <div className="text-[15px]" style={{ fontWeight: 600, marginBottom: 8 }}>還沒有足夠的歷史股價</div>
+                <div className="muted text-body" style={{ textAlign: "center", maxWidth: 360, lineHeight: 1.6 }}>
                   先用「更新報價」或在編輯頁新增歷史快照，這裡就會依所選區間畫出投資市值趨勢。
                 </div>
               </div>
@@ -269,12 +269,12 @@ export function HoldingDetailRoute() {
           {/* Buy/sell marker legend + toggle (only when there are trades to mark) */}
           {series.length > 0 && tradeMarkers.length > 0 ? (
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, cursor: "pointer", color: "var(--ns-fg-muted)" }}>
+              <label className="text-xs" style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", color: "var(--ns-fg-muted)" }}>
                 <input type="checkbox" checked={showTradeMarkers} onChange={(e) => setShowTradeMarkers(e.target.checked)} />
                 顯示買賣標記
               </label>
               {showTradeMarkers ? (
-                <div style={{ display: "flex", gap: 14, fontSize: 11.5 }}>
+                <div className="text-caption" style={{ display: "flex", gap: 14 }}>
                   <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
                     <svg width={11} height={11} viewBox="0 0 11 11"><path d="M5.5 1 L10 9 L1 9 Z" fill="var(--ns-gain)" /></svg>
                     <span className="muted">買進</span>
@@ -310,8 +310,8 @@ export function HoldingDetailRoute() {
                 ["持倉天數", holdingDays !== null ? `${holdingDays} 天` : "–", null],
               ].map(([l, v, c, t]) => (
                 <div key={l}>
-                  <div className="muted" style={{ fontSize: 11 }}>{l}</div>
-                  <div className={"num " + (c || "")} style={{ fontSize: 16, fontWeight: 500 }} title={t ?? undefined}>{v}</div>
+                  <div className="muted text-caption">{l}</div>
+                  <div className={"num text-base " + (c || "")} style={{ fontWeight: 500 }} title={t ?? undefined}>{v}</div>
                 </div>
               ))}
             </div>
@@ -323,15 +323,16 @@ export function HoldingDetailRoute() {
           P/L above; useful for lot-level tax planning). */}
       <Card style={{ padding: 0, marginBottom: 16 }}>
         <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center" }}>
-          <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>稅務批次 (FIFO) · {lots.length}</h3>
+          <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>稅務批次 (FIFO) · {lots.length}</h3>
           <div style={{ flex: 1 }} />
-          <span className="muted mono" style={{ fontSize: 11 }}>FIFO 批次成本，僅供稅務參考</span>
+          <span className="muted mono text-caption">FIFO 批次成本，僅供稅務參考</span>
         </div>
         <div
+          className="text-caption"
           style={{
             display: "grid", gridTemplateColumns: "1fr 0.7fr 0.9fr 0.9fr 1.1fr 1fr",
             padding: "10px 22px", borderBottom: "1px solid var(--ns-border)",
-            fontSize: 11, color: "var(--ns-fg-dim)", fontFamily: "var(--ns-font-mono)",
+            color: "var(--ns-fg-dim)", fontFamily: "var(--ns-font-mono)",
             letterSpacing: 0.06, textTransform: "uppercase",
           }}
         >
@@ -350,14 +351,14 @@ export function HoldingDetailRoute() {
               padding: "14px 22px", borderTop: "1px solid var(--ns-border)", alignItems: "center",
             }}
           >
-            <span className="mono muted" style={{ fontSize: 13 }}>{l.date}</span>
-            <span className="num" style={{ textAlign: "right", fontSize: 13 }}>{formatQuantity(l.qty)}</span>
-            <span className="num muted" style={{ textAlign: "right", fontSize: 13 }}>{formatPrice(l.cost)}</span>
-            <span className="num" style={{ textAlign: "right", fontSize: 13 }}>{formatPrice(l.last)}</span>
-            <span className={"num " + (l.pl >= 0 ? "gain" : "loss")} style={{ textAlign: "right", fontSize: 14, fontWeight: 500 }}>
+            <span className="mono muted text-body">{l.date}</span>
+            <span className="num text-body" style={{ textAlign: "right" }}>{formatQuantity(l.qty)}</span>
+            <span className="num muted text-body" style={{ textAlign: "right" }}>{formatPrice(l.cost)}</span>
+            <span className="num text-body" style={{ textAlign: "right" }}>{formatPrice(l.last)}</span>
+            <span className={"num text-sm " + (l.pl >= 0 ? "gain" : "loss")} style={{ textAlign: "right", fontWeight: 500 }}>
               {l.pl >= 0 ? "+" : ""}{formatNumber(l.pl)}
             </span>
-            <span className={"num " + (l.pct >= 0 ? "gain" : "loss")} style={{ textAlign: "right", fontSize: 14 }}>
+            <span className={"num text-sm " + (l.pct >= 0 ? "gain" : "loss")} style={{ textAlign: "right" }}>
               {l.pct >= 0 ? "+" : ""}{l.pct.toFixed(2)}%
             </span>
           </div>
@@ -367,7 +368,7 @@ export function HoldingDetailRoute() {
       {/* Transaction history */}
       <Card style={{ padding: 0 }}>
         <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center" }}>
-          <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>交易紀錄 · {txns.length} 筆</h3>
+          <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>交易紀錄 · {txns.length} 筆</h3>
           <div style={{ flex: 1 }} />
           <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
             <Plus size={13} strokeWidth={2} /> 新增
@@ -382,17 +383,17 @@ export function HoldingDetailRoute() {
               alignItems: "center",
             }}
           >
-            <span className="mono muted" style={{ fontSize: 12.5 }}>{tx.date}</span>
+            <span className="mono muted text-xs">{tx.date}</span>
             <Badge variant={tx.action === "buy" ? "success" : tx.action === "sell" ? "error" : "secondary"} className="rounded-full uppercase" style={{ justifySelf: "start" }}>
               {tx.action}
             </Badge>
-            <span className="num" style={{ textAlign: "right", fontSize: 13.5 }}>{formatQuantity(tx.quantity)}</span>
-            <span className="num" style={{ textAlign: "right", fontSize: 13.5 }}>{formatPrice(tx.price)}</span>
-            <span className="num muted" style={{ textAlign: "right", fontSize: 12 }}>fee {tx.fee || "–"}</span>
-            <span className={"num " + (tx.action === "sell" ? "pos" : tx.action === "buy" ? "" : "pos")} style={{ textAlign: "right", fontSize: 14, fontWeight: 500 }}>
+            <span className="num text-body" style={{ textAlign: "right" }}>{formatQuantity(tx.quantity)}</span>
+            <span className="num text-body" style={{ textAlign: "right" }}>{formatPrice(tx.price)}</span>
+            <span className="num muted text-xs" style={{ textAlign: "right" }}>fee {tx.fee || "–"}</span>
+            <span className={"num text-sm " + (tx.action === "sell" ? "pos" : tx.action === "buy" ? "" : "pos")} style={{ textAlign: "right", fontWeight: 500 }}>
               {tx.action === "sell" ? "+" : tx.action === "cashDividend" ? "+" : "−"}{formatNumber(tx.quantity * tx.price)}
             </span>
-            <span className="muted" style={{ textAlign: "right", fontSize: 12 }}>
+            <span className="muted text-xs" style={{ textAlign: "right" }}>
               {accountRows.find(a => a.id === tx.linkedAccountId)?.name || "–"}
             </span>
           </div>
