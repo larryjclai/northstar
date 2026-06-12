@@ -158,10 +158,10 @@ export function FIRECalculatorRoute() {
           <Button variant="ghost" render={<Link to="/goals" />} style={{ marginLeft: -10, marginBottom: 6 }}>
             <CaretLeft size={14} />返回目標
           </Button>
-          <div style={{ fontSize: 11, fontFamily: "var(--ns-font-mono)", letterSpacing: 1.5, color: "var(--ns-fg-muted)", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+          <div className="text-caption" style={{ fontFamily: "var(--ns-font-mono)", letterSpacing: 1.5, color: "var(--ns-fg-muted)", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
             INTERACTIVE · 即時更新
           </div>
-          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 32, margin: 0, letterSpacing: -0.5, fontWeight: 600 }}>
+          <h1 className="text-[32px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.5, fontWeight: 600 }}>
             FIRE Calculator
           </h1>
         </div>
@@ -185,10 +185,10 @@ export function FIRECalculatorRoute() {
             {/* Current assets synced from account — display only */}
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-                <div style={{ fontSize: 13, color: "var(--ns-fg)" }}>目前資產</div>
-                <div style={{ fontSize: 16, fontWeight: 500 }}>NT${formatNumber(currentAssets)}</div>
+                <div className="text-body" style={{ color: "var(--ns-fg)" }}>目前資產</div>
+                <div className="text-base" style={{ fontWeight: 500 }}>NT${formatNumber(currentAssets)}</div>
               </div>
-              <div style={{ fontSize: 11, color: "var(--ns-fg-dim)", background: "var(--ns-surface)", borderRadius: 6, padding: "6px 10px", display: "flex", alignItems: "center", gap: 6 }}>
+              <div className="text-caption" style={{ color: "var(--ns-fg-dim)", background: "var(--ns-surface)", borderRadius: 6, padding: "6px 10px", display: "flex", alignItems: "center", gap: 6 }}>
                 <ChartBar size={13} weight="fill" /> 自動同步自帳戶淨值
               </div>
             </div>
@@ -227,12 +227,12 @@ export function FIRECalculatorRoute() {
           <Card style={{ padding: "24px", flex: 1, minHeight: 350 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
               <div>
-                <div style={{ fontSize: 11, fontFamily: "var(--ns-font-mono)", color: "var(--ns-fg-muted)", letterSpacing: 1, marginBottom: 8 }}>PROJECTION · 拖動滑桿即時更新</div>
-                <div style={{ fontSize: 32, fontWeight: 500, letterSpacing: -0.5 }}>
-                  {yearsToFi ?? "-"} years <span style={{ fontSize: 20, color: "var(--ns-fg-muted)", fontWeight: 400 }}>to FIRE · age {projection.fiAge ?? "-"}</span>
+                <div className="text-caption" style={{ fontFamily: "var(--ns-font-mono)", color: "var(--ns-fg-muted)", letterSpacing: 1, marginBottom: 8 }}>PROJECTION · 拖動滑桿即時更新</div>
+                <div className="text-[32px]" style={{ fontWeight: 500, letterSpacing: -0.5 }}>
+                  {yearsToFi ?? "-"} years <span className="text-xl" style={{ color: "var(--ns-fg-muted)", fontWeight: 400 }}>to FIRE · age {projection.fiAge ?? "-"}</span>
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 16, fontSize: 12, color: "var(--ns-fg-dim)" }}>
+              <div className="text-xs" style={{ display: "flex", gap: 16, color: "var(--ns-fg-dim)" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 12, height: 2, background: "var(--ns-fg-muted)" }}></div> FIRE goal</span>
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 12, height: 2, borderBottom: "2px dashed var(--ns-neg)" }}></div> Bear {projection.bearCagr.toFixed(1)}%</span>
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 12, height: 2, background: "var(--ns-accent)" }}></div> Base {cagr.toFixed(1)}%</span>
@@ -253,7 +253,7 @@ export function FIRECalculatorRoute() {
                   <Line type="monotone" dataKey="balance" stroke="var(--ns-accent)" strokeWidth={2} dot={false} isAnimationActive={false} />
                 </LineChart>
               </ResponsiveContainer>
-              <div style={{ position: "absolute", bottom: -20, left: 0, fontSize: 11, color: "var(--ns-fg-dim)" }}>
+              <div className="text-caption" style={{ position: "absolute", bottom: -20, left: 0, color: "var(--ns-fg-dim)" }}>
                 區間：悲觀 ↔ 樂觀 報酬 ±2.5% · 數值以今日購買力計（已計入通膨與費用）
               </div>
             </div>
@@ -263,38 +263,38 @@ export function FIRECalculatorRoute() {
           <div style={{ display: "flex", gap: 16 }}>
             {/* 3 FIRE Types with explanations */}
             <Card style={{ padding: "20px 24px", flex: 1 }}>
-              <div style={{ fontSize: 13, color: "var(--ns-fg-muted)", marginBottom: 20 }}>FIRE 三種型態</div>
+              <div className="text-body" style={{ color: "var(--ns-fg-muted)", marginBottom: 20 }}>FIRE 三種型態</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 500 }}>
+                    <div className="text-sm" style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 500 }}>
                       <div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--ns-warn)" }}></div> Lean FIRE
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 500 }}>NT${(fireTarget * 0.7 / 1000000).toFixed(2)}M</div>
+                    <div className="text-[15px]" style={{ fontWeight: 500 }}>NT${(fireTarget * 0.7 / 1000000).toFixed(2)}M</div>
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--ns-fg-dim)", lineHeight: 1.5 }}>
+                  <div className="text-xs" style={{ color: "var(--ns-fg-dim)", lineHeight: 1.5 }}>
                     以基本生活支出為基準，僅涵蓋必要開銷，適合願意維持節約生活型態的人。
                   </div>
                 </div>
                 <div style={{ borderTop: "1px solid var(--ns-border)", paddingTop: 16 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 500 }}>
+                    <div className="text-sm" style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 500 }}>
                       <div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--ns-accent)" }}></div> Regular FIRE
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 500 }}>NT${(fireTarget / 1000000).toFixed(2)}M</div>
+                    <div className="text-[15px]" style={{ fontWeight: 500 }}>NT${(fireTarget / 1000000).toFixed(2)}M</div>
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--ns-fg-dim)", lineHeight: 1.5 }}>
+                  <div className="text-xs" style={{ color: "var(--ns-fg-dim)", lineHeight: 1.5 }}>
                     以目前的生活水準為基準 (年支出 × {Math.round(100/swr)})，退休後可維持現有的消費習慣。
                   </div>
                 </div>
                 <div style={{ borderTop: "1px solid var(--ns-border)", paddingTop: 16 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 500 }}>
+                    <div className="text-sm" style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 500 }}>
                       <div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--ns-chart-2)" }}></div> Fat FIRE
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 500 }}>NT${(fireTarget * 1.5 / 1000000).toFixed(2)}M</div>
+                    <div className="text-[15px]" style={{ fontWeight: 500 }}>NT${(fireTarget * 1.5 / 1000000).toFixed(2)}M</div>
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--ns-fg-dim)", lineHeight: 1.5 }}>
+                  <div className="text-xs" style={{ color: "var(--ns-fg-dim)", lineHeight: 1.5 }}>
                     以更優渥的生活為目標，涵蓋旅遊、嗜好等額外開銷，適合追求高品質退休生活的人。
                   </div>
                 </div>
@@ -303,22 +303,22 @@ export function FIRECalculatorRoute() {
 
             {/* Sensitivity */}
             <Card style={{ padding: "20px 24px", flex: 1.5 }}>
-              <div style={{ fontSize: 13, color: "var(--ns-fg-muted)", marginBottom: 20 }}>達成敏感度</div>
-              <div style={{ fontSize: 14, marginBottom: 16 }}>儲蓄率每增加 10%，退休提前：</div>
+              <div className="text-body" style={{ color: "var(--ns-fg-muted)", marginBottom: 20 }}>達成敏感度</div>
+              <div className="text-sm" style={{ marginBottom: 16 }}>儲蓄率每增加 10%，退休提前：</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14 }}>
+                <div className="text-sm" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ color: "var(--ns-fg-dim)" }}>目前儲蓄率</div>
                   <div style={{ fontWeight: 500 }}>{savingsRatePct}%</div>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14 }}>
+                <div className="text-sm" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ color: "var(--ns-fg-dim)" }}>多存 10%</div>
                   <div style={{ fontWeight: 500 }}>NT${formatNumber(Math.round(annualSavings * 1.1))}/yr</div>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14 }}>
+                <div className="text-sm" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ color: "var(--ns-fg-dim)" }}>SWR 3% vs 4%</div>
                   <div style={{ fontWeight: 500 }}>NT${(annualExpense / 0.03 / 1000000).toFixed(1)}M target</div>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14 }}>
+                <div className="text-sm" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ color: "var(--ns-fg-dim)" }}>報酬多 1%</div>
                   <div style={{ fontWeight: 500 }}>約提早 2-3 年</div>
                 </div>
@@ -348,7 +348,7 @@ function RetirementIncomeSection({
   return (
     <Card style={{ padding: "20px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <div style={{ fontSize: 13, color: "var(--ns-fg-muted)" }}>退休收入（選填）</div>
+        <div className="text-body" style={{ color: "var(--ns-fg-muted)" }}>退休收入（選填）</div>
         <Button
           variant="ghost"
           size="xs"
@@ -364,7 +364,7 @@ function RetirementIncomeSection({
       </div>
 
       {items.length === 0 ? (
-        <div className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>
+        <div className="muted text-xs" style={{ lineHeight: 1.6 }}>
           勞保年金、企業年金、被動收入等會減少投資組合的提領壓力。新增後可設定金額、適用年齡與是否隨通膨調整。
         </div>
       ) : (
@@ -420,7 +420,7 @@ function RetirementIncomeSection({
                   />
                 </div>
               </div>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--ns-fg-dim)", cursor: "pointer" }}>
+              <label className="text-xs" style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--ns-fg-dim)", cursor: "pointer" }}>
                 <input
                   type="checkbox"
                   checked={item.inflationLinked ?? false}
@@ -439,7 +439,7 @@ function RetirementIncomeSection({
 function SliderSection({ title, children }: { title: string, children: React.ReactNode }) {
   return (
     <Card style={{ padding: "20px" }}>
-      <div style={{ fontSize: 13, color: "var(--ns-fg-muted)", marginBottom: 20 }}>{title}</div>
+      <div className="text-body" style={{ color: "var(--ns-fg-muted)", marginBottom: 20 }}>{title}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         {children}
       </div>
@@ -480,7 +480,7 @@ function SliderRow({ label, value, min, max, step = 1, minLabel, maxLabel, val, 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
-        <div style={{ fontSize: 13, color: "var(--ns-fg)" }}>{label}</div>
+        <div className="text-body" style={{ color: "var(--ns-fg)" }}>{label}</div>
         {isEditing ? (
           <input
             autoFocus
@@ -489,8 +489,9 @@ function SliderRow({ label, value, min, max, step = 1, minLabel, maxLabel, val, 
             onChange={e => setEditText(e.target.value)}
             onBlur={commitEdit}
             onKeyDown={e => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setIsEditing(false); }}
+            className="text-base"
             style={{
-              fontSize: 16, fontWeight: 500, width: 120, textAlign: "right",
+              fontWeight: 500, width: 120, textAlign: "right",
               background: "var(--ns-surface)", border: "1px solid var(--ns-accent)",
               borderRadius: 6, padding: "2px 8px", color: "var(--ns-fg)", outline: "none"
             }}
@@ -498,7 +499,8 @@ function SliderRow({ label, value, min, max, step = 1, minLabel, maxLabel, val, 
         ) : (
           <div
             onClick={startEditing}
-            style={{ fontSize: 16, fontWeight: 500, cursor: "text", padding: "2px 8px", borderRadius: 6, border: "1px solid transparent", transition: "border-color 0.2s" }}
+            className="text-base"
+            style={{ fontWeight: 500, cursor: "text", padding: "2px 8px", borderRadius: 6, border: "1px solid transparent", transition: "border-color 0.2s" }}
             onMouseEnter={e => (e.currentTarget.style.borderColor = "var(--ns-border)")}
             onMouseLeave={e => (e.currentTarget.style.borderColor = "transparent")}
             title="點擊可直接輸入數值"
@@ -521,7 +523,7 @@ function SliderRow({ label, value, min, max, step = 1, minLabel, maxLabel, val, 
         />
         <div style={{ position: "absolute", left: `calc(${percentage}% - 8px)`, width: 16, height: 16, background: "var(--ns-accent)", border: "2px solid var(--ns-bg)", borderRadius: "50%", pointerEvents: "none" }}></div>
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 11, color: "var(--ns-fg-muted)" }}>
+      <div className="text-caption" style={{ display: "flex", justifyContent: "space-between", marginTop: 8, color: "var(--ns-fg-muted)" }}>
         <span>{minLabel}</span>
         <span>{maxLabel}</span>
       </div>
@@ -532,9 +534,9 @@ function SliderRow({ label, value, min, max, step = 1, minLabel, maxLabel, val, 
 function MetricCard({ title, value, sub }: { title: string, value: string, sub: string }) {
   return (
     <Card style={{ padding: "20px", flex: 1 }}>
-      <div style={{ fontSize: 12, color: "var(--ns-fg-muted)", marginBottom: 12 }}>{title}</div>
-      <div style={{ fontSize: 24, fontWeight: 500, marginBottom: 8 }}>{value}</div>
-      <div style={{ fontSize: 11, color: "var(--ns-fg-dim)" }}>{sub}</div>
+      <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginBottom: 12 }}>{title}</div>
+      <div className="text-[24px]" style={{ fontWeight: 500, marginBottom: 8 }}>{value}</div>
+      <div className="text-caption" style={{ color: "var(--ns-fg-dim)" }}>{sub}</div>
     </Card>
   );
 }

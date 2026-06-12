@@ -229,7 +229,7 @@ export function AccountsRoute() {
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 22, gap: 16, flexWrap: "wrap" }}>
         <div>
           <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{rows.length} accounts · {primaryCurrency} base</div>
-          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>帳戶</h1>
+          <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>帳戶</h1>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <Button variant="outline" onClick={recalculate} loading={recalculating}><ArrowsClockwise size={14} />{recalculating ? "計算中…" : "重新計算"}</Button>
@@ -251,7 +251,7 @@ export function AccountsRoute() {
               <div style={{ width: 4, height: 38, borderRadius: 99, background: c.color, flexShrink: 0 }} />
               <div style={{ minWidth: 0 }}>
                 <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{c.label}</div>
-                <div className={c.tone === "neg" ? "neg" : ""} style={{ fontSize: 20, fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
+                <div className={`text-xl${c.tone === "neg" ? " neg" : ""}`} style={{ fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
                   {c.tone === "neg" && c.value !== 0 ? "−" : ""}{formatNumber(Math.abs(c.value))}
                 </div>
               </div>
@@ -266,11 +266,11 @@ export function AccountsRoute() {
           {currencyBreakdown.map((c) => (
             <Card key={c.ccy} style={{ padding: 16 }}>
               <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{c.ccy}</div>
-              <div style={{ fontSize: 19, fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums" }}>{formatNumber(c.base)}</div>
+              <div className="text-[19px]" style={{ fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums" }}>{formatNumber(c.base)}</div>
               <div style={{ height: 6, borderRadius: 99, background: "var(--ns-bg-hover)", marginTop: 8, overflow: "hidden" }}>
                 <div style={{ width: `${c.pct}%`, height: "100%", background: c.color }} />
               </div>
-              <div className="mono dim" style={{ fontSize: 11, marginTop: 4 }}>{c.pct.toFixed(1)}% of total</div>
+              <div className="mono dim text-caption" style={{ marginTop: 4 }}>{c.pct.toFixed(1)}% of total</div>
             </Card>
           ))}
         </div>
@@ -280,7 +280,7 @@ export function AccountsRoute() {
       {rows.length === 0 ? (
         <Card style={{ padding: 48, textAlign: "center" }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>還沒有帳戶</div>
-          <div className="muted" style={{ fontSize: 13, marginBottom: 18 }}>新增銀行、現金、信用卡或券商帳戶，淨值與收支才有可靠基礎。</div>
+          <div className="muted text-body" style={{ marginBottom: 18 }}>新增銀行、現金、信用卡或券商帳戶，淨值與收支才有可靠基礎。</div>
           <Button onClick={openCreate} className="mx-auto"><Plus size={14} weight="bold" />新增第一個帳戶</Button>
         </Card>
       ) : (
@@ -292,10 +292,10 @@ export function AccountsRoute() {
                 if (next.has(g.key)) next.delete(g.key); else next.add(g.key);
                 return next;
               })} style={{ padding: "14px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--ns-border)", cursor: "pointer" }}>
-                <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 15, fontWeight: 500, display: "flex", alignItems: "center", gap: 7 }}>{collapsedGroups.has(g.key) ? <CaretRight size={14} /> : <CaretDown size={14} />}{g.label}</h3>
+                <h3 className="text-[15px]" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500, display: "flex", alignItems: "center", gap: 7 }}>{collapsedGroups.has(g.key) ? <CaretRight size={14} /> : <CaretDown size={14} />}{g.label}</h3>
                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  <span className="dim mono" style={{ fontSize: 11 }}>{g.rows.length} accounts</span>
-                  <span className="num" style={{ fontSize: 16, fontWeight: 500, color: g.total < 0 ? "var(--ns-neg)" : undefined }}>
+                  <span className="dim mono text-caption">{g.rows.length} accounts</span>
+                  <span className="num text-base" style={{ fontWeight: 500, color: g.total < 0 ? "var(--ns-neg)" : undefined }}>
                     {g.total < 0 ? "−" : ""}{formatNumber(Math.abs(g.total))}
                   </span>
                 </div>
@@ -319,10 +319,10 @@ export function AccountsRoute() {
                       title={`查看「${a.name}」的交易紀錄`}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span className="ns-acct-name" style={{ fontSize: 14.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.name}</span>
+                        <span className="ns-acct-name text-sm" style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.name}</span>
                         <Badge variant="outline" className="rounded-full">{a.currency}</Badge>
                       </div>
-                      <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                      <div className="muted text-xs" style={{ marginTop: 2 }}>
                         {accountTypeLabels[a.type]}
                         {a.type === "credit" && a.creditLimit ? ` · 額度 ${formatNumber(a.creditLimit)}` : ""}
                         {groupCredit ? ` · 共用 ${groupCredit.name}` : ""}
@@ -334,10 +334,10 @@ export function AccountsRoute() {
                         instead of forcing the row (and card) wider than screen. */}
                     <div style={{ display: "flex", alignItems: "center", gap: 12, marginLeft: "auto" }}>
                       <div style={{ textAlign: "right" }}>
-                        <div className="num" style={{ fontSize: 15, fontWeight: 500, color: a.balance < 0 ? "var(--ns-neg)" : undefined }}>
+                        <div className="num text-[15px]" style={{ fontWeight: 500, color: a.balance < 0 ? "var(--ns-neg)" : undefined }}>
                           {a.balance < 0 ? "−" : ""}{formatNumber(Math.abs(base))}
                         </div>
-                        {a.currency !== primaryCurrency ? <div className="muted mono" style={{ fontSize: 11.5 }}>{formatNumber(a.balance)} {a.currency}</div> : null}
+                        {a.currency !== primaryCurrency ? <div className="muted mono text-caption">{formatNumber(a.balance)} {a.currency}</div> : null}
                       </div>
                       <div className="ns-acct-actions" style={{ display: "flex", gap: 4 }}>
                         {a.type === "credit" ? (
@@ -356,7 +356,7 @@ export function AccountsRoute() {
           ))}
         </div>
       )}
-      {message ? <Card style={{ padding: "10px 16px", marginTop: 16, color: "var(--ns-fg-muted)", fontSize: 13 }}>{message}</Card> : null}
+      {message ? <Card className="text-body" style={{ padding: "10px 16px", marginTop: 16, color: "var(--ns-fg-muted)" }}>{message}</Card> : null}
 
       {/* Add / edit drawer */}
       {drawerOpen ? (
@@ -380,8 +380,8 @@ export function AccountsRoute() {
         <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} onClick={() => setAdjustingAccountId(null)}>
           <Card style={{ width: "100%", maxWidth: 420, padding: 0 }} onClick={(e) => e.stopPropagation()}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--ns-border)" }}>
-              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>調整餘額 · {adjustingAccount.name}</h2>
-              <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>目前餘額：{formatNumber(adjustingAccount.balance)} {adjustingAccount.currency}</div>
+              <h2 className="text-base" style={{ margin: 0, fontWeight: 600 }}>調整餘額 · {adjustingAccount.name}</h2>
+              <div className="muted text-xs" style={{ marginTop: 2 }}>目前餘額：{formatNumber(adjustingAccount.balance)} {adjustingAccount.currency}</div>
             </div>
             <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
               <DrawerField label="目標餘額">
@@ -393,7 +393,7 @@ export function AccountsRoute() {
               <DrawerField label="備註（選填）">
                 <input className="ns-input" value={adjustNote} onChange={(e) => setAdjustNote(e.target.value)} placeholder="例如：對帳後修正" />
               </DrawerField>
-              {adjustMessage ? <div style={{ color: "var(--ns-neg)", fontSize: 13 }}>{adjustMessage}</div> : null}
+              {adjustMessage ? <div className="text-body" style={{ color: "var(--ns-neg)" }}>{adjustMessage}</div> : null}
               <div style={{ display: "flex", gap: 8 }}>
                 <Button className="flex-1 justify-center" onClick={submitAdjust} loading={adjustBalance.isPending}>{adjustBalance.isPending ? "調整中…" : "確認調整"}</Button>
                 <Button variant="outline" onClick={() => setAdjustingAccountId(null)}>取消</Button>
@@ -473,7 +473,7 @@ function AccountDrawer({
               <div style={{ width: 32, height: 32, borderRadius: "var(--ns-r-sm)", background: "var(--ns-accent)", color: "var(--ns-accent-fg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Plus size={16} weight="bold" />
               </div>
-              <h2 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 18, fontWeight: 600 }}>
+              <h2 className="text-lg" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
                 {isEditing ? "編輯帳戶" : "新增帳戶"}
               </h2>
             </div>
@@ -484,17 +484,17 @@ function AccountDrawer({
               {stepLabels.map((s, i) => (
                 <div key={s} style={{ display: 'flex', alignItems: 'center', flex: i < stepLabels.length - 1 ? 1 : 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    <div style={{
+                    <div className="text-micro" style={{
                       width: 20, height: 20, borderRadius: 99, flexShrink: 0,
                       background: i < step ? 'var(--ns-accent)' : i === step ? 'var(--ns-fg)' : 'var(--ns-bg-hover)',
                       color: i < step ? 'var(--ns-accent-fg)' : i === step ? 'var(--ns-bg)' : 'var(--ns-fg-dim)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: 'var(--ns-font-mono)', fontWeight: 700, fontSize: 10,
+                      fontFamily: 'var(--ns-font-mono)', fontWeight: 700,
                     }}>
                       {i < step ? <Check size={12} weight="bold" /> : i + 1}
                     </div>
-                    <span style={{
-                      fontSize: 11.5, whiteSpace: 'nowrap',
+                    <span className="text-caption" style={{
+                      whiteSpace: 'nowrap',
                       color: i === step ? 'var(--ns-fg)' : 'var(--ns-fg-dim)',
                       fontWeight: i === step ? 500 : 400,
                     }}>{s}</span>
@@ -515,8 +515,8 @@ function AccountDrawer({
           {step === 0 && !isEditing && (
             <div>
               <div className="ns-eyebrow" style={{ marginBottom: 6 }}>步驟 1 / 4</div>
-              <h3 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 20, fontWeight: 600, margin: '0 0 6px' }}>選擇帳戶類型</h3>
-              <p className="muted" style={{ fontSize: 13, margin: '0 0 20px', lineHeight: 1.5 }}>帳戶類型決定記帳方式與報表歸類，之後仍可更改。</p>
+              <h3 className="text-xl" style={{ fontFamily: 'var(--ns-font-display)', fontWeight: 600, margin: '0 0 6px' }}>選擇帳戶類型</h3>
+              <p className="muted text-body" style={{ margin: '0 0 20px', lineHeight: 1.5 }}>帳戶類型決定記帳方式與報表歸類，之後仍可更改。</p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 {accountTypes.map((type) => (
                   <div key={type} onClick={() => setTypeStep(type)} style={{
@@ -534,8 +534,8 @@ function AccountDrawer({
                       {accountTypeLabels[type].slice(0, 1)}
                     </div>
                     <div>
-                      <div style={{ fontSize: 13.5, fontWeight: 500 }}>{accountTypeLabels[type]}</div>
-                      <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>{accountTypeDescriptions[type]}</div>
+                      <div className="text-body" style={{ fontWeight: 500 }}>{accountTypeLabels[type]}</div>
+                      <div className="muted text-caption" style={{ marginTop: 2 }}>{accountTypeDescriptions[type]}</div>
                     </div>
                   </div>
                 ))}
@@ -546,7 +546,7 @@ function AccountDrawer({
           {step === 1 && (
             <div>
               {!isEditing && <div className="ns-eyebrow" style={{ marginBottom: 6 }}>步驟 2 / 4</div>}
-              <h3 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 20, fontWeight: 600, margin: '0 0 6px' }}>
+              <h3 className="text-xl" style={{ fontFamily: 'var(--ns-font-display)', fontWeight: 600, margin: '0 0 6px' }}>
                 {isEditing ? "帳戶基本資料" : "帳戶基本資料"}
               </h3>
               
@@ -570,7 +570,7 @@ function AccountDrawer({
                 <DrawerField label="圖示與顏色（選填）">
                   <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                     <Popover>
-                      <PopoverTrigger style={{ width: 40, height: 40, borderRadius: "var(--ns-r-sm)", fontSize: 20, color: form.color ? "var(--ns-bg)" : undefined, background: form.color || "var(--ns-bg-hover)", border: "1px solid var(--ns-border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <PopoverTrigger className="text-xl" style={{ width: 40, height: 40, borderRadius: "var(--ns-r-sm)", color: form.color ? "var(--ns-bg)" : undefined, background: form.color || "var(--ns-bg-hover)", border: "1px solid var(--ns-border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <Glyph name={form.iconName || DEFAULT_ACCOUNT_ICON[form.type]} size={20} color={form.color ? "var(--ns-bg)" : undefined} fallbackText="＋" />
                       </PopoverTrigger>
                       <PopoverContent className="z-[150] shadow-xl rounded-xl w-auto p-0">
@@ -633,32 +633,32 @@ function AccountDrawer({
           {step === 2 && (
             <div>
               <div className="ns-eyebrow" style={{ marginBottom: 6 }}>步驟 3 / 4</div>
-              <h3 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 20, fontWeight: 600, margin: '0 0 6px' }}>初始餘額與匯入</h3>
-              <p className="muted" style={{ fontSize: 13, margin: '0 0 18px', lineHeight: 1.5 }}>
+              <h3 className="text-xl" style={{ fontFamily: 'var(--ns-font-display)', fontWeight: 600, margin: '0 0 6px' }}>初始餘額與匯入</h3>
+              <p className="muted text-body" style={{ margin: '0 0 18px', lineHeight: 1.5 }}>
                 設定今天的帳戶餘額。也可以直接匯入 CSV 交易紀錄。
               </p>
 
               <div style={{ marginBottom: 20 }}>
                 <DrawerField label={`${form.type === "alternative" ? "目前市值" : "當前餘額"}（${form.currency}）`}>
                   <input
-                    className="ns-input"
-                    style={{ fontSize: 22, fontFamily: 'var(--ns-font-mono)', fontVariantNumeric: 'tabular-nums', height: 56 }}
+                    className="ns-input text-stat"
+                    style={{ fontFamily: 'var(--ns-font-mono)', fontVariantNumeric: 'tabular-nums', height: 56 }}
                     placeholder="0"
                     {...openingBalanceField}
                   />
                 </DrawerField>
                 {form.type === "alternative" && (
-                  <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>輸入此資產目前的估計市值，日後可用「調整餘額」手動更新。</div>
+                  <div className="muted text-xs" style={{ marginTop: 6 }}>輸入此資產目前的估計市值，日後可用「調整餘額」手動更新。</div>
                 )}
                 {form.type === 'credit' && (
-                  <div className="muted" style={{ fontSize: 12, marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div className="muted text-xs" style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
                     信用卡餘額請輸入「本期消費應還金額」，系統會記錄為負數（負債）
                   </div>
                 )}
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: 12, color: 'var(--ns-fg-muted)', marginBottom: 8 }}>交易紀錄匯入 <span className="dim">（選填）</span></label>
+                <label className="text-xs" style={{ display: 'block', color: 'var(--ns-fg-muted)', marginBottom: 8 }}>交易紀錄匯入 <span className="dim">（選填）</span></label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {[
                     { id: 'skip', label: '先跳過，稍後手動新增', sub: '' },
@@ -671,8 +671,8 @@ function AccountDrawer({
                       cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12,
                     }}>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13.5, fontWeight: 500 }}>{m.label}</div>
-                        {m.sub && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{m.sub}</div>}
+                        <div className="text-body" style={{ fontWeight: 500 }}>{m.label}</div>
+                        {m.sub && <div className="muted text-xs" style={{ marginTop: 2 }}>{m.sub}</div>}
                       </div>
                       {importMethod === m.id && <Check size={15} weight="bold" style={{ color: 'var(--ns-accent)' }} />}
                     </div>
@@ -687,8 +687,8 @@ function AccountDrawer({
               <div style={{ width: 72, height: 72, borderRadius: 99, background: 'var(--ns-accent)', color: 'var(--ns-accent-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 12px 40px color-mix(in srgb, var(--ns-accent) 38%, transparent)', marginBottom: 20 }}>
                 <Plus size={32} />
               </div>
-              <h2 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 24, fontWeight: 600, margin: '0 0 8px' }}>帳戶已建立</h2>
-              <p className="muted" style={{ fontSize: 13.5, margin: '0 0 28px', lineHeight: 1.6, maxWidth: 340 }}>
+              <h2 className="text-[24px]" style={{ fontFamily: 'var(--ns-font-display)', fontWeight: 600, margin: '0 0 8px' }}>帳戶已建立</h2>
+              <p className="muted text-body" style={{ margin: '0 0 28px', lineHeight: 1.6, maxWidth: 340 }}>
                 <strong style={{ color: 'var(--ns-fg)' }}>{form.name || '新帳戶'}</strong> 已加入 Northstar。<br />所有資料只存在這台電腦。
               </p>
             </div>
