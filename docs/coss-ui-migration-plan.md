@@ -260,3 +260,25 @@ classes removed. The COSS token bridge maps semantic tokens onto Northstar's the
 changes need their own QA pass), optionally fix the `dark:` Tailwind variant to key off
 `data-theme` (currently inert; ~79 untested usages), and consolidate the two Base UI
 packages (`@base-ui/react` vs `@base-ui-components/react`)._
+
+---
+
+## 6. Type-scale convergence (4.4, started 2026-06-12)
+
+Integer ladder in `@theme` (globals.css): `text-micro`(10) / `text-caption`(11) /
+`text-xs`(12, built-in) / `text-body`(13) / `text-sm·base·lg·xl`(built-ins) /
+`text-stat`(22). Migration rule: the ad-hoc .5px sizes round **down** (10.5→micro,
+11.5→caption, 12.5→xs, 13.5→body) — shrink-only, zero wrap risk. `15` stays `text-[15px]`
+pending a later call.
+
+**Skip rules (keep inline):** elements with `ns-eyebrow` (unlayered class carries its own
+font-size and beats Tailwind utilities), recharts component props (`tick`, `contentStyle`,
+`itemStyle`, `labelStyle`), non-numeric values (`clamp()`, ternaries), and components that
+route `className` and `style` to different DOM nodes (e.g. `AppSelect`).
+
+| File | Before | After | Status |
+| --- | --- | --- | --- |
+| InvestmentsAnalyticsTab (pilot) | 62 | 15 (all legit skips) | ✅ 2026-06-12 |
+| DashboardRoute | 68 | 7 | ✅ 2026-06-12 |
+| CashFlowRoute | 74 | 5 | ✅ 2026-06-12 |
+| Remaining (app-wide counter) | — | **360** | FIRECalculator 41 · Accounts 35 · RecurringRules 30 · Goals 30 · HoldingDetail 27 · 長尾 |

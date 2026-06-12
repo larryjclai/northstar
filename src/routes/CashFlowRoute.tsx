@@ -825,14 +825,14 @@ export function CashFlowRoute() {
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginBottom: 22, flexWrap: "wrap" }}>
         <div>
           <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{periodLabel}</div>
-          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>
+          <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>
             記帳
           </h1>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
           <DateScopeControl value={dateScope} onChange={setDateScope} />
 
-          <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} style={{ minWidth: 116, fontSize: 13 }} />
+          <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} className="text-body" style={{ minWidth: 116 }} />
 
           <CategoryFilter categories={categories} value={selectedCategory} onChange={setSelectedCategory} />
 
@@ -849,9 +849,9 @@ export function CashFlowRoute() {
           { id: 'merchants', label: '商家' },
           { id: 'recurring', label: '週期規則' },
         ].map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id as any)} style={{
+          <button key={t.id} className="text-sm" onClick={() => setActiveTab(t.id as any)} style={{
             padding: '10px 20px', background: 'none', border: 'none', cursor: 'pointer', whiteSpace: "nowrap",
-            fontFamily: 'inherit', fontSize: 14, fontWeight: activeTab === t.id ? 600 : 400,
+            fontFamily: 'inherit', fontWeight: activeTab === t.id ? 600 : 400,
             color: activeTab === t.id ? 'var(--ns-fg)' : 'var(--ns-fg-muted)',
             borderBottom: activeTab === t.id ? '2px solid var(--ns-accent)' : '2px solid transparent',
             marginBottom: -1, transition: 'color 0.12s',
@@ -862,7 +862,7 @@ export function CashFlowRoute() {
       {activeTab === "overview" && (
         <>
           {missingFx.length > 0 ? (
-            <Card style={{ padding: "10px 14px", marginBottom: 14, color: "var(--ns-neg)", fontSize: 13 }}>
+            <Card className="text-body" style={{ padding: "10px 14px", marginBottom: 14, color: "var(--ns-neg)" }}>
               總額不完整：缺少匯率 {missingFx.join("、")}。請至設定更新匯率；原幣交易仍會保留。
             </Card>
           ) : null}
@@ -873,16 +873,16 @@ export function CashFlowRoute() {
               {settlements.receivableTotal > 0 ? (
                 <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                   <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收 {settlements.receivableCount}</Badge>
-                  <span className="num" style={{ fontSize: 15, color: "var(--ns-pos)" }}>+{primaryCurrency} {formatNumber(settlements.receivableTotal)}</span>
+                  <span className="num text-[15px]" style={{ color: "var(--ns-pos)" }}>+{primaryCurrency} {formatNumber(settlements.receivableTotal)}</span>
                 </div>
               ) : null}
               {settlements.payableTotal > 0 ? (
                 <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                   <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}>應付 {settlements.payableCount}</Badge>
-                  <span className="num" style={{ fontSize: 15, color: "var(--ns-neg)" }}>−{primaryCurrency} {formatNumber(settlements.payableTotal)}</span>
+                  <span className="num text-[15px]" style={{ color: "var(--ns-neg)" }}>−{primaryCurrency} {formatNumber(settlements.payableTotal)}</span>
                 </div>
               ) : null}
-              <span className="muted" style={{ fontSize: 12, marginLeft: "auto" }}>結清後會計入收支 · 在下方明細點 ✓ 結清</span>
+              <span className="muted text-xs" style={{ marginLeft: "auto" }}>結清後會計入收支 · 在下方明細點 ✓ 結清</span>
             </Card>
           ) : null}
           {/* Summary layer — single column on phones (the chart + category cards
@@ -908,8 +908,8 @@ export function CashFlowRoute() {
                 { label: "儲蓄率", value: periodIncome > 0 ? `${((periodNet / periodIncome) * 100).toFixed(1)}%` : "—", cls: periodIncome > 0 && periodNet >= 0 ? "pos" : "muted" },
               ]).map((s) => (
                 <div key={s.label} className="ns-surface" style={{ padding: "8px 12px", borderRadius: "var(--ns-r-sm)" }}>
-                  <div className="muted" style={{ fontSize: 11 }}>{s.label}</div>
-                  <div className={"num " + s.cls} style={{ fontSize: 16, fontWeight: 500, whiteSpace: "nowrap" }}>{s.value}</div>
+                  <div className="muted text-caption">{s.label}</div>
+                  <div className={"num text-base " + s.cls} style={{ fontWeight: 500, whiteSpace: "nowrap" }}>{s.value}</div>
                 </div>
               ))}
             </div>
@@ -923,13 +923,13 @@ export function CashFlowRoute() {
               ]).map((l) => (
                 <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
                   <span style={{ width: 9, height: 9, borderRadius: 2, background: l.color, flexShrink: 0 }} />
-                  <span className="muted" style={{ fontSize: 11.5 }}>{l.label}</span>
+                  <span className="muted text-caption">{l.label}</span>
                 </div>
               ))}
               {/* Cumulative-net line legend uses a horizontal stroke */}
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                 <span style={{ width: 12, height: 2, background: "var(--ns-accent)", flexShrink: 0, borderRadius: 1 }} />
-                <span className="muted" style={{ fontSize: 11.5 }}>累積淨額</span>
+                <span className="muted text-caption">累積淨額</span>
               </div>
             </div>
             <SegmentedControl value={chartGranularity} options={CHART_GRANULARITY_OPTIONS} onChange={setChartGranularity} />
@@ -1019,12 +1019,12 @@ export function CashFlowRoute() {
                       transition: "opacity 0.15s ease",
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, marginBottom: 5 }}>
+                    <div className="text-body" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <Glyph name={r.icon} size={14} />
                         <span style={{ fontWeight: 500 }}>{r.name}</span>
                       </div>
-                      <span className="num muted" style={{ fontSize: 12 }}>
+                      <span className="num muted text-xs">
                         {displayPct}% · {primaryCurrency} {formatNumber(r.amount)}
                       </span>
                     </div>
@@ -1036,7 +1036,7 @@ export function CashFlowRoute() {
               })}
             </div>
           ) : (
-            <div className="muted" style={{ fontSize: 13, textAlign: "center", padding: "30px 0" }}>本月尚無支出</div>
+            <div className="muted text-body" style={{ textAlign: "center", padding: "30px 0" }}>本月尚無支出</div>
           )}
         </Card>
       </div>
@@ -1047,7 +1047,7 @@ export function CashFlowRoute() {
             匯入預覽：{preview.valid.length} valid / {preview.invalid.length} invalid
           </div>
           {preview.invalid.map((item) => (
-            <div key={item.row} style={{ fontSize: 13, color: "var(--ns-neg)" }}>Row {item.row}: {item.reason}</div>
+            <div key={item.row} className="text-body" style={{ color: "var(--ns-neg)" }}>Row {item.row}: {item.reason}</div>
           ))}
           <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
             <Button
@@ -1071,13 +1071,13 @@ export function CashFlowRoute() {
         <Card style={{ padding: 0 }}>
            <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--ns-border)" }}>
              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-               <span style={{ fontWeight: 600, fontSize: 15 }}>Recent activity</span>
-               <span className="muted" style={{ fontSize: 12.5 }}>{displayRows.length} events</span>
+               <span className="text-[15px]" style={{ fontWeight: 600 }}>Recent activity</span>
+               <span className="muted text-xs">{displayRows.length} events</span>
              </div>
              {/* Search on its own row below the title (B9). */}
              <label style={{ position: "relative", display: "block", marginTop: 10 }}>
                <MagnifyingGlass size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--ns-muted)" }} />
-               <input className="ns-input" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜尋商家、分類或備註" style={{ width: "100%", height: 34, padding: "0 12px 0 30px", fontSize: 12.5 }} />
+               <input className="ns-input text-xs" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜尋商家、分類或備註" style={{ width: "100%", height: 34, padding: "0 12px 0 30px" }} />
              </label>
            </div>
 
@@ -1099,7 +1099,7 @@ export function CashFlowRoute() {
                   background: "var(--ns-bg-elev)",
                 }}>
                   <span className="ns-eyebrow">{g.date}</span>
-                  <span className="dim mono" style={{ fontSize: 11 }}>
+                  <span className="dim mono text-caption">
                     Net <span className={g.net >= 0 ? "pos" : "neg"}>
                       {(g.net >= 0 ? "+" : "−")}{primaryCurrency} {formatNumber(Math.abs(g.net))}
                     </span>
@@ -1286,8 +1286,8 @@ function SettleModal({
         onClick={(e) => e.stopPropagation()}
         style={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)", padding: 20 }}
       >
-        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{isReceivable ? "收款結清" : "付款結清"}</div>
-        <div style={{ fontSize: 12.5, color: "var(--ns-fg-muted)", marginBottom: 16, lineHeight: 1.6 }}>
+        <div className="text-[15px]" style={{ fontWeight: 600, marginBottom: 4 }}>{isReceivable ? "收款結清" : "付款結清"}</div>
+        <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginBottom: 16, lineHeight: 1.6 }}>
           {row.merchant || row.name || (isReceivable ? "應收款項" : "應付款項")} · {amountLabel}
           <br />
           {isReceivable ? "款項實際收到哪個帳戶？" : "從哪個帳戶付款？"}
@@ -1338,8 +1338,8 @@ function RecurringScopeModal({
         onClick={(e) => e.stopPropagation()}
         style={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)", padding: 20 }}
       >
-        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>套用變更範圍</div>
-        <div style={{ fontSize: 12.5, color: "var(--ns-fg-muted)", marginBottom: 16 }}>這是由週期規則產生的紀錄，請選擇要套用的範圍。</div>
+        <div className="text-[15px]" style={{ fontWeight: 600, marginBottom: 4 }}>套用變更範圍</div>
+        <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginBottom: 16 }}>這是由週期規則產生的紀錄，請選擇要套用的範圍。</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {options.map((o) => (
             <button
@@ -1352,8 +1352,8 @@ function RecurringScopeModal({
                 cursor: pending ? "default" : "pointer", fontFamily: "inherit", opacity: pending ? 0.6 : 1,
               }}
             >
-              <div style={{ fontSize: 13.5, fontWeight: 500, color: "var(--ns-fg)" }}>{o.label}</div>
-              <div style={{ fontSize: 12, color: "var(--ns-fg-muted)", marginTop: 3, lineHeight: 1.5 }}>{o.desc}</div>
+              <div className="text-body" style={{ fontWeight: 500, color: "var(--ns-fg)" }}>{o.label}</div>
+              <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginTop: 3, lineHeight: 1.5 }}>{o.desc}</div>
             </button>
           ))}
         </div>
@@ -1393,8 +1393,8 @@ function InstallmentDeleteModal({
         onClick={(e) => e.stopPropagation()}
         style={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)", padding: 20 }}
       >
-        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>刪除分期紀錄</div>
-        <div style={{ fontSize: 12.5, color: "var(--ns-fg-muted)", marginBottom: 16 }}>
+        <div className="text-[15px]" style={{ fontWeight: 600, marginBottom: 4 }}>刪除分期紀錄</div>
+        <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginBottom: 16 }}>
           {label ? `這是第 ${row.installmentIndex}/${row.installmentTotal} 期的分期紀錄，請選擇刪除範圍。` : "請選擇刪除範圍。"}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1409,8 +1409,8 @@ function InstallmentDeleteModal({
                 cursor: pending ? "default" : "pointer", fontFamily: "inherit", opacity: pending ? 0.6 : 1,
               }}
             >
-              <div style={{ fontSize: 13.5, fontWeight: 500, color: o.mode === "all" ? "var(--ns-neg)" : "var(--ns-fg)" }}>{o.label}</div>
-              <div style={{ fontSize: 12, color: "var(--ns-fg-muted)", marginTop: 3, lineHeight: 1.5 }}>{o.desc}</div>
+              <div className="text-body" style={{ fontWeight: 500, color: o.mode === "all" ? "var(--ns-neg)" : "var(--ns-fg)" }}>{o.label}</div>
+              <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginTop: 3, lineHeight: 1.5 }}>{o.desc}</div>
             </button>
           ))}
         </div>
@@ -1472,16 +1472,16 @@ function LedgerRow({
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 14, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <span className="text-sm" style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               轉帳{crossCcy ? ` · ${source.currency} → ${dest.currency}` : ""}
             </span>
           </div>
-          <div className="muted" style={{ fontSize: 11.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subtitleParts.join(" · ")}</div>
+          <div className="muted text-caption" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subtitleParts.join(" · ")}</div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div className="num" style={{ fontSize: 14.5, color: "var(--ns-fg)" }}>{currencySymbol(source.currency)}{formatNumber(Math.abs(source.amount))}</div>
+          <div className="num text-[14.5px]" style={{ color: "var(--ns-fg)" }}>{currencySymbol(source.currency)}{formatNumber(Math.abs(source.amount))}</div>
           {crossCcy ? (
-            <div className="muted" style={{ fontSize: 10.5, fontFamily: "var(--ns-font-mono)" }}>→ {currencySymbol(dest.currency)}{formatNumber(Math.abs(dest.amount))}</div>
+            <div className="muted text-micro" style={{ fontFamily: "var(--ns-font-mono)" }}>→ {currencySymbol(dest.currency)}{formatNumber(Math.abs(dest.amount))}</div>
           ) : null}
         </div>
         <div className="ns-cf-actions" style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
@@ -1516,23 +1516,23 @@ function LedgerRow({
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 14, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <span className="text-sm" style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {row.name || row.category || (isTransfer ? "轉帳" : "未命名")}
           </span>
           {isReceivable ? <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收</Badge> : null}
           {isPayable ? <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}>應付</Badge> : null}
           {installmentLabel(row) ? <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-accent)", borderColor: "var(--ns-accent)" }}>{installmentLabel(row)}</Badge> : null}
         </div>
-        <div className="muted" style={{ fontSize: 11.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subtitle}</div>
+        <div className="muted text-caption" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subtitle}</div>
       </div>
       <div style={{ textAlign: "right" }}>
         {row.originalCurrency && row.originalAmount != null ? (
           <>
-            <div className="num" style={{ fontSize: 14.5, color }}>{sign}{currencySymbol(row.originalCurrency)}{formatNumber(Math.abs(row.originalAmount))}</div>
-            <div className="muted" style={{ fontSize: 10.5, fontFamily: "var(--ns-font-mono)" }}>≈ {currencySymbol(row.currency)}{formatNumber(Math.abs(row.amount))}</div>
+            <div className="num text-[14.5px]" style={{ color }}>{sign}{currencySymbol(row.originalCurrency)}{formatNumber(Math.abs(row.originalAmount))}</div>
+            <div className="muted text-micro" style={{ fontFamily: "var(--ns-font-mono)" }}>≈ {currencySymbol(row.currency)}{formatNumber(Math.abs(row.amount))}</div>
           </>
         ) : (
-          <div className="num" style={{ fontSize: 14.5, color }}>{sign}{currencySymbol(row.currency)}{formatNumber(Math.abs(row.amount))}</div>
+          <div className="num text-[14.5px]" style={{ color }}>{sign}{currencySymbol(row.currency)}{formatNumber(Math.abs(row.amount))}</div>
         )}
       </div>
       <div className="ns-cf-actions" style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
@@ -1556,7 +1556,7 @@ function StatCard({ label, value, tone }: { label: string; value: string; tone: 
   return (
     <Card style={{ padding: 18 }}>
       <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{label}</div>
-      <div className="num" style={{ fontSize: 22, fontWeight: 500, color }}>{value}</div>
+      <div className="num text-stat" style={{ fontWeight: 500, color }}>{value}</div>
     </Card>
   );
 }
@@ -1565,14 +1565,14 @@ function RankingCard({ title, rows, emptyText, currency }: { title: string; rows
   const max = rows[0]?.amount ?? 1;
   return (
     <Card style={{ padding: "var(--ns-pad-card)" }}>
-      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14 }}>{title}</div>
+      <div className="text-sm" style={{ fontWeight: 600, marginBottom: 14 }}>{title}</div>
       {rows.length === 0 ? (
-        <div className="muted" style={{ fontSize: 13 }}>{emptyText}</div>
+        <div className="muted text-body">{emptyText}</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {rows.map((row) => (
             <div key={row.name}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 5 }}>
+              <div className="text-body" style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
                 <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.name}</span>
                 <span className="num muted">{currency} {formatNumber(row.amount)}</span>
               </div>
@@ -1602,17 +1602,17 @@ function UpcomingPayments({ recurringRows, accountName, onPost, posting }: { rec
     <Card style={{ padding: "var(--ns-pad-card)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <CalendarBlank size={15} weight="duotone" style={{ color: "var(--ns-accent)" }} />
-        <span style={{ fontWeight: 600, fontSize: 14 }}>近 2 週固定收支</span>
+        <span className="text-sm" style={{ fontWeight: 600 }}>近 2 週固定收支</span>
       </div>
       {upcoming.length === 0 ? (
-        <div className="muted" style={{ fontSize: 13 }}>近期沒有排定的週期事件。</div>
+        <div className="muted text-body">近期沒有排定的週期事件。</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {upcoming.map((row) => (
-            <div key={row.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 13 }}>
+            <div key={row.id} className="text-body" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.merchant || row.category}</div>
-                <div className="muted" style={{ fontSize: 11 }}>{row.nextRunDate} · {accountName(row.accountId)}</div>
+                <div className="muted text-caption">{row.nextRunDate} · {accountName(row.accountId)}</div>
               </div>
               <span className="num" style={{ color: row.entryType === "income" ? "var(--ns-pos)" : "var(--ns-neg)", whiteSpace: "nowrap" }}>
                 {row.entryType === "income" ? "+" : "−"}{row.currency} {formatNumber(Math.abs(row.amount))}
@@ -1799,7 +1799,7 @@ function EntryDrawer({
           <div style={{ width: 32, height: 32, borderRadius: "var(--ns-r-sm)", background: meta.color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Plus size={15} weight="bold" />
           </div>
-          <h2 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 18, fontWeight: 600 }}>
+          <h2 className="text-lg" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
             {editing ? "編輯交易" : "新增交易"}
           </h2>
           <div style={{ flex: 1 }} />
@@ -1815,9 +1815,10 @@ function EntryDrawer({
               return (
                 <button
                   key={t}
+                  className="text-body"
                   onClick={() => onTypeChange(t)}
                   style={{
-                    padding: "6px 14px", borderRadius: 999, fontSize: 13, fontWeight: 500, cursor: "pointer",
+                    padding: "6px 14px", borderRadius: 999, fontWeight: 500, cursor: "pointer",
                     border: active ? "none" : "1px solid var(--ns-border)",
                     background: active ? m.color : "var(--ns-bg-card)",
                     color: active ? "#fff" : "var(--ns-fg-dim)",
@@ -1835,10 +1836,10 @@ function EntryDrawer({
         <div style={{ flex: 1, overflow: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
           {/* Recurring rule banner */}
           {linkedRule && (
-            <div style={{
+            <div className="text-xs" style={{
               padding: "10px 14px", borderRadius: "var(--ns-r-sm)",
               background: "var(--ns-accent-soft)", border: "1px solid var(--ns-accent)",
-              fontSize: 12, display: "flex", alignItems: "center", gap: 8,
+              display: "flex", alignItems: "center", gap: 8,
             }}>
               <span style={{ color: "var(--ns-accent)", fontWeight: 600 }}>週期交易</span>
               <span style={{ color: "var(--ns-fg-muted)" }}>
@@ -1871,8 +1872,8 @@ function EntryDrawer({
                   }}
                 />
               ) : (
-                <span style={{
-                  padding: "0 14px", fontSize: 20, color: meta.color,
+                <span className="text-xl" style={{
+                  padding: "0 14px", color: meta.color,
                   fontFamily: "var(--ns-font-mono)", fontWeight: 500,
                   flexShrink: 0, borderRight: "1px solid var(--ns-border)",
                   height: "100%", display: "flex", alignItems: "center",
@@ -1883,10 +1884,10 @@ function EntryDrawer({
               )}
               {type === "transfer" ? (
                 <NumberField
-                  className=""
+                  className="text-stat"
                   style={{
                     flex: 1, border: "none", outline: "none", background: "transparent",
-                    padding: "0 14px", fontSize: 22, fontFamily: "var(--ns-font-mono)",
+                    padding: "0 14px", fontFamily: "var(--ns-font-mono)",
                     color: meta.color, textAlign: "right", height: "100%",
                     minWidth: 0, width: "100%",
                     fontVariantNumeric: "tabular-nums lining-nums",
@@ -1903,9 +1904,10 @@ function EntryDrawer({
                 />
               ) : (
                 <input
+                  className="text-stat"
                   style={{
                     flex: 1, border: "none", outline: "none", background: "transparent",
-                    padding: "0 14px", fontSize: 22, fontFamily: "var(--ns-font-mono)",
+                    padding: "0 14px", fontFamily: "var(--ns-font-mono)",
                     color: meta.color, textAlign: "right", height: "100%",
                     minWidth: 0, width: "100%",
                     fontVariantNumeric: "tabular-nums lining-nums",
@@ -1920,12 +1922,12 @@ function EntryDrawer({
               )}
             </div>
             {convertedHint && (
-              <div className="muted" style={{ fontSize: 11.5, marginTop: 5 }}>
+              <div className="muted text-caption" style={{ marginTop: 5 }}>
                 ≈ {ledgerForm.currency} {formatNumber(convertedHint.converted)}（1 {entryDisplayCurrency} ≈ {convertedHint.rate} {ledgerForm.currency}）
               </div>
             )}
             {activeInstallment && installmentPreviewAmount !== null && (
-              <div className="muted" style={{ fontSize: 11.5, marginTop: 5 }}>
+              <div className="muted text-caption" style={{ marginTop: 5 }}>
                 每期約 {entryDisplayCurrency} {formatNumber(installmentPreviewAmount)}，共 {installmentPeriods} 期
               </div>
             )}
@@ -2000,7 +2002,7 @@ function EntryDrawer({
                 style={{ fontFamily: "var(--ns-font-mono)" }}
                 {...destAmountField}
               />
-              <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
+              <div className="muted text-caption" style={{ marginTop: 4 }}>
                 跨幣轉帳：輸入對方帳戶實際收到的金額
                 {transferForm.sourceAmount > 0 && (transferForm.destinationAmount ?? 0) > 0
                   ? `（匯率約 1 ${transferForm.sourceCurrency} ≈ ${(transferForm.destinationAmount! / transferForm.sourceAmount).toFixed(4)} ${transferForm.destinationCurrency}）`
@@ -2018,7 +2020,7 @@ function EntryDrawer({
                 style={{ fontFamily: "var(--ns-font-mono)" }}
                 {...transferFeeField}
               />
-              <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>跨行/跨國轉帳手續費，將從轉出帳戶另計一筆「手續費」支出。</div>
+              <div className="muted text-caption" style={{ marginTop: 4 }}>跨行/跨國轉帳手續費，將從轉出帳戶另計一筆「手續費」支出。</div>
             </DrawerField>
           )}
 
@@ -2034,9 +2036,10 @@ function EntryDrawer({
                     return (
                       <button
                         key={c.name}
+                        className="text-xs"
                         onClick={() => setLedgerForm({ ...ledgerForm, category: c.name, subcategory: "" })}
                         style={{
-                          padding: "5px 11px", borderRadius: 999, fontSize: 12.5, cursor: "pointer",
+                          padding: "5px 11px", borderRadius: 999, cursor: "pointer",
                           background: active ? color : "var(--ns-bg-card)",
                           // Contrast-aware text so light category colors don't swallow
                           // the label; faint border gives light chips edge definition (B14).
@@ -2051,7 +2054,7 @@ function EntryDrawer({
                       </button>
                     );
                   })}
-                  {categories.length === 0 ? <span className="muted" style={{ fontSize: 12 }}>尚未建立分類，可於設定新增。</span> : null}
+                  {categories.length === 0 ? <span className="muted text-xs">尚未建立分類，可於設定新增。</span> : null}
                 </div>
                 {subcategories.length ? (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 5, paddingLeft: 10, borderLeft: "2px solid var(--ns-border)" }}>
@@ -2060,9 +2063,10 @@ function EntryDrawer({
                       return (
                         <button
                           key={s}
+                          className="text-xs"
                           onClick={() => setLedgerForm({ ...ledgerForm, subcategory: s })}
                           style={{
-                            padding: "4px 10px", borderRadius: 999, fontSize: 12, cursor: "pointer",
+                            padding: "4px 10px", borderRadius: 999, cursor: "pointer",
                             background: active ? "var(--ns-accent)" : "var(--ns-bg-hover)",
                             color: active ? "#fff" : "var(--ns-fg-muted)",
                             border: active ? "none" : "1px solid var(--ns-border)",
@@ -2153,7 +2157,7 @@ function EntryDrawer({
                       setInstallmentPeriods(Number.isNaN(v) || v < 0 ? 0 : Math.min(60, v));
                     }}
                   />
-                  <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
+                  <div className="muted text-caption" style={{ marginTop: 4 }}>
                     {activeInstallment
                       ? `總額將平均拆成 ${installmentPeriods} 筆，逐月入帳到對應的帳單週期。`
                       : "輸入 2–60（期數）啟用分期；留空或填 0 表示不分期。"}
@@ -2166,7 +2170,8 @@ function EntryDrawer({
                 <button
                   type="button"
                   onClick={() => setShowAdvanced((v) => !v)}
-                  style={{ background: "none", border: "none", color: "var(--ns-fg-muted)", fontSize: 12.5, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: "2px 0", fontFamily: "inherit" }}
+                  className="text-xs"
+                  style={{ background: "none", border: "none", color: "var(--ns-fg-muted)", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: "2px 0", fontFamily: "inherit" }}
                 >
                   {showAdvanced ? <CaretDown size={13} /> : <CaretRight size={13} />}
                   更多選項（手續費、週期、備註）
@@ -2182,7 +2187,7 @@ function EntryDrawer({
                         style={{ fontFamily: "var(--ns-font-mono)" }}
                         {...expenseFeeField}
                       />
-                      <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
+                      <div className="muted text-caption" style={{ marginTop: 4 }}>
                         {type === "income"
                           ? "薪轉/跨行/海外匯入手續費，將另計一筆「手續費」支出。收入以總額（gross）計入，帳戶實際入帳為總額扣除手續費。"
                           : "海外刷卡/跨國交易手續費，將另計一筆「手續費」支出。"}
@@ -2210,7 +2215,7 @@ function EntryDrawer({
           {/* AR / AP */}
           {isRp && (
             <>
-              <div style={{ padding: "12px 14px", borderRadius: "var(--ns-r-md)", background: `color-mix(in srgb, ${meta.color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${meta.color} 25%, transparent)`, fontSize: 12.5, color: "var(--ns-fg-muted)", lineHeight: 1.6 }}>
+              <div className="text-xs" style={{ padding: "12px 14px", borderRadius: "var(--ns-r-md)", background: `color-mix(in srgb, ${meta.color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${meta.color} 25%, transparent)`, color: "var(--ns-fg-muted)", lineHeight: 1.6 }}>
                 {type === "ar"
                   ? "應收帳款：對方欠你的錢。若你已先用某帳戶代墊，選下方「付款帳戶」會在建立時立即扣款，對方還款時點 ✓ 結清會入「收款帳戶」，整筆代墊不計收支；留空則結清後才計入收入。"
                   : "應付帳款：你欠對方的錢。若你已先收到款項，選下方「收款帳戶」會在建立時立即入帳，付款時點 ✓ 結清會由「付款帳戶」扣款，整筆代墊不計收支；留空則結清後才計入支出。"}
@@ -2239,9 +2244,10 @@ function EntryDrawer({
                     return (
                       <button
                         key={c.name}
+                        className="text-xs"
                         onClick={() => setLedgerForm({ ...ledgerForm, category: c.name, subcategory: "" })}
                         style={{
-                          padding: "5px 11px", borderRadius: 999, fontSize: 12.5, cursor: "pointer",
+                          padding: "5px 11px", borderRadius: 999, cursor: "pointer",
                           background: active ? (c.color || "var(--ns-accent)") : "var(--ns-bg-card)",
                           color: active ? readableTextColor(c.color || "var(--ns-accent)") : "var(--ns-fg)",
                           border: active ? "1px solid rgba(0,0,0,0.12)" : "1px solid var(--ns-border)",
@@ -2287,7 +2293,7 @@ function EntryDrawer({
             </>
           )}
 
-          {message ? <div style={{ color: "var(--ns-neg)", fontSize: 13 }}>{message}</div> : null}
+          {message ? <div className="text-body" style={{ color: "var(--ns-neg)" }}>{message}</div> : null}
         </div>
 
         {/* Footer */}
@@ -2310,7 +2316,7 @@ function EntryDrawer({
 function DrawerField({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
   return (
     <div>
-      <label style={{ display: "block", fontSize: 11.5, color: "var(--ns-fg-muted)", marginBottom: 6, letterSpacing: 0.04, textTransform: "uppercase" }}>
+      <label className="text-caption" style={{ display: "block", color: "var(--ns-fg-muted)", marginBottom: 6, letterSpacing: 0.04, textTransform: "uppercase" }}>
         {label}
         {required ? <span style={{ color: "var(--ns-neg)", marginLeft: 3 }}>*</span> : null}
       </label>
@@ -2457,7 +2463,7 @@ function SuggestionRow({
 }) {
   return (
     <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
-      <span className="muted" style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}>
+      <span className="muted text-caption" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
         <Sparkle size={12} weight="fill" style={{ color: "var(--ns-accent)" }} />
         依過往紀錄建議
       </span>
@@ -2465,9 +2471,10 @@ function SuggestionRow({
         <button
           key={chip.key}
           type="button"
+          className="text-xs"
           onClick={() => onPick(chip.key)}
           style={{
-            padding: "4px 11px", borderRadius: 999, fontSize: 12, cursor: "pointer",
+            padding: "4px 11px", borderRadius: 999, cursor: "pointer",
             background: "var(--ns-accent-soft)", color: "var(--ns-accent)",
             border: "1px solid color-mix(in srgb, var(--ns-accent) 30%, transparent)",
             fontFamily: "inherit",
@@ -2514,7 +2521,8 @@ function MerchantAutocomplete({
                 onChange(suggestion);
                 setOpen(false);
               }}
-              style={{ display: "block", width: "100%", padding: "8px 12px", textAlign: "left", fontSize: 13, background: "transparent", border: "none", color: "var(--ns-fg)", cursor: "pointer" }}
+              className="text-body"
+              style={{ display: "block", width: "100%", padding: "8px 12px", textAlign: "left", background: "transparent", border: "none", color: "var(--ns-fg)", cursor: "pointer" }}
             >
               {suggestion}
             </button>

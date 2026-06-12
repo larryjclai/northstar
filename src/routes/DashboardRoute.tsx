@@ -446,13 +446,13 @@ export function DashboardRoute() {
     <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]" style={{ maxWidth: 1180, margin: "0 auto" }}>
       {!dataHealthReport.healthy ? (
         <div
+          className="text-body"
           style={{
             padding: "10px 14px",
             borderRadius: "var(--ns-r-md)",
             background: dataHealthReport.errorCount > 0 ? "var(--ns-neg-soft)" : "var(--ns-warn-soft)",
             border: "1px solid var(--ns-border)",
             marginBottom: 14,
-            fontSize: 13,
           }}
         >
           <div
@@ -465,21 +465,21 @@ export function DashboardRoute() {
                 <span style={{ marginLeft: 8, color: "var(--ns-fg-muted)" }}>{dataHealthReport.issues[0].message}</span>
               ) : null}
             </span>
-            <span style={{ fontSize: 11, color: "var(--ns-fg-muted)", flexShrink: 0 }}>{healthExpanded ? "收合 ▲" : "展開 ▼"}</span>
+            <span className="text-caption" style={{ color: "var(--ns-fg-muted)", flexShrink: 0 }}>{healthExpanded ? "收合 ▲" : "展開 ▼"}</span>
           </div>
           {healthExpanded ? (
             <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
               {dataHealthReport.issues.map((issue) => (
-                <div key={issue.id} style={{ fontSize: 12, color: issue.severity === "error" ? "var(--ns-neg)" : "var(--ns-fg-muted)" }}>
+                <div key={issue.id} className="text-xs" style={{ color: issue.severity === "error" ? "var(--ns-neg)" : "var(--ns-fg-muted)" }}>
                   {issue.severity === "error" ? "⚠ " : "· "}{issue.message}
                 </div>
               ))}
               <div style={{ marginTop: 6, display: "flex", gap: 16, flexWrap: "wrap" }}>
                 {dataHealthReport.issues.some((i) => i.kind === "missing-fx" || i.kind === "stale-fx") ? (
-                  <Link to="/settings" style={{ fontSize: 12 }}>前往更新匯率</Link>
+                  <Link to="/settings" className="text-xs">前往更新匯率</Link>
                 ) : null}
                 {dataHealthReport.issues.some((i) => i.kind === "missing-price-history" || i.kind === "stale-quote") ? (
-                  <Link to="/investments" style={{ fontSize: 12 }}>前往投資回補</Link>
+                  <Link to="/investments" className="text-xs">前往投資回補</Link>
                 ) : null}
               </div>
             </div>
@@ -488,14 +488,14 @@ export function DashboardRoute() {
       ) : hasAnyData ? (
         // All green → collapse to one quiet line so the feature stays
         // discoverable instead of vanishing entirely.
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-pos-soft, var(--ns-bg-hover))", border: "1px solid var(--ns-border)", marginBottom: 14, fontSize: 12.5, color: "var(--ns-fg-muted)" }}>
+        <div className="text-xs" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-pos-soft, var(--ns-bg-hover))", border: "1px solid var(--ns-border)", marginBottom: 14, color: "var(--ns-fg-muted)" }}>
           <span style={{ width: 7, height: 7, borderRadius: 99, background: "var(--ns-pos)", flexShrink: 0 }} />
           資料健康：報價、匯率與帳戶餘額都正常。
         </div>
       ) : null}
       {/* Over-budget alert */}
       {overBudget.length > 0 ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-neg-soft)", border: "1px solid color-mix(in srgb, var(--ns-neg) 40%, transparent)", marginBottom: 14, fontSize: 13 }}>
+        <div className="text-body" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-neg-soft)", border: "1px solid color-mix(in srgb, var(--ns-neg) 40%, transparent)", marginBottom: 14 }}>
           <span>
             <strong>{overBudget.map((c) => c.name).join("、")}</strong> 本月已超支
             &nbsp;·&nbsp; 超出 {formatMoney(overBudget.reduce((s, c) => s + (c.spent - (c.budget ?? 0)), 0), primaryCurrency)}
@@ -508,7 +508,7 @@ export function DashboardRoute() {
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18, gap: 16, flexWrap: "wrap" }}>
         <div>
           <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Overview · {monthLabel}</div>
-          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>{greeting}</h1>
+          <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>{greeting}</h1>
         </div>
         {/* Account filter + 更新. The single time-range control lives on the net
             worth card (the period segmented control), matching the prototype. */}
@@ -526,7 +526,7 @@ export function DashboardRoute() {
                 <div className="ns-eyebrow" style={{ padding: "6px 8px 8px" }}>編輯版面 · 顯示卡片</div>
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   {DASHBOARD_CARDS.map((c) => (
-                    <label key={c.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 8px", borderRadius: "var(--ns-r-sm)", cursor: "pointer", fontSize: 13 }}>
+                    <label key={c.key} className="text-body" style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 8px", borderRadius: "var(--ns-r-sm)", cursor: "pointer" }}>
                       <input type="checkbox" checked={cardVisible(c.key)} onChange={() => toggleCard(c.key)} />
                       {c.label}
                     </label>
@@ -559,7 +559,7 @@ export function DashboardRoute() {
                 ) : null}
               </div>
               {Math.abs(netSettlement) > 0.5 ? (
-                <div className="muted" style={{ fontSize: 12, marginTop: 4 }} title="現金基礎淨值加計應收、減去應付">
+                <div className="muted text-xs" style={{ marginTop: 4 }} title="現金基礎淨值加計應收、減去應付">
                   調整後淨值（含應收應付）{" "}
                   <span className="num" style={{ color: "var(--ns-fg)" }}>{formatMoney(adjustedNetWorth, primaryCurrency)}</span>
                   <span style={{ marginLeft: 6 }}>
@@ -602,7 +602,7 @@ export function DashboardRoute() {
             // No meaningful trend yet → collapse to a slim hint instead of a tall
             // empty void, so the hero doesn't dominate the page.
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", paddingTop: 4 }}>
-              <span className="muted" style={{ fontSize: 13 }}>
+              <span className="muted text-body">
                 {hasAnyData ? "累積幾筆資料後會顯示淨值趨勢。" : "先建立第一個帳戶，Northstar 會開始計算總覽。"}
               </span>
               <span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -640,10 +640,10 @@ export function DashboardRoute() {
                 {monthNet >= 0 ? "+" : "−"}{formatNumber(Math.abs(monthNet))}
               </div>
             </div>
-            <div style={{ fontSize: 11.5, textAlign: "right", flexShrink: 0 }}>
+            <div className="text-caption" style={{ textAlign: "right", flexShrink: 0 }}>
               <div className="muted">收 {formatNumber(monthIncome)}</div>
               <div className="muted">支 {formatNumber(monthExpense)}</div>
-              {monthIncome > 0 ? <div className="pos mono" style={{ fontSize: 11 }}>儲蓄率 {savingsRate.toFixed(0)}%</div> : null}
+              {monthIncome > 0 ? <div className="pos mono text-caption">儲蓄率 {savingsRate.toFixed(0)}%</div> : null}
             </div>
           </Card>
         </div>
@@ -655,7 +655,7 @@ export function DashboardRoute() {
         <Card style={{ padding: "var(--ns-pad-card)" }}>
           <SectionHead eyebrow={`Budget · ${todayLabel.slice(0, todayLabel.indexOf("月") + 1) || "本月"}`} title="預算進度" action={<Button variant="ghost" size="xs" render={<Link to="/cash-flow/categories" />}>管理分類 →</Button>} />
           {budgetCats.length === 0 ? (
-            <div className="muted" style={{ fontSize: 13 }}>本月尚無支出或預算資料。</div>
+            <div className="muted text-body">本月尚無支出或預算資料。</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
               {budgetCats.map((c) => {
@@ -663,11 +663,11 @@ export function DashboardRoute() {
                 const over = c.budget ? c.spent > c.budget : false;
                 return (
                   <div key={c.name} style={{ display: "grid", gridTemplateColumns: "84px 1fr 132px", gap: 10, alignItems: "center" }}>
-                    <span style={{ fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>
+                    <span className="text-body" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>
                     <div style={{ height: 7, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
                       <div style={{ width: `${(c.budget ? pct : 0.5) * 100}%`, height: "100%", background: over ? "var(--ns-neg)" : c.color, borderRadius: 99 }} />
                     </div>
-                    <div style={{ textAlign: "right", fontSize: 12, display: "flex", justifyContent: "flex-end", gap: 4 }}>
+                    <div className="text-xs" style={{ textAlign: "right", display: "flex", justifyContent: "flex-end", gap: 4 }}>
                       {c.budget ? <span className={"num " + (over ? "neg" : "muted")}>{(pct * 100).toFixed(0)}%</span> : <span className="dim">無上限</span>}
                       <span className="dim">·</span>
                       <span className={"num " + (over ? "neg" : "")}>NT${formatNumber(c.spent)}</span>
@@ -676,7 +676,7 @@ export function DashboardRoute() {
                 );
               })}
               {totalBudget > 0 ? (
-                <div style={{ marginTop: 8, paddingTop: 10, borderTop: "1px solid var(--ns-border)", fontSize: 12 }} className="muted">
+                <div style={{ marginTop: 8, paddingTop: 10, borderTop: "1px solid var(--ns-border)" }} className="muted text-xs">
                   總預算 NT${formatNumber(totalBudget)}{overBudget.length ? ` · ${overBudget.length} 個分類超支` : ""}
                 </div>
               ) : null}
@@ -690,24 +690,24 @@ export function DashboardRoute() {
           <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Upcoming</div>
-              <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>近期帳單 · 30 天</h3>
+              <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>近期帳單 · 30 天</h3>
             </div>
             {upcoming.length ? <Badge variant="error" className="rounded-full px-2">NT${formatNumber(upcomingTotal)}</Badge> : null}
           </div>
           {upcoming.length === 0 ? (
-            <div className="muted" style={{ fontSize: 13, padding: "18px 20px" }}>近期沒有排定的週期收支。</div>
+            <div className="muted text-body" style={{ padding: "18px 20px" }}>近期沒有排定的週期收支。</div>
           ) : (
             upcoming.map((b, i) => (
               <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.merchant || b.category}</div>
-                  <div className="muted" style={{ fontSize: 11.5 }}>{accountMap.get(b.accountId)?.name ?? ""}</div>
+                  <div className="text-[13.5px]" style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.merchant || b.category}</div>
+                  <div className="muted text-caption" >{accountMap.get(b.accountId)?.name ?? ""}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div className="num" style={{ fontSize: 13.5, color: b.entryType === "income" ? "var(--ns-pos)" : "var(--ns-neg)" }}>
+                  <div className="num text-[13.5px]" style={{ color: b.entryType === "income" ? "var(--ns-pos)" : "var(--ns-neg)" }}>
                     {b.entryType === "income" ? "+" : "−"}NT${formatNumber(Math.abs(b.amount))}
                   </div>
-                  <div className="mono dim" style={{ fontSize: 11 }}>{b.nextRunDate.slice(5)}</div>
+                  <div className="mono dim text-caption">{b.nextRunDate.slice(5)}</div>
                 </div>
               </div>
             ))
@@ -722,7 +722,7 @@ export function DashboardRoute() {
           <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Credit cards</div>
-              <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>信用卡繳款提醒</h3>
+              <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>信用卡繳款提醒</h3>
             </div>
             <Badge variant="error" className="rounded-full px-2">NT${formatNumber(creditReminders.reduce((s, r) => s + r.outstanding, 0))}</Badge>
           </div>
@@ -731,12 +731,12 @@ export function DashboardRoute() {
             return (
               <Link key={r.accountId} to="/cash-flow/reconcile/$accountId" params={{ accountId: r.accountId }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none", textDecoration: "none", color: "inherit" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name}</div>
-                  <div className="muted" style={{ fontSize: 11.5 }}>繳款日 {r.dueDate.slice(5)} · {r.daysUntilDue === 0 ? "今天到期" : `還有 ${r.daysUntilDue} 天`}</div>
+                  <div className="text-[13.5px]" style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name}</div>
+                  <div className="muted text-caption">繳款日 {r.dueDate.slice(5)} · {r.daysUntilDue === 0 ? "今天到期" : `還有 ${r.daysUntilDue} 天`}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div className="num" style={{ fontSize: 13.5, color: "var(--ns-neg)" }}>−NT${formatNumber(r.outstanding)}</div>
-                  <div className="mono" style={{ fontSize: 11, color: soon ? "var(--ns-neg)" : "var(--ns-fg-dim)" }}>{soon ? "即將到期" : "對帳 →"}</div>
+                  <div className="num text-[13.5px]" style={{ color: "var(--ns-neg)" }}>−NT${formatNumber(r.outstanding)}</div>
+                  <div className="mono text-caption" style={{ color: soon ? "var(--ns-neg)" : "var(--ns-fg-dim)" }}>{soon ? "即將到期" : "對帳 →"}</div>
                 </div>
               </Link>
             );
@@ -750,7 +750,7 @@ export function DashboardRoute() {
           <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Receivables &amp; payables</div>
-              <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>應收 / 應付未結清</h3>
+              <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>應收 / 應付未結清</h3>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               {settlements.receivableTotal > 0 ? <Badge variant="outline" className="rounded-full px-2" style={{ color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收 NT${formatNumber(settlements.receivableTotal)}</Badge> : null}
@@ -761,10 +761,10 @@ export function DashboardRoute() {
             <Link key={item.id} to="/cash-flow" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none", textDecoration: "none", color: "inherit" }}>
               <Badge variant="outline" className="rounded-full" style={{ color: item.kind === "receivable" ? "var(--ns-chart-3)" : "var(--ns-chart-5)", borderColor: item.kind === "receivable" ? "var(--ns-chart-3)" : "var(--ns-chart-5)" }}>{item.kind === "receivable" ? "應收" : "應付"}</Badge>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.counterparty || item.name}</div>
-                <div className="muted" style={{ fontSize: 11.5 }}>{item.date.slice(0, 10)}</div>
+                <div className="text-[13.5px]" style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.counterparty || item.name}</div>
+                <div className="muted text-caption">{item.date.slice(0, 10)}</div>
               </div>
-              <div className="num" style={{ fontSize: 13.5, color: item.kind === "receivable" ? "var(--ns-pos)" : "var(--ns-neg)" }}>
+              <div className="num text-[13.5px]" style={{ color: item.kind === "receivable" ? "var(--ns-pos)" : "var(--ns-neg)" }}>
                 {item.kind === "receivable" ? "+" : "−"}NT${formatNumber(toPrimary(item.amount, item.currency) ?? item.amount)}
               </div>
             </Link>
@@ -778,7 +778,7 @@ export function DashboardRoute() {
           <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Recurring investments</div>
-              <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>定期定額提醒</h3>
+              <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>定期定額提醒</h3>
             </div>
             <Button variant="ghost" size="xs" render={<Link to="/investments" />}>前往投資 →</Button>
           </div>
@@ -788,10 +788,10 @@ export function DashboardRoute() {
               <Link key={r.id} to="/investments" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none", textDecoration: "none", color: "inherit" }}>
                 <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }}>{r.mode === "fixedShares" ? "定期定股" : "定期定額"}</Badge>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name || r.ticker}</div>
-                  <div className="muted" style={{ fontSize: 11.5 }}>{r.nextRunDate.slice(5)} 投入 · 請備妥交割款</div>
+                  <div className="text-[13.5px]" style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name || r.ticker}</div>
+                  <div className="muted text-caption">{r.nextRunDate.slice(5)} 投入 · 請備妥交割款</div>
                 </div>
-                <div className="num" style={{ fontSize: 13.5, color: "var(--ns-neg)" }}>−NT${formatNumber(Math.round(cash))}</div>
+                <div className="num text-[13.5px]" style={{ color: "var(--ns-neg)" }}>−NT${formatNumber(Math.round(cash))}</div>
               </Link>
             );
           })}
@@ -805,7 +805,7 @@ export function DashboardRoute() {
         <Card style={{ padding: "var(--ns-pad-card)" }}>
           <SectionHead eyebrow="Asset allocation" title="資產配置" />
           {allocation.length === 0 ? (
-            <div className="muted" style={{ fontSize: 13 }}>尚無資產可顯示配置。</div>
+            <div className="muted text-body">尚無資產可顯示配置。</div>
           ) : (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
               <div style={{ width: 120, height: 120, flexShrink: 0 }}>
@@ -820,7 +820,7 @@ export function DashboardRoute() {
               </div>
               <div style={{ flex: 1, minWidth: 160, display: "flex", flexDirection: "column", gap: 6 }}>
                 {allocation.map((a) => (
-                  <div key={a.label} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, borderBottom: "1px solid var(--ns-border)", paddingBottom: 5 }}>
+                  <div key={a.label} className="text-xs" style={{ display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid var(--ns-border)", paddingBottom: 5 }}>
                     <span style={{ width: 8, height: 8, background: a.color, borderRadius: 2, flexShrink: 0 }} />
                     {/* Single-line with ellipsis; the legend now takes the card's
                         full width (wraps below the donut on narrow cards) so short
@@ -828,7 +828,7 @@ export function DashboardRoute() {
                     <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={a.label}>{a.label}</span>
                     {/* Compact (萬/億 · K/M) so the value never forces the label to
                         wrap vertically on a narrow card. */}
-                    <span className="num muted" style={{ fontSize: 11, flexShrink: 0 }} title={formatMoney(a.value, primaryCurrency)}>{formatCompactMoney(a.value, primaryCurrency)}</span>
+                    <span className="num muted text-caption" style={{ flexShrink: 0 }} title={formatMoney(a.value, primaryCurrency)}>{formatCompactMoney(a.value, primaryCurrency)}</span>
                     <span className="num" style={{ minWidth: 42, textAlign: "right", flexShrink: 0 }}>{a.pct.toFixed(1)}%</span>
                   </div>
                 ))}
@@ -843,19 +843,19 @@ export function DashboardRoute() {
         <Card style={{ padding: "var(--ns-pad-card)" }}>
           <SectionHead eyebrow="Goals" title={`${goals.length} active`} action={<Button variant="ghost" size="xs" render={<Link to="/goals" />}>全部 →</Button>} />
           {goals.length === 0 ? (
-            <div className="muted" style={{ fontSize: 13 }}>還沒有設定目標。<Link to="/goals" style={{ color: "var(--ns-accent)" }}>建立 FIRE 目標 →</Link></div>
+            <div className="muted text-body">還沒有設定目標。<Link to="/goals" style={{ color: "var(--ns-accent)" }}>建立 FIRE 目標 →</Link></div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {goals.map((g) => (
                 <div key={g.id}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                    <span style={{ fontSize: 13, fontWeight: 500 }}>{g.name}</span>
+                    <span className="text-body" style={{ fontWeight: 500 }}>{g.name}</span>
                     {g.pct >= 100 ? <Badge variant="success" size="sm" className="rounded-full px-2">達成</Badge> : null}
                   </div>
                   <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden", marginBottom: 5 }}>
                     <div style={{ width: `${Math.min(g.pct, 100)}%`, height: "100%", background: "var(--ns-accent)", borderRadius: 99 }} />
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                  <div className="text-caption" style={{ display: "flex", justifyContent: "space-between" }}>
                     <span className="mono" style={{ color: "var(--ns-accent)" }}>{g.pct.toFixed(1)}%</span>
                     <span className="mono muted">目標 {formatMoney(g.target, primaryCurrency)}</span>
                   </div>
@@ -871,15 +871,15 @@ export function DashboardRoute() {
         <Card>
           <div style={{ padding: "14px 18px 10px", borderBottom: "1px solid var(--ns-border)" }}>
             <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Market</div>
-            <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>匯率</h3>
+            <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>匯率</h3>
           </div>
           {fxRates.length === 0 ? (
-            <div className="muted" style={{ fontSize: 13, padding: "16px 18px" }}>尚無匯率資料。</div>
+            <div className="muted text-body" style={{ padding: "16px 18px" }}>尚無匯率資料。</div>
           ) : (
             fxRates.map((fx) => (
               <div key={fx.pair} style={{ padding: "10px 18px", display: "flex", alignItems: "center", gap: 8, borderTop: "1px solid var(--ns-border)" }}>
-                <span className="mono" style={{ fontSize: 12.5, flex: 1 }}>{fx.pair}</span>
-                <span className="num" style={{ fontSize: 13.5, fontWeight: 500 }}>{fx.rate.toFixed(4)}</span>
+                <span className="mono text-xs" style={{ flex: 1 }}>{fx.pair}</span>
+                <span className="num text-[13.5px]" style={{ fontWeight: 500 }}>{fx.rate.toFixed(4)}</span>
               </div>
             ))
           )}
@@ -894,21 +894,21 @@ export function DashboardRoute() {
         <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
           <div>
             <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Recent activity</div>
-            <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>最近交易</h3>
+            <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>最近交易</h3>
           </div>
           <Button variant="ghost" size="xs" render={<Link to="/cash-flow" />}>查看全部 →</Button>
         </div>
         {recent.length === 0 ? (
-          <div className="muted" style={{ fontSize: 13, padding: "18px 22px" }}>還沒有交易紀錄。</div>
+          <div className="muted text-body" style={{ padding: "18px 22px" }}>還沒有交易紀錄。</div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))" }}>
             {recent.map((r, i) => (
               <div key={r.id} className="ns-row" style={{ gap: 12, paddingLeft: 22, paddingRight: 22, borderLeft: i % 2 === 1 ? "1px solid var(--ns-border)" : "none" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name || r.category || (r.entryType === "transfer" ? "轉帳" : "交易")}</div>
-                  <div className="muted" style={{ fontSize: 11.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.date.slice(5).replace("T", " ")} · {accountMap.get(r.accountId)?.name ?? ""}</div>
+                  <div className="text-[13.5px]" style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name || r.category || (r.entryType === "transfer" ? "轉帳" : "交易")}</div>
+                  <div className="muted text-caption" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.date.slice(5).replace("T", " ")} · {accountMap.get(r.accountId)?.name ?? ""}</div>
                 </div>
-                <div className={"num " + (r.amount >= 0 ? "pos" : "")} style={{ fontSize: 14, minWidth: 88, textAlign: "right" }}>
+                <div className={"num text-sm " + (r.amount >= 0 ? "pos" : "")} style={{ minWidth: 88, textAlign: "right" }}>
                   {r.amount >= 0 ? "+" : "−"}NT${formatNumber(Math.abs(r.amount))}
                 </div>
               </div>
@@ -962,16 +962,16 @@ function PortfolioStrip({ period, data, benchmarkTicker }: {
         {cells.map((c, i) => (
           <div key={c.label} style={{ padding: "10px 14px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)", minWidth: 0 }}>
             <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.label}</div>
-            <div className="num" style={{ fontSize: 19, fontWeight: 600, fontFamily: "var(--ns-font-num)", color: c.color, fontVariantNumeric: "tabular-nums" }}>{fmtPctSigned(c.val)}</div>
+            <div className="num text-[19px]" style={{ fontWeight: 600, fontFamily: "var(--ns-font-num)", color: c.color, fontVariantNumeric: "tabular-nums" }}>{fmtPctSigned(c.val)}</div>
           </div>
         ))}
       </div>
       {data.portfolio == null ? (
-        <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+        <div className="muted text-caption" style={{ marginTop: 6 }}>
           需要更多每日股價才能計算期間報酬。<Link to="/investments" style={{ color: "var(--ns-accent)" }}>前往回補 →</Link>
         </div>
       ) : data.benchmark == null ? (
-        <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+        <div className="muted text-caption" style={{ marginTop: 6 }}>
           尚無 {benchmarkTicker} 歷史股價，無法比較 benchmark。<Link to="/investments" style={{ color: "var(--ns-accent)" }}>前往投資 →</Link>
         </div>
       ) : null}
@@ -988,13 +988,13 @@ function MoverRow({ mover }: { mover: Mover }) {
       style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", textDecoration: "none", color: "inherit", minWidth: 0 }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="mono" style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{mover.ticker}</div>
-        <div className="muted" style={{ fontSize: 10.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{mover.name}</div>
+        <div className="mono text-xs" style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{mover.ticker}</div>
+        <div className="muted text-micro" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{mover.name}</div>
       </div>
       <span
-        className="num"
+        className="num text-caption"
         style={{
-          flexShrink: 0, fontSize: 11.5, fontWeight: 600, fontVariantNumeric: "tabular-nums",
+          flexShrink: 0, fontWeight: 600, fontVariantNumeric: "tabular-nums",
           padding: "2px 7px", borderRadius: 999,
           color: isPos ? "var(--ns-gain)" : "var(--ns-loss)",
           background: `color-mix(in srgb, ${isPos ? "var(--ns-gain)" : "var(--ns-loss)"} 12%, transparent)`,
@@ -1013,7 +1013,7 @@ function MoverColumn({ label, tone, movers }: { label: string; tone: "pos" | "ne
         {label}
       </div>
       {movers.length === 0 ? (
-        <div className="dim" style={{ fontSize: 12, padding: "8px 0" }}>—</div>
+        <div className="dim text-xs" style={{ padding: "8px 0" }}>—</div>
       ) : (
         movers.map((m) => <MoverRow key={m.ticker} mover={m} />)
       )}
@@ -1028,12 +1028,12 @@ function TopMoversCard({ gainers, losers }: { gainers: Mover[]; losers: Mover[] 
       <div style={{ padding: "14px 18px 10px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
         <div>
           <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Today</div>
-          <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>Top Movers</h3>
+          <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>Top Movers</h3>
         </div>
         <Button variant="ghost" size="xs" render={<Link to="/investments" />}>詳細 →</Button>
       </div>
       {empty ? (
-        <div className="muted" style={{ fontSize: 13, padding: "16px 18px" }}>回補歷史股價後顯示當日漲跌幅。</div>
+        <div className="muted text-body" style={{ padding: "16px 18px" }}>回補歷史股價後顯示當日漲跌幅。</div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, padding: "12px 18px 16px" }}>
           <MoverColumn label="Gainers" tone="pos" movers={gainers} />
@@ -1049,7 +1049,7 @@ function SectionHead({ eyebrow, title, action }: { eyebrow: string; title: strin
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
       <div>
         <div className="ns-eyebrow" style={{ marginBottom: 4 }}>{eyebrow}</div>
-        <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 16, fontWeight: 500 }}>{title}</h3>
+        <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>{title}</h3>
       </div>
       {action ?? null}
     </div>
