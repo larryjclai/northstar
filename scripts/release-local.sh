@@ -100,18 +100,31 @@ json.dump(doc, open(sys.argv[1], "w"), ensure_ascii=False, indent=2)
 print("  wrote", sys.argv[1])
 PY
 
+# Compose the release body from CHANGELOG.md (matching the CI workflow): the
+# version's "what's new" section + an install table. Falls back to just the
+# install note when the version has no CHANGELOG entry.
+echo "▶ Composing release notes from CHANGELOG.md …"
+NOTES_FILE="$(mktemp)"
+{
+  node scripts/changelog-notes.mjs "$VERSION" || true
+  printf '\n## 安裝方式\n\n| 平台 | 檔案 |\n|------|------|\n| macOS (Apple Silicon / Intel) | `%s` |\n\n**macOS 首次開啟**：若出現「無法驗證開發者」，右鍵點擊 app → 選「開啟」。\n' "${DMG:+$(basename "$DMG")}"
+} > "$NOTES_FILE"
+
 echo "▶ Publishing release $TAG to $PUBLIC_REPO …"
 if gh release view "$TAG" --repo "$PUBLIC_REPO" >/dev/null 2>&1; then
   gh release upload "$TAG" "$STAGE"/* --repo "$PUBLIC_REPO" --clobber
+  # Refresh the body too, so re-runs pick up CHANGELOG edits.
+  gh release edit "$TAG" --repo "$PUBLIC_REPO" --title "Northstar $TAG" --notes-file "$NOTES_FILE"
   echo "  updated existing release."
 else
   gh release create "$TAG" "$STAGE"/* \
     --repo "$PUBLIC_REPO" \
     --title "Northstar $TAG" \
     --latest \
-    --notes "Northstar 桌面版（macOS 本機建置）。macOS 首次開啟若出現「無法驗證開發者」，右鍵點 app → 開啟。"
+    --notes-file "$NOTES_FILE"
   echo "  created new release."
 fi
+rm -f "$NOTES_FILE"
 
 rm -rf "$STAGE"
 echo "✓ Done. Updater feed: https://github.com/${PUBLIC_REPO}/releases/latest/download/latest.json"
