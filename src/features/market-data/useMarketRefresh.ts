@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { isDemoMode } from "../../data/demoData";
 import { queryKeys } from "../../data/hooks";
 import { getFinanceRepository } from "../../data/repositories";
 import { expandMarketDataSymbols } from "../../domain/marketSymbols";
@@ -6,7 +7,13 @@ import type { DailyFxRate, DailyPrice } from "../../domain/types";
 import { TaiwanMarketDataProvider } from "./taiwanMarketDataProvider";
 import { YahooFinanceProvider } from "./yahooFinanceProvider";
 
+// Demo data pairs real tickers with synthetic prices (e.g. 0050.TW pre-split),
+// so letting live quotes in would show absurd P&L. Every refresh path must
+// bail while the demo flag is set; call sites show DEMO_MARKET_MESSAGE.
+export const DEMO_MARKET_MESSAGE = "示範模式使用內建行情，已略過線上更新。";
+
 export async function refreshLatestMarketData() {
+  if (isDemoMode()) return { quotes: 0, fxRates: 0 };
   const provider = new YahooFinanceProvider();
   const repository = await getFinanceRepository();
   const [assets, settings] = await Promise.all([
@@ -46,6 +53,7 @@ export function useRefreshQuotes() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (symbols: string[]) => {
+      if (isDemoMode()) throw new Error(DEMO_MARKET_MESSAGE);
       const provider = new YahooFinanceProvider();
       const repository = await getFinanceRepository();
       const quotesBySymbol = await provider.fetchQuotes(expandMarketDataSymbols(symbols));
@@ -69,6 +77,7 @@ export function useBackfillAssetProfiles() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ force = false, onProgress }: BackfillAssetProfilesInput = {}) => {
+      if (isDemoMode()) throw new Error(DEMO_MARKET_MESSAGE);
       const provider = new YahooFinanceProvider();
       const taiwanProvider = new TaiwanMarketDataProvider();
       const repository = await getFinanceRepository();
@@ -131,6 +140,7 @@ export function useRefreshFxRates() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ pairs, range = "1y" }: RefreshFxRatesInput) => {
+      if (isDemoMode()) throw new Error(DEMO_MARKET_MESSAGE);
       const provider = new YahooFinanceProvider();
       const repository = await getFinanceRepository();
       const collected: DailyFxRate[] = [];
@@ -201,6 +211,7 @@ export function useRefreshDailyPrices() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ tickers, range = "1y" }: RefreshDailyPricesInput) => {
+      if (isDemoMode()) throw new Error(DEMO_MARKET_MESSAGE);
       const provider = new YahooFinanceProvider();
       const repository = await getFinanceRepository();
       const collected: DailyPrice[] = [];

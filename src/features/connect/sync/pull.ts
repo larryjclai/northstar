@@ -127,7 +127,7 @@ function samePayload(left: Record<string, unknown>, right: Record<string, unknow
 }
 
 function assertValidPayload(envelope: EnvelopeRecord, payload: SyncFields & Record<string, unknown>) {
-  const validEntities = new Set<SyncEntity>(["account", "ledger", "asset", "investment", "recurring", "goal", "settings"]);
+  const validEntities = new Set<SyncEntity>(["account", "ledger", "asset", "investment", "recurring", "recurringInvestment", "goal", "settings"]);
   if (
     !validEntities.has(envelope.entity as SyncEntity) ||
     !payload ||

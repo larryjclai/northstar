@@ -1,29 +1,41 @@
 import { useEffect, useState } from "react";
 import { useUiPreferences } from "../state/uiPreferences";
-import { resolveBankBrand, bankLogoUrl } from "../domain/bankBrands";
+import { resolveBankBrand } from "../domain/bankBrands";
+import { getBankLogoAsset } from "../domain/bankLogoAssets";
 
 /**
  * Optional bank / broker logo overlay for an account marker. Resolves the brand
- * from the account name and, when the user has opted in (`bankLogosEnabled`),
- * overlays the logo on top of the existing icon marker. Renders nothing when
- * the feature is off, the brand is unknown, or the logo fails to load — so the
- * user-chosen Glyph underneath always remains the fallback.
+ * from the account name (or a manual override) and, when the user has opted in
+ * (`bankLogosEnabled`), overlays a *bundled* logo on top of the icon marker.
  *
- * Privacy note: showing a logo sends the brand domain to a logo CDN. Off by
- * default, mirroring AssetLogo.
+ * Logos are shipped with the app — see `domain/bankLogoAssets.ts` for how to
+ * add them. No network request is made: if a brand has no bundled asset (or the
+ * asset fails to load), this renders nothing and the user-chosen Glyph beneath
+ * stays visible.
  */
-export function BankLogo({ accountName, size }: { accountName: string; size: number }) {
+export function BankLogo({
+  accountName,
+  bankBrandDomain,
+  size: _size,
+}: {
+  accountName: string;
+  bankBrandDomain?: string | null;
+  /** Marker size in px. Kept for call-site compatibility; the overlay fills its parent. */
+  size?: number;
+}) {
   const enabled = useUiPreferences((state) => state.bankLogosEnabled);
   const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [accountName]);
+  useEffect(() => setFailed(false), [accountName, bankBrandDomain]);
 
   if (!enabled || failed) return null;
-  const brand = resolveBankBrand(accountName);
+  const brand = resolveBankBrand(accountName, bankBrandDomain);
   if (!brand) return null;
+  const asset = getBankLogoAsset(brand.domain);
+  if (!asset) return null;
 
   return (
     <img
-      src={bankLogoUrl(brand.domain, Math.max(64, size * 2))}
+      src={asset}
       alt=""
       aria-hidden
       loading="lazy"

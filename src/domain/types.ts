@@ -81,6 +81,8 @@ export interface Account extends SyncFields {
   iconName: string | null;
   /** Optional accent color (hex or token) for the account marker. */
   color: string | null;
+  /** Optional manual bank/broker brand override for logo rendering. */
+  bankBrandDomain?: string | null;
   /** Optional user-defined subgroup within the built-in account type group. */
   customGroup?: string;
 }

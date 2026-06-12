@@ -359,8 +359,9 @@ export function TransactionsRoute() {
             <EmptyState
               icon={<PlusCircle size={24} weight="duotone" />}
               title="還沒有投資交易"
-              description="先新增一筆交易，或直接從投資頁建立目前持倉。"
+              description="先新增一筆交易，或從券商 CSV 大量匯入交易紀錄。"
               action={<ActionButton onClick={openCreate}><PlusCircle size={16} />新增第一筆交易</ActionButton>}
+              secondaryAction={<Button variant="outline" onClick={() => setImportOpen(true)}><UploadSimple size={16} />匯入 CSV</Button>}
             />
           ) : (
             <EmptyState

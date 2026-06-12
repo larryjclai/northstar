@@ -9,6 +9,7 @@ import { enterDemoMode } from "../data/demoData";
 import { useDemoMode } from "../state/demoMode";
 import { useToast } from "../components/Toast";
 import { AccountFilter } from "../components/AccountFilter";
+import { openOnboarding } from "../components/OnboardingOverlay";
 import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
@@ -149,6 +150,10 @@ export function DashboardRoute() {
   // "更新" refreshes stock quotes and FX rates together (B6).
   const refreshingMarket = refreshQuotes.isPending || refreshFxRates.isPending || refreshDailyPrices.isPending;
   async function refreshMarket() {
+    if (useDemoMode.getState().active) {
+      toast.info("示範模式使用內建行情", { description: "已略過線上更新；結束示範模式後會恢復自動更新。" });
+      return;
+    }
     const tickers = assetRows.map((a) => a.ticker);
     const pairs = (appSettings?.exchangeRates ?? []).map((r) => ({ from: r.from, to: r.to || primaryCurrency }));
     const tasks: Promise<unknown>[] = [];
@@ -610,6 +615,11 @@ export function DashboardRoute() {
                 {!hasAnyData ? (
                   <Button size="sm" variant="outline" onClick={loadDemo} loading={demoLoading}>
                     {demoLoading ? "載入中…" : "載入示範資料"}
+                  </Button>
+                ) : null}
+                {!hasAnyData ? (
+                  <Button size="sm" variant="outline" onClick={openOnboarding}>
+                    新手導覽
                   </Button>
                 ) : null}
               </span>

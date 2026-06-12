@@ -19,7 +19,7 @@ import {
   Sparkle,
 } from "@phosphor-icons/react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { ChangeEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bar, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 import { CategoriesTab } from "./CategoriesTab";
@@ -144,6 +144,7 @@ export function CashFlowRoute() {
   const [dueDate, setDueDate] = useState("");
 
   const [preview, setPreview] = useState<ImportPreview<LedgerDraft> | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState("");
   const toast = useToast();
   const [dateScope, setDateScope] = useState(() => makeDefaultDateScope(timezone, "month"));
@@ -830,12 +831,19 @@ export function CashFlowRoute() {
           </h1>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsv} />
           <DateScopeControl value={dateScope} onChange={setDateScope} />
 
           <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} className="text-body" style={{ minWidth: 116 }} />
 
           <CategoryFilter categories={categories} value={selectedCategory} onChange={setSelectedCategory} />
 
+          <Button variant="outline" className="h-9 sm:h-9 whitespace-nowrap" onClick={() => csvInputRef.current?.click()}>
+            <UploadSimple size={14} />匯入 CSV
+          </Button>
+          <Button variant="outline" className="h-9 sm:h-9 whitespace-nowrap" onClick={() => downloadCsv("northstar-ledger.csv", exportLedgerCsv(scopedRows, accountName))}>
+            <DownloadSimple size={14} />匯出 CSV
+          </Button>
           <Button className="h-9 sm:h-9 whitespace-nowrap" onClick={() => openCreate("expense")}>
             <Plus size={14} weight="bold" />記一筆
           </Button>
@@ -1087,7 +1095,10 @@ export function CashFlowRoute() {
                 <Receipt size={24} weight="duotone" />
               </div>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>還沒有記帳資料</div>
-              <Button onClick={() => openCreate("expense")}><Plus size={14} weight="bold" />新增交易</Button>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button onClick={() => openCreate("expense")}><Plus size={14} weight="bold" />新增交易</Button>
+                <Button variant="outline" onClick={() => csvInputRef.current?.click()}><UploadSimple size={14} />匯入 CSV</Button>
+              </div>
             </div>
            ) : (
             dayGroups.map((g, gi) => (

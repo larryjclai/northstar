@@ -3,9 +3,10 @@ import { CaretUpDown, Check } from "@phosphor-icons/react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "./ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Glyph, DEFAULT_ACCOUNT_ICON } from "../lib/icons";
+import { BankLogo } from "./BankLogo";
 import type { Account, AccountType } from "../domain/types";
 
-type AccountLike = Pick<Account, "id" | "name" | "type" | "iconName" | "color">;
+type AccountLike = Pick<Account, "id" | "name" | "type" | "iconName" | "color" | "bankBrandDomain">;
 
 const accountTypeLabels: Record<AccountType, string> = {
   depository: "銀行帳戶",
@@ -33,9 +34,9 @@ function AccountMark({ account, index, size = 22 }: { account: AccountLike; inde
   return (
     <span
       style={{
-        width: size, height: size, borderRadius: "var(--ns-r-sm)", flexShrink: 0,
+        position: "relative", width: size, height: size, borderRadius: "var(--ns-r-sm)", flexShrink: 0,
         background: bg, color: "var(--ns-bg)", display: "inline-flex",
-        alignItems: "center", justifyContent: "center",
+        alignItems: "center", justifyContent: "center", overflow: "hidden",
       }}
     >
       <Glyph
@@ -44,6 +45,7 @@ function AccountMark({ account, index, size = 22 }: { account: AccountLike; inde
         color="var(--ns-bg)"
         fallbackText={account.name.slice(0, 1)}
       />
+      <BankLogo accountName={account.name} bankBrandDomain={account.bankBrandDomain} size={size} />
     </span>
   );
 }

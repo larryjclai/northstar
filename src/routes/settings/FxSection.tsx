@@ -72,6 +72,10 @@ export function SettingsFX({ form, submit, dailyFxRates, t }: Omit<SettingsTabPr
   const fxStats = useMemo(() => buildFxStats(dailyFxRates), [dailyFxRates]);
 
   async function refreshAll() {
+    if (useDemoMode.getState().active) {
+      toast.info("示範模式使用內建行情", { description: "已略過線上匯率更新；結束示範模式後即可正常更新。" });
+      return;
+    }
     const pairs = form.exchangeRates.map((r) => ({ from: r.from, to: r.to || form.primaryCurrency }));
     if (!pairs.length) return;
     try {

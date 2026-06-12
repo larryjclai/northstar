@@ -1,5 +1,6 @@
 import {
   Bank,
+  Compass,
   DotsThreeOutline,
   Eye,
   EyeSlash,
@@ -24,6 +25,7 @@ import { usePostDueRecurring } from "../data/hooks";
 import { todayInTimezone } from "../domain";
 import { GlobalSearch } from "./GlobalSearch";
 import { QuickAdd } from "./QuickAdd";
+import { OnboardingOverlay, openOnboarding } from "./OnboardingOverlay";
 import { useTranslation } from "react-i18next";
 import { MagnifyingGlass } from "@phosphor-icons/react";
 import { getFinanceRepository } from "../data/repositories";
@@ -199,6 +201,15 @@ export function AppShell() {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <button
             type="button"
+            onClick={openOnboarding}
+            className="ns-nav-link"
+          >
+            <Compass size={16} weight="duotone" />
+            新手導覽
+          </button>
+
+          <button
+            type="button"
             onClick={togglePrivacy}
             title={privacyMode ? "顯示金額 (⌘⇧H)" : "隱藏金額 (⌘⇧H)"}
             aria-label={privacyMode ? "顯示金額" : "隱藏金額"}
@@ -341,6 +352,7 @@ export function AppShell() {
 
       <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
       <QuickAdd open={quickAddOpen} onClose={() => setQuickAddOpen(false)} />
+      <OnboardingOverlay />
     </div>
   );
 }
@@ -349,8 +361,13 @@ const MIN_MARKET_REFRESH_INTERVAL_MS = 15 * 60_000;
 
 function useAutoMarketRefresh() {
   const queryClient = useQueryClient();
+  // Demo data ships synthetic quotes for real tickers — live quotes would
+  // corrupt the showcase (e.g. post-split 0050.TW vs the demo's pre-split
+  // cost basis), so all auto-refresh is suspended while demo mode is on.
+  const demoActive = useDemoMode((state) => state.active);
   const lastRefreshRef = useRef(0);
   const triggerRefresh = useCallback(async () => {
+    if (useDemoMode.getState().active) return;
     if (Date.now() - lastRefreshRef.current < MIN_MARKET_REFRESH_INTERVAL_MS) return;
     lastRefreshRef.current = Date.now();
     try {
@@ -368,10 +385,14 @@ function useAutoMarketRefresh() {
   }, [queryClient]);
 
   useEffect(() => {
+    if (demoActive) return;
+    // Re-running on demo exit fires an immediate refresh (throttle reset so it
+    // isn't swallowed), so real quotes come back right away.
+    lastRefreshRef.current = 0;
     void triggerRefresh();
     window.addEventListener("focus", triggerRefresh);
     return () => window.removeEventListener("focus", triggerRefresh);
-  }, [triggerRefresh]);
+  }, [triggerRefresh, demoActive]);
 }
 
 function useQuickAddShortcut(toggle: () => void) {

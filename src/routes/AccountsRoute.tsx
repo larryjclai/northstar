@@ -9,15 +9,17 @@ import { AppSelect } from "../components/AppSelect";
 import { IconPicker } from "../components/IconPicker";
 import { Glyph, DEFAULT_ACCOUNT_ICON } from "../lib/icons";
 import { BankLogo } from "../components/BankLogo";
+import { openOnboarding } from "../components/OnboardingOverlay";
 import { downloadCsv, exportAccountsCsv } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { getFinanceRepository } from "../data/repositories";
 import type { Account, AccountType, AppSettings } from "../domain";
 import { convertCurrency, formatNumber, nowAsDatetimeLocal } from "../domain";
+import { BANK_BRANDS } from "../domain/bankBrands";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useNumericField } from "../hooks/useNumericField";
 
-type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "creditPaymentPaidUntil" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color"> & { customGroup: string };
+type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "creditPaymentPaidUntil" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color" | "bankBrandDomain"> & { customGroup: string };
 
 const emptyAccount: AccountFormState = {
   name: "",
@@ -35,6 +37,7 @@ const emptyAccount: AccountFormState = {
   loanTerm: null,
   iconName: null,
   color: null,
+  bankBrandDomain: null,
   customGroup: "",
 };
 
@@ -160,6 +163,7 @@ export function AccountsRoute() {
       creditLimit: account.creditLimit, creditLimitGroup: account.creditLimitGroup, isSharedToHousehold: account.isSharedToHousehold,
       loanStartDate: account.loanStartDate, annualInterestRate: account.annualInterestRate, loanTerm: account.loanTerm,
       iconName: account.iconName ?? null, color: account.color ?? null,
+      bankBrandDomain: account.bankBrandDomain ?? null,
       statementDay: account.statementDay ?? null, paymentDueDay: account.paymentDueDay ?? null,
       creditPaymentPaidUntil: account.creditPaymentPaidUntil ?? null,
       customGroup: account.customGroup ?? "",
@@ -280,8 +284,11 @@ export function AccountsRoute() {
       {rows.length === 0 ? (
         <Card style={{ padding: 48, textAlign: "center" }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>還沒有帳戶</div>
-          <div className="muted text-body" style={{ marginBottom: 18 }}>新增銀行、現金、信用卡或券商帳戶，淨值與收支才有可靠基礎。</div>
-          <Button onClick={openCreate} className="mx-auto"><Plus size={14} weight="bold" />新增第一個帳戶</Button>
+          <div className="muted text-body" style={{ marginBottom: 18 }}>新增銀行、現金、信用卡或券商帳戶，或用導覽選擇 CSV 匯入與示範資料。</div>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button onClick={openCreate}><Plus size={14} weight="bold" />新增第一個帳戶</Button>
+            <Button variant="outline" onClick={openOnboarding}>開啟導覽</Button>
+          </div>
         </Card>
       ) : (
         <div style={{ display: "grid", gap: 16 }}>
@@ -311,7 +318,7 @@ export function AccountsRoute() {
                   <div className="ns-acct-row" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 14, rowGap: 10, padding: "12px 18px", borderTop: !showSubgroup && i ? "1px solid var(--ns-border)" : "none" }}>
                     <div style={{ position: "relative", width: 36, height: 36, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: a.color || MARK_COLORS[i % MARK_COLORS.length], color: "var(--ns-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, overflow: "hidden" }}>
                       <Glyph name={a.iconName || DEFAULT_ACCOUNT_ICON[a.type]} size={20} color="var(--ns-bg)" fallbackText={a.name.slice(0, 2)} />
-                      <BankLogo accountName={a.name} size={36} />
+                      <BankLogo accountName={a.name} bankBrandDomain={a.bankBrandDomain} size={36} />
                     </div>
                     <div
                       style={{ minWidth: 0, maxWidth: 280, flexShrink: 1, cursor: "pointer" }}
@@ -567,8 +574,26 @@ function AccountDrawer({
                   <input className="ns-input" value={form.customGroup} onChange={(e) => setForm({ ...form, customGroup: e.target.value })} placeholder="例：台灣、海外、家庭" />
                 </DrawerField>
 
-                <DrawerField label="圖示與顏色（選填）">
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <DrawerField label="Logo、圖示與顏色（選填）">
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <AppSelect
+                      value={form.bankBrandDomain ?? "auto"}
+                      onChange={(value) => setForm({ ...form, bankBrandDomain: value === "auto" ? null : value })}
+                      options={[
+                        { value: "auto", label: "自動判讀", description: "依帳戶名稱關鍵字判斷；不需要完全一模一樣" },
+                        ...BANK_BRANDS.map((brand) => ({
+                          value: brand.domain,
+                          label: brand.label,
+                          description: brand.domain,
+                        })),
+                      ]}
+                      searchPlaceholder="搜尋銀行、券商或網域…"
+                      style={{ width: "100%", height: 40 }}
+                    />
+                    <div className="muted text-xs">
+                      Logo 顯示需在設定開啟「銀行／券商 Logo」。手選品牌會優先於名稱自動判讀；圖示是 logo 無法載入時的備援。
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                     <Popover>
                       <PopoverTrigger className="text-xl" style={{ width: 40, height: 40, borderRadius: "var(--ns-r-sm)", color: form.color ? "var(--ns-bg)" : undefined, background: form.color || "var(--ns-bg-hover)", border: "1px solid var(--ns-border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <Glyph name={form.iconName || DEFAULT_ACCOUNT_ICON[form.type]} size={20} color={form.color ? "var(--ns-bg)" : undefined} fallbackText="＋" />
@@ -585,6 +610,7 @@ function AccountDrawer({
                     {(form.iconName || form.color) ? (
                       <Button type="button" variant="ghost" size="xs" onClick={() => setForm({ ...form, iconName: null, color: null })}>清除</Button>
                     ) : null}
+                    </div>
                   </div>
                 </DrawerField>
 

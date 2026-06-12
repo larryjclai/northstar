@@ -72,7 +72,7 @@ export interface LedgerDraft {
   recurringOccurrenceKey?: string | null;
 }
 
-export type AccountDraft = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "creditPaymentPaidUntil" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color"> & {
+export type AccountDraft = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "creditPaymentPaidUntil" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color" | "bankBrandDomain"> & {
   customGroup?: string;
 };
 
@@ -446,13 +446,56 @@ function recomputeAssets(assets: PortfolioAsset[], records: InvestmentRecord[]) 
     // Defensive fallback: a manual snapshot with no records yet (pre-migration
     // edge) keeps its stored quantity/cost rather than collapsing to zero.
     if (assetRecords.length === 0) return asset;
-    const metrics = buildPositionMetrics(assetRecords);
+    // Self-healing for sync: a manual holding's quantity baseline lives in a
+    // cashless opening-balance record. If that record hasn't reached this
+    // device yet (it can lag behind a later buy that synced first), the
+    // manual shares would otherwise be silently dropped — only the later
+    // trades would count. Reconstruct the opening lot from `baseQuantity`,
+    // which always rides on the asset row itself, so the baseline survives.
+    // Once the real opening record arrives it simply replaces the synthetic
+    // one. Cost stays on the asset's last-known value while degraded (the
+    // synthetic price is only a placeholder for the quantity math).
+    const missingOpening =
+      asset.holdingSource === "manual" &&
+      asset.baseQuantity != null &&
+      !assetRecords.some((record) => record.cashless);
+    const computeRecords = missingOpening
+      ? [syntheticOpeningRecord(asset), ...assetRecords]
+      : assetRecords;
+    const metrics = buildPositionMetrics(computeRecords);
     return {
       ...asset,
       totalQuantity: metrics.quantity,
-      averageCost: metrics.averageCost,
+      averageCost: missingOpening ? asset.averageCost : metrics.averageCost,
     };
   });
+}
+
+/**
+ * Rebuild the cashless opening-balance lot for a manual holding from the
+ * durable `baseQuantity` on the asset row. Used only as a sync self-heal when
+ * the real opening record is temporarily absent — see `recomputeAssets`.
+ */
+function syntheticOpeningRecord(asset: PortfolioAsset): InvestmentRecord {
+  return {
+    id: openingRecordId(asset.id),
+    spaceId: asset.spaceId,
+    revision: 0,
+    createdAt: asset.createdAt,
+    updatedAt: asset.updatedAt,
+    deletedAt: null,
+    assetId: asset.id,
+    linkedAccountId: asset.accountId ?? null,
+    date: asset.acquisitionDate || asset.createdAt.slice(0, 10),
+    action: "buy",
+    price: asset.averageCost,
+    quantity: asset.baseQuantity ?? 0,
+    fee: 0,
+    note: "期初部位",
+    isReviewed: false,
+    linkedLedgerTransactionId: null,
+    cashless: true,
+  };
 }
 
 class BrowserFinanceRepository implements FinanceRepository {
@@ -512,6 +555,7 @@ class BrowserFinanceRepository implements FinanceRepository {
         loanTerm: null,
         iconName: null,
         color: null,
+        bankBrandDomain: null,
         statementDay: null,
         paymentDueDay: null,
         creditPaymentPaidUntil: null,
@@ -543,6 +587,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       loanTerm: row.loanTerm ?? null,
       iconName: row.iconName ?? null,
       color: row.color ?? null,
+      bankBrandDomain: row.bankBrandDomain ?? null,
       statementDay: row.statementDay ?? null,
       paymentDueDay: row.paymentDueDay ?? null,
     }));
@@ -566,6 +611,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       loanStartDate: input.type === "loan" ? (input.loanStartDate ?? null) : null,
       annualInterestRate: input.type === "loan" ? (input.annualInterestRate ?? null) : null,
       loanTerm: input.type === "loan" ? (input.loanTerm ?? null) : null,
+      bankBrandDomain: input.bankBrandDomain ?? null,
     });
     await this.persist();
   }
@@ -580,6 +626,7 @@ class BrowserFinanceRepository implements FinanceRepository {
         loanStartDate: input.type === "loan" ? (input.loanStartDate ?? null) : null,
         annualInterestRate: input.type === "loan" ? (input.annualInterestRate ?? null) : null,
         loanTerm: input.type === "loan" ? (input.loanTerm ?? null) : null,
+        bankBrandDomain: input.bankBrandDomain ?? null,
       }) : account,
     );
     this.recompute();
@@ -1912,6 +1959,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("accounts", "loan_term", "real");
     await this.ensureSqliteColumn("accounts", "icon_name", "text");
     await this.ensureSqliteColumn("accounts", "color", "text");
+    await this.ensureSqliteColumn("accounts", "bank_brand_domain", "text");
     await this.ensureSqliteColumn("accounts", "statement_day", "integer");
     await this.ensureSqliteColumn("accounts", "credit_payment_paid_until", "text");
     await this.ensureSqliteColumn("accounts", "payment_due_day", "integer");
@@ -1985,7 +2033,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     return (await this.db.select<Account[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       name, currency, opening_balance as openingBalance, balance, type, credit_limit as creditLimit, credit_limit_group as creditLimitGroup, is_shared_to_household as isSharedToHousehold,
-      loan_start_date as loanStartDate, annual_interest_rate as annualInterestRate, loan_term as loanTerm, icon_name as iconName, color, statement_day as statementDay, payment_due_day as paymentDueDay,
+      loan_start_date as loanStartDate, annual_interest_rate as annualInterestRate, loan_term as loanTerm, icon_name as iconName, color, bank_brand_domain as bankBrandDomain, statement_day as statementDay, payment_due_day as paymentDueDay,
       credit_payment_paid_until as creditPaymentPaidUntil, custom_group as customGroup
       from accounts where deleted_at is null order by name`)).map((row) => ({
         ...row,
@@ -1997,6 +2045,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         loanTerm: row.loanTerm ?? null,
         iconName: row.iconName ?? null,
         color: row.color ?? null,
+        bankBrandDomain: row.bankBrandDomain ?? null,
         statementDay: row.statementDay ?? null,
         paymentDueDay: row.paymentDueDay ?? null,
         creditPaymentPaidUntil: (row as any).creditPaymentPaidUntil ?? null,
@@ -2007,16 +2056,16 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   override async createAccount(input: AccountDraft) {
     const timestamp = nowIso();
     await this.db.execute(
-      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, statement_day, payment_due_day, credit_payment_paid_until, custom_group)
-       values ($1,$2,1,$3,$3,null,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
-      [createId("acct"), personalSpace, timestamp, input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, null, input.customGroup?.trim() ?? ""],
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, bank_brand_domain, statement_day, payment_due_day, credit_payment_paid_until, custom_group)
+       values ($1,$2,1,$3,$3,null,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
+      [createId("acct"), personalSpace, timestamp, input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.bankBrandDomain ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, null, input.customGroup?.trim() ?? ""],
     );
   }
 
   override async updateAccount(id: string, input: AccountDraft) {
     await this.db.execute(
-      `update accounts set revision = revision + 1, updated_at = $1, name = $2, currency = $3, opening_balance = $4, type = $5, credit_limit = $6, credit_limit_group = $7, is_shared_to_household = $8, loan_start_date = $9, annual_interest_rate = $10, loan_term = $11, icon_name = $12, color = $13, statement_day = $14, payment_due_day = $15, credit_payment_paid_until = $16, custom_group = $17 where id = $18`,
-      [nowIso(), input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, input.creditPaymentPaidUntil ?? null, input.customGroup?.trim() ?? "", id],
+      `update accounts set revision = revision + 1, updated_at = $1, name = $2, currency = $3, opening_balance = $4, type = $5, credit_limit = $6, credit_limit_group = $7, is_shared_to_household = $8, loan_start_date = $9, annual_interest_rate = $10, loan_term = $11, icon_name = $12, color = $13, bank_brand_domain = $14, statement_day = $15, payment_due_day = $16, credit_payment_paid_until = $17, custom_group = $18 where id = $19`,
+      [nowIso(), input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.bankBrandDomain ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, input.creditPaymentPaidUntil ?? null, input.customGroup?.trim() ?? "", id],
     );
     await this.recomputeSqliteAccounts();
   }
@@ -2234,8 +2283,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     const classification = assetClassificationFields(input);
     await this.withTransaction(async () => {
       await this.db.execute(
-        `update portfolio_assets set revision = revision + 1, updated_at = $1, ticker = $2, name = $3, currency = $4, acquisition_date = $5, account_id = $6, asset_type = $7, sector = $8, industry = $9, base_quantity = null where id = $10 and holding_source = 'manual'`,
-        [nowIso(), input.ticker.trim().toUpperCase(), input.name.trim() || input.ticker.trim().toUpperCase(), input.currency.trim().toUpperCase(), input.acquisitionDate || null, input.accountId || null, classification.assetType, classification.sector, classification.industry, id],
+        `update portfolio_assets set revision = revision + 1, updated_at = $1, ticker = $2, name = $3, currency = $4, acquisition_date = $5, account_id = $6, asset_type = $7, sector = $8, industry = $9, base_quantity = $10 where id = $11 and holding_source = 'manual'`,
+        [nowIso(), input.ticker.trim().toUpperCase(), input.name.trim() || input.ticker.trim().toUpperCase(), input.currency.trim().toUpperCase(), input.acquisitionDate || null, input.accountId || null, classification.assetType, classification.sector, classification.industry, Math.max(0, Number(input.totalQuantity) || 0), id],
       );
       // Upsert the opening-balance record (single source of truth for qty/cost).
       const rebuilt = buildOpeningRecord({ id, accountId: input.accountId || null }, input);
@@ -3532,8 +3581,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   private async insertAccountRow(row: Account) {
     const now = nowIso();
     await this.db.execute(
-      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, statement_day, payment_due_day, credit_payment_paid_until, custom_group)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, bank_brand_domain, statement_day, payment_due_day, credit_payment_paid_until, custom_group)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
       [
         row.id,
         row.spaceId ?? personalSpace,
@@ -3554,6 +3603,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         row.loanTerm ?? null,
         row.iconName ?? null,
         row.color ?? null,
+        row.bankBrandDomain ?? null,
         row.statementDay ?? null,
         row.paymentDueDay ?? null,
         row.creditPaymentPaidUntil ?? null,
@@ -4173,6 +4223,7 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
       ...account,
       creditLimit: account.creditLimit ?? null,
       creditLimitGroup: account.creditLimitGroup ?? "",
+      bankBrandDomain: account.bankBrandDomain ?? null,
       customGroup: account.customGroup ?? "",
     })),
     ledgerTransactions: (data.ledgerTransactions ?? []).map((row) => ({
@@ -4439,9 +4490,12 @@ function manualHoldingFields(input: PortfolioAssetDraft) {
     acquisitionDate: input.acquisitionDate || null,
     ...assetClassificationFields(input),
     accountId: input.accountId || null,
-    // baseQuantity is vestigial now that quantity derives from records (incl.
-    // the opening-balance lot). Kept as a nullable column for back-compat.
-    baseQuantity: null,
+    // The snapshot quantity is the durable carrier of a manual holding's
+    // baseline. It rides on the asset row (which always syncs), so a peer can
+    // reconstruct the opening lot even if the cashless opening record lags in
+    // sync. The opening-balance record stays the source of truth when present;
+    // see `recomputeAssets` / `syntheticOpeningRecord`.
+    baseQuantity: totalQuantity,
   };
 }
 

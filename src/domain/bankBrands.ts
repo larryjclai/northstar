@@ -19,14 +19,14 @@ export interface BankBrand {
  * the 國泰 entry.
  */
 const BRAND_RULES: Array<{ keywords: string[]; brand: BankBrand }> = [
-  { keywords: ["國泰", "cathay"], brand: { domain: "cathaybk.com", label: "國泰世華" } },
+  { keywords: ["國泰", "cathay"], brand: { domain: "cathaybk.com.tw", label: "國泰世華" } },
   { keywords: ["玉山", "esun"], brand: { domain: "esunbank.com", label: "玉山銀行" } },
   { keywords: ["台新", "richart", "taishin"], brand: { domain: "taishinbank.com.tw", label: "台新銀行" } },
   { keywords: ["中國信託", "中信", "ctbc"], brand: { domain: "ctbcbank.com", label: "中國信託" } },
   { keywords: ["第一銀", "第一商銀", "firstbank", "一銀"], brand: { domain: "firstbank.com.tw", label: "第一銀行" } },
   { keywords: ["兆豐", "mega"], brand: { domain: "megabank.com.tw", label: "兆豐銀行" } },
   { keywords: ["富邦", "fubon", "台北富邦"], brand: { domain: "fubon.com", label: "富邦" } },
-  { keywords: ["永豐", "sinopac"], brand: { domain: "banksinopac.com.tw", label: "永豐銀行" } },
+  { keywords: ["永豐", "sinopac"], brand: { domain: "bank.sinopac.com", label: "永豐銀行" } },
   { keywords: ["華南", "hncb"], brand: { domain: "hncb.com.tw", label: "華南銀行" } },
   { keywords: ["合庫", "合作金庫", "tcb"], brand: { domain: "tcb-bank.com.tw", label: "合作金庫" } },
   { keywords: ["土地銀行", "土銀", "landbank"], brand: { domain: "landbank.com.tw", label: "土地銀行" } },
@@ -49,8 +49,19 @@ const BRAND_RULES: Array<{ keywords: string[]; brand: BankBrand }> = [
   { keywords: ["schwab", "嘉信"], brand: { domain: "schwab.com", label: "Charles Schwab" } },
 ];
 
-/** Resolve a brand from a free-text account name, or null when none matches. */
-export function resolveBankBrand(accountName: string | null | undefined): BankBrand | null {
+export const BANK_BRANDS: BankBrand[] = Array.from(
+  new Map(BRAND_RULES.map((rule) => [rule.brand.domain, rule.brand])).values(),
+);
+
+export function getBankBrandByDomain(domain: string | null | undefined): BankBrand | null {
+  if (!domain) return null;
+  return BANK_BRANDS.find((brand) => brand.domain === domain) ?? null;
+}
+
+/** Resolve a brand from a manual override first, then a free-text account name. */
+export function resolveBankBrand(accountName: string | null | undefined, domainOverride?: string | null): BankBrand | null {
+  const override = getBankBrandByDomain(domainOverride);
+  if (override) return override;
   const haystack = (accountName ?? "").toLowerCase().replace(/\s+/g, "");
   if (!haystack) return null;
   for (const rule of BRAND_RULES) {
@@ -61,7 +72,7 @@ export function resolveBankBrand(accountName: string | null | undefined): BankBr
   return null;
 }
 
-/** Logo CDN URL for a brand domain (Clearbit-style; 404 → caller falls back). */
-export function bankLogoUrl(domain: string, size = 64): string {
-  return `https://logo.clearbit.com/${domain}?size=${size}`;
-}
+// NOTE: Bank/broker logos are now rendered from bundled local assets, not a
+// remote logo CDN — see `domain/bankLogoAssets.ts` and `components/BankLogo`.
+// The brand `domain` here is used purely as a stable key to look up a bundled
+// asset (and as the manual-override identity), so no network request is made.
