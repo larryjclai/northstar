@@ -48,11 +48,11 @@ export function CategoryFilter({
         render={
           <button
             type="button"
-            className="ns-input"
+            className="ns-input text-body"
             style={{
               display: "inline-flex", alignItems: "center", gap: 8, minWidth: 116, maxWidth: 220,
               height: 36, boxSizing: "border-box", padding: "0 10px", cursor: "pointer",
-              textAlign: "left", whiteSpace: "nowrap", fontSize: 13, ...style,
+              textAlign: "left", whiteSpace: "nowrap", ...style,
             }}
           >
             {selected ? <CategoryDot category={selected} /> : null}

@@ -393,7 +393,7 @@ export function TransactionsRoute() {
             {totalPages > 1 && (
               <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 24, marginBottom: 24 }}>
                 <Button variant="outline" disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>上一頁</Button>
-                <span style={{ fontSize: 13, alignSelf: 'center', color: 'var(--ns-fg-muted)' }}>{page} / {totalPages}</span>
+                <span className="text-body" style={{ alignSelf: 'center', color: 'var(--ns-fg-muted)' }}>{page} / {totalPages}</span>
                 <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>下一頁</Button>
               </div>
             )}
@@ -632,8 +632,8 @@ function SummaryCard({
     <CossCard className="p-4 sm:p-5">
       <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <div className="num" style={{ fontSize: 22, fontWeight: 500 }}>{value}</div>
-        {sublabel && <div className="num" style={{ fontSize: 13, color: 'var(--ns-muted)' }}>{sublabel}</div>}
+        <div className="num text-stat" style={{ fontWeight: 500 }}>{value}</div>
+        {sublabel && <div className="num text-body" style={{ color: 'var(--ns-muted)' }}>{sublabel}</div>}
       </div>
     </CossCard>
   );

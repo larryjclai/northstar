@@ -6,6 +6,7 @@ export type MonthPoint = { key: string; label: string; amount: number; partial: 
 function Tooltip({ text }: { text: string }) {
   return (
     <div
+      className="text-caption"
       style={{
         position: "absolute",
         bottom: "100%",
@@ -16,7 +17,6 @@ function Tooltip({ text }: { text: string }) {
         borderRadius: "var(--ns-r-sm)",
         background: "var(--ns-fg)",
         color: "var(--ns-bg)",
-        fontSize: 11,
         fontFamily: "var(--ns-font-mono)",
         fontVariantNumeric: "tabular-nums lining-nums",
         whiteSpace: "nowrap",

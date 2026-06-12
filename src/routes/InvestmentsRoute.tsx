@@ -44,7 +44,8 @@ import {
   type MarketQuote as DomainMarketQuote,
   type PortfolioAsset,
 } from "../domain";
-import { useBackfillAssetProfiles, useRefreshDailyPrices, useRefreshQuotes } from "../features/market-data/useMarketRefresh";
+import { useBackfillAssetProfiles, useRefreshDailyPrices, useRefreshQuotes, DEMO_MARKET_MESSAGE } from "../features/market-data/useMarketRefresh";
+import { useDemoMode } from "../state/demoMode";
 import { useUiPreferences, type NameLocalePreference, type HoldingsColumnKey } from "../state/uiPreferences";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
@@ -134,6 +135,7 @@ export function InvestmentsRoute() {
   // Best-effort: pull the benchmark's 1Y daily history so the analytics tab can
   // draw the comparison line. Silent on failure — the chart degrades gracefully.
   async function ensureBenchmarkHistory(ticker: string) {
+    if (useDemoMode.getState().active) return;
     const t = ticker.trim().toUpperCase();
     if (!t) return;
     try {
@@ -149,6 +151,11 @@ export function InvestmentsRoute() {
 
   async function refreshLatestQuotes() {
     setStatusMessage("");
+    if (useDemoMode.getState().active) {
+      toast.info("示範模式使用內建行情", { description: DEMO_MARKET_MESSAGE });
+      setStatusMessage(DEMO_MARKET_MESSAGE);
+      return;
+    }
     const tickers = [...new Set(assetRows.map((asset) => asset.ticker.toUpperCase()).filter(Boolean))];
     if (tickers.length === 0) {
       setStatusMessage("尚無持倉可以更新報價。");
@@ -164,6 +171,10 @@ export function InvestmentsRoute() {
 
   async function backfillHistoricalPrices(range: "1y" | "5y") {
     setStatusMessage("");
+    if (useDemoMode.getState().active) {
+      toast.info("示範模式使用內建行情", { description: DEMO_MARKET_MESSAGE });
+      return;
+    }
     const tickers = [...new Set(assetRows.filter((a) => a.ticker.trim() && !a.deletedAt).map((a) => a.ticker.trim().toUpperCase()))];
     if (tickers.length === 0) {
       toast.info("尚無持倉可回補");
@@ -189,6 +200,10 @@ export function InvestmentsRoute() {
 
   async function backfillClassifications() {
     setStatusMessage("");
+    if (useDemoMode.getState().active) {
+      toast.info("示範模式使用內建行情", { description: DEMO_MARKET_MESSAGE });
+      return;
+    }
     // Mirror useBackfillAssetProfiles' candidate rule — the old `!assetType`
     // gate reported「沒有需要回補」even when sector/industry were missing.
     const candidates = assetRows.filter((asset) => {
@@ -333,7 +348,7 @@ export function InvestmentsRoute() {
       <div className="ns-invest-header" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 0 }}>
         <div>
           <div className="ns-eyebrow" style={{ marginBottom: 6 }}>投資組合</div>
-          <h1 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 28, margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>投資</h1>
+          <h1 className="text-[28px]" style={{ fontFamily: 'var(--ns-font-display)', margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>投資</h1>
         </div>
         <div className="ns-invest-header-actions" style={{ display: 'flex', gap: 8 }}>
           {/* Entry point restored — it was lost in the holdings→portfolio tab
@@ -358,7 +373,7 @@ export function InvestmentsRoute() {
       {tab !== "recurring" && dueRecurringCount > 0 ? (
         <CossCard style={{ marginTop: 16, padding: "12px 16px", flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }}>定期定額</Badge>
-          <span style={{ fontSize: 13.5 }}>有 {dueRecurringCount} 個定期定額計畫待投入，記得備妥交割款。</span>
+          <span className="text-body">有 {dueRecurringCount} 個定期定額計畫待投入，記得備妥交割款。</span>
           <Button variant="ghost" size="xs" className="ml-auto" onClick={() => setTab("recurring")}>前往處理 →</Button>
         </CossCard>
       ) : null}
@@ -371,9 +386,9 @@ export function InvestmentsRoute() {
           { id: 'recurring', label: '定期定額', active: tab === 'recurring' },
           { id: 'analytics', label: '分析', active: tab === 'analytics' },
         ].map(t => (
-          <button key={t.id} onClick={() => setTab(t.id as any)} style={{
+          <button key={t.id} onClick={() => setTab(t.id as any)} className="text-sm" style={{
             padding: '10px 20px', background: 'none', border: 'none', cursor: 'pointer',
-            fontFamily: 'inherit', fontSize: 14, fontWeight: t.active ? 600 : 400,
+            fontFamily: 'inherit', fontWeight: t.active ? 600 : 400,
             color: t.active ? 'var(--ns-fg)' : 'var(--ns-fg-muted)',
             borderBottom: t.active ? '2px solid var(--ns-accent)' : '2px solid transparent',
             marginBottom: -1, transition: 'color 0.12s',
@@ -407,7 +422,7 @@ export function InvestmentsRoute() {
                     the % change sits on its own line so it never squeezes the
                     number into an ellipsis. */}
                 <div className="num" style={{ fontSize: "clamp(14px, 1.7vw, 22px)", fontWeight: 500, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={exact}>{val}</div>
-                {pct ? <div className="num" style={{ fontSize: 12.5, marginTop: 2, color: pos ? 'var(--ns-gain)' : 'var(--ns-loss)' }}>{pct}</div> : null}
+                {pct ? <div className="num text-xs" style={{ marginTop: 2, color: pos ? 'var(--ns-gain)' : 'var(--ns-loss)' }}>{pct}</div> : null}
               </CossCard>
             ))}
           </div>
@@ -925,7 +940,7 @@ function HoldingsAllocation({ positions, assetsById, nameLocale, toPrimary, prim
         </div>
         <div className="ns-holdings-allocation-list">
           {data.map((d, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, minWidth: 0 }}>
+            <div key={i} className="text-xs" style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
               <span style={{ width: 9, height: 9, borderRadius: 2, background: ALLOCATION_COLORS[i % ALLOCATION_COLORS.length], flexShrink: 0 }} />
               <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={d.name}>{d.name}</span>
               <span className="mono dim" style={{ flexShrink: 0 }}>{d.pct.toFixed(1)}%</span>
@@ -1303,7 +1318,7 @@ function HoldingsTab({
             <Button variant="ghost" disabled={page === 1} onClick={() => setPage(p => p - 1)}>
               <CaretLeft size={16} />上一頁
             </Button>
-            <div style={{ fontSize: 13, color: 'var(--ns-fg-muted)' }}>
+            <div className="text-body" style={{ color: 'var(--ns-fg-muted)' }}>
               第 {page} 頁 / 共 {totalPages} 頁
             </div>
             <Button variant="ghost" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>

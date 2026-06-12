@@ -60,7 +60,7 @@ export function SettingsRoute() {
       <aside className="ns-settings-sidebar">
         <div style={{ padding: '0 8px 16px' }}>
           <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Settings</div>
-          <h2 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 20, margin: 0, fontWeight: 600 }}>{t('settings.title')}</h2>
+          <h2 className="text-xl" style={{ fontFamily: 'var(--ns-font-display)', margin: 0, fontWeight: 600 }}>{t('settings.title')}</h2>
         </div>
         <div className="ns-settings-tabs">
           {tabs.map((tItem) => (
@@ -68,7 +68,7 @@ export function SettingsRoute() {
               className={`ns-nav-link ${tab === tItem.id ? 'active' : ''}`}
               onClick={() => setTab(tItem.id)}>
               {tItem.icon}
-              <span style={{ fontSize: 13 }}>{tItem.label}</span>
+              <span className="text-body">{tItem.label}</span>
             </div>
           ))}
         </div>

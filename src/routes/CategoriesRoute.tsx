@@ -91,10 +91,10 @@ export function CategoriesRoute() {
       {/* Header Area */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 32 }}>
         <div>
-          <div style={{ fontSize: 11, fontFamily: "var(--ns-font-mono)", letterSpacing: 1.5, color: "var(--ns-fg-muted)", marginBottom: 8 }}>
+          <div className="text-caption" style={{ fontFamily: "var(--ns-font-mono)", letterSpacing: 1.5, color: "var(--ns-fg-muted)", marginBottom: 8 }}>
             {dateRange.label} · {categoryStats.length} 個分類
           </div>
-          <h1 style={{ fontFamily: "var(--ns-font-display)", fontSize: 32, margin: 0, letterSpacing: -0.5, fontWeight: 600 }}>
+          <h1 className="text-[32px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.5, fontWeight: 600 }}>
             分類
           </h1>
         </div>
@@ -117,7 +117,7 @@ export function CategoriesRoute() {
           value={overSpentCats.length > 0 ? `${overSpentCats.length} (${overSpentCats[0].name})` : "0"} 
         />
       </div>
-      {missingFxPairs.length ? <div className="ns-surface" style={{ padding: "10px 14px", marginBottom: 16, fontSize: 13 }}>總額不完整：缺少 {missingFxPairs.join("、")} 匯率。</div> : null}
+      {missingFxPairs.length ? <div className="ns-surface text-body" style={{ padding: "10px 14px", marginBottom: 16 }}>總額不完整：缺少 {missingFxPairs.join("、")} 匯率。</div> : null}
 
       <div style={{ display: "flex", gap: 24 }}>
         {/* Left: Donut Chart */}
@@ -164,7 +164,7 @@ export function CategoriesRoute() {
               
               {/* Legend Grid */}
               {selectedCategory && (
-                <Button variant="ghost" style={{ fontSize: 11, marginBottom: 8, alignSelf: 'center' }} onClick={() => setSelectedCategory(null)}>
+                <Button variant="ghost" className="text-caption" style={{ marginBottom: 8, alignSelf: 'center' }} onClick={() => setSelectedCategory(null)}>
                   <X size={10} weight="bold" />清除篩選: {selectedCategory}
                 </Button>
               )}
@@ -172,9 +172,10 @@ export function CategoriesRoute() {
                 {categoryStats.map(cat => (
                   <div
                     key={cat.name}
+                    className="text-body"
                     onClick={() => setSelectedCategory(prev => prev === cat.name ? null : cat.name)}
                     style={{
-                      display: "flex", alignItems: "center", gap: 8, fontSize: 13,
+                      display: "flex", alignItems: "center", gap: 8,
                       cursor: "pointer", padding: "4px 6px", borderRadius: "var(--ns-r-xs)",
                       background: selectedCategory === cat.name ? "var(--ns-bg-hover)" : "transparent",
                       opacity: !selectedCategory || selectedCategory === cat.name ? 1 : 0.45,
@@ -197,7 +198,7 @@ export function CategoriesRoute() {
         {/* Right: Categories List */}
         <Card style={{ flex: 1, padding: "24px 0" }}>
           {/* List Header */}
-          <div style={{ display: "flex", padding: "0 32px 12px", borderBottom: "1px solid var(--ns-border)", fontSize: 11, fontFamily: "var(--ns-font-mono)", color: "var(--ns-fg-muted)", letterSpacing: 1 }}>
+          <div className="text-caption" style={{ display: "flex", padding: "0 32px 12px", borderBottom: "1px solid var(--ns-border)", fontFamily: "var(--ns-font-mono)", color: "var(--ns-fg-muted)", letterSpacing: 1 }}>
             <div style={{ flex: "0 0 160px" }}>分類</div>
             <div style={{ flex: 1, textAlign: "right" }}>已消費</div>
             <div style={{ flex: "0 0 240px", textAlign: "right" }}>預算</div>
@@ -232,26 +233,26 @@ export function CategoriesRoute() {
                   
                   {/* Category Info */}
                   <div style={{ flex: "0 0 160px", display: "flex", alignItems: "center", gap: 16 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: (cat.color || 'var(--ns-surface-strong)') + '18', display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
+                    <div className="text-xl" style={{ width: 36, height: 36, borderRadius: 10, background: (cat.color || 'var(--ns-surface-strong)') + '18', display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <Glyph name={cat.emoji} size={20} />
                     </div>
                     <div>
-                      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 2 }}>{cat.name}</div>
-                      <div style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>{cat.count} 筆</div>
+                      <div className="text-[15px]" style={{ fontWeight: 500, marginBottom: 2 }}>{cat.name}</div>
+                      <div className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>{cat.count} 筆</div>
                     </div>
                   </div>
                   
                   {/* Spent */}
-                  <div style={{ flex: 1, textAlign: "right", fontSize: 15, fontWeight: 500 }}>
+                  <div className="text-[15px]" style={{ flex: 1, textAlign: "right", fontWeight: 500 }}>
                     {formatMoney(cat.amount, primaryCurrency)}
                   </div>
                   
                   {/* Budget */}
                   <div style={{ flex: "0 0 240px", paddingLeft: 48 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
+                    <div className="text-sm" style={{ fontWeight: 500, marginBottom: 4 }}>
                       {hasBudget ? formatMoney(cat.budget!, primaryCurrency) : "—"}
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--ns-fg-muted)" }}>
+                    <div className="text-caption" style={{ color: "var(--ns-fg-muted)" }}>
                       {hasBudget ? (
                         isOver ? (
                           <span style={{ color: "var(--ns-neg)" }}>{percent.toFixed(0)}% · 超支 {formatMoney(cat.amount - cat.budget!, primaryCurrency)}</span>
@@ -305,8 +306,8 @@ export function CategoriesRoute() {
 function SummaryCard({ label, value }: { label: string, value: string }) {
   return (
     <Card style={{ padding: "24px", display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>{label}</div>
-      <div style={{ fontSize: 24, fontWeight: 500 }}>{value}</div>
+      <div className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>{label}</div>
+      <div className="text-[24px]" style={{ fontWeight: 500 }}>{value}</div>
     </Card>
   );
 }

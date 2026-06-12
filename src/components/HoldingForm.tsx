@@ -114,7 +114,7 @@ export function HoldingForm({
         </Field>
       </div>
       {!classificationOnly ? (
-        <p className="muted" style={{ fontSize: 12, marginTop: -2 }}>
+        <p className="muted text-xs" style={{ marginTop: -2 }}>
           平均成本與起始日期會建立一筆「期初部位」作為成本基準；之後的買賣會在此基礎上加權計算平均成本與報酬。若不確定原始成本，可填入目前市值，報酬將自起始日期起計。
         </p>
       ) : null}

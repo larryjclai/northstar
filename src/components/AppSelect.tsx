@@ -90,7 +90,7 @@ export function AppSelect({
                 >
                   <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{option.label}</span>
-                    {option.description ? <span className="muted" style={{ fontSize: 11 }}>{option.description}</span> : null}
+                    {option.description ? <span className="muted text-caption">{option.description}</span> : null}
                   </span>
                   {value === option.value ? <Check size={14} style={{ flexShrink: 0 }} /> : null}
                 </CommandItem>

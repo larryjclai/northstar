@@ -195,7 +195,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
       <div className="ns-surface" style={{ width: "100%", maxWidth: 980, borderRadius: "var(--ns-r-lg)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)" }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 22px", borderBottom: "1px solid var(--ns-border)" }}>
-          <div style={{ fontFamily: "var(--ns-font-display)", fontSize: 18, fontWeight: 600 }}>匯入證券交易</div>
+          <div className="text-lg" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>匯入證券交易</div>
           <Button variant="ghost" size="icon-sm" onClick={onClose}><X size={16} /></Button>
         </div>
 
@@ -207,11 +207,11 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
             const active = s.id === step;
             return (
               <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, opacity: active || done ? 1 : 0.5 }}>
-                <div style={{ width: 22, height: 22, borderRadius: 99, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11,
+                <div className="text-caption" style={{ width: 22, height: 22, borderRadius: 99, display: "flex", alignItems: "center", justifyContent: "center",
                   border: `1.5px solid ${active ? "var(--ns-accent)" : "var(--ns-border)"}`, background: done ? "var(--ns-accent)" : "transparent", color: done ? "#000" : "var(--ns-fg)" }}>
                   {done ? <CheckCircle size={13} weight="bold" /> : i + 1}
                 </div>
-                <span style={{ fontSize: 13, fontWeight: active ? 600 : 400 }}>{s.label}</span>
+                <span className="text-body" style={{ fontWeight: active ? 600 : 400 }}>{s.label}</span>
                 {i < steps.length - 1 && <span className="muted" style={{ margin: "0 4px" }}>—</span>}
               </div>
             );
@@ -241,7 +241,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
                   />
                 )}
                 {hasRowAccount ? (
-                  <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                  <div className="muted text-xs" style={{ marginTop: 6 }}>
                     這份 CSV 含有帳戶欄位，預覽時會優先用每列的 accountName / accountId；上方帳戶只作為找不到對應時的預設值。
                   </div>
                 ) : null}
@@ -253,7 +253,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
                 <button type="button" onClick={() => fileRef.current?.click()} style={{ width: "100%", padding: 22, borderRadius: "var(--ns-r-md)", cursor: "pointer", border: `1.5px dashed ${fileName ? "var(--ns-accent)" : "var(--ns-border)"}`, background: "transparent", color: "var(--ns-fg)", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                   {fileName ? <FileCsv size={26} style={{ color: "var(--ns-accent)" }} /> : <UploadSimple size={26} />}
                   <div style={{ fontWeight: 500 }}>{fileName || "點擊或拖放上傳 CSV"}</div>
-                  <div className="muted" style={{ fontSize: 12 }}>{fileName ? `${rows.length} 列 · 分隔符 ${delimiter === "\t" ? "Tab" : delimiter}` : "僅支援 CSV"}</div>
+                  <div className="muted text-xs">{fileName ? `${rows.length} 列 · 分隔符 ${delimiter === "\t" ? "Tab" : delimiter}` : "僅支援 CSV"}</div>
                 </button>
               </div>
 
@@ -272,7 +272,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
 
               {headers.length > 0 && (
                 <div>
-                  <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>預覽（前 5 列）</div>
+                  <div className="muted text-xs" style={{ marginBottom: 6 }}>預覽（前 5 列）</div>
                   <PreviewTable headers={previewHeaders(headers, mapping)} totalColumns={headers.length} rows={rows.slice(0, 5)} />
                 </div>
               )}
@@ -290,7 +290,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
                     const unset = required && !mapping.fields[field];
                     return (
                       <div key={field}>
-                        <label style={{ fontSize: 12, display: "block", marginBottom: 4, color: unset ? "var(--ns-neg)" : "var(--ns-fg-muted)" }}>
+                        <label className="text-xs" style={{ display: "block", marginBottom: 4, color: unset ? "var(--ns-neg)" : "var(--ns-fg-muted)" }}>
                           {FIELD_LABELS[field]}{required && <span style={{ color: "var(--ns-neg)" }}> *</span>}
                         </label>
                         <AppSelect
@@ -305,7 +305,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
                     );
                   })}
                   <div>
-                    <label style={{ fontSize: 12, display: "block", marginBottom: 4, color: "var(--ns-fg-muted)" }}>日期格式</label>
+                    <label className="text-xs" style={{ display: "block", marginBottom: 4, color: "var(--ns-fg-muted)" }}>日期格式</label>
                     <AppSelect
                       value={mapping.dateFormat}
                       onChange={(dateFormat) => setMapping((p) => ({ ...p, dateFormat: dateFormat as DateFormat }))}
@@ -330,7 +330,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
                       const pending = cur === undefined;
                       return (
                         <div key={value} style={{ display: "grid", gridTemplateColumns: "1fr 200px", gap: 10, alignItems: "center" }}>
-                          <span className="mono" style={{ fontSize: 13 }}>{value}</span>
+                          <span className="mono text-body">{value}</span>
                           <AppSelect
                             value={cur ?? ""}
                             onChange={(action) => setActivity(value, action as ImportActivity | "ignore")}
@@ -393,7 +393,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
                 <div>
                   <div className="muted text-sm mb-2">前 {Math.min(8, preview.valid.length)} 筆預覽</div>
                   <div style={{ overflowX: "auto" }}>
-                    <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+                    <table className="text-xs" style={{ width: "100%", borderCollapse: "collapse" }}>
                       <thead>
                         <tr style={{ textAlign: "left", color: "var(--ns-fg-dim)" }}>
                           {["列", "日期", "類別", "內容", "數量", "價格 / 金額", "手續費"].map((h) => <th key={h} style={{ padding: "6px 10px", borderBottom: "1px solid var(--ns-border)" }}>{h}</th>)}
@@ -407,7 +407,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
                 </div>
               )}
 
-              <div className="muted" style={{ fontSize: 11.5, display: "flex", gap: 6, alignItems: "flex-start" }}>
+              <div className="muted text-caption" style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
                 <Warning size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                 <span>買入交易需要該投資帳戶有足夠現金交割；若帳戶餘額不足，匯入時該筆會被拒絕並顯示原因。</span>
               </div>
@@ -484,10 +484,10 @@ function PreviewTable({ headers, totalColumns, rows }: { headers: string[]; tota
   return (
     <div>
       {totalColumns > headers.length ? (
-        <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>只顯示 {headers.length} 個關鍵欄位，另有 {totalColumns - headers.length} 欄會在匯入時保留解析。</div>
+        <div className="muted text-caption" style={{ marginBottom: 6 }}>只顯示 {headers.length} 個關鍵欄位，另有 {totalColumns - headers.length} 欄會在匯入時保留解析。</div>
       ) : null}
       <div style={{ overflowX: "auto", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-md)", maxWidth: "100%" }}>
-      <table style={{ width: "100%", minWidth: Math.min(760, headers.length * 120), fontSize: 12, borderCollapse: "collapse", tableLayout: "fixed" }}>
+      <table className="text-xs" style={{ width: "100%", minWidth: Math.min(760, headers.length * 120), borderCollapse: "collapse", tableLayout: "fixed" }}>
         <thead>
           <tr style={{ textAlign: "left", color: "var(--ns-fg-dim)" }}>
             {headers.map((h) => <th key={h} style={{ padding: "6px 10px", borderBottom: "1px solid var(--ns-border)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h}</th>)}
@@ -540,7 +540,7 @@ function StatPill({ label, value, tone }: { label: string; value: string | numbe
   return (
     <div style={{ padding: "10px 14px", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", minWidth: 110 }}>
       <div className="ns-eyebrow" style={{ marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 600, color }}>{value}</div>
+      <div className="text-lg" style={{ fontWeight: 600, color }}>{value}</div>
     </div>
   );
 }

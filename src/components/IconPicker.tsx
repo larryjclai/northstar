@@ -36,16 +36,16 @@ export function IconPicker({
         <MagnifyingGlass size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--ns-fg-dim)", pointerEvents: "none" }} />
         <input
           autoFocus
-          className="ns-input"
+          className="ns-input text-body"
           placeholder="搜尋圖示…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          style={{ width: "100%", height: 34, padding: "0 10px 0 30px", fontSize: 13, boxSizing: "border-box" }}
+          style={{ width: "100%", height: 34, padding: "0 10px 0 30px", boxSizing: "border-box" }}
         />
       </div>
       <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, paddingRight: 2 }}>
         {groups.length === 0 ? (
-          <div className="muted" style={{ fontSize: 13, textAlign: "center", padding: "16px 0" }}>找不到圖示</div>
+          <div className="muted text-body" style={{ textAlign: "center", padding: "16px 0" }}>找不到圖示</div>
         ) : (
           groups.map((g) => (
             <div key={g.label}>

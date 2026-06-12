@@ -65,10 +65,10 @@ export function DateScopeControl({
         ) : (
           <button
             type="button"
-            className="ns-input"
+            className="ns-input text-xs"
             title="切換為自訂區間"
             onClick={enterCustom}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 10px", fontSize: 12.5, cursor: "pointer", color: "var(--ns-fg-muted)" }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 10px", cursor: "pointer", color: "var(--ns-fg-muted)" }}
           >
             <CalendarBlank size={14} />
             自訂區間

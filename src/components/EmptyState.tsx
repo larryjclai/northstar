@@ -34,10 +34,9 @@ export function EmptyState({
           {icon}
         </div>
         <h3
-          className="mt-4"
+          className="mt-4 text-[17px]"
           style={{
             fontFamily: "var(--ns-font-display)",
-            fontSize: 17,
             fontWeight: 600,
             margin: "16px 0 0",
           }}

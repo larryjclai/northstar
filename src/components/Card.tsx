@@ -29,9 +29,9 @@ export function Card({
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           {title ? (
             <h2
+              className="text-[15px]"
               style={{
                 fontFamily: "var(--ns-font-display)",
-                fontSize: 15,
                 fontWeight: 600,
                 margin: 0,
                 letterSpacing: -0.01,

@@ -124,10 +124,10 @@ export function AppShell() {
         <div style={{ padding: "0 8px 16px", display: "flex", alignItems: "center", gap: 9 }}>
           <img src={appIconUrl} alt="" style={{ width: 26, height: 26, borderRadius: 7 }} />
           <span
+            className="text-[15px]"
             style={{
               fontFamily: "var(--ns-font-brand)",
               fontWeight: 600,
-              fontSize: 15,
               letterSpacing: -0.01,
             }}
           >
@@ -140,8 +140,8 @@ export function AppShell() {
           <button
             type="button"
             onClick={() => setSearchOpen(true)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground bg-secondary/30 hover:bg-secondary/50 rounded-md border border-border/50 transition-colors"
-            style={{ color: "var(--ns-fg-muted)", fontSize: 13 }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-body text-muted-foreground bg-secondary/30 hover:bg-secondary/50 rounded-md border border-border/50 transition-colors"
+            style={{ color: "var(--ns-fg-muted)" }}
           >
             <MagnifyingGlass size={15} />
             <span className="flex-1 text-left">Search...</span>
@@ -222,9 +222,9 @@ export function AppShell() {
                 <rect x="5" y="9" width="10" height="8" rx="1.5"/>
                 <path d="M7 9V6a3 3 0 016 0v3"/>
               </svg>
-              <span style={{ fontSize: 12, fontWeight: 500 }}>Local-first</span>
+              <span className="text-xs" style={{ fontWeight: 500 }}>Local-first</span>
             </div>
-            <div style={{ fontSize: 11, lineHeight: 1.45, color: "var(--ns-fg-dim)" }}>
+            <div className="text-caption" style={{ lineHeight: 1.45, color: "var(--ns-fg-dim)" }}>
               {t("shell.dataSavedLocally")}
             </div>
           </div>
@@ -246,8 +246,8 @@ export function AppShell() {
       >
         {demoActive ? (
           <div
-            className="flex items-center gap-3"
-            style={{ padding: "8px 16px", background: "var(--ns-accent-soft)", color: "var(--ns-accent)", borderBottom: "1px solid var(--ns-border)", fontSize: 13, position: "sticky", top: 0, zIndex: 30 }}
+            className="flex items-center gap-3 text-body"
+            style={{ padding: "8px 16px", background: "var(--ns-accent-soft)", color: "var(--ns-accent)", borderBottom: "1px solid var(--ns-border)", position: "sticky", top: 0, zIndex: 30 }}
           >
             <span style={{ fontWeight: 600 }}>示範模式</span>
             <span style={{ flex: 1, minWidth: 0, color: "var(--ns-fg-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -329,12 +329,8 @@ export function AppShell() {
         <button
           type="button"
           onClick={() => setMoreOpen(true)}
-          className="flex flex-col items-center gap-1 px-1 py-2 text-[11px] outline-none"
-          // fontSize is pinned inline because an unlayered global `button` rule
-          // overrides the text-[11px] utility (Tailwind v4 ranks unlayered CSS
-          // above utilities), which otherwise renders this label at 16px while
-          // the sibling <a> nav items stay at 11px.
-          style={{ fontSize: 11, lineHeight: 1.4, background: "none", border: "none", cursor: "pointer", color: moreOpen ? "var(--ns-accent)" : "var(--ns-fg-muted)" }}
+          className="flex flex-col items-center gap-1 px-1 py-2 !text-caption outline-none"
+          style={{ lineHeight: 1.4, background: "none", border: "none", cursor: "pointer", color: moreOpen ? "var(--ns-accent)" : "var(--ns-fg-muted)" }}
           aria-label="更多"
           aria-expanded={moreOpen}
         >
@@ -511,9 +507,9 @@ export function PageHeader({
     <header className="mb-6 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
       <div className="min-w-0">
         <h1
+          className="text-[26px]"
           style={{
             fontFamily: "var(--ns-font-display)",
-            fontSize: 26,
             fontWeight: 600,
             letterSpacing: -0.02,
             margin: 0,

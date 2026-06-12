@@ -20,7 +20,7 @@ export function Metric({
       <div className="ns-eyebrow">{label}</div>
       <div className="ns-num-md" style={{ color: valueColor }}>{value}</div>
       {sub ? (
-        <div style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>{sub}</div>
+        <div className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>{sub}</div>
       ) : null}
     </div>
   );

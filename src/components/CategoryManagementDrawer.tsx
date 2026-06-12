@@ -107,7 +107,7 @@ export function CategoryManagementDrawer({
         }}
       >
         <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600 }}>分類管理</h2>
+          <h2 className="text-base" style={{ fontWeight: 600 }}>分類管理</h2>
           <Button variant="ghost" size="icon-sm" onClick={onClose}><X size={18} /></Button>
         </div>
 
@@ -116,8 +116,8 @@ export function CategoryManagementDrawer({
             {addingMain ? (
               <input
                 autoFocus
-                className="ns-input"
-                style={{ flex: 1, fontSize: 13 }}
+                className="ns-input text-body"
+                style={{ flex: 1 }}
                 placeholder="主分類名稱…"
                 value={draftMain}
                 onChange={(e) => setDraftMain(e.target.value)}
@@ -144,7 +144,7 @@ export function CategoryManagementDrawer({
                         {isExp ? <CaretDown size={14} weight="bold" /> : <CaretRight size={14} weight="bold" />}
                       </div>
                       <Popover>
-                        <PopoverTrigger className="ns-btn-icon" style={{ fontSize: 16 }}>
+                        <PopoverTrigger className="ns-btn-icon text-base">
                           {group.iconName ? <Glyph name={group.iconName} size={16} /> : <Tag size={16} />}
                         </PopoverTrigger>
                         <PopoverContent className="z-[150] shadow-xl rounded-xl w-auto p-0">
@@ -159,8 +159,8 @@ export function CategoryManagementDrawer({
                       {isRenamingMain ? (
                         <input
                           autoFocus
-                          className="ns-input"
-                          style={{ flex: 1, fontSize: 14, padding: "4px 8px" }}
+                          className="ns-input text-sm"
+                          style={{ flex: 1, padding: "4px 8px" }}
                           value={draftRename}
                           onChange={(e) => setDraftRename(e.target.value)}
                           onKeyDown={(e) => {
@@ -172,15 +172,15 @@ export function CategoryManagementDrawer({
                       ) : (
                         <>
                           <span style={{ fontWeight: 500, cursor: "pointer" }} onClick={() => toggle(group.name)}>{group.name}</span>
-                          <span style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>({group.children.length})</span>
+                          <span className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>({group.children.length})</span>
                         </>
                       )}
                     </div>
                     <div style={{ display: "flex", gap: 4 }}>
                       {confirmRemove === group.name ? (
                         <>
-                          <Button variant="ghost" size="sm" style={{ color: "var(--ns-danger)", fontSize: 12 }} onClick={() => removeMainCategory(group.name)}>確定刪除</Button>
-                          <Button variant="ghost" size="sm" style={{ fontSize: 12 }} onClick={() => setConfirmRemove(null)}>取消</Button>
+                          <Button variant="ghost" size="sm" className="text-xs" style={{ color: "var(--ns-danger)" }} onClick={() => removeMainCategory(group.name)}>確定刪除</Button>
+                          <Button variant="ghost" size="sm" className="text-xs" onClick={() => setConfirmRemove(null)}>取消</Button>
                         </>
                       ) : (
                         <>
@@ -201,8 +201,8 @@ export function CategoryManagementDrawer({
                             {isRenamingThis ? (
                               <input
                                 autoFocus
-                                className="ns-input"
-                                style={{ flex: 1, fontSize: 14, padding: "4px 8px" }}
+                                className="ns-input text-sm"
+                                style={{ flex: 1, padding: "4px 8px" }}
                                 value={draftRename}
                                 onChange={(e) => setDraftRename(e.target.value)}
                                 onKeyDown={(e) => {
@@ -212,7 +212,7 @@ export function CategoryManagementDrawer({
                                 onBlur={() => commitRenameSub(group.name, child, draftRename)}
                               />
                             ) : (
-                              <span style={{ fontSize: 14 }}>{child}</span>
+                              <span className="text-sm">{child}</span>
                             )}
                             <div style={{ display: "flex", gap: 4 }}>
                               {!isRenamingThis && (
@@ -227,8 +227,8 @@ export function CategoryManagementDrawer({
                         <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 24 }}>
                           <input
                             autoFocus
-                            className="ns-input"
-                            style={{ flex: 1, fontSize: 14, padding: "4px 8px" }}
+                            className="ns-input text-sm"
+                            style={{ flex: 1, padding: "4px 8px" }}
                             placeholder="子分類名稱…"
                             value={draftSub}
                             onChange={(e) => setDraftSub(e.target.value)}

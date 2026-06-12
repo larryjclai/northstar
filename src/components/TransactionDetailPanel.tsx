@@ -110,7 +110,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
       >
         {/* Header */}
         <div style={{ padding: "18px 24px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
+          <div className="text-body" style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
             <Receipt size={16} />
             交易詳情
           </div>
@@ -132,13 +132,14 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
             >
               <Receipt size={26} color={meta.color} weight="duotone" />
             </div>
-            <div style={{ fontSize: 32, fontWeight: 600, fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums lining-nums", color: meta.color, letterSpacing: -1 }}>
+            <div className="text-[32px]" style={{ fontWeight: 600, fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums lining-nums", color: meta.color, letterSpacing: -1 }}>
               {meta.sign}{row.currency === "TWD" ? "NT$" : row.currency + " "}{formatNumber(Math.abs(row.amount))}
             </div>
             <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
               <span
+                className="text-caption"
                 style={{
-                  padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 500,
+                  padding: "3px 10px", borderRadius: 99, fontWeight: 500,
                   background: meta.color + "18", color: meta.color,
                 }}
               >
@@ -146,8 +147,9 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
               </span>
               {!isSettled && settlementLabel && (
                 <span
+                  className="text-caption"
                   style={{
-                    padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 500,
+                    padding: "3px 10px", borderRadius: 99, fontWeight: 500,
                     background: "var(--ns-chart-3)" + "18", color: "var(--ns-chart-3)",
                   }}
                 >
@@ -156,8 +158,9 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
               )}
               {isReimbursement && (
                 <span
+                  className="text-caption"
                   style={{
-                    padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 500,
+                    padding: "3px 10px", borderRadius: 99, fontWeight: 500,
                     background: "var(--ns-chart-4)" + "18", color: "var(--ns-chart-4)",
                   }}
                 >
@@ -166,8 +169,9 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
               )}
               {row.recurringRuleId ? (
                 <span
+                  className="text-caption"
                   style={{
-                    padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 500,
+                    padding: "3px 10px", borderRadius: 99, fontWeight: 500,
                     background: "var(--ns-accent-soft)", color: "var(--ns-accent)",
                     display: "inline-flex", alignItems: "center", gap: 4,
                   }}
@@ -177,8 +181,9 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
                 </span>
               ) : (
                 <span
+                  className="text-caption"
                   style={{
-                    padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 500,
+                    padding: "3px 10px", borderRadius: 99, fontWeight: 500,
                     background: "var(--ns-border)", color: "var(--ns-fg-muted)",
                   }}
                 >
@@ -186,12 +191,12 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
                 </span>
               )}
               {installmentLabel(row) ? (
-                <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-accent)", borderColor: "var(--ns-accent)", fontSize: 11, padding: "3px 10px" }}>
+                <Badge variant="outline" className="rounded-full text-caption" style={{ color: "var(--ns-accent)", borderColor: "var(--ns-accent)", padding: "3px 10px" }}>
                   {installmentLabel(row)}
                 </Badge>
               ) : null}
               {isRefund ? (
-                <span style={{ padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 500, background: "var(--ns-pos)" + "18", color: "var(--ns-pos)" }}>
+                <span className="text-caption" style={{ padding: "3px 10px", borderRadius: 99, fontWeight: 500, background: "var(--ns-pos)" + "18", color: "var(--ns-pos)" }}>
                   退款
                 </span>
               ) : null}
@@ -244,27 +249,27 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
                 </Button>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>記退款</div>
-                  <div className="muted" style={{ fontSize: 12, lineHeight: 1.5 }}>
+                  <div className="text-body" style={{ fontWeight: 600 }}>記退款</div>
+                  <div className="muted text-xs" style={{ lineHeight: 1.5 }}>
                     退款會沖減此筆「{row.category || "未分類"}」分類的支出，不會被當成收入。
                   </div>
-                  <label style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>
+                  <label className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>
                     退款金額 · {row.currency}
                     <input className="ns-input" inputMode="decimal" value={refundAmount}
                       onChange={(e) => setRefundAmount(e.target.value)}
                       style={{ marginTop: 4, fontFamily: "var(--ns-font-num)" }} />
                   </label>
-                  <label style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>
+                  <label className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>
                     退款日期
                     <input className="ns-input" type="date" value={refundDate || row.date.slice(0, 10)}
                       onChange={(e) => setRefundDate(e.target.value)} style={{ marginTop: 4 }} />
                   </label>
-                  <label style={{ fontSize: 12, color: "var(--ns-fg-muted)" }}>
+                  <label className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>
                     備註（選填）
                     <input className="ns-input" value={refundNote} placeholder="退貨 / 部分退款…"
                       onChange={(e) => setRefundNote(e.target.value)} style={{ marginTop: 4 }} />
                   </label>
-                  {refundError ? <div style={{ fontSize: 12, color: "var(--ns-neg)" }}>{refundError}</div> : null}
+                  {refundError ? <div className="text-xs" style={{ color: "var(--ns-neg)" }}>{refundError}</div> : null}
                   <div style={{ display: "flex", gap: 8 }}>
                     <Button style={{ flex: 1, justifyContent: "center" }} disabled={refundSubmitting} onClick={submitRefund}>
                       {refundSubmitting ? "建立中…" : "確認退款"}
@@ -328,8 +333,8 @@ function DetailField({ icon, label, value }: { icon: React.ReactNode; label: str
       gap: 8,
     }}>
       <span style={{ color: "var(--ns-fg-muted)" }}>{icon}</span>
-      <span style={{ fontSize: 12, color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</span>
-      <span style={{ fontSize: 14, fontWeight: 500, textAlign: "right" }}>{value}</span>
+      <span className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</span>
+      <span className="text-sm" style={{ fontWeight: 500, textAlign: "right" }}>{value}</span>
     </div>
   );
 }

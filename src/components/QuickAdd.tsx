@@ -196,8 +196,9 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                           key={category.name}
                           type="button"
                           onClick={() => setConfirm({ ...confirm, category: active ? "" : category.name, subcategory: "" })}
+                          className="text-xs"
                           style={{
-                            padding: "4px 10px", borderRadius: 999, fontSize: 12, cursor: "pointer",
+                            padding: "4px 10px", borderRadius: 999, cursor: "pointer",
                             background: active ? color : "var(--ns-bg-card)",
                             color: active ? readableTextColor(color) : "var(--ns-fg)",
                             border: active ? "1px solid rgba(0,0,0,0.12)" : "1px solid var(--ns-border)",
@@ -221,8 +222,9 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                               key={s}
                               type="button"
                               onClick={() => setConfirm({ ...confirm, subcategory: active ? "" : s })}
+                              className="text-caption"
                               style={{
-                                padding: "3px 9px", borderRadius: 999, fontSize: 11.5, cursor: "pointer", fontFamily: "inherit",
+                                padding: "3px 9px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit",
                                 background: active ? "var(--ns-accent)" : "var(--ns-bg-hover)",
                                 color: active ? "#fff" : "var(--ns-fg-muted)",
                                 border: "none",
@@ -255,7 +257,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                     positionerClassName="z-[90]"
                   />
                 </Field>
-                <div style={{ gridColumn: "1 / -1", fontSize: 12 }}>
+                <div className="text-xs" style={{ gridColumn: "1 / -1" }}>
                   {(ledgerSuggestions.merchants.length > 0 || ledgerSuggestions.accountIds.length > 0) ? (
                     <div className="muted" style={{ marginBottom: 5 }}>依過往紀錄建議</div>
                   ) : null}
@@ -267,7 +269,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                     })}
                   </div>
                 </div>
-                <div className="ns-surface" style={{ gridColumn: "1 / -1", padding: "9px 11px", fontSize: 12.5 }}>
+                <div className="ns-surface text-xs" style={{ gridColumn: "1 / -1", padding: "9px 11px" }}>
                   {confirm.entryType === "expense" ? "支出" : "收入"} {formatMoney(Number(confirm.amount) || 0, accountCurrency(confirm.accountId))}
                   {confirm.accountId ? ` · ${accountRows.find((row) => row.id === confirm.accountId)?.name ?? ""}` : ""}
                   {confirm.category ? ` · ${confirm.category}${confirm.subcategory ? ` / ${confirm.subcategory}` : ""}` : ""}
@@ -281,7 +283,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                 <Field label="價格"><input className="ns-input" inputMode="decimal" value={confirm.price} onChange={(e) => setConfirm({ ...confirm, price: e.target.value.replace(/[^\d.]/g, "") })} /></Field>
               </div>
             )}
-            {error ? <div style={{ color: "var(--ns-neg)", fontSize: 12.5, marginTop: 10 }}>{error}</div> : null}
+            {error ? <div className="text-xs" style={{ color: "var(--ns-neg)", marginTop: 10 }}>{error}</div> : null}
             <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
               <Button variant="outline" style={{ flex: "0 0 auto" }} onClick={() => setConfirm(null)}>返回</Button>
               <Button style={{ flex: 1, justifyContent: "center" }} onClick={submit} disabled={pending}>{pending ? "儲存中…" : "確認新增"}</Button>
@@ -301,8 +303,9 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                   key={value}
                   type="button"
                   onClick={() => setMode(value)}
+                  className="text-xs"
                   style={{
-                    padding: "5px 16px", borderRadius: 999, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit",
+                    padding: "5px 16px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit",
                     background: active ? "var(--ns-accent)" : "var(--ns-bg-card)",
                     color: active ? "#fff" : "var(--ns-fg-muted)",
                     border: active ? "1px solid var(--ns-accent)" : "1px solid var(--ns-border)",
@@ -325,9 +328,10 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") parse(); }}
             placeholder={mode === "investment" ? "投資 · 試試「2330.TW 5股 @1042」或「賣 AAPL 10 @180」" : "記帳 · 試試「拿鐵 120 信用卡」或「+ 接案 5000 富邦」"}
-            style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--ns-fg)", fontFamily: "inherit", fontSize: 13.5, padding: "8px" }}
+            className="text-body"
+            style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--ns-fg)", fontFamily: "inherit", padding: "8px" }}
           />
-          <Badge variant="outline" className="rounded-full" style={{ fontSize: 10.5 }}><span className="mono">⌘N</span></Badge>
+          <Badge variant="outline" className="rounded-full text-micro"><span className="mono">⌘N</span></Badge>
           <Button style={{ padding: "8px 16px", borderRadius: 999 }} onClick={parse} disabled={!text.trim()}>
             解析 <ArrowRight size={13} weight="bold" />
           </Button>
