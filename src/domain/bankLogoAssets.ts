@@ -24,7 +24,19 @@
  * colour marker (the logo overlay renders nothing).
  */
 export const BANK_LOGO_ASSETS: Record<string, string> = {
-  // Add brand-domain → imported asset entries here.
+  "firstbank.com.tw": "/bank/007_ileo.svg",
+  "fubon.com": "/bank/012.svg",
+  "cathaybk.com.tw": "/bank/013.svg",
+  "dahu.sinopac.com": "/bank/807_da.svg",
+  "bank.sinopac.com": "/bank/807.svg",
+  "esunbank.com": "/bank/808.svg",
+  "taishinbank.com.tw": "/bank/812.svg",
+  "richart.tw": "/bank/812_R.svg",
+  "nextbank.com.tw": "/bank/823.svg",
+  "linebank.com.tw": "/bank/824.svg",
+  "crypto.com": "/bank/cryptocom.svg",
+  "firstrade.com": "/bank/ft.svg",
+  "kgi.com": "/bank/kgi.svg",
 };
 
 /** Bundled logo asset URL for a brand domain, or null when none is bundled. */

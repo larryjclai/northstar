@@ -1,17 +1,11 @@
 import { useEffect, useState } from "react";
-import { useUiPreferences } from "../state/uiPreferences";
 import { resolveBankBrand } from "../domain/bankBrands";
 import { getBankLogoAsset } from "../domain/bankLogoAssets";
 
 /**
- * Optional bank / broker logo overlay for an account marker. Resolves the brand
- * from the account name (or a manual override) and, when the user has opted in
- * (`bankLogosEnabled`), overlays a *bundled* logo on top of the icon marker.
- *
- * Logos are shipped with the app — see `domain/bankLogoAssets.ts` for how to
- * add them. No network request is made: if a brand has no bundled asset (or the
- * asset fails to load), this renders nothing and the user-chosen Glyph beneath
- * stays visible.
+ * Bank / broker logo overlay for an account marker. Resolves the brand from
+ * the account name (or a manual override) and overlays a *bundled* logo on
+ * top of the icon marker. All logos are local — no network request is made.
  */
 export function BankLogo({
   accountName,
@@ -23,11 +17,10 @@ export function BankLogo({
   /** Marker size in px. Kept for call-site compatibility; the overlay fills its parent. */
   size?: number;
 }) {
-  const enabled = useUiPreferences((state) => state.bankLogosEnabled);
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [accountName, bankBrandDomain]);
 
-  if (!enabled || failed) return null;
+  if (failed) return null;
   const brand = resolveBankBrand(accountName, bankBrandDomain);
   if (!brand) return null;
   const asset = getBankLogoAsset(brand.domain);

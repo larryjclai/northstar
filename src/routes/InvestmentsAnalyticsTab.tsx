@@ -207,6 +207,8 @@ interface Props {
   dailyPrices: DailyPrice[];
   manualSnapshots: ManualPriceSnapshot[];
   toPrimary: (value: number, currency: string, asOf?: string) => number;
+  /** assetId → {ticker, currency} for ALL assets (including sold / zero-quantity). */
+  allAssetMeta: Map<string, { ticker: string; currency: string }>;
   benchmarkTicker: string;
   primaryCurrency: string;
   /** Backfill all holdings' historical prices (the whole-tab empty-state CTA). */
@@ -222,6 +224,7 @@ export function InvestmentsAnalyticsTab({
   dailyPrices,
   manualSnapshots,
   toPrimary,
+  allAssetMeta,
   benchmarkTicker,
   primaryCurrency,
   onBackfillHoldings,
@@ -405,9 +408,8 @@ export function InvestmentsAnalyticsTab({
 
   // ── 股利分析 (all-time; yield uses current market value) ───────────────────
   const dividends = useMemo(() => {
-    const assetMeta = new Map(positions.map((p) => [p.assetId, { ticker: p.ticker, currency: p.currency }]));
-    return buildDividendAnalysis({ records, assetMeta, toPrimary, currentMarketValue: allocationSummary.total, asOf: end });
-  }, [records, positions, toPrimary, allocationSummary.total, end]);
+    return buildDividendAnalysis({ records, assetMeta: allAssetMeta, toPrimary, currentMarketValue: allocationSummary.total, asOf: end });
+  }, [records, allAssetMeta, toPrimary, allocationSummary.total, end]);
 
   // ── Whole-tab gating ───────────────────────────────────────────────────────
   if (positions.length === 0) {
@@ -1028,7 +1030,7 @@ function latestPositionValue(
   const price = [...dailyPrices]
     .filter((row) => row.ticker.toUpperCase() === ticker && row.date.slice(0, 10) <= end)
     .sort((a, b) => b.date.localeCompare(a.date))[0];
-  if (price) return toPrimary(price.close * position.quantity, price.currency, price.date);
+  if (price) return toPrimary(price.close * position.quantity, price.currency || position.currency, price.date);
   const snap = [...manualSnapshots]
     .filter((row) => row.assetId === position.assetId && row.date.slice(0, 10) <= end)
     .sort((a, b) => b.date.localeCompare(a.date))[0];

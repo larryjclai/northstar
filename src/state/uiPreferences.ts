@@ -24,8 +24,6 @@ export interface UiPreferences {
   theme: ThemeMode;
   /** Opt-in: fetch brand logos for tickers from a third-party CDN. Off by default. */
   assetLogosEnabled: boolean;
-  /** Opt-in: fetch bank/broker logos for accounts from a logo CDN. Off by default. */
-  bankLogosEnabled: boolean;
   /** Which optional columns the holdings table shows (B21). */
   holdingsColumns: HoldingsColumnKey[];
   /** Dashboard card keys the user has hidden via 編輯版面. */
@@ -44,7 +42,6 @@ export interface UiPreferences {
   setTimezone: (value: string) => void;
   setTheme: (value: ThemeMode) => void;
   setAssetLogosEnabled: (value: boolean) => void;
-  setBankLogosEnabled: (value: boolean) => void;
   setHoldingsColumns: (value: HoldingsColumnKey[]) => void;
   setBenchmarkTicker: (value: string) => void;
   setGainLossPalette: (value: GainLossPalette) => void;
@@ -74,7 +71,6 @@ interface PersistedShape {
   timezone: string;
   theme: ThemeMode;
   assetLogosEnabled: boolean;
-  bankLogosEnabled: boolean;
   holdingsColumns: HoldingsColumnKey[];
   benchmarkTicker: string;
   gainLossPalette: GainLossPalette;
@@ -94,7 +90,6 @@ function loadPersisted(): PersistedShape {
     timezone: resolveSystemTimezone(),
     theme: "system",
     assetLogosEnabled: false,
-    bankLogosEnabled: false,
     holdingsColumns: HOLDINGS_COLUMN_DEFAULTS,
     benchmarkTicker: DEFAULT_BENCHMARK_TICKER,
     gainLossPalette: "us",
@@ -123,7 +118,6 @@ function loadPersisted(): PersistedShape {
       timezone: tz,
       theme,
       assetLogosEnabled: typeof parsed.assetLogosEnabled === "boolean" ? parsed.assetLogosEnabled : false,
-      bankLogosEnabled: typeof parsed.bankLogosEnabled === "boolean" ? parsed.bankLogosEnabled : false,
       holdingsColumns: Array.isArray(parsed.holdingsColumns)
         ? parsed.holdingsColumns.filter((k): k is HoldingsColumnKey => HOLDINGS_COLUMN_ALL.includes(k as HoldingsColumnKey))
         : HOLDINGS_COLUMN_DEFAULTS,
@@ -197,7 +191,6 @@ function snapshot(state: UiPreferences): PersistedShape {
     timezone: state.timezone,
     theme: state.theme,
     assetLogosEnabled: state.assetLogosEnabled,
-    bankLogosEnabled: state.bankLogosEnabled,
     holdingsColumns: state.holdingsColumns,
     benchmarkTicker: state.benchmarkTicker,
     gainLossPalette: state.gainLossPalette,
@@ -215,7 +208,6 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   timezone: initial.timezone,
   theme: initial.theme,
   assetLogosEnabled: initial.assetLogosEnabled,
-  bankLogosEnabled: initial.bankLogosEnabled,
   holdingsColumns: initial.holdingsColumns,
   benchmarkTicker: initial.benchmarkTicker,
   gainLossPalette: initial.gainLossPalette,
@@ -256,10 +248,6 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   },
   setAssetLogosEnabled(value) {
     set({ assetLogosEnabled: value });
-    persist(snapshot(get()));
-  },
-  setBankLogosEnabled(value) {
-    set({ bankLogosEnabled: value });
     persist(snapshot(get()));
   },
   setHoldingsColumns(value) {

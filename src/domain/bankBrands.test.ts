@@ -5,8 +5,14 @@ describe("resolveBankBrand", () => {
   it("matches by Chinese keyword regardless of surrounding text", () => {
     expect(resolveBankBrand("國泰世華 數位帳戶")?.domain).toBe("cathaybk.com.tw");
     expect(resolveBankBrand("玉山 Pi 拍錢包卡")?.domain).toBe("esunbank.com");
-    expect(resolveBankBrand("台新 Richart")?.domain).toBe("taishinbank.com.tw");
+    expect(resolveBankBrand("台新銀行 薪轉戶")?.domain).toBe("taishinbank.com.tw");
     expect(resolveBankBrand("街口支付")?.domain).toBe("jkos.com");
+  });
+
+  it("prefers a more specific sub-brand over its parent bank", () => {
+    // Richart is 台新's digital product and has its own bundled logo, so an
+    // account named after it resolves to Richart, not the parent 台新 brand.
+    expect(resolveBankBrand("台新 Richart")?.domain).toBe("richart.tw");
   });
 
   it("matches by English keyword and ignores spaces/case", () => {

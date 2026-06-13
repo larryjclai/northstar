@@ -1,4 +1,4 @@
-import { ArrowsClockwise, CheckCircle, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, PencilSimple, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X, CaretDown, CaretRight, Backspace, Gear, Bank, Target, DeviceMobile, Desktop, Spinner, WifiHigh, CopySimple, QrCode, Warning } from "@phosphor-icons/react";
+import { ArrowsClockwise, CheckCircle, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, PencilSimple, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X, CaretDown, CaretRight, Backspace, Gear, Target, DeviceMobile, Desktop, Spinner, WifiHigh, CopySimple, QrCode, Warning } from "@phosphor-icons/react";
 import { Badge } from "../../components/coss/badge";
 import { Button } from "../../components/coss/button";
 import { Card } from "../../components/coss/card";
@@ -64,8 +64,6 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
   const setTimezone = useUiPreferences((state) => state.setTimezone);
   const assetLogosEnabled = useUiPreferences((state) => state.assetLogosEnabled);
   const setAssetLogosEnabled = useUiPreferences((state) => state.setAssetLogosEnabled);
-  const bankLogosEnabled = useUiPreferences((state) => state.bankLogosEnabled);
-  const setBankLogosEnabled = useUiPreferences((state) => state.setBankLogosEnabled);
   const gainLossPalette = useUiPreferences((state) => state.gainLossPalette);
   const setGainLossPalette = useUiPreferences((state) => state.setGainLossPalette);
   const density = useUiPreferences((state) => state.density);
@@ -417,19 +415,6 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
           <div>
             <div className="font-medium">投資標的品牌 LOGO - {assetLogosEnabled ? "已開啟" : "已關閉"}</div>
             <div className="text-xs muted">開啟後會向第三方服務 (assets.parqet.com) 請求各標的的 LOGO 圖示。<strong style={{ color: "var(--ns-fg)" }}>隱私風險：你持有的股票代號會傳送到該第三方</strong>。關閉時一律顯示本地產生的字母標記，不會發出任何請求。</div>
-          </div>
-        </button>
-
-        <h3 className="font-semibold mb-4 mt-6">帳戶銀行 LOGO</h3>
-        <button
-          onClick={() => setBankLogosEnabled(!bankLogosEnabled)}
-          className="flex w-full items-center gap-3 rounded-md border p-3 text-left transition"
-          style={{ borderColor: bankLogosEnabled ? "var(--ns-accent)" : "var(--ns-border)", background: bankLogosEnabled ? "var(--ns-accent-soft)" : "transparent" }}
-        >
-          <Bank size={18} />
-          <div>
-            <div className="font-medium">帳戶銀行 LOGO - {bankLogosEnabled ? "已開啟" : "已關閉"}</div>
-            <div className="text-xs muted">開啟後會依帳戶名稱（如「玉山」「國泰」）或你手選的品牌，顯示<strong style={{ color: "var(--ns-fg)" }}>內建</strong>的銀行 / 券商 LOGO，覆蓋在帳戶圖示上。完全離線、不會對外發送任何請求。尚未內建該品牌 LOGO 時，會顯示你選的圖示。</div>
           </div>
         </button>
 

@@ -132,6 +132,11 @@ export function InvestmentsRoute() {
     [assetRows],
   );
 
+  const allAssetMeta = useMemo(
+    () => new Map(assetRows.map((a) => [a.id, { ticker: a.ticker, currency: a.currency }])),
+    [assetRows],
+  );
+
   // Best-effort: pull the benchmark's 1Y daily history so the analytics tab can
   // draw the comparison line. Silent on failure — the chart degrades gracefully.
   async function ensureBenchmarkHistory(ticker: string) {
@@ -458,6 +463,7 @@ export function InvestmentsRoute() {
           dailyPrices={dailyPriceRows}
           manualSnapshots={manualSnapshotRows}
           toPrimary={toPrimary}
+          allAssetMeta={allAssetMeta}
           benchmarkTicker={benchmarkTicker}
           primaryCurrency={primaryCurrency}
           onBackfillHoldings={backfillHistoricalPrices}
