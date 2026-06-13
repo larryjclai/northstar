@@ -1,5 +1,68 @@
 use tauri::Manager;
 
+// ── Apple Foundation Models bridge ────────────────────────────────────────
+// The Swift symbols are provided by FoundationModels.swift (gen/apple/...).
+//   - iOS: Xcode compiles the Swift file as part of the app target.
+//   - macOS desktop: build.rs compiles it to a static lib and links it
+//     (FoundationModels is weak-linked, so the app still launches on macOS < 26).
+// Other platforms (Windows/Linux) have no Swift symbols → commands no-op.
+#[cfg(any(target_os = "ios", target_os = "macos"))]
+extern "C" {
+    fn northstar_foundation_models_available() -> bool;
+    fn northstar_parse_on_device(
+        text: *const libc::c_char,
+        context: *const libc::c_char,
+    ) -> *mut libc::c_char;
+    fn northstar_free_string(ptr: *mut libc::c_char);
+    fn northstar_foundation_models_prewarm();
+}
+
+#[tauri::command]
+async fn foundation_models_available() -> bool {
+    #[cfg(any(target_os = "ios", target_os = "macos"))]
+    {
+        unsafe { northstar_foundation_models_available() }
+    }
+    #[cfg(not(any(target_os = "ios", target_os = "macos")))]
+    {
+        false
+    }
+}
+
+#[tauri::command]
+async fn parse_quick_add_on_device(text: String, context_json: String) -> Result<String, String> {
+    #[cfg(any(target_os = "ios", target_os = "macos"))]
+    {
+        use std::ffi::{CStr, CString};
+        let c_text = CString::new(text).map_err(|e| e.to_string())?;
+        let c_ctx  = CString::new(context_json).map_err(|e| e.to_string())?;
+
+        let ptr = unsafe { northstar_parse_on_device(c_text.as_ptr(), c_ctx.as_ptr()) };
+        if ptr.is_null() {
+            return Err("Foundation Models returned null.".into());
+        }
+        let result = unsafe {
+            let s = CStr::from_ptr(ptr).to_string_lossy().into_owned();
+            northstar_free_string(ptr);
+            s
+        };
+        Ok(result)
+    }
+    #[cfg(not(any(target_os = "ios", target_os = "macos")))]
+    {
+        let _ = (text, context_json);
+        Err("Foundation Models is only available on Apple platforms.".into())
+    }
+}
+
+#[tauri::command]
+async fn foundation_models_prewarm() {
+    #[cfg(any(target_os = "ios", target_os = "macos"))]
+    {
+        unsafe { northstar_foundation_models_prewarm() }
+    }
+}
+
 #[tauri::command]
 async fn fetch_yahoo(path_and_query: String) -> Result<String, String> {
     if path_and_query.starts_with("/v8/finance/chart/") == false
@@ -105,7 +168,13 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![fetch_yahoo, fetch_market_data])
+        .invoke_handler(tauri::generate_handler![
+            fetch_yahoo,
+            fetch_market_data,
+            foundation_models_available,
+            parse_quick_add_on_device,
+            foundation_models_prewarm,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Northstar");
 }

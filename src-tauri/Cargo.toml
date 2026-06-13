@@ -1,6 +1,6 @@
 [package]
 name = "northstar"
-version = "0.1.0-alpha.29"
+version = "0.1.0-alpha.30"
 description = "Local-first personal and household finance app"
 authors = ["Northstar"]
 edition = "2021"
@@ -27,6 +27,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 url = "2"
+libc = "0.2"
 
 # Desktop-only: the self-updater is compiled out on iOS/Android (see lib.rs
 # cfg(desktop) gate and capabilities/desktop.json).

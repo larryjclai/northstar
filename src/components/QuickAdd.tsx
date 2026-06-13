@@ -4,28 +4,31 @@ import { Button } from "./coss/button";
 import { Card } from "./coss/card";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { buildLedgerSuggestions, buildMerchantCategoryMap, formatMoney, nowAsDatetimeLocal, parseQuickAdd, type QuickAddParsed } from "../domain";
+import { buildLedgerSuggestions, buildMerchantCategoryMap, buildUserLexicon, formatMoney, loadCorrections, nowAsDatetimeLocal, parseQuickAdd, saveCorrection, type CorrectionStore, type QuickAddParsed } from "../domain";
+import { orchestrate, type ParseSource } from "../domain/nlParser";
+import { createOnDeviceParser } from "../lib/foundationModels";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useToast } from "./Toast";
 import { AccountFilter } from "./AccountFilter";
 import { Glyph } from "../lib/icons";
 import { readableTextColor } from "../lib/color";
 
-type LedgerConfirm = { kind: "ledger"; entryType: "expense" | "income"; amount: string; accountId: string; name: string; merchant: string; category: string; subcategory: string };
-type InvestmentConfirm = { kind: "investment"; action: "buy" | "sell"; ticker: string; quantity: string; price: string; accountId: string };
+type LedgerConfirm = { kind: "ledger"; entryType: "expense" | "income"; amount: string; accountId: string; name: string; merchant: string; category: string; subcategory: string; date: string };
+type InvestmentConfirm = { kind: "investment"; action: "buy" | "sell"; ticker: string; quantity: string; price: string; accountId: string; date: string };
 type Confirm = LedgerConfirm | InvestmentConfirm;
 
-function toConfirm(parsed: QuickAddParsed, fallbackText: string): Confirm {
+function toConfirm(parsed: QuickAddParsed, fallbackText: string, nowDatetimeLocal: string): Confirm {
   if (parsed.kind === "investment") {
-    return { kind: "investment", action: parsed.action, ticker: parsed.ticker, quantity: parsed.quantity ? String(parsed.quantity) : "", price: parsed.price ? String(parsed.price) : "", accountId: parsed.accountId ?? "" };
+    return { kind: "investment", action: parsed.action, ticker: parsed.ticker, quantity: parsed.quantity ? String(parsed.quantity) : "", price: parsed.price ? String(parsed.price) : "", accountId: parsed.accountId ?? "", date: parsed.date ?? nowDatetimeLocal };
   }
   if (parsed.kind === "ledger") {
     // The parser yields one token; seed it into the name (the description) and
     // leave merchant for the user to confirm/fill — they are separate records.
-    return { kind: "ledger", entryType: parsed.entryType, amount: String(parsed.amount), accountId: parsed.accountId ?? "", name: parsed.merchant, merchant: parsed.merchant, category: parsed.category, subcategory: parsed.subcategory };
+    // When @ syntax used: name = description, merchant = store. Otherwise both are the same token.
+    return { kind: "ledger", entryType: parsed.entryType, amount: String(parsed.amount), accountId: parsed.accountId ?? "", name: parsed.name ?? parsed.merchant, merchant: parsed.merchant, category: parsed.category, subcategory: parsed.subcategory, date: parsed.date ?? nowDatetimeLocal };
   }
   // unknown → prefill an expense with the raw text as the name for manual completion
-  return { kind: "ledger", entryType: "expense", amount: "", accountId: "", name: fallbackText.trim(), merchant: "", category: "", subcategory: "" };
+  return { kind: "ledger", entryType: "expense", amount: "", accountId: "", name: fallbackText.trim(), merchant: "", category: "", subcategory: "", date: nowDatetimeLocal };
 }
 
 export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -36,14 +39,30 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
   const ledgerRows = ledger.data ?? [];
   const primaryCurrency = settings.data?.primaryCurrency ?? "TWD";
   const merchantCat = useMemo(() => buildMerchantCategoryMap(ledgerRows), [ledgerRows]);
+  const [corrections, setCorrections] = useState<CorrectionStore>(() => loadCorrections());
+  const lexicon = useMemo(
+    () => settings.data ? buildUserLexicon(accountRows, ledgerRows, settings.data, corrections) : undefined,
+    [accountRows, ledgerRows, settings.data, corrections],
+  );
   const categoryGroups = settings.data?.categories ?? [];
 
   const [text, setText] = useState("");
   const [mode, setMode] = useState<"ledger" | "investment">("ledger");
   const [confirm, setConfirm] = useState<Confirm | null>(null);
+  // Snapshot of the confirm card at parse time — used to detect what the user
+  // corrected so we can persist the correction for future parses.
+  const [originalGuess, setOriginalGuess] = useState<Confirm | null>(null);
   const [error, setError] = useState("");
   const [amountFocused, setAmountFocused] = useState(false);
+  // Real-time preview: updated every 150 ms as the user types (P5).
+  const [preview, setPreview] = useState<QuickAddParsed | null>(null);
+  // Track whether the last confirm result came from Tier 0 or Tier 1 (P6).
+  const [parseSource, setParseSource] = useState<ParseSource>("rules");
+  // Device-side AI availability — null while checking, then true/false.
+  const [aiAvailable, setAiAvailable] = useState<boolean | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Stable on-device parser handle — created once for the lifetime of the component.
+  const onDeviceParser = useMemo(() => createOnDeviceParser(), []);
 
   const createLedger = useRepositoryMutation(
     (repository, input: import("../data/repositories").LedgerDraft) => repository.createLedgerTransaction(input),
@@ -59,10 +78,17 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
       setText("");
       setMode("ledger");
       setConfirm(null);
+      setOriginalGuess(null);
       setError("");
+      setParseSource("rules");
       setTimeout(() => inputRef.current?.focus(), 30);
+      // Prewarm the on-device model so the first real parse call has minimal latency.
+      onDeviceParser.prewarm?.();
+      // Probe device-side AI availability so we can surface it to the user.
+      setAiAvailable(null);
+      onDeviceParser.available().then(setAiAvailable).catch(() => setAiAvailable(false));
     }
-  }, [open]);
+  }, [open, onDeviceParser]);
 
   useEffect(() => {
     if (!open) return;
@@ -73,6 +99,18 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  // Debounced real-time preview (P5): parse 150 ms after the user stops typing.
+  // Cleared when the confirm card is open or the input is empty.
+  useEffect(() => {
+    if (confirm || !text.trim()) { setPreview(null); return; }
+    const now = nowAsDatetimeLocal(timezone);
+    const t = setTimeout(() => {
+      const parsed = parseQuickAdd(text, { accounts: accountRows, merchantCategory: merchantCat, lexicon, mode, nowDatetimeLocal: now });
+      setPreview(parsed.kind !== "unknown" ? parsed : null);
+    }, 150);
+    return () => clearTimeout(t);
+  }, [text, mode, confirm, accountRows, merchantCat, lexicon, timezone]);
+
   const ledgerSuggestions = useMemo(
     () => confirm?.kind === "ledger"
       ? buildLedgerSuggestions(ledgerRows, { category: confirm.category || undefined, merchant: confirm.merchant || undefined })
@@ -82,10 +120,15 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
 
   if (!open) return null;
 
-  function parse() {
+  async function parse() {
     if (!text.trim()) return;
-    const parsed = parseQuickAdd(text, { accounts: accountRows, merchantCategory: merchantCat, mode });
-    setConfirm(toConfirm(parsed, text));
+    const now = nowAsDatetimeLocal(timezone);
+    const ctx = { accounts: accountRows, merchantCategory: merchantCat, lexicon, mode, nowDatetimeLocal: now };
+    const { result: parsed, source } = await orchestrate(text, ctx, onDeviceParser);
+    const c = toConfirm(parsed, text, now);
+    setConfirm(c);
+    setOriginalGuess(c);
+    setParseSource(source);
     setError("");
   }
 
@@ -103,7 +146,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
         if (!confirm.accountId) { setError("請選擇帳戶。"); return; }
         await createLedger.mutateAsync({
           accountId: confirm.accountId,
-          date: nowAsDatetimeLocal(timezone),
+          date: confirm.date || nowAsDatetimeLocal(timezone),
           name: confirm.name.trim() || confirm.merchant.trim(),
           amount: confirm.entryType === "expense" ? -Math.abs(amount) : Math.abs(amount),
           currency: accountCurrency(confirm.accountId),
@@ -115,6 +158,32 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
           note: "",
         });
         toast.success("已記一筆");
+
+        // Persist corrections: if the user changed account or category from
+        // what the parser guessed, remember the mapping for next time.
+        if (originalGuess?.kind === "ledger") {
+          const key = confirm.merchant.trim() || confirm.name.trim();
+          if (key) {
+            const corr: import("../domain").QuickAddCorrection = {};
+            if (confirm.accountId && confirm.accountId !== originalGuess.accountId) {
+              corr.accountId = confirm.accountId;
+            }
+            if (
+              confirm.category !== originalGuess.category ||
+              confirm.subcategory !== originalGuess.subcategory
+            ) {
+              corr.category = confirm.category;
+              corr.subcategory = confirm.subcategory;
+            }
+            if (Object.keys(corr).length > 0) {
+              saveCorrection(key, corr);
+              setCorrections((prev) => ({
+                ...prev,
+                [key.toLowerCase().trim()]: { ...prev[key.toLowerCase().trim()], ...corr },
+              }));
+            }
+          }
+        }
       } else {
         const quantity = Number(confirm.quantity);
         const price = Number(confirm.price);
@@ -125,7 +194,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
           name: confirm.ticker.trim().toUpperCase(),
           currency: confirm.accountId ? accountCurrency(confirm.accountId) : primaryCurrency,
           linkedAccountId: confirm.accountId || null,
-          date: nowAsDatetimeLocal(timezone),
+          date: confirm.date || nowAsDatetimeLocal(timezone),
           action: confirm.action,
           price: price || 0,
           quantity,
@@ -169,7 +238,12 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
         {confirm ? (
           <Card style={{ padding: 16, boxShadow: "var(--ns-shadow-xl)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <span className="ns-eyebrow">確認 · {confirm.kind === "investment" ? (confirm.action === "buy" ? "買入" : "賣出") : confirm.entryType === "expense" ? "支出" : "收入"}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span className="ns-eyebrow">確認 · {confirm.kind === "investment" ? (confirm.action === "buy" ? "買入" : "賣出") : confirm.entryType === "expense" ? "支出" : "收入"}</span>
+                {parseSource === "on-device" ? (
+                  <span className="text-micro" title="由裝置端 AI 解析（Apple Foundation Models）" style={{ opacity: 0.6, padding: "1px 6px", borderRadius: 999, border: "1px solid var(--ns-border)", letterSpacing: "0.02em" }}>AI</span>
+                ) : null}
+              </div>
               <Button variant="ghost" size="icon-sm" onClick={() => setConfirm(null)}><X size={14} /></Button>
             </div>
             {confirm.kind === "ledger" ? (
@@ -257,6 +331,16 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                     positionerClassName="z-[90]"
                   />
                 </Field>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <Field label="日期">
+                    <input
+                      className="ns-input"
+                      type="datetime-local"
+                      value={confirm.date}
+                      onChange={(e) => setConfirm({ ...confirm, date: e.target.value })}
+                    />
+                  </Field>
+                </div>
                 <div className="text-xs" style={{ gridColumn: "1 / -1" }}>
                   {(ledgerSuggestions.merchants.length > 0 || ledgerSuggestions.accountIds.length > 0) ? (
                     <div className="muted" style={{ marginBottom: 5 }}>依過往紀錄建議</div>
@@ -319,6 +403,31 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
           </div>
         ) : null}
 
+        {/* Device-side AI availability hint (only when not confirming). Lets the
+            user see whether Apple Foundation Models is actually backing the parser. */}
+        {!confirm && aiAvailable !== null ? (
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <span
+              className="text-micro"
+              title={aiAvailable
+                ? "裝置端 AI（Apple Foundation Models）可用，會在規則無法解析時自動接手"
+                : "此裝置無法使用 Apple Foundation Models（需 macOS/iOS 26+、Apple Silicon 並開啟 Apple Intelligence），改用規則解析"}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 9px", borderRadius: 999,
+                border: "1px solid var(--ns-border)", color: "var(--ns-fg-muted)", opacity: 0.85,
+              }}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: 999, background: aiAvailable ? "var(--ns-pos)" : "var(--ns-fg-muted)" }} />
+              {aiAvailable ? "裝置端 AI · 可用" : "裝置端 AI · 不可用（規則解析）"}
+            </span>
+          </div>
+        ) : null}
+
+        {/* Real-time preview chips (P5) — shown while typing, hidden once confirm card opens */}
+        {!confirm && preview ? (
+          <PreviewChips parsed={preview} accounts={accountRows} />
+        ) : null}
+
         {/* Input bar */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--ns-bg-card)", border: "1px solid var(--ns-border)", borderRadius: 999, padding: "6px 6px 6px 18px", boxShadow: "var(--ns-shadow-xl)" }}>
           <Plus size={16} weight="bold" style={{ color: "var(--ns-accent)", flexShrink: 0 }} />
@@ -327,7 +436,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") parse(); }}
-            placeholder={mode === "investment" ? "投資 · 試試「2330.TW 5股 @1042」或「賣 AAPL 10 @180」" : "記帳 · 試試「拿鐵 120 信用卡」或「+ 接案 5000 富邦」"}
+            placeholder={mode === "investment" ? "投資 · 試試「2330.TW 5股 @1042」或「賣 AAPL 10 @180」" : "記帳 · 試試「午餐 @添飯 120 信用卡」或「+ 接案 5000 富邦」"}
             className="text-body"
             style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--ns-fg)", fontFamily: "inherit", padding: "8px" }}
           />
@@ -346,6 +455,56 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <label className="ns-eyebrow" style={{ display: "block", marginBottom: 5, fontSize: 10.5 }}>{label}</label>
       {children}
+    </div>
+  );
+}
+
+// ── P5: Real-time preview chip bar ──────────────────────────────────────────
+
+interface PreviewChip { label: string; value: string; color: string }
+
+function PreviewChips({ parsed, accounts }: { parsed: QuickAddParsed; accounts: { id: string; name: string }[] }) {
+  const chips: PreviewChip[] = [];
+
+  if (parsed.kind === "ledger") {
+    if (parsed.amount) chips.push({ label: "金額", value: parsed.amount.toLocaleString("zh-TW"), color: "var(--ns-pos)" });
+    if (parsed.accountId) {
+      const name = accounts.find((a) => a.id === parsed.accountId)?.name ?? parsed.accountId;
+      chips.push({ label: "帳戶", value: name, color: "var(--ns-accent)" });
+    }
+    if (parsed.category) chips.push({ label: "分類", value: parsed.category + (parsed.subcategory ? ` / ${parsed.subcategory}` : ""), color: "#a855f7" });
+    if (parsed.date) chips.push({ label: "日期", value: parsed.date.slice(0, 10), color: "#f59e0b" });
+    // When @ syntax is used, show name and merchant as separate chips.
+    // Otherwise they're the same string — show only one chip labelled "商家".
+    if (parsed.name && parsed.merchant && parsed.name !== parsed.merchant) {
+      chips.push({ label: "名稱", value: parsed.name, color: "var(--ns-fg-muted)" });
+      chips.push({ label: "商家", value: parsed.merchant, color: "var(--ns-accent)" });
+    } else if (parsed.merchant) {
+      chips.push({ label: "商家", value: parsed.merchant, color: "var(--ns-fg-muted)" });
+    }
+    if (parsed.entryType === "income") chips.push({ label: "類型", value: "收入", color: "var(--ns-pos)" });
+  }
+  if (parsed.kind === "investment") {
+    if (parsed.ticker) chips.push({ label: "標的", value: parsed.ticker, color: "var(--ns-accent)" });
+    if (parsed.quantity) chips.push({ label: "股數", value: String(parsed.quantity), color: "var(--ns-pos)" });
+    if (parsed.price) chips.push({ label: "價格", value: parsed.price.toLocaleString("zh-TW"), color: "#f59e0b" });
+    if (parsed.accountId) {
+      const name = accounts.find((a) => a.id === parsed.accountId)?.name ?? parsed.accountId;
+      chips.push({ label: "帳戶", value: name, color: "#a855f7" });
+    }
+    chips.push({ label: "操作", value: parsed.action === "buy" ? "買入" : "賣出", color: parsed.action === "buy" ? "var(--ns-pos)" : "var(--ns-neg)" });
+  }
+
+  if (chips.length === 0) return null;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", padding: "6px 14px", background: "var(--ns-bg-card)", borderRadius: 12, border: "1px solid var(--ns-border)", boxShadow: "var(--ns-shadow-sm)" }}>
+      {chips.map((chip) => (
+        <span key={chip.label} className="text-micro" style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 8px", borderRadius: 999, background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)" }}>
+          <span style={{ color: chip.color, fontWeight: 600 }}>{chip.label}</span>
+          <span>{chip.value}</span>
+        </span>
+      ))}
     </div>
   );
 }
