@@ -12,6 +12,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "./coss/button";
 import { Card } from "./coss/card";
 import { useToast } from "./Toast";
@@ -30,6 +31,7 @@ export function openOnboarding() {
 }
 
 export function OnboardingOverlay() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -98,7 +100,7 @@ export function OnboardingOverlay() {
     if (!preview?.valid.length) return;
     const rows = preview.valid.map((item) => item.value);
     await importLedger.mutateAsync(rows);
-    toast.success(`成功匯入 ${rows.length} 筆流水帳`);
+    toast.success(t("onboarding.toast.importSuccess", { count: rows.length }));
     setPreview(null);
     setStep(3);
   }
@@ -109,10 +111,10 @@ export function OnboardingOverlay() {
       await enterDemoMode(await getFinanceRepository());
       useDemoMode.getState().set(true);
       await queryClient.invalidateQueries();
-      toast.success("已載入示範資料");
+      toast.success(t("onboarding.toast.demoLoaded"));
       setStep(3);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "載入示範資料失敗");
+      toast.error(error instanceof Error ? error.message : t("onboarding.toast.demoFailed"));
     } finally {
       setLoadingDemo(false);
     }
@@ -120,10 +122,11 @@ export function OnboardingOverlay() {
 
   if (!open) return null;
 
-  const steps = ["開始", "帳戶", "匯入", "完成"];
+  const stepKeys = ["start", "accounts", "import", "done"] as const;
+  const steps = stepKeys.map((key) => t(`onboarding.steps.${key}`));
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="Northstar onboarding">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true" aria-label={t("onboarding.ariaLabel")}>
       <div className="absolute inset-0" style={{ background: "color-mix(in srgb, var(--ns-bg) 68%, transparent)", backdropFilter: "blur(10px)" }} onClick={dismiss} />
       <Card
         className="relative grid w-full grid-cols-1 overflow-hidden sm:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]"
@@ -141,17 +144,17 @@ export function OnboardingOverlay() {
             </div>
             <div>
               <div style={{ fontFamily: "var(--ns-font-brand)", fontWeight: 650 }}>Northstar</div>
-              <div className="muted text-caption">Local-first finance cockpit</div>
+              <div className="muted text-caption">{t("onboarding.brandTagline")}</div>
             </div>
           </div>
 
           <div>
-            <div className="ns-eyebrow" style={{ marginBottom: 8 }}>Step {step + 1} of 4</div>
+            <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{t("onboarding.stepIndicator", { current: step + 1, total: 4 })}</div>
             <h2 className="text-[30px]" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 650, letterSpacing: 0 }}>
-              {step === 0 ? "準備好你的財務駕駛艙" : step === 1 ? "加入你的帳戶" : step === 2 ? "匯入流水帳" : "可以開始了"}
+              {t(`onboarding.panelTitle.${stepKeys[step]}`)}
             </h2>
             <p className="muted text-body" style={{ margin: "12px 0 0", lineHeight: 1.65 }}>
-              Northstar 不會自動連線到你的銀行。你可以選擇匯入 CSV、手動建立、或先用示範資料逛逛。所有資料只存在你的本機。
+              {t("onboarding.panelDesc")}
             </p>
           </div>
 
@@ -168,57 +171,57 @@ export function OnboardingOverlay() {
 
           <div className="mt-auto rounded-lg border p-3 text-xs" style={{ borderColor: "var(--ns-border)", color: "var(--ns-fg-muted)", lineHeight: 1.55 }}>
             <LockKey size={14} style={{ display: "inline", marginRight: 6, verticalAlign: -2 }} />
-            你的資料預設保存在這台裝置；同步與 Logo CDN 都是使用者手動開啟。
+            {t("onboarding.privacyNote")}
           </div>
         </section>
 
         <section style={{ padding: 24, overflow: "auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 18 }}>
-            <div className="ns-eyebrow sm:hidden">Step {step + 1} of 4</div>
-            <button type="button" aria-label="關閉導覽" onClick={dismiss} style={{ marginLeft: "auto", width: 32, height: 32, borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-border)", background: "var(--ns-bg-card)", color: "var(--ns-fg-muted)", display: "grid", placeItems: "center" }}>
+            <div className="ns-eyebrow sm:hidden">{t("onboarding.stepIndicator", { current: step + 1, total: 4 })}</div>
+            <button type="button" aria-label={t("onboarding.closeLabel")} onClick={dismiss} style={{ marginLeft: "auto", width: 32, height: 32, borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-border)", background: "var(--ns-bg-card)", color: "var(--ns-fg-muted)", display: "grid", placeItems: "center" }}>
               <X size={16} />
             </button>
           </div>
 
           {step === 0 ? (
             <StepStack
-              title="你想從哪裡開始？"
-              description="先建立帳戶會讓淨值與現金流有基礎；如果你已經有 CSV，可以直接進匯入預覽。"
+              title={t("onboarding.step0.title")}
+              description={t("onboarding.step0.description")}
             >
-              <ChoiceCard icon={<Bank size={21} weight="duotone" />} title="手動建立第一個帳戶" description="銀行、現金、信用卡、券商帳戶都支援。" onClick={() => go("/accounts")} />
-              <ChoiceCard icon={<Receipt size={21} weight="duotone" />} title="匯入一般流水帳 CSV" description="使用 date、account、amount、currency 等欄位批次匯入。" onClick={() => setStep(2)} />
-              <ChoiceCard icon={<TrendUp size={21} weight="duotone" />} title="匯入投資交易 CSV" description="投資頁已支援欄位對應與預覽。" onClick={() => go("/investments")} />
-              <ChoiceCard icon={<Database size={21} weight="duotone" />} title="先用示範資料逛逛" description="不覆蓋你的正式資料，隨時可以結束示範模式。" onClick={loadDemo} loading={loadingDemo} />
+              <ChoiceCard icon={<Bank size={21} weight="duotone" />} title={t("onboarding.step0.manualTitle")} description={t("onboarding.step0.manualDesc")} onClick={() => go("/accounts")} />
+              <ChoiceCard icon={<Receipt size={21} weight="duotone" />} title={t("onboarding.step0.ledgerTitle")} description={t("onboarding.step0.ledgerDesc")} onClick={() => setStep(2)} />
+              <ChoiceCard icon={<TrendUp size={21} weight="duotone" />} title={t("onboarding.step0.investTitle")} description={t("onboarding.step0.investDesc")} onClick={() => go("/investments")} />
+              <ChoiceCard icon={<Database size={21} weight="duotone" />} title={t("onboarding.step0.demoTitle")} description={t("onboarding.step0.demoDesc")} onClick={loadDemo} loading={loadingDemo} />
             </StepStack>
           ) : null}
 
           {step === 1 ? (
             <StepStack
-              title="加入你的帳戶"
-              description="帳戶名稱不需要跟銀行名稱完全一致；logo 可自動判讀，也能在帳戶編輯裡手選銀行或券商。"
+              title={t("onboarding.step1.title")}
+              description={t("onboarding.step1.description")}
             >
               <div className="rounded-lg border p-4" style={{ borderColor: "var(--ns-border)", background: "var(--ns-bg-card)" }}>
-                <div className="muted text-caption" style={{ marginBottom: 10 }}>fubon-2026-05.csv · 預覽 3/142 列</div>
+                <div className="muted text-caption" style={{ marginBottom: 10 }}>{t("onboarding.step1.previewLabel", { file: "fubon-2026-05.csv", shown: 3, total: 142 })}</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 8 }}>
                   {["Date", "Account", "Name", "Amount", "Category"].map((label) => (
                     <div key={label} className="mono text-caption rounded-md px-2 py-2" style={{ background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)" }}>{label}</div>
                   ))}
                 </div>
                 <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: "var(--ns-pos)" }}>
-                  <CheckCircle size={15} weight="fill" /> 欄位已對應，可在匯入前檢查 invalid rows
+                  <CheckCircle size={15} weight="fill" /> {t("onboarding.step1.fieldsMapped")}
                 </div>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
-                <Button className="justify-center" onClick={() => go("/accounts")}><Bank size={16} />建立帳戶</Button>
-                <Button variant="outline" className="justify-center" onClick={() => setStep(2)}><FileArrowUp size={16} />匯入流水帳</Button>
+                <Button className="justify-center" onClick={() => go("/accounts")}><Bank size={16} />{t("onboarding.step1.createAccount")}</Button>
+                <Button variant="outline" className="justify-center" onClick={() => setStep(2)}><FileArrowUp size={16} />{t("onboarding.step1.importLedger")}</Button>
               </div>
             </StepStack>
           ) : null}
 
           {step === 2 ? (
             <StepStack
-              title="匯入一般流水帳 CSV"
-              description="支援一般記帳大量匯入。CSV 需要包含 date、account、amount、currency；account 會對應既有帳戶名稱或 id。"
+              title={t("onboarding.step2.title")}
+              description={t("onboarding.step2.description")}
             >
               <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsv} />
               <button
@@ -230,9 +233,9 @@ export function OnboardingOverlay() {
                 <div style={{ width: 44, height: 44, borderRadius: "var(--ns-r-md)", background: "var(--ns-accent-soft)", color: "var(--ns-accent)", display: "grid", placeItems: "center", marginBottom: 14 }}>
                   <FileArrowUp size={23} weight="duotone" />
                 </div>
-                <div style={{ fontWeight: 650 }}>選擇 CSV 檔案</div>
+                <div style={{ fontWeight: 650 }}>{t("onboarding.step2.chooseFile")}</div>
                 <div className="muted text-sm" style={{ marginTop: 4 }}>
-                  {accountRows.length ? "會先產生預覽，不會直接寫入。" : "請先建立帳戶；否則 account 欄位無法對應。"}
+                  {accountRows.length ? t("onboarding.step2.chooseFileHasAccounts") : t("onboarding.step2.chooseFileNoAccounts")}
                 </div>
               </button>
 
@@ -240,22 +243,22 @@ export function OnboardingOverlay() {
                 <div className="rounded-lg border p-4" style={{ borderColor: "var(--ns-border)", background: "var(--ns-bg)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
                     <div>
-                      <div style={{ fontWeight: 650 }}>{fileName || "CSV 預覽"}</div>
-                      <div className="muted text-caption">{preview.valid.length} valid / {preview.invalid.length} invalid</div>
+                      <div style={{ fontWeight: 650 }}>{fileName || t("onboarding.step2.previewTitle")}</div>
+                      <div className="muted text-caption">{t("onboarding.step2.previewCounts", { valid: preview.valid.length, invalid: preview.invalid.length })}</div>
                     </div>
                     <Button size="sm" disabled={!preview.valid.length} loading={importLedger.isPending} onClick={confirmImport}>
-                      匯入 {preview.valid.length} 筆 <ArrowRight size={14} />
+                      {t("onboarding.step2.importButton", { count: preview.valid.length })} <ArrowRight size={14} />
                     </Button>
                   </div>
                   {preview.invalid.length ? (
                     <div style={{ display: "grid", gap: 6, maxHeight: 140, overflow: "auto" }}>
                       {preview.invalid.slice(0, 6).map((item) => (
-                        <div key={item.row} className="text-xs" style={{ color: "var(--ns-neg)" }}>Row {item.row}: {item.reason}</div>
+                        <div key={item.row} className="text-xs" style={{ color: "var(--ns-neg)" }}>{t("onboarding.step2.rowError", { row: item.row, reason: item.reason })}</div>
                       ))}
-                      {preview.invalid.length > 6 ? <div className="muted text-xs">還有 {preview.invalid.length - 6} 筆 invalid rows</div> : null}
+                      {preview.invalid.length > 6 ? <div className="muted text-xs">{t("onboarding.step2.invalidMore", { count: preview.invalid.length - 6 })}</div> : null}
                     </div>
                   ) : (
-                    <div className="text-xs" style={{ color: "var(--ns-pos)" }}>所有列都可匯入。</div>
+                    <div className="text-xs" style={{ color: "var(--ns-pos)" }}>{t("onboarding.step2.allValid")}</div>
                   )}
                 </div>
               ) : null}
@@ -264,24 +267,24 @@ export function OnboardingOverlay() {
 
           {step === 3 ? (
             <StepStack
-              title="你的工作區準備好了"
-              description="接下來可以開始記帳、檢查投資交易，或到設定開啟銀行 Logo 與同步。"
+              title={t("onboarding.step3.title")}
+              description={t("onboarding.step3.description")}
             >
               <div className="grid gap-2">
-                <ChoiceCard icon={<Receipt size={21} weight="duotone" />} title="去記一筆流水帳" description="快速建立收入、支出、轉帳或應收應付。" onClick={() => go("/cash-flow")} />
-                <ChoiceCard icon={<TrendUp size={21} weight="duotone" />} title="整理投資交易" description="新增持倉、匯入券商 CSV、設定定期定額。" onClick={() => go("/investments")} />
-                <ChoiceCard icon={<LockKey size={21} weight="duotone" />} title="檢查資料與隱私設定" description="開啟 Logo、同步、備份與匯率設定。" onClick={() => go("/settings")} />
+                <ChoiceCard icon={<Receipt size={21} weight="duotone" />} title={t("onboarding.step3.ledgerTitle")} description={t("onboarding.step3.ledgerDesc")} onClick={() => go("/cash-flow")} />
+                <ChoiceCard icon={<TrendUp size={21} weight="duotone" />} title={t("onboarding.step3.investTitle")} description={t("onboarding.step3.investDesc")} onClick={() => go("/investments")} />
+                <ChoiceCard icon={<LockKey size={21} weight="duotone" />} title={t("onboarding.step3.privacyTitle")} description={t("onboarding.step3.privacyDesc")} onClick={() => go("/settings")} />
               </div>
             </StepStack>
           ) : null}
 
           <footer className="mt-6 flex items-center gap-2">
-            <Button variant="ghost" onClick={dismiss}>略過</Button>
+            <Button variant="ghost" onClick={dismiss}>{t("onboarding.skip")}</Button>
             <div style={{ flex: 1 }} />
-            {step > 0 && step < 3 ? <Button variant="outline" onClick={() => setStep((value) => Math.max(0, value - 1))}>← 上一步</Button> : null}
-            {step < 2 ? <Button onClick={() => setStep((value) => value + 1)}>下一步 →</Button> : null}
-            {step === 2 ? <Button variant="outline" onClick={() => setStep(3)}>稍後匯入</Button> : null}
-            {step === 3 ? <Button onClick={() => go("/")}>完成</Button> : null}
+            {step > 0 && step < 3 ? <Button variant="outline" onClick={() => setStep((value) => Math.max(0, value - 1))}>{t("onboarding.back")}</Button> : null}
+            {step < 2 ? <Button onClick={() => setStep((value) => value + 1)}>{t("onboarding.next")}</Button> : null}
+            {step === 2 ? <Button variant="outline" onClick={() => setStep(3)}>{t("onboarding.step2.importLater")}</Button> : null}
+            {step === 3 ? <Button onClick={() => go("/")}>{t("onboarding.finish")}</Button> : null}
           </footer>
         </section>
       </Card>
@@ -316,6 +319,7 @@ function ChoiceCard({
   onClick: () => void;
   loading?: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
@@ -329,7 +333,7 @@ function ChoiceCard({
           {icon}
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 650 }}>{loading ? "處理中…" : title}</div>
+          <div style={{ fontWeight: 650 }}>{loading ? t("onboarding.loadingCard") : title}</div>
           <div className="muted text-sm" style={{ marginTop: 3, lineHeight: 1.45 }}>{description}</div>
         </div>
       </div>

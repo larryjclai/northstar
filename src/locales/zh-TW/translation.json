@@ -4,14 +4,14 @@
     "investments": "投資",
     "cashflow": "記帳",
     "accounts": "帳戶",
-    "goals": "目標・FIRE",
+    "goals": "目標",
     "settings": "設定"
   },
   "shell": {
-    "searchPlaceholder": "Search...",
+    "searchPlaceholder": "搜尋...",
     "searchShortcut": "K",
     "hideAmounts": "隱藏金額",
-    "localFirst": "Local-first",
+    "localFirst": "本地優先",
     "dataSavedLocally": "資料僅保存在此裝置上。"
   },
   "settings": {
@@ -21,7 +21,6 @@
     "fx": "匯率",
     "export": "匯出",
     "general": "一般與備份",
-    
     "categoriesDesc": "每筆交易可歸入一個分類，並設定月預算上限。",
     "addCategory": "新增分類",
     "newCategory": "新分類",
@@ -31,14 +30,12 @@
     "noLimit": "無上限",
     "overBudget": "超支",
     "subcategories": "子分類",
-    
     "merchantsDesc": "Northstar 會自動辨識商家名稱並套用分類。你可以在此修正或新增別名。",
     "addMerchant": "新增商家",
-    "merchantName": "商家 / 別名",
+    "merchantName": "商家",
     "merchantCategory": "分類",
     "merchantCount": "筆數",
     "merchantLast": "上次",
-    
     "fxDesc": "設定基準幣別與各外幣匯率來源。你可以覆蓋自動匯率，或為特定幣別設定提醒。",
     "baseCurrency": "基準幣別",
     "baseCurrencyDesc": "所有帳戶餘額換算後以此幣別顯示。",
@@ -49,7 +46,6 @@
     "change": "日變動",
     "manual": "手動覆蓋",
     "alert": "提醒",
-    
     "generalDesc": "設定顯示偏好、語言、時區，以及備份你的資料庫。",
     "privacyMode": "隱藏金額（截圖模式）",
     "privacyModeOn": "已開啟",
@@ -79,6 +75,80 @@
     "investments": "投資交易",
     "tags": "標籤",
     "notes": "備註",
-    "fxSnapshot": "FX 快照"
+    "fxSnapshot": "匯率快照"
+  },
+  "onboarding": {
+    "ariaLabel": "Northstar 新手導覽",
+    "brandTagline": "Local-first finance",
+    "stepIndicator": "步驟 {{current}} ，共 {{total}} 個步驟",
+    "closeLabel": "關閉導覽",
+    "panelDesc": "Northstar 不會自動連線到你的銀行。你可以選擇匯入 CSV、手動建立、或先用示範資料逛逛。所有資料只存在你的本機。",
+    "privacyNote": "你的資料預設保存在這台裝置；同步與 Logo CDN 都是使用者手動開啟。",
+    "loadingCard": "處理中…",
+    "skip": "略過",
+    "back": "← 上一步",
+    "next": "下一步 →",
+    "finish": "完成",
+    "steps": {
+      "start": "開始",
+      "accounts": "帳戶",
+      "import": "匯入",
+      "done": "完成"
+    },
+    "panelTitle": {
+      "start": "開始更了解你的財務狀況",
+      "accounts": "加入你的帳戶",
+      "import": "匯入流水帳",
+      "done": "可以開始了"
+    },
+    "step0": {
+      "title": "你想從哪裡開始？",
+      "description": "先建立帳戶會讓淨值與現金流有基礎；如果你已經有 CSV，可以直接進匯入預覽。",
+      "manualTitle": "手動建立第一個帳戶",
+      "manualDesc": "銀行、現金、信用卡、券商帳戶等分類",
+      "ledgerTitle": "匯入一般流水帳 CSV",
+      "ledgerDesc": "使用 date、account、amount、currency 等欄位批次匯入。",
+      "investTitle": "匯入投資交易 CSV",
+      "investDesc": "投資頁已支援欄位對應與預覽。",
+      "demoTitle": "先用示範資料逛逛",
+      "demoDesc": "不覆蓋你的正式資料，隨時可以結束示範模式。"
+    },
+    "step1": {
+      "title": "加入你的帳戶",
+      "description": "帳戶名稱不需要跟銀行名稱完全一致；logo 可自動判讀，也能在帳戶編輯裡手選銀行或券商。",
+      "previewLabel": "{{file}} · 預覽 {{shown}}/{{total}} 列",
+      "fieldsMapped": "欄位已對應，可在匯入前檢查無效的列數",
+      "createAccount": "建立帳戶",
+      "importLedger": "匯入流水帳"
+    },
+    "step2": {
+      "title": "匯入一般流水帳 CSV",
+      "description": "支援一般記帳大量匯入。CSV 需要包含 date、account、amount、currency；account 會對應既有帳戶名稱或 id。",
+      "chooseFile": "選擇 CSV 檔案",
+      "chooseFileHasAccounts": "會先產生預覽，不會直接寫入。",
+      "chooseFileNoAccounts": "請先建立帳戶；否則 account 欄位無法對應。",
+      "previewTitle": "CSV 預覽",
+      "previewCounts": "{{valid}} 有效 / {{invalid}} 無效",
+      "importButton": "匯入 {{count}} 筆",
+      "invalidMore": "還有 {{count}} 筆無效列",
+      "allValid": "所有列都可匯入。",
+      "rowError": "列 {{row}}: {{reason}}",
+      "importLater": "稍後匯入"
+    },
+    "step3": {
+      "title": "你已經準備好了",
+      "description": "接下來可以開始記帳、檢查投資交易，或到設定開啟銀行 Logo 與同步。",
+      "ledgerTitle": "去記一筆流水帳",
+      "ledgerDesc": "快速建立收入、支出、轉帳或應收應付。",
+      "investTitle": "整理投資交易",
+      "investDesc": "新增持倉、匯入券商 CSV、設定定期定額。",
+      "privacyTitle": "檢查資料與隱私設定",
+      "privacyDesc": "開啟 Logo、同步、備份與匯率設定。"
+    },
+    "toast": {
+      "importSuccess": "成功匯入 {{count}} 筆流水帳",
+      "demoLoaded": "已載入示範資料",
+      "demoFailed": "載入示範資料失敗"
+    }
   }
 }

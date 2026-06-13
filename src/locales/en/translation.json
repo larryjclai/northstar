@@ -21,7 +21,6 @@
     "fx": "Currencies",
     "export": "Export",
     "general": "General & Export",
-    
     "categoriesDesc": "Manage categories and monthly budgets.",
     "addCategory": "Add Category",
     "newCategory": "New Category",
@@ -31,14 +30,12 @@
     "noLimit": "No limit",
     "overBudget": "Over Budget",
     "subcategories": "Subcategories",
-    
     "merchantsDesc": "Manage merchant aliases and auto-categorization.",
     "addMerchant": "Add Merchant",
     "merchantName": "Merchant / Alias",
     "merchantCategory": "Category",
     "merchantCount": "Count",
     "merchantLast": "Last Amt",
-    
     "fxDesc": "Configure base currency and FX rate sources.",
     "baseCurrency": "Base Currency",
     "baseCurrencyDesc": "All account balances will be converted to this currency.",
@@ -49,7 +46,6 @@
     "change": "Change",
     "manual": "Manual",
     "alert": "Alert",
-    
     "generalDesc": "Configure display, language, timezone, and backups.",
     "privacyMode": "Privacy Mode (Hide Amounts)",
     "privacyModeOn": "On",
@@ -80,5 +76,79 @@
     "tags": "Tags",
     "notes": "Notes",
     "fxSnapshot": "FX Snapshot"
+  },
+  "onboarding": {
+    "ariaLabel": "Northstar onboarding",
+    "brandTagline": "Local-first finance",
+    "stepIndicator": "Step {{current}} of {{total}}",
+    "closeLabel": "Close onboarding",
+    "panelDesc": "Northstar never connects to your bank automatically. Import a CSV, add accounts manually, or explore with demo data. Everything stays on your device.",
+    "privacyNote": "Your data stays on this device by default; sync and the logo CDN are opt-in.",
+    "loadingCard": "Working…",
+    "skip": "Skip",
+    "back": "← Back",
+    "next": "Next →",
+    "finish": "Done",
+    "steps": {
+      "start": "Start",
+      "accounts": "Accounts",
+      "import": "Import",
+      "done": "Done"
+    },
+    "panelTitle": {
+      "start": "Set up your finance cockpit",
+      "accounts": "Add your accounts",
+      "import": "Import transactions",
+      "done": "You're all set"
+    },
+    "step0": {
+      "title": "Where do you want to start?",
+      "description": "Adding an account gives net worth and cash flow a foundation; if you already have a CSV, jump straight to the import preview.",
+      "manualTitle": "Add your first account manually",
+      "manualDesc": "Bank, cash, credit card, and brokerage accounts are all supported.",
+      "ledgerTitle": "Import a ledger CSV",
+      "ledgerDesc": "Bulk import using date, account, amount, currency columns.",
+      "investTitle": "Import investment transactions CSV",
+      "investDesc": "The Investments page supports column mapping and preview.",
+      "demoTitle": "Explore with demo data",
+      "demoDesc": "Won't touch your real data — you can exit demo mode anytime."
+    },
+    "step1": {
+      "title": "Add your accounts",
+      "description": "Account names don't have to match the bank exactly; logos are auto-detected, and you can pick a bank or broker manually when editing an account.",
+      "previewLabel": "{{file}} · preview {{shown}}/{{total}} rows",
+      "fieldsMapped": "Fields mapped — review invalid rows before importing",
+      "createAccount": "Create account",
+      "importLedger": "Import ledger"
+    },
+    "step2": {
+      "title": "Import a ledger CSV",
+      "description": "Bulk import for everyday transactions. The CSV needs date, account, amount, currency; account matches an existing account name or id.",
+      "chooseFile": "Choose a CSV file",
+      "chooseFileHasAccounts": "Generates a preview first — nothing is written directly.",
+      "chooseFileNoAccounts": "Add an account first, otherwise the account column can't be matched.",
+      "previewTitle": "CSV preview",
+      "previewCounts": "{{valid}} valid / {{invalid}} invalid",
+      "importButton": "Import {{count}}",
+      "invalidMore": "{{count}} more invalid rows",
+      "allValid": "All rows are importable.",
+      "rowError": "Row {{row}}: {{reason}}",
+      "importLater": "Import later"
+    },
+    "step3": {
+      "title": "Your workspace is ready",
+      "description": "Next, record transactions, review investments, or open Settings to turn on bank logos and sync.",
+      "ledgerTitle": "Record a transaction",
+      "ledgerDesc": "Quickly add income, expenses, transfers, or receivables/payables.",
+      "investTitle": "Organize investments",
+      "investDesc": "Add holdings, import a broker CSV, set up recurring buys.",
+      "privacyTitle": "Review data & privacy settings",
+      "privacyDesc": "Turn on logos, sync, backups, and FX settings."
+    },
+    "toast": {
+      "importSuccess": "Imported {{count}} ledger transactions",
+      "demoLoaded": "Demo data loaded",
+      "demoFailed": "Failed to load demo data"
+    }
   }
 }

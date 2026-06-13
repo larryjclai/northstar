@@ -1,0 +1,1302 @@
+{
+  "nav.dashboard": {
+    "zh-TW": {
+      "v": "總覽",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Overview",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "nav.investments": {
+    "zh-TW": {
+      "v": "投資",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Investments",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "nav.cashflow": {
+    "zh-TW": {
+      "v": "記帳",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Cash Flow",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "nav.accounts": {
+    "zh-TW": {
+      "v": "帳戶",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Accounts",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "nav.goals": {
+    "zh-TW": {
+      "v": "目標",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Goals",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "nav.settings": {
+    "zh-TW": {
+      "v": "設定",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Settings",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "shell.searchPlaceholder": {
+    "zh-TW": {
+      "v": "搜尋...",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Search...",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "shell.searchShortcut": {
+    "zh-TW": {
+      "v": "K",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "K",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "shell.hideAmounts": {
+    "zh-TW": {
+      "v": "隱藏金額",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Hide Amounts",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "shell.localFirst": {
+    "zh-TW": {
+      "v": "本地優先",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Local-first",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "shell.dataSavedLocally": {
+    "zh-TW": {
+      "v": "資料僅保存在此裝置上。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Data is saved on this device.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.title": {
+    "zh-TW": {
+      "v": "設定",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Settings",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.categories": {
+    "zh-TW": {
+      "v": "分類",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Categories",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.merchants": {
+    "zh-TW": {
+      "v": "商家",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Merchants",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.fx": {
+    "zh-TW": {
+      "v": "匯率",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Currencies",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.export": {
+    "zh-TW": {
+      "v": "匯出",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Export",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.general": {
+    "zh-TW": {
+      "v": "一般與備份",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "General & Export",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.categoriesDesc": {
+    "zh-TW": {
+      "v": "每筆交易可歸入一個分類，並設定月預算上限。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Manage categories and monthly budgets.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.addCategory": {
+    "zh-TW": {
+      "v": "新增分類",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Add Category",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.newCategory": {
+    "zh-TW": {
+      "v": "新分類",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "New Category",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.spent": {
+    "zh-TW": {
+      "v": "已消費",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Spent",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.budget": {
+    "zh-TW": {
+      "v": "預算",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Budget",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.usage": {
+    "zh-TW": {
+      "v": "使用量",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Usage",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.noLimit": {
+    "zh-TW": {
+      "v": "無上限",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "No limit",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.overBudget": {
+    "zh-TW": {
+      "v": "超支",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Over Budget",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.subcategories": {
+    "zh-TW": {
+      "v": "子分類",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Subcategories",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.merchantsDesc": {
+    "zh-TW": {
+      "v": "Northstar 會自動辨識商家名稱並套用分類。你可以在此修正或新增別名。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Manage merchant aliases and auto-categorization.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.addMerchant": {
+    "zh-TW": {
+      "v": "新增商家",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Add Merchant",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.merchantName": {
+    "zh-TW": {
+      "v": "商家",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Merchant / Alias",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.merchantCategory": {
+    "zh-TW": {
+      "v": "分類",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Category",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.merchantCount": {
+    "zh-TW": {
+      "v": "筆數",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Count",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.merchantLast": {
+    "zh-TW": {
+      "v": "上次",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Last Amt",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.fxDesc": {
+    "zh-TW": {
+      "v": "設定基準幣別與各外幣匯率來源。你可以覆蓋自動匯率，或為特定幣別設定提醒。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Configure base currency and FX rate sources.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.baseCurrency": {
+    "zh-TW": {
+      "v": "基準幣別",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Base Currency",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.baseCurrencyDesc": {
+    "zh-TW": {
+      "v": "所有帳戶餘額換算後以此幣別顯示。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "All account balances will be converted to this currency.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.fxSource": {
+    "zh-TW": {
+      "v": "匯率來源",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Rate Source",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.fxSourceDesc": {
+    "zh-TW": {
+      "v": "自動更新頻率：每小時一次",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Auto update frequency: Every hour",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.ccy": {
+    "zh-TW": {
+      "v": "CCY",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "CCY",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.rate": {
+    "zh-TW": {
+      "v": "匯率 (/{base})",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Rate (/{base})",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.change": {
+    "zh-TW": {
+      "v": "日變動",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Change",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.manual": {
+    "zh-TW": {
+      "v": "手動覆蓋",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Manual",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.alert": {
+    "zh-TW": {
+      "v": "提醒",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Alert",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.generalDesc": {
+    "zh-TW": {
+      "v": "設定顯示偏好、語言、時區，以及備份你的資料庫。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Configure display, language, timezone, and backups.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.privacyMode": {
+    "zh-TW": {
+      "v": "隱藏金額（截圖模式）",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Privacy Mode (Hide Amounts)",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.privacyModeOn": {
+    "zh-TW": {
+      "v": "已開啟",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "On",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.privacyModeOff": {
+    "zh-TW": {
+      "v": "已關閉",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Off",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.privacyModeDesc": {
+    "zh-TW": {
+      "v": "開啟後所有金額會以 ＊＊＊＊＊＊ 顯示，方便錄影或回報問題。可用 ⌘⇧H 快速切換。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Hides all monetary amounts. Can be toggled with ⌘⇧H.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.language": {
+    "zh-TW": {
+      "v": "顯示語言",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Language",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.languageDesc": {
+    "zh-TW": {
+      "v": "影響介面語言與股票名稱顯示偏好。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Affects app UI and asset names.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.timeFormat": {
+    "zh-TW": {
+      "v": "時間制式",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Time Format",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.timeFormatDesc": {
+    "zh-TW": {
+      "v": "影響新增收支時的時間挑選器。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Affects time pickers and displays.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.timezone": {
+    "zh-TW": {
+      "v": "時區",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Timezone",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.backupTitle": {
+    "zh-TW": {
+      "v": "備份與還原",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Backup & Export",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.backupDesc": {
+    "zh-TW": {
+      "v": "匯出整份資料庫成 JSON 檔。匯入會覆蓋現有資料，請先備份再執行。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Export your entire database to a JSON file. Importing will overwrite all current data.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.exportJson": {
+    "zh-TW": {
+      "v": "匯出備份 JSON",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Export JSON Backup",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.importBackup": {
+    "zh-TW": {
+      "v": "匯入備份",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Import Backup",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.dataExport": {
+    "zh-TW": {
+      "v": "匯出資料",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Data Export",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.dataExportDesc": {
+    "zh-TW": {
+      "v": "選擇格式、時間範圍與帳戶，將你的資料匯出為本機檔案。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Select format, range, and accounts to export data.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.format": {
+    "zh-TW": {
+      "v": "檔案格式",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "File Format",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.timeRange": {
+    "zh-TW": {
+      "v": "時間範圍",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Time Range",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.thisMonth": {
+    "zh-TW": {
+      "v": "本月",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "This Month",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.lastMonth": {
+    "zh-TW": {
+      "v": "上個月",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Last Month",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.ytd": {
+    "zh-TW": {
+      "v": "今年至今",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Year to Date",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.lastYear": {
+    "zh-TW": {
+      "v": "去年",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Last Year",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.allTime": {
+    "zh-TW": {
+      "v": "全部",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "All Time",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.custom": {
+    "zh-TW": {
+      "v": "自訂範圍",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Custom",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.includedFields": {
+    "zh-TW": {
+      "v": "包含欄位",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Included Fields",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.transfers": {
+    "zh-TW": {
+      "v": "內部轉帳",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Transfers",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.investments": {
+    "zh-TW": {
+      "v": "投資交易",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Investments",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.tags": {
+    "zh-TW": {
+      "v": "標籤",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Tags",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.notes": {
+    "zh-TW": {
+      "v": "備註",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Notes",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "settings.fxSnapshot": {
+    "zh-TW": {
+      "v": "匯率快照",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "FX Snapshot",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.ariaLabel": {
+    "zh-TW": {
+      "v": "Northstar 新手導覽",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Northstar onboarding",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.brandTagline": {
+    "zh-TW": {
+      "v": "Local-first finance",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Local-first finance",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.stepIndicator": {
+    "zh-TW": {
+      "v": "步驟 {{current}} ，共 {{total}} 個步驟",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Step {{current}} of {{total}}",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.closeLabel": {
+    "zh-TW": {
+      "v": "關閉導覽",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Close onboarding",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.panelDesc": {
+    "zh-TW": {
+      "v": "Northstar 不會自動連線到你的銀行。你可以選擇匯入 CSV、手動建立、或先用示範資料逛逛。所有資料只存在你的本機。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Northstar never connects to your bank automatically. Import a CSV, add accounts manually, or explore with demo data. Everything stays on your device.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.privacyNote": {
+    "zh-TW": {
+      "v": "你的資料預設保存在這台裝置；同步與 Logo CDN 都是使用者手動開啟。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Your data stays on this device by default; sync and the logo CDN are opt-in.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.loadingCard": {
+    "zh-TW": {
+      "v": "處理中…",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Working…",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.skip": {
+    "zh-TW": {
+      "v": "略過",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Skip",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.back": {
+    "zh-TW": {
+      "v": "← 上一步",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "← Back",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.next": {
+    "zh-TW": {
+      "v": "下一步 →",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Next →",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.finish": {
+    "zh-TW": {
+      "v": "完成",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Done",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.steps.start": {
+    "zh-TW": {
+      "v": "開始",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Start",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.steps.accounts": {
+    "zh-TW": {
+      "v": "帳戶",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Accounts",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.steps.import": {
+    "zh-TW": {
+      "v": "匯入",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Import",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.steps.done": {
+    "zh-TW": {
+      "v": "完成",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Done",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.panelTitle.start": {
+    "zh-TW": {
+      "v": "開始更了解你的財務狀況",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Set up your finance cockpit",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.panelTitle.accounts": {
+    "zh-TW": {
+      "v": "加入你的帳戶",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Add your accounts",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.panelTitle.import": {
+    "zh-TW": {
+      "v": "匯入流水帳",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Import transactions",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.panelTitle.done": {
+    "zh-TW": {
+      "v": "可以開始了",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "You're all set",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step0.title": {
+    "zh-TW": {
+      "v": "你想從哪裡開始？",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Where do you want to start?",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step0.description": {
+    "zh-TW": {
+      "v": "先建立帳戶會讓淨值與現金流有基礎；如果你已經有 CSV，可以直接進匯入預覽。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Adding an account gives net worth and cash flow a foundation; if you already have a CSV, jump straight to the import preview.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step0.manualTitle": {
+    "zh-TW": {
+      "v": "手動建立第一個帳戶",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Add your first account manually",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step0.manualDesc": {
+    "zh-TW": {
+      "v": "銀行、現金、信用卡、券商帳戶等分類",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Bank, cash, credit card, and brokerage accounts are all supported.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step0.ledgerTitle": {
+    "zh-TW": {
+      "v": "匯入一般流水帳 CSV",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Import a ledger CSV",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step0.ledgerDesc": {
+    "zh-TW": {
+      "v": "使用 date、account、amount、currency 等欄位批次匯入。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Bulk import using date, account, amount, currency columns.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step0.investTitle": {
+    "zh-TW": {
+      "v": "匯入投資交易 CSV",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Import investment transactions CSV",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step0.investDesc": {
+    "zh-TW": {
+      "v": "投資頁已支援欄位對應與預覽。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "The Investments page supports column mapping and preview.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step0.demoTitle": {
+    "zh-TW": {
+      "v": "先用示範資料逛逛",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Explore with demo data",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step0.demoDesc": {
+    "zh-TW": {
+      "v": "不覆蓋你的正式資料，隨時可以結束示範模式。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Won't touch your real data — you can exit demo mode anytime.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step1.title": {
+    "zh-TW": {
+      "v": "加入你的帳戶",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Add your accounts",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step1.description": {
+    "zh-TW": {
+      "v": "帳戶名稱不需要跟銀行名稱完全一致；logo 可自動判讀，也能在帳戶編輯裡手選銀行或券商。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Account names don't have to match the bank exactly; logos are auto-detected, and you can pick a bank or broker manually when editing an account.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step1.previewLabel": {
+    "zh-TW": {
+      "v": "{{file}} · 預覽 {{shown}}/{{total}} 列",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "{{file}} · preview {{shown}}/{{total}} rows",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step1.fieldsMapped": {
+    "zh-TW": {
+      "v": "欄位已對應，可在匯入前檢查無效的列數",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Fields mapped — review invalid rows before importing",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step1.createAccount": {
+    "zh-TW": {
+      "v": "建立帳戶",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Create account",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step1.importLedger": {
+    "zh-TW": {
+      "v": "匯入流水帳",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Import ledger",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step2.title": {
+    "zh-TW": {
+      "v": "匯入一般流水帳 CSV",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Import a ledger CSV",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step2.description": {
+    "zh-TW": {
+      "v": "支援一般記帳大量匯入。CSV 需要包含 date、account、amount、currency；account 會對應既有帳戶名稱或 id。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Bulk import for everyday transactions. The CSV needs date, account, amount, currency; account matches an existing account name or id.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step2.chooseFile": {
+    "zh-TW": {
+      "v": "選擇 CSV 檔案",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Choose a CSV file",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step2.chooseFileHasAccounts": {
+    "zh-TW": {
+      "v": "會先產生預覽，不會直接寫入。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Generates a preview first — nothing is written directly.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step2.chooseFileNoAccounts": {
+    "zh-TW": {
+      "v": "請先建立帳戶；否則 account 欄位無法對應。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Add an account first, otherwise the account column can't be matched.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step2.previewTitle": {
+    "zh-TW": {
+      "v": "CSV 預覽",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "CSV preview",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step2.previewCounts": {
+    "zh-TW": {
+      "v": "{{valid}} 有效 / {{invalid}} 無效",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "{{valid}} valid / {{invalid}} invalid",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step2.importButton": {
+    "zh-TW": {
+      "v": "匯入 {{count}} 筆",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Import {{count}}",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step2.invalidMore": {
+    "zh-TW": {
+      "v": "還有 {{count}} 筆無效列",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "{{count}} more invalid rows",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step2.allValid": {
+    "zh-TW": {
+      "v": "所有列都可匯入。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "All rows are importable.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step2.rowError": {
+    "zh-TW": {
+      "v": "列 {{row}}: {{reason}}",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Row {{row}}: {{reason}}",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step2.importLater": {
+    "zh-TW": {
+      "v": "稍後匯入",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Import later",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step3.title": {
+    "zh-TW": {
+      "v": "你已經準備好了",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Your workspace is ready",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step3.description": {
+    "zh-TW": {
+      "v": "接下來可以開始記帳、檢查投資交易，或到設定開啟銀行 Logo 與同步。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Next, record transactions, review investments, or open Settings to turn on bank logos and sync.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step3.ledgerTitle": {
+    "zh-TW": {
+      "v": "去記一筆流水帳",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Record a transaction",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step3.ledgerDesc": {
+    "zh-TW": {
+      "v": "快速建立收入、支出、轉帳或應收應付。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Quickly add income, expenses, transfers, or receivables/payables.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step3.investTitle": {
+    "zh-TW": {
+      "v": "整理投資交易",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Organize investments",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step3.investDesc": {
+    "zh-TW": {
+      "v": "新增持倉、匯入券商 CSV、設定定期定額。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Add holdings, import a broker CSV, set up recurring buys.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step3.privacyTitle": {
+    "zh-TW": {
+      "v": "檢查資料與隱私設定",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Review data & privacy settings",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.step3.privacyDesc": {
+    "zh-TW": {
+      "v": "開啟 Logo、同步、備份與匯率設定。",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Turn on logos, sync, backups, and FX settings.",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.toast.importSuccess": {
+    "zh-TW": {
+      "v": "成功匯入 {{count}} 筆流水帳",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Imported {{count}} ledger transactions",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.toast.demoLoaded": {
+    "zh-TW": {
+      "v": "已載入示範資料",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Demo data loaded",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  },
+  "onboarding.toast.demoFailed": {
+    "zh-TW": {
+      "v": "載入示範資料失敗",
+      "t": "2026-06-13T00:22:35.949Z"
+    },
+    "en": {
+      "v": "Failed to load demo data",
+      "t": "2026-06-13T00:22:35.949Z"
+    }
+  }
+}

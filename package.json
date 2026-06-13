@@ -12,7 +12,9 @@
     "test:watch": "vitest",
     "check:tauri": "cd src-tauri && cargo fmt --check && cargo check",
     "tauri": "tauri",
-    "version": "node scripts/version-bump.mjs"
+    "version": "node scripts/version-bump.mjs",
+    "copy:export": "node scripts/copy-catalog.mjs export",
+    "copy:import": "node scripts/copy-catalog.mjs import"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
