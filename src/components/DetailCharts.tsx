@@ -63,27 +63,27 @@ export function MiniBars({ data, color, currency }: { data: MonthPoint[]; color:
   );
 }
 
-/** Day-of-week frequency bars. Hover/tap reveals the count; zero days render
+/** Day-of-week spend bars. Hover/tap reveals the amount; zero days render
  * with no bar height. */
-export function WeekdayBars({ data }: { data: Array<{ key: number; name: string; count: number }> }) {
+export function WeekdayBars({ data, currency }: { data: Array<{ key: number; name: string; amount: number }>; currency: string }) {
   const [active, setActive] = useState<number | null>(null);
-  const max = Math.max(1, ...data.map((item) => item.count));
+  const max = Math.max(1, ...data.map((item) => item.amount));
   return (
     <div className="ns-weekday-bars">
       {data.map((item, i) => {
-        const height = item.count > 0 ? Math.max(4, (item.count / max) * 54) : 0;
+        const height = item.amount > 0 ? Math.max(4, (item.amount / max) * 54) : 0;
         return (
           <div
             key={item.key}
             className="ns-weekday-cell"
-            data-peak={(item.count === max && item.count > 0) || undefined}
+            data-peak={(item.amount === max && item.amount > 0) || undefined}
             style={{ position: "relative" }}
             onMouseEnter={() => setActive(i)}
             onMouseLeave={() => setActive((cur) => (cur === i ? null : cur))}
             onClick={() => setActive((cur) => (cur === i ? null : i))}
           >
-            {active === i ? <Tooltip text={`${item.count} 筆`} /> : null}
-            <div data-zero={item.count <= 0 || undefined} style={{ height: `${height}px` }} />
+            {active === i ? <Tooltip text={formatMoney(item.amount, currency)} /> : null}
+            <div data-zero={item.amount <= 0 || undefined} style={{ height: `${height}px` }} />
             <span>{item.name}</span>
           </div>
         );

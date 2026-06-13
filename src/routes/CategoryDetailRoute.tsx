@@ -98,8 +98,8 @@ export function CategoryDetailRoute() {
       .sort((a, b) => b.amount - a.amount);
   }, [periodRows, periodTotal, appSettings, fxHistory, primaryCurrency]);
 
-  const weekdayData = useMemo(() => buildWeekdayData(periodRows), [periodRows]);
-  const peakWeekday = weekdayData.reduce((best, item) => (item.count > best.count ? item : best), weekdayData[0]);
+  const weekdayData = useMemo(() => buildWeekdayData(periodRows, convertedAmount), [periodRows, appSettings, fxHistory, primaryCurrency]);
+  const peakWeekday = weekdayData.reduce((best, item) => (item.amount > best.amount ? item : best), weekdayData[0]);
   const topMerchants = useMemo(() => {
     const map = new Map<string, { amount: number; count: number }>();
     for (const row of periodRows) {
@@ -200,8 +200,8 @@ export function CategoryDetailRoute() {
             )}
           </Panel>
 
-          <Panel eyebrow="星期分佈" title={peakWeekday ? `高峰：${peakWeekday.name}曜日` : "星期分佈"}>
-            <WeekdayBars data={weekdayData} />
+          <Panel eyebrow="星期分佈" title={peakWeekday ? `高峰：星期${peakWeekday.name}` : "星期分佈"}>
+            <WeekdayBars data={weekdayData} currency={primaryCurrency} />
           </Panel>
         </div>
 
@@ -429,14 +429,14 @@ function countMonthsInRange(start: string | null, end: string | null) {
   return Math.max(1, (endYear - startYear) * 12 + (endMonth - startMonth) + 1);
 }
 
-function buildWeekdayData(rows: LedgerTransaction[]) {
+function buildWeekdayData(rows: LedgerTransaction[], amountFor: (row: LedgerTransaction) => number | null) {
   const names = ["日", "一", "二", "三", "四", "五", "六"];
-  const counts = new Map<number, number>();
+  const amounts = new Map<number, number>();
   for (const row of rows) {
     const day = new Date(row.date).getDay();
-    counts.set(day, (counts.get(day) ?? 0) + 1);
+    amounts.set(day, (amounts.get(day) ?? 0) + (amountFor(row) ?? 0));
   }
-  return [1, 2, 3, 4, 5, 6, 0].map((key) => ({ key, name: names[key], count: counts.get(key) ?? 0 }));
+  return [1, 2, 3, 4, 5, 6, 0].map((key) => ({ key, name: names[key], amount: amounts.get(key) ?? 0 }));
 }
 
 function breakdownColor(index: number, fallback: string) {

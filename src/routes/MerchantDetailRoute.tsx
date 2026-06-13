@@ -55,8 +55,8 @@ export function MerchantDetailRoute() {
   const avgPerVisit = periodRows.length ? periodTotal / periodRows.length : 0;
   const monthlyAverage = periodTotal / Math.max(1, countMonthsInRange(dateRange.start, dateRange.end));
   const monthlyData = useMemo(() => buildMonthPoints(rows, convertedAmount), [rows, appSettings, fxHistory, primaryCurrency]);
-  const weekdayData = useMemo(() => buildWeekdayData(periodRows), [periodRows]);
-  const peakWeekday = weekdayData.reduce((best, item) => (item.count > best.count ? item : best), weekdayData[0]);
+  const weekdayData = useMemo(() => buildWeekdayData(periodRows, convertedAmount), [periodRows, appSettings, fxHistory, primaryCurrency]);
+  const peakWeekday = weekdayData.reduce((best, item) => (item.amount > best.amount ? item : best), weekdayData[0]);
   const lastVisit = periodRows[0]?.date ?? rows[0]?.date ?? "—";
   const accountNames = [...new Set(periodRows.map((row) => accountName(row.accountId)))];
 
@@ -119,8 +119,8 @@ export function MerchantDetailRoute() {
             <MiniBars data={monthlyData} color={categoryColor} currency={primaryCurrency} />
           </Panel>
 
-          <Panel eyebrow="消費模式" title={peakWeekday ? `${peakWeekday.name}曜日 最頻繁` : "星期分佈"}>
-            <WeekdayBars data={weekdayData} />
+          <Panel eyebrow="消費模式" title={peakWeekday ? `星期${peakWeekday.name} 消費最高` : "星期分佈"}>
+            <WeekdayBars data={weekdayData} currency={primaryCurrency} />
           </Panel>
 
           <Panel eyebrow="交易紀錄" title={`${visibleRows.length} 筆交易紀錄`}>
@@ -142,12 +142,13 @@ export function MerchantDetailRoute() {
               <div className="ns-rule-hint">
                 <Sparkle size={18} />
                 <div>
-                  <strong>已根據歷史交易推導</strong>
-                  <span>{merchantName.toUpperCase()} → {categoryHit.value}{subcategoryHit.value ? ` › ${subcategoryHit.value}` : ""}</span>
+                  <strong>已根據歷史交易自動分類</strong>
+                  <span className="mono">{merchantName.toUpperCase()} → {categoryHit.value}{subcategoryHit.value ? ` › ${subcategoryHit.value}` : ""}</span>
+                  <span>下次用快速記帳（⌘N）輸入「{merchantName}」時，會自動套用這個分類，不用每次手選。</span>
                 </div>
               </div>
             ) : (
-              <EmptyPanel icon={<Tag size={22} />} text="交易不足，還無法推導常用分類。" />
+              <EmptyPanel icon={<Tag size={22} />} text="交易筆數還不足，無法自動推導分類；多記幾筆後，快速記帳就會自動帶入。" />
             )}
           </Panel>
 
@@ -314,14 +315,14 @@ function buildMonthPoints(rows: LedgerTransaction[], amountFor: (row: LedgerTran
   });
 }
 
-function buildWeekdayData(rows: LedgerTransaction[]) {
+function buildWeekdayData(rows: LedgerTransaction[], amountFor: (row: LedgerTransaction) => number | null) {
   const names = ["日", "一", "二", "三", "四", "五", "六"];
-  const counts = new Map<number, number>();
+  const amounts = new Map<number, number>();
   for (const row of rows) {
     const day = new Date(row.date).getDay();
-    counts.set(day, (counts.get(day) ?? 0) + 1);
+    amounts.set(day, (amounts.get(day) ?? 0) + (amountFor(row) ?? 0));
   }
-  return [1, 2, 3, 4, 5, 6, 0].map((key) => ({ key, name: names[key], count: counts.get(key) ?? 0 }));
+  return [1, 2, 3, 4, 5, 6, 0].map((key) => ({ key, name: names[key], amount: amounts.get(key) ?? 0 }));
 }
 
 function countMonthsInRange(start: string | null, end: string | null) {
