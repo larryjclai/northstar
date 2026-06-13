@@ -429,7 +429,7 @@ export function ConnectStatus() {
           啟用後，你的財務資料會以端對端加密的方式同步到你的其他裝置。資料加密後才離開裝置，伺服器看不到任何明文。
         </p>
         <div style={{ marginBottom: 14 }}>
-          <label style={{ fontSize: 11.5, color: "var(--ns-fg-muted)", display: "block", marginBottom: 5 }}>這台裝置的名稱</label>
+          <label className="text-caption" style={{ color: "var(--ns-fg-muted)", display: "block", marginBottom: 5 }}>這台裝置的名稱</label>
           <input
             className="ns-input"
             style={{ maxWidth: 260 }}
@@ -455,12 +455,12 @@ export function ConnectStatus() {
             user still has the printed/downloaded Recovery Kit code. */}
         {showRestore && (
           <div style={{ marginTop: 14, padding: "12px 14px", borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)" }}>
-            <p className="text-sm muted" style={{ marginBottom: 8, fontSize: 12 }}>
+            <p className="text-xs muted" style={{ marginBottom: 8 }}>
               輸入當初儲存的備援碼（8 組、每組 8 個字元）即可還原加密金鑰。還原後再按「啟用同步」，新帳號會沿用原金鑰，舊的加密備份仍可解密。
             </p>
             <input
-              className="ns-input mono"
-              style={{ width: "100%", fontSize: 12.5, letterSpacing: 0.5, marginBottom: 8 }}
+              className="ns-input mono text-xs"
+              style={{ width: "100%", letterSpacing: 0.5, marginBottom: 8 }}
               value={restoreCode}
               onChange={(e) => setRestoreCode(e.target.value)}
               placeholder="XXXXXXXX-XXXXXXXX-…（可含連字號或空白）"
@@ -506,20 +506,20 @@ export function ConnectStatus() {
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <h3 className="font-semibold">Connect 同步</h3>
           {kitStatus?.confirmedAt ? (
-            <Badge variant="outline" className="rounded-full" style={{ fontSize: 10.5, background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}>已啟用</Badge>
+            <Badge variant="outline" className="rounded-full text-micro" style={{background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}>已啟用</Badge>
           ) : (
-            <Badge variant="outline" className="rounded-full" style={{ fontSize: 10.5, background: "var(--ns-warn-soft, var(--ns-bg-hover))", color: "var(--ns-warn, #b45309)" }}>待備份備援碼</Badge>
+            <Badge variant="outline" className="rounded-full text-micro" style={{background: "var(--ns-warn-soft, var(--ns-bg-hover))", color: "var(--ns-warn, #b45309)" }}>待備份備援碼</Badge>
           )}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <Button variant="ghost" style={{ fontSize: 12 }}
+          <Button variant="ghost" className="text-xs"
             onClick={handleManualSync}
             title={!kitStatus?.confirmedAt ? "請先備份並確認 Recovery Kit" : undefined}
             disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling" || !kitStatus?.confirmedAt}>
             <ArrowsClockwise size={13} style={{ animation: (syncStatus.phase === "pushing" || syncStatus.phase === "pulling") ? "spin 1s linear infinite" : undefined }} />
             {syncStatus.phase === "pushing" ? "上傳中…" : syncStatus.phase === "pulling" ? "下載中…" : "立即同步"}
           </Button>
-          <Button variant="ghost" style={{ fontSize: 12 }} onClick={() => openDialog("show")}>
+          <Button variant="ghost" className="text-xs" onClick={() => openDialog("show")}>
             <Plus size={13} />新增裝置
           </Button>
         </div>
@@ -527,7 +527,7 @@ export function ConnectStatus() {
 
       {/* Recovery Kit gate — sync is blocked until the kit is confirmed */}
       {!kitStatus?.confirmedAt && (
-        <div style={{ fontSize: 12, marginBottom: 10, padding: "10px 12px", borderRadius: "var(--ns-r-sm)",
+        <div className="text-xs" style={{ marginBottom: 10, padding: "10px 12px", borderRadius: "var(--ns-r-sm)",
           background: "var(--ns-warn-soft, var(--ns-bg-hover))", color: "var(--ns-warn, #b45309)",
           display: "flex", alignItems: "flex-start", gap: 8 }}>
           <Warning size={15} weight="fill" style={{ flexShrink: 0, marginTop: 1 }} />
@@ -537,7 +537,7 @@ export function ConnectStatus() {
 
       {/* Sync status bar */}
       {(syncStatus.phase !== "idle" || syncStatus.lastSyncAt) && (
-        <div style={{ fontSize: 11.5, marginBottom: 10, padding: "7px 10px", borderRadius: "var(--ns-r-sm)",
+        <div className="text-caption" style={{ marginBottom: 10, padding: "7px 10px", borderRadius: "var(--ns-r-sm)",
           display: "flex", alignItems: "center", gap: 6,
           background: syncStatus.phase === "error" ? "var(--ns-neg-soft)" : "var(--ns-bg-hover)",
           color: syncStatus.phase === "error" ? "var(--ns-neg)" : "var(--ns-fg-muted)" }}>
@@ -554,7 +554,7 @@ export function ConnectStatus() {
       )}
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12, fontSize: 13, marginBottom: 16 }}>
+      <div className="text-body" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12, marginBottom: 16 }}>
         <Stat label="待同步" value={pending === null ? "—" : `${pending} 筆`} />
         <Stat label="待檢查衝突" value={conflicts === null ? "—" : `${conflicts.length} 筆`} />
         <Stat label="上次同步" value={syncStatus.lastSyncAt ? syncStatus.lastSyncAt.slice(0, 10) : "尚未同步"} mono />
@@ -566,8 +566,8 @@ export function ConnectStatus() {
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm font-semibold">同步衝突中心 · {conflicts.length} 筆</span>
             <span className="flex gap-1">
-              <Button variant="ghost" style={{ fontSize: 11 }} onClick={() => resolveAllConflicts("keepLocal")}>全部保留本機</Button>
-              <Button variant="ghost" style={{ fontSize: 11 }} onClick={() => resolveAllConflicts("useIncoming")}>全部採用遠端</Button>
+              <Button variant="ghost" className="text-caption" onClick={() => resolveAllConflicts("keepLocal")}>全部保留本機</Button>
+              <Button variant="ghost" className="text-caption" onClick={() => resolveAllConflicts("useIncoming")}>全部採用遠端</Button>
             </span>
           </div>
           <div className="mb-2 text-xs" style={{ color: "var(--ns-fg-muted)" }}>
@@ -580,15 +580,15 @@ export function ConnectStatus() {
                 <div key={conflict.id} className="rounded-md border p-2.5 text-xs" style={{ borderColor: "var(--ns-border)", background: "var(--ns-bg-card)" }}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="flex items-center gap-2 min-w-0">
-                      <Badge variant="outline" className="rounded-full" style={{ fontSize: 10, flexShrink: 0 }}>{summary.entityLabel}</Badge>
+                      <Badge variant="outline" className="rounded-full text-micro" style={{ flexShrink: 0 }}>{summary.entityLabel}</Badge>
                       <span className="font-semibold truncate" title={summary.title}>{summary.title}</span>
                       <span style={{ color: "var(--ns-fg-muted)", flexShrink: 0 }}>
                         {summary.newer === "tie" ? "兩版同時間" : summary.newer === "local" ? "本機較新" : "遠端較新"}
                       </span>
                     </span>
                     <span className="flex gap-1 flex-shrink-0">
-                      <Button variant="ghost" style={{ fontSize: 11 }} onClick={() => resolveConflict(conflict.id, "keepLocal")}>保留本機</Button>
-                      <Button variant="ghost" style={{ fontSize: 11 }} onClick={() => resolveConflict(conflict.id, "useIncoming")}>採用遠端</Button>
+                      <Button variant="ghost" className="text-caption" onClick={() => resolveConflict(conflict.id, "keepLocal")}>保留本機</Button>
+                      <Button variant="ghost" className="text-caption" onClick={() => resolveConflict(conflict.id, "useIncoming")}>採用遠端</Button>
                     </span>
                   </div>
                   {summary.diffs.length > 0 ? (
@@ -617,19 +617,19 @@ export function ConnectStatus() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
         padding: "10px 12px", marginBottom: 16, borderRadius: "var(--ns-r-md)",
         background: "var(--ns-bg-hover)", border: "1px solid var(--ns-border)" }}>
-        <div style={{ fontSize: 11.5, color: "var(--ns-fg-muted)", lineHeight: 1.5 }}>
+        <div className="text-caption" style={{ color: "var(--ns-fg-muted)", lineHeight: 1.5 }}>
           資料遺失或換新裝置？從伺服器完整重新下載所有資料（只下載、不會覆蓋伺服器）。
         </div>
         {confirmFullResync
           ? <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-              <Button variant="ghost" style={{ fontSize: 12 }} onClick={() => setConfirmFullResync(false)}>取消</Button>
-              <Button variant="outline" style={{ fontSize: 12 }}
+              <Button variant="ghost" className="text-xs" onClick={() => setConfirmFullResync(false)}>取消</Button>
+              <Button variant="outline" className="text-xs"
                 onClick={handleForceFullResync}
                 disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
                 確認重新下載
               </Button>
             </div>
-          : <Button variant="ghost" style={{ fontSize: 12, flexShrink: 0 }}
+          : <Button variant="ghost" className="text-xs" style={{ flexShrink: 0 }}
               onClick={() => setConfirmFullResync(true)}
               disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
               <ArrowsClockwise size={13} />完整重新下載
@@ -638,7 +638,7 @@ export function ConnectStatus() {
       </div>
 
       {/* Device list */}
-      <div style={{ fontSize: 11.5, color: "var(--ns-fg-dim)", textTransform: "uppercase", letterSpacing: 0.06, fontFamily: "var(--ns-font-mono)", marginBottom: 8 }}>
+      <div className="text-caption" style={{ color: "var(--ns-fg-dim)", textTransform: "uppercase", letterSpacing: 0.06, fontFamily: "var(--ns-font-mono)", marginBottom: 8 }}>
         已信任裝置 · {devices.length}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -651,15 +651,15 @@ export function ConnectStatus() {
           }}>
             <PlatformIcon platform={dev.platform} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 500, fontSize: 13 }}>{dev.name}</div>
-              <div className="mono muted" style={{ fontSize: 10.5 }}>{dev.id.slice(0, 8)}… · {dev.platform}</div>
+              <div className="text-body" style={{ fontWeight: 500 }}>{dev.name}</div>
+              <div className="mono muted text-micro">{dev.id.slice(0, 8)}… · {dev.platform}</div>
             </div>
             {dev.id === identity.deviceId
-              ? <span style={{ fontSize: 11, color: "var(--ns-fg-muted)" }}>本機</span>
+              ? <span className="text-caption" style={{ color: "var(--ns-fg-muted)" }}>本機</span>
               : confirmRevokeId === dev.id
                 ? <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <Button variant="ghost" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => setConfirmRevokeId(null)}>取消</Button>
-                    <Button variant="outline" style={{ fontSize: 11, padding: "4px 8px", color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} onClick={() => handleRevoke(dev.id)}>確認移除</Button>
+                    <Button variant="ghost" className="text-caption" style={{ padding: "4px 8px" }} onClick={() => setConfirmRevokeId(null)}>取消</Button>
+                    <Button variant="outline" className="text-caption" style={{ padding: "4px 8px", color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} onClick={() => handleRevoke(dev.id)}>確認移除</Button>
                   </div>
                 : <Button variant="ghost" size="icon-sm" style={{ color: "var(--ns-neg)", padding: "4px 6px" }} onClick={() => setConfirmRevokeId(dev.id)}>
                     <Trash size={13} />
@@ -673,14 +673,14 @@ export function ConnectStatus() {
       <div style={{ marginTop: 20, paddingTop: 18, borderTop: "1px solid var(--ns-border)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>備援碼</div>
+            <div className="text-body" style={{ fontWeight: 600 }}>備援碼</div>
             {kitStatus?.confirmedAt
-              ? <Badge variant="outline" className="rounded-full" style={{ fontSize: 10.5, background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}>已儲存</Badge>
-              : <Badge variant="outline" className="rounded-full" style={{ fontSize: 10.5, background: "var(--ns-warn-soft, #fef3c7)", color: "var(--ns-warn, #b45309)" }}>尚未設定</Badge>
+              ? <Badge variant="outline" className="rounded-full text-micro" style={{background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}>已儲存</Badge>
+              : <Badge variant="outline" className="rounded-full text-micro" style={{background: "var(--ns-warn-soft, #fef3c7)", color: "var(--ns-warn, #b45309)" }}>尚未設定</Badge>
             }
           </div>
           {!kitCode && (
-            <Button variant="ghost" style={{ fontSize: 12 }} onClick={handleGenerateKit} disabled={kitLoading}>
+            <Button variant="ghost" className="text-xs" onClick={handleGenerateKit} disabled={kitLoading}>
               <Key size={13} />{kitStatus?.confirmedAt ? "重新產生" : "產生備援碼"}
             </Button>
           )}
@@ -693,8 +693,8 @@ export function ConnectStatus() {
 
         {kitCode && (
           <div style={{ background: "var(--ns-bg-hover)", borderRadius: "var(--ns-r-md)", padding: "14px 16px", marginTop: 10 }}>
-            <div style={{
-              fontFamily: "var(--ns-font-mono)", fontSize: 13.5, fontWeight: 600,
+            <div className="text-body" style={{
+              fontFamily: "var(--ns-font-mono)", fontWeight: 600,
               letterSpacing: 1, wordBreak: "break-all", lineHeight: 1.7,
               color: "var(--ns-fg)", marginBottom: 12,
             }}>
@@ -704,7 +704,7 @@ export function ConnectStatus() {
                 return acc;
               }, []).join("-").split("\n-").join("\n")}
             </div>
-            <p className="text-sm" style={{ color: "var(--ns-warn, #b45309)", marginBottom: 12, fontSize: 11.5, display: "flex", alignItems: "center", gap: 6 }}>
+            <p className="text-caption" style={{ color: "var(--ns-warn, #b45309)", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
               <Warning size={13} weight="fill" style={{ flexShrink: 0 }} />請將此碼列印或抄寫到安全的地方。關閉後無法再次檢視。
             </p>
             <div style={{ display: "flex", gap: 8 }}>
@@ -722,8 +722,8 @@ export function ConnectStatus() {
       {/* Sync snapshots / restore points */}
       <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--ns-border)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>同步前快照</div>
-          <Button variant="ghost" style={{ fontSize: 11.5 }} onClick={() => {
+          <div className="text-body" style={{ fontWeight: 600 }}>同步前快照</div>
+          <Button variant="ghost" className="text-caption" onClick={() => {
             setShowBackups(!showBackups);
           }}>
             {showBackups ? "收起" : `查看備份`}
@@ -735,24 +735,24 @@ export function ConnectStatus() {
         {showBackups && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {backups.length === 0
-              ? <div className="muted" style={{ fontSize: 12 }}>尚無快照（執行一次同步後會自動建立）</div>
+              ? <div className="muted text-xs">尚無快照（執行一次同步後會自動建立）</div>
               : backups.map((b) => (
                 <div key={b.timestamp} style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
                   padding: "9px 12px", borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)",
                 }}>
                   <div>
-                    <div style={{ fontSize: 12.5, fontWeight: 500 }}>{b.label}</div>
-                    <div className="mono muted" style={{ fontSize: 10.5 }}>{b.timestamp.slice(0, 19).replace("T", " ")}</div>
+                    <div className="text-xs" style={{ fontWeight: 500 }}>{b.label}</div>
+                    <div className="mono muted text-micro">{b.timestamp.slice(0, 19).replace("T", " ")}</div>
                   </div>
                   {confirmRestoreTs === b.timestamp ? (
                     <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <span className="muted" style={{ fontSize: 11 }}>目前資料將被覆蓋</span>
-                      <Button variant="ghost" style={{ fontSize: 11.5, color: "var(--ns-neg)" }} onClick={() => handleRestore(b.timestamp)}>確定還原</Button>
-                      <Button variant="ghost" style={{ fontSize: 11.5 }} onClick={() => setConfirmRestoreTs(null)}>取消</Button>
+                      <span className="muted text-caption">目前資料將被覆蓋</span>
+                      <Button variant="ghost" className="text-caption" style={{ color: "var(--ns-neg)" }} onClick={() => handleRestore(b.timestamp)}>確定還原</Button>
+                      <Button variant="ghost" className="text-caption" onClick={() => setConfirmRestoreTs(null)}>取消</Button>
                     </span>
                   ) : (
-                    <Button variant="ghost" style={{ fontSize: 11.5, color: "var(--ns-warn, #b45309)" }}
+                    <Button variant="ghost" className="text-caption" style={{ color: "var(--ns-warn, #b45309)" }}
                       onClick={() => setConfirmRestoreTs(b.timestamp)}>
                       還原
                     </Button>
@@ -845,7 +845,7 @@ function AddDeviceDialog({
       <Card style={{ width: 480, padding: 0, overflow: "hidden" }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px 0" }}>
-          <h3 style={{ fontFamily: "var(--ns-font-display)", fontSize: 17, fontWeight: 600, margin: 0 }}>新增裝置</h3>
+          <h3 className="text-lg" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600, margin: 0 }}>新增裝置</h3>
           <Button variant="ghost" size="icon-sm" onClick={onClose}><X size={16} /></Button>
         </div>
 
@@ -853,8 +853,8 @@ function AddDeviceDialog({
         {!hideShowTab && (
           <div style={{ display: "flex", gap: 0, padding: "14px 22px 0", borderBottom: "1px solid var(--ns-border)" }}>
             {(["show", "join"] as const).map(t => (
-              <button key={t} onClick={() => onTabChange(t)} style={{
-                fontSize: 13, fontWeight: 500, padding: "8px 16px",
+              <button key={t} onClick={() => onTabChange(t)} className="text-body" style={{
+                fontWeight: 500, padding: "8px 16px",
                 borderBottom: tab === t ? "2px solid var(--ns-accent)" : "2px solid transparent",
                 color: tab === t ? "var(--ns-fg)" : "var(--ns-fg-muted)",
                 background: "none", border: "none", borderRadius: 0, cursor: "pointer",
@@ -874,7 +874,7 @@ function AddDeviceDialog({
               </p>
 
               {sessionLoading && (
-                <div style={{ textAlign: "center", padding: "32px 0", color: "var(--ns-fg-muted)", fontSize: 13 }}>
+                <div className="text-body" style={{ textAlign: "center", padding: "32px 0", color: "var(--ns-fg-muted)" }}>
                   <Spinner size={20} className="animate-spin" style={{ margin: "0 auto 8px" }} />
                   產生配對碼中…
                 </div>
@@ -883,16 +883,16 @@ function AddDeviceDialog({
               {session && (
                 <>
                   {/* Code */}
-                  <div style={{
+                  <div className="text-[38px]" style={{
                     textAlign: "center", padding: "20px 0 16px",
-                    fontFamily: "var(--ns-font-mono)", fontSize: 38, fontWeight: 700,
+                    fontFamily: "var(--ns-font-mono)", fontWeight: 700,
                     letterSpacing: 6, color: "var(--ns-fg)",
                   }}>
                     {codeDisplay}
                   </div>
 
                   {/* Timer */}
-                  <div style={{ textAlign: "center", fontSize: 12, color: secondsLeft < 60 ? "var(--ns-neg)" : "var(--ns-fg-muted)", marginBottom: 20 }}>
+                  <div className="text-xs" style={{ textAlign: "center", color: secondsLeft < 60 ? "var(--ns-neg)" : "var(--ns-fg-muted)", marginBottom: 20 }}>
                     {secondsLeft > 0 ? `${mins}:${secs} 後失效` : "配對碼已失效"}
                   </div>
 
@@ -927,10 +927,10 @@ function AddDeviceDialog({
               </p>
 
               <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 11.5, color: "var(--ns-fg-muted)", display: "block", marginBottom: 5 }}>配對碼</label>
+                <label className="text-caption" style={{ color: "var(--ns-fg-muted)", display: "block", marginBottom: 5 }}>配對碼</label>
                 <input
-                  className="ns-input"
-                  style={{ fontFamily: "var(--ns-font-mono)", fontSize: 22, letterSpacing: 4, textAlign: "center", width: "100%" }}
+                  className="ns-input text-stat"
+                  style={{ fontFamily: "var(--ns-font-mono)", letterSpacing: 4, textAlign: "center", width: "100%" }}
                   placeholder="XXXX-XXXX"
                   value={joinCode}
                   maxLength={9}
@@ -941,7 +941,7 @@ function AddDeviceDialog({
               </div>
 
               <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize: 11.5, color: "var(--ns-fg-muted)", display: "block", marginBottom: 5 }}>這台裝置的名稱</label>
+                <label className="text-caption" style={{ color: "var(--ns-fg-muted)", display: "block", marginBottom: 5 }}>這台裝置的名稱</label>
                 <input
                   className="ns-input"
                   style={{ width: "100%" }}
@@ -952,7 +952,7 @@ function AddDeviceDialog({
               </div>
 
               {joinError && (
-                <div style={{ fontSize: 12, color: "var(--ns-neg)", marginBottom: 14, padding: "10px 12px", background: "var(--ns-neg-soft)", borderRadius: "var(--ns-r-sm)" }}>
+                <div className="text-xs" style={{ color: "var(--ns-neg)", marginBottom: 14, padding: "10px 12px", background: "var(--ns-neg-soft)", borderRadius: "var(--ns-r-sm)" }}>
                   {joinError}
                 </div>
               )}
@@ -976,7 +976,7 @@ function AddDeviceDialog({
 function Stat({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <div className="ns-eyebrow" style={{ fontSize: 10.5, marginBottom: 3 }}>{label}</div>
+      <div className="ns-eyebrow" style={{ marginBottom: 3 }}>{label}</div>
       <div className={mono ? "mono" : ""} style={{ fontWeight: 500 }}>{value}</div>
     </div>
   );
@@ -1031,7 +1031,7 @@ export function UpdateChecker() {
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
         <h3 className="font-semibold">應用程式更新</h3>
         {currentVersion && (
-          <span className="mono muted" style={{ fontSize: 11.5 }}>v{currentVersion}</span>
+          <span className="mono muted text-caption">v{currentVersion}</span>
         )}
       </div>
       <p className="text-sm muted mb-4">檢查並安裝 Northstar 的最新桌面版本。所有更新都經過簽章驗證。</p>

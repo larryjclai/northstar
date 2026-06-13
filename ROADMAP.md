@@ -77,10 +77,10 @@ iOS 上架、Apple 公證、家庭協作、預算進階、報表 PDF、分帳、
 
 ## 🟡 進行中 / 短期
 
-### 4.4 設計一致性（玻璃層完成；inline-style 收斂未完）
-- **現況（2026-06-13 實測）**: 玻璃材質層／視覺一致性已收斂；但 inline `fontSize:` 仍有 **144** 處、其中 **39** 處是 roadmap 點名的 ad-hoc 小數字級（11.5 / 10.5 / 12.5 / 13.5）。集中在設定頁：`ConnectSection.tsx`（51）、`CategoriesSection.tsx`（29）尚未遷移。`HoldingDetailRoute.tsx:296` 仍有英文（屬 eyebrow，視 English-eyebrow 慣例可能保留）。
-- **Action**: 併入 `docs/coss-ui-migration-plan.md` 的逐頁遷移：每遷一頁同時 (a) inline style → DS token/元件 class，(b) 文案過 i18n，(c) 數字排版統一（tabular nums、漲跌色、typographic minus）。優先處理 ConnectSection / CategoriesSection。
-- **驗收**: 遷移完成頁面 grep 不到 `style={{ fontSize:`（白名單除外）；先把 39 處 ad-hoc 小數字級歸零。
+### 4.4 設計一致性（玻璃層完成；設定頁已收斂，其餘逐頁進行中）
+- **現況（2026-06-13 實測）**: 玻璃材質層／視覺一致性已收斂。inline `fontSize:` 已從 **144** 降到 **64**：兩大宗設定頁 `ConnectSection.tsx`（51）、`CategoriesSection.tsx`（29）已全部遷到 DS 字級階梯（`text-micro/caption/xs/body/sm/lg/stat`），ad-hoc 小數字級（11.5 / 10.5 / 12.5 / 13.5）從 **39** 降到 **10**。`HoldingDetailRoute.tsx:296` 仍有英文（屬 eyebrow，視 English-eyebrow 慣例可能保留）。
+- **Action**: 併入 `docs/coss-ui-migration-plan.md` 的逐頁遷移：每遷一頁同時 (a) inline style → DS token/元件 class，(b) 文案過 i18n，(c) 數字排版統一（tabular nums、漲跌色、typographic minus）。剩餘 64 處分散在其餘 route，逐頁清。
+- **驗收**: 遷移完成頁面 grep 不到 `style={{ fontSize:`（白名單除外）；剩餘 10 處 ad-hoc 小數字級清零。
 
 ### 5.1 排程自動本地備份
 - **Problem**: 自動備份目前只在「同步前」觸發（3 份）；不開同步的純本機使用者沒有任何自動備份。

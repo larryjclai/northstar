@@ -130,8 +130,8 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
           <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Manage · {form.categories.length} categories</div>
-          <h2 style={{ fontFamily: 'var(--ns-font-display)', fontSize: 24, margin: 0, fontWeight: 600 }}>{t('settings.categories')}</h2>
-          <p className="muted" style={{ fontSize: 13, marginTop: 4, marginBottom: 0 }}>{t('settings.categoriesDesc')}</p>
+          <h2 className="text-2xl" style={{ fontFamily: 'var(--ns-font-display)', margin: 0, fontWeight: 600 }}>{t('settings.categories')}</h2>
+          <p className="muted text-body" style={{ marginTop: 4, marginBottom: 0 }}>{t('settings.categoriesDesc')}</p>
         </div>
         <Button onClick={() => setAdding(true)}>
           <Plus size={14} weight="bold" />{t('settings.addCategory')}
@@ -140,22 +140,22 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
 
       {adding && (
         <Card style={{ padding: 18, marginBottom: 14, border: '1.5px solid var(--ns-accent)' }}>
-          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>{t('settings.newCategory')}</div>
+          <div className="text-body" style={{ fontWeight: 500, marginBottom: 12 }}>{t('settings.newCategory')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
             <div>
-              <label style={{ fontSize: 11.5, color: 'var(--ns-fg-muted)', display: 'block', marginBottom: 5 }}>名稱 *</label>
+              <label className="text-caption" style={{ color: 'var(--ns-fg-muted)', display: 'block', marginBottom: 5 }}>名稱 *</label>
               <input className="ns-input" value={newCat.name} onChange={e => setNewCat(n=>({...n,name:e.target.value}))} />
             </div>
             <div>
-              <label style={{ fontSize: 11.5, color: 'var(--ns-fg-muted)', display: 'block', marginBottom: 5 }}>月預算</label>
+              <label className="text-caption" style={{ color: 'var(--ns-fg-muted)', display: 'block', marginBottom: 5 }}>月預算</label>
               <input className="ns-input" value={newCat.budget} onChange={e => setNewCat(n=>({...n,budget:e.target.value}))} />
             </div>
           </div>
           <div style={{ marginBottom: 10 }}>
-            <label style={{ fontSize: 11.5, color: 'var(--ns-fg-muted)', display: 'block', marginBottom: 6 }}>圖示</label>
+            <label className="text-caption" style={{ color: 'var(--ns-fg-muted)', display: 'block', marginBottom: 6 }}>圖示</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               <Popover>
-                <PopoverTrigger style={{ width:32,height:32,borderRadius:'var(--ns-r-sm)',fontSize:18,
+                <PopoverTrigger className="text-lg" style={{ width:32,height:32,borderRadius:'var(--ns-r-sm)',
                   background:'var(--ns-bg-hover)',
                   border:'1px solid var(--ns-border)',
                   cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
@@ -171,7 +171,7 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
             </div>
           </div>
           <div style={{ marginBottom: 14 }}>
-            <label style={{ fontSize: 11.5, color: 'var(--ns-fg-muted)', display: 'block', marginBottom: 6 }}>顏色</label>
+            <label className="text-caption" style={{ color: 'var(--ns-fg-muted)', display: 'block', marginBottom: 6 }}>顏色</label>
             <div style={{ display: 'flex', gap: 8 }}>
               {colorPicker.map(c => (
                 <div key={c} onClick={() => setNewCat(n=>({...n,color:c}))} style={{
@@ -190,9 +190,9 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
       )}
 
       <Card style={{ padding: 0 }}>
-        <div className="ns-settings-category-head" style={{ padding:'10px 20px', borderBottom:'1px solid var(--ns-border)',
+        <div className="ns-settings-category-head text-micro" style={{ padding:'10px 20px', borderBottom:'1px solid var(--ns-border)',
           display:'grid', gridTemplateColumns:'2.2fr 1fr 1fr 1.6fr 80px',
-          fontSize:10.5, color:'var(--ns-fg-dim)', fontFamily:'var(--ns-font-mono)',
+          color:'var(--ns-fg-dim)', fontFamily:'var(--ns-font-mono)',
           letterSpacing:0.07, textTransform:'uppercase' }}>
           <span>Category</span>
           <span style={{textAlign:'right'}}>{t('settings.spent')}</span>
@@ -214,18 +214,18 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
                 background: isEdit ? 'var(--ns-bg-hover)' : 'transparent',
               }}>
                 <div style={{ display:'flex', alignItems:'center', gap:12, cursor:'pointer' }} onClick={() => setExpandId(expandId===c.name ? null : c.name)}>
-                  <div style={{ width:34,height:34,borderRadius:'var(--ns-r-sm)',fontSize:18,
+                  <div className="text-lg" style={{ width:34,height:34,borderRadius:'var(--ns-r-sm)',
                     background:(c.color||'#868685')+'28',display:'flex',alignItems:'center',justifyContent:'center' }}><Glyph name={c.iconName || 'Tag'} size={18} /></div>
                   <div>
-                    <div style={{ fontSize:13.5,fontWeight:500 }}>{c.name}</div>
-                    <div className="muted mono" style={{ fontSize:10.5 }}>{c.children?.length||0} {t('settings.subcategories')}</div>
+                    <div className="text-body" style={{ fontWeight:500 }}>{c.name}</div>
+                    <div className="muted mono text-micro">{c.children?.length||0} {t('settings.subcategories')}</div>
                   </div>
                   {expandId===c.name ? <CaretDown size={12} /> : <CaretRight size={12} />}
                 </div>
-                <span className={'num '+(over?'neg':'')} style={{ textAlign:'right',fontSize:14,fontWeight:over?600:400 }}>
+                <span className={'num text-sm '+(over?'neg':'')} style={{ textAlign:'right',fontWeight:over?600:400 }}>
                   NT$0
                 </span>
-                <span className="num muted ns-settings-category-budget" style={{ textAlign:'right',fontSize:13 }}>
+                <span className="num muted ns-settings-category-budget text-body" style={{ textAlign:'right' }}>
                   {c.budget?'NT$'+c.budget.toLocaleString():'—'}
                 </span>
                 <div className="ns-settings-category-usage" style={{ paddingLeft:8 }}>
@@ -234,11 +234,11 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
                       <div style={{ height:7,borderRadius:99,background:'var(--ns-bg-hover)',overflow:'hidden',marginBottom:3 }}>
                         <div style={{ width:(pct*100)+'%',height:'100%',background:over?'var(--ns-neg)':(c.color||'#868685'),borderRadius:99 }} />
                       </div>
-                      <div className="mono" style={{ fontSize:10,color:over?'var(--ns-neg)':'var(--ns-fg-dim)' }}>
+                      <div className="mono text-micro" style={{ color:over?'var(--ns-neg)':'var(--ns-fg-dim)' }}>
                         {(pct*100).toFixed(0)}%{over?' · '+t('settings.overBudget'):''}
                       </div>
                     </>
-                  ) : <span className="dim" style={{fontSize:11}}>{t('settings.noLimit')}</span>}
+                  ) : <span className="dim text-caption">{t('settings.noLimit')}</span>}
                 </div>
                 <div style={{ display:'flex', gap:4, justifyContent:'flex-end' }}>
                   <Button variant="ghost" size="icon-sm" style={{padding:6}} onClick={() => setEditId(isEdit?null:c.name)}>
@@ -272,14 +272,14 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
                   {c.children?.map((s: string, si: number) => {
                     const isEditingSub = editingSub?.cat === c.name && editingSub?.sub === s;
                     return (
-                      <div key={s} style={{ padding:'9px 20px 9px 66px', display:'flex', alignItems:'center', gap:10,
-                        borderTop: si?'1px solid var(--ns-border)':'none', fontSize:13 }}>
+                      <div key={s} className="text-body" style={{ padding:'9px 20px 9px 66px', display:'flex', alignItems:'center', gap:10,
+                        borderTop: si?'1px solid var(--ns-border)':'none' }}>
                         <span className="dim">↳</span>
                         {isEditingSub ? (
                           <input
                             autoFocus
-                            className="ns-input"
-                            style={{ flex:1, padding:'4px 8px', fontSize:13 }}
+                            className="ns-input text-body"
+                            style={{ flex:1, padding:'4px 8px' }}
                             value={editSubValue}
                             onChange={e => setEditSubValue(e.target.value)}
                             onKeyDown={e => {
@@ -307,8 +307,8 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
                     {addingSubFor === c.name ? (
                       <input
                         autoFocus
-                        className="ns-input"
-                        style={{ width:'60%', padding:'4px 8px', fontSize:13 }}
+                        className="ns-input text-body"
+                        style={{ width:'60%', padding:'4px 8px' }}
                         placeholder="子分類名稱…"
                         value={newSubValue}
                         onChange={e => setNewSubValue(e.target.value)}
@@ -319,7 +319,7 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
                         onBlur={() => addSubcategory(c.name, newSubValue)}
                       />
                     ) : (
-                      <Button variant="ghost" style={{ fontSize: 12, padding: "4px 8px", minHeight: "auto" }} onClick={() => { setAddingSubFor(c.name); setNewSubValue(''); }}><Plus size={12} style={{ marginRight: 4 }} />新增子分類</Button>
+                      <Button variant="ghost" className="text-xs" style={{ padding: "4px 8px", minHeight: "auto" }} onClick={() => { setAddingSubFor(c.name); setNewSubValue(''); }}><Plus size={12} style={{ marginRight: 4 }} />新增子分類</Button>
                     )}
                   </div>
                 </div>
@@ -340,18 +340,18 @@ function EditCatForm({ cat, colors, onSave, onCancel }: { cat: CategoryGroup; co
   return (
     <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
       <div>
-        <label style={{ fontSize:11,color:'var(--ns-fg-muted)',display:'block',marginBottom:4 }}>名稱</label>
-        <input className="ns-input" style={{fontSize:13}} value={name} onChange={e=>setName(e.target.value)}/>
+        <label className="text-caption" style={{ color:'var(--ns-fg-muted)',display:'block',marginBottom:4 }}>名稱</label>
+        <input className="ns-input text-body"value={name} onChange={e=>setName(e.target.value)}/>
       </div>
       <div>
-        <label style={{ fontSize:11,color:'var(--ns-fg-muted)',display:'block',marginBottom:4 }}>月預算 (NTD)</label>
-        <input className="ns-input" style={{fontSize:13}} placeholder="留空 = 不設限" value={budget} onChange={e=>setBudget(e.target.value)}/>
+        <label className="text-caption" style={{ color:'var(--ns-fg-muted)',display:'block',marginBottom:4 }}>月預算 (NTD)</label>
+        <input className="ns-input text-body"placeholder="留空 = 不設限" value={budget} onChange={e=>setBudget(e.target.value)}/>
       </div>
       <div>
-        <label style={{ fontSize:11,color:'var(--ns-fg-muted)',display:'block',marginBottom:6 }}>圖示</label>
+        <label className="text-caption" style={{ color:'var(--ns-fg-muted)',display:'block',marginBottom:6 }}>圖示</label>
         <div style={{ display:'flex',flexWrap:'wrap',gap:5 }}>
           <Popover>
-            <PopoverTrigger style={{ width:32,height:32,borderRadius:'var(--ns-r-sm)',fontSize:18,
+            <PopoverTrigger className="text-lg" style={{ width:32,height:32,borderRadius:'var(--ns-r-sm)',
               background:'var(--ns-bg-hover)',
               border:'1px solid var(--ns-border)',
               cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
@@ -364,7 +364,7 @@ function EditCatForm({ cat, colors, onSave, onCancel }: { cat: CategoryGroup; co
         </div>
       </div>
       <div>
-        <label style={{ fontSize:11,color:'var(--ns-fg-muted)',display:'block',marginBottom:6 }}>顏色</label>
+        <label className="text-caption" style={{ color:'var(--ns-fg-muted)',display:'block',marginBottom:6 }}>顏色</label>
         <div style={{ display:'flex',flexWrap:'wrap',gap:6 }}>
           {colors.map((c: string)=>(
             <div key={c} onClick={()=>setColor(c)} style={{
@@ -373,8 +373,8 @@ function EditCatForm({ cat, colors, onSave, onCancel }: { cat: CategoryGroup; co
           ))}
         </div>
         <div style={{display:'flex',gap:8,marginTop:12}}>
-          <Button variant="ghost" style={{fontSize:12}} onClick={onCancel}>取消</Button>
-          <Button style={{fontSize:12}} onClick={()=>onSave({name,iconName:icon,color,budget:budget?+budget:null})}>
+          <Button variant="ghost" className="text-xs" onClick={onCancel}>取消</Button>
+          <Button className="text-xs" onClick={()=>onSave({name,iconName:icon,color,budget:budget?+budget:null})}>
             <CheckCircle size={14} weight="bold" />儲存
           </Button>
         </div>
