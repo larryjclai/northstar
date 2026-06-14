@@ -9,7 +9,7 @@
  * portfolio holdings are derived/recomputed automatically, and it works
  * identically in the browser (IndexedDB) and the desktop app (SQLite).
  */
-import type { FinanceRepository, InvestmentDraft, LedgerDraft, RecurringDraft } from "./repositories";
+import type { FinanceRepository, InvestmentDraft, LedgerDraft, RecurringDraft, RepositorySnapshot } from "./repositories";
 import type { DailyFxRate, DailyPrice } from "../domain/types";
 
 /** Marker stored on demo accounts' customGroup so demo data can be detected. */
@@ -403,7 +403,59 @@ export async function hasDemoData(repo: FinanceRepository): Promise<boolean> {
 // restores the stash. The real data is NEVER discarded — if it can't be safely
 // stashed first, we abort and leave the user's data untouched.
 const DEMO_FLAG_KEY = "northstar.demoMode.v1";
+// Legacy localStorage key — kept only so older stashes can still be restored on
+// exit. New stashes live in IndexedDB (see below) because a full snapshot easily
+// exceeds localStorage's ~5MB quota, which used to make entering demo mode fail
+// for anyone with real data.
 const DEMO_BACKUP_KEY = "northstar.preDemoSnapshot.v1";
+
+// Pre-demo snapshot is stashed in IndexedDB — same durable, high-quota store the
+// sync pre-backup uses (see features/connect/sync/backup.ts). A single fixed key
+// holds the one transient stash; it's deleted again when demo mode exits.
+const DEMO_STASH_DB = "northstar-demo-stash";
+const DEMO_STASH_STORE = "snapshot";
+const DEMO_STASH_KEY = "preDemoSnapshot";
+
+function openStashDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DEMO_STASH_DB, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(DEMO_STASH_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function writeStash(snapshot: RepositorySnapshot): Promise<void> {
+  const db = await openStashDB();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(DEMO_STASH_STORE, "readwrite");
+    tx.objectStore(DEMO_STASH_STORE).put(snapshot, DEMO_STASH_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function readStash(): Promise<RepositorySnapshot | null> {
+  const db = await openStashDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DEMO_STASH_STORE, "readonly");
+    const req = tx.objectStore(DEMO_STASH_STORE).get(DEMO_STASH_KEY);
+    req.onsuccess = () => resolve((req.result as RepositorySnapshot | undefined) ?? null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function clearStash(): Promise<void> {
+  const db = await openStashDB();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(DEMO_STASH_STORE, "readwrite");
+    tx.objectStore(DEMO_STASH_STORE).delete(DEMO_STASH_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
 
 export function isDemoMode(): boolean {
   try {
@@ -424,11 +476,12 @@ export async function enterDemoMode(repo: FinanceRepository): Promise<void> {
 
   const snapshot = await repo.exportSnapshot();
   try {
-    localStorage.setItem(DEMO_BACKUP_KEY, JSON.stringify(snapshot));
+    await writeStash(snapshot);
     localStorage.setItem(DEMO_FLAG_KEY, "1");
   } catch {
     // Couldn't safely preserve the real data → do not proceed.
-    try { localStorage.removeItem(DEMO_BACKUP_KEY); } catch { /* ignore */ }
+    try { await clearStash(); } catch { /* ignore */ }
+    try { localStorage.removeItem(DEMO_FLAG_KEY); } catch { /* ignore */ }
     throw new Error("無法安全保存你目前的資料，已取消進入示範模式（你的資料未被更動）。可先到設定手動匯出備份。");
   }
 
@@ -442,16 +495,25 @@ export async function enterDemoMode(repo: FinanceRepository): Promise<void> {
  * flag was set without a backup) just clear the demo data rather than guess.
  */
 export async function exitDemoMode(repo: FinanceRepository): Promise<void> {
-  let raw: string | null = null;
-  try { raw = localStorage.getItem(DEMO_BACKUP_KEY); } catch { raw = null; }
+  let snapshot: RepositorySnapshot | null = null;
+  try { snapshot = await readStash(); } catch { snapshot = null; }
 
-  if (raw) {
-    const snapshot = JSON.parse(raw) as Parameters<FinanceRepository["importSnapshot"]>[0];
+  // Backward-compat: older builds stashed the snapshot in localStorage.
+  if (!snapshot) {
+    let raw: string | null = null;
+    try { raw = localStorage.getItem(DEMO_BACKUP_KEY); } catch { raw = null; }
+    if (raw) {
+      try { snapshot = JSON.parse(raw) as RepositorySnapshot; } catch { snapshot = null; }
+    }
+  }
+
+  if (snapshot) {
     await repo.importSnapshot(snapshot);
   } else {
     await clearAllData(repo);
   }
 
+  try { await clearStash(); } catch { /* ignore */ }
   try {
     localStorage.removeItem(DEMO_BACKUP_KEY);
     localStorage.removeItem(DEMO_FLAG_KEY);
