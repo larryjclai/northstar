@@ -132,6 +132,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           # Leave empty if you created the key without a password.
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Official builds can opt into Connect sync. Public source builds
+          # leave this unset, which disables sync instead of hardcoding a relay.
+          VITE_NORTHSTAR_SYNC_WORKER_URL: ${{ vars.NORTHSTAR_SYNC_WORKER_URL }}
         with:
           tagName: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           releaseName: Northstar ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}

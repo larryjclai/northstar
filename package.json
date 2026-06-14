@@ -1,10 +1,11 @@
 {
   "name": "northstar",
-  "version": "0.1.0-alpha.30",
+  "version": "0.1.0-alpha.31",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/inject-private-assets.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",

@@ -2,6 +2,13 @@
 
 All notable changes to Northstar will be documented in this file.
 
+## [0.1.0-alpha.31] - 2026-06-14
+
+### Changed
+- **Light 主題配色全面調整**：畫布換成冷調 off-white，卡片改為純白（兩層分開，讓卡片真正「浮起來」）。品牌綠調亮（`#8ed34e`），accent 文字改為深綠（`#173708`），與深色模式的品牌色邏輯一致。正色／負色在白底上加深以符合 WCAG AA 對比度，圖表配色同步對齊。
+
+---
+
 ## [0.1.0-alpha.30] - 2026-06-13
 
 ### Added

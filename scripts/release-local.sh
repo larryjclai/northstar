@@ -8,6 +8,7 @@
 # Usage:
 #   export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/northstar.key)"
 #   export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="…"   # omit if the key has none
+#   export VITE_NORTHSTAR_SYNC_WORKER_URL="https://northstar-sync.example.com"
 #   ./scripts/release-local.sh v0.1.0-alpha.22
 #
 # Requirements: macOS, Rust + Node toolchain, `gh` authenticated with
@@ -17,6 +18,9 @@
 # workflow (or those machines). The in-app updater endpoint is
 # .../northstar-releases/releases/latest/download/latest.json, so this script
 # marks the release `--latest` and attaches latest.json with public-repo URLs.
+# Private release assets can be placed in private-assets/bank/ (or set
+# NORTHSTAR_PRIVATE_ASSETS_DIR) before running this script; npm run build will
+# inject them into public/bank/ for packaging.
 
 set -euo pipefail
 
@@ -75,6 +79,16 @@ DMG="$(find "$BUNDLE/dmg" -name '*.dmg' | head -1)"
 if [[ -z "$APP_TARBALL" || -z "$APP_SIG" ]]; then
   echo "error: updater artifact (.app.tar.gz / .sig) not found under $BUNDLE/macos" >&2
   echo "       check that tauri.conf.json has createUpdaterArtifacts: true and the signing key is valid." >&2
+  echo "       bundle directory contents:" >&2
+  find "$BUNDLE" -type f 2>/dev/null | sort >&2
+  exit 1
+fi
+
+if [[ -z "$DMG" ]]; then
+  echo "error: DMG not found under $BUNDLE/dmg — installer will be missing from release." >&2
+  echo "       check that tauri.conf.json bundle.targets includes 'dmg'." >&2
+  echo "       bundle directory contents:" >&2
+  find "$BUNDLE" -type f 2>/dev/null | sort >&2
   exit 1
 fi
 
@@ -84,8 +98,7 @@ ASSET_URL="https://github.com/${PUBLIC_REPO}/releases/download/${TAG}/${TARBALL_
 
 echo "▶ Generating latest.json (urls → $PUBLIC_REPO) …"
 STAGE="$(mktemp -d)"
-cp "$APP_TARBALL" "$APP_SIG" "$STAGE/"
-[[ -n "$DMG" ]] && cp "$DMG" "$STAGE/"
+cp "$APP_TARBALL" "$APP_SIG" "$DMG" "$STAGE/"
 
 VERSION="$VERSION" TAG="$TAG" ASSET_URL="$ASSET_URL" SIGNATURE="$SIGNATURE" \
 python3 - "$STAGE/latest.json" <<'PY'
