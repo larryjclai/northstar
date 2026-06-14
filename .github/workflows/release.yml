@@ -1,21 +1,20 @@
 name: Release
 
-# Triggered by version tags: git tag v0.1.0-alpha.7 && git push --tags
-# Can also be triggered manually from the Actions tab (for re-runs / debugging).
+# Manual fallback only. The default path is the local macOS release script
+# (`scripts/release-local.sh`) so tag pushes do not automatically consume
+# GitHub Actions minutes. Use this workflow only when you explicitly want CI to
+# build/re-publish a tagged release (for example Windows/Linux artifacts).
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
       tag:
         description: 'Tag to release (e.g. v0.1.0-alpha.7)'
         required: true
 
-# A re-tag / re-dispatch of the SAME tag cancels the previous in-flight run so
-# we don't burn duplicate runner minutes. Different tags use different groups.
+# Re-dispatching the same tag cancels the previous in-flight run so we don't
+# burn duplicate minutes.
 concurrency:
-  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  group: release-${{ inputs.tag }}
   cancel-in-progress: true
 
 jobs:
@@ -31,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
       - id: extract
         env:
-          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          TAG: ${{ inputs.tag }}
         run: |
           VERSION="${TAG#v}"
           {
@@ -136,8 +135,8 @@ jobs:
           # leave this unset, which disables sync instead of hardcoding a relay.
           VITE_NORTHSTAR_SYNC_WORKER_URL: ${{ vars.NORTHSTAR_SYNC_WORKER_URL }}
         with:
-          tagName: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-          releaseName: Northstar ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          tagName: ${{ inputs.tag }}
+          releaseName: Northstar ${{ inputs.tag }}
           releaseBody: |
             ${{ needs.notes.outputs.body }}
 
@@ -174,7 +173,7 @@ jobs:
     steps:
       - name: Resolve tag
         id: tag
-        run: echo "tag=${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+        run: echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
 
       - name: Download release assets from the private repo
         env:

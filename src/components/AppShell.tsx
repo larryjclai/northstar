@@ -40,6 +40,7 @@ import { useSyncStatus } from "../state/syncStatus";
 import { queryKeys } from "../data/hooks";
 import { refreshLatestMarketData } from "../features/market-data/useMarketRefresh";
 import { runDailyBackupIfDue } from "../features/local-backup/localBackup";
+import { isCrossDeviceLinkUpdateError, UPDATE_RESTART_RETRY_MESSAGE } from "../features/updater/errors";
 
 const appIconUrl = new URL("../../src-tauri/icons/icon.png", import.meta.url).href;
 
@@ -491,7 +492,12 @@ function useAutoUpdateCheck() {
     } catch (error) {
       toast.dismiss(progressId);
       const detail = error instanceof Error ? error.message : String(error);
-      toast.error("更新失敗", { description: "請稍後再試，或到「設定 → 應用程式更新」手動更新。", detail });
+      toast.error("更新失敗", {
+        description: isCrossDeviceLinkUpdateError(detail)
+          ? UPDATE_RESTART_RETRY_MESSAGE
+          : "請稍後再試，或到「設定 → 應用程式更新」手動更新。",
+        detail,
+      });
     }
   }, [toast]);
 

@@ -1,6 +1,6 @@
 # Release Process
 
-Northstar 使用 GitHub Actions 自動發布多平台桌面版本。觸發條件是 push 一個 `v*` tag。
+Northstar 目前以**本地 macOS release** 為主要發版流程；GitHub Actions release workflow 保留為**手動 fallback**，不再因為 push `v*` tag 自動觸發。
 
 ## 為什麼有兩個 repo？（重要）
 
@@ -26,7 +26,7 @@ CI 建置後，`mirror-to-public` job 會把 binaries 與 `latest.json` 複製�
 | `0.1.0-beta.1` | 功能完整但待穩定 |
 | `0.1.0` | 正式版 |
 
-## 發布步驟
+## 預設流程：本地 macOS release
 
 ### 0. 設定 release-only env / assets
 
@@ -66,11 +66,21 @@ git tag v0.1.0-alpha.7
 git push && git push --tags
 ```
 
-Push tag 後，GitHub Actions 會自動在 macOS (arm64 + x64)、Windows、Linux 四個環境各 build 一次，
-發布到 private repo 的 Releases，接著 `mirror-to-public` job 會把同一批 artifacts 複製到
-public 的 `northstar-releases` repo（並改寫 `latest.json` 下載網址）。兩邊都是正式 release（非 draft）。
+推上 source commit 與 tag 後，版本對應的原始碼就固定下來了；**不會**自動觸發 GitHub Actions release。
 
-### 4. 確認 public release
+### 4. 執行本地 release 腳本
+
+```bash
+./scripts/release-local.sh v0.1.0-alpha.7
+```
+
+此腳本會：
+
+1. 在本機建置並簽署 universal macOS 版本
+2. 產生指向 public repo 的 `latest.json`
+3. 建立或更新 public `northstar-releases` 上對應 tag 的 GitHub Release
+
+### 5. 確認 public release
 
 前往 [northstar-releases Releases](https://github.com/larryjclai/northstar-releases/releases)：
 
@@ -83,6 +93,14 @@ public 的 `northstar-releases` repo（並改寫 `latest.json` 下載網址）�
    應印出剛發布的版本號。
 
 > in-app updater 不需要手動 Publish——release 一建立就生效。
+
+## 補位流程：手動 GitHub Actions release
+
+若需要 **Windows / Linux artifacts**，或想改由 CI 重新建置某個既有 tag，可到 GitHub Actions 手動執行 `Release` workflow，輸入 tag（例如 `v0.1.0-alpha.7`）。
+
+- 這個 workflow 現在是 **manual-only**
+- 它仍會建 private repo release，並把產物 mirror 到 public `northstar-releases`
+- 建議只在真的需要跨平台 artifacts 或重跑既有 release 時使用
 
 ---
 

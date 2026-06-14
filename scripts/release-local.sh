@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# Local macOS release — build, sign, and publish a Northstar release WITHOUT
-# using GitHub Actions minutes. Produces a universal (arm64 + x86_64) macOS
-# build, regenerates the updater `latest.json` pointing at the PUBLIC releases
-# repo, and creates/updates the GitHub Release there.
+# Primary release path: local macOS release. Builds, signs, and publishes a
+# Northstar release WITHOUT using GitHub Actions minutes. Produces a universal
+# (arm64 + x86_64) macOS build, regenerates the updater `latest.json` pointing
+# at the PUBLIC releases repo, and creates/updates the GitHub Release there.
 #
 # Usage:
 #   export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/northstar.key)"
@@ -14,7 +14,7 @@
 # Requirements: macOS, Rust + Node toolchain, `gh` authenticated with
 # contents:write on the public releases repo (gh auth login, or GH_TOKEN set).
 #
-# NOTE: this ships macOS only. Windows/Linux artifacts still need the CI
+# NOTE: this ships macOS only. Windows/Linux artifacts still need the manual CI
 # workflow (or those machines). The in-app updater endpoint is
 # .../northstar-releases/releases/latest/download/latest.json, so this script
 # marks the release `--latest` and attaches latest.json with public-repo URLs.

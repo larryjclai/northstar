@@ -43,6 +43,7 @@ import {
 import { runSync, forceFullResync } from "../../features/connect/sync/sync-manager";
 import { summarizeConflict } from "../../features/connect/sync/conflictSummary";
 import { listBackups, restoreBackup, type BackupEntry } from "../../features/connect/sync/backup";
+import { updateFailureMessage } from "../../features/updater/errors";
 import { useSyncStatus } from "../../state/syncStatus";
 import {
   generateRecoveryKit, confirmRecoveryKit, downloadRecoveryKit,
@@ -1048,7 +1049,7 @@ export function UpdateChecker() {
           ? "檢查更新僅在桌面版可用。"
           : noRelease
             ? "已是最新版本。"
-            : `無法檢查更新：${detail}`,
+            : updateFailureMessage(detail),
       );
     } finally {
       setBusy(false);
