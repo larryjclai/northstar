@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NorthStar · Light Palette</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="northstar-tokens.css">
+<style>
+  /* ════════════════════════════════════════════════════════════
+     PROPOSED LIGHT PALETTE — overrides the [data-theme="light"]
+     block from northstar-tokens.css. This is the paste-ready set.
+     ════════════════════════════════════════════════════════════ */
+  [data-theme="light"] {
+    /* surfaces — cool off-white canvas, true-white elevated cards */
+    --ns-bg:            oklch(0.972 0.006 250);
+    --ns-bg-elev:       oklch(0.986 0.004 250);
+    --ns-bg-card:       oklch(1 0 0);
+    --ns-bg-hover:      oklch(0.948 0.008 250);
+    --ns-border:        oklch(0.901 0.006 250);
+    --ns-border-strong: oklch(0.80 0.010 250);
+    --ns-fg:            oklch(0.23 0.018 250);
+    --ns-fg-muted:      oklch(0.48 0.014 250);
+    --ns-fg-dim:        oklch(0.63 0.010 250);
+
+    /* brand — keep the lime, lay dark ink on top (mirrors dark mode) */
+    --ns-accent:      #8ed34e;
+    --ns-accent-fg:   #173708;
+    --ns-accent-soft: color-mix(in srgb, #8ed34e 30%, transparent);
+
+    /* gain / loss — deepened so numbers stay legible on white */
+    --ns-pos:      #0f7a40;
+    --ns-pos-soft: color-mix(in srgb, #0f7a40 12%, transparent);
+    --ns-neg:      #c62a1d;
+    --ns-neg-soft: color-mix(in srgb, #c62a1d 12%, transparent);
+    --ns-warn:     #b07d10;
+    --ns-info:     #2563e8;
+
+    /* chart series — unified chroma, hue-rotated for harmony */
+    --ns-chart-1: #5aa832;
+    --ns-chart-2: #2f6fe0;
+    --ns-chart-3: #c98f1f;
+    --ns-chart-4: #c44a82;
+    --ns-chart-5: #6e58d8;
+
+    /* shadows — soft, cool-tinted, low opacity */
+    --ns-shadow-1: 0 1px 0 rgba(255,255,255,0.9) inset, 0 1px 2px oklch(0.4 0.02 250 / 0.07);
+    --ns-shadow-2: 0 24px 60px oklch(0.4 0.03 250 / 0.10);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--ns-bg);
+    color: var(--ns-fg);
+    font-family: var(--ns-font-ui), "Noto Sans TC", sans-serif;
+    transition: background .25s var(--ns-ease), color .25s var(--ns-ease);
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 40px 32px 80px; }
+
+  /* ── top bar ── */
+  .topbar {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 24px; margin-bottom: 36px; flex-wrap: wrap;
+  }
+  .topbar h1 {
+    font-family: var(--ns-font-display);
+    font-size: 34px; letter-spacing: -0.02em; margin: 8px 0 6px; font-weight: 600;
+  }
+  .topbar p { margin: 0; max-width: 560px; font-size: 14px; line-height: 1.55; }
+  .theme-toggle {
+    display: inline-flex; gap: 2px; padding: 3px;
+    background: var(--ns-bg-elev); border: 1px solid var(--ns-border);
+    border-radius: var(--ns-r-sm);
+  }
+  .theme-toggle button {
+    appearance: none; border: none; background: transparent; cursor: pointer;
+    font-family: var(--ns-font-mono); font-size: 12px; letter-spacing: .04em;
+    padding: 7px 14px; border-radius: calc(var(--ns-r-sm) - 3px);
+    color: var(--ns-fg-muted);
+  }
+  .theme-toggle button[aria-pressed="true"] {
+    background: var(--ns-bg-card); color: var(--ns-fg); box-shadow: var(--ns-shadow-1);
+  }
+
+  /* ── layout ── */
+  .cols { display: grid; grid-template-columns: 1.05fr 1fr; gap: 28px; align-items: start; }
+  @media (max-width: 920px) { .cols { grid-template-columns: 1fr; } }
+
+  .section-label {
+    font-family: var(--ns-font-mono); font-size: 11px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--ns-fg-muted); margin: 0 0 14px;
+  }
+
+  /* ── swatches ── */
+  .sw-group { margin-bottom: 26px; }
+  .sw-grid { display: grid; gap: 8px; }
+  .sw {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 12px; border-radius: var(--ns-r-sm);
+    background: var(--ns-bg-card); border: 1px solid var(--ns-border);
+  }
+  .sw .chip {
+    width: 40px; height: 40px; border-radius: var(--ns-r-xs); flex: none;
+    border: 1px solid var(--ns-border-strong);
+  }
+  .sw .meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .sw .meta .name { font-size: 13px; font-weight: 500; }
+  .sw .meta .val {
+    font-family: var(--ns-font-mono); font-size: 11.5px; color: var(--ns-fg-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sw .role { margin-left: auto; font-size: 11px; color: var(--ns-fg-dim); text-align: right; }
+
+  .chip-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .chip-row .c {
+    height: 56px; border-radius: var(--ns-r-sm); border: 1px solid var(--ns-border);
+    display: flex; align-items: flex-end; padding: 7px;
+    font-family: var(--ns-font-mono); font-size: 10.5px; color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,.35);
+  }
+
+  /* ── demo card column ── */
+  .demo { display: grid; gap: 20px; }
+  .kpi-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .trend-up {
+    display: inline-flex; align-items: center; gap: 4px; font-family: var(--ns-font-mono);
+    font-size: 12.5px; padding: 3px 8px; border-radius: var(--ns-r-full);
+    background: var(--ns-pos-soft); color: var(--ns-pos); font-weight: 600;
+  }
+  .stat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-top: 18px; }
+  .stat { padding: 12px 14px; border-radius: var(--ns-r-md); background: var(--ns-bg-elev); border: 1px solid var(--ns-border); }
+  .stat .l { font-size: 11.5px; color: var(--ns-fg-muted); margin-bottom: 6px; }
+
+  .btn-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+  table.hold { width: 100%; border-collapse: collapse; }
+  table.hold th {
+    text-align: left; font-family: var(--ns-font-mono); font-size: 10.5px;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--ns-fg-dim);
+    font-weight: 500; padding: 0 0 10px;
+  }
+  table.hold th.r, table.hold td.r { text-align: right; }
+  table.hold td { padding: 11px 0; border-top: 1px solid var(--ns-border); font-size: 13.5px; }
+  .mk { width: 26px; height: 26px; border-radius: 7px; display: inline-flex; align-items: center;
+        justify-content: center; font-family: var(--ns-font-mono); font-size: 11px; font-weight: 600;
+        color: #fff; margin-right: 10px; vertical-align: middle; }
+  .tkr { vertical-align: middle; font-weight: 500; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px 20px; margin-top: 6px; }
+  .legend .li { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ns-fg-muted); }
+  .legend .dot { width: 10px; height: 10px; border-radius: 3px; }
+
+  /* ── code panel ── */
+  .codewrap { margin-top: 40px; }
+  .codehead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .copybtn {
+    appearance: none; cursor: pointer; font-family: var(--ns-font-mono); font-size: 12px;
+    padding: 8px 14px; border-radius: var(--ns-r-sm);
+    background: var(--ns-accent); color: var(--ns-accent-fg); border: none; font-weight: 600;
+  }
+  .copybtn:active { transform: translateY(1px); }
+  pre.code {
+    margin: 0; padding: 22px 24px; border-radius: var(--ns-r-lg);
+    background: var(--ns-bg-card); border: 1px solid var(--ns-border);
+    overflow-x: auto; font-family: var(--ns-font-mono); font-size: 12.5px; line-height: 1.7;
+    color: var(--ns-fg);
+  }
+  pre.code .cm { color: var(--ns-fg-dim); }
+  pre.code .pr { color: var(--ns-info); }
+  pre.code .vl { color: var(--ns-pos); }
+
+  .note { font-size: 13px; line-height: 1.6; color: var(--ns-fg-muted); }
+  .note b { color: var(--ns-fg); font-weight: 600; }
+</style>
+</head>
+<body class="ns" data-theme="light">
+  <div class="wrap">
+
+    <!-- TOP BAR -->
+    <div class="topbar">
+      <div>
+        <div class="section-label">NorthStar · Color · Light Mode</div>
+        <h1>淺色配色提案</h1>
+        <p class="muted">保留品牌萊姆綠 DNA — 白底下主色仍是 lime，配深綠文字（與深色模式同一套 accent / accent-fg 關係）。中性色維持冷調 slate（hue 250），語意色加深以確保白底可讀。</p>
+      </div>
+      <div class="theme-toggle" role="group" aria-label="主題切換">
+        <button id="t-light" aria-pressed="true" onclick="setTheme('light')">LIGHT</button>
+        <button id="t-dark" aria-pressed="false" onclick="setTheme('dark')">DARK</button>
+      </div>
+    </div>
+
+    <div class="cols">
+
+      <!-- LEFT: SWATCH SPEC -->
+      <div>
+        <div class="sw-group">
+          <p class="section-label">表面 Surfaces</p>
+          <div class="sw-grid">
+            <div class="sw"><span class="chip" style="background:var(--ns-bg)"></span><span class="meta"><span class="name">bg · 畫布</span><span class="val">oklch(0.972 0.006 250)</span></span><span class="role">頁面底</span></div>
+            <div class="sw"><span class="chip" style="background:var(--ns-bg-elev)"></span><span class="meta"><span class="name">bg-elev · 抬升</span><span class="val">oklch(0.986 0.004 250)</span></span><span class="role">sidebar / header</span></div>
+            <div class="sw"><span class="chip" style="background:var(--ns-bg-card)"></span><span class="meta"><span class="name">bg-card · 卡片</span><span class="val">oklch(1 0 0)</span></span><span class="role">純白浮起</span></div>
+            <div class="sw"><span class="chip" style="background:var(--ns-bg-hover)"></span><span class="meta"><span class="name">bg-hover</span><span class="val">oklch(0.948 0.008 250)</span></span><span class="role">hover 態</span></div>
+            <div class="sw"><span class="chip" style="background:var(--ns-border)"></span><span class="meta"><span class="name">border</span><span class="val">oklch(0.901 0.006 250)</span></span><span class="role">一般邊線</span></div>
+            <div class="sw"><span class="chip" style="background:var(--ns-border-strong)"></span><span class="meta"><span class="name">border-strong</span><span class="val">oklch(0.80 0.010 250)</span></span><span class="role">強調邊線</span></div>
+          </div>
+        </div>
+
+        <div class="sw-group">
+          <p class="section-label">文字 Foreground</p>
+          <div class="sw-grid">
+            <div class="sw"><span class="chip" style="background:var(--ns-fg)"></span><span class="meta"><span class="name" style="color:var(--ns-fg)">fg · 主要文字</span><span class="val">oklch(0.23 0.018 250)</span></span><span class="role">≈ 14:1</span></div>
+            <div class="sw"><span class="chip" style="background:var(--ns-fg-muted)"></span><span class="meta"><span class="name" style="color:var(--ns-fg-muted)">fg-muted · 次要</span><span class="val">oklch(0.48 0.014 250)</span></span><span class="role">≈ 6:1</span></div>
+            <div class="sw"><span class="chip" style="background:var(--ns-fg-dim)"></span><span class="meta"><span class="name" style="color:var(--ns-fg-dim)">fg-dim · 輔助</span><span class="val">oklch(0.63 0.010 250)</span></span><span class="role">軸線 / 標籤</span></div>
+          </div>
+        </div>
+
+        <div class="sw-group">
+          <p class="section-label">品牌 + 語意 Brand &amp; Semantic</p>
+          <div class="sw-grid">
+            <div class="sw">
+              <span class="chip" style="background:var(--ns-accent);border-color:transparent;display:flex;align-items:center;justify-content:center;color:var(--ns-accent-fg);font-family:var(--ns-font-display);font-weight:700;font-size:17px">Aa</span>
+              <span class="meta"><span class="name">accent · 萊姆綠</span><span class="val">#8ed34e &nbsp;+&nbsp; fg #173708</span></span><span class="role">深字壓淺底</span>
+            </div>
+            <div class="sw"><span class="chip" style="background:var(--ns-pos)"></span><span class="meta"><span class="name" style="color:var(--ns-pos)">pos · 漲</span><span class="val">#0f7a40</span></span><span class="role">≈ 4.9:1</span></div>
+            <div class="sw"><span class="chip" style="background:var(--ns-neg)"></span><span class="meta"><span class="name" style="color:var(--ns-neg)">neg · 跌</span><span class="val">#c62a1d</span></span><span class="role">≈ 5.2:1</span></div>
+            <div class="sw"><span class="chip" style="background:var(--ns-warn)"></span><span class="meta"><span class="name" style="color:var(--ns-warn)">warn</span><span class="val">#b07d10</span></span><span class="role">提醒</span></div>
+            <div class="sw"><span class="chip" style="background:var(--ns-info)"></span><span class="meta"><span class="name" style="color:var(--ns-info)">info</span><span class="val">#2563e8</span></span><span class="role">連結 / 資訊</span></div>
+          </div>
+        </div>
+
+        <div class="sw-group">
+          <p class="section-label">圖表系列 Chart Series</p>
+          <div class="chip-row">
+            <div class="c" style="background:var(--ns-chart-1)">#5aa832</div>
+            <div class="c" style="background:var(--ns-chart-2)">#2f6fe0</div>
+            <div class="c" style="background:var(--ns-chart-3)">#c98f1f</div>
+            <div class="c" style="background:var(--ns-chart-4)">#c44a82</div>
+            <div class="c" style="background:var(--ns-chart-5)">#6e58d8</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: LIVE COMPONENT MOCK -->
+      <div class="demo">
+        <p class="section-label" style="margin-bottom:0">套用後的真實元件</p>
+
+        <!-- KPI card -->
+        <div class="ns-card">
+          <div class="kpi-head">
+            <div>
+              <div class="ns-eyebrow">淨資產 · NET WORTH</div>
+              <div class="ns-num-xl" style="margin-top:10px">NT$8,452,910</div>
+            </div>
+            <span class="trend-up">▲ 2.34%</span>
+          </div>
+          <!-- mini area chart -->
+          <svg viewBox="0 0 480 120" width="100%" height="96" style="margin-top:18px;display:block" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="var(--ns-accent)" stop-opacity="0.30"/>
+                <stop offset="100%" stop-color="var(--ns-accent)" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path d="M0,96 L0,78 C40,72 70,84 110,66 C150,48 180,58 220,44 C260,30 300,40 340,30 C380,20 420,26 480,14 L480,96 Z" fill="url(#ag)"/>
+            <path d="M0,78 C40,72 70,84 110,66 C150,48 180,58 220,44 C260,30 300,40 340,30 C380,20 420,26 480,14" fill="none" stroke="var(--ns-accent)" stroke-width="2.5"/>
+          </svg>
+          <div class="stat-grid">
+            <div class="stat"><div class="l">投資組合</div><div class="ns-num-sm">NT$6,120K</div></div>
+            <div class="stat"><div class="l">現金</div><div class="ns-num-sm">NT$1,840K</div></div>
+            <div class="stat"><div class="l">本月現金流</div><div class="ns-num-sm pos">+NT$73K</div></div>
+          </div>
+        </div>
+
+        <!-- controls -->
+        <div class="ns-card" style="display:grid;gap:16px">
+          <div class="btn-row">
+            <button class="ns-btn primary">＋ 新增交易</button>
+            <button class="ns-btn">匯出</button>
+            <button class="ns-btn ghost">取消</button>
+            <span class="ns-pill solid-accent">Pro</span>
+            <span class="ns-pill solid-pos">+12.4%</span>
+            <span class="ns-pill solid-neg">−3.1%</span>
+            <span class="ns-pill">未分類</span>
+          </div>
+          <div class="btn-row">
+            <div class="ns-seg" role="tablist">
+              <button aria-selected="true">日</button>
+              <button aria-selected="false">週</button>
+              <button aria-selected="false">月</button>
+              <button aria-selected="false">年</button>
+            </div>
+            <input class="ns-input" placeholder="搜尋持股、商家…" style="flex:1;min-width:160px">
+          </div>
+        </div>
+
+        <!-- holdings table -->
+        <div class="ns-card">
+          <table class="hold">
+            <thead><tr><th>持股</th><th class="r">市值</th><th class="r">當日</th></tr></thead>
+            <tbody>
+              <tr><td><span class="mk" style="background:#2f6fe0">TS</span><span class="tkr">台積電 2330</span></td><td class="r num">NT$1,884,000</td><td class="r num pos">+1.82%</td></tr>
+              <tr><td><span class="mk" style="background:#6e58d8">NV</span><span class="tkr">NVIDIA</span></td><td class="r num">NT$1,402,500</td><td class="r num pos">+3.40%</td></tr>
+              <tr><td><span class="mk" style="background:#c44a82">VT</span><span class="tkr">VT</span></td><td class="r num">NT$  956,200</td><td class="r num neg">−0.64%</td></tr>
+              <tr><td><span class="mk" style="background:#c98f1f">GD</span><span class="tkr">黃金 ETF</span></td><td class="r num">NT$  512,800</td><td class="r num neg">−1.27%</td></tr>
+            </tbody>
+          </table>
+          <div class="legend">
+            <span class="li"><span class="dot" style="background:var(--ns-chart-1)"></span>台股</span>
+            <span class="li"><span class="dot" style="background:var(--ns-chart-2)"></span>美股</span>
+            <span class="li"><span class="dot" style="background:var(--ns-chart-3)"></span>商品</span>
+            <span class="li"><span class="dot" style="background:var(--ns-chart-4)"></span>債券</span>
+            <span class="li"><span class="dot" style="background:var(--ns-chart-5)"></span>現金</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CODE -->
+    <div class="codewrap">
+      <div class="codehead">
+        <p class="section-label" style="margin:0">可直接貼上 · 取代 northstar-tokens.css 的 [data-theme="light"] 區塊</p>
+        <button class="copybtn" id="copy" onclick="copyCss()">複製 CSS</button>
+      </div>
+      <pre class="code" id="csscode"></pre>
+      <p class="note" style="margin-top:18px">
+        <b>設計決策：</b>主色維持萊姆綠當「填色」、深綠 <span class="mono">#173708</span> 當文字（與深色模式 accent/accent-fg 同邏輯），品牌感不掉。
+        卡片用純白、畫布壓到 <span class="mono">0.972</span>，拉開兩層讓卡片浮起。漲跌色加深到約 5:1 對比，白底數字仍清楚。
+        <br><br>
+        <b>一個取捨：</b>萊姆綠當 input focus 的細邊線在白底偏淡。若你想要更明顯的 UI 線條感，可把 <span class="mono">--ns-accent</span> 換成較深的 <span class="mono">#4f9e2c</span>（但 primary 按鈕就要改回白字）。要哪一版我都能幫你套進 token 檔。
+      </p>
+    </div>
+  </div>
+
+<script>
+  const CSS = `[data-theme="light"] {
+  /* surfaces — cool off-white canvas, true-white elevated cards */
+  --ns-bg:            oklch(0.972 0.006 250);
+  --ns-bg-elev:       oklch(0.986 0.004 250);
+  --ns-bg-card:       oklch(1 0 0);
+  --ns-bg-hover:      oklch(0.948 0.008 250);
+  --ns-border:        oklch(0.901 0.006 250);
+  --ns-border-strong: oklch(0.80 0.010 250);
+  --ns-fg:            oklch(0.23 0.018 250);
+  --ns-fg-muted:      oklch(0.48 0.014 250);
+  --ns-fg-dim:        oklch(0.63 0.010 250);
+
+  /* brand — keep the lime, dark ink on top (mirrors dark mode) */
+  --ns-accent:      #8ed34e;
+  --ns-accent-fg:   #173708;
+  --ns-accent-soft: color-mix(in srgb, #8ed34e 30%, transparent);
+
+  /* gain / loss — deepened for legibility on white */
+  --ns-pos:      #0f7a40;
+  --ns-pos-soft: color-mix(in srgb, #0f7a40 12%, transparent);
+  --ns-neg:      #c62a1d;
+  --ns-neg-soft: color-mix(in srgb, #c62a1d 12%, transparent);
+  --ns-warn:     #b07d10;
+  --ns-info:     #2563e8;
+
+  --ns-chart-1: #5aa832;
+  --ns-chart-2: #2f6fe0;
+  --ns-chart-3: #c98f1f;
+  --ns-chart-4: #c44a82;
+  --ns-chart-5: #6e58d8;
+
+  --ns-shadow-1: 0 1px 0 rgba(255,255,255,0.9) inset, 0 1px 2px oklch(0.4 0.02 250 / 0.07);
+  --ns-shadow-2: 0 24px 60px oklch(0.4 0.03 250 / 0.10);
+}`;
+
+  // syntax-lite render
+  function render() {
+    const esc = CSS.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    const html = esc
+      .replace(/(\/\*.*?\*\/)/g, '<span class="cm">$1</span>')
+      .replace(/(--[\w-]+:)/g, '<span class="pr">$1</span>');
+    document.getElementById('csscode').innerHTML = html;
+  }
+  render();
+
+  function setTheme(t) {
+    document.body.setAttribute('data-theme', t);
+    document.getElementById('t-light').setAttribute('aria-pressed', t === 'light');
+    document.getElementById('t-dark').setAttribute('aria-pressed', t === 'dark');
+    localStorage.setItem('ns-palette-preview-theme', t);
+  }
+  const saved = localStorage.getItem('ns-palette-preview-theme');
+  if (saved) setTheme(saved);
+
+  function copyCss() {
+    navigator.clipboard.writeText(CSS).then(() => {
+      const b = document.getElementById('copy');
+      const o = b.textContent; b.textContent = '已複製 ✓';
+      setTimeout(() => b.textContent = o, 1400);
+    });
+  }
+</script>
+</body>
+</html>
