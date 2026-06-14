@@ -55,7 +55,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU5M0UyQ0U1RUE4RTgxOTUKUldTVmdZN3E1U3crV2Z4UFJVT0NHdVFpK1BvTVBtYjJjM2hJZXFaaGdsYmtzL0RoVGw2QkJrNnYK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEwNkY5NzAwRjA1MjczREYKUldUZmMxTHdBSmR2RURsY3NRSXJtdUdwUVJ3dUlVY0puZHdHUDV2czI4MWhSUXNzbVdIOXlFV0kK",
       "endpoints": [
         "https://github.com/larryjclai/northstar-releases/releases/latest/download/latest.json"
       ]
