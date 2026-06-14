@@ -82,6 +82,14 @@ npm run copy:export      # 匯出 UI 文案到 copy.csv（翻譯用）
 npm run copy:import      # 把 copy.csv 匯回 translation.json
 ```
 
+### Release-only assets and sync endpoint
+
+Public source builds intentionally do not include the official Connect sync endpoint or bundled bank / broker logo assets.
+
+- Set `VITE_NORTHSTAR_SYNC_WORKER_URL` at build time to enable Connect sync for an official build.
+- Put private logo files in `private-assets/bank/` before `npm run build` if the official build should bundle bank logos.
+- `npm run build` runs `scripts/inject-private-assets.mjs` first. If no private assets are present, the build continues and the app falls back to generic account markers.
+
 ## 發行流程
 
 版本號集中在三個檔案（`package.json` / `src-tauri/tauri.conf.json` / `src-tauri/Cargo.toml`），用腳本一次更新：

@@ -83,6 +83,12 @@ Northstar 尚未經過 Apple 公證（需付費的 Apple Developer 帳號），�
 
 也很歡迎直接和我分享使用心得——你的回饋會直接影響 Northstar 的方向。
 
+## 授權與貢獻狀態
+
+Northstar 正在準備公開 beta 與原始碼檢視，但正式授權尚未決定。加入 `LICENSE` 前，請先把這個 repo 視為 source-available for review，而不是可自由重用的正式開源專案。
+
+如果你想回報問題、提功能想法或送 pull request，請先看 [CONTRIBUTING.md](CONTRIBUTING.md)。若要回報資安問題，請看 [SECURITY.md](SECURITY.md)，不要在公開 issue 內貼完整漏洞細節、token、個人財務資料或未遮蔽截圖。
+
 ## 想參與開發？
 
 本機建置、測試與打包說明請見 **[開發文件](docs/DEVELOPMENT.md)**。

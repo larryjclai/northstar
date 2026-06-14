@@ -28,6 +28,17 @@ CI 建置後，`mirror-to-public` job 會把 binaries 與 `latest.json` 複製�
 
 ## 發布步驟
 
+### 0. 設定 release-only env / assets
+
+公開 source build 預設不帶官方同步 endpoint，也不帶銀行 / 券商 logo。官方 release 前請在本機 `.env` 或 GitHub Actions env 設定：
+
+```bash
+VITE_NORTHSTAR_SYNC_WORKER_URL="https://northstar-sync.larrynote.workers.dev"
+NORTHSTAR_PRIVATE_ASSETS_DIR="private-assets"
+```
+
+若 `NORTHSTAR_PRIVATE_ASSETS_DIR` 內有 `bank/` 資料夾，`npm run build` 會先執行 `scripts/inject-private-assets.mjs`，把 private logos 複製到 `public/bank/` 後再打包。這些檔案被 `.gitignore` 排除，不應 commit。
+
 ### 1. 確認版本號
 
 三個檔案必須始終保持一致，否則 updater 行為不可預測：
@@ -84,6 +95,7 @@ Repository → Settings → Secrets and variables → Actions：
 | `TAURI_SIGNING_PRIVATE_KEY` | minisign 私鑰（`.key` 檔的完整內容） |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 建立私鑰時設定的密碼（若無則留空） |
 | `RELEASES_TOKEN` | 用來把 release 推到 public `northstar-releases` repo 的 token（見下） |
+| `VITE_NORTHSTAR_SYNC_WORKER_URL` | 官方 release 使用的 Connect 同步 Worker endpoint；source build 可留空 |
 
 `GITHUB_TOKEN` 由 Actions 自動提供，只對 **目前這個 repo** 有寫入權限，
 無法跨 repo 發布，所以 mirror 需要額外的 `RELEASES_TOKEN`。

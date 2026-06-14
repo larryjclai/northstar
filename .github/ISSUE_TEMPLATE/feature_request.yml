@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest a workflow, improvement, or product idea.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature requests are easiest to evaluate when they describe the real workflow or decision you are trying to improve.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the workflow, frustration, or goal.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: If you have a specific design or behavior in mind, describe it here.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workaround or simpler version that might solve the same problem?
