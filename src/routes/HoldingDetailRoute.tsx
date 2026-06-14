@@ -240,7 +240,7 @@ export function HoldingDetailRoute() {
                   </defs>
                   <XAxis dataKey="date" hide />
                   <YAxis domain={['auto', 'auto']} hide />
-                  <Tooltip />
+                  <Tooltip formatter={(v) => [typeof v === "number" ? v.toFixed(2) : v, "price"]} />
                   <Area type="monotone" dataKey="price" stroke={markColor} fillOpacity={1} fill="url(#colorPrice)" isAnimationActive={false} />
                   {showTradeMarkers && tradeMarkers.map((m, i) => (
                     <ReferenceDot

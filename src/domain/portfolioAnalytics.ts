@@ -275,6 +275,8 @@ export interface AnalyticsPosition {
   isManual: boolean;
   /** Asset class label for allocation drift; optional. */
   assetClass?: string;
+  /** Raw sector value (TWSE code or English GICS name); optional. */
+  sector?: string | null;
 }
 
 interface PricedBasket {

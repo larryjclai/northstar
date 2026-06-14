@@ -1,15 +1,13 @@
 import { createRootRoute, createRoute, createRouter, lazyRouteComponent } from "@tanstack/react-router";
 import { AppShell } from "../components/AppShell";
-import { CashFlowRoute } from "./CashFlowRoute";
-import { DashboardRoute } from "./DashboardRoute";
-import { InvestmentsRoute } from "./InvestmentsRoute";
-// TransactionsRoute is statically imported by InvestmentsRoute (used as a tab),
-// so it can't be split into its own chunk — keep it eager here too.
-import { TransactionsRoute } from "./TransactionsRoute";
 
-// High-frequency routes (Dashboard / Cash Flow / Investments / Accounts) are
-// imported eagerly so the common navigation paths render instantly. Lower-
-// frequency routes are code-split into their own chunks and loaded on demand.
+// Keep route modules out of the entry chunk. Tauri loads chunks from disk, so
+// the small async boundary is cheaper than shipping every primary screen in the
+// initial bundle.
+const DashboardRoute = lazyRouteComponent(() => import("./DashboardRoute"), "DashboardRoute");
+const InvestmentsRoute = lazyRouteComponent(() => import("./InvestmentsRoute"), "InvestmentsRoute");
+const TransactionsRoute = lazyRouteComponent(() => import("./TransactionsRoute"), "TransactionsRoute");
+const CashFlowRoute = lazyRouteComponent(() => import("./CashFlowRoute"), "CashFlowRoute");
 const AccountsRoute = lazyRouteComponent(() => import("./AccountsRoute"), "AccountsRoute");
 const CategoriesRoute = lazyRouteComponent(() => import("./CategoriesRoute"), "CategoriesRoute");
 const CategoryDetailRoute = lazyRouteComponent(() => import("./CategoryDetailRoute"), "CategoryDetailRoute");
@@ -34,6 +32,11 @@ const investmentsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/investments",
   component: InvestmentsRoute,
+  validateSearch: (search: Record<string, unknown>): { tab?: string; sector?: string } => {
+    const tab = typeof search.tab === "string" ? search.tab : undefined;
+    const sector = typeof search.sector === "string" ? search.sector : undefined;
+    return { ...(tab ? { tab } : {}), ...(sector ? { sector } : {}) };
+  },
 });
 
 const holdingDetailRoute = createRoute({

@@ -1,4 +1,4 @@
-import { ArrowsClockwise, CheckCircle, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, PencilSimple, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X, CaretDown, CaretRight, Backspace, Gear, Target, DeviceMobile, Desktop, Spinner, WifiHigh, CopySimple, QrCode, Warning } from "@phosphor-icons/react";
+import { ArrowsClockwise, CheckCircle, Compass, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, PencilSimple, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X, CaretDown, CaretRight, Backspace, Gear, Target, DeviceMobile, Desktop, Spinner, WifiHigh, CopySimple, QrCode, Warning } from "@phosphor-icons/react";
 import { Badge } from "../../components/coss/badge";
 import { Button } from "../../components/coss/button";
 import { Card } from "../../components/coss/card";
@@ -17,6 +17,7 @@ import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../.
 import type { SyncConflictRecord } from "../../domain/sync";
 import { useRefreshFxRates } from "../../features/market-data/useMarketRefresh";
 import { useUiPreferences, DEFAULT_BENCHMARK_TICKER, type ClockMode, type NameLocalePreference, type ThemeMode } from "../../state/uiPreferences";
+import { openOnboarding } from "../../components/OnboardingOverlay";
 import { TickerSearchField } from "../../components/TickerSearchField";
 import { getOrCreateDeviceIdentity } from "../../state/deviceIdentity";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -479,6 +480,22 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
 
         {/* Benchmark 指標已移到「投資 → 分析 → 投資組合 vs 指標」就地切換
             （uiPreferences.benchmarkTicker 同一份設定）。 */}
+
+        <h3 className="font-semibold mb-4 mt-6">新手導覽</h3>
+        <button
+          onClick={() => {
+            useUiPreferences.getState().setOnboardingDismissed(false);
+            openOnboarding();
+          }}
+          className="flex w-full items-center gap-3 rounded-md border p-3 text-left transition hover:opacity-80"
+          style={{ borderColor: "var(--ns-border)", background: "transparent" }}
+        >
+          <Compass size={18} weight="duotone" />
+          <div>
+            <div className="font-medium">重新開始新手導覽</div>
+            <div className="text-xs muted">顯示設定與匯入的引導流程，並在側欄重新顯示導覽入口。</div>
+          </div>
+        </button>
       </Card>
 
       <Card className="p-5">

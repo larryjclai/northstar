@@ -1,5 +1,6 @@
 import { ArrowsClockwise, ChartLineUp, Info } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Area,
   AreaChart,
@@ -18,7 +19,7 @@ import { EmptyState } from "../components/EmptyState";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { TickerSearchField } from "../components/TickerSearchField";
 import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
-import { useUiPreferences } from "../state/uiPreferences";
+import { useUiPreferences, type NameLocalePreference } from "../state/uiPreferences";
 import {
   annualizedVolatilityPct,
   buildBenchmarkSeries,
@@ -47,6 +48,7 @@ import {
   type InvestmentRecord,
   type ManualPriceSnapshot,
   formatMoney,
+  resolveSectorLabel,
 } from "../domain";
 
 const CHART_COLORS = [
@@ -127,8 +129,8 @@ function BenchmarkPicker({ current }: { current: string }) {
   );
 }
 
-type AnalyticsPeriod = "3M" | "6M" | "YTD" | "1Y" | "ALL";
-const PERIODS: AnalyticsPeriod[] = ["3M", "6M", "YTD", "1Y", "ALL"];
+type AnalyticsPeriod = "1M" | "3M" | "6M" | "YTD" | "1Y" | "5Y" | "Total";
+const PERIODS: AnalyticsPeriod[] = ["1M", "3M", "6M", "YTD", "1Y", "5Y", "Total"];
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -141,9 +143,11 @@ function daysAgo(n: number, end: string): string {
 }
 
 function periodStart(period: AnalyticsPeriod, end: string): string {
-  if (period === "ALL") return "1900-01-01";
+  if (period === "Total") return "1900-01-01";
   if (period === "YTD") return `${end.slice(0, 4)}-01-01`;
-  const days: Record<Exclude<AnalyticsPeriod, "ALL" | "YTD">, number> = { "3M": 92, "6M": 183, "1Y": 365 };
+  const days: Record<Exclude<AnalyticsPeriod, "Total" | "YTD">, number> = {
+    "1M": 30, "3M": 92, "6M": 183, "1Y": 365, "5Y": 1825,
+  };
   return daysAgo(days[period], end);
 }
 
@@ -203,6 +207,7 @@ interface Props {
   onBackfillHoldings: (range: "1y" | "5y") => void | Promise<void>;
   onEnsureBenchmark: (ticker: string) => void | Promise<void>;
   backfilling: boolean;
+  onSectorClick?: (sector: string) => void;
 }
 
 export function InvestmentsAnalyticsTab({
@@ -217,9 +222,12 @@ export function InvestmentsAnalyticsTab({
   onBackfillHoldings,
   onEnsureBenchmark,
   backfilling,
+  onSectorClick,
 }: Props) {
   const [period, setPeriod] = useState<AnalyticsPeriod>("1Y");
+  const [showAllSectors, setShowAllSectors] = useState(false);
   const end = todayStr();
+  const nameLocale = useUiPreferences((s) => (s.nameLocale === "auto" ? "zh-Hant" : s.nameLocale) as NameLocalePreference);
 
   const attempted = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -337,7 +345,7 @@ export function InvestmentsAnalyticsTab({
     let total = 0;
     let largestHolding: { label: string; value: number } | null = null;
     for (const position of positions) {
-      const className = position.assetClass || "其他";
+      const className = resolveSectorLabel(position.sector, nameLocale) ?? "未知";
       const priced = latestPositionValue(position, dailyPrices, manualSnapshots, toPrimary, end);
       if (priced <= 0) continue;
       total += priced;
@@ -355,7 +363,17 @@ export function InvestmentsAnalyticsTab({
     const largestClass = rows[0] ?? null;
     const topHoldingPct = largestHolding && total > 0 ? (largestHolding.value / total) * 100 : null;
     return { rows, total, largestClass, largestHolding, topHoldingPct };
-  }, [positions, dailyPrices, manualSnapshots, toPrimary, end]);
+  }, [positions, dailyPrices, manualSnapshots, toPrimary, end, nameLocale]);
+
+  const holdingHeat = useMemo(
+    () => buildHoldingHeat(positions, dailyPrices, manualSnapshots, toPrimary, end),
+    [positions, dailyPrices, manualSnapshots, toPrimary, end],
+  );
+
+  const calendarData = useMemo(
+    () => buildCalendarData(positions, dailyPrices, manualSnapshots, toPrimary, end),
+    [positions, dailyPrices, manualSnapshots, toPrimary, end],
+  );
 
   const currencyExposure = useMemo(() => {
     const entries = positions.map((p) => ({
@@ -369,6 +387,42 @@ export function InvestmentsAnalyticsTab({
     return buildDividendAnalysis({ records, assetMeta: allAssetMeta, toPrimary, currentMarketValue: allocationSummary.total, asOf: end });
   }, [records, allAssetMeta, toPrimary, allocationSummary.total, end]);
 
+  // Whole-tab gating is about whether *any* usable price history exists, not the
+  // currently-selected period — otherwise picking a short range (e.g. 1M, or YTD
+  // early in January) blanks the entire tab even when years of data are loaded.
+  const hasHistory = useMemo(() => {
+    const { series } = buildPortfolioValueSeries({ positions, dailyPrices, manualSnapshots, toPrimary, start: "1900-01-01", end });
+    return hasEnoughReturns(dailyReturns(series.map((p) => p.value)));
+  }, [positions, dailyPrices, manualSnapshots, toPrimary, end]);
+
+  // Sticky in-page section nav (anchors). 股利 only appears with dividend history.
+  const sections = useMemo(() => {
+    const list = [
+      { id: "an-returns", label: "報酬" },
+      { id: "an-risk", label: "風險" },
+      { id: "an-allocation", label: "配置" },
+    ];
+    if (dividends.total > 0) list.push({ id: "an-income", label: "股利" });
+    return list;
+  }, [dividends.total]);
+  const [activeSection, setActiveSection] = useState("an-returns");
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const top = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (top) setActiveSection(top.target.id);
+      },
+      { rootMargin: "-15% 0px -75% 0px" },
+    );
+    for (const s of sections) {
+      const el = document.getElementById(s.id);
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, [sections]);
+
   // ── Whole-tab gating ───────────────────────────────────────────────────────
   if (positions.length === 0) {
     return (
@@ -379,7 +433,7 @@ export function InvestmentsAnalyticsTab({
       />
     );
   }
-  if (!enough) {
+  if (!hasHistory) {
     return (
       <EmptyState
         icon={<ChartLineUp size={24} weight="duotone" />}
@@ -395,11 +449,54 @@ export function InvestmentsAnalyticsTab({
   }
 
   const periodOptions = PERIODS.map((p) => ({ value: p, label: p }));
+  // Distance from the period high — the one piece of drawdown info not already
+  // carried by the max-drawdown KPI card below.
+  const ddGap = (() => {
+    const latest = core.values.length ? core.values[core.values.length - 1] : null;
+    const peak = core.values.length ? Math.max(...core.values) : null;
+    return latest != null && peak != null ? Math.max(0, peak - latest) : null;
+  })();
 
   return (
     <div className="grid gap-5">
 
-      {/* ── Hero: equity curve + period selector + three return measures ───── */}
+      {/* ── Sticky in-page section nav (anchors, intentionally NOT styled like the
+            page-level tabs so it doesn't read as a third tab layer) ──────────── */}
+      <nav
+        style={{
+          position: "sticky", top: 0, zIndex: 20,
+          display: "flex", gap: 4, alignItems: "center",
+          padding: "8px 0", marginBottom: -8,
+          background: "var(--ns-bg)", borderBottom: "1px solid var(--ns-border)",
+          overflowX: "auto",
+        }}
+      >
+        {sections.map((s) => {
+          const active = activeSection === s.id;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => document.getElementById(s.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              className="text-sm"
+              style={{
+                padding: "6px 12px", background: "none", border: "none", cursor: "pointer",
+                fontFamily: "inherit", fontWeight: active ? 600 : 400,
+                color: active ? "var(--ns-fg)" : "var(--ns-fg-muted)",
+                borderBottom: active ? "2px solid var(--ns-accent)" : "2px solid transparent",
+                marginBottom: -9, whiteSpace: "nowrap", transition: "color .12s",
+              }}
+            >
+              {s.label}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* ═══ 報酬 RETURNS ════════════════════════════════════════════════════ */}
+      <section id="an-returns" style={{ display: "grid", gap: 20, scrollMarginTop: 64 }}>
+
+      {/* ── Hero: period selector + two return measures (curve lives in vs-benchmark) ── */}
       <CossCard style={{ padding: 34 }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 20, marginBottom: 24 }}>
           <div>
@@ -446,13 +543,13 @@ export function InvestmentsAnalyticsTab({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onBackfillHoldings("1y")}
+                onClick={() => onBackfillHoldings(period === "5Y" || period === "Total" ? "5y" : "1y")}
                 loading={backfilling}
                 disabled={backfilling}
-                title="抓取所有持倉近 1 年的每日歷史股價"
+                title={`抓取所有持倉${period === "5Y" || period === "Total" ? "近 5 年" : "近 1 年"}的每日歷史股價`}
               >
                 <ArrowsClockwise size={13} />
-                {backfilling ? "回補中…" : "回補歷史股價"}
+                {backfilling ? "回補中…" : (period === "5Y" || period === "Total" ? "回補 5Y 股價" : "回補歷史股價")}
               </Button>
               <SegmentedControl value={period} onChange={setPeriod} options={periodOptions} />
             </div>
@@ -470,37 +567,9 @@ export function InvestmentsAnalyticsTab({
           </div>
         </div>
 
-        {/* Equity curve — portfolio cumulative return for the selected period */}
-        <div style={{ height: 200 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={perf.data}>
-              <defs>
-                <linearGradient id="anHeroPort" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="5%" stopColor="var(--ns-gain)" stopOpacity={0.28} />
-                  <stop offset="95%" stopColor="var(--ns-gain)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--ns-border)" vertical={false} />
-              <XAxis dataKey="date" stroke="var(--ns-fg-muted)" fontSize={11} minTickGap={28} tickFormatter={(d: string) => d.slice(5)} />
-              <YAxis stroke="var(--ns-fg-muted)" fontSize={11} width={42} tickFormatter={(v: number) => `${v.toFixed(0)}%`} />
-              <Tooltip
-                formatter={(value: number) => [`${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(2)}%`, "累積報酬"]}
-                contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }}
-                itemStyle={{ color: "var(--ns-fg)" }}
-                labelStyle={{ color: "var(--ns-fg)" }}
-              />
-              <Area type="monotone" dataKey="port" stroke="var(--ns-gain)" fill="url(#anHeroPort)" strokeWidth={2} isAnimationActive={false} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-        {core.excludedTickers.length > 0 && (
-          <div className="muted text-caption" style={{ marginTop: 8, lineHeight: 1.5 }}>
-            部分標的歷史股價不足，本期間未納入分析：{core.excludedTickers.join("、")}。回補更長區間的歷史股價即可納入。
-          </div>
-        )}
-
-        {/* Three return measures (TWR / XIRR / price return) */}
-        <div style={{ marginTop: 22, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-md)", overflow: "hidden" }}>
+        {/* Two return measures (TWR / XIRR). The period price return is the hero
+            number above, and the cumulative curve lives in the vs-benchmark card. */}
+        <div style={{ marginTop: 4, display: "grid", gridTemplateColumns: "repeat(2, 1fr)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-md)", overflow: "hidden" }}>
           {[
             {
               l: "期間 TWR",
@@ -510,15 +579,9 @@ export function InvestmentsAnalyticsTab({
             },
             {
               l: "年化 XIRR",
-              sub: "考慮金流時間",
+              sub: "全期間 · 考慮金流時間",
               v: xirrResult.gated ? null : xirrResult.xirr != null ? xirrResult.xirr * 100 : null,
-              help: "金額加權年化報酬：把資金投入的時點與多寡也算進來，反映你實際的資金成果。",
-            },
-            {
-              l: "期間價格報酬",
-              sub: "市值帳面變化",
-              v: periodSummary.changePct,
-              help: "目前持倉籃子在此期間的價格漲跌，不含加減碼與配息。",
+              help: "金額加權年化報酬：涵蓋你有紀錄以來的所有金流，不隨上方期間切換而改變，反映實際的資金成果。",
             },
           ].map((s, i) => (
             <div
@@ -545,6 +608,11 @@ export function InvestmentsAnalyticsTab({
             </div>
           ))}
         </div>
+        {core.excludedTickers.length > 0 && (
+          <div className="muted text-caption" style={{ marginTop: 8, lineHeight: 1.5 }}>
+            部分標的歷史股價不足，本期間未納入分析：{core.excludedTickers.join("、")}。回補更長區間的歷史股價即可納入。
+          </div>
+        )}
         {twrResult.excludedTickers && twrResult.excludedTickers.length > 0 && (
           <div className="muted text-caption" style={{ marginTop: 8, lineHeight: 1.5 }}>
             部分標的歷史股價不足，未納入 TWR 計算：{twrResult.excludedTickers.join("、")}。
@@ -552,30 +620,7 @@ export function InvestmentsAnalyticsTab({
         )}
       </CossCard>
 
-      {/* ── Treemap feature band (placeholder — implemented in next release) ── */}
-      <NSAnBand deep>
-        <NSAnHead
-          kicker="持倉熱度 · HOLDINGS HEATMAP"
-          title="你的錢放在哪、誰在發動"
-          right={<span className="mono dim" style={{ fontSize: 12 }}>方塊大小＝市值　顏色＝1Y 報酬</span>}
-        />
-        <div
-          style={{
-            height: 160,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: "var(--ns-r-md)",
-            border: "1px dashed var(--ns-border)",
-            color: "var(--ns-fg-dim)",
-            fontSize: 13,
-          }}
-        >
-          持倉熱圖 — 即將推出
-        </div>
-      </NSAnBand>
-
-      {/* ── Portfolio vs Benchmark ──────────────────────────────────────────── */}
+      {/* ── Portfolio vs Benchmark — the primary cumulative-return curve ─────── */}
       <CossCard style={{ padding: 34 }}>
         <NSAnHead
           kicker="績效比較 · vs 指標"
@@ -637,14 +682,205 @@ export function InvestmentsAnalyticsTab({
         </div>
       </CossCard>
 
+      {/* ── Return attribution: winners / losers ────────────────────────────── */}
+      {attribution.items.length > 0 ? (
+        <CossCard style={{ padding: 34 }}>
+          <NSAnHead
+            kicker="報酬貢獻"
+            title="上漲最多與下跌最多"
+            right={
+              <span className="muted" style={{ fontSize: 12, fontFamily: "var(--ns-font-mono)", whiteSpace: "nowrap" }}>
+                {periodStart(period, end)} ～ {end}
+              </span>
+            }
+          />
+          {(() => {
+            const TOP = 5;
+            const winners = attribution.items.filter((it) => it.contribution >= 0).slice(0, TOP);
+            const losers = attribution.items.filter((it) => it.contribution < 0).slice(0, TOP);
+            const maxAbs = Math.max(
+              ...winners.map((r) => r.contribution),
+              ...losers.map((r) => Math.abs(r.contribution)),
+              1,
+            );
+
+            function AttributionRow({ label, contribution, pct, color }: { label: string; contribution: number; pct: number; color: string }) {
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: "96px 1fr 150px", gap: 12, alignItems: "center" }}>
+                  <span className="mono text-xs" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
+                  <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
+                    <div style={{ width: `${(Math.abs(contribution) / maxAbs) * 100}%`, height: "100%", background: color, borderRadius: 99 }} />
+                  </div>
+                  <div className="text-xs" style={{ textAlign: "right", display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                    <span className="num" style={{ color }}>{contribution >= 0 ? "+" : "−"}{formatMoney(Math.abs(contribution), primaryCurrency)}</span>
+                    <span className="num muted" style={{ minWidth: 48, textAlign: "right" }}>{pct >= 0 ? "+" : "−"}{Math.abs(pct).toFixed(0)}%</span>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: losers.length > 0 ? "1fr 1fr" : "1fr", gap: 32 }}>
+                {winners.length > 0 && (
+                  <div>
+                    <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 12, color: "var(--ns-gain)" }}>上漲 TOP {winners.length}</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {winners.map((r) => (
+                        <AttributionRow key={r.ticker} label={r.ticker} contribution={r.contribution} pct={r.pct} color="var(--ns-gain)" />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {losers.length > 0 && (
+                  <div>
+                    <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 12, color: "var(--ns-loss)" }}>下跌 TOP {losers.length}</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {losers.map((r) => (
+                        <AttributionRow key={r.ticker} label={r.ticker} contribution={r.contribution} pct={r.pct} color="var(--ns-loss)" />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+          {attribution.excludedTickers.length > 0 && (
+            <div className="muted text-caption" style={{ marginTop: 8, lineHeight: 1.5 }}>
+              部分標的歷史股價不足，未納入貢獻分析：{attribution.excludedTickers.join("、")}。
+            </div>
+          )}
+        </CossCard>
+      ) : null}
+
+      </section>
+
+      {/* ═══ 風險 RISK ═══════════════════════════════════════════════════════ */}
+      <section id="an-risk" style={{ display: "grid", gap: 20, scrollMarginTop: 64 }}>
+
+      {/* ── Risk KPIs (volatility / Sortino / Sharpe / max drawdown) ─────────── */}
+      <CossCard style={{ padding: 34 }}>
+        <NSAnHead kicker="風險 · RISK" title="波動、下跌與報酬品質" />
+        {kpis ? (
+          <>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" style={{ marginBottom: 14 }}>
+              <KpiCard
+                label="年化波動率"
+                note="Annual Volatility"
+                value={fmtPct(kpis.vol, 1)}
+                color="var(--ns-chart-2)"
+                spark={kpis.volSpark}
+                sub="日報酬標準差換算成年化"
+                help="衡量期間內報酬上下震盪的幅度。數字越高，代表市值波動越大；它不分上漲或下跌，只看波動程度。"
+              />
+              <KpiCard
+                label="Sortino 比率"
+                note="越高越好"
+                value={fmtRatio(kpis.sortino)}
+                color="var(--ns-pos)"
+                spark={kpis.sortinoSpark}
+                sub={`只懲罰下跌波動 · MAR ${(DEFAULT_RISK_FREE_RATE * 100).toFixed(1)}%`}
+                help="衡量每承擔一單位下跌風險，換到多少超額報酬。比 Sharpe 更重視真正讓人不舒服的下跌波動。"
+              />
+              <KpiCard
+                label="Sharpe 比率"
+                note="越高越好"
+                value={fmtRatio(kpis.sharpe)}
+                color="var(--ns-chart-1)"
+                spark={kpis.sharpeSpark}
+                sub={`相對無風險利率 ${(DEFAULT_RISK_FREE_RATE * 100).toFixed(1)}%`}
+                help="衡量每承擔一單位總波動，換到多少超額報酬。常用來比較不同投資組合的風險調整後表現。"
+              />
+              <KpiCard
+                label="最大回撤"
+                note="Max Drawdown"
+                value={fmtPct(kpis.dd.drawdownPct, 1)}
+                color="var(--ns-neg)"
+                spark={kpis.ddSpark}
+                sub={kpis.dd.troughDate ? `${kpis.dd.peakDate} → ${kpis.dd.troughDate} · ${kpis.dd.recovered ? "已恢復" : "未恢復"}` : "—"}
+                help="期間內從高點跌到低點的最大跌幅。它回答的是：這段時間最痛的一段下跌有多深。"
+              />
+            </div>
+            {ddGap != null && kpis.dd.drawdownPct != null && (
+              <div className="muted text-caption" style={{ lineHeight: 1.5 }}>
+                距離期間高點還差 {formatMoney(ddGap, primaryCurrency)} · {kpis.dd.recovered ? "目前已回到高點" : "目前尚未恢復"}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="muted text-body" style={{ padding: "24px 0" }}>
+            此區間交易日不足 {MIN_ANALYTICS_DAYS} 天，無法計算風險指標，請改選較長區間。
+          </div>
+        )}
+      </CossCard>
+
+      {/* ── Rolling 30-day volatility (collapsed by default — the KPI sparkline
+            already carries the trend) ───────────────────────────────────────── */}
+      <RollingVolatilityCard rolling={rolling} />
+
+      {/* ── Calendar heatmap ──────────────────────────────────────────────────── */}
+      <CossCard style={{ padding: 34 }}>
+        <NSAnHead
+          kicker="報酬節奏 · DAILY RETURNS"
+          title="一整年的賺賠日曆"
+          right={<span className="mono dim" style={{ fontSize: 12 }}>每格＝單日報酬</span>}
+        />
+        {calendarData.daily.some((v) => v != null) ? (
+          <NSCalendarHeatmap daily={calendarData.daily} startDate={calendarData.startDate} />
+        ) : (
+          <div style={{ height: 100, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ns-fg-dim)", fontSize: 13 }}>
+            資料不足，無法顯示日曆
+          </div>
+        )}
+      </CossCard>
+
+      </section>
+
+      {/* ═══ 配置 ALLOCATION ═════════════════════════════════════════════════ */}
+      <section id="an-allocation" style={{ display: "grid", gap: 20, scrollMarginTop: 64 }}>
+
+      {/* ── Holdings heatmap ────────────────────────────────────────────────── */}
+      <NSAnBand deep>
+        <NSAnHead
+          kicker="持倉熱度 · HOLDINGS HEATMAP"
+          title="你的資產在哪、報酬如何"
+          right={<span className="mono dim" style={{ fontSize: 12 }}>方塊大小＝市值　顏色＝1Y 報酬</span>}
+        />
+        {holdingHeat.length > 0 ? (
+          <NSTreemap data={holdingHeat} primaryCurrency={primaryCurrency} />
+        ) : (
+          <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ns-fg-dim)", fontSize: 13 }}>
+            無持倉資料
+          </div>
+        )}
+      </NSAnBand>
+
       {/* ── Allocation + Currency feature band ──────────────────────────────── */}
       <NSAnBand deep>
         <div style={{ display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 48, alignItems: "start" }}>
           <div>
-            <NSAnHead kicker="配置 · ALLOCATION" title="資產類別分布" />
-            {allocationSummary.rows.length > 0 ? (
-              <AnAllocBars rows={allocationSummary.rows} />
-            ) : (
+            <NSAnHead kicker="產業 · SECTOR" title="產業分類分布" />
+            {allocationSummary.rows.length > 0 ? (() => {
+              const TOP = 5;
+              const hasMore = allocationSummary.rows.length > TOP;
+              const displayRows = showAllSectors ? allocationSummary.rows : allocationSummary.rows.slice(0, TOP);
+              return (
+                <>
+                  <AnAllocBars rows={displayRows} onSectorClick={onSectorClick} />
+                  {hasMore && (
+                    <button
+                      onClick={() => setShowAllSectors((v) => !v)}
+                      style={{
+                        marginTop: 10, background: "none", border: "none", cursor: "pointer",
+                        color: "var(--ns-accent)", fontFamily: "var(--ns-font-mono)", fontSize: 12,
+                        padding: 0,
+                      }}
+                    >
+                      {showAllSectors ? "▲ 收合" : `▼ 查看全部 (+${allocationSummary.rows.length - TOP}個)`}
+                    </button>
+                  )}
+                </>
+              );
+            })() : (
               <div className="muted text-body" style={{ padding: "24px 0" }}>目前持倉缺少最新價格，無法估算配置。</div>
             )}
           </div>
@@ -676,7 +912,7 @@ export function InvestmentsAnalyticsTab({
               <NSAnHead kicker="集中度 · CONCENTRATION" title="最大持倉佔比" />
               <div style={{ display: "flex", gap: 28 }}>
                 <div>
-                  <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 8 }}>最大資產類別</div>
+                  <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 8 }}>最大產業</div>
                   <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>{allocationSummary.largestClass?.label ?? "—"}</div>
                   <div className="mono muted" style={{ fontSize: 12, marginTop: 2 }}>
                     {allocationSummary.largestClass ? `${allocationSummary.largestClass.pct.toFixed(1)}%` : "—"}
@@ -698,32 +934,11 @@ export function InvestmentsAnalyticsTab({
         </div>
       </NSAnBand>
 
-      {/* ── Calendar heatmap (placeholder — implemented in next release) ─────── */}
-      <CossCard style={{ padding: 34 }}>
-        <NSAnHead
-          kicker="報酬節奏 · DAILY RETURNS"
-          title="一整年的賺賠日曆"
-          right={<span className="mono dim" style={{ fontSize: 12 }}>每格＝單日報酬</span>}
-        />
-        <div
-          style={{
-            height: 140,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: "var(--ns-r-md)",
-            border: "1px dashed var(--ns-border)",
-            color: "var(--ns-fg-dim)",
-            fontSize: 13,
-          }}
-        >
-          日曆熱圖 — 即將推出
-        </div>
-      </CossCard>
+      </section>
 
-      {/* ── Dividends + Risk (2-column) ──────────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: dividends.total > 0 ? "1fr 1fr" : "1fr", gap: 20 }}>
-        {dividends.total > 0 && (
+      {/* ═══ 股利 INCOME ═════════════════════════════════════════════════════ */}
+      {dividends.total > 0 && (
+        <section id="an-income" style={{ display: "grid", gap: 20, scrollMarginTop: 64 }}>
           <CossCard style={{ padding: 34 }}>
             <NSAnHead
               kicker="股利所得 · DIVIDENDS"
@@ -801,131 +1016,8 @@ export function InvestmentsAnalyticsTab({
               </div>
             </div>
           </CossCard>
-        )}
-
-        <CossCard style={{ padding: 34 }}>
-          <NSAnHead kicker="風險 · RISK" title="波動、下跌與報酬品質" />
-          {kpis ? (
-            <>
-              <div className="grid grid-cols-2 gap-3" style={{ marginBottom: 16 }}>
-                <KpiCard
-                  label="年化波動率"
-                  note="Annual Volatility"
-                  value={fmtPct(kpis.vol, 1)}
-                  color="var(--ns-chart-2)"
-                  spark={kpis.volSpark}
-                  sub="日報酬標準差換算成年化"
-                  help="衡量期間內報酬上下震盪的幅度。數字越高，代表市值波動越大；它不分上漲或下跌，只看波動程度。"
-                />
-                <KpiCard
-                  label="Sortino 比率"
-                  note="越高越好"
-                  value={fmtRatio(kpis.sortino)}
-                  color="var(--ns-pos)"
-                  spark={kpis.sortinoSpark}
-                  sub={`只懲罰下跌波動 · MAR ${(DEFAULT_RISK_FREE_RATE * 100).toFixed(1)}%`}
-                  help="衡量每承擔一單位下跌風險，換到多少超額報酬。比 Sharpe 更重視真正讓人不舒服的下跌波動。"
-                />
-                <KpiCard
-                  label="Sharpe 比率"
-                  note="越高越好"
-                  value={fmtRatio(kpis.sharpe)}
-                  color="var(--ns-chart-1)"
-                  spark={kpis.sharpeSpark}
-                  sub={`相對無風險利率 ${(DEFAULT_RISK_FREE_RATE * 100).toFixed(1)}%`}
-                  help="衡量每承擔一單位總波動，換到多少超額報酬。常用來比較不同投資組合的風險調整後表現。"
-                />
-                <KpiCard
-                  label="最大回撤"
-                  note="Max Drawdown"
-                  value={fmtPct(kpis.dd.drawdownPct, 1)}
-                  color="var(--ns-neg)"
-                  spark={kpis.ddSpark}
-                  sub={kpis.dd.troughDate ? `${kpis.dd.peakDate} → ${kpis.dd.troughDate} · ${kpis.dd.recovered ? "已恢復" : "未恢復"}` : "—"}
-                  help="期間內從高點跌到低點的最大跌幅。它回答的是：這段時間最痛的一段下跌有多深。"
-                />
-              </div>
-              {kpis.dd.drawdownPct != null && (
-                <div
-                  style={{
-                    padding: "12px 14px",
-                    borderRadius: "var(--ns-r-md)",
-                    background: "var(--ns-neg-soft)",
-                    border: "1px solid color-mix(in srgb, var(--ns-neg) 30%, transparent)",
-                    fontSize: 12.5,
-                    lineHeight: 1.55,
-                  }}
-                >
-                  <span className="neg" style={{ fontWeight: 600 }}>回撤提醒 · </span>
-                  <span className="muted">
-                    期間最大跌幅 {fmtPct(kpis.dd.drawdownPct, 1)}
-                    {kpis.dd.peakDate && kpis.dd.troughDate ? `（${kpis.dd.peakDate} → ${kpis.dd.troughDate}）` : ""}，
-                    {kpis.dd.recovered ? "目前已恢復至高點。" : "目前尚未恢復。"}
-                  </span>
-                </div>
-              )}
-            </>
-          ) : null}
-        </CossCard>
-      </div>
-
-      {/* ── Rolling volatility + drawdown detail ────────────────────────────── */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <RollingVolatilityCard rolling={rolling} />
-        {kpis ? <DrawdownStatusCard drawdown={kpis.dd} values={core.values} primaryCurrency={primaryCurrency} /> : null}
-      </div>
-
-      {/* ── Return attribution ──────────────────────────────────────────────── */}
-      {attribution.items.length > 0 ? (
-        <CossCard style={{ padding: 34 }}>
-          <NSAnHead kicker="報酬貢獻" title="哪些持倉驅動了報酬" />
-          {(() => {
-            const TOP = 6;
-            const shown = attribution.items.slice(0, TOP);
-            const rest = attribution.items.slice(TOP);
-            const restSum = rest.reduce((s, it) => s + it.contribution, 0);
-            const rows = [...shown.map((it) => ({ label: it.ticker, contribution: it.contribution, pct: it.pct }))];
-            if (rest.length > 0)
-              rows.push({
-                label: `其他 ${rest.length} 檔`,
-                contribution: restSum,
-                pct: Math.abs(attribution.total) > 0 ? (restSum / attribution.total) * 100 : 0,
-              });
-            const maxAbs = Math.max(...rows.map((r) => Math.abs(r.contribution)), 1);
-            return (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {rows.map((r) => {
-                  const up = r.contribution >= 0;
-                  const color = up ? "var(--ns-gain)" : "var(--ns-loss)";
-                  return (
-                    <div key={r.label} style={{ display: "grid", gridTemplateColumns: "96px 1fr 150px", gap: 12, alignItems: "center" }}>
-                      <span className="mono text-xs" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.label}</span>
-                      <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
-                        <div style={{ width: `${(Math.abs(r.contribution) / maxAbs) * 100}%`, height: "100%", background: color, borderRadius: 99 }} />
-                      </div>
-                      <div className="text-xs" style={{ textAlign: "right", display: "flex", justifyContent: "flex-end", gap: 6 }}>
-                        <span className="num" style={{ color }}>{up ? "+" : "−"}{formatMoney(Math.abs(r.contribution), primaryCurrency)}</span>
-                        <span className="num muted" style={{ minWidth: 48, textAlign: "right" }}>{r.pct >= 0 ? "+" : "−"}{Math.abs(r.pct).toFixed(0)}%</span>
-                      </div>
-                    </div>
-                  );
-                })}
-                <div className="text-xs" style={{ marginTop: 6, paddingTop: 10, borderTop: "1px solid var(--ns-border)", display: "flex", justifyContent: "space-between" }}>
-                  <span className="muted">期間合計</span>
-                  <span className="num" style={{ color: attribution.total >= 0 ? "var(--ns-gain)" : "var(--ns-loss)", fontWeight: 600 }}>
-                    {attribution.total >= 0 ? "+" : "−"}{formatMoney(Math.abs(attribution.total), primaryCurrency)}
-                  </span>
-                </div>
-              </div>
-            );
-          })()}
-          {attribution.excludedTickers.length > 0 && (
-            <div className="muted text-caption" style={{ marginTop: 8, lineHeight: 1.5 }}>
-              部分標的歷史股價不足，未納入貢獻分析：{attribution.excludedTickers.join("、")}。
-            </div>
-          )}
-        </CossCard>
-      ) : null}
+        </section>
+      )}
     </div>
   );
 }
@@ -1009,16 +1101,33 @@ function RollingVolatilityCard({ rolling }: {
     peak: { vol: number; date: string } | null;
   };
 }) {
+  const [open, setOpen] = useState(false);
   return (
     <CossCard style={{ padding: 22 }}>
-      <div style={{ marginBottom: 12 }}>
-        <div className="ns-eyebrow" style={{ marginBottom: 4 }}>風險趨勢</div>
-        <HeadingWithHelp
-          title="滾動 30 日波動率"
-          help="每一天都用前 30 個交易日重新計算一次年化波動率，用來看風險是正在升高、降低，還是維持穩定。"
-        />
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, marginBottom: open ? 12 : 0 }}>
+        <div>
+          <div className="ns-eyebrow" style={{ marginBottom: 4 }}>風險趨勢</div>
+          <HeadingWithHelp
+            title="滾動 30 日波動率"
+            help="每一天都用前 30 個交易日重新計算一次年化波動率，用來看風險是正在升高、降低，還是維持穩定。"
+          />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
+          {!open && rolling.current != null && (
+            <span className="num text-body" style={{ color: "var(--ns-chart-2)", fontVariantNumeric: "tabular-nums" }}>
+              當前 {fmtPct(rolling.current, 1)}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ns-accent)", fontFamily: "var(--ns-font-mono)", fontSize: 12, padding: 0, whiteSpace: "nowrap" }}
+          >
+            {open ? "▲ 收合" : "▼ 展開圖表"}
+          </button>
+        </div>
       </div>
-      {rolling.data.length < 2 ? (
+      {open && (rolling.data.length < 2 ? (
         <div className="muted text-body" style={{ padding: "24px 0" }}>歷史股價不足，無法計算滾動波動率。</div>
       ) : (
         <>
@@ -1060,51 +1169,7 @@ function RollingVolatilityCard({ rolling }: {
             ))}
           </div>
         </>
-      )}
-    </CossCard>
-  );
-}
-
-function DrawdownStatusCard({ drawdown, values, primaryCurrency }: {
-  drawdown: { drawdownPct: number | null; peakDate: string | null; troughDate: string | null; recovered: boolean };
-  values: number[];
-  primaryCurrency: string;
-}) {
-  const latest = values.length ? values[values.length - 1] : null;
-  const peak = values.length ? Math.max(...values) : null;
-  const gap = latest != null && peak != null ? peak - latest : null;
-  return (
-    <CossCard style={{ padding: 22 }}>
-      <div style={{ marginBottom: 12 }}>
-        <div className="ns-eyebrow" style={{ marginBottom: 4 }}>回撤狀態</div>
-        <HeadingWithHelp
-          title="離高點還差多少"
-          help="最大回撤告訴你最深跌幅；這張卡補上目前是否已經回到高點，以及距離期間高點還有多少差距。"
-        />
-      </div>
-      <div style={{ display: "grid", gap: 12 }}>
-        <div className="ns-surface" style={{ padding: "12px 14px" }}>
-          <div className="muted text-xs" style={{ marginBottom: 4 }}>期間最大回撤</div>
-          <div className="num neg text-[26px]" style={{ fontWeight: 650 }}>{fmtPct(drawdown.drawdownPct, 1)}</div>
-          <div className="muted text-caption" style={{ marginTop: 4 }}>
-            {drawdown.peakDate && drawdown.troughDate ? `${drawdown.peakDate} → ${drawdown.troughDate}` : "資料不足"}
-          </div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
-          <div className="ns-surface" style={{ padding: "10px 12px" }}>
-            <div className="muted text-caption">恢復狀態</div>
-            <div style={{ marginTop: 4, fontWeight: 600, color: drawdown.recovered ? "var(--ns-pos)" : "var(--ns-warn)" }}>
-              {drawdown.recovered ? "已回到高點" : "尚未恢復"}
-            </div>
-          </div>
-          <div className="ns-surface" style={{ padding: "10px 12px" }}>
-            <div className="muted text-caption">距離高點</div>
-            <div className="num" style={{ marginTop: 4, fontWeight: 600 }}>
-              {gap == null ? "—" : formatMoney(Math.max(0, gap), primaryCurrency)}
-            </div>
-          </div>
-        </div>
-      </div>
+      ))}
     </CossCard>
   );
 }
@@ -1146,8 +1211,15 @@ function NSAnBand({ children, deep }: { children: ReactNode; deep?: boolean }) {
 }
 
 /** Vertical thin-stripe allocation bars (editorial style) + legend list. */
-function AnAllocBars({ rows }: { rows: Array<{ label: string; value: number; pct: number; color: string }> }) {
+function AnAllocBars({
+  rows,
+  onSectorClick,
+}: {
+  rows: Array<{ label: string; value: number; pct: number; color: string }>;
+  onSectorClick?: (sector: string) => void;
+}) {
   const [hover, setHover] = useState<number | null>(null);
+  const clickable = !!onSectorClick;
   return (
     <div>
       <div style={{ display: "flex", alignItems: "stretch", gap: 10, height: 120 }}>
@@ -1156,7 +1228,8 @@ function AnAllocBars({ rows }: { rows: Array<{ label: string; value: number; pct
             key={d.label}
             onMouseEnter={() => setHover(i)}
             onMouseLeave={() => setHover(null)}
-            title={`${d.label} · ${d.pct.toFixed(1)}%`}
+            onClick={() => onSectorClick?.(d.label)}
+            title={`${d.label} · ${d.pct.toFixed(1)}%${clickable ? " · 點選篩選持倉" : ""}`}
             style={{
               flex: `${d.pct} 0 0`,
               minWidth: 0,
@@ -1165,6 +1238,7 @@ function AnAllocBars({ rows }: { rows: Array<{ label: string; value: number; pct
               borderRadius: 1,
               opacity: hover == null || hover === i ? 1 : 0.3,
               transition: "opacity .15s",
+              cursor: clickable ? "pointer" : "default",
             }}
           />
         ))}
@@ -1175,6 +1249,7 @@ function AnAllocBars({ rows }: { rows: Array<{ label: string; value: number; pct
             key={d.label}
             onMouseEnter={() => setHover(i)}
             onMouseLeave={() => setHover(null)}
+            onClick={() => onSectorClick?.(d.label)}
             style={{
               display: "flex",
               alignItems: "center",
@@ -1183,6 +1258,7 @@ function AnAllocBars({ rows }: { rows: Array<{ label: string; value: number; pct
               borderBottom: "1px solid var(--ns-border)",
               background: hover === i ? "var(--ns-bg-hover)" : "transparent",
               transition: "background .12s",
+              cursor: clickable ? "pointer" : "default",
             }}
           >
             <span style={{ width: 11, height: 11, borderRadius: 3, background: d.color, flexShrink: 0 }} />
@@ -1193,6 +1269,420 @@ function AnAllocBars({ rows }: { rows: Array<{ label: string; value: number; pct
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ── Treemap heat helpers ───────────────────────────────────────────────────────
+
+type HeatItem = { sym: string; value: number; ret: number | null };
+type LayoutCell = HeatItem & { _a: number; x: number; y: number; w: number; h: number };
+
+/** Diverging green↔red heat color for treemap/calendar cells. */
+function nsHeat(ret: number | null, scale = 9): string {
+  if (ret == null) return "var(--ns-bg-elev)";
+  const t = Math.max(-1, Math.min(1, ret / scale));
+  const mag = Math.abs(t);
+  const base = t >= 0 ? "var(--ns-pos)" : "var(--ns-neg)";
+  const pct = (10 + mag * 78).toFixed(1);
+  return `color-mix(in srgb, ${base} ${pct}%, var(--ns-bg-elev))`;
+}
+
+/** Foreground color that contrasts with nsHeat background. */
+function nsHeatText(ret: number | null, scale = 9): string {
+  if (ret == null) return "var(--ns-fg-dim)";
+  return Math.abs(ret) / scale > 0.42 ? "#08160a" : "var(--ns-fg)";
+}
+
+/** Squarified treemap layout — returns cells with absolute x/y/w/h in the given box. */
+function nsSquarify(
+  data: Array<HeatItem & { _a: number }>,
+  X: number,
+  Y: number,
+  W: number,
+  H: number,
+): LayoutCell[] {
+  const out: LayoutCell[] = [];
+  let x = X, y = Y, w = W, h = H;
+  const sum = (arr: typeof data) => arr.reduce((s, r) => s + r._a, 0);
+  const worst = (arr: typeof data, len: number): number => {
+    if (!arr.length) return Infinity;
+    const s = sum(arr);
+    const mx = Math.max(...arr.map((r) => r._a));
+    const mn = Math.min(...arr.map((r) => r._a));
+    return Math.max((len * len * mx) / (s * s), (s * s) / (len * len * mn));
+  };
+  const layoutRow = (row: typeof data) => {
+    const len = Math.min(w, h);
+    const s = sum(row);
+    const thick = s / len;
+    if (w >= h) {
+      let oy = y;
+      row.forEach((r) => { const hh = r._a / thick; out.push({ ...r, x, y: oy, w: thick, h: hh }); oy += hh; });
+      x += thick; w -= thick;
+    } else {
+      let ox = x;
+      row.forEach((r) => { const ww = r._a / thick; out.push({ ...r, x: ox, y, w: ww, h: thick }); ox += ww; });
+      y += thick; h -= thick;
+    }
+  };
+  const queue = [...data];
+  let row: typeof data = [];
+  while (queue.length) {
+    const len = Math.min(w, h);
+    const next = queue[0];
+    if (!row.length || worst([...row, next], len) <= worst(row, len)) {
+      row.push(next); queue.shift();
+    } else {
+      layoutRow(row); row = [];
+    }
+  }
+  if (row.length) layoutRow(row);
+  return out;
+}
+
+/** Build treemap input: current market value + 1Y price return per position. */
+function buildHoldingHeat(
+  positions: AnalyticsPosition[],
+  dailyPrices: DailyPrice[],
+  manualSnapshots: ManualPriceSnapshot[],
+  toPrimary: (value: number, currency: string, asOf?: string) => number,
+  end: string,
+): HeatItem[] {
+  const oneYearBack = new Date(end);
+  oneYearBack.setFullYear(oneYearBack.getFullYear() - 1);
+  const startIso = oneYearBack.toISOString().slice(0, 10);
+
+  return positions
+    .map((pos) => {
+      const value = latestPositionValue(pos, dailyPrices, manualSnapshots, toPrimary, end);
+      if (value <= 0) return null;
+
+      const ticker = pos.ticker.toUpperCase();
+      const series = dailyPrices
+        .filter((r) => r.ticker.toUpperCase() === ticker)
+        .sort((a, b) => b.date.localeCompare(a.date));
+
+      let ret: number | null = null;
+      if (series.length >= 2) {
+        const latest = series.find((r) => r.date.slice(0, 10) <= end);
+        const atStart = series.find((r) => r.date.slice(0, 10) <= startIso);
+        if (latest && atStart && atStart.close > 0) {
+          ret = (latest.close / atStart.close - 1) * 100;
+        }
+      } else if (pos.isManual) {
+        const snaps = manualSnapshots
+          .filter((s) => s.assetId === pos.assetId)
+          .sort((a, b) => b.date.localeCompare(a.date));
+        const latest = snaps.find((s) => s.date.slice(0, 10) <= end);
+        const atStart = snaps.find((s) => s.date.slice(0, 10) <= startIso);
+        if (latest && atStart && atStart.price > 0) {
+          ret = (latest.price / atStart.price - 1) * 100;
+        }
+      }
+
+      return { sym: pos.ticker, value, ret };
+    })
+    .filter((d): d is HeatItem => d !== null)
+    .sort((a, b) => b.value - a.value);
+}
+
+// ── NSTreemap component ───────────────────────────────────────────────────────
+
+/** Holdings treemap: size = market value, color = 1Y return heat. */
+function NSTreemap({
+  data,
+  primaryCurrency,
+  scale = 9,
+  gap = 4,
+}: {
+  data: HeatItem[];
+  primaryCurrency: string;
+  scale?: number;
+  gap?: number;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const navigate = useNavigate();
+
+  // Coordinate space: 1000 × 500 logical units → renders as % of container
+  const W = 1000, H = 500;
+  const total = data.reduce((s, d) => s + d.value, 0) || 1;
+  const items = data.map((d) => ({ ...d, _a: (d.value / total) * W * H }));
+  const cells = nsSquarify(items, 0, 0, W, H);
+
+  return (
+    <div style={{ position: "relative", width: "100%", aspectRatio: `${W} / ${H}` }}>
+      {cells.map((c, i) => {
+        // Size thresholds in logical units (scaled from 660×320 design reference)
+        const big = c.w > 140 && c.h > 88;
+        const med = c.w > 88 && c.h > 60;
+        const isHover = hover === i;
+        const txt = nsHeatText(c.ret, scale);
+        return (
+          <div
+            key={`${c.sym}-${i}`}
+            onMouseEnter={() => setHover(i)}
+            onMouseLeave={() => setHover(null)}
+            onClick={() => void navigate({ to: "/holdings/$ticker", params: { ticker: c.sym } })}
+            style={{
+              position: "absolute",
+              left: `${(c.x / W) * 100}%`,
+              top: `${(c.y / H) * 100}%`,
+              width: `${(c.w / W) * 100}%`,
+              height: `${(c.h / H) * 100}%`,
+              padding: gap / 2,
+              boxSizing: "border-box",
+              cursor: "pointer",
+            }}
+          >
+            <div style={{
+              width: "100%", height: "100%",
+              background: nsHeat(c.ret, scale),
+              borderRadius: "var(--ns-r-sm)",
+              boxShadow: isHover
+                ? "0 0 0 1.5px var(--ns-fg)"
+                : "inset 0 0 0 1px rgba(255,255,255,0.05)",
+              padding: med ? "9px 11px" : "4px 6px",
+              boxSizing: "border-box",
+              display: "flex", flexDirection: "column",
+              justifyContent: big ? "space-between" : "center",
+              overflow: "hidden",
+              transition: "box-shadow .12s",
+            }}>
+              {med && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6 }}>
+                  <span style={{
+                    fontFamily: "var(--ns-font-mono)", fontWeight: 600,
+                    fontSize: big ? 14 : 11.5, color: txt, letterSpacing: "-0.01em",
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  }}>{c.sym}</span>
+                  {big && (
+                    <span style={{
+                      fontFamily: "var(--ns-font-mono)", fontSize: 11,
+                      color: txt, opacity: 0.85, whiteSpace: "nowrap",
+                    }}>{((c.value / total) * 100).toFixed(1)}%</span>
+                  )}
+                </div>
+              )}
+              {big && c.ret != null && (
+                <div>
+                  <div style={{
+                    fontFamily: "var(--ns-font-mono)", fontWeight: 600,
+                    fontSize: c.w > 220 ? 22 : 17,
+                    color: txt, letterSpacing: "-0.02em",
+                    fontVariantNumeric: "tabular-nums",
+                  }}>
+                    {c.ret >= 0 ? "+" : "−"}{Math.abs(c.ret).toFixed(1)}%
+                  </div>
+                </div>
+              )}
+              {!big && med && c.ret != null && (
+                <div style={{
+                  fontFamily: "var(--ns-font-mono)", fontSize: 11, color: txt,
+                  fontVariantNumeric: "tabular-nums", marginTop: 2,
+                }}>
+                  {c.ret >= 0 ? "+" : "−"}{Math.abs(c.ret).toFixed(1)}%
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Hover tooltip */}
+      {hover != null && (() => {
+        const c = cells[hover];
+        if (!c) return null;
+        return (
+          <div style={{
+            position: "absolute",
+            left: `${((c.x + c.w / 2) / W) * 100}%`,
+            top: `${(c.y / H) * 100}%`,
+            transform: "translate(-50%, -108%)",
+            pointerEvents: "none",
+            zIndex: 5,
+            background: "var(--ns-bg-card)",
+            border: "1px solid var(--ns-border-strong)",
+            borderRadius: "var(--ns-r-sm)",
+            padding: "8px 11px",
+            whiteSpace: "nowrap",
+            boxShadow: "var(--ns-shadow-2)",
+          }}>
+            <div style={{ fontFamily: "var(--ns-font-mono)", fontWeight: 600, fontSize: 12.5 }}>{c.sym}</div>
+            <div style={{ display: "flex", gap: 14, marginTop: 4, fontFamily: "var(--ns-font-mono)", fontSize: 11.5 }}>
+              <span className="muted">
+                市值 <span style={{ color: "var(--ns-fg)" }}>{formatMoney(c.value, primaryCurrency)}</span>
+              </span>
+              {c.ret != null && (
+                <span className="muted">
+                  1Y <span style={{ color: c.ret >= 0 ? "var(--ns-pos)" : "var(--ns-neg)", fontWeight: 600 }}>
+                    {c.ret >= 0 ? "+" : "−"}{Math.abs(c.ret).toFixed(1)}%
+                  </span>
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ── Calendar heatmap helpers ──────────────────────────────────────────────────
+
+/** Build day-by-day return array (null = weekend / no data) starting from the
+ *  Monday of the week where portfolio history begins, up to `end`. */
+function buildCalendarData(
+  positions: AnalyticsPosition[],
+  dailyPrices: DailyPrice[],
+  manualSnapshots: ManualPriceSnapshot[],
+  toPrimary: (value: number, currency: string, asOf?: string) => number,
+  end: string,
+): { daily: Array<number | null>; startDate: Date } {
+  const start = daysAgo(370, end);
+  const { series } = buildPortfolioValueSeries({ positions, dailyPrices, manualSnapshots, toPrimary, start, end });
+
+  const retMap = new Map<string, number>();
+  for (let i = 1; i < series.length; i++) {
+    const prev = series[i - 1].value;
+    if (prev > 0) retMap.set(series[i].date.slice(0, 10), (series[i].value / prev - 1) * 100);
+  }
+
+  // Snap back to the Monday of the first coverage week
+  const coverageStart = series.length > 0 ? series[0].date.slice(0, 10) : start;
+  const startDt = new Date(`${coverageStart}T00:00:00Z`);
+  const wd0 = startDt.getUTCDay(); // 0=Sun … 6=Sat
+  startDt.setUTCDate(startDt.getUTCDate() + (wd0 === 0 ? -6 : -(wd0 - 1)));
+
+  const endDt = new Date(`${end}T00:00:00Z`);
+  const daily: Array<number | null> = [];
+  const cur = new Date(startDt);
+  while (cur <= endDt) {
+    const wd = cur.getUTCDay();
+    daily.push(
+      wd === 0 || wd === 6
+        ? null
+        : (retMap.get(cur.toISOString().slice(0, 10)) ?? null),
+    );
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+
+  return { daily, startDate: startDt };
+}
+
+// ── NSCalendarHeatmap component ───────────────────────────────────────────────
+
+/** GitHub-style daily return heatmap. Mon–Fri cells colored by nsHeat; weekends blank. */
+function NSCalendarHeatmap({
+  daily,
+  startDate,
+  scale = 2.6,
+  cell = 13,
+  gap = 3,
+}: {
+  daily: Array<number | null>;
+  startDate: Date;
+  scale?: number;
+  cell?: number;
+  gap?: number;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+
+  const weeks = Math.ceil(daily.length / 7);
+  const W = weeks * (cell + gap);
+  const H = 7 * (cell + gap);
+
+  const dateOf = (i: number): Date => {
+    const d = new Date(startDate);
+    d.setUTCDate(d.getUTCDate() + i);
+    return d;
+  };
+
+  // One month label per new month, placed at the week where it first appears
+  const monthMarks: Array<{ wk: number; m: number }> = [];
+  let lastMonth = -1;
+  for (let wk = 0; wk < weeks; wk++) {
+    const d = dateOf(wk * 7);
+    const m = d.getUTCMonth();
+    if (m !== lastMonth) { monthMarks.push({ wk, m: m + 1 }); lastMonth = m; }
+  }
+
+  return (
+    <div style={{ position: "relative" }}>
+      <svg viewBox={`0 0 ${W} ${H + 18}`} width="100%" style={{ display: "block", overflow: "visible" }}>
+        {/* Month labels */}
+        {monthMarks.map((mk) => (
+          <text
+            key={mk.wk}
+            x={mk.wk * (cell + gap)}
+            y={10}
+            fontSize="10.5"
+            fill="var(--ns-fg-dim)"
+            fontFamily="var(--ns-font-mono)"
+          >
+            {mk.m}月
+          </text>
+        ))}
+        {/* Day cells */}
+        {daily.map((v, i) => {
+          const wk = Math.floor(i / 7);
+          const wd = i % 7;
+          return (
+            <rect
+              key={i}
+              x={wk * (cell + gap)}
+              y={18 + wd * (cell + gap)}
+              width={cell}
+              height={cell}
+              rx="2.5"
+              fill={nsHeat(v, scale)}
+              stroke={hover === i ? "var(--ns-fg)" : "transparent"}
+              strokeWidth="1.2"
+              onMouseEnter={() => setHover(i)}
+              onMouseLeave={() => setHover(null)}
+              style={{ cursor: v == null ? "default" : "pointer" }}
+            />
+          );
+        })}
+      </svg>
+
+      {/* Legend */}
+      <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 10, fontSize: 11 }}>
+        <span className="mono muted">跌</span>
+        {([-2.4, -1.2, 0, 1.2, 2.4] as const).map((v, i) => (
+          <span key={i} style={{ width: 12, height: 12, borderRadius: 2.5, background: nsHeat(v, scale), display: "inline-block" }} />
+        ))}
+        <span className="mono muted">漲</span>
+      </div>
+
+      {/* Hover tooltip */}
+      {hover != null && daily[hover] != null && (() => {
+        const d = dateOf(hover);
+        const wk = Math.floor(hover / 7);
+        const v = daily[hover]!;
+        return (
+          <div style={{
+            position: "absolute",
+            left: `${(wk / weeks) * 100}%`,
+            top: 0,
+            transform: "translate(-50%, -100%)",
+            pointerEvents: "none",
+            background: "var(--ns-bg-card)",
+            border: "1px solid var(--ns-border-strong)",
+            borderRadius: "var(--ns-r-sm)",
+            padding: "6px 9px",
+            whiteSpace: "nowrap",
+            boxShadow: "var(--ns-shadow-2)",
+            fontFamily: "var(--ns-font-mono)",
+            fontSize: 11.5,
+          }}>
+            <span className="muted">{d.getUTCMonth() + 1}/{d.getUTCDate()} </span>
+            <span style={{ color: v >= 0 ? "var(--ns-pos)" : "var(--ns-neg)", fontWeight: 600 }}>
+              {v >= 0 ? "+" : "−"}{Math.abs(v).toFixed(2)}%
+            </span>
+          </div>
+        );
+      })()}
     </div>
   );
 }

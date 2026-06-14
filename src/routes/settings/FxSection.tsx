@@ -139,7 +139,7 @@ export function SettingsFX({ form, submit, dailyFxRates, t }: Omit<SettingsTabPr
             <div key={i} style={{ display:'grid',gridTemplateColumns:'80px 1fr 1fr 1fr 56px',
               alignItems:'center',padding:'14px 20px', borderTop:i?'1px solid var(--ns-border)':'none' }}>
               <input className="ns-input" value={r.from} onChange={e=>updateRate(i, { from: e.target.value.toUpperCase() })} />
-              <input className="ns-input" type="number" step="0.000001" style={{textAlign:'right'}} value={r.rate} onChange={e=>updateRate(i, { rate: Math.round(+e.target.value * 1e6) / 1e6 })} />
+              <input className="ns-input" type="number" step="0.000001" style={{textAlign:'right'}} value={parseFloat(r.rate.toFixed(6))} onChange={e=>updateRate(i, { rate: Math.round(+e.target.value * 1e6) / 1e6 })} />
               <input className="ns-input" style={{textAlign:'right'}} value={r.to || form.primaryCurrency} onChange={e=>updateRate(i, { to: e.target.value.toUpperCase() })} />
               <div className="dim" style={{fontSize: 11, textAlign: 'right'}}>{stat ? `${stat.count} records` : 'No history'}</div>
               <div style={{display:'flex',justifyContent:'flex-end'}}>

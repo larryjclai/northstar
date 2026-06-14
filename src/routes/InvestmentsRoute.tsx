@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowsClockwise, ArrowsDownUp, ArrowUp, Bank, ChartLineUp, ListChecks, PencilSimple, PlusCircle, Sliders, X, CaretLeft, CaretRight } from "@phosphor-icons/react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ActionButton } from "../components/ActionButton";
@@ -20,12 +20,6 @@ import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { PortfolioAssetDraft } from "../data/repositories";
 import {
   buildHoldingPositionsByAccount,
-  buildPositionMetrics,
-  buildDailyPriceLookup,
-  priceAssetOnDate,
-  calculateXirr,
-  cashflowSpanDays,
-  XIRR_MIN_DAYS,
   createFxConverter,
   formatMoney,
   formatNumber,
@@ -33,6 +27,7 @@ import {
   formatPrice,
   formatQuantity,
   resolveAssetName,
+  resolveSectorLabel,
   todayInTimezone,
   assetTypeLabels,
   type AnalyticsPosition,
@@ -55,7 +50,21 @@ import { TransactionsRoute } from "./TransactionsRoute";
 import { quoteLookupKeys } from "../domain/marketSymbols";
 
 export function InvestmentsRoute() {
-  const [tab, setTab] = useState<"portfolio" | "transactions" | "recurring" | "analytics">("portfolio");
+  const navigate = useNavigate();
+  const search = useSearch({ from: "/investments" });
+  const searchTab = search.tab as "portfolio" | "transactions" | "recurring" | "analytics" | undefined;
+  const searchSector = search.sector as string | undefined;
+
+  const [tab, setTabState] = useState<"portfolio" | "transactions" | "recurring" | "analytics">(
+    searchTab && ["portfolio", "transactions", "recurring", "analytics"].includes(searchTab)
+      ? searchTab
+      : "portfolio",
+  );
+
+  function setTab(next: "portfolio" | "transactions" | "recurring" | "analytics") {
+    setTabState(next);
+    void navigate({ to: "/investments", search: (prev) => ({ ...prev, tab: next, sector: next === "portfolio" ? prev.sector : undefined }) });
+  }
 
   const { accounts, assets, investments, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots, recurringInvestments } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
@@ -110,7 +119,6 @@ export function InvestmentsRoute() {
   // Shared valuation context so market value here matches the Dashboard / net
   // worth trend: live quote → latest daily close → average cost.
   const valuationToday = todayInTimezone(timezoneForDue);
-  const dailyPriceLookup = useMemo(() => buildDailyPriceLookup(dailyPriceRows), [dailyPriceRows]);
 
   const positions = useMemo(
     () => buildHoldingPositionsByAccount(assetRows, recordRows, quoteMap, { dailyPrices: dailyPriceRows, asOf: valuationToday }),
@@ -128,6 +136,7 @@ export function InvestmentsRoute() {
         currency: a.currency,
         isManual: a.holdingSource === "manual",
         assetClass: a.assetType ? assetTypeLabels[a.assetType] : undefined,
+        sector: a.sector,
       })),
     [assetRows],
   );
@@ -319,33 +328,6 @@ export function InvestmentsRoute() {
     return { realizedYTD: rYTD, dividendsYTD: dYTD };
   }, [recordRows, assetRows, toPrimary]);
 
-  // Portfolio-level money-weighted return (XIRR): every buy/sell/dividend cash
-  // flow across all transaction-based holdings, valued to a terminal market
-  // value today. Manual snapshots with no transaction history are excluded from
-  // both sides so they can't distort the rate.
-  const portfolioXirr = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const flows: { date: string; amount: number }[] = [];
-    let terminal = 0;
-    for (const asset of assetRows) {
-      if (asset.deletedAt !== null) continue;
-      // Manual holdings now carry a cashless opening-balance record, so every
-      // held position has ≥1 record and flows through the canonical engine —
-      // the opening buy supplies the −cost cashflow that anchors the return.
-      const recs = recordRows.filter((r) => r.assetId === asset.id && r.deletedAt === null);
-      if (recs.length === 0) continue;
-      const m = buildPositionMetrics(recs);
-      for (const cf of m.cashflows) flows.push({ date: cf.date, amount: toPrimary(cf.amount, asset.currency, cf.date) });
-      // Terminal value uses the canonical primitive (quote → close → cost) so it
-      // agrees with the holdings market value shown above and on the Dashboard.
-      const price = priceAssetOnDate(asset, today, { todayIso: today, dailyPriceLookup, quote: quoteMap[asset.ticker] });
-      terminal += toPrimary(m.quantity * price.value, price.currency, today);
-    }
-    // Suppress the annualized figure for very short holding spans (B1): it would
-    // annualize into meaningless thousands of %.
-    const reliable = cashflowSpanDays(flows, today) >= XIRR_MIN_DAYS;
-    return { value: calculateXirr(flows, { date: today, amount: terminal }), reliable };
-  }, [assetRows, recordRows, quoteMap, dailyPriceLookup, toPrimary]);
 
   return (
     <div className="ns-invest-page" style={{ padding: '24px 32px 120px', maxWidth: 1180, margin: '0 auto' }}>
@@ -411,13 +393,7 @@ export function InvestmentsRoute() {
             {([
               // [label, compact display, exact value (tooltip), pct, positive]
               ['目前市值', `NT$${formatCompactNumber(totalValue)}`, `NT$${formatNumber(totalValue)}`, '', true],
-              ['投入成本', `NT$${formatCompactNumber(totalCost)}`, `NT$${formatNumber(totalCost)}`, '', true],
               ['未實現損益', `NT$${formatCompactNumber(Math.abs(totalPnL))}`, `NT$${formatNumber(Math.abs(totalPnL))}`, totalPnL >= 0 ? `+${returnPct.toFixed(2)}%` : `${returnPct.toFixed(2)}%`, totalPnL >= 0],
-              ['年化報酬 XIRR',
-                (portfolioXirr.value === null || !portfolioXirr.reliable) ? '–' : `${portfolioXirr.value >= 0 ? '+' : ''}${(portfolioXirr.value * 100).toFixed(2)}%`,
-                portfolioXirr.value !== null && !portfolioXirr.reliable ? `持有期間少於 ${XIRR_MIN_DAYS} 天，年化報酬不具參考意義` : '資金加權年化報酬（含買賣、配息、手續費）',
-                '',
-                portfolioXirr.value === null ? true : portfolioXirr.value >= 0],
               ['今年已實現', `NT$${formatCompactNumber(Math.abs(realizedYTD))}`, `NT$${formatNumber(Math.abs(realizedYTD))}`, realizedYTD >= 0 ? '' : '虧損', realizedYTD >= 0],
               ['今年股利', `NT$${formatCompactNumber(dividendsYTD)}`, `NT$${formatNumber(dividendsYTD)}`, '', true],
             ] as const).map(([label, val, exact, pct, pos], i) => (
@@ -448,6 +424,10 @@ export function InvestmentsRoute() {
             assetsById={new Map(assetRows.map((asset) => [asset.id, asset]))}
             manualPriceSnapshots={manualSnapshotRows}
             toPrimary={toPrimary}
+            initialSector={searchSector ?? "all"}
+            onSectorChange={(sector) => {
+              void navigate({ to: "/investments", search: (prev) => ({ ...prev, tab: "portfolio", sector: sector === "all" ? undefined : sector }) });
+            }}
           />
         </>
       ) : null}
@@ -469,6 +449,10 @@ export function InvestmentsRoute() {
           onBackfillHoldings={backfillHistoricalPrices}
           onEnsureBenchmark={ensureBenchmarkHistory}
           backfilling={refreshDailyPrices.isPending}
+          onSectorClick={(sector) => {
+            setTab("portfolio");
+            void navigate({ to: "/investments", search: { tab: "portfolio", sector } });
+          }}
         />
       ) : null}
 
@@ -976,6 +960,8 @@ function HoldingsTab({
   assetsById,
   manualPriceSnapshots,
   toPrimary,
+  initialSector,
+  onSectorChange,
 }: {
   positions: HoldingPosition[];
   accountMap: Map<string, Account>;
@@ -984,6 +970,8 @@ function HoldingsTab({
   assetsById: Map<string, PortfolioAsset>;
   manualPriceSnapshots: ManualPriceSnapshot[];
   toPrimary: (value: number, currency: string, asOfDate?: string) => number;
+  initialSector?: string;
+  onSectorChange?: (sector: string) => void;
 }) {
   const navigate = useNavigate();
   const timezone = useUiPreferences((state) => state.timezone);
@@ -1000,10 +988,36 @@ function HoldingsTab({
   const [snapshotNote, setSnapshotNote] = useState("");
   const [snapshotMessage, setSnapshotMessage] = useState("");
   const [filterAccount, setFilterAccount] = useState<string>("all");
+  const [filterSector, setFilterSectorState] = useState<string>(initialSector ?? "all");
+
+  // Sync when the parent drives the sector via URL (e.g. from Analytics click).
+  useEffect(() => {
+    if (initialSector !== undefined && initialSector !== filterSector) {
+      setFilterSectorState(initialSector);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSector]);
+
+  function setFilterSector(next: string) {
+    setFilterSectorState(next);
+    onSectorChange?.(next);
+  }
+
   const [page, setPage] = useState(1);
   const pageSize = 20;
-  
-  useEffect(() => setPage(1), [filterAccount]);
+
+  // Unique resolved sector labels across all positions, for the sector filter dropdown
+  const sectorOptions = useMemo(() => {
+    const seen = new Set<string>();
+    for (const p of positions) {
+      const raw = assetsById.get(p.assetId)?.sector;
+      const label = resolveSectorLabel(raw, nameLocale) ?? "未知";
+      seen.add(label);
+    }
+    return [...seen].sort();
+  }, [positions, assetsById, nameLocale]);
+
+  useEffect(() => setPage(1), [filterAccount, filterSector]);
 
   // Default to descending market value — matches user expectation that the
   // biggest positions sit at the top until they explicitly sort otherwise.
@@ -1111,7 +1125,15 @@ function HoldingsTab({
     );
   }
 
-  const filteredPositions = filterAccount === "all" ? positions : positions.filter(p => p.accountId === filterAccount);
+  const filteredPositions = positions.filter((p) => {
+    if (filterAccount !== "all" && p.accountId !== filterAccount) return false;
+    if (filterSector !== "all") {
+      const raw = assetsById.get(p.assetId)?.sector;
+      const label = resolveSectorLabel(raw, nameLocale) ?? "未知";
+      if (label !== filterSector) return false;
+    }
+    return true;
+  });
   const sorted = sortHoldings(filteredPositions, sort, accountMap, assetsById, nameLocale, toPrimary);
   const totalPages = Math.ceil(sorted.length / pageSize);
   const paginated = sorted.slice((page - 1) * pageSize, page * pageSize);
@@ -1121,7 +1143,7 @@ function HoldingsTab({
       <Card
         title={<span>持倉 ({filteredPositions.length})</span>}
         action={
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <AccountFilter
               accounts={accounts}
               value={filterAccount}
@@ -1130,9 +1152,20 @@ function HoldingsTab({
               placeholder="選擇券商"
               style={{ width: 160, height: 32, maxWidth: 160, fontSize: 13 }}
             />
+            <select
+              className="ns-input"
+              value={filterSector}
+              onChange={(e) => setFilterSector(e.target.value)}
+              style={{ height: 32, fontSize: 13, minWidth: 120, maxWidth: 160 }}
+            >
+              <option value="all">所有產業</option>
+              {sectorOptions.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
             <Popover>
               <PopoverTrigger
-                className="inline-flex items-center gap-1.5 rounded-lg border px-3 text-sm font-medium"
+                className="inline-flex items-center gap-1.5 rounded-lg border px-3 text-sm font-medium whitespace-nowrap"
                 style={{ height: 32, borderColor: "var(--ns-border)", background: "var(--ns-surface-elevated)", color: "var(--ns-fg)" }}
                 title="自訂顯示欄位"
               >

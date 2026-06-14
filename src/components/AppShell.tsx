@@ -1,5 +1,7 @@
 import {
   Bank,
+  CaretLeft,
+  CaretRight,
   Compass,
   DotsThreeOutline,
   Eye,
@@ -92,6 +94,9 @@ export function AppShell() {
   const [moreOpen, setMoreOpen] = useState(false);
   const demoActive = useDemoMode((state) => state.active);
   const setDemoActive = useDemoMode((state) => state.set);
+  const onboardingDismissed = useUiPreferences((state) => state.onboardingDismissed);
+  const sidebarCollapsed = useUiPreferences((state) => state.sidebarCollapsed);
+  const toggleSidebarCollapsed = useUiPreferences((state) => state.toggleSidebarCollapsed);
   const [demoExiting, setDemoExiting] = useState(false);
   const shellQueryClient = useQueryClient();
 
@@ -113,62 +118,104 @@ export function AppShell() {
   const mobileMoreNav = [...navItems.slice(4), ...nav2Items];
   useQuickAddShortcut(() => toggleQuickAdd());
 
+  const collapsed = sidebarCollapsed;
+
   return (
     <div
       className="ns-app-shell min-h-screen lg:grid"
-      style={{ gridTemplateColumns: "240px 1fr" }}
+      style={{ gridTemplateColumns: collapsed ? "64px 1fr" : "240px 1fr", transition: "grid-template-columns 0.2s ease" }}
     >
       {/* ── Desktop sidebar ── */}
       <aside
         className="ns-sidebar hidden lg:flex lg:flex-col lg:sticky lg:top-0 lg:h-screen lg:self-start"
         style={{
-          padding: "22px 14px 14px",
+          padding: collapsed ? "16px 8px 14px" : "22px 14px 14px",
           gap: 4,
+          overflow: "hidden",
+          width: collapsed ? 64 : 240,
+          minWidth: collapsed ? 64 : 240,
+          transition: "width 0.2s ease, min-width 0.2s ease, padding 0.2s ease",
         }}
       >
-        {/* Logo */}
-        <div style={{ padding: "0 8px 16px", display: "flex", alignItems: "center", gap: 9 }}>
-          <img src={appIconUrl} alt="" style={{ width: 26, height: 26, borderRadius: 7 }} />
-          <span
-            className="text-[15px]"
-            style={{
-              fontFamily: "var(--ns-font-brand)",
-              fontWeight: 600,
-              letterSpacing: -0.01,
-            }}
-          >
-            Northstar
-          </span>
-        </div>
-
-        {/* Global Search Trigger */}
-        <div style={{ padding: "0 8px 8px" }}>
+        {/* Logo + collapse toggle */}
+        <div style={{ padding: collapsed ? "0 0 16px" : "0 8px 16px", display: "flex", alignItems: "center", gap: 9, justifyContent: collapsed ? "center" : "space-between" }}>
+          {!collapsed && (
+            <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+              <img src={appIconUrl} alt="" style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0 }} />
+              <span
+                className="text-[15px]"
+                style={{ fontFamily: "var(--ns-font-brand)", fontWeight: 600, letterSpacing: -0.01, whiteSpace: "nowrap" }}
+              >
+                Northstar
+              </span>
+            </div>
+          )}
+          {collapsed && (
+            <img src={appIconUrl} alt="" style={{ width: 26, height: 26, borderRadius: 7 }} />
+          )}
           <button
             type="button"
-            onClick={() => setSearchOpen(true)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-body text-muted-foreground bg-secondary/30 hover:bg-secondary/50 rounded-md border border-border/50 transition-colors"
-            style={{ color: "var(--ns-fg-muted)" }}
+            onClick={toggleSidebarCollapsed}
+            title={collapsed ? "展開側欄" : "收合側欄"}
+            className="ns-nav-link"
+            style={{ padding: "5px 6px", flexShrink: 0, color: "var(--ns-fg-dim)" }}
           >
-            <MagnifyingGlass size={15} />
-            <span className="flex-1 text-left">Search...</span>
-            <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
-              <span className="text-xs">⌘</span>K
-            </kbd>
+            {collapsed ? <CaretRight size={14} /> : <CaretLeft size={14} />}
           </button>
         </div>
 
+        {/* Global Search Trigger */}
+        <div style={{ padding: collapsed ? "0 0 8px" : "0 8px 8px" }}>
+          {collapsed ? (
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              title="搜尋 (⌘K)"
+              className="ns-nav-link"
+              style={{ justifyContent: "center", padding: "7px" }}
+            >
+              <MagnifyingGlass size={16} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-body text-muted-foreground bg-secondary/30 hover:bg-secondary/50 rounded-md border border-border/50 transition-colors"
+              style={{ color: "var(--ns-fg-muted)" }}
+            >
+              <MagnifyingGlass size={15} />
+              <span className="flex-1 text-left">Search...</span>
+              <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+                <span className="text-xs">⌘</span>K
+              </kbd>
+            </button>
+          )}
+        </div>
+
         {/* Quick Add trigger */}
-        <div style={{ padding: "0 8px 8px" }}>
-          <Button
-            onClick={() => setQuickAddOpen(true)}
-            className="w-full justify-center gap-2"
-          >
-            <Plus size={15} weight="bold" />
-            <span className="flex-1 text-left">快速記帳</span>
-            <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded px-1.5 font-mono text-[10px] font-medium" style={{ background: "color-mix(in srgb, var(--ns-accent-fg) 18%, transparent)", color: "var(--ns-accent-fg)" }}>
-              <span className="text-xs">⌘</span>N
-            </kbd>
-          </Button>
+        <div style={{ padding: collapsed ? "0 0 8px" : "0 8px 8px" }}>
+          {collapsed ? (
+            <button
+              type="button"
+              onClick={() => setQuickAddOpen(true)}
+              title="快速記帳 (⌘N)"
+              className="ns-nav-link"
+              style={{ justifyContent: "center", padding: "7px", background: "var(--ns-accent)", color: "var(--ns-accent-fg)", borderRadius: "var(--ns-r-sm)" }}
+            >
+              <Plus size={16} weight="bold" />
+            </button>
+          ) : (
+            <Button
+              onClick={() => setQuickAddOpen(true)}
+              className="w-full justify-center gap-2"
+            >
+              <Plus size={15} weight="bold" />
+              <span className="flex-1 text-left">快速記帳</span>
+              <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded px-1.5 font-mono text-[10px] font-medium" style={{ background: "color-mix(in srgb, var(--ns-accent-fg) 18%, transparent)", color: "var(--ns-accent-fg)" }}>
+                <span className="text-xs">⌘</span>N
+              </kbd>
+            </Button>
+          )}
         </div>
 
         {/* Nav items */}
@@ -177,40 +224,49 @@ export function AppShell() {
             <Link
               key={item.to}
               to={item.to}
+              title={collapsed ? item.label : undefined}
               className="ns-nav-link"
               activeProps={{ className: "ns-nav-link active" }}
               inactiveProps={{ className: "ns-nav-link" }}
+              style={collapsed ? { justifyContent: "center", padding: "9px 8px" } : undefined}
             >
               <item.icon size={16} weight="duotone" />
-              {item.label}
+              {!collapsed && item.label}
             </Link>
           ))}
 
-          <div className="ns-eyebrow" style={{ padding: '18px 11px 8px' }}>Settings</div>
+          {!collapsed && <div className="ns-eyebrow" style={{ padding: '18px 11px 8px' }}>Settings</div>}
+          {collapsed && <div style={{ height: 18 }} />}
           {nav2Items.map((item) => (
             <Link
               key={item.to}
               to={item.to}
+              title={collapsed ? item.label : undefined}
               className="ns-nav-link"
               activeProps={{ className: "ns-nav-link active" }}
               inactiveProps={{ className: "ns-nav-link" }}
+              style={collapsed ? { justifyContent: "center", padding: "9px 8px" } : undefined}
             >
               <item.icon size={16} weight="duotone" />
-              {item.label}
+              {!collapsed && item.label}
             </Link>
           ))}
         </nav>
 
-        {/* Bottom: privacy + local-first notice */}
+        {/* Bottom: onboarding (conditional) + privacy + local-first */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <button
-            type="button"
-            onClick={openOnboarding}
-            className="ns-nav-link"
-          >
-            <Compass size={16} weight="duotone" />
-            新手導覽
-          </button>
+          {!onboardingDismissed && (
+            <button
+              type="button"
+              onClick={openOnboarding}
+              title={collapsed ? "新手導覽" : undefined}
+              className="ns-nav-link"
+              style={collapsed ? { justifyContent: "center", padding: "9px 8px" } : undefined}
+            >
+              <Compass size={16} weight="duotone" />
+              {!collapsed && "新手導覽"}
+            </button>
+          )}
 
           <button
             type="button"
@@ -222,27 +278,35 @@ export function AppShell() {
             style={{
               background: privacyMode ? "var(--ns-accent-soft)" : undefined,
               color: privacyMode ? "var(--ns-accent)" : undefined,
+              ...(collapsed ? { justifyContent: "center", padding: "9px 8px" } : undefined),
             }}
           >
             {privacyMode ? <EyeSlash size={16} weight="fill" /> : <Eye size={16} weight="duotone" />}
-            {privacyMode ? "顯示金額" : "隱藏金額"}
+            {!collapsed && (privacyMode ? "顯示金額" : "隱藏金額")}
           </button>
 
-          <div
-            className="ns-surface"
-            style={{ padding: 12 }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
-              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--ns-fg-muted)" }}>
+          {!collapsed && (
+            <div className="ns-surface" style={{ padding: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
+                <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--ns-fg-muted)" }}>
+                  <rect x="5" y="9" width="10" height="8" rx="1.5"/>
+                  <path d="M7 9V6a3 3 0 016 0v3"/>
+                </svg>
+                <span className="text-xs" style={{ fontWeight: 500 }}>Local-first</span>
+              </div>
+              <div className="text-caption" style={{ lineHeight: 1.45, color: "var(--ns-fg-dim)" }}>
+                {t("shell.dataSavedLocally")}
+              </div>
+            </div>
+          )}
+          {collapsed && (
+            <div title={t("shell.dataSavedLocally")} style={{ display: "flex", justifyContent: "center", padding: "6px 0", color: "var(--ns-fg-dim)" }}>
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="5" y="9" width="10" height="8" rx="1.5"/>
                 <path d="M7 9V6a3 3 0 016 0v3"/>
               </svg>
-              <span className="text-xs" style={{ fontWeight: 500 }}>Local-first</span>
             </div>
-            <div className="text-caption" style={{ lineHeight: 1.45, color: "var(--ns-fg-dim)" }}>
-              {t("shell.dataSavedLocally")}
-            </div>
-          </div>
+          )}
         </div>
       </aside>
 

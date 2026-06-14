@@ -35,6 +35,10 @@ export interface UiPreferences {
   radius: RadiusMode;
   /** Show buy/sell markers on the holding price chart. On by default. */
   showTradeMarkers: boolean;
+  /** True once the user has dismissed or completed onboarding; hides the sidebar link. */
+  onboardingDismissed: boolean;
+  /** Desktop sidebar collapsed to icon-only mode. */
+  sidebarCollapsed: boolean;
   setPrivacyMode: (value: boolean) => void;
   togglePrivacyMode: () => void;
   setNameLocale: (value: NameLocalePreference) => void;
@@ -49,6 +53,8 @@ export interface UiPreferences {
   setRadius: (value: RadiusMode) => void;
   setShowTradeMarkers: (value: boolean) => void;
   setDashboardHiddenCards: (value: string[]) => void;
+  setOnboardingDismissed: (value: boolean) => void;
+  toggleSidebarCollapsed: () => void;
 }
 
 /** Toggleable holdings-table columns (the rest are always shown). */
@@ -78,9 +84,13 @@ interface PersistedShape {
   radius: RadiusMode;
   showTradeMarkers: boolean;
   dashboardHiddenCards: string[];
+  onboardingDismissed: boolean;
+  sidebarCollapsed: boolean;
 }
 
 export type ClockMode = "24h" | "12h";
+
+const ONBOARDING_LEGACY_KEY = "northstar.onboarding.dismissed.v1";
 
 function loadPersisted(): PersistedShape {
   const fallback: PersistedShape = {
@@ -97,11 +107,15 @@ function loadPersisted(): PersistedShape {
     radius: "default",
     showTradeMarkers: true,
     dashboardHiddenCards: [],
+    onboardingDismissed: false,
+    sidebarCollapsed: false,
   };
   if (typeof window === "undefined") return fallback;
+  // Back-compat: honour the legacy onboarding dismiss key for existing installs.
+  const legacyDismissed = window.localStorage.getItem(ONBOARDING_LEGACY_KEY) === "1";
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return fallback;
+    if (!raw) return { ...fallback, onboardingDismissed: legacyDismissed };
     const parsed = JSON.parse(raw) as Partial<PersistedShape>;
     const tz = typeof parsed.timezone === "string" && isValidTimezone(parsed.timezone)
       ? parsed.timezone
@@ -138,9 +152,12 @@ function loadPersisted(): PersistedShape {
       dashboardHiddenCards: Array.isArray(parsed.dashboardHiddenCards)
         ? parsed.dashboardHiddenCards.filter((k): k is string => typeof k === "string")
         : [],
+      onboardingDismissed:
+        typeof parsed.onboardingDismissed === "boolean" ? parsed.onboardingDismissed : legacyDismissed,
+      sidebarCollapsed: typeof parsed.sidebarCollapsed === "boolean" ? parsed.sidebarCollapsed : false,
     };
   } catch {
-    return fallback;
+    return { ...fallback, onboardingDismissed: legacyDismissed };
   }
 }
 
@@ -198,6 +215,8 @@ function snapshot(state: UiPreferences): PersistedShape {
     radius: state.radius,
     showTradeMarkers: state.showTradeMarkers,
     dashboardHiddenCards: state.dashboardHiddenCards,
+    onboardingDismissed: state.onboardingDismissed,
+    sidebarCollapsed: state.sidebarCollapsed,
   };
 }
 
@@ -215,6 +234,8 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   radius: initial.radius,
   showTradeMarkers: initial.showTradeMarkers,
   dashboardHiddenCards: initial.dashboardHiddenCards,
+  onboardingDismissed: initial.onboardingDismissed,
+  sidebarCollapsed: initial.sidebarCollapsed,
   setPrivacyMode(value) {
     setPrivacyMaskOn(value);
     set({ privacyMode: value });
@@ -280,6 +301,14 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   },
   setDashboardHiddenCards(value) {
     set({ dashboardHiddenCards: value });
+    persist(snapshot(get()));
+  },
+  setOnboardingDismissed(value) {
+    set({ onboardingDismissed: value });
+    persist(snapshot(get()));
+  },
+  toggleSidebarCollapsed() {
+    set({ sidebarCollapsed: !get().sidebarCollapsed });
     persist(snapshot(get()));
   },
 }));

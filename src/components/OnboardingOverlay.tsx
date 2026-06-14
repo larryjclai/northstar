@@ -21,6 +21,7 @@ import { enterDemoMode } from "../data/demoData";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { getFinanceRepository, type LedgerDraft } from "../data/repositories";
 import { useDemoMode } from "../state/demoMode";
+import { useUiPreferences } from "../state/uiPreferences";
 
 const STORAGE_KEY = "northstar.onboarding.dismissed.v1";
 export const OPEN_ONBOARDING_EVENT = "northstar:open-onboarding";
@@ -36,6 +37,7 @@ export function OnboardingOverlay() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const { accounts, ledger, assets } = useFinanceData();
+  const setOnboardingDismissed = useUiPreferences((s) => s.setOnboardingDismissed);
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
   const [dismissed, setDismissed] = useState(() => {
@@ -81,6 +83,7 @@ export function OnboardingOverlay() {
     window.localStorage.setItem(STORAGE_KEY, "1");
     setDismissed(true);
     setOpen(false);
+    setOnboardingDismissed(true);
   }
 
   function go(to: "/" | "/accounts" | "/cash-flow" | "/investments" | "/settings") {
