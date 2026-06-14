@@ -103,32 +103,35 @@
 [data-theme="light"] {
   color-scheme: light;
 
-  --ns-bg:          oklch(0.985 0.005 250);
-  --ns-bg-elev:     oklch(0.998 0 0);
-  --ns-bg-card:     oklch(0.998 0 0);
-  --ns-bg-hover:    oklch(0.965 0.005 250);
-  --ns-border:      oklch(0.91 0.005 250);
-  --ns-border-strong: oklch(0.82 0.008 250);
-  --ns-fg:          oklch(0.2 0.01 250);
-  --ns-fg-muted:    oklch(0.45 0.01 250);
-  --ns-fg-dim:      oklch(0.6 0.008 250);
+  /* surfaces — cool off-white canvas, pure-white elevated cards */
+  --ns-bg:            oklch(0.972 0.006 250);
+  --ns-bg-elev:       oklch(0.986 0.004 250);
+  --ns-bg-card:       oklch(1 0 0);
+  --ns-bg-hover:      oklch(0.948 0.008 250);
+  --ns-border:        oklch(0.901 0.006 250);
+  --ns-border-strong: oklch(0.80 0.010 250);
+  --ns-fg:            oklch(0.23 0.018 250);
+  --ns-fg-muted:      oklch(0.48 0.014 250);
+  --ns-fg-dim:        oklch(0.63 0.010 250);
 
-  --ns-accent:      #5fb83a;
-  --ns-accent-fg:   #ffffff;
-  --ns-accent-soft: color-mix(in srgb, #5fb83a 14%, transparent);
+  /* brand — keep lime, dark ink on top (mirrors dark mode relationship) */
+  --ns-accent:      #8ed34e;
+  --ns-accent-fg:   #173708;
+  --ns-accent-soft: color-mix(in srgb, #8ed34e 30%, transparent);
 
-  --ns-pos:         #157040;
-  --ns-pos-soft:    color-mix(in srgb, #157040 12%, transparent);
-  --ns-neg:         #c22a1e;
-  --ns-neg-soft:    color-mix(in srgb, #c22a1e 12%, transparent);
-  --ns-warn:        #c98a18;
-  --ns-info:        #2c6df0;
+  /* semantic — deepened for legibility on white */
+  --ns-pos:         #0f7a40;
+  --ns-pos-soft:    color-mix(in srgb, #0f7a40 12%, transparent);
+  --ns-neg:         #c62a1d;
+  --ns-neg-soft:    color-mix(in srgb, #c62a1d 12%, transparent);
+  --ns-warn:        #b07d10;
+  --ns-info:        #2563e8;
 
-  --ns-chart-1: #5fb83a; --ns-chart-2: #2c6df0;
-  --ns-chart-3: #d18a18; --ns-chart-4: #c44a82; --ns-chart-5: #6e58d8;
+  --ns-chart-1: #5aa832; --ns-chart-2: #2f6fe0;
+  --ns-chart-3: #c98f1f; --ns-chart-4: #c44a82; --ns-chart-5: #6e58d8;
 
-  --ns-shadow-1: 0 1px 0 rgba(255,255,255,.9) inset, 0 1px 2px rgba(20,20,30,.06);
-  --ns-shadow-2: 0 20px 50px rgba(20,20,30,.08);
+  --ns-shadow-1: 0 1px 0 rgba(255,255,255,0.9) inset, 0 1px 2px oklch(0.4 0.02 250 / 0.07);
+  --ns-shadow-2: 0 24px 60px oklch(0.4 0.03 250 / 0.10);
 
   /* ── Backward-compat aliases ── */
   --ns-surface:          var(--ns-bg-card);
@@ -274,10 +277,10 @@
 
 /* TW 紅漲綠跌 — light */
 [data-gainloss="tw"] {
-  --ns-gain:      #c22a1e;
-  --ns-gain-soft: color-mix(in srgb, #c22a1e 12%, transparent);
-  --ns-loss:      #157040;
-  --ns-loss-soft: color-mix(in srgb, #157040 12%, transparent);
+  --ns-gain:      #c62a1d;
+  --ns-gain-soft: color-mix(in srgb, #c62a1d 12%, transparent);
+  --ns-loss:      #0f7a40;
+  --ns-loss-soft: color-mix(in srgb, #0f7a40 12%, transparent);
 }
 /* Neutral 藍綠/琥珀（無漲跌語意暗示）— light */
 [data-gainloss="neutral"] {
