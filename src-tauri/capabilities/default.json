@@ -8,6 +8,9 @@
     "sql:default",
     "sql:allow-execute",
     "stronghold:default",
-    "process:default"
+    "process:default",
+    "fs:allow-applocaldata-read-recursive",
+    "fs:allow-applocaldata-write-recursive",
+    "fs:allow-applocaldata-meta-recursive"
   ]
 }

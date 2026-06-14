@@ -20,6 +20,10 @@ tauri = { version = "2", features = ["devtools", "macos-private-api"] }
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-stronghold = "2"
 tauri-plugin-process = "2"
+# Scheduled/manual local JSON backups (roadmap 5.1) write real files under
+# {appLocalData}/backups/ via this plugin; scope is locked to that dir in
+# capabilities/default.json. Cross-platform, so it lives here (not desktop-only).
+tauri-plugin-fs = "2"
 # Cross-platform deps. serde_json is needed by tauri::generate_context!, and
 # reqwest/url/serde back the fetch_yahoo command — all required on mobile too,
 # so they must live here, not under the desktop-only target block below.

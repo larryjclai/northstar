@@ -37,6 +37,7 @@ import { runSync, isSyncRunning, isTauriRuntime } from "../features/connect/sync
 import { useSyncStatus } from "../state/syncStatus";
 import { queryKeys } from "../data/hooks";
 import { refreshLatestMarketData } from "../features/market-data/useMarketRefresh";
+import { runDailyBackupIfDue } from "../features/local-backup/localBackup";
 
 const appIconUrl = new URL("../../src-tauri/icons/icon.png", import.meta.url).href;
 
@@ -79,6 +80,7 @@ export function AppShell() {
   useAutoSync();
   useAutoMarketRefresh();
   useAutoUpdateCheck();
+  useDailyLocalBackup();
   const timezone = useUiPreferences((state) => state.timezone);
   usePostDueRecurring(todayInTimezone(timezone));
   const privacyMode = useUiPreferences((state) => state.privacyMode);
@@ -461,6 +463,29 @@ function useAutoUpdateCheck() {
     window.addEventListener("focus", checkForUpdate);
     return () => window.removeEventListener("focus", checkForUpdate);
   }, [checkForUpdate]);
+}
+
+// ── Daily local backup (roadmap 5.1) ───────────────────────────────────────
+// On first launch each calendar day, quietly snapshot the whole database to a
+// local backup (desktop → real JSON file in Finder; browser → IndexedDB). This
+// gives pure-local users (sync off) an automatic safety net. Suspended during
+// demo mode so the showcase data is never captured as the user's backup.
+
+function useDailyLocalBackup() {
+  const ranRef = useRef(false);
+  useEffect(() => {
+    if (ranRef.current) return; // guard StrictMode double-mount
+    ranRef.current = true;
+    void (async () => {
+      if (useDemoMode.getState().active) return;
+      try {
+        const repo = await getFinanceRepository();
+        await runDailyBackupIfDue(repo);
+      } catch (e) {
+        console.warn("[backup] daily local backup failed", e);
+      }
+    })();
+  }, []);
 }
 
 function useQuickAddShortcut(toggle: () => void) {

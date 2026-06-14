@@ -42,6 +42,10 @@ import {
 import { runSync, forceFullResync } from "../../features/connect/sync/sync-manager";
 import { summarizeConflict } from "../../features/connect/sync/conflictSummary";
 import { listBackups, restoreBackup, type BackupEntry } from "../../features/connect/sync/backup";
+import {
+  listLocalBackups, createManualBackup, restoreLocalBackup, deleteLocalBackup,
+  localBackupLocation, type LocalBackupEntry,
+} from "../../features/local-backup/localBackup";
 import { useSyncStatus } from "../../state/syncStatus";
 import {
   generateRecoveryKit, confirmRecoveryKit, downloadRecoveryKit,
@@ -77,6 +81,61 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
   // a no-op in the Tauri webview, which is why the old import silently did nothing).
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
+
+  // Local auto-backups (roadmap 5.1). Restore/delete use two-click inline
+  // confirm — window.confirm is a no-op in the Tauri webview.
+  const [localBackups, setLocalBackups] = useState<LocalBackupEntry[]>([]);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [confirmRestoreId, setConfirmRestoreId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    listLocalBackups().then(setLocalBackups).catch(() => setLocalBackups([]));
+  }, []);
+
+  async function refreshLocalBackups() {
+    try { setLocalBackups(await listLocalBackups()); } catch { /* ignore */ }
+  }
+
+  async function handleManualBackup() {
+    setBackupBusy(true);
+    try {
+      const repository = await getFinanceRepository();
+      await createManualBackup(repository);
+      await refreshLocalBackups();
+      toast.success("已建立本地備份");
+    } catch (e) {
+      toast.error(e instanceof Error ? `備份失敗：${e.message}` : "備份失敗");
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
+  async function handleRestoreLocal(id: string) {
+    setConfirmRestoreId(null);
+    setBackupBusy(true);
+    try {
+      const repository = await getFinanceRepository();
+      await restoreLocalBackup(id, repository);
+      await queryClient.invalidateQueries();
+      toast.success("已還原備份");
+    } catch (e) {
+      toast.error(e instanceof Error ? `還原失敗：${e.message}` : "還原失敗");
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
+  async function handleDeleteLocal(id: string) {
+    setConfirmDeleteId(null);
+    try {
+      await deleteLocalBackup(id);
+      await refreshLocalBackups();
+      toast.success("已刪除備份");
+    } catch {
+      toast.error("刪除失敗");
+    }
+  }
 
   // Demo data + reset. window.confirm is a no-op in the Tauri webview, so these
   // use a two-click inline confirm instead.
@@ -451,6 +510,53 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
           </div>
         )}
         <p className="text-xs muted mt-3">想要 CSV / 篩選範圍的匯出，請到上方「{t('settings.export')}」分頁。</p>
+
+        <div className="mt-6 pt-4" style={{ borderTop: "1px solid var(--ns-border)" }}>
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+            <h4 className="font-semibold text-sm">本地自動備份</h4>
+            <Button variant="outline" onClick={handleManualBackup} disabled={backupBusy}>
+              <DownloadSimple size={14} />{backupBusy ? "處理中…" : "立即備份"}
+            </Button>
+          </div>
+          <p className="text-xs muted mb-3">
+            每天首次開啟會自動備份整份資料庫，保留近 7 天每日 + 近 4 週每週。
+            {localBackupLocation() === "filesystem"
+              ? "備份檔存放在本機應用程式資料夾，可在 Finder 開啟。"
+              : "備份存放在此瀏覽器的本機儲存空間。"}
+          </p>
+          {localBackups.length === 0 ? (
+            <p className="text-xs muted">尚無本地備份。</p>
+          ) : (
+            <div className="space-y-2">
+              {localBackups.map((b) => (
+                <div key={b.id} className="ns-surface flex items-center justify-between gap-3 p-3">
+                  <div className="min-w-0">
+                    <div className="text-sm truncate">{b.label}</div>
+                    <Badge variant="outline" className="mt-1">{b.kind === "scheduled" ? "自動" : "手動"}</Badge>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {confirmRestoreId === b.id ? (
+                      <>
+                        <Button variant="outline" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} disabled={backupBusy} onClick={() => handleRestoreLocal(b.id)}>確定還原（覆蓋現有）</Button>
+                        <Button variant="ghost" onClick={() => setConfirmRestoreId(null)}>取消</Button>
+                      </>
+                    ) : confirmDeleteId === b.id ? (
+                      <>
+                        <Button variant="outline" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} onClick={() => handleDeleteLocal(b.id)}>確定刪除</Button>
+                        <Button variant="ghost" onClick={() => setConfirmDeleteId(null)}>取消</Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button variant="ghost" disabled={backupBusy} onClick={() => setConfirmRestoreId(b.id)}><UploadSimple size={14} />還原</Button>
+                        <Button variant="ghost" onClick={() => setConfirmDeleteId(b.id)}><Trash size={14} /></Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </Card>
 
       <UpdateChecker />

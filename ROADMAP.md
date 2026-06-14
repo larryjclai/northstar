@@ -85,10 +85,14 @@ iOS 上架、Apple 公證、家庭協作、預算進階、報表 PDF、分帳、
 - **Action**: 併入 `docs/coss-ui-migration-plan.md` 的逐頁遷移：每遷一頁同時 (a) inline style → DS token/元件 class，(b) 文案過 i18n，(c) 數字排版統一（tabular nums、漲跌色、typographic minus）。剩餘 64 處分散在其餘 route，逐頁清。
 - **驗收**: 遷移完成頁面 grep 不到 `style={{ fontSize:`（白名單除外）；剩餘 10 處 ad-hoc 小數字級清零。
 
-### 5.1 排程自動本地備份
-- **Problem**: 自動備份目前只在「同步前」觸發（3 份）；不開同步的純本機使用者沒有任何自動備份。
-- **Action**: 每日首次啟動自動產生本地 JSON 備份（沿用 `exportSnapshot`），保留近 7 天每日 + 近 4 週每週；設定頁顯示清單與「立即備份」。
-- **驗收**: 連續使用 30 天後備份 ≤ 11 份；還原任一份成功。
+### 5.1 排程自動本地備份 — ✅ 實作完成（2026-06-14，桌面 fs 路徑待實機驗證）
+- **Problem**: 自動備份目前只在「同步前」觸發（3 份，存 IndexedDB，見 `features/connect/sync/backup.ts`）；不開同步的純本機使用者沒有任何自動備份。
+- **已實作**: 統一 `src/features/local-backup/localBackup.ts`——每天首次啟動 `runDailyBackupIfDue`（`AppShell` 的 `useDailyLocalBackup`，示範模式時跳過、空資料庫不備份），保留近 7 天每日 + 近 4 週每週（`selectRetained`）；設定「一般與備份」分頁有清單、「立即備份」、還原（兩段式確認）與刪除。
+- **儲存後端**: 桌面寫成 **Tauri fs 真實 `.json` 檔**（`{appLocalData}/backups/`，使用者在 Finder 看得到；scope 鎖在 `capabilities/default.json` 的 `fs:allow-applocaldata-*-recursive`）；瀏覽器無 fs，fallback 到 IndexedDB（`northstar-local-backups`）。
+- **驗證**: tsc + `cargo check`（capability 識別碼經 `generate_context!` 驗證）通過；瀏覽器路徑已實測（手動/每日/同日冪等/空資料庫跳過/40→10 保留修剪/還原/UI）。**桌面 fs 路徑尚未 `tauri dev` 實機跑過**——下次桌面建置時確認檔案確實寫進 `{appLocalData}/backups/` 且可還原。
+- **備註**: 示範模式的「進入前暫存」已改用 IndexedDB（`northstar-demo-stash`，修掉 localStorage 配額 bug），屬過渡性暫存、不需變成磁碟檔。
+- **驗收**: 連續使用 30 天後備份 ≤ 11 份（已驗）；還原任一份成功（已驗）。
+- **後續**: 接 5.2 還原前預覽（diff 摘要）到此清單的還原流程。
 
 ### 5.2 還原前預覽
 - **Problem**: JSON / 備份還原都是直接覆蓋，使用者看不到「會還原成什麼」。
