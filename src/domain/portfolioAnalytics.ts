@@ -1,6 +1,6 @@
 import type { DailyPrice, InvestmentRecord, ManualPriceSnapshot } from "./types";
 import { buildQuoteLookup, findQuoteForTicker, quoteLookupKeys } from "./marketSymbols";
-import { buildQuantityTimeline } from "./portfolioMetrics";
+import { buildPositionMetrics, buildQuantityTimeline } from "./portfolioMetrics";
 
 /**
  * Portfolio analytics engine — risk metrics and time-series used by the
@@ -271,6 +271,8 @@ export interface AnalyticsPosition {
   ticker: string;
   quantity: number;
   currency: string;
+  /** Fallback cost per share for legacy/manual positions without records. */
+  averageCost?: number;
   /** Manual holdings price off snapshots (by assetId); tracked off daily_prices (by ticker). */
   isManual: boolean;
   /** Asset class label for allocation drift; optional. */
@@ -468,6 +470,26 @@ export interface ReturnAttribution {
   excludedTickers: string[];
 }
 
+export interface CostBasisAttributionItem {
+  assetId: string;
+  ticker: string;
+  /** Current market value in primary currency. */
+  marketValue: number;
+  /** Remaining moving-average cost basis in primary currency. */
+  costBasis: number;
+  /** Unrealized gain/loss = marketValue - costBasis. */
+  contribution: number;
+  /** Unrealized return on this holding's own cost basis (%). */
+  pct: number;
+}
+
+export interface CostBasisAttribution {
+  items: CostBasisAttributionItem[];
+  /** Total unrealized gain across all priced positions. */
+  total: number;
+  excludedTickers: string[];
+}
+
 /**
  * Per-holding contribution to the portfolio's period gain, on the same
  * fixed-basket valuation as {@link buildPortfolioValueSeries} — so the
@@ -505,6 +527,83 @@ export function buildReturnAttribution(opts: {
     total,
     excludedTickers: [...new Set(basket.excluded.map((p) => p.ticker))],
   };
+}
+
+/**
+ * Current holding movers on the same moving-average cost basis used by the
+ * Holdings table. This answers "which holdings are up/down versus my cost?"
+ * rather than "which prices moved most during the selected period?".
+ */
+export function buildCostBasisAttribution(opts: {
+  positions: AnalyticsPosition[];
+  records: InvestmentRecord[];
+  dailyPrices: DailyPrice[];
+  manualSnapshots: ManualPriceSnapshot[];
+  toPrimary: (value: number, currency: string, asOf?: string) => number;
+  end: string;
+}): CostBasisAttribution {
+  const { positions, records, dailyPrices, manualSnapshots, toPrimary } = opts;
+  const end = day(opts.end);
+  const recordsByAsset = new Map<string, InvestmentRecord[]>();
+  for (const record of records) {
+    if (record.deletedAt !== null) continue;
+    const rows = recordsByAsset.get(record.assetId) ?? [];
+    rows.push(record);
+    recordsByAsset.set(record.assetId, rows);
+  }
+
+  const latestDailyPrice = (ticker: string): DailyPrice | null => {
+    let best: DailyPrice | null = null;
+    const key = ticker.toUpperCase();
+    for (const row of dailyPrices) {
+      if (row.ticker.toUpperCase() !== key || day(row.date) > end) continue;
+      if (!best || row.date.localeCompare(best.date) > 0) best = row;
+    }
+    return best;
+  };
+
+  const latestManualSnapshot = (assetId: string): ManualPriceSnapshot | null => {
+    let best: ManualPriceSnapshot | null = null;
+    for (const row of manualSnapshots) {
+      if (row.assetId !== assetId || day(row.date) > end) continue;
+      if (!best || row.date.localeCompare(best.date) > 0) best = row;
+    }
+    return best;
+  };
+
+  const items: CostBasisAttributionItem[] = [];
+  const excludedTickers: string[] = [];
+  let total = 0;
+
+  for (const position of positions) {
+    if (Math.abs(position.quantity) <= EPS) continue;
+
+    const price = latestDailyPrice(position.ticker);
+    const snap = price ? null : latestManualSnapshot(position.assetId);
+    if (!price && !snap) {
+      excludedTickers.push(position.ticker);
+      continue;
+    }
+
+    const priceValue = price?.close ?? snap!.price;
+    const priceCurrency = price?.currency ?? position.currency;
+    const priceDate = price?.date ?? snap!.date;
+    const marketValue = toPrimary(priceValue * position.quantity, priceCurrency, priceDate);
+
+    const metrics = buildPositionMetrics(recordsByAsset.get(position.assetId) ?? []);
+    const rawCostBasis =
+      Math.abs(metrics.costBasis) > EPS
+        ? metrics.costBasis
+        : (position.averageCost ?? 0) * position.quantity;
+    const costBasis = toPrimary(rawCostBasis, position.currency, end);
+    const contribution = marketValue - costBasis;
+    const pct = Math.abs(costBasis) > EPS ? (contribution / costBasis) * 100 : 0;
+    total += contribution;
+    items.push({ assetId: position.assetId, ticker: position.ticker, marketValue, costBasis, contribution, pct });
+  }
+
+  items.sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+  return { items, total, excludedTickers: [...new Set(excludedTickers)] };
 }
 
 // ─── True time-weighted return (TWR) ─────────────────────────────────────────

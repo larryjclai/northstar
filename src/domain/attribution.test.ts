@@ -1,11 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { buildReturnAttribution, buildPortfolioValueSeries, type AnalyticsPosition } from "./portfolioAnalytics";
-import type { DailyPrice } from "./types";
+import { buildCostBasisAttribution, buildReturnAttribution, buildPortfolioValueSeries, type AnalyticsPosition } from "./portfolioAnalytics";
+import type { DailyPrice, InvestmentRecord } from "./types";
 
 const identity = (value: number) => value;
 
 function price(ticker: string, date: string, close: number): DailyPrice {
   return { ticker, date, close, currency: "USD", source: "test", updatedAt: `${date}T00:00:00.000Z` };
+}
+
+function record(partial: Partial<InvestmentRecord>): InvestmentRecord {
+  return {
+    id: Math.random().toString(36).slice(2),
+    spaceId: "s",
+    revision: 1,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    deletedAt: null,
+    assetId: "a",
+    linkedAccountId: "acct-1",
+    date: "2026-01-01",
+    action: "buy",
+    price: 0,
+    quantity: 0,
+    fee: 0,
+    note: "",
+    isReviewed: false,
+    linkedLedgerTransactionId: null,
+    cashless: false,
+    ...partial,
+  };
 }
 
 const dates = ["2026-01-01", "2026-01-02", "2026-01-03"];
@@ -46,5 +69,55 @@ describe("buildReturnAttribution", () => {
     const attr = buildReturnAttribution({ positions: withGhost, dailyPrices: prices, manualSnapshots: [], toPrimary: identity, start: dates[0], end: dates[2] });
     expect(attr.excludedTickers).toContain("ZZZ");
     expect(attr.items.some((i) => i.ticker === "ZZZ")).toBe(false);
+  });
+});
+
+describe("buildCostBasisAttribution", () => {
+  it("uses moving-average cost basis for unrealized P/L and per-holding return", () => {
+    const positions: AnalyticsPosition[] = [
+      { assetId: "a", ticker: "AAA", quantity: 15, currency: "USD", isManual: false },
+      { assetId: "b", ticker: "BBB", quantity: 5, currency: "USD", isManual: false },
+    ];
+    const records = [
+      record({ assetId: "a", date: "2026-01-01", action: "buy", price: 100, quantity: 10 }),
+      record({ assetId: "a", date: "2026-01-02", action: "buy", price: 120, quantity: 5 }),
+      record({ assetId: "b", date: "2026-01-01", action: "buy", price: 50, quantity: 5 }),
+    ];
+    const prices = [
+      price("AAA", dates[2], 130),
+      price("BBB", dates[2], 40),
+    ];
+
+    const attr = buildCostBasisAttribution({ positions, records, dailyPrices: prices, manualSnapshots: [], toPrimary: identity, end: dates[2] });
+
+    const aaa = attr.items.find((item) => item.ticker === "AAA")!;
+    expect(aaa.costBasis).toBeCloseTo(1600, 6);
+    expect(aaa.marketValue).toBeCloseTo(1950, 6);
+    expect(aaa.contribution).toBeCloseTo(350, 6);
+    expect(aaa.pct).toBeCloseTo((350 / 1600) * 100, 6);
+
+    const bbb = attr.items.find((item) => item.ticker === "BBB")!;
+    expect(bbb.contribution).toBeCloseTo(-50, 6);
+    expect(bbb.pct).toBeCloseTo(-20, 6);
+    expect(attr.total).toBeCloseTo(300, 6);
+  });
+
+  it("falls back to averageCost when no transaction records exist", () => {
+    const positions: AnalyticsPosition[] = [
+      { assetId: "legacy", ticker: "LEG", quantity: 4, currency: "USD", averageCost: 25, isManual: true },
+    ];
+
+    const attr = buildCostBasisAttribution({
+      positions,
+      records: [],
+      dailyPrices: [price("LEG", dates[2], 30)],
+      manualSnapshots: [],
+      toPrimary: identity,
+      end: dates[2],
+    });
+
+    expect(attr.items[0].costBasis).toBeCloseTo(100, 6);
+    expect(attr.items[0].contribution).toBeCloseTo(20, 6);
+    expect(attr.items[0].pct).toBeCloseTo(20, 6);
   });
 });

@@ -134,6 +134,7 @@ export function InvestmentsRoute() {
         ticker: a.ticker,
         quantity: a.totalQuantity,
         currency: a.currency,
+        averageCost: a.averageCost,
         isManual: a.holdingSource === "manual",
         assetClass: a.assetType ? assetTypeLabels[a.assetType] : undefined,
         sector: a.sector,
@@ -1137,26 +1138,65 @@ function HoldingsTab({
   const sorted = sortHoldings(filteredPositions, sort, accountMap, assetsById, nameLocale, toPrimary);
   const totalPages = Math.ceil(sorted.length / pageSize);
   const paginated = sorted.slice((page - 1) * pageSize, page * pageSize);
+  const filterControlStyle: React.CSSProperties = {
+    height: 38,
+    minHeight: 38,
+    fontSize: 13,
+    lineHeight: 1.2,
+  };
 
   return (
     <>
-      <Card
-        title={<span>持倉 ({filteredPositions.length})</span>}
-        action={
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <AccountFilter
-              accounts={accounts}
-              value={filterAccount}
-              onChange={setFilterAccount}
-              allLabel="所有券商"
-              placeholder="選擇券商"
-              style={{ width: 160, height: 32, maxWidth: 160, fontSize: 13 }}
-            />
+      <Card>
+        <div className="mb-4" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <h2
+            className="text-[15px]"
+            style={{
+              fontFamily: "var(--ns-font-display)",
+              fontWeight: 600,
+              margin: 0,
+              letterSpacing: -0.01,
+              flex: "0 0 auto",
+            }}
+          >
+            持倉 ({filteredPositions.length})
+          </h2>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: 8,
+              flexWrap: "wrap",
+              flex: "0 1 520px",
+              maxWidth: "100%",
+            }}
+          >
+            <div style={{ flex: "1 1 180px", minWidth: 148, maxWidth: 220 }}>
+              <AccountFilter
+                accounts={accounts}
+                value={filterAccount}
+                onChange={setFilterAccount}
+                allLabel="所有券商"
+                placeholder="選擇券商"
+                mutedAllLabel={false}
+                style={{ ...filterControlStyle, width: "100%", minWidth: 0, maxWidth: "none", padding: "0 12px" }}
+              />
+            </div>
             <select
               className="ns-input"
               value={filterSector}
               onChange={(e) => setFilterSector(e.target.value)}
-              style={{ height: 32, fontSize: 13, minWidth: 120, maxWidth: 160 }}
+              style={{
+                ...filterControlStyle,
+                flex: "1 1 180px",
+                minWidth: 148,
+                maxWidth: 220,
+                width: "auto",
+                padding: "0 34px 0 12px",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
             >
               <option value="all">所有產業</option>
               {sectorOptions.map((s) => (
@@ -1166,7 +1206,14 @@ function HoldingsTab({
             <Popover>
               <PopoverTrigger
                 className="inline-flex items-center gap-1.5 rounded-lg border px-3 text-sm font-medium whitespace-nowrap"
-                style={{ height: 32, borderColor: "var(--ns-border)", background: "var(--ns-surface-elevated)", color: "var(--ns-fg)" }}
+                style={{
+                  ...filterControlStyle,
+                  boxSizing: "border-box",
+                  flex: "0 0 auto",
+                  borderColor: "var(--ns-border)",
+                  background: "var(--ns-surface-elevated)",
+                  color: "var(--ns-fg)",
+                }}
                 title="自訂顯示欄位"
               >
                 <Sliders size={14} />欄位
@@ -1184,8 +1231,7 @@ function HoldingsTab({
               </PopoverContent>
             </Popover>
           </div>
-        }
-      >
+        </div>
         {/* Mobile: card stack — a 10-column table can't fit a phone, so each
             position becomes a tappable card showing the at-a-glance essentials
             (ticker, name, holdings, market value, P/L). Full per-column detail

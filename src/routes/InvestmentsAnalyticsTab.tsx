@@ -23,12 +23,12 @@ import { useUiPreferences, type NameLocalePreference } from "../state/uiPreferen
 import {
   annualizedVolatilityPct,
   buildBenchmarkSeries,
+  buildCostBasisAttribution,
   buildPortfolioTwr,
   buildPortfolioValueSeries,
   buildCurrencyExposure,
   buildDividendAnalysis,
   buildPositionMetrics,
-  buildReturnAttribution,
   calculateXirr,
   cashflowSpanDays,
   cumulativeReturnPct,
@@ -305,9 +305,8 @@ export function InvestmentsAnalyticsTab({
   }, [positions, records, dailyPrices, manualSnapshots, toPrimary, end]);
 
   const attribution = useMemo(() => {
-    const start = periodStart(period, end);
-    return buildReturnAttribution({ positions, dailyPrices, manualSnapshots, toPrimary, start, end });
-  }, [positions, dailyPrices, manualSnapshots, toPrimary, period, end]);
+    return buildCostBasisAttribution({ positions, records, dailyPrices, manualSnapshots, toPrimary, end });
+  }, [positions, records, dailyPrices, manualSnapshots, toPrimary, end]);
 
   const perf = useMemo(() => {
     const start = periodStart(period, end);
@@ -682,15 +681,15 @@ export function InvestmentsAnalyticsTab({
         </div>
       </CossCard>
 
-      {/* ── Return attribution: winners / losers ────────────────────────────── */}
+      {/* ── Cost-basis attribution: winners / losers ────────────────────────── */}
       {attribution.items.length > 0 ? (
         <CossCard style={{ padding: 34 }}>
           <NSAnHead
-            kicker="報酬貢獻"
+            kicker="未實現損益"
             title="上漲最多與下跌最多"
             right={
               <span className="muted" style={{ fontSize: 12, fontFamily: "var(--ns-font-mono)", whiteSpace: "nowrap" }}>
-                {periodStart(period, end)} ～ {end}
+                成本基準 · {end}
               </span>
             }
           />
@@ -705,24 +704,26 @@ export function InvestmentsAnalyticsTab({
             );
 
             function AttributionRow({ label, contribution, pct, color }: { label: string; contribution: number; pct: number; color: string }) {
+              const money = `${contribution >= 0 ? "+" : "−"}${formatMoney(Math.abs(contribution), primaryCurrency)}`;
+              const percent = `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`;
               return (
-                <div style={{ display: "grid", gridTemplateColumns: "96px 1fr 150px", gap: 12, alignItems: "center" }}>
-                  <span className="mono text-xs" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(64px, 96px) minmax(80px, 1fr) minmax(112px, 150px)", gap: 12, alignItems: "center", minWidth: 0 }}>
+                  <span className="mono text-xs" title={label} style={{ minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
                   <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
                     <div style={{ width: `${(Math.abs(contribution) / maxAbs) * 100}%`, height: "100%", background: color, borderRadius: 99 }} />
                   </div>
-                  <div className="text-xs" style={{ textAlign: "right", display: "flex", justifyContent: "flex-end", gap: 6 }}>
-                    <span className="num" style={{ color }}>{contribution >= 0 ? "+" : "−"}{formatMoney(Math.abs(contribution), primaryCurrency)}</span>
-                    <span className="num muted" style={{ minWidth: 48, textAlign: "right" }}>{pct >= 0 ? "+" : "−"}{Math.abs(pct).toFixed(0)}%</span>
+                  <div className="text-xs" style={{ minWidth: 0, textAlign: "right", display: "grid", gridTemplateColumns: "minmax(0, 1fr) 48px", gap: 6, alignItems: "baseline" }}>
+                    <span className="num" title={money} style={{ minWidth: 0, color, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{money}</span>
+                    <span className="num muted" title={percent} style={{ minWidth: 0, textAlign: "right", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{percent}</span>
                   </div>
                 </div>
               );
             }
 
             return (
-              <div style={{ display: "grid", gridTemplateColumns: losers.length > 0 ? "1fr 1fr" : "1fr", gap: 32 }}>
+              <div style={{ display: "grid", gridTemplateColumns: losers.length > 0 ? "repeat(auto-fit, minmax(min(100%, 420px), 1fr))" : "1fr", gap: 32, minWidth: 0 }}>
                 {winners.length > 0 && (
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 12, color: "var(--ns-gain)" }}>上漲 TOP {winners.length}</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       {winners.map((r) => (
@@ -732,7 +733,7 @@ export function InvestmentsAnalyticsTab({
                   </div>
                 )}
                 {losers.length > 0 && (
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 12, color: "var(--ns-loss)" }}>下跌 TOP {losers.length}</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       {losers.map((r) => (

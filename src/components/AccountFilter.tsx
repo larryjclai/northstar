@@ -63,6 +63,7 @@ export function AccountFilter({
   placeholder = "選擇帳戶",
   className,
   style,
+  mutedAllLabel = true,
   contentClassName,
   positionerClassName,
 }: {
@@ -76,6 +77,8 @@ export function AccountFilter({
   placeholder?: string;
   className?: string;
   style?: React.CSSProperties;
+  /** When true, the "all" row renders like placeholder text. */
+  mutedAllLabel?: boolean;
   /** Extra classes for the popover content. */
   contentClassName?: string;
   /** Override popover positioner classes — e.g. a higher z-index when used
@@ -123,7 +126,7 @@ export function AccountFilter({
             {selected ? (
               <AccountMark account={selected} index={indexById.get(selected.id) ?? 0} size={20} />
             ) : null}
-            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", color: selected ? undefined : "var(--ns-fg-dim)" }}>
+            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", color: selected || !mutedAllLabel ? undefined : "var(--ns-fg-dim)" }}>
               {selected ? selected.name : allowAll ? allLabel : placeholder}
             </span>
             <CaretUpDown size={14} style={{ flexShrink: 0, color: "var(--ns-fg-dim)" }} />
