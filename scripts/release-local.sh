@@ -61,6 +61,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 echo "▶ Building universal macOS bundle for $TAG …"
+# Force a clean bundle each release so Info.plist always reflects the current
+# version (Tauri's bundler can reuse stale .app artifacts from prior builds).
+(cd src-tauri && cargo clean --release 2>/dev/null || true)
 npm ci
 npm run tauri build -- --target "$TARGET"
 
