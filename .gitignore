@@ -32,12 +32,23 @@ backup/
 backups/
 *.bak
 
+# Local design review uploads and screenshots. Review/redact before committing
+# any images intentionally.
+Design System/uploads/
+
+# Private release-only assets. Official builds may copy these into public/
+# before packaging, but they should not be published with the source repo.
+private-assets/
+public/bank/
+
 # ─── Secrets ───────────────────────────────────────────
 .env
 .env.*
 !.env.example
 *.key
 *.pem
+*.p12
+*.mobileprovision
 
 # ─── Logs ──────────────────────────────────────────────
 *.log

@@ -34,6 +34,7 @@ import {
 } from "../../features/connect/crypto/vault";
 import {
   registerUser, listDevices, revokeDevice, addDevice,
+  isSyncWorkerConfigured,
   type DeviceRecord,
 } from "../../features/connect/sync/client";
 import {
@@ -85,6 +86,7 @@ function RelativeTime({ iso }: { iso: string }) {
 
 export function ConnectStatus() {
   const toast = useToast();
+  const syncWorkerConfigured = isSyncWorkerConfigured();
   const [identity] = useState(() => getOrCreateDeviceIdentity());
   const [account, setAccount] = useState<SyncAccount | null>(() => loadSyncAccount());
   const [devices, setDevices] = useState<DeviceRecord[]>([]);
@@ -232,6 +234,10 @@ export function ConnectStatus() {
 
   // ── First-time setup ──
   async function handleSetup() {
+    if (!syncWorkerConfigured) {
+      toast.error("這個 build 未設定同步服務 endpoint，無法啟用 Connect 同步。");
+      return;
+    }
     setLoading(true);
     try {
       // Reuse an existing vault key (e.g. just restored from a Recovery Kit)
@@ -265,6 +271,10 @@ export function ConnectStatus() {
   // ── Generate pairing code (Device A) ──
   async function handleGenerateCode() {
     if (!account) return;
+    if (!syncWorkerConfigured) {
+      toast.error("這個 build 未設定同步服務 endpoint，無法產生配對碼。");
+      return;
+    }
     setSessionLoading(true);
     try {
       const s = await initiatePairing();
@@ -278,6 +288,10 @@ export function ConnectStatus() {
 
   // ── Join with code (Device B) ──
   async function handleJoin() {
+    if (!syncWorkerConfigured) {
+      setJoinError("這個 build 未設定同步服務 endpoint，無法加入同步。");
+      return;
+    }
     setJoinError(null);
     setJoinLoading(true);
     try {
@@ -345,6 +359,10 @@ export function ConnectStatus() {
   // ── Manual sync ──
   async function handleManualSync() {
     if (syncStatus.phase === "pushing" || syncStatus.phase === "pulling") return;
+    if (!syncWorkerConfigured) {
+      syncStatus.setError("這個 build 未設定同步服務 endpoint，無法同步。");
+      return;
+    }
     if (!kitStatus?.confirmedAt) {
       toast.error("請先備份並確認 Recovery Kit 才能開始同步");
       return;
@@ -428,6 +446,14 @@ export function ConnectStatus() {
         <p className="text-sm muted mb-4">
           啟用後，你的財務資料會以端對端加密的方式同步到你的其他裝置。資料加密後才離開裝置，伺服器看不到任何明文。
         </p>
+        {!syncWorkerConfigured && (
+          <div className="text-xs" style={{ marginBottom: 14, padding: "10px 12px", borderRadius: "var(--ns-r-sm)",
+            background: "var(--ns-warn-soft, var(--ns-bg-hover))", color: "var(--ns-warn, #b45309)",
+            display: "flex", alignItems: "flex-start", gap: 8 }}>
+            <Warning size={15} weight="fill" style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>這個 build 未設定同步服務 endpoint；Connect 同步目前停用。本機記帳與匯出功能不受影響。</span>
+          </div>
+        )}
         <div style={{ marginBottom: 14 }}>
           <label className="text-caption" style={{ color: "var(--ns-fg-muted)", display: "block", marginBottom: 5 }}>這台裝置的名稱</label>
           <input
@@ -439,11 +465,11 @@ export function ConnectStatus() {
           />
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button onClick={handleSetup} disabled={loading || !joinDeviceName.trim()}>
+          <Button onClick={handleSetup} disabled={loading || !joinDeviceName.trim() || !syncWorkerConfigured}>
             {loading ? <Spinner size={14} className="animate-spin" /> : <WifiHigh size={14} />}
             {loading ? "啟用中…" : "啟用同步"}
           </Button>
-          <Button variant="ghost" onClick={() => openDialog("join")}>
+          <Button variant="ghost" onClick={() => openDialog("join")} disabled={!syncWorkerConfigured}>
             我有配對碼
           </Button>
           <Button variant="ghost" onClick={() => setShowRestore(!showRestore)}>
@@ -505,6 +531,9 @@ export function ConnectStatus() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <h3 className="font-semibold">Connect 同步</h3>
+          {!syncWorkerConfigured && (
+            <Badge variant="outline" className="rounded-full text-micro" style={{background: "var(--ns-warn-soft, var(--ns-bg-hover))", color: "var(--ns-warn, #b45309)" }}>未設定服務</Badge>
+          )}
           {kitStatus?.confirmedAt ? (
             <Badge variant="outline" className="rounded-full text-micro" style={{background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}>已啟用</Badge>
           ) : (
@@ -515,11 +544,11 @@ export function ConnectStatus() {
           <Button variant="ghost" className="text-xs"
             onClick={handleManualSync}
             title={!kitStatus?.confirmedAt ? "請先備份並確認 Recovery Kit" : undefined}
-            disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling" || !kitStatus?.confirmedAt}>
+            disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling" || !kitStatus?.confirmedAt || !syncWorkerConfigured}>
             <ArrowsClockwise size={13} style={{ animation: (syncStatus.phase === "pushing" || syncStatus.phase === "pulling") ? "spin 1s linear infinite" : undefined }} />
             {syncStatus.phase === "pushing" ? "上傳中…" : syncStatus.phase === "pulling" ? "下載中…" : "立即同步"}
           </Button>
-          <Button variant="ghost" className="text-xs" onClick={() => openDialog("show")}>
+          <Button variant="ghost" className="text-xs" onClick={() => openDialog("show")} disabled={!syncWorkerConfigured}>
             <Plus size={13} />新增裝置
           </Button>
         </div>

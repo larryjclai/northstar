@@ -1,7 +1,11 @@
 // HTTP client for the Northstar sync worker.
 // All payloads are already encrypted by the caller; this module only handles transport.
 
-export const WORKER_URL = "https://northstar-sync.larrynote.workers.dev";
+export const WORKER_URL = (import.meta.env.VITE_NORTHSTAR_SYNC_WORKER_URL ?? "").trim().replace(/\/+$/, "");
+
+export function isSyncWorkerConfigured(): boolean {
+  return WORKER_URL.length > 0;
+}
 
 export interface EnvelopeRecord {
   id: string;
@@ -40,6 +44,9 @@ async function request<T>(
   path: string,
   options: RequestInit & { apiSecret?: string } = {},
 ): Promise<T> {
+  if (!isSyncWorkerConfigured()) {
+    throw new Error("Sync worker endpoint is not configured for this build.");
+  }
   const { apiSecret, ...rest } = options;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",

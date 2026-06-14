@@ -1,23 +1,15 @@
 /**
- * Bundled bank / broker logo assets, keyed by the brand `domain` from
- * `bankBrands.ts`. Logos ship *with the app* (no third-party request, no
- * privacy leak, always crisp) — the trade-off is a slightly larger bundle for
- * each logo you include.
+ * Optional bundled bank / broker logo assets, keyed by the brand `domain` from
+ * `bankBrands.ts`. Public source builds do not include the actual logo files;
+ * official release builds may inject them privately into `public/bank/` before
+ * packaging. Missing files are fine — `BankLogo` falls back to the normal
+ * account marker when an asset cannot be loaded.
  *
  * ── How to add a logo ───────────────────────────────────────────────────────
- * 1. Drop the image in `src/assets/banks/` (PNG/SVG/WebP; ~128px+ square looks
- *    best on account markers). Prefer SVG when available — it stays crisp at any
- *    size and is tiny.
- * 2. Import it and map it under the matching brand domain below, e.g.:
- *
- *      import esunbank from "../assets/banks/esunbank.svg";
- *      // ...
- *      export const BANK_LOGO_ASSETS: Record<string, string> = {
- *        "esunbank.com": esunbank,
- *        "cathaybk.com.tw": cathay,
- *      };
- *
- *    The domain keys must match the `domain` values in `bankBrands.ts`
+ * 1. Put release-only files in `private-assets/bank/` using the filenames below.
+ * 2. `npm run build` runs `scripts/inject-private-assets.mjs`, which copies the
+ *    private files into `public/bank/` when present.
+ * 3. The domain keys must match the `domain` values in `bankBrands.ts`
  *    (BRAND_RULES). `getBankLogoAsset` resolves an account → brand → asset.
  *
  * Until a brand has an entry here, the account simply shows your chosen icon /
