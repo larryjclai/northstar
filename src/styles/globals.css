@@ -430,10 +430,20 @@ html[data-native-glass],
 html[data-native-glass] body,
 html[data-native-glass] .ns-app-shell { background: transparent; }
 html[data-native-glass] .ns-sidebar {
-  /* Lighter wash over the system material — vibrancy does the heavy lifting. */
-  background: color-mix(in srgb, var(--ns-bg-elev) 38%, transparent);
+  /* Keep native vibrancy, but tint enough that the sidebar follows the app theme. */
+  background: color-mix(in srgb, var(--ns-bg-elev) 58%, transparent);
 }
 html[data-native-glass] .ns-app-main { background: var(--ns-bg); }
+
+@media (prefers-color-scheme: dark) {
+  html[data-native-glass]:not([data-theme="light"]) .ns-sidebar {
+    background: color-mix(in srgb, var(--ns-bg-elev) 88%, transparent);
+  }
+}
+
+html[data-native-glass][data-theme="dark"] .ns-sidebar {
+  background: color-mix(in srgb, var(--ns-bg-elev) 88%, transparent);
+}
 /* Native apps cut between views; honor the OS "reduce motion" setting. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

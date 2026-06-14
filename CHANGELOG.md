@@ -2,6 +2,22 @@
 
 All notable changes to Northstar will be documented in this file.
 
+## [0.1.0-alpha.32] - 2026-06-14
+
+### Added
+- **本地自動備份與手動備份**：設定中新增本地備份能力，Northstar 會在本機保留可還原的備份紀錄，也可手動建立備份，降低資料誤刪或測試流程中的風險。
+
+### Changed
+- **投資分析分頁改為 Direction A editorial layout**：投資分析頁改成更有層次的 editorial 儀表板版面，讓核心投資指標、分析區塊與視覺重點更清楚。
+- **設計系統與 app icon 更新**：補上設計系統文件、更新 token palette，並重新整理 Northstar app icon 與各尺寸圖示。
+- **公開 source build / release 資產流程調整**：銀行與券商 logo 改為 release-only private asset injection，公開 source build 在沒有 private assets 或官方同步 endpoint 時也能正常建置。
+
+### Fixed
+- **修正示範資料退出時正式資料可能被覆蓋的風險**：示範模式切換改用 IndexedDB 保存正式資料快照，避免 localStorage 容量限制或序列化問題造成還原不完整。
+- **修正 macOS dark mode Sidebar 被 native glass 洗成灰色**：保留 macOS 原生 vibrancy，但在深色模式下加強 Sidebar 的 app theme tint，避免主內容是暗色、Sidebar 卻偏灰的視覺失配。
+
+---
+
 ## [0.1.0-alpha.31] - 2026-06-14
 
 ### Changed
