@@ -1,5 +1,5 @@
 import { ArrowsClockwise, ChartLineUp, Info } from "@phosphor-icons/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Area,
   AreaChart,
@@ -20,8 +20,6 @@ import { TickerSearchField } from "../components/TickerSearchField";
 import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
 import { useUiPreferences } from "../state/uiPreferences";
 import {
-  alignByDate,
-  allocationDriftSeries,
   annualizedVolatilityPct,
   buildBenchmarkSeries,
   buildPortfolioTwr,
@@ -42,6 +40,7 @@ import {
   sharpeRatio,
   sortinoRatio,
   toCumulativeReturnSeries,
+  alignByDate,
   XIRR_MIN_DAYS,
   type AnalyticsPosition,
   type DailyPrice,
@@ -60,7 +59,7 @@ const CHART_COLORS = [
   "#fb923c",
 ];
 
-const VOL_THRESHOLD = 20; // % annualized — high-volatility marker on the rolling chart.
+const VOL_THRESHOLD = 20;
 
 /** Wealthfolio-style quick picks for the in-chart benchmark switcher. */
 const BENCHMARK_PRESETS: Array<{ ticker: string; name: string; note: string }> = [
@@ -71,9 +70,6 @@ const BENCHMARK_PRESETS: Array<{ ticker: string; name: string; note: string }> =
   { ticker: "VT", name: "Vanguard Total World", note: "全球股市 ETF" },
 ];
 
-/** Benchmark chip + popover: preset list on top, free Yahoo symbol search
- *  below. Writes the shared uiPreferences benchmark so the whole analytics
- *  tab (and its auto-backfill) follows. */
 function BenchmarkPicker({ current }: { current: string }) {
   const setBenchmarkTicker = useUiPreferences((state) => state.setBenchmarkTicker);
   const [open, setOpen] = useState(false);
@@ -144,8 +140,6 @@ function daysAgo(n: number, end: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Inclusive start date for an analytics period. ALL uses a far-past sentinel so
- *  the value-series builder trims to the actual first priced date. */
 function periodStart(period: AnalyticsPeriod, end: string): string {
   if (period === "ALL") return "1900-01-01";
   if (period === "YTD") return `${end.slice(0, 4)}-01-01`;
@@ -157,13 +151,10 @@ function mean(values: number[]): number {
   return values.length ? values.reduce((s, v) => s + v, 0) / values.length : 0;
 }
 
-/** Rolling window of a metric, reusing the canonical (tested) metric functions
- *  so a rolling chart can never drift from the headline number. */
 function rollingMetric(returns: number[], window: number, fn: (r: number[]) => number | null): Array<number | null> {
   return returns.map((_, i) => (i + 1 < window ? null : fn(returns.slice(i + 1 - window, i + 1))));
 }
 
-/** Underwater (drawdown-over-time) series, in percent, aligned to `values`. */
 function underwaterSeries(values: number[]): number[] {
   let peak = values[0] ?? 0;
   return values.map((v) => {
@@ -182,7 +173,6 @@ function fmtRatio(v: number | null): string {
   return v.toFixed(2);
 }
 
-// ─── Sparkline (lightweight SVG; no chart lib overhead per KPI card) ──────────
 function Sparkline({ data, color, width = 60, height = 26 }: { data: Array<number | null>; color: string; width?: number; height?: number }) {
   const pts = data.filter((v): v is number => v != null && Number.isFinite(v));
   if (pts.length < 2) return <svg width={width} height={height} style={{ display: "block" }} />;
@@ -207,13 +197,10 @@ interface Props {
   dailyPrices: DailyPrice[];
   manualSnapshots: ManualPriceSnapshot[];
   toPrimary: (value: number, currency: string, asOf?: string) => number;
-  /** assetId → {ticker, currency} for ALL assets (including sold / zero-quantity). */
   allAssetMeta: Map<string, { ticker: string; currency: string }>;
   benchmarkTicker: string;
   primaryCurrency: string;
-  /** Backfill all holdings' historical prices (the whole-tab empty-state CTA). */
   onBackfillHoldings: (range: "1y" | "5y") => void | Promise<void>;
-  /** Ensure the benchmark ticker has history (auto-fired on first view). */
   onEnsureBenchmark: (ticker: string) => void | Promise<void>;
   backfilling: boolean;
 }
@@ -234,8 +221,6 @@ export function InvestmentsAnalyticsTab({
   const [period, setPeriod] = useState<AnalyticsPeriod>("1Y");
   const end = todayStr();
 
-  // Auto-backfill the benchmark's history the first time it's missing, so the
-  // Portfolio-vs-Benchmark line can draw without the user hunting for a button.
   const attempted = useRef<Set<string>>(new Set());
   useEffect(() => {
     const t = benchmarkTicker.toUpperCase();
@@ -246,7 +231,6 @@ export function InvestmentsAnalyticsTab({
     void onEnsureBenchmark(benchmarkTicker);
   }, [benchmarkTicker, dailyPrices, onEnsureBenchmark]);
 
-  // ── Period-scoped portfolio series + risk metrics (KPI strip) ──────────────
   const core = useMemo(() => {
     const start = periodStart(period, end);
     const { series, excludedTickers } = buildPortfolioValueSeries({ positions, dailyPrices, manualSnapshots, toPrimary, start, end });
@@ -284,16 +268,12 @@ export function InvestmentsAnalyticsTab({
     };
   }, [core, enough]);
 
-  // ── 三口徑報酬 ─────────────────────────────────────────────────────────────
-  /** 期間 TWR（時間加權報酬）：排除加減碼時機影響，衡量持倉本身表現。 */
   const twrResult = useMemo(() => {
     const start = periodStart(period, end);
     return buildPortfolioTwr({ positions, records, dailyPrices, toPrimary, start, end });
   }, [positions, records, dailyPrices, toPrimary, period, end]);
 
-  /** 年化 XIRR（金額加權報酬）：全期不受 period 影響，用所有持倉 cashflows。 */
   const xirrResult = useMemo(() => {
-    // 把所有持倉的 records 依 assetId 分組，合併所有 cashflows。
     const byAsset = new Map<string, InvestmentRecord[]>();
     for (const r of records) {
       if (r.deletedAt !== null) continue;
@@ -307,26 +287,20 @@ export function InvestmentsAnalyticsTab({
       allCashflows.push(...cashflows);
     }
     if (allCashflows.length === 0) return { xirr: null, gated: true };
-
     const span = cashflowSpanDays(allCashflows, end);
     if (span < XIRR_MIN_DAYS) return { xirr: null, gated: true };
-
-    // Terminal value = 目前持倉總市值（最後一點 buildPortfolioValueSeries 全期 value）。
     const fullSeries = buildPortfolioValueSeries({ positions, dailyPrices, manualSnapshots, toPrimary, start: "1900-01-01", end });
     const lastValue = fullSeries.series.length > 0 ? fullSeries.series[fullSeries.series.length - 1].value : 0;
     const terminal = { date: end, amount: lastValue };
-
     const xirr = calculateXirr(allCashflows, terminal);
     return { xirr, gated: false };
   }, [positions, records, dailyPrices, manualSnapshots, toPrimary, end]);
 
-  /** 報酬貢獻：各持倉在此期間貢獻的損益（fixed-basket，加總＝期間市值變化）。 */
   const attribution = useMemo(() => {
     const start = periodStart(period, end);
     return buildReturnAttribution({ positions, dailyPrices, manualSnapshots, toPrimary, start, end });
   }, [positions, dailyPrices, manualSnapshots, toPrimary, period, end]);
 
-  // ── Portfolio vs Benchmark (cumulative return, aligned dates) ──────────────
   const perf = useMemo(() => {
     const start = periodStart(period, end);
     const series = core.series;
@@ -342,25 +316,11 @@ export function InvestmentsAnalyticsTab({
     return { data, portFinal, benchFinal, alpha, hasBenchmark: benchCum.length >= 2 };
   }, [core.series, dailyPrices, benchmarkTicker, period, end]);
 
-  // ── Allocation drift (fixed 12-month window) ───────────────────────────────
-  const drift = useMemo(() => {
-    const start = daysAgo(365, end);
-    const d = allocationDriftSeries({ positions, dailyPrices, manualSnapshots, toPrimary, start, end });
-    const data = d.dates.map((date, t) => {
-      const row: Record<string, number | string> = { date };
-      d.classes.forEach((c, ci) => { row[c] = d.data[t][ci]; });
-      return row;
-    });
-    return { classes: d.classes, data };
-  }, [positions, dailyPrices, manualSnapshots, toPrimary, end]);
-
-  // ── Rolling 30-day volatility (fixed 1-year window) ────────────────────────
   const rolling = useMemo(() => {
     const start = daysAgo(365, end);
     const { series } = buildPortfolioValueSeries({ positions, dailyPrices, manualSnapshots, toPrimary, start, end });
     const returns = dailyReturns(series.map((p) => p.value));
     const roll = rollingVolatilityPct(returns, 30);
-    // roll[i] corresponds to returns[i] → series[i + 1].
     const data = roll
       .map((vol, i) => ({ date: series[i + 1]?.date ?? "", vol }))
       .filter((p) => p.vol != null && p.date) as Array<{ date: string; vol: number }>;
@@ -397,7 +357,6 @@ export function InvestmentsAnalyticsTab({
     return { rows, total, largestClass, largestHolding, topHoldingPct };
   }, [positions, dailyPrices, manualSnapshots, toPrimary, end]);
 
-  // ── 幣別曝險 (current holdings, grouped by asset currency) ─────────────────
   const currencyExposure = useMemo(() => {
     const entries = positions.map((p) => ({
       currency: p.currency,
@@ -406,7 +365,6 @@ export function InvestmentsAnalyticsTab({
     return buildCurrencyExposure(entries);
   }, [positions, dailyPrices, manualSnapshots, toPrimary, end]);
 
-  // ── 股利分析 (all-time; yield uses current market value) ───────────────────
   const dividends = useMemo(() => {
     return buildDividendAnalysis({ records, assetMeta: allAssetMeta, toPrimary, currentMarketValue: allocationSummary.total, asOf: end });
   }, [records, allAssetMeta, toPrimary, allocationSummary.total, end]);
@@ -439,114 +397,500 @@ export function InvestmentsAnalyticsTab({
   const periodOptions = PERIODS.map((p) => ({ value: p, label: p }));
 
   return (
-    <div className="grid gap-4">
-      <AnalyticsSectionHeading title="績效" description="時間區間會同步影響期間總覽、累積報酬與指標比較。" />
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 4 }}>績效</div>
-          <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>期間總覽</h3>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {/* Always-available backfill — the Dashboard's 前往回補 link lands here,
-              so the entry point can't live only in the empty state. */}
-          <Button variant="outline" size="sm" onClick={() => onBackfillHoldings("1y")} loading={backfilling} disabled={backfilling} title="抓取所有持倉近 1 年的每日歷史股價">
-            <ArrowsClockwise size={13} />{backfilling ? "回補中…" : "回補歷史股價"}
-          </Button>
-          <SegmentedControl value={period} onChange={setPeriod} options={periodOptions} />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <SummaryMetricCard
-          label="期初市值"
-          value={periodSummary.startValue == null ? "—" : formatMoney(periodSummary.startValue, primaryCurrency)}
-          help="目前持倉在這個期間第一個可計價日期的估算市值。若某些標的缺歷史價格，會從可用資料開始計算。"
-        />
-        <SummaryMetricCard
-          label="期末市值"
-          value={periodSummary.endValue == null ? "—" : formatMoney(periodSummary.endValue, primaryCurrency)}
-          help="目前持倉在期間結束日的估算市值，通常接近最新可取得價格。"
-        />
-        <SummaryMetricCard
-          label="期間市值變化"
-          value={periodSummary.change == null ? "—" : `${periodSummary.change >= 0 ? "+" : "−"}${formatMoney(Math.abs(periodSummary.change), primaryCurrency)}`}
-          tone={periodSummary.change == null ? "muted" : periodSummary.change >= 0 ? "pos" : "neg"}
-          help="期末市值減期初市值。這是固定目前持倉籃子的期間變化，不等同完整已實現損益。"
-        />
-        <SummaryMetricCard
-          label="期間報酬"
-          value={fmtPct(periodSummary.changePct, 1)}
-          tone={periodSummary.changePct == null ? "muted" : periodSummary.changePct >= 0 ? "pos" : "neg"}
-          help="把期間內每日市值序列轉成累積報酬，會跟上方時間區間一起變動。"
-        />
-      </div>
+    <div className="grid gap-5">
 
-      {/* ── 報酬口徑 ── */}
-      <CossCard style={{ padding: 22 }}>
-        <div style={{ marginBottom: 14 }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 4 }}>報酬口徑</div>
-          <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>三種報酬怎麼看</h3>
+      {/* ── Hero: equity curve + period selector + three return measures ───── */}
+      <CossCard style={{ padding: 34 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 20, marginBottom: 24 }}>
+          <div>
+            <div className="ns-eyebrow" style={{ marginBottom: 10 }}>期間報酬 · {period}</div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+              <span
+                className="num"
+                style={{
+                  fontSize: "clamp(42px, 5.5vw, 68px)",
+                  fontWeight: 600,
+                  letterSpacing: "-0.03em",
+                  lineHeight: 0.9,
+                  color:
+                    periodSummary.changePct == null
+                      ? "var(--ns-fg)"
+                      : periodSummary.changePct >= 0
+                      ? "var(--ns-gain)"
+                      : "var(--ns-loss)",
+                }}
+              >
+                {fmtPct(periodSummary.changePct, 1)}
+              </span>
+              {periodSummary.change != null && (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    padding: "4px 11px",
+                    borderRadius: 99,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    background: "var(--ns-accent-soft)",
+                    color: "var(--ns-accent)",
+                  }}
+                >
+                  {periodSummary.change >= 0 ? "+" : "−"}
+                  {formatMoney(Math.abs(periodSummary.change), primaryCurrency)}
+                </span>
+              )}
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 }}>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onBackfillHoldings("1y")}
+                loading={backfilling}
+                disabled={backfilling}
+                title="抓取所有持倉近 1 年的每日歷史股價"
+              >
+                <ArrowsClockwise size={13} />
+                {backfilling ? "回補中…" : "回補歷史股價"}
+              </Button>
+              <SegmentedControl value={period} onChange={setPeriod} options={periodOptions} />
+            </div>
+            <div style={{ display: "flex", gap: 28 }}>
+              {[
+                { l: "期初市值", v: periodSummary.startValue == null ? "—" : formatMoney(periodSummary.startValue, primaryCurrency) },
+                { l: "期末市值", v: periodSummary.endValue == null ? "—" : formatMoney(periodSummary.endValue, primaryCurrency) },
+              ].map((s) => (
+                <div key={s.l}>
+                  <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 6 }}>{s.l}</div>
+                  <div className="num" style={{ fontSize: 18, fontWeight: 500, color: "var(--ns-fg-muted)" }}>{s.v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", overflow: "hidden" }}>
+
+        {/* Equity curve — portfolio cumulative return for the selected period */}
+        <div style={{ height: 200 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={perf.data}>
+              <defs>
+                <linearGradient id="anHeroPort" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="5%" stopColor="var(--ns-gain)" stopOpacity={0.28} />
+                  <stop offset="95%" stopColor="var(--ns-gain)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--ns-border)" vertical={false} />
+              <XAxis dataKey="date" stroke="var(--ns-fg-muted)" fontSize={11} minTickGap={28} tickFormatter={(d: string) => d.slice(5)} />
+              <YAxis stroke="var(--ns-fg-muted)" fontSize={11} width={42} tickFormatter={(v: number) => `${v.toFixed(0)}%`} />
+              <Tooltip
+                formatter={(value: number) => [`${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(2)}%`, "累積報酬"]}
+                contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }}
+                itemStyle={{ color: "var(--ns-fg)" }}
+                labelStyle={{ color: "var(--ns-fg)" }}
+              />
+              <Area type="monotone" dataKey="port" stroke="var(--ns-gain)" fill="url(#anHeroPort)" strokeWidth={2} isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        {core.excludedTickers.length > 0 && (
+          <div className="muted text-caption" style={{ marginTop: 8, lineHeight: 1.5 }}>
+            部分標的歷史股價不足，本期間未納入分析：{core.excludedTickers.join("、")}。回補更長區間的歷史股價即可納入。
+          </div>
+        )}
+
+        {/* Three return measures (TWR / XIRR / price return) */}
+        <div style={{ marginTop: 22, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-md)", overflow: "hidden" }}>
           {[
             {
-              label: "期間 TWR",
-              val: twrResult.twrPct,
+              l: "期間 TWR",
+              sub: "剔除進出金影響",
+              v: twrResult.twrPct,
               help: "時間加權報酬：衡量持倉本身的表現，不受你加碼/減碼時點影響。",
             },
             {
-              label: "年化 XIRR",
-              val: xirrResult.gated ? null : (xirrResult.xirr != null ? xirrResult.xirr * 100 : null),
+              l: "年化 XIRR",
+              sub: "考慮金流時間",
+              v: xirrResult.gated ? null : xirrResult.xirr != null ? xirrResult.xirr * 100 : null,
               help: "金額加權年化報酬：把資金投入的時點與多寡也算進來，反映你實際的資金成果。",
             },
             {
-              label: "期間價格報酬",
-              val: periodSummary.changePct,
+              l: "期間價格報酬",
+              sub: "市值帳面變化",
+              v: periodSummary.changePct,
               help: "目前持倉籃子在此期間的價格漲跌，不含加減碼與配息。",
             },
           ].map((s, i) => (
-            <div key={s.label} style={{ padding: "12px 16px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)", minWidth: 0 }}>
-              <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
-                {s.label}
+            <div
+              key={s.l}
+              style={{ padding: "16px 20px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)" }}
+            >
+              <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                {s.l}
                 <MetricHelp text={s.help} />
               </div>
               <div
-                className="num text-stat"
+                className="num"
                 style={{
+                  fontSize: 28,
                   fontWeight: 600,
-                  fontFamily: "var(--ns-font-num)",
+                  color: s.v == null ? "var(--ns-fg)" : s.v >= 0 ? "var(--ns-gain)" : "var(--ns-loss)",
                   fontVariantNumeric: "tabular-nums",
-                  color: s.val == null ? "var(--ns-fg)" : s.val >= 0 ? "var(--ns-gain)" : "var(--ns-loss)",
+                  marginBottom: 5,
                 }}
               >
+                {s.v == null ? "—" : `${s.v >= 0 ? "+" : "−"}${Math.abs(s.v).toFixed(1)}%`}
+              </div>
+              <div className="dim" style={{ fontSize: 11.5 }}>{s.sub}</div>
+            </div>
+          ))}
+        </div>
+        {twrResult.excludedTickers && twrResult.excludedTickers.length > 0 && (
+          <div className="muted text-caption" style={{ marginTop: 8, lineHeight: 1.5 }}>
+            部分標的歷史股價不足，未納入 TWR 計算：{twrResult.excludedTickers.join("、")}。
+          </div>
+        )}
+      </CossCard>
+
+      {/* ── Treemap feature band (placeholder — implemented in next release) ── */}
+      <NSAnBand deep>
+        <NSAnHead
+          kicker="持倉熱度 · HOLDINGS HEATMAP"
+          title="你的錢放在哪、誰在發動"
+          right={<span className="mono dim" style={{ fontSize: 12 }}>方塊大小＝市值　顏色＝1Y 報酬</span>}
+        />
+        <div
+          style={{
+            height: 160,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "var(--ns-r-md)",
+            border: "1px dashed var(--ns-border)",
+            color: "var(--ns-fg-dim)",
+            fontSize: 13,
+          }}
+        >
+          持倉熱圖 — 即將推出
+        </div>
+      </NSAnBand>
+
+      {/* ── Portfolio vs Benchmark ──────────────────────────────────────────── */}
+      <CossCard style={{ padding: 34 }}>
+        <NSAnHead
+          kicker="績效比較 · vs 指標"
+          title={`投資組合 vs ${benchmarkTicker}`}
+          right={<BenchmarkPicker current={benchmarkTicker} />}
+        />
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-md)", overflow: "hidden", marginBottom: 16 }}>
+          {[
+            { label: "投資組合", val: perf.portFinal, color: perf.portFinal != null && perf.portFinal >= 0 ? "var(--ns-gain)" : "var(--ns-loss)", help: undefined },
+            { label: `${benchmarkTicker} 指標`, val: perf.benchFinal, color: "var(--ns-fg-muted)", help: undefined },
+            { label: "Alpha", val: perf.alpha, color: perf.alpha != null && perf.alpha >= 0 ? "var(--ns-accent)" : "var(--ns-loss)", help: "投資組合報酬減掉指標報酬。正數代表本期間跑贏指標，負數代表落後。" },
+          ].map((s, i) => (
+            <div key={s.label} style={{ padding: "12px 16px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)", minWidth: 0 }}>
+              <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: 4 }}>
+                {s.label}{s.help ? <MetricHelp text={s.help} /> : null}
+              </div>
+              <div className="num text-stat" style={{ fontWeight: 600, fontFamily: "var(--ns-font-num)", color: s.color, fontVariantNumeric: "tabular-nums" }}>
                 {s.val == null ? "—" : `${s.val >= 0 ? "+" : "−"}${Math.abs(s.val).toFixed(1)}%`}
               </div>
             </div>
           ))}
         </div>
-        {twrResult.excludedTickers && twrResult.excludedTickers.length > 0 ? (
-          <div className="muted text-caption" style={{ marginTop: 8, lineHeight: 1.5 }}>
-            部分標的歷史股價不足，未納入 TWR 計算：{twrResult.excludedTickers.join("、")}。
-          </div>
-        ) : null}
+
+        <div style={{ height: 220 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={perf.data}>
+              <defs>
+                <linearGradient id="anAlphaPort" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="5%" stopColor="var(--ns-accent)" stopOpacity={0.35} />
+                  <stop offset="95%" stopColor="var(--ns-accent)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--ns-border)" vertical={false} />
+              <XAxis dataKey="date" stroke="var(--ns-fg-muted)" fontSize={11} minTickGap={28} tickFormatter={(d: string) => d.slice(5)} />
+              <YAxis stroke="var(--ns-fg-muted)" fontSize={11} width={42} tickFormatter={(v: number) => `${v.toFixed(0)}%`} />
+              <Tooltip
+                formatter={(value: number, name) => [`${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(2)}%`, name === "port" ? "投資組合" : benchmarkTicker]}
+                contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }}
+                itemStyle={{ color: "var(--ns-fg)" }}
+                labelStyle={{ color: "var(--ns-fg)" }}
+              />
+              <Area type="monotone" dataKey="port" stroke="var(--ns-accent)" fill="url(#anAlphaPort)" strokeWidth={2} isAnimationActive={false} />
+              {perf.hasBenchmark ? (
+                <Line type="monotone" dataKey="bench" stroke="var(--ns-fg-dim)" strokeWidth={1.5} strokeDasharray="5 4" dot={false} connectNulls isAnimationActive={false} />
+              ) : null}
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="text-caption" style={{ display: "flex", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 14, height: 2, background: "var(--ns-accent)" }} />
+            <span className="muted">投資組合（累積報酬）</span>
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 14, height: 0, borderTop: "1px dashed var(--ns-fg-dim)" }} />
+            <span className="muted">{perf.hasBenchmark ? `${benchmarkTicker} 指標` : `尚無 ${benchmarkTicker} 歷史股價`}</span>
+          </span>
+        </div>
       </CossCard>
 
-      {/* ── 報酬貢獻 (attribution) ── */}
-      {attribution.items.length > 0 ? (
-        <CossCard style={{ padding: 22 }}>
-          <div style={{ marginBottom: 14 }}>
-            <div className="ns-eyebrow" style={{ marginBottom: 4 }}>報酬貢獻</div>
-            <HeadingWithHelp
-              title="哪些持倉驅動了報酬"
-              help="各持倉在此期間貢獻的損益（以目前持股 × 期間價格變化計算），加總等於上方的期間市值變化。正數綠色、負數紅色。"
-            />
+      {/* ── Allocation + Currency feature band ──────────────────────────────── */}
+      <NSAnBand deep>
+        <div style={{ display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 48, alignItems: "start" }}>
+          <div>
+            <NSAnHead kicker="配置 · ALLOCATION" title="資產類別分布" />
+            {allocationSummary.rows.length > 0 ? (
+              <AnAllocBars rows={allocationSummary.rows} />
+            ) : (
+              <div className="muted text-body" style={{ padding: "24px 0" }}>目前持倉缺少最新價格，無法估算配置。</div>
+            )}
           </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+            {currencyExposure.currencyCount >= 2 && (
+              <div>
+                <NSAnHead kicker="幣別曝險 · CURRENCY" title="持倉的幣別分布" />
+                <div style={{ display: "flex", height: 12, borderRadius: 99, overflow: "hidden", marginBottom: 16 }}>
+                  {currencyExposure.items.map((it, i) => (
+                    <div key={it.currency} style={{ width: `${it.pct}%`, background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                  ))}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {currencyExposure.items.map((it, i) => (
+                    <div
+                      key={it.currency}
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--ns-border)" }}
+                    >
+                      <span style={{ width: 10, height: 10, borderRadius: 3, background: CHART_COLORS[i % CHART_COLORS.length], flexShrink: 0 }} />
+                      <span className="mono" style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{it.currency}</span>
+                      <span className="num muted" style={{ fontSize: 12.5 }}>{formatMoney(it.value, primaryCurrency)}</span>
+                      <span className="num" style={{ fontSize: 13, fontWeight: 600, minWidth: 50, textAlign: "right" }}>{it.pct.toFixed(1)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div>
+              <NSAnHead kicker="集中度 · CONCENTRATION" title="最大持倉佔比" />
+              <div style={{ display: "flex", gap: 28 }}>
+                <div>
+                  <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 8 }}>最大資產類別</div>
+                  <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>{allocationSummary.largestClass?.label ?? "—"}</div>
+                  <div className="mono muted" style={{ fontSize: 12, marginTop: 2 }}>
+                    {allocationSummary.largestClass ? `${allocationSummary.largestClass.pct.toFixed(1)}%` : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 8 }}>最大單一持倉</div>
+                  <div className="mono" style={{ fontSize: 22, fontWeight: 600 }}>{allocationSummary.largestHolding?.label ?? "—"}</div>
+                  <div className="mono muted" style={{ fontSize: 12, marginTop: 2 }}>
+                    {allocationSummary.topHoldingPct == null ? "—" : `${allocationSummary.topHoldingPct.toFixed(1)}%`}
+                  </div>
+                </div>
+              </div>
+              <div className="muted text-caption" style={{ marginTop: 14 }}>
+                可計價市值 {formatMoney(allocationSummary.total, primaryCurrency)}
+              </div>
+            </div>
+          </div>
+        </div>
+      </NSAnBand>
+
+      {/* ── Calendar heatmap (placeholder — implemented in next release) ─────── */}
+      <CossCard style={{ padding: 34 }}>
+        <NSAnHead
+          kicker="報酬節奏 · DAILY RETURNS"
+          title="一整年的賺賠日曆"
+          right={<span className="mono dim" style={{ fontSize: 12 }}>每格＝單日報酬</span>}
+        />
+        <div
+          style={{
+            height: 140,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "var(--ns-r-md)",
+            border: "1px dashed var(--ns-border)",
+            color: "var(--ns-fg-dim)",
+            fontSize: 13,
+          }}
+        >
+          日曆熱圖 — 即將推出
+        </div>
+      </CossCard>
+
+      {/* ── Dividends + Risk (2-column) ──────────────────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: dividends.total > 0 ? "1fr 1fr" : "1fr", gap: 20 }}>
+        {dividends.total > 0 && (
+          <CossCard style={{ padding: 34 }}>
+            <NSAnHead
+              kicker="股利所得 · DIVIDENDS"
+              title="逐年配息成長"
+              right={
+                dividends.byYear.length >= 2 ? (
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      padding: "4px 11px",
+                      borderRadius: 99,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      background: "var(--ns-pos-soft)",
+                      color: "var(--ns-pos)",
+                    }}
+                  >
+                    {dividends.byYear.length} 年紀錄
+                  </span>
+                ) : null
+              }
+            />
+            <div style={{ display: "flex", gap: 28, flexWrap: "wrap", marginBottom: 22 }}>
+              {[
+                { l: "近一年股利 (TTM)", v: formatMoney(dividends.ttmTotal, primaryCurrency), help: "近 365 天收到的現金股利合計。" },
+                { l: "近一年殖利率", v: dividends.yieldPct == null ? "—" : `${dividends.yieldPct.toFixed(2)}%`, help: "近一年股利 ÷ 目前持倉市值。" },
+                { l: "累計股利", v: formatMoney(dividends.total, primaryCurrency), help: "有紀錄以來的現金股利合計（淨額）。" },
+              ].map((s) => (
+                <div key={s.l}>
+                  <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                    {s.l}<MetricHelp text={s.help} />
+                  </div>
+                  <div className="num" style={{ fontSize: 24, fontWeight: 600, color: "var(--ns-gain)", fontVariantNumeric: "tabular-nums" }}>{s.v}</div>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              <div>
+                <div className="ns-eyebrow" style={{ marginBottom: 10 }}>年度股利</div>
+                {(() => {
+                  const max = Math.max(...dividends.byYear.map((y) => y.total), 1);
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                      {dividends.byYear.map((y) => (
+                        <div key={y.year} style={{ display: "grid", gridTemplateColumns: "48px 1fr 110px", gap: 10, alignItems: "center" }}>
+                          <span className="mono muted text-xs">{y.year}</span>
+                          <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
+                            <div style={{ width: `${(y.total / max) * 100}%`, height: "100%", background: "var(--ns-gain)", borderRadius: 99 }} />
+                          </div>
+                          <span className="num text-xs" style={{ textAlign: "right" }}>{formatMoney(y.total, primaryCurrency)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+              <div>
+                <div className="ns-eyebrow" style={{ marginBottom: 10 }}>個股股利貢獻</div>
+                {(() => {
+                  const max = Math.max(...dividends.byHolding.map((h) => h.total), 1);
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                      {dividends.byHolding.slice(0, 6).map((h) => (
+                        <div key={h.assetId} style={{ display: "grid", gridTemplateColumns: "96px 1fr 110px", gap: 10, alignItems: "center" }}>
+                          <span className="mono text-xs" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.ticker}</span>
+                          <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
+                            <div style={{ width: `${(h.total / max) * 100}%`, height: "100%", background: "var(--ns-chart-3)", borderRadius: 99 }} />
+                          </div>
+                          <span className="num text-xs" style={{ textAlign: "right" }}>{formatMoney(h.total, primaryCurrency)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </CossCard>
+        )}
+
+        <CossCard style={{ padding: 34 }}>
+          <NSAnHead kicker="風險 · RISK" title="波動、下跌與報酬品質" />
+          {kpis ? (
+            <>
+              <div className="grid grid-cols-2 gap-3" style={{ marginBottom: 16 }}>
+                <KpiCard
+                  label="年化波動率"
+                  note="Annual Volatility"
+                  value={fmtPct(kpis.vol, 1)}
+                  color="var(--ns-chart-2)"
+                  spark={kpis.volSpark}
+                  sub="日報酬標準差換算成年化"
+                  help="衡量期間內報酬上下震盪的幅度。數字越高，代表市值波動越大；它不分上漲或下跌，只看波動程度。"
+                />
+                <KpiCard
+                  label="Sortino 比率"
+                  note="越高越好"
+                  value={fmtRatio(kpis.sortino)}
+                  color="var(--ns-pos)"
+                  spark={kpis.sortinoSpark}
+                  sub={`只懲罰下跌波動 · MAR ${(DEFAULT_RISK_FREE_RATE * 100).toFixed(1)}%`}
+                  help="衡量每承擔一單位下跌風險，換到多少超額報酬。比 Sharpe 更重視真正讓人不舒服的下跌波動。"
+                />
+                <KpiCard
+                  label="Sharpe 比率"
+                  note="越高越好"
+                  value={fmtRatio(kpis.sharpe)}
+                  color="var(--ns-chart-1)"
+                  spark={kpis.sharpeSpark}
+                  sub={`相對無風險利率 ${(DEFAULT_RISK_FREE_RATE * 100).toFixed(1)}%`}
+                  help="衡量每承擔一單位總波動，換到多少超額報酬。常用來比較不同投資組合的風險調整後表現。"
+                />
+                <KpiCard
+                  label="最大回撤"
+                  note="Max Drawdown"
+                  value={fmtPct(kpis.dd.drawdownPct, 1)}
+                  color="var(--ns-neg)"
+                  spark={kpis.ddSpark}
+                  sub={kpis.dd.troughDate ? `${kpis.dd.peakDate} → ${kpis.dd.troughDate} · ${kpis.dd.recovered ? "已恢復" : "未恢復"}` : "—"}
+                  help="期間內從高點跌到低點的最大跌幅。它回答的是：這段時間最痛的一段下跌有多深。"
+                />
+              </div>
+              {kpis.dd.drawdownPct != null && (
+                <div
+                  style={{
+                    padding: "12px 14px",
+                    borderRadius: "var(--ns-r-md)",
+                    background: "var(--ns-neg-soft)",
+                    border: "1px solid color-mix(in srgb, var(--ns-neg) 30%, transparent)",
+                    fontSize: 12.5,
+                    lineHeight: 1.55,
+                  }}
+                >
+                  <span className="neg" style={{ fontWeight: 600 }}>回撤提醒 · </span>
+                  <span className="muted">
+                    期間最大跌幅 {fmtPct(kpis.dd.drawdownPct, 1)}
+                    {kpis.dd.peakDate && kpis.dd.troughDate ? `（${kpis.dd.peakDate} → ${kpis.dd.troughDate}）` : ""}，
+                    {kpis.dd.recovered ? "目前已恢復至高點。" : "目前尚未恢復。"}
+                  </span>
+                </div>
+              )}
+            </>
+          ) : null}
+        </CossCard>
+      </div>
+
+      {/* ── Rolling volatility + drawdown detail ────────────────────────────── */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <RollingVolatilityCard rolling={rolling} />
+        {kpis ? <DrawdownStatusCard drawdown={kpis.dd} values={core.values} primaryCurrency={primaryCurrency} /> : null}
+      </div>
+
+      {/* ── Return attribution ──────────────────────────────────────────────── */}
+      {attribution.items.length > 0 ? (
+        <CossCard style={{ padding: 34 }}>
+          <NSAnHead kicker="報酬貢獻" title="哪些持倉驅動了報酬" />
           {(() => {
             const TOP = 6;
             const shown = attribution.items.slice(0, TOP);
             const rest = attribution.items.slice(TOP);
             const restSum = rest.reduce((s, it) => s + it.contribution, 0);
             const rows = [...shown.map((it) => ({ label: it.ticker, contribution: it.contribution, pct: it.pct }))];
-            if (rest.length > 0) rows.push({ label: `其他 ${rest.length} 檔`, contribution: restSum, pct: Math.abs(attribution.total) > 0 ? (restSum / attribution.total) * 100 : 0 });
+            if (rest.length > 0)
+              rows.push({
+                label: `其他 ${rest.length} 檔`,
+                contribution: restSum,
+                pct: Math.abs(attribution.total) > 0 ? (restSum / attribution.total) * 100 : 0,
+              });
             const maxAbs = Math.max(...rows.map((r) => Math.abs(r.contribution)), 1);
             return (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -575,284 +919,85 @@ export function InvestmentsAnalyticsTab({
               </div>
             );
           })()}
-          {attribution.excludedTickers.length > 0 ? (
+          {attribution.excludedTickers.length > 0 && (
             <div className="muted text-caption" style={{ marginTop: 8, lineHeight: 1.5 }}>
               部分標的歷史股價不足，未納入貢獻分析：{attribution.excludedTickers.join("、")}。
             </div>
-          ) : null}
-        </CossCard>
-      ) : null}
-
-      {/* ── Portfolio vs Benchmark ── */}
-      <CossCard style={{ padding: 22 }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
-          <div>
-            <div className="ns-eyebrow" style={{ marginBottom: 4 }}>績效比較</div>
-            <HeadingWithHelp
-              title="投資組合 vs 指標"
-              help="把目前持倉和指標都換算成同一期間的累積報酬，方便看你的組合是否跑贏參考標的。"
-            />
-          </div>
-          <BenchmarkPicker current={benchmarkTicker} />
-        </div>
-
-        {/* Summary strip */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", overflow: "hidden", marginBottom: 14 }}>
-          {[
-            { label: "投資組合", val: perf.portFinal, color: perf.portFinal != null && perf.portFinal >= 0 ? "var(--ns-gain)" : "var(--ns-loss)" },
-            { label: `${benchmarkTicker} 指標`, val: perf.benchFinal, color: "var(--ns-fg-muted)" },
-            { label: "Alpha", val: perf.alpha, color: perf.alpha != null && perf.alpha >= 0 ? "var(--ns-accent)" : "var(--ns-loss)", help: "投資組合報酬減掉指標報酬。正數代表本期間跑贏指標，負數代表落後。" },
-          ].map((s, i) => (
-            <div key={s.label} style={{ padding: "12px 16px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)", minWidth: 0 }}>
-              <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: 4 }}>
-                {s.label}{s.help ? <MetricHelp text={s.help} /> : null}
-              </div>
-              <div className="num text-stat" style={{ fontWeight: 600, fontFamily: "var(--ns-font-num)", color: s.color, fontVariantNumeric: "tabular-nums" }}>
-                {s.val == null ? "—" : `${s.val >= 0 ? "+" : "−"}${Math.abs(s.val).toFixed(1)}%`}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ height: 220 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            {/* ComposedChart (not AreaChart) so the benchmark <Line> renders
-                alongside the portfolio <Area> — AreaChart silently drops Lines. */}
-            <ComposedChart data={perf.data}>
-              <defs>
-                <linearGradient id="analyticsPort" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="5%" stopColor="var(--ns-accent)" stopOpacity={0.35} />
-                  <stop offset="95%" stopColor="var(--ns-accent)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--ns-border)" vertical={false} />
-              <XAxis dataKey="date" stroke="var(--ns-fg-muted)" fontSize={11} minTickGap={28} tickFormatter={(d: string) => d.slice(5)} />
-              <YAxis stroke="var(--ns-fg-muted)" fontSize={11} width={42} tickFormatter={(v: number) => `${v.toFixed(0)}%`} />
-              <Tooltip
-                formatter={(value: number, name) => [`${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(2)}%`, name === "port" ? "投資組合" : benchmarkTicker]}
-                contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }}
-                itemStyle={{ color: "var(--ns-fg)" }}
-                labelStyle={{ color: "var(--ns-fg)" }}
-              />
-              <Area type="monotone" dataKey="port" stroke="var(--ns-accent)" fill="url(#analyticsPort)" strokeWidth={2} isAnimationActive={false} />
-              {perf.hasBenchmark ? (
-                <Line type="monotone" dataKey="bench" stroke="var(--ns-fg-dim)" strokeWidth={1.5} strokeDasharray="5 4" dot={false} connectNulls isAnimationActive={false} />
-              ) : null}
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="text-caption" style={{ display: "flex", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 14, height: 2, background: "var(--ns-accent)" }} />
-            <span className="muted">投資組合（累積報酬）</span>
-          </span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 14, height: 0, borderTop: "1px dashed var(--ns-fg-dim)" }} />
-            <span className="muted">{perf.hasBenchmark ? `${benchmarkTicker} 指標` : `尚無 ${benchmarkTicker} 歷史股價`}</span>
-          </span>
-        </div>
-        {core.excludedTickers.length > 0 ? (
-          <div className="muted text-caption" style={{ marginTop: 8, lineHeight: 1.5 }}>
-            部分標的歷史股價不足，本期間未納入分析：{core.excludedTickers.join("、")}。回補更長區間的歷史股價即可納入。
-          </div>
-        ) : null}
-      </CossCard>
-
-      {/* ── 股利分析 ── */}
-      {dividends.total > 0 ? (
-        <>
-          <AnalyticsSectionHeading title="股利" description="現金股利的年度與個股分布，以及以目前市值計算的近一年殖利率。" />
-          <CossCard style={{ padding: 22 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", overflow: "hidden", marginBottom: 16 }}>
-              {[
-                { label: "近一年股利 (TTM)", value: formatMoney(dividends.ttmTotal, primaryCurrency), help: "近 365 天收到的現金股利合計。" },
-                { label: "近一年殖利率", value: dividends.yieldPct == null ? "—" : `${dividends.yieldPct.toFixed(2)}%`, help: "近一年股利 ÷ 目前持倉市值。" },
-                { label: "累計股利", value: formatMoney(dividends.total, primaryCurrency), help: "有紀錄以來的現金股利合計（淨額）。" },
-              ].map((s, i) => (
-                <div key={s.label} style={{ padding: "12px 16px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)", minWidth: 0 }}>
-                  <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>{s.label}<MetricHelp text={s.help} /></div>
-                  <div className="num text-xl" style={{ fontWeight: 600, fontFamily: "var(--ns-font-num)", color: "var(--ns-gain)", fontVariantNumeric: "tabular-nums" }}>{s.value}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-              {/* Annual dividends */}
-              <div>
-                <div className="ns-eyebrow" style={{ marginBottom: 10 }}>年度股利</div>
-                {(() => {
-                  const max = Math.max(...dividends.byYear.map((y) => y.total), 1);
-                  return (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-                      {dividends.byYear.map((y) => (
-                        <div key={y.year} style={{ display: "grid", gridTemplateColumns: "48px 1fr 110px", gap: 10, alignItems: "center" }}>
-                          <span className="mono muted text-xs">{y.year}</span>
-                          <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
-                            <div style={{ width: `${(y.total / max) * 100}%`, height: "100%", background: "var(--ns-gain)", borderRadius: 99 }} />
-                          </div>
-                          <span className="num text-xs" style={{ textAlign: "right" }}>{formatMoney(y.total, primaryCurrency)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-              </div>
-              {/* Per-holding dividends */}
-              <div>
-                <div className="ns-eyebrow" style={{ marginBottom: 10 }}>個股股利貢獻</div>
-                {(() => {
-                  const max = Math.max(...dividends.byHolding.map((h) => h.total), 1);
-                  return (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-                      {dividends.byHolding.slice(0, 6).map((h) => (
-                        <div key={h.assetId} style={{ display: "grid", gridTemplateColumns: "96px 1fr 110px", gap: 10, alignItems: "center" }}>
-                          <span className="mono text-xs" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.ticker}</span>
-                          <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
-                            <div style={{ width: `${(h.total / max) * 100}%`, height: "100%", background: "var(--ns-chart-3)", borderRadius: 99 }} />
-                          </div>
-                          <span className="num text-xs" style={{ textAlign: "right" }}>{formatMoney(h.total, primaryCurrency)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-          </CossCard>
-        </>
-      ) : null}
-
-      <AnalyticsSectionHeading title="風險" description="這些指標用來看波動、下跌壓力，以及報酬是否足以補償承擔的風險。" />
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {kpis ? (
-          <>
-            <KpiCard label="年化波動率" note="Annual Volatility" value={fmtPct(kpis.vol, 1)} color="var(--ns-chart-2)" spark={kpis.volSpark} sub="日報酬標準差換算成年化" help="衡量期間內報酬上下震盪的幅度。數字越高，代表市值波動越大；它不分上漲或下跌，只看波動程度。" />
-            <KpiCard label="Sortino 比率" note="越高越好" value={fmtRatio(kpis.sortino)} color="var(--ns-pos)" spark={kpis.sortinoSpark} sub={`只懲罰下跌波動 · MAR ${(DEFAULT_RISK_FREE_RATE * 100).toFixed(1)}%`} help="衡量每承擔一單位下跌風險，換到多少超額報酬。比 Sharpe 更重視真正讓人不舒服的下跌波動。" />
-            <KpiCard label="Sharpe 比率" note="越高越好" value={fmtRatio(kpis.sharpe)} color="var(--ns-chart-1)" spark={kpis.sharpeSpark} sub={`相對無風險利率 ${(DEFAULT_RISK_FREE_RATE * 100).toFixed(1)}%`} help="衡量每承擔一單位總波動，換到多少超額報酬。常用來比較不同投資組合的風險調整後表現。" />
-            <KpiCard
-              label="最大回撤"
-              note="Max Drawdown"
-              value={fmtPct(kpis.dd.drawdownPct, 1)}
-              color="var(--ns-neg)"
-              spark={kpis.ddSpark}
-              sub={kpis.dd.troughDate ? `${kpis.dd.peakDate} → ${kpis.dd.troughDate} · ${kpis.dd.recovered ? "已恢復" : "未恢復"}` : "—"}
-              help="期間內從高點跌到低點的最大跌幅。它回答的是：這段時間最痛的一段下跌有多深。"
-            />
-          </>
-        ) : null}
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <RollingVolatilityCard rolling={rolling} />
-        {kpis ? <DrawdownStatusCard drawdown={kpis.dd} values={core.values} primaryCurrency={primaryCurrency} /> : null}
-      </div>
-
-      <AnalyticsSectionHeading title="配置" description="觀察目前持倉的資產類別比例是否隨價格變動偏離原本想要的配置。" />
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* Allocation drift */}
-        <CossCard style={{ padding: 22 }}>
-          <div style={{ marginBottom: 14 }}>
-            <div className="ns-eyebrow" style={{ marginBottom: 4 }}>配置</div>
-            <HeadingWithHelp
-              title="資產配置漂移 · 12 個月"
-              help="顯示不同資產類別在投資組合中的比例如何隨時間改變。即使沒有買賣，漲跌不同也會讓配置比例漂移。"
-            />
-          </div>
-          {drift.data.length < 2 || drift.classes.length === 0 ? (
-            <div className="muted text-body" style={{ padding: "24px 0" }}>歷史股價不足，無法顯示配置漂移。</div>
-          ) : (
-            <>
-              <div style={{ height: 200 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={drift.data} stackOffset="expand">
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--ns-border)" vertical={false} />
-                    <XAxis dataKey="date" stroke="var(--ns-fg-muted)" fontSize={11} minTickGap={28} tickFormatter={(d: string) => d.slice(5)} />
-                    <YAxis stroke="var(--ns-fg-muted)" fontSize={11} width={36} tickFormatter={(v: number) => `${Math.round(v * 100)}%`} />
-                    <Tooltip
-                      formatter={(value: number, name) => [`${value.toFixed(1)}%`, name as string]}
-                      contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }}
-                      itemStyle={{ color: "var(--ns-fg)" }}
-                      labelStyle={{ color: "var(--ns-fg)" }}
-                    />
-                    {drift.classes.map((c, i) => (
-                      <Area key={c} type="monotone" dataKey={c} stackId="1" stroke={CHART_COLORS[i % CHART_COLORS.length]} fill={CHART_COLORS[i % CHART_COLORS.length]} fillOpacity={0.84} isAnimationActive={false} />
-                    ))}
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-              <div style={{ display: "flex", gap: 14, marginTop: 12, flexWrap: "wrap" }}>
-                {drift.classes.map((c, i) => (
-                  <span key={c} className="text-caption" style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 2, background: CHART_COLORS[i % CHART_COLORS.length], flexShrink: 0 }} />
-                    <span className="muted">{c}</span>
-                  </span>
-                ))}
-              </div>
-            </>
           )}
-        </CossCard>
-        <AllocationSummaryCard summary={allocationSummary} primaryCurrency={primaryCurrency} />
-      </div>
-
-      {/* 幣別曝險 — only meaningful when holdings span more than one currency */}
-      {currencyExposure.currencyCount >= 2 ? (
-        <CossCard style={{ padding: 22 }}>
-          <div style={{ marginBottom: 14 }}>
-            <div className="ns-eyebrow" style={{ marginBottom: 4 }}>幣別曝險</div>
-            <HeadingWithHelp
-              title="持倉的幣別分布"
-              help="目前持倉依計價幣別的市值佔比（已換算成主幣比較）。海外持倉的佔比同時代表你承擔的匯率風險。僅計投資持倉，不含現金帳戶。"
-            />
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {currencyExposure.items.map((it, i) => (
-              <div key={it.currency} style={{ display: "grid", gridTemplateColumns: "64px 1fr 150px", gap: 12, alignItems: "center" }}>
-                <span className="mono text-xs">{it.currency}</span>
-                <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
-                  <div style={{ width: `${it.pct}%`, height: "100%", background: CHART_COLORS[i % CHART_COLORS.length], borderRadius: 99 }} />
-                </div>
-                <div className="text-xs" style={{ textAlign: "right", display: "flex", justifyContent: "flex-end", gap: 6 }}>
-                  <span className="num muted">{formatMoney(it.value, primaryCurrency)}</span>
-                  <span className="num" style={{ minWidth: 46, textAlign: "right" }}>{it.pct.toFixed(1)}%</span>
-                </div>
-              </div>
-            ))}
-          </div>
         </CossCard>
       ) : null}
     </div>
   );
 }
 
-function SummaryMetricCard({ label, value, tone = "muted", help }: {
+// ── Utility ──────────────────────────────────────────────────────────────────
+
+function latestPositionValue(
+  position: AnalyticsPosition,
+  dailyPrices: DailyPrice[],
+  manualSnapshots: ManualPriceSnapshot[],
+  toPrimary: (value: number, currency: string, asOf?: string) => number,
+  end: string,
+) {
+  const ticker = position.ticker.toUpperCase();
+  const price = [...dailyPrices]
+    .filter((row) => row.ticker.toUpperCase() === ticker && row.date.slice(0, 10) <= end)
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  if (price) return toPrimary(price.close * position.quantity, price.currency || position.currency, price.date);
+  const snap = [...manualSnapshots]
+    .filter((row) => row.assetId === position.assetId && row.date.slice(0, 10) <= end)
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  if (snap) return toPrimary(snap.price * position.quantity, position.currency, snap.date);
+  return 0;
+}
+
+// ── Shared primitive components ───────────────────────────────────────────────
+
+function KpiCard({ label, note, value, color, spark, sub, help }: {
   label: string;
+  note: string;
   value: string;
-  tone?: "pos" | "neg" | "muted";
+  color: string;
+  spark: Array<number | null>;
+  sub: string;
   help: string;
 }) {
-  const color = tone === "pos" ? "var(--ns-gain)" : tone === "neg" ? "var(--ns-loss)" : "var(--ns-fg)";
   return (
-    <CossCard style={{ padding: "16px 18px" }}>
-      <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 8, display: "flex", alignItems: "center", gap: 5 }}>
-        {label}
-        <MetricHelp text={help} />
+    <CossCard style={{ padding: "18px 20px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, gap: 8 }}>
+        <div className="ns-eyebrow" style={{ fontSize: 10, display: "flex", alignItems: "center", gap: 5 }}>
+          {label}
+          <MetricHelp text={help} />
+        </div>
+        <span className="mono dim text-micro">{note}</span>
       </div>
-      <div className="num" style={{ fontSize: "clamp(16px, 2vw, 22px)", fontWeight: 600, fontFamily: "var(--ns-font-num)", color, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-        {value}
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+        <div className="num" style={{ fontSize: "clamp(20px, 2.4vw, 26px)", fontWeight: 600, fontFamily: "var(--ns-font-num)", color, fontVariantNumeric: "tabular-nums lining-nums", letterSpacing: -0.01, whiteSpace: "nowrap" }}>{value}</div>
+        <Sparkline data={spark} color={color} />
       </div>
+      <div className="muted text-caption" style={{ lineHeight: 1.45 }}>{sub}</div>
     </CossCard>
   );
 }
 
-function AnalyticsSectionHeading({ title, description }: { title: string; description: string }) {
+function HeadingWithHelp({ title, help }: { title: string; help: string }) {
   return (
-    <div style={{ marginTop: 4 }}>
-      <div className="ns-eyebrow" style={{ marginBottom: 4 }}>投資分析</div>
-      <h2 className="text-lg" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>{title}</h2>
-      <p className="muted text-xs" style={{ margin: "4px 0 0", lineHeight: 1.5 }}>{description}</p>
-    </div>
+    <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
+      {title}
+      <MetricHelp text={help} />
+    </h3>
+  );
+}
+
+function MetricHelp({ text }: { text: string }) {
+  return (
+    <span
+      title={text}
+      aria-label={text}
+      style={{ display: "inline-flex", color: "var(--ns-fg-muted)", cursor: "help", lineHeight: 1, flexShrink: 0 }}
+    >
+      <Info size={13} />
+    </span>
   );
 }
 
@@ -964,124 +1109,90 @@ function DrawdownStatusCard({ drawdown, values, primaryCurrency }: {
   );
 }
 
-function AllocationSummaryCard({ summary, primaryCurrency }: {
-  summary: {
-    rows: Array<{ label: string; value: number; pct: number; color: string }>;
-    total: number;
-    largestClass: { label: string; value: number; pct: number; color: string } | null;
-    largestHolding: { label: string; value: number } | null;
-    topHoldingPct: number | null;
-  };
-  primaryCurrency: string;
+// ── Direction A Editorial layout components ───────────────────────────────────
+
+/** Editorial section header: lime eyebrow + large title + optional right slot. */
+function NSAnHead({ kicker, title, right, accent }: {
+  kicker: string;
+  title: string;
+  right?: ReactNode;
+  accent?: string;
 }) {
   return (
-    <CossCard style={{ padding: 22 }}>
-      <div style={{ marginBottom: 14 }}>
-        <div className="ns-eyebrow" style={{ marginBottom: 4 }}>目前配置</div>
-        <HeadingWithHelp
-          title="集中度摘要"
-          help="用最新可取得價格估算目前資產類別和最大單一持倉的集中程度，幫你判斷是否需要再平衡。"
-        />
+    <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginBottom: 20 }}>
+      <div>
+        <div className="ns-eyebrow" style={{ marginBottom: 8, color: accent ?? "var(--ns-accent)" }}>{kicker}</div>
+        <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 21, fontWeight: 600, letterSpacing: "-0.01em" }}>{title}</h3>
       </div>
-      {summary.rows.length === 0 ? (
-        <div className="muted text-body" style={{ padding: "24px 0" }}>目前持倉缺少最新價格，無法估算配置。</div>
-      ) : (
-        <div style={{ display: "grid", gap: 14 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
-            <div className="ns-surface" style={{ padding: "10px 12px" }}>
-              <div className="muted text-caption">最大資產類別</div>
-              <div style={{ marginTop: 4, fontWeight: 650 }}>{summary.largestClass?.label ?? "—"}</div>
-              <div className="mono muted text-caption">{summary.largestClass ? `${summary.largestClass.pct.toFixed(1)}%` : "—"}</div>
-            </div>
-            <div className="ns-surface" style={{ padding: "10px 12px" }}>
-              <div className="muted text-caption">最大單一持倉</div>
-              <div className="mono" style={{ marginTop: 4, fontWeight: 650 }}>{summary.largestHolding?.label ?? "—"}</div>
-              <div className="mono muted text-caption">{summary.topHoldingPct == null ? "—" : `${summary.topHoldingPct.toFixed(1)}%`}</div>
-            </div>
-          </div>
-          <div style={{ display: "grid", gap: 8 }}>
-            {summary.rows.slice(0, 5).map((row) => (
-              <div key={row.label} style={{ display: "grid", gridTemplateColumns: "minmax(0, 84px) minmax(0, 1fr) auto", gap: 10, alignItems: "center" }}>
-                <span className="muted text-xs" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.label}</span>
-                <div style={{ height: 7, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
-                  <div style={{ width: `${Math.min(100, row.pct)}%`, height: "100%", borderRadius: 99, background: row.color }} />
-                </div>
-                <span className="mono text-xs">{row.pct.toFixed(1)}%</span>
-              </div>
-            ))}
-          </div>
-          <div className="muted text-caption">
-            可計價市值 {formatMoney(summary.total, primaryCurrency)}
-          </div>
-        </div>
-      )}
-    </CossCard>
+      {right}
+    </div>
   );
 }
 
-function latestPositionValue(
-  position: AnalyticsPosition,
-  dailyPrices: DailyPrice[],
-  manualSnapshots: ManualPriceSnapshot[],
-  toPrimary: (value: number, currency: string, asOf?: string) => number,
-  end: string,
-) {
-  const ticker = position.ticker.toUpperCase();
-  const price = [...dailyPrices]
-    .filter((row) => row.ticker.toUpperCase() === ticker && row.date.slice(0, 10) <= end)
-    .sort((a, b) => b.date.localeCompare(a.date))[0];
-  if (price) return toPrimary(price.close * position.quantity, price.currency || position.currency, price.date);
-  const snap = [...manualSnapshots]
-    .filter((row) => row.assetId === position.assetId && row.date.slice(0, 10) <= end)
-    .sort((a, b) => b.date.localeCompare(a.date))[0];
-  if (snap) return toPrimary(snap.price * position.quantity, position.currency, snap.date);
-  return 0;
-}
-
-function KpiCard({ label, note, value, color, spark, sub, help }: {
-  label: string;
-  note: string;
-  value: string;
-  color: string;
-  spark: Array<number | null>;
-  sub: string;
-  help: string;
-}) {
+/** Deeper-than-page dark feature band (editorial block separator). */
+function NSAnBand({ children, deep }: { children: ReactNode; deep?: boolean }) {
   return (
-    <CossCard style={{ padding: "18px 20px" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, gap: 8 }}>
-        <div className="ns-eyebrow" style={{ fontSize: 10, display: "flex", alignItems: "center", gap: 5 }}>
-          {label}
-          <MetricHelp text={help} />
-        </div>
-        <span className="mono dim text-micro">{note}</span>
-      </div>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-        <div className="num" style={{ fontSize: "clamp(20px, 2.4vw, 26px)", fontWeight: 600, fontFamily: "var(--ns-font-num)", color, fontVariantNumeric: "tabular-nums lining-nums", letterSpacing: -0.01, whiteSpace: "nowrap" }}>{value}</div>
-        <Sparkline data={spark} color={color} />
-      </div>
-      <div className="muted text-caption" style={{ lineHeight: 1.45 }}>{sub}</div>
-    </CossCard>
-  );
-}
-
-function HeadingWithHelp({ title, help }: { title: string; help: string }) {
-  return (
-    <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
-      {title}
-      <MetricHelp text={help} />
-    </h3>
-  );
-}
-
-function MetricHelp({ text }: { text: string }) {
-  return (
-    <span
-      title={text}
-      aria-label={text}
-      style={{ display: "inline-flex", color: "var(--ns-fg-muted)", cursor: "help", lineHeight: 1, flexShrink: 0 }}
+    <div
+      style={{
+        background: deep ? "#0a0c0e" : "var(--ns-bg-card)",
+        border: deep ? "1px solid #1a1d20" : "1px solid var(--ns-border)",
+        borderRadius: "var(--ns-r-xl)",
+        padding: 34,
+      }}
     >
-      <Info size={13} />
-    </span>
+      {children}
+    </div>
+  );
+}
+
+/** Vertical thin-stripe allocation bars (editorial style) + legend list. */
+function AnAllocBars({ rows }: { rows: Array<{ label: string; value: number; pct: number; color: string }> }) {
+  const [hover, setHover] = useState<number | null>(null);
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "stretch", gap: 10, height: 120 }}>
+        {rows.map((d, i) => (
+          <div
+            key={d.label}
+            onMouseEnter={() => setHover(i)}
+            onMouseLeave={() => setHover(null)}
+            title={`${d.label} · ${d.pct.toFixed(1)}%`}
+            style={{
+              flex: `${d.pct} 0 0`,
+              minWidth: 0,
+              backgroundImage: `repeating-linear-gradient(90deg, ${d.color} 0 3px, transparent 3px 6.5px)`,
+              backgroundPosition: "left center",
+              borderRadius: 1,
+              opacity: hover == null || hover === i ? 1 : 0.3,
+              transition: "opacity .15s",
+            }}
+          />
+        ))}
+      </div>
+      <div style={{ marginTop: 14, display: "flex", flexDirection: "column" }}>
+        {rows.map((d, i) => (
+          <div
+            key={d.label}
+            onMouseEnter={() => setHover(i)}
+            onMouseLeave={() => setHover(null)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "10px 4px",
+              borderBottom: "1px solid var(--ns-border)",
+              background: hover === i ? "var(--ns-bg-hover)" : "transparent",
+              transition: "background .12s",
+            }}
+          >
+            <span style={{ width: 11, height: 11, borderRadius: 3, background: d.color, flexShrink: 0 }} />
+            <span style={{ flex: 1, fontSize: 14 }}>{d.label}</span>
+            <span className="num" style={{ fontSize: 14, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+              {d.pct.toFixed(1)}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
