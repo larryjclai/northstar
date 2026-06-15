@@ -47,7 +47,7 @@ export default defineConfig({
           if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return "react";
           if (id.includes("node_modules/recharts") || /node_modules\/(d3-|victory-)/.test(id)) return "charts";
           if (id.includes("node_modules/@tanstack/")) return "tanstack";
-          if (id.includes("node_modules/@phosphor-icons/") || id.includes("node_modules/lucide-react/")) return "icons";
+          if (id.includes("node_modules/@phosphor-icons/")) return "icons";
           if (/node_modules\/(i18next|react-i18next)/.test(id)) return "i18n";
           if (id.includes("node_modules/@base-ui/")) return "baseui";
           return undefined;

@@ -586,7 +586,11 @@ export function buildCostBasisAttribution(opts: {
     }
 
     const priceValue = price?.close ?? snap!.price;
-    const priceCurrency = price?.currency ?? position.currency;
+    // `||` not `??`: synced daily-price rows can carry an empty-string currency,
+    // which `??` would keep — sending "" into the FX converter yields 0 (no rate)
+    // → marketValue 0 → every holding shows −100%. Fall back to the position
+    // currency on empty too, matching latestPositionValue() in the tab.
+    const priceCurrency = price?.currency || position.currency;
     const priceDate = price?.date ?? snap!.date;
     const marketValue = toPrimary(priceValue * position.quantity, priceCurrency, priceDate);
 

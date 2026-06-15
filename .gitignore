@@ -1,5 +1,6 @@
 # ─── Build artifacts ───────────────────────────────────
 node_modules/
+scratch/
 dist/
 dist-ssr/
 .vite/

@@ -1,4 +1,4 @@
-import { ArrowsClockwise, CheckCircle, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, PencilSimple, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X, CaretDown, CaretRight, Backspace, Gear, Bank, Target, DeviceMobile, Desktop, Spinner, WifiHigh, CopySimple, QrCode, Warning } from "@phosphor-icons/react";
+import { ArrowsClockwise, CheckCircle, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, PencilSimple, Plus, Sparkle, Storefront, Tag, Trash, UploadSimple, UsersThree, X, CaretDown, CaretRight, Backspace, Gear, Bank, Target, DeviceMobile, Desktop, Spinner, WifiHigh, CopySimple, QrCode, Warning } from "@phosphor-icons/react";
 import { Badge } from "../../components/coss/badge";
 import { Button } from "../../components/coss/button";
 import { Card } from "../../components/coss/card";
@@ -1015,11 +1015,24 @@ function Stat({ label, value, mono }: { label: string; value: string; mono?: boo
 // Built-in "check for updates" via the Tauri updater plugin. The plugin module
 // is dynamically imported so the web/dev build (no Tauri runtime) stays happy;
 // outside a desktop build the button reports that updates aren't available.
+interface FoundUpdate {
+  version: string;
+  body?: string;
+  date?: string;
+  downloadAndInstall: (onEvent?: (event: unknown) => void) => Promise<void>;
+}
+
 export function UpdateChecker() {
   const isDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   const [busy, setBusy] = useState(false);
+  const [installing, setInstalling] = useState(false);
   const [message, setMessage] = useState("");
   const [currentVersion, setCurrentVersion] = useState<string | null>(null);
+  // A found-but-not-yet-installed update. We hold the handle so the actual
+  // download only starts after the user explicitly confirms — checking must
+  // never auto-download (the previous behaviour).
+  const [found, setFound] = useState<FoundUpdate | null>(null);
+  const [showNotes, setShowNotes] = useState(false);
 
   // Load the current app version from Tauri on mount (desktop only).
   useEffect(() => {
@@ -1032,15 +1045,15 @@ export function UpdateChecker() {
   async function checkForUpdates() {
     setBusy(true);
     setMessage("正在檢查更新…");
+    setFound(null);
+    setShowNotes(false);
     try {
       const { check } = await import("@tauri-apps/plugin-updater");
       const update = await check();
       if (!update) { setMessage("已是最新版本。"); return; }
-      setMessage(`發現新版本 v${update.version}，下載並安裝中…`);
-      await update.downloadAndInstall();
-      const { relaunch } = await import("@tauri-apps/plugin-process");
-      setMessage("更新完成，正在重新啟動…");
-      await relaunch();
+      // Stop here — surface the version + release notes and wait for confirmation.
+      setFound(update as unknown as FoundUpdate);
+      setMessage("");
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       const noRelease = /fetch|not found|404|valid release/i.test(detail);
@@ -1056,6 +1069,24 @@ export function UpdateChecker() {
     }
   }
 
+  async function installUpdate() {
+    if (!found) return;
+    setInstalling(true);
+    setMessage(`下載並安裝 v${found.version} 中…`);
+    try {
+      await found.downloadAndInstall();
+      const { relaunch } = await import("@tauri-apps/plugin-process");
+      setMessage("更新完成，正在重新啟動…");
+      await relaunch();
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      setMessage(updateFailureMessage(detail));
+      setInstalling(false);
+    }
+  }
+
+  const notes = found?.body?.trim();
+
   return (
     <Card className="p-5">
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
@@ -1065,12 +1096,43 @@ export function UpdateChecker() {
         )}
       </div>
       <p className="text-sm muted mb-4">檢查並安裝 Northstar 的最新桌面版本。所有更新都經過簽章驗證。</p>
-      <div className="flex items-center gap-3 flex-wrap">
-        <Button onClick={checkForUpdates} disabled={busy}>
-          <ArrowsClockwise size={14} />{busy ? "檢查中…" : "檢查更新"}
-        </Button>
-        {message ? <span className="text-sm muted">{message}</span> : null}
-      </div>
+
+      {!found ? (
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button onClick={checkForUpdates} loading={busy} disabled={busy}>
+            <ArrowsClockwise size={14} />{busy ? "檢查中…" : "檢查更新"}
+          </Button>
+          {message ? <span className="text-sm muted">{message}</span> : null}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-accent)", borderColor: "var(--ns-accent)" }}>新版本</Badge>
+            <span className="text-sm" style={{ fontWeight: 600 }}>v{found.version}</span>
+            {currentVersion ? <span className="text-xs muted">目前 v{currentVersion}</span> : null}
+          </div>
+          <p className="text-sm muted">已找到新版本，確認後才會開始下載並安裝。下載完成會自動重新啟動。</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button onClick={installUpdate} loading={installing} disabled={installing}>
+              <DownloadSimple size={14} />{installing ? "下載安裝中…" : "下載並安裝"}
+            </Button>
+            {notes ? (
+              <Button variant="outline" onClick={() => setShowNotes((v) => !v)} disabled={installing}>
+                <Sparkle size={14} />{showNotes ? "隱藏更新內容" : "更新內容"}
+              </Button>
+            ) : null}
+            {!installing ? (
+              <Button variant="ghost" onClick={() => { setFound(null); setMessage(""); setShowNotes(false); }}>稍後</Button>
+            ) : null}
+          </div>
+          {showNotes && notes ? (
+            <div className="ns-surface text-sm" style={{ padding: "12px 14px", borderRadius: "var(--ns-r-md)", maxHeight: 240, overflowY: "auto", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
+              {notes}
+            </div>
+          ) : null}
+          {message ? <span className="text-sm muted">{message}</span> : null}
+        </div>
+      )}
     </Card>
   );
 }
