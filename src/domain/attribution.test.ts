@@ -102,6 +102,25 @@ describe("buildCostBasisAttribution", () => {
     expect(attr.total).toBeCloseTo(300, 6);
   });
 
+  it("falls back to the position currency when a daily price row has an empty currency", () => {
+    // Synced daily-price rows can arrive with currency: "". Sending "" into a
+    // real FX converter returns 0 (no rate) → marketValue 0 → a bogus −100%.
+    // Mimic that converter: only the position currency resolves.
+    const fxToPrimary = (value: number, currency: string) => (currency === "USD" ? value : 0);
+    const positions: AnalyticsPosition[] = [
+      { assetId: "a", ticker: "AAA", quantity: 10, currency: "USD", isManual: false },
+    ];
+    const records = [record({ assetId: "a", date: "2026-01-01", action: "buy", price: 100, quantity: 10 })];
+    const emptyCurrencyPrice: DailyPrice = { ticker: "AAA", date: dates[2], close: 130, currency: "", source: "test", updatedAt: `${dates[2]}T00:00:00.000Z` };
+
+    const attr = buildCostBasisAttribution({ positions, records, dailyPrices: [emptyCurrencyPrice], manualSnapshots: [], toPrimary: fxToPrimary, end: dates[2] });
+
+    const aaa = attr.items[0];
+    expect(aaa.marketValue).toBeCloseTo(1300, 6); // 130 × 10, NOT 0
+    expect(aaa.contribution).toBeCloseTo(300, 6); // 1300 − 1000
+    expect(aaa.pct).toBeCloseTo(30, 6); // not −100
+  });
+
   it("falls back to averageCost when no transaction records exist", () => {
     const positions: AnalyticsPosition[] = [
       { assetId: "legacy", ticker: "LEG", quantity: 4, currency: "USD", averageCost: 25, isManual: true },
