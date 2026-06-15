@@ -54,6 +54,11 @@ export async function generateRecoveryKit(): Promise<string> {
   return code;
 }
 
+/** Clear the local "recovery kit confirmed" flag (used by full device reset). */
+export function clearRecoveryKitStatus(): void {
+  try { localStorage.removeItem(STATUS_KEY); } catch { /* ignore */ }
+}
+
 /** Mark the Recovery Kit as confirmed (user has saved it). */
 export function confirmRecoveryKit(): void {
   const existing = loadLocalRecoveryKitStatus();

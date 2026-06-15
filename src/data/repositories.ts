@@ -293,6 +293,7 @@ export interface FinanceRepository {
   acknowledgePendingChanges(outboxIds: string[]): Promise<void>;
   listSyncConflicts(): Promise<SyncConflictRecord[]>;
   resolveSyncConflict(id: string, strategy: "keepLocal" | "useIncoming"): Promise<void>;
+  clearSyncConflicts(): Promise<void>;
 }
 
 export interface RepositorySnapshot {
@@ -1433,6 +1434,11 @@ class BrowserFinanceRepository implements FinanceRepository {
     this.data.syncConflicts = this.data.syncConflicts.map((row) =>
       row.id === id ? { ...row, resolvedAt: nowIso() } : row,
     );
+    await this.persist();
+  }
+
+  async clearSyncConflicts(): Promise<void> {
+    this.data.syncConflicts = [];
     await this.persist();
   }
 
@@ -3264,6 +3270,10 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       );
     }
     await this.db.execute(`update sync_conflicts set resolved_at = $1 where id = $2`, [nowIso(), id]);
+  }
+
+  override async clearSyncConflicts(): Promise<void> {
+    await this.db.execute("delete from sync_conflicts");
   }
 
   override async getSyncPayload(entity: SyncEntity, entityId: string): Promise<Record<string, unknown> | null> {
