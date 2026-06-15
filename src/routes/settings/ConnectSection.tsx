@@ -41,7 +41,7 @@ import {
   initiatePairing, joinWithCode, type PairingSession,
 } from "../../features/connect/sync/pairing-flow";
 import { runSync, forceFullResync } from "../../features/connect/sync/sync-manager";
-import { clearLocalSyncState } from "../../features/connect/sync/reset";
+import { clearLocalSyncState, unlinkSync } from "../../features/connect/sync/reset";
 import { summarizeConflict } from "../../features/connect/sync/conflictSummary";
 import { listBackups, restoreBackup, type BackupEntry } from "../../features/connect/sync/backup";
 import { updateFailureMessage } from "../../features/updater/errors";
@@ -139,8 +139,19 @@ export function ConnectStatus() {
   // Force-full-resync inline confirm (window.confirm is a no-op in Tauri webview).
   const [confirmFullResync, setConfirmFullResync] = useState(false);
 
-  // Full device reset inline confirm (window.confirm is a no-op in Tauri webview).
+  // Unlink sync (keeps data) — two-click confirm, no data loss.
+  const [confirmUnlink, setConfirmUnlink] = useState(false);
+
+  // Full data reset (unlink + wipe data) inline confirm (window.confirm is a
+  // no-op in Tauri webview). Requires typing "delete" before the wipe can run.
   const [confirmDeviceReset, setConfirmDeviceReset] = useState(false);
+  const [deviceResetText, setDeviceResetText] = useState("");
+  const deviceResetConfirmed = deviceResetText.trim().toLowerCase() === "delete";
+
+  function closeDeviceReset() {
+    setConfirmDeviceReset(false);
+    setDeviceResetText("");
+  }
 
   // Load backups list when panel opens
   useEffect(() => {
@@ -437,9 +448,27 @@ export function ConnectStatus() {
     }
   }
 
-  // ── Full device reset ──
+  // ── Unlink sync (keeps financial data) ──
+  async function handleUnlinkSync() {
+    setConfirmUnlink(false);
+    try {
+      const repo = await getFinanceRepository();
+      await unlinkSync(repo);
+      await queryClient.invalidateQueries();
+      // Drop back to "sync not set up" in the UI; financial data stays.
+      setAccount(null);
+      setDevices([]);
+      setKitStatus(null);
+      toast.success("已解除同步。資料保留在本機，可隨時重新「啟用同步」。");
+    } catch (e) {
+      toast.error("解除同步失敗：" + (e instanceof Error ? e.message : String(e)));
+    }
+  }
+
+  // ── Full data reset (unlink + wipe data) ──
   async function handleDeviceReset() {
-    setConfirmDeviceReset(false);
+    if (!deviceResetConfirmed) return;
+    closeDeviceReset();
     try {
       const repo = await getFinanceRepository();
       await clearLocalSyncState(repo);
@@ -448,7 +477,7 @@ export function ConnectStatus() {
       setAccount(null);
       setDevices([]);
       setKitStatus(null);
-      toast.success("已重設此裝置。可重新「啟用同步」或用配對碼／備援碼還原。");
+      toast.success("已完整重設此裝置。可重新「啟用同步」或用配對碼／備援碼還原。");
     } catch (e) {
       toast.error("重設失敗：" + (e instanceof Error ? e.message : String(e)));
     }
@@ -715,22 +744,60 @@ export function ConnectStatus() {
         }
       </div>
 
-      {/* Full device reset */}
+      {/* Unlink sync — keeps financial data */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+        padding: "10px 12px", marginBottom: 10, borderRadius: "var(--ns-r-md)",
+        background: "var(--ns-bg-hover)", border: "1px solid var(--ns-border)" }}>
+        <div className="text-caption" style={{ color: "var(--ns-fg-muted)", lineHeight: 1.5 }}>
+          解除同步：將這台裝置從同步帳號移除（清除裝置 ID、加密金鑰、配對帳號、備援碼狀態），<strong>但保留本機的財務資料</strong>。之後可隨時重新「啟用同步」。伺服器上的資料不受影響。
+        </div>
+        {confirmUnlink
+          ? <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+              <Button variant="outline" className="text-xs" style={{ color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }}
+                onClick={handleUnlinkSync}>確認解除</Button>
+              <Button variant="ghost" className="text-xs" onClick={() => setConfirmUnlink(false)}>取消</Button>
+            </div>
+          : <Button variant="ghost" className="text-xs" style={{ flexShrink: 0, color: "var(--ns-warn)" }}
+              onClick={() => setConfirmUnlink(true)}>
+              <WifiHigh size={13} />解除同步
+            </Button>
+        }
+      </div>
+
+      {/* Full data reset — unlink + wipe data */}
+      <div style={{ display: "flex", alignItems: confirmDeviceReset ? "stretch" : "center", flexDirection: confirmDeviceReset ? "column" : "row", justifyContent: "space-between", gap: 12,
         padding: "10px 12px", marginBottom: 16, borderRadius: "var(--ns-r-md)",
         background: "var(--ns-neg-soft)", border: "1px solid var(--ns-neg)" }}>
         <div className="text-caption" style={{ color: "var(--ns-fg-muted)", lineHeight: 1.5 }}>
-          完全重設此裝置：清除本機所有財務資料與同步設定（裝置 ID、加密金鑰、配對帳號、備援碼狀態），讓這台裝置回到全新狀態。<strong>伺服器上的資料不受影響</strong>，可重新配對後下載回來。建議先到「備份與還原」匯出一份備份。
+          完整重設資料（解除同步 + 清除資料）：清除本機<strong>所有財務資料</strong>與同步設定（裝置 ID、加密金鑰、配對帳號、備援碼狀態），讓這台裝置回到全新狀態。<strong>伺服器上的資料不受影響</strong>，可重新配對後下載回來。建議先到「備份與還原」匯出一份備份。
         </div>
         {confirmDeviceReset
-          ? <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-              <Button variant="ghost" className="text-xs" onClick={() => setConfirmDeviceReset(false)}>取消</Button>
-              <Button variant="outline" className="text-xs" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }}
-                onClick={handleDeviceReset}>確認重設</Button>
+          ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <label className="text-caption" htmlFor="device-reset-input" style={{ color: "var(--ns-fg-muted)" }}>
+                此動作<strong>無法復原</strong>。請輸入 <code style={{ color: "var(--ns-neg)" }}>delete</code> 以確認：
+              </label>
+              <input
+                id="device-reset-input"
+                className="ns-input"
+                value={deviceResetText}
+                onChange={(e) => setDeviceResetText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && deviceResetConfirmed) handleDeviceReset(); if (e.key === "Escape") closeDeviceReset(); }}
+                placeholder="delete"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                autoFocus
+              />
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <Button variant="outline" className="text-xs" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)", opacity: deviceResetConfirmed ? 1 : 0.5 }}
+                  disabled={!deviceResetConfirmed}
+                  onClick={handleDeviceReset}><Trash size={13} />確認重設</Button>
+                <Button variant="ghost" className="text-xs" onClick={closeDeviceReset}>取消</Button>
+              </div>
             </div>
           : <Button variant="ghost" className="text-xs" style={{ flexShrink: 0, color: "var(--ns-neg)" }}
               onClick={() => setConfirmDeviceReset(true)}>
-              <Trash size={13} />完全重設此裝置
+              <Trash size={13} />完整重設資料
             </Button>
         }
       </div>

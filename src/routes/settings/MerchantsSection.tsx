@@ -56,6 +56,9 @@ export function SettingsMerchants({ form, setForm, submit, t, renameMerchant }: 
   const [editValue, setEditValue] = useState('');
   const [adding, setAdding] = useState(false);
   const [newMerchant, setNewMerchant] = useState('');
+  // Suppresses the unmount-triggered onBlur from re-firing saveEdit after an
+  // Enter/Escape already resolved the edit (otherwise every save runs twice).
+  const skipBlurRef = useRef(false);
 
   const filtered = form.merchants.filter((m: string) => m.toLowerCase().includes(search.toLowerCase()));
 
@@ -76,15 +79,28 @@ export function SettingsMerchants({ form, setForm, submit, t, renameMerchant }: 
   }
 
   function startEdit(name: string) {
+    skipBlurRef.current = false;
     setEditingMerchant(name);
     setEditValue(name);
   }
 
+  function cancelEdit() {
+    skipBlurRef.current = true;
+    setEditingMerchant(null);
+  }
+
   async function saveEdit(oldName: string) {
     const next = editValue.trim();
-    if (!next || next === oldName) { setEditingMerchant(null); return; }
-    await renameMerchant(oldName, next);
+    // Close the editor first; the unmount fires onBlur, which the ref guard
+    // swallows so the rename only runs once.
+    skipBlurRef.current = true;
     setEditingMerchant(null);
+    if (!next || next === oldName) return;
+    if (form.merchants.includes(next)) { toast.error("商家已存在"); return; }
+    await renameMerchant(oldName, next);
+    // The settings query is seeded into local `form` only once, so mirror the
+    // rename into `form` here — otherwise the list keeps showing the old name.
+    setForm({ ...form, merchants: form.merchants.map((m: string) => (m === oldName ? next : m)) });
     toast.success("已更新商家");
   }
 
@@ -149,9 +165,12 @@ export function SettingsMerchants({ form, setForm, submit, t, renameMerchant }: 
                 onChange={e => setEditValue(e.target.value)}
                 onKeyDown={e => {
                   if (e.key === 'Enter') saveEdit(m);
-                  if (e.key === 'Escape') setEditingMerchant(null);
+                  if (e.key === 'Escape') cancelEdit();
                 }}
-                onBlur={() => saveEdit(m)}
+                onBlur={() => {
+                  if (skipBlurRef.current) { skipBlurRef.current = false; return; }
+                  saveEdit(m);
+                }}
               />
             ) : (
               <div style={{fontSize:14,fontWeight:500}}>{m}</div>

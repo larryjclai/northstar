@@ -10,7 +10,7 @@ import { useToast } from "../../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../../data/hooks";
 import { downloadCsv, exportInvestmentCsv, exportLedgerCsv, exportFxRatesCsv } from "../../data/csv";
 import { getFinanceRepository, type RepositorySnapshot } from "../../data/repositories";
-import { enterDemoMode, exitDemoMode, clearAllData } from "../../data/demoData";
+import { enterDemoMode, exitDemoMode } from "../../data/demoData";
 import { useDemoMode } from "../../state/demoMode";
 import { COMMON_TIMEZONES, isValidTimezone } from "../../domain";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../../domain";
@@ -140,10 +140,7 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
 
   // Demo data + reset. window.confirm is a no-op in the Tauri webview, so these
   // use a two-click inline confirm instead.
-  const [demoBusy, setDemoBusy] = useState<null | "load" | "clear" | "exit">(null);
-  const [confirmClear, setConfirmClear] = useState(false);
-  const [clearConfirmText, setClearConfirmText] = useState("");
-  const clearConfirmed = clearConfirmText.trim().toLowerCase() === "delete";
+  const [demoBusy, setDemoBusy] = useState<null | "load" | "exit">(null);
   const inDemo = useDemoMode((s) => s.active);
   const setInDemo = useDemoMode((s) => s.set);
 
@@ -174,27 +171,6 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
       toast.error(e instanceof Error ? e.message : "結束示範模式失敗");
     } finally {
       setDemoBusy(null);
-    }
-  }
-
-  function closeClearConfirm() {
-    setConfirmClear(false);
-    setClearConfirmText("");
-  }
-
-  async function handleClearAll() {
-    if (!clearConfirmed) return;
-    setDemoBusy("clear");
-    try {
-      const repository = await getFinanceRepository();
-      await clearAllData(repository);
-      await queryClient.invalidateQueries();
-      toast.success("已清空所有資料");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "清空資料失敗");
-    } finally {
-      setDemoBusy(null);
-      closeClearConfirm();
     }
   }
 
@@ -287,54 +263,10 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
               <Button onClick={handleLoadDemo} disabled={demoBusy !== null}>
                 <Plus size={14} weight="bold" />{demoBusy === "load" ? "進入中…" : "進入示範模式"}
               </Button>
-              {!confirmClear ? (
-                <Button variant="outline" onClick={() => setConfirmClear(true)} disabled={demoBusy !== null}>
-                  <Trash size={14} />清空所有資料
-                </Button>
-              ) : null}
             </div>
-            {confirmClear ? (
-              <div
-                className="mt-4 rounded-md p-4"
-                style={{ border: "1px solid var(--ns-neg)", background: "var(--ns-neg-soft, rgba(220,38,38,0.08))" }}
-              >
-                <div className="flex items-center gap-2 mb-2" style={{ color: "var(--ns-neg)" }}>
-                  <Warning size={18} weight="fill" />
-                  <span className="font-semibold">清空你的正式資料</span>
-                </div>
-                <p className="text-sm mb-2">
-                  這會永久刪除這台裝置上<strong>所有正式資料</strong>——帳戶、交易、持股、目標與設定，<strong>無法復原</strong>。這不是示範資料。
-                </p>
-                <p className="text-sm muted mb-3">
-                  若同步已啟用，清空後本機的空白狀態仍可能與其他裝置同步。<strong>請先在下方「備份與還原」匯出一份備份</strong>，再繼續。
-                </p>
-                <label className="text-sm font-medium" htmlFor="clear-confirm-input">
-                  請輸入 <code style={{ color: "var(--ns-neg)" }}>delete</code> 以確認：
-                </label>
-                <input
-                  id="clear-confirm-input"
-                  className="ns-input mt-2"
-                  value={clearConfirmText}
-                  onChange={(e) => setClearConfirmText(e.target.value)}
-                  placeholder="delete"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  disabled={demoBusy !== null}
-                />
-                <div className="flex flex-wrap gap-2 mt-3">
-                  <Button
-                    variant="outline"
-                    style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)", opacity: clearConfirmed ? 1 : 0.5 }}
-                    onClick={handleClearAll}
-                    disabled={demoBusy !== null || !clearConfirmed}
-                  >
-                    <Trash size={14} />{demoBusy === "clear" ? "清空中…" : "永久清空所有資料"}
-                  </Button>
-                  <Button variant="outline" onClick={closeClearConfirm} disabled={demoBusy !== null}>取消</Button>
-                </div>
-              </div>
-            ) : null}
+            <p className="text-xs muted mt-3">
+              想解除同步或清空資料？請到「設定 → Connect 同步」的<strong>「解除同步」</strong>（保留資料）或<strong>「完整重設資料」</strong>（解除同步並清除資料）。
+            </p>
           </>
         )}
       </Card>
