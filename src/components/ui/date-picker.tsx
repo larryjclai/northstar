@@ -1,7 +1,7 @@
 // @ts-nocheck
 import * as React from "react"
 import { format, parseISO } from "date-fns"
-import { CalendarIcon } from "lucide-react"
+import { CalendarBlank } from "@phosphor-icons/react"
 
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/coss/button"
@@ -34,7 +34,7 @@ export function DatePicker({
             className
           )}
         >
-          <CalendarIcon className="mr-2 h-4 w-4" />
+          <CalendarBlank className="mr-2 h-4 w-4" />
           {date ? format(date, "yyyy-MM") : <span>選擇月份</span>}
         </button>
       } />
@@ -86,7 +86,7 @@ export function DateRangePicker({
             className
           )}
         >
-          <CalendarIcon className="mr-2 h-4 w-4" />
+          <CalendarBlank className="mr-2 h-4 w-4" />
           {label}
         </button>
       } />
