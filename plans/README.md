@@ -20,8 +20,38 @@ honor its STOP conditions, and update your row when done.
 | 009 | Map `repositories.ts` god module + extract one seam (design) | P3 | L | MED | — | DONE (ce154de3) — market-data seam (11 methods) extracted to src/data/marketDataStore.ts; 15 new tests; repositories.ts 4772→4676 lines; structure map in docs/repositories-refactor-plan.md |
 
 | 010 | Fix Holdings Heatmap + Sector unreadable in light theme | P1 | S | LOW | — | DONE (applied to main tree, visual verified) |
+| 011 | Holding Detail chart: readable tooltip + trade markers on the price line | P1 | S | LOW | — | DONE (14fd524e) |
+| 012 | Force full re-download reliability + worker register idempotency + diagnostics | P1 | M | MED | — | TODO |
+| 013 | One-tap data restore after pairing + true "reset this device" | P1 | M–L | MED | 012 | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale).
+
+## 2026-06-15 — operator-requested plans (011–013)
+
+Added via `improve plan` from two reported issues (with screenshot):
+
+1. **Holding Detail buy/sell markers + unreadable labels** → **plan 011**.
+   The "label" is the chart's hover tooltip, rendering with recharts' default
+   white background (invisible in dark theme); the "inaccurate markers" float off
+   the price line (positioned at the trade's fill price, not the line) and
+   `ifOverflow="extendDomain"` lets a stray trade warp the Y axis. 011 themes the
+   tooltip and anchors markers to the close on the trade date.
+
+2. **Cross-device sync recovery doesn't work / "完整重新下載" pulls nothing /
+   "清空本地資料" doesn't fully clear / re-pairing after reinstall fails** →
+   split into **plan 012** (correctness foundation) + **plan 013** (recovery UX).
+   - Confirmed code-level root causes: worker `POST /users` uses a bare
+     `INSERT` → 500 on re-enable (`worker/src/index.ts:142`); `forceFullResync`
+     never resets the local push/pull cursors and gives no diagnostic on
+     zero-applied; pairing does not auto-pull, so a fresh device stays empty; and
+     `clearAllData` leaves device identity, cursors, account, vault key,
+     recovery-kit flag, and `sync_conflicts` intact — none of which a desktop
+     reinstall clears either (Tauri app data survives).
+   - 012 = idempotent worker register + cursor reset + result reason. 013 (depends
+     on 012) = auto full-redownload after join + an honest `clearLocalSyncState`
+     surfaced as "完全重設此裝置".
+   - **Note**: the worker fix in 012 only helps the operator's installed app after
+     the worker is **redeployed** (`worker/` has its own deploy path).
 
 ## Dependency notes
 
