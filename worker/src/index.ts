@@ -120,7 +120,10 @@ export default {
       return withCors(err("Not found", 404));
     } catch (e) {
       console.error(e);
-      return withCors(err("Internal server error", 500));
+      // Surface the real cause to the (single-tenant, private) client so sync
+      // failures are diagnosable from the app instead of an opaque 500.
+      const detail = e instanceof Error ? e.message : typeof e === "string" ? e : "Internal server error";
+      return withCors(err(detail, 500));
     }
   },
 };
@@ -232,14 +235,25 @@ async function handlePushEnvelopes(
   }
   if (envelopes.length > 500) return err("Max 500 envelopes per request", 400);
 
+  // relay_sequence has a UNIQUE index. Previously every row computed its own
+  // (SELECT MAX(relay_sequence)+1) subquery; within a single batch the subquery
+  // can resolve to the same value for multiple rows, tripping the UNIQUE index
+  // and failing the whole push (the "Internal server error" 500). Read the
+  // current max once and assign explicit, monotonically-increasing sequences in
+  // JS so every row in the batch is distinct.
+  const maxRow = await env.DB.prepare(
+    "SELECT COALESCE(MAX(relay_sequence), 0) AS maxSeq FROM sync_envelopes",
+  ).first<{ maxSeq: number }>();
+  let nextSequence = (maxRow?.maxSeq ?? 0) + 1;
+
   const stmt = env.DB.prepare(
     `INSERT INTO sync_envelopes
        (id, user_id, device_id, entity, entity_id, revision, encrypted_payload, updated_at, relay_sequence)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(relay_sequence), 0) + 1 FROM sync_envelopes))
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id, entity, entity_id, revision, device_id) DO NOTHING`,
   );
   const batch = envelopes.map((e) =>
-    stmt.bind(e.id, userId, e.deviceId, e.entity, e.entityId, e.revision, e.encryptedPayload, e.updatedAt),
+    stmt.bind(e.id, userId, e.deviceId, e.entity, e.entityId, e.revision, e.encryptedPayload, e.updatedAt, nextSequence++),
   );
   await env.DB.batch(batch);
 
