@@ -1200,8 +1200,8 @@ function NSAnBand({ children, deep }: { children: ReactNode; deep?: boolean }) {
   return (
     <div
       style={{
-        background: deep ? "#0a0c0e" : "var(--ns-bg-card)",
-        border: deep ? "1px solid #1a1d20" : "1px solid var(--ns-border)",
+        background: "var(--ns-bg-card)",
+        border: "1px solid var(--ns-border)",
         borderRadius: "var(--ns-r-xl)",
         padding: 34,
       }}
@@ -1292,7 +1292,7 @@ function nsHeat(ret: number | null, scale = 9): string {
 /** Foreground color that contrasts with nsHeat background. */
 function nsHeatText(ret: number | null, scale = 9): string {
   if (ret == null) return "var(--ns-fg-dim)";
-  return Math.abs(ret) / scale > 0.42 ? "#08160a" : "var(--ns-fg)";
+  return Math.abs(ret) / scale > 0.42 ? "var(--ns-bg)" : "var(--ns-fg)";
 }
 
 /** Squarified treemap layout — returns cells with absolute x/y/w/h in the given box. */
