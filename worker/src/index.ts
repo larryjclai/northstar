@@ -147,12 +147,21 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
 
   const now = new Date().toISOString();
   await env.DB.batch([
-    env.DB.prepare("INSERT INTO users (id, api_secret_hash, created_at) VALUES (?, ?, ?)")
+    env.DB.prepare("INSERT OR IGNORE INTO users (id, api_secret_hash, created_at) VALUES (?, ?, ?)")
       .bind(body.userId, body.apiSecretHash, now),
     env.DB.prepare(
-      "INSERT INTO devices (id, user_id, name, platform, trusted_at, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+      "INSERT OR IGNORE INTO devices (id, user_id, name, platform, trusted_at, created_at) VALUES (?, ?, ?, ?, ?, ?)",
     ).bind(body.device.id, body.userId, body.device.name, body.device.platform, now, now),
   ]);
+
+  // Reject a userId collision under a different secret (would otherwise let a
+  // second account silently "succeed" against someone else's row).
+  const existing = await env.DB.prepare("SELECT api_secret_hash FROM users WHERE id = ?")
+    .bind(body.userId)
+    .first<{ api_secret_hash: string }>();
+  if (existing && existing.api_secret_hash !== body.apiSecretHash) {
+    return withCors(err("Account already exists with different credentials", 409));
+  }
 
   return withCors(json({ ok: true }, 201));
 }
