@@ -41,6 +41,7 @@ import {
   initiatePairing, joinWithCode, type PairingSession,
 } from "../../features/connect/sync/pairing-flow";
 import { runSync, forceFullResync } from "../../features/connect/sync/sync-manager";
+import { clearLocalSyncState } from "../../features/connect/sync/reset";
 import { summarizeConflict } from "../../features/connect/sync/conflictSummary";
 import { listBackups, restoreBackup, type BackupEntry } from "../../features/connect/sync/backup";
 import { updateFailureMessage } from "../../features/updater/errors";
@@ -137,6 +138,9 @@ export function ConnectStatus() {
 
   // Force-full-resync inline confirm (window.confirm is a no-op in Tauri webview).
   const [confirmFullResync, setConfirmFullResync] = useState(false);
+
+  // Full device reset inline confirm (window.confirm is a no-op in Tauri webview).
+  const [confirmDeviceReset, setConfirmDeviceReset] = useState(false);
 
   // Load backups list when panel opens
   useEffect(() => {
@@ -307,7 +311,28 @@ export function ConnectStatus() {
       setDevices(devs);
       setShowDialog(false);
       setJoinCode("");
-      toast.success("裝置已成功加入同步");
+
+      // Pairing alone leaves this device empty — immediately pull the account's
+      // data so "join" restores in one step. (forceFullResync is pull-only; it
+      // never overwrites the server.)
+      toast.success("裝置已加入，正在下載資料…");
+      try {
+        syncStatus.setPhase("pulling");
+        const repo = await getFinanceRepository();
+        const result = await forceFullResync(repo);
+        syncStatus.setSyncDone(result.pushed, result.pulled, result.applied);
+        await queryClient.invalidateQueries();
+        toast.success(
+          result.applied > 0
+            ? `已下載並套用 ${result.applied} 筆資料`
+            : "已加入同步（伺服器目前沒有可下載的資料）",
+        );
+      } catch (pullErr) {
+        const msg = pullErr instanceof Error ? pullErr.message : String(pullErr);
+        console.error("[sync] post-join resync failed:", pullErr);
+        syncStatus.setError(msg);
+        toast.error("已加入同步，但自動下載失敗，請稍後在設定按「完整重新下載」。");
+      }
     } catch (e) {
       setJoinError(e instanceof Error ? e.message : "配對失敗，請確認配對碼是否正確");
     } finally {
@@ -409,6 +434,23 @@ export function ConnectStatus() {
         : (e as { message?: string })?.message ?? JSON.stringify(e) ?? "重新下載失敗";
       console.error("[sync] force full resync failed:", e);
       syncStatus.setError(msg);
+    }
+  }
+
+  // ── Full device reset ──
+  async function handleDeviceReset() {
+    setConfirmDeviceReset(false);
+    try {
+      const repo = await getFinanceRepository();
+      await clearLocalSyncState(repo);
+      await queryClient.invalidateQueries();
+      // Drop back to first-run state in the UI.
+      setAccount(null);
+      setDevices([]);
+      setKitStatus(null);
+      toast.success("已重設此裝置。可重新「啟用同步」或用配對碼／備援碼還原。");
+    } catch (e) {
+      toast.error("重設失敗：" + (e instanceof Error ? e.message : String(e)));
     }
   }
 
@@ -669,6 +711,26 @@ export function ConnectStatus() {
               onClick={() => setConfirmFullResync(true)}
               disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
               <ArrowsClockwise size={13} />完整重新下載
+            </Button>
+        }
+      </div>
+
+      {/* Full device reset */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+        padding: "10px 12px", marginBottom: 16, borderRadius: "var(--ns-r-md)",
+        background: "var(--ns-neg-soft)", border: "1px solid var(--ns-neg)" }}>
+        <div className="text-caption" style={{ color: "var(--ns-fg-muted)", lineHeight: 1.5 }}>
+          完全重設此裝置：清除本機所有財務資料與同步設定（裝置 ID、加密金鑰、配對帳號、備援碼狀態），讓這台裝置回到全新狀態。<strong>伺服器上的資料不受影響</strong>，可重新配對後下載回來。建議先到「備份與還原」匯出一份備份。
+        </div>
+        {confirmDeviceReset
+          ? <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+              <Button variant="ghost" className="text-xs" onClick={() => setConfirmDeviceReset(false)}>取消</Button>
+              <Button variant="outline" className="text-xs" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }}
+                onClick={handleDeviceReset}>確認重設</Button>
+            </div>
+          : <Button variant="ghost" className="text-xs" style={{ flexShrink: 0, color: "var(--ns-neg)" }}
+              onClick={() => setConfirmDeviceReset(true)}>
+              <Trash size={13} />完全重設此裝置
             </Button>
         }
       </div>
