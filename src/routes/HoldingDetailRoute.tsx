@@ -68,6 +68,7 @@ export function HoldingDetailRoute() {
   const tradeMarkers = useMemo(() => {
     if (series.length === 0) return [] as Array<{ date: string; price: number; action: "buy" | "sell" }>;
     const seriesDates = series.map((p) => p.date);
+    const closeByDate = new Map(series.map((p) => [p.date, p.price]));
     const snap = (date: string): string | null => {
       const d = date.slice(0, 10);
       if (d < seriesDates[0] || d > seriesDates[seriesDates.length - 1]) return null;
@@ -83,7 +84,7 @@ export function HoldingDetailRoute() {
       .filter((t) => t.action === "buy" || t.action === "sell")
       .map((t) => {
         const snapped = snap(t.date);
-        return snapped ? { date: snapped, price: t.price, action: t.action as "buy" | "sell" } : null;
+        return snapped ? { date: snapped, price: closeByDate.get(snapped) ?? t.price, action: t.action as "buy" | "sell" } : null;
       })
       .filter((m): m is { date: string; price: number; action: "buy" | "sell" } => m !== null);
   }, [txns, series]);
@@ -240,7 +241,12 @@ export function HoldingDetailRoute() {
                   </defs>
                   <XAxis dataKey="date" hide />
                   <YAxis domain={['auto', 'auto']} hide />
-                  <Tooltip formatter={(v) => [typeof v === "number" ? v.toFixed(2) : v, "price"]} />
+                  <Tooltip
+                    formatter={(v) => [typeof v === "number" ? v.toFixed(2) : v, "price"]}
+                    contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }}
+                    itemStyle={{ color: "var(--ns-fg)" }}
+                    labelStyle={{ color: "var(--ns-fg)" }}
+                  />
                   <Area type="monotone" dataKey="price" stroke={markColor} fillOpacity={1} fill="url(#colorPrice)" isAnimationActive={false} />
                   {showTradeMarkers && tradeMarkers.map((m, i) => (
                     <ReferenceDot
@@ -248,7 +254,7 @@ export function HoldingDetailRoute() {
                       x={m.date}
                       y={m.price}
                       r={0}
-                      ifOverflow="extendDomain"
+                      ifOverflow="hidden"
                       shape={(props: { cx?: number; cy?: number }) => <TradeMarker cx={props.cx ?? 0} cy={props.cy ?? 0} action={m.action} />}
                     />
                   ))}
