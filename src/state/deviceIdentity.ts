@@ -68,3 +68,9 @@ export function setRemotePullCursor(cursor: string | null): DeviceIdentity {
   write(next);
   return next;
 }
+
+/** Reset both sync watermarks so the next sync re-pushes/re-pulls from scratch. */
+export function resetSyncCursors(): DeviceIdentity {
+  setLocalPushCursor(null);
+  return setRemotePullCursor(null);
+}

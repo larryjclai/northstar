@@ -396,7 +396,13 @@ export function ConnectStatus() {
       const result = await forceFullResync(repo);
       syncStatus.setSyncDone(result.pushed, result.pulled, result.applied);
       await queryClient.invalidateQueries();
-      toast.success(`已從伺服器完整重新下載，套用 ${result.applied} 筆`);
+      if (result.applied > 0) {
+        toast.success(`已從伺服器完整重新下載，套用 ${result.applied} 筆`);
+      } else if (result.reason === "empty-relay") {
+        toast.error("伺服器沒有可下載的資料。請確認這台裝置已配對到正確的同步帳號（設定 → 新增裝置 / 我有配對碼）。");
+      } else {
+        toast.success(`已是最新狀態，沒有需要套用的變更（伺服器 ${result.pulled} 筆都已存在）。`);
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message
         : typeof e === "string" ? e

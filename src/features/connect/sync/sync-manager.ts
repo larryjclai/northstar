@@ -9,7 +9,7 @@
 // Designed to be called both on manual button press and on app focus.
 
 import type { FinanceRepository } from "../../../data/repositories";
-import { getOrCreateDeviceIdentity, setRemotePullCursor } from "../../../state/deviceIdentity";
+import { getOrCreateDeviceIdentity, setRemotePullCursor, resetSyncCursors } from "../../../state/deviceIdentity";
 import { loadVaultKey } from "../crypto/vault";
 import { isRecoveryKitConfirmed } from "../crypto/recovery-kit";
 import { loadSyncAccount } from "./account";
@@ -24,6 +24,8 @@ export interface SyncResult {
   pushed: number;
   pulled: number;
   applied: number;
+  /** Set by forceFullResync when applied === 0, to explain why. */
+  reason?: "ok" | "empty-relay" | "nothing-applied";
 }
 
 // Module-level mutex — prevents concurrent syncs hitting SQLite simultaneously.
@@ -116,6 +118,10 @@ export async function forceFullResync(repo: FinanceRepository): Promise<SyncResu
 
     const device = getOrCreateDeviceIdentity();
 
+    // Clear any stale watermark so a normal sync after this can't skip data,
+    // and so the drain below truly starts from the beginning of the relay.
+    resetSyncCursors();
+
     // Pre-pull backup so the user can revert if the recovery looks wrong.
     const snapshot = await repo.exportSnapshot();
     await saveBackup(snapshot).catch(console.warn);
@@ -135,7 +141,9 @@ export async function forceFullResync(repo: FinanceRepository): Promise<SyncResu
 
     if (cursor) setRemotePullCursor(cursor);
 
-    return { pushed: 0, pulled, applied };
+    const reason: SyncResult["reason"] =
+      applied > 0 ? "ok" : pulled === 0 ? "empty-relay" : "nothing-applied";
+    return { pushed: 0, pulled, applied, reason };
   } finally {
     _syncRunning = false;
   }
