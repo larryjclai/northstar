@@ -22,7 +22,7 @@ honor its STOP conditions, and update your row when done.
 | 010 | Fix Holdings Heatmap + Sector unreadable in light theme | P1 | S | LOW | — | DONE (applied to main tree, visual verified) |
 | 011 | Holding Detail chart: readable tooltip + trade markers on the price line | P1 | S | LOW | — | DONE (14fd524e) |
 | 012 | Force full re-download reliability + worker register idempotency + diagnostics | P1 | M | MED | — | DONE (074ea9cc + cf5af4df) — worker requires separate redeploy |
-| 013 | One-tap data restore after pairing + true "reset this device" | P1 | M–L | MED | 012 | TODO |
+| 013 | One-tap data restore after pairing + true "reset this device" | P1 | M–L | MED | 012 | DONE (f6abd59e + dd869e14 + 88d68673) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale).
 
