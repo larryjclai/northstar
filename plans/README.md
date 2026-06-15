@@ -76,35 +76,18 @@ Spot-checked all 10 plans against `advisor/001-perf-asset-record-map` HEAD.
 | 009  | `marketDataStore.ts` + test file present; delegation wired in `repositories.ts` | ✓ |
 | 010  | No hardcoded `#0a0c0e`/`#1a1d20`/`#08160a` in `InvestmentsAnalyticsTab.tsx`; `nsHeatText` uses `var(--ns-bg)` | ✓ (NSAnBand dropped the `deep` conditional entirely; uses `var(--ns-bg-card)` uniformly — different from plan prescription but achieves same light-mode fix) |
 
-### Gaps requiring action
+### Gaps found and resolved (same session)
 
-**Plans 001, 002, 003 — work done on worktree branches, NOT on current branch.**
+**Plans 001, 002, 003** — worktree commits not on current branch. Cherry-picked cleanly:
+- `baeedf69` ← `c8a0ea58` — plan 001: Map lookup in `repositories.ts` + `portfolioCalculator.ts`
+- `4910edb8` ← `44764d08` — plan 002: `scratch/` deleted + `.gitignore` updated
+- `41f71dbc` ← `f4e2f733` — plan 003: CSP set in `tauri.conf.json`
 
-All three commits exist in git history (`c8a0ea58`, `44764d08`, `f4e2f733`) on their respective
-worktree branches. The "apply via file copy" workflow used in this session cannot carry over
-deletions (plan 002) and did not copy `tauri.conf.json` (plan 003) or `portfolioCalculator.ts`
-(plan 001). Confirmed on current HEAD:
-- `repositories.ts:439` — `activeRecords.filter(...)` per-asset O(N·M) still present
-- `portfolioCalculator.ts:59,120` — same filter pattern in both buildHolding* functions
-- `src-tauri/tauri.conf.json:31` — `"csp": null` still present
-- `scratch/` directory — 30+ stale files still tracked
+**Plan 005 prettier config** — false positive. The reconcile check used `ls .prettierrc`
+(wrong extension); `.prettierrc.json` and `.prettierignore` were already committed in
+`30034db4`. No action needed.
 
-**Action**: cherry-pick `c8a0ea58 44764d08 f4e2f733` onto the working branch, or re-apply
-the changes from those worktree branches. Suggested commands (verify there are no
-conflicts first):
-```
-git cherry-pick c8a0ea58   # plan 001 — portfolioCalculator + repositories Map lookup
-git cherry-pick 44764d08   # plan 002 — scratch/ removal + .gitignore update
-git cherry-pick f4e2f733   # plan 003 — CSP in tauri.conf.json
-```
-
-**Plan 005 — prettier config files missing.**
-
-`eslint.config.js` is present and working. But the plan's done criteria also require
-`.prettierrc.json` and `.prettierignore`. Neither exists at the repo root. Prettier
-runs with defaults, but the config files establish the canonical format spec.
-
-**Action**: create `.prettierrc.json` and `.prettierignore` per the spec in `plans/005-eslint-prettier-setup.md` (Step 3). These are 12-line JSON and 8-line plaintext files — no executor needed.
+Post-fix verification: `npx tsc --noEmit` clean; 54 test files, 450 tests pass; `npm audit` 0 vulns.
 
 ## Direction (product options — for the maintainer, not bugs)
 
