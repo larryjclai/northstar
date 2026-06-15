@@ -129,8 +129,8 @@ function BenchmarkPicker({ current }: { current: string }) {
   );
 }
 
-type AnalyticsPeriod = "1M" | "3M" | "6M" | "YTD" | "1Y" | "5Y" | "Total";
-const PERIODS: AnalyticsPeriod[] = ["1M", "3M", "6M", "YTD", "1Y", "5Y", "Total"];
+type AnalyticsPeriod = "1M" | "3M" | "6M" | "YTD" | "1Y" | "5Y" | "All";
+const PERIODS: AnalyticsPeriod[] = ["1M", "3M", "6M", "YTD", "1Y", "5Y", "All"];
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -143,9 +143,9 @@ function daysAgo(n: number, end: string): string {
 }
 
 function periodStart(period: AnalyticsPeriod, end: string): string {
-  if (period === "Total") return "1900-01-01";
+  if (period === "All") return "1900-01-01";
   if (period === "YTD") return `${end.slice(0, 4)}-01-01`;
-  const days: Record<Exclude<AnalyticsPeriod, "Total" | "YTD">, number> = {
+  const days: Record<Exclude<AnalyticsPeriod, "All" | "YTD">, number> = {
     "1M": 30, "3M": 92, "6M": 183, "1Y": 365, "5Y": 1825,
   };
   return daysAgo(days[period], end);
@@ -542,13 +542,13 @@ export function InvestmentsAnalyticsTab({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onBackfillHoldings(period === "5Y" || period === "Total" ? "5y" : "1y")}
+                onClick={() => onBackfillHoldings(period === "5Y" || period === "All" ? "5y" : "1y")}
                 loading={backfilling}
                 disabled={backfilling}
-                title={`抓取所有持倉${period === "5Y" || period === "Total" ? "近 5 年" : "近 1 年"}的每日歷史股價`}
+                title={`抓取所有持倉${period === "5Y" || period === "All" ? "近 5 年" : "近 1 年"}的每日歷史股價`}
               >
                 <ArrowsClockwise size={13} />
-                {backfilling ? "回補中…" : (period === "5Y" || period === "Total" ? "回補 5Y 股價" : "回補歷史股價")}
+                {backfilling ? "回補中…" : (period === "5Y" || period === "All" ? "回補 5Y 股價" : "回補歷史股價")}
               </Button>
               <SegmentedControl value={period} onChange={setPeriod} options={periodOptions} />
             </div>

@@ -7,7 +7,6 @@ import { AccountFilter } from "../components/AccountFilter";
 import { AssetLogo } from "../components/AssetLogo";
 import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
-import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
 import { Card as CossCard } from "../components/coss/card";
 import { EmptyState } from "../components/EmptyState";
@@ -66,7 +65,7 @@ export function InvestmentsRoute() {
     void navigate({ to: "/investments", search: (prev) => ({ ...prev, tab: next, sector: next === "portfolio" ? prev.sector : undefined }) });
   }
 
-  const { accounts, assets, investments, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots, recurringInvestments } = useFinanceData();
+  const { accounts, assets, investments, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
   const refreshDailyPrices = useRefreshDailyPrices();
   const backfillAssetProfiles = useBackfillAssetProfiles();
@@ -109,12 +108,6 @@ export function InvestmentsRoute() {
   );
 
   const timezoneForDue = useUiPreferences((state) => state.timezone);
-  const dueRecurringCount = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 7);
-    const horizon = todayInTimezone(timezoneForDue, d);
-    return (recurringInvestments.data ?? []).filter((r) => r.isActive && r.nextRunDate <= horizon).length;
-  }, [recurringInvestments.data, timezoneForDue]);
 
   // Shared valuation context so market value here matches the Dashboard / net
   // worth trend: live quote → latest daily close → average cost.
@@ -358,20 +351,14 @@ export function InvestmentsRoute() {
 
       {statusMessage ? <div className="mt-4"><StatusText>{statusMessage}</StatusText></div> : null}
 
-      {tab !== "recurring" && dueRecurringCount > 0 ? (
-        <CossCard style={{ marginTop: 16, padding: "12px 16px", flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }}>定期定額</Badge>
-          <span className="text-body">有 {dueRecurringCount} 個定期定額計畫待投入，記得備妥交割款。</span>
-          <Button variant="ghost" size="xs" className="ml-auto" onClick={() => setTab("recurring")}>前往處理 →</Button>
-        </CossCard>
-      ) : null}
-
-      {/* Page-level tabs: 持倉 | 交易紀錄 | 定期定額 */}
+      {/* Page-level tabs: 持倉 | 交易紀錄 | 分析.
+          定期定額 (recurring DCA) is hidden until the workflow is finalised; the
+          tab + dashboard reminder are removed while the underlying data and
+          RecurringInvestmentsTab component stay intact for re-enabling later. */}
       <div className="ns-page-tabs" style={{ display: 'flex', borderBottom: '1px solid var(--ns-border)', marginTop: 20, marginBottom: 22 }}>
         {[
           { id: 'portfolio', label: '持倉', active: tab === 'portfolio' },
           { id: 'transactions', label: '交易紀錄', active: tab === 'transactions' },
-          { id: 'recurring', label: '定期定額', active: tab === 'recurring' },
           { id: 'analytics', label: '分析', active: tab === 'analytics' },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id as any)} className="text-sm" style={{
