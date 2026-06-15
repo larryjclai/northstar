@@ -411,6 +411,9 @@ export function ConnectStatus() {
       const result = await runSync(repo);
       syncStatus.setSyncDone(result.pushed, result.pulled, result.applied);
       await queryClient.invalidateQueries();
+      if (result.skipped > 0) {
+        toast.error(`同步完成，但有 ${result.skipped} 筆資料無法解密／格式不符而略過。若資料仍不完整，請試「完整重新下載」。`);
+      }
     } catch (e) {
       // Tauri plugin errors can be plain strings, not Error instances
       const msg = e instanceof Error ? e.message
@@ -433,7 +436,10 @@ export function ConnectStatus() {
       syncStatus.setSyncDone(result.pushed, result.pulled, result.applied);
       await queryClient.invalidateQueries();
       if (result.applied > 0) {
-        toast.success(`已從伺服器完整重新下載，套用 ${result.applied} 筆`);
+        toast.success(
+          `已從伺服器完整重新下載，套用 ${result.applied} 筆` +
+            (result.skipped > 0 ? `（略過 ${result.skipped} 筆無法解密／格式不符）` : ""),
+        );
       } else if (result.reason === "empty-relay") {
         toast.error("伺服器沒有可下載的資料。請確認這台裝置已配對到正確的同步帳號（設定 → 新增裝置 / 我有配對碼）。");
       } else {

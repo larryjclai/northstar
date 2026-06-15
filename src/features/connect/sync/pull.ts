@@ -19,6 +19,8 @@ import type { FinanceRepository } from "../../../data/repositories";
 export interface SyncPullResult {
   pulled: number;
   applied: number;
+  /** Envelopes skipped because they failed to decrypt or validate. */
+  skipped: number;
   nextCursor: string;
 }
 
@@ -47,32 +49,46 @@ export async function pullAndApply(
     : result.envelopes.filter((e: EnvelopeRecord) => e.deviceId !== deviceId);
 
   if (foreign.length === 0) {
-    return { pulled: 0, applied: 0, nextCursor: result.nextCursor };
+    return { pulled: 0, applied: 0, skipped: 0, nextCursor: result.nextCursor };
   }
 
   // Decrypt all foreign envelopes in parallel.
   // Use allSettled so a single bad envelope doesn't abort the entire batch.
+  //
+  // A single undecryptable / malformed envelope must NOT block the whole device:
+  // the pull cursor only advances after a page returns, so throwing here would
+  // pin the cursor at this page forever and the device would re-fail on the same
+  // poison row on every sync (it would receive every record before that
+  // relay_sequence and nothing after). We instead skip the bad envelope, count
+  // it, and let the cursor move past it — a later revision of that same record
+  // (pushed again) will heal it. See SyncPullResult.skipped.
   const settled = await Promise.allSettled(
     foreign.map((e) => decryptPayload(vaultKey, e.encryptedPayload)),
   );
-  const failed = settled.find((result) => result.status === "rejected");
-  if (failed?.status === "rejected") {
-    throw new Error(`同步資料解密失敗，已保留 checkpoint 供稍後重試：${String(failed.reason)}`);
-  }
-  const decrypted = settled.map((r, i) => {
-    if (r.status === "rejected") return null;
-    return r.value;
-  });
+  const decrypted = settled.map((r) => (r.status === "rejected" ? null : r.value));
 
   const changes: SyncApplyChange[] = [];
   const conflicts: SyncConflictRecord[] = [];
   let applied = 0;
+  let skipped = 0;
   for (let i = 0; i < foreign.length; i++) {
     const envelope = foreign[i];
     const raw = decrypted[i];
-    if (!raw) continue; // decryption failed, already warned
+    if (!raw) {
+      skipped++;
+      console.warn(
+        `同步：略過無法解密的 envelope ${envelope.entity}/${envelope.entityId}（rev ${envelope.revision}），繼續同步其餘資料。`,
+      );
+      continue;
+    }
     const payload = raw as SyncFields & Record<string, unknown>;
-    assertValidPayload(envelope, payload);
+    if (!isValidPayload(envelope, payload)) {
+      skipped++;
+      console.warn(
+        `同步：略過格式不符的 envelope ${envelope.entity}/${envelope.entityId}（rev ${envelope.revision}），繼續同步其餘資料。`,
+      );
+      continue;
+    }
     const entity = envelope.entity as SyncEntity;
     const existing = await repo.getSyncPayload(entity, envelope.entityId);
     // Same logical record edited to the same revision on two devices but with
@@ -111,7 +127,7 @@ export async function pullAndApply(
     await repo.applySyncChanges(changes, conflicts);
   }
 
-  return { pulled: foreign.length, applied, nextCursor: result.nextCursor };
+  return { pulled: foreign.length, applied, skipped, nextCursor: result.nextCursor };
 }
 
 function shouldApply(existing: Record<string, unknown> | null, incoming: SyncFields) {
@@ -126,18 +142,17 @@ function samePayload(left: Record<string, unknown>, right: Record<string, unknow
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function assertValidPayload(envelope: EnvelopeRecord, payload: SyncFields & Record<string, unknown>) {
-  const validEntities = new Set<SyncEntity>(["account", "ledger", "asset", "investment", "recurring", "recurringInvestment", "goal", "settings"]);
-  if (
-    !validEntities.has(envelope.entity as SyncEntity) ||
-    !payload ||
-    typeof payload.id !== "string" ||
-    payload.id !== envelope.entityId ||
-    typeof payload.revision !== "number" ||
-    !Number.isFinite(payload.revision) ||
-    typeof payload.updatedAt !== "string" ||
-    !("deletedAt" in payload)
-  ) {
-    throw new Error(`同步資料格式驗證失敗，已保留 checkpoint 供稍後重試：${envelope.entity}/${envelope.entityId}`);
-  }
+const VALID_ENTITIES = new Set<SyncEntity>(["account", "ledger", "asset", "investment", "recurring", "recurringInvestment", "goal", "settings"]);
+
+function isValidPayload(envelope: EnvelopeRecord, payload: SyncFields & Record<string, unknown>): boolean {
+  return (
+    VALID_ENTITIES.has(envelope.entity as SyncEntity) &&
+    !!payload &&
+    typeof payload.id === "string" &&
+    payload.id === envelope.entityId &&
+    typeof payload.revision === "number" &&
+    Number.isFinite(payload.revision) &&
+    typeof payload.updatedAt === "string" &&
+    "deletedAt" in payload
+  );
 }

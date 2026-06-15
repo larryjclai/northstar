@@ -24,6 +24,8 @@ export interface SyncResult {
   pushed: number;
   pulled: number;
   applied: number;
+  /** Envelopes skipped because they failed to decrypt or validate. */
+  skipped: number;
   /** Set by forceFullResync when applied === 0, to explain why. */
   reason?: "ok" | "empty-relay" | "nothing-applied";
 }
@@ -74,10 +76,12 @@ async function _doSync(repo: FinanceRepository): Promise<SyncResult> {
   let cursor = device.remotePullCursor ?? "";
   let pulled = 0;
   let applied = 0;
+  let skipped = 0;
   for (;;) {
     const page = await pullAndApply(repo, account, cursor, device.deviceId);
     pulled += page.pulled;
     applied += page.applied;
+    skipped += page.skipped;
     if (!page.nextCursor || page.nextCursor === cursor) break;
     cursor = page.nextCursor;
     setRemotePullCursor(cursor);
@@ -87,6 +91,7 @@ async function _doSync(repo: FinanceRepository): Promise<SyncResult> {
     pushed: pushResult.pushed,
     pulled,
     applied,
+    skipped,
   };
 }
 
@@ -129,12 +134,14 @@ export async function forceFullResync(repo: FinanceRepository): Promise<SyncResu
     let cursor = "";
     let pulled = 0;
     let applied = 0;
+    let skipped = 0;
     // Drain the relay one page at a time. pullAndApply re-exports the (now
     // updated) local state on each call, so pages accumulate correctly.
     for (;;) {
       const page = await pullAndApply(repo, account, cursor, device.deviceId, { includeOwnDevice: true });
       pulled += page.pulled;
       applied += page.applied;
+      skipped += page.skipped;
       if (!page.nextCursor || page.nextCursor === cursor) break;
       cursor = page.nextCursor;
     }
@@ -143,7 +150,7 @@ export async function forceFullResync(repo: FinanceRepository): Promise<SyncResu
 
     const reason: SyncResult["reason"] =
       applied > 0 ? "ok" : pulled === 0 ? "empty-relay" : "nothing-applied";
-    return { pushed: 0, pulled, applied, reason };
+    return { pushed: 0, pulled, applied, skipped, reason };
   } finally {
     _syncRunning = false;
   }

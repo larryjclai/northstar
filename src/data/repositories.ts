@@ -2671,17 +2671,25 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       // Cache localized names alongside the portfolio_assets row so
       // resolveDisplayName() can pick the user's preferred locale
       // without re-hitting the network.
+      //
+      // CRITICAL: only write (and only then bump revision) when the cached name
+      // actually changes. Quotes refresh on every focus/poll; an unconditional
+      // `revision = revision + 1` here manufactured a brand-new sync envelope per
+      // asset on every single refresh, bloating the relay to tens of thousands of
+      // near-duplicate asset envelopes and making other devices' pull never drain.
+      // `is not` is SQLite's null-safe distinct-from, so a no-op refresh is a no-op
+      // write. See project_sync_sqlite memory (relay history bloat).
       if (quote.nameZh) {
         await this.db.execute(
           `update portfolio_assets set name_zh = $1, updated_at = $2, revision = revision + 1
-           where upper(ticker) = upper($3) and deleted_at is null`,
+           where upper(ticker) = upper($3) and deleted_at is null and name_zh is not $1`,
           [quote.nameZh, updatedAt, quote.symbol],
         );
       }
       if (quote.nameEn) {
         await this.db.execute(
           `update portfolio_assets set name_en = $1, updated_at = $2, revision = revision + 1
-           where upper(ticker) = upper($3) and deleted_at is null`,
+           where upper(ticker) = upper($3) and deleted_at is null and name_en is not $1`,
           [quote.nameEn, updatedAt, quote.symbol],
         );
       }

@@ -108,6 +108,26 @@ describe("pullAndApply", () => {
     expect(await repo.getSyncPayload("account", account.id)).toMatchObject({ name: "錢包", revision: 2 });
   });
 
+  it("skips an undecryptable envelope and still applies the rest of the page", async () => {
+    const repo = createMemoryFinanceRepositoryForTests();
+    await createAccount(repo, "錢包");
+    await createAccount(repo, "備用金");
+    const [first, second] = await repo.listAccounts();
+    const good = { ...second, name: "日常錢包", revision: second.revision + 1, updatedAt: "2099-01-02T00:00:00.000Z" };
+    // A poison envelope (invalid ciphertext → decrypt throws) must NOT abort the
+    // page: the cursor would otherwise pin here forever and the device would
+    // never sync anything past it.
+    const poison = { ...envelope(first), id: "env_poison", encryptedPayload: "{not-json" };
+    mockedPullEnvelopes.mockResolvedValue({ envelopes: [poison, envelope(good)], nextCursor: "9", count: 2 });
+
+    const result = await pullAndApply(repo, { userId: "u", apiSecret: "s" }, "", "device_a");
+
+    expect(result.applied).toBe(1);
+    expect(result.skipped).toBe(1);
+    expect(result.nextCursor).toBe("9");
+    expect((await repo.listAccounts()).map((a) => a.name).sort()).toEqual(["日常錢包", "錢包"]);
+  });
+
   it("auto-resolves an equal-revision divergence by newer updatedAt without a conflict", async () => {
     const repo = createMemoryFinanceRepositoryForTests();
     await createAccount(repo, "錢包");
