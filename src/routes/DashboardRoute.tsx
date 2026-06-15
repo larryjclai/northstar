@@ -55,7 +55,8 @@ import { buildQuoteLookup, findQuoteForTicker, quoteLookupKeys } from "../domain
 import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
 import { SquaresFour } from "@phosphor-icons/react";
 
-type StripPeriod = "1W" | "1M" | "3M" | "YTD" | "1Y";
+type StripPeriod = "1D" | "1W" | "1M" | "3M" | "YTD" | "1Y" | "5Y" | "All";
+const STRIP_PERIODS: StripPeriod[] = ["1D", "1W", "1M", "3M", "YTD", "1Y", "5Y", "All"];
 
 /** Dashboard cards the user can hide via 編輯版面 (net-worth hero + KPI stay). */
 const DASHBOARD_CARDS: Array<{ key: string; label: string }> = [
@@ -63,7 +64,7 @@ const DASHBOARD_CARDS: Array<{ key: string; label: string }> = [
   { key: "upcoming", label: "近期帳單" },
   { key: "creditCards", label: "信用卡繳款提醒" },
   { key: "settlements", label: "應收 / 應付" },
-  { key: "recurringInvestments", label: "定期定額提醒" },
+  // 定期定額提醒 hidden until the DCA workflow is finalised (see InvestmentsRoute).
   { key: "allocation", label: "資產配置" },
   { key: "goals", label: "目標" },
   { key: "market", label: "匯率" },
@@ -71,10 +72,11 @@ const DASHBOARD_CARDS: Array<{ key: string; label: string }> = [
   { key: "topMovers", label: "今日漲跌" },
 ];
 
-/** Inclusive start date for a Portfolio-Strip period, relative to `end` (today). */
+/** Inclusive start date for a net-worth range, relative to `end` (today). */
 function stripStartDate(period: StripPeriod, end: string): string {
+  if (period === "All") return "1900-01-01";
   if (period === "YTD") return `${end.slice(0, 4)}-01-01`;
-  const days: Record<Exclude<StripPeriod, "YTD">, number> = { "1W": 7, "1M": 31, "3M": 92, "1Y": 365 };
+  const days: Record<Exclude<StripPeriod, "YTD" | "All">, number> = { "1D": 1, "1W": 7, "1M": 31, "3M": 92, "1Y": 365, "5Y": 1825 };
   const d = new Date(`${end}T00:00:00`);
   d.setDate(d.getDate() - days[period]);
   return d.toISOString().slice(0, 10);
@@ -92,7 +94,7 @@ const CHART_COLORS = [
 ];
 
 export function DashboardRoute() {
-  const { accounts, ledger, assets, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots, recurring, recurringInvestments, financialGoals, investments } = useFinanceData();
+  const { accounts, ledger, assets, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots, recurring, financialGoals, investments } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
   const refreshFxRates = useRefreshFxRates();
   const refreshDailyPrices = useRefreshDailyPrices();
@@ -141,7 +143,6 @@ export function DashboardRoute() {
   const dailyPriceRows = dailyPrices.data ?? [];
   const manualSnapshotRows = manualPriceSnapshots.data ?? [];
   const recurringRows = recurring.data ?? [];
-  const recurringInvestmentRows = recurringInvestments.data ?? [];
   const investmentRows = investments.data ?? [];
   const goalRows = financialGoals.data ?? [];
 
@@ -235,21 +236,43 @@ export function DashboardRoute() {
     ),
     [accountRows, ledgerRows, assetRows, investmentRows, quoteRows, dailyPriceRows, appSettings, fxHistory],
   );
-  const prevValue = trend.length >= 2 ? trend[trend.length - 2].value : 0;
-  const lastValue = trend.length >= 1 ? trend[trend.length - 1].value : netWorth;
-  const momChange = lastValue - prevValue;
-  const momPct = prevValue > 0 ? (momChange / prevValue) * 100 : 0;
+  // The range control both slices the chart and drives the headline delta, so
+  // the +/- figure next to net worth always reflects the *selected* window
+  // (start-of-window → now) instead of a fixed month-over-month step. A synthetic
+  // anchor point at the window start (carrying the last value before it) keeps
+  // the line spanning the full range even across quiet stretches.
+  const rangeView = useMemo(() => {
+    if (trend.length < 2) return { points: trend, change: 0, pct: 0 };
+    if (stripPeriod === "All") {
+      const first = trend[0].value;
+      const last = trend[trend.length - 1].value;
+      return { points: trend, change: last - first, pct: first !== 0 ? ((last - first) / Math.abs(first)) * 100 : 0 };
+    }
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const startIso = stripStartDate(stripPeriod, todayIso);
+    const within = trend.filter((p) => p.iso >= startIso);
 
-  // The period control slices the net-worth chart to the selected range. The
-  // headline month-over-month figures stay on the full trend; only the chart
-  // view is scoped. Falls back to the full trend when a short range would leave
-  // too few points to draw (e.g. monthly buckets + a 1W range).
-  const visibleTrend = useMemo(() => {
-    if (trend.length < 2) return trend;
-    const startIso = stripStartDate(stripPeriod, new Date().toISOString().slice(0, 10));
-    const filtered = trend.filter((p) => p.iso >= startIso);
-    return filtered.length >= 2 ? filtered : trend;
+    // Value as of the window start = last point on/before startIso (carry-forward).
+    let carried: number | null = null;
+    for (let i = trend.length - 1; i >= 0; i--) {
+      if (trend[i].iso <= startIso) { carried = trend[i].value; break; }
+    }
+
+    let points = within;
+    if (within.length > 0 && within[0].iso !== startIso && carried !== null) {
+      points = [{ date: formatDay(startIso), value: carried, iso: startIso }, ...within];
+    }
+    if (points.length < 2) points = trend.slice(-2);
+
+    const startValue = points[0].value;
+    const endValue = points[points.length - 1].value;
+    const change = endValue - startValue;
+    const pct = startValue !== 0 ? (change / Math.abs(startValue)) * 100 : 0;
+    return { points, change, pct };
   }, [trend, stripPeriod]);
+  const visibleTrend = rangeView.points;
+  const momChange = rangeView.change;
+  const momPct = rangeView.pct;
 
   const hasAnyData = accountRows.length > 0 || ledgerRows.length > 0 || assetRows.length > 0;
 
@@ -395,17 +418,6 @@ export function DashboardRoute() {
     () => buildCreditCardReminders(filteredAccounts, todayInTimezone(timezone), (amount, currency) => toPrimary(amount, currency)).filter((r) => r.daysUntilDue <= 45),
     [filteredAccounts, timezone],
   );
-
-  // Recurring investment plans due soon (next ~7 days or overdue) — a nudge to
-  // top up the 交割款 before posting.
-  const dueRecurringInvestments = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 7);
-    const horizon = todayInTimezone(timezone, d);
-    return recurringInvestmentRows
-      .filter((r) => r.isActive && r.nextRunDate <= horizon)
-      .sort((a, b) => a.nextRunDate.localeCompare(b.nextRunDate));
-  }, [recurringInvestmentRows, timezone]);
 
   // Unsettled accounts receivable / payable.
   const settlements = useMemo(
@@ -577,7 +589,7 @@ export function DashboardRoute() {
               <SegmentedControl
                 value={stripPeriod}
                 onChange={setStripPeriod}
-                options={(["1W", "1M", "3M", "YTD", "1Y"] as StripPeriod[]).map((v) => ({ value: v, label: v }))}
+                options={STRIP_PERIODS.map((v) => ({ value: v, label: v }))}
               />
             ) : null}
           </div>
@@ -783,31 +795,6 @@ export function DashboardRoute() {
       ) : null}
 
       {/* Recurring investments due — top up the 交割款 */}
-      {cardVisible("recurringInvestments") && dueRecurringInvestments.length > 0 ? (
-        <Card style={{ marginBottom: 16 }}>
-          <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div>
-              <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Recurring investments</div>
-              <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>定期定額提醒</h3>
-            </div>
-            <Button variant="ghost" size="xs" render={<Link to="/investments" />}>前往投資 →</Button>
-          </div>
-          {dueRecurringInvestments.map((r, i) => {
-            const cash = (r.mode === "fixedShares" ? (r.quantity || 0) * (r.price || 0) : (r.amount || 0)) + (r.fee || 0);
-            return (
-              <Link key={r.id} to="/investments" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none", textDecoration: "none", color: "inherit" }}>
-                <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }}>{r.mode === "fixedShares" ? "定期定股" : "定期定額"}</Badge>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="text-[13.5px]" style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name || r.ticker}</div>
-                  <div className="muted text-caption">{r.nextRunDate.slice(5)} 投入 · 請備妥交割款</div>
-                </div>
-                <div className="num text-[13.5px]" style={{ color: "var(--ns-neg)" }}>−NT${formatNumber(Math.round(cash))}</div>
-              </Link>
-            );
-          })}
-        </Card>
-      ) : null}
-
       {/* Row 3 · Allocation + Goals + Market */}
       <div className="ns-dash-row3">
         {/* Allocation */}
@@ -1098,20 +1085,18 @@ function buildNetWorthTrend(
   ].filter(Boolean);
   if (startCandidates.length === 0 && settledRows.length === 0) return [];
 
-  // Pick bucket granularity from the overall span: histories shorter than ~2
-  // calendar months bucket by day, so a single month of activity still draws a
-  // real curve instead of collapsing to one monthly point (B5). Longer
-  // histories stay monthly to keep the point count sane.
+  // Bucket by day across the whole history. Daily granularity is what lets the
+  // net-worth range control (1D / 1W / …) slice a meaningful window — a monthly
+  // series collapses short ranges to a single point. Points are only emitted at
+  // event dates (cash moves, trades, daily-price updates), so a quiet stretch
+  // stays sparse rather than ballooning to one point per calendar day.
   const earliest = (startCandidates.length ? [...startCandidates].sort()[0] : dateOnly(settledRows[0].date));
-  const earliestDate = new Date(`${earliest}T00:00:00`);
   const now = new Date();
-  const spanMonths = (now.getFullYear() - earliestDate.getFullYear()) * 12 + (now.getMonth() - earliestDate.getMonth());
-  const granularity: "day" | "month" = spanMonths >= 2 ? "month" : "day";
-  const keyOf = (date: string) => (granularity === "month" ? monthKey(date) : dateOnly(date));
-  const labelOf = (key: string) => (granularity === "month" ? formatMonth(key) : formatDay(key));
+  const keyOf = (date: string) => dateOnly(date);
+  const labelOf = (key: string) => formatDay(key);
   // Sortable ISO date per bucket so the period control can slice the chart.
-  const isoOf = (key: string) => (granularity === "month" ? `${key}-01` : key);
-  const valuationDateOf = (key: string) => (granularity === "month" ? monthEndIso(key) : key);
+  const isoOf = (key: string) => key;
+  const valuationDateOf = (key: string) => key;
 
   // Cash side: opening balances + every settled ledger movement (which already
   // includes the cash leg of investment buys/sells).
@@ -1218,12 +1203,6 @@ function buildNetWorthTrend(
   return timeline;
 }
 
-function formatMonth(value: string) {
-  const date = new Date(`${value}-01T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value.slice(0, 7);
-  return date.toLocaleDateString("zh-TW", { year: "numeric", month: "short" });
-}
-
 function formatDay(value: string) {
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return value.slice(5, 10);
@@ -1233,14 +1212,4 @@ function formatDay(value: string) {
 function dateOnly(value: string | null | undefined) {
   if (!value) return "";
   return value.slice(0, 10);
-}
-
-function monthKey(value: string) {
-  return value.slice(0, 7);
-}
-
-function monthEndIso(key: string) {
-  const [year, month] = key.split("-").map((part) => Number(part));
-  const date = new Date(year, month, 0);
-  return date.toISOString().slice(0, 10);
 }
