@@ -434,9 +434,15 @@ const recomputeAccounts = deriveAccountBalances;
 
 function recomputeAssets(assets: PortfolioAsset[], records: InvestmentRecord[]) {
   const activeRecords = active(records);
+  const recordsByAsset = new Map<string, InvestmentRecord[]>();
+  for (const record of activeRecords) {
+    const list = recordsByAsset.get(record.assetId);
+    if (list) list.push(record);
+    else recordsByAsset.set(record.assetId, [record]);
+  }
   return assets.map((asset) => {
     if (asset.deletedAt !== null) return asset;
-    const assetRecords = activeRecords.filter((record) => record.assetId === asset.id);
+    const assetRecords = recordsByAsset.get(asset.id) ?? [];
     // Single source of truth for moving-average quantity + cost (see
     // domain/portfolioMetrics). Manual holdings now carry a cashless "opening
     // balance" record, so every asset — manual or transaction-based — derives

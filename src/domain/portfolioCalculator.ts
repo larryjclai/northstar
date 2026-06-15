@@ -53,10 +53,17 @@ export function buildHoldingPositions(
 ): HoldingPosition[] {
   const lookup = valuation ? buildDailyPriceLookup(valuation.dailyPrices) : null;
   const asOf = valuation?.asOf ?? null;
+  const recordsByAsset = new Map<string, InvestmentRecord[]>();
+  for (const record of records) {
+    if (record.deletedAt !== null) continue;
+    const list = recordsByAsset.get(record.assetId);
+    if (list) list.push(record);
+    else recordsByAsset.set(record.assetId, [record]);
+  }
   return assets
     .filter((asset) => asset.deletedAt === null)
     .map((asset) => {
-      const assetRecords = records.filter((record) => record.assetId === asset.id && record.deletedAt === null);
+      const assetRecords = recordsByAsset.get(asset.id) ?? [];
       const quantity = asset.holdingSource === "manual"
         ? asset.totalQuantity
         : assetRecords
@@ -112,12 +119,20 @@ export function buildHoldingPositionsByAccount(
   const lookup = valuation ? buildDailyPriceLookup(valuation.dailyPrices) : null;
   const asOf = valuation?.asOf ?? null;
 
+  const recordsByAsset = new Map<string, InvestmentRecord[]>();
+  for (const record of records) {
+    if (record.deletedAt !== null) continue;
+    const list = recordsByAsset.get(record.assetId);
+    if (list) list.push(record);
+    else recordsByAsset.set(record.assetId, [record]);
+  }
+
   for (const asset of assets) {
     if (asset.deletedAt !== null) continue;
     const quote = quotes[asset.ticker];
     const { marketPrice, valuePrice } = resolveHoldingPrice(asset.ticker, asset.averageCost, quote, lookup, asOf);
 
-    const assetRecords = records.filter((record) => record.assetId === asset.id && record.deletedAt === null);
+    const assetRecords = recordsByAsset.get(asset.id) ?? [];
 
     // Defensive fallback for a manual snapshot with no records yet
     // (pre-migration edge): one row from the asset's stored (derived) fields.
