@@ -1,4 +1,5 @@
 import type Database from "@tauri-apps/plugin-sql";
+import { createMarketDataStore, type MarketDataStore } from "./marketDataStore";
 import type {
   Account,
   AppSettings,
@@ -332,7 +333,7 @@ const defaultSettings: AppSettings = {
   ],
 };
 
-interface RepositoryData {
+export interface RepositoryData {
   accounts: Account[];
   ledgerTransactions: LedgerTransaction[];
   portfolioAssets: PortfolioAsset[];
@@ -502,6 +503,27 @@ class BrowserFinanceRepository implements FinanceRepository {
   private readonly storageKey = "northstar.browserRepository.v1";
   private data: RepositoryData = createInitialData();
   private skipPersist = false;
+  /**
+   * Market-data sub-store, lazily created on first access so it always sees the
+   * most recent `this.data` reference (which is reassigned during initialize /
+   * loadDataForTests). The context getter/setter pair keeps the store in sync
+   * without copying or snapshotting the data object.
+   */
+  private _marketData: MarketDataStore | null = null;
+  private get marketData(): MarketDataStore {
+    if (!this._marketData) {
+      // eslint-disable-next-line @typescript-eslint/no-this-alias
+      const self = this;
+      this._marketData = createMarketDataStore({
+        get data() { return self.data; },
+        set data(v) { self.data = v; },
+        persist: () => self.persist(),
+        nowIso,
+        createId,
+      });
+    }
+    return this._marketData;
+  }
 
   loadDataForTests(data: Partial<RepositoryData>) {
     this.skipPersist = true;
@@ -1267,30 +1289,8 @@ class BrowserFinanceRepository implements FinanceRepository {
     await this.persist();
   }
 
-  async listMarketQuotes() {
-    return this.data.marketQuotes;
-  }
-
-  async saveMarketQuotes(quotes: MarketQuote[], source: string) {
-    const updatedAt = nowIso();
-    const next = new Map(this.data.marketQuotes.map((quote) => [quote.symbol, quote]));
-    for (const quote of quotes) {
-      next.set(quote.symbol, { ...quote, source, updatedAt });
-    }
-    this.data.marketQuotes = [...next.values()];
-    // Propagate localized names to any matching portfolio assets so
-    // displayName() can pick zh / en based on user preference later.
-    const bySymbol = new Map(quotes.map((quote) => [quote.symbol.toUpperCase(), quote]));
-    this.data.portfolioAssets = this.data.portfolioAssets.map((asset) => {
-      const match = bySymbol.get(asset.ticker.toUpperCase());
-      if (!match) return asset;
-      const nameZh = match.nameZh ?? asset.nameZh ?? null;
-      const nameEn = match.nameEn ?? asset.nameEn ?? null;
-      if (nameZh === asset.nameZh && nameEn === asset.nameEn) return asset;
-      return { ...asset, nameZh, nameEn };
-    });
-    await this.persist();
-  }
+  async listMarketQuotes() { return this.marketData.listMarketQuotes(); }
+  async saveMarketQuotes(quotes: MarketQuote[], source: string) { return this.marketData.saveMarketQuotes(quotes, source); }
 
   async getAppSettings() {
     return this.data.settings;
@@ -1303,111 +1303,15 @@ class BrowserFinanceRepository implements FinanceRepository {
     await this.persist();
   }
 
-  async listDailyFxRates(filter?: { from?: string; to?: string; since?: string }) {
-    const from = filter?.from?.toUpperCase();
-    const to = filter?.to?.toUpperCase();
-    const since = filter?.since;
-    return this.data.dailyFxRates
-      .filter((row) => (from ? row.from === from : true))
-      .filter((row) => (to ? row.to === to : true))
-      .filter((row) => (since ? row.date >= since : true))
-      .sort((a, b) => a.date.localeCompare(b.date));
-  }
-
-  async saveDailyFxRates(rates: DailyFxRate[]) {
-    if (!rates.length) return;
-    const updatedAt = nowIso();
-    const map = new Map<string, DailyFxRate>(
-      this.data.dailyFxRates.map((row) => [`${row.from}|${row.to}|${row.date}`, row]),
-    );
-    for (const rate of rates) {
-      const normalized: DailyFxRate = {
-        from: rate.from.toUpperCase(),
-        to: rate.to.toUpperCase(),
-        date: rate.date.slice(0, 10),
-        rate: Number(rate.rate),
-        source: rate.source || "manual",
-        updatedAt: rate.updatedAt || updatedAt,
-      };
-      if (!normalized.from || !normalized.to || !Number.isFinite(normalized.rate) || normalized.rate <= 0) continue;
-      map.set(`${normalized.from}|${normalized.to}|${normalized.date}`, normalized);
-    }
-    this.data.dailyFxRates = [...map.values()];
-    await this.persist();
-  }
-
-  async getDailyFxRate(from: string, to: string, date: string): Promise<DailyFxRate | null> {
-    const target = date.slice(0, 10);
-    const fromCode = from.toUpperCase();
-    const toCode = to.toUpperCase();
-    const matches = this.data.dailyFxRates
-      .filter((row) => row.from === fromCode && row.to === toCode && row.date <= target)
-      .sort((a, b) => b.date.localeCompare(a.date));
-    return matches[0] ?? null;
-  }
-
-  async listDailyPrices(filter?: { ticker?: string; since?: string }) {
-    const ticker = filter?.ticker?.toUpperCase();
-    const since = filter?.since;
-    return this.data.dailyPrices
-      .filter((row) => (ticker ? row.ticker === ticker : true))
-      .filter((row) => (since ? row.date >= since : true))
-      .sort((a, b) => a.date.localeCompare(b.date));
-  }
-
-  async saveDailyPrices(prices: DailyPrice[]) {
-    if (!prices.length) return;
-    const updatedAt = nowIso();
-    const map = new Map<string, DailyPrice>(
-      this.data.dailyPrices.map((row) => [`${row.ticker}|${row.date}`, row]),
-    );
-    for (const price of prices) {
-      const normalized: DailyPrice = {
-        ticker: price.ticker.toUpperCase(),
-        date: price.date.slice(0, 10),
-        close: Number(price.close),
-        currency: price.currency || "",
-        source: price.source || "manual",
-        updatedAt: price.updatedAt || updatedAt,
-      };
-      if (!normalized.ticker || !normalized.date || !Number.isFinite(normalized.close) || normalized.close <= 0) continue;
-      map.set(`${normalized.ticker}|${normalized.date}`, normalized);
-    }
-    this.data.dailyPrices = [...map.values()];
-    await this.persist();
-  }
-
-  async getDailyPrice(ticker: string, date: string): Promise<DailyPrice | null> {
-    const target = date.slice(0, 10);
-    const code = ticker.toUpperCase();
-    const matches = this.data.dailyPrices
-      .filter((row) => row.ticker === code && row.date <= target)
-      .sort((a, b) => b.date.localeCompare(a.date));
-    return matches[0] ?? null;
-  }
-
-  async listManualPriceSnapshots(filter?: { assetId?: string }) {
-    return this.data.manualPriceSnapshots
-      .filter((row) => (filter?.assetId ? row.assetId === filter.assetId : true))
-      .sort((a, b) => a.date.localeCompare(b.date));
-  }
-
-  async createManualPriceSnapshot(input: ManualPriceSnapshotDraft) {
-    this.data.manualPriceSnapshots.push({
-      id: createId("mps"),
-      assetId: input.assetId,
-      date: input.date.slice(0, 10),
-      price: input.price,
-      note: input.note,
-      createdAt: nowIso(),
-    });
-    await this.persist();
-  }
-
-  async deleteManualPriceSnapshot(id: string) {
-    this.data.manualPriceSnapshots = this.data.manualPriceSnapshots.filter((row) => row.id !== id);
-    await this.persist();
-  }
+  async listDailyFxRates(filter?: { from?: string; to?: string; since?: string }) { return this.marketData.listDailyFxRates(filter); }
+  async saveDailyFxRates(rates: DailyFxRate[]) { return this.marketData.saveDailyFxRates(rates); }
+  async getDailyFxRate(from: string, to: string, date: string) { return this.marketData.getDailyFxRate(from, to, date); }
+  async listDailyPrices(filter?: { ticker?: string; since?: string }) { return this.marketData.listDailyPrices(filter); }
+  async saveDailyPrices(prices: DailyPrice[]) { return this.marketData.saveDailyPrices(prices); }
+  async getDailyPrice(ticker: string, date: string) { return this.marketData.getDailyPrice(ticker, date); }
+  async listManualPriceSnapshots(filter?: { assetId?: string }) { return this.marketData.listManualPriceSnapshots(filter); }
+  async createManualPriceSnapshot(input: ManualPriceSnapshotDraft) { return this.marketData.createManualPriceSnapshot(input); }
+  async deleteManualPriceSnapshot(id: string) { return this.marketData.deleteManualPriceSnapshot(id); }
 
   async listFinancialGoals() {
     return this.data.financialGoals
