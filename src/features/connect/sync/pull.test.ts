@@ -128,6 +128,25 @@ describe("pullAndApply", () => {
     expect((await repo.listAccounts()).map((a) => a.name).sort()).toEqual(["日常錢包", "錢包"]);
   });
 
+  it("does NOT record a conflict when the only difference is key order or a derived field", async () => {
+    const repo = createMemoryFinanceRepositoryForTests();
+    await createAccount(repo, "錢包");
+    const [account] = await repo.listAccounts();
+    // Same revision + same updatedAt. Reorder keys and change ONLY the derived
+    // `balance` (recomputed per-device, not a user edit). This must not surface
+    // as a conflict — it was the cause of every-account-conflicts floods.
+    const accountRecord = account as unknown as Record<string, unknown>;
+    const reordered: Record<string, unknown> = {};
+    for (const k of Object.keys(accountRecord).reverse()) reordered[k] = accountRecord[k];
+    const incoming = { ...reordered, balance: Number(accountRecord.balance ?? 0) + 9999 } as unknown as Account;
+    mockedPullEnvelopes.mockResolvedValue({ envelopes: [envelope(incoming)], nextCursor: "5", count: 1 });
+
+    const result = await pullAndApply(repo, { userId: "u", apiSecret: "s" }, "", "device_a");
+
+    expect(result.applied).toBe(0);
+    expect(await repo.listSyncConflicts()).toHaveLength(0);
+  });
+
   it("auto-resolves an equal-revision divergence by newer updatedAt without a conflict", async () => {
     const repo = createMemoryFinanceRepositoryForTests();
     await createAccount(repo, "錢包");

@@ -95,12 +95,12 @@ export async function pullAndApply(
     // different content. We auto-resolve by `updatedAt` (newer edit wins, see
     // shouldApply) so the user is never asked to triage routine concurrent
     // edits. Only a true tie — identical revision AND identical updatedAt, yet
-    // different content — is genuinely undecidable, so that's the only case we
-    // surface in the conflict centre.
+    // different MEANINGFUL content — is genuinely undecidable, so that's the
+    // only case we surface in the conflict centre.
     if (
       existing &&
       Number(existing.revision) === payload.revision &&
-      !samePayload(existing, payload) &&
+      !samePayload(entity, existing, payload) &&
       String(existing.updatedAt ?? "") === String(payload.updatedAt ?? "")
     ) {
       conflicts.push({
@@ -138,8 +138,38 @@ function shouldApply(existing: Record<string, unknown> | null, incoming: SyncFie
     || (incoming.revision === revision && incoming.updatedAt > updatedAt);
 }
 
-function samePayload(left: Record<string, unknown>, right: Record<string, unknown>) {
-  return JSON.stringify(left) === JSON.stringify(right);
+// Per-device DERIVED fields: recomputed locally from other records (account
+// balance from its ledger; asset quantity/cost from its investment records;
+// localized name caches from quotes). They legitimately differ between devices
+// at the SAME revision/updatedAt because each device recomputes them from its
+// own (possibly mid-sync) data, and they are NOT bumped on recompute. Including
+// them in the tie comparison flagged every account/asset as a bogus conflict.
+const DERIVED_FIELDS: Partial<Record<SyncEntity, readonly string[]>> = {
+  account: ["balance"],
+  asset: ["totalQuantity", "averageCost", "nameZh", "nameEn"],
+};
+
+/**
+ * Order-independent, derived-field-insensitive equality for conflict detection.
+ *
+ * `JSON.stringify` equality is key-ORDER sensitive — two devices that serialize
+ * the same record with different key order produced different strings and thus a
+ * phantom "兩版同時間" conflict for logically-identical records (the bulk of a
+ * post-full-resync conflict flood). We canonicalize by sorting keys and dropping
+ * per-device derived fields so only genuine differences in user-meaningful
+ * fields surface.
+ */
+function samePayload(entity: SyncEntity, left: Record<string, unknown>, right: Record<string, unknown>) {
+  return canonical(entity, left) === canonical(entity, right);
+}
+
+function canonical(entity: SyncEntity, obj: Record<string, unknown>): string {
+  const drop = new Set(DERIVED_FIELDS[entity] ?? []);
+  const sorted: Record<string, unknown> = {};
+  for (const key of Object.keys(obj).sort()) {
+    if (!drop.has(key)) sorted[key] = obj[key];
+  }
+  return JSON.stringify(sorted);
 }
 
 const VALID_ENTITIES = new Set<SyncEntity>(["account", "ledger", "asset", "investment", "recurring", "recurringInvestment", "goal", "settings"]);
