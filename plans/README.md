@@ -27,6 +27,7 @@ honor its STOP conditions, and update your row when done.
 | 014 | Replace stray English UI copy in content routes with zh-TW | P2 | S | LOW | — | DONE (99bb9fef, branch worktree-agent-aa1fe9ba0ee8c3a5a) — reviewed: 5 files/9 lines, exact prescribed replacements only, tsc/lint/test clean; DashboardRoute's separate "Recent activity" ns-eyebrow correctly left untouched (out of scope) |
 | 015 | Surface fixed-weight approximation caveat in Analytics UI | P1 | S | LOW | — | DONE (5e217641, branch worktree-agent-a8b10c77436dc0e54) — reviewed: diff is 1 file/12 lines, both caveats verified by grep + screenshot in light & dark, tsc/lint/test all clean, `portfolioAnalytics.ts` untouched |
 | 016 | Loading skeletons + query error states + global router error boundary | P1 | M | MED | — | DONE (bc353206, 7b2f803d, f7a00c0a, f6fee407, 41bf1e91, branch worktree-agent-ad507b3c62055a0ac) — reviewed: 7 files in scope, code matches plan with one justified token fix (`--ns-warning-soft` not the plan's typo `--ns-warn-soft`), hooks-of-rules respected, tsc/lint/build/test clean, visually verified all 3 guarded routes (Dashboard/Investments/CashFlow) render past the guard with zero console errors |
+| 017 | Apply loading skeleton + query error guard to the remaining 10 data routes | P2 | M | LOW | 016 | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale).
 
@@ -83,6 +84,25 @@ Other audit findings not yet planned (operator can request): consolidate
 `CategoriesTab` vs `CategoriesRoute` duplication; cap CashFlow category bars to
 Top-N + 其他; pie/card click-through drill-down; AccountsRoute search/filter.
 See `docs/ux-chart-audit.md` for the full list and priorities.
+
+## 2026-06-16 (cont'd) — plan 017, the deferred follow-up from 016
+
+After 016 landed, the operator asked to plan (not yet execute) its explicitly
+deferred follow-up: the same loading-skeleton + query-error guard for the
+remaining 10 top-level data routes that call `useFinanceData()` directly
+(Accounts, Categories, CategoryDetail, FIRECalculator, Goals, HoldingDetail,
+MerchantDetail, Reconcile, Settings, Transactions — confirmed via `grep -L
+isInitialLoading src/routes/*.tsx` cross-checked against
+`src/routes/router.tsx`'s route table). Explicitly excluded and documented in
+017's Scope: `RecurringRulesTab`/`RecurringInvestmentsTab` (render inside an
+already-guarded parent route), `HoldingEditModal`/`InvestmentsAddSheet`/
+`InvestmentImportWizard` (modals opened from an already-loaded page),
+`CategoriesTab`/`MerchantsTab` (no own data fetch — props-driven), and
+`settings/*Section.tsx` (covered by `SettingsRoute`'s shell-level guard).
+Two files (`HoldingDetailRoute.tsx`, `ReconcileRoute.tsx`) have a pre-existing
+"not found" early return that the new guard must sit in front of — flagged
+explicitly in the plan so the executor doesn't get this backwards (otherwise
+a fresh load would flash "找不到此持倉"/"找不到帳戶" before data arrives).
 
 ## Dependency notes
 
