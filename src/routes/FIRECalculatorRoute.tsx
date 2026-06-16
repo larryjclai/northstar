@@ -8,13 +8,14 @@ import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useToast } from "../components/Toast";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
+import { Skeleton } from "../components/coss/skeleton";
 import type { FinancialGoalDraft } from "../data/repositories";
 
 export function FIRECalculatorRoute() {
   const navigate = useNavigate();
   const toast = useToast();
   const { id: editingGoalId } = useSearch({ strict: false }) as { id?: string };
-  const { accounts, assets, quotes, settings, dailyFxRates, financialGoals } = useFinanceData();
+  const { accounts, assets, quotes, settings, dailyFxRates, financialGoals, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   const accountRows = accounts.data ?? [];
   const assetRows = assets.data ?? [];
   const quoteRows = quotes.data ?? [];
@@ -150,6 +151,29 @@ export function FIRECalculatorRoute() {
       toast.error("儲存失敗：" + (e instanceof Error ? e.message : String(e)));
     }
   };
+
+  if (isInitialLoading) {
+    return (
+      <div className="grid gap-5 p-1">
+        <Skeleton className="h-[400px]" />
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <div className="grid min-h-[50vh] place-items-center p-6 text-center">
+        <div className="max-w-md">
+          <h3 className="text-[17px]" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+            無法載入資料
+          </h3>
+          <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
+          <Button className="mt-4" onClick={() => refetchAll()}>
+            重新整理
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: "32px 40px 100px", minHeight: "100vh", display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
