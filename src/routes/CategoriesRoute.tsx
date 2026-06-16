@@ -1,6 +1,7 @@
 import { Gear, Plus, X } from "@phosphor-icons/react";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
+import { Skeleton } from "../components/coss/skeleton";
 import { DateScopeControl } from "../components/DateScopeControl";
 import { Glyph } from "../lib/icons";
 import { useNavigate } from "@tanstack/react-router";
@@ -15,7 +16,7 @@ import { useToast } from "../components/Toast";
 // Removed Mock Data
 
 export function CategoriesRoute() {
-  const { ledger, settings, dailyFxRates } = useFinanceData();
+  const { ledger, settings, dailyFxRates, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   const timezone = useUiPreferences((state) => state.timezone);
   const ledgerRows = ledger.data ?? [];
   const appSettings = settings.data;
@@ -85,6 +86,30 @@ export function CategoriesRoute() {
   const usagePercent = totalBudget > 0 ? (totalExpense / totalBudget) * 100 : 0;
   
   const overSpentCats = categoryStats.filter(cat => cat.budget && cat.amount > cat.budget);
+
+  if (isInitialLoading) {
+    return (
+      <div className="grid gap-5 p-1">
+        <Skeleton className="h-[300px]" />
+        <Skeleton className="h-[320px]" />
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <div className="grid min-h-[50vh] place-items-center p-6 text-center">
+        <div className="max-w-md">
+          <h3 className="text-[17px]" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+            無法載入資料
+          </h3>
+          <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
+          <Button className="mt-4" onClick={() => refetchAll()}>
+            重新整理
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: "32px 40px 100px", overflowY: "auto", minHeight: "100vh" }}>
