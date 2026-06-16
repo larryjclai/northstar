@@ -492,6 +492,15 @@ export function InvestmentsAnalyticsTab({
         })}
       </nav>
 
+      {/* ── Methodology caveat: fixed-weight historical look-back, not true TWR ── */}
+      <div
+        className="text-caption muted"
+        style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}
+      >
+        分析採固定持股權重的歷史回看近似（以目前持股 × 歷史價計算），非嚴格時間加權報酬；期間內加碼/減碼會影響解讀。
+        <MetricHelp text="所有報酬、Alpha 與風險指標（波動、Sharpe、Sortino、最大回撤）皆以「目前持股數 × 歷史收盤價」回看計算，屬固定權重近似。若你在期間內買賣過該標的，實際時間加權報酬可能與此不同。" />
+      </div>
+
       {/* ═══ 報酬 RETURNS ════════════════════════════════════════════════════ */}
       <section id="an-returns" style={{ display: "grid", gap: 20, scrollMarginTop: 64 }}>
 
@@ -761,6 +770,9 @@ export function InvestmentsAnalyticsTab({
       {/* ── Risk KPIs (volatility / Sortino / Sharpe / max drawdown) ─────────── */}
       <CossCard style={{ padding: 34 }}>
         <NSAnHead kicker="風險 · RISK" title="波動、下跌與報酬品質" />
+        <div className="text-caption muted" style={{ marginTop: -4, marginBottom: 14 }}>
+          風險指標基於固定權重日報酬序列估算，需足夠歷史天數方有參考意義。
+        </div>
         {kpis ? (
           <>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" style={{ marginBottom: 14 }}>
