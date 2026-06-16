@@ -9,6 +9,7 @@ import { AssetLogo } from "../components/AssetLogo";
 import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
+import { Skeleton } from "../components/coss/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "../components/coss/toggle-group";
 import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
 import { HoldingEditModal } from "./HoldingEditModal";
@@ -19,7 +20,7 @@ export function HoldingDetailRoute() {
   const ticker = params.ticker || "";
   const navigate = useNavigate();
   
-  const { assets, quotes, dailyPrices, accounts, investments } = useFinanceData();
+  const { assets, quotes, dailyPrices, accounts, investments, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   // "auto" follows the Chinese-first app language (see i18n.ts) → zh-Hant.
   const nameLocale = useUiPreferences((state) => (state.nameLocale === "auto" ? "zh-Hant" : state.nameLocale));
   const showTradeMarkers = useUiPreferences((state) => state.showTradeMarkers);
@@ -119,6 +120,31 @@ export function HoldingDetailRoute() {
     () => calculateXirr(metrics.cashflows, { date: new Date().toISOString().slice(0, 10), amount: xirrMarketValue }),
     [metrics, xirrMarketValue],
   );
+
+  if (isInitialLoading) {
+    return (
+      <div className="grid gap-5 p-1">
+        <Skeleton className="h-[280px]" />
+        <Skeleton className="h-[140px]" />
+        <Skeleton className="h-40" />
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <div className="grid min-h-[50vh] place-items-center p-6 text-center">
+        <div className="max-w-md">
+          <h3 className="text-[17px]" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+            無法載入資料
+          </h3>
+          <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
+          <Button className="mt-4" onClick={() => refetchAll()}>
+            重新整理
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (!asset) {
     return (
