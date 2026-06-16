@@ -90,6 +90,28 @@ export function useFinanceData() {
     enabled,
   });
 
+  const all = [
+    repository,
+    accounts,
+    ledger,
+    assets,
+    investments,
+    recurring,
+    recurringInvestments,
+    quotes,
+    settings,
+    dailyFxRates,
+    dailyPrices,
+    financialGoals,
+    manualPriceSnapshots,
+  ];
+  const isInitialLoading = all.some((q) => q.isLoading);
+  const isError = all.some((q) => q.isError);
+  const error = all.find((q) => q.isError)?.error ?? null;
+  const refetchAll = () => {
+    all.forEach((q) => void q.refetch());
+  };
+
   return {
     repository,
     accounts,
@@ -104,6 +126,10 @@ export function useFinanceData() {
     dailyPrices,
     financialGoals,
     manualPriceSnapshots,
+    isInitialLoading,
+    isError,
+    error,
+    refetchAll,
   };
 }
 
