@@ -9,7 +9,7 @@
 // Designed to be called both on manual button press and on app focus.
 
 import type { FinanceRepository } from "../../../data/repositories";
-import { getOrCreateDeviceIdentity, setRemotePullCursor, resetSyncCursors } from "../../../state/deviceIdentity";
+import { getOrCreateDeviceIdentity, setRemotePullCursor, setLocalPushCursor, resetSyncCursors } from "../../../state/deviceIdentity";
 import { loadVaultKey } from "../crypto/vault";
 import { isRecoveryKitConfirmed } from "../crypto/recovery-kit";
 import { loadSyncAccount } from "./account";
@@ -151,6 +151,33 @@ export async function forceFullResync(repo: FinanceRepository): Promise<SyncResu
     const reason: SyncResult["reason"] =
       applied > 0 ? "ok" : pulled === 0 ? "empty-relay" : "nothing-applied";
     return { pushed: 0, pulled, applied, skipped, reason };
+  } finally {
+    _syncRunning = false;
+  }
+}
+
+/**
+ * Re-upload the ENTIRE local dataset to the current sync account, then pull.
+ *
+ * Recovery path for the inverse of forceFullResync: the local DB is the good
+ * copy but the relay is missing records (e.g. after an unlink + re-enable that
+ * minted a fresh account, the old data was marked "pushed" and never re-sent —
+ * the relay then had assets/investments but no accounts). Clearing the push
+ * marks + cursor forces every record back onto the relay so other devices can
+ * pull them. Idempotent on the relay (worker push is ON CONFLICT DO NOTHING).
+ */
+export async function forceFullRepush(repo: FinanceRepository): Promise<SyncResult> {
+  if (_syncRunning) throw new Error("同步正在進行中，請稍候");
+  _syncRunning = true;
+  try {
+    const account = loadSyncAccount();
+    if (!account) throw new Error("尚未設定同步帳號");
+    if (!(await loadVaultKey())) throw new Error("加密金鑰尚未初始化");
+    if (!isRecoveryKitConfirmed()) throw new Error(RECOVERY_KIT_REQUIRED);
+
+    await repo.requeueAllPendingChanges();
+    setLocalPushCursor(null);
+    return await _doSync(repo);
   } finally {
     _syncRunning = false;
   }

@@ -46,6 +46,16 @@ async function clearSyncIdentity(repo: FinanceRepository): Promise<void> {
  */
 export async function unlinkSync(repo: FinanceRepository): Promise<void> {
   await clearSyncIdentity(repo);
+  // Re-queue all local data for push. Without this, the SQLite outbox still
+  // marks every existing record as "pushed" (to the PREVIOUS account), so after
+  // re-enabling sync under a fresh account `collectPendingChanges` returns
+  // nothing and the data — accounts, ledger, everything not edited since —
+  // silently never re-uploads. This was the cause of a device pulling only the
+  // few records that happened to be edited after an unlink. See
+  // project_sync_sqlite memory (data split across user_ids). Re-enabling sync
+  // creates a fresh device identity whose push cursor is already null, so the
+  // browser (cursor-based) repo re-pushes too — no cursor reset needed here.
+  await repo.requeueAllPendingChanges();
 }
 
 /**

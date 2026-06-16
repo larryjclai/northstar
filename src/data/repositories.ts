@@ -291,6 +291,14 @@ export interface FinanceRepository {
   /** Connect Sync prep: records changed since `sinceCursor` (an updatedAt). */
   collectPendingChanges(sinceCursor: string | null): Promise<import("../domain").PendingChangeSet>;
   acknowledgePendingChanges(outboxIds: string[]): Promise<void>;
+  /**
+   * Re-queue EVERY local record for push (clears the "already pushed" mark).
+   * Recovery primitive: after re-pairing or switching sync accounts, the local
+   * data must be re-uploaded even though it was pushed to a previous account.
+   * The SQLite outbox tracks `pushed_at` per row; the browser repo derives
+   * pending rows from the push cursor, so callers also reset localPushCursor.
+   */
+  requeueAllPendingChanges(): Promise<void>;
   listSyncConflicts(): Promise<SyncConflictRecord[]>;
   resolveSyncConflict(id: string, strategy: "keepLocal" | "useIncoming"): Promise<void>;
   clearSyncConflicts(): Promise<void>;
@@ -1412,6 +1420,11 @@ class BrowserFinanceRepository implements FinanceRepository {
 
   async acknowledgePendingChanges(_outboxIds: string[]) {
     // Browser storage derives pending rows from the timestamp cursor.
+  }
+
+  async requeueAllPendingChanges() {
+    // Browser storage derives pending rows from the push cursor, so re-queuing
+    // is handled entirely by the caller resetting localPushCursor to null.
   }
 
   async listSyncConflicts() {
@@ -3228,6 +3241,14 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       `update sync_outbox set pushed_at = $${outboxIds.length + 1} where id in (${placeholders})`,
       [...outboxIds, nowIso()],
     );
+  }
+
+  override async requeueAllPendingChanges() {
+    // Make sure every current record actually has an outbox row (older rows or
+    // records created before the entity was tracked may be missing), then clear
+    // every push mark so the next sync re-uploads the complete dataset.
+    await this.backfillSyncOutbox();
+    await this.db.execute(`update sync_outbox set pushed_at = null`);
   }
 
   override async listSyncConflicts() {
