@@ -176,7 +176,7 @@ export function HoldingDetailRoute() {
           <AssetLogo ticker={asset.ticker} name={resolveAssetName(asset, nameLocale)} size={52} />
           <div>
             <div className="mono text-body" style={{ marginBottom: 2, letterSpacing: 0.04, color: "var(--ns-fg-muted)", textTransform: "uppercase" }}>
-              {asset.assetType || "Asset"} · {asset.ticker}
+              {asset.assetType || "資產"} · {asset.ticker}
             </div>
             <h1 className="text-[24px]" style={{ fontFamily: "var(--ns-font-display)", margin: "0 0 4px", fontWeight: 600, letterSpacing: -0.02 }}>
               {resolveAssetName(asset, nameLocale)}
@@ -299,7 +299,7 @@ export function HoldingDetailRoute() {
             cards line up top and bottom; stats distribute to fill. */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Card style={{ padding: 20, flex: 1 }}>
-            <div className="ns-eyebrow" style={{ marginBottom: 12 }}>Your position · 平均成本</div>
+            <div className="ns-eyebrow" style={{ marginBottom: 12 }}>你的部位 · 平均成本</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, flex: 1, alignContent: "space-between" }}>
               {[
                 ["市值", formatNumber(marketValue), null],

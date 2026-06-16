@@ -1079,8 +1079,8 @@ export function CashFlowRoute() {
         <Card style={{ padding: 0 }}>
            <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--ns-border)" }}>
              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-               <span className="text-[15px]" style={{ fontWeight: 600 }}>Recent activity</span>
-               <span className="muted text-xs">{displayRows.length} events</span>
+               <span className="text-[15px]" style={{ fontWeight: 600 }}>近期動態</span>
+               <span className="muted text-xs">{displayRows.length} 筆</span>
              </div>
              {/* Search on its own row below the title (B9). */}
              <label style={{ position: "relative", display: "block", marginTop: 10 }}>

@@ -950,7 +950,7 @@ function PortfolioStrip({ period, data, benchmarkTicker }: {
   const cells = [
     { label: "投資組合", val: data.portfolio, color: data.portfolio == null ? "var(--ns-fg-muted)" : data.portfolio >= 0 ? "var(--ns-gain)" : "var(--ns-loss)" },
     { label: `${benchmarkTicker} 指標`, val: data.benchmark, color: "var(--ns-fg-muted)" },
-    { label: "Alpha", val: data.alpha, color: data.alpha == null ? "var(--ns-fg-muted)" : data.alpha >= 0 ? "var(--ns-accent)" : "var(--ns-loss)" },
+    { label: "超額報酬", val: data.alpha, color: data.alpha == null ? "var(--ns-fg-muted)" : data.alpha >= 0 ? "var(--ns-accent)" : "var(--ns-loss)" },
   ];
   return (
     <div style={{ marginTop: 14 }}>
@@ -1033,8 +1033,8 @@ function TopMoversCard({ gainers, losers }: { gainers: Mover[]; losers: Mover[] 
         <div className="muted text-body" style={{ padding: "16px 18px" }}>回補歷史股價後顯示當日漲跌幅。</div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, padding: "12px 18px 16px" }}>
-          <MoverColumn label="Gainers" tone="pos" movers={gainers} />
-          <MoverColumn label="Losers" tone="neg" movers={losers} />
+          <MoverColumn label="上漲" tone="pos" movers={gainers} />
+          <MoverColumn label="下跌" tone="neg" movers={losers} />
         </div>
       )}
     </Card>

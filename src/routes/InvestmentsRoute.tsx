@@ -1265,7 +1265,7 @@ function HoldingsTab({
           <table className="w-full table-auto text-sm [&_td]:px-3 [&_th]:px-3 [&_td:first-child]:pl-0 [&_th:first-child]:pl-0 [&_td:last-child]:pr-0 [&_th:last-child]:pr-0">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
-                <SortableHeader label="Ticker" sortKey="ticker" sort={sort} onToggle={toggleSort} />
+                <SortableHeader label="代號" sortKey="ticker" sort={sort} onToggle={toggleSort} />
                 <SortableHeader label="名稱" sortKey="name" sort={sort} onToggle={toggleSort} />
                 {visibleCol("account") ? <SortableHeader label="券商" sortKey="account" sort={sort} onToggle={toggleSort} /> : null}
                 <SortableHeader label="股數" sortKey="quantity" sort={sort} onToggle={toggleSort} align="right" />
