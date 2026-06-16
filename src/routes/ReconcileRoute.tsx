@@ -2,6 +2,7 @@ import { CaretRight, CaretDown, CheckCircle, Circle, CurrencyCircleDollar } from
 import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
+import { Skeleton } from "../components/coss/skeleton";
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -15,7 +16,7 @@ export function ReconcileRoute() {
   const navigate = useNavigate();
   const toast = useToast();
   const timezone = useUiPreferences((s) => s.timezone);
-  const { accounts, ledger } = useFinanceData();
+  const { accounts, ledger, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   // Per-period open/closed override. Absent → falls back to the default (the
   // current period starts open, past periods start collapsed).
   const [expandOverride, setExpandOverride] = useState<Record<string, boolean>>({});
@@ -102,6 +103,34 @@ export function ReconcileRoute() {
     } catch {
       toast.error("更新失敗");
     }
+  }
+
+  if (isInitialLoading) {
+    return (
+      <div className="grid gap-5 p-1">
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-20" />
+          ))}
+        </div>
+        <Skeleton className="h-[280px]" />
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <div className="grid min-h-[50vh] place-items-center p-6 text-center">
+        <div className="max-w-md">
+          <h3 className="text-[17px]" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+            無法載入資料
+          </h3>
+          <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
+          <Button className="mt-4" onClick={() => refetchAll()}>
+            重新整理
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   if (!account) {
