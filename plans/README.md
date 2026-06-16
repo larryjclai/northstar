@@ -24,6 +24,10 @@ honor its STOP conditions, and update your row when done.
 | 012 | Force full re-download reliability + worker register idempotency + diagnostics | P1 | M | MED | — | DONE (074ea9cc + cf5af4df) — worker requires separate redeploy |
 | 013 | One-tap data restore after pairing + true "reset this device" | P1 | M–L | MED | 012 | DONE (f6abd59e + dd869e14 + 88d68673) |
 
+| 014 | Replace stray English UI copy in content routes with zh-TW | P2 | S | LOW | — | DONE (99bb9fef, branch worktree-agent-aa1fe9ba0ee8c3a5a) — reviewed: 5 files/9 lines, exact prescribed replacements only, tsc/lint/test clean; DashboardRoute's separate "Recent activity" ns-eyebrow correctly left untouched (out of scope) |
+| 015 | Surface fixed-weight approximation caveat in Analytics UI | P1 | S | LOW | — | DONE (5e217641, branch worktree-agent-a8b10c77436dc0e54) — reviewed: diff is 1 file/12 lines, both caveats verified by grep + screenshot in light & dark, tsc/lint/test all clean, `portfolioAnalytics.ts` untouched |
+| 016 | Loading skeletons + query error states + global router error boundary | P1 | M | MED | — | TODO |
+
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale).
 
 ## 2026-06-15 — operator-requested plans (011–013)
@@ -53,8 +57,36 @@ Added via `improve plan` from two reported issues (with screenshot):
    - **Note**: the worker fix in 012 only helps the operator's installed app after
      the worker is **redeployed** (`worker/` has its own deploy path).
 
+## 2026-06-16 — UX / data-viz / product-gap audit plans (014–016)
+
+Added via `improve` after a read-only FinTech UX / data-visualization audit
+(report: `docs/ux-chart-audit.md`, against commit `8b2302d1`). The audit fanned
+out 4 parallel read-only agents over the chart-heavy routes; findings were
+re-read and vetted before planning. These three are the first-wave,
+low-cost/high-impact items the operator selected:
+
+1. **015 (P1, do first by value)** — the Analytics UI never shows the
+   fixed-weight approximation caveat that `docs/dashboard-analytics-plan.md` §1
+   explicitly required ("並在 UI 以註記說明"). Disclosure only; **no calculation
+   change**. Drift from a decided plan + a `PRODUCT.md` explainability principle.
+2. **014 (P2)** — stray English UI copy (`Recent activity`, `Ticker`, `Alpha`,
+   `Gainers`/`Losers`, `Asset`) in zh-TW-first content routes. Pure copy. The
+   audit explicitly **rejected** translating English page-header eyebrows
+   (`PORTFOLIO`, `LONG-TERM PROGRESS`) — those are an intentional `DESIGN.md` §3.5
+   convention, not a bug.
+3. **016 (P1, biggest)** — no data route handles query loading/error; router has
+   no error boundary. Adds a `Skeleton` primitive, aggregate loading/error flags
+   on `useFinanceData`, a global `defaultErrorComponent`, and wires the 3 primary
+   pages; remaining pages are a documented mechanical follow-up.
+
+Other audit findings not yet planned (operator can request): consolidate
+`CategoriesTab` vs `CategoriesRoute` duplication; cap CashFlow category bars to
+Top-N + 其他; pie/card click-through drill-down; AccountsRoute search/filter.
+See `docs/ux-chart-audit.md` for the full list and priorities.
+
 ## Dependency notes
 
+- 014, 015, 016 are mutually independent — any order / parallel branches.
 - **006 requires 004**: the spike changes (eventually) `saveVaultKey`/`loadVaultKey`; plan
   004's encrypt/decrypt round-trip tests are the safety net that proves a migration preserved
   the key. Do not start 006 until 004 is DONE.
