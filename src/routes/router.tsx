@@ -1,5 +1,6 @@
 import { createRootRoute, createRoute, createRouter, lazyRouteComponent } from "@tanstack/react-router";
 import { AppShell } from "../components/AppShell";
+import { RouteError } from "../components/RouteError";
 
 // Keep route modules out of the entry chunk. Tauri loads chunks from disk, so
 // the small async boundary is cheaper than shipping every primary screen in the
@@ -130,7 +131,7 @@ const routeTree = rootRoute.addChildren([
   settingsRoute,
 ]);
 
-export const router = createRouter({ routeTree });
+export const router = createRouter({ routeTree, defaultErrorComponent: RouteError });
 
 declare module "@tanstack/react-router" {
   interface Register {
