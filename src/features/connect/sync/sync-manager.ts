@@ -9,7 +9,7 @@
 // Designed to be called both on manual button press and on app focus.
 
 import type { FinanceRepository } from "../../../data/repositories";
-import { getOrCreateDeviceIdentity, setRemotePullCursor, resetSyncCursors } from "../../../state/deviceIdentity";
+import { getOrCreateDeviceIdentity, setRemotePullCursor, setLocalPushCursor, resetSyncCursors } from "../../../state/deviceIdentity";
 import { loadVaultKey } from "../crypto/vault";
 import { isRecoveryKitConfirmed } from "../crypto/recovery-kit";
 import { loadSyncAccount } from "./account";
@@ -24,6 +24,8 @@ export interface SyncResult {
   pushed: number;
   pulled: number;
   applied: number;
+  /** Envelopes skipped because they failed to decrypt or validate. */
+  skipped: number;
   /** Set by forceFullResync when applied === 0, to explain why. */
   reason?: "ok" | "empty-relay" | "nothing-applied";
 }
@@ -74,10 +76,12 @@ async function _doSync(repo: FinanceRepository): Promise<SyncResult> {
   let cursor = device.remotePullCursor ?? "";
   let pulled = 0;
   let applied = 0;
+  let skipped = 0;
   for (;;) {
     const page = await pullAndApply(repo, account, cursor, device.deviceId);
     pulled += page.pulled;
     applied += page.applied;
+    skipped += page.skipped;
     if (!page.nextCursor || page.nextCursor === cursor) break;
     cursor = page.nextCursor;
     setRemotePullCursor(cursor);
@@ -87,6 +91,7 @@ async function _doSync(repo: FinanceRepository): Promise<SyncResult> {
     pushed: pushResult.pushed,
     pulled,
     applied,
+    skipped,
   };
 }
 
@@ -129,12 +134,14 @@ export async function forceFullResync(repo: FinanceRepository): Promise<SyncResu
     let cursor = "";
     let pulled = 0;
     let applied = 0;
+    let skipped = 0;
     // Drain the relay one page at a time. pullAndApply re-exports the (now
     // updated) local state on each call, so pages accumulate correctly.
     for (;;) {
       const page = await pullAndApply(repo, account, cursor, device.deviceId, { includeOwnDevice: true });
       pulled += page.pulled;
       applied += page.applied;
+      skipped += page.skipped;
       if (!page.nextCursor || page.nextCursor === cursor) break;
       cursor = page.nextCursor;
     }
@@ -143,7 +150,34 @@ export async function forceFullResync(repo: FinanceRepository): Promise<SyncResu
 
     const reason: SyncResult["reason"] =
       applied > 0 ? "ok" : pulled === 0 ? "empty-relay" : "nothing-applied";
-    return { pushed: 0, pulled, applied, reason };
+    return { pushed: 0, pulled, applied, skipped, reason };
+  } finally {
+    _syncRunning = false;
+  }
+}
+
+/**
+ * Re-upload the ENTIRE local dataset to the current sync account, then pull.
+ *
+ * Recovery path for the inverse of forceFullResync: the local DB is the good
+ * copy but the relay is missing records (e.g. after an unlink + re-enable that
+ * minted a fresh account, the old data was marked "pushed" and never re-sent —
+ * the relay then had assets/investments but no accounts). Clearing the push
+ * marks + cursor forces every record back onto the relay so other devices can
+ * pull them. Idempotent on the relay (worker push is ON CONFLICT DO NOTHING).
+ */
+export async function forceFullRepush(repo: FinanceRepository): Promise<SyncResult> {
+  if (_syncRunning) throw new Error("同步正在進行中，請稍候");
+  _syncRunning = true;
+  try {
+    const account = loadSyncAccount();
+    if (!account) throw new Error("尚未設定同步帳號");
+    if (!(await loadVaultKey())) throw new Error("加密金鑰尚未初始化");
+    if (!isRecoveryKitConfirmed()) throw new Error(RECOVERY_KIT_REQUIRED);
+
+    await repo.requeueAllPendingChanges();
+    setLocalPushCursor(null);
+    return await _doSync(repo);
   } finally {
     _syncRunning = false;
   }

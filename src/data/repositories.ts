@@ -291,6 +291,14 @@ export interface FinanceRepository {
   /** Connect Sync prep: records changed since `sinceCursor` (an updatedAt). */
   collectPendingChanges(sinceCursor: string | null): Promise<import("../domain").PendingChangeSet>;
   acknowledgePendingChanges(outboxIds: string[]): Promise<void>;
+  /**
+   * Re-queue EVERY local record for push (clears the "already pushed" mark).
+   * Recovery primitive: after re-pairing or switching sync accounts, the local
+   * data must be re-uploaded even though it was pushed to a previous account.
+   * The SQLite outbox tracks `pushed_at` per row; the browser repo derives
+   * pending rows from the push cursor, so callers also reset localPushCursor.
+   */
+  requeueAllPendingChanges(): Promise<void>;
   listSyncConflicts(): Promise<SyncConflictRecord[]>;
   resolveSyncConflict(id: string, strategy: "keepLocal" | "useIncoming"): Promise<void>;
   clearSyncConflicts(): Promise<void>;
@@ -1412,6 +1420,11 @@ class BrowserFinanceRepository implements FinanceRepository {
 
   async acknowledgePendingChanges(_outboxIds: string[]) {
     // Browser storage derives pending rows from the timestamp cursor.
+  }
+
+  async requeueAllPendingChanges() {
+    // Browser storage derives pending rows from the push cursor, so re-queuing
+    // is handled entirely by the caller resetting localPushCursor to null.
   }
 
   async listSyncConflicts() {
@@ -2671,17 +2684,25 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       // Cache localized names alongside the portfolio_assets row so
       // resolveDisplayName() can pick the user's preferred locale
       // without re-hitting the network.
+      //
+      // CRITICAL: only write (and only then bump revision) when the cached name
+      // actually changes. Quotes refresh on every focus/poll; an unconditional
+      // `revision = revision + 1` here manufactured a brand-new sync envelope per
+      // asset on every single refresh, bloating the relay to tens of thousands of
+      // near-duplicate asset envelopes and making other devices' pull never drain.
+      // `is not` is SQLite's null-safe distinct-from, so a no-op refresh is a no-op
+      // write. See project_sync_sqlite memory (relay history bloat).
       if (quote.nameZh) {
         await this.db.execute(
           `update portfolio_assets set name_zh = $1, updated_at = $2, revision = revision + 1
-           where upper(ticker) = upper($3) and deleted_at is null`,
+           where upper(ticker) = upper($3) and deleted_at is null and name_zh is not $1`,
           [quote.nameZh, updatedAt, quote.symbol],
         );
       }
       if (quote.nameEn) {
         await this.db.execute(
           `update portfolio_assets set name_en = $1, updated_at = $2, revision = revision + 1
-           where upper(ticker) = upper($3) and deleted_at is null`,
+           where upper(ticker) = upper($3) and deleted_at is null and name_en is not $1`,
           [quote.nameEn, updatedAt, quote.symbol],
         );
       }
@@ -3220,6 +3241,14 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       `update sync_outbox set pushed_at = $${outboxIds.length + 1} where id in (${placeholders})`,
       [...outboxIds, nowIso()],
     );
+  }
+
+  override async requeueAllPendingChanges() {
+    // Make sure every current record actually has an outbox row (older rows or
+    // records created before the entity was tracked may be missing), then clear
+    // every push mark so the next sync re-uploads the complete dataset.
+    await this.backfillSyncOutbox();
+    await this.db.execute(`update sync_outbox set pushed_at = null`);
   }
 
   override async listSyncConflicts() {

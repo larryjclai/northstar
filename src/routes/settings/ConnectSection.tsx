@@ -40,7 +40,7 @@ import {
 import {
   initiatePairing, joinWithCode, type PairingSession,
 } from "../../features/connect/sync/pairing-flow";
-import { runSync, forceFullResync } from "../../features/connect/sync/sync-manager";
+import { runSync, forceFullResync, forceFullRepush } from "../../features/connect/sync/sync-manager";
 import { clearLocalSyncState, unlinkSync } from "../../features/connect/sync/reset";
 import { summarizeConflict } from "../../features/connect/sync/conflictSummary";
 import { listBackups, restoreBackup, type BackupEntry } from "../../features/connect/sync/backup";
@@ -138,6 +138,7 @@ export function ConnectStatus() {
 
   // Force-full-resync inline confirm (window.confirm is a no-op in Tauri webview).
   const [confirmFullResync, setConfirmFullResync] = useState(false);
+  const [confirmFullRepush, setConfirmFullRepush] = useState(false);
 
   // Unlink sync (keeps data) — two-click confirm, no data loss.
   const [confirmUnlink, setConfirmUnlink] = useState(false);
@@ -411,6 +412,9 @@ export function ConnectStatus() {
       const result = await runSync(repo);
       syncStatus.setSyncDone(result.pushed, result.pulled, result.applied);
       await queryClient.invalidateQueries();
+      if (result.skipped > 0) {
+        toast.error(`同步完成，但有 ${result.skipped} 筆資料無法解密／格式不符而略過。若資料仍不完整，請試「完整重新下載」。`);
+      }
     } catch (e) {
       // Tauri plugin errors can be plain strings, not Error instances
       const msg = e instanceof Error ? e.message
@@ -433,7 +437,10 @@ export function ConnectStatus() {
       syncStatus.setSyncDone(result.pushed, result.pulled, result.applied);
       await queryClient.invalidateQueries();
       if (result.applied > 0) {
-        toast.success(`已從伺服器完整重新下載，套用 ${result.applied} 筆`);
+        toast.success(
+          `已從伺服器完整重新下載，套用 ${result.applied} 筆` +
+            (result.skipped > 0 ? `（略過 ${result.skipped} 筆無法解密／格式不符）` : ""),
+        );
       } else if (result.reason === "empty-relay") {
         toast.error("伺服器沒有可下載的資料。請確認這台裝置已配對到正確的同步帳號（設定 → 新增裝置 / 我有配對碼）。");
       } else {
@@ -444,6 +451,27 @@ export function ConnectStatus() {
         : typeof e === "string" ? e
         : (e as { message?: string })?.message ?? JSON.stringify(e) ?? "重新下載失敗";
       console.error("[sync] force full resync failed:", e);
+      syncStatus.setError(msg);
+    }
+  }
+
+  // ── Force full re-upload (recovery when the SERVER is missing records this
+  //    device has — e.g. accounts that were never re-pushed after a re-pair) ──
+  async function handleForceFullRepush() {
+    if (syncStatus.phase === "pushing" || syncStatus.phase === "pulling") return;
+    setConfirmFullRepush(false);
+    syncStatus.setPhase("pushing");
+    try {
+      const repo = await getFinanceRepository();
+      const result = await forceFullRepush(repo);
+      syncStatus.setSyncDone(result.pushed, result.pulled, result.applied);
+      await queryClient.invalidateQueries();
+      toast.success(`已重新上傳本機資料（${result.pushed} 筆）到伺服器，其他裝置同步後即可取得。`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message
+        : typeof e === "string" ? e
+        : (e as { message?: string })?.message ?? JSON.stringify(e) ?? "重新上傳失敗";
+      console.error("[sync] force full repush failed:", e);
       syncStatus.setError(msg);
     }
   }
@@ -740,6 +768,32 @@ export function ConnectStatus() {
               onClick={() => setConfirmFullResync(true)}
               disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
               <ArrowsClockwise size={13} />完整重新下載
+            </Button>
+        }
+      </div>
+
+      {/* Recovery: re-upload everything to the server. For a device whose LOCAL
+          data is complete but the server is missing records (e.g. accounts that
+          were never re-pushed after a re-pair) — other devices then pull them. */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+        padding: "10px 12px", marginBottom: 16, borderRadius: "var(--ns-r-md)",
+        background: "var(--ns-bg-hover)", border: "1px solid var(--ns-border)" }}>
+        <div className="text-caption" style={{ color: "var(--ns-fg-muted)", lineHeight: 1.5 }}>
+          其他裝置少了帳戶或部分記帳？把這台（資料完整的）裝置的全部資料重新上傳到伺服器，其他裝置再「完整重新下載」即可補齊。
+        </div>
+        {confirmFullRepush
+          ? <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+              <Button variant="ghost" className="text-xs" onClick={() => setConfirmFullRepush(false)}>取消</Button>
+              <Button variant="outline" className="text-xs"
+                onClick={handleForceFullRepush}
+                disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
+                確認重新上傳
+              </Button>
+            </div>
+          : <Button variant="ghost" className="text-xs" style={{ flexShrink: 0 }}
+              onClick={() => setConfirmFullRepush(true)}
+              disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
+              <ArrowsClockwise size={13} />重新上傳本機資料
             </Button>
         }
       </div>

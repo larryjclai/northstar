@@ -58,13 +58,16 @@ describe("unlinkSync", () => {
   it("clears sync identity but KEEPS financial data (no importSnapshot)", async () => {
     const importSnapshot = vi.fn().mockResolvedValue(undefined);
     const clearSyncConflicts = vi.fn().mockResolvedValue(undefined);
-    const repo = { getAppSettings: vi.fn().mockResolvedValue({}), importSnapshot, clearSyncConflicts } as any;
+    const requeueAllPendingChanges = vi.fn().mockResolvedValue(undefined);
+    const repo = { getAppSettings: vi.fn().mockResolvedValue({}), importSnapshot, clearSyncConflicts, requeueAllPendingChanges } as any;
 
     await unlinkSync(repo);
 
     // Data wipe (importSnapshot) must NOT run — that's the whole point of unlink.
     expect(importSnapshot).not.toHaveBeenCalled();
     expect(clearSyncConflicts).toHaveBeenCalledOnce();
+    // The kept data must be re-queued for push so re-enabling re-uploads it.
+    expect(requeueAllPendingChanges).toHaveBeenCalledOnce();
     for (const k of ["northstar.device.v1", "northstar.sync.account.v1", "northstar.vault.key.v1", "northstar.device.keypair.v1", "northstar.recovery.status.v1"]) {
       expect(store.has(k)).toBe(false);
     }
