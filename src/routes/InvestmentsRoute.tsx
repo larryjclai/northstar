@@ -9,6 +9,7 @@ import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
 import { Button } from "../components/coss/button";
 import { Card as CossCard } from "../components/coss/card";
+import { Skeleton } from "../components/coss/skeleton";
 import { EmptyState } from "../components/EmptyState";
 import { Field, TextInput } from "../components/Field";
 import { HoldingForm } from "../components/HoldingForm";
@@ -65,7 +66,7 @@ export function InvestmentsRoute() {
     void navigate({ to: "/investments", search: (prev) => ({ ...prev, tab: next, sector: next === "portfolio" ? prev.sector : undefined }) });
   }
 
-  const { accounts, assets, investments, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots } = useFinanceData();
+  const { accounts, assets, investments, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
   const refreshDailyPrices = useRefreshDailyPrices();
   const backfillAssetProfiles = useBackfillAssetProfiles();
@@ -322,6 +323,34 @@ export function InvestmentsRoute() {
     return { realizedYTD: rYTD, dividendsYTD: dYTD };
   }, [recordRows, assetRows, toPrimary]);
 
+  if (isInitialLoading) {
+    return (
+      <div className="grid gap-5 p-1" style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
+        <Skeleton className="h-[200px]" />
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-28" />
+          ))}
+        </div>
+        <Skeleton className="h-[320px]" />
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <div className="grid min-h-[50vh] place-items-center p-6 text-center">
+        <div className="max-w-md">
+          <h3 className="text-[17px]" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+            無法載入資料
+          </h3>
+          <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
+          <Button className="mt-4" onClick={() => refetchAll()}>
+            重新整理
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="ns-invest-page" style={{ padding: '24px 32px 120px', maxWidth: 1180, margin: '0 auto' }}>
