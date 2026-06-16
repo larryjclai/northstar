@@ -2,6 +2,8 @@ import { Bank, CurrencyCircleDollar, DownloadSimple, Gear, Tag } from "@phosphor
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
+import { Button } from "../components/coss/button";
+import { Skeleton } from "../components/coss/skeleton";
 import type { AppSettings } from "../domain";
 import { SettingsCategories } from "./settings/CategoriesSection";
 import { SettingsMerchants } from "./settings/MerchantsSection";
@@ -21,7 +23,7 @@ const emptySettings: AppSettings = {
 // ./settings/*Section.tsx (split 2026-06-10; this file was 2,300+ lines).
 export function SettingsRoute() {
   const { t } = useTranslation();
-  const { settings, dailyFxRates } = useFinanceData();
+  const { settings, dailyFxRates, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   const [form, setForm] = useState(emptySettings);
   const seededRef = useRef(false);
   const updateSettings = useRepositoryMutation((repository, input: AppSettings) => repository.updateAppSettings(input), ["settings"]);
@@ -52,6 +54,29 @@ export function SettingsRoute() {
     } catch (e) {
       console.error(e);
     }
+  }
+
+  if (isInitialLoading) {
+    return (
+      <div className="grid gap-5 p-1">
+        <Skeleton className="h-[400px]" />
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <div className="grid min-h-[50vh] place-items-center p-6 text-center">
+        <div className="max-w-md">
+          <h3 className="text-[17px]" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+            無法載入資料
+          </h3>
+          <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
+          <Button className="mt-4" onClick={() => refetchAll()}>
+            重新整理
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
