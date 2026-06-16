@@ -6,12 +6,13 @@ import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { useToast } from "../components/Toast";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
+import { Skeleton } from "../components/coss/skeleton";
 import { computeLinkedAccountsValue, computeNetWorthInCurrency } from "../features/goals/netWorth";
 import { GoalEditorSheet } from "../features/goals/GoalEditorSheet";
 import { projectRetirement, resolveTargetAmount, formatNumber, formatCompactNumber, type FinancialGoal } from "../domain";
 
 export function GoalsRoute() {
-  const { financialGoals, accounts, assets, quotes, settings, dailyFxRates } = useFinanceData();
+  const { financialGoals, accounts, assets, quotes, settings, dailyFxRates, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   const accountRows = accounts.data ?? [];
   const assetRows = assets.data ?? [];
   const quoteRows = quotes.data ?? [];
@@ -115,6 +116,30 @@ export function GoalsRoute() {
   const xUnit = isFire ? "歲" : "年";
 
   const chartColor = !isFire ? "var(--ns-accent)" : activeProjection === "bear" ? "var(--ns-neg)" : activeProjection === "bull" ? "var(--ns-accent)" : "var(--ns-pos)";
+
+  if (isInitialLoading) {
+    return (
+      <div className="grid gap-5 p-1">
+        <Skeleton className="h-[260px]" />
+        <Skeleton className="h-40" />
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <div className="grid min-h-[50vh] place-items-center p-6 text-center">
+        <div className="max-w-md">
+          <h3 className="text-[17px]" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+            無法載入資料
+          </h3>
+          <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
+          <Button className="mt-4" onClick={() => refetchAll()}>
+            重新整理
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]" style={{ maxWidth: 1180, margin: "0 auto" }}>
