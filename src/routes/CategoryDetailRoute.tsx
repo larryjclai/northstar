@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
+import { Skeleton } from "../components/coss/skeleton";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { DateScopeControl } from "../components/DateScopeControl";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
@@ -15,7 +16,7 @@ import { useUiPreferences } from "../state/uiPreferences";
 
 export function CategoryDetailRoute() {
   const { categoryName } = useParams({ strict: false }) as { categoryName: string };
-  const { ledger, settings, accounts, dailyFxRates } = useFinanceData();
+  const { ledger, settings, accounts, dailyFxRates, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   const timezone = useUiPreferences((state) => state.timezone);
   const [detailRow, setDetailRow] = useState<LedgerTransaction | null>(null);
   const [subcategoryFilter, setSubcategoryFilter] = useState("all");
@@ -118,6 +119,31 @@ export function CategoryDetailRoute() {
   const maxTransaction = periodRows.reduce((max, row) => Math.max(max, convertedAmount(row) ?? 0), 0);
   const accountsUsed = new Set(periodRows.map((row) => row.accountId)).size;
   const avgPerTransaction = periodRows.length ? periodTotal / periodRows.length : 0;
+
+  if (isInitialLoading) {
+    return (
+      <div className="grid gap-5 p-1">
+        <Skeleton className="h-24" />
+        <Skeleton className="h-[220px]" />
+        <Skeleton className="h-40" />
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <div className="grid min-h-[50vh] place-items-center p-6 text-center">
+        <div className="max-w-md">
+          <h3 className="text-[17px]" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+            無法載入資料
+          </h3>
+          <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
+          <Button className="mt-4" onClick={() => refetchAll()}>
+            重新整理
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="ns-detail-page">
