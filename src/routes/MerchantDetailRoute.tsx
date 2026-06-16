@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
+import { Skeleton } from "../components/coss/skeleton";
 import { DateScopeControl } from "../components/DateScopeControl";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 import { MiniBars, WeekdayBars, type MonthPoint } from "../components/DetailCharts";
@@ -13,7 +14,7 @@ import { useUiPreferences } from "../state/uiPreferences";
 
 export function MerchantDetailRoute() {
   const { merchantName } = useParams({ strict: false }) as { merchantName: string };
-  const { ledger, accounts, settings, dailyFxRates } = useFinanceData();
+  const { ledger, accounts, settings, dailyFxRates, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   const timezone = useUiPreferences((state) => state.timezone);
   const [detailRow, setDetailRow] = useState<LedgerTransaction | null>(null);
   const [subcategoryFilter, setSubcategoryFilter] = useState("all");
@@ -75,6 +76,31 @@ export function MerchantDetailRoute() {
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 4);
   }, [ledgerRows, merchantName, categoryHit.value, dateRange, appSettings, fxHistory, primaryCurrency]);
+
+  if (isInitialLoading) {
+    return (
+      <div className="grid gap-5 p-1">
+        <Skeleton className="h-24" />
+        <Skeleton className="h-[220px]" />
+        <Skeleton className="h-40" />
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <div className="grid min-h-[50vh] place-items-center p-6 text-center">
+        <div className="max-w-md">
+          <h3 className="text-[17px]" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+            無法載入資料
+          </h3>
+          <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
+          <Button className="mt-4" onClick={() => refetchAll()}>
+            重新整理
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="ns-detail-page">
