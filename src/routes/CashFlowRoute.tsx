@@ -153,6 +153,7 @@ export function CashFlowRoute() {
   const { account: accountParam } = useSearch({ strict: false }) as { account?: string };
   const [selectedAccount, setSelectedAccount] = useState(accountParam ?? "all");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [showAllCategories, setShowAllCategories] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "categories" | "merchants" | "recurring">("overview");
   // Cashflow chart bucketing granularity (日/週/月/年).
   const [chartGranularity, setChartGranularity] = useState<ChartGranularity>("day");
@@ -739,6 +740,9 @@ export function CashFlowRoute() {
 
   const topCategorySpend = useMemo(() => allCategorySpend.slice(0, 5), [allCategorySpend]);
 
+  // Cap the 分類支出 bar list to the top N, folding the rest behind an expandable toggle (plan 018).
+  const CATEGORY_BAR_LIMIT = 8;
+
   const topMerchantSpend = useMemo(() => {
     const map = new Map<string, number>();
     for (const row of scopedRows) {
@@ -1043,7 +1047,7 @@ export function CashFlowRoute() {
           {/* Category Bar List */}
           {allCategorySpend.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {allCategorySpend.map((r) => {
+              {(showAllCategories ? allCategorySpend : allCategorySpend.slice(0, CATEGORY_BAR_LIMIT)).map((r) => {
                 const pct = totalCategorySpend > 0 ? (r.amount / totalCategorySpend) * 100 : 0;
                 const isActive = selectedCategory === "all" || selectedCategory === r.name;
                 const displayPct = pct < 1 ? "<1" : pct.toFixed(1);
@@ -1072,6 +1076,16 @@ export function CashFlowRoute() {
                   </div>
                 );
               })}
+              {allCategorySpend.length > CATEGORY_BAR_LIMIT && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllCategories((v) => !v)}
+                  className="muted text-xs"
+                  style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: "2px 0", color: "var(--ns-accent)", fontFamily: "var(--ns-font-mono)" }}
+                >
+                  {showAllCategories ? "▲ 收合" : `▼ 顯示其餘 ${allCategorySpend.length - CATEGORY_BAR_LIMIT} 類`}
+                </button>
+              )}
             </div>
           ) : (
             <div className="muted text-body" style={{ textAlign: "center", padding: "30px 0" }}>本月尚無支出</div>
