@@ -91,6 +91,8 @@ export function AccountsRoute() {
   const [adjustMessage, setAdjustMessage] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [recalculating, setRecalculating] = useState(false);
+  const [accountQuery, setAccountQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all"); // "all" | a GROUP_ORDER key
 
   const createAccount = useRepositoryMutation((repository, input: AccountFormState) => repository.createAccount(input), ["accounts"]);
   const updateAccount = useRepositoryMutation((repository, input: AccountFormState & { id: string }) => repository.updateAccount(input.id, input), ["accounts"]);
@@ -136,6 +138,14 @@ export function AccountsRoute() {
       return { ...g, rows: groupRows, total };
     }).filter((g) => g.rows.length > 0);
   }, [rows, appSettings]);
+
+  const visibleGroups = useMemo(() => {
+    const q = accountQuery.trim().toLowerCase();
+    return groups
+      .filter((g) => typeFilter === "all" || g.key === typeFilter)
+      .map((g) => ({ ...g, rows: q ? g.rows.filter((a) => a.name.toLowerCase().includes(q)) : g.rows }))
+      .filter((g) => g.rows.length > 0);
+  }, [groups, accountQuery, typeFilter]);
 
   // Balance-sheet totals (in base currency). assets = positive balances,
   // liabilities = the magnitude of negative balances, so assets − liabilities
@@ -309,6 +319,29 @@ export function AccountsRoute() {
         </div>
       ) : <div style={{ marginBottom: 6 }} />}
 
+      {/* Search + type filter — only shown when there are enough accounts */}
+      {rows.length > 5 ? (
+        <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+          <input
+            className="ns-input"
+            type="search"
+            value={accountQuery}
+            onChange={(e) => setAccountQuery(e.target.value)}
+            placeholder="搜尋帳戶名稱…"
+            style={{ flex: "1 1 180px", minWidth: 0 }}
+          />
+          <AppSelect
+            value={typeFilter}
+            onChange={(v) => setTypeFilter(v)}
+            options={[
+              { value: "all", label: "全部類型" },
+              ...GROUP_ORDER.map((g) => ({ value: g.key, label: g.label })),
+            ]}
+            style={{ flex: "0 0 auto", minWidth: 140, height: 40 }}
+          />
+        </div>
+      ) : null}
+
       {/* Account groups */}
       {rows.length === 0 ? (
         <Card style={{ padding: 48, textAlign: "center" }}>
@@ -319,9 +352,11 @@ export function AccountsRoute() {
             <Button variant="outline" onClick={openOnboarding}>開啟導覽</Button>
           </div>
         </Card>
+      ) : visibleGroups.length === 0 ? (
+        <div className="muted text-body" style={{ padding: "24px 0", textAlign: "center" }}>找不到符合的帳戶</div>
       ) : (
         <div style={{ display: "grid", gap: 16 }}>
-          {groups.map((g) => (
+          {visibleGroups.map((g) => (
             <Card key={g.key} style={{ padding: 0 }}>
               <div onClick={() => setCollapsedGroups((current) => {
                 const next = new Set(current);
