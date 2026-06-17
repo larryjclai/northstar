@@ -1,13 +1,14 @@
 import { CaretRight } from "@phosphor-icons/react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Card } from "../components/coss/card";
-import { Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useMemo, type CSSProperties } from "react";
 import { formatNumber, formatCompactMoney, isWithinDateScope, type LedgerTransaction, type ResolvedDateScope } from "../domain";
 import { readableTextColor } from "../lib/color";
 
 export function MerchantsTab({ dateRange, ledgerRows, primaryCurrency, toPrimary }: { dateRange: ResolvedDateScope; ledgerRows: LedgerTransaction[]; primaryCurrency: string; toPrimary: (row: LedgerTransaction) => number | null }) {
-  
+  const navigate = useNavigate();
+
   const periodRows = useMemo(() => ledgerRows.filter(r => isWithinDateScope(r.date, dateRange) && r.entryType === "expense" && r.settlementStatus === "settled" && !r.counterAccountId && r.merchant), [ledgerRows, dateRange]);
   
   const periodMap = new Map<string, { amount: number, visits: number, category: string, lastVisit: string }>();
@@ -79,7 +80,16 @@ export function MerchantsTab({ dateRange, ledgerRows, primaryCurrency, toPrimary
             <div style={{ width: 180, height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={top5Pie} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} stroke="none" paddingAngle={2}>
+                  <Pie
+                    data={top5Pie} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                    innerRadius={50} outerRadius={80} stroke="none" paddingAngle={2}
+                    style={{ cursor: "pointer" }}
+                    onClick={(d: { name?: string }) => {
+                      if (d?.name && d.name !== "其他") {
+                        void navigate({ to: "/cash-flow/merchants/$merchantName", params: { merchantName: d.name } });
+                      }
+                    }}
+                  >
                     {top5Pie.map((m) => <Cell key={m.name} fill={m.color} />)}
                   </Pie>
                   <Tooltip
@@ -92,14 +102,32 @@ export function MerchantsTab({ dateRange, ledgerRows, primaryCurrency, toPrimary
               </ResponsiveContainer>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {top5Pie.map((m) => (
-                <div key={m.name} className="text-body" style={{ display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid var(--ns-border)", paddingBottom: 6 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: 3, background: m.color, flexShrink: 0 }} />
-                  <span style={{ flex: 1, minWidth: 0, lineHeight: 1.25, wordBreak: "break-word" }}>{m.name}</span>
-                  <span className="num muted text-xs" style={{ flexShrink: 0 }}>{formatCompactMoney(m.value, primaryCurrency)}</span>
-                  <span className="num" style={{ minWidth: 44, textAlign: "right", flexShrink: 0 }}>{totalSpend > 0 ? ((m.value / totalSpend) * 100).toFixed(1) : "0.0"}%</span>
-                </div>
-              ))}
+              {top5Pie.map((m) => {
+                const rowContent = (
+                  <>
+                    <span style={{ width: 10, height: 10, borderRadius: 3, background: m.color, flexShrink: 0 }} />
+                    <span style={{ flex: 1, minWidth: 0, lineHeight: 1.25, wordBreak: "break-word" }}>{m.name}</span>
+                    <span className="num muted text-xs" style={{ flexShrink: 0 }}>{formatCompactMoney(m.value, primaryCurrency)}</span>
+                    <span className="num" style={{ minWidth: 44, textAlign: "right", flexShrink: 0 }}>{totalSpend > 0 ? ((m.value / totalSpend) * 100).toFixed(1) : "0.0"}%</span>
+                  </>
+                );
+                const rowStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid var(--ns-border)", paddingBottom: 6 };
+                return m.name === "其他" ? (
+                  <div key={m.name} className="text-body" style={rowStyle}>
+                    {rowContent}
+                  </div>
+                ) : (
+                  <Link
+                    key={m.name}
+                    to="/cash-flow/merchants/$merchantName"
+                    params={{ merchantName: m.name }}
+                    className="text-body"
+                    style={{ ...rowStyle, textDecoration: "none", color: "inherit", cursor: "pointer" }}
+                  >
+                    {rowContent}
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </Card>
