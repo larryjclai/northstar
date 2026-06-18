@@ -8,7 +8,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { convertCurrency, formatMoney, formatNumber, isWithinDateScope, makeDefaultDateScope, resolveDateScope } from "../domain";
+import { categoryPeriodSpend, convertCurrency, formatMoney, formatNumber, isWithinDateScope, makeDefaultDateScope, resolveDateScope } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { useToast } from "../components/Toast";
@@ -36,50 +36,50 @@ export function CategoriesRoute() {
     ["settings"],
   );
 
+  // toPrimary: pass row.amount (positive for refunds, negative for expenses).
+  // The helper applies the sign inversion itself (spend = -converted).
+  const toPrimaryFn = useMemo(
+    () => (row: (typeof ledgerRows)[number]) =>
+      convertCurrency(row.amount, row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date }),
+    [primaryCurrency, appSettings, fxHistory],
+  );
+
+  // Pass full ledger — the helper's isWithinDateScope filters by date.
+  const periodSpend = useMemo(
+    () => categoryPeriodSpend(ledgerRows, dateRange, primaryCurrency, toPrimaryFn),
+    [ledgerRows, dateRange, primaryCurrency, toPrimaryFn],
+  );
+
+  const missingFxPairs = periodSpend.missingFxPairs;
+  const totalExpense = periodSpend.total;
+
+  // For the per-row transaction list (selectedCategory filter): still need expense rows in scope.
   const filteredRows = useMemo(() => {
     return ledgerRows.filter((row) => isWithinDateScope(row.date, dateRange));
   }, [ledgerRows, dateRange]);
-
   const allExpenseRows = filteredRows.filter((row) => row.entryType === "expense" && !row.counterAccountId);
-  // Signed spend (−amount): refunds (positive-amount expenses) net out.
-  const convertedAmount = (row: (typeof allExpenseRows)[number]) => convertCurrency(-row.amount, row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date });
-  const missingFxPairs = [...new Set(allExpenseRows.filter((row) => convertedAmount(row) === null).map((row) => `${row.currency}/${primaryCurrency}`))];
-  const totalExpense = allExpenseRows.reduce((sum, row) => sum + (convertedAmount(row) ?? 0), 0);
   const expenseRows = selectedCategory
     ? allExpenseRows.filter((row) => row.category === selectedCategory)
     : allExpenseRows;
-  
+
+  const defaultColors = ["var(--ns-chart-1)", "var(--ns-chart-2)", "var(--ns-chart-3)", "var(--ns-chart-4)", "var(--ns-chart-5)", "#2dd4bf", "#fb923c"];
+
   const categoryStats = useMemo(() => {
-    const map = new Map<string, { amount: number, count: number }>();
-    for (const row of allExpenseRows) {
-      if (!row.category) continue;
-      const current = map.get(row.category) ?? { amount: 0, count: 0 };
-      map.set(row.category, { 
-        amount: current.amount + (convertedAmount(row) ?? 0),
-        count: current.count + 1
-      });
-    }
-    
-    const defaultColors = ["var(--ns-chart-1)", "var(--ns-chart-2)", "var(--ns-chart-3)", "var(--ns-chart-4)", "var(--ns-chart-5)", "#2dd4bf", "#fb923c"];
-    
-    return [...map.entries()]
-      .sort((a, b) => b[1].amount - a[1].amount)
-      .map(([name, stats], index) => {
-        const catSetting = appSettings?.categories.find(c => c.name === name);
-        const budget = catSetting?.budget || null;
-        const color = catSetting?.color || defaultColors[index % defaultColors.length];
-        const emoji = catSetting?.iconName || 'Tag';
-        
-        return {
-          name,
-          amount: stats.amount,
-          count: stats.count,
-          budget,
-          color,
-          emoji
-        };
-      });
-  }, [allExpenseRows, appSettings, fxHistory, primaryCurrency]);
+    return periodSpend.categories.map((cat, index) => {
+      const catSetting = appSettings?.categories.find((c) => c.name === cat.name);
+      const budget = catSetting?.budget || null;
+      const color = catSetting?.color || defaultColors[index % defaultColors.length];
+      const emoji = catSetting?.iconName || "Tag";
+      return {
+        name: cat.name,
+        amount: cat.amount,
+        count: cat.count,
+        budget,
+        color,
+        emoji,
+      };
+    });
+  }, [periodSpend, appSettings]);
 
   // Aggregate stats
   const totalBudget = categoryStats.reduce((sum, cat) => sum + (cat.budget || cat.amount), 0);

@@ -5,7 +5,7 @@ import { SplitLayout } from "../components/coss/layout";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { formatNumber, isWithinDateScope, type AppSettings, type LedgerTransaction, type ResolvedDateScope } from "../domain";
+import { categoryPeriodSpend, formatNumber, isNeutralLedgerRow, isWithinDateScope, type AppSettings, type LedgerTransaction, type ResolvedDateScope } from "../domain";
 import { Glyph } from "../lib/icons";
 
 function resolveColor(color: string): string {
@@ -15,61 +15,59 @@ function resolveColor(color: string): string {
 }
 
 export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurrency, toPrimary, onSettingsClick }: { dateRange: ResolvedDateScope; ledgerRows: LedgerTransaction[]; appSettings: AppSettings | undefined; primaryCurrency: string; toPrimary: (row: LedgerTransaction) => number | null; onSettingsClick: () => void }) {
-  const periodRows = useMemo(() => ledgerRows.filter(r => isWithinDateScope(r.date, dateRange) && r.entryType === "expense" && r.settlementStatus === "settled" && !r.counterAccountId), [ledgerRows, dateRange]);
-  
-  const periodMap = new Map<string, { amount: number, count: number, merchants: Map<string, number> }>();
-  let uncategorizedAmount = 0;
-  let uncategorizedCount = 0;
-  const uncategorizedMerchants = new Map<string, number>();
-  
-  for (const row of periodRows) {
-    const key = row.category;
-    const amount = Math.abs(toPrimary(row) ?? 0);
-    if (!key) {
-      uncategorizedAmount += amount;
-      uncategorizedCount++;
-      if (row.merchant) {
-        uncategorizedMerchants.set(row.merchant, (uncategorizedMerchants.get(row.merchant) ?? 0) + amount);
-      }
-      continue;
+  // Delegate amount/count aggregation to the shared canonical helper.
+  const spend = useMemo(
+    () => categoryPeriodSpend(ledgerRows, dateRange, primaryCurrency, toPrimary),
+    [ledgerRows, dateRange, primaryCurrency, toPrimary],
+  );
+
+  // Separate pass to compute topMerchant per category (over the same filtered rows).
+  const merchantMap = useMemo(() => {
+    const map = new Map<string, Map<string, number>>();
+    for (const row of ledgerRows) {
+      if (!isWithinDateScope(row.date, dateRange)) continue;
+      if (row.entryType !== "expense" || row.settlementStatus !== "settled" || isNeutralLedgerRow(row)) continue;
+      if (!row.merchant) continue;
+      const key = row.category || "";
+      const inner = map.get(key) ?? new Map<string, number>();
+      const spend = -(toPrimary(row) ?? 0);
+      inner.set(row.merchant, (inner.get(row.merchant) ?? 0) + spend);
+      map.set(key, inner);
     }
-    const curr = periodMap.get(key) ?? { amount: 0, count: 0, merchants: new Map() };
-    curr.amount += amount;
-    curr.count += 1;
-    if (row.merchant) {
-      curr.merchants.set(row.merchant, (curr.merchants.get(row.merchant) ?? 0) + amount);
-    }
-    periodMap.set(key, curr);
+    return map;
+  }, [ledgerRows, dateRange, toPrimary]);
+
+  function topMerchantFor(key: string): string {
+    const inner = merchantMap.get(key);
+    if (!inner || inner.size === 0) return "無";
+    return [...inner.entries()].sort((a, b) => b[1] - a[1])[0][0];
   }
-  
+
   const defaultColors = ["var(--ns-chart-1)","var(--ns-chart-2)","var(--ns-chart-3)","var(--ns-chart-4)","var(--ns-chart-5)","#2dd4bf","#fb923c","#a78bfa","#f472b6","#facc15"];
-  
-  const allCategorySpend = [...periodMap.entries()]
-    .map(([name, stats], idx) => {
-      const catSetting = appSettings?.categories?.find((c) => c.name === name);
-      let topMerchant = "無";
-      if (stats.merchants.size > 0) {
-        topMerchant = [...stats.merchants.entries()].sort((a, b) => b[1] - a[1])[0][0];
-      }
-      
-      return { 
-        name, 
-        amount: stats.amount, 
-        count: stats.count,
-        periodAmount: stats.amount,
-        topMerchant,
-        color: catSetting?.color || defaultColors[idx % defaultColors.length], 
-        icon: catSetting?.iconName || 'Tag'
-      };
-    })
-    .sort((a, b) => b.amount - a.amount);
-    
-  const totalPeriodSpend = allCategorySpend.reduce((s, c) => s + c.amount, 0) + uncategorizedAmount;
+
+  const allCategorySpend = spend.categories.map((cat, idx) => {
+    const catSetting = appSettings?.categories?.find((c) => c.name === cat.name);
+    return {
+      name: cat.name,
+      amount: cat.amount,
+      count: cat.count,
+      periodAmount: cat.amount,
+      topMerchant: topMerchantFor(cat.name),
+      color: catSetting?.color || defaultColors[idx % defaultColors.length],
+      icon: catSetting?.iconName || "Tag",
+    };
+  });
+
+  const uncategorizedAmount = spend.uncategorized.amount;
+  const uncategorizedCount = spend.uncategorized.count;
+
+  const totalPeriodSpend = spend.total;
   
   const maxSpendCat = allCategorySpend[0];
   const maxCountCat = [...allCategorySpend].sort((a, b) => b.count - a.count)[0];
   const uncategorizedPct = totalPeriodSpend > 0 ? (uncategorizedAmount / totalPeriodSpend) * 100 : 0;
-  const uncategorizedTopMerchant = uncategorizedMerchants.size > 0 ? [...uncategorizedMerchants.entries()].sort((a, b) => b[1] - a[1])[0][0] : "−";
+  const uncategorizedTopMerchantRaw = topMerchantFor("");
+  const uncategorizedTopMerchant = uncategorizedTopMerchantRaw === "無" ? "−" : uncategorizedTopMerchantRaw;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>

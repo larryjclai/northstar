@@ -1,4 +1,5 @@
 export * from "./amountExpression";
+export * from "./categorySpend";
 export * from "./dataHealth";
 export * from "./installments";
 export * from "./sectorLabels";
