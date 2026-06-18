@@ -9,6 +9,7 @@ import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer
 import { DateScopeControl } from "../components/DateScopeControl";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 import { MiniBars, WeekdayBars, type MonthPoint } from "../components/DetailCharts";
+import { downloadCsv, exportLedgerCsv } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { convertCurrency, formatMoney, isWithinDateScope, makeDefaultDateScope, resolveDateScope, type CategoryGroup, type LedgerTransaction } from "../domain";
 import { Glyph } from "../lib/icons";
@@ -183,7 +184,12 @@ export function CategoryDetailRoute() {
           <Button variant="outline" onClick={() => setCategoryDrawerOpen(true)}>
             <PencilSimple size={14} />管理分類
           </Button>
-          <Button variant="outline" disabled title="CSV 匯出尚未接上分類詳情範圍">
+          <Button
+            variant="outline"
+            disabled={periodRows.length === 0}
+            title={periodRows.length === 0 ? "此區間沒有交易可匯出" : "匯出此分類在目前區間的交易"}
+            onClick={() => downloadCsv(`northstar-category-${categoryName}.csv`, exportLedgerCsv(periodRows, accountName))}
+          >
             <DownloadSimple size={14} />匯出
           </Button>
         </div>
