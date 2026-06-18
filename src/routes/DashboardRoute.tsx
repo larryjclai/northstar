@@ -339,7 +339,6 @@ export function DashboardRoute() {
     },
   ];
 
-  const activeMetric = METRIC_REGISTRY.find((m) => m.key === northstarMetric) ?? METRIC_REGISTRY[0];
   // ————————————————————————————————————————————————————————————————————————
 
   const trend = useMemo(
@@ -481,6 +480,19 @@ export function DashboardRoute() {
     }
     return { portfolio, benchmark, alpha };
   }, [analyticsPositions, dailyPriceRows, manualSnapshotRows, toPrimary, stripPeriod, benchmarkTicker]);
+
+  // Build the complete metric list now that stripData.alpha is available.
+  const allMetrics = [
+    ...METRIC_REGISTRY,
+    {
+      key: "benchmarkGap",
+      label: `vs ${benchmarkTicker} 累積差距`,
+      value: stripData.alpha,
+      display: stripData.alpha != null ? `${stripData.alpha >= 0 ? "+" : ""}${stripData.alpha.toFixed(1)}%` : "—",
+      sub: `投組相對 ${benchmarkTicker} 的期間累積報酬差距`,
+    },
+  ];
+  const activeMetric = allMetrics.find((m) => m.key === northstarMetric) ?? allMetrics[0];
 
   // Today's Top Movers among held tickers. Intraday → live quote vs the prior
   // session's close; after close → today's close vs the prior session's. The
@@ -738,7 +750,7 @@ export function DashboardRoute() {
                   <PopoverContent align="start" style={{ width: 200, padding: 8 }}>
                     <div className="ns-eyebrow" style={{ padding: "6px 8px 8px" }}>選擇主要指標</div>
                     <div style={{ display: "flex", flexDirection: "column" }}>
-                      {METRIC_REGISTRY.map((m) => (
+                      {allMetrics.map((m) => (
                         <button
                           key={m.key}
                           className="text-body"
