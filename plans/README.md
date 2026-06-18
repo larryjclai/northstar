@@ -36,6 +36,12 @@ honor its STOP conditions, and update your row when done.
 | 022 | Enlarge Analytics risk-KPI sparklines + make metric help tappable | P3 | S | LOW | — | DONE (ce7d7834, branch advisor/022-risk-kpi-sparkline-help) — reviewed: 1 file (+16/−8); Sparkline call site 96×36 (function default 60×26 untouched, sole caller); MetricHelp → Base UI Popover (matches existing BenchmarkPicker pattern, already-imported), icon size 15, aria-label kept; no calc/portfolioAnalytics change; tsc re-run clean; executor build/test(455)/lint(0 err) clean; visual = code-inspection. CAVEAT to eyeball: 96px fixed-width sparkline on 2-col mobile risk cards may be tight — check on a narrow viewport |
 | 023 | P3 UX backlog (verify-first: dashboard labels, goal pace, FX direction, holding empties, sortable tables, detail export, KPI hierarchy*, FIRE sensitivity*) | P3 | M | LOW | — | A,C,D,E,F,G DONE+MERGED; B DEFERRED; H REJECTED(already built). **A+C** eee260ef, **D** 08f3ae55, **F** b7ef4226, **G** bc4f27b8 (CashFlow 儲蓄率 hero, accent-soft). **E** d7583714 (merged c78b29a9): click-to-sort on Merchants/CategoriesTab/CategoriesRoute desktop tables (default amount-desc preserved, 其他 pinned, mobile + pie/donut/selection untouched). NOTE on E: first attempt was BLOCKED because executor worktrees are based on the frozen session-start commit (b0fda83d, pre-019/020) → conflicts; fixed by instructing the re-dispatch to `git checkout -B <branch> main` so it built on current main. **B (goal pace) DEFERRED**: `FinancialGoal` has no targetDate. **H (FIRE retirement income) REJECTED — already fully built**: `incomeItems` model + `projectRetirementScenarios` math + persistence + 「退休收入（選填）」editor UI (FIRECalculatorRoute.tsx:364-453) all exist; audit item was stale. |
 
+| 024 | Northstar Metric framework + 底氣 metrics (Coverage Ratio & Runway) | P2 | M–L | MED | — | TODO (design-forward; build domain metrics first) |
+| 025 | Dashboard future-net-worth (compounding) projection | P3 | M | MED | — | TODO (reuses retirementProjection engine; pairs with 024) |
+| 026 | Taiwan broker fee + securities-tax auto-calc on trade entry | P2 | M | MED | — | TODO (best standalone TW utility) |
+| 027 | "Join the index" nudge — design + decision gate | P3 | S–M | MED | — | TODO (needs operator decision: active vs lightweight) |
+| 028 | Goal target date + 超前/落後 pace indicator (was 023-B) | P3 | M | MED | — | DONE on branch advisor/028-goal-target-date-pace (e61fd450) — NOT yet merged. Adds `FinancialGoal.targetDate` via `ensureSqliteColumn` (income_items precedent); `goalPace.ts` (+8 tests) linear pace; 超前/落後/準時 chip on custom goals. Reviewed: SQL params renumbered consistently across UPDATE + 3 INSERTs, 2 justified follow-on `targetDate:null` literals (FIRECalculatorRoute, retirementProjection.test), tsc+goalPace re-run clean, executor test(474)/build/lint(0 err) clean. Built on current main via `checkout -B main` (frozen-base fix). |
+
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale).
 
 ## 2026-06-15 — operator-requested plans (011–013)
@@ -251,13 +257,40 @@ avoid file conflicts), F (detail export — Accounts export helper exists to reu
 **Design-gated (need operator decision first):** 023-G (KPI hierarchy), 023-H
 (FIRE sensitivity — touches locked finance semantics).
 
-## Direction (product options — for the maintainer, not bugs)
+## 2026-06-18 — direction pass (`improve next`) → plans 024–027
 
-Not planned here; surfaced for roadmap decisions:
+Ran a direction-only audit grounded in `ROADMAP.md` (Phase 6 北極星/底氣) + code
+checks. Confirmed **Quick Add NLP and Dashboard Analytics are already shipped** (not
+candidates). Surfaced 6 grounded options (A–F); operator selected all, grouped as:
 
-- **Northstar Metric (ROADMAP §6)** — the app is named Northstar but has no configurable
-  hero metric / FU-money runway / coverage ratio. Fully specced in `ROADMAP.md`, zero code.
+- **024 = A+B+C combined** — Northstar Metric framework (6.1) + Coverage Ratio (6.2)
+  + 底氣 Runway (6.3). High leverage: inputs already exist (`dividendAnalysis.ttmTotal`,
+  `calculateAvailableCash`, `buildNetWorthBreakdown.netWorth`, Dashboard monthly
+  expense); work is aggregation + a selectable hero. Design decisions (口徑, liquid-asset
+  def = `calculateAvailableCash`, point-in-time v1) recorded in the plan.
+- **025 = D** — Dashboard future-net-worth projection (6.4), reusing the
+  `retirementProjection` engine (no new math). Pairs with 024.
+- **026 = E** — Taiwan broker fee + securities-tax auto-calc on trade entry. Best
+  standalone TW utility; trade sheet already has a `fee` field, `AppSettings` gains an
+  optional `tradingFees` config. Overridable, opt-in.
+- **027 = F** — "join the index" nudge (6.6) — **design + decision gate**: operator
+  must choose active-detection vs lightweight-visual before build (a product stance).
+
+These are direction/feature plans (bigger surface than the 001–023 fixes); 024 is
+split-able (domain metrics first). Suggested order: **026 (independent utility) and
+024 (signature) in parallel → 025 → 027** (after its decision). Dependency note: 025
+and 027's cumulative-gap metric can both plug into 024's metric registry, so 024's
+registry shape should land first if doing them close together.
+
+## Direction (product options — not yet planned)
+
+Surfaced for later roadmap decisions (not in 024–027):
+
 - **Household sharing UI** — data model has `isSharedToHousehold` and sync infra exists
-  (`PRODUCT.md` pillar #4), but no UI to share accounts or manage members.
+  (`PRODUCT.md` pillar #4), but no UI to share accounts or manage members. (L)
 - **Bulk-import recurring rules** — CSV import exists for ledger/investments; recurring rules
-  are one-at-a-time only.
+  are one-at-a-time only. (M)
+- **DCA redo** (hidden since `6b479416`), **report PDF**, **custom assets / funds not on Yahoo**,
+  **split-expense / multi-category**, **TW tax reports** — all in `ROADMAP.md` 規劃中.
+- **Long-view mode** (ROADMAP 6.5) — dampen daily volatility + milestone celebrations; a UX
+  layer, deferred behind the 底氣 metric set (024).
