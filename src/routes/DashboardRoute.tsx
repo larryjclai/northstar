@@ -52,6 +52,7 @@ import {
   type PortfolioAsset,
   todayInTimezone,
 } from "../domain";
+import { calculateAvailableCash } from "../domain/dashboardSummary";
 import { useRefreshQuotes, useRefreshFxRates, useRefreshDailyPrices } from "../features/market-data/useMarketRefresh";
 import { useState } from "react";
 import { SegmentedControl } from "../components/SegmentedControl";
@@ -259,18 +260,12 @@ export function DashboardRoute() {
     [dividendAnalysis.ttmTotal, trailingMonthlyExp],
   );
 
-  // Liquid cash for runway: use calculateAvailableCash-equivalent from breakdown
-  // (breakdown.liquidCash already uses the same exclude-loan/credit/alternative logic
-  // for positive balances, which is the same effective set as calculateAvailableCash
-  // when all accounts are included). We use the all-account value regardless of
-  // the account filter, since runway is a portfolio-wide safety metric.
-  const allAccountsLiquidCash = useMemo(() => {
-    return accountRows.reduce((sum: number, account) => {
-      if (account.deletedAt !== null) return sum;
-      if (account.type === "loan" || account.type === "credit" || account.type === "alternative") return sum;
-      return sum + toPrimary(Math.max(0, account.balance), account.currency);
-    }, 0);
-  }, [accountRows, toPrimary]);
+  // Liquid cash for runway: portfolio-wide (all accounts), regardless of account filter.
+  // Runway is a safety metric so it should reflect total liquid cash, not a filtered subset.
+  const allAccountsLiquidCash = useMemo(
+    () => calculateAvailableCash(accountRows, toPrimary),
+    [accountRows, toPrimary],
+  );
 
   const runwayMo = useMemo(
     () => runwayMonths(allAccountsLiquidCash, trailingMonthlyExp),
