@@ -37,6 +37,7 @@ export function GoalEditorSheet({
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState(primaryCurrency);
   const [targetAmount, setTargetAmount] = useState(0);
+  const [targetDate, setTargetDate] = useState("");
   const [monthlyContribution, setMonthlyContribution] = useState(0);
   const [expectedReturnPct, setExpectedReturnPct] = useState(0);
   // Bound accounts → share percentage (1–100). Stored as a 0–1 fraction in
@@ -47,6 +48,7 @@ export function GoalEditorSheet({
     setName(goal?.name ?? "");
     setCurrency((goal?.currency ?? primaryCurrency).toUpperCase());
     setTargetAmount(goal?.targetAmount ?? 0);
+    setTargetDate(goal?.targetDate ?? "");
     setMonthlyContribution(goal?.monthlyContribution ?? 0);
     const raw = goal?.expectedAnnualReturn ?? 0;
     setExpectedReturnPct(raw > 1 ? raw : raw * 100);
@@ -105,6 +107,7 @@ export function GoalEditorSheet({
         monthlyContribution: Math.max(0, monthlyContribution),
         targetAmount,
         startDate: goal?.startDate ?? new Date().toISOString().slice(0, 10),
+        targetDate: targetDate || null,
         accountShareMap,
         // Pass through the retirement-projection fields untouched — they are
         // FIRE-only, but goalFieldsFromDraft rewrites every column on upsert.
@@ -161,6 +164,15 @@ export function GoalEditorSheet({
               <NumberField value={targetAmount} onChange={setTargetAmount} aria-label="目標金額" />
             </Field>
           </div>
+
+          <Field label="目標日期（選填）">
+            <TextInput
+              type="date"
+              value={targetDate}
+              onChange={(e) => setTargetDate(e.target.value)}
+              aria-label="目標日期"
+            />
+          </Field>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <Field label="每月投入（選填）">

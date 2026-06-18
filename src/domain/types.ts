@@ -424,6 +424,8 @@ export interface FinancialGoal extends SyncFields {
   /** Optional override; when null/0 we derive from annualSpending / withdrawalRate. */
   targetAmount: number | null;
   startDate: string;
+  /** Optional deadline for custom goals (ISO YYYY-MM-DD). null = no deadline (FIRE goals always null). */
+  targetDate: string | null;
   // Full retirement-projection inputs (all optional — projection helper
   // fills in defaults when these are null):
   currentAge: number | null;
