@@ -81,6 +81,53 @@ export function trailingMonthlyExpense(
 }
 
 /**
+ * Average monthly net cash flow (income − expense) over the trailing `months`
+ * whole months before the month containing `asOf`.
+ *
+ * Uses the same settled/non-neutral/!deleted conventions as `trailingMonthlyExpense`.
+ * Income rows: entryType === "income", toPrimary(row.amount, ...) (positive).
+ * Expense rows: entryType === "expense", toPrimary(-row.amount, ...) (positive spend).
+ * Net per month = income − expense.  Returns 0 when there are no qualifying rows.
+ *
+ * Used as the annual-contribution input for the net-worth projection card:
+ *   annualContribution = trailingMonthlyNet(..., 3) × 12
+ */
+export function trailingMonthlyNet(
+  rows: LedgerTransaction[],
+  toPrimary: (amount: number, currency: string, asOf?: string) => number,
+  asOf: string,
+  months = 3,
+): number {
+  if (months <= 0) return 0;
+  const asOfDate = asOf.slice(0, 10);
+  const currentMonthKey = asOfDate.slice(0, 7);
+
+  const monthKeys = new Set<string>();
+  for (let i = 1; i <= months; i++) {
+    const d = subtractMonths(asOfDate, i);
+    monthKeys.add(d.slice(0, 7));
+  }
+
+  let totalIncome = 0;
+  let totalExpense = 0;
+  for (const row of rows) {
+    if (row.deletedAt !== null) continue;
+    if (row.settlementStatus !== "settled") continue;
+    if (isNeutralLedgerRow(row)) continue;
+    const mk = monthKeyOf(row.date);
+    if (mk === currentMonthKey) continue;
+    if (!monthKeys.has(mk)) continue;
+    if (row.entryType === "income") {
+      totalIncome += toPrimary(row.amount, row.currency, row.date.slice(0, 10));
+    } else if (row.entryType === "expense") {
+      totalExpense += toPrimary(-row.amount, row.currency, row.date.slice(0, 10));
+    }
+  }
+
+  return (totalIncome - totalExpense) / months;
+}
+
+/**
  * Passive-income coverage of annual expenses, as a percent (0–∞).
  * Returns null when annualExpense ≤ 0 (no divisor).
  *

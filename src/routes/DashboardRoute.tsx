@@ -53,6 +53,8 @@ import {
   todayInTimezone,
 } from "../domain";
 import { calculateAvailableCash } from "../domain/dashboardSummary";
+import { trailingMonthlyNet } from "../domain/northstarMetrics";
+import { NetWorthProjectionCard } from "../components/NetWorthProjectionCard";
 import { useRefreshQuotes, useRefreshFxRates, useRefreshDailyPrices } from "../features/market-data/useMarketRefresh";
 import { useState } from "react";
 import { SegmentedControl } from "../components/SegmentedControl";
@@ -76,6 +78,7 @@ const DASHBOARD_CARDS: Array<{ key: string; label: string }> = [
   { key: "market", label: "匯率" },
   { key: "recentActivity", label: "最近交易" },
   { key: "topMovers", label: "今日漲跌" },
+  { key: "projection", label: "30 年淨值預測" },
 ];
 
 /** Inclusive start date for a net-worth range, relative to `end` (today). */
@@ -240,6 +243,13 @@ export function DashboardRoute() {
   // denominators are portfolio-wide and comparable across account switches.
   const trailingMonthlyExp = useMemo(
     () => trailingMonthlyExpense(ledgerRows, toPrimary, todayIso, 3),
+    [ledgerRows, toPrimary, todayIso],
+  );
+
+  // Trailing-3-month average monthly net (income − expense) for the projection
+  // contribution input.  Uses the same settled/non-neutral/!deleted convention.
+  const trailingMonthlyNetContrib = useMemo(
+    () => trailingMonthlyNet(ledgerRows, toPrimary, todayIso, 3),
     [ledgerRows, toPrimary, todayIso],
   );
 
@@ -1133,6 +1143,15 @@ export function DashboardRoute() {
       ) : null}
         {cardVisible("topMovers") && heldAssetCount > 0 ? <TopMoversCard gainers={movers.gainers} losers={movers.losers} /> : null}
       </div>
+
+      {/* Row 5 · 30-year net-worth projection */}
+      {cardVisible("projection") ? (
+        <NetWorthProjectionCard
+          netWorth={netWorth}
+          annualContribution={Math.max(0, trailingMonthlyNetContrib * 12)}
+          primaryCurrency={primaryCurrency}
+        />
+      ) : null}
     </div>
   );
 }
