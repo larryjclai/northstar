@@ -1,4 +1,4 @@
-import { Bank, CurrencyCircleDollar, DownloadSimple, Gear, Tag } from "@phosphor-icons/react";
+import { Bank, CurrencyCircleDollar, DownloadSimple, Gear, Tag, Percent } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -10,6 +10,7 @@ import { SettingsMerchants } from "./settings/MerchantsSection";
 import { SettingsFX } from "./settings/FxSection";
 import { SettingsExport } from "./settings/ExportSection";
 import { SettingsGeneral } from "./settings/GeneralSection";
+import { SettingsTradingFees } from "./settings/TradingFeesSection";
 
 const emptySettings: AppSettings = {
   primaryCurrency: "TWD",
@@ -44,6 +45,7 @@ export function SettingsRoute() {
     { id: 'merchants',  label: t('settings.merchants'), icon: <Bank size={14} /> },
     { id: 'fx',         label: t('settings.fx'), icon: <CurrencyCircleDollar size={14} /> },
     { id: 'export',     label: t('settings.export'), icon: <DownloadSimple size={14} /> },
+    { id: 'tradingFees', label: '交易成本', icon: <Percent size={14} /> },
     { id: 'general',    label: t('settings.general'), icon: <Gear size={14} /> },
   ];
 
@@ -105,6 +107,7 @@ export function SettingsRoute() {
         {tab === 'merchants'  && <SettingsMerchants form={form} setForm={setForm} submit={submit} t={t} renameMerchant={(o: string, n: string) => renameMerchantMutation.mutateAsync({ oldName: o, newName: n })} />}
         {tab === 'fx'         && <SettingsFX form={form} submit={submit} dailyFxRates={dailyFxRates.data || []} t={t} />}
         {tab === 'export'     && <SettingsExport t={t} />}
+        {tab === 'tradingFees' && <SettingsTradingFees form={form} submit={submit} />}
         {tab === 'general'    && <SettingsGeneral form={form} t={t} />}
       </main>
     </div>

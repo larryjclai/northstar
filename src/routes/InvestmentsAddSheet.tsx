@@ -1,6 +1,6 @@
 import { X, Bank } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
 import { AccountFilter } from "../components/AccountFilter";
@@ -9,13 +9,14 @@ import { HoldingForm, makeEmptyHoldingDraft } from "../components/HoldingForm";
 import { NumberField } from "../components/NumberField";
 import { StatusText } from "../components/StatusText";
 import { TickerSearchField } from "../components/TickerSearchField";
-import { useRepositoryMutation } from "../data/hooks";
+import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { InvestmentDraft, PortfolioAssetDraft } from "../data/repositories";
 import { calculateInvestmentCashDelta, formatNumber, formatQuantity, nowAsDatetimeLocal, type Account, type InvestmentAction, type PortfolioAsset } from "../domain";
 import { TaiwanMarketDataProvider } from "../features/market-data/taiwanMarketDataProvider";
 import { assertExplicitMarketSuffix } from "../domain/marketSymbols";
 import { YahooFinanceProvider } from "../features/market-data/yahooFinanceProvider";
 import { useUiPreferences } from "../state/uiPreferences";
+import { computeTradeFee, isTaiwanTicker, DEFAULT_TW_FEES } from "../domain/tradingFees";
 
 export type InvestmentEntryMode = "snapshot" | "transaction";
 
@@ -136,6 +137,19 @@ export function InvestmentEntryDrawer({
   const [transactionForm, setTransactionForm] = useState<InvestmentDraft>(() => emptyTransactionDraft(timezone));
   const [message, setMessage] = useState("");
 
+  // ── Taiwan broker-fee auto-fill ──────────────────────────────────────────
+  // instrument: per-trade stock/ETF toggle (determines sell-tax rate in v1;
+  // auto-detection is a follow-on).
+  const [instrument, setInstrument] = useState<"stock" | "etf">("stock");
+  // feeTouched: true once the user has manually edited the fee field; while
+  // true auto-fill stops recomputing so the manual value is never overwritten.
+  const feeTouchedRef = useRef(false);
+
+  // Read tradingFees config from settings (non-blocking — if settings haven't
+  // loaded yet, config is undefined and we skip auto-fill).
+  const { settings: settingsQuery } = useFinanceData();
+  const feeConfig = settingsQuery.data?.tradingFees ?? DEFAULT_TW_FEES;
+
   const createHolding = useRepositoryMutation(
     (repository, input: PortfolioAssetDraft) => repository.createManualHolding(input),
     ["assets"],
@@ -162,7 +176,40 @@ export function InvestmentEntryDrawer({
       setMode(initialMode);
     }
     setMessage("");
+    // Reset auto-fill state whenever the drawer opens.
+    feeTouchedRef.current = false;
+    setInstrument("stock");
   }, [open, emptyHoldingDraft, timezone, initialMode, transactionPreset]);
+
+  // ── Auto-fill effect ─────────────────────────────────────────────────────
+  // Recomputes the fee whenever qty, price, action, or instrument changes,
+  // but only when:
+  //   • the config is enabled
+  //   • the ticker is a TW market ticker (ends .TW / .TWO)
+  //   • the action is buy or sell (not dividend/split/reduction)
+  //   • the user has NOT manually edited the fee (feeTouchedRef.current === false)
+  useEffect(() => {
+    if (!feeConfig.enabled) return;
+    if (feeTouchedRef.current) return;
+    const action = transactionForm.action;
+    if (action !== "buy" && action !== "sell") return;
+    if (!isTaiwanTicker(transactionForm.ticker)) return;
+    const suggested = computeTradeFee({
+      action,
+      qty: transactionForm.quantity,
+      price: transactionForm.price,
+      instrument,
+      config: feeConfig,
+    });
+    setTransactionForm((prev) => ({ ...prev, fee: suggested }));
+  }, [
+    feeConfig,
+    transactionForm.action,
+    transactionForm.ticker,
+    transactionForm.quantity,
+    transactionForm.price,
+    instrument,
+  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -543,18 +590,77 @@ export function InvestmentEntryDrawer({
                   </div>
                 </div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
-                  <div>
-                    <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>股數</label>
-                    <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={4} placeholder="100" style={NUM_INPUT_STYLE} />
-                  </div>
-                  <div>
-                    <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>每股價格</label>
-                    <NumberField className="ns-input mono text-lg" value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={2} placeholder="1,042.00" style={NUM_INPUT_STYLE} />
-                  </div>
-                  <div>
-                    <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>手續費</label>
-                    <NumberField className="ns-input mono text-lg" value={transactionForm.fee} onChange={(fee) => setTransactionForm({ ...transactionForm, fee })} decimals={2} placeholder="選填" style={NUM_INPUT_STYLE} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {/* Stock / ETF instrument toggle — determines sell-tax rate when
+                      auto-fill is enabled; also shown on buys so the user's choice
+                      persists if they switch between buy and sell. */}
+                  {feeConfig.enabled && isTaiwanTicker(transactionForm.ticker) && (
+                    <div>
+                      <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>標的類型</label>
+                      <ToggleGroup
+                        variant="outline"
+                        className="w-full"
+                        value={[instrument]}
+                        onValueChange={(value) => {
+                          const next = value[0] as "stock" | "etf" | undefined;
+                          if (next) {
+                            feeTouchedRef.current = false;
+                            setInstrument(next);
+                          }
+                        }}
+                      >
+                        <ToggleGroupItem value="stock" className={SEG_ITEM_CLASS}>股票</ToggleGroupItem>
+                        <ToggleGroupItem value="etf" className={SEG_ITEM_CLASS}>ETF</ToggleGroupItem>
+                      </ToggleGroup>
+                    </div>
+                  )}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
+                    <div>
+                      <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>股數</label>
+                      <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={4} placeholder="100" style={NUM_INPUT_STYLE} />
+                    </div>
+                    <div>
+                      <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>每股價格</label>
+                      <NumberField className="ns-input mono text-lg" value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={2} placeholder="1,042.00" style={NUM_INPUT_STYLE} />
+                    </div>
+                    <div>
+                      <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>
+                        手續費
+                        {feeConfig.enabled && isTaiwanTicker(transactionForm.ticker) && !feeTouchedRef.current && (
+                          <span className="muted" style={{ fontSize: 10, marginLeft: 6, fontWeight: 400, letterSpacing: 0 }}>自動試算</span>
+                        )}
+                      </label>
+                      <NumberField
+                        className="ns-input mono text-lg"
+                        value={transactionForm.fee}
+                        onChange={(fee) => {
+                          feeTouchedRef.current = true;
+                          setTransactionForm({ ...transactionForm, fee });
+                        }}
+                        decimals={2}
+                        placeholder="選填"
+                        style={NUM_INPUT_STYLE}
+                      />
+                      {feeConfig.enabled && isTaiwanTicker(transactionForm.ticker) && feeTouchedRef.current && (
+                        <button
+                          type="button"
+                          className="text-xs muted mt-1"
+                          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline" }}
+                          onClick={() => {
+                            feeTouchedRef.current = false;
+                            const action = transactionForm.action;
+                            if (action === "buy" || action === "sell") {
+                              setTransactionForm((prev) => ({
+                                ...prev,
+                                fee: computeTradeFee({ action, qty: prev.quantity, price: prev.price, instrument, config: feeConfig }),
+                              }));
+                            }
+                          }}
+                        >
+                          重新試算
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

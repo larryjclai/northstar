@@ -298,6 +298,12 @@ export interface AppSettings {
   categories: CategoryGroup[];
   merchants: string[];
   exchangeRates: ExchangeRate[];
+  /**
+   * Taiwan broker fee + securities tax config.
+   * Optional so old saved data (undefined) loads cleanly — callers should
+   * fall back to DEFAULT_TW_FEES from tradingFees.ts when this is absent.
+   */
+  tradingFees?: import("./tradingFees").TradingFeeConfig;
 }
 
 export interface CategoryGroup {
