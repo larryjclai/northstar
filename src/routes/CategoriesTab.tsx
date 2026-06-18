@@ -3,7 +3,7 @@ import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
 import { SplitLayout } from "../components/coss/layout";
 import { Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { categoryPeriodSpend, formatNumber, isNeutralLedgerRow, isWithinDateScope, type AppSettings, type LedgerTransaction, type ResolvedDateScope } from "../domain";
 import { Glyph } from "../lib/icons";
@@ -57,6 +57,29 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
       icon: catSetting?.iconName || "Tag",
     };
   });
+
+  const [categorySort, setCategorySort] = useState<{ key: "name" | "count" | "amount"; dir: "asc" | "desc" }>({ key: "amount", dir: "desc" });
+
+  const sortedCategories = useMemo(() => {
+    const arr = [...allCategorySpend];
+    arr.sort((a, b) => {
+      if (categorySort.key === "name") {
+        return categorySort.dir === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+      }
+      const av = categorySort.key === "count" ? a.count : a.periodAmount;
+      const bv = categorySort.key === "count" ? b.count : b.periodAmount;
+      return categorySort.dir === "asc" ? av - bv : bv - av;
+    });
+    return arr;
+  }, [allCategorySpend, categorySort]);
+
+  function toggleCategorySort(key: "name" | "count" | "amount") {
+    setCategorySort(prev =>
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: key === "name" ? "asc" : "desc" }
+    );
+  }
 
   const uncategorizedAmount = spend.uncategorized.amount;
   const uncategorizedCount = spend.uncategorized.count;
@@ -185,14 +208,14 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
           {/* Desktop: full table */}
           <div className="hidden sm:contents">
           <div className="text-xs" style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", fontWeight: 500, color: "var(--ns-fg-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-            <div>分類</div>
-            <div>筆數</div>
-            <div>期間支出</div>
+            <button style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textAlign: "left", textTransform: "uppercase", letterSpacing: 0.5 }} onClick={() => toggleCategorySort("name")}>分類{categorySort.key === "name" ? (categorySort.dir === "asc" ? " ▲" : " ▼") : ""}</button>
+            <button style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textAlign: "left", textTransform: "uppercase", letterSpacing: 0.5 }} onClick={() => toggleCategorySort("count")}>筆數{categorySort.key === "count" ? (categorySort.dir === "asc" ? " ▲" : " ▼") : ""}</button>
+            <button style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textAlign: "left", textTransform: "uppercase", letterSpacing: 0.5 }} onClick={() => toggleCategorySort("amount")}>期間支出{categorySort.key === "amount" ? (categorySort.dir === "asc" ? " ▲" : " ▼") : ""}</button>
             <div>佔比 / 主要商家</div>
             <div></div>
           </div>
           <div style={{ flex: 1, overflowY: "auto" }}>
-            {allCategorySpend.map((r) => {
+            {sortedCategories.map((r) => {
               const pct = totalPeriodSpend > 0 ? (r.amount / totalPeriodSpend) * 100 : 0;
               return (
                 <Link 

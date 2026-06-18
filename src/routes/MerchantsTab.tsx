@@ -2,7 +2,7 @@ import { CaretRight } from "@phosphor-icons/react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Card } from "../components/coss/card";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, type CSSProperties } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { formatNumber, formatCompactMoney, isWithinDateScope, type LedgerTransaction, type ResolvedDateScope } from "../domain";
 import { readableTextColor } from "../lib/color";
 
@@ -30,7 +30,30 @@ export function MerchantsTab({ dateRange, ledgerRows, primaryCurrency, toPrimary
   const allMerchantSpend = [...periodMap.entries()]
     .map(([name, stats]) => ({ name, ...stats }))
     .sort((a, b) => b.amount - a.amount);
-    
+
+  const [merchantSort, setMerchantSort] = useState<{ key: "name" | "visits" | "amount"; dir: "asc" | "desc" }>({ key: "amount", dir: "desc" });
+
+  const sortedMerchants = useMemo(() => {
+    const arr = [...allMerchantSpend];
+    arr.sort((a, b) => {
+      if (merchantSort.key === "name") {
+        return merchantSort.dir === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+      }
+      const av = merchantSort.key === "visits" ? a.visits : a.amount;
+      const bv = merchantSort.key === "visits" ? b.visits : b.amount;
+      return merchantSort.dir === "asc" ? av - bv : bv - av;
+    });
+    return arr;
+  }, [allMerchantSpend, merchantSort]);
+
+  function toggleMerchantSort(key: "name" | "visits" | "amount") {
+    setMerchantSort(prev =>
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: key === "name" ? "asc" : "desc" }
+    );
+  }
+
   const maxSpendMerchant = allMerchantSpend[0];
   const maxVisitsMerchant = [...allMerchantSpend].sort((a, b) => b.visits - a.visits)[0];
   const totalSpend = allMerchantSpend.reduce((sum, m) => sum + m.amount, 0);
@@ -165,18 +188,18 @@ export function MerchantsTab({ dateRange, ledgerRows, primaryCurrency, toPrimary
         {/* Desktop: full table */}
         <div className="hidden sm:contents">
         <div className="text-xs" style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", fontWeight: 500, color: "var(--ns-fg-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-          <div>商家</div>
+          <button style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textAlign: "left", textTransform: "uppercase", letterSpacing: 0.5 }} onClick={() => toggleMerchantSort("name")}>商家{merchantSort.key === "name" ? (merchantSort.dir === "asc" ? " ▲" : " ▼") : ""}</button>
           <div>分類</div>
-          <div>期間次數</div>
-          <div>期間支出</div>
+          <button style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textAlign: "left", textTransform: "uppercase", letterSpacing: 0.5 }} onClick={() => toggleMerchantSort("visits")}>期間次數{merchantSort.key === "visits" ? (merchantSort.dir === "asc" ? " ▲" : " ▼") : ""}</button>
+          <button style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textAlign: "left", textTransform: "uppercase", letterSpacing: 0.5 }} onClick={() => toggleMerchantSort("amount")}>期間支出{merchantSort.key === "amount" ? (merchantSort.dir === "asc" ? " ▲" : " ▼") : ""}</button>
           <div></div>
         </div>
-        
+
         <div style={{ flex: 1, overflowY: "auto" }}>
           {allMerchantSpend.length === 0 ? (
             <div className="muted text-body" style={{ padding: "40px", textAlign: "center" }}>無商家紀錄</div>
           ) : (
-            allMerchantSpend.map((r, idx) => {
+            sortedMerchants.map((r, idx) => {
               const bg = defaultColors[idx % defaultColors.length];
               return (
                 <Link 
