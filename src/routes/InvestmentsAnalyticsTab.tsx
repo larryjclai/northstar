@@ -688,6 +688,13 @@ export function InvestmentsAnalyticsTab({
             <span className="muted">{perf.hasBenchmark ? `${benchmarkTicker} 指標` : `尚無 ${benchmarkTicker} 歷史股價`}</span>
           </span>
         </div>
+        {perf.alpha != null && (
+          <div className="text-caption" style={{ marginTop: 6, color: "var(--ns-fg-muted)" }}>
+            {perf.alpha < 0
+              ? `期間累積落後 ${benchmarkTicker} ${Math.abs(perf.alpha).toFixed(1)}%`
+              : `期間累積領先 ${benchmarkTicker} ${perf.alpha.toFixed(1)}%`}
+          </div>
+        )}
       </CossCard>
 
       {/* ── Cost-basis attribution: winners / losers ────────────────────────── */}

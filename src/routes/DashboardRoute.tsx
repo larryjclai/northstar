@@ -472,6 +472,15 @@ export function DashboardRoute() {
     return { portfolio, benchmark, alpha };
   }, [analyticsPositions, dailyPriceRows, manualSnapshotRows, toPrimary, stripPeriod, benchmarkTicker]);
 
+  // Append benchmarkGap to the registry now that stripData.alpha is available.
+  METRIC_REGISTRY.push({
+    key: "benchmarkGap",
+    label: `vs ${benchmarkTicker} 累積差距`,
+    value: stripData.alpha,
+    display: stripData.alpha != null ? `${stripData.alpha >= 0 ? "+" : ""}${stripData.alpha.toFixed(1)}%` : "—",
+    sub: `投組相對 ${benchmarkTicker} 的期間累積報酬差距`,
+  });
+
   // Today's Top Movers among held tickers. Intraday → live quote vs the prior
   // session's close; after close → today's close vs the prior session's. The
   // reference close always comes from daily_prices (reliable), never the live
