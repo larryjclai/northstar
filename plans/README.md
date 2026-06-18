@@ -29,6 +29,13 @@ honor its STOP conditions, and update your row when done.
 | 016 | Loading skeletons + query error states + global router error boundary | P1 | M | MED | — | DONE (bc353206, 7b2f803d, f7a00c0a, f6fee407, 41bf1e91, branch worktree-agent-ad507b3c62055a0ac) — reviewed: 7 files in scope, code matches plan with one justified token fix (`--ns-warning-soft` not the plan's typo `--ns-warn-soft`), hooks-of-rules respected, tsc/lint/build/test clean, visually verified all 3 guarded routes (Dashboard/Investments/CashFlow) render past the guard with zero console errors |
 | 017 | Apply loading skeleton + query error guard to the remaining 10 data routes | P2 | M | LOW | 016 | DONE (5bd11bc5, ff0533ec, cf73e3ec, ec350c2f, 740585a2, 590b5b6e, 755bd69b, e6487edb, 11ba994c, 0165fd98, branch worktree-agent-a59ad366445b81128) — reviewed: exactly the 10 in-scope files, every guard matches the plan-016 pattern, `HoldingDetailRoute`/`ReconcileRoute` guards verified placed before their pre-existing "not found" early returns, tsc/lint/build/test all clean |
 
+| 018 | Cap CashFlow category bar list to Top-N + expandable remainder | P2 | S | LOW | — | DONE (97c19b19, branch advisor/018-cashflow-category-top-n) — reviewed: diff is 1 file/+15-1, exactly the plan's slice + toggle; toggle calls only setShowAllCategories (not setSelectedCategory), per-row filter + computation untouched, empty-state preserved; tsc re-run clean in worktree; executor reported build/test(455)/lint(704 warns) clean; visual confirmed by code inspection (port-5173 collision + demo month had <8 categories) per plan's allowed fallback |
+| 019 | Resolve CategoriesTab vs CategoriesRoute duplication (Option A — unify numbers via shared helper) | P2 | M | MED | — | DONE (5ea351f2, branch advisor/019-categories-consolidation) — operator chose Option A; shared `categoryPeriodSpend()` in src/domain/categorySpend.ts reproduces CashFlowRoute.allCategorySpend exactly (settled-only, !isNeutralLedgerRow, refunds net). Reviewed: 5 in-scope files only; helper matches spec; 11 genuine unit tests (refund netting/exclusions/missing-FX/sort) re-run green; both call sites wired with correct sign contract (toPrimary passes row.amount, helper applies −); donut/drawer/selectedCategory/Link rows untouched; tsc re-run clean; executor build/test(466)/lint(0 err) clean. INTENDED on-screen changes: CategoriesTab now nets refunds (was Math.abs); CategoriesRoute 已消費/預算使用率/超支 now settled-only |
+| 020 | Make Merchants Top-5 pie + legend click through to merchant detail | P2 | S | LOW | — | DONE (08e60fc4, branch advisor/020-merchants-pie-clickthrough) — reviewed: commit scoped to MerchantsTab.tsx only; pie onClick + legend Link both navigate to /cash-flow/merchants/$merchantName and both skip 「其他」; top5Pie + table rows untouched; sensible shared rowStyle/rowContent refactor (documented); grep→4, tsc re-run clean in worktree; executor reported build/test(455)/lint(0 err) clean; visual = code-inspection per plan fallback. NOTE: executor committed on auto branch worktree-agent-a9cec5fdadeda18bf; reviewer added advisor/020 ref at same commit |
+| 021 | Add account-list search + type filter to AccountsRoute | P2 | S–M | LOW | — | DONE (ddbb3db2, branch advisor/021-accounts-search-filter) — reviewed: commit scoped to AccountsRoute.tsx only (+36/−1); visibleGroups memo filters on top of groups; totals/currencyBreakdown/balance-sheet untouched (verified); no-match 「找不到符合的帳戶」hint chained after zero-accounts empty state; filter row gated on rows.length>5; AppSelect signature matches file; grep→10, tsc re-run clean in worktree; executor reported build/test(455)/lint(0 err) clean; visual = code-inspection per plan fallback |
+| 022 | Enlarge Analytics risk-KPI sparklines + make metric help tappable | P3 | S | LOW | — | DONE (ce7d7834, branch advisor/022-risk-kpi-sparkline-help) — reviewed: 1 file (+16/−8); Sparkline call site 96×36 (function default 60×26 untouched, sole caller); MetricHelp → Base UI Popover (matches existing BenchmarkPicker pattern, already-imported), icon size 15, aria-label kept; no calc/portfolioAnalytics change; tsc re-run clean; executor build/test(455)/lint(0 err) clean; visual = code-inspection. CAVEAT to eyeball: 96px fixed-width sparkline on 2-col mobile risk cards may be tight — check on a narrow viewport |
+| 023 | P3 UX backlog (verify-first: dashboard labels, goal pace, FX direction, holding empties, sortable tables, detail export, KPI hierarchy*, FIRE sensitivity*) | P3 | M | LOW | — | IN PROGRESS — **D, A, C DONE**; B DEFERRED; E/F pending; G/H design-gated. **D** (08f3ae55, branch advisor/023-d-holding-detail-empty-states): empty lines on FIFO-lots/transaction cards. **A+C** (eee260ef, branch advisor/023-ac-dashboard-labels-fx): 「較上月」label on net-worth MoM badge + FX ▲/▼ change% on Market card; reviewed scope-clean (1 file)/display-only, tsc re-run + build/test(455)/lint(0 err) clean. **B (goal pace) DEFERRED**: `FinancialGoal` has `targetAmount` but **no targetDate** (time is a computed projection), so ahead/behind pace is not computable without a data-model change — out of scope. **E/F** await 019 merge (file overlap). **G (KPI hierarchy), H (FIRE sensitivity)** need operator design decisions. |
+
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale).
 
 ## 2026-06-15 — operator-requested plans (011–013)
@@ -80,10 +87,9 @@ low-cost/high-impact items the operator selected:
    on `useFinanceData`, a global `defaultErrorComponent`, and wires the 3 primary
    pages; remaining pages are a documented mechanical follow-up.
 
-Other audit findings not yet planned (operator can request): consolidate
-`CategoriesTab` vs `CategoriesRoute` duplication; cap CashFlow category bars to
-Top-N + 其他; pie/card click-through drill-down; AccountsRoute search/filter.
-See `docs/ux-chart-audit.md` for the full list and priorities.
+The remaining audit findings were subsequently planned as 018–023 (see the
+"2026-06-16 (cont'd) — plans 018–023" section below), after re-verifying each
+against the current tree. See `docs/ux-chart-audit.md` for the original full list.
 
 ## 2026-06-16 (cont'd) — plan 017, the deferred follow-up from 016
 
@@ -104,8 +110,54 @@ Two files (`HoldingDetailRoute.tsx`, `ReconcileRoute.tsx`) have a pre-existing
 explicitly in the plan so the executor doesn't get this backwards (otherwise
 a fresh load would flash "找不到此持倉"/"找不到帳戶" before data arrives).
 
+## 2026-06-16 (cont'd) — plans 018–023, the remaining ux-chart-audit items
+
+Operator asked to plan everything in `docs/ux-chart-audit.md` not yet covered by
+014–017. Before planning, each finding was **re-verified against the current tree
+(`b0fda83d`)** — the audit was written against `8b2302d1` and ~5 commits have
+since landed, so several findings had drifted or were already fixed. What was
+found, and how it maps:
+
+- **Already DONE (no plan written):**
+  - *AccountsRoute 「−0」empty state* — fixed: balance cards are gated on
+    `rows.length > 0` and the sign check is `c.value !== 0` (`AccountsRoute.tsx:276,288`).
+  - *Risk-indicator "術語無常駐說明" (the bulk of the audit's P1 #3)* — done: each
+    risk `KpiCard` now renders a resident `sub` caption + a `help` tooltip
+    (`InvestmentsAnalyticsTab.tsx:778-815,1061-1086`). Only the small sparkline +
+    hover-only help remain → demoted to plan **022** (P3).
+
+- **Re-scoped from the audit's framing:**
+  - **019** — the audit called `CategoriesTab` vs `CategoriesRoute` a near-identical
+    duplicate to merge. They have actually **diverged in purpose** (tab = period
+    breakdown that drills to detail; route = budget manager with in-page filter +
+    drawer) and compute spend with **different finance semantics** (settled-only +
+    abs vs signed/refund-netting via `convertCurrency`). A naive merge would lose
+    function or silently change displayed numbers (locked semantics), so 019 is a
+    **design-first plan with a decision gate**, not a mechanical merge. The route is
+    **not** an orphan — `DashboardRoute.tsx:550,708` link to it.
+  - **020** — the audit's "charts not clickable" theme is mostly resolved
+    (`CategoriesRoute` donut already click-to-filters; CashFlow category bars
+    already click-to-filter). The one concrete remaining dead-end is the Merchants
+    Top-5 pie + legend, so 020 targets exactly that.
+
+- **Valid as found:**
+  - **018** — CashFlow 「分類支出」still maps all categories uncapped; mirror the
+    `MerchantsTab` Top-5 + 其他 (B22) convention.
+  - **021** — Accounts list still has no search/type filter (the `−0` half is done).
+  - **023** — the P3「缺失功能清單」items, written as a **verify-first backlog**
+    (each item must be re-checked before building, since the audit is stale).
+    Two items (KPI hierarchy, FIRE sensitivity) are **design-gated** — they need an
+    operator decision and/or touch locked finance semantics.
+
+These are independent of each other; suggested value order: 018 → 020 → 021 → 019
+→ 022 → 023. Items 023-E (sortable tables) and 023-F (export) overlap files with
+018–020 and should be done after them.
+
 ## Dependency notes
 
+- 018, 020, 021, 022 are mutually independent — any order / parallel branches.
+- 019 has an internal operator-decision gate (do not start the refactor without it).
+- 023 items 023-E/023-F should land after 018–020 (shared files).
 - 014, 015, 016 are mutually independent — any order / parallel branches.
 - **006 requires 004**: the spike changes (eventually) `saveVaultKey`/`loadVaultKey`; plan
   004's encrypt/decrypt round-trip tests are the safety net that proves a migration preserved
@@ -170,6 +222,34 @@ Spot-checked all 10 plans against `advisor/001-perf-asset-record-map` HEAD.
 `30034db4`. No action needed.
 
 Post-fix verification: `npx tsc --noEmit` clean; 54 test files, 450 tests pass; `npm audit` 0 vulns.
+
+## Reconciliation — 2026-06-18 @ bf642edb
+
+Scope: the UX-audit batch 018–023 (executed + reviewed this session). Plans
+001–017 were reconciled previously (2026-06-15) and are long-since on main; not
+re-verified in depth this pass.
+
+**Merge state (verified by marker grep on main):**
+- **018** — MERGED to main (`97c19b19`; `CATEGORY_BAR_LIMIT` present in CashFlowRoute).
+- **020** — MERGED to main (`bf642edb` merge; pie/legend `merchants/$merchantName` wiring present).
+- **019, 021, 022, 023-D** — DONE on their `advisor/*` branches, **NOT yet merged**
+  (their markers are absent from main, as expected). Each was diff-reviewed +
+  independently typechecked in its worktree at execution time.
+
+**Current-version health (main @ bf642edb, read-only gates):** `npx tsc --noEmit`
+exit 0; `npm run lint` 0 errors / 704 warnings (baseline); `npm run test` 56 files /
+455 tests pass. → This version is sound.
+
+**Nothing blocked / rejected / stale.** Branches awaiting your merge (no file
+overlap between them, so any order is clean): advisor/019, advisor/021,
+advisor/022, advisor/023-d.
+
+**Executable right now (no decision needed):** remaining 023 items A (dashboard
+labels — needs re-location, audit lines stale), B (goal pace — STOP if no target
+date in model), C (FX direction), E (sortable tables — do AFTER merging 019/020 to
+avoid file conflicts), F (detail export — Accounts export helper exists to reuse).
+**Design-gated (need operator decision first):** 023-G (KPI hierarchy), 023-H
+(FIRE sensitivity — touches locked finance semantics).
 
 ## Direction (product options — for the maintainer, not bugs)
 
