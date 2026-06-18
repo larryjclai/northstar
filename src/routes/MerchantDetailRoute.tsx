@@ -8,6 +8,7 @@ import { Skeleton } from "../components/coss/skeleton";
 import { DateScopeControl } from "../components/DateScopeControl";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 import { MiniBars, WeekdayBars, type MonthPoint } from "../components/DetailCharts";
+import { downloadCsv, exportLedgerCsv } from "../data/csv";
 import { useFinanceData } from "../data/hooks";
 import { convertCurrency, formatMoney, isWithinDateScope, makeDefaultDateScope, resolveDateScope, type LedgerTransaction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
@@ -126,7 +127,12 @@ export function MerchantDetailRoute() {
           <Button variant="outline" disabled title="商家重新命名目前仍在管理流程中處理">
             <PencilSimple size={14} />重新命名
           </Button>
-          <Button variant="outline" disabled title="CSV 匯出尚未接上商家詳情範圍">
+          <Button
+            variant="outline"
+            disabled={periodRows.length === 0}
+            title={periodRows.length === 0 ? "此區間沒有交易可匯出" : "匯出此商家在目前區間的交易"}
+            onClick={() => downloadCsv(`northstar-merchant-${merchantName}.csv`, exportLedgerCsv(periodRows, accountName))}
+          >
             <DownloadSimple size={14} />匯出
           </Button>
         </div>
