@@ -39,6 +39,8 @@ export interface UiPreferences {
   onboardingDismissed: boolean;
   /** Desktop sidebar collapsed to icon-only mode. */
   sidebarCollapsed: boolean;
+  /** Key of the metric to feature as the Dashboard hero. Default "netWorth". */
+  northstarMetric: string;
   setPrivacyMode: (value: boolean) => void;
   togglePrivacyMode: () => void;
   setNameLocale: (value: NameLocalePreference) => void;
@@ -55,6 +57,7 @@ export interface UiPreferences {
   setDashboardHiddenCards: (value: string[]) => void;
   setOnboardingDismissed: (value: boolean) => void;
   toggleSidebarCollapsed: () => void;
+  setNorthstarMetric: (value: string) => void;
 }
 
 /** Toggleable holdings-table columns (the rest are always shown). */
@@ -86,6 +89,7 @@ interface PersistedShape {
   dashboardHiddenCards: string[];
   onboardingDismissed: boolean;
   sidebarCollapsed: boolean;
+  northstarMetric: string;
 }
 
 export type ClockMode = "24h" | "12h";
@@ -109,6 +113,7 @@ function loadPersisted(): PersistedShape {
     dashboardHiddenCards: [],
     onboardingDismissed: false,
     sidebarCollapsed: false,
+    northstarMetric: "netWorth",
   };
   if (typeof window === "undefined") return fallback;
   // Back-compat: honour the legacy onboarding dismiss key for existing installs.
@@ -155,6 +160,10 @@ function loadPersisted(): PersistedShape {
       onboardingDismissed:
         typeof parsed.onboardingDismissed === "boolean" ? parsed.onboardingDismissed : legacyDismissed,
       sidebarCollapsed: typeof parsed.sidebarCollapsed === "boolean" ? parsed.sidebarCollapsed : false,
+      northstarMetric:
+        typeof parsed.northstarMetric === "string" && parsed.northstarMetric.trim()
+          ? parsed.northstarMetric.trim()
+          : "netWorth",
     };
   } catch {
     return { ...fallback, onboardingDismissed: legacyDismissed };
@@ -217,6 +226,7 @@ function snapshot(state: UiPreferences): PersistedShape {
     dashboardHiddenCards: state.dashboardHiddenCards,
     onboardingDismissed: state.onboardingDismissed,
     sidebarCollapsed: state.sidebarCollapsed,
+    northstarMetric: state.northstarMetric,
   };
 }
 
@@ -236,6 +246,7 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   dashboardHiddenCards: initial.dashboardHiddenCards,
   onboardingDismissed: initial.onboardingDismissed,
   sidebarCollapsed: initial.sidebarCollapsed,
+  northstarMetric: initial.northstarMetric,
   setPrivacyMode(value) {
     setPrivacyMaskOn(value);
     set({ privacyMode: value });
@@ -309,6 +320,11 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   },
   toggleSidebarCollapsed() {
     set({ sidebarCollapsed: !get().sidebarCollapsed });
+    persist(snapshot(get()));
+  },
+  setNorthstarMetric(value) {
+    const next = value.trim() || "netWorth";
+    set({ northstarMetric: next });
     persist(snapshot(get()));
   },
 }));

@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowsClockwise, ArrowUp } from "@phosphor-icons/react";
+import { ArrowDown, ArrowsClockwise, ArrowUp, ChartBar } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -30,6 +30,10 @@ import {
   cumulativeReturnPct,
   dayChangeMovers,
   resolveAssetName,
+  buildDividendAnalysis,
+  trailingMonthlyExpense,
+  coverageRatioPct,
+  runwayMonths,
   resolveTargetAmount,
   createFxConverter,
   formatMoney,
@@ -104,6 +108,8 @@ export function DashboardRoute() {
   const benchmarkTicker = useUiPreferences((state) => state.benchmarkTicker);
   const dashboardHiddenCards = useUiPreferences((state) => state.dashboardHiddenCards);
   const setDashboardHiddenCards = useUiPreferences((state) => state.setDashboardHiddenCards);
+  const northstarMetric = useUiPreferences((state) => state.northstarMetric);
+  const setNorthstarMetric = useUiPreferences((state) => state.setNorthstarMetric);
   const cardVisible = (key: string) => !dashboardHiddenCards.includes(key);
   const toggleCard = (key: string) => {
     setDashboardHiddenCards(
@@ -226,6 +232,110 @@ export function DashboardRoute() {
     : monthExpense > 0
       ? (monthNet / monthExpense) * 100
       : 0;
+
+  // Northstar bottom-line metrics —————————————————————————————————————————
+  // Trailing-3-month average monthly expense (settled, non-neutral, all-account).
+  // We use all ledgerRows (not filtered by selectedAccount) so the per-metric
+  // denominators are portfolio-wide and comparable across account switches.
+  const trailingMonthlyExp = useMemo(
+    () => trailingMonthlyExpense(ledgerRows, toPrimary, todayIso, 3),
+    [ledgerRows, toPrimary, todayIso],
+  );
+
+  // TTM passive income (dividends) for coverage ratio.
+  const dividendAnalysis = useMemo(() => {
+    const assetMeta = new Map(assetRows.map((a) => [a.id, { ticker: a.ticker, currency: a.currency }]));
+    return buildDividendAnalysis({
+      records: investmentRows,
+      assetMeta,
+      toPrimary,
+      currentMarketValue: marketValue,
+      asOf: todayIso,
+    });
+  }, [investmentRows, assetRows, toPrimary, marketValue, todayIso]);
+
+  const coveragePct = useMemo(
+    () => coverageRatioPct(dividendAnalysis.ttmTotal, trailingMonthlyExp * 12),
+    [dividendAnalysis.ttmTotal, trailingMonthlyExp],
+  );
+
+  // Liquid cash for runway: use calculateAvailableCash-equivalent from breakdown
+  // (breakdown.liquidCash already uses the same exclude-loan/credit/alternative logic
+  // for positive balances, which is the same effective set as calculateAvailableCash
+  // when all accounts are included). We use the all-account value regardless of
+  // the account filter, since runway is a portfolio-wide safety metric.
+  const allAccountsLiquidCash = useMemo(() => {
+    return accountRows.reduce((sum: number, account) => {
+      if (account.deletedAt !== null) return sum;
+      if (account.type === "loan" || account.type === "credit" || account.type === "alternative") return sum;
+      return sum + toPrimary(Math.max(0, account.balance), account.currency);
+    }, 0);
+  }, [accountRows, toPrimary]);
+
+  const runwayMo = useMemo(
+    () => runwayMonths(allAccountsLiquidCash, trailingMonthlyExp),
+    [allAccountsLiquidCash, trailingMonthlyExp],
+  );
+
+  // FIRE progress: first active goal's percent (same as goals card logic).
+  const firstGoalPct = useMemo(() => {
+    const activeGoal = goalRows.find((g) => g.deletedAt === null);
+    if (!activeGoal) return null;
+    const target = goalTarget(activeGoal);
+    return target > 0 ? Math.min((netWorth / target) * 100, 100) : null;
+  }, [goalRows, netWorth]);
+
+  // Metric registry — all values computed above, just assembled here.
+  const METRIC_REGISTRY: Array<{
+    key: string;
+    label: string;
+    value: number | null;
+    display: string;
+    sub: string;
+  }> = [
+    {
+      key: "netWorth",
+      label: "淨值",
+      value: netWorth,
+      display: formatMoney(netWorth, primaryCurrency),
+      sub: "",
+    },
+    {
+      key: "savingsRate",
+      label: "儲蓄率",
+      value: savingsRate,
+      display: `${savingsRate.toFixed(1)}%`,
+      sub: monthIncome > 0 ? `本月收入 ${formatMoney(monthIncome, primaryCurrency)}` : "本月尚無收入",
+    },
+    {
+      key: "coverageRatio",
+      label: "被動收入覆蓋率",
+      value: coveragePct,
+      display: coveragePct !== null ? `${coveragePct.toFixed(1)}%` : "—",
+      sub: coveragePct !== null
+        ? `被動收入已覆蓋 ${coveragePct.toFixed(1)}% 的年開支`
+        : "尚無費用資料",
+    },
+    {
+      key: "runway",
+      label: "流動底氣",
+      value: runwayMo,
+      display: runwayMo !== null ? `${runwayMo.toFixed(1)} 個月` : "—",
+      sub: runwayMo !== null
+        ? `流動資產可支撐約 ${Math.floor(runwayMo)} 個月`
+        : "尚無費用資料",
+    },
+    {
+      key: "fireProgress",
+      label: "FIRE 進度",
+      value: firstGoalPct,
+      display: firstGoalPct !== null ? `${firstGoalPct.toFixed(1)}%` : "—",
+      sub: firstGoalPct !== null ? "相對於第一個 FIRE 目標" : "尚未設定 FIRE 目標",
+    },
+  ];
+
+  const activeMetric = METRIC_REGISTRY.find((m) => m.key === northstarMetric) ?? METRIC_REGISTRY[0];
+  // ————————————————————————————————————————————————————————————————————————
 
   const trend = useMemo(
     () => buildNetWorthTrend(
@@ -592,20 +702,74 @@ export function DashboardRoute() {
         </div>
       </div>
 
-      {/* Row 1 · Net worth + KPI stack */}
+      {/* Row 1 · Northstar hero + KPI stack */}
       <div className="ns-dash-row1">
         <Card style={{ padding: 22, display: "flex", flexDirection: "column", minWidth: 0 }}>
+          {/* ── Hero header: eyebrow + value + MoM badge (netWorth only) ── */}
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
-            <div style={{ minWidth: 0 }}>
-              <div className="ns-eyebrow" style={{ marginBottom: 5 }}>Net worth · {primaryCurrency}</div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              {/* Eyebrow: metric label + currency for money metrics */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+                <div className="ns-eyebrow">
+                  {activeMetric.key === "netWorth"
+                    ? `Net worth · ${primaryCurrency}`
+                    : activeMetric.label}
+                </div>
+                {/* Metric picker — small inline Popover */}
+                <Popover>
+                  <PopoverTrigger render={<button
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 4,
+                      padding: "2px 7px", borderRadius: "var(--ns-r-sm)",
+                      border: "1px solid var(--ns-border)",
+                      background: "var(--ns-bg-hover)",
+                      color: "var(--ns-fg-muted)",
+                      fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+                    }}
+                    title="選擇主要指標"
+                  />}>
+                    <ChartBar size={11} />北極星指標
+                  </PopoverTrigger>
+                  <PopoverContent align="start" style={{ width: 200, padding: 8 }}>
+                    <div className="ns-eyebrow" style={{ padding: "6px 8px 8px" }}>選擇主要指標</div>
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      {METRIC_REGISTRY.map((m) => (
+                        <button
+                          key={m.key}
+                          className="text-body"
+                          onClick={() => setNorthstarMetric(m.key)}
+                          style={{
+                            display: "flex", alignItems: "center", justifyContent: "space-between",
+                            gap: 8, padding: "7px 8px",
+                            borderRadius: "var(--ns-r-sm)", cursor: "pointer",
+                            background: m.key === northstarMetric ? "var(--ns-bg-hover)" : "transparent",
+                            border: "none", width: "100%", textAlign: "left",
+                            color: "var(--ns-fg)", fontFamily: "inherit",
+                          }}
+                        >
+                          <span>{m.label}</span>
+                          {m.key === northstarMetric ? (
+                            <span style={{ color: "var(--ns-accent)", fontSize: 10, fontWeight: 600 }}>✓</span>
+                          ) : null}
+                        </button>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Hero value */}
               <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap", minWidth: 0 }}>
-                <span style={{ fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums lining-nums",
+                <span style={{
+                  fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums lining-nums",
                   fontSize: "clamp(28px, 4vw, 56px)", letterSpacing: "-0.025em", fontWeight: 600,
                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%",
-                  flexShrink: 1 }}>
-                  {formatMoney(netWorth, primaryCurrency)}
+                  flexShrink: 1,
+                }}>
+                  {activeMetric.display}
                 </span>
-                {trend.length >= 2 ? (
+                {/* MoM trend badge — only for netWorth (has a history series) */}
+                {activeMetric.key === "netWorth" && trend.length >= 2 ? (
                   <>
                     <Badge variant={momChange >= 0 ? "success" : "error"} className="gap-1 rounded-full px-2">
                       {momChange >= 0 ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />}
@@ -615,7 +779,9 @@ export function DashboardRoute() {
                   </>
                 ) : null}
               </div>
-              {Math.abs(netSettlement) > 0.5 ? (
+
+              {/* Adjusted net worth (only when netWorth hero) */}
+              {activeMetric.key === "netWorth" && Math.abs(netSettlement) > 0.5 ? (
                 <div className="muted text-xs" style={{ marginTop: 4 }} title="現金基礎淨值加計應收、減去應付">
                   調整後淨值（含應收應付）{" "}
                   <span className="num" style={{ color: "var(--ns-fg)" }}>{formatMoney(adjustedNetWorth, primaryCurrency)}</span>
@@ -624,8 +790,15 @@ export function DashboardRoute() {
                   </span>
                 </div>
               ) : null}
+
+              {/* Caption for non-netWorth metrics */}
+              {activeMetric.key !== "netWorth" && activeMetric.sub ? (
+                <div className="muted text-xs" style={{ marginTop: 6 }}>{activeMetric.sub}</div>
+              ) : null}
             </div>
-            {trend.length > 1 ? (
+
+            {/* Period control — only shown for netWorth (it drives the trend chart) */}
+            {activeMetric.key === "netWorth" && trend.length > 1 ? (
               <SegmentedControl
                 value={stripPeriod}
                 onChange={setStripPeriod}
@@ -633,50 +806,54 @@ export function DashboardRoute() {
               />
             ) : null}
           </div>
-          {trend.length > 1 ? (
-            // position:relative + absolute inner so ResponsiveContainer gets a
-            // definite height inside the flex column (otherwise it measures 0
-            // and the area never draws).
-            <div style={{ flex: 1, minHeight: 160, position: "relative" }}>
-              <div style={{ position: "absolute", inset: 0 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={visibleTrend}>
-                  <defs>
-                    <linearGradient id="netWorth" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="5%" stopColor="var(--ns-accent)" stopOpacity={0.35} />
-                      <stop offset="95%" stopColor="var(--ns-accent)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="date" stroke="var(--ns-fg-muted)" fontSize={11} minTickGap={24} />
-                  <YAxis hide domain={["dataMin - 20000", "dataMax + 20000"]} />
-                  <Tooltip formatter={(value) => formatMoney(Number(value), primaryCurrency)} contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }} itemStyle={{ color: "var(--ns-fg)" }} labelStyle={{ color: "var(--ns-fg)" }} />
-                  <Area type="monotone" dataKey="value" stroke="var(--ns-accent)" fill="url(#netWorth)" strokeWidth={2} />
-                </AreaChart>
-              </ResponsiveContainer>
+
+          {/* Trend chart — only for netWorth */}
+          {activeMetric.key === "netWorth" ? (
+            trend.length > 1 ? (
+              // position:relative + absolute inner so ResponsiveContainer gets a
+              // definite height inside the flex column (otherwise it measures 0
+              // and the area never draws).
+              <div style={{ flex: 1, minHeight: 160, position: "relative" }}>
+                <div style={{ position: "absolute", inset: 0 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={visibleTrend}>
+                      <defs>
+                        <linearGradient id="netWorth" x1="0" x2="0" y1="0" y2="1">
+                          <stop offset="5%" stopColor="var(--ns-accent)" stopOpacity={0.35} />
+                          <stop offset="95%" stopColor="var(--ns-accent)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="date" stroke="var(--ns-fg-muted)" fontSize={11} minTickGap={24} />
+                      <YAxis hide domain={["dataMin - 20000", "dataMax + 20000"]} />
+                      <Tooltip formatter={(value) => formatMoney(Number(value), primaryCurrency)} contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }} itemStyle={{ color: "var(--ns-fg)" }} labelStyle={{ color: "var(--ns-fg)" }} />
+                      <Area type="monotone" dataKey="value" stroke="var(--ns-accent)" fill="url(#netWorth)" strokeWidth={2} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
-            </div>
-          ) : (
-            // No meaningful trend yet → collapse to a slim hint instead of a tall
-            // empty void, so the hero doesn't dominate the page.
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", paddingTop: 4 }}>
-              <span className="muted text-body">
-                {hasAnyData ? "累積幾筆資料後會顯示淨值趨勢。" : "先建立第一個帳戶，Northstar 會開始計算總覽。"}
-              </span>
-              <span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <Button size="sm" render={<Link to={hasAnyData ? "/cash-flow" : "/accounts"} />}>{hasAnyData ? "去記帳" : "建立帳戶"}</Button>
-                {!hasAnyData ? (
-                  <Button size="sm" variant="outline" onClick={loadDemo} loading={demoLoading}>
-                    {demoLoading ? "載入中…" : "載入示範資料"}
-                  </Button>
-                ) : null}
-                {!hasAnyData ? (
-                  <Button size="sm" variant="outline" onClick={openOnboarding}>
-                    新手導覽
-                  </Button>
-                ) : null}
-              </span>
-            </div>
-          )}
+            ) : (
+              // No meaningful trend yet → collapse to a slim hint instead of a tall
+              // empty void, so the hero doesn't dominate the page.
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", paddingTop: 4 }}>
+                <span className="muted text-body">
+                  {hasAnyData ? "累積幾筆資料後會顯示淨值趨勢。" : "先建立第一個帳戶，Northstar 會開始計算總覽。"}
+                </span>
+                <span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <Button size="sm" render={<Link to={hasAnyData ? "/cash-flow" : "/accounts"} />}>{hasAnyData ? "去記帳" : "建立帳戶"}</Button>
+                  {!hasAnyData ? (
+                    <Button size="sm" variant="outline" onClick={loadDemo} loading={demoLoading}>
+                      {demoLoading ? "載入中…" : "載入示範資料"}
+                    </Button>
+                  ) : null}
+                  {!hasAnyData ? (
+                    <Button size="sm" variant="outline" onClick={openOnboarding}>
+                      新手導覽
+                    </Button>
+                  ) : null}
+                </span>
+              </div>
+            )
+          ) : null}
 
           {analyticsPositions.length > 0 ? (
             <PortfolioStrip period={stripPeriod} data={stripData} benchmarkTicker={benchmarkTicker} />
