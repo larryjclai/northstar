@@ -1078,7 +1078,7 @@ function KpiCard({ label, note, value, color, spark, sub, help }: {
       </div>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
         <div className="num" style={{ fontSize: "clamp(20px, 2.4vw, 26px)", fontWeight: 600, fontFamily: "var(--ns-font-num)", color, fontVariantNumeric: "tabular-nums lining-nums", letterSpacing: -0.01, whiteSpace: "nowrap" }}>{value}</div>
-        <Sparkline data={spark} color={color} />
+        <Sparkline data={spark} color={color} width={96} height={36} />
       </div>
       <div className="muted text-caption" style={{ lineHeight: 1.45 }}>{sub}</div>
     </CossCard>
@@ -1096,13 +1096,21 @@ function HeadingWithHelp({ title, help }: { title: string; help: string }) {
 
 function MetricHelp({ text }: { text: string }) {
   return (
-    <span
-      title={text}
-      aria-label={text}
-      style={{ display: "inline-flex", color: "var(--ns-fg-muted)", cursor: "help", lineHeight: 1, flexShrink: 0 }}
-    >
-      <Info size={13} />
-    </span>
+    <Popover>
+      <PopoverTrigger
+        render={
+          <span
+            aria-label={text}
+            style={{ display: "inline-flex", color: "var(--ns-fg-muted)", cursor: "pointer", lineHeight: 1, flexShrink: 0 }}
+          >
+            <Info size={15} />
+          </span>
+        }
+      />
+      <PopoverContent side="bottom" align="start" sideOffset={6}>
+        <p style={{ margin: 0, fontSize: 12, lineHeight: 1.55, color: "var(--ns-fg)" }}>{text}</p>
+      </PopoverContent>
+    </Popover>
   );
 }
 
