@@ -359,42 +359,48 @@ export function HoldingDetailRoute() {
           <div style={{ flex: 1 }} />
           <span className="muted mono text-caption">FIFO 批次成本，僅供稅務參考</span>
         </div>
-        <div
-          className="text-caption"
-          style={{
-            display: "grid", gridTemplateColumns: "1fr 0.7fr 0.9fr 0.9fr 1.1fr 1fr",
-            padding: "10px 22px", borderBottom: "1px solid var(--ns-border)",
-            color: "var(--ns-fg-dim)", fontFamily: "var(--ns-font-mono)",
-            letterSpacing: 0.06, textTransform: "uppercase",
-          }}
-        >
-          <span>Date</span>
-          <span style={{ textAlign: "right" }}>Qty</span>
-          <span style={{ textAlign: "right" }}>Cost</span>
-          <span style={{ textAlign: "right" }}>Last</span>
-          <span style={{ textAlign: "right" }}>P/L</span>
-          <span style={{ textAlign: "right" }}>P/L %</span>
-        </div>
-        {lots.map((l) => (
-          <div
-            key={l.id}
-            style={{
-              display: "grid", gridTemplateColumns: "1fr 0.7fr 0.9fr 0.9fr 1.1fr 1fr",
-              padding: "14px 22px", borderTop: "1px solid var(--ns-border)", alignItems: "center",
-            }}
-          >
-            <span className="mono muted text-body">{l.date}</span>
-            <span className="num text-body" style={{ textAlign: "right" }}>{formatQuantity(l.qty)}</span>
-            <span className="num muted text-body" style={{ textAlign: "right" }}>{formatPrice(l.cost)}</span>
-            <span className="num text-body" style={{ textAlign: "right" }}>{formatPrice(l.last)}</span>
-            <span className={"num text-sm " + (l.pl >= 0 ? "gain" : "loss")} style={{ textAlign: "right", fontWeight: 500 }}>
-              {l.pl >= 0 ? "+" : ""}{formatNumber(l.pl)}
-            </span>
-            <span className={"num text-sm " + (l.pct >= 0 ? "gain" : "loss")} style={{ textAlign: "right" }}>
-              {l.pct >= 0 ? "+" : ""}{l.pct.toFixed(2)}%
-            </span>
-          </div>
-        ))}
+        {lots.length > 0 ? (
+          <>
+            <div
+              className="text-caption"
+              style={{
+                display: "grid", gridTemplateColumns: "1fr 0.7fr 0.9fr 0.9fr 1.1fr 1fr",
+                padding: "10px 22px", borderBottom: "1px solid var(--ns-border)",
+                color: "var(--ns-fg-dim)", fontFamily: "var(--ns-font-mono)",
+                letterSpacing: 0.06, textTransform: "uppercase",
+              }}
+            >
+              <span>Date</span>
+              <span style={{ textAlign: "right" }}>Qty</span>
+              <span style={{ textAlign: "right" }}>Cost</span>
+              <span style={{ textAlign: "right" }}>Last</span>
+              <span style={{ textAlign: "right" }}>P/L</span>
+              <span style={{ textAlign: "right" }}>P/L %</span>
+            </div>
+            {lots.map((l) => (
+              <div
+                key={l.id}
+                style={{
+                  display: "grid", gridTemplateColumns: "1fr 0.7fr 0.9fr 0.9fr 1.1fr 1fr",
+                  padding: "14px 22px", borderTop: "1px solid var(--ns-border)", alignItems: "center",
+                }}
+              >
+                <span className="mono muted text-body">{l.date}</span>
+                <span className="num text-body" style={{ textAlign: "right" }}>{formatQuantity(l.qty)}</span>
+                <span className="num muted text-body" style={{ textAlign: "right" }}>{formatPrice(l.cost)}</span>
+                <span className="num text-body" style={{ textAlign: "right" }}>{formatPrice(l.last)}</span>
+                <span className={"num text-sm " + (l.pl >= 0 ? "gain" : "loss")} style={{ textAlign: "right", fontWeight: 500 }}>
+                  {l.pl >= 0 ? "+" : ""}{formatNumber(l.pl)}
+                </span>
+                <span className={"num text-sm " + (l.pct >= 0 ? "gain" : "loss")} style={{ textAlign: "right" }}>
+                  {l.pct >= 0 ? "+" : ""}{l.pct.toFixed(2)}%
+                </span>
+              </div>
+            ))}
+          </>
+        ) : (
+          <div className="muted text-body" style={{ padding: "28px 22px", textAlign: "center" }}>目前無未平倉部位</div>
+        )}
       </Card>
 
       {/* Transaction history */}
@@ -406,30 +412,34 @@ export function HoldingDetailRoute() {
             <Plus size={13} strokeWidth={2} /> 新增
           </Button>
         </div>
-        {txns.map((tx, i) => (
-          <div
-            key={tx.id}
-            style={{
-              display: "grid", gridTemplateColumns: "100px 80px 0.7fr 0.9fr 0.9fr 1fr 1fr",
-              gap: 0, padding: "13px 22px", borderTop: i ? "1px solid var(--ns-border)" : "none",
-              alignItems: "center",
-            }}
-          >
-            <span className="mono muted text-xs">{tx.date}</span>
-            <Badge variant={tx.action === "buy" ? "success" : tx.action === "sell" ? "error" : "secondary"} className="rounded-full uppercase" style={{ justifySelf: "start" }}>
-              {tx.action}
-            </Badge>
-            <span className="num text-body" style={{ textAlign: "right" }}>{formatQuantity(tx.quantity)}</span>
-            <span className="num text-body" style={{ textAlign: "right" }}>{formatPrice(tx.price)}</span>
-            <span className="num muted text-xs" style={{ textAlign: "right" }}>fee {tx.fee || "–"}</span>
-            <span className={"num text-sm " + (tx.action === "sell" ? "pos" : tx.action === "buy" ? "" : "pos")} style={{ textAlign: "right", fontWeight: 500 }}>
-              {tx.action === "sell" ? "+" : tx.action === "cashDividend" ? "+" : "−"}{formatNumber(tx.quantity * tx.price)}
-            </span>
-            <span className="muted text-xs" style={{ textAlign: "right" }}>
-              {accountRows.find(a => a.id === tx.linkedAccountId)?.name || "–"}
-            </span>
-          </div>
-        ))}
+        {txns.length > 0 ? (
+          txns.map((tx, i) => (
+            <div
+              key={tx.id}
+              style={{
+                display: "grid", gridTemplateColumns: "100px 80px 0.7fr 0.9fr 0.9fr 1fr 1fr",
+                gap: 0, padding: "13px 22px", borderTop: i ? "1px solid var(--ns-border)" : "none",
+                alignItems: "center",
+              }}
+            >
+              <span className="mono muted text-xs">{tx.date}</span>
+              <Badge variant={tx.action === "buy" ? "success" : tx.action === "sell" ? "error" : "secondary"} className="rounded-full uppercase" style={{ justifySelf: "start" }}>
+                {tx.action}
+              </Badge>
+              <span className="num text-body" style={{ textAlign: "right" }}>{formatQuantity(tx.quantity)}</span>
+              <span className="num text-body" style={{ textAlign: "right" }}>{formatPrice(tx.price)}</span>
+              <span className="num muted text-xs" style={{ textAlign: "right" }}>fee {tx.fee || "–"}</span>
+              <span className={"num text-sm " + (tx.action === "sell" ? "pos" : tx.action === "buy" ? "" : "pos")} style={{ textAlign: "right", fontWeight: 500 }}>
+                {tx.action === "sell" ? "+" : tx.action === "cashDividend" ? "+" : "−"}{formatNumber(tx.quantity * tx.price)}
+              </span>
+              <span className="muted text-xs" style={{ textAlign: "right" }}>
+                {accountRows.find(a => a.id === tx.linkedAccountId)?.name || "–"}
+              </span>
+            </div>
+          ))
+        ) : (
+          <div className="muted text-body" style={{ padding: "28px 22px", textAlign: "center" }}>尚無交易紀錄</div>
+        )}
       </Card>
 
       {addOpen && (
