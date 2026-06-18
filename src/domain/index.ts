@@ -27,6 +27,7 @@ export * from "./recurringDates";
 export * from "./sync";
 export * from "./investmentCash";
 export * from "./ledgerTrust";
+export * from "./northstarMetrics";
 export * from "./ledgerSuggestions";
 export * from "./portfolioAnalytics";
 export * from "./portfolioCalculator";
