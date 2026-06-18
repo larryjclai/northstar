@@ -938,18 +938,29 @@ export function CashFlowRoute() {
               </div>
             </div>
             <div style={{ flex: 1 }}/>
-            {/* Income / Spending / Savings as side-by-side comparison cards. */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(92px, 1fr))", gap: 8 }}>
-              {([
-                { label: "收入", value: `${primaryCurrency} ${formatNumber(periodIncome)}`, cls: "pos" },
-                { label: "支出", value: `${primaryCurrency} ${formatNumber(periodExpense)}`, cls: "neg" },
-                { label: "儲蓄率", value: periodIncome > 0 ? `${((periodNet / periodIncome) * 100).toFixed(1)}%` : "—", cls: periodIncome > 0 && periodNet >= 0 ? "pos" : "muted" },
-              ]).map((s) => (
-                <div key={s.label} className="ns-surface" style={{ padding: "8px 12px", borderRadius: "var(--ns-r-sm)" }}>
-                  <div className="muted text-caption">{s.label}</div>
-                  <div className={"num text-base " + s.cls} style={{ fontWeight: 500, whiteSpace: "nowrap" }}>{s.value}</div>
+            {/* Income / Spending / Savings — 儲蓄率 hero + secondary 收入/支出 pair */}
+            <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+              {/* Hero: 儲蓄率 */}
+              <div className="ns-surface" style={{ padding: "10px 14px", borderRadius: "var(--ns-r-sm)", background: "var(--ns-accent-soft)", display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 104 }}>
+                <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 2 }}>儲蓄率</div>
+                <div
+                  className={"num " + (periodIncome > 0 && periodNet >= 0 ? "pos" : "muted")}
+                  style={{ fontSize: 22, fontWeight: 600, fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", lineHeight: 1.1 }}
+                >
+                  {periodIncome > 0 ? `${((periodNet / periodIncome) * 100).toFixed(1)}%` : "—"}
                 </div>
-              ))}
+              </div>
+              {/* Secondary: 收入 / 支出 stacked compact */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, justifyContent: "center" }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6, whiteSpace: "nowrap" }}>
+                  <span className="muted text-caption" style={{ minWidth: 28 }}>收入</span>
+                  <span className="num pos text-caption" style={{ fontWeight: 500 }}>{primaryCurrency} {formatNumber(periodIncome)}</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6, whiteSpace: "nowrap" }}>
+                  <span className="muted text-caption" style={{ minWidth: 28 }}>支出</span>
+                  <span className="num neg text-caption" style={{ fontWeight: 500 }}>{primaryCurrency} {formatNumber(periodExpense)}</span>
+                </div>
+              </div>
             </div>
           </div>
           {/* Legend + 日/週/月/年 granularity selector */}
