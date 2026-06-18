@@ -37,8 +37,21 @@ The risk is tone: a finance app that nags "you're losing" loses trust, so the
 - **Attribution** (`buildReturnAttribution`) can name *which* holdings drove the
   lag — useful for an honest "where the lag came from" explanation.
 
-## Step 1 — DECISION GATE (operator chooses; do not pick for them)
-Present these two options and STOP:
+## Decision (2026-06-18 — operator chose **Option L, lightweight/neutral**)
+No detection, no advice, no dismiss-flag. Concrete Option-L scope:
+1. **`InvestmentsAnalyticsTab.tsx`** — add a plain-language cumulative-gap caption near the
+   existing benchmark/alpha display (the `alpha = portFinal − benchFinal` at ~`:322`):
+   `alpha < 0` → 「期間累積落後 {benchmark} {|alpha|}%」; `alpha > 0` → 「期間累積領先 {benchmark} {alpha}%」;
+   null/insufficient → render nothing. **Reuse the existing `alpha` — no new calc.**
+2. **`DashboardRoute.tsx`** — add a `benchmarkGap` entry to the 024 `METRIC_REGISTRY` (~`:284`)
+   whose value is the already-computed `stripData.alpha` (label e.g.「vs {benchmark} 累積差距」,
+   display signed %, null → 「—」), so users can pin it as their north-star metric.
+Out of scope (this is NOT Option A): any sustained-lag detection, `indexNudge.ts`, the dismissible
+note, or a uiPreferences dismiss flag.
+
+---
+## Step 1 — DECISION GATE (RESOLVED above — Option L)
+The original options, for the record:
 
 - **Option L (lightweight, neutral)** — no recommendation, just make the *existing*
   benchmark data clearer: add a plain-language 「累積落後/領先 X%」line to the
