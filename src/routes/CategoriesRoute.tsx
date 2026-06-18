@@ -27,6 +27,7 @@ export function CategoriesRoute() {
   const dateRange = useMemo(() => resolveDateScope(dateScope, timezone), [dateScope, timezone]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
+  const [catRouteSort, setCatRouteSort] = useState<{ key: "name" | "amount" | "usage"; dir: "asc" | "desc" }>({ key: "amount", dir: "desc" });
   const toast = useToast();
 
   const navigate = useNavigate();
@@ -80,6 +81,27 @@ export function CategoriesRoute() {
       };
     });
   }, [periodSpend, appSettings]);
+
+  const sortedCategoryStats = useMemo(() => {
+    const arr = [...categoryStats];
+    arr.sort((a, b) => {
+      if (catRouteSort.key === "name") {
+        return catRouteSort.dir === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+      }
+      const av = catRouteSort.key === "usage" ? (a.budget ? a.amount / a.budget : -1) : a.amount;
+      const bv = catRouteSort.key === "usage" ? (b.budget ? b.amount / b.budget : -1) : b.amount;
+      return catRouteSort.dir === "asc" ? av - bv : bv - av;
+    });
+    return arr;
+  }, [categoryStats, catRouteSort]);
+
+  function toggleCatRouteSort(key: "name" | "amount" | "usage") {
+    setCatRouteSort(prev =>
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: key === "name" ? "asc" : "desc" }
+    );
+  }
 
   // Aggregate stats
   const totalBudget = categoryStats.reduce((sum, cat) => sum + (cat.budget || cat.amount), 0);
@@ -224,16 +246,16 @@ export function CategoriesRoute() {
         <Card style={{ flex: 1, padding: "24px 0" }}>
           {/* List Header */}
           <div className="text-caption" style={{ display: "flex", padding: "0 32px 12px", borderBottom: "1px solid var(--ns-border)", fontFamily: "var(--ns-font-mono)", color: "var(--ns-fg-muted)", letterSpacing: 1 }}>
-            <div style={{ flex: "0 0 160px" }}>分類</div>
-            <div style={{ flex: 1, textAlign: "right" }}>已消費</div>
+            <button style={{ flex: "0 0 160px", background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textAlign: "left", letterSpacing: 1 }} onClick={() => toggleCatRouteSort("name")}>分類{catRouteSort.key === "name" ? (catRouteSort.dir === "asc" ? " ▲" : " ▼") : ""}</button>
+            <button style={{ flex: 1, background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textAlign: "right", letterSpacing: 1 }} onClick={() => toggleCatRouteSort("amount")}>已消費{catRouteSort.key === "amount" ? (catRouteSort.dir === "asc" ? " ▲" : " ▼") : ""}</button>
             <div style={{ flex: "0 0 240px", textAlign: "right" }}>預算</div>
-            <div style={{ flex: "0 0 120px", textAlign: "center" }}>使用率</div>
+            <button style={{ flex: "0 0 120px", background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textAlign: "center", letterSpacing: 1 }} onClick={() => toggleCatRouteSort("usage")}>使用率{catRouteSort.key === "usage" ? (catRouteSort.dir === "asc" ? " ▲" : " ▼") : ""}</button>
             <div style={{ width: 40 }}></div>
           </div>
 
           {/* List Items */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {categoryStats.map((cat, index) => {
+            {sortedCategoryStats.map((cat, index) => {
               const hasBudget = cat.budget !== null;
               const percent = hasBudget ? (cat.amount / cat.budget!) * 100 : 0;
               const isOver = hasBudget && percent > 100;
