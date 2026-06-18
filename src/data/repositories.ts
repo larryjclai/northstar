@@ -200,6 +200,7 @@ export interface FinancialGoalDraft {
   incomeItems?: IncomeItem[];
   displayMode?: GoalDisplayMode;
   accountShareMap?: Record<string, number>;
+  targetDate?: string | null;
 }
 
 export interface FinanceRepository {
@@ -1936,6 +1937,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("financial_goals", "income_items", "text");
     await this.ensureSqliteColumn("financial_goals", "display_mode", "text");
     await this.ensureSqliteColumn("financial_goals", "account_share_map", "text");
+    await this.ensureSqliteColumn("financial_goals", "target_date", "text");
     await this.ensureSqliteColumn("ledger_transactions", "recurring_rule_id", "text");
     await this.ensureSqliteColumn("ledger_transactions", "original_amount", "real");
     await this.ensureSqliteColumn("ledger_transactions", "original_currency", "text");
@@ -3017,6 +3019,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       incomeItems: string | null;
       displayMode: string | null;
       accountShareMap: string | null;
+      targetDate: string | null;
     }>>(
       `select id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
        kind, name, currency, annual_spending as annualSpending, withdrawal_rate as withdrawalRate,
@@ -3027,7 +3030,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
        inflation_rate as inflationRate, annual_fee as annualFee,
        contribution_growth_rate as contributionGrowthRate,
        spending_items as spendingItems, income_items as incomeItems,
-       display_mode as displayMode, account_share_map as accountShareMap
+       display_mode as displayMode, account_share_map as accountShareMap,
+       target_date as targetDate
        from financial_goals where deleted_at is null order by created_at asc`,
     );
     return rows.map((row) => ({
@@ -3037,6 +3041,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       withdrawalRate: normalizeRateUnit(row.withdrawalRate) ?? 0.04,
       expectedAnnualReturn: normalizeRateUnit(row.expectedAnnualReturn) ?? 0.07,
       targetAmount: row.targetAmount ?? null,
+      targetDate: row.targetDate ?? null,
       spendingItems: parseJsonArray<SpendingItem>(row.spendingItems),
       incomeItems: parseJsonArray<IncomeItem>(row.incomeItems),
       displayMode: (row.displayMode === "nominal" ? "nominal" : "today") as GoalDisplayMode,
@@ -3058,8 +3063,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
          current_age = $11, retirement_age = $12, plan_through_age = $13,
          pre_retirement_return = $14, post_retirement_return = $15,
          inflation_rate = $16, annual_fee = $17, contribution_growth_rate = $18,
-         spending_items = $19, income_items = $20, display_mode = $21, account_share_map = $22
-         where id = $23`,
+         spending_items = $19, income_items = $20, display_mode = $21, account_share_map = $22,
+         target_date = $23
+         where id = $24`,
         [
           timestamp,
           fields.kind,
@@ -3083,6 +3089,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
           incomeJson,
           fields.displayMode,
           accountShareJson,
+          fields.targetDate,
           input.id,
         ],
       );
@@ -3097,8 +3104,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
          annual_spending, withdrawal_rate, expected_annual_return, monthly_contribution, target_amount, start_date,
          current_age, retirement_age, plan_through_age, pre_retirement_return, post_retirement_return,
          inflation_rate, annual_fee, contribution_growth_rate,
-         spending_items, income_items, display_mode, account_share_map)
-       values ($1,$2,1,$3,$3,null,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
+         spending_items, income_items, display_mode, account_share_map, target_date)
+       values ($1,$2,1,$3,$3,null,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
       [
         id,
         personalSpace,
@@ -3124,6 +3131,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         incomeJson,
         fields.displayMode,
         accountShareJson,
+        fields.targetDate,
       ],
     );
     const refreshed = await this.listFinancialGoals();
@@ -3440,8 +3448,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
                annual_spending, withdrawal_rate, expected_annual_return, monthly_contribution, target_amount, start_date,
                current_age, retirement_age, plan_through_age, pre_retirement_return, post_retirement_return,
                inflation_rate, annual_fee, contribution_growth_rate,
-               spending_items, income_items, display_mode, account_share_map)
-             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`,
+               spending_items, income_items, display_mode, account_share_map, target_date)
+             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)`,
             [
               goal.id,
               goal.spaceId ?? personalSpace,
@@ -3470,6 +3478,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
               JSON.stringify(goal.incomeItems ?? []),
               goal.displayMode ?? "today",
               JSON.stringify(goal.accountShareMap ?? {}),
+              goal.targetDate ?? null,
             ],
           );
         }
@@ -3723,8 +3732,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       `insert into financial_goals (id, space_id, revision, created_at, updated_at, deleted_at, kind, name, currency,
          annual_spending, withdrawal_rate, expected_annual_return, monthly_contribution, target_amount, start_date,
          current_age, retirement_age, plan_through_age, pre_retirement_return, post_retirement_return,
-         inflation_rate, annual_fee, contribution_growth_rate, spending_items, income_items, display_mode, account_share_map)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`,
+         inflation_rate, annual_fee, contribution_growth_rate, spending_items, income_items, display_mode, account_share_map,
+         target_date)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)`,
       [
         goal.id,
         goal.spaceId ?? personalSpace,
@@ -3753,6 +3763,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         JSON.stringify(goal.incomeItems ?? []),
         goal.displayMode ?? "today",
         JSON.stringify(goal.accountShareMap ?? {}),
+        goal.targetDate ?? null,
       ],
     );
   }
@@ -4359,6 +4370,7 @@ function goalFieldsFromDraft(input: FinancialGoalDraft) {
     incomeItems: sanitizeIncomeItems(input.incomeItems),
     displayMode: input.displayMode === "nominal" ? ("nominal" as const) : ("today" as const),
     accountShareMap: sanitizeAccountShareMap(input.accountShareMap),
+    targetDate: input.targetDate ?? null,
   };
 }
 

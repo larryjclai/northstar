@@ -95,7 +95,7 @@ export function FIRECalculatorRoute() {
     currentAge, retirementAge: targetAge, planThroughAge: null,
     preRetirementReturn: cagr / 100, postRetirementReturn: null,
     inflationRate: null, annualFee: null, contributionGrowthRate: null,
-    spendingItems: [], incomeItems, displayMode: "today", accountShareMap: {},
+    spendingItems: [], incomeItems, displayMode: "today", accountShareMap: {}, targetDate: null,
   }), [editingGoalId, primaryCurrency, annualExpense, swr, cagr, annualSavings, currentAge, targetAge, incomeItems]);
 
   const scenarios = useMemo(

@@ -1,6 +1,6 @@
 import { CaretRight, Plus, Calculator, CheckCircle, Target, Star, Trash, PencilSimple } from "@phosphor-icons/react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { type CSSProperties, useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { useToast } from "../components/Toast";
@@ -10,6 +10,7 @@ import { Skeleton } from "../components/coss/skeleton";
 import { computeLinkedAccountsValue, computeNetWorthInCurrency } from "../features/goals/netWorth";
 import { GoalEditorSheet } from "../features/goals/GoalEditorSheet";
 import { projectRetirement, resolveTargetAmount, formatNumber, formatCompactNumber, type FinancialGoal } from "../domain";
+import { goalPace } from "../domain/goalPace";
 
 export function GoalsRoute() {
   const { financialGoals, accounts, assets, quotes, settings, dailyFxRates, isInitialLoading, isError, error, refetchAll } = useFinanceData();
@@ -210,7 +211,28 @@ export function GoalsRoute() {
                 <div className="text-body" style={{ color: "var(--ns-fg-dim)" }}>
                   {!isFire && Object.values(selectedGoal.accountShareMap ?? {}).filter((w) => w > 0).length === 0
                     ? <>尚未綁定帳戶 — <button onClick={() => setEditor({ goal: selectedGoal })} style={{ color: "var(--ns-accent)", cursor: "pointer", background: "none", border: "none", padding: 0, font: "inherit" }}>編輯目標</button> 以追蹤進度</>
-                    : <>{stats.progress.toFixed(1)}% · {stats.years !== null ? `預估 ${stats.years} 年後達成 (${new Date().getFullYear() + stats.years})` : "尚無法預估"}</>}
+                    : (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <span>{stats.progress.toFixed(1)}% · {stats.years !== null ? `預估 ${stats.years} 年後達成 (${new Date().getFullYear() + stats.years})` : "尚無法預估"}</span>
+                        {(() => {
+                          if (isFire) return null;
+                          const pace = goalPace({ startDate: selectedGoal.startDate, targetDate: selectedGoal.targetDate, actualPct: stats.progress });
+                          if (pace.status === "none") return null;
+                          const chipStyle: CSSProperties = {
+                            display: "inline-flex", alignItems: "center",
+                            padding: "1px 8px", borderRadius: 999, fontSize: 12, fontWeight: 600, lineHeight: "20px",
+                            background: pace.status === "ahead" ? "color-mix(in srgb, var(--ns-pos) 15%, transparent)"
+                              : pace.status === "behind" ? "color-mix(in srgb, var(--ns-neg) 15%, transparent)"
+                              : "color-mix(in srgb, var(--ns-fg-muted) 15%, transparent)",
+                            color: pace.status === "ahead" ? "var(--ns-pos)"
+                              : pace.status === "behind" ? "var(--ns-neg)"
+                              : "var(--ns-fg-muted)",
+                          };
+                          const label = pace.status === "ahead" ? "超前" : pace.status === "behind" ? "落後" : "準時";
+                          return <span style={chipStyle}>{label}</span>;
+                        })()}
+                      </span>
+                    )}
                 </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))", gap: 24, marginTop: 48 }}>

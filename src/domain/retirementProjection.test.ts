@@ -31,6 +31,7 @@ function baseGoal(overrides: Partial<FinancialGoal> = {}): FinancialGoal {
     incomeItems: [],
     displayMode: "today",
     accountShareMap: {},
+    targetDate: null,
     ...overrides,
   };
 }
