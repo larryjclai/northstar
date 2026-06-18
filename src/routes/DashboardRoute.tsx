@@ -435,17 +435,24 @@ export function DashboardRoute() {
   const netSettlement = settlements.receivableTotal - settlements.payableTotal;
   const adjustedNetWorth = netWorth + netSettlement;
 
-  // FX rates (latest per pair) for the Market card.
+  // FX rates (latest + previous per pair) for the Market card.
   const fxRates = useMemo(() => {
-    const latest = new Map<string, DailyFxRate>();
+    const byPair = new Map<string, DailyFxRate[]>();
     for (const row of fxHistory) {
       const key = `${row.from}/${row.to}`;
-      const cur = latest.get(key);
-      if (!cur || row.date > cur.date) latest.set(key, row);
+      const arr = byPair.get(key) ?? [];
+      arr.push(row);
+      byPair.set(key, arr);
     }
-    let rows = [...latest.values()].map((r) => ({ pair: `${r.from}/${r.to}`, rate: r.rate }));
+    let rows = [...byPair.entries()].map(([pair, arr]) => {
+      arr.sort((a, b) => a.date.localeCompare(b.date));
+      const latest = arr[arr.length - 1];
+      const prev = arr.length > 1 ? arr[arr.length - 2] : null;
+      const changePct = prev && prev.rate ? ((latest.rate - prev.rate) / prev.rate) * 100 : null;
+      return { pair, rate: latest.rate, changePct };
+    });
     if (rows.length === 0 && appSettings) {
-      rows = appSettings.exchangeRates.map((r) => ({ pair: `${r.from}/${r.to}`, rate: r.rate }));
+      rows = appSettings.exchangeRates.map((r) => ({ pair: `${r.from}/${r.to}`, rate: r.rate, changePct: null }));
     }
     return rows.slice(0, 4);
   }, [fxHistory, appSettings]);
@@ -599,10 +606,13 @@ export function DashboardRoute() {
                   {formatMoney(netWorth, primaryCurrency)}
                 </span>
                 {trend.length >= 2 ? (
-                  <Badge variant={momChange >= 0 ? "success" : "error"} className="gap-1 rounded-full px-2">
-                    {momChange >= 0 ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />}
-                    <span className="num">{momChange >= 0 ? "+" : "−"}{formatNumber(Math.abs(momChange))} · {Math.abs(momPct).toFixed(2)}%</span>
-                  </Badge>
+                  <>
+                    <Badge variant={momChange >= 0 ? "success" : "error"} className="gap-1 rounded-full px-2">
+                      {momChange >= 0 ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />}
+                      <span className="num">{momChange >= 0 ? "+" : "−"}{formatNumber(Math.abs(momChange))} · {Math.abs(momPct).toFixed(2)}%</span>
+                    </Badge>
+                    <span className="muted text-xs">較上月</span>
+                  </>
                 ) : null}
               </div>
               {Math.abs(netSettlement) > 0.5 ? (
@@ -907,6 +917,11 @@ export function DashboardRoute() {
               <div key={fx.pair} style={{ padding: "10px 18px", display: "flex", alignItems: "center", gap: 8, borderTop: "1px solid var(--ns-border)" }}>
                 <span className="mono text-xs" style={{ flex: 1 }}>{fx.pair}</span>
                 <span className="num text-[13.5px]" style={{ fontWeight: 500 }}>{fx.rate.toFixed(4)}</span>
+                {fx.changePct != null && Math.abs(fx.changePct) >= 0.005 ? (
+                  <span className="num text-xs" style={{ color: fx.changePct >= 0 ? "var(--ns-pos)" : "var(--ns-neg)", minWidth: 58, textAlign: "right" }}>
+                    {fx.changePct >= 0 ? "▲" : "▼"} {Math.abs(fx.changePct).toFixed(2)}%
+                  </span>
+                ) : null}
               </div>
             ))
           )}
