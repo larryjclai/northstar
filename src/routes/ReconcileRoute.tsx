@@ -7,9 +7,10 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { buildStatementPeriods, formatNumber, todayInTimezone } from "../domain";
+import type { Account } from "../domain";
 import { useToast } from "../components/Toast";
 import { useUiPreferences } from "../state/uiPreferences";
-import type { AccountDraft } from "../data/repositories";
+import type { AccountDraft, TransferDraft, LedgerDraft } from "../data/repositories";
 
 export function ReconcileRoute() {
   const { accountId } = useParams({ from: "/cash-flow/reconcile/$accountId" });
@@ -29,6 +30,15 @@ export function ReconcileRoute() {
     (repository, input: { id: string } & AccountDraft) => repository.updateAccount(input.id, input),
     ["accounts"],
   );
+  const createTransfer = useRepositoryMutation(
+    (repository, input: TransferDraft) => repository.createTransfer(input),
+    ["accounts", "ledger"],
+  );
+  const createLedger = useRepositoryMutation(
+    (repository, input: LedgerDraft) => repository.createLedgerTransaction(input),
+    ["accounts", "ledger"],
+  );
+  const [payOpen, setPayOpen] = useState(false);
 
   const account = (accounts.data ?? []).find((a) => a.id === accountId);
   const rows = useMemo(
@@ -105,6 +115,47 @@ export function ReconcileRoute() {
     }
   }
 
+  async function handlePay(payAccountId: string, payAmount: number, creditAmount: number) {
+    if (!account || account.type !== "credit") return;
+    const day = todayInTimezone(timezone);
+    try {
+      if (payAmount > 0) {
+        await createTransfer.mutateAsync({
+          date: day,
+          sourceAccountId: payAccountId,
+          destinationAccountId: account.id,
+          sourceCurrency: account.currency,
+          destinationCurrency: account.currency,
+          sourceAmount: payAmount,
+          note: "信用卡繳款",
+        });
+      }
+      if (creditAmount > 0) {
+        await createLedger.mutateAsync({
+          accountId: account.id,
+          counterAccountId: null,
+          date: day,
+          name: "帳單折抵 / 回饋",
+          amount: creditAmount, // positive income → reduces card debt
+          currency: account.currency,
+          originalAmount: null,
+          originalCurrency: null,
+          category: "現金回饋",
+          subcategory: "",
+          merchant: "",
+          entryType: "income",
+          settlementStatus: "settled",
+          note: "信用卡帳單折抵",
+        });
+      }
+      await markPaid();
+      setPayOpen(false);
+      toast.success("已記錄繳款");
+    } catch {
+      toast.error("繳款失敗");
+    }
+  }
+
   if (isInitialLoading) {
     return (
       <div className="grid gap-5 p-1">
@@ -139,6 +190,10 @@ export function ReconcileRoute() {
 
   const owed = Math.max(0, -account.balance);
   const isPaid = account.creditPaymentPaidUntil != null;
+  // Non-credit, non-loan accounts in the same currency can pay this card (v1: no FX).
+  const payingAccounts = (accounts.data ?? []).filter(
+    (a) => a.deletedAt === null && a.type !== "credit" && a.type !== "loan" && a.currency === account.currency,
+  );
   const currentSpend = currentPeriod?.spend ?? 0;
   // 淨額 = 毛消費 − 退款 = −total（total 為帶號加總）。退款讓「請款金額」低於刷卡金額。
   const currentNet = -(currentPeriod?.total ?? 0);
@@ -170,12 +225,12 @@ export function ReconcileRoute() {
           {account.type === "credit" && account.paymentDueDay && (
             <Button
               variant={isPaid ? "default" : "outline"}
-              onClick={markPaid}
+              onClick={() => setPayOpen(true)}
               loading={updateAccount.isPending}
-              title={isPaid ? `已繳款至 ${account.creditPaymentPaidUntil}` : "標記本期帳單已繳款，提醒面板暫時隱藏"}
+              title={isPaid ? `已繳款至 ${account.creditPaymentPaidUntil}` : "從帳戶轉帳繳款，可選填帳單折抵 / 回饋"}
             >
               <CurrencyCircleDollar size={14} weight={isPaid ? "fill" : "regular"} />
-              {isPaid ? "已繳款" : "標記已繳款"}
+              {isPaid ? "已繳款" : "繳款 / 標記已繳"}
             </Button>
           )}
         </div>
@@ -277,6 +332,104 @@ export function ReconcileRoute() {
           })}
         </div>
       )}
+
+      {payOpen && account.type === "credit" ? (
+        <PayCardModal
+          owed={owed}
+          currency={account.currency}
+          payingAccounts={payingAccounts}
+          pending={createTransfer.isPending || createLedger.isPending || updateAccount.isPending}
+          onCancel={() => setPayOpen(false)}
+          onConfirm={handlePay}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function PayCardModal({
+  owed,
+  currency,
+  payingAccounts,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  owed: number;
+  currency: string;
+  payingAccounts: Account[];
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: (payAccountId: string, payAmount: number, creditAmount: number) => void;
+}) {
+  const [payAccountId, setPayAccountId] = useState(payingAccounts[0]?.id ?? "");
+  const [payAmount, setPayAmount] = useState(String(owed));
+  const [creditAmount, setCreditAmount] = useState("0");
+  const noAccounts = payingAccounts.length === 0;
+  const pay = Math.max(0, Number(payAmount) || 0);
+  const credit = Math.max(0, Number(creditAmount) || 0);
+  // A real transfer needs a paying account; a 0-pay / 0-credit confirm just suppresses the reminder.
+  const canConfirm = !pending && (pay === 0 || (!noAccounts && payAccountId !== ""));
+  return (
+    <div
+      onClick={onCancel}
+      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)", padding: 20 }}
+      >
+        <div className="text-[15px]" style={{ fontWeight: 600, marginBottom: 4 }}>信用卡繳款</div>
+        <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginBottom: 16, lineHeight: 1.6 }}>
+          未繳總額 NT${formatNumber(owed)} · 從帳戶轉帳繳款，可選填帳單折抵 / 回饋。
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <div className="text-xs" style={{ fontWeight: 500, marginBottom: 6 }}>付款帳戶</div>
+          {noAccounts ? (
+            <div className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>沒有可扣款的同幣別帳戶（{currency}）。</div>
+          ) : (
+            <select
+              value={payAccountId}
+              onChange={(e) => setPayAccountId(e.target.value)}
+              style={{ width: "100%", padding: "8px 10px", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)", color: "var(--ns-fg)" }}
+            >
+              {payingAccounts.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <div className="text-xs" style={{ fontWeight: 500, marginBottom: 6 }}>繳款金額</div>
+          <input
+            type="number"
+            value={payAmount}
+            onChange={(e) => setPayAmount(e.target.value)}
+            min={0}
+            style={{ width: "100%", padding: "8px 10px", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)", color: "var(--ns-fg)" }}
+          />
+        </div>
+
+        <div style={{ marginBottom: 4 }}>
+          <div className="text-xs" style={{ fontWeight: 500, marginBottom: 6 }}>帳單折抵 / 回饋（選填）</div>
+          <input
+            type="number"
+            value={creditAmount}
+            onChange={(e) => setCreditAmount(e.target.value)}
+            min={0}
+            style={{ width: "100%", padding: "8px 10px", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)", color: "var(--ns-fg)" }}
+          />
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+          <Button variant="outline" onClick={onCancel} disabled={pending}>取消</Button>
+          <Button onClick={() => onConfirm(payAccountId, pay, credit)} disabled={!canConfirm}>
+            <CurrencyCircleDollar size={14} weight="fill" />確認繳款
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
