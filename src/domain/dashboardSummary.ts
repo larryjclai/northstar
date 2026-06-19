@@ -158,6 +158,41 @@ export function buildCreditCardReminders(
   return reminders.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 }
 
+export interface CreditBalanceDisplay {
+  state: "owed" | "credit" | "zero";
+  magnitude: number;
+  label: string;
+}
+/** Interpret a credit-card account's signed balance for display. Negative
+ *  balance = owed (未繳); positive = overpaid/prepaid (溢繳); ~0 = settled. */
+export function creditBalanceLabel(balance: number): CreditBalanceDisplay {
+  if (balance < -0.005) return { state: "owed", magnitude: -balance, label: "未繳" };
+  if (balance > 0.005) return { state: "credit", magnitude: balance, label: "溢繳" };
+  return { state: "zero", magnitude: 0, label: "已結清" };
+}
+
+/** Debug helper: every ledger row that contributes to `accountId`'s balance,
+ *  with the contributed delta. Mirrors deriveAccountBalances' per-row logic so
+ *  an operator can see exactly what sums to a surprising balance. Pure; no I/O. */
+export function explainAccountBalance(
+  accountId: string,
+  openingBalance: number,
+  ledger: Array<Pick<LedgerTransaction, "id" | "date" | "name" | "amount" | "accountId" | "counterAccountId" | "settlementStatus" | "deletedAt">>,
+): { opening: number; contributions: Array<{ id: string; date: string; name: string; delta: number; via: "main" | "counter" }>; total: number } {
+  const contributions: Array<{ id: string; date: string; name: string; delta: number; via: "main" | "counter" }> = [];
+  for (const row of ledger) {
+    if (row.deletedAt !== null) continue;
+    if (row.counterAccountId) {
+      if (row.counterAccountId === accountId) contributions.push({ id: row.id, date: row.date, name: row.name, delta: -row.amount, via: "counter" });
+      if (row.settlementStatus === "settled" && row.accountId === accountId) contributions.push({ id: row.id, date: row.date, name: row.name, delta: row.amount, via: "main" });
+    } else if (row.settlementStatus === "settled" && row.accountId === accountId) {
+      contributions.push({ id: row.id, date: row.date, name: row.name, delta: row.amount, via: "main" });
+    }
+  }
+  const total = openingBalance + contributions.reduce((s, c) => s + c.delta, 0);
+  return { opening: openingBalance, contributions, total };
+}
+
 export interface OutstandingSettlementItem {
   id: string;
   kind: "receivable" | "payable";
