@@ -1156,7 +1156,8 @@ export function CashFlowRoute() {
               </div>
             </div>
            ) : (
-            dayGroups.map((g, gi) => (
+            <>
+              {dayGroups.map((g, gi) => (
               <div key={g.date}>
                 <div style={{
                   padding: "14px 22px", borderBottom: "1px solid var(--ns-border)",
@@ -1189,7 +1190,15 @@ export function CashFlowRoute() {
                   );
                 })}
               </div>
-            ))
+              ))}
+              {totalPages > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 12, padding: '16px 20px 20px' }}>
+                  <Button variant="outline" disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>上一頁</Button>
+                  <span className="text-body" style={{ alignSelf: 'center', color: 'var(--ns-fg-muted)' }}>{page} / {totalPages}</span>
+                  <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>下一頁</Button>
+                </div>
+              )}
+            </>
            )}
         </Card>
 
