@@ -42,6 +42,15 @@ honor its STOP conditions, and update your row when done.
 | 027 | "Join the index" nudge — design + decision gate | P3 | S–M | MED | — | DONE + MERGED to main (4d8319a6; e4130f2c + fix 8beb93d8). Operator chose **Option L (lightweight/neutral)**: plain-language 「期間累積落後/領先 {0050} X%」caption in InvestmentsAnalyticsTab (reuses `perf.alpha`) + a `benchmarkGap` north-star metric option in the 024 registry (reuses `stripData.alpha`). No detection/advice/dismiss (not Option A). **Review caught a real bug + fixed it (8beb93d8)**: the `benchmarkGap` entry was `.push`ed AFTER `activeMetric` was computed, so selecting it as the hero silently fell back to net worth; fix builds `allMetrics` (base registry + benchmarkGap) after `stripData`, with both `activeMetric` and the picker reading it. Combined 025+027 merge health-checked: tsc/build/lint(0)/test(526) clean. |
 | 028 | Goal target date + 超前/落後 pace indicator (was 023-B) | P3 | M | MED | — | DONE on branch advisor/028-goal-target-date-pace (e61fd450) — NOT yet merged. Adds `FinancialGoal.targetDate` via `ensureSqliteColumn` (income_items precedent); `goalPace.ts` (+8 tests) linear pace; 超前/落後/準時 chip on custom goals. Reviewed: SQL params renumbered consistently across UPDATE + 3 INSERTs, 2 justified follow-on `targetDate:null` literals (FIRECalculatorRoute, retirementProjection.test), tsc+goalPace re-run clean, executor test(474)/build/lint(0 err) clean. Built on current main via `checkout -B main` (frozen-base fix). |
 
+| 029 | Credit-card balance reads as 未繳/溢繳 + opening-balance hint corrected + diagnostic | P1 | M | MED | — | DONE on branch advisor/029-credit-card-balance-display (55da30c4 + 2e97b5be) — NOT yet merged. APPROVED on review. Adds `creditBalanceLabel` + `explainAccountBalance` pure helpers to dashboardSummary.ts; AccountsRoute credit rows now show 未繳/溢繳/已結清 with tone color (non-credit branch byte-identical, fragment-wrapped); misleading「系統會記錄為負數」hint replaced with negative-input guidance. Scope clean (3 files, no index.ts). Reviewer re-ran tsc(0) + dashboardSummary tests (9 pass); executor build(0)/test(531)/lint(0 err). Built on current main (721f216f). Documented deviation accepted: kept real `<div className="muted text-xs">` hint wrapper vs plan's illustrative `<p>`. NOTE: foreign-currency credit cards now show the 未繳/溢繳 label in place of the old native-amount FX caption (intended per plan shape). |
+| 030 | deleteAccount counter-account cascade guard + orphan-row detector | P1 | M | MED | — | DONE on branch advisor/030-ar-ap-integrity (7c7e2244 + aa0b6d61) — NOT yet merged. APPROVED on review. Both `deleteAccount` impls now reject when `counter_account_id`/`counterAccountId` references the account (browser + Tauri SQL); new `dataHealth` Rule 7 `orphaned-row` (error) flags active rows pointing at a missing account, with a false-positive guard for unsettled AR (`accountId===""`). Scope clean (4 files). Reviewer re-ran tsc(0) + the 2 new test files (34 pass); executor build(0)/test(532)/lint(0 err). Built correctly on current main (721f216f) via `checkout -B ... main` (frozen-base fix applied). Judgment call reviewed+accepted: data-health receives active-only accounts, which is correct for orphan detection. Tauri SQL change is a faithful one-token mirror of the unit-tested browser guard. |
+| 031 | Render the missing pagination control in CashFlow 近期動態 | P1 | S | LOW | — | DONE on branch (commit c11fc4f7) — NOT yet merged. APPROVED on review: commit touches only CashFlowRoute.tsx (+11/−2), wraps `dayGroups.map` in a fragment + appends the `totalPages>1` 上一頁/下一頁 control (reuses TransactionsRoute exemplar styling, map body untouched). Reviewer re-ran tsc(0); executor build(0)/test(466)/lint(0 err). CAVEAT: executor worktree branched from a STALE base (4cc86eab, prior session) missing 024–028 — but CashFlowRoute.tsx is byte-identical 4cc86eab↔721f216f, so the change is valid against current main. **Merge by cherry-picking c11fc4f7 onto main**, not by merging the stale-based branch. |
+| 032 | Net-worth hero: real comparison-window label + chart endpoint = headline | P2 | M | MED | — | DONE on branch advisor/032-dashboard-networth-comparison (4a2e4560) — NOT yet merged. APPROVED on review. Hardcoded「較上月」→ `STRIP_PERIOD_LABELS[stripPeriod]` (近 1 日…全期間); new `reconciledTrend` memo aligns ONLY the today endpoint to headline `netWorth` (guard `last.iso>=todayIso && |Δ|>0.5`), `rangeView`+3 length-guards rewired to it (trend memo untouched). Scope clean (1 file). Reviewer re-ran tsc(0) + build(✓) + grep (較上月=0, reconciledTrend=13 refs); executor test(526)/lint(0 err). Built on current main (721f216f). Judgment call accepted: skipped optional label-coverage test (would require exporting a module-private const; `Record<StripPeriod,string>` already makes a missing label a compile error). |
+| 033 | Per-account broker-fee discount (折扣) + visible fee breakdown | P2 | M | MED | 026 | TODO |
+| 034 | 信用卡繳款 as a transfer from a chosen account + 回饋/折抵 credit | P2 | M | MED | — | TODO |
+| 035 | Edit a transaction from the Reconcile screen (deep-link to its detail) | P2 | M | MED | — | TODO |
+| 036 | 延後入帳 — charge posts to a later date / next statement (`postDate` column) | P3 | L | MED-HIGH | — | TODO |
+
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale).
 
 ## 2026-06-15 — operator-requested plans (011–013)
@@ -158,6 +167,47 @@ found, and how it maps:
 These are independent of each other; suggested value order: 018 → 020 → 021 → 019
 → 022 → 023. Items 023-E (sortable tables) and 023-F (export) overlap files with
 018–020 and should be done after them.
+
+## 2026-06-19 — operator bookkeeping/overview review → plans 029–036
+
+Added via `improve plan` from an 11-item operator report (with two screenshots:
+a 近期動態 feed of a 玉山 Ubear card and that card's account row showing a
+balance of "302"). All items were traced to live code before planning. Mapping:
+
+| Operator item | Plan | Verdict / root cause |
+|---|---|---|
+| 投資 — per-account broker fee/discount | **033** | tradingFees is a single global config; add per-account 折扣 (depends on 026 being merged) |
+| 總覽 — 「較上月」hardcoded + +/− ≠ chart + chart-today ≠ headline | **032** | `較上月` literal at DashboardRoute.tsx:795 while delta spans the selected stripPeriod window; chart endpoint (`buildNetWorthTrend`) valued differently from headline (`buildNetWorthBreakdown`) |
+| 記帳 — edit info during reconcile | **035** | ReconcileRoute is read-only ✓ toggles; deep-link to the existing CashFlow editor |
+| 記帳 — 延後入帳 / next statement | **036** | no posting-date concept; add `postDate` column + bucket statements by `postDate ?? date` (schema change) |
+| 記帳 — credit-card balance +302 wrong | **029** (+ **030**) | display prints raw signed balance with no 未繳/溢繳 semantics; opening-balance hint lies (no negation in createAccount); the actual +302 is most likely an AR/AP counter leg or orphan — see 030 + the `explainAccountBalance` diagnostic |
+| 記帳 — 帳單折抵 / 現金回饋 at payment | **034** | no statement-credit concept; folded into the payment flow |
+| 記帳 — mark-paid + pick paying account (transfer) | **034** | markPaid only sets `creditPaymentPaidUntil`; replace with a transfer + paying-account picker |
+| 記帳 — transaction list has no 下一頁 | **031** | pagination state computed (CashFlowRoute.tsx:799) but the control is **never rendered** |
+| 記帳 — AR not shown + account-delete no cascade | **030** | `deleteAccount` guard ignores `counter_account_id` → orphan AR/AP rows survive and keep hitting 總覽; AR-not-appearing (9a) needs a live repro (Step 4) |
+| 記帳 — AR/AP should reflect in cash flow | **030** | mostly by design (excluded from income/expense until 結清); counter legs DO move balances — clarified via the orphan detector, not a calc change |
+
+Confirmed bugs (highest leverage, do first): **031** (S), **030** (M), **029**
+(M), **032** (M). Features: **034**, **035** (M each), **033** (depends on 026),
+**036** (L, schema).
+
+## Dependency notes — 029–036
+
+- **033 depends on 026** (`advisor/026-tw-broker-fee-autocalc`, currently DONE-on-branch,
+  NOT merged): it extends `tradingFees.ts` and the auto-fill 026 added. Merge 026 first.
+- **029 and 030 are complementary**: 030 fixes the likely *source* of the +302
+  (orphaned counter leg), 029 makes the number *legible* and ships the
+  `explainAccountBalance` diagnostic that confirms the card nets to 0 after 030.
+  Either can land first; do both.
+- **034, 035, 036 all touch the credit-card reconcile/editor flow** but different
+  files; 034 (ReconcileRoute), 035 (router + CashFlow + ReconcileRoute), 036
+  (schema + statements + CashFlow). If done together, sequence 035 → 036 (036's
+  入帳日 editor is reachable via 035's deep-link) and rebase to avoid CashFlow
+  conflicts.
+- **031, 032 are fully independent** small/medium UI fixes — parallel branches.
+- Reminder (from prior batches): executor worktrees are based on the frozen
+  session-start commit; build each branch on current `main`
+  (`git checkout -B advisor/NNN-<slug> main`) to avoid stale-base conflicts.
 
 ## Dependency notes
 
