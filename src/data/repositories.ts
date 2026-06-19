@@ -672,7 +672,8 @@ class BrowserFinanceRepository implements FinanceRepository {
   }
 
   async deleteAccount(id: string) {
-    const hasRows = this.data.ledgerTransactions.some((row) => row.accountId === id && row.deletedAt === null)
+    const hasRows = this.data.ledgerTransactions.some((row) =>
+        (row.accountId === id || row.counterAccountId === id) && row.deletedAt === null)
       || this.data.investmentRecords.some((row) => row.linkedAccountId === id && row.deletedAt === null);
     if (hasRows) throw new Error("已有交易的帳戶不能刪除。");
     this.data.accounts = this.data.accounts.map((account) =>
@@ -2003,7 +2004,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   override async deleteAccount(id: string) {
     const linkedLedger = await this.db.select<Array<{ count: number }>>(
-      `select count(*) as count from ledger_transactions where account_id = $1 and deleted_at is null`,
+      `select count(*) as count from ledger_transactions where (account_id = $1 or counter_account_id = $1) and deleted_at is null`,
       [id],
     );
     const linkedInvestments = await this.db.select<Array<{ count: number }>>(
