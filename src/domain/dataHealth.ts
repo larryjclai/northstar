@@ -11,7 +11,8 @@ export type DataHealthKind =
   | "missing-fx"
   | "missing-price-history"
   | "negative-cash"
-  | "overdue-settlement";
+  | "overdue-settlement"
+  | "orphaned-row";
 
 export interface DataHealthIssue {
   id: string;
@@ -253,6 +254,27 @@ export function buildDataHealthReport(input: BuildDataHealthReportInput): DataHe
       severity: "warn",
       kind: "overdue-settlement",
       message: `逾期 60 天以上的待結清款項：${parts.join("、")}`,
+    });
+  }
+
+  // ── Rule 7: orphaned-row — ledger rows referencing a deleted/missing account ──
+  const validAccountIds = new Set(accounts.filter((a) => a.deletedAt === null).map((a) => a.id));
+  const orphanRows: string[] = [];
+  for (const row of ledger) {
+    if (row.deletedAt !== null) continue;
+    const mainOrphan = row.accountId !== "" && !validAccountIds.has(row.accountId);
+    const counterOrphan = row.counterAccountId != null && !validAccountIds.has(row.counterAccountId);
+    if (mainOrphan || counterOrphan) {
+      orphanRows.push(row.name || row.merchant || row.id);
+    }
+  }
+  if (orphanRows.length > 0) {
+    issues.push({
+      id: "orphaned-row",
+      severity: "error",
+      kind: "orphaned-row",
+      message: `以下交易連結到已刪除或不存在的帳戶，仍在影響餘額，請結清或刪除：${orphanRows.slice(0, 8).join("、")}${orphanRows.length > 8 ? ` 等 ${orphanRows.length} 筆` : ""}`,
+      affected: orphanRows,
     });
   }
 

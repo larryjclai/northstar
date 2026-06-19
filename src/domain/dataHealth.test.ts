@@ -443,3 +443,61 @@ describe("report aggregates", () => {
     expect(report.healthy).toBe(false);
   });
 });
+
+// ─── Rule 7: orphaned-row ─────────────────────────────────────────────────────
+
+describe("orphaned-row", () => {
+  it("triggers when a row's counterAccountId points to a missing account", () => {
+    const input = healthyInput();
+    input.accounts = [makeAccount({ id: "acct1" })];
+    input.ledger = [
+      makeLedgerRow({
+        id: "orphan1",
+        name: "孤兒交易",
+        accountId: "",
+        counterAccountId: "acct_deleted",
+        settlementStatus: "receivable",
+        entryType: "income",
+      }),
+    ];
+    const report = buildDataHealthReport(input);
+    const issue = report.issues.find((i) => i.kind === "orphaned-row");
+    expect(issue).toBeDefined();
+    expect(issue?.severity).toBe("error");
+    expect(issue?.affected).toContain("孤兒交易");
+  });
+
+  it("triggers when a row's accountId is a non-empty missing id", () => {
+    const input = healthyInput();
+    input.accounts = [makeAccount({ id: "acct1" })];
+    input.ledger = [makeLedgerRow({ id: "orphan2", accountId: "acct_gone" })];
+    const report = buildDataHealthReport(input);
+    expect(report.issues.find((i) => i.kind === "orphaned-row")).toBeDefined();
+  });
+
+  it("does NOT trigger for a normal unsettled AR row with a VALID counter account", () => {
+    const input = healthyInput();
+    input.accounts = [makeAccount({ id: "acct1" })];
+    input.ledger = [
+      makeLedgerRow({
+        id: "ar1",
+        accountId: "", // legitimately empty until settled
+        counterAccountId: "acct1", // valid, existing account
+        settlementStatus: "receivable",
+        entryType: "income",
+      }),
+    ];
+    const report = buildDataHealthReport(input);
+    expect(report.issues.find((i) => i.kind === "orphaned-row")).toBeUndefined();
+  });
+
+  it("does NOT trigger for deleted ledger rows", () => {
+    const input = healthyInput();
+    input.accounts = [makeAccount({ id: "acct1" })];
+    input.ledger = [
+      makeLedgerRow({ id: "del", accountId: "acct_gone", deletedAt: "2026-02-01T00:00:00Z" }),
+    ];
+    const report = buildDataHealthReport(input);
+    expect(report.issues.find((i) => i.kind === "orphaned-row")).toBeUndefined();
+  });
+});
