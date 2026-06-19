@@ -22,6 +22,10 @@ export interface TradingFeeConfig {
   minBrokerFee: number;
   /** When false the auto-fill is disabled; the pure calc is still usable. */
   enabled: boolean;
+  /** Per-account brokerage discount multiplier (折扣), keyed by account id.
+   *  1 = no discount (full rate); 0.6 = 6 折. Absent/undefined = 1. The
+   *  securities-transaction tax is statutory and is never discounted. */
+  accountDiscounts?: Record<string, number>;
 }
 
 export const DEFAULT_TW_FEES: TradingFeeConfig = {
@@ -39,6 +43,8 @@ export interface ComputeTradeFeeOpts {
   /** Determines the securities transaction tax rate on sells. */
   instrument: "stock" | "etf";
   config: TradingFeeConfig;
+  /** Brokerage discount multiplier (0 < d <= 1). Default 1 (no discount). */
+  brokerFeeDiscount?: number;
 }
 
 /**
@@ -61,9 +67,13 @@ export function computeTradeFee(opts: ComputeTradeFeeOpts): number {
 
   const consideration = qty * price;
 
+  const discount =
+    opts.brokerFeeDiscount == null
+      ? 1
+      : Math.min(1, Math.max(0, opts.brokerFeeDiscount));
   const brokerage = Math.max(
     config.minBrokerFee,
-    Math.round(consideration * config.brokerFeeRate),
+    Math.round(consideration * config.brokerFeeRate * discount),
   );
 
   if (action === "sell") {
@@ -74,6 +84,16 @@ export function computeTradeFee(opts: ComputeTradeFeeOpts): number {
   }
 
   return brokerage;
+}
+
+/** Resolve an account's discount from config (1 when unset). */
+export function brokerFeeDiscountFor(
+  config: TradingFeeConfig,
+  accountId: string | null | undefined,
+): number {
+  if (!accountId) return 1;
+  const d = config.accountDiscounts?.[accountId];
+  return d == null ? 1 : Math.min(1, Math.max(0, d));
 }
 
 /**
