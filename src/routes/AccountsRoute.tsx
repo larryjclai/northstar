@@ -771,7 +771,7 @@ function AccountDrawer({
               </p>
 
               <div style={{ marginBottom: 20 }}>
-                <DrawerField label={`${form.type === "alternative" ? "目前市值" : "當前餘額"}（${form.currency}）`}>
+                <DrawerField label={`${form.type === "alternative" ? "目前市值" : "期初餘額"}（${form.currency}）`}>
                   <input
                     className="ns-input text-stat"
                     style={{ fontFamily: 'var(--ns-font-mono)', fontVariantNumeric: 'tabular-nums', height: 56 }}
@@ -785,6 +785,11 @@ function AccountDrawer({
                 {form.type === 'credit' && (
                   <div className="muted text-xs" style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
                     信用卡尚未繳清的金額請以負數輸入（例：輸入 −302 表示尚欠 302）；已結清請填 0。
+                  </div>
+                )}
+                {form.type !== "alternative" && form.type !== "credit" && (
+                  <div className="muted text-xs" style={{ marginTop: 6 }}>
+                    這是帳戶的起始餘額；目前餘額 = 期初餘額 + 已結算交易。若要直接修正目前餘額，請用帳戶列的「調整餘額」。
                   </div>
                 )}
               </div>
