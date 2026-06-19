@@ -12,6 +12,10 @@
 
 export interface StatementRow {
   date: string;
+  /** Optional posting date. When set, the row is bucketed into the statement
+   *  cycle of `postDate` instead of `date` (a deferred charge bills to a later
+   *  cycle). Its own displayed `date` — the purchase date — is unchanged. */
+  postDate?: string | null;
   amount: number;
   isReviewed: boolean;
 }
@@ -117,7 +121,10 @@ export function buildStatementPeriods<T extends StatementRow>(
 
   const byClose = new Map<string, T[]>();
   for (const row of rows) {
-    const close = closingDateFor(row.date, statementDay);
+    // Deferred charges bucket by their posting date; the displayed purchase
+    // date (`row.date`) is unaffected, as is the account balance.
+    const effectiveDate = row.postDate ?? row.date;
+    const close = closingDateFor(effectiveDate, statementDay);
     const bucket = byClose.get(close) ?? [];
     bucket.push(row);
     byClose.set(close, bucket);
