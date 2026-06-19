@@ -71,6 +71,7 @@ export interface LedgerDraft {
   installmentTotal?: number | null;
   refundOfLedgerId?: string | null;
   recurringOccurrenceKey?: string | null;
+  postDate?: string | null;
 }
 
 export type AccountDraft = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "creditPaymentPaidUntil" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color" | "bankBrandDomain"> & {
@@ -1948,6 +1949,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("ledger_transactions", "installment_index", "integer");
     await this.ensureSqliteColumn("ledger_transactions", "installment_total", "integer");
     await this.ensureSqliteColumn("ledger_transactions", "refund_of_ledger_id", "text");
+    await this.ensureSqliteColumn("ledger_transactions", "post_date", "text");
     await this.ensureSqliteColumn("recurring_transactions", "counter_account_id", "text");
     await this.db.execute(`create unique index if not exists idx_ledger_recurring_occurrence on ledger_transactions (recurring_occurrence_key) where recurring_occurrence_key is not null and deleted_at is null`);
     await this.ensureSyncInfrastructure();
@@ -2024,7 +2026,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       installment_group_id as installmentGroupId, installment_index as installmentIndex, installment_total as installmentTotal,
       refund_of_ledger_id as refundOfLedgerId,
       is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId, recurring_rule_id as recurringRuleId,
-      recurring_occurrence_key as recurringOccurrenceKey
+      recurring_occurrence_key as recurringOccurrenceKey, post_date as postDate
       from ledger_transactions where deleted_at is null order by date desc, created_at desc`);
   }
 
@@ -2059,8 +2061,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   override async updateLedgerTransaction(id: string, input: LedgerDraft) {
     assertLedgerInvariants(input, await this.listAccounts(), { allowTransfer: input.entryType === "transfer" });
     await this.db.execute(
-      `update ledger_transactions set revision = revision + 1, updated_at = $1, account_id = $2, date = $3, name = $4, amount = $5, currency = $6, original_amount = $7, original_currency = $8, category = $9, subcategory = $10, merchant = $11, entry_type = $12, settlement_status = $13, note = $14, group_id = $15, counter_account_id = $17 where id = $16`,
-      [nowIso(), input.accountId, input.date, input.name, input.amount, input.currency, input.originalAmount ?? null, input.originalCurrency ?? null, input.category, input.subcategory, input.merchant, input.entryType, input.settlementStatus, input.note, input.groupId ?? null, id, input.counterAccountId ?? null],
+      `update ledger_transactions set revision = revision + 1, updated_at = $1, account_id = $2, date = $3, name = $4, amount = $5, currency = $6, original_amount = $7, original_currency = $8, category = $9, subcategory = $10, merchant = $11, entry_type = $12, settlement_status = $13, note = $14, group_id = $15, counter_account_id = $17, post_date = $18 where id = $16`,
+      [nowIso(), input.accountId, input.date, input.name, input.amount, input.currency, input.originalAmount ?? null, input.originalCurrency ?? null, input.category, input.subcategory, input.merchant, input.entryType, input.settlementStatus, input.note, input.groupId ?? null, id, input.counterAccountId ?? null, input.postDate ?? null],
     );
     await this.recomputeSqliteAccounts();
   }
@@ -3604,8 +3606,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   private async insertLedgerRow(row: LedgerTransaction) {
     const now = nowIso();
     await this.db.execute(
-      `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, counter_account_id, date, name, amount, currency, original_amount, original_currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id, recurring_rule_id, recurring_occurrence_key, installment_group_id, installment_index, installment_total, refund_of_ledger_id)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)`,
+      `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, counter_account_id, date, name, amount, currency, original_amount, original_currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id, recurring_rule_id, recurring_occurrence_key, installment_group_id, installment_index, installment_total, refund_of_ledger_id, post_date)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)`,
       [
         row.id,
         row.spaceId ?? personalSpace,
@@ -3637,6 +3639,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         row.installmentIndex ?? null,
         row.installmentTotal ?? null,
         row.refundOfLedgerId ?? null,
+        row.postDate ?? null,
       ],
     );
   }
@@ -4563,6 +4566,7 @@ function createLedgerRow(input: LedgerDraft & { recurringRuleId?: string | null 
     receiptAttachmentId: null,
     recurringRuleId: input.recurringRuleId ?? null,
     recurringOccurrenceKey: input.recurringOccurrenceKey ?? null,
+    postDate: input.postDate ?? null,
   };
 }
 

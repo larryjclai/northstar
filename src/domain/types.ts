@@ -143,6 +143,10 @@ export interface LedgerTransaction extends SyncFields {
   recurringRuleId: string | null;
   /** Stable key for a recurring-rule occurrence, used to deduplicate sync. */
   recurringOccurrenceKey?: string | null;
+  /** Optional posting date for credit-card charges that bill to a later
+   *  statement than their purchase `date`. Null = posts on `date`. The account
+   *  balance is unaffected; only statement bucketing uses this. */
+  postDate?: string | null;
 }
 
 export interface PortfolioAsset extends SyncFields {

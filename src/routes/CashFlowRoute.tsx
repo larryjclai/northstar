@@ -98,6 +98,7 @@ function makeEmptyLedger(timezone: string): LedgerDraft {
     settlementStatus: "settled",
     note: "",
     feeAmount: 0,
+    postDate: null,
   };
 }
 
@@ -406,6 +407,7 @@ export function CashFlowRoute() {
       entryType: row.entryType ?? (row.amount >= 0 ? "income" : "expense"),
       settlementStatus: row.settlementStatus ?? "settled",
       note: row.note,
+      postDate: row.postDate ?? null,
     });
     setEntryDisplayCurrency(row.originalCurrency ?? row.currency);
     setAmountExpression(String(Math.abs(row.originalAmount ?? row.amount)));
@@ -457,6 +459,7 @@ export function CashFlowRoute() {
         settlementStatus: row.settlementStatus ?? "settled",
         note: row.note,
         feeAmount: 0,
+        postDate: row.postDate ?? null,
       });
       setEntryDisplayCurrency(row.originalCurrency ?? row.currency);
       setAmountExpression(String(Math.abs(row.originalAmount ?? row.amount)));
@@ -487,10 +490,16 @@ export function CashFlowRoute() {
 
       const isReceivablePayable = drawerType === "ar" || drawerType === "ap";
       const note = dueDate ? `${ledgerForm.note ? `${ledgerForm.note} · ` : ""}到期 ${dueDate}`.trim() : ledgerForm.note;
+      // 延後入帳 only applies to a credit-card expense; clear it otherwise so a
+      // posting date never lingers on income/transfer or non-credit accounts.
+      const isCreditExpense = entryType === "expense"
+        && accountRows.find((a) => a.id === ledgerForm.accountId)?.type === "credit";
+      const postDate = isCreditExpense ? (ledgerForm.postDate || null) : null;
       const payload: LedgerDraft = {
         ...ledgerForm,
         entryType,
         settlementStatus: settlementFor(drawerType),
+        postDate,
         // 代墊 counter account only applies to 應收/應付.
         counterAccountId: isReceivablePayable ? (ledgerForm.counterAccountId || null) : null,
         amount: signedAmount,
@@ -2244,6 +2253,43 @@ function EntryDrawer({
                     {activeInstallment
                       ? `總額將平均拆成 ${installmentPeriods} 筆，逐月入帳到對應的帳單週期。`
                       : "輸入 2–60（期數）啟用分期；留空或填 0 表示不分期。"}
+                  </div>
+                </DrawerField>
+              )}
+
+              {type === "expense" && isCreditAccount && (
+                <DrawerField label="入帳時間（信用卡）">
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="button"
+                      className="ns-input"
+                      style={{ flex: 1, cursor: "pointer", fontWeight: ledgerForm.postDate ? 400 : 600, color: ledgerForm.postDate ? "var(--ns-fg-muted)" : "var(--ns-fg)" }}
+                      onClick={() => setLedgerForm({ ...ledgerForm, postDate: null })}
+                    >
+                      當下入帳
+                    </button>
+                    <button
+                      type="button"
+                      className="ns-input"
+                      style={{ flex: 1, cursor: "pointer", fontWeight: ledgerForm.postDate ? 600 : 400, color: ledgerForm.postDate ? "var(--ns-fg)" : "var(--ns-fg-muted)" }}
+                      onClick={() => setLedgerForm({ ...ledgerForm, postDate: ledgerForm.postDate ?? (ledgerForm.date ? ledgerForm.date.slice(0, 10) : "") })}
+                    >
+                      延後到…
+                    </button>
+                  </div>
+                  {ledgerForm.postDate != null && (
+                    <input
+                      className="ns-input"
+                      type="date"
+                      value={ledgerForm.postDate.slice(0, 10)}
+                      onChange={(e) => setLedgerForm({ ...ledgerForm, postDate: e.target.value })}
+                      style={{ fontFamily: "var(--ns-font-mono)", marginTop: 8 }}
+                    />
+                  )}
+                  <div className="muted text-caption" style={{ marginTop: 4 }}>
+                    {ledgerForm.postDate
+                      ? "這筆消費仍立即計為負債，但會歸到入帳日所屬的帳單週期。"
+                      : "預設依消費日歸入帳單週期。"}
                   </div>
                 </DrawerField>
               )}
