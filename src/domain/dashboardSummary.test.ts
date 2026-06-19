@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildNetWorthBreakdown, buildOutstandingSettlements, buildTopHoldingSummaries, calculateAvailableCash, calculateLiabilities } from "./dashboardSummary";
+import { buildNetWorthBreakdown, buildOutstandingSettlements, buildTopHoldingSummaries, calculateAvailableCash, calculateLiabilities, creditBalanceLabel, explainAccountBalance } from "./dashboardSummary";
 import type { Account, LedgerTransaction, PortfolioAsset } from "./types";
 
 function ledgerRow(overrides: Partial<LedgerTransaction>): LedgerTransaction {
@@ -147,6 +147,33 @@ describe("dashboard summary helpers", () => {
     expect(rows[0].dayChange).toBe(3);
     expect(rows[0].dayChangePercent).toBe(1.25);
     expect(rows.some((row) => row.asset.ticker === "AAA")).toBe(false);
+  });
+});
+
+describe("creditBalanceLabel", () => {
+  it("treats a negative balance as 未繳 (owed)", () => {
+    expect(creditBalanceLabel(-302)).toEqual({ state: "owed", magnitude: 302, label: "未繳" });
+  });
+  it("treats a positive balance as 溢繳 (overpaid)", () => {
+    expect(creditBalanceLabel(302)).toEqual({ state: "credit", magnitude: 302, label: "溢繳" });
+  });
+  it("treats a zero balance as 已結清 (settled)", () => {
+    expect(creditBalanceLabel(0)).toEqual({ state: "zero", magnitude: 0, label: "已結清" });
+  });
+  it("treats a sub-epsilon negative balance as settled, not owed", () => {
+    expect(creditBalanceLabel(-0.001).state).toBe("zero");
+  });
+});
+
+describe("explainAccountBalance", () => {
+  it("attributes a payable counter-leg of −302 as +302 via counter", () => {
+    const result = explainAccountBalance("card", 0, [
+      ledgerRow({ id: "p1", accountId: "checking", counterAccountId: "card", amount: -302, name: "刷卡", date: "2026-05-01T00:00", settlementStatus: "payable" }),
+    ]);
+    expect(result.opening).toBe(0);
+    expect(result.contributions).toHaveLength(1);
+    expect(result.contributions[0]).toMatchObject({ id: "p1", delta: 302, via: "counter" });
+    expect(result.total).toBe(302);
   });
 });
 
