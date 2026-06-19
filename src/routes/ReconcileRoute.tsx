@@ -1,4 +1,4 @@
-import { CaretRight, CaretDown, CheckCircle, Circle, CurrencyCircleDollar } from "@phosphor-icons/react";
+import { CaretRight, CaretDown, CheckCircle, Circle, CurrencyCircleDollar, PencilSimple } from "@phosphor-icons/react";
 import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
@@ -268,6 +268,17 @@ export function ReconcileRoute() {
                         <div className="num text-sm" style={{ color: row.amount < 0 ? "var(--ns-neg)" : "var(--ns-pos)", whiteSpace: "nowrap" }}>
                           {row.amount < 0 ? "−" : "+"}NT${formatNumber(Math.abs(row.amount))}
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          title="編輯交易"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate({ to: "/cash-flow", search: { account: accountId, tx: row.id } });
+                          }}
+                        >
+                          <PencilSimple size={14} />
+                        </Button>
                       </div>
                     ))
                   )

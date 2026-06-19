@@ -58,9 +58,10 @@ const cashFlowRoute = createRoute({
   component: CashFlowRoute,
   // Optional `?account=<id>` deep-link from the Accounts page: opens the ledger
   // pre-filtered to that account's transactions.
-  validateSearch: (search: Record<string, unknown>): { account?: string } => {
+  validateSearch: (search: Record<string, unknown>): { account?: string; tx?: string } => {
     const account = typeof search.account === "string" ? search.account : undefined;
-    return account ? { account } : {};
+    const tx = typeof search.tx === "string" ? search.tx : undefined;
+    return { ...(account ? { account } : {}), ...(tx ? { tx } : {}) };
   },
 });
 
