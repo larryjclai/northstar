@@ -16,6 +16,7 @@ import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { getFinanceRepository } from "../data/repositories";
 import type { Account, AccountType, AppSettings } from "../domain";
 import { convertCurrency, formatNumber, nowAsDatetimeLocal } from "../domain";
+import { creditBalanceLabel } from "../domain/dashboardSummary";
 import { BANK_BRANDS, resolveBankBrand } from "../domain/bankBrands";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useNumericField } from "../hooks/useNumericField";
@@ -431,10 +432,25 @@ export function AccountsRoute() {
                         instead of forcing the row (and card) wider than screen. */}
                     <div style={{ display: "flex", alignItems: "center", gap: 12, marginLeft: "auto" }}>
                       <div style={{ textAlign: "right" }}>
-                        <div className="num text-[15px]" style={{ fontWeight: 500, color: a.balance < 0 ? "var(--ns-neg)" : undefined }}>
-                          {a.balance < 0 ? "−" : ""}{formatNumber(Math.abs(base))}
-                        </div>
-                        {a.currency !== primaryCurrency ? <div className="muted mono text-caption">{formatNumber(a.balance)} {a.currency}</div> : null}
+                        {a.type === "credit" ? (() => {
+                          const cb = creditBalanceLabel(a.balance);
+                          const toneColor = cb.state === "owed" ? "var(--ns-neg)" : cb.state === "credit" ? "var(--ns-pos)" : "var(--ns-fg-dim)";
+                          return (
+                            <>
+                              <div className="num text-[15px]" style={{ fontWeight: 500, color: toneColor }}>
+                                {cb.state === "owed" ? "−" : cb.state === "credit" ? "+" : ""}{formatNumber(Math.abs(toBase(cb.state === "zero" ? 0 : a.balance, a.currency)))}
+                              </div>
+                              <div className="muted text-caption">{cb.label}</div>
+                            </>
+                          );
+                        })() : (
+                          <>
+                            <div className="num text-[15px]" style={{ fontWeight: 500, color: a.balance < 0 ? "var(--ns-neg)" : undefined }}>
+                              {a.balance < 0 ? "−" : ""}{formatNumber(Math.abs(base))}
+                            </div>
+                            {a.currency !== primaryCurrency ? <div className="muted mono text-caption">{formatNumber(a.balance)} {a.currency}</div> : null}
+                          </>
+                        )}
                       </div>
                       <div className="ns-acct-actions" style={{ display: "flex", gap: 4 }}>
                         {a.type === "credit" ? (
@@ -768,7 +784,7 @@ function AccountDrawer({
                 )}
                 {form.type === 'credit' && (
                   <div className="muted text-xs" style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    信用卡餘額請輸入「本期消費應還金額」，系統會記錄為負數（負債）
+                    信用卡尚未繳清的金額請以負數輸入（例：輸入 −302 表示尚欠 302）；已結清請填 0。
                   </div>
                 )}
               </div>
