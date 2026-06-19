@@ -150,7 +150,7 @@ export function CashFlowRoute() {
   const toast = useToast();
   const [dateScope, setDateScope] = useState(() => makeDefaultDateScope(timezone, "month"));
   // `?account=<id>` deep-link from the Accounts page pre-selects that account.
-  const { account: accountParam } = useSearch({ strict: false }) as { account?: string };
+  const { account: accountParam, tx: txParam } = useSearch({ strict: false }) as { account?: string; tx?: string };
   const [selectedAccount, setSelectedAccount] = useState(accountParam ?? "all");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [showAllCategories, setShowAllCategories] = useState(false);
@@ -181,6 +181,14 @@ export function CashFlowRoute() {
   const toPrimary = useCallback((row: LedgerTransaction, amount = row.amount) =>
     convertCurrency(amount, row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date }),
   [appSettings, fxHistory, primaryCurrency]);
+
+  // Deep-link from the Reconcile screen: open the transaction's detail panel once
+  // the ledger has loaded (matching what a tap on a CashFlow row does).
+  useEffect(() => {
+    if (!txParam) return;
+    const row = ledgerRows.find((r) => r.id === txParam);
+    if (row) setDetailRow(row);
+  }, [txParam, ledgerRows]);
 
   const categories = appSettings?.categories.length ? appSettings.categories : [];
   const categoryNames = categories.map((category) => category.name);
