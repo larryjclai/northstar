@@ -65,6 +65,16 @@ import { SquaresFour } from "@phosphor-icons/react";
 
 type StripPeriod = "1D" | "1W" | "1M" | "3M" | "YTD" | "1Y" | "5Y" | "All";
 const STRIP_PERIODS: StripPeriod[] = ["1D", "1W", "1M", "3M", "YTD", "1Y", "5Y", "All"];
+const STRIP_PERIOD_LABELS: Record<StripPeriod, string> = {
+  "1D": "近 1 日",
+  "1W": "近 1 週",
+  "1M": "近 1 個月",
+  "3M": "近 3 個月",
+  "YTD": "今年以來",
+  "1Y": "近 1 年",
+  "5Y": "近 5 年",
+  "All": "全期間",
+};
 
 /** Dashboard cards the user can hide via 編輯版面 (net-worth hero + KPI stay). */
 const DASHBOARD_CARDS: Array<{ key: string; label: string }> = [
@@ -351,40 +361,53 @@ export function DashboardRoute() {
     ),
     [accountRows, ledgerRows, assetRows, investmentRows, quoteRows, dailyPriceRows, appSettings, fxHistory],
   );
+  // The headline net worth uses live quotes; the trend's "today" point uses daily
+  // closes, so they can disagree by a small amount. Align ONLY the final (today)
+  // point to the headline so the chart visibly ends on the big number. Historical
+  // points keep their daily-close valuation. Both `netWorth` and `trend` are
+  // filtered by selectedAccount, so this stays correct when an account is picked.
+  const reconciledTrend = useMemo(() => {
+    if (trend.length === 0) return trend;
+    const last = trend[trend.length - 1];
+    if (last.iso >= todayIso && Math.abs(last.value - netWorth) > 0.5) {
+      return [...trend.slice(0, -1), { ...last, value: netWorth }];
+    }
+    return trend;
+  }, [trend, netWorth, todayIso]);
   // The range control both slices the chart and drives the headline delta, so
   // the +/- figure next to net worth always reflects the *selected* window
   // (start-of-window → now) instead of a fixed month-over-month step. A synthetic
   // anchor point at the window start (carrying the last value before it) keeps
   // the line spanning the full range even across quiet stretches.
   const rangeView = useMemo(() => {
-    if (trend.length < 2) return { points: trend, change: 0, pct: 0 };
+    if (reconciledTrend.length < 2) return { points: reconciledTrend, change: 0, pct: 0 };
     if (stripPeriod === "All") {
-      const first = trend[0].value;
-      const last = trend[trend.length - 1].value;
-      return { points: trend, change: last - first, pct: first !== 0 ? ((last - first) / Math.abs(first)) * 100 : 0 };
+      const first = reconciledTrend[0].value;
+      const last = reconciledTrend[reconciledTrend.length - 1].value;
+      return { points: reconciledTrend, change: last - first, pct: first !== 0 ? ((last - first) / Math.abs(first)) * 100 : 0 };
     }
     const todayIso = new Date().toISOString().slice(0, 10);
     const startIso = stripStartDate(stripPeriod, todayIso);
-    const within = trend.filter((p) => p.iso >= startIso);
+    const within = reconciledTrend.filter((p) => p.iso >= startIso);
 
     // Value as of the window start = last point on/before startIso (carry-forward).
     let carried: number | null = null;
-    for (let i = trend.length - 1; i >= 0; i--) {
-      if (trend[i].iso <= startIso) { carried = trend[i].value; break; }
+    for (let i = reconciledTrend.length - 1; i >= 0; i--) {
+      if (reconciledTrend[i].iso <= startIso) { carried = reconciledTrend[i].value; break; }
     }
 
     let points = within;
     if (within.length > 0 && within[0].iso !== startIso && carried !== null) {
       points = [{ date: formatDay(startIso), value: carried, iso: startIso }, ...within];
     }
-    if (points.length < 2) points = trend.slice(-2);
+    if (points.length < 2) points = reconciledTrend.slice(-2);
 
     const startValue = points[0].value;
     const endValue = points[points.length - 1].value;
     const change = endValue - startValue;
     const pct = startValue !== 0 ? (change / Math.abs(startValue)) * 100 : 0;
     return { points, change, pct };
-  }, [trend, stripPeriod]);
+  }, [reconciledTrend, stripPeriod]);
   const visibleTrend = rangeView.points;
   const momChange = rangeView.change;
   const momPct = rangeView.pct;
@@ -786,13 +809,13 @@ export function DashboardRoute() {
                   {activeMetric.display}
                 </span>
                 {/* MoM trend badge — only for netWorth (has a history series) */}
-                {activeMetric.key === "netWorth" && trend.length >= 2 ? (
+                {activeMetric.key === "netWorth" && reconciledTrend.length >= 2 ? (
                   <>
                     <Badge variant={momChange >= 0 ? "success" : "error"} className="gap-1 rounded-full px-2">
                       {momChange >= 0 ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />}
                       <span className="num">{momChange >= 0 ? "+" : "−"}{formatNumber(Math.abs(momChange))} · {Math.abs(momPct).toFixed(2)}%</span>
                     </Badge>
-                    <span className="muted text-xs">較上月</span>
+                    <span className="muted text-xs">{STRIP_PERIOD_LABELS[stripPeriod]}</span>
                   </>
                 ) : null}
               </div>
@@ -815,7 +838,7 @@ export function DashboardRoute() {
             </div>
 
             {/* Period control — only shown for netWorth (it drives the trend chart) */}
-            {activeMetric.key === "netWorth" && trend.length > 1 ? (
+            {activeMetric.key === "netWorth" && reconciledTrend.length > 1 ? (
               <SegmentedControl
                 value={stripPeriod}
                 onChange={setStripPeriod}
@@ -826,7 +849,7 @@ export function DashboardRoute() {
 
           {/* Trend chart — only for netWorth */}
           {activeMetric.key === "netWorth" ? (
-            trend.length > 1 ? (
+            reconciledTrend.length > 1 ? (
               // position:relative + absolute inner so ResponsiveContainer gets a
               // definite height inside the flex column (otherwise it measures 0
               // and the area never draws).
