@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "../../components/coss/button";
 import { Card } from "../../components/coss/card";
 import { DEFAULT_TW_FEES, type TradingFeeConfig } from "../../domain/tradingFees";
+import { useFinanceData } from "../../data/hooks";
 import type { SettingsTabProps } from "./shared";
 
 /** Clamp a percentage string input to a sane numeric value (stored as a decimal). */
@@ -18,6 +19,11 @@ function decimalToPct(decimal: number): string {
 
 export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "form" | "submit">) {
   const saved: TradingFeeConfig = form.tradingFees ?? DEFAULT_TW_FEES;
+
+  const { accounts } = useFinanceData();
+  const investmentAccounts = (accounts.data ?? []).filter(
+    (a) => a.deletedAt === null && a.type === "investment",
+  );
 
   // Local draft so edits batch before saving on blur/submit.
   const [draft, setDraft] = useState<TradingFeeConfig>(saved);
@@ -168,6 +174,51 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
             重設為預設值
           </Button>
         </div>
+      </Card>
+
+      {/* Per-account brokerage discount (折扣) */}
+      <Card className="p-5 space-y-4">
+        <div>
+          <h3 style={{ fontFamily: "var(--ns-font-display)", fontSize: 16, margin: 0, fontWeight: 600 }}>
+            各券商手續費折扣
+          </h3>
+          <p className="text-xs muted mt-1 mb-0">
+            輸入折數（例：6 = 6 折；留空 = 無折扣）。僅折抵券商手續費。
+          </p>
+        </div>
+
+        {investmentAccounts.length > 0 ? (
+          <div className="space-y-3">
+            {investmentAccounts.map((a) => {
+              const current = draft.accountDiscounts?.[a.id];
+              return (
+                <div key={a.id} className="flex items-center justify-between gap-3">
+                  <span className="text-sm">{a.name}</span>
+                  <input
+                    className="ns-input"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="10"
+                    style={{ width: 96, fontFamily: "var(--ns-font-mono)", textAlign: "right" }}
+                    placeholder="10"
+                    value={current == null ? "" : (current * 10).toString()}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      const next = { ...(draft.accountDiscounts ?? {}) };
+                      if (raw === "") delete next[a.id];
+                      else next[a.id] = Math.min(1, Math.max(0, (parseFloat(raw) || 0) / 10));
+                      setDraft({ ...draft, accountDiscounts: next });
+                    }}
+                    onBlur={() => save(draft)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-xs muted mb-0">前往「帳戶」新增券商帳戶。</p>
+        )}
       </Card>
     </div>
   );

@@ -16,7 +16,7 @@ import { TaiwanMarketDataProvider } from "../features/market-data/taiwanMarketDa
 import { assertExplicitMarketSuffix } from "../domain/marketSymbols";
 import { YahooFinanceProvider } from "../features/market-data/yahooFinanceProvider";
 import { useUiPreferences } from "../state/uiPreferences";
-import { computeTradeFee, isTaiwanTicker, DEFAULT_TW_FEES } from "../domain/tradingFees";
+import { computeTradeFee, brokerFeeDiscountFor, isTaiwanTicker, DEFAULT_TW_FEES } from "../domain/tradingFees";
 
 export type InvestmentEntryMode = "snapshot" | "transaction";
 
@@ -200,6 +200,7 @@ export function InvestmentEntryDrawer({
       price: transactionForm.price,
       instrument,
       config: feeConfig,
+      brokerFeeDiscount: brokerFeeDiscountFor(feeConfig, transactionForm.linkedAccountId),
     });
     setTransactionForm((prev) => ({ ...prev, fee: suggested }));
   }, [
@@ -208,6 +209,7 @@ export function InvestmentEntryDrawer({
     transactionForm.ticker,
     transactionForm.quantity,
     transactionForm.price,
+    transactionForm.linkedAccountId,
     instrument,
   ]);
 
@@ -652,7 +654,7 @@ export function InvestmentEntryDrawer({
                             if (action === "buy" || action === "sell") {
                               setTransactionForm((prev) => ({
                                 ...prev,
-                                fee: computeTradeFee({ action, qty: prev.quantity, price: prev.price, instrument, config: feeConfig }),
+                                fee: computeTradeFee({ action, qty: prev.quantity, price: prev.price, instrument, config: feeConfig, brokerFeeDiscount: brokerFeeDiscountFor(feeConfig, prev.linkedAccountId) }),
                               }));
                             }
                           }}
@@ -660,6 +662,17 @@ export function InvestmentEntryDrawer({
                           重新試算
                         </button>
                       )}
+                      {feeConfig.enabled &&
+                        isTaiwanTicker(transactionForm.ticker) &&
+                        (transactionForm.action === "buy" || transactionForm.action === "sell") &&
+                        (() => {
+                          const d = brokerFeeDiscountFor(feeConfig, transactionForm.linkedAccountId);
+                          return d < 1 ? (
+                            <div className="text-xs muted mt-1">
+                              此帳戶券商手續費折扣 {(d * 10).toFixed((d * 10) % 1 === 0 ? 0 : 1)} 折（證交稅不打折）
+                            </div>
+                          ) : null;
+                        })()}
                     </div>
                   </div>
                 </div>

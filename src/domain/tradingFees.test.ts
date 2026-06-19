@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeTradeFee, isTaiwanTicker, DEFAULT_TW_FEES, type TradingFeeConfig } from "./tradingFees";
+import { computeTradeFee, brokerFeeDiscountFor, isTaiwanTicker, DEFAULT_TW_FEES, type TradingFeeConfig } from "./tradingFees";
 
 describe("computeTradeFee", () => {
   const cfg = DEFAULT_TW_FEES;
@@ -103,6 +103,71 @@ describe("computeTradeFee", () => {
     // 500 × 100 = 50,000; 50,000 × 0.001 = 50
     const fee = computeTradeFee({ action: "buy", qty: 500, price: 100, instrument: "stock", config: customCfg });
     expect(fee).toBe(50);
+  });
+});
+
+describe("computeTradeFee — brokerage discount (折扣)", () => {
+  const cfg = DEFAULT_TW_FEES;
+
+  it("buy: applies discount to brokerage when above the min-fee floor", () => {
+    // 1000 × 50 = 50,000; 50,000 × 0.001425 × 0.6 = 42.75 → round = 43
+    const fee = computeTradeFee({
+      action: "buy",
+      qty: 1000,
+      price: 50,
+      instrument: "stock",
+      config: cfg,
+      brokerFeeDiscount: 0.6,
+    });
+    expect(fee).toBe(43);
+  });
+
+  it("buy: discount that drives the rate-based fee below min still floors at minBrokerFee", () => {
+    // 100 × 100 = 10,000; 10,000 × 0.001425 × 0.6 = 8.55 → round = 9, floor = 20
+    const fee = computeTradeFee({
+      action: "buy",
+      qty: 100,
+      price: 100,
+      instrument: "stock",
+      config: cfg,
+      brokerFeeDiscount: 0.6,
+    });
+    expect(fee).toBe(20);
+  });
+
+  it("sell: tax is computed on the UNDISCOUNTED consideration; only brokerage is discounted", () => {
+    // 1000 × 50 = 50,000
+    // discounted brokerage: round(50,000 × 0.001425 × 0.6) = round(42.75) = 43
+    // full tax:             round(50,000 × 0.003)          = 150
+    const discountedBrokerage = 43;
+    const fullTax = 150;
+    const fee = computeTradeFee({
+      action: "sell",
+      qty: 1000,
+      price: 50,
+      instrument: "stock",
+      config: cfg,
+      brokerFeeDiscount: 0.6,
+    });
+    expect(fee).toBe(discountedBrokerage + fullTax);
+  });
+});
+
+describe("brokerFeeDiscountFor", () => {
+  const cfg: TradingFeeConfig = { ...DEFAULT_TW_FEES, accountDiscounts: { acc1: 0.6 } };
+
+  it("returns 1 for a null account id", () => {
+    expect(brokerFeeDiscountFor(cfg, null)).toBe(1);
+  });
+  it("returns 1 for an unset account id", () => {
+    expect(brokerFeeDiscountFor(cfg, "unknown")).toBe(1);
+  });
+  it("returns the configured value for a known account id", () => {
+    expect(brokerFeeDiscountFor(cfg, "acc1")).toBe(0.6);
+  });
+  it("clamps out-of-range values (1.5 → 1, -0.2 → 0)", () => {
+    expect(brokerFeeDiscountFor({ ...DEFAULT_TW_FEES, accountDiscounts: { hi: 1.5 } }, "hi")).toBe(1);
+    expect(brokerFeeDiscountFor({ ...DEFAULT_TW_FEES, accountDiscounts: { lo: -0.2 } }, "lo")).toBe(0);
   });
 });
 
