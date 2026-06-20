@@ -1,4 +1,4 @@
-import { ArrowsClockwise, CalendarBlank, CopySimple, PencilSimple, Receipt, Storefront, Tag, Trash, Wallet, X } from "@phosphor-icons/react";
+import { ArrowsClockwise, CalendarBlank, Check, CopySimple, PencilSimple, Receipt, Storefront, Tag, Trash, Wallet, X } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { Button } from "./coss/button";
 import { Badge } from "./coss/badge";
@@ -14,6 +14,7 @@ interface TransactionDetailPanelProps {
   accountName: (id: string) => string;
   recurringRows?: RecurringTransaction[];
   onRefund?: (row: LedgerTransaction, refundAmount: number, refundDate: string, refundNote: string) => Promise<void>;
+  onSettle?: (row: LedgerTransaction) => void;
 }
 
 const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }> = {
@@ -22,7 +23,7 @@ const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }
   transfer: { label: "轉帳", color: "var(--ns-accent)", sign: "" },
 };
 
-export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDelete, accountName, recurringRows, onRefund }: TransactionDetailPanelProps) {
+export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDelete, accountName, recurringRows, onRefund, onSettle }: TransactionDetailPanelProps) {
   // Two-click delete confirm — window.confirm is a no-op in the Tauri webview.
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [refundOpen, setRefundOpen] = useState(false);
@@ -237,6 +238,16 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
               <DetailField icon={<Receipt size={15} />} label="備註" value={row.note} />
             )}
           </div>
+
+          {/* Settle (結清): only for an unsettled receivable/payable. Hands off
+              to the existing settle flow (opens SettleModal in CashFlowRoute). */}
+          {onSettle && !isSettled && (row.settlementStatus === "receivable" || row.settlementStatus === "payable") ? (
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--ns-border)" }}>
+              <Button variant="outline" style={{ width: "100%", justifyContent: "center" }} onClick={() => onSettle(row)}>
+                <Check size={14} />{isReceivable ? "收款結清" : "付款結清"}
+              </Button>
+            </div>
+          ) : null}
 
           {/* Refund (退款沖銷): a refund posts a positive-amount expense linked
               to this row, so it nets against the original category's spend
