@@ -2,13 +2,15 @@ import { CaretRight, Plus, ArrowUp } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
 import { Area, AreaChart, ReferenceDot, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
-import { useFinanceData } from "../data/hooks";
+import { useFinanceData, useRepositoryMutation } from "../data/hooks";
+import type { ManualPriceSnapshotDraft } from "../data/repositories";
 import { buildPositionMetrics, buildDailyPriceLookup, buildManualPriceLookup, priceAssetOnDate, calculateFifo, calculateXirr, formatNumber, formatPrice, formatQuantity, resolveAssetName, resolveSectorLabel, XIRR_MIN_DAYS } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { AssetLogo } from "../components/AssetLogo";
 import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
+import { Field, TextInput } from "../components/Field";
 import { Skeleton } from "../components/coss/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "../components/coss/toggle-group";
 import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
@@ -28,6 +30,17 @@ export function HoldingDetailRoute() {
   const [seg, setSeg] = useState("1y");
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [priceFormOpen, setPriceFormOpen] = useState(false);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [priceInput, setPriceInput] = useState("");
+  const [priceDate, setPriceDate] = useState(todayStr);
+  const [priceNote, setPriceNote] = useState("");
+  const [priceMessage, setPriceMessage] = useState("");
+
+  const createManualPrice = useRepositoryMutation(
+    (repository, input: ManualPriceSnapshotDraft) => repository.createManualPriceSnapshot(input),
+    ["manualPriceSnapshots", "assets", "accounts"],
+  );
 
   const assetRows = assets.data ?? [];
   const quoteRows = quotes.data ?? [];
@@ -48,6 +61,39 @@ export function HoldingDetailRoute() {
     () => (asset ? priceAssetOnDate(asset, today, { todayIso: today, dailyPriceLookup, quote, manualPriceLookup }) : null),
     [asset, today, dailyPriceLookup, quote, manualPriceLookup],
   );
+  // For custom assets, the latest manual-price snapshot drives the displayed
+  // 手動價格 + its date.
+  const isCustomAsset = asset?.assetType === "custom";
+  const latestManualSnapshot = useMemo(() => {
+    if (!asset) return null;
+    return manualSnapshotRows
+      .filter((snap) => snap.assetId === asset.id)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .at(-1) ?? null;
+  }, [manualSnapshotRows, asset]);
+
+  async function submitManualPrice() {
+    setPriceMessage("");
+    if (!asset) return;
+    const price = Number(priceInput);
+    if (!priceInput.trim() || !Number.isFinite(price) || price <= 0) {
+      setPriceMessage("請輸入大於 0 的價格。");
+      return;
+    }
+    if (!priceDate) {
+      setPriceMessage("請選擇日期。");
+      return;
+    }
+    try {
+      await createManualPrice.mutateAsync({ assetId: asset.id, date: priceDate, price, note: priceNote.trim() });
+      setPriceFormOpen(false);
+      setPriceInput("");
+      setPriceNote("");
+      setPriceDate(todayStr);
+    } catch (error) {
+      setPriceMessage(error instanceof Error ? error.message : "價格更新失敗。");
+    }
+  }
 
   const series = useMemo(() => {
     const cutoff = rangeCutoff(seg);
@@ -217,11 +263,61 @@ export function HoldingDetailRoute() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <Button variant="ghost" onClick={() => setEditOpen(true)}><PencilSimple size={14} />編輯持倉</Button>
-          <Button onClick={() => setAddOpen(true)}>
-            <Plus size={14} strokeWidth={2} />新增交易
-          </Button>
+          {isCustomAsset ? (
+            <Button onClick={() => { setPriceFormOpen((open) => !open); setPriceMessage(""); }}>
+              <Plus size={14} strokeWidth={2} />更新價格
+            </Button>
+          ) : (
+            <Button onClick={() => setAddOpen(true)}>
+              <Plus size={14} strokeWidth={2} />新增交易
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Custom asset: manual-price indicator + inline 更新價格 form */}
+      {isCustomAsset ? (
+        <Card style={{ padding: 18, marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            <span className="muted text-xs" style={{ textTransform: "uppercase", letterSpacing: 0.04 }}>手動價格</span>
+            {latestManualSnapshot ? (
+              <>
+                <span className="mono" style={{ fontWeight: 600 }}>{formatPrice(latestManualSnapshot.price)} {asset.currency}</span>
+                <span className="muted text-xs">更新於 {latestManualSnapshot.date}</span>
+              </>
+            ) : (
+              <span className="muted text-sm">尚未更新價格，目前以平均成本 {formatPrice(asset.averageCost)} {asset.currency} 計價。</span>
+            )}
+          </div>
+          {priceFormOpen ? (
+            <div className="grid gap-3" style={{ marginTop: 16 }}>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_160px]">
+                <Field label="價格">
+                  <TextInput
+                    type="number"
+                    value={priceInput}
+                    onChange={(event) => setPriceInput(event.target.value)}
+                    placeholder={String(asset.averageCost)}
+                  />
+                </Field>
+                <Field label="日期">
+                  <TextInput type="date" value={priceDate} onChange={(event) => setPriceDate(event.target.value)} />
+                </Field>
+              </div>
+              <Field label="備註（選填）">
+                <TextInput value={priceNote} onChange={(event) => setPriceNote(event.target.value)} placeholder="例如：最新估值" />
+              </Field>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <Button onClick={submitManualPrice} disabled={createManualPrice.isPending}>
+                  {createManualPrice.isPending ? "儲存中…" : "儲存價格"}
+                </Button>
+                <Button variant="ghost" onClick={() => { setPriceFormOpen(false); setPriceMessage(""); }}>取消</Button>
+                {priceMessage ? <span className="text-sm" style={{ color: "var(--ns-danger, #d33)" }}>{priceMessage}</span> : null}
+              </div>
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
 
       {/* Price + position */}
       <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-[1fr_360px]" style={{ marginBottom: 20 }}>
