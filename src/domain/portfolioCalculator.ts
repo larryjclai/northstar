@@ -19,6 +19,12 @@ export interface HoldingValuation {
   dailyPrices: DailyPrice[];
   /** Valuation date (today, YYYY-MM-DD) for the close lookup. */
   asOf: string;
+  /**
+   * Manual-price resolver for custom (assetType === "custom") assets. Returns the
+   * latest manual snapshot at-or-before the date; only consulted for custom
+   * assets. Non-custom valuation is unaffected whether or not this is supplied.
+   */
+  manualPriceLookup?: (assetId: string, date: string) => { price: number; currency: string } | undefined;
 }
 
 /**
@@ -29,19 +35,28 @@ export interface HoldingValuation {
  *     asset's average cost when no market price exists (so value never reads 0).
  */
 function resolveHoldingPrice(
-  ticker: string,
-  averageCost: number,
+  asset: { id: string; ticker: string; averageCost: number; assetType: string | null },
   quote: MarketQuote | undefined,
   lookup: DailyPriceLookup | null,
   asOf: string | null,
+  manualPriceLookup?: (assetId: string, date: string) => { price: number; currency: string } | undefined,
 ): { marketPrice: number | null; valuePrice: number } {
+  // Custom (manually-priced) assets value from manual snapshots → cost only; they
+  // never consult a live quote or daily close. Gated strictly on assetType so the
+  // standard quote → close → cost path below is byte-for-byte unchanged.
+  if (asset.assetType === "custom") {
+    const manual = asOf ? manualPriceLookup?.(asset.id, asOf) : undefined;
+    const manualPrice = manual && Number.isFinite(manual.price) && manual.price > 0 ? manual.price : null;
+    const valuePrice = manualPrice ?? (lookup ? asset.averageCost : 0);
+    return { marketPrice: manualPrice, valuePrice };
+  }
   const quotePrice = quote?.price ?? null;
-  const closePrice = lookup && asOf ? findDailyPriceAtOrBefore(lookup, ticker, asOf)?.close ?? null : null;
+  const closePrice = lookup && asOf ? findDailyPriceAtOrBefore(lookup, asset.ticker, asOf)?.close ?? null : null;
   const marketPrice = quotePrice ?? closePrice;
   // Cost fallback only applies once a valuation context exists; without it we
   // preserve the legacy "0 when unpriced" behaviour (marketPrice stays null and
   // callers compute marketValue = 0).
-  const valuePrice = marketPrice ?? (lookup ? averageCost : 0);
+  const valuePrice = marketPrice ?? (lookup ? asset.averageCost : 0);
   return { marketPrice, valuePrice };
 }
 
@@ -75,7 +90,7 @@ export function buildHoldingPositions(
             return sum;
           }, 0);
       const quote = quotes[asset.ticker];
-      const { marketPrice, valuePrice } = resolveHoldingPrice(asset.ticker, asset.averageCost, quote, lookup, asOf);
+      const { marketPrice, valuePrice } = resolveHoldingPrice(asset, quote, lookup, asOf, valuation?.manualPriceLookup);
       const marketValue = quantity * valuePrice;
       const costBasis = quantity * asset.averageCost;
       const unrealizedGain = marketValue - costBasis;
@@ -130,7 +145,7 @@ export function buildHoldingPositionsByAccount(
   for (const asset of assets) {
     if (asset.deletedAt !== null) continue;
     const quote = quotes[asset.ticker];
-    const { marketPrice, valuePrice } = resolveHoldingPrice(asset.ticker, asset.averageCost, quote, lookup, asOf);
+    const { marketPrice, valuePrice } = resolveHoldingPrice(asset, quote, lookup, asOf, valuation?.manualPriceLookup);
 
     const assetRecords = recordsByAsset.get(asset.id) ?? [];
 

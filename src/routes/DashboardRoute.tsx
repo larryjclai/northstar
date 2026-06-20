@@ -24,6 +24,7 @@ import {
   buildPortfolioValueSeries,
   buildBenchmarkSeries,
   buildDailyPriceLookup,
+  buildManualPriceLookup,
   priceAssetOnDate,
   holdingsMarketValue,
   alignByDate,
@@ -49,6 +50,7 @@ import {
   type FinancialGoal,
   type InvestmentRecord,
   type LedgerTransaction,
+  type ManualPriceSnapshot,
   type PortfolioAsset,
   todayInTimezone,
 } from "../domain";
@@ -219,10 +221,15 @@ export function DashboardRoute() {
   // latest daily close → average cost (see domain/valuation).
   // (todayIso is declared earlier, before dataHealthReport, so both can share it.)
   const dailyPriceLookup = useMemo(() => buildDailyPriceLookup(dailyPriceRows), [dailyPriceRows]);
+  // Manual-price resolver for custom (manually-priced) assets; shared by the KPI
+  // market value, the allocation donut, and the net-worth trend so all three value
+  // custom assets identically (manual snapshot → average cost).
+  const manualPriceLookup = useMemo(() => buildManualPriceLookup(manualSnapshotRows), [manualSnapshotRows]);
   const marketValue = holdingsMarketValue(filteredAssets, todayIso, toPrimary, {
     todayIso,
     dailyPriceLookup,
     quoteFor,
+    manualPriceLookup,
   });
 
   // Reconciling partition: 資產 − 負債 = 淨值 always holds.
@@ -357,9 +364,9 @@ export function DashboardRoute() {
       selectedAccount === "all" ? ledgerRows : ledgerRows.filter(r => r.accountId === selectedAccount),
       selectedAccount === "all" ? assetRows : assetRows.filter(a => a.accountId === selectedAccount),
       selectedAccount === "all" ? investmentRows : investmentRows.filter(r => r.linkedAccountId === selectedAccount),
-      quoteRows, dailyPriceRows, appSettings, fxHistory
+      quoteRows, dailyPriceRows, appSettings, fxHistory, manualSnapshotRows
     ),
-    [accountRows, ledgerRows, assetRows, investmentRows, quoteRows, dailyPriceRows, appSettings, fxHistory],
+    [accountRows, ledgerRows, assetRows, investmentRows, quoteRows, dailyPriceRows, appSettings, fxHistory, manualSnapshotRows],
   );
   // The headline net worth uses live quotes; the trend's "today" point uses daily
   // closes, so they can disagree by a small amount. Align ONLY the final (today)
@@ -441,7 +448,7 @@ export function DashboardRoute() {
   const allocation = useMemo(() => {
     const byClass = new Map<string, number>();
     for (const asset of filteredAssets) {
-      const price = priceAssetOnDate(asset, todayIso, { todayIso, dailyPriceLookup, quote: quoteFor(asset.ticker) });
+      const price = priceAssetOnDate(asset, todayIso, { todayIso, dailyPriceLookup, quote: quoteFor(asset.ticker), manualPriceLookup });
       const value = toPrimary(price.value * asset.totalQuantity, price.currency, todayIso);
       if (value <= 0) continue;
       const label = asset.assetType ? assetTypeLabels[asset.assetType] : "其他";
@@ -453,7 +460,7 @@ export function DashboardRoute() {
     return [...byClass.entries()]
       .map(([label, value], i) => ({ label, value, color: CHART_COLORS[i % CHART_COLORS.length], pct: total > 0 ? (value / total) * 100 : 0 }))
       .sort((a, b) => b.value - a.value);
-  }, [filteredAssets, quoteRows, availableCash, alternativeAssets, toPrimary, dailyPriceLookup, todayIso]);
+  }, [filteredAssets, quoteRows, availableCash, alternativeAssets, toPrimary, dailyPriceLookup, manualPriceLookup, todayIso]);
 
   // Investment positions (current holdings) for the fixed-basket analytics that
   // power the Portfolio Strip. Mirror the page's account filter so the strip
@@ -1345,6 +1352,7 @@ function buildNetWorthTrend(
   dailyPrices: DailyPrice[],
   settings: AppSettings | undefined,
   dailyFxRates: DailyFxRate[],
+  manualPriceSnapshots: ManualPriceSnapshot[],
 ) {
   const { toPrimary } = createFxConverter(settings, dailyFxRates);
   const settledRows = ledgerRows
@@ -1402,6 +1410,7 @@ function buildNetWorthTrend(
   const quoteLookup = buildQuoteLookup(quotes);
   const quoteFor = (ticker: string) => findQuoteForTicker(quoteLookup, ticker);
   const dailyPriceLookup = buildDailyPriceLookup(dailyPrices);
+  const manualPriceLookup = buildManualPriceLookup(manualPriceSnapshots);
   const recordsByAsset = new Map<string, InvestmentRecord[]>();
   for (const record of investments) {
     if (record.deletedAt !== null) continue;
@@ -1450,7 +1459,7 @@ function buildNetWorthTrend(
       const quantity = quantities.get(asset.id) ?? 0;
       if (Math.abs(quantity) < 1e-9) return sum;
       const quote = quoteFor(asset.ticker);
-      const price = priceAssetOnDate(asset, valuationDate, { todayIso, dailyPriceLookup, quote });
+      const price = priceAssetOnDate(asset, valuationDate, { todayIso, dailyPriceLookup, quote, manualPriceLookup });
       return sum + toPrimary(price.value * quantity, price.currency, valuationDate);
     }, 0);
     timeline.push({ date: labelOf(key), value: cashRunning + holdingsValue, iso: isoOf(key) });
@@ -1466,7 +1475,7 @@ function buildNetWorthTrend(
       const quantity = quantities.get(asset.id) ?? 0;
       if (Math.abs(quantity) < 1e-9) return sum;
       const quote = quoteFor(asset.ticker);
-      const price = priceAssetOnDate(asset, todayIso, { todayIso, dailyPriceLookup, quote });
+      const price = priceAssetOnDate(asset, todayIso, { todayIso, dailyPriceLookup, quote, manualPriceLookup });
       return sum + toPrimary(price.value * quantity, price.currency, todayIso);
     }, 0);
     timeline.push({ date: "現在", value: cashRunning + holdingsValue, iso: todayIso });

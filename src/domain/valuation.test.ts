@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDailyPriceLookup, priceAssetOnDate, holdingsMarketValue } from "./valuation";
+import { buildDailyPriceLookup, buildManualPriceLookup, priceAssetOnDate, holdingsMarketValue } from "./valuation";
 import type { DailyPrice } from "./types";
 
 const asset = { ticker: "0050.TW", currency: "TWD", averageCost: 50 };
@@ -114,6 +114,41 @@ describe("priceAssetOnDate — custom (manually-priced) assets", () => {
     // No quote/close available → cost.
     expect(priceAssetOnDate(asset, "2026-05-01", { ...opts, dailyPriceLookup: buildDailyPriceLookup([]) }))
       .toEqual({ value: 50, currency: "TWD", source: "cost" });
+  });
+});
+
+describe("buildManualPriceLookup", () => {
+  const snaps = [
+    { assetId: "a", date: "2026-06-01", price: 110, currency: "TWD" },
+    { assetId: "a", date: "2026-06-05", price: 120, currency: "TWD" },
+    { assetId: "b", date: "2026-06-03", price: 9 },
+  ];
+
+  it("returns the latest snapshot at-or-before the date for that asset", () => {
+    const lookup = buildManualPriceLookup(snaps);
+    expect(lookup("a", "2026-06-06")).toEqual({ price: 120, currency: "TWD" });
+    expect(lookup("a", "2026-06-05")).toEqual({ price: 120, currency: "TWD" });
+    expect(lookup("a", "2026-06-04")).toEqual({ price: 110, currency: "TWD" });
+  });
+
+  it("defaults currency to empty string when the snapshot has none", () => {
+    const lookup = buildManualPriceLookup(snaps);
+    expect(lookup("b", "2026-06-03")).toEqual({ price: 9, currency: "" });
+  });
+
+  it("returns undefined when only later snapshots exist", () => {
+    const lookup = buildManualPriceLookup(snaps);
+    expect(lookup("a", "2026-05-31")).toBeUndefined();
+  });
+
+  it("returns undefined for an unknown asset", () => {
+    const lookup = buildManualPriceLookup(snaps);
+    expect(lookup("z", "2026-06-06")).toBeUndefined();
+  });
+
+  it("returns undefined when there are no snapshots at all", () => {
+    const lookup = buildManualPriceLookup([]);
+    expect(lookup("a", "2026-06-06")).toBeUndefined();
   });
 });
 

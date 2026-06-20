@@ -137,6 +137,35 @@ export function priceAssetOnDate(
   return { value: asset.averageCost, currency: asset.currency, source: "cost" };
 }
 
+/**
+ * Build a manual-price resolver from snapshots: for a given asset+date it returns
+ * the latest snapshot with `date <= requested date` for that asset (mirrors
+ * {@link findDailyPriceAtOrBefore}). Pure. Feed the result to
+ * {@link priceAssetOnDate}/{@link holdingsMarketValue} as `manualPriceLookup`.
+ */
+export function buildManualPriceLookup(
+  snapshots: { assetId: string; date: string; price: number; currency?: string }[],
+): (assetId: string, date: string) => ManualPriceLike | undefined {
+  const byAsset = new Map<string, { date: string; price: number; currency?: string }[]>();
+  for (const snap of snapshots) {
+    const bucket = byAsset.get(snap.assetId) ?? [];
+    bucket.push(snap);
+    byAsset.set(snap.assetId, bucket);
+  }
+  for (const bucket of byAsset.values()) bucket.sort((a, b) => a.date.localeCompare(b.date));
+  return (assetId: string, date: string): ManualPriceLike | undefined => {
+    const bucket = byAsset.get(assetId);
+    if (!bucket?.length) return undefined;
+    const d = date.slice(0, 10);
+    let match: ManualPriceLike | undefined;
+    for (const snap of bucket) {
+      if (snap.date.slice(0, 10) > d) break;
+      match = { price: snap.price, currency: snap.currency ?? "" };
+    }
+    return match;
+  };
+}
+
 export interface HoldingsValueOptions {
   todayIso: string;
   dailyPriceLookup: DailyPriceLookup;

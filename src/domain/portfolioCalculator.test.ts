@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildHoldingPositions, buildHoldingPositionsByAccount } from "./portfolioCalculator";
+import { buildManualPriceLookup } from "./valuation";
 import type { DailyPrice, InvestmentRecord, PortfolioAsset } from "./types";
 
 const manualAsset: PortfolioAsset = {
@@ -143,5 +144,102 @@ describe("portfolio calculator — daily-close valuation fallback", () => {
     );
     expect(position.marketPrice).toBe(60);
     expect(position.marketValue).toBe(3000 * 60);
+  });
+
+  it("a manual lookup passed to a normal tickered asset is ignored (regression)", () => {
+    // Adding manualPriceLookup must not change non-custom valuation: quote wins.
+    const withManual = {
+      ...valuation,
+      manualPriceLookup: buildManualPriceLookup([
+        { assetId: manualAsset.id, date: "2026-06-08", price: 7, currency: "TWD" },
+      ]),
+    };
+    const [position] = buildHoldingPositionsByAccount(
+      [manualAsset],
+      [],
+      { "0050.TW": { symbol: "0050.TW", price: 60, currency: "TWD" } },
+      withManual,
+    );
+    expect(position.marketPrice).toBe(60);
+    expect(position.marketValue).toBe(3000 * 60);
+    // And without a quote it still uses the daily close, not the manual price.
+    const [closePos] = buildHoldingPositionsByAccount([manualAsset], [], {}, withManual);
+    expect(closePos.marketPrice).toBe(58);
+    expect(closePos.marketValue).toBe(3000 * 58);
+  });
+});
+
+describe("portfolio calculator — custom (manually-priced) assets", () => {
+  const customAsset: PortfolioAsset = {
+    ...manualAsset,
+    id: "asset_custom",
+    ticker: "",
+    name: "未上市基金",
+    currency: "TWD",
+    totalQuantity: 10,
+    averageCost: 100,
+    assetType: "custom",
+    accountId: "acct_test",
+  };
+  // A daily close exists for the (empty) ticker — must be ignored for custom assets.
+  const closeRow = (date: string, value: number): DailyPrice => ({
+    ticker: "",
+    date,
+    close: value,
+    currency: "TWD",
+    source: "test",
+    updatedAt: `${date}T00:00:00.000Z`,
+  });
+  const asOf = "2026-06-08";
+
+  it("values a custom asset from its manual snapshot (not cost, not quote/close)", () => {
+    const valuation = {
+      dailyPrices: [closeRow("2026-06-06", 9999)],
+      asOf,
+      manualPriceLookup: buildManualPriceLookup([
+        { assetId: "asset_custom", date: "2026-06-05", price: 120, currency: "TWD" },
+      ]),
+    };
+    const [position] = buildHoldingPositions([customAsset], [], { "": { symbol: "", price: 8888, currency: "TWD" } }, valuation);
+    expect(position.marketPrice).toBe(120);
+    expect(position.marketValue).toBe(10 * 120);
+  });
+
+  it("values a custom asset at average cost when no manual snapshot exists", () => {
+    const valuation = {
+      dailyPrices: [closeRow("2026-06-06", 9999)],
+      asOf,
+      manualPriceLookup: buildManualPriceLookup([]),
+    };
+    const [position] = buildHoldingPositions([customAsset], [], {}, valuation);
+    expect(position.marketPrice).toBeNull();
+    expect(position.marketValue).toBe(10 * 100);
+    expect(position.unrealizedGain).toBe(0);
+  });
+
+  it("never values a custom asset by a quote/daily-close on its empty ticker", () => {
+    const valuation = {
+      dailyPrices: [closeRow("2026-06-06", 9999)],
+      asOf,
+      manualPriceLookup: buildManualPriceLookup([]),
+    };
+    // A quote keyed by the empty ticker exists but must be ignored.
+    const [position] = buildHoldingPositions([customAsset], [], { "": { symbol: "", price: 8888, currency: "TWD" } }, valuation);
+    expect(position.marketPrice).toBeNull();
+    expect(position.marketValue).toBe(10 * 100);
+  });
+
+  it("values a custom asset per-account from its manual snapshot", () => {
+    const valuation = {
+      dailyPrices: [],
+      asOf,
+      manualPriceLookup: buildManualPriceLookup([
+        { assetId: "asset_custom", date: "2026-06-05", price: 130, currency: "TWD" },
+      ]),
+    };
+    const positions = buildHoldingPositionsByAccount([customAsset], [], {}, valuation);
+    expect(positions).toHaveLength(1);
+    expect(positions[0].marketPrice).toBe(130);
+    expect(positions[0].marketValue).toBe(10 * 130);
   });
 });

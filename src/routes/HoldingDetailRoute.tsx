@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
 import { Area, AreaChart, ReferenceDot, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { useFinanceData } from "../data/hooks";
-import { buildPositionMetrics, buildDailyPriceLookup, priceAssetOnDate, calculateFifo, calculateXirr, formatNumber, formatPrice, formatQuantity, resolveAssetName, resolveSectorLabel, XIRR_MIN_DAYS } from "../domain";
+import { buildPositionMetrics, buildDailyPriceLookup, buildManualPriceLookup, priceAssetOnDate, calculateFifo, calculateXirr, formatNumber, formatPrice, formatQuantity, resolveAssetName, resolveSectorLabel, XIRR_MIN_DAYS } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { AssetLogo } from "../components/AssetLogo";
 import { Badge } from "../components/coss/badge";
@@ -20,7 +20,7 @@ export function HoldingDetailRoute() {
   const ticker = params.ticker || "";
   const navigate = useNavigate();
   
-  const { assets, quotes, dailyPrices, accounts, investments, isInitialLoading, isError, error, refetchAll } = useFinanceData();
+  const { assets, quotes, dailyPrices, accounts, investments, manualPriceSnapshots, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   // "auto" follows the Chinese-first app language (see i18n.ts) → zh-Hant.
   const nameLocale = useUiPreferences((state) => (state.nameLocale === "auto" ? "zh-Hant" : state.nameLocale));
   const showTradeMarkers = useUiPreferences((state) => state.showTradeMarkers);
@@ -34,6 +34,7 @@ export function HoldingDetailRoute() {
   const dailyPriceRows = dailyPrices.data ?? [];
   const recordRows = investments.data ?? [];
   const accountRows = accounts.data ?? [];
+  const manualSnapshotRows = manualPriceSnapshots.data ?? [];
 
   const asset = useMemo(() => assetRows.find((a) => a.ticker.toUpperCase() === ticker.toUpperCase()), [assetRows, ticker]);
   const quote = useMemo(() => quoteRows.find((q) => q.symbol.toUpperCase() === ticker.toUpperCase()), [quoteRows, ticker]);
@@ -42,9 +43,10 @@ export function HoldingDetailRoute() {
   // page's market value agrees with the Dashboard and the 投資 list.
   const today = new Date().toISOString().slice(0, 10);
   const dailyPriceLookup = useMemo(() => buildDailyPriceLookup(dailyPriceRows), [dailyPriceRows]);
+  const manualPriceLookup = useMemo(() => buildManualPriceLookup(manualSnapshotRows), [manualSnapshotRows]);
   const priced = useMemo(
-    () => (asset ? priceAssetOnDate(asset, today, { todayIso: today, dailyPriceLookup, quote }) : null),
-    [asset, today, dailyPriceLookup, quote],
+    () => (asset ? priceAssetOnDate(asset, today, { todayIso: today, dailyPriceLookup, quote, manualPriceLookup }) : null),
+    [asset, today, dailyPriceLookup, quote, manualPriceLookup],
   );
 
   const series = useMemo(() => {
