@@ -53,6 +53,7 @@ import {
   todayInTimezone,
 } from "../domain";
 import { calculateAvailableCash } from "../domain/dashboardSummary";
+import { stripStartDate, STRIP_PERIODS, type StripPeriod } from "../domain/dateScope";
 import { trailingMonthlyNet } from "../domain/northstarMetrics";
 import { NetWorthProjectionCard } from "../components/NetWorthProjectionCard";
 import { useRefreshQuotes, useRefreshFxRates, useRefreshDailyPrices } from "../features/market-data/useMarketRefresh";
@@ -63,8 +64,6 @@ import { buildQuoteLookup, findQuoteForTicker, quoteLookupKeys } from "../domain
 import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
 import { SquaresFour } from "@phosphor-icons/react";
 
-type StripPeriod = "1D" | "1W" | "1M" | "3M" | "YTD" | "1Y" | "5Y" | "All";
-const STRIP_PERIODS: StripPeriod[] = ["1D", "1W", "1M", "3M", "YTD", "1Y", "5Y", "All"];
 const STRIP_PERIOD_LABELS: Record<StripPeriod, string> = {
   "1D": "近 1 日",
   "1W": "近 1 週",
@@ -90,16 +89,6 @@ const DASHBOARD_CARDS: Array<{ key: string; label: string }> = [
   { key: "topMovers", label: "今日漲跌" },
   { key: "projection", label: "30 年淨值預測" },
 ];
-
-/** Inclusive start date for a net-worth range, relative to `end` (today). */
-function stripStartDate(period: StripPeriod, end: string): string {
-  if (period === "All") return "1900-01-01";
-  if (period === "YTD") return `${end.slice(0, 4)}-01-01`;
-  const days: Record<Exclude<StripPeriod, "YTD" | "All">, number> = { "1D": 1, "1W": 7, "1M": 31, "3M": 92, "1Y": 365, "5Y": 1825 };
-  const d = new Date(`${end}T00:00:00`);
-  d.setDate(d.getDate() - days[period]);
-  return d.toISOString().slice(0, 10);
-}
 
 
 const CHART_COLORS = [
@@ -192,7 +181,7 @@ export function DashboardRoute() {
 
   // Single source of truth for "today" used by valuations and health checks.
   // Declared here (before the useMemos that depend on it) so references are safe.
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = todayInTimezone(timezone);
 
   const dataHealthReport = useMemo(
     () =>
@@ -386,7 +375,6 @@ export function DashboardRoute() {
       const last = reconciledTrend[reconciledTrend.length - 1].value;
       return { points: reconciledTrend, change: last - first, pct: first !== 0 ? ((last - first) / Math.abs(first)) * 100 : 0 };
     }
-    const todayIso = new Date().toISOString().slice(0, 10);
     const startIso = stripStartDate(stripPeriod, todayIso);
     const within = reconciledTrend.filter((p) => p.iso >= startIso);
 
@@ -407,7 +395,7 @@ export function DashboardRoute() {
     const change = endValue - startValue;
     const pct = startValue !== 0 ? (change / Math.abs(startValue)) * 100 : 0;
     return { points, change, pct };
-  }, [reconciledTrend, stripPeriod]);
+  }, [reconciledTrend, stripPeriod, todayIso]);
   const visibleTrend = rangeView.points;
   const momChange = rangeView.change;
   const momPct = rangeView.pct;
@@ -478,7 +466,7 @@ export function DashboardRoute() {
   // both series share so the three figures stay internally consistent. Returns
   // null fields when there isn't enough daily history (gated, like XIRR).
   const stripData = useMemo(() => {
-    const end = new Date().toISOString().slice(0, 10);
+    const end = todayInTimezone(timezone);
     const start = stripStartDate(stripPeriod, end);
     const { series } = buildPortfolioValueSeries({
       positions: analyticsPositions,
@@ -502,7 +490,7 @@ export function DashboardRoute() {
       }
     }
     return { portfolio, benchmark, alpha };
-  }, [analyticsPositions, dailyPriceRows, manualSnapshotRows, toPrimary, stripPeriod, benchmarkTicker]);
+  }, [analyticsPositions, dailyPriceRows, manualSnapshotRows, toPrimary, stripPeriod, benchmarkTicker, timezone]);
 
   // Build the complete metric list now that stripData.alpha is available.
   const allMetrics = [
