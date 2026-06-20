@@ -139,8 +139,21 @@ export function AppShell() {
         }}
       >
         {/* Logo + collapse toggle */}
-        <div style={{ padding: collapsed ? "0 0 16px" : "0 8px 16px", display: "flex", alignItems: "center", gap: 9, justifyContent: collapsed ? "center" : "space-between" }}>
-          {!collapsed && (
+        {collapsed ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "0 0 16px" }}>
+            <img src={appIconUrl} alt="" style={{ width: 26, height: 26, borderRadius: 7 }} />
+            <button
+              type="button"
+              onClick={toggleSidebarCollapsed}
+              title="展開側欄"
+              className="ns-nav-link"
+              style={{ justifyContent: "center", padding: "9px 8px", color: "var(--ns-fg-dim)" }}
+            >
+              <CaretRight size={14} />
+            </button>
+          </div>
+        ) : (
+          <div style={{ padding: "0 8px 16px", display: "flex", alignItems: "center", gap: 9, justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
               <img src={appIconUrl} alt="" style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0 }} />
               <span
@@ -150,20 +163,17 @@ export function AppShell() {
                 Northstar
               </span>
             </div>
-          )}
-          {collapsed && (
-            <img src={appIconUrl} alt="" style={{ width: 26, height: 26, borderRadius: 7 }} />
-          )}
-          <button
-            type="button"
-            onClick={toggleSidebarCollapsed}
-            title={collapsed ? "展開側欄" : "收合側欄"}
-            className="ns-nav-link"
-            style={{ padding: "5px 6px", flexShrink: 0, color: "var(--ns-fg-dim)" }}
-          >
-            {collapsed ? <CaretRight size={14} /> : <CaretLeft size={14} />}
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={toggleSidebarCollapsed}
+              title="收合側欄"
+              className="ns-nav-link"
+              style={{ padding: "5px 6px", flexShrink: 0, color: "var(--ns-fg-dim)" }}
+            >
+              <CaretLeft size={14} />
+            </button>
+          </div>
+        )}
 
         {/* Global Search Trigger */}
         <div style={{ padding: collapsed ? "0 0 8px" : "0 8px 8px" }}>
@@ -173,7 +183,7 @@ export function AppShell() {
               onClick={() => setSearchOpen(true)}
               title="搜尋 (⌘K)"
               className="ns-nav-link"
-              style={{ justifyContent: "center", padding: "7px" }}
+              style={{ justifyContent: "center", padding: "9px 8px" }}
             >
               <MagnifyingGlass size={16} />
             </button>
@@ -201,7 +211,7 @@ export function AppShell() {
               onClick={() => setQuickAddOpen(true)}
               title="快速記帳 (⌘N)"
               className="ns-nav-link"
-              style={{ justifyContent: "center", padding: "7px", background: "var(--ns-accent)", color: "var(--ns-accent-fg)", borderRadius: "var(--ns-r-sm)" }}
+              style={{ justifyContent: "center", padding: "9px 8px", background: "var(--ns-accent)", color: "var(--ns-accent-fg)", borderRadius: "var(--ns-r-sm)" }}
             >
               <Plus size={16} weight="bold" />
             </button>
