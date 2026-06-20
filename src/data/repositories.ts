@@ -4526,7 +4526,7 @@ function assetClassificationFields(input: Pick<PortfolioAssetDraft, "assetType" 
 
 function normalizeAssetType(value: unknown): AssetType | null {
   const normalized = String(value ?? "").trim();
-  const allowed: AssetType[] = ["equity", "etf", "mutual_fund", "index", "crypto", "cash", "other"];
+  const allowed: AssetType[] = ["equity", "etf", "mutual_fund", "index", "crypto", "cash", "custom", "other"];
   return allowed.includes(normalized as AssetType) ? (normalized as AssetType) : null;
 }
 

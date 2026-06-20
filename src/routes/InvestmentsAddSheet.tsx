@@ -134,6 +134,10 @@ export function InvestmentEntryDrawer({
   const emptyHoldingDraft = useMemo(() => makeEmptyHoldingDraft(timezone), [timezone]);
   const [mode, setMode] = useState<InvestmentEntryMode>(initialMode);
   const [snapshotForm, setSnapshotForm] = useState<PortfolioAssetDraft>(emptyHoldingDraft);
+  // 自訂資產（無報價）: a manually-priced holding with no Yahoo-resolvable ticker.
+  // When on, the snapshot is created with assetType "custom" and prices from
+  // manual snapshots → average cost (see domain/valuation, HoldingDetailRoute).
+  const [isCustom, setIsCustom] = useState(false);
   const [transactionForm, setTransactionForm] = useState<InvestmentDraft>(() => emptyTransactionDraft(timezone));
   const [message, setMessage] = useState("");
 
@@ -168,6 +172,7 @@ export function InvestmentEntryDrawer({
   useEffect(() => {
     if (!open) return;
     setSnapshotForm(emptyHoldingDraft);
+    setIsCustom(false);
     if (transactionPreset) {
       setTransactionForm(normalizeTransactionDraft(transactionPreset.draft));
       setMode("transaction");
@@ -269,10 +274,17 @@ export function InvestmentEntryDrawer({
   async function submitSnapshot() {
     setMessage("");
     try {
-      if (!snapshotForm.ticker.trim()) throw new Error("請輸入 ticker。");
-      assertExplicitMarketSuffix(snapshotForm.ticker);
-      if (!snapshotForm.accountId) throw new Error("請選擇券商 / 帳戶。");
-      await createHolding.mutateAsync(snapshotForm);
+      if (isCustom) {
+        // Custom (manually-priced) asset: no ticker, name required.
+        if (!snapshotForm.name.trim()) throw new Error("請輸入名稱。");
+        if (!snapshotForm.accountId) throw new Error("請選擇券商 / 帳戶。");
+        await createHolding.mutateAsync({ ...snapshotForm, ticker: "", assetType: "custom" });
+      } else {
+        if (!snapshotForm.ticker.trim()) throw new Error("請輸入 ticker。");
+        assertExplicitMarketSuffix(snapshotForm.ticker);
+        if (!snapshotForm.accountId) throw new Error("請選擇券商 / 帳戶。");
+        await createHolding.mutateAsync(snapshotForm);
+      }
       onSubmitted?.();
       onClose();
     } catch (error) {
@@ -437,6 +449,32 @@ export function InvestmentEntryDrawer({
           </div>
         ) : mode === "snapshot" ? (
           <div style={{ flex: 1, overflow: "auto", padding: "20px 24px" }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 10,
+                marginBottom: 16,
+                padding: "12px 14px",
+                borderRadius: 10,
+                border: "1px solid var(--ns-border)",
+                background: "var(--ns-bg-elev)",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={isCustom}
+                onChange={(event) => { setIsCustom(event.target.checked); setMessage(""); }}
+                style={{ marginTop: 2, accentColor: "var(--ns-accent)" }}
+              />
+              <span>
+                <span style={{ display: "block", fontWeight: 600 }}>自訂資產（無報價）</span>
+                <span className="muted text-xs" style={{ display: "block", marginTop: 2, lineHeight: 1.5 }}>
+                  無市場報價的資產（例如未上市股權、不動產、收藏品）。不需 ticker，市值由你之後在持倉頁手動更新價格決定；未更新前以平均成本計價。
+                </span>
+              </span>
+            </label>
             <HoldingForm
               value={snapshotForm}
               onChange={setSnapshotForm}
