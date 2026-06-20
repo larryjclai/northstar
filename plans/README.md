@@ -50,7 +50,14 @@ honor its STOP conditions, and update your row when done.
 | 034 | 信用卡繳款 as a transfer from a chosen account + 回饋/折抵 credit | P2 | M | MED | — | DONE on branch advisor/034-credit-card-payment-transfer (3bd0ef04) — NOT yet merged. APPROVED on review. Replaces flag-only markPaid with a `PayCardModal`: 付款帳戶 (same-currency non-credit/loan) + 繳款金額 (default owed) + 帳單折抵/回饋; records a transfer bank→card (`createTransfer`) + optional positive settled income credit on the card (`createLedgerTransaction`), then still calls markPaid to suppress the reminder. `canConfirm` requires a paying account only when pay>0; pay=0 path preserves old suppress-only behavior. Scope clean (1 file, +157/−4). Reviewer re-ran tsc(0)+build(✓); executor test(537)/lint(0 err). Built on current main 85b07a83 (post-029/030/031/032 release commit), so the 未繳/溢繳 display composes. Pre-verified: assertTransferInvariants allows credit-card destinations. |
 | 035 | Edit a transaction from the Reconcile screen (deep-link to its detail) | P2 | M | MED | — | DONE on branch advisor/035-edit-from-reconcile (ff6379ee) — NOT yet merged. APPROVED on review. Adds a `tx` search param to the CashFlow route (router.tsx), an effect that opens `detailRow` from `tx` (CashFlowRoute), and a per-row ✏️ PencilSimple button on the Reconcile screen that `stopPropagation`s + navigates to `/cash-flow?account=&tx=` (ReconcileRoute, row toggle intact). Reuses the existing TransactionDetailPanel/EntryDrawer — no new editor. Scope clean (3 files, +24/−4). Reviewer re-ran tsc(0)+build(✓); executor test(537)/lint(0 err). Built on current main 85b07a83. NOTE: 035 + 034 both touch ReconcileRoute but in disjoint hunks (035 = per-row button + phosphor import; 034 = top button + modal + repositories import) → merging both is conflict-free. |
 | 036 | 延後入帳 — charge posts to a later date / next statement (`postDate` column) | P3 | L | MED-HIGH | — | DONE on branch advisor/036-deferred-posting (a8af03a1+1d4049fb+e53a3766) — NOT yet merged. APPROVED on review. Adds `postDate?` to LedgerTransaction/LedgerDraft/createLedgerRow; `post_date` column via ensureSqliteColumn; insert($31)/update($18)/list-mapper SQL (renumbering verified by sqlite-tx/ledger-fee/refund tests = 8 pass); `buildStatementPeriods` buckets by `postDate ?? date` ONLY (display date + balance untouched); 入帳時間 control in EntryDrawer (credit-card expense only, reuses existing `isCreditAccount`); submitLedger gates postDate to credit-expense. Sync = whole-object (pre-verified: outbound `select *`+generic normalizer, inbound reuses insertLedgerRow — NO sync.ts change). ledgerTrust untouched → balance independence. Scope clean (5 files). Reviewer re-ran tsc(0)+build(✓)+statement tests(6)+repo SQL tests(8); executor test(539)/lint(0 err). Built on current main 85b07a83. |
+| 038 | Custom (manually-priced) assets — track funds/holdings not on Yahoo | P2 | M | MED | — | IN PROGRESS — executor dispatched. Phase-0 gate RESOLVED by operator: A=empty-ticker+`assetType:"custom"` sentinel; B=manual-snapshot→cost, custom-only (non-custom valuation untouched). Phase-1 = valuation wire-up + tests (create-UI deferred). NOTE: the inline-defer-posting plan that previously collided here has been renumbered to **044** (`044-inline-defer-posting-on-reconcile.md` / `advisor/044-inline-defer-posting`, merged) — this 038 slot is now solely Custom assets. |
+| 039 | Advanced budgets — rollover (carry unspent) + annual view | P2 | M | MED | — | TODO — design-gated (rollover semantics decision). Extends `CategoryGroup.budget`; reuses `categoryPeriodSpend`. |
+| 040 | Long-view mode — dampen daily volatility + milestone celebrations (ROADMAP 6.5) | P3 | M | LOW | — | TODO — design-gated. Display-only smoothing + `uiPreferences` toggle; no finance math change. |
+| 041 | Modal backdrops stop blurring the chrome + collapsed sidebar aligns | P2 | S–M | LOW | — | DONE on branch advisor/041-overlay-and-sidebar-polish (9654d81c + 4e72af6b; worktree agent-a6667a3ec2d234e36) — NOT yet merged. APPROVED on review. Removed `backdropFilter` blur from QuickAdd + EntryDrawer backdrops (chrome no longer blurred); collapsed sidebar logo/caret split into a centered column + all collapsed icon buttons unified to `padding:"9px 8px"` (no more `7px`). Reviewer verified: scope clean (3 files, lockfile churn reverted), 0 `backdropFilter` left in either file, 3 confirm modals untouched, expanded sidebar markup preserved, tsc(0)/lint(0 err); executor npm test(546). Browser walkthrough NOT run (no preview) — deterministic CSS/JSX, visual confirmation deferred to operator. Merge: disjoint from 042/043 (041 edits CashFlow EntryDrawer backdrop ~L1879, 043 edits banner/detail/SettleModal) → conflict-free. |
+| 043 | Fix receivable/payable settle flow — account dropdown z-index + reminder→tx navigation | P1 | M | LOW–MED | — | DONE on worktree branch (commit on advisor/043-settle-flow-fixes; worktree agent-afeee52363520bc6b) — NOT yet merged. APPROVED on review. (a) SettleModal AccountFilter +`positionerClassName="z-[1001]"` (above z-1000 backdrop → dropdown selectable); (b) TransactionDetailPanel +optional `onSettle` + a 結清 button gated to unsettled receivable/payable; (c) 記帳「未結清」banner now clickable → opens first unsettled item's detail (hint→「點此查看並結清」); (d) Dashboard reminder rows +`search={{ tx: item.id }}`. Reviewer re-ran tsc(0)/lint(0 err)/dashboardSummary tests(9); executor npm test(546)/build(0). Scope clean (3 files). Merge note: edits DashboardRoute in a disjoint region from plan 042 (settlements Link ~L1040 vs 042's window code) → conflict-free. |
+| 042 | Fix timezone-shifted net-worth window so the 1D delta matches the chart | P1 | S–M | LOW | — | DONE on worktree branch (commit 94f9d4c8) — NOT yet merged. APPROVED on review. `stripStartDate` moved to `dateScope.ts` with TZ-stable local-component math (+10 unit tests incl. month/year/leap boundaries); 3 UTC `today` sites routed through `todayInTimezone(timezone)` + 2 useMemo deps added. Reviewer re-ran tsc(0)/dateScope tests(10)/grep-guard(0 matches); executor npm test(556)/build(0)/lint(0 err). Only stray: package-lock.json version string alpha.34→.38 (benign npm-install sync, corrects pre-existing staleness). |
 | 037 | Relabel account「當前餘額」→「期初餘額」(field edits opening balance, not current) | P3 | S | LOW | — | DONE on branch advisor/037-opening-balance-label (dab70248) — NOT yet merged. APPROVED on review. Relabels the drawer balance field 當前餘額→期初餘額 (binds to `openingBalance`) + adds a「目前餘額 = 期初餘額 + 已結算交易…用調整餘額」caption for non-alternative/non-credit; alternative「目前市值」+ credit hint untouched; `{...openingBalanceField}` binding unchanged. Scope clean (1 file, +6/−1). Reviewer verified diff + greps (當前餘額=0, 期初餘額=2); executor tsc(0)/build(✓)/lint(0 err)/test(537). Operator-found during the +302 diagnosis. Built on current main 85b07a83. |
+| 044 | Set 延後入帳 in-place from the Reconcile row (no editor detour) | P2 | M | LOW | 035, 036 (merged) | DONE + MERGED to main (merge 4677137d; feature 6a833d03). **Renumbered from 038** (collided with 038-custom-manual-priced-assets); branch `advisor/044-inline-defer-posting`. APPROVED on review. `setLedgerPostDate` focused setter (interface+browser+Tauri, mirrors `setLedgerReviewed`, NO recompute → balance-neutral, tested); inline 延後 CalendarPlus button on expense rows (stopPropagation) + 「延後 MM/DD」badge + DeferPostingModal (date picker / 改回當下入帳, copies PayCardModal overlay); `["ledger"]` invalidation re-buckets via 036's `postDate ?? date` — stays on 對帳. Scope clean (3 files, +183/−3). Reviewer re-ran tsc(0)+build(✓)+postdate test(2)+greps(setter=3,modal=2); executor test(548)/lint(0 err). Built on current main 4e40f7c6. |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale).
 
@@ -360,15 +367,53 @@ split-able (domain metrics first). Suggested order: **026 (independent utility) 
 and 027's cumulative-gap metric can both plug into 024's metric registry, so 024's
 registry shape should land first if doing them close together.
 
+## 2026-06-20 — direction pass (`improve next`) → plans 038–041
+
+Ran a direction-only audit against `main` @ `13f6a723`. Phase 6 (北極星/底氣) is
+already shipped via the prior direction pass (024–028), so this pass mined the
+規劃中 backlog + the operator's UX complaints, grounding each against live code.
+Operator selected custom assets, advanced budgets, long-view mode, and a
+sidebar/overlay UX cleanup. All four written; the three feature plans are
+**design-gated** (Phase 0 decision gate before code), per the `next` convention
+that selected items become design/spike plans, not build-everything plans.
+
+- **038 = custom assets** — `ROADMAP.md` 規劃中「自訂投資資產」. Recon found the
+  storage layer **already exists** (`manual_price_snapshots` table + migration +
+  repository CRUD + part of `RepositoryData`) but is **not read by `valuation.ts`
+  and has no UI**. Plan = a decision gate on asset identity + valuation order,
+  then wire the existing snapshots into `priceAssetOnDate` with tests. Phase-1
+  stops at correct, tested math (the create/log-price UI is a deferred follow-up).
+- **039 = advanced budgets** — `ROADMAP.md` 規劃中「進階預算」. `CategoryGroup.budget`
+  exists; rollover (carry unspent forward) + an annual view are missing. Plan =
+  decision gate on rollover model, then a pure `budgetRollover.ts` helper (reusing
+  `categoryPeriodSpend`) + the annual grid. Opt-in, off by default.
+- **040 = long-view mode** — `ROADMAP.md` Phase 6.5, the last unbuilt Phase-6
+  item. Display-only trend smoothing + one-shot milestone celebrations, persisted
+  via `uiPreferences` (the `sidebarCollapsed`/`northstarMetric` pattern). No
+  finance math change; off by default.
+- **041 = overlay/sidebar UX fix** — operator-reported. Confirmed: QuickAdd
+  (`QuickAdd.tsx:231`, blur 3px) and the transaction EntryDrawer
+  (`CashFlowRoute.tsx:1879`, blur 4px) paint a `fixed inset:0` backdrop that
+  blurs the whole viewport including the sidebar — reads as muddy over macOS
+  native vibrancy. Plus the 64px collapsed sidebar crams logo+caret and uses
+  mixed icon-button padding. Concrete fix, not design-gated. This is the "and so
+  on" UX bucket — its maintenance note asks the executor to flag sibling overlays
+  (`InvestmentsAddSheet`, `OnboardingOverlay` confirmed to share the blur) as
+  follow-ups without widening the diff.
+
+Suggested order: **041 first** (small, no gate, immediate operator-visible win) →
+then the three design-gated features once their Phase-0 decisions are signed off.
+038/039/040 are mutually independent.
+
 ## Direction (product options — not yet planned)
 
-Surfaced for later roadmap decisions (not in 024–027):
+Surfaced for later roadmap decisions (still not planned after the 2026-06-20 pass):
 
 - **Household sharing UI** — data model has `isSharedToHousehold` and sync infra exists
-  (`PRODUCT.md` pillar #4), but no UI to share accounts or manage members. (L)
+  (`PRODUCT.md` pillar #4), but no UI to share accounts or manage members. (L — spike first)
+- **TW tax / annual reports** — `portfolioMetrics.realizedGain` + `dividendAnalysis.byYear`
+  already compute the inputs; no year-end aggregate or report surface exists. Highest-leverage
+  remaining "data exists, presentation missing" win. (M) Pairs with a **report PDF** engine.
 - **Bulk-import recurring rules** — CSV import exists for ledger/investments; recurring rules
   are one-at-a-time only. (M)
-- **DCA redo** (hidden since `6b479416`), **report PDF**, **custom assets / funds not on Yahoo**,
-  **split-expense / multi-category**, **TW tax reports** — all in `ROADMAP.md` 規劃中.
-- **Long-view mode** (ROADMAP 6.5) — dampen daily volatility + milestone celebrations; a UX
-  layer, deferred behind the 底氣 metric set (024).
+- **DCA redo** (hidden since `6b479416`), **split-expense / multi-category** — in `ROADMAP.md` 規劃中.
