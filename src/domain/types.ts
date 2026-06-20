@@ -24,6 +24,7 @@ export type AssetType =
   | "index"
   | "crypto"
   | "cash"
+  | "custom"
   | "other";
 
 export const assetTypeLabels: Record<AssetType, string> = {
@@ -33,6 +34,7 @@ export const assetTypeLabels: Record<AssetType, string> = {
   index: "指數",
   crypto: "加密貨幣",
   cash: "現金",
+  custom: "自訂資產",
   other: "其他",
 };
 

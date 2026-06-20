@@ -62,6 +62,15 @@ export interface PriceableAsset {
   ticker: string;
   currency: string;
   averageCost: number;
+  /** Asset id — used to resolve manual-price snapshots for custom assets. */
+  id?: string;
+  /**
+   * Discriminator. A value of `"custom"` marks a manually-priced asset that has
+   * no Yahoo-resolvable ticker; such assets price from manual snapshots → cost
+   * and never consult quote/daily-close. Any other value (or absent) keeps the
+   * standard quote → close → cost order.
+   */
+  assetType?: string | null;
 }
 
 /** Minimal live-quote shape (a StoredMarketQuote satisfies this). */
@@ -70,7 +79,13 @@ export interface QuoteLike {
   currency: string;
 }
 
-export type PriceSource = "quote" | "close" | "cost";
+export type PriceSource = "quote" | "close" | "cost" | "manual";
+
+/** A manual-price snapshot resolved at-or-before a date, for a custom asset. */
+export interface ManualPriceLike {
+  price: number;
+  currency: string;
+}
 
 export interface AssetPrice {
   /** Price per unit, in `currency`. */
@@ -86,6 +101,12 @@ export interface PriceAssetOptions {
   dailyPriceLookup: DailyPriceLookup;
   /** The asset's current live quote, if any. */
   quote?: QuoteLike;
+  /**
+   * Resolves the latest manual-price snapshot at-or-before `date` for a custom
+   * asset. Only consulted when `asset.assetType === "custom"`. Absent → custom
+   * assets fall back to average cost.
+   */
+  manualPriceLookup?: (assetId: string, date: string) => ManualPriceLike | undefined;
 }
 
 /** Canonical per-unit valuation. See the module contract for the resolution order. */
@@ -95,6 +116,16 @@ export function priceAssetOnDate(
   opts: PriceAssetOptions,
 ): AssetPrice {
   const d = date.slice(0, 10);
+  // Custom (manually-priced) assets value only from manual snapshots → cost;
+  // they never consult a live quote or daily close. Gated tightly so non-custom
+  // valuation is unaffected.
+  if (asset.assetType === "custom") {
+    const manual = asset.id ? opts.manualPriceLookup?.(asset.id, d) : undefined;
+    if (manual && Number.isFinite(manual.price) && manual.price > 0) {
+      return { value: manual.price, currency: manual.currency || asset.currency, source: "manual" };
+    }
+    return { value: asset.averageCost, currency: asset.currency, source: "cost" };
+  }
   const isCurrent = d >= opts.todayIso;
   if (isCurrent && opts.quote && Number.isFinite(opts.quote.price) && opts.quote.price > 0) {
     return { value: opts.quote.price, currency: opts.quote.currency || asset.currency, source: "quote" };
@@ -110,6 +141,8 @@ export interface HoldingsValueOptions {
   todayIso: string;
   dailyPriceLookup: DailyPriceLookup;
   quoteFor: (ticker: string) => QuoteLike | undefined;
+  /** Manual-price resolver for custom assets; forwarded to {@link priceAssetOnDate}. */
+  manualPriceLookup?: (assetId: string, date: string) => ManualPriceLike | undefined;
 }
 
 /**
@@ -129,6 +162,7 @@ export function holdingsMarketValue(
       todayIso: opts.todayIso,
       dailyPriceLookup: opts.dailyPriceLookup,
       quote: opts.quoteFor(asset.ticker),
+      manualPriceLookup: opts.manualPriceLookup,
     });
     sum += toPrimary(price.value * asset.totalQuantity, price.currency, date);
   }
