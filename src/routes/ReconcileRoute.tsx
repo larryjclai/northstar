@@ -1,4 +1,4 @@
-import { CaretRight, CaretDown, CheckCircle, Circle, CurrencyCircleDollar, PencilSimple } from "@phosphor-icons/react";
+import { CaretRight, CaretDown, CheckCircle, Circle, CurrencyCircleDollar, PencilSimple, CalendarPlus } from "@phosphor-icons/react";
 import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { buildStatementPeriods, formatNumber, todayInTimezone } from "../domain";
-import type { Account } from "../domain";
+import type { Account, LedgerTransaction } from "../domain";
 import { useToast } from "../components/Toast";
 import { useUiPreferences } from "../state/uiPreferences";
 import type { AccountDraft, TransferDraft, LedgerDraft } from "../data/repositories";
@@ -26,6 +26,11 @@ export function ReconcileRoute() {
     (repository, input: { id: string; reviewed: boolean }) => repository.setLedgerReviewed(input.id, input.reviewed),
     ["ledger"],
   );
+  const setPostDate = useRepositoryMutation(
+    (repository, input: { id: string; postDate: string | null }) => repository.setLedgerPostDate(input.id, input.postDate),
+    ["ledger"],
+  );
+  const [deferRow, setDeferRow] = useState<LedgerTransaction | null>(null);
   const updateAccount = useRepositoryMutation(
     (repository, input: { id: string } & AccountDraft) => repository.updateAccount(input.id, input),
     ["accounts"],
@@ -74,6 +79,16 @@ export function ReconcileRoute() {
   async function toggle(id: string, current: boolean) {
     try {
       await setReviewed.mutateAsync({ id, reviewed: !current });
+    } catch {
+      toast.error("更新失敗");
+    }
+  }
+
+  async function applyDefer(id: string, postDate: string | null) {
+    try {
+      await setPostDate.mutateAsync({ id, postDate });
+      toast.success(postDate ? `已設定延後入帳 ${postDate}` : "已改回當下入帳");
+      setDeferRow(null);
     } catch {
       toast.error("更新失敗");
     }
@@ -318,11 +333,27 @@ export function ReconcileRoute() {
                         {row.isReviewed ? <CheckCircle size={20} weight="fill" style={{ color: "var(--ns-accent)", flexShrink: 0 }} /> : <Circle size={20} style={{ color: "var(--ns-fg-dim)", flexShrink: 0 }} />}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div className="text-sm" style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.merchant || row.name || row.category || "交易"}</div>
-                          <div className="muted text-caption">{row.date.slice(0, 10)}{row.category ? ` · ${row.category}` : ""}</div>
+                          <div className="muted text-caption">
+                            {row.date.slice(0, 10)}{row.category ? ` · ${row.category}` : ""}
+                            {row.postDate ? <Badge variant="outline" className="rounded-full text-micro" style={{ marginLeft: 6, padding: "1px 6px", color: "var(--ns-accent)", borderColor: "var(--ns-accent)" }}>延後 {row.postDate.slice(5, 10)}</Badge> : null}
+                          </div>
                         </div>
                         <div className="num text-sm" style={{ color: row.amount < 0 ? "var(--ns-neg)" : "var(--ns-pos)", whiteSpace: "nowrap" }}>
                           {row.amount < 0 ? "−" : "+"}NT${formatNumber(Math.abs(row.amount))}
                         </div>
+                        {row.amount < 0 ? (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            title="延後入帳"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeferRow(row);
+                            }}
+                          >
+                            <CalendarPlus size={14} weight={row.postDate ? "fill" : "regular"} />
+                          </Button>
+                        ) : null}
                         <Button
                           variant="ghost"
                           size="icon-sm"
@@ -343,6 +374,15 @@ export function ReconcileRoute() {
           })}
         </div>
       )}
+
+      {deferRow ? (
+        <DeferPostingModal
+          row={deferRow}
+          pending={setPostDate.isPending}
+          onCancel={() => setDeferRow(null)}
+          onConfirm={(postDate) => applyDefer(deferRow.id, postDate)}
+        />
+      ) : null}
 
       {payOpen && account.type === "credit" ? (
         <PayCardModal
@@ -438,6 +478,57 @@ function PayCardModal({
           <Button variant="outline" onClick={onCancel} disabled={pending}>取消</Button>
           <Button onClick={() => onConfirm(payAccountId, pay, credit)} disabled={!canConfirm}>
             <CurrencyCircleDollar size={14} weight="fill" />確認繳款
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeferPostingModal({
+  row,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  row: LedgerTransaction;
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: (postDate: string | null) => void;
+}) {
+  const [date, setDate] = useState(row.postDate?.slice(0, 10) ?? row.date.slice(0, 10));
+  const hasDefer = row.postDate != null;
+  return (
+    <div
+      onClick={onCancel}
+      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)", padding: 20 }}
+      >
+        <div className="text-[15px]" style={{ fontWeight: 600, marginBottom: 4 }}>延後入帳</div>
+        <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginBottom: 16, lineHeight: 1.6 }}>
+          選擇入帳日；這筆消費會歸到該日所屬的帳單週期。仍會立即計為負債，餘額不變。
+        </div>
+
+        <div style={{ marginBottom: 4 }}>
+          <div className="text-xs" style={{ fontWeight: 500, marginBottom: 6 }}>入帳日</div>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            style={{ width: "100%", padding: "8px 10px", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)", color: "var(--ns-fg)", fontFamily: "var(--ns-font-mono)" }}
+          />
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
+          <Button variant="outline" onClick={onCancel} disabled={pending}>取消</Button>
+          {hasDefer ? (
+            <Button variant="outline" onClick={() => onConfirm(null)} disabled={pending}>改回當下入帳</Button>
+          ) : null}
+          <Button onClick={() => onConfirm(date)} disabled={pending || !date}>
+            <CalendarPlus size={14} weight="fill" />確認延後
           </Button>
         </div>
       </div>
