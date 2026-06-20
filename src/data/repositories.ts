@@ -225,6 +225,7 @@ export interface FinanceRepository {
   deleteInstallmentPlan(installmentGroupId: string, opts?: { fromIndex?: number }): Promise<void>;
   updateLedgerTransaction(id: string, input: LedgerDraft): Promise<void>;
   setLedgerReviewed(id: string, reviewed: boolean): Promise<void>;
+  setLedgerPostDate(id: string, postDate: string | null): Promise<void>;
   deleteLedgerTransaction(id: string): Promise<void>;
   /**
    * Edit a ledger row that was materialized from a recurring rule, applying the
@@ -728,6 +729,13 @@ class BrowserFinanceRepository implements FinanceRepository {
   async setLedgerReviewed(id: string, reviewed: boolean) {
     this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
       row.id === id ? bump({ ...row, isReviewed: reviewed }) : row,
+    );
+    await this.persist();
+  }
+
+  async setLedgerPostDate(id: string, postDate: string | null) {
+    this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
+      row.id === id ? bump({ ...row, postDate }) : row,
     );
     await this.persist();
   }
@@ -2071,6 +2079,13 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.db.execute(
       `update ledger_transactions set is_reviewed = $1, updated_at = $2, revision = revision + 1 where id = $3`,
       [Number(reviewed), nowIso(), id],
+    );
+  }
+
+  override async setLedgerPostDate(id: string, postDate: string | null) {
+    await this.db.execute(
+      `update ledger_transactions set post_date = $1, updated_at = $2, revision = revision + 1 where id = $3`,
+      [postDate, nowIso(), id],
     );
   }
 
