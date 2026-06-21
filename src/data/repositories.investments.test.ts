@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createMemoryFinanceRepositoryForTests, type InvestmentDraft, type PortfolioAssetDraft } from "./repositories";
-import type { Account, PortfolioAsset } from "../domain";
+import type { Account, InvestmentRecord, PortfolioAsset } from "../domain";
 
 const account: Account = {
   id: "acct_broker",
@@ -268,6 +268,152 @@ describe("manual holdings as opening-balance lots", () => {
     const repo2 = createMemoryFinanceRepositoryForTests();
     await repo2.importSnapshot(exported);
     expect(await repo2.listInvestmentRecords()).toHaveLength(1);
+  });
+});
+
+describe("same-ticker holding identity (Plan 058)", () => {
+  const imported: PortfolioAssetDraft = {
+    ticker: "CRWD",
+    name: "CrowdStrike",
+    currency: "USD",
+    totalQuantity: 3.5,
+    averageCost: 200,
+    acquisitionDate: "2026-01-02",
+    accountId: null, // account-less import (the bug's trigger)
+  };
+
+  const buyCrwd: InvestmentDraft = {
+    ticker: "CRWD",
+    name: "CrowdStrike",
+    currency: "USD",
+    linkedAccountId: "acct_broker",
+    date: "2026-05-25",
+    action: "buy",
+    price: 400,
+    quantity: 0.5,
+    fee: 0,
+    note: "",
+  };
+
+  it("account-less import + later buy of same ticker accumulates into ONE asset", async () => {
+    const repo = repository();
+    await repo.createManualHolding(imported);
+    await repo.createInvestmentRecord(buyCrwd);
+
+    const assets = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "CRWD" && a.deletedAt === null);
+    expect(assets).toHaveLength(1);
+    const [asset] = assets;
+    // 3.5 imported + 0.5 bought = 4.0 shares.
+    expect(asset.totalQuantity).toBeCloseTo(4, 6);
+    // Blended moving-average cost: (3.5*200 + 0.5*400) / 4 = 900 / 4 = 225.
+    expect(asset.averageCost).toBeCloseTo(225, 6);
+
+    // Account adoption: the imported holding adopts the trade's account, and its
+    // opening record's linkedAccountId is re-pointed so per-account quantity is
+    // correct (a sell up to 4 in acct_broker is allowed).
+    expect(asset.accountId).toBe("acct_broker");
+    await expect(
+      repo.createInvestmentRecord({ ...buyCrwd, action: "sell", price: 400, quantity: 4, fee: 0 }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("import linked to account A + buy in account A stays ONE asset (regression guard)", async () => {
+    const repo = repository();
+    await repo.createManualHolding({ ...imported, accountId: "acct_broker" });
+    await repo.createInvestmentRecord(buyCrwd);
+
+    const assets = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "CRWD" && a.deletedAt === null);
+    expect(assets).toHaveLength(1);
+    expect(assets[0].totalQuantity).toBeCloseTo(4, 6);
+    expect(assets[0].averageCost).toBeCloseTo(225, 6);
+  });
+
+  it("GOOG and GOOGL remain separate (different securities, no cross-ticker merge)", async () => {
+    const repo = repository();
+    await repo.createManualHolding({ ...imported, ticker: "GOOG", name: "Alphabet C" });
+    await repo.createInvestmentRecord({ ...buyCrwd, ticker: "GOOGL", name: "Alphabet A" });
+
+    const tickers = (await repo.listPortfolioAssets()).filter((a) => a.deletedAt === null).map((a) => a.ticker).sort();
+    expect(tickers).toEqual(["GOOG", "GOOGL"]);
+  });
+
+  it("reconciles a pre-existing manual+transaction split into one asset, idempotently", async () => {
+    const manualAsset: PortfolioAsset = {
+      id: "asset_manual",
+      spaceId: "space_test",
+      revision: 1,
+      createdAt: "2026-01-02T00:00:00.000Z",
+      updatedAt: "2026-01-02T00:00:00.000Z",
+      deletedAt: null,
+      ticker: "CRWD",
+      name: "CrowdStrike",
+      nameZh: null,
+      nameEn: null,
+      currency: "USD",
+      totalQuantity: 3.5,
+      averageCost: 200,
+      holdingSource: "manual",
+      acquisitionDate: "2026-01-02",
+      assetType: null,
+      sector: null,
+      industry: null,
+      accountId: "acct_broker",
+      baseQuantity: 3.5,
+    };
+    const txAsset: PortfolioAsset = {
+      ...manualAsset,
+      id: "asset_tx",
+      holdingSource: "transactions",
+      totalQuantity: 0.5,
+      averageCost: 400,
+      baseQuantity: null,
+    };
+    const txBuy: InvestmentRecord = {
+      id: "rec_tx_buy",
+      spaceId: "space_test",
+      revision: 1,
+      createdAt: "2026-05-25T00:00:00.000Z",
+      updatedAt: "2026-05-25T00:00:00.000Z",
+      deletedAt: null,
+      assetId: "asset_tx",
+      linkedAccountId: "acct_broker",
+      date: "2026-05-25",
+      action: "buy",
+      price: 400,
+      quantity: 0.5,
+      fee: 0,
+      note: "",
+      isReviewed: false,
+      linkedLedgerTransactionId: null,
+      cashless: false,
+    };
+    const repo = createMemoryFinanceRepositoryForTests({
+      accounts: [account],
+      portfolioAssets: [manualAsset, txAsset],
+      investmentRecords: [txBuy],
+    });
+
+    // Reconcile (run on load) tombstones the transaction asset and moves its
+    // records onto the manual asset.
+    await repo.recalculateDerivedData();
+    const live = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "CRWD" && a.deletedAt === null);
+    expect(live).toHaveLength(1);
+    expect(live[0].id).toBe("asset_manual");
+    expect(live[0].totalQuantity).toBeCloseTo(4, 6);
+    expect(live[0].averageCost).toBeCloseTo(225, 6);
+    // The moved record now points at the surviving manual asset.
+    const movedBuy = (await repo.listInvestmentRecords()).find((r) => r.id === "rec_tx_buy");
+    expect(movedBuy?.assetId).toBe("asset_manual");
+
+    // Idempotent: export → re-import yields the same single live asset, no new split.
+    const exported = await repo.exportSnapshot();
+    const repo2 = createMemoryFinanceRepositoryForTests();
+    await repo2.importSnapshot(exported);
+    await repo2.recalculateDerivedData();
+    const live2 = (await repo2.listPortfolioAssets()).filter((a) => a.ticker === "CRWD" && a.deletedAt === null);
+    expect(live2).toHaveLength(1);
+    expect(live2[0].totalQuantity).toBeCloseTo(4, 6);
+    expect(live2[0].averageCost).toBeCloseTo(225, 6);
   });
 });
 

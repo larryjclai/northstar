@@ -1955,6 +1955,38 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
          and not exists (select 1 from investment_records r where r.id = 'inv_open_' || a.id)`,
       [nowIso()],
     );
+    // Decision B (SQLite mirror): collapse any historical manual+transaction
+    // split for a ticker into the manual asset. Move the transaction assets'
+    // records onto the canonical (MIN id) manual asset, then tombstone the empty
+    // transaction assets. Idempotent — once a ticker has no live transaction
+    // asset alongside a manual one, both statements match nothing on rerun.
+    // Same-ticker only (join is on ticker), so GOOG/GOOGL never merge.
+    await this.db.execute(
+      `update investment_records set asset_id = (
+         select min(m.id) from portfolio_assets m
+         join portfolio_assets t on t.ticker = m.ticker
+         where m.holding_source = 'manual' and m.deleted_at is null
+           and t.id = investment_records.asset_id
+           and t.holding_source = 'transactions' and t.deleted_at is null
+       ), updated_at = $1, revision = revision + 1
+       where exists (
+         select 1 from portfolio_assets t
+         join portfolio_assets m on m.ticker = t.ticker
+         where t.id = investment_records.asset_id
+           and t.holding_source = 'transactions' and t.deleted_at is null
+           and m.holding_source = 'manual' and m.deleted_at is null
+       )`,
+      [nowIso()],
+    );
+    await this.db.execute(
+      `update portfolio_assets set deleted_at = $1, updated_at = $1, revision = revision + 1
+       where holding_source = 'transactions' and deleted_at is null
+         and exists (
+           select 1 from portfolio_assets m
+           where m.ticker = portfolio_assets.ticker and m.holding_source = 'manual' and m.deleted_at is null
+         )`,
+      [nowIso()],
+    );
     // Retirement-projection extensions for financial_goals. Each one is
     // optional at the DB level — readers coalesce missing values to the
     // sane defaults documented in `goalFieldsFromDraft`.
@@ -4215,6 +4247,57 @@ function createInitialData(): RepositoryData {
 }
 
 /**
+ * Decision B (browser): reconcile a ticker that was split into BOTH a manual
+ * (imported) asset and one or more transaction assets — the historical result of
+ * the account-scoped resolution gap. Move the transaction assets' records onto
+ * the manual asset and tombstone the now-empty transaction assets, collapsing
+ * the position into one row with a single blended moving-average cost (the
+ * cost-basis math in buildPositionMetrics is unchanged).
+ *
+ * Idempotent: once a ticker has a single surviving asset, there is no
+ * manual+transaction pair left, so a second run is a no-op. Same-ticker only —
+ * GOOG and GOOGL are different securities and never merge.
+ */
+function reconcileDuplicateAssets(
+  assets: PortfolioAsset[],
+  records: InvestmentRecord[],
+): { assets: PortfolioAsset[]; records: InvestmentRecord[] } {
+  const byTicker = new Map<string, PortfolioAsset[]>();
+  for (const asset of assets) {
+    if (asset.deletedAt !== null) continue;
+    const list = byTicker.get(asset.ticker);
+    if (list) list.push(asset);
+    else byTicker.set(asset.ticker, [asset]);
+  }
+
+  const tombstoned = new Set<string>();
+  // assetId remap: transaction asset id -> canonical manual asset id.
+  const remap = new Map<string, string>();
+  for (const group of byTicker.values()) {
+    const manual = group.find((asset) => asset.holdingSource === "manual");
+    if (!manual) continue; // no manual holding for this ticker → nothing to adopt into
+    const transactionAssets = group.filter((asset) => asset.holdingSource === "transactions");
+    if (transactionAssets.length === 0) continue; // already a single (manual) row → no-op
+    for (const txAsset of transactionAssets) {
+      remap.set(txAsset.id, manual.id);
+      tombstoned.add(txAsset.id);
+    }
+  }
+
+  if (remap.size === 0) return { assets, records }; // idempotent fast path
+
+  const timestamp = nowIso();
+  const nextRecords = records.map((record) => {
+    const target = remap.get(record.assetId);
+    return target ? { ...record, assetId: target, updatedAt: timestamp, revision: record.revision + 1 } : record;
+  });
+  const nextAssets = assets.map((asset) =>
+    tombstoned.has(asset.id) ? { ...asset, deletedAt: timestamp, updatedAt: timestamp, revision: asset.revision + 1 } : asset,
+  );
+  return { assets: nextAssets, records: nextRecords };
+}
+
+/**
  * Default `cashless` on legacy records and ensure every manual holding owns its
  * opening-balance lot. Deterministic id (`inv_open_<assetId>`) makes this
  * idempotent across reloads and safe under sync (no duplicate openings).
@@ -4239,7 +4322,12 @@ function materializeOpeningRecords(assets: PortfolioAsset[], records: Investment
 }
 
 function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
-  const portfolioAssets = (data.portfolioAssets ?? []).map(normalizePortfolioAsset);
+  const normalizedAssets = (data.portfolioAssets ?? []).map(normalizePortfolioAsset);
+  // Collapse any historical manual+transaction split for a ticker into one asset
+  // BEFORE materializing opening lots, so the surviving manual asset is the one
+  // that carries the opening record. Idempotent (see reconcileDuplicateAssets).
+  const reconciled = reconcileDuplicateAssets(normalizedAssets, data.investmentRecords ?? []);
+  const portfolioAssets = reconciled.assets;
   return {
     accounts: (data.accounts ?? []).map((account) => ({
       ...account,
@@ -4260,7 +4348,7 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
       recurringOccurrenceKey: row.recurringOccurrenceKey ?? null,
     })),
     portfolioAssets,
-    investmentRecords: materializeOpeningRecords(portfolioAssets, data.investmentRecords ?? []),
+    investmentRecords: materializeOpeningRecords(portfolioAssets, reconciled.records),
     recurringTransactions: (data.recurringTransactions ?? []).map((row) => ({
       ...row,
       subcategory: row.subcategory ?? "",
