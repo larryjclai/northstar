@@ -1032,7 +1032,7 @@ export function DashboardRoute() {
             </div>
           </div>
           {settlements.items.slice(0, 5).map((item, i) => (
-            <Link key={item.id} to="/cash-flow" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none", textDecoration: "none", color: "inherit" }}>
+            <Link key={item.id} to="/cash-flow" search={{ tx: item.id }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none", textDecoration: "none", color: "inherit" }}>
               <Badge variant="outline" className="rounded-full" style={{ color: item.kind === "receivable" ? "var(--ns-chart-3)" : "var(--ns-chart-5)", borderColor: item.kind === "receivable" ? "var(--ns-chart-3)" : "var(--ns-chart-5)" }}>{item.kind === "receivable" ? "應收" : "應付"}</Badge>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="text-[13.5px]" style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.counterparty || item.name}</div>

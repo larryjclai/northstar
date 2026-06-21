@@ -927,7 +927,13 @@ export function CashFlowRoute() {
           ) : null}
           {/* Outstanding receivables / payables reminder */}
           {settlements.items.length > 0 ? (
-            <Card style={{ padding: "12px 16px", marginBottom: 14, flexDirection: "row", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <Card
+              style={{ padding: "12px 16px", marginBottom: 14, flexDirection: "row", alignItems: "center", gap: 16, flexWrap: "wrap", cursor: "pointer" }}
+              onClick={() => {
+                const first = ledgerRows.find((r) => r.id === settlements.items[0]?.id);
+                if (first) setDetailRow(first);
+              }}
+            >
               <span className="ns-eyebrow">未結清</span>
               {settlements.receivableTotal > 0 ? (
                 <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
@@ -941,7 +947,7 @@ export function CashFlowRoute() {
                   <span className="num text-[15px]" style={{ color: "var(--ns-neg)" }}>−{primaryCurrency} {formatNumber(settlements.payableTotal)}</span>
                 </div>
               ) : null}
-              <span className="muted text-xs" style={{ marginLeft: "auto" }}>結清後會計入收支 · 在下方明細點 ✓ 結清</span>
+              <span className="muted text-xs" style={{ marginLeft: "auto" }}>結清後會計入收支 · 點此查看並結清</span>
             </Card>
           ) : null}
           {/* Summary layer — single column on phones (the chart + category cards
@@ -1322,6 +1328,7 @@ export function CashFlowRoute() {
           });
           setDetailRow(null);
         }}
+        onSettle={(row) => { setDetailRow(null); setSettlePrompt(row); }}
       />
       {recurringEditPrompt && (
         <RecurringScopeModal
@@ -1392,6 +1399,7 @@ function SettleModal({
             allowAll={false}
             placeholder="選擇帳戶"
             style={{ width: "100%", maxWidth: "none", minWidth: 0 }}
+            positionerClassName="z-[1001]"
           />
         </DrawerField>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
