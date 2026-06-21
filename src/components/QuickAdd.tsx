@@ -228,7 +228,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 80, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
-      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)", backdropFilter: "blur(3px)" }} />
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} />
       <div
         onClick={(e) => e.stopPropagation()}
         className="animate-[ns-drawer-in_180ms_cubic-bezier(0.22,1,0.36,1)]"
