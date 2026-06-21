@@ -20,6 +20,7 @@ import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { PortfolioAssetDraft } from "../data/repositories";
 import {
   buildHoldingPositionsByAccount,
+  buildManualPriceLookup,
   createFxConverter,
   formatMoney,
   formatNumber,
@@ -113,10 +114,13 @@ export function InvestmentsRoute() {
   // Shared valuation context so market value here matches the Dashboard / net
   // worth trend: live quote → latest daily close → average cost.
   const valuationToday = todayInTimezone(timezoneForDue);
+  // Manual-price resolver for custom assets; keeps 投資 page value in lock-step
+  // with the Dashboard for manually-priced holdings.
+  const manualPriceLookup = useMemo(() => buildManualPriceLookup(manualSnapshotRows), [manualSnapshotRows]);
 
   const positions = useMemo(
-    () => buildHoldingPositionsByAccount(assetRows, recordRows, quoteMap, { dailyPrices: dailyPriceRows, asOf: valuationToday }),
-    [assetRows, recordRows, quoteMap, dailyPriceRows, valuationToday],
+    () => buildHoldingPositionsByAccount(assetRows, recordRows, quoteMap, { dailyPrices: dailyPriceRows, asOf: valuationToday, manualPriceLookup }),
+    [assetRows, recordRows, quoteMap, dailyPriceRows, valuationToday, manualPriceLookup],
   );
 
   // Current holdings in the shape the analytics engine consumes (fixed-basket).
