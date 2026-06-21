@@ -337,6 +337,8 @@ function EditCatForm({ cat, colors, onSave, onCancel }: { cat: CategoryGroup; co
   const [icon,   setIcon]   = useState(cat.iconName || 'Tag');
   const [color,  setColor]  = useState(cat.color || '#868685');
   const [budget, setBudget] = useState(cat.budget || '');
+  const [rollover, setRollover] = useState(Boolean(cat.rollover));
+  const currentMonth = new Date().toISOString().slice(0, 7);
   return (
     <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
       <div>
@@ -372,12 +374,26 @@ function EditCatForm({ cat, colors, onSave, onCancel }: { cat: CategoryGroup; co
               outline:color===c?'2px solid var(--ns-fg)':'none',outlineOffset:2 }} />
           ))}
         </div>
-        <div style={{display:'flex',gap:8,marginTop:12}}>
-          <Button variant="ghost" className="text-xs" onClick={onCancel}>取消</Button>
-          <Button className="text-xs" onClick={()=>onSave({name,iconName:icon,color,budget:budget?+budget:null})}>
-            <CheckCircle size={14} weight="bold" />儲存
+      </div>
+      <div style={{ gridColumn:'1 / -1', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, padding:'10px 0', borderTop:'1px dashed var(--ns-border)' }}>
+        <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+          <input type="checkbox" checked={rollover} onChange={e=>setRollover(e.target.checked)} disabled={!budget} />
+          <div>
+            <div className="text-body" style={{ fontWeight:500 }}>預算結轉（rollover）</div>
+            <div className="text-caption" style={{ color:'var(--ns-fg-muted)' }}>沒花完的預算滾入下月；超支則扣除。需設定月預算。</div>
+          </div>
+        </label>
+        {rollover && (
+          <Button variant="ghost" className="text-xs" onClick={()=>onSave({ rolloverStart: currentMonth })}>
+            清除結轉
           </Button>
-        </div>
+        )}
+      </div>
+      <div style={{ gridColumn:'1 / -1', display:'flex',gap:8 }}>
+        <Button variant="ghost" className="text-xs" onClick={onCancel}>取消</Button>
+        <Button className="text-xs" onClick={()=>onSave({name,iconName:icon,color,budget:budget?+budget:null,rollover})}>
+          <CheckCircle size={14} weight="bold" />儲存
+        </Button>
       </div>
     </div>
   );
