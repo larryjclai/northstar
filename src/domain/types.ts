@@ -316,6 +316,18 @@ export interface CategoryGroup {
   budget?: number | null;
   color?: string;
   iconName?: string;
+  /**
+   * Opt-in monthly budget rollover (carry unspent budget forward; overspend
+   * carries a negative balance). Optional so old saved data loads unchanged;
+   * absent/false → no carry, behaviour identical to a single per-month budget.
+   */
+  rollover?: boolean;
+  /**
+   * When rollover is on, the YYYY-MM month from which carry accumulation starts.
+   * The 「清除結轉」 action sets this to the current month to restart the carry.
+   * Absent/empty → accumulate from the first month that has ledger data.
+   */
+  rolloverStart?: string;
 }
 
 export interface RecalculationDifference {
