@@ -78,3 +78,24 @@ function shiftMonths(dateString: string, delta: number) {
 function ymd(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
+
+export type StripPeriod = "1D" | "1W" | "1M" | "3M" | "YTD" | "1Y" | "5Y" | "All";
+export const STRIP_PERIODS: StripPeriod[] = ["1D", "1W", "1M", "3M", "YTD", "1Y", "5Y", "All"];
+
+/**
+ * Window start date (YYYY-MM-DD) for a net-worth range control, `days` before
+ * `end`. Timezone-stable: builds and reads the date with LOCAL components only
+ * (no `.toISOString()` round-trip), so a positive UTC offset can't shift the
+ * result across midnight.
+ */
+export function stripStartDate(period: StripPeriod, end: string): string {
+  if (period === "All") return "1900-01-01";
+  if (period === "YTD") return `${end.slice(0, 4)}-01-01`;
+  const days: Record<Exclude<StripPeriod, "YTD" | "All">, number> = {
+    "1D": 1, "1W": 7, "1M": 31, "3M": 92, "1Y": 365, "5Y": 1825,
+  };
+  const [year, month, day] = end.split("-").map(Number);
+  const d = new Date(year, month - 1, day);     // local construct
+  d.setDate(d.getDate() - days[period]);
+  return ymd(d);                                 // local read — see exemplar
+}
