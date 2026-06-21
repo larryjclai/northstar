@@ -8,7 +8,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { categoryPeriodSpend, convertCurrency, formatMoney, formatNumber, isWithinDateScope, makeDefaultDateScope, resolveDateScope } from "../domain";
+import { annualBudgetSummary, categoryPeriodSpend, computeRolloverSeries, convertCurrency, formatMoney, formatNumber, isWithinDateScope, makeDefaultDateScope, resolveDateScope } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { useToast } from "../components/Toast";
@@ -28,6 +28,8 @@ export function CategoriesRoute() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
   const [catRouteSort, setCatRouteSort] = useState<{ key: "name" | "amount" | "usage"; dir: "asc" | "desc" }>({ key: "amount", dir: "desc" });
+  // Annual 12-month grid: which category name is expanded (null = none).
+  const [annualCategory, setAnnualCategory] = useState<string | null>(null);
   const toast = useToast();
 
   const navigate = useNavigate();
@@ -54,6 +56,43 @@ export function CategoriesRoute() {
   const missingFxPairs = periodSpend.missingFxPairs;
   const totalExpense = periodSpend.total;
 
+  // Anchor month for the 12-month window: the selected month (month preset) or today.
+  const anchorMonth = useMemo(() => {
+    if (dateScope.preset === "month" && dateScope.month) return dateScope.month;
+    return makeDefaultDateScope(timezone, "month").month;
+  }, [dateScope, timezone]);
+
+  // The 12 months (oldest → newest) ending at the anchor month, as YYYY-MM strings.
+  const trailingMonths = useMemo(() => {
+    const [year, month] = anchorMonth.split("-").map(Number);
+    const out: string[] = [];
+    for (let i = 11; i >= 0; i -= 1) {
+      const d = new Date(year, month - 1 - i, 1);
+      out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    }
+    return out;
+  }, [anchorMonth]);
+
+  // Per-category × per-month settled spend for the trailing window, all via the
+  // canonical categoryPeriodSpend helper (no second spend computation). Map keyed by
+  // category name → number[] aligned with trailingMonths (oldest → newest).
+  const monthlySpendByCategory = useMemo(() => {
+    const map = new Map<string, number[]>();
+    trailingMonths.forEach((month, monthIdx) => {
+      const scope = resolveDateScope({ preset: "month", month, start: "", end: "" }, timezone);
+      const spend = categoryPeriodSpend(ledgerRows, scope, primaryCurrency, toPrimaryFn);
+      for (const cat of spend.categories) {
+        let series = map.get(cat.name);
+        if (!series) {
+          series = new Array(trailingMonths.length).fill(0);
+          map.set(cat.name, series);
+        }
+        series[monthIdx] = cat.amount;
+      }
+    });
+    return map;
+  }, [trailingMonths, ledgerRows, primaryCurrency, toPrimaryFn, timezone]);
+
   // For the per-row transaction list (selectedCategory filter): still need expense rows in scope.
   const filteredRows = useMemo(() => {
     return ledgerRows.filter((row) => isWithinDateScope(row.date, dateRange));
@@ -71,6 +110,28 @@ export function CategoriesRoute() {
       const budget = catSetting?.budget || null;
       const color = catSetting?.color || defaultColors[index % defaultColors.length];
       const emoji = catSetting?.iconName || "Tag";
+
+      // Derived rollover carry: when on, accumulate over the trailing window using the
+      // canonical per-month spend series, then read this month's carried-in balance
+      // (= available − budget at the anchor month).
+      const rollover = Boolean(catSetting?.rollover) && budget !== null && budget > 0;
+      let carry = 0;
+      let available = budget ?? 0;
+      if (rollover && budget !== null) {
+        const series = monthlySpendByCategory.get(cat.name) ?? new Array(trailingMonths.length).fill(0);
+        let startIndex = 0;
+        if (catSetting?.rolloverStart) {
+          const idx = trailingMonths.indexOf(catSetting.rolloverStart);
+          if (idx >= 0) startIndex = idx;
+        }
+        const result = computeRolloverSeries({ monthlyBudget: budget, rollover: true, monthlySpend: series, startIndex });
+        const last = result[result.length - 1];
+        if (last) {
+          available = last.available;
+          carry = available - budget; // carried-in balance for the anchor month
+        }
+      }
+
       return {
         name: cat.name,
         amount: cat.amount,
@@ -78,9 +139,12 @@ export function CategoriesRoute() {
         budget,
         color,
         emoji,
+        rollover,
+        carry,
+        available,
       };
     });
-  }, [periodSpend, appSettings]);
+  }, [periodSpend, appSettings, monthlySpendByCategory, trailingMonths]);
 
   const sortedCategoryStats = useMemo(() => {
     const arr = [...categoryStats];
@@ -265,8 +329,8 @@ export function CategoriesRoute() {
               const displayPercent = hasBudget ? Math.min(100, percent) : 0;
 
               return (
+                <div key={cat.name}>
                 <div
-                  key={cat.name}
                   onClick={() => setSelectedCategory(prev => prev === cat.name ? null : cat.name)}
                   style={{
                     display: "flex", alignItems: "center", padding: "16px 32px",
@@ -310,6 +374,11 @@ export function CategoriesRoute() {
                         <span>無上限</span>
                       )}
                     </div>
+                    {cat.rollover && cat.carry !== 0 && (
+                      <div className="text-caption" style={{ marginTop: 2, color: cat.carry > 0 ? "var(--ns-pos)" : "var(--ns-neg)" }}>
+                        {cat.carry > 0 ? "結轉 +" : "結轉 "}{formatMoney(cat.carry, primaryCurrency)} · 可用 {formatMoney(cat.available, primaryCurrency)}
+                      </div>
+                    )}
                   </div>
                   
                   {/* Usage Bar */}
@@ -322,9 +391,27 @@ export function CategoriesRoute() {
                   </div>
                   
                   {/* Settings */}
-                  <div style={{ width: 40, display: "flex", justifyContent: "flex-end", color: "var(--ns-fg-muted)" }}>
+                  <div style={{ width: 40, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, color: "var(--ns-fg-muted)" }}>
+                    <button
+                      className="text-caption"
+                      style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: annualCategory === cat.name ? "var(--ns-fg)" : "var(--ns-fg-muted)", fontFamily: "var(--ns-font-mono)" }}
+                      title="年度檢視"
+                      onClick={(e) => { e.stopPropagation(); setAnnualCategory(prev => prev === cat.name ? null : cat.name); }}
+                    >
+                      年
+                    </button>
                     <Gear size={16} style={{ cursor: "pointer" }} className="hover:text-[var(--ns-fg)] transition-colors" onClick={(e) => { e.stopPropagation(); setCategoryDrawerOpen(true); }} />
                   </div>
+                </div>
+                {annualCategory === cat.name && (
+                  <AnnualGrid
+                    months={trailingMonths}
+                    series={monthlySpendByCategory.get(cat.name) ?? new Array(trailingMonths.length).fill(0)}
+                    monthlyBudget={cat.budget ?? 0}
+                    rollover={cat.rollover}
+                    primaryCurrency={primaryCurrency}
+                  />
+                )}
                 </div>
               );
             })}
@@ -346,6 +433,38 @@ export function CategoriesRoute() {
           toast.success("已更新分類設定");
         }}
       />
+    </div>
+  );
+}
+
+function AnnualGrid({ months, series, monthlyBudget, rollover, primaryCurrency }: {
+  months: string[];
+  series: number[];
+  monthlyBudget: number;
+  rollover: boolean;
+  primaryCurrency: string;
+}) {
+  const summary = annualBudgetSummary({ monthlyBudget, rollover, monthlySpend: series });
+  return (
+    <div className="ns-surface" style={{ margin: "0 32px 16px", padding: "16px 20px", borderRadius: "var(--ns-r-sm)" }}>
+      <div className="text-caption" style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, fontFamily: "var(--ns-font-mono)", color: "var(--ns-fg-muted)", letterSpacing: 1 }}>
+        <span>近 12 個月</span>
+        <span>年度支出 {formatMoney(summary.annualSpend, primaryCurrency)} / 年度預算 {formatMoney(summary.annualBudget, primaryCurrency)}（月預算 ×12）</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 6 }}>
+        {summary.months.map((m, i) => {
+          const over = monthlyBudget > 0 && m.spend > m.available;
+          const pct = m.available > 0 ? Math.min(100, (m.spend / m.available) * 100) : 0;
+          return (
+            <div key={months[i]} title={`${months[i]} · 支出 ${formatMoney(m.spend, primaryCurrency)}${rollover ? ` · 可用 ${formatMoney(m.available, primaryCurrency)}` : ""}`} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{ height: 48, display: "flex", flexDirection: "column-reverse", background: "var(--ns-bg-hover)", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ height: `${pct}%`, background: over ? "var(--ns-neg)" : "var(--ns-accent)" }} />
+              </div>
+              <div className="text-micro" style={{ textAlign: "center", color: "var(--ns-fg-muted)", fontFamily: "var(--ns-font-mono)" }}>{months[i].slice(5)}</div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
