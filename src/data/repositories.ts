@@ -1548,19 +1548,42 @@ class BrowserFinanceRepository implements FinanceRepository {
     return this.data.portfolioAssets.find((item) => item.ticker === ticker && item.deletedAt === null && item.holdingSource === "transactions");
   }
 
+  // Decision A: a trade resolves to the SAME-ticker manual holding, preferring
+  // one whose accountId matches the trade's account, then an account-less
+  // import (the trade later adopts its account in findOrCreateAsset). This
+  // closes the old account-scoped gap that split a position into two rows when
+  // an imported holding had a different (or null) account than the trade.
   private findManualAsset(input: InvestmentDraft): PortfolioAsset | undefined {
     const ticker = input.ticker.trim().toUpperCase();
-    return this.data.portfolioAssets.find(
-      (item) => item.ticker === ticker && item.deletedAt === null && item.holdingSource === "manual" && item.accountId === input.linkedAccountId,
+    const candidates = this.data.portfolioAssets.filter(
+      (item) => item.ticker === ticker && item.deletedAt === null && item.holdingSource === "manual",
+    );
+    return (
+      candidates.find((item) => item.accountId === input.linkedAccountId) ??
+      candidates.find((item) => item.accountId === null)
     );
   }
 
   private findOrCreateAsset(input: InvestmentDraft): PortfolioAsset {
     const ticker = input.ticker.trim().toUpperCase();
+    // Prefer a same-ticker manual holding (the imported position) over creating
+    // or reusing a transaction asset, so trades accumulate into ONE asset.
+    const manualAsset = this.findManualAsset(input);
+    if (manualAsset) {
+      // Account adoption: an account-less import takes on the trade's account so
+      // per-account available quantity (sell-validation) stays correct. Re-point
+      // the cashless opening record's linkedAccountId to match.
+      if (manualAsset.accountId === null && input.linkedAccountId) {
+        manualAsset.accountId = input.linkedAccountId;
+        const opening = this.data.investmentRecords.find(
+          (record) => record.id === openingRecordId(manualAsset.id) && record.deletedAt === null,
+        );
+        if (opening) opening.linkedAccountId = input.linkedAccountId;
+      }
+      return manualAsset;
+    }
     const existing = this.findTransactionAsset(input);
     if (existing) return existing;
-    const manualAsset = this.findManualAsset(input);
-    if (manualAsset) return manualAsset;
     const timestamp = nowIso();
     const asset: PortfolioAsset = {
       id: createId("asset"),
@@ -3796,21 +3819,41 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     return rows[0]?.id;
   }
 
+  // Decision A (SQLite mirror): same-ticker manual holding, preferring a row
+  // whose account_id matches the trade's account, then an account-less import.
+  // Mirrors the browser findManualAsset preference order exactly.
   private async findSqliteManualAsset(ticker: string, accountId: string | null) {
-    if (!accountId) return undefined;
-    const rows = await this.db.select<Array<{ id: string; totalQuantity: number; baseQuantity: number | null }>>(
-      `select id, total_quantity as totalQuantity, base_quantity as baseQuantity from portfolio_assets where ticker = $1 and holding_source = 'manual' and account_id = $2 and deleted_at is null limit 1`,
-      [ticker, accountId],
+    const rows = await this.db.select<Array<{ id: string; accountId: string | null }>>(
+      `select id, account_id as accountId from portfolio_assets where ticker = $1 and holding_source = 'manual' and deleted_at is null`,
+      [ticker],
     );
-    return rows[0];
+    return rows.find((row) => row.accountId === accountId) ?? rows.find((row) => row.accountId === null);
   }
 
   private async findOrCreateSqliteAsset(input: InvestmentDraft) {
     const ticker = input.ticker.trim().toUpperCase();
+    // Prefer a same-ticker manual holding over reusing/creating a transaction
+    // asset, so trades accumulate into ONE asset (matches browser order).
+    const manualAsset = await this.findSqliteManualAsset(ticker, input.linkedAccountId ?? null);
+    if (manualAsset) {
+      // Account adoption: an account-less import takes on the trade's account
+      // and re-points its cashless opening record so per-account available
+      // quantity stays correct.
+      if (manualAsset.accountId === null && input.linkedAccountId) {
+        await this.db.execute(`update portfolio_assets set account_id = $1, updated_at = $2, revision = revision + 1 where id = $3`, [
+          input.linkedAccountId,
+          nowIso(),
+          manualAsset.id,
+        ]);
+        await this.db.execute(
+          `update investment_records set linked_account_id = $1, updated_at = $2, revision = revision + 1 where id = $3 and deleted_at is null`,
+          [input.linkedAccountId, nowIso(), openingRecordId(manualAsset.id)],
+        );
+      }
+      return manualAsset.id;
+    }
     const existingId = await this.findSqliteTransactionAssetId(input);
     if (existingId) return existingId;
-    const manualAsset = await this.findSqliteManualAsset(ticker, input.linkedAccountId ?? null);
-    if (manualAsset) return manualAsset.id;
     const timestamp = nowIso();
     const asset: PortfolioAsset = {
       id: createId("asset"),
