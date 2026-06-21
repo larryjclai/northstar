@@ -1,6 +1,6 @@
 import { ArrowDown, ArrowsClockwise, ArrowUp, ChartBar } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFinanceData } from "../data/hooks";
@@ -57,6 +57,7 @@ import {
 import { calculateAvailableCash } from "../domain/dashboardSummary";
 import { stripStartDate, STRIP_PERIODS, type StripPeriod } from "../domain/dateScope";
 import { trailingMonthlyNet } from "../domain/northstarMetrics";
+import { smoothTrend } from "../domain/trendSmoothing";
 import { NetWorthProjectionCard } from "../components/NetWorthProjectionCard";
 import { useRefreshQuotes, useRefreshFxRates, useRefreshDailyPrices } from "../features/market-data/useMarketRefresh";
 import { useState } from "react";
@@ -76,6 +77,16 @@ const STRIP_PERIOD_LABELS: Record<StripPeriod, string> = {
   "5Y": "近 5 年",
   "All": "全期間",
 };
+
+/**
+ * Long-view mode (Plan 040).
+ * MILESTONE_TIERS: fixed TWD ladder in the user's primary currency (v1, not
+ * user-editable). Compared against the existing headline `netWorth`.
+ * LONG_VIEW_WINDOW: trailing moving-average window applied to the net-worth
+ * trend when long-view mode is on (display-only; see domain/trendSmoothing).
+ */
+const MILESTONE_TIERS = [1_000_000, 3_000_000, 5_000_000, 10_000_000, 20_000_000, 50_000_000, 100_000_000];
+const LONG_VIEW_WINDOW = 30;
 
 /** Dashboard cards the user can hide via 編輯版面 (net-worth hero + KPI stay). */
 const DASHBOARD_CARDS: Array<{ key: string; label: string }> = [
@@ -115,6 +126,10 @@ export function DashboardRoute() {
   const setDashboardHiddenCards = useUiPreferences((state) => state.setDashboardHiddenCards);
   const northstarMetric = useUiPreferences((state) => state.northstarMetric);
   const setNorthstarMetric = useUiPreferences((state) => state.setNorthstarMetric);
+  const longViewMode = useUiPreferences((state) => state.longViewMode);
+  const toggleLongViewMode = useUiPreferences((state) => state.toggleLongViewMode);
+  const milestoneReached = useUiPreferences((state) => state.milestoneReached);
+  const setMilestoneReached = useUiPreferences((state) => state.setMilestoneReached);
   const cardVisible = (key: string) => !dashboardHiddenCards.includes(key);
   const toggleCard = (key: string) => {
     setDashboardHiddenCards(
@@ -403,11 +418,50 @@ export function DashboardRoute() {
     const pct = startValue !== 0 ? (change / Math.abs(startValue)) * 100 : 0;
     return { points, change, pct };
   }, [reconciledTrend, stripPeriod, todayIso]);
-  const visibleTrend = rangeView.points;
-  const momChange = rangeView.change;
-  const momPct = rangeView.pct;
+  // Long-view mode (Plan 040, Decision C): when on, render the trend through a
+  // trailing moving average and show the longer-period change (smoothed window
+  // start → now) instead of the day delta. Display-only: smoothTrend preserves
+  // the final point's real value, so the chart endpoint still equals the
+  // headline (plan-032 invariant) and stored values are untouched.
+  const longView = useMemo(() => {
+    if (!longViewMode || rangeView.points.length < 2) {
+      return { points: rangeView.points, change: rangeView.change, pct: rangeView.pct };
+    }
+    const smoothed = smoothTrend(rangeView.points, { window: LONG_VIEW_WINDOW });
+    const startValue = smoothed[0].value;
+    const endValue = smoothed[smoothed.length - 1].value;
+    const change = endValue - startValue;
+    const pct = startValue !== 0 ? (change / Math.abs(startValue)) * 100 : 0;
+    return { points: smoothed, change, pct };
+  }, [longViewMode, rangeView]);
+  const visibleTrend = longView.points;
+  const momChange = longView.change;
+  const momPct = longView.pct;
 
   const hasAnyData = accountRows.length > 0 || ledgerRows.length > 0 || assetRows.length > 0;
+
+  // Milestone celebration (Plan 040, Decision B): once data is loaded, if net
+  // worth has crossed the next tier above the persisted high-water mark, fire ONE
+  // toast and advance `milestoneReached` to the highest tier now reached. Guarded
+  // with a ran-once ref (mirrors useDailyLocalBackup) and skipped in demo mode so
+  // the showcase data never trips a celebration. De-dup is the persisted mark, so
+  // it fires once per tier — never on every render.
+  const milestoneRanRef = useRef(false);
+  useEffect(() => {
+    if (milestoneRanRef.current) return;
+    if (useDemoMode.getState().active) return;
+    if (!hasAnyData) return; // wait until real data has loaded
+    milestoneRanRef.current = true;
+    const crossed = MILESTONE_TIERS.filter((tier) => tier > milestoneReached && netWorth >= tier);
+    if (crossed.length === 0) return;
+    const highest = crossed[crossed.length - 1];
+    const label = highest === MILESTONE_TIERS[0] ? "第一桶金" : formatMoney(highest, primaryCurrency);
+    toast.success(`🎉 達成里程碑：${label}`, {
+      description: "淨值跨過新的里程碑，繼續穩穩前行。",
+      durationMs: 8_000,
+    });
+    setMilestoneReached(highest);
+  }, [hasAnyData, netWorth, milestoneReached, primaryCurrency, setMilestoneReached, toast]);
 
   // Budget health — current-month expense per category vs configured budget.
   const budgetCats = useMemo(() => {
@@ -832,13 +886,24 @@ export function DashboardRoute() {
               ) : null}
             </div>
 
-            {/* Period control — only shown for netWorth (it drives the trend chart) */}
+            {/* Period control + long-view toggle — only for netWorth (drives the trend chart) */}
             {activeMetric.key === "netWorth" && reconciledTrend.length > 1 ? (
-              <SegmentedControl
-                value={stripPeriod}
-                onChange={setStripPeriod}
-                options={STRIP_PERIODS.map((v) => ({ value: v, label: v }))}
-              />
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <SegmentedControl
+                  value={stripPeriod}
+                  onChange={setStripPeriod}
+                  options={STRIP_PERIODS.map((v) => ({ value: v, label: v }))}
+                />
+                <Button
+                  size="sm"
+                  variant={longViewMode ? "default" : "outline"}
+                  onClick={toggleLongViewMode}
+                  aria-pressed={longViewMode}
+                  title="長期視角：以移動平均淡化每日波動"
+                >
+                  長期視角
+                </Button>
+              </div>
             ) : null}
           </div>
 

@@ -41,6 +41,10 @@ export interface UiPreferences {
   sidebarCollapsed: boolean;
   /** Key of the metric to feature as the Dashboard hero. Default "netWorth". */
   northstarMetric: string;
+  /** Long-view mode: dampen daily net-worth volatility (display-only). Off by default. */
+  longViewMode: boolean;
+  /** Highest net-worth milestone tier already celebrated (high-water mark, primary currency). */
+  milestoneReached: number;
   setPrivacyMode: (value: boolean) => void;
   togglePrivacyMode: () => void;
   setNameLocale: (value: NameLocalePreference) => void;
@@ -58,6 +62,8 @@ export interface UiPreferences {
   setOnboardingDismissed: (value: boolean) => void;
   toggleSidebarCollapsed: () => void;
   setNorthstarMetric: (value: string) => void;
+  toggleLongViewMode: () => void;
+  setMilestoneReached: (value: number) => void;
 }
 
 /** Toggleable holdings-table columns (the rest are always shown). */
@@ -90,6 +96,8 @@ interface PersistedShape {
   onboardingDismissed: boolean;
   sidebarCollapsed: boolean;
   northstarMetric: string;
+  longViewMode: boolean;
+  milestoneReached: number;
 }
 
 export type ClockMode = "24h" | "12h";
@@ -114,6 +122,8 @@ function loadPersisted(): PersistedShape {
     onboardingDismissed: false,
     sidebarCollapsed: false,
     northstarMetric: "netWorth",
+    longViewMode: false,
+    milestoneReached: 0,
   };
   if (typeof window === "undefined") return fallback;
   // Back-compat: honour the legacy onboarding dismiss key for existing installs.
@@ -164,6 +174,11 @@ function loadPersisted(): PersistedShape {
         typeof parsed.northstarMetric === "string" && parsed.northstarMetric.trim()
           ? parsed.northstarMetric.trim()
           : "netWorth",
+      longViewMode: typeof parsed.longViewMode === "boolean" ? parsed.longViewMode : false,
+      milestoneReached:
+        typeof parsed.milestoneReached === "number" && Number.isFinite(parsed.milestoneReached)
+          ? parsed.milestoneReached
+          : 0,
     };
   } catch {
     return { ...fallback, onboardingDismissed: legacyDismissed };
@@ -227,6 +242,8 @@ function snapshot(state: UiPreferences): PersistedShape {
     onboardingDismissed: state.onboardingDismissed,
     sidebarCollapsed: state.sidebarCollapsed,
     northstarMetric: state.northstarMetric,
+    longViewMode: state.longViewMode,
+    milestoneReached: state.milestoneReached,
   };
 }
 
@@ -247,6 +264,8 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   onboardingDismissed: initial.onboardingDismissed,
   sidebarCollapsed: initial.sidebarCollapsed,
   northstarMetric: initial.northstarMetric,
+  longViewMode: initial.longViewMode,
+  milestoneReached: initial.milestoneReached,
   setPrivacyMode(value) {
     setPrivacyMaskOn(value);
     set({ privacyMode: value });
@@ -325,6 +344,14 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   setNorthstarMetric(value) {
     const next = value.trim() || "netWorth";
     set({ northstarMetric: next });
+    persist(snapshot(get()));
+  },
+  toggleLongViewMode() {
+    set({ longViewMode: !get().longViewMode });
+    persist(snapshot(get()));
+  },
+  setMilestoneReached(value) {
+    set({ milestoneReached: value });
     persist(snapshot(get()));
   },
 }));
