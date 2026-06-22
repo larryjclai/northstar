@@ -1801,6 +1801,14 @@ function EntryDrawer({
   const [showAdvanced, setShowAdvanced] = useState(false);
   useEffect(() => { if (open) setShowAdvanced(false); }, [open]);
 
+  // Scrim must dim only the content area, never the native-vibrancy sidebar
+  // (otherwise it flattens into a grey block — plan 052). The desktop sidebar
+  // grid column is 64px collapsed / 240px expanded and only exists at the `lg`
+  // breakpoint (≥1024px); below that the scrim stays full-width (see the
+  // media query in the inline <style> below).
+  const sidebarCollapsed = useUiPreferences((state) => state.sidebarCollapsed);
+  const scrimLeft = sidebarCollapsed ? 64 : 240;
+
   // Installment: valid when type=expense, account is credit, not editing, and periods >= 2.
   const selectedAccount = accountRows.find((a) => a.id === ledgerForm.accountId);
   const isCreditAccount = selectedAccount?.type === "credit";
@@ -1884,7 +1892,13 @@ function EntryDrawer({
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={onClose}>
-      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} />
+      {/* Scrim covers only the content area, leaving the native-vibrancy
+          sidebar untouched on desktop; full-width below the lg breakpoint. */}
+      <style>{`@media (max-width:1023.98px){.ns-entry-scrim{left:0 !important;}}`}</style>
+      <div
+        className="ns-entry-scrim"
+        style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: scrimLeft, background: "rgba(0,0,0,0.4)" }}
+      />
       <div
         onClick={(event) => event.stopPropagation()}
         className="animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)]"
