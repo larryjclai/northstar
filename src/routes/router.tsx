@@ -99,6 +99,11 @@ const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings",
   component: SettingsRoute,
+  // Optional `?tab=<id>` deep-link so other screens can open a specific settings
+  // tab directly (e.g. investment accounts → 交易成本).
+  validateSearch: (search: Record<string, unknown>): { tab?: string } => {
+    return typeof search.tab === "string" && search.tab ? { tab: search.tab } : {};
+  },
 });
 
 const goalsRoute = createRoute({
