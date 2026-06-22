@@ -145,6 +145,35 @@ export interface InvestmentDraft {
   cashless?: boolean;
 }
 
+/**
+ * 股息再投入 (DRIP) input: one dividend reinvested into the same asset. Creates a
+ * linked `cashDividend` leg (the full dividend amount) + a `buy` leg (the
+ * reinvested shares at the reinvestment price), both sharing one `dripGroupId`.
+ * See docs/drip-plan.md. Residual cash = dividendAmount − quantity × price stays
+ * in the account (≥ 0).
+ */
+export interface DividendReinvestmentDraft {
+  ticker: string;
+  name: string;
+  currency: string;
+  linkedAccountId?: string | null;
+  date: string;
+  /** Shares bought with the dividend (Q > 0). */
+  quantity: number;
+  /** Reinvestment price per share (P > 0). */
+  price: number;
+  /** Total cash dividend received (A ≥ Q × P). */
+  dividendAmount: number;
+  /** Tax / fee withheld from the dividend (reduces the counted dividend). */
+  dividendFee?: number;
+  /** Brokerage fee on the reinvestment buy. */
+  buyFee?: number;
+  note: string;
+  assetType?: AssetType | null;
+  sector?: string | null;
+  industry?: string | null;
+}
+
 export interface PortfolioAssetDraft {
   ticker: string;
   name: string;
@@ -245,6 +274,8 @@ export interface FinanceRepository {
   deleteManualHolding(id: string): Promise<void>;
   listInvestmentRecords(): Promise<InvestmentRecord[]>;
   createInvestmentRecord(input: InvestmentDraft): Promise<void>;
+  /** 股息再投入 (DRIP): create a linked cashDividend + buy on the same asset. */
+  createDividendReinvestment(input: DividendReinvestmentDraft): Promise<void>;
   updateInvestmentRecord(id: string, input: InvestmentDraft): Promise<void>;
   deleteInvestmentRecord(id: string): Promise<void>;
   importInvestmentRecords(rows: InvestmentDraft[]): Promise<void>;
@@ -514,6 +545,7 @@ function syntheticOpeningRecord(asset: PortfolioAsset): InvestmentRecord {
     isReviewed: false,
     linkedLedgerTransactionId: null,
     cashless: true,
+    dripGroupId: null,
   };
 }
 
@@ -989,6 +1021,35 @@ class BrowserFinanceRepository implements FinanceRepository {
     await this.persist();
   }
 
+  async createDividendReinvestment(input: DividendReinvestmentDraft) {
+    validateDividendReinvestment(input);
+    const { dividend, buy } = dividendReinvestmentLegs(input);
+    const dripGroupId = createId("drip");
+
+    // Order matters: post the dividend (+amount) before validating/posting the
+    // buy (−qty×price) so the buy's purchasing-power check sees the credited
+    // dividend. Both legs resolve to the same asset and share one dripGroupId.
+    const buildLeg = (leg: InvestmentDraft) => {
+      const existingAsset = this.findTransactionAsset(leg) ?? this.findManualAsset(leg);
+      this.validateInvestmentDraft(leg, existingAsset);
+      const asset = this.findOrCreateAsset(leg);
+      const record = createInvestmentRow(leg, asset.id);
+      record.dripGroupId = dripGroupId;
+      const ledger = createInvestmentLedgerRow(leg, record.id);
+      if (ledger) {
+        record.linkedLedgerTransactionId = ledger.id;
+        this.data.ledgerTransactions.push(ledger);
+      }
+      this.data.investmentRecords.push(record);
+      // Recompute after each leg so the buy's validation sees the dividend's cash.
+      this.recompute();
+    };
+
+    buildLeg(dividend);
+    buildLeg(buy);
+    await this.persist();
+  }
+
   async updateInvestmentRecord(id: string, input: InvestmentDraft) {
     const existingRecord = this.data.investmentRecords.find((record) => record.id === id && record.deletedAt === null);
     if (!existingRecord) throw new Error("找不到投資交易。");
@@ -1022,12 +1083,19 @@ class BrowserFinanceRepository implements FinanceRepository {
   async deleteInvestmentRecord(id: string) {
     const existingRecord = this.data.investmentRecords.find((record) => record.id === id && record.deletedAt === null);
     if (!existingRecord) throw new Error("找不到投資交易。");
+    // A 股息再投入 (DRIP) entry is two linked legs sharing one dripGroupId; deleting
+    // either removes both so the dividend and its reinvestment never half-exist.
+    const targets = existingRecord.dripGroupId
+      ? this.data.investmentRecords.filter((record) => record.dripGroupId === existingRecord.dripGroupId && record.deletedAt === null)
+      : [existingRecord];
+    const targetIds = new Set(targets.map((record) => record.id));
+    const ledgerIds = new Set(targets.map((record) => record.linkedLedgerTransactionId).filter((value): value is string => value !== null));
     this.data.investmentRecords = this.data.investmentRecords.map((record) =>
-      record.id === id ? bump({ ...record, deletedAt: nowIso() }) : record,
+      targetIds.has(record.id) ? bump({ ...record, deletedAt: nowIso() }) : record,
     );
-    if (existingRecord.linkedLedgerTransactionId) {
+    if (ledgerIds.size > 0) {
       this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
-        row.id === existingRecord.linkedLedgerTransactionId ? bump({ ...row, deletedAt: nowIso() }) : row,
+        ledgerIds.has(row.id) ? bump({ ...row, deletedAt: nowIso() }) : row,
       );
     }
     this.recompute();
@@ -1954,6 +2022,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     // (`inv_open_<assetId>`) — re-running, or two synced devices, converge on a
     // single row instead of duplicating the opening lot.
     await this.ensureSqliteColumn("investment_records", "cashless", "integer not null default 0");
+    // 股息再投入 (DRIP): links a record's cashDividend + buy legs. Null for non-DRIP.
+    await this.ensureSqliteColumn("investment_records", "drip_group_id", "text");
     await this.db.execute(
       `insert into investment_records (id, space_id, revision, created_at, updated_at, deleted_at, asset_id, linked_account_id, date, action, price, quantity, fee, note, is_reviewed, linked_ledger_transaction_id, cashless)
        select 'inv_open_' || a.id, a.space_id, 1, $1, $1, null, a.id, a.account_id,
@@ -2346,7 +2416,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     return this.db.select<InvestmentRecord[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       asset_id as assetId, linked_account_id as linkedAccountId, date, action, price, quantity, fee, note,
-      is_reviewed as isReviewed, linked_ledger_transaction_id as linkedLedgerTransactionId, cashless
+      is_reviewed as isReviewed, linked_ledger_transaction_id as linkedLedgerTransactionId, cashless, drip_group_id as dripGroupId
       from investment_records where deleted_at is null order by date desc, created_at desc`);
   }
 
@@ -2370,11 +2440,42 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     });
   }
 
+  override async createDividendReinvestment(input: DividendReinvestmentDraft) {
+    validateDividendReinvestment(input);
+    const { dividend, buy } = dividendReinvestmentLegs(input);
+    const dripGroupId = createId("drip");
+    await this.withTransaction(async () => {
+      // Dividend leg first, then buy — its ledger row is inserted before the buy
+      // is validated, so the buy's purchasing-power check (which sums ledger
+      // rows) sees the credited dividend. Both legs share one dripGroupId.
+      const buildLeg = async (leg: InvestmentDraft) => {
+        const ticker = leg.ticker.trim().toUpperCase();
+        const transactionAssetId = await this.findSqliteTransactionAssetId(leg);
+        const manualAssetId = !transactionAssetId ? (await this.findSqliteManualAsset(ticker, leg.linkedAccountId ?? null))?.id : undefined;
+        const existingAssetId = transactionAssetId ?? manualAssetId;
+        await this.validateSqliteInvestmentDraft(leg, existingAssetId);
+        const assetId = await this.findOrCreateSqliteAsset(leg);
+        const record = createInvestmentRow(leg, assetId);
+        record.dripGroupId = dripGroupId;
+        const ledger = createInvestmentLedgerRow(leg, record.id);
+        if (ledger) {
+          record.linkedLedgerTransactionId = ledger.id;
+          await this.insertLedgerRow(ledger);
+        }
+        await this.insertInvestmentRow(record);
+      };
+      await buildLeg(dividend);
+      await buildLeg(buy);
+      await this.recomputeSqliteAccounts();
+      await this.recomputeSqliteAssets();
+    });
+  }
+
   override async updateInvestmentRecord(id: string, input: InvestmentDraft) {
     const existingRows = await this.db.select<InvestmentRecord[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       asset_id as assetId, linked_account_id as linkedAccountId, date, action, price, quantity, fee, note,
-      is_reviewed as isReviewed, linked_ledger_transaction_id as linkedLedgerTransactionId, cashless
+      is_reviewed as isReviewed, linked_ledger_transaction_id as linkedLedgerTransactionId, cashless, drip_group_id as dripGroupId
       from investment_records where id = $1 and deleted_at is null`, [id]);
     const existingRecord = existingRows[0];
     if (!existingRecord) throw new Error("找不到投資交易。");
@@ -2418,19 +2519,30 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async deleteInvestmentRecord(id: string) {
-    const existingRows = await this.db.select<Array<{ linkedLedgerTransactionId: string | null }>>(
-      `select linked_ledger_transaction_id as linkedLedgerTransactionId from investment_records where id = $1 and deleted_at is null`,
+    const existingRows = await this.db.select<Array<{ linkedLedgerTransactionId: string | null; dripGroupId: string | null }>>(
+      `select linked_ledger_transaction_id as linkedLedgerTransactionId, drip_group_id as dripGroupId from investment_records where id = $1 and deleted_at is null`,
       [id],
     );
     const existingRecord = existingRows[0];
     if (!existingRecord) throw new Error("找不到投資交易。");
+    // A 股息再投入 (DRIP) entry is two linked legs sharing one dripGroupId; deleting
+    // either removes both so the dividend and its reinvestment never half-exist.
+    const targets = existingRecord.dripGroupId
+      ? await this.db.select<Array<{ id: string; linkedLedgerTransactionId: string | null }>>(
+          `select id, linked_ledger_transaction_id as linkedLedgerTransactionId from investment_records where drip_group_id = $1 and deleted_at is null`,
+          [existingRecord.dripGroupId],
+        )
+      : [{ id, linkedLedgerTransactionId: existingRecord.linkedLedgerTransactionId }];
     await this.withTransaction(async () => {
-      await this.db.execute(`update investment_records set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`, [nowIso(), id]);
-      if (existingRecord.linkedLedgerTransactionId) {
-        await this.db.execute(
-          `update ledger_transactions set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`,
-          [nowIso(), existingRecord.linkedLedgerTransactionId],
-        );
+      const timestamp = nowIso();
+      for (const target of targets) {
+        await this.db.execute(`update investment_records set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`, [timestamp, target.id]);
+        if (target.linkedLedgerTransactionId) {
+          await this.db.execute(
+            `update ledger_transactions set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`,
+            [timestamp, target.linkedLedgerTransactionId],
+          );
+        }
       }
       await this.recomputeSqliteAccounts();
       await this.recomputeSqliteAssets();
@@ -3784,8 +3896,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   private async insertInvestmentRow(row: InvestmentRecord) {
     const now = nowIso();
     await this.db.execute(
-      `insert into investment_records (id, space_id, revision, created_at, updated_at, deleted_at, asset_id, linked_account_id, date, action, price, quantity, fee, note, is_reviewed, linked_ledger_transaction_id, cashless)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+      `insert into investment_records (id, space_id, revision, created_at, updated_at, deleted_at, asset_id, linked_account_id, date, action, price, quantity, fee, note, is_reviewed, linked_ledger_transaction_id, cashless, drip_group_id)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
       [
         row.id,
         row.spaceId ?? personalSpace,
@@ -3804,6 +3916,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         Number(row.isReviewed ?? false),
         row.linkedLedgerTransactionId ?? null,
         Number(row.cashless ?? false),
+        row.dripGroupId ?? null,
       ],
     );
   }
@@ -4657,6 +4770,7 @@ function buildOpeningRecord(asset: Pick<PortfolioAsset, "id" | "accountId">, dra
     isReviewed: false,
     linkedLedgerTransactionId: null,
     cashless: true,
+    dripGroupId: null,
   };
 }
 
@@ -4863,6 +4977,7 @@ function createInvestmentRow(input: InvestmentDraft, assetId: string): Investmen
     ...investmentDraftFields(input),
     isReviewed: false,
     linkedLedgerTransactionId: null,
+    dripGroupId: null,
   };
 }
 
@@ -4877,6 +4992,54 @@ function investmentDraftFields(input: InvestmentDraft) {
     note: input.note,
     cashless: input.cashless ?? false,
   };
+}
+
+/**
+ * Split a DRIP draft into its two `InvestmentDraft` legs, ordered
+ * **dividend first, then buy** so the buy's purchasing-power check sees the
+ * dividend already credited. The cashDividend leg follows the new-row
+ * convention (`price` = total dividend amount, `quantity` = 0) so
+ * dividendAnalysis counts the full amount; the buy leg is a normal trade that
+ * blends into moving-average cost. Validation lives in `validateDividendReinvestment`.
+ */
+function dividendReinvestmentLegs(input: DividendReinvestmentDraft): { dividend: InvestmentDraft; buy: InvestmentDraft } {
+  const shared = {
+    ticker: input.ticker,
+    name: input.name,
+    currency: input.currency,
+    linkedAccountId: input.linkedAccountId ?? null,
+    date: input.date,
+    assetType: input.assetType ?? null,
+    sector: input.sector ?? null,
+    industry: input.industry ?? null,
+  };
+  const dividend: InvestmentDraft = {
+    ...shared,
+    action: "cashDividend",
+    price: Math.max(0, Number(input.dividendAmount) || 0),
+    quantity: 0,
+    fee: Math.max(0, Number(input.dividendFee) || 0),
+    note: input.note,
+  };
+  const buy: InvestmentDraft = {
+    ...shared,
+    action: "buy",
+    price: Math.max(0, Number(input.price) || 0),
+    quantity: Math.max(0, Number(input.quantity) || 0),
+    fee: Math.max(0, Number(input.buyFee) || 0),
+    note: input.note,
+  };
+  return { dividend, buy };
+}
+
+/** Shared DRIP-draft validation (Q > 0, P > 0, A ≥ Q × P). */
+function validateDividendReinvestment(input: DividendReinvestmentDraft) {
+  const quantity = Math.max(0, Number(input.quantity) || 0);
+  const price = Math.max(0, Number(input.price) || 0);
+  const dividendAmount = Math.max(0, Number(input.dividendAmount) || 0);
+  if (!(quantity > 0)) throw new Error("請輸入再投入股數。");
+  if (!(price > 0)) throw new Error("請輸入再投入價格。");
+  if (dividendAmount + 0.000001 < quantity * price) throw new Error("股利金額不足以買進該股數（請確認金額 ≥ 股數 × 價格）。");
 }
 
 function computeAccountBalance(account: Account, ledgerRows: LedgerTransaction[], excludeLedgerId: string | null) {
