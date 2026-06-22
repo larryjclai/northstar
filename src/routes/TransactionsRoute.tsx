@@ -50,6 +50,31 @@ const actionShortLabels: Record<string, string> = {
 
 type TxKind = "investment" | "cash";
 
+// Paginate the flat transaction list first (pageSize rows/page), then group the
+// current page's rows by month for the sub-headers — mirroring the ledger
+// (CashFlowRoute), which paginates flat rows then groups within the page. This
+// keeps the page size a count of transactions, not of month-groups.
+function paginateAndGroupByMonth<T extends { date: string }>(
+  rows: T[],
+  page: number,
+  pageSize: number,
+): { groups: Array<{ date: string; rows: T[] }>; totalPages: number } {
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const pageRows = rows.slice((page - 1) * pageSize, page * pageSize);
+  const groups: Array<{ date: string; rows: T[] }> = [];
+  let currentMonth = "";
+  for (const row of pageRows) {
+    const monthKey = row.date.slice(0, 7);
+    if (monthKey !== currentMonth) {
+      groups.push({ date: monthKey, rows: [row] });
+      currentMonth = monthKey;
+    } else {
+      groups[groups.length - 1].rows.push(row);
+    }
+  }
+  return { groups, totalPages };
+}
+
 interface UnifiedTx {
   id: string;
   kind: TxKind;
@@ -174,21 +199,6 @@ export function TransactionsRoute() {
       .sort((a, b) => `${b.date}-${b.createdAt}`.localeCompare(`${a.date}-${a.createdAt}`));
   }, [allTx, searchQuery, dateRange, assetTypeFilter, typeFilter, brokerFilter]);
 
-  const groupedTx = useMemo(() => {
-    const groups: Array<{ date: string; rows: UnifiedTx[] }> = [];
-    let currentDate = "";
-    for (const row of filteredTx) {
-      const monthKey = row.date.slice(0, 7);
-      if (monthKey !== currentDate) {
-        groups.push({ date: monthKey, rows: [row] });
-        currentDate = monthKey;
-      } else {
-        groups[groups.length - 1].rows.push(row);
-      }
-    }
-    return groups;
-  }, [filteredTx]);
-
   const periodRecordRows = useMemo(() => recordRows.filter((record) => isWithinDateScope(record.date, dateRange)), [recordRows, dateRange]);
 
   const editingPreset = useMemo<TransactionPreset | undefined>(() => {
@@ -244,8 +254,10 @@ export function TransactionsRoute() {
     setPage(1);
   }, [searchQuery, dateRange, assetTypeFilter, typeFilter, brokerFilter]);
 
-  const paginatedGroups = useMemo(() => groupedTx.slice((page - 1) * pageSize, page * pageSize), [groupedTx, page]);
-  const totalPages = Math.ceil(groupedTx.length / pageSize);
+  const { groups: paginatedGroups, totalPages } = useMemo(
+    () => paginateAndGroupByMonth(filteredTx, page, pageSize),
+    [filteredTx, page],
+  );
   const hasActiveFilters = typeFilter.size > 0 || brokerFilter.size > 0 || assetTypeFilter !== "all" || Boolean(searchQuery) || dateScope.preset !== "all";
 
   // Filter dropdown options. Broker list includes an "unspecified" bucket when
