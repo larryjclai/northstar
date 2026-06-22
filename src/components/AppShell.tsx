@@ -183,7 +183,7 @@ export function AppShell() {
               onClick={() => setSearchOpen(true)}
               title="搜尋 (⌘K)"
               className="ns-nav-link"
-              style={{ justifyContent: "center", padding: "9px 8px" }}
+              style={{ width: "100%", justifyContent: "center", padding: "9px 8px" }}
             >
               <MagnifyingGlass size={16} />
             </button>
@@ -211,7 +211,7 @@ export function AppShell() {
               onClick={() => setQuickAddOpen(true)}
               title="快速記帳 (⌘N)"
               className="ns-nav-link"
-              style={{ justifyContent: "center", padding: "9px 8px", background: "var(--ns-accent)", color: "var(--ns-accent-fg)", borderRadius: "var(--ns-r-sm)" }}
+              style={{ width: "100%", justifyContent: "center", padding: "9px 8px", background: "var(--ns-accent)", color: "var(--ns-accent-fg)", borderRadius: "var(--ns-r-sm)" }}
             >
               <Plus size={16} weight="bold" />
             </button>
