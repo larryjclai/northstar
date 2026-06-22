@@ -1,5 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { stripStartDate } from "./dateScope";
+import { isWithinDateScope, resolveDateScope, stripStartDate } from "./dateScope";
+
+// Plan 055: the date picker can drill from a month down to a single day, which
+// it represents as a `custom` scope with start === end. These pin that a
+// single-day custom scope resolves to exactly that day and filters to it.
+describe("single-day custom scope (month → day drill-down)", () => {
+  const tz = "Asia/Taipei";
+
+  it("resolves start === end to that one day", () => {
+    const resolved = resolveDateScope(
+      { preset: "custom", month: "2026-06", start: "2026-06-22", end: "2026-06-22" },
+      tz,
+    );
+    expect(resolved.start).toBe("2026-06-22");
+    expect(resolved.end).toBe("2026-06-22");
+    expect(resolved.label).toBe("2026-06-22 → 2026-06-22");
+  });
+
+  it("includes only that day", () => {
+    const resolved = resolveDateScope(
+      { preset: "custom", month: "2026-06", start: "2026-06-22", end: "2026-06-22" },
+      tz,
+    );
+    expect(isWithinDateScope("2026-06-22", resolved)).toBe(true);
+    expect(isWithinDateScope("2026-06-22T15:30:00", resolved)).toBe(true);
+    expect(isWithinDateScope("2026-06-21", resolved)).toBe(false);
+    expect(isWithinDateScope("2026-06-23", resolved)).toBe(false);
+  });
+});
 
 // Regression guard: a previous implementation built the date in local time but
 // serialized via toISOString() (UTC), shifting the window start one day early in

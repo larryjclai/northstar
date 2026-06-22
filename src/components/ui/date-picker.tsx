@@ -70,7 +70,9 @@ export function DateRangePicker({
   const from = start ? parseISO(start) : undefined
   const to = end ? parseISO(end) : undefined
   const label = from && to
-    ? `${format(from, "yyyy/MM/dd")} – ${format(to, "yyyy/MM/dd")}`
+    ? start === end
+      ? format(from, "yyyy/MM/dd")
+      : `${format(from, "yyyy/MM/dd")} – ${format(to, "yyyy/MM/dd")}`
     : from
       ? `${format(from, "yyyy/MM/dd")} – …`
       : "選擇期間"
