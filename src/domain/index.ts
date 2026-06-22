@@ -5,6 +5,7 @@ export * from "./dataHealth";
 export * from "./installments";
 export * from "./sectorLabels";
 export * from "./dividendAnalysis";
+export * from "./annualReport";
 export * from "./currencyExposure";
 export * from "./bankBrands";
 export * from "./assetName";

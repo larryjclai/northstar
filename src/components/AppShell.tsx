@@ -6,6 +6,7 @@ import {
   DotsThreeOutline,
   Eye,
   EyeSlash,
+  FileText,
   GearSix,
   House,
   Plus,
@@ -75,6 +76,7 @@ export function AppShell() {
   ];
   
   const nav2Items = [
+    { to: "/reports/annual", label: "年度報表", icon: FileText },
     { to: "/settings", label: t("nav.settings"), icon: GearSix },
   ];
   useBlockBrowserBackOnBackspace();
