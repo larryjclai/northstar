@@ -71,6 +71,21 @@ honor its STOP conditions, and update your row when done.
 | 037 | Relabel account「當前餘額」→「期初餘額」(field edits opening balance, not current) | P3 | S | LOW | — | DONE on branch advisor/037-opening-balance-label (dab70248) — NOT yet merged. APPROVED on review. Relabels the drawer balance field 當前餘額→期初餘額 (binds to `openingBalance`) + adds a「目前餘額 = 期初餘額 + 已結算交易…用調整餘額」caption for non-alternative/non-credit; alternative「目前市值」+ credit hint untouched; `{...openingBalanceField}` binding unchanged. Scope clean (1 file, +6/−1). Reviewer verified diff + greps (當前餘額=0, 期初餘額=2); executor tsc(0)/build(✓)/lint(0 err)/test(537). Operator-found during the +302 diagnosis. Built on current main 85b07a83. |
 | 044 | Set 延後入帳 in-place from the Reconcile row (no editor detour) | P2 | M | LOW | 035, 036 (merged) | DONE + MERGED to main (merge 4677137d; feature 6a833d03). **Renumbered from 038** (collided with 038-custom-manual-priced-assets); branch `advisor/044-inline-defer-posting`. APPROVED on review. `setLedgerPostDate` focused setter (interface+browser+Tauri, mirrors `setLedgerReviewed`, NO recompute → balance-neutral, tested); inline 延後 CalendarPlus button on expense rows (stopPropagation) + 「延後 MM/DD」badge + DeferPostingModal (date picker / 改回當下入帳, copies PayCardModal overlay); `["ledger"]` invalidation re-buckets via 036's `postDate ?? date` — stays on 對帳. Scope clean (3 files, +183/−3). Reviewer re-ran tsc(0)+build(✓)+postdate test(2)+greps(setter=3,modal=2); executor test(548)/lint(0 err). Built on current main 4e40f7c6. |
 
+| 046 | TW annual tax / year-end report — realized gains + dividends by year | P2 | M | MED | — | TODO — design-gated (Phase 0: docs/annual-report-plan.md, Decisions A/B/C). PDF export deferred. |
+| 047 | Restore preview — diff summary before a restore overwrites data (Roadmap 5.2) | P2 | M | MED | — | TODO — pure `buildBackupDiff` + read-only snapshot accessor + typed-phrase confirm; local-backup path only. |
+| 048 | Custom assets Phase 3 — stale-price data-health rule, snapshot history, CSV import | P2 | M | MED | 045 (merged) | TODO — 3 independent sub-features (A/B/C); valuation math untouched. |
+| 049 | Safe (in-range) dependency upgrades — Tauri 2.11.3, Base UI 1.6, patches | P3 | S–M | LOW | — | DONE + APPLIED to main (commits 89272041 JS lockfile + 7e52ddaf cargo update + fmt fix). Applied by re-running the verified commands directly on main (NOT a branch merge — package.json was unchanged so the branch lockfile would have conflicted with 051's zod removal). Pre-existing `cargo fmt` nit in lib.rs:38 fixed (operator-approved) so `check:tauri` is now GREEN. Post-apply gates on main: tsc 0, 601 tests, build, npm audit 0 vulns, check:tauri 0. Original verification branch `worktree-agent-ac58fa4fea3303591` (ebc5ecdd/18c385e8) now redundant. All 8 in-range JS deps advanced (Base UI 1.6.0, Tauri api 2.11.1 / cli 2.11.3, router 1.170.16, playwright 1.61.0, react-hook-form 7.80.0, vitest 4.1.9, typescript-eslint 8.61.1); Cargo: tauri 2.11.2→2.11.3 + transitive. **package.json UNCHANGED** (caret ranges already permitted the versions → the entire upgrade lives in package-lock.json) — Cargo.toml + vendored plugin-sql untouched. Reviewer re-ran: tsc 0, 591 tests, build, npm audit 0 vulns, `cargo check` 0. **Caveat:** `npm run check:tauri` not fully green due to a PRE-EXISTING `cargo fmt` nit in `src-tauri/src/lib.rs:38` (`c_ctx  =` double space) — unrelated to 049, already fails on main; trivial 1-char follow-up. **Merge note:** because package.json is unchanged, do NOT `git merge` the branch onto main (its lockfile still has zod and will conflict with 051's removal) — instead apply on main by re-running `npm update <8 pkgs>` + `cargo update` (the plan's own verified commands), which resolves cleanly against main's zod-free package.json. |
+| 050 | Migrate recharts 2 → 3 (chart library major) | P3 | M–L | MED–HIGH | 049 (do first) | TODO — spike-gated; 11 chart files; visual verification in light+dark required. |
+| 051 | Remove the unused `zod` dependency (not a v4 migration) | P3 | S | LOW | — | DONE on branch `worktree-agent-ad2ecd2c769c2c042` (commit f56819d8) — NOT yet merged. APPROVED on review. Removed the direct `zod` dep from package.json (+lockfile churn); 0 importers confirmed on current main before removal. Reviewer re-ran: tsc 0, audit 0 vulns, scope clean (package.json 1 line + package-lock.json only, no source). Accepted nuance: zod still present **transitively** via `shadcn`→`@modelcontextprotocol/sdk`/`zod-to-json-schema` (can't remove without touching shadcn — out of scope); the direct-dependency removal (the actual goal) is done. **Follow-up (chip task_fd0a3f3a):** `shadcn` is in `dependencies` but never imported in src/ — move it to devDependencies to drop it + its transitive zod from production installs. |
+| 052 | Edit-transaction drawer scrim dims the sidebar into a grey block | P2 | S | LOW | — | DONE + MERGED to main (merge 5ff4fdf8; feature ab16d1c4). EntryDrawer scrim now starts at `left: 64/240` (reactive to `sidebarCollapsed` from useUiPreferences) with a `<style>` media-query fallback to full-width below the lg breakpoint, so the native-vibrancy sidebar is no longer flattened; root overlay `onClick={onClose}` unchanged (outside-click still closes). Reviewer: scope clean (1 file +15/−1), tsc 0 / lint 0 err / build / 601 tests. NOTE: vibrancy bug is Tauri-webview-only — no browser preview possible; final eyeball in the desktop app recommended. |
+| 053 | Align collapsed-sidebar search + quick-add icons with the nav column | P3 | S | LOW | — | DONE + MERGED to main (merge c8c83814; feature 3200778e). Root cause: `.ns-nav-link` has no width, so nav links stretch to the 48px inner column (icon centered at 24px) while the search/quick-add buttons shrink-wrapped flush-left. Fix: `width:100%` on both collapsed buttons. Reviewer: scope clean (1 file +2/−2), tsc 0 / lint 0 err / build / 601 tests; expanded sidebar untouched (edits in the `collapsed?` branch only). Final eyeball on the collapsed rail recommended. |
+| 054 | Paginate investment 交易紀錄 by 50 transactions/page (match the ledger) | P2 | S–M | LOW–MED | — | DONE on worktree branch `worktree-agent-a02ca0c87dd088b3e` (commit 04e84082) — NOT yet merged. APPROVED on review. New pure `paginateAndGroupByMonth` helper slices flat `filteredTx` at 50/page then groups the page slice by month; old full-list `groupedTx` removed; `totalPages` now row-based so 上一頁/下一頁 shows past 50 txns; filter-reset `useEffect` intact. Scope clean (1 file, +29/−17). Reviewer re-ran in worktree: tsc 0, **591 tests pass**, lint 0 errors, build OK. Branch based on 8f2e90bd, touches only TransactionsRoute.tsx (main never touched it since) → **merges clean onto main, no conflict**. Deviation accepted: no unit test (vitest has no `@` alias to resolve the component's imports — out of scope; plan marked the test optional). Follow-up: extract the helper to a pure module + test it once vitest gets the `@` alias. Visual check was code-inspection (no preview). |
+| 055 | Date picker: drill from month down to a single day | P2 | S–M | LOW | — | TODO — top picker drills to a day → single-day scope (`start===end`); operator-confirmed. Finance math untouched. |
+| 056 | Separate income vs expense categories via a `kind` tag | P2 | M | MED | — | TODO — `CategoryGroup.kind?` (income/expense/both); entry-drawer filter; operator chose tag-not-two-lists. Aggregation untouched. |
+| 057 | Make broker-fee (交易成本) settings discoverable from investment accounts | P2 | S–M | LOW | 026, 033 (merged) | TODO — feature exists in 設定→交易成本; add deep-link `tab` param + entry point on investment accounts. |
+| 058 | Trades of an imported holding's ticker should accumulate into ONE asset | P1 | M–L | HIGH | — | DONE on worktree branch `worktree-agent-a1596c1cb709fd3d0` (commits 1b105614 design-note + e408ed89 resolution + 4cdc4dc9 reconcile) — NOT yet merged. APPROVED on review. Decisions A (same-ticker merge + account adoption) + B (auto idempotent migration) signed off by operator; GOOG/GOOGL ruled out of scope (operator data-entry typo). `findManualAsset`/`findOrCreateAsset` (browser) + `findSqliteManualAsset`/`findOrCreateSqliteAsset` + SQLite reconcile SQL fixed; browser `reconcileDuplicateAssets` wired into `normalizeStoredData`. Reviewer re-ran in worktree: tsc 0, **595/595 tests**, lint 0 errors, build OK; cost-basis files (`portfolioMetrics.ts`/`portfolioCalculator.ts`/its test) zero-diff; scope clean (3 files). New tests meaningful (qty 4.0 / blended cost 225 / account adoption / sell-to-4 / GOOG≠GOOGL / reconcile idempotent via export→re-import). **CAVEAT (follow-up):** browser-path account-adoption mutates `accountId`/opening `linkedAccountId` WITHOUT bumping `revision`/`updatedAt` (SQLite path DOES) — a browser≡SQLite sync-metadata gap; harmless on the user's Tauri/SQLite device but should be hardened. Also browser reconcile picks first-in-array manual vs SQLite `min(id)` (diverges only with multiple same-ticker manual assets). |
+| 059 | 股息再投入 (DRIP) — record a dividend + reinvestment in one entry | P2 | M | MED | — | DONE on worktree branch `worktree-agent-a457312e308b54b0e` (commits 09663c2d design-note + f0804bb8 feature) — NOT yet merged. APPROVED on review. Decisions A (two linked records via `createDividendReinvestment`, linked by new `dripGroupId`) + B (3 fields, residual kept, dividend-before-buy) signed off by operator. Browser + Tauri SQLite (atomic txn) helpers; `dripGroupId?` added to `InvestmentRecord` (types.ts — documented in-merit deviation, optional for legacy/sync); delete-both in both impls; SQLite `drip_group_id` column migration. UI: 3rd 股利 sub-toggle 「股息再投入」(create-only, hidden when editing). Reviewer re-ran in worktree: tsc 0, **597/597 tests**, lint 0 errors, build OK; cost-basis + dividend MATH files (`portfolioMetrics.ts`/`dividendAnalysis.ts`) zero-diff; scope clean (5 files: in-scope + justified types.ts + design note). Tests meaningful: cash-nets-0, full-dividend-counted, blended cost, delete-removes-both (no orphan ledger), **zero-balance reinvest proves dividend-before-buy ordering**. browser≡SQLite parity solid (both bump revision; SQLite atomic). **Follow-ups:** editing one DRIP leg independently via the normal edit sheet can drift the pair (each leg still valid standalone; "edit DRIP as a unit" deferred); "In kind" dividend + DRIP CSV import deferred. **Merge watch:** 058 + 059 both add methods to repositories.ts near `createInvestmentRecord` → overlapping regions on merge. |
+
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale).
 
 ## 2026-06-15 — operator-requested plans (011–013)
@@ -417,15 +432,114 @@ Suggested order: **041 first** (small, no gate, immediate operator-visible win) 
 then the three design-gated features once their Phase-0 decisions are signed off.
 038/039/040 are mutually independent.
 
+## 2026-06-21 — direction pass (`improve next`) + dependency check → plans 046–051
+
+Ran a direction-only audit against `main` @ `8f2e90bd`, plus an operator-requested
+dependency-upgrade check (Tauri / COSS-UI stack / charts). All of Phase 6
+(北極星/底氣, 024–028) and the 038–045 batch (custom assets, advanced budgets,
+long-view, sidebar polish) are shipped, so this pass mined the remaining
+`ROADMAP.md` 規劃中 + 進行中 backlog and the deferred 045 follow-ups, grounding
+each against live code. Operator selected three direction items + three dep
+actions.
+
+**Direction (selected):**
+- **046 = TW annual tax / year-end report** — `ROADMAP.md` 台灣稅務 + 報表匯出.
+  `dividendAnalysis.byYear` exists; `portfolioMetrics.realizedGain` exists only as
+  a **lifetime scalar** (never bucketed by disposal year); **no report route at
+  all**. Plan = a by-year aggregation domain layer (reusing the exact
+  moving-average realized-gain formula; sum-of-years === lifetime is the
+  regression guard) + a read-only report route. Design-gated (year-attribution /
+  scope / FX口徑). PDF export deferred.
+- **047 = restore preview** — `ROADMAP.md` 進行中 **5.2**, confirmed unbuilt
+  (`grep restorePreview` → nothing). Restores overwrite blind. Plan = a pure
+  `buildBackupDiff(current, backup)` counts-diff + a read-only snapshot accessor +
+  a typed-phrase confirm; **write path untouched**. Local-backup path only (JSON
+  import + sync restore are noted follow-ups).
+- **048 = custom assets Phase 3** — the three follow-ups plan 045 explicitly
+  deferred: a `stale-manual-price` data-health rule, snapshot edit/delete history
+  on HoldingDetail, and CSV import of manual prices. Three independent
+  sub-features; valuation math (038/045) untouched.
+
+**Dependencies (operator-requested check, against `npm outdated` + `cargo update
+--dry-run` at `8f2e90bd`):**
+- **Tauri is already current** — locked crate 2.11.2; only 2.11.3 (patch)
+  available; no Tauri 3 exists. JS api/cli are patch-only too. → folded into 049.
+- **049 = safe bucket** — all in-range bumps (tauri 2.11.3, `@base-ui/react`
+  1.6.0, router/playwright/react-hook-form/vitest/typescript-eslint patches) in
+  one verified, source-change-free commit. Excludes every major.
+- **050 = recharts 2 → 3** — the "charts" major (11 importer files). Spike-gated,
+  visually verified; support-longevity only (no user feature). Do **after** 049.
+- **051 = remove unused `zod`** — investigation found **zod has 0 importers**
+  repo-wide. The requested "zod 4 migration" is moot; the right action is removal,
+  not migrating an unused package to v4. Plan = `npm uninstall zod` + verify.
+
+Suggested order: **049 → 051** (trivial hygiene, do first), then **047 / 048**
+(concrete, low-ambiguity), then **046** (after its design gate), then **050**
+(do last; biggest risk, no feature value, wants the toolchain current first).
+046/047/048 are mutually independent.
+
+## 2026-06-21 — operator bug/feature batch (`improve plan`) → plans 052–057
+
+Six operator-reported items (two screenshots: the 編輯交易 drawer with the sidebar
+greyed, and the 記帳 dashboard), traced to live code before planning against
+`main` @ `8f2e90bd`. Two needed an operator decision (asked & answered inline);
+the rest were unambiguous once root-caused.
+
+| Operator item | Plan | Verdict / root cause |
+|---|---|---|
+| 編輯交易時左側 sidebar 變灰塊 | **052** | EntryDrawer scrim `rgba(0,0,0,0.4)` over `inset:0` flattens the native-vibrancy sidebar (the dark-scrim sibling of plan 041's blur fix). |
+| 收合側欄搜尋/快速記帳 icon 沒對齊 | **053** | AppShell collapsed: search/quick-add buttons sit in wrapper divs with different padding than the nav links → off the icon centerline. |
+| 投資交易紀錄沒有分頁 | **054** | 投資 交易紀錄 renders `<TransactionsRoute/>`, which paginates by **month-group** at 50/page → `totalPages` always 1, control never shows. Switch to 50 flat transactions/page then group (mirror `CashFlowRoute`). |
+| 記帳日曆要能選到日 | **055** | DateScopeControl's 月 preset is month-only; day-level exists only via 自訂區間. **Operator chose:** the top picker should drill month→day. Map a day to a single-day scope (`start===end`); finance math already supports it. |
+| 收入/支出分類要分開 | **056** | `AppSettings.categories` is one shared list; entry drawer shows it for both types. **Operator chose:** tag each category with a `kind` (income/expense/both), not two separate lists. Optional field, backward-compatible; aggregation untouched. |
+| 找不到券商手續費設定 | **057** | Feature exists (設定→交易成本, incl. per-account discounts for `investment` accounts via plans 026/033) but isn't discoverable. There is no `券商` account type — broker = `investment`. Add a deep-link `tab` param + an entry point on investment accounts. |
+
+Confirmed bugs (do first, small/low-risk): **052, 053, 054**. Features:
+**055, 056, 057**. All six are mutually independent (different files) — any order /
+parallel branches. 052 + 053 are both visual and want preview-tooling
+verification; 054 + 055 want a visual check too.
+
+## 2026-06-21 — operator investment issues (`improve plan`) → plans 058–059
+
+Two operator-reported investment items (screenshots: CRWD shown as two 持倉 rows
+of 3.5 + 0.5 shares; the Wealthfolio Add-Activity dialog with Cash/DRIP/In-kind
+dividend types). Both traced to live code against `main` @ `8f2e90bd`.
+
+- **058 (P1 correctness bug)** — an imported holding (匯入持倉) and later trades of
+  the **same ticker don't merge** into one asset. Root cause: `findManualAsset`
+  (`repositories.ts:1551-1556`) matches a manual holding only when
+  `accountId === input.linkedAccountId`, but imports are often account-less
+  (`accountId: null`) or on a different account, so the trade falls through to a
+  new `"transactions"` asset (`:1558-1586`). Same bug in the Tauri SQLite path
+  (`:~3801`/`:~3829`). The cost-basis math already blends correctly once records
+  share one asset — this is an **identity/resolution** failure, not a math bug.
+  Design-gated: a resolution rule + a reconcile path for the user's already-split
+  holdings, fixed in BOTH impls. GOOG≠GOOGL (different securities) must NOT merge.
+- **059 (P2 feature)** — a 「股息再投入 (DRIP)」option when recording a dividend,
+  like Wealthfolio. DRIP = a linked `cashDividend` (income, counted in
+  `dividendAnalysis`) + a `buy` (reinvestment, blended into cost), cash net ≈ 0 —
+  **no new finance math**, just a UI sub-mode + an atomic repo helper (browser +
+  SQLite). Design-gated on data shape (two linked records vs a new action —
+  recommend the former) + cash/price semantics.
+
+Order: **058 first** (P1 data correctness; it also makes 059's asset resolution
+correct for free). Both are design-gated (Phase-0 sign-off before code). They are
+independent files-wise but 059 composes with 058's merge fix.
+
 ## Direction (product options — not yet planned)
 
-Surfaced for later roadmap decisions (still not planned after the 2026-06-20 pass):
+Surfaced for later roadmap decisions (still not planned after the 2026-06-21 pass):
 
-- **Household sharing UI** — data model has `isSharedToHousehold` and sync infra exists
-  (`PRODUCT.md` pillar #4), but no UI to share accounts or manage members. (L — spike first)
-- **TW tax / annual reports** — `portfolioMetrics.realizedGain` + `dividendAnalysis.byYear`
-  already compute the inputs; no year-end aggregate or report surface exists. Highest-leverage
-  remaining "data exists, presentation missing" win. (M) Pairs with a **report PDF** engine.
+- **Household sharing UI** — data model has `isSharedToHousehold`, sync infra and
+  a design boundary doc (`src/features/connect/household/README.md`) exist, but no
+  UI to share accounts or manage members (`PRODUCT.md` pillar #4). (L — spike
+  first; offered this pass, operator deferred.)
+- **Report PDF engine** — pairs with plan 046 (the on-screen report lands first;
+  PDF export of the annual report + a monthly/annual cash-flow summary is the
+  deferred follow-up). (M)
+- **Sync advanced (Roadmap 5.3)** — confirmed unbuilt (`grep debounce
+  src/features/connect` → nothing): debounced auto-push (~30s) + a sync-history
+  page. Field-level merge only if conflict damage appears. (M)
 - **Bulk-import recurring rules** — CSV import exists for ledger/investments; recurring rules
   are one-at-a-time only. (M)
 - **DCA redo** (hidden since `6b479416`), **split-expense / multi-category** — in `ROADMAP.md` 規劃中.
