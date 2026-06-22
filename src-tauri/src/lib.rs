@@ -35,7 +35,7 @@ async fn parse_quick_add_on_device(text: String, context_json: String) -> Result
     {
         use std::ffi::{CStr, CString};
         let c_text = CString::new(text).map_err(|e| e.to_string())?;
-        let c_ctx  = CString::new(context_json).map_err(|e| e.to_string())?;
+        let c_ctx = CString::new(context_json).map_err(|e| e.to_string())?;
 
         let ptr = unsafe { northstar_parse_on_device(c_text.as_ptr(), c_ctx.as_ptr()) };
         if ptr.is_null() {
