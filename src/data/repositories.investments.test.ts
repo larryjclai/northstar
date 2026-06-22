@@ -312,6 +312,16 @@ describe("same-ticker holding identity (Plan 058)", () => {
     // opening record's linkedAccountId is re-pointed so per-account quantity is
     // correct (a sell up to 4 in acct_broker is allowed).
     expect(asset.accountId).toBe("acct_broker");
+
+    // Revision-bump parity with the SQLite mirror: the adoption mutates the
+    // asset's accountId and the opening record's linkedAccountId, so both must
+    // bump revision/updatedAt or the change loses LWW and never syncs.
+    expect(asset.revision).toBeGreaterThan(1);
+    const records = await repo.listInvestmentRecords();
+    const opening = records.find((r) => r.assetId === asset.id && r.cashless && r.deletedAt === null);
+    expect(opening?.linkedAccountId).toBe("acct_broker");
+    expect(opening?.revision).toBeGreaterThan(1);
+
     await expect(
       repo.createInvestmentRecord({ ...buyCrwd, action: "sell", price: 400, quantity: 4, fee: 0 }),
     ).resolves.toBeUndefined();
