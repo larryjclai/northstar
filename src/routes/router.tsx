@@ -18,6 +18,7 @@ const FIRECalculatorRoute = lazyRouteComponent(() => import("./FIRECalculatorRou
 const GoalsRoute = lazyRouteComponent(() => import("./GoalsRoute"), "GoalsRoute");
 const HoldingDetailRoute = lazyRouteComponent(() => import("./HoldingDetailRoute"), "HoldingDetailRoute");
 const SettingsRoute = lazyRouteComponent(() => import("./SettingsRoute"), "SettingsRoute");
+const AnnualReportRoute = lazyRouteComponent(() => import("./AnnualReportRoute"), "AnnualReportRoute");
 
 const rootRoute = createRootRoute({
   component: AppShell,
@@ -107,6 +108,12 @@ const goalsRoute = createRoute({
   component: GoalsRoute,
 });
 
+const annualReportRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/reports/annual",
+  component: AnnualReportRoute,
+});
+
 const fireCalculatorRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/goals/fire",
@@ -121,6 +128,7 @@ const routeTree = rootRoute.addChildren([
   investmentsRoute,
   goalsRoute,
   fireCalculatorRoute,
+  annualReportRoute,
   holdingDetailRoute,
   transactionsRoute,
   cashFlowRoute,
