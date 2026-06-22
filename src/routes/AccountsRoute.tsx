@@ -1,4 +1,4 @@
-import { ArrowsClockwise, CaretDown, CaretRight, Check, DownloadSimple, ListChecks, PencilSimple, Plus, Scales, Trash, X } from "@phosphor-icons/react";
+import { ArrowsClockwise, CaretDown, CaretRight, Check, DownloadSimple, ListChecks, PencilSimple, Percent, Plus, Scales, Trash, X } from "@phosphor-icons/react";
 import { ReactNode, useMemo, useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
@@ -455,6 +455,9 @@ export function AccountsRoute() {
                       <div className="ns-acct-actions" style={{ display: "flex", gap: 4 }}>
                         {a.type === "credit" ? (
                           <Button variant="ghost" size="icon-sm" title="對帳" onClick={() => navigate({ to: "/cash-flow/reconcile/$accountId", params: { accountId: a.id } })}><ListChecks size={14} /></Button>
+                        ) : null}
+                        {a.type === "investment" ? (
+                          <Button variant="ghost" size="icon-sm" title="交易成本設定" onClick={() => navigate({ to: "/settings", search: { tab: "tradingFees" } })}><Percent size={14} /></Button>
                         ) : null}
                         <Button variant="ghost" size="icon-sm" title="編輯" onClick={() => startEdit(a)}><PencilSimple size={14} /></Button>
                         <Button variant="ghost" size="icon-sm" title="調整餘額" onClick={() => openAdjust(a)}><Scales size={14} /></Button>

@@ -1,5 +1,6 @@
 import { Bank, CurrencyCircleDollar, DownloadSimple, Gear, Tag, Percent } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
+import { useSearch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { Button } from "../components/coss/button";
@@ -38,7 +39,11 @@ export function SettingsRoute() {
     seededRef.current = true;
   }, [settings.data]);
 
-  const [tab, setTab] = useState('categories');
+  // Deep-link support: `/settings?tab=<id>` opens directly on a known tab
+  // (e.g. investment accounts → 交易成本). Unknown ids fall back to categories.
+  const search = useSearch({ from: "/settings" });
+  const TAB_IDS = ['categories', 'merchants', 'fx', 'export', 'tradingFees', 'general'];
+  const [tab, setTab] = useState(search.tab && TAB_IDS.includes(search.tab) ? search.tab : 'categories');
 
   const tabs = [
     { id: 'categories', label: t('settings.categories'), icon: <Tag size={14} /> },
