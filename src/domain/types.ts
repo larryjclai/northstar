@@ -201,6 +201,15 @@ export interface InvestmentRecord extends SyncFields {
    * net-worth trend — it only suppresses the ledger cash movement.
    */
   cashless: boolean;
+  /**
+   * Links the two legs of a 股息再投入 (DRIP) entry — a `cashDividend` leg and a
+   * `buy` leg created together by `createDividendReinvestment`. Both legs share
+   * one id so edit/delete treats the pair as a unit (deleting either removes
+   * both). Null/absent for every non-DRIP record. Optional so legacy persisted
+   * and synced rows (written before DRIP existed) deserialize cleanly; readers
+   * coalesce a missing value to null. See docs/drip-plan.md.
+   */
+  dripGroupId?: string | null;
 }
 
 export type RecurringFrequency = "weekly" | "biweekly" | "monthly" | "yearly";

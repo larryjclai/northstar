@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { createMemoryFinanceRepositoryForTests, type InvestmentDraft, type PortfolioAssetDraft } from "./repositories";
+import { createMemoryFinanceRepositoryForTests, type DividendReinvestmentDraft, type InvestmentDraft, type PortfolioAssetDraft } from "./repositories";
 import type { Account, PortfolioAsset } from "../domain";
+import { buildDividendAnalysis } from "../domain/dividendAnalysis";
 
 const account: Account = {
   id: "acct_broker",
@@ -154,6 +155,143 @@ describe("investment repository cash posting", () => {
     expect(await repo.listLedgerTransactions()).toHaveLength(0);
     [broker] = await repo.listAccounts();
     expect(broker.balance).toBe(1000);
+  });
+});
+
+describe("股息再投入 (DRIP)", () => {
+  // Hold an existing position so the reinvestment buy blends into a real cost.
+  async function repoWithHolding(quantity = 10, averageCost = 100) {
+    const repo = repository();
+    await repo.createManualHolding({
+      ticker: "QQQ",
+      name: "Invesco QQQ",
+      currency: "USD",
+      totalQuantity: quantity,
+      averageCost,
+      acquisitionDate: "2026-01-02",
+      accountId: "acct_broker",
+    });
+    return repo;
+  }
+
+  const dripBase: DividendReinvestmentDraft = {
+    ticker: "QQQ",
+    name: "Invesco QQQ",
+    currency: "USD",
+    linkedAccountId: "acct_broker",
+    date: "2026-05-25",
+    quantity: 1,
+    price: 200,
+    dividendAmount: 200,
+    note: "Q1 配息再投入",
+  };
+
+  it("fully reinvested: creates cashDividend(+A) + buy(Q@P), blends cost, cash nets to 0", async () => {
+    const repo = await repoWithHolding(10, 100); // 10 @ 100 = 1,000 cost
+    const startBalance = (await repo.listAccounts())[0].balance;
+
+    await repo.createDividendReinvestment(dripBase); // A = 200, 1 @ 200
+
+    const records = await repo.listInvestmentRecords();
+    const dividendLeg = records.find((r) => r.action === "cashDividend");
+    const buyLeg = records.find((r) => r.action === "buy" && r.dripGroupId);
+    expect(dividendLeg).toBeDefined();
+    expect(buyLeg).toBeDefined();
+    // Both legs share one dripGroupId.
+    expect(dividendLeg!.dripGroupId).toBe(buyLeg!.dripGroupId);
+    expect(dividendLeg!.dripGroupId).toBeTruthy();
+    // Dividend leg follows the new-row convention: price = total amount, qty = 0.
+    expect(dividendLeg!.price).toBe(200);
+    expect(dividendLeg!.quantity).toBe(0);
+
+    // Position rises by Q with a blended moving-average cost.
+    const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "QQQ");
+    expect(asset.totalQuantity).toBe(11); // 10 + 1
+    expect(asset.averageCost).toBeCloseTo((10 * 100 + 1 * 200) / 11, 6); // (1000 + 200) / 11
+
+    // Account cash nets to ~0: +200 dividend − 200 buy.
+    const endBalance = (await repo.listAccounts())[0].balance;
+    expect(endBalance).toBeCloseTo(startBalance, 6);
+
+    // dividendAnalysis counts the full dividend amount.
+    const assetMeta = new Map([[asset.id, { ticker: "QQQ", currency: "USD" }]]);
+    const analysis = buildDividendAnalysis({ records, assetMeta, toPrimary: (v) => v, currentMarketValue: 0, asOf: "2026-12-31" });
+    expect(analysis.total).toBeCloseTo(200, 6);
+  });
+
+  it("partial reinvestment: residual cash stays, full dividend still counted", async () => {
+    const repo = await repoWithHolding(10, 100);
+    const startBalance = (await repo.listAccounts())[0].balance;
+
+    // A = 200, reinvest 0.5 @ 200 = 100 → residual 100 stays in the account.
+    await repo.createDividendReinvestment({ ...dripBase, quantity: 0.5, price: 200, dividendAmount: 200 });
+
+    const endBalance = (await repo.listAccounts())[0].balance;
+    expect(endBalance - startBalance).toBeCloseTo(100, 6); // residual
+
+    const records = await repo.listInvestmentRecords();
+    const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "QQQ");
+    const assetMeta = new Map([[asset.id, { ticker: "QQQ", currency: "USD" }]]);
+    const analysis = buildDividendAnalysis({ records, assetMeta, toPrimary: (v) => v, currentMarketValue: 0, asOf: "2026-12-31" });
+    expect(analysis.total).toBeCloseTo(200, 6); // full amount counted, not the net
+  });
+
+  it("rejects when the dividend cannot cover qty × price", async () => {
+    const repo = await repoWithHolding();
+    await expect(
+      repo.createDividendReinvestment({ ...dripBase, quantity: 1, price: 200, dividendAmount: 150 }),
+    ).rejects.toThrow("股利金額不足");
+    // No legs were written.
+    const records = await repo.listInvestmentRecords();
+    expect(records.some((r) => r.dripGroupId)).toBe(false);
+  });
+
+  it("rejects non-positive quantity or price", async () => {
+    const repo = await repoWithHolding();
+    await expect(repo.createDividendReinvestment({ ...dripBase, quantity: 0 })).rejects.toThrow("再投入股數");
+    await expect(repo.createDividendReinvestment({ ...dripBase, price: 0, dividendAmount: 0 })).rejects.toThrow("再投入價格");
+  });
+
+  it("deleting either leg removes BOTH legs (no orphan)", async () => {
+    const repo = await repoWithHolding();
+    await repo.createDividendReinvestment(dripBase);
+
+    let records = await repo.listInvestmentRecords();
+    const dripLegs = records.filter((r) => r.dripGroupId);
+    expect(dripLegs).toHaveLength(2);
+
+    // Delete via the buy leg → both the buy and the cashDividend should vanish.
+    await repo.deleteInvestmentRecord(dripLegs.find((r) => r.action === "buy")!.id);
+
+    records = await repo.listInvestmentRecords();
+    expect(records.some((r) => r.dripGroupId)).toBe(false);
+    expect(records.some((r) => r.action === "cashDividend")).toBe(false);
+    // Linked ledger legs are gone too (no orphan cash rows from this DRIP).
+    const ledger = await repo.listLedgerTransactions();
+    expect(ledger.filter((row) => row.subcategory === "股利")).toHaveLength(0);
+  });
+
+  it("posts the dividend before the buy so a zero-balance account still reinvests", async () => {
+    // Fresh broker with NO opening cash; only the dividend funds the buy.
+    const repo = createMemoryFinanceRepositoryForTests({
+      accounts: [{ ...account, openingBalance: 0, balance: 0 }],
+      ledgerTransactions: [],
+      portfolioAssets: [],
+      investmentRecords: [],
+      recurringTransactions: [],
+      marketQuotes: [],
+      dailyFxRates: [],
+      dailyPrices: [],
+      financialGoals: [],
+    });
+    await repo.createManualHolding({
+      ticker: "QQQ", name: "Invesco QQQ", currency: "USD",
+      totalQuantity: 10, averageCost: 100, acquisitionDate: "2026-01-02", accountId: "acct_broker",
+    });
+    // Fully reinvested on a 0 balance: only passes because dividend posts first.
+    await expect(repo.createDividendReinvestment(dripBase)).resolves.toBeUndefined();
+    const balance = (await repo.listAccounts())[0].balance;
+    expect(balance).toBeCloseTo(0, 6);
   });
 });
 

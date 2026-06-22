@@ -10,7 +10,7 @@ import { NumberField } from "../components/NumberField";
 import { StatusText } from "../components/StatusText";
 import { TickerSearchField } from "../components/TickerSearchField";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import type { InvestmentDraft, PortfolioAssetDraft } from "../data/repositories";
+import type { DividendReinvestmentDraft, InvestmentDraft, PortfolioAssetDraft } from "../data/repositories";
 import { calculateInvestmentCashDelta, formatNumber, formatQuantity, nowAsDatetimeLocal, type Account, type InvestmentAction, type PortfolioAsset } from "../domain";
 import { TaiwanMarketDataProvider } from "../features/market-data/taiwanMarketDataProvider";
 import { assertExplicitMarketSuffix } from "../domain/marketSymbols";
@@ -140,6 +140,12 @@ export function InvestmentEntryDrawer({
   const [isCustom, setIsCustom] = useState(false);
   const [transactionForm, setTransactionForm] = useState<InvestmentDraft>(() => emptyTransactionDraft(timezone));
   const [message, setMessage] = useState("");
+  // 股利 sub-mode: 現金股利 / 股票股利(配股) / 股息再投入(DRIP). cash/stock map to the
+  // record `action`; drip is an extra mode that records a linked dividend + buy.
+  const [dividendMode, setDividendMode] = useState<"cash" | "stock" | "drip">("cash");
+  // DRIP-only: the total dividend amount (A). Reinvested qty (Q) and price (P)
+  // reuse transactionForm.quantity / .price. Residual = A − Q×P stays in cash.
+  const [dripDividendAmount, setDripDividendAmount] = useState(0);
 
   // ── Taiwan broker-fee auto-fill ──────────────────────────────────────────
   // instrument: per-trade stock/ETF toggle (determines sell-tax rate in v1;
@@ -162,6 +168,10 @@ export function InvestmentEntryDrawer({
     (repository, input: InvestmentDraft) => repository.createInvestmentRecord(input),
     ["investments", "assets", "accounts", "ledger"],
   );
+  const createDrip = useRepositoryMutation(
+    (repository, input: DividendReinvestmentDraft) => repository.createDividendReinvestment(input),
+    ["investments", "assets", "accounts", "ledger"],
+  );
   const updateRecord = useRepositoryMutation(
     (repository, input: InvestmentDraft & { id: string }) => repository.updateInvestmentRecord(input.id, input),
     ["investments", "assets", "accounts", "ledger"],
@@ -176,10 +186,15 @@ export function InvestmentEntryDrawer({
     if (transactionPreset) {
       setTransactionForm(normalizeTransactionDraft(transactionPreset.draft));
       setMode("transaction");
+      // Editing an existing record never lands in DRIP mode (DRIP legs are
+      // edited as their underlying cashDividend / buy records).
+      setDividendMode(isStockDividend(transactionPreset.draft.action) ? "stock" : "cash");
     } else {
       setTransactionForm(emptyTransactionDraft(timezone));
       setMode(initialMode);
+      setDividendMode("cash");
     }
+    setDripDividendAmount(0);
     setMessage("");
     // Reset auto-fill state whenever the drawer opens.
     feeTouchedRef.current = false;
@@ -268,6 +283,7 @@ export function InvestmentEntryDrawer({
 
   function setAction(nextSide: TxSide) {
     setTransactionForm((current) => normalizeTransactionDraft({ ...current, action: SIDE_TO_ACTION[nextSide] }));
+    if (nextSide === "dividend") setDividendMode("cash");
     setMessage("");
   }
 
@@ -298,6 +314,34 @@ export function InvestmentEntryDrawer({
       if (!transactionForm.ticker.trim()) throw new Error("請輸入 ticker。");
       assertExplicitMarketSuffix(transactionForm.ticker);
       if (!transactionForm.linkedAccountId) throw new Error("請選擇連動帳戶 / 券商。");
+
+      // 股息再投入 (DRIP): record a linked cashDividend + reinvestment buy at once.
+      if (side === "dividend" && dividendMode === "drip") {
+        if (transactionForm.quantity <= 0) throw new Error("請輸入再投入股數。");
+        if (transactionForm.price <= 0) throw new Error("請輸入再投入價格。");
+        if (dripDividendAmount + 0.000001 < transactionForm.quantity * transactionForm.price) {
+          throw new Error("股利金額不足以買進該股數（請確認金額 ≥ 股數 × 價格）。");
+        }
+        const dripInput: DividendReinvestmentDraft = {
+          ticker: transactionForm.ticker,
+          name: transactionForm.name,
+          currency: transactionForm.currency,
+          linkedAccountId: transactionForm.linkedAccountId,
+          date: transactionForm.date,
+          quantity: transactionForm.quantity,
+          price: transactionForm.price,
+          dividendAmount: dripDividendAmount,
+          note: transactionForm.note,
+          assetType: transactionForm.assetType,
+          sector: transactionForm.sector,
+          industry: transactionForm.industry,
+        };
+        await createDrip.mutateAsync(dripInput);
+        onSubmitted?.();
+        onClose();
+        return;
+      }
+
       if (side === "split" && transactionForm.quantity <= 0) throw new Error("請輸入拆股比例（例如 3 = 1 股拆 3 股）。");
       if (side === "reduction" && transactionForm.quantity <= 0) throw new Error("請輸入被註銷的股數。");
       if (side === "dividend" && isStockDividend(transactionForm.action) && transactionForm.quantity <= 0) throw new Error("請輸入配發的股數。");
@@ -364,6 +408,12 @@ export function InvestmentEntryDrawer({
     totalValue = qty * price - fee;
     newQty = Math.max(0, curQty - qty);
     newAvg = curAvg;
+  } else if (side === "dividend" && dividendMode === "drip") {
+    // DRIP: dividend buys Q shares @ P → shares rise, cost blends in the buy.
+    totalLabel = "再投入金額";
+    totalValue = qty * price;
+    newQty = curQty + qty;
+    newAvg = newQty > 0 ? (curCost + qty * price) / newQty : 0;
   } else if (side === "dividend" && isStockDividend(transactionForm.action)) {
     // 配股：股數增加、總成本不變 → 均價下降。
     totalLabel = "配發股數";
@@ -394,8 +444,9 @@ export function InvestmentEntryDrawer({
   const newMarketValue = newQty * (price || curAvg);
   const confirmAmount =
     side === "split" ? `×${qty || 0}`
-      : side === "dividend" && isStockDividend(transactionForm.action) ? `+${formatNumber(qty || 0)} 股`
-        : formatPreviewMoney(totalValue, currency);
+      : side === "dividend" && dividendMode === "drip" ? `+${formatNumber(qty || 0)} 股`
+        : side === "dividend" && isStockDividend(transactionForm.action) ? `+${formatNumber(qty || 0)} 股`
+          : formatPreviewMoney(totalValue, currency);
 
   // T+2 settlement warning (TWD buys only).
   const cashDelta = calculateInvestmentCashDelta(normalizeTransactionDraft(transactionForm));
@@ -581,25 +632,52 @@ export function InvestmentEntryDrawer({
                 </div>
               ) : side === "dividend" ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  {/* 現金股利 vs 股票股利(配股) sub-toggle */}
+                  {/* 現金股利 / 股票股利(配股) / 股息再投入(DRIP) sub-toggle. Editing an
+                      existing record stays on cash/stock — DRIP is create-only. */}
                   <ToggleGroup
                     variant="outline"
                     className="w-full"
-                    value={[isStockDividend(transactionForm.action) ? "stock" : "cash"]}
+                    value={[dividendMode]}
                     onValueChange={(value) => {
-                      const next = value[0];
-                      if (next) setTransactionForm((c) => normalizeTransactionDraft({ ...c, action: next === "stock" ? "stockDividend" : "cashDividend" }));
+                      const next = value[0] as "cash" | "stock" | "drip" | undefined;
+                      if (!next) return;
+                      setDividendMode(next);
+                      // cash + drip both record a cashDividend leg; stock = 配股.
+                      setTransactionForm((c) => normalizeTransactionDraft({ ...c, action: next === "stock" ? "stockDividend" : "cashDividend" }));
+                      setMessage("");
                     }}
                   >
                     <ToggleGroupItem value="cash" className={SEG_ITEM_CLASS}>現金股利</ToggleGroupItem>
-                    <ToggleGroupItem value="stock" className={SEG_ITEM_CLASS}>股票股利 (配股)</ToggleGroupItem>
+                    <ToggleGroupItem value="stock" className={SEG_ITEM_CLASS}>股票股利</ToggleGroupItem>
+                    {!isEditingTransaction && <ToggleGroupItem value="drip" className={SEG_ITEM_CLASS}>股息再投入</ToggleGroupItem>}
                   </ToggleGroup>
-                  {isStockDividend(transactionForm.action) ? (
+                  {dividendMode === "stock" ? (
                     <div>
                       <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>配發股數</label>
                       <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={4} placeholder="100" style={NUM_INPUT_STYLE} />
                       <div className="muted text-caption" style={{ marginTop: 6 }}>
                         配股不涉及現金：股數增加、總成本不變，因此平均成本會下降。
+                      </div>
+                    </div>
+                  ) : dividendMode === "drip" ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                      <div>
+                        <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>股利金額（總額）</label>
+                        <NumberField className="ns-input mono text-lg" value={dripDividendAmount} onChange={setDripDividendAmount} decimals={2} placeholder="3,500" style={NUM_INPUT_STYLE} />
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                        <div>
+                          <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>再投入股數</label>
+                          <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={4} placeholder="2" style={NUM_INPUT_STYLE} />
+                        </div>
+                        <div>
+                          <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>再投入價格</label>
+                          <NumberField className="ns-input mono text-lg" value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={2} placeholder="1,042.00" style={NUM_INPUT_STYLE} />
+                        </div>
+                      </div>
+                      <div className="muted text-caption">
+                        股息再投入：記錄一筆現金股利（計入股利統計）＋一筆買進（併入平均成本）。
+                        現金淨變動 ≈ 0，剩餘現金 {formatPreviewMoney(Math.max(0, dripDividendAmount - transactionForm.quantity * transactionForm.price), currency)} 留在帳戶。
                       </div>
                     </div>
                   ) : (
@@ -747,9 +825,9 @@ export function InvestmentEntryDrawer({
               <Button
                 className="flex-[2]"
                 onClick={submitTransaction}
-                loading={createRecord.isPending || updateRecord.isPending}
+                loading={createRecord.isPending || updateRecord.isPending || createDrip.isPending}
               >
-                {(createRecord.isPending || updateRecord.isPending) ? "儲存中…" : isEditingTransaction ? "儲存交易" : `${SIDE_CONFIRM[side]} · ${confirmAmount}`}
+                {(createRecord.isPending || updateRecord.isPending || createDrip.isPending) ? "儲存中…" : isEditingTransaction ? "儲存交易" : `${SIDE_CONFIRM[side]} · ${confirmAmount}`}
               </Button>
             </div>
           </>
