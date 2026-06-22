@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
-<<<<<<< HEAD
-import { createMemoryFinanceRepositoryForTests, type InvestmentDraft, type PortfolioAssetDraft } from "./repositories";
-import type { Account, InvestmentRecord, PortfolioAsset } from "../domain";
-=======
 import { createMemoryFinanceRepositoryForTests, type DividendReinvestmentDraft, type InvestmentDraft, type PortfolioAssetDraft } from "./repositories";
-import type { Account, PortfolioAsset } from "../domain";
+import type { Account, InvestmentRecord, PortfolioAsset } from "../domain";
 import { buildDividendAnalysis } from "../domain/dividendAnalysis";
->>>>>>> worktree-agent-a457312e308b54b0e
 
 const account: Account = {
   id: "acct_broker",
