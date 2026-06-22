@@ -52,6 +52,7 @@ export function DateScopeControl({
           <MonthPicker
             value={value.month}
             onChange={(month) => onChange({ ...value, month })}
+            onSelectDay={(day) => onChange({ ...value, preset: "custom", start: day, end: day })}
             triggerClassName="h-[36px] min-w-[112px] whitespace-nowrap"
           />
         ) : value.preset === "custom" ? (
