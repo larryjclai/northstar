@@ -130,7 +130,7 @@ echo "▶ Publishing release $TAG to $PUBLIC_REPO …"
 if gh release view "$TAG" --repo "$PUBLIC_REPO" >/dev/null 2>&1; then
   gh release upload "$TAG" "$STAGE"/* --repo "$PUBLIC_REPO" --clobber
   # Refresh the body too, so re-runs pick up CHANGELOG edits.
-  gh release edit "$TAG" --repo "$PUBLIC_REPO" --title "Northstar $TAG" --notes-file "$NOTES_FILE"
+  gh release edit "$TAG" --repo "$PUBLIC_REPO" --title "Northstar $TAG" --notes-file "$NOTES_FILE" --draft=false
   echo "  updated existing release."
 else
   gh release create "$TAG" "$STAGE"/* \
