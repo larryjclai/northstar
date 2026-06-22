@@ -1572,13 +1572,21 @@ class BrowserFinanceRepository implements FinanceRepository {
     if (manualAsset) {
       // Account adoption: an account-less import takes on the trade's account so
       // per-account available quantity (sell-validation) stays correct. Re-point
-      // the cashless opening record's linkedAccountId to match.
+      // the cashless opening record's linkedAccountId to match. Bump revision +
+      // updatedAt on both the asset and the opening record so the adoption wins
+      // LWW and propagates over E2E sync — matching findOrCreateSqliteAsset.
       if (manualAsset.accountId === null && input.linkedAccountId) {
-        manualAsset.accountId = input.linkedAccountId;
-        const opening = this.data.investmentRecords.find(
-          (record) => record.id === openingRecordId(manualAsset.id) && record.deletedAt === null,
+        const adoptedAccountId = input.linkedAccountId;
+        const adopted = bump({ ...manualAsset, accountId: adoptedAccountId });
+        this.data.portfolioAssets = this.data.portfolioAssets.map((asset) =>
+          asset.id === adopted.id ? adopted : asset,
         );
-        if (opening) opening.linkedAccountId = input.linkedAccountId;
+        this.data.investmentRecords = this.data.investmentRecords.map((record) =>
+          record.id === openingRecordId(adopted.id) && record.deletedAt === null
+            ? bump({ ...record, linkedAccountId: adoptedAccountId })
+            : record,
+        );
+        return adopted;
       }
       return manualAsset;
     }
@@ -4274,7 +4282,12 @@ function reconcileDuplicateAssets(
   // assetId remap: transaction asset id -> canonical manual asset id.
   const remap = new Map<string, string>();
   for (const group of byTicker.values()) {
-    const manual = group.find((asset) => asset.holdingSource === "manual");
+    // Canonical manual asset = lowest id (lexicographic), matching the SQLite
+    // mirror's `min(id)`. Only diverges when a ticker has >1 manual asset, but
+    // keeps browser ≡ SQLite reconciliation deterministic.
+    const manual = group
+      .filter((asset) => asset.holdingSource === "manual")
+      .reduce<PortfolioAsset | undefined>((lowest, asset) => (!lowest || asset.id < lowest.id ? asset : lowest), undefined);
     if (!manual) continue; // no manual holding for this ticker → nothing to adopt into
     const transactionAssets = group.filter((asset) => asset.holdingSource === "transactions");
     if (transactionAssets.length === 0) continue; // already a single (manual) row → no-op
