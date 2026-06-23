@@ -36,9 +36,15 @@ export function HoldingDetailRoute() {
   const [priceDate, setPriceDate] = useState(todayStr);
   const [priceNote, setPriceNote] = useState("");
   const [priceMessage, setPriceMessage] = useState("");
+  // Two-click inline confirm for deleting a manual-price snapshot (no window.confirm).
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const createManualPrice = useRepositoryMutation(
     (repository, input: ManualPriceSnapshotDraft) => repository.createManualPriceSnapshot(input),
+    ["manualPriceSnapshots", "assets", "accounts"],
+  );
+  const deleteManualPrice = useRepositoryMutation(
+    (repository, id: string) => repository.deleteManualPriceSnapshot(id),
     ["manualPriceSnapshots", "assets", "accounts"],
   );
 
@@ -71,6 +77,22 @@ export function HoldingDetailRoute() {
       .sort((a, b) => a.date.localeCompare(b.date))
       .at(-1) ?? null;
   }, [manualSnapshotRows, asset]);
+  // Full manual-price history for this asset, newest first, for the editable log.
+  const manualHistoryRows = useMemo(() => {
+    if (!asset) return [];
+    return manualSnapshotRows
+      .filter((snap) => snap.assetId === asset.id)
+      .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  }, [manualSnapshotRows, asset]);
+
+  async function deleteManualSnapshot(id: string) {
+    try {
+      await deleteManualPrice.mutateAsync(id);
+      setConfirmDeleteId(null);
+    } catch (error) {
+      setPriceMessage(error instanceof Error ? error.message : "刪除失敗。");
+    }
+  }
 
   async function submitManualPrice() {
     setPriceMessage("");
@@ -313,6 +335,37 @@ export function HoldingDetailRoute() {
                 </Button>
                 <Button variant="ghost" onClick={() => { setPriceFormOpen(false); setPriceMessage(""); }}>取消</Button>
                 {priceMessage ? <span className="text-sm" style={{ color: "var(--ns-danger, #d33)" }}>{priceMessage}</span> : null}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Manual-price history — date / price / note, newest first, each
+              deletable via a two-click inline confirm (no window.confirm). */}
+          {manualHistoryRows.length > 0 ? (
+            <div style={{ marginTop: 18, borderTop: "1px solid var(--ns-border)", paddingTop: 14 }}>
+              <div className="muted text-xs" style={{ textTransform: "uppercase", letterSpacing: 0.04, marginBottom: 8 }}>價格紀錄 · {manualHistoryRows.length}</div>
+              <div className="grid" style={{ gap: 2 }}>
+                {manualHistoryRows.map((snap) => (
+                  <div
+                    key={snap.id}
+                    style={{
+                      display: "grid", gridTemplateColumns: "110px 1fr 1.2fr auto", gap: 12,
+                      alignItems: "center", padding: "8px 0",
+                    }}
+                  >
+                    <span className="mono muted text-xs">{snap.date}</span>
+                    <span className="mono text-body" style={{ fontWeight: 500, textAlign: "right" }}>{formatPrice(snap.price)} {asset.currency}</span>
+                    <span className="muted text-xs" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={snap.note}>{snap.note || "—"}</span>
+                    {confirmDeleteId === snap.id ? (
+                      <span style={{ display: "flex", gap: 6, justifySelf: "end" }}>
+                        <Button variant="ghost" size="sm" onClick={() => deleteManualSnapshot(snap.id)} disabled={deleteManualPrice.isPending} style={{ color: "var(--ns-danger, #d33)" }}>確認刪除</Button>
+                        <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>取消</Button>
+                      </span>
+                    ) : (
+                      <Button variant="ghost" size="sm" onClick={() => { setConfirmDeleteId(snap.id); setPriceMessage(""); }} style={{ justifySelf: "end" }}>刪除</Button>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           ) : null}
