@@ -294,7 +294,7 @@ export function GoalsRoute() {
                       <XAxis dataKey="x" tick={{ fill: "var(--ns-fg-muted)", fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}${xUnit}`} minTickGap={28} />
                       <YAxis tick={{ fill: "var(--ns-fg-muted)", fontSize: 11 }} tickLine={false} axisLine={false} width={52} tickFormatter={(v) => formatCompactNumber(Number(v))} domain={["dataMin", "dataMax"]} />
                       <Tooltip
-                        formatter={(value: number) => [`NT$${formatNumber(Number(value))}`, "預估淨值"]}
+                        formatter={(value) => [`NT$${formatNumber(Number(value))}`, "預估淨值"]}
                         labelFormatter={(l) => `${l}${xUnit}`}
                         contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }}
                         itemStyle={{ color: "var(--ns-fg)" }}

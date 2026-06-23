@@ -666,7 +666,10 @@ export function InvestmentsAnalyticsTab({
               <XAxis dataKey="date" stroke="var(--ns-fg-muted)" fontSize={11} minTickGap={28} tickFormatter={(d: string) => d.slice(5)} />
               <YAxis stroke="var(--ns-fg-muted)" fontSize={11} width={42} tickFormatter={(v: number) => `${v.toFixed(0)}%`} />
               <Tooltip
-                formatter={(value: number, name) => [`${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(2)}%`, name === "port" ? "投資組合" : benchmarkTicker]}
+                formatter={(value, name) => {
+                  const v = Number(value);
+                  return [`${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}%`, name === "port" ? "投資組合" : benchmarkTicker];
+                }}
                 contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }}
                 itemStyle={{ color: "var(--ns-fg)" }}
                 labelStyle={{ color: "var(--ns-fg)" }}
@@ -1172,7 +1175,7 @@ function RollingVolatilityCard({ rolling }: {
                 <XAxis dataKey="date" stroke="var(--ns-fg-muted)" fontSize={11} minTickGap={28} tickFormatter={(d: string) => d.slice(5)} />
                 <YAxis stroke="var(--ns-fg-muted)" fontSize={11} width={36} tickFormatter={(v: number) => `${v.toFixed(0)}%`} />
                 <Tooltip
-                  formatter={(value: number) => [`${value.toFixed(1)}%`, "年化波動率"]}
+                  formatter={(value) => [`${Number(value).toFixed(1)}%`, "年化波動率"]}
                   contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }}
                   itemStyle={{ color: "var(--ns-fg)" }}
                   labelStyle={{ color: "var(--ns-fg)" }}
