@@ -1083,6 +1083,17 @@ class BrowserFinanceRepository implements FinanceRepository {
   async deleteInvestmentRecord(id: string) {
     const existingRecord = this.data.investmentRecords.find((record) => record.id === id && record.deletedAt === null);
     if (!existingRecord) throw new Error("找不到投資交易。");
+    // Deleting a manual holding's opening lot must remove the whole holding —
+    // otherwise recomputeAssets self-heals the quantity from baseQuantity and the
+    // holding resurrects. Defer to deleteManualHolding, which tombstones the asset
+    // + opening record and enforces the "已有逐筆交易" guard when real trades exist.
+    if (existingRecord.id === openingRecordId(existingRecord.assetId)) {
+      const asset = this.data.portfolioAssets.find((item) => item.id === existingRecord.assetId);
+      if (asset?.holdingSource === "manual") {
+        await this.deleteManualHolding(existingRecord.assetId);
+        return;
+      }
+    }
     // A 股息再投入 (DRIP) entry is two linked legs sharing one dripGroupId; deleting
     // either removes both so the dividend and its reinvestment never half-exist.
     const targets = existingRecord.dripGroupId
@@ -2519,12 +2530,27 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async deleteInvestmentRecord(id: string) {
-    const existingRows = await this.db.select<Array<{ linkedLedgerTransactionId: string | null; dripGroupId: string | null }>>(
-      `select linked_ledger_transaction_id as linkedLedgerTransactionId, drip_group_id as dripGroupId from investment_records where id = $1 and deleted_at is null`,
+    const existingRows = await this.db.select<Array<{ assetId: string; linkedLedgerTransactionId: string | null; dripGroupId: string | null }>>(
+      `select asset_id as assetId, linked_ledger_transaction_id as linkedLedgerTransactionId, drip_group_id as dripGroupId from investment_records where id = $1 and deleted_at is null`,
       [id],
     );
     const existingRecord = existingRows[0];
     if (!existingRecord) throw new Error("找不到投資交易。");
+    // Deleting a manual holding's opening lot must remove the whole holding —
+    // otherwise recomputeSqliteAssets self-heals the quantity from baseQuantity
+    // and the holding resurrects. Defer to deleteManualHolding, which tombstones
+    // the asset + opening record and enforces the "已有逐筆交易" guard when real
+    // trades exist. (Mirrors the browser FinanceRepository.)
+    if (id === openingRecordId(existingRecord.assetId)) {
+      const assetRows = await this.db.select<Array<{ holdingSource: string }>>(
+        `select holding_source as holdingSource from portfolio_assets where id = $1`,
+        [existingRecord.assetId],
+      );
+      if (assetRows[0]?.holdingSource === "manual") {
+        await this.deleteManualHolding(existingRecord.assetId);
+        return;
+      }
+    }
     // A 股息再投入 (DRIP) entry is two linked legs sharing one dripGroupId; deleting
     // either removes both so the dividend and its reinvestment never half-exist.
     const targets = existingRecord.dripGroupId

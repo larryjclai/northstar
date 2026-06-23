@@ -365,6 +365,65 @@ describe("manual holdings as opening-balance lots", () => {
     await expect(repo.deleteManualHolding(asset.id)).rejects.toThrow("已有逐筆交易");
   });
 
+  it("removes the holding when its opening lot is deleted via deleteInvestmentRecord (no resurrection)", async () => {
+    const repo = repository();
+    await repo.createManualHolding({ ...snapshot, totalQuantity: 3.5, averageCost: 200 });
+    const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
+    expect(asset.baseQuantity).toBe(3.5);
+
+    // The opening lot is the deterministic cashless record on the manual asset.
+    const opening = (await repo.listInvestmentRecords()).find((r) => r.assetId === asset.id && r.cashless);
+    expect(opening?.id).toBe(`inv_open_${asset.id}`);
+
+    await repo.deleteInvestmentRecord(opening!.id);
+
+    // Asset is tombstoned and no longer listed; the opening record is gone too.
+    expect((await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO")).toHaveLength(0);
+    expect(await repo.listInvestmentRecords()).toHaveLength(0);
+
+    // A recompute must NOT resurrect the holding from baseQuantity.
+    await repo.recalculateDerivedData();
+    expect((await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO")).toHaveLength(0);
+  });
+
+  it("blocks opening-lot deletion via deleteInvestmentRecord when a real trade exists", async () => {
+    const repo = repository();
+    await repo.createManualHolding(snapshot);
+    const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
+    await repo.createInvestmentRecord({
+      ticker: "VOO", name: "Vanguard S&P 500", currency: "USD", linkedAccountId: "acct_broker",
+      date: "2026-03-01", action: "buy", price: 50, quantity: 1, fee: 0, note: "",
+    });
+    const opening = (await repo.listInvestmentRecords()).find((r) => r.assetId === asset.id && r.cashless);
+    await expect(repo.deleteInvestmentRecord(opening!.id)).rejects.toThrow("已有逐筆交易");
+    // Nothing removed: the asset and both records survive.
+    expect((await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO")).toHaveLength(1);
+    expect(await repo.listInvestmentRecords()).toHaveLength(2);
+  });
+
+  it("regression: deleting a normal buy leaves the asset and recomputes quantity", async () => {
+    const repo = repository();
+    // Transaction-based holding (no opening lot, no baseQuantity).
+    await repo.createInvestmentRecord({
+      ticker: "VOO", name: "Vanguard S&P 500", currency: "USD", linkedAccountId: "acct_broker",
+      date: "2026-02-01", action: "buy", price: 50, quantity: 5, fee: 0, note: "",
+    });
+    await repo.createInvestmentRecord({
+      ticker: "VOO", name: "Vanguard S&P 500", currency: "USD", linkedAccountId: "acct_broker",
+      date: "2026-03-01", action: "buy", price: 50, quantity: 3, fee: 0, note: "",
+    });
+    const records = await repo.listInvestmentRecords();
+    expect(records).toHaveLength(2);
+    const second = records.find((r) => r.quantity === 3)!;
+
+    await repo.deleteInvestmentRecord(second.id);
+
+    const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
+    expect(asset.holdingSource).toBe("transactions");
+    expect(asset.totalQuantity).toBe(5);
+    expect(await repo.listInvestmentRecords()).toHaveLength(1);
+  });
+
   it("migrates a legacy manual holding into an opening lot, idempotently", async () => {
     const legacyAsset: PortfolioAsset = {
       id: "asset_legacy",
