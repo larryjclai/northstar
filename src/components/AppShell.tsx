@@ -137,6 +137,14 @@ export function AppShell() {
           overflow: "hidden",
           width: collapsed ? 64 : 240,
           minWidth: collapsed ? 64 : 240,
+          // The sidebar is position:sticky → setting a z-index makes it form its
+          // own stacking context that sits ABOVE every fixed overlay backdrop
+          // (TransactionDetailPanel 998/999, CashFlow modals 1000, drawers,
+          // QuickAdd). This keeps the macOS-vibrancy sidebar from being greyed
+          // out by a full-viewport `inset:0` scrim (052 follow-up; plan 063).
+          // Clicks that land on the sidebar simply won't dismiss the overlay,
+          // which is acceptable — outside-click still works on the content area.
+          zIndex: 1100,
           transition: "width 0.2s ease, min-width 0.2s ease, padding 0.2s ease",
         }}
       >
