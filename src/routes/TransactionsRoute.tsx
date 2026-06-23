@@ -19,6 +19,7 @@ import { createFxConverter, formatMoney, formatNumber, formatPrice, formatQuanti
 import type { InvestmentAction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { InvestmentEntryDrawer, type TransactionPreset } from "./InvestmentsAddSheet";
+import { isImportOpeningLot, txTypeLabel } from "./transactionsTxLabel";
 
 const actionLabels: Record<InvestmentAction, string> = {
   buy: "買進",
@@ -37,16 +38,6 @@ const WITHDRAW = "withdraw";
 const depositLabel = "入金";
 const withdrawLabel = "出金";
 const allActionLabels: Record<string, string> = { ...actionLabels, [DEPOSIT]: depositLabel, [WITHDRAW]: withdrawLabel };
-const actionShortLabels: Record<string, string> = {
-  buy: "買",
-  sell: "賣",
-  cashDividend: "息",
-  stockDividend: "股",
-  capitalReduction: "減",
-  stockSplit: "拆",
-  [DEPOSIT]: "入",
-  [WITHDRAW]: "出",
-};
 
 type TxKind = "investment" | "cash";
 
@@ -93,6 +84,9 @@ interface UnifiedTx {
   brokerId: string | null;
   brokerName: string;
   note: string;
+  // A manually-imported holding's opening lot is a cashless import baseline,
+  // not a real buy. Surface it as 「匯入」 with a neutral total (no cash leg).
+  isOpeningLot: boolean;
 }
 
 export function TransactionsRoute() {
@@ -132,8 +126,10 @@ export function TransactionsRoute() {
     const investmentTx: UnifiedTx[] = recordRows.map((record) => {
       const asset = assetFor(record.assetId);
       const account = record.linkedAccountId ? accountMap.get(record.linkedAccountId) : null;
+      const openingLot = isImportOpeningLot(record);
       const gross = record.action === "cashDividend" ? record.price : record.price * record.quantity;
-      const signed = record.action === "buy" ? -gross : gross;
+      // The opening lot has no cash leg, so its total is neutral (shown as 「—」).
+      const signed = openingLot ? 0 : record.action === "buy" ? -gross : gross;
       return {
         id: record.id,
         kind: "investment",
@@ -152,6 +148,7 @@ export function TransactionsRoute() {
         brokerId: record.linkedAccountId,
         brokerName: account?.name ?? "未指定",
         note: record.note,
+        isOpeningLot: openingLot,
       };
     });
 
@@ -178,6 +175,7 @@ export function TransactionsRoute() {
           brokerId: row.accountId,
           brokerName: account?.name ?? "未指定",
           note: row.note,
+          isOpeningLot: false,
         };
       });
 
@@ -592,14 +590,18 @@ function InvestmentTransactionRow({
         </div>
       </td>
       <td>
-        <Badge variant={actionBadgeVariant(tx.actionKey)} className="rounded-full uppercase">{actionShortLabels[tx.actionKey] ?? tx.actionKey}</Badge>
+        <Badge variant={actionBadgeVariant(tx.actionKey)} className="rounded-full uppercase">{txTypeLabel(tx)}</Badge>
       </td>
       <td className="num text-right">{isCash ? "—" : formatQuantity(tx.quantity)}</td>
       <td className="num text-right">{isCash ? "—" : formatPrice(tx.price)}</td>
       <td className="num text-right muted">{tx.fee ? formatNumber(tx.fee) : "—"}</td>
-      <td className={`num text-right ${tx.signed >= 0 ? "pos" : "neg"}`}>
-        {tx.signed >= 0 ? "+" : "−"}{formatMoney(Math.abs(tx.signed), tx.currency)}
-      </td>
+      {tx.isOpeningLot ? (
+        <td className="num text-right muted">—</td>
+      ) : (
+        <td className={`num text-right ${tx.signed >= 0 ? "pos" : "neg"}`}>
+          {tx.signed >= 0 ? "+" : "−"}{formatMoney(Math.abs(tx.signed), tx.currency)}
+        </td>
+      )}
       <td className="muted">{tx.brokerName}</td>
       <td className="text-right">
         {tx.recordId ? (
@@ -638,16 +640,20 @@ function InvestmentTransactionMobile({
       <div className="min-w-0 flex-1">
         <div className="ns-invest-mobile-title">
           <strong>{isCash ? tx.name : tx.ticker}</strong>
-          <Badge variant={actionBadgeVariant(tx.actionKey)} className="rounded-full uppercase">{actionShortLabels[tx.actionKey] ?? tx.actionKey}</Badge>
+          <Badge variant={actionBadgeVariant(tx.actionKey)} className="rounded-full uppercase">{txTypeLabel(tx)}</Badge>
         </div>
         <div className="muted text-xs tabular">
           {isCash ? tx.date.slice(5, 10) : `${tx.date.slice(5, 10)} · ${formatQuantity(tx.quantity)} @ ${formatPrice(tx.price)}`}
         </div>
       </div>
       <div className="ns-invest-mobile-amount">
-        <strong className={tx.signed >= 0 ? "pos" : "neg"}>
-          {tx.signed >= 0 ? "+" : "−"}{formatMoney(Math.abs(tx.signed), tx.currency)}
-        </strong>
+        {tx.isOpeningLot ? (
+          <strong className="muted">—</strong>
+        ) : (
+          <strong className={tx.signed >= 0 ? "pos" : "neg"}>
+            {tx.signed >= 0 ? "+" : "−"}{formatMoney(Math.abs(tx.signed), tx.currency)}
+          </strong>
+        )}
         <span>{tx.brokerName}</span>
       </div>
       {tx.recordId ? (
