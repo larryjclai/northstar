@@ -1010,6 +1010,7 @@ function HoldingsTab({
   const [snapshotMessage, setSnapshotMessage] = useState("");
   const [filterAccount, setFilterAccount] = useState<string>("all");
   const [filterSector, setFilterSectorState] = useState<string>(initialSector ?? "all");
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Sync when the parent drives the sector via URL (e.g. from Analytics click).
   useEffect(() => {
@@ -1038,7 +1039,7 @@ function HoldingsTab({
     return [...seen].sort();
   }, [positions, assetsById, nameLocale]);
 
-  useEffect(() => setPage(1), [filterAccount, filterSector]);
+  useEffect(() => setPage(1), [filterAccount, filterSector, searchTerm]);
 
   // Default to descending market value — matches user expectation that the
   // biggest positions sit at the top until they explicitly sort otherwise.
@@ -1146,12 +1147,18 @@ function HoldingsTab({
     );
   }
 
+  const searchQuery = searchTerm.trim().toLowerCase();
   const filteredPositions = positions.filter((p) => {
     if (filterAccount !== "all" && p.accountId !== filterAccount) return false;
     if (filterSector !== "all") {
       const raw = assetsById.get(p.assetId)?.sector;
       const label = resolveSectorLabel(raw, nameLocale) ?? "未知";
       if (label !== filterSector) return false;
+    }
+    if (searchQuery) {
+      const asset = assetsById.get(p.assetId);
+      const name = asset ? resolveAssetName(asset, nameLocale) : p.name;
+      if (!`${p.ticker} ${name ?? ""}`.toLowerCase().includes(searchQuery)) return false;
     }
     return true;
   });
@@ -1192,6 +1199,24 @@ function HoldingsTab({
               maxWidth: "100%",
             }}
           >
+            {positions.length > 10 && (
+              <input
+                className="ns-input"
+                type="search"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="搜尋代號或名稱"
+                aria-label="搜尋持倉"
+                style={{
+                  ...filterControlStyle,
+                  flex: "1 1 180px",
+                  minWidth: 148,
+                  maxWidth: 220,
+                  width: "auto",
+                  padding: "0 12px",
+                }}
+              />
+            )}
             <div style={{ flex: "1 1 180px", minWidth: 148, maxWidth: 220 }}>
               <AccountFilter
                 accounts={accounts}
@@ -1418,6 +1443,9 @@ function HoldingsTab({
             </tbody>
           </table>
         </div>
+        {filteredPositions.length === 0 && (
+          <div className="muted text-body" style={{ padding: "24px 0", textAlign: "center" }}>找不到符合的持倉</div>
+        )}
         {totalPages > 1 && (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--ns-border)' }}>
             <Button variant="ghost" disabled={page === 1} onClick={() => setPage(p => p - 1)}>
