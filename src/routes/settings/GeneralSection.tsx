@@ -45,8 +45,9 @@ import { summarizeConflict } from "../../features/connect/sync/conflictSummary";
 import { listBackups, restoreBackup, type BackupEntry } from "../../features/connect/sync/backup";
 import {
   listLocalBackups, createManualBackup, restoreLocalBackup, deleteLocalBackup,
-  localBackupLocation, type LocalBackupEntry,
+  readLocalBackupSnapshot, localBackupLocation, type LocalBackupEntry,
 } from "../../features/local-backup/localBackup";
+import { buildBackupDiff, type BackupDiff } from "../../features/local-backup/backupDiff";
 import { useSyncStatus } from "../../state/syncStatus";
 import {
   generateRecoveryKit, confirmRecoveryKit, downloadRecoveryKit,
@@ -89,6 +90,12 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
   const [backupBusy, setBackupBusy] = useState(false);
   const [confirmRestoreId, setConfirmRestoreId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  // Restore preview (plan 047): counts diff for the backup being confirmed, plus
+  // the typed-phrase gate so the user must read the diff before overwriting.
+  const RESTORE_CONFIRM_PHRASE = "還原";
+  const [restoreDiff, setRestoreDiff] = useState<BackupDiff | null>(null);
+  const [restoreDiffLoading, setRestoreDiffLoading] = useState(false);
+  const [restoreConfirmInput, setRestoreConfirmInput] = useState("");
 
   useEffect(() => {
     listLocalBackups().then(setLocalBackups).catch(() => setLocalBackups([]));
@@ -112,8 +119,38 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
     }
   }
 
+  // Open the restore preview: load a counts diff (backup vs current) WITHOUT
+  // touching the database, so the user can spot a wrong/too-old backup first.
+  async function beginRestoreLocal(id: string) {
+    setConfirmRestoreId(id);
+    setConfirmDeleteId(null);
+    setRestoreConfirmInput("");
+    setRestoreDiff(null);
+    setRestoreDiffLoading(true);
+    try {
+      const repository = await getFinanceRepository();
+      const [backup, current] = await Promise.all([
+        readLocalBackupSnapshot(id),
+        repository.exportSnapshot(),
+      ]);
+      setRestoreDiff(backup ? buildBackupDiff(current, backup) : null);
+    } catch {
+      setRestoreDiff(null);
+    } finally {
+      setRestoreDiffLoading(false);
+    }
+  }
+
+  function cancelRestoreLocal() {
+    setConfirmRestoreId(null);
+    setRestoreDiff(null);
+    setRestoreConfirmInput("");
+  }
+
   async function handleRestoreLocal(id: string) {
     setConfirmRestoreId(null);
+    setRestoreDiff(null);
+    setRestoreConfirmInput("");
     setBackupBusy(true);
     try {
       const repository = await getFinanceRepository();
@@ -478,29 +515,82 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
           ) : (
             <div className="space-y-2">
               {localBackups.map((b) => (
-                <div key={b.id} className="ns-surface flex items-center justify-between gap-3 p-3">
-                  <div className="min-w-0">
-                    <div className="text-sm truncate">{b.label}</div>
-                    <Badge variant="outline" className="mt-1">{b.kind === "scheduled" ? "自動" : "手動"}</Badge>
+                <div key={b.id} className="ns-surface p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm truncate">{b.label}</div>
+                      <Badge variant="outline" className="mt-1">{b.kind === "scheduled" ? "自動" : "手動"}</Badge>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {confirmRestoreId === b.id ? (
+                        <Button variant="ghost" disabled={backupBusy} onClick={cancelRestoreLocal}>取消</Button>
+                      ) : confirmDeleteId === b.id ? (
+                        <>
+                          <Button variant="outline" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} onClick={() => handleDeleteLocal(b.id)}>確定刪除</Button>
+                          <Button variant="ghost" onClick={() => setConfirmDeleteId(null)}>取消</Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button variant="ghost" disabled={backupBusy} onClick={() => beginRestoreLocal(b.id)}><UploadSimple size={14} />還原</Button>
+                          <Button variant="ghost" onClick={() => setConfirmDeleteId(b.id)}><Trash size={14} /></Button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {confirmRestoreId === b.id ? (
-                      <>
-                        <Button variant="outline" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} disabled={backupBusy} onClick={() => handleRestoreLocal(b.id)}>確定還原（覆蓋現有）</Button>
-                        <Button variant="ghost" onClick={() => setConfirmRestoreId(null)}>取消</Button>
-                      </>
-                    ) : confirmDeleteId === b.id ? (
-                      <>
-                        <Button variant="outline" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} onClick={() => handleDeleteLocal(b.id)}>確定刪除</Button>
-                        <Button variant="ghost" onClick={() => setConfirmDeleteId(null)}>取消</Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button variant="ghost" disabled={backupBusy} onClick={() => setConfirmRestoreId(b.id)}><UploadSimple size={14} />還原</Button>
-                        <Button variant="ghost" onClick={() => setConfirmDeleteId(b.id)}><Trash size={14} /></Button>
-                      </>
-                    )}
-                  </div>
+                  {confirmRestoreId === b.id && (
+                    <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--ns-border)" }}>
+                      <p className="text-xs muted mb-2">
+                        還原會以此備份「覆蓋」目前所有資料。請先確認筆數，紅字表示還原後會減少。
+                      </p>
+                      {restoreDiffLoading ? (
+                        <p className="text-xs muted">讀取備份內容中…</p>
+                      ) : !restoreDiff ? (
+                        <p className="text-xs" style={{ color: "var(--ns-neg)" }}>無法讀取此備份內容，可能已損毀。</p>
+                      ) : (
+                        <>
+                          <p className="text-xs muted mb-2">
+                            備份時間點：{new Date(restoreDiff.exportedAt).toLocaleString("zh-Hant")}
+                          </p>
+                          <div className="space-y-1 mb-3">
+                            {restoreDiff.rows.map((r) => (
+                              <div key={r.label} className="flex items-center justify-between gap-3 text-xs">
+                                <span className="muted">{r.label}</span>
+                                <span style={r.delta < 0 ? { color: "var(--ns-neg)" } : undefined}>
+                                  {r.current} → {r.backup}
+                                  {r.delta !== 0 && (
+                                    <span className="ml-1">（{r.delta > 0 ? `+${r.delta}` : r.delta}）</span>
+                                  )}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                          {restoreDiff.hasDecrease && (
+                            <p className="text-xs mb-3" style={{ color: "var(--ns-neg)" }}>
+                              注意：此備份部分項目的筆數比目前少，還原後將遺失較新的資料。
+                            </p>
+                          )}
+                          <label className="text-xs muted block mb-1">
+                            請輸入「{RESTORE_CONFIRM_PHRASE}」以確認覆蓋：
+                          </label>
+                          <input
+                            className="ns-input w-full mb-2"
+                            value={restoreConfirmInput}
+                            onChange={(e) => setRestoreConfirmInput(e.target.value)}
+                            placeholder={RESTORE_CONFIRM_PHRASE}
+                            aria-label={`輸入 ${RESTORE_CONFIRM_PHRASE} 以確認還原`}
+                          />
+                          <Button
+                            variant="outline"
+                            style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }}
+                            disabled={backupBusy || restoreConfirmInput.trim() !== RESTORE_CONFIRM_PHRASE}
+                            onClick={() => handleRestoreLocal(b.id)}
+                          >
+                            確定還原（覆蓋現有）
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
