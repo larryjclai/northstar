@@ -2,6 +2,7 @@ import { ArrowsClockwise, CalendarBlank, Check, CopySimple, PencilSimple, Receip
 import { useEffect, useState } from "react";
 import { Button } from "./coss/button";
 import { Badge } from "./coss/badge";
+import { arApAccountRoles } from "./arApAccountRoles";
 import type { LedgerTransaction, RecurringTransaction } from "../domain";
 import { formatNumber, installmentLabel, recurringFrequencyLabels, todayInTimezone } from "../domain";
 
@@ -85,8 +86,12 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
   const isReimbursement = row.counterAccountId != null;
   // For 代墊 rows the two legs hit different accounts. accountId is the leg that
   // posts on settle; counterAccountId is the leg that posted on creation.
-  // 應收: counter = 付款帳戶, main = 收款帳戶. 應付: counter = 收款帳戶, main = 付款帳戶.
-  const isReceivable = row.settlementStatus === "receivable";
+  // 應收 (AR): counter = 付款帳戶, main = 收款帳戶. 應付 (AP): counter = 收款帳戶, main = 付款帳戶.
+  // `settlementStatus` becomes "settled" after 結清, so derive AR-vs-AP from the
+  // STABLE `entryType` (AR persists as income, AP as expense — preserved on settle).
+  const arApRoles = arApAccountRoles(row, accountName);
+  // 結清 button copy still keys off whether this is a receivable for the verb.
+  const isReceivable = row.entryType === "income";
 
   return (
     <>
@@ -211,10 +216,10 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
               row.subcategory ? `${row.category} / ${row.subcategory}` : row.category || "未分類"
             } />
             <DetailField icon={<Storefront size={15} />} label="商家" value={row.merchant || "—"} />
-            {isReimbursement ? (
+            {isReimbursement && arApRoles ? (
               <>
-                <DetailField icon={<Wallet size={15} />} label={isReceivable ? "付款帳戶（代墊）" : "收款帳戶（代墊）"} value={accountName(row.counterAccountId!)} />
-                <DetailField icon={<Wallet size={15} />} label={isReceivable ? "收款帳戶" : "付款帳戶"} value={row.accountId ? accountName(row.accountId) : "結清時指定"} />
+                <DetailField icon={<Wallet size={15} />} label={arApRoles.payLabel} value={arApRoles.payValue} />
+                <DetailField icon={<Wallet size={15} />} label={arApRoles.receiveLabel} value={arApRoles.receiveValue} />
               </>
             ) : (
               <DetailField icon={<Wallet size={15} />} label="帳戶" value={row.accountId ? accountName(row.accountId) : (isSettled ? "—" : "結清時指定")} />
