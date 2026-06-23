@@ -43,7 +43,7 @@ import { DatePicker } from "../components/ui/date-picker";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { useToast } from "../components/Toast";
 import type { LedgerDraft, TransferDraft } from "../data/repositories";
-import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, evaluateAmountExpression, formatNumber, installmentLabel, isNeutralLedgerRow, isWithinDateScope, makeDefaultDateScope, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, resolveDateScope, todayInTimezone } from "../domain";
+import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, evaluateAmountExpression, filterCategoriesByType, formatNumber, installmentLabel, isNeutralLedgerRow, isWithinDateScope, makeDefaultDateScope, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, resolveDateScope, todayInTimezone } from "../domain";
 import { convertCurrency, formatCompactNumber } from "../domain/currency";
 import type { Account, LedgerTransaction, RecurringFrequency, RecurringTransaction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
@@ -191,7 +191,16 @@ export function CashFlowRoute() {
     if (row) setDetailRow(row);
   }, [txParam, ledgerRows]);
 
-  const categories = appSettings?.categories.length ? appSettings.categories : [];
+  const allCategories = appSettings?.categories.length ? appSettings.categories : [];
+  // The entry drawer only offers categories matching the active 收入/支出 type
+  // (plan 056). ar/ap/transfer are neither income- nor expense-specific, so they
+  // keep the full list. Untagged/"both" categories show for both types; if a type
+  // has no tagged categories the helper falls back to the full list so the picker
+  // is never empty. This is a picker filter only — spend aggregation is unchanged.
+  const categories =
+    drawerType === "income" || drawerType === "expense"
+      ? filterCategoriesByType(allCategories, drawerType)
+      : allCategories;
   const categoryNames = categories.map((category) => category.name);
   const subcategories = categories.find((category) => category.name === ledgerForm.category)?.children ?? [];
   const dateRange = useMemo(() => resolveDateScope(dateScope, timezone), [dateScope, timezone]);
@@ -887,7 +896,7 @@ export function CashFlowRoute() {
 
           <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} className="text-body" style={{ minWidth: 116 }} />
 
-          <CategoryFilter categories={categories} value={selectedCategory} onChange={setSelectedCategory} />
+          <CategoryFilter categories={allCategories} value={selectedCategory} onChange={setSelectedCategory} />
 
           <Button variant="outline" className="h-9 sm:h-9 whitespace-nowrap" onClick={() => csvInputRef.current?.click()}>
             <UploadSimple size={14} />匯入 CSV

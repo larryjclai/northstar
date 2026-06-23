@@ -18,6 +18,7 @@ export * from "./fireGoal";
 export * from "./retirementProjection";
 export * from "./groupClassifier";
 export * from "./categoryKeywords";
+export * from "./categoryKind";
 export * from "./merchantCategory";
 export * from "./parseAmount";
 export * from "./parseDate";

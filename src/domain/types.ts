@@ -339,6 +339,16 @@ export interface CategoryGroup {
    * Absent/empty → accumulate from the first month that has ledger data.
    */
   rolloverStart?: string;
+  /**
+   * Which entry types this category appears for in the 收入/支出 picker. A UI
+   * filter only — it never changes spend/finance aggregation (categoryPeriodSpend
+   * nets by transaction sign regardless of this tag). Semantics:
+   *   absent | "both" → shown for BOTH 收入 and 支出 (default; safe for old data).
+   *   "income"        → shown only when the entry type is 收入.
+   *   "expense"       → shown only when the entry type is 支出.
+   * Optional so old saved settings load unchanged. See plan 056.
+   */
+  kind?: "income" | "expense" | "both";
 }
 
 export interface RecalculationDifference {
