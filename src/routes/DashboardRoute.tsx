@@ -209,10 +209,11 @@ export function DashboardRoute() {
         quotes: quoteRows.map((q) => ({ symbol: q.symbol, updatedAt: q.updatedAt })),
         dailyPrices: dailyPriceRows,
         dailyFxRates: fxHistory,
+        manualPriceSnapshots: manualSnapshotRows,
         settings: appSettings,
         todayIso: todayIso,
       }),
-    [accountRows, ledgerRows, assetRows, quoteRows, dailyPriceRows, fxHistory, appSettings, todayIso],
+    [accountRows, ledgerRows, assetRows, quoteRows, dailyPriceRows, fxHistory, manualSnapshotRows, appSettings, todayIso],
   );
   const filteredAccounts = selectedAccount === "all" ? accountRows : accountRows.filter(a => a.id === selectedAccount);
 

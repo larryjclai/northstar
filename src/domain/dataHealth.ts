@@ -1,5 +1,12 @@
-import type { Account, AppSettings, DailyFxRate, DailyPrice, LedgerTransaction, PortfolioAsset } from "./types";
+import type { Account, AppSettings, DailyFxRate, DailyPrice, LedgerTransaction, ManualPriceSnapshot, PortfolioAsset } from "./types";
 import { convertCurrency } from "./currency";
+
+/**
+ * Staleness threshold (days) for a custom asset's latest manual price snapshot.
+ * Mirrors the 5-day stale-quote basis; bump this constant if it proves noisy
+ * for slow-moving funds.
+ */
+const STALE_MANUAL_PRICE_DAYS = 5;
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -7,6 +14,7 @@ export type DataHealthSeverity = "warn" | "error";
 
 export type DataHealthKind =
   | "stale-quote"
+  | "stale-manual-price"
   | "stale-fx"
   | "missing-fx"
   | "missing-price-history"
@@ -60,6 +68,8 @@ export interface BuildDataHealthReportInput {
   quotes: QuoteForHealth[];
   dailyPrices: DailyPrice[];
   dailyFxRates: DailyFxRate[];
+  /** Manual price snapshots — used to flag stale prices on custom assets. */
+  manualPriceSnapshots?: ManualPriceSnapshot[];
   settings: AppSettings | undefined;
   /** Today's date as YYYY-MM-DD, used for staleness calculations. */
   todayIso: string;
@@ -82,7 +92,7 @@ export interface BuildDataHealthReportInput {
  *    60 days, summarised by type.
  */
 export function buildDataHealthReport(input: BuildDataHealthReportInput): DataHealthReport {
-  const { accounts, ledger, assets, quotes, dailyPrices, dailyFxRates, settings, todayIso } = input;
+  const { accounts, ledger, assets, quotes, dailyPrices, dailyFxRates, manualPriceSnapshots, settings, todayIso } = input;
   const issues: DataHealthIssue[] = [];
 
   const primaryCurrency = settings?.primaryCurrency ?? "TWD";
@@ -138,6 +148,36 @@ export function buildDataHealthReport(input: BuildDataHealthReportInput): DataHe
       kind: "stale-quote",
       message: `以下持倉報價已超過 5 天未更新：${staleQuoteTickers.join("、")}`,
       affected: staleQuoteTickers,
+    });
+  }
+
+  // ── Rule 1b: stale-manual-price ────────────────────────────────────────────
+  // Custom assets are valued at their latest manual ManualPriceSnapshot. If the
+  // user stops logging prices the value silently drifts, so flag custom holdings
+  // whose latest snapshot is older than the threshold (or which have none).
+  const latestSnapshotDateByAsset = new Map<string, string>();
+  for (const snap of manualPriceSnapshots ?? []) {
+    const prev = latestSnapshotDateByAsset.get(snap.assetId);
+    const date = snap.date.slice(0, 10);
+    if (!prev || date > prev) latestSnapshotDateByAsset.set(snap.assetId, date);
+  }
+  const staleManualPriceNames: string[] = [];
+  for (const asset of assets) {
+    if (asset.deletedAt !== null) continue;
+    if (asset.assetType !== "custom") continue;
+    if (asset.totalQuantity <= 1e-9) continue;
+    const latestDate = latestSnapshotDateByAsset.get(asset.id);
+    if (latestDate === undefined || daysBetween(latestDate, todayIso) > STALE_MANUAL_PRICE_DAYS) {
+      staleManualPriceNames.push(asset.name || asset.ticker || asset.id);
+    }
+  }
+  if (staleManualPriceNames.length > 0) {
+    issues.push({
+      id: "stale-manual-price",
+      severity: "warn",
+      kind: "stale-manual-price",
+      message: `以下自訂資產的手動價格已超過 ${STALE_MANUAL_PRICE_DAYS} 天未更新：${staleManualPriceNames.join("、")}`,
+      affected: staleManualPriceNames,
     });
   }
 
