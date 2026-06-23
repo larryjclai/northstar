@@ -15,7 +15,8 @@ import { Skeleton } from "../components/coss/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "../components/coss/toggle-group";
 import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
 import { HoldingEditModal } from "./HoldingEditModal";
-import { ChartLineUp, PencilSimple } from "@phosphor-icons/react";
+import { ManualPriceImportWizard } from "./ManualPriceImportWizard";
+import { ChartLineUp, PencilSimple, UploadSimple } from "@phosphor-icons/react";
 
 export function HoldingDetailRoute() {
   const params = useParams({ strict: false }) as any;
@@ -31,6 +32,7 @@ export function HoldingDetailRoute() {
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [priceFormOpen, setPriceFormOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const todayStr = new Date().toISOString().slice(0, 10);
   const [priceInput, setPriceInput] = useState("");
   const [priceDate, setPriceDate] = useState(todayStr);
@@ -286,9 +288,14 @@ export function HoldingDetailRoute() {
         <div style={{ display: "flex", gap: 8 }}>
           <Button variant="ghost" onClick={() => setEditOpen(true)}><PencilSimple size={14} />編輯持倉</Button>
           {isCustomAsset ? (
-            <Button onClick={() => { setPriceFormOpen((open) => !open); setPriceMessage(""); }}>
-              <Plus size={14} strokeWidth={2} />更新價格
-            </Button>
+            <>
+              <Button variant="ghost" onClick={() => setImportOpen(true)}>
+                <UploadSimple size={14} />匯入價格
+              </Button>
+              <Button onClick={() => { setPriceFormOpen((open) => !open); setPriceMessage(""); }}>
+                <Plus size={14} strokeWidth={2} />更新價格
+              </Button>
+            </>
           ) : (
             <Button onClick={() => setAddOpen(true)}>
               <Plus size={14} strokeWidth={2} />新增交易
@@ -609,6 +616,21 @@ export function HoldingDetailRoute() {
           editingAsset={asset}
           onClose={() => setEditOpen(false)}
           accounts={accountRows}
+        />
+      )}
+
+      {importOpen && asset && (
+        <ManualPriceImportWizard
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          assetId={asset.id}
+          assetLabel={resolveAssetName(asset, nameLocale)}
+          currency={asset.currency}
+          onImport={async (drafts) => {
+            for (const draft of drafts) {
+              await createManualPrice.mutateAsync(draft);
+            }
+          }}
         />
       )}
     </div>
