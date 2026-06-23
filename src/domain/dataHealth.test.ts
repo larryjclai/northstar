@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildDataHealthReport } from "./dataHealth";
 import type { BuildDataHealthReportInput, QuoteForHealth } from "./dataHealth";
-import type { Account, AppSettings, DailyFxRate, DailyPrice, LedgerTransaction, PortfolioAsset } from "./types";
+import type { Account, AppSettings, DailyFxRate, DailyPrice, LedgerTransaction, ManualPriceSnapshot, PortfolioAsset } from "./types";
 
 // ─── Fixture helpers ──────────────────────────────────────────────────────────
 
@@ -126,6 +126,33 @@ function makeQuote(overrides: Partial<QuoteForHealth> = {}): QuoteForHealth {
   };
 }
 
+function makeManualSnapshot(overrides: Partial<ManualPriceSnapshot> = {}): ManualPriceSnapshot {
+  return {
+    id: "snap1",
+    assetId: "custom1",
+    date: "2026-06-10",
+    price: 1000,
+    note: "",
+    createdAt: "2026-06-10T12:00:00Z",
+    ...overrides,
+  };
+}
+
+/** A custom (manually-priced) asset fixture, distinct ticker from the equity one. */
+function makeCustomAsset(overrides: Partial<PortfolioAsset> = {}): PortfolioAsset {
+  return makeAsset({
+    id: "custom1",
+    ticker: "",
+    name: "未上市股權",
+    assetType: "custom",
+    holdingSource: "manual",
+    totalQuantity: 5,
+    baseQuantity: 5,
+    accountId: "acct1",
+    ...overrides,
+  });
+}
+
 /** Minimal fully-healthy input — no issues should fire. */
 function healthyInput(): BuildDataHealthReportInput {
   return {
@@ -194,6 +221,73 @@ describe("stale-quote", () => {
     input.quotes = [];
     const report = buildDataHealthReport(input);
     expect(report.issues.find((i) => i.kind === "stale-quote")).toBeUndefined();
+  });
+});
+
+// ─── Rule 1b: stale-manual-price ─────────────────────────────────────────────
+
+describe("stale-manual-price", () => {
+  it("triggers when a custom asset's latest manual snapshot is older than 5 days", () => {
+    const input = healthyInput();
+    input.assets = [makeCustomAsset()];
+    input.quotes = [];
+    // todayIso = 2026-06-11; snapshot from 2026-06-01 is 10 days old → stale.
+    input.manualPriceSnapshots = [makeManualSnapshot({ assetId: "custom1", date: "2026-06-01" })];
+    const report = buildDataHealthReport(input);
+    const issue = report.issues.find((i) => i.kind === "stale-manual-price");
+    expect(issue).toBeDefined();
+    expect(issue!.severity).toBe("warn");
+    expect(issue!.affected).toContain("未上市股權");
+  });
+
+  it("triggers when a custom asset with qty>0 has NO snapshot at all", () => {
+    const input = healthyInput();
+    input.assets = [makeCustomAsset()];
+    input.quotes = [];
+    input.manualPriceSnapshots = [];
+    const report = buildDataHealthReport(input);
+    expect(report.issues.find((i) => i.kind === "stale-manual-price")).toBeDefined();
+  });
+
+  it("does NOT trigger when the latest snapshot is recent (within 5 days)", () => {
+    const input = healthyInput();
+    input.assets = [makeCustomAsset()];
+    input.quotes = [];
+    // Multiple snapshots — the latest (2026-06-10, 1 day old) governs.
+    input.manualPriceSnapshots = [
+      makeManualSnapshot({ id: "s-old", assetId: "custom1", date: "2026-05-01" }),
+      makeManualSnapshot({ id: "s-new", assetId: "custom1", date: "2026-06-10" }),
+    ];
+    const report = buildDataHealthReport(input);
+    expect(report.issues.find((i) => i.kind === "stale-manual-price")).toBeUndefined();
+  });
+
+  it("does NOT trigger for a custom asset with zero quantity", () => {
+    const input = healthyInput();
+    input.assets = [makeCustomAsset({ totalQuantity: 0 })];
+    input.quotes = [];
+    input.manualPriceSnapshots = [];
+    const report = buildDataHealthReport(input);
+    expect(report.issues.find((i) => i.kind === "stale-manual-price")).toBeUndefined();
+  });
+
+  it("does NOT trigger for a deleted custom asset", () => {
+    const input = healthyInput();
+    input.assets = [makeCustomAsset({ deletedAt: "2026-01-15T00:00:00Z" })];
+    input.quotes = [];
+    input.manualPriceSnapshots = [];
+    const report = buildDataHealthReport(input);
+    expect(report.issues.find((i) => i.kind === "stale-manual-price")).toBeUndefined();
+  });
+
+  it("does NOT cross-fire: a tickered asset with a stale quote stays stale-quote only", () => {
+    const input = healthyInput();
+    input.assets = [makeAsset()]; // tickered ETF, assetType etf
+    input.quotes = [makeQuote({ updatedAt: "2026-05-01T12:00:00Z" })]; // stale quote
+    input.manualPriceSnapshots = [];
+    const report = buildDataHealthReport(input);
+    expect(report.issues.find((i) => i.kind === "stale-quote")).toBeDefined();
+    expect(report.issues.find((i) => i.kind === "stale-manual-price")).toBeUndefined();
   });
 });
 
