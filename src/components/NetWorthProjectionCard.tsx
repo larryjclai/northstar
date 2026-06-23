@@ -142,13 +142,14 @@ export function NetWorthProjectionCard({
                 domain={[0, "dataMax"]}
               />
               <Tooltip
-                formatter={(value: number, name: string) => {
+                formatter={(value, name) => {
                   const labels: Record<string, string> = {
                     bullBalance: `樂觀 ${bullCagr.toFixed(1)}%`,
                     neutralBalance: `中性 ${returnPct.toFixed(1)}%`,
                     bearBalance: `悲觀 ${bearCagr.toFixed(1)}%`,
                   };
-                  return [fmtTooltip(value), labels[name] ?? name];
+                  const key = String(name);
+                  return [fmtTooltip(Number(value)), labels[key] ?? key];
                 }}
                 contentStyle={{
                   borderRadius: 8,

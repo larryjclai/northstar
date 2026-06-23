@@ -249,8 +249,9 @@ export function CategoriesRoute() {
                       stroke="none"
                       paddingAngle={2}
                       onClick={(data) => {
-                        if (data && data.name) {
-                          setSelectedCategory(prev => prev === data.name ? null : data.name);
+                        if (data && data.name != null) {
+                          const clicked = String(data.name);
+                          setSelectedCategory(prev => prev === clicked ? null : clicked);
                         }
                       }}
                       style={{ cursor: "pointer" }}
@@ -266,7 +267,7 @@ export function CategoriesRoute() {
                       ))}
                     </Pie>
                     <Tooltip 
-                      formatter={(value: number) => [`${formatNumber(value)} ${primaryCurrency}`, "金額"]}
+                      formatter={(value) => [`${formatNumber(Number(value))} ${primaryCurrency}`, "金額"]}
                       contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg)", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
                     />
                   </PieChart>
