@@ -338,6 +338,9 @@ function EditCatForm({ cat, colors, onSave, onCancel }: { cat: CategoryGroup; co
   const [color,  setColor]  = useState(cat.color || '#868685');
   const [budget, setBudget] = useState(cat.budget || '');
   const [rollover, setRollover] = useState(Boolean(cat.rollover));
+  // Which entry types this category appears for in the 收入/支出 picker (plan 056).
+  // Absent ⇒ "both" so existing categories keep showing for both types.
+  const [kind, setKind] = useState<NonNullable<CategoryGroup['kind']>>(cat.kind ?? 'both');
   const currentMonth = new Date().toISOString().slice(0, 7);
   return (
     <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
@@ -375,6 +378,28 @@ function EditCatForm({ cat, colors, onSave, onCancel }: { cat: CategoryGroup; co
           ))}
         </div>
       </div>
+      <div style={{ gridColumn:'1 / -1', padding:'10px 0', borderTop:'1px dashed var(--ns-border)' }}>
+        <label className="text-caption" style={{ color:'var(--ns-fg-muted)', display:'block', marginBottom:6 }}>適用類型</label>
+        <div style={{ display:'flex', gap:6 }}>
+          {([
+            { value: 'both', label: '兩者' },
+            { value: 'income', label: '收入' },
+            { value: 'expense', label: '支出' },
+          ] as const).map((opt) => (
+            <Button
+              key={opt.value}
+              variant={kind === opt.value ? 'default' : 'ghost'}
+              className="text-xs"
+              onClick={() => setKind(opt.value)}
+            >
+              {opt.label}
+            </Button>
+          ))}
+        </div>
+        <div className="text-caption" style={{ color:'var(--ns-fg-muted)', marginTop:6 }}>
+          決定此分類在記帳時出現於收入、支出或兩者的選單。
+        </div>
+      </div>
       <div style={{ gridColumn:'1 / -1', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, padding:'10px 0', borderTop:'1px dashed var(--ns-border)' }}>
         <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
           <input type="checkbox" checked={rollover} onChange={e=>setRollover(e.target.checked)} disabled={!budget} />
@@ -391,7 +416,7 @@ function EditCatForm({ cat, colors, onSave, onCancel }: { cat: CategoryGroup; co
       </div>
       <div style={{ gridColumn:'1 / -1', display:'flex',gap:8 }}>
         <Button variant="ghost" className="text-xs" onClick={onCancel}>取消</Button>
-        <Button className="text-xs" onClick={()=>onSave({name,iconName:icon,color,budget:budget?+budget:null,rollover})}>
+        <Button className="text-xs" onClick={()=>onSave({name,iconName:icon,color,budget:budget?+budget:null,rollover,kind})}>
           <CheckCircle size={14} weight="bold" />儲存
         </Button>
       </div>
