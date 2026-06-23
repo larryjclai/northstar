@@ -288,6 +288,11 @@ export async function listLocalBackups(): Promise<LocalBackupEntry[]> {
   return store().list();
 }
 
+/** Read a backup's snapshot without restoring it (for the restore preview). */
+export async function readLocalBackupSnapshot(id: string): Promise<RepositorySnapshot | null> {
+  return store().read(id);
+}
+
 /** Restore a specific backup into the repository (overwrites current data). */
 export async function restoreLocalBackup(id: string, repo: FinanceRepository): Promise<void> {
   const snapshot = await store().read(id);
