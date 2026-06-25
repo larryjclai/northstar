@@ -4,6 +4,7 @@ export * from "./categorySpend";
 export * from "./dataHealth";
 export * from "./installments";
 export * from "./sectorLabels";
+export * from "./assetCountry";
 export * from "./dividendAnalysis";
 export * from "./annualReport";
 export * from "./currencyExposure";

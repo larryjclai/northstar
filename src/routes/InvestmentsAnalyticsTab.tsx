@@ -49,6 +49,11 @@ import {
   type ManualPriceSnapshot,
   formatMoney,
   resolveSectorLabel,
+  buildSectorBreakdown,
+  buildCountryBreakdown,
+  etfBucketLabel,
+  resolveHoldingCountry,
+  resolveCountryLabel,
 } from "../domain";
 
 const CHART_COLORS = [
@@ -339,30 +344,59 @@ export function InvestmentsAnalyticsTab({
     return { data, current, avg90, peak };
   }, [positions, dailyPrices, manualSnapshots, toPrimary, end]);
 
+  // Priced entries shared by the sector and country breakdowns. Each dimension
+  // groups the same values differently and independently sums to `total`.
+  const pricedEntries = useMemo(
+    () =>
+      positions
+        .map((position) => ({
+          position,
+          value: latestPositionValue(position, dailyPrices, manualSnapshots, toPrimary, end),
+        }))
+        .filter((e) => e.value > 0),
+    [positions, dailyPrices, manualSnapshots, toPrimary, end],
+  );
+
   const allocationSummary = useMemo(() => {
-    const byClass = new Map<string, number>();
-    let total = 0;
+    // Sector breakdown — ETFs/funds land in the explicit 「ETF / 基金」 bucket (or
+    // their fetched/manual weights), never 未知. manual > fetched > bucket.
+    const breakdown = buildSectorBreakdown(pricedEntries, {
+      sectorLabelOf: (raw) => resolveSectorLabel(raw, nameLocale),
+      etfBucket: etfBucketLabel(nameLocale),
+      unknownLabel: "未知",
+      otherLabel: "其他",
+    });
+    const total = breakdown.total;
     let largestHolding: { label: string; value: number } | null = null;
-    for (const position of positions) {
-      const className = resolveSectorLabel(position.sector, nameLocale) ?? "未知";
-      const priced = latestPositionValue(position, dailyPrices, manualSnapshots, toPrimary, end);
-      if (priced <= 0) continue;
-      total += priced;
-      byClass.set(className, (byClass.get(className) ?? 0) + priced);
-      if (!largestHolding || priced > largestHolding.value) largestHolding = { label: position.ticker, value: priced };
+    for (const { position, value } of pricedEntries) {
+      if (!largestHolding || value > largestHolding.value) largestHolding = { label: position.ticker, value };
     }
-    const rows = [...byClass.entries()]
-      .map(([label, value], index) => ({
-        label,
-        value,
-        pct: total > 0 ? (value / total) * 100 : 0,
-        color: CHART_COLORS[index % CHART_COLORS.length],
-      }))
-      .sort((a, b) => b.value - a.value);
+    const rows = breakdown.buckets.map((b, index) => ({
+      label: b.label,
+      value: b.value,
+      pct: b.pct,
+      color: CHART_COLORS[index % CHART_COLORS.length],
+    }));
     const largestClass = rows[0] ?? null;
     const topHoldingPct = largestHolding && total > 0 ? (largestHolding.value / total) * 100 : null;
     return { rows, total, largestClass, largestHolding, topHoldingPct };
-  }, [positions, dailyPrices, manualSnapshots, toPrimary, end, nameLocale]);
+  }, [pricedEntries, nameLocale]);
+
+  // Country / region breakdown of *direct* holdings — derived locally (no fetch)
+  // from each holding's ticker suffix / market + currency tiebreak.
+  const countrySummary = useMemo(() => {
+    const breakdown = buildCountryBreakdown(pricedEntries, {
+      countryOf: (position) =>
+        resolveCountryLabel(resolveHoldingCountry(position.ticker, position.currency), nameLocale),
+    });
+    const rows = breakdown.buckets.map((b, index) => ({
+      label: b.label,
+      value: b.value,
+      pct: b.pct,
+      color: CHART_COLORS[index % CHART_COLORS.length],
+    }));
+    return { rows, total: breakdown.total };
+  }, [pricedEntries, nameLocale]);
 
   const holdingHeat = useMemo(
     () => buildHoldingHeat(positions, dailyPrices, manualSnapshots, toPrimary, end),
@@ -908,6 +942,32 @@ export function InvestmentsAnalyticsTab({
             )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+            {countrySummary.rows.length > 0 && (
+              <div>
+                <NSAnHead kicker="地區 · REGION" title="持倉的國家／地區分布" />
+                <div style={{ display: "flex", height: 12, borderRadius: 99, overflow: "hidden", marginBottom: 16 }}>
+                  {countrySummary.rows.map((it) => (
+                    <div key={it.label} style={{ width: `${it.pct}%`, background: it.color }} />
+                  ))}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {countrySummary.rows.map((it) => (
+                    <div
+                      key={it.label}
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--ns-border)" }}
+                    >
+                      <span style={{ width: 10, height: 10, borderRadius: 3, background: it.color, flexShrink: 0 }} />
+                      <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{it.label}</span>
+                      <span className="num muted" style={{ fontSize: 12.5 }}>{formatMoney(it.value, primaryCurrency)}</span>
+                      <span className="num" style={{ fontSize: 13, fontWeight: 600, minWidth: 50, textAlign: "right" }}>{it.pct.toFixed(1)}%</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="muted text-caption" style={{ marginTop: 12 }}>
+                  依持倉上市市場估算；ETF／基金以其本身上市地計入。
+                </div>
+              </div>
+            )}
             {currencyExposure.currencyCount >= 2 && (
               <div>
                 <NSAnHead kicker="幣別曝險 · CURRENCY" title="持倉的幣別分布" />

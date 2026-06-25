@@ -1298,5 +1298,75 @@
       "v": "Failed to load demo data",
       "t": "2026-06-13T00:22:35.949Z"
     }
+  },
+  "investmentsAnalytics.etfBucket": {
+    "zh-TW": {
+      "v": "ETF / 基金",
+      "t": "2026-06-25T12:23:00.605Z"
+    },
+    "en": {
+      "v": "ETF / Fund",
+      "t": "2026-06-25T12:23:00.605Z"
+    }
+  },
+  "investmentsAnalytics.otherSector": {
+    "zh-TW": {
+      "v": "其他",
+      "t": "2026-06-25T12:23:00.605Z"
+    },
+    "en": {
+      "v": "Other",
+      "t": "2026-06-25T12:23:00.605Z"
+    }
+  },
+  "investmentsAnalytics.unknownSector": {
+    "zh-TW": {
+      "v": "未知",
+      "t": "2026-06-25T12:23:00.605Z"
+    },
+    "en": {
+      "v": "Unknown",
+      "t": "2026-06-25T12:23:00.605Z"
+    }
+  },
+  "investmentsAnalytics.unknownRegion": {
+    "zh-TW": {
+      "v": "未知地區",
+      "t": "2026-06-25T12:23:00.605Z"
+    },
+    "en": {
+      "v": "Unknown",
+      "t": "2026-06-25T12:23:00.605Z"
+    }
+  },
+  "investmentsAnalytics.sectorTitle": {
+    "zh-TW": {
+      "v": "產業分類分布",
+      "t": "2026-06-25T12:23:00.605Z"
+    },
+    "en": {
+      "v": "Sector allocation",
+      "t": "2026-06-25T12:23:00.605Z"
+    }
+  },
+  "investmentsAnalytics.regionTitle": {
+    "zh-TW": {
+      "v": "持倉的國家／地區分布",
+      "t": "2026-06-25T12:23:00.605Z"
+    },
+    "en": {
+      "v": "Country / region allocation",
+      "t": "2026-06-25T12:23:00.605Z"
+    }
+  },
+  "investmentsAnalytics.regionNote": {
+    "zh-TW": {
+      "v": "依持倉上市市場估算；ETF／基金以其本身上市地計入。",
+      "t": "2026-06-25T12:23:00.605Z"
+    },
+    "en": {
+      "v": "Estimated from each holding's listing market; ETFs/funds counted at their own listing.",
+      "t": "2026-06-25T12:23:00.605Z"
+    }
   }
 }

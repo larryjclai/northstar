@@ -150,5 +150,14 @@
       "demoLoaded": "Demo data loaded",
       "demoFailed": "Failed to load demo data"
     }
+  },
+  "investmentsAnalytics": {
+    "etfBucket": "ETF / Fund",
+    "otherSector": "Other",
+    "unknownSector": "Unknown",
+    "unknownRegion": "Unknown",
+    "sectorTitle": "Sector allocation",
+    "regionTitle": "Country / region allocation",
+    "regionNote": "Estimated from each holding's listing market; ETFs/funds counted at their own listing."
   }
 }

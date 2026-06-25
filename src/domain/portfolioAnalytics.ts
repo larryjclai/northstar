@@ -279,6 +279,160 @@ export interface AnalyticsPosition {
   assetClass?: string;
   /** Raw sector value (TWSE code or English GICS name); optional. */
   sector?: string | null;
+  /** Asset type (equity / etf / mutual_fund / …); drives the ETF/fund bucket. */
+  assetType?: import("./types").AssetType | null;
+  /**
+   * True when the user hand-edited this asset's classification (069 lock). A
+   * locked `sector` is treated as the manual tag and takes precedence over any
+   * fetched/derived bucket. Absent/false ⇒ unlocked.
+   */
+  classificationLocked?: boolean;
+  /**
+   * Optional per-holding sector weights `{ sector, weight }[]` (Tier-1 ETF
+   * enrichment). Present only when *trustworthy* weights exist; the breakdown
+   * then splits this position's value across buckets (weighted multi-bucket),
+   * else the position lands wholesale in the 「ETF / 基金」 bucket.
+   */
+  sectorWeights?: Array<{ sector: string; weight: number }> | null;
+}
+
+// ─── Sector / country breakdown (plan 068) ───────────────────────────────────
+
+/**
+ * One slice of a by-dimension breakdown (sector or country). Bucket values sum
+ * to the priced portfolio total, so each dimension reconciles independently:
+ * Σ buckets = portfolio value. A holding may appear in a sector bucket *and* a
+ * country bucket — that's two orthogonal views, not double-counting.
+ */
+export interface BreakdownBucket {
+  /** Stable key (e.g. resolved label) used for grouping. */
+  label: string;
+  value: number;
+  /** Share of the total (%). */
+  pct: number;
+}
+
+export interface Breakdown {
+  buckets: BreakdownBucket[];
+  total: number;
+}
+
+/** Minimal priced-position input for the breakdowns (decoupled from valuation). */
+export interface BreakdownEntry {
+  position: AnalyticsPosition;
+  /** Current value in the primary currency (already converted). */
+  value: number;
+}
+
+function finalizeBuckets(byLabel: Map<string, number>, total: number): Breakdown {
+  const buckets = [...byLabel.entries()]
+    .map(([label, value]) => ({ label, value, pct: total > EPS ? (value / total) * 100 : 0 }))
+    .sort((a, b) => b.value - a.value);
+  return { buckets, total };
+}
+
+/**
+ * Sector breakdown that attributes value by Decision A:
+ * - **manual > fetched > bucket** precedence.
+ * - A direct holding with a sector → that sector (resolved by `sectorLabelOf`).
+ * - An ETF/fund with **trustworthy `sectorWeights`** → value split across those
+ *   sectors (renormalized; any shortfall to 100% goes to an 「其他」 remainder).
+ * - An ETF/fund without weights (or any classification-locked manual tag absent)
+ *   → the single 「ETF / 基金」 bucket (`etfBucket` label), never 未知.
+ * - A non-ETF holding with no sector → the supplied `unknownLabel`.
+ *
+ * Σ buckets = Σ priced values, regardless of which path each holding took.
+ */
+export function buildSectorBreakdown(
+  entries: BreakdownEntry[],
+  opts: {
+    /** Resolve a raw sector value (TWSE code / GICS) → display label, or null. */
+    sectorLabelOf: (raw: string | null | undefined) => string | null;
+    /** Label for the ETF/fund default bucket. */
+    etfBucket: string;
+    /** Label for a 未知-sector non-ETF holding. */
+    unknownLabel: string;
+    /** Label for the renormalization remainder when weights don't reach 100%. */
+    otherLabel: string;
+    /** Treat weights ≥ this share-sum (0–1) as trustworthy; else use the bucket. */
+    minTrustworthyCoverage?: number;
+  },
+): Breakdown {
+  const { sectorLabelOf, etfBucket, unknownLabel, otherLabel } = opts;
+  const minCoverage = opts.minTrustworthyCoverage ?? 0.5;
+  const byLabel = new Map<string, number>();
+  let total = 0;
+  const add = (label: string, value: number) => byLabel.set(label, (byLabel.get(label) ?? 0) + value);
+
+  for (const { position, value } of entries) {
+    if (!(value > EPS)) continue;
+    total += value;
+
+    const isFund = position.assetType === "etf" || position.assetType === "mutual_fund" || position.assetType === "index";
+    const manualSector = position.classificationLocked ? sectorLabelOf(position.sector) : null;
+
+    // 1) Manual tag wins outright.
+    if (manualSector) {
+      add(manualSector, value);
+      continue;
+    }
+
+    // 2) A fund with trustworthy fetched weights splits across buckets.
+    const weights = position.sectorWeights ?? [];
+    const coverage = weights.reduce((s, w) => s + Math.max(0, w.weight), 0);
+    if (isFund && weights.length > 0 && coverage >= minCoverage) {
+      // Renormalize so the split sums to exactly `value`, sending any gap below
+      // 100% to an 「其他」 remainder (keeps Σ = value even with partial coverage).
+      const norm = coverage > 1 + EPS ? coverage : 1;
+      let attributed = 0;
+      for (const w of weights) {
+        const share = Math.max(0, w.weight) / norm;
+        const slice = value * share;
+        const label = sectorLabelOf(w.sector) ?? w.sector ?? otherLabel;
+        add(label, slice);
+        attributed += slice;
+      }
+      const remainder = value - attributed;
+      if (remainder > EPS) add(otherLabel, remainder);
+      continue;
+    }
+
+    // 3) Any fund without trustworthy weights → the explicit ETF/fund bucket.
+    if (isFund) {
+      add(etfBucket, value);
+      continue;
+    }
+
+    // 4) A direct holding uses its own sector, else the unknown label.
+    const direct = sectorLabelOf(position.sector);
+    add(direct ?? unknownLabel, value);
+  }
+
+  return finalizeBuckets(byLabel, total);
+}
+
+/**
+ * Country breakdown of *direct* holdings, derived locally (no fetch) via
+ * `countryOf` (ticker-suffix/market → country, currency tiebreak). ETFs without
+ * fetched country weights fall to the supplied `unknownLabel` (or a manual tag,
+ * if locked + `countryOf` resolves the tag). Σ buckets = Σ priced values.
+ */
+export function buildCountryBreakdown(
+  entries: BreakdownEntry[],
+  opts: {
+    /** Resolve a position → display country label (never null; uses placeholder). */
+    countryOf: (position: AnalyticsPosition) => string;
+  },
+): Breakdown {
+  const byLabel = new Map<string, number>();
+  let total = 0;
+  for (const { position, value } of entries) {
+    if (!(value > EPS)) continue;
+    total += value;
+    const label = opts.countryOf(position);
+    byLabel.set(label, (byLabel.get(label) ?? 0) + value);
+  }
+  return finalizeBuckets(byLabel, total);
 }
 
 interface PricedBasket {

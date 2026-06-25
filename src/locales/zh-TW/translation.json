@@ -150,5 +150,14 @@
       "demoLoaded": "已載入示範資料",
       "demoFailed": "載入示範資料失敗"
     }
+  },
+  "investmentsAnalytics": {
+    "etfBucket": "ETF / 基金",
+    "otherSector": "其他",
+    "unknownSector": "未知",
+    "unknownRegion": "未知地區",
+    "sectorTitle": "產業分類分布",
+    "regionTitle": "持倉的國家／地區分布",
+    "regionNote": "依持倉上市市場估算；ETF／基金以其本身上市地計入。"
   }
 }
