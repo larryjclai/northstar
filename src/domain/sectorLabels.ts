@@ -1,6 +1,21 @@
 import type { NameLocalePreference } from "./assetName";
 
 /**
+ * Default bucket an ETF / fund lands in on the **sector** breakdown when no
+ * per-holding sector weights are available (and no manual tag overrides it).
+ * This replaces the old 「未知」 catch-all so a fund's value is attributed to an
+ * explicit, explainable bucket instead of looking like missing data. The wording
+ * is mirrored in the copy catalog (`investmentsAnalytics.etfBucket`) so it stays
+ * editable via the copy.csv round-trip.
+ */
+export function etfBucketLabel(
+  preference: NameLocalePreference = "auto",
+  runtimeLocale: string = typeof navigator !== "undefined" ? navigator.language : "en",
+): string {
+  return prefersChinese(preference, runtimeLocale) ? "ETF / 基金" : "ETF / Fund";
+}
+
+/**
  * Sector / industry display labels.
  *
  * Two data sources feed `PortfolioAsset.sector` / `.industry`:

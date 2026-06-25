@@ -16,9 +16,14 @@ import {
   toCumulativeReturnSeries,
   dayChangeMovers,
   TRADING_DAYS_PER_YEAR,
+  buildSectorBreakdown,
+  buildCountryBreakdown,
   type AnalyticsPosition,
+  type BreakdownEntry,
 } from "./portfolioAnalytics";
 import type { DailyPrice, ManualPriceSnapshot } from "./types";
+import { resolveSectorLabel } from "./sectorLabels";
+import { resolveCountryLabel, resolveHoldingCountry } from "./assetCountry";
 
 const identity = (value: number) => value;
 
@@ -419,5 +424,126 @@ describe("dayChangeMovers", () => {
 describe("constants", () => {
   it("annualizes on 252 trading days", () => {
     expect(TRADING_DAYS_PER_YEAR).toBe(252);
+  });
+});
+
+const sumValues = (entries: BreakdownEntry[]) => entries.reduce((s, e) => s + e.value, 0);
+
+const sectorOpts = {
+  sectorLabelOf: (raw: string | null | undefined) => resolveSectorLabel(raw, "zh-Hant"),
+  etfBucket: "ETF / 基金",
+  unknownLabel: "未知",
+  otherLabel: "其他",
+};
+
+describe("buildSectorBreakdown", () => {
+  it("gives ETFs/funds the ETF bucket instead of 未知, and Σ buckets = total", () => {
+    const entries: BreakdownEntry[] = [
+      { position: pos({ assetId: "tsmc", ticker: "2330.TW", sector: "24", assetType: "equity" }), value: 600 },
+      { position: pos({ assetId: "etf", ticker: "0050.TW", sector: null, assetType: "etf" }), value: 400 },
+    ];
+    const b = buildSectorBreakdown(entries, sectorOpts);
+    const labels = b.buckets.map((x) => x.label);
+    expect(labels).toContain("半導體業");
+    expect(labels).toContain("ETF / 基金");
+    expect(labels).not.toContain("未知");
+    expect(b.total).toBeCloseTo(sumValues(entries));
+    expect(b.buckets.reduce((s, x) => s + x.value, 0)).toBeCloseTo(b.total);
+  });
+
+  it("manual (locked) tag beats fetched weights beats bucket", () => {
+    const entries: BreakdownEntry[] = [
+      // Locked sector tag on an ETF wins even when weights are present.
+      {
+        position: pos({
+          assetId: "m",
+          ticker: "0050.TW",
+          assetType: "etf",
+          sector: "24",
+          classificationLocked: true,
+          sectorWeights: [{ sector: "17", weight: 1 }],
+        }),
+        value: 100,
+      },
+      // Trustworthy weights split across buckets when not locked.
+      {
+        position: pos({
+          assetId: "f",
+          ticker: "006208.TW",
+          assetType: "etf",
+          sectorWeights: [
+            { sector: "24", weight: 0.7 },
+            { sector: "17", weight: 0.3 },
+          ],
+        }),
+        value: 200,
+      },
+    ];
+    const b = buildSectorBreakdown(entries, sectorOpts);
+    const byLabel = new Map(b.buckets.map((x) => [x.label, x.value]));
+    // Manual tag → 半導體業 100 (from the locked ETF), plus 70% of the fetched split = 140.
+    expect(byLabel.get("半導體業")).toBeCloseTo(100 + 140);
+    expect(byLabel.get("金融保險業")).toBeCloseTo(60); // 30% of 200
+    expect(b.total).toBeCloseTo(300);
+    expect(b.buckets.reduce((s, x) => s + x.value, 0)).toBeCloseTo(b.total);
+  });
+
+  it("renormalizes partial weights with an 其他 remainder, preserving Σ = value", () => {
+    const entries: BreakdownEntry[] = [
+      {
+        position: pos({
+          assetId: "f",
+          ticker: "0056.TW",
+          assetType: "etf",
+          sectorWeights: [
+            { sector: "24", weight: 0.6 },
+            { sector: "17", weight: 0.2 },
+          ], // coverage 0.8 < 1 → 20% remainder
+        }),
+        value: 100,
+      },
+    ];
+    const b = buildSectorBreakdown(entries, sectorOpts);
+    const byLabel = new Map(b.buckets.map((x) => [x.label, x.value]));
+    expect(byLabel.get("半導體業")).toBeCloseTo(60);
+    expect(byLabel.get("金融保險業")).toBeCloseTo(20);
+    expect(byLabel.get("其他")).toBeCloseTo(20);
+    expect(b.buckets.reduce((s, x) => s + x.value, 0)).toBeCloseTo(100);
+  });
+
+  it("low-coverage weights are not trusted → ETF bucket", () => {
+    const entries: BreakdownEntry[] = [
+      {
+        position: pos({
+          assetId: "f",
+          ticker: "00xx.TW",
+          assetType: "etf",
+          sectorWeights: [{ sector: "24", weight: 0.1 }], // below default 0.5 coverage
+        }),
+        value: 100,
+      },
+    ];
+    const b = buildSectorBreakdown(entries, sectorOpts);
+    expect(b.buckets.map((x) => x.label)).toEqual(["ETF / 基金"]);
+    expect(b.buckets[0].value).toBeCloseTo(100);
+  });
+});
+
+describe("buildCountryBreakdown", () => {
+  it("attributes each direct holding to its listing country; Σ = total", () => {
+    const entries: BreakdownEntry[] = [
+      { position: pos({ ticker: "2330.TW", currency: "TWD" }), value: 500 },
+      { position: pos({ ticker: "AAPL", currency: "USD" }), value: 300 },
+      { position: pos({ ticker: "7203.T", currency: "JPY" }), value: 200 },
+    ];
+    const b = buildCountryBreakdown(entries, {
+      countryOf: (p) => resolveCountryLabel(resolveHoldingCountry(p.ticker, p.currency), "zh-Hant"),
+    });
+    const byLabel = new Map(b.buckets.map((x) => [x.label, x.value]));
+    expect(byLabel.get("台灣")).toBeCloseTo(500);
+    expect(byLabel.get("美國")).toBeCloseTo(300);
+    expect(byLabel.get("日本")).toBeCloseTo(200);
+    expect(b.total).toBeCloseTo(1000);
+    expect(b.buckets.reduce((s, x) => s + x.value, 0)).toBeCloseTo(b.total);
   });
 });
