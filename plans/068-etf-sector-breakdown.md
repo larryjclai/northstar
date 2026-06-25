@@ -1,24 +1,23 @@
 # Plan 068: ETF sector + country/region breakdown by holdings (instead of 「未知分類」)
 
-> **Executor instructions**: This is a **spike-first, design-gated** plan. Phase 0
-> determines whether a fetchable ETF sector-weightings source exists — it has a hard
-> STOP gate. Do NOT build until Phase 0 confirms a source + the operator signs off.
+> **Executor instructions**: Phase 0 (spike) is **DONE** and the operator **signed off**
+> on the DECISIONS LOCKED below. Build **Tier 0 unconditionally**; build **Tier 1 ONLY if
+> the Step-3 ~1h JSON-endpoint confirmation passes** (no HTML scraping — that's forbidden).
 > Respect the native URL allowlist (security). Run every verification command. If a STOP
 > condition occurs, stop and report. Update this plan's row in `plans/README.md` unless a
 > reviewer maintains it.
 >
 > **Drift check (run first)**:
 > `git diff --stat <planned-at SHA>..HEAD -- src/features/market-data/ src/domain/portfolioAnalytics.ts src/routes/InvestmentsAnalyticsTab.tsx src-tauri/src/lib.rs`
-> Coordinate with plans 067 + 069 (shared `useMarketRefresh.ts`); re-read excerpts first.
+> 069 + 067 are MERGED; re-read excerpts against current main first.
 
 ## Status
 - **Priority**: P2 (direction / feature)
-- **Effort**: M–L (gated on the spike; the analytics change is M; the data source is the risk)
-- **Risk**: MED–HIGH (depends on an external holdings/sector-weightings source)
-- **Depends on**: 069 (manual-classification protection) should land first so this doesn't
-  re-clobber user values; shared `useMarketRefresh.ts`
+- **Effort**: Tier 0 ~0.5–1d (no network); Tier 1 ~+1.5–2.5d (JSON enrichment, gated)
+- **Risk**: Tier 0 LOW; Tier 1 MED (external JSON source, feature-flagged + fallback)
+- **Depends on**: 069 (manual-lock) + 067 — both MERGED. Shared `useMarketRefresh.ts`.
 - **Category**: direction (feature) / dependencies (external data)
-- **Planned at**: commit `276de422`, 2026-06-25
+- **Planned at**: commit `276de422`; Phase 0 done + signed off 2026-06-25 (doc 9db191a2)
 
 ## Why this matters
 Operator wants the portfolio broken down on **two dimensions**, both reflecting an ETF's
@@ -58,51 +57,49 @@ understating real exposure on both axes.
   concept today of one asset spanning MULTIPLE sectors by weight.
 - `PortfolioAsset` has `assetType: "etf"`, `sector`, `industry` (single values).
 
-## Phase 0 — SPIKE (REQUIRED; hard STOP gate)
-**The feature hinges on a fetchable ETF sector-weightings source.** Investigate + write
-`docs/etf-sector-plan.md`, then STOP for operator sign-off.
+## Phase 0 — SPIKE: DONE (verdict in `docs/etf-sector-plan.md`)
+Findings (commit 9db191a2): Yahoo `topHoldings` = **blocked** (429 + needs cookie/crumb the
+locked `fetch_yahoo` lacks). TWSE/TPEx/data.gov.tw = **no ETF holdings/PCF feed exists**
+(143 OpenAPI paths, none carry constituents; issuer sites are SPAs). Yahoo TW
+`tw.stock.yahoo.com/quote/<sym>/holding` = server-renders the 行業比重 table (verified:
+0050.TW → 半導體 69.49%, 電子零組件 10.31%, … matches the screenshot) but **TW-listed ETFs
+only** and it's a consumer HTML page; a cleaner JSON endpoint hint exists
+(`/_td-stock/api/resource/StockServices.etfHolding` returned a structured 400, not HTML).
 
-1. **Find a source for ETF sector weightings (a list of `{ sector, weight }` per ETF).**
-   Evaluate, preferring stable/allowlistable:
-   - **Yahoo `quoteSummary` `topHoldings.sectorWeightings`** — re-assess whether it can be
-     fetched with the crumb+cookie flow (the provider abandoned it; confirm it's still
-     blocked or now workable). If workable, it's the cleanest (one provider, all markets).
-   - **Taiwan-specific (for TW ETFs):** TWSE/TPEx or the fund houses publish ETF
-     **portfolio composition (PCF) / holdings**; data.gov.tw may host a dataset. From
-     per-holding industry (you already classify TW stocks via TWSE open data — plan's
-     TaiwanMarketDataProvider) you can DERIVE sector weights. Capture the URL + format.
-   - **Yahoo TW site 行業比重** (the screenshot source) — HTML; only if it has a stable,
-     allowlistable, parseable structure (last resort; scraping is fragile).
-2. Confirm the source is allowlistable (fixed host+path) and the response is parseable.
-3. **Country/region — capture from the SAME probe.** For each source you evaluate, also
-   record whether it yields per-holding **country/region** (Yahoo `topHoldings` carries no
-   country, but the underlying-holdings list does — each constituent's listing country is
-   known). Confirm the **local derivation** for *direct* holdings: a function mapping
-   ticker-suffix/market → country (`.TW`/`.TWO`→TW, `.T`→JP, `.HK`→HK, `.L`→GB, US→US, …)
-   with currency as a fallback. ETFs derive country from their holdings (same data as
-   sector); direct holdings need no fetch.
-4. Decide the **analytics model** (see Decision) and the **fallback** for ETFs the source
-   doesn't cover — for BOTH sector and country.
+## DECISIONS LOCKED (operator signed off — build to these)
+- **Source policy = JSON-API-only enrichment, NO HTML scraping.** Base layer never touches
+  the network. The ONLY permitted enrichment source is the Yahoo TW **JSON** endpoint
+  (`/_td-stock/api/resource/StockServices.etfHolding` or whatever the Phase-1 confirmation
+  finds) — **HTML scraping of `tw.stock.yahoo.com/quote/.../holding` is OUT OF SCOPE / forbidden.**
+- **Refresh cadence = weekly background refresh** for the enrichment cache (NOT the daily
+  price path; on-demand also allowed when stale).
+- **A — analytics model:** assign each ETF to a single 「ETF / 基金」 **bucket by default**;
+  use a **weighted multi-bucket split** (position value × weight, renormalized with an
+  「其他」 remainder) ONLY when trustworthy weights exist for that ETF. Pure attribution
+  layer — must NOT touch valuation/returns; **Σ buckets = portfolio value** per dimension.
+  Reject assign-to-largest.
+- **B — storage:** optional per-ETF cache in local SQLite keyed by `ticker + asOf`, holding
+  BOTH `sectorWeights` and (if available) `countryWeights`; honors the plan-069 manual lock;
+  weekly/stale background refresh, off the daily price path.
+- **C — coverage + fallback:** TW-listed ETFs may get enrichment; US/intl ETFs + any
+  fetch/parse failure fall back to the 「ETF / 基金」 bucket + a manual dominant-sector/region
+  tag (reusing the 069 lock). Precedence: **manual > fetched > bucket**. Never 未知 / 未知國家.
+- **D — country/region:** v1 = **direct holdings by listing country, derived locally
+  (no fetch)** via a ticker-suffix/market→country map (`.TW`/`.TWO`→TW, `.T`→JP, `.HK`→HK,
+  `.L`→GB, no-suffix US→US, …) + currency tiebreak; **ETF country** comes from the same JSON
+  enrichment as sector IF that payload carries region data (confirm in the Phase-1 spike),
+  else fallback per C. Display **individual countries** first; region grouping (北美/亞太/
+  歐洲) is a later cosmetic layer.
 
-**STOP (fall back) if** no stable, allowlistable source exists. Then do NOT scrape
-fragile HTML; recommend the lighter fallback: stop showing ETFs as 未知 by giving them an
-「ETF / 基金」 bucket in the breakdown (a one-category improvement), and/or let the user
-manually tag an ETF's dominant sector (reuses 069's manual-classification path). Report this.
-
-## Decision gate (Phase 0 outputs; operator signs off)
-- **A — analytics model (applies to BOTH sector and country):** an ETF contributes its
-  market value **split across buckets by weight** (a holding → many `{bucket, weightedValue}`
-  rows), vs. the simpler v1 "assign the ETF to its single largest bucket." Recommend:
-  split-by-weight if the source gives weights cleanly; else largest-bucket or an 「ETF」 bucket.
-- **B — storage:** where per-ETF sector weights AND per-ETF country weights live (a new
-  synced table/blob keyed by ETF symbol, refreshed like quotes), and the cadence. Direct
-  holdings need no storage for country (derived on the fly from the ticker/market).
-- **C — coverage + fallback:** ETFs the source misses fall back to 069's manual tag / an
-  「ETF」 bucket — never silently 未知 / 未知國家.
-- **D — country dimension scope:** confirm v1 = direct holdings by listing country (local,
-  no fetch) + ETF holdings by country (from the same source as sector); a country whose
-  source is missing for an ETF falls back like C. Region grouping (e.g. 北美/亞太/歐洲) vs.
-  individual countries — recommend which granularity to display first.
+**Tiering (ship order):**
+- **Tier 0 — no network, ship first:** 「ETF / 基金」 bucket + manual tag, AND the
+  direct-holding **country** breakdown (local map). Kills 未知 on both dimensions with zero
+  network surface.
+- **Tier 1 — JSON-API enrichment, gated:** start with a ~1h confirmation that the Yahoo TW
+  **JSON** endpoint works **unattended** (right params/headers, parseable, allowlistable as
+  a fixed host+path). **If it can't be made to work unattended without scraping HTML →
+  STOP Tier 1, ship Tier 0 only, report.** If it works: feature-flagged provider, weekly
+  background cache, weighted split per A, allowlist arm for the JSON path.
 
 ## Decision compatibility & sequencing (A+B+C+D compose — no conflict)
 A/B/C/D are **orthogonal layers of one feature**, not competing options: A = how value is
@@ -134,55 +131,81 @@ The spike (Phase 0) should confirm this split and size each tier separately.
 | Rust | `npm run check:tauri` | exit 0 |
 
 ## Scope
-**Phase 1 (after the gate) — In scope:**
-- `src-tauri/src/lib.rs` — IF a non-Yahoo source: one tight allowlist arm (and vite proxy
-  parity, as plan 066 did). IF Yahoo quoteSummary: no native change (path already allowed).
-- `src/features/market-data/` — the ETF sector-weightings fetch + parse (a provider method
-  or a small module) + a pure parse test.
-- A store for per-ETF sector weights **and per-ETF country weights** + refresh wiring in
-  `useMarketRefresh.ts`.
-- A small pure helper mapping ticker-suffix/market → country (for direct holdings), with a
-  unit test. (No fetch; reused by the country breakdown.)
-- `src/domain/portfolioAnalytics.ts` (+ the analytics tab) — fold ETF sector weights AND a
-  country/region breakdown (direct-holding country + ETF country weights) into the
-  analytics per Decision A (the real analytics change; keep both dimensions tested).
-**Out of scope:**
-- Single-stock classification (unchanged).
-- `valuation.ts` / cost-basis / returns math — the breakdown is a presentation/allocation
-  layer; don't change how value is computed, only how it's attributed to sectors.
-- Overwriting a user's manual classification (plan 069 guards that).
+**Tier 0 (no network — build first) — In scope:**
+- `src/domain/` — a pure helper mapping ticker-suffix/market → country (`.TW`/`.TWO`→TW,
+  `.T`→JP, `.HK`→HK, `.L`→GB, no-suffix US→US, …; currency tiebreak) + a unit test.
+- `src/domain/portfolioAnalytics.ts` (+ analytics tab `InvestmentsAnalyticsTab.tsx`) — a
+  **country/region breakdown** of direct holdings (local map) AND give ETFs an 「ETF / 基金」
+  bucket on the **sector** breakdown instead of 未知. Keep both dimensions tested (Σ=total).
+- Manual dominant-sector / region **tag** for an ETF, reusing the plan-069
+  `classificationLocked` lock (precedence manual > fetched > bucket).
+- Bucket label wording via `copy.csv` (round-trip per repo convention) — don't hand-edit .tsx.
+
+**Tier 1 (JSON-API enrichment — ONLY if the 1h confirmation passes) — In scope:**
+- A ~1h confirmation that the Yahoo TW **JSON** endpoint
+  (`/_td-stock/api/resource/StockServices.etfHolding`, or the real one) returns parseable
+  ETF sector (and ideally region) weights **unattended** (correct params/headers, no login).
+  **If it needs HTML scraping or a browser to work → STOP Tier 1.**
+- `src-tauri/src/lib.rs` — ONE tight allowlist arm for that JSON **host+path** (e.g.
+  `tw.stock.yahoo.com` + the exact `/_td-stock/api/...` path), + vite-proxy parity (as 066).
+  **Do NOT allowlist the `/quote/.../holding` HTML page.**
+- `src/features/market-data/etfSectorYahooTw.ts` (new) — fetch + parse + map Yahoo-TW sector
+  labels onto the existing TWSE taxonomy (`sectorLabels.ts`) + renormalize with an 「其他」
+  remainder; a pure parse test off a captured JSON sample.
+- A per-ETF cache (local SQLite, key `ticker+asOf`, `sectorWeights` + optional
+  `countryWeights`) + **weekly/stale background** refresh wiring (NOT the daily price path);
+  honors the 069 lock.
+- Fold the weighted split into the analytics per Decision A (weighted multi-bucket only when
+  trustworthy weights exist; else the 「ETF」 bucket). Σ-invariant tests.
+
+**Out of scope (hard):**
+- **HTML scraping** of any consumer page (forbidden per operator decision).
+- US/intl ETF holdings (no source — manual tag only).
+- Single-stock classification; `valuation.ts` / cost-basis / returns math (attribution
+  layer only — never change how value is computed).
+- Overwriting a user's manual classification/tag (069 guards it).
 
 ## Git workflow
-- Branch from current main (post-069): `git checkout -B advisor/068-etf-sector-breakdown main`.
-- Commit the Phase-0 doc separately. Do NOT push/PR.
+- Branch from current main: `git checkout -B advisor/068-etf-sector-breakdown main`.
+- Short imperative commits (Tier 0 and Tier 1 may be separate commits). Do NOT push/PR.
 
 ## Steps
-### Step 0 (spike gate): source feasibility + design note → `docs/etf-sector-plan.md`; STOP for sign-off.
-### Step 1: fetch + store ETF sector weights (per the confirmed source) + a pure parse test.
-### Step 2: fold weights into the sector breakdown (Decision A) in `portfolioAnalytics.ts`
-+ the analytics tab; ETFs without weights use the fallback (never 未知).
-### Step 3: full verification — tsc 0; `npm test` all pass; lint 0 errors; build 0; check:tauri 0.
+### Step 1 (Tier 0): country helper + tests → tsc 0.
+### Step 2 (Tier 0): country/region breakdown (direct holdings) + ETF 「ETF/基金」 bucket on
+the sector breakdown in `portfolioAnalytics.ts` + the analytics tab; manual tag via 069 lock;
+labels via copy.csv. Σ=total tests per dimension. Verify: tsc 0; `npm test` pass.
+### Step 3 (Tier 1 gate): ~1h confirmation the Yahoo-TW JSON endpoint works unattended.
+**If it can't without HTML scraping → STOP, ship Tier 0, report.**
+### Step 4 (Tier 1, only if Step 3 passes): allowlist arm (JSON path) + vite parity →
+`check:tauri` 0; `etfSectorYahooTw.ts` provider + parse test; per-ETF cache + weekly bg
+refresh; weighted split per A. Verify: tsc 0; parse test; check:tauri 0.
+### Step 5: full verification — tsc 0; `npm test` all pass; lint 0 errors; build 0; check:tauri 0.
 
 ## Test plan
-- Pure parse test for the chosen source → `{ sector, weight }[]` for an ETF.
-- `portfolioAnalytics` test: a portfolio with one ETF (known weights) attributes its value
-  across the right sectors (split-by-weight), and the totals still sum to the portfolio
-  value (no double-count). An ETF without weights lands in the fallback bucket, not 未知.
-- Existing analytics tests stay green.
+- Country helper: `2330.TW`→TW, `AAPL`→US, `7203.T`→JP, `0700.HK`→HK; currency tiebreak.
+- `portfolioAnalytics` country test: a mixed portfolio attributes each direct holding to its
+  country; Σ countries = portfolio value.
+- `portfolioAnalytics` sector test: ETFs without weights land in 「ETF/基金」 (not 未知);
+  Σ sectors = portfolio value.
+- (Tier 1) parse test for the JSON payload → `{sector, weight}[]`; weighted-split test:
+  an ETF with known weights splits across buckets + an 「其他」 remainder; Σ = position value.
+- Manual tag beats fetched beats bucket. Existing analytics tests stay green.
 
 ## Done criteria
-- [ ] `docs/etf-sector-plan.md` records the source + Decisions A/B/C (or the STOP/fallback)
-- [ ] (if built) ETFs contribute to the sector breakdown by their holdings' weights (or the
-      agreed v1 model); no ETF shows as 未知 (fallback bucket at worst)
-- [ ] Sector weights stored + refreshed; allowlist (if any) tight; valuation/returns math unchanged
+- [ ] (Tier 0) Direct holdings show a country/region breakdown (local, no fetch); no ETF
+      shows 未知 on either dimension (「ETF/基金」 bucket + manual tag at worst)
+- [ ] (Tier 1, if Step 3 passed) TW ETFs auto-fill sector (+region if available) from the
+      JSON endpoint; weekly background cache; manual > fetched > bucket precedence
+- [ ] NO HTML scraping anywhere; any allowlist arm is a tight JSON host+path; vite parity
+- [ ] valuation/returns math unchanged; Σ buckets = portfolio value per dimension
 - [ ] tsc 0; `npm test` all pass; lint 0 errors; build 0; check:tauri 0
 - [ ] `plans/README.md` row updated
 
 ## STOP conditions
-- No stable, allowlistable ETF sector-weightings source (or scraping-only/ToS-blocked) —
-  STOP; recommend the 「ETF」-bucket + manual-tag fallback (don't ship a brittle scraper).
-- The analytics change requires touching valuation/returns math — it must not; stop.
-- Operator hasn't signed off on Phase 0 — do not build Phase 1.
+- The Yahoo-TW JSON endpoint can't be made to work unattended without HTML scraping or a
+  browser/login — STOP Tier 1, ship Tier 0 only, report (do NOT fall back to scraping).
+- The analytics change would require touching valuation/returns math — it must not; stop.
+- Adding the allowlist arm isn't a clean tight host+path (like the existing entries) — report.
 
 ## Maintenance notes
 - The external source is the fragile part — document the exact URL/format; the abstraction
