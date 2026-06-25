@@ -137,6 +137,7 @@ fn is_allowed_market_data_url(url: &url::Url) -> bool {
         Some("mopsfin.twse.com.tw") => {
             url.path() == "/opendata/t187ap03_L.csv" || url.path() == "/opendata/t187ap03_O.csv"
         }
+        Some("www.sitca.org.tw") => url.path() == "/MemberK0000/F/03/nav.csv",
         _ => false,
     }
 }
