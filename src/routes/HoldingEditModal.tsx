@@ -50,7 +50,8 @@ export function HoldingEditModal({
   );
   const updateClassification = useRepositoryMutation(
     (repository, input: { id: string; assetType: AssetType | null; sector: string | null; industry: string | null }) =>
-      repository.updateAssetClassification(input.id, { assetType: input.assetType, sector: input.sector, industry: input.industry }),
+      // User-driven edit: lock the classification so 回補分類 won't overwrite it.
+      repository.updateAssetClassification(input.id, { assetType: input.assetType, sector: input.sector, industry: input.industry, lockClassification: true }),
     ["assets"],
   );
   const createSnapshot = useRepositoryMutation(

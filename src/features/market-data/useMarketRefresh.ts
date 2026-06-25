@@ -139,6 +139,11 @@ export function useBackfillAssetProfiles() {
       const assets = await repository.listPortfolioAssets();
       const candidates = assets.filter((asset) => {
         if (!asset.ticker.trim()) return false;
+        // A user who hand-edited the classification owns it — backfill never
+        // overwrites a locked row, not even under `force`. (`force` only widens
+        // the re-qualify net for UNlocked rows; it is not a re-classify-locked
+        // override.)
+        if (asset.classificationLocked) return false;
         const ticker = asset.ticker.trim().toUpperCase();
         const taiwanNeedsProfile = isTaiwanTicker(ticker) && (!asset.nameZh || !asset.industry || !asset.sector);
         // Equities anywhere (not just TW) re-qualify while sector/industry are

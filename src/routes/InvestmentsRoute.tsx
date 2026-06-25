@@ -221,6 +221,8 @@ export function InvestmentsRoute() {
     // gate reported「沒有需要回補」even when sector/industry were missing.
     const candidates = assetRows.filter((asset) => {
       if (!asset.ticker.trim()) return false;
+      // User-locked rows are excluded from backfill — keep this count honest.
+      if (asset.classificationLocked) return false;
       if (!asset.assetType) return true;
       return asset.assetType === "equity" && (!asset.sector || !asset.industry);
     });
@@ -1049,7 +1051,9 @@ function HoldingsTab({
     ["assets"],
   );
   const updateClassification = useRepositoryMutation(
-    (repository, input: Pick<PortfolioAssetDraft, "assetType" | "sector" | "industry"> & { id: string }) => repository.updateAssetClassification(input.id, input),
+    (repository, input: Pick<PortfolioAssetDraft, "assetType" | "sector" | "industry"> & { id: string }) =>
+      // User-driven edit: lock the classification so 回補分類 won't overwrite it.
+      repository.updateAssetClassification(input.id, { ...input, lockClassification: true }),
     ["assets"],
   );
   const createSnapshot = useRepositoryMutation(
