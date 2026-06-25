@@ -61,6 +61,11 @@ export function HoldingEditModal({
     (repository, id: string) => repository.deleteManualPriceSnapshot(id),
     ["assets", "manualPriceSnapshots", "investments", "dailyPrices"],
   );
+  const deleteHolding = useRepositoryMutation(
+    (repository, id: string) => repository.deleteManualHolding(id),
+    ["assets"],
+  );
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     if (editingAsset) {
@@ -82,6 +87,7 @@ export function HoldingEditModal({
       setSnapshotNote("");
       setSnapshotMessage("");
       setPricePage(1);
+      setConfirmDelete(false);
     } else {
       setEditForm(null);
     }
@@ -113,6 +119,19 @@ export function HoldingEditModal({
       onClose();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "儲存失敗。");
+    }
+  }
+
+  async function submitDelete() {
+    if (!editingAsset) return;
+    setMessage("");
+    try {
+      await deleteHolding.mutateAsync(editingAsset.id);
+      setConfirmDelete(false);
+      onClose();
+    } catch (error) {
+      setConfirmDelete(false);
+      setMessage(error instanceof Error ? error.message : "持倉刪除失敗。");
     }
   }
 
@@ -165,6 +184,42 @@ export function HoldingEditModal({
             classificationOnly={editingAsset.holdingSource !== "manual"}
           />
           {message ? <div className="mt-3"><StatusText>{message}</StatusText></div> : null}
+
+          {editingAsset.holdingSource === "manual" ? (
+            <div className="mt-4 flex items-center gap-3">
+              {confirmDelete ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void submitDelete()}
+                    disabled={deleteHolding.isPending}
+                    className="rounded-md px-3 py-2 text-sm font-semibold text-white outline-none transition hover:opacity-90 disabled:opacity-60"
+                    style={{ background: "var(--ns-neg)" }}
+                  >
+                    {deleteHolding.isPending ? "刪除中…" : "確認刪除"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(false)}
+                    disabled={deleteHolding.isPending}
+                    className="text-sm outline-none transition hover:opacity-70"
+                    style={{ color: "var(--ns-muted)" }}
+                  >
+                    取消
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  className="rounded-md px-3 py-2 text-sm font-semibold outline-none transition hover:opacity-80"
+                  style={{ color: "var(--ns-neg)", border: "1px solid var(--ns-neg)" }}
+                >
+                  刪除持倉
+                </button>
+              )}
+            </div>
+          ) : null}
 
           {(editingAsset.holdingSource === "manual" || hasYahoo) ? (
             <div className="mt-6 border-t pt-5" style={{ borderColor: "var(--ns-border)" }}>
