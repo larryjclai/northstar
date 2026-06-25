@@ -104,6 +104,26 @@ manually tag an ETF's dominant sector (reuses 069's manual-classification path).
   source is missing for an ETF falls back like C. Region grouping (e.g. 北美/亞太/歐洲) vs.
   individual countries — recommend which granularity to display first.
 
+## Decision compatibility & sequencing (A+B+C+D compose — no conflict)
+A/B/C/D are **orthogonal layers of one feature**, not competing options: A = how value is
+attributed (model), B = where weights are stored, C = missing-data fallback, D = the country
+dimension. They stack (A needs B's stored weights + C's fallback; D reuses A's model). Two
+correctness rules the build must hold:
+- **Each dimension independently sums to the portfolio value.** Sector sums = country sums =
+  total. A holding appearing in both "半導體" and "台灣" is correct, not double-counting —
+  test each dimension separately.
+- **Symmetric direct-vs-ETF split.** Direct stocks already have a sector (classification) and
+  a *locally derivable* country (ticker/market map, no fetch); only ETFs need the holdings
+  source, and that one fetch feeds BOTH dimensions (B stores one ETF→{sectorWeights,
+  countryWeights} record).
+
+**Ship in two tiers** (this is the only sequencing nuance):
+- **Tier 1 — zero external dependency, ships regardless of the spike:** direct-holding
+  **country** breakdown (local ticker/market→country map). Direct-holding sector already works.
+- **Tier 2 — gated on the Phase-0 spike:** ETF sector + ETF country weights (same holdings
+  source). If no source, Tier 2 degrades to C's 「ETF」 bucket / manual tag while Tier 1 still ships.
+The spike (Phase 0) should confirm this split and size each tier separately.
+
 ## Commands you will need
 | Purpose | Command | Expected |
 |---|---|---|
