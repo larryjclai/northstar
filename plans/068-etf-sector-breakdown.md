@@ -12,6 +12,13 @@
 > 069 + 067 are MERGED; re-read excerpts against current main first.
 
 ## Status
+- **EXECUTED 2026-06-25**: **Tier 0 SHIPPED**; **Tier 1 STOPPED at the gate** (Step 3/5).
+  The Yahoo TW `StockServices.etfHolding` JSON resource returns `{"message":"request
+  failed"}` HTTP 400 to every unattended GET (tested with/without cookies, referer,
+  X-Requested-With, crumb; param names symbol/symbols/key/id/ric/stockId + region/lang/
+  bkt/device). The 行業比重 data (`investIndustryWeights.detail[]`, e.g. `TWSE-24` 半導體業
+  69.x%) exists ONLY inside the server-rendered HTML of `/quote/<sym>/holding` — extracting
+  it is forbidden HTML scraping. STOP condition met → shipped Tier 0 only, no lib.rs change.
 - **Priority**: P2 (direction / feature)
 - **Effort**: Tier 0 ~0.5–1d (no network); Tier 1 ~+1.5–2.5d (JSON enrichment, gated)
 - **Risk**: Tier 0 LOW; Tier 1 MED (external JSON source, feature-flagged + fallback)
