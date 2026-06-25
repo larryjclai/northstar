@@ -2,8 +2,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { isDemoMode } from "../../data/demoData";
 import { queryKeys } from "../../data/hooks";
 import { getFinanceRepository } from "../../data/repositories";
-import { expandMarketDataSymbols } from "../../domain/marketSymbols";
+import { expandMarketDataSymbols, normalizeMarketSymbol } from "../../domain/marketSymbols";
 import type { DailyFxRate, DailyPrice } from "../../domain/types";
+import type { MarketQuote } from "./provider";
+import { SITCA_TICKER_PREFIX, SitcaFundProvider } from "./sitcaFundProvider";
 import { TaiwanMarketDataProvider } from "./taiwanMarketDataProvider";
 import { YahooFinanceProvider } from "./yahooFinanceProvider";
 
@@ -11,6 +13,61 @@ import { YahooFinanceProvider } from "./yahooFinanceProvider";
 // so letting live quotes in would show absurd P&L. Every refresh path must
 // bail while the demo flag is set; call sites show DEMO_MARKET_MESSAGE.
 export const DEMO_MARKET_MESSAGE = "示範模式使用內建行情，已略過線上更新。";
+
+// Taiwan domestic mutual funds carry a `SITCA:<基金代號>` ticker and price off
+// the SITCA NAV CSV, not Yahoo. Everything else (stocks/ETFs incl. .TW/.TWO/US)
+// stays on Yahoo. This split keeps each provider on the symbols it can answer.
+function isSitcaFundSymbol(symbol: string): boolean {
+  return normalizeMarketSymbol(symbol).startsWith(SITCA_TICKER_PREFIX);
+}
+
+/**
+ * Fetch quotes for a mixed symbol list, routing SITCA fund tickers to the SITCA
+ * NAV provider and the rest to Yahoo. Returns the merged quotes tagged with the
+ * source each came from, so callers persist NAVs under "SITCA" and the rest
+ * under Yahoo's source name.
+ */
+async function fetchQuotesByProvider(
+  symbols: string[],
+): Promise<Array<{ quote: MarketQuote; source: string }>> {
+  const yahoo = new YahooFinanceProvider();
+  const sitca = new SitcaFundProvider();
+
+  const fundSymbols = symbols.filter(isSitcaFundSymbol);
+  const marketSymbols = expandMarketDataSymbols(symbols.filter((symbol) => !isSitcaFundSymbol(symbol)));
+
+  const [yahooQuotes, sitcaQuotes] = await Promise.all([
+    marketSymbols.length
+      ? yahoo.fetchQuotes(marketSymbols)
+      : Promise.resolve({} as Record<string, MarketQuote>),
+    fundSymbols.length
+      ? sitca.fetchQuotes(fundSymbols).catch((error) => {
+          console.warn("[market] unable to fetch SITCA fund NAVs", error);
+          return {} as Record<string, MarketQuote>;
+        })
+      : Promise.resolve({} as Record<string, MarketQuote>),
+  ]);
+
+  return [
+    ...Object.values(yahooQuotes).map((quote) => ({ quote, source: yahoo.sourceName })),
+    ...Object.values(sitcaQuotes).map((quote) => ({ quote, source: sitca.sourceName })),
+  ];
+}
+
+async function saveQuotesByProvider(
+  repository: Awaited<ReturnType<typeof getFinanceRepository>>,
+  tagged: Array<{ quote: MarketQuote; source: string }>,
+): Promise<void> {
+  const bySource = new Map<string, MarketQuote[]>();
+  for (const { quote, source } of tagged) {
+    const list = bySource.get(source) ?? [];
+    list.push(quote);
+    bySource.set(source, list);
+  }
+  for (const [source, quotes] of bySource) {
+    if (quotes.length) await repository.saveMarketQuotes(quotes, source);
+  }
+}
 
 export async function refreshLatestMarketData() {
   if (isDemoMode()) return { quotes: 0, fxRates: 0 };
@@ -20,10 +77,10 @@ export async function refreshLatestMarketData() {
     repository.listPortfolioAssets(),
     repository.getAppSettings(),
   ]);
-  const symbols = expandMarketDataSymbols(assets.map((asset) => asset.ticker));
-  const quotesBySymbol = symbols.length ? await provider.fetchQuotes(symbols) : {};
-  const quotes = Object.values(quotesBySymbol);
-  if (quotes.length) await repository.saveMarketQuotes(quotes, provider.sourceName);
+  const tickers = assets.map((asset) => asset.ticker).filter(Boolean);
+  const tagged = tickers.length ? await fetchQuotesByProvider(tickers) : [];
+  await saveQuotesByProvider(repository, tagged);
+  const quotes = tagged.map((item) => item.quote);
 
   const updatedAt = new Date().toISOString();
   const dailyRates: DailyFxRate[] = [];
@@ -54,13 +111,11 @@ export function useRefreshQuotes() {
   return useMutation({
     mutationFn: async (symbols: string[]) => {
       if (isDemoMode()) throw new Error(DEMO_MARKET_MESSAGE);
-      const provider = new YahooFinanceProvider();
       const repository = await getFinanceRepository();
-      const quotesBySymbol = await provider.fetchQuotes(expandMarketDataSymbols(symbols));
-      const quotes = Object.values(quotesBySymbol);
-      if (quotes.length === 0) throw new Error("報價來源暫時限制更新，請稍後再試。既有快取仍會保留。");
-      await repository.saveMarketQuotes(quotes, provider.sourceName);
-      return quotes;
+      const tagged = await fetchQuotesByProvider(symbols);
+      if (tagged.length === 0) throw new Error("報價來源暫時限制更新，請稍後再試。既有快取仍會保留。");
+      await saveQuotesByProvider(repository, tagged);
+      return tagged.map((item) => item.quote);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.quotes });

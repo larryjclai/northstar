@@ -129,6 +129,7 @@ function isAllowedMarketDataUrl(url: URL) {
   if (url.hostname === "openapi.twse.com.tw") return url.pathname.startsWith("/v1/opendata/t187ap03_L");
   if (url.hostname === "www.tpex.org.tw") return url.pathname.startsWith("/openapi/v1/mopsfin_t187ap03_O");
   if (url.hostname === "mopsfin.twse.com.tw") return url.pathname === "/opendata/t187ap03_L.csv" || url.pathname === "/opendata/t187ap03_O.csv";
+  if (url.hostname === "www.sitca.org.tw") return url.pathname === "/MemberK0000/F/03/nav.csv";
   return false;
 }
 
