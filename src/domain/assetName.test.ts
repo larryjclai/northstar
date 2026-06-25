@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveAssetName } from "./assetName";
+import { hasChineseName, resolveAssetName } from "./assetName";
 
 const asset = {
   ticker: "2330.TW",
@@ -38,5 +38,21 @@ describe("resolveAssetName", () => {
 
   it("returns empty string for null asset", () => {
     expect(resolveAssetName(null, "auto")).toBe("");
+  });
+});
+
+describe("hasChineseName", () => {
+  it("returns true for a Chinese name", () => {
+    expect(hasChineseName("台積電")).toBe(true);
+  });
+
+  it("returns false for an English name", () => {
+    expect(hasChineseName("Taiwan Semiconductor")).toBe(false);
+  });
+
+  it("returns false for empty / null / undefined", () => {
+    expect(hasChineseName("")).toBe(false);
+    expect(hasChineseName(null)).toBe(false);
+    expect(hasChineseName(undefined)).toBe(false);
   });
 });

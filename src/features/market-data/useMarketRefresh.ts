@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { isDemoMode } from "../../data/demoData";
 import { queryKeys } from "../../data/hooks";
 import { getFinanceRepository } from "../../data/repositories";
+import { hasChineseName } from "../../domain/assetName";
 import { expandMarketDataSymbols, normalizeMarketSymbol } from "../../domain/marketSymbols";
 import type { DailyFxRate, DailyPrice } from "../../domain/types";
 import type { MarketQuote } from "./provider";
@@ -145,7 +146,7 @@ export function useBackfillAssetProfiles() {
         // override.)
         if (asset.classificationLocked) return false;
         const ticker = asset.ticker.trim().toUpperCase();
-        const taiwanNeedsProfile = isTaiwanTicker(ticker) && (!asset.nameZh || !asset.industry || !asset.sector);
+        const taiwanNeedsProfile = isTaiwanTicker(ticker) && (!hasChineseName(asset.nameZh) || !asset.industry || !asset.sector);
         // Equities anywhere (not just TW) re-qualify while sector/industry are
         // missing — Yahoo's profile fetch was crumb-broken for a long time, so
         // many rows have assetType but no classification.
