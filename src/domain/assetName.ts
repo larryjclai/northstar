@@ -3,6 +3,16 @@ import type { PortfolioAsset } from "./types";
 export type NameLocalePreference = "auto" | "zh-Hant" | "en";
 
 /**
+ * True iff the string contains at least one CJK (Chinese) character. Used to
+ * tell a real Chinese name (e.g. `台積電`) apart from an English value that a
+ * provider stored in `nameZh` (e.g. Yahoo returns the English name in the
+ * zh-Hant locale for many TW tickers).
+ */
+export function hasChineseName(name: string | null | undefined): boolean {
+  return !!name && /[一-鿿]/.test(name);
+}
+
+/**
  * Pick the asset display name following the user's locale preference.
  *
  * - `zh-Hant`: prefer `nameZh`, fall back to `name`, then `nameEn`.
