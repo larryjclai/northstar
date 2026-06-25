@@ -165,6 +165,14 @@ export interface PortfolioAsset extends SyncFields {
   sector: string | null;
   industry: string | null;
   /**
+   * Set true when the user hand-edits the classification (類型/產業/行業) in the
+   * holding edit modal. The 回補分類 (backfill) action skips locked rows so it
+   * never overwrites a manual classification. Absent/false ⇒ unlocked (the
+   * default; auto-backfill may classify it). Optional for backward-compat:
+   * pre-existing rows load unlocked.
+   */
+  classificationLocked?: boolean;
+  /**
    * Brokerage / custodian that holds this asset.
    *
    * - For `holdingSource = "manual"` rows this is the snapshot owner; one

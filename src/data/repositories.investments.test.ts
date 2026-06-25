@@ -624,3 +624,111 @@ describe("same-ticker holding identity (Plan 058)", () => {
   });
 });
 
+describe("classification lock — 回補分類 must not overwrite user edits (Plan 069)", () => {
+  const snapshot: PortfolioAssetDraft = {
+    ticker: "VOO",
+    name: "Vanguard S&P 500",
+    currency: "USD",
+    totalQuantity: 10,
+    averageCost: 400,
+    acquisitionDate: "2026-01-02",
+    accountId: "acct_broker",
+  };
+
+  // Mirrors the candidate predicate in useBackfillAssetProfiles — the lock is
+  // respected by EXCLUDING locked rows from the candidate list (force included).
+  function isBackfillCandidate(asset: PortfolioAsset, force = false): boolean {
+    if (!asset.ticker.trim()) return false;
+    if (asset.classificationLocked) return false;
+    // (TW-name backfill branch omitted — these fixtures use a non-TW ticker.)
+    const equityNeedsSector = asset.assetType === "equity" && (!asset.sector || !asset.industry);
+    return force || !asset.assetType || equityNeedsSector;
+  }
+
+  it("a manual classification edit locks the asset", async () => {
+    const repo = repository();
+    await repo.createManualHolding(snapshot);
+    const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
+    expect(asset.classificationLocked ?? false).toBe(false);
+
+    await repo.updateAssetClassification(asset.id, {
+      assetType: "etf",
+      sector: "User Sector",
+      industry: "User Industry",
+      lockClassification: true,
+    });
+
+    const [locked] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
+    expect(locked.classificationLocked).toBe(true);
+    expect(locked.assetType).toBe("etf");
+    expect(locked.sector).toBe("User Sector");
+    expect(locked.industry).toBe("User Industry");
+  });
+
+  it("a backfill-style call (no signal) does NOT overwrite a locked asset because it is excluded from candidates", async () => {
+    const repo = repository();
+    await repo.createManualHolding(snapshot);
+    const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
+    await repo.updateAssetClassification(asset.id, {
+      assetType: "equity",
+      sector: "User Sector",
+      industry: "User Industry",
+      lockClassification: true,
+    });
+
+    const [locked] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
+    // Excluded from the candidate list even under force — backfill never runs on it.
+    expect(isBackfillCandidate(locked)).toBe(false);
+    expect(isBackfillCandidate(locked, true)).toBe(false);
+
+    // And even IF the auto-classify path called updateAssetClassification without
+    // the manual signal, the lock survives (no-signal preserves the lock).
+    await repo.updateAssetClassification(locked.id, {
+      assetType: "etf",
+      sector: "Auto Sector",
+      industry: "Auto Industry",
+    });
+    const [after] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
+    expect(after.classificationLocked).toBe(true);
+  });
+
+  it("an unlocked asset still auto-classifies (no-signal call updates fields, stays unlocked)", async () => {
+    const repo = repository();
+    await repo.createManualHolding({ ...snapshot, assetType: undefined, sector: undefined, industry: undefined });
+    const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
+    expect(asset.classificationLocked ?? false).toBe(false);
+    expect(isBackfillCandidate(asset)).toBe(true);
+
+    await repo.updateAssetClassification(asset.id, {
+      assetType: "equity",
+      sector: "Auto Sector",
+      industry: "Auto Industry",
+    });
+
+    const [classified] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
+    expect(classified.assetType).toBe("equity");
+    expect(classified.sector).toBe("Auto Sector");
+    expect(classified.industry).toBe("Auto Industry");
+    expect(classified.classificationLocked ?? false).toBe(false);
+  });
+
+  it("classificationLocked survives export → import", async () => {
+    const repo = repository();
+    await repo.createManualHolding(snapshot);
+    const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
+    await repo.updateAssetClassification(asset.id, {
+      assetType: "etf",
+      sector: "User Sector",
+      industry: "User Industry",
+      lockClassification: true,
+    });
+
+    const exported = await repo.exportSnapshot();
+    const repo2 = createMemoryFinanceRepositoryForTests();
+    await repo2.importSnapshot(exported);
+
+    const [reimported] = (await repo2.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
+    expect(reimported.classificationLocked).toBe(true);
+  });
+});
+

@@ -190,6 +190,13 @@ export interface PortfolioAssetDraft {
 type AssetClassificationInput = Pick<PortfolioAssetDraft, "assetType" | "sector" | "industry"> & {
   nameZh?: string | null;
   nameEn?: string | null;
+  /**
+   * Manual-lock signal. Set true only when the USER saves a classification by
+   * hand in the edit modal — it sets `classificationLocked` so 回補分類 skips the
+   * row. Omitted/false on auto-backfill calls, which then preserves whatever
+   * lock state the row already had.
+   */
+  lockClassification?: boolean;
 };
 
 export interface ManualPriceSnapshotDraft {
@@ -980,6 +987,9 @@ class BrowserFinanceRepository implements FinanceRepository {
             ...classification,
             nameZh: input.nameZh ?? asset.nameZh ?? null,
             nameEn: input.nameEn ?? asset.nameEn ?? null,
+            // Manual edits lock the row; auto-backfill (no signal) preserves the
+            // existing lock state so it never clears a user's lock.
+            classificationLocked: input.lockClassification ? true : (asset.classificationLocked ?? false),
           })
         : asset,
     );
@@ -2023,6 +2033,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("portfolio_assets", "sector", "text");
     await this.ensureSqliteColumn("portfolio_assets", "industry", "text");
     await this.ensureSqliteColumn("portfolio_assets", "base_quantity", "real");
+    await this.ensureSqliteColumn("portfolio_assets", "classification_locked", "integer not null default 0");
     await this.db.execute(
       `update portfolio_assets set base_quantity = total_quantity where holding_source = 'manual' and base_quantity is null`,
     );
@@ -2346,10 +2357,10 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async listPortfolioAssets() {
-    const rows = await this.db.select<PortfolioAsset[]>(`select
+    const rows = await this.db.select<Array<PortfolioAsset & { classificationLocked?: number | boolean | null }>>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       ticker, name, name_zh as nameZh, name_en as nameEn, currency, total_quantity as totalQuantity, average_cost as averageCost, holding_source as holdingSource, acquisition_date as acquisitionDate,
-      asset_type as assetType, sector, industry, account_id as accountId, base_quantity as baseQuantity
+      asset_type as assetType, sector, industry, account_id as accountId, base_quantity as baseQuantity, classification_locked as classificationLocked
       from portfolio_assets where deleted_at is null order by ticker`);
     return rows.map((row) => ({
       ...row,
@@ -2360,6 +2371,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       industry: row.industry ?? null,
       accountId: row.accountId ?? null,
       baseQuantity: row.baseQuantity ?? null,
+      classificationLocked: Boolean(row.classificationLocked),
     }));
   }
 
@@ -2396,12 +2408,15 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   override async updateAssetClassification(id: string, input: AssetClassificationInput) {
     const classification = assetClassificationFields(input);
+    // Manual edits set classification_locked = 1; auto-backfill (no signal)
+    // leaves the column untouched so it preserves any existing user lock.
     await this.db.execute(
       `update portfolio_assets
        set revision = revision + 1, updated_at = $1, asset_type = $2, sector = $3, industry = $4,
-           name_zh = coalesce($5, name_zh), name_en = coalesce($6, name_en)
-       where id = $7 and deleted_at is null`,
-      [nowIso(), classification.assetType, classification.sector, classification.industry, input.nameZh ?? null, input.nameEn ?? null, id],
+           name_zh = coalesce($5, name_zh), name_en = coalesce($6, name_en),
+           classification_locked = case when $7 = 1 then 1 else classification_locked end
+       where id = $8 and deleted_at is null`,
+      [nowIso(), classification.assetType, classification.sector, classification.industry, input.nameZh ?? null, input.nameEn ?? null, input.lockClassification ? 1 : 0, id],
     );
   }
 
@@ -3792,8 +3807,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   private async insertAssetRow(row: PortfolioAsset) {
     const now = nowIso();
     await this.db.execute(
-      `insert into portfolio_assets (id, space_id, revision, created_at, updated_at, deleted_at, ticker, name, name_zh, name_en, currency, total_quantity, average_cost, holding_source, acquisition_date, asset_type, sector, industry, account_id, base_quantity)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
+      `insert into portfolio_assets (id, space_id, revision, created_at, updated_at, deleted_at, ticker, name, name_zh, name_en, currency, total_quantity, average_cost, holding_source, acquisition_date, asset_type, sector, industry, account_id, base_quantity, classification_locked)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
       [
         row.id,
         row.spaceId ?? personalSpace,
@@ -3815,6 +3830,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         row.industry ?? null,
         row.accountId ?? null,
         row.baseQuantity ?? null,
+        row.classificationLocked ? 1 : 0,
       ],
     );
   }
