@@ -1,4 +1,4 @@
-# Plan 068: ETF sector breakdown by holdings (instead of 「未知分類」)
+# Plan 068: ETF sector + country/region breakdown by holdings (instead of 「未知分類」)
 
 > **Executor instructions**: This is a **spike-first, design-gated** plan. Phase 0
 > determines whether a fetchable ETF sector-weightings source exists — it has a hard
@@ -21,12 +21,26 @@
 - **Planned at**: commit `276de422`, 2026-06-25
 
 ## Why this matters
-Operator-reported: ETFs are returned as 「未知分類」 (unknown sector), and they want the
-ETF reflected **by its underlying holdings' sectors** — like Yahoo TW's 行業比重 (e.g. a
-TW semiconductor-heavy ETF showing 半導體業 69%, 電子零組件 10%, …). Today an ETF is a
-single asset with no sector, so the portfolio's sector/industry breakdown lumps all ETFs
-into 未知, which understates real sector exposure — exactly the kind of insight the
-analytics tab exists to give.
+Operator wants the portfolio broken down on **two dimensions**, both reflecting an ETF's
+**underlying holdings** rather than treating the ETF as one opaque blob:
+1. **Sector / 行業比重** — ETFs are returned as 「未知分類」 (unknown sector) today; the
+   operator wants them shown by their holdings' sectors, like Yahoo TW's 行業比重 (e.g. a
+   TW semiconductor-heavy ETF showing 半導體業 69%, 電子零組件 10%, …).
+2. **Country / region / 國家權重** — so the analytics tab can later show geographic
+   exposure (how much of the portfolio is Taiwan vs. US vs. rest-of-world, etc.).
+
+Today an ETF is a single asset with no sector, so the breakdown lumps all ETFs into 未知,
+understating real exposure on both axes.
+
+**Key asymmetry — country is much cheaper than sector:**
+- A **direct** stock/fund holding's country is derivable **locally, no fetch** — from the
+  listing market / ticker suffix (`.TW`/`.TWO`→Taiwan, `.T`→Japan, `.HK`→Hong Kong, `.L`→UK,
+  no-suffix US tickers→USA, …) plus currency as a tiebreak. So a portfolio's country
+  breakdown of *direct* holdings can ship with **no external data source at all**.
+- Only **ETFs** need a holdings source for country (a global ETF spans many countries) —
+  and it's the **same holdings data** the sector breakdown needs. So both dimensions are
+  served by one ETF-holdings fetch; country additionally has a zero-dependency path for
+  direct holdings.
 
 ## Current state
 - `src/features/market-data/yahooFinanceProvider.ts` — asset classification comes from the
@@ -60,8 +74,15 @@ analytics tab exists to give.
    - **Yahoo TW site 行業比重** (the screenshot source) — HTML; only if it has a stable,
      allowlistable, parseable structure (last resort; scraping is fragile).
 2. Confirm the source is allowlistable (fixed host+path) and the response is parseable.
-3. Decide the **analytics model** (see Decision) and the **fallback** for ETFs the source
-   doesn't cover.
+3. **Country/region — capture from the SAME probe.** For each source you evaluate, also
+   record whether it yields per-holding **country/region** (Yahoo `topHoldings` carries no
+   country, but the underlying-holdings list does — each constituent's listing country is
+   known). Confirm the **local derivation** for *direct* holdings: a function mapping
+   ticker-suffix/market → country (`.TW`/`.TWO`→TW, `.T`→JP, `.HK`→HK, `.L`→GB, US→US, …)
+   with currency as a fallback. ETFs derive country from their holdings (same data as
+   sector); direct holdings need no fetch.
+4. Decide the **analytics model** (see Decision) and the **fallback** for ETFs the source
+   doesn't cover — for BOTH sector and country.
 
 **STOP (fall back) if** no stable, allowlistable source exists. Then do NOT scrape
 fragile HTML; recommend the lighter fallback: stop showing ETFs as 未知 by giving them an
@@ -69,14 +90,19 @@ fragile HTML; recommend the lighter fallback: stop showing ETFs as 未知 by giv
 manually tag an ETF's dominant sector (reuses 069's manual-classification path). Report this.
 
 ## Decision gate (Phase 0 outputs; operator signs off)
-- **A — analytics model:** an ETF contributes its market value **split across sectors by
-  weight** (a holding → many `{sector, weightedValue}` rows), vs. the simpler v1
-  "assign the ETF to its single largest sector." Recommend: split-by-weight if the source
-  gives weights cleanly; else largest-sector or an 「ETF」 bucket.
-- **B — storage:** where the per-ETF sector weights live (a new synced table/blob keyed by
-  ETF symbol, refreshed like quotes), and the refresh cadence.
+- **A — analytics model (applies to BOTH sector and country):** an ETF contributes its
+  market value **split across buckets by weight** (a holding → many `{bucket, weightedValue}`
+  rows), vs. the simpler v1 "assign the ETF to its single largest bucket." Recommend:
+  split-by-weight if the source gives weights cleanly; else largest-bucket or an 「ETF」 bucket.
+- **B — storage:** where per-ETF sector weights AND per-ETF country weights live (a new
+  synced table/blob keyed by ETF symbol, refreshed like quotes), and the cadence. Direct
+  holdings need no storage for country (derived on the fly from the ticker/market).
 - **C — coverage + fallback:** ETFs the source misses fall back to 069's manual tag / an
-  「ETF」 bucket — never silently 未知.
+  「ETF」 bucket — never silently 未知 / 未知國家.
+- **D — country dimension scope:** confirm v1 = direct holdings by listing country (local,
+  no fetch) + ETF holdings by country (from the same source as sector); a country whose
+  source is missing for an ETF falls back like C. Region grouping (e.g. 北美/亞太/歐洲) vs.
+  individual countries — recommend which granularity to display first.
 
 ## Commands you will need
 | Purpose | Command | Expected |
@@ -93,9 +119,13 @@ manually tag an ETF's dominant sector (reuses 069's manual-classification path).
   parity, as plan 066 did). IF Yahoo quoteSummary: no native change (path already allowed).
 - `src/features/market-data/` — the ETF sector-weightings fetch + parse (a provider method
   or a small module) + a pure parse test.
-- A store for per-ETF sector weights + refresh wiring in `useMarketRefresh.ts`.
-- `src/domain/portfolioAnalytics.ts` (+ the analytics tab) — fold ETF sector weights into
-  the breakdown per Decision A (this is the real analytics change; keep it tested).
+- A store for per-ETF sector weights **and per-ETF country weights** + refresh wiring in
+  `useMarketRefresh.ts`.
+- A small pure helper mapping ticker-suffix/market → country (for direct holdings), with a
+  unit test. (No fetch; reused by the country breakdown.)
+- `src/domain/portfolioAnalytics.ts` (+ the analytics tab) — fold ETF sector weights AND a
+  country/region breakdown (direct-holding country + ETF country weights) into the
+  analytics per Decision A (the real analytics change; keep both dimensions tested).
 **Out of scope:**
 - Single-stock classification (unchanged).
 - `valuation.ts` / cost-basis / returns math — the breakdown is a presentation/allocation
