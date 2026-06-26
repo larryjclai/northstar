@@ -1,4 +1,4 @@
-# Plan 072: Open-source Northstar under the MIT License
+# Plan 072: Open-source Northstar under GPLv3 + CLA (was MIT — operator switched to copyleft)
 
 > **Executor instructions**: This is a **process / release-engineering** plan, NOT a feature.
 > Several steps are IRREVERSIBLE or outward-facing (flipping repo visibility, rewriting git
