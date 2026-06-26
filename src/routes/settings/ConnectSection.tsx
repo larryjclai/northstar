@@ -764,114 +764,106 @@ export function ConnectStatus() {
         </div>
       ) : null}
 
-      {/* Recovery: re-download everything from the server. For a device whose
-          local data was wiped/reinstalled — a normal sync won't restore it
-          because the saved cursor makes the device think it's already current. */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-        padding: "10px 12px", marginBottom: 16, borderRadius: "var(--ns-r-md)",
-        background: "var(--ns-bg-hover)", border: "1px solid var(--ns-border)" }}>
-        <div className="text-caption" style={{ color: "var(--ns-fg-muted)", lineHeight: 1.5 }}>
-          資料遺失或換新裝置？從伺服器完整重新下載所有資料（只下載、不會覆蓋伺服器）。
-        </div>
-        {confirmFullResync
-          ? <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-              <Button variant="ghost" className="text-xs" onClick={() => setConfirmFullResync(false)}>取消</Button>
-              <Button variant="outline" className="text-xs"
-                onClick={handleForceFullResync}
-                disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
-                確認重新下載
-              </Button>
-            </div>
-          : <Button variant="ghost" className="text-xs" style={{ flexShrink: 0 }}
-              onClick={() => setConfirmFullResync(true)}
-              disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
-              <ArrowsClockwise size={13} />完整重新下載
-            </Button>
-        }
-      </div>
-
-      {/* Recovery: re-upload everything to the server. For a device whose LOCAL
-          data is complete but the server is missing records (e.g. accounts that
-          were never re-pushed after a re-pair) — other devices then pull them. */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-        padding: "10px 12px", marginBottom: 16, borderRadius: "var(--ns-r-md)",
-        background: "var(--ns-bg-hover)", border: "1px solid var(--ns-border)" }}>
-        <div className="text-caption" style={{ color: "var(--ns-fg-muted)", lineHeight: 1.5 }}>
-          其他裝置少了帳戶或部分記帳？把這台（資料完整的）裝置的全部資料重新上傳到伺服器，其他裝置再「完整重新下載」即可補齊。
-        </div>
-        {confirmFullRepush
-          ? <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-              <Button variant="ghost" className="text-xs" onClick={() => setConfirmFullRepush(false)}>取消</Button>
-              <Button variant="outline" className="text-xs"
-                onClick={handleForceFullRepush}
-                disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
-                確認重新上傳
-              </Button>
-            </div>
-          : <Button variant="ghost" className="text-xs" style={{ flexShrink: 0 }}
-              onClick={() => setConfirmFullRepush(true)}
-              disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
-              <ArrowsClockwise size={13} />重新上傳本機資料
-            </Button>
-        }
-      </div>
-
-      {/* Unlink sync — keeps financial data */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-        padding: "10px 12px", marginBottom: 10, borderRadius: "var(--ns-r-md)",
-        background: "var(--ns-bg-hover)", border: "1px solid var(--ns-border)" }}>
-        <div className="text-caption" style={{ color: "var(--ns-fg-muted)", lineHeight: 1.5 }}>
-          解除同步：將這台裝置從同步帳號移除（清除裝置 ID、加密金鑰、配對帳號、備援碼狀態），<strong>但保留本機的財務資料</strong>。之後可隨時重新「啟用同步」。伺服器上的資料不受影響。
-        </div>
-        {confirmUnlink
-          ? <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-              <Button variant="outline" className="text-xs" style={{ color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }}
-                onClick={handleUnlinkSync}>確認解除</Button>
-              <Button variant="ghost" className="text-xs" onClick={() => setConfirmUnlink(false)}>取消</Button>
-            </div>
-          : <Button variant="ghost" className="text-xs" style={{ flexShrink: 0, color: "var(--ns-warn)" }}
-              onClick={() => setConfirmUnlink(true)}>
-              <WifiHigh size={13} />解除同步
-            </Button>
-        }
-      </div>
-
-      {/* Full data reset — unlink + wipe data */}
-      <div style={{ display: "flex", alignItems: confirmDeviceReset ? "stretch" : "center", flexDirection: confirmDeviceReset ? "column" : "row", justifyContent: "space-between", gap: 12,
-        padding: "10px 12px", marginBottom: 16, borderRadius: "var(--ns-r-md)",
-        background: "var(--ns-neg-soft)", border: "1px solid var(--ns-neg)" }}>
-        <div className="text-caption" style={{ color: "var(--ns-fg-muted)", lineHeight: 1.5 }}>
-          完整重設資料（解除同步 + 清除資料）：清除本機<strong>所有財務資料</strong>與同步設定（裝置 ID、加密金鑰、配對帳號、備援碼狀態），讓這台裝置回到全新狀態。<strong>伺服器上的資料不受影響</strong>，可重新配對後下載回來。建議先到「備份與還原」匯出一份備份。
-        </div>
-        {confirmDeviceReset
-          ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <label className="text-caption" htmlFor="device-reset-input" style={{ color: "var(--ns-fg-muted)" }}>
-                此動作<strong>無法復原</strong>。請輸入 <code style={{ color: "var(--ns-neg)" }}>delete</code> 以確認：
-              </label>
-              <input
-                id="device-reset-input"
-                className="ns-input"
-                value={deviceResetText}
-                onChange={(e) => setDeviceResetText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && deviceResetConfirmed) handleDeviceReset(); if (e.key === "Escape") closeDeviceReset(); }}
-                placeholder="delete"
-                autoComplete="off"
-                autoCorrect="off"
-                spellCheck={false}
-                autoFocus
-              />
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <Button variant="outline" className="text-xs" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)", opacity: deviceResetConfirmed ? 1 : 0.5 }}
-                  disabled={!deviceResetConfirmed}
-                  onClick={handleDeviceReset}><Trash size={13} />確認重設</Button>
-                <Button variant="ghost" className="text-xs" onClick={closeDeviceReset}>取消</Button>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 mb-6">
+        {/* Recovery: re-download */}
+        <Card className="flex flex-col p-4 bg-[var(--ns-bg-hover)] border-[var(--ns-border)]">
+          <div className="flex items-center gap-2 mb-2 font-medium">
+            <ArrowsClockwise size={16} /> 完整重新下載
+          </div>
+          <p className="text-caption text-[var(--ns-fg-muted)] mb-4 flex-1">
+            資料遺失或換新裝置？從伺服器完整重新下載所有資料（只下載、不會覆蓋伺服器）。
+          </p>
+          <div className="flex justify-end">
+            {confirmFullResync ? (
+              <div className="flex gap-2 items-center">
+                <Button variant="ghost" className="text-xs" onClick={() => setConfirmFullResync(false)}>取消</Button>
+                <Button variant="outline" className="text-xs" onClick={handleForceFullResync} disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>確認重新下載</Button>
               </div>
-            </div>
-          : <Button variant="ghost" className="text-xs" style={{ flexShrink: 0, color: "var(--ns-neg)" }}
-              onClick={() => setConfirmDeviceReset(true)}>
-              <Trash size={13} />完整重設資料
-            </Button>
-        }
+            ) : (
+              <Button variant="outline" className="text-xs w-full justify-center" onClick={() => setConfirmFullResync(true)} disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
+                <ArrowsClockwise size={13} />完整重新下載
+              </Button>
+            )}
+          </div>
+        </Card>
+
+        {/* Recovery: re-upload */}
+        <Card className="flex flex-col p-4 bg-[var(--ns-bg-hover)] border-[var(--ns-border)]">
+          <div className="flex items-center gap-2 mb-2 font-medium">
+            <UploadSimple size={16} /> 重新上傳本機資料
+          </div>
+          <p className="text-caption text-[var(--ns-fg-muted)] mb-4 flex-1">
+            把這台裝置的全部資料重新上傳到伺服器，其他裝置再「完整重新下載」即可補齊。
+          </p>
+          <div className="flex justify-end">
+            {confirmFullRepush ? (
+              <div className="flex gap-2 items-center">
+                <Button variant="ghost" className="text-xs" onClick={() => setConfirmFullRepush(false)}>取消</Button>
+                <Button variant="outline" className="text-xs" onClick={handleForceFullRepush} disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>確認重新上傳</Button>
+              </div>
+            ) : (
+              <Button variant="outline" className="text-xs w-full justify-center" onClick={() => setConfirmFullRepush(true)} disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
+                <UploadSimple size={13} />重新上傳本機資料
+              </Button>
+            )}
+          </div>
+        </Card>
+
+        {/* Unlink sync */}
+        <Card className="flex flex-col p-4 bg-[var(--ns-bg-hover)] border-[var(--ns-border)]">
+          <div className="flex items-center gap-2 mb-2 font-medium" style={{ color: "var(--ns-warn)" }}>
+            <WifiHigh size={16} /> 解除同步
+          </div>
+          <p className="text-caption text-[var(--ns-fg-muted)] mb-4 flex-1">
+            將這台裝置從同步帳號移除，<strong>保留本機財務資料</strong>。伺服器資料不受影響。
+          </p>
+          <div className="flex justify-end">
+            {confirmUnlink ? (
+              <div className="flex gap-2 items-center">
+                <Button variant="ghost" className="text-xs" onClick={() => setConfirmUnlink(false)}>取消</Button>
+                <Button variant="outline" className="text-xs" style={{ color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }} onClick={handleUnlinkSync}>確認解除</Button>
+              </div>
+            ) : (
+              <Button variant="outline" className="text-xs w-full justify-center" style={{ color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }} onClick={() => setConfirmUnlink(true)}>
+                <WifiHigh size={13} />解除同步
+              </Button>
+            )}
+          </div>
+        </Card>
+
+        {/* Full data reset */}
+        <Card className="flex flex-col p-4" style={{ background: "var(--ns-neg-soft)", border: "1px solid var(--ns-neg)" }}>
+          <div className="flex items-center gap-2 mb-2 font-medium" style={{ color: "var(--ns-neg)" }}>
+            <Trash size={16} /> 完整重設資料
+          </div>
+          <p className="text-caption text-[var(--ns-fg-muted)] mb-4 flex-1">
+            清除本機<strong>所有財務資料</strong>與同步設定。伺服器資料不受影響。此動作無法復原。
+          </p>
+          <div>
+            {confirmDeviceReset ? (
+              <div className="flex flex-col gap-2">
+                <input
+                  className="ns-input text-xs w-full text-center"
+                  value={deviceResetText}
+                  onChange={(e) => setDeviceResetText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && deviceResetConfirmed) handleDeviceReset(); if (e.key === "Escape") closeDeviceReset(); }}
+                  placeholder="輸入 delete 確認"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <Button variant="ghost" className="text-xs flex-1" onClick={closeDeviceReset}>取消</Button>
+                  <Button variant="outline" className="text-xs flex-1" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)", opacity: deviceResetConfirmed ? 1 : 0.5 }} disabled={!deviceResetConfirmed} onClick={handleDeviceReset}>
+                    <Trash size={13} />確認重設
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button variant="outline" className="text-xs w-full justify-center" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} onClick={() => setConfirmDeviceReset(true)}>
+                <Trash size={13} />完整重設資料
+              </Button>
+            )}
+          </div>
+        </Card>
       </div>
 
       {/* Device list */}

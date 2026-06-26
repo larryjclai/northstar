@@ -1,4 +1,4 @@
-import { ArrowsDownUp, Bank, CopySimple, FunnelSimple, MagnifyingGlass, PencilSimple, PlusCircle, Trash, UploadSimple } from "@phosphor-icons/react";
+import { ArrowsDownUp, Bank, CopySimple, FunnelSimple, MagnifyingGlass, PencilSimple, PlusCircle, Trash, UploadSimple, ListPlus } from "@phosphor-icons/react";
 import { Button } from "../components/coss/button";
 import { Card as CossCard } from "../components/coss/card";
 import { Skeleton } from "../components/coss/skeleton";
@@ -9,6 +9,7 @@ import { ReactNode, useMemo, useState, useEffect } from "react";
 import { ActionButton } from "../components/ActionButton";
 import { EmptyState } from "../components/EmptyState";
 import { StatusText } from "../components/StatusText";
+import { FilterPill } from "../components/FilterPill";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { downloadCsv, exportInvestmentCsv } from "../data/csv";
@@ -335,52 +336,62 @@ export function TransactionsRoute() {
       {message ? <div className="mb-4"><StatusText>{message}</StatusText></div> : null}
 
       <CossCard className="ns-invest-panel">
-        <div className="ns-invest-toolbar">
-          {/* Same SegmentedControl as the date presets — the toolbar previously
-              mixed two segment styles (custom pills vs ToggleGroup), which the
-              user flagged as visually inconsistent. */}
-          <SegmentedControl
-            value={assetTypeFilter}
-            onChange={setAssetTypeFilter}
+        <div className="flex flex-wrap items-center gap-2 p-3 bg-[var(--ns-surface)] border-b border-[var(--ns-border)] rounded-t-[var(--ns-r-md)]">
+          <label className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--ns-bg-hover)] border border-[var(--ns-border)] focus-within:border-[var(--ns-accent)] focus-within:ring-1 focus-within:ring-[var(--ns-accent)] transition-all">
+            <MagnifyingGlass size={14} className="text-[var(--ns-fg-muted)]" />
+            <input 
+              className="bg-transparent border-none outline-none text-sm w-48 placeholder:text-[var(--ns-fg-muted)] text-[var(--ns-fg)]" 
+              value={searchQuery} 
+              onChange={(event) => setSearchQuery(event.target.value)} 
+              placeholder="Search ..." 
+            />
+          </label>
+          
+          <FilterPill
+            label="資產類別"
+            selected={assetTypeFilter === "all" ? new Set() : new Set([assetTypeFilter])}
+            onChange={(next) => setAssetTypeFilter(next.size === 0 ? "all" : [...next][0])}
             options={[
-              { value: "all", label: "全部" },
               { value: "equity", label: "股票" },
               { value: "etf", label: "ETF" },
               { value: "crypto", label: "加密貨幣" },
               { value: "cash", label: "現金" },
             ]}
           />
-          <SegmentedControl
-            value={typeFilter.size === 0 ? "all" : [...typeFilter][0]}
-            onChange={(next) => setTypeFilter(next === "all" ? new Set() : new Set([next]))}
+          
+          <FilterPill
+            label="交易類型"
+            selected={typeFilter}
+            onChange={setTypeFilter}
             options={[
-              { value: "all", label: "全部類型" },
               { value: "buy", label: "買進" },
               { value: "sell", label: "賣出" },
               { value: "cashDividend", label: "股利" },
               { value: "stockSplit", label: "拆股" },
             ]}
           />
-          <label className="ns-invest-search">
-            <MagnifyingGlass size={15} />
-            <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜尋代號、名稱或備註…" />
-          </label>
+
+          <FilterPill
+            label="券商"
+            selected={brokerFilter}
+            onChange={setBrokerFilter}
+            options={brokerOptions}
+          />
+
           <DateScopeControl
             value={dateScope}
             onChange={setDateScope}
             presets={["month", "ytd", "last12m", "all", "custom"]}
           />
-          <MultiSelectFilter
-            icon={<Bank size={14} />}
-            label="券商"
-            options={brokerOptions}
-            selected={brokerFilter}
-            onChange={setBrokerFilter}
-          />
-          <div className="ns-invest-clear-inline" data-visible={hasActiveFilters || undefined}>
-            <Button variant="ghost" size="xs" disabled={!hasActiveFilters} onClick={clearFilters}>清除篩選</Button>
-          </div>
-          <div className="ns-invest-actions">
+
+          {hasActiveFilters && (
+            <Button variant="ghost" size="xs" className="text-[var(--ns-neg)]" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          )}
+
+          <div className="flex-1" />
+          <div className="flex gap-2">
             <ActionButton variant="secondary" onClick={() => downloadCsv("northstar-investments.csv", exportInvestmentCsv(recordRows, assetFor))}>匯出 CSV</ActionButton>
             <Button variant="outline" onClick={() => setImportOpen(true)}><UploadSimple />匯入 CSV</Button>
           </div>
@@ -463,53 +474,7 @@ export function TransactionsRoute() {
   );
 }
 
-function MultiSelectFilter({
-  icon,
-  label,
-  options,
-  selected,
-  onChange,
-}: {
-  icon: ReactNode;
-  label: string;
-  options: { value: string; label: string }[];
-  selected: Set<string>;
-  onChange: (next: Set<string>) => void;
-}) {
-  function toggle(value: string) {
-    const next = new Set(selected);
-    if (next.has(value)) next.delete(value);
-    else next.add(value);
-    onChange(next);
-  }
-  const count = selected.size;
-  return (
-    <Popover>
-      <PopoverTrigger
-        className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium"
-        style={{ borderColor: count ? "var(--ns-accent)" : "var(--ns-border)", background: "var(--ns-surface-elevated)", color: count ? "var(--ns-accent)" : "var(--ns-fg)" }}
-      >
-        {icon}
-        {label}
-        {count ? <span className="rounded-full px-1.5 text-xs" style={{ background: "var(--ns-accent)", color: "var(--ns-accent-fg)" }}>{count}</span> : <ArrowsDownUp size={11} />}
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-56">
-        <div className="mb-1 flex items-center justify-between px-1 text-xs" style={{ color: "var(--ns-muted)" }}>
-          <span>{label}</span>
-          {count ? <button className="hover:underline" onClick={() => onChange(new Set())}>清除</button> : <span>全部</span>}
-        </div>
-        <div className="max-h-64 overflow-y-auto">
-          {options.map((opt) => (
-            <label key={opt.value} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/5">
-              <input type="checkbox" checked={selected.has(opt.value)} onChange={() => toggle(opt.value)} />
-              <span className="truncate">{opt.label}</span>
-            </label>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
+
 
 function InvestmentMonthGroup({
   group,

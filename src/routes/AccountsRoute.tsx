@@ -1,4 +1,4 @@
-import { ArrowsClockwise, CaretDown, CaretRight, Check, DownloadSimple, ListChecks, PencilSimple, Percent, Plus, Scales, Trash, X } from "@phosphor-icons/react";
+import { ArrowsClockwise, CaretDown, CaretRight, Check, DownloadSimple, ListChecks, PencilSimple, Percent, Plus, Scales, Trash, X, MagnifyingGlass } from "@phosphor-icons/react";
 import { ReactNode, useMemo, useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
@@ -7,6 +7,7 @@ import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
 import { Skeleton } from "../components/coss/skeleton";
 import { AppSelect } from "../components/AppSelect";
+import { FilterPill } from "../components/FilterPill";
 import { IconPicker } from "../components/IconPicker";
 import { Glyph, DEFAULT_ACCOUNT_ICON } from "../lib/icons";
 import { BankLogo } from "../components/BankLogo";
@@ -322,23 +323,21 @@ export function AccountsRoute() {
 
       {/* Search + type filter — only shown when there are enough accounts */}
       {rows.length > 5 ? (
-        <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-          <input
-            className="ns-input"
-            type="search"
-            value={accountQuery}
-            onChange={(e) => setAccountQuery(e.target.value)}
-            placeholder="搜尋帳戶名稱…"
-            style={{ flex: "1 1 180px", minWidth: 0 }}
-          />
-          <AppSelect
-            value={typeFilter}
-            onChange={(v) => setTypeFilter(v)}
-            options={[
-              { value: "all", label: "全部類型" },
-              ...GROUP_ORDER.map((g) => ({ value: g.key, label: g.label })),
-            ]}
-            style={{ flex: "0 0 auto", minWidth: 140, height: 40 }}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <label className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--ns-bg-hover)] border border-[var(--ns-border)] focus-within:border-[var(--ns-accent)] focus-within:ring-1 focus-within:ring-[var(--ns-accent)] transition-all flex-1 min-w-[200px] max-w-[320px]">
+            <MagnifyingGlass size={14} className="text-[var(--ns-fg-muted)]" />
+            <input 
+              className="bg-transparent border-none outline-none text-sm w-full placeholder:text-[var(--ns-fg-muted)] text-[var(--ns-fg)]" 
+              value={accountQuery} 
+              onChange={(e) => setAccountQuery(e.target.value)} 
+              placeholder="搜尋帳戶名稱…" 
+            />
+          </label>
+          <FilterPill
+            label="帳戶類型"
+            selected={typeFilter === "all" ? new Set() : new Set([typeFilter])}
+            onChange={(next) => setTypeFilter(next.size === 0 ? "all" : [...next][0])}
+            options={GROUP_ORDER.map((g) => ({ value: g.key, label: g.label }))}
           />
         </div>
       ) : null}

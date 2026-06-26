@@ -10,6 +10,7 @@ import { useToast } from "../../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../../data/hooks";
 import { downloadCsv, exportInvestmentCsv, exportLedgerCsv, exportFxRatesCsv } from "../../data/csv";
 import { getFinanceRepository, type RepositorySnapshot } from "../../data/repositories";
+import { SegmentedControl } from "../../components/SegmentedControl";
 import { enterDemoMode, exitDemoMode } from "../../data/demoData";
 import { useDemoMode } from "../../state/demoMode";
 import { COMMON_TIMEZONES, isValidTimezone } from "../../domain";
@@ -322,108 +323,73 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
           </div>
         </button>
 
-        <h3 className="font-semibold mb-4 mt-6">佈景主題</h3>
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { v: "system", l: "跟隨系統" },
-            { v: "light", l: "淺色" },
-            { v: "dark", l: "深色" },
-          ].map((option) => (
-            <Button
-              variant="outline"
-              key={option.v}
-              onClick={() => setTheme(option.v as ThemeMode)}
-              style={{
-                borderColor: theme === option.v ? "var(--ns-accent)" : "var(--ns-border)",
-                background: theme === option.v ? "var(--ns-accent-soft)" : undefined,
-              }}
-            >
-              {option.l}
-            </Button>
-          ))}
-        </div>
-        <p className="text-xs muted mt-2 mb-0">深色和淺色會立即套用；跟隨系統會回到裝置的外觀設定。</p>
+        <h3 className="font-semibold mb-3 mt-6">佈景主題</h3>
+        <SegmentedControl
+          fullWidth
+          value={theme}
+          onChange={(v) => setTheme(v as ThemeMode)}
+          options={[
+            { value: "system", label: "跟隨系統" },
+            { value: "light", label: "淺色" },
+            { value: "dark", label: "深色" },
+          ]}
+        />
+        <p className="text-xs muted mt-3 mb-0">深色和淺色會立即套用；跟隨系統會回到裝置的外觀設定。</p>
 
-        <h3 className="font-semibold mb-4 mt-6">盈虧配色</h3>
-        <div className="grid grid-cols-3 gap-2">
-          {([
-            { v: "us", l: "綠漲紅跌", d: "國際慣例" },
-            { v: "tw", l: "紅漲綠跌", d: "台股慣例" },
-            { v: "neutral", l: "中性色", d: "藍綠／琥珀" },
-          ] as const).map((option) => (
-            <Button
-              variant="outline"
-              key={option.v}
-              onClick={() => setGainLossPalette(option.v)}
-              style={{
-                height: "auto", padding: "10px 8px", flexDirection: "column", gap: 4,
-                borderColor: gainLossPalette === option.v ? "var(--ns-accent)" : "var(--ns-border)",
-                background: gainLossPalette === option.v ? "var(--ns-accent-soft)" : undefined,
-              }}
-            >
-              <span>{option.l}</span>
-              <span className="muted" style={{ fontSize: 11 }}>{option.d}</span>
-            </Button>
-          ))}
-        </div>
-        <p className="text-xs mt-2 mb-0">
+        <h3 className="font-semibold mb-3 mt-6">盈虧配色</h3>
+        <SegmentedControl
+          fullWidth
+          value={gainLossPalette}
+          onChange={(v) => setGainLossPalette(v as "us" | "tw" | "neutral")}
+          options={[
+            { value: "us", label: "綠漲紅跌 (國際)" },
+            { value: "tw", label: "紅漲綠跌 (台股)" },
+            { value: "neutral", label: "中性色" },
+          ]}
+        />
+        <p className="text-xs mt-3 mb-0">
           預覽：<span style={{ color: "var(--ns-gain)", fontWeight: 600 }}>+2.34%</span>
           <span className="muted">（漲）　</span>
           <span style={{ color: "var(--ns-loss)", fontWeight: 600 }}>−1.21%</span>
           <span className="muted">（跌）— 只影響投資損益、報酬率與個股漲跌；現金流收支與成功/錯誤提示維持固定綠/紅。</span>
         </p>
 
-        <h3 className="font-semibold mb-4 mt-6">介面密度</h3>
-        <div className="grid grid-cols-4 gap-2">
-          {([
-            { v: "loose", l: "寬鬆" },
-            { v: "default", l: "標準" },
-            { v: "medium", l: "適中" },
-            { v: "tight", l: "緊湊" },
-          ] as const).map((option) => (
-            <Button
-              variant="outline"
-              key={option.v}
-              onClick={() => setDensity(option.v)}
-              style={{
-                borderColor: density === option.v ? "var(--ns-accent)" : "var(--ns-border)",
-                background: density === option.v ? "var(--ns-accent-soft)" : undefined,
-              }}
-            >
-              {option.l}
-            </Button>
-          ))}
-        </div>
+        <h3 className="font-semibold mb-3 mt-6">介面密度</h3>
+        <SegmentedControl
+          fullWidth
+          value={density}
+          onChange={(v) => setDensity(v as "loose" | "default" | "medium" | "tight")}
+          options={[
+            { value: "loose", label: "寬鬆" },
+            { value: "default", label: "標準" },
+            { value: "medium", label: "適中" },
+            { value: "tight", label: "緊湊" },
+          ]}
+        />
 
-        <h3 className="font-semibold mb-4 mt-6">圓角</h3>
-        <div className="grid grid-cols-3 gap-2">
-          {([
-            { v: "sharp", l: "銳利" },
-            { v: "default", l: "標準" },
-            { v: "round", l: "圓潤" },
-          ] as const).map((option) => (
-            <Button
-              variant="outline"
-              key={option.v}
-              onClick={() => setRadius(option.v)}
-              style={{
-                borderColor: radius === option.v ? "var(--ns-accent)" : "var(--ns-border)",
-                background: radius === option.v ? "var(--ns-accent-soft)" : undefined,
-              }}
-            >
-              {option.l}
-            </Button>
-          ))}
-        </div>
+        <h3 className="font-semibold mb-3 mt-6">圓角</h3>
+        <SegmentedControl
+          fullWidth
+          value={radius}
+          onChange={(v) => setRadius(v as "sharp" | "default" | "round")}
+          options={[
+            { value: "sharp", label: "銳利" },
+            { value: "default", label: "標準" },
+            { value: "round", label: "圓潤" },
+          ]}
+        />
 
-        <h3 className="font-semibold mb-4 mt-6">{t('settings.language')}</h3>
-        <div className="grid grid-cols-3 gap-2">
-          {[{v:'auto',l:'Auto'},{v:'en',l:'English'},{v:'zh-Hant',l:'繁體中文'}].map(o => (
-            <Button variant="outline" key={o.v} onClick={()=>setNameLocale(o.v as any)} style={{ borderColor: nameLocale===o.v?'var(--ns-accent)':'var(--ns-border)'}}>
-              {o.l}
-            </Button>
-          ))}
-        </div>
+        <h3 className="font-semibold mb-3 mt-6">{t('settings.language')}</h3>
+        <SegmentedControl
+          fullWidth
+          value={nameLocale}
+          onChange={(v) => setNameLocale(v as NameLocalePreference)}
+          options={[
+            { value: "auto", label: "Auto" },
+            { value: "en", label: "English" },
+            { value: "zh-Hant", label: "繁體中文" },
+          ]}
+        />
 
         <h3 className="font-semibold mb-4 mt-6">{t('settings.timezone')}</h3>
         <AppSelect
