@@ -1,0 +1,4 @@
+# Pinned for the weekly ETF-feed GitHub Action (Plan 071). yfinance is the
+# fragile part (community lib over Yahoo) — pin it and bump deliberately when
+# upstream Yahoo changes break the schema. Verified live with 1.2.0 (2026-06-26).
+yfinance==1.2.0

@@ -46,7 +46,13 @@ if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" && -f "$KEY_PATH" ]]; then
 fi
 
 TAG="${1:-}"
-PUBLIC_REPO="${PUBLIC_REPO:-larryjclai/northstar-releases}"
+# Source repo is public now, so releases live on the main repo itself.
+# (Was larryjclai/northstar-releases while the source was private.)
+# TRANSITION: for the first release after the move, ALSO mirror to the old feed
+# so existing installs (which have the old endpoint baked in) auto-update onto a
+# new-endpoint build:  LEGACY_MIRROR_REPO=larryjclai/northstar-releases ./scripts/release-local.sh vX
+PUBLIC_REPO="${PUBLIC_REPO:-larryjclai/northstar}"
+LEGACY_MIRROR_REPO="${LEGACY_MIRROR_REPO:-}"
 TARGET="universal-apple-darwin"
 
 if [[ -z "$TAG" ]]; then
@@ -139,6 +145,20 @@ else
     --latest \
     --notes-file "$NOTES_FILE"
   echo "  created new release."
+fi
+
+# TRANSITION: mirror the same assets + latest.json to the OLD feed once, so installs
+# still polling the old endpoint update onto this (new-endpoint) build. latest.json's
+# URLs point at $PUBLIC_REPO (northstar), so they download from the new public home.
+if [ -n "$LEGACY_MIRROR_REPO" ]; then
+  echo "▶ TRANSITION mirror → $LEGACY_MIRROR_REPO …"
+  if gh release view "$TAG" --repo "$LEGACY_MIRROR_REPO" >/dev/null 2>&1; then
+    gh release upload "$TAG" "$STAGE"/* --repo "$LEGACY_MIRROR_REPO" --clobber
+    gh release edit "$TAG" --repo "$LEGACY_MIRROR_REPO" --title "Northstar $TAG" --notes-file "$NOTES_FILE" --draft=false
+  else
+    gh release create "$TAG" "$STAGE"/* --repo "$LEGACY_MIRROR_REPO" --title "Northstar $TAG" --latest --notes-file "$NOTES_FILE"
+  fi
+  echo "  mirrored to legacy feed (existing installs will migrate)."
 fi
 rm -f "$NOTES_FILE"
 

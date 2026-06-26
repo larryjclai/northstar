@@ -1,9 +1,11 @@
 name: Release
 
-# Manual fallback only. The default path is the local macOS release script
-# (`scripts/release-local.sh`) so tag pushes do not automatically consume
-# GitHub Actions minutes. Use this workflow only when you explicitly want CI to
-# build/re-publish a tagged release (for example Windows/Linux artifacts).
+# Manual (workflow_dispatch) only — a deliberate choice, not a cost concern. The
+# repo is public so GitHub Actions is free, but we don't want every tag push to
+# kick off a 4-platform build. The default path is the local macOS release
+# script (`scripts/release-local.sh`); use this workflow when you want CI to
+# build/publish a tagged release directly on this repo (notably the
+# Windows/Linux artifacts the mac-only local script can't produce).
 on:
   workflow_dispatch:
     inputs:
@@ -12,16 +14,15 @@ on:
         required: true
 
 # Re-dispatching the same tag cancels the previous in-flight run so we don't
-# burn duplicate minutes.
+# build the same release twice.
 concurrency:
   group: release-${{ inputs.tag }}
   cancel-in-progress: true
 
 jobs:
-  # Extract this version's "what's new" from CHANGELOG.md once, so both the
-  # private-repo release body and the mirrored public-repo release body include
-  # the feature notes (falls back to just the install table if the version has
-  # no CHANGELOG section).
+  # Extract this version's "what's new" from CHANGELOG.md so the GitHub Release
+  # body includes the feature notes (falls back to just the install table if the
+  # version has no CHANGELOG section).
   notes:
     runs-on: ubuntu-latest
     outputs:
@@ -66,12 +67,11 @@ jobs:
           - platform: windows-latest
             args: ''
 
-    # macOS runners are billed at 10× on private repos and dominate the cost of
-    # a release. Set the repo variable `MACOS_RUNNER` (Settings → Actions →
-    # Variables) to a self-hosted label (e.g. `self-hosted`) once you've
-    # registered your Mac as a runner — those minutes are free. Until then it
-    # defaults to GitHub-hosted `macos-latest`, so releases keep working as-is.
-    # Linux/Windows always use hosted runners (cheap at 1×/2×).
+    # By default macOS builds run on GitHub-hosted `macos-latest` (free on this
+    # public repo). Optionally point the repo variable `MACOS_RUNNER` (Settings →
+    # Actions → Variables) at a self-hosted label (e.g. `self-hosted`) if you'd
+    # rather build on your own Mac; leaving it unset keeps hosted runners.
+    # Linux/Windows always use hosted runners.
     runs-on: ${{ startsWith(matrix.platform, 'macos') && (vars.MACOS_RUNNER || 'macos-latest') || matrix.platform }}
 
     steps:
@@ -152,76 +152,10 @@ jobs:
 
             **macOS 首次開啟提示**：若出現「無法驗證開發者」，請右鍵點擊 app → 選擇「開啟」即可。
           releaseDraft: false
-          # The app source repo is PRIVATE, so its release assets can't be
-          # downloaded anonymously — the updater would 404. The user-facing
-          # updater feed lives in the PUBLIC `northstar-releases` repo instead
-          # (see the mirror-to-public job below). This private-repo release is
-          # just the build output the mirror copies from; its prerelease flag is
-          # irrelevant to the updater, so keep it false for consistency.
+          # The repo is public, so release assets download anonymously and the
+          # in-app updater can fetch them directly from this repo. tauri-action
+          # generates latest.json with same-repo URLs; with releaseDraft + this
+          # flag both false, GitHub marks the published release `latest`, so the
+          # updater's `releases/latest/download/latest.json` resolves correctly.
           prerelease: false
           args: ${{ matrix.args }}
-
-  # Copy the freshly built release into the PUBLIC northstar-releases repo so the
-  # in-app updater (which has no GitHub credentials) can fetch latest.json + the
-  # signed binaries anonymously. latest.json's per-platform URLs are rewritten
-  # from the private repo to the public one; signatures are unchanged.
-  mirror-to-public:
-    needs: [publish-tauri, notes]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read   # read this (private) repo's release assets
-    steps:
-      - name: Resolve tag
-        id: tag
-        run: echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-
-      - name: Download release assets from the private repo
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SRC_REPO: ${{ github.repository }}
-          TAG: ${{ steps.tag.outputs.tag }}
-        run: |
-          mkdir -p dist
-          gh release download "$TAG" --repo "$SRC_REPO" --dir dist
-
-      - name: Rewrite latest.json URLs to the public repo
-        env:
-          SRC_REPO: ${{ github.repository }}
-        run: |
-          python3 - <<'PY'
-          import json, os
-          src = os.environ["SRC_REPO"]                 # e.g. larryjclai/northstar
-          old = f"/{src}/releases/download/"
-          new = "/larryjclai/northstar-releases/releases/download/"
-          p = "dist/latest.json"
-          d = json.load(open(p))
-          for v in d["platforms"].values():
-              v["url"] = v["url"].replace(old, new)
-          json.dump(d, open(p, "w"), ensure_ascii=False, indent=2)
-          print("rewrote", len(d["platforms"]), "platform urls ->", new)
-          PY
-
-      - name: Publish to the public releases repo
-        env:
-          # Fine-grained PAT with contents:write on larryjclai/northstar-releases.
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
-          TAG: ${{ steps.tag.outputs.tag }}
-          # This version's CHANGELOG section (may be empty) — passed via env so we
-          # don't fight YAML/heredoc indentation when interpolating multiline text.
-          CHANGELOG_NOTES: ${{ needs.notes.outputs.body }}
-        run: |
-          INSTALL=$'Northstar 桌面版下載與自動更新來源（app 原始碼為 private）。\n\n| 平台 | 檔案 |\n|------|------|\n| macOS (Apple Silicon) | `Northstar_*_aarch64.dmg` |\n| macOS (Intel) | `Northstar_*_x64.dmg` |\n| Windows | `Northstar_*_x64-setup.exe` |\n| Linux (Debian/Ubuntu) | `northstar_*_amd64.deb` |\n| Linux (通用) | `northstar_*_amd64.AppImage` |\n\n**macOS 首次開啟**：若出現「無法驗證開發者」，右鍵點擊 app → 選「開啟」。'
-          if [ -n "${CHANGELOG_NOTES//[$' \t\n']/}" ]; then
-            NOTES="$(printf '%s\n\n%s' "$CHANGELOG_NOTES" "$INSTALL")"
-          else
-            NOTES="$INSTALL"
-          fi
-          if gh release view "$TAG" --repo larryjclai/northstar-releases >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/* --repo larryjclai/northstar-releases --clobber
-          else
-            gh release create "$TAG" dist/* \
-              --repo larryjclai/northstar-releases \
-              --title "Northstar $TAG" \
-              --latest \
-              --notes "$NOTES"
-          fi

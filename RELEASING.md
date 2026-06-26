@@ -1,5 +1,10 @@
 # Release Process
 
+> **注意（2026-06）**：repo 已轉為 **public（GPLv3）**，release 直接發布在
+> `larryjclai/northstar`，`release.yml` 的 `mirror-to-public` job 與 `RELEASES_TOKEN`
+> 已移除。以下提到 private repo、`northstar-releases` mirror、`RELEASES_TOKEN` 的段落為
+> 過渡期歷史說明，待現有安裝完成遷移後再整併。
+
 Northstar 目前以**本地 macOS release** 為主要發版流程；GitHub Actions release workflow 保留為**手動 fallback**，不再因為 push `v*` tag 自動觸發。
 
 ## 為什麼有兩個 repo？（重要）

@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for helping improve Northstar. Please do not include personal finance data, account numbers, API keys, or unredacted screenshots.
+        Thanks for helping improve Northstar — an open-source (GPLv3) project. Please do not include personal finance data, account numbers, API keys, or unredacted screenshots. Northstar is software, not financial advice.
   - type: input
     id: version
     attributes:

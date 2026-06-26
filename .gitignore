@@ -41,6 +41,7 @@ Design System/uploads/
 # before packaging, but they should not be published with the source repo.
 private-assets/
 public/bank/
+public/etf-sector-feed.json
 
 # ─── Secrets ───────────────────────────────────────────
 .env

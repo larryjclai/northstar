@@ -1,0 +1,66 @@
+name: ETF sector feed
+
+# Weekly server-side ETF sector-weights pipeline (Plan 071). Runs build_feed.py
+# (pip install yfinance) over the checked-in ticker list, maps Yahoo sector keys
+# onto Plan 070's canonical taxonomy, and publishes a single static, user-agnostic
+# `etf-sector-feed.json` to GitHub Pages. The Tauri client pulls the *whole* public
+# file (never per-ticker) so the request reveals no holdings.
+#
+# OPERATOR ONE-TIME SETUP (Pages is OFF by default):
+#   Repo → Settings → Pages → "Build and deployment" → Source: "GitHub Actions".
+#   No secrets needed. Until then this workflow's deploy step fails harmlessly;
+#   the app still works from its bundled snapshot (private-assets/etf/…).
+# Published URL: https://larryjclai.github.io/northstar/etf-sector-feed.json
+
+on:
+  schedule:
+    # Weekly, Mondays 06:00 UTC. yfinance is cached/stale-at-worst by design.
+    - cron: "0 6 * * 1"
+  workflow_dispatch: {}
+
+# Least privilege: read the repo, write Pages + an OIDC token for deploy-pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One feed at a time; let an in-progress run finish (don't cancel mid-publish).
+concurrency:
+  group: etf-feed
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install yfinance (pinned)
+        run: pip install -r scripts/etf-feed/requirements.txt
+
+      - name: Build feed
+        run: |
+          mkdir -p _site
+          python3 scripts/etf-feed/build_feed.py \
+            --tickers-file scripts/etf-feed/tickers.txt \
+            --out _site/etf-sector-feed.json
+          echo "--- feed summary ---"
+          python3 -c "import json; d=json.load(open('_site/etf-sector-feed.json')); print('funds:', len(d['funds']), 'source:', d['source'])"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4

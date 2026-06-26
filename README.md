@@ -1,5 +1,7 @@
 # Northstar
 
+**繁體中文** · [English](README.en.md)
+
 > **Alpha 試用版** · 介面與資料結構仍可能變動，正式發行前資料庫 schema 不保證向後相容。
 > 最新版本請見 **[Releases 頁面](https://github.com/larryjclai/northstar/releases)**。
 
@@ -85,7 +87,7 @@ Northstar 尚未經過 Apple 公證（需付費的 Apple Developer 帳號），�
 
 ## 授權與貢獻狀態
 
-Northstar 的**原始碼**採 **[GNU GPL v3.0（或更新版本）](LICENSE)**。GPLv3 僅涵蓋本 repo 的程式碼，不涵蓋：
+**Copyright © 2026 賴瑞晟 LAI Jui Cheng.** Northstar 的**原始碼**採 **[GNU GPL v3.0（或更新版本）](LICENSE)**。GPLv3 僅涵蓋本 repo 的程式碼，不涵蓋：
 
 - **銀行 / 品牌 logo**（第三方商標）——存放於 gitignore 的 `private-assets/`，**不**包含在公開 repo 內；沒有它們也能正常建置。
 - **內建字型**（Space Grotesk、IBM Plex Sans / Mono / Sans TC）——採 **SIL OFL-1.1**，與 GPLv3 相容但屬獨立授權。細節見 [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md)。
@@ -93,40 +95,6 @@ Northstar 的**原始碼**採 **[GNU GPL v3.0（或更新版本）](LICENSE)**�
 > ⚠️ Northstar 不構成投資 / 理財建議。如 GPLv3 條款所載，本軟體「按現狀」提供、不附任何擔保。
 
 **送 PR 須簽署 CLA**：所有 pull request 都需先簽署[貢獻者授權協議（CLA.md）](CLA.md)——一次性，由機器人在 PR 留言引導。詳見 [CONTRIBUTING.md](CONTRIBUTING.md)。若要回報資安問題，請看 [SECURITY.md](SECURITY.md)，不要在公開 issue 內貼完整漏洞細節、token、個人財務資料或未遮蔽截圖。
-
-## In English (summary)
-
-**Northstar** is a local-first, privacy-first personal & household finance app. It merges
-cash-flow tracking (your expenses) with an investment ledger into one net-worth picture.
-Your data lives in local SQLite **on your own device** — nothing is stored in the cloud —
-and optional multi-device sync is **end-to-end encrypted**. The UI is Traditional Chinese
-(zh-TW) first, with partial English.
-
-- **Stack:** React + TypeScript front end, Tauri 2 shell (desktop + mobile), Rust
-  (`src-tauri/`), `plugin-sql` over SQLite. Built with Vite; tested with Vitest + Playwright.
-- **Status:** Alpha (`0.1.0-alpha.x`) — schema is not guaranteed backward-compatible before GA.
-- **License:** Source code is **GPL-3.0-or-later** (see [`LICENSE`](LICENSE)). Bundled fonts are
-  OFL-1.1 and bank/brand logos are excluded; see [`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md).
-- **Contributing:** all PRs require a one-time **CLA** signature (see [`CLA.md`](CLA.md) /
-  [`CONTRIBUTING.md`](CONTRIBUTING.md)).
-- **Not financial advice.** Provided "as is", without warranty, as stated in the GPLv3 license.
-
-### Build from source
-
-```bash
-npm install
-npm run build      # tsc + vite build
-npm test           # vitest
-npm run tauri dev  # run the desktop app (requires the Rust + Tauri toolchain)
-```
-
-> **Note on bank logos:** the build copies optional bank/brand logos from a private,
-> gitignored `private-assets/bank/` directory (or `$NORTHSTAR_PRIVATE_ASSETS_DIR`) via
-> `scripts/inject-private-assets.mjs`. These third-party trademark assets are **not** part
-> of this open-source repository. The build runs cleanly without them — it simply ships
-> without bundled bank logos. No extra setup is required to build from source.
-
-See **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)** for the full toolchain, test, and packaging notes.
 
 ## 想參與開發？
 

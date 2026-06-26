@@ -138,6 +138,12 @@ fn is_allowed_market_data_url(url: &url::Url) -> bool {
             url.path() == "/opendata/t187ap03_L.csv" || url.path() == "/opendata/t187ap03_O.csv"
         }
         Some("www.sitca.org.tw") => url.path() == "/MemberK0000/F/03/nav.csv",
+        // Plan 071: the public, user-agnostic ETF sector feed on GitHub Pages.
+        // Exactly one host + one fixed path, NO query params — the whole-file pull
+        // carries no per-ticker / holding-revealing data.
+        Some("larryjclai.github.io") => {
+            url.path() == "/northstar/etf-sector-feed.json" && url.query().is_none()
+        }
         _ => false,
     }
 }
