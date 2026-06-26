@@ -7,7 +7,7 @@ Thanks for considering a contribution. Northstar is currently an early public be
 - For bug reports and small fixes, feel free to open an issue or pull request directly.
 - For larger changes, please open an issue first so we can agree on the direction before you spend a lot of time.
 - Do not include personal finance data, real account numbers, API keys, signing keys, screenshots with private information, or production secrets in issues, commits, tests, or pull requests.
-- The project license is not finalized yet. Until a `LICENSE` file is added, please treat the code as source-available for review and discussion, not as generally reusable open-source code.
+- The project source code is licensed under the [MIT License](LICENSE). By submitting a contribution you agree that it is provided under the same MIT terms. Note that bundled fonts (OFL-1.1) and excluded bank/brand logos are licensed separately — see [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
 
 ## Issues
 
