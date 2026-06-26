@@ -389,12 +389,6 @@ export function TransactionsRoute() {
               Clear filters
             </Button>
           )}
-
-          <div className="flex-1" />
-          <div className="flex gap-2">
-            <ActionButton variant="secondary" onClick={() => downloadCsv("northstar-investments.csv", exportInvestmentCsv(recordRows, assetFor))}>匯出 CSV</ActionButton>
-            <Button variant="outline" onClick={() => setImportOpen(true)}><UploadSimple />匯入 CSV</Button>
-          </div>
         </div>
 
         <InvestmentImportWizard
@@ -462,6 +456,7 @@ export function TransactionsRoute() {
         accounts={accountRows}
         portfolioAssets={assetRows}
         title={editingRecordId ? "編輯交易" : duplicatingRecordId ? "複製交易" : "新增交易"}
+        onOpenImport={() => setImportOpen(true)}
         initialMode="transaction"
         onSubmitted={() => {
           setEditingRecordId(null);

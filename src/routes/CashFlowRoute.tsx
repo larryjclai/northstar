@@ -898,12 +898,6 @@ export function CashFlowRoute() {
 
           <CategoryFilter categories={allCategories} value={selectedCategory} onChange={setSelectedCategory} />
 
-          <Button variant="outline" className="h-9 sm:h-9 whitespace-nowrap" onClick={() => csvInputRef.current?.click()}>
-            <UploadSimple size={14} />匯入 CSV
-          </Button>
-          <Button variant="outline" className="h-9 sm:h-9 whitespace-nowrap" onClick={() => downloadCsv("northstar-ledger.csv", exportLedgerCsv(scopedRows, accountName))}>
-            <DownloadSimple size={14} />匯出 CSV
-          </Button>
           <Button className="h-9 sm:h-9 whitespace-nowrap" onClick={() => openCreate("expense")}>
             <Plus size={14} weight="bold" />記一筆
           </Button>
@@ -1295,6 +1289,7 @@ export function CashFlowRoute() {
         recurringRows={recurringRows}
         installmentPeriods={installmentPeriods}
         setInstallmentPeriods={setInstallmentPeriods}
+        onOpenImport={() => csvInputRef.current?.click()}
       />
       <CategoryManagementDrawer
         open={categoryDrawerOpen}
@@ -1771,6 +1766,7 @@ function EntryDrawer({
   recurringRows,
   installmentPeriods,
   setInstallmentPeriods,
+  onOpenImport,
 }: {
   open: boolean;
   type: CashType;
@@ -1805,6 +1801,7 @@ function EntryDrawer({
   recurringRows: import("../domain").RecurringTransaction[];
   installmentPeriods: number;
   setInstallmentPeriods: (v: number) => void;
+  onOpenImport?: () => void;
 }) {
   const [amountFocused, setAmountFocused] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -1926,6 +1923,11 @@ function EntryDrawer({
             {editing ? "編輯交易" : "新增交易"}
           </h2>
           <div style={{ flex: 1 }} />
+          {onOpenImport && !editing && (
+            <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => { onClose(); onOpenImport(); }}>
+              <UploadSimple size={14} style={{ marginRight: 6 }} />匯入 CSV
+            </Button>
+          )}
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="關閉"><X size={16} /></Button>
         </div>
 

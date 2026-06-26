@@ -23,9 +23,11 @@ export function FilterPill({
   }
   const count = selected.size;
 
-  // Render selected labels as a comma-separated string if active, otherwise the base label
-  const displayLabel = count > 0 
-    ? options.filter(o => selected.has(o.value)).map(o => o.label).join(", ")
+  // Render selected labels. If multiple are selected, show count to prevent layout shift
+  const displayLabel = count > 1 
+    ? `${count} 項已選`
+    : count === 1
+    ? options.find(o => selected.has(o.value))?.label || label
     : label;
 
   return (

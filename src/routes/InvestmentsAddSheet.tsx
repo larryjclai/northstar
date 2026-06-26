@@ -1,4 +1,4 @@
-import { X, Bank } from "@phosphor-icons/react";
+import { X, Bank, UploadSimple } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../components/coss/button";
@@ -129,6 +129,7 @@ export function InvestmentEntryDrawer({
   initialMode?: InvestmentEntryMode;
   onSubmitted?: () => void;
   transactionPreset?: TransactionPreset;
+  onOpenImport?: () => void;
 }) {
   const timezone = useUiPreferences((state) => state.timezone);
   const emptyHoldingDraft = useMemo(() => makeEmptyHoldingDraft(timezone), [timezone]);
@@ -473,6 +474,11 @@ export function InvestmentEntryDrawer({
             {mode === "snapshot" ? "建立目前部位" : title}
           </h2>
           <div style={{ flex: 1 }} />
+          {onOpenImport && !transactionPreset && mode === "transaction" && (
+            <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => { onClose(); onOpenImport(); }}>
+              <UploadSimple size={14} style={{ marginRight: 6 }} />匯入 CSV
+            </Button>
+          )}
           {!transactionPreset ? (
             <Button
               variant="ghost"

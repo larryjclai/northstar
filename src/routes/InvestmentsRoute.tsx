@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowsClockwise, ArrowsDownUp, ArrowUp, Bank, ChartLineUp, ListChecks, PencilSimple, PlusCircle, Sliders, X, CaretLeft, CaretRight } from "@phosphor-icons/react";
+import { ArrowDown, ArrowsClockwise, ArrowsDownUp, ArrowUp, Bank, ChartLineUp, ListChecks, PencilSimple, PlusCircle, Sliders, X, CaretLeft, CaretRight, MagnifyingGlass } from "@phosphor-icons/react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -15,6 +15,7 @@ import { Field, TextInput } from "../components/Field";
 import { HoldingForm } from "../components/HoldingForm";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { StatusText } from "../components/StatusText";
+import { FilterPill } from "../components/FilterPill";
 import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { PortfolioAssetDraft } from "../data/repositories";
