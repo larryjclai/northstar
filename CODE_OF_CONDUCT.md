@@ -1,11 +1,5 @@
 # Contributor Covenant Code of Conduct
 
-> **MAINTAINER TODO — set the enforcement contact below.** Replace
-> `[INSERT CONTACT METHOD]` with a channel you actually monitor (ideally the same
-> channel used for security disclosure — see [SECURITY.md](SECURITY.md) /
-> [.github/ISSUE_TEMPLATE/config.yml](.github/ISSUE_TEMPLATE/config.yml)). Do not
-> ship this file with the placeholder in place.
-
 ## Our Pledge
 
 We as members, contributors, and leaders pledge to make participation in our
@@ -66,7 +60,7 @@ representative at an online or offline event.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement at
-[INSERT CONTACT METHOD].
+larry.jc.lai@gmail.com.
 All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the
