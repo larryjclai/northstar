@@ -37,11 +37,11 @@ jobs:
           # Comment the bot posts asking for a signature.
           custom-notsigned-prcomment: 'Thank you for your contribution. Before we can merge this pull request, please read our [Contributor License Agreement (CLA.md)](CLA.md) and sign it by posting the following comment:'
           path-to-signatures: 'signatures/version1/cla.json'
-          path-to-document: 'https://github.com/<OWNER>/<REPO>/blob/main/CLA.md'
-          # OPERATOR: set this to your signatures storage repo (can be this repo
-          # on a dedicated branch, or a separate private repo).
-          remote-organization-name: '<SIGNATURES_ORG_OR_OWNER>'
-          remote-repository-name: '<SIGNATURES_REPO>'
+          path-to-document: 'https://github.com/larryjclai/northstar/blob/main/CLA.md'
+          # Signatures are stored in a SEPARATE private repo. Create it with this
+          # exact name (or change these two lines if you pick a different name).
+          remote-organization-name: 'larryjclai'
+          remote-repository-name: 'northstar-cla-signatures'
           branch: 'cla-signatures'
           allowlist: 'dependabot[bot],github-actions[bot]'
           # Block the PR merge status until signed.
