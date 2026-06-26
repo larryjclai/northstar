@@ -52,6 +52,7 @@ import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
 import { InvestmentsAnalyticsTab } from "./InvestmentsAnalyticsTab";
 import { RecurringInvestmentsTab } from "./RecurringInvestmentsTab";
 import { TransactionsRoute } from "./TransactionsRoute";
+import { InvestmentImportWizard, type InvestmentActivityImportPlan } from "./InvestmentImportWizard";
 import { quoteLookupKeys } from "../domain/marketSymbols";
 
 export function InvestmentsRoute() {
@@ -59,6 +60,7 @@ export function InvestmentsRoute() {
   const search = useSearch({ from: "/investments" });
   const searchTab = search.tab as "portfolio" | "transactions" | "recurring" | "analytics" | undefined;
   const searchSector = search.sector as string | undefined;
+  const [importOpen, setImportOpen] = useState(false);
 
   const [tab, setTabState] = useState<"portfolio" | "transactions" | "recurring" | "analytics">(
     searchTab && ["portfolio", "transactions", "recurring", "analytics"].includes(searchTab)
@@ -72,6 +74,10 @@ export function InvestmentsRoute() {
   }
 
   const { accounts, assets, investments, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots, isInitialLoading, isError, error, refetchAll } = useFinanceData();
+  const importRecords = useRepositoryMutation(
+    (repository, plan: InvestmentActivityImportPlan) => repository.importInvestmentActivities(plan),
+    ["investments", "assets", "accounts", "ledger"]
+  );
   const refreshQuotes = useRefreshQuotes();
   const refreshDailyPrices = useRefreshDailyPrices();
   const backfillAssetProfiles = useBackfillAssetProfiles();
@@ -517,6 +523,14 @@ export function InvestmentsRoute() {
         portfolioAssets={assetRows}
         title="新增交易"
         initialMode="transaction"
+        onOpenImport={() => setImportOpen(true)}
+      />
+
+      <InvestmentImportWizard
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        accounts={accountRows}
+        onImport={(input: InvestmentActivityImportPlan) => importRecords.mutateAsync(input)}
       />
     </div>
   );
