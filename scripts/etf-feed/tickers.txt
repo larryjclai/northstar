@@ -1,0 +1,22 @@
+# ETF tickers for the weekly sector-weights feed (Plan 071).
+# One ticker per line; `#` starts a comment. Operator can expand this list.
+# Bond / no-sector ETFs are fine — they carry assetClasses so the client buckets
+# them (their sectorWeights come back empty). The feed is user-agnostic: it only
+# lists public ETF tickers, never who holds them.
+
+# ── Taiwan ──
+0050.TW
+0056.TW
+006208.TW
+00878.TW
+00929.TW
+00919.TW
+
+# ── US ──
+VOO
+VTI
+VT
+VXUS
+QQQ
+SPY
+BND

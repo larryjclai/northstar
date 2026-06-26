@@ -1,9 +1,22 @@
 # ETF Sector (+Country) Feed Pipeline — design doc (Plan 071, Phase 0 spike)
 
-> **Status: SPIKE COMPLETE — awaiting operator sign-off before Phase 1.**
-> This documents a feasibility spike: a throwaway pipeline, coverage results, and the
-> infra / privacy / country recommendations. No app-side feature is built yet. The
-> native URL allowlist is **not** touched yet (Phase 1, after sign-off).
+> **Status: PHASE 1 BUILT (operator signed off on the Phase-0 decisions).**
+> Phase 0 was a feasibility spike (pipeline, coverage results, infra/privacy/country
+> recommendations). Phase 1 hardened it into the live pipeline + app wiring:
+> - Build script: `scripts/etf-feed/build_feed.py` (+ `tickers.txt`, `requirements.txt`).
+> - Weekly publish: `.github/workflows/etf-feed.yml` → GitHub Pages.
+> - Bundled snapshot: `private-assets/etf/etf-sector-feed.json` (gitignored, release-only),
+>   injected to `public/` by `scripts/inject-private-assets.mjs`; accessor `src/domain/etfSectorAssets.ts`.
+> - Client module: `src/domain/etfSectorFeed.ts` (bundled + on-demand public pull, weekly-TTL cache).
+> - Wired into `AnalyticsPosition.sectorWeights` in `src/routes/InvestmentsRoute.tsx`.
+> - Native allowlist arm + vite proxy parity (`src-tauri/src/lib.rs`, `vite.config.ts`).
+>
+> **OPERATOR ONE-TIME STEP — enable GitHub Pages (gated, not done by this build):**
+> Repo → **Settings → Pages → Build and deployment → Source: "GitHub Actions"**.
+> No secret needed. The `etf-feed.yml` workflow then publishes
+> `https://larryjclai.github.io/northstar/etf-sector-feed.json` weekly (and on
+> `workflow_dispatch`). Until Pages is enabled, the workflow's deploy step fails
+> harmlessly and the app still works from the bundled snapshot.
 
 ## 1. Purpose
 
