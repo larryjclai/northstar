@@ -5,11 +5,11 @@
 > Individual Contributor License Agreement (ICLA) v2.2** and the **Harmony (HA-CLA-I /
 > HA-CLA-E) 1.0** relicensing pattern. CLAs are legally binding contracts. Before relying on
 > it — and especially before relying on the relicensing grant to preserve a future
-> dual-license / App-Store distribution — the project owner (`<COPYRIGHT_HOLDER>`, "the
+> dual-license / App-Store distribution — the project owner (`賴瑞晟 LAI Jui Cheng`, "the
 > Project Owner") should have it reviewed and adapted by qualified legal counsel for their
 > jurisdiction.
 
-Project: **Northstar** (`<COPYRIGHT_HOLDER>` / `<PROJECT_REPO_URL>`)
+Project: **Northstar** (`賴瑞晟 LAI Jui Cheng` / `https://github.com/larryjclai/northstar`)
 
 Thank you for your interest in contributing to Northstar (the "Project"). This Contributor
 License Agreement ("Agreement") documents the rights granted by contributors to the Project
