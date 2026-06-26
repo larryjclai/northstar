@@ -125,7 +125,7 @@ Nothing BLOCKED, nothing TODO, nothing REJECTED this pass.
 | 073 | Clean up release.yml for the now-public repo | P3 | S–M | LOW | repo public + releases on northstar (done) | DONE — remove obsolete `mirror-to-public` job (+RELEASES_TOKEN/url-rewrite); publish-tauri → `latest` non-prerelease on `larryjclai/northstar`; update stale private-repo/10×-billing comments; keep workflow_dispatch-only. DONE + MERGED — mirror job + RELEASES_TOKEN removed; publish-tauri → latest non-prerelease on larryjclai/northstar; workflow_dispatch-only kept; YAML valid. |
 | 074 | Branch cleanup after going public | P3 | S | MED | — | TODO — classify branches MERGED/ARCHIVE/UNMERGED; delete merged non-archive (local `-d`, remote `--delete`) + prune worktree refs; keep `archive/*`; UNMERGED operator-gated. Many stale `advisor/0XX-*`. |
 | 075 | Contribution norms (PR template, CoC, issue/CONTRIBUTING polish) | P2 | S | LOW | 072 | TODO — issue templates already exist; ADD `.github/PULL_REQUEST_TEMPLATE.md` (CLA reminder + real-gates checklist) + `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1, contact flagged) + polish CONTRIBUTING. Docs-only. |
-| 076 | README language toggle (繁中 ⇄ English) | P2 | S–M | LOW | — | TODO — split into README.md (zh-TW default) + README.en.md (full EN) with a top language-nav line each; move the embedded English summary into the full EN file. Docs-only. |
+| 076 | README language toggle (繁中 ⇄ English) | P2 | S–M | LOW | — | DONE + MERGED — split into README.md (zh-TW default) + README.en.md (full EN) with a top language-nav line each; move the embedded English summary into the full EN file. Docs-only. |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale).
 
