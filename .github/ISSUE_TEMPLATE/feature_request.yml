@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Feature requests are easiest to evaluate when they describe the real workflow or decision you are trying to improve.
+        Feature requests are easiest to evaluate when they describe the real workflow or decision you are trying to improve. Northstar is an open-source (GPLv3) project; please don't include personal finance data or unredacted screenshots, and note that it is software, not financial advice.
   - type: textarea
     id: problem
     attributes:
