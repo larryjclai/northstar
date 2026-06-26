@@ -31,7 +31,10 @@ import {
   resolveSectorLabel,
   todayInTimezone,
   assetTypeLabels,
+  loadEtfSectorFeed,
+  sectorWeightsFor,
   type AnalyticsPosition,
+  type LoadedFeed,
   type Account,
   type DailyPrice,
   type HoldingPosition,
@@ -123,6 +126,25 @@ export function InvestmentsRoute() {
     [assetRows, recordRows, quoteMap, dailyPriceRows, valuationToday, manualPriceLookup],
   );
 
+  // ETF sector feed (plan 071): bundled snapshot + on-demand public pull. Loaded
+  // once; weights light up 068's dormant weighted sector split. Demo mode stays
+  // bundled-only (no network). Best-effort — a miss just uses the 068 bucket.
+  const demoActive = useDemoMode((state) => state.active);
+  const [etfFeed, setEtfFeed] = useState<LoadedFeed | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    loadEtfSectorFeed({ bundledOnly: demoActive })
+      .then((loaded) => {
+        if (!cancelled) setEtfFeed(loaded);
+      })
+      .catch(() => {
+        // No feed available — analytics falls back to the 068 ETF/fund bucket.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [demoActive]);
+
   // Current holdings in the shape the analytics engine consumes (fixed-basket).
   const analyticsPositions = useMemo<AnalyticsPosition[]>(
     () => assetRows
@@ -140,8 +162,12 @@ export function InvestmentsRoute() {
         industry: a.industry,
         assetType: a.assetType,
         classificationLocked: a.classificationLocked ?? false,
+        // Fetched ETF weights (canonical, plan 070). buildSectorBreakdown applies
+        // precedence manual(069) > fetched > bucket and only splits a fund whose
+        // weights are trustworthy; a miss/empty → the 068 bucket.
+        sectorWeights: etfFeed ? sectorWeightsFor(etfFeed, a.ticker) : null,
       })),
-    [assetRows],
+    [assetRows, etfFeed],
   );
 
   const allAssetMeta = useMemo(

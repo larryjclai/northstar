@@ -130,6 +130,8 @@ function isAllowedMarketDataUrl(url: URL) {
   if (url.hostname === "www.tpex.org.tw") return url.pathname.startsWith("/openapi/v1/mopsfin_t187ap03_O");
   if (url.hostname === "mopsfin.twse.com.tw") return url.pathname === "/opendata/t187ap03_L.csv" || url.pathname === "/opendata/t187ap03_O.csv";
   if (url.hostname === "www.sitca.org.tw") return url.pathname === "/MemberK0000/F/03/nav.csv";
+  // Plan 071: public ETF sector feed on GitHub Pages (one host + fixed path, no query).
+  if (url.hostname === "larryjclai.github.io") return url.pathname === "/northstar/etf-sector-feed.json" && url.search === "";
   return false;
 }
 
