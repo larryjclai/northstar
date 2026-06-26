@@ -283,7 +283,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
           {step === "mapping" && (
             <div style={{ display: "grid", gap: 20 }}>
               <div>
-                <div className="ns-eyebrow" style={{ marginBottom: 10 }}>欄位對應</div>
+                <div className="text-xs" style={{  marginBottom: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>欄位對應</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
                   {INVESTMENT_FIELDS.map((field) => {
                     const required = REQUIRED_FIELDS.includes(field);
@@ -318,7 +318,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
               </div>
 
               <div>
-                <div className="ns-eyebrow" style={{ marginBottom: 10 }}>交易類別對應</div>
+                <div className="text-xs" style={{  marginBottom: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>交易類別對應</div>
                 {!actionHeader ? (
                   <div className="muted text-sm">請先在上方把「交易類別」對應到一個欄位。</div>
                 ) : actionValues.length === 0 ? (
@@ -351,7 +351,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
 
               {/* Template controls */}
               <div style={{ borderTop: "1px solid var(--ns-border)", paddingTop: 16 }}>
-                <div className="ns-eyebrow" style={{ marginBottom: 10 }}>範本</div>
+                <div className="text-xs" style={{  marginBottom: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>範本</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
                   <input className="ns-input" style={{ flex: "1 1 200px" }} placeholder="範本名稱（例：Firstrade）" value={templateName} onChange={(e) => setTemplateName(e.target.value)} />
                   {templateId
@@ -539,7 +539,7 @@ function StatPill({ label, value, tone }: { label: string; value: string | numbe
   const color = tone === "ok" ? "var(--ns-accent)" : tone === "warn" ? "var(--ns-neg)" : "var(--ns-fg-muted)";
   return (
     <div style={{ padding: "10px 14px", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", minWidth: 110 }}>
-      <div className="ns-eyebrow" style={{ marginBottom: 2 }}>{label}</div>
+      <div className="text-xs" style={{  marginBottom: 2 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</div>
       <div className="text-lg" style={{ fontWeight: 600, color }}>{value}</div>
     </div>
   );

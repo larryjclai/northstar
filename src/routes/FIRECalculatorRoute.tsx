@@ -414,7 +414,7 @@ function RetirementIncomeSection({
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                 <div>
-                  <label className="ns-eyebrow" style={{ display: "block", marginBottom: 4, fontSize: 10 }}>月收入</label>
+                  <label className="text-xs" style={{  display: "block", marginBottom: 4, fontSize: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>月收入</label>
                   <input
                     className="ns-input mono"
                     style={{ textAlign: "right" }}
@@ -424,7 +424,7 @@ function RetirementIncomeSection({
                   />
                 </div>
                 <div>
-                  <label className="ns-eyebrow" style={{ display: "block", marginBottom: 4, fontSize: 10 }}>起始年齡</label>
+                  <label className="text-xs" style={{  display: "block", marginBottom: 4, fontSize: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>起始年齡</label>
                   <input
                     className="ns-input mono"
                     style={{ textAlign: "right" }}
@@ -434,7 +434,7 @@ function RetirementIncomeSection({
                   />
                 </div>
                 <div>
-                  <label className="ns-eyebrow" style={{ display: "block", marginBottom: 4, fontSize: 10 }}>結束年齡</label>
+                  <label className="text-xs" style={{  display: "block", marginBottom: 4, fontSize: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>結束年齡</label>
                   <input
                     className="ns-input mono"
                     style={{ textAlign: "right" }}

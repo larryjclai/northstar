@@ -108,7 +108,7 @@ export function SettingsMerchants({ form, setForm, submit, t, renameMerchant }: 
     <div className="max-w-4xl">
       <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:16 }}>
         <div>
-          <div className="ns-eyebrow" style={{marginBottom:4}}>Auto-categorisation · {form.merchants.length} merchants</div>
+          <div className="text-xs" style={{ marginBottom:4, color: "var(--ns-fg-muted)", fontWeight: 500 }}>Auto-categorisation · {form.merchants.length} merchants</div>
           <h2 style={{ fontFamily:'var(--ns-font-display)',fontSize:24,margin:0,fontWeight:600 }}>{t('settings.merchants')}</h2>
           <p className="muted" style={{fontSize:13,marginTop:4,marginBottom:0}}>
             {t('settings.merchantsDesc')}

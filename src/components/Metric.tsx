@@ -17,7 +17,7 @@ export function Metric({
         : "var(--ns-fg)";
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div className="ns-eyebrow">{label}</div>
+      <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</div>
       <div className="ns-num-md" style={{ color: valueColor }}>{value}</div>
       {sub ? (
         <div className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>{sub}</div>

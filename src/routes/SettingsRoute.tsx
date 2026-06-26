@@ -91,7 +91,7 @@ export function SettingsRoute() {
       {/* Settings sidebar */}
       <aside className="ns-settings-sidebar">
         <div style={{ padding: '0 8px 16px' }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Settings</div>
+          <div className="text-xs" style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Settings</div>
           <h2 className="text-xl" style={{ fontFamily: 'var(--ns-font-display)', margin: 0, fontWeight: 600 }}>{t('settings.title')}</h2>
         </div>
         <div className="ns-settings-tabs">

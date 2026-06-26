@@ -76,19 +76,19 @@ export function MerchantsTab({ dateRange, ledgerRows, primaryCurrency, toPrimary
       {/* Top Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))", gap: 20 }}>
         <Card style={{ padding: "20px 24px" }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>最高支出商家</div>
+          <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>最高支出商家</div>
           <div className="text-lg" style={{ fontWeight: 500 }}>
             {maxSpendMerchant ? `${maxSpendMerchant.name} · ${primaryCurrency} ${formatNumber(maxSpendMerchant.amount)}` : "無"}
           </div>
         </Card>
         <Card style={{ padding: "20px 24px" }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>最常消費</div>
+          <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>最常消費</div>
           <div className="text-lg" style={{ fontWeight: 500 }}>
             {maxVisitsMerchant ? `${maxVisitsMerchant.name} · ${maxVisitsMerchant.visits} 次` : "無"}
           </div>
         </Card>
         <Card style={{ padding: "20px 24px" }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{dateRange.label} 總支出</div>
+          <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{dateRange.label} 總支出</div>
           <div className="text-lg" style={{ fontWeight: 500 }}>
             {primaryCurrency} {formatNumber(totalSpend)} · {allMerchantSpend.length} 個商家
           </div>
@@ -98,7 +98,7 @@ export function MerchantsTab({ dateRange, ledgerRows, primaryCurrency, toPrimary
       {/* Top 5 spend merchants pie (B22) */}
       {top5Pie.length > 0 ? (
         <Card style={{ padding: "var(--ns-pad-card)" }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 12 }}>Top 5 支出商家 · {dateRange.label}</div>
+          <div className="text-xs" style={{  marginBottom: 12 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Top 5 支出商家 · {dateRange.label}</div>
           <div className="grid grid-cols-1 items-center gap-5 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-6">
             <div style={{ width: 180, height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">

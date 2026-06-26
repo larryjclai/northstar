@@ -129,7 +129,7 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
     <div className="max-w-4xl">
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Manage · {form.categories.length} categories</div>
+          <div className="text-xs" style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Manage · {form.categories.length} categories</div>
           <h2 className="text-2xl" style={{ fontFamily: 'var(--ns-font-display)', margin: 0, fontWeight: 600 }}>{t('settings.categories')}</h2>
           <p className="muted text-body" style={{ marginTop: 4, marginBottom: 0 }}>{t('settings.categoriesDesc')}</p>
         </div>

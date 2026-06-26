@@ -761,7 +761,7 @@ export function DashboardRoute() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Overview · {monthLabel}</div>
+          <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Overview · {monthLabel}</div>
           <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>{greeting}</h1>
         </div>
         {/* Account filter + 更新. The single time-range control lives on the net
@@ -777,7 +777,7 @@ export function DashboardRoute() {
                 <SquaresFour size={14} />版面
               </PopoverTrigger>
               <PopoverContent align="end" style={{ width: 220, padding: 8 }}>
-                <div className="ns-eyebrow" style={{ padding: "6px 8px 8px" }}>編輯版面 · 顯示卡片</div>
+                <div className="text-xs" style={{  padding: "6px 8px 8px" , color: "var(--ns-fg-muted)", fontWeight: 500 }}>編輯版面 · 顯示卡片</div>
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   {DASHBOARD_CARDS.map((c) => (
                     <label key={c.key} className="text-body" style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 8px", borderRadius: "var(--ns-r-sm)", cursor: "pointer" }}>
@@ -800,7 +800,7 @@ export function DashboardRoute() {
             <div style={{ minWidth: 0, flex: 1 }}>
               {/* Eyebrow: metric label + currency for money metrics */}
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-                <div className="ns-eyebrow">
+                <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>
                   {activeMetric.key === "netWorth"
                     ? `Net worth · ${primaryCurrency}`
                     : activeMetric.label}
@@ -821,7 +821,7 @@ export function DashboardRoute() {
                     <ChartBar size={11} />北極星指標
                   </PopoverTrigger>
                   <PopoverContent align="start" style={{ width: 200, padding: 8 }}>
-                    <div className="ns-eyebrow" style={{ padding: "6px 8px 8px" }}>選擇主要指標</div>
+                    <div className="text-xs" style={{  padding: "6px 8px 8px" , color: "var(--ns-fg-muted)", fontWeight: 500 }}>選擇主要指標</div>
                     <div style={{ display: "flex", flexDirection: "column" }}>
                       {allMetrics.map((m) => (
                         <button
@@ -970,7 +970,7 @@ export function DashboardRoute() {
           <Card style={{ padding: "13px 16px", display: "flex", flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 }}>
             <div style={{ width: 4, height: 32, borderRadius: 99, background: "var(--ns-chart-3)", flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="ns-eyebrow" style={{ fontSize: 10 }}>本月現金流</div>
+              <div className="text-xs" style={{  fontSize: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>本月現金流</div>
               <div className={monthNet >= 0 ? "pos" : "neg"} style={{
                 fontSize: "clamp(13px, 1.4vw, 18px)",
                 fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums",
@@ -1029,7 +1029,7 @@ export function DashboardRoute() {
         <Card>
           <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
-              <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Upcoming</div>
+              <div className="text-xs" style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Upcoming</div>
               <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>近期帳單 · 30 天</h3>
             </div>
             {upcoming.length ? <Badge variant="error" className="rounded-full px-2">NT${formatNumber(upcomingTotal)}</Badge> : null}
@@ -1061,7 +1061,7 @@ export function DashboardRoute() {
         <Card style={{ marginBottom: 16 }}>
           <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
-              <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Credit cards</div>
+              <div className="text-xs" style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Credit cards</div>
               <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>信用卡繳款提醒</h3>
             </div>
             <Badge variant="error" className="rounded-full px-2">NT${formatNumber(creditReminders.reduce((s, r) => s + r.outstanding, 0))}</Badge>
@@ -1089,7 +1089,7 @@ export function DashboardRoute() {
         <Card style={{ marginBottom: 16 }}>
           <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
-              <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Receivables &amp; payables</div>
+              <div className="text-xs" style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Receivables &amp; payables</div>
               <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>應收 / 應付未結清</h3>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
@@ -1185,7 +1185,7 @@ export function DashboardRoute() {
         {cardVisible("market") ? (
         <Card>
           <div style={{ padding: "14px 18px 10px", borderBottom: "1px solid var(--ns-border)" }}>
-            <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Market</div>
+            <div className="text-xs" style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Market</div>
             <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>匯率</h3>
           </div>
           {fxRates.length === 0 ? (
@@ -1213,7 +1213,7 @@ export function DashboardRoute() {
       <Card className="ns-dash-activity-card">
         <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
           <div>
-            <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Recent activity</div>
+            <div className="text-xs" style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Recent activity</div>
             <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>最近交易</h3>
           </div>
           <Button variant="ghost" size="xs" render={<Link to="/cash-flow" />}>查看全部 →</Button>
@@ -1257,7 +1257,7 @@ function KpiCard({ label, value, color, tone }: { label: string; value: string; 
     <Card style={{ padding: "13px 16px", display: "flex", flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 }}>
       <div style={{ width: 4, height: 32, borderRadius: 99, background: color, flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="ns-eyebrow" style={{ fontSize: 10 }}>{label}</div>
+        <div className="text-xs" style={{  fontSize: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</div>
         <div className={tone === "neg" ? "neg" : ""} style={{
           fontSize: "clamp(13px, 1.4vw, 18px)",
           fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums",
@@ -1286,11 +1286,11 @@ function PortfolioStrip({ period, data, benchmarkTicker }: {
   ];
   return (
     <div style={{ marginTop: 14 }}>
-      <div className="ns-eyebrow" style={{ marginBottom: 8 }}>投資組合 vs Benchmark · {period}</div>
+      <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>投資組合 vs Benchmark · {period}</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", overflow: "hidden" }}>
         {cells.map((c, i) => (
           <div key={c.label} style={{ padding: "10px 14px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)", minWidth: 0 }}>
-            <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.label}</div>
+            <div className="text-xs" style={{  fontSize: 10, marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{c.label}</div>
             <div className="num text-[19px]" style={{ fontWeight: 600, fontFamily: "var(--ns-font-num)", color: c.color, fontVariantNumeric: "tabular-nums" }}>{fmtPctSigned(c.val)}</div>
           </div>
         ))}
@@ -1338,7 +1338,7 @@ function MoverRow({ mover }: { mover: Mover }) {
 function MoverColumn({ label, tone, movers }: { label: string; tone: "pos" | "neg"; movers: Mover[] }) {
   return (
     <div style={{ minWidth: 0 }}>
-      <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 4, color: tone === "pos" ? "var(--ns-gain)" : "var(--ns-loss)" }}>
+      <div className="text-xs" style={{  fontSize: 10, marginBottom: 4, color: tone === "pos" ? "var(--ns-gain)" : "var(--ns-loss)" , fontWeight: 500 }}>
         {label}
       </div>
       {movers.length === 0 ? (
@@ -1356,7 +1356,7 @@ function TopMoversCard({ gainers, losers }: { gainers: Mover[]; losers: Mover[] 
     <Card className="ns-dash-activity-card" style={{ padding: 0 }}>
       <div style={{ padding: "14px 18px 10px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
         <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Today</div>
+          <div className="text-xs" style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Today</div>
           <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>Top Movers</h3>
         </div>
         <Button variant="ghost" size="xs" render={<Link to="/investments" />}>詳細 →</Button>
@@ -1377,7 +1377,7 @@ function SectionHead({ eyebrow, title, action }: { eyebrow: string; title: strin
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
       <div>
-        <div className="ns-eyebrow" style={{ marginBottom: 4 }}>{eyebrow}</div>
+        <div className="text-xs" style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{eyebrow}</div>
         <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>{title}</h3>
       </div>
       {action ?? null}

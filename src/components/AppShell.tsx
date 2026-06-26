@@ -256,7 +256,7 @@ export function AppShell() {
             </Link>
           ))}
 
-          {!collapsed && <div className="ns-eyebrow" style={{ padding: '18px 11px 8px' }}>Settings</div>}
+          {!collapsed && <div className="text-xs" style={{  padding: '18px 11px 8px' , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Settings</div>}
           {collapsed && <div style={{ height: 18 }} />}
           {nav2Items.map((item) => (
             <Link
@@ -385,7 +385,7 @@ export function AppShell() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-4 pt-3 pb-1">
-              <span className="ns-eyebrow">更多</span>
+              <span className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>更多</span>
               <button type="button" aria-label="關閉" onClick={() => setMoreOpen(false)} style={{ background: "none", border: "none", color: "var(--ns-fg-muted)", cursor: "pointer" }}>
                 <X size={18} />
               </button>

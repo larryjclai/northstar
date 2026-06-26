@@ -1205,7 +1205,7 @@ function AddDeviceDialog({
 function Stat({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <div className="ns-eyebrow" style={{ marginBottom: 3 }}>{label}</div>
+      <div className="text-xs" style={{  marginBottom: 3 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</div>
       <div className={mono ? "mono" : ""} style={{ fontWeight: 500 }}>{value}</div>
     </div>
   );

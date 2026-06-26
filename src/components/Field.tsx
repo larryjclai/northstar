@@ -6,7 +6,7 @@ import { AppSelect } from "./AppSelect";
 export function Field({ label, children }: PropsWithChildren<{ label: string }>) {
   return (
     <label className="grid gap-1.5">
-      <span className="ns-eyebrow">{label}</span>
+      <span className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</span>
       {children}
     </label>
   );

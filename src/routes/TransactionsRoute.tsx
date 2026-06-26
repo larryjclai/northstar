@@ -1,4 +1,4 @@
-import { ArrowsDownUp, Bank, CopySimple, FunnelSimple, MagnifyingGlass, PencilSimple, PlusCircle, Trash, UploadSimple, ListPlus } from "@phosphor-icons/react";
+import { ArrowsDownUp, Bank, CopySimple, FunnelSimple, MagnifyingGlass, PencilSimple, Plus, PlusCircle, Trash, UploadSimple, ListPlus } from "@phosphor-icons/react";
 import { Button } from "../components/coss/button";
 import { Card as CossCard } from "../components/coss/card";
 import { Skeleton } from "../components/coss/skeleton";
@@ -404,7 +404,7 @@ export function TransactionsRoute() {
               icon={<PlusCircle size={24} weight="duotone" />}
               title="還沒有投資交易"
               description="先新增一筆交易，或從券商 CSV 大量匯入交易紀錄。"
-              action={<ActionButton onClick={openCreate}><PlusCircle size={16} />新增第一筆交易</ActionButton>}
+              action={<ActionButton onClick={openCreate}><Plus size={14} weight="bold" />新增第一筆交易</ActionButton>}
               secondaryAction={<Button variant="outline" onClick={() => setImportOpen(true)}><UploadSimple size={16} />匯入 CSV</Button>}
             />
           ) : (
@@ -638,7 +638,7 @@ function SummaryCard({
 }) {
   return (
     <CossCard className="p-4 sm:p-5">
-      <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{label}</div>
+      <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <div className="num text-stat" style={{ fontWeight: 500 }}>{value}</div>
         {sublabel && <div className="num text-body" style={{ color: 'var(--ns-muted)' }}>{sublabel}</div>}

@@ -104,7 +104,7 @@ export function SettingsFX({ form, submit, dailyFxRates, t }: Omit<SettingsTabPr
     <div className="max-w-4xl">
       <div style={{ display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:20 }}>
         <div>
-          <div className="ns-eyebrow" style={{marginBottom:4}}>Currencies &amp; FX</div>
+          <div className="text-xs" style={{ marginBottom:4, color: "var(--ns-fg-muted)", fontWeight: 500 }}>Currencies &amp; FX</div>
           <h2 style={{fontFamily:'var(--ns-font-display)',fontSize:24,margin:0,fontWeight:600}}>{t('settings.fx')}</h2>
           <p className="muted" style={{fontSize:13,marginTop:4,marginBottom:0}}>
             {t('settings.fxDesc')}
@@ -117,7 +117,7 @@ export function SettingsFX({ form, submit, dailyFxRates, t }: Omit<SettingsTabPr
       </div>
 
       <Card style={{padding:18, marginBottom:16}}>
-        <div className="ns-eyebrow" style={{marginBottom:8}}>{t('settings.baseCurrency')}</div>
+        <div className="text-xs" style={{ marginBottom:8, color: "var(--ns-fg-muted)", fontWeight: 500 }}>{t('settings.baseCurrency')}</div>
         <p className="muted" style={{fontSize:12,margin:'0 0 12px'}}>{t('settings.baseCurrencyDesc')}</p>
         <input className="ns-input max-w-xs" value={form.primaryCurrency} onChange={e => submit({...form, primaryCurrency: e.target.value.toUpperCase()})} />
       </Card>

@@ -290,8 +290,8 @@ function SectionHead() {
   return (
     <div style={{ marginBottom: 16 }}>
       <div
-        className="ns-eyebrow"
-        style={{ marginBottom: 4 }}
+        className="text-xs"
+        style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}
       >
         Future net worth · 30-year projection
       </div>
@@ -327,7 +327,7 @@ function MilestoneCell({
         border: "1px solid var(--ns-border)",
       }}
     >
-      <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 4 }}>
+      <div className="text-xs" style={{  fontSize: 10, marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>
         {label}
       </div>
       <div

@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowsClockwise, ArrowsDownUp, ArrowUp, Bank, ChartLineUp, ListChecks, PencilSimple, PlusCircle, Sliders, X, CaretLeft, CaretRight, MagnifyingGlass } from "@phosphor-icons/react";
+import { ArrowDown, ArrowsClockwise, ArrowsDownUp, ArrowUp, Bank, ChartLineUp, ListChecks, PencilSimple, Plus, Sliders, X, CaretLeft, CaretRight, MagnifyingGlass } from "@phosphor-icons/react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -75,7 +75,7 @@ export function InvestmentsRoute() {
 
   const { accounts, assets, investments, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   const importRecords = useRepositoryMutation(
-    (repository, plan: InvestmentActivityImportPlan) => repository.importInvestmentActivities(plan),
+    (repository, plan: InvestmentActivityImportPlan) => repository.importInvestmentActivity(plan),
     ["investments", "assets", "accounts", "ledger"]
   );
   const refreshQuotes = useRefreshQuotes();
@@ -400,7 +400,7 @@ export function InvestmentsRoute() {
       {/* Header */}
       <div className="ns-invest-header" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 0 }}>
         <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>投資組合</div>
+          <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>投資組合</div>
           <h1 className="text-[28px]" style={{ fontFamily: 'var(--ns-font-display)', margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>投資</h1>
         </div>
         <div className="ns-invest-header-actions" style={{ display: 'flex', gap: 8 }}>
@@ -416,7 +416,7 @@ export function InvestmentsRoute() {
             <ArrowsClockwise size={14} />{refreshQuotes.isPending ? "更新中" : "更新報價"}
           </Button>
           <Button onClick={() => setAddOpen(true)}>
-            <PlusCircle size={14} weight="bold" />新增交易
+            <Plus size={14} weight="bold" />新增交易
           </Button>
         </div>
       </div>
@@ -458,7 +458,7 @@ export function InvestmentsRoute() {
               ['今年股利', `NT$${formatCompactNumber(dividendsYTD)}`, `NT$${formatNumber(dividendsYTD)}`, '', true],
             ] as const).map(([label, val, exact, pct, pos], i) => (
               <CossCard key={i} className="p-4 sm:p-5 min-w-0">
-                <div className="ns-eyebrow" style={{ marginBottom: 8, flexShrink: 0 }}>{label}</div>
+                <div className="text-xs" style={{  marginBottom: 8, flexShrink: 0 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</div>
                 {/* Value takes the full card width (compact 萬/億 keeps it short);
                     the % change sits on its own line so it never squeezes the
                     number into an ellipsis. */}
@@ -979,7 +979,7 @@ function HoldingsAllocation({ positions, assetsById, nameLocale, toPrimary, prim
 
   return (
     <CossCard className="ns-holdings-allocation" style={{ padding: 20, marginBottom: 20 }}>
-      <div className="ns-eyebrow" style={{ marginBottom: 14 }}>持倉配置</div>
+      <div className="text-xs" style={{  marginBottom: 14 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>持倉配置</div>
       <div className="ns-holdings-allocation-body">
         <div className="ns-holdings-allocation-chart">
           <ResponsiveContainer width="100%" height="100%">

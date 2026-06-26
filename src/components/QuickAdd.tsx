@@ -239,7 +239,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
           <Card style={{ padding: 16, boxShadow: "var(--ns-shadow-xl)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span className="ns-eyebrow">確認 · {confirm.kind === "investment" ? (confirm.action === "buy" ? "買入" : "賣出") : confirm.entryType === "expense" ? "支出" : "收入"}</span>
+                <span className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>確認 · {confirm.kind === "investment" ? (confirm.action === "buy" ? "買入" : "賣出") : confirm.entryType === "expense" ? "支出" : "收入"}</span>
                 {parseSource === "on-device" ? (
                   <span className="text-micro" title="由裝置端 AI 解析（Apple Foundation Models）" style={{ opacity: 0.6, padding: "1px 6px", borderRadius: 999, border: "1px solid var(--ns-border)", letterSpacing: "0.02em" }}>AI</span>
                 ) : null}
@@ -453,7 +453,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="ns-eyebrow" style={{ display: "block", marginBottom: 5, fontSize: 10.5 }}>{label}</label>
+      <label className="text-xs" style={{  display: "block", marginBottom: 5, fontSize: 10.5 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</label>
       {children}
     </div>
   );

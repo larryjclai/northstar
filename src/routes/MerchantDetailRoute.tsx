@@ -113,7 +113,7 @@ export function MerchantDetailRoute() {
           <div className="ns-detail-title-row">
             <Initials name={merchantName} color={categoryColor} large />
             <div className="min-w-0">
-              <div className="ns-eyebrow">記帳 / 商家</div>
+              <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>記帳 / 商家</div>
               <h1 className="ns-detail-title">{merchantName}</h1>
               <div className="ns-pill-row">
                 {categoryHit.value ? <span className="ns-filter-pill" data-active>{categoryHit.value}</span> : null}
@@ -286,7 +286,7 @@ function TransactionRows({
 function Panel({ eyebrow, title, children }: { eyebrow: string; title: string; children: ReactNode }) {
   return (
     <Card className="ns-analysis-panel">
-      <div className="ns-eyebrow">{eyebrow}</div>
+      <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{eyebrow}</div>
       <h2>{title}</h2>
       {children}
     </Card>
@@ -296,7 +296,7 @@ function Panel({ eyebrow, title, children }: { eyebrow: string; title: string; c
 function InsightTile({ label, value, tone }: { label: string; value: string; tone?: "accent" }) {
   return (
     <Card className="ns-insight-tile">
-      <div className="ns-eyebrow">{label}</div>
+      <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</div>
       <div className="num" data-tone={tone}>{value}</div>
     </Card>
   );

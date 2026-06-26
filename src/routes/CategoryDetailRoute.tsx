@@ -158,7 +158,7 @@ export function CategoryDetailRoute() {
               <Glyph name={icon} size={26} color="var(--ns-accent-fg)" />
             </div>
             <div className="min-w-0">
-              <div className="ns-eyebrow">Cash Flow / 分類</div>
+              <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>Cash Flow / 分類</div>
               <h1 className="ns-detail-title">{categoryName}</h1>
               {children.length ? (
                 <div className="ns-pill-row">
@@ -332,7 +332,7 @@ function TransactionsPanel({
     <Card className="ns-transactions-card">
       <div className="ns-section-head">
         <div>
-          <div className="ns-eyebrow">{title}</div>
+          <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{title}</div>
           <h2>{rows.length} 筆 · {formatMoney(total, primaryCurrency)}</h2>
         </div>
         <div className="ns-pill-row">
@@ -391,7 +391,7 @@ function TransactionsPanel({
 function Panel({ eyebrow, title, children }: { eyebrow: string; title: string; children: ReactNode }) {
   return (
     <Card className="ns-analysis-panel">
-      <div className="ns-eyebrow">{eyebrow}</div>
+      <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{eyebrow}</div>
       <h2>{title}</h2>
       {children}
     </Card>
@@ -401,7 +401,7 @@ function Panel({ eyebrow, title, children }: { eyebrow: string; title: string; c
 function InsightTile({ label, value, tone }: { label: string; value: string; tone?: "accent" }) {
   return (
     <Card className="ns-insight-tile">
-      <div className="ns-eyebrow">{label}</div>
+      <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</div>
       <div className="num" data-tone={tone}>{value}</div>
     </Card>
   );

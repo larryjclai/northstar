@@ -190,13 +190,13 @@ export function SettingsExport({ t }: Pick<SettingsTabProps, "t">) {
   return (
     <div className="max-w-4xl space-y-6">
       <div>
-        <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Export</div>
+        <div className="text-xs" style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Export</div>
         <h2 style={{ fontFamily: "var(--ns-font-display)", fontSize: 24, margin: 0, fontWeight: 600 }}>{t("settings.dataExport")}</h2>
         <p className="muted" style={{ fontSize: 13, marginTop: 4, marginBottom: 0 }}>{t("settings.dataExportDesc")}</p>
       </div>
 
       <Card className="p-5">
-        <div className="ns-eyebrow" style={{ marginBottom: 10 }}>{t("settings.format")}</div>
+        <div className="text-xs" style={{  marginBottom: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{t("settings.format")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {formatCards.map((f) => (
             <button key={f.id} type="button" onClick={() => setFormat(f.id)} style={{
@@ -221,7 +221,7 @@ export function SettingsExport({ t }: Pick<SettingsTabProps, "t">) {
       ) : (
         <>
           <Card className="p-5">
-            <div className="ns-eyebrow" style={{ marginBottom: 10 }}>{t("settings.timeRange")}</div>
+            <div className="text-xs" style={{  marginBottom: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{t("settings.timeRange")}</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {([
                 ["thisMonth", t("settings.thisMonth")],
@@ -247,7 +247,7 @@ export function SettingsExport({ t }: Pick<SettingsTabProps, "t">) {
           </Card>
 
           <Card className="p-5">
-            <div className="ns-eyebrow" style={{ marginBottom: 10 }}>帳戶範圍</div>
+            <div className="text-xs" style={{  marginBottom: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>帳戶範圍</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {ACCOUNT_SCOPES.map((s) => {
                 const count = s.types ? accountRows.filter((a) => s.types!.includes(a.type)).length : accountRows.length;
@@ -262,7 +262,7 @@ export function SettingsExport({ t }: Pick<SettingsTabProps, "t">) {
           </Card>
 
           <Card className="p-5">
-            <div className="ns-eyebrow" style={{ marginBottom: 10 }}>{t("settings.includedFields")}</div>
+            <div className="text-xs" style={{  marginBottom: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{t("settings.includedFields")}</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {fieldToggles.map((f) => (
                 <button key={f.key} type="button" onClick={() => f.set(!f.on)} style={{

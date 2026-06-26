@@ -885,7 +885,7 @@ export function CashFlowRoute() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginBottom: 22, flexWrap: "wrap" }}>
         <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{periodLabel}</div>
+          <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{periodLabel}</div>
           <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>
             記帳
           </h1>
@@ -937,7 +937,7 @@ export function CashFlowRoute() {
                 if (first) setDetailRow(first);
               }}
             >
-              <span className="ns-eyebrow">未結清</span>
+              <span className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>未結清</span>
               {settlements.receivableTotal > 0 ? (
                 <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                   <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收 {settlements.receivableCount}</Badge>
@@ -953,16 +953,12 @@ export function CashFlowRoute() {
               <span className="muted text-xs" style={{ marginLeft: "auto" }}>結清後會計入收支 · 點此查看並結清</span>
             </Card>
           ) : null}
-          {/* Summary layer — single column on phones (the chart + category cards
-              stack), 2-up only from lg. The old fixed `minmax(0,1fr) 320px` grid
-              had no breakpoint, so on a phone the 320px column crushed the chart
-              card to a few px and the two cards jammed together. */}
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]" style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: 20 }}>
         {/* Cashflow Chart */}
         <Card id="cashflow-chart" style={{ padding: 24 }}>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 16, marginBottom: 14, flexWrap: "wrap" }}>
             <div>
-              <div className="ns-eyebrow" style={{ marginBottom: 6 }}>現金流 · Net</div>
+              <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>現金流 · Net</div>
               <div className={"ns-num-lg " + (periodNet >= 0 ? "pos" : "neg")}>
                 {periodNet >= 0 ? "+" : "−"}{primaryCurrency} {formatNumber(Math.abs(periodNet))}
               </div>
@@ -972,7 +968,7 @@ export function CashFlowRoute() {
             <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
               {/* Hero: 儲蓄率 */}
               <div className="ns-surface" style={{ padding: "10px 14px", borderRadius: "var(--ns-r-sm)", background: "var(--ns-accent-soft)", display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 104 }}>
-                <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 2 }}>儲蓄率</div>
+                <div className="text-xs" style={{  fontSize: 10, marginBottom: 2 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>儲蓄率</div>
                 <div
                   className={"num " + (periodIncome > 0 && periodNet >= 0 ? "pos" : "muted")}
                   style={{ fontSize: 22, fontWeight: 600, fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", lineHeight: 1.1 }}
@@ -1070,10 +1066,12 @@ export function CashFlowRoute() {
             </ResponsiveContainer>
           </div>
         </Card>
+      </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5" style={{ marginBottom: 20 }}>
         <Card style={{ padding: 20 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <div className="ns-eyebrow">分類支出 · {periodLabel}</div>
+            <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>分類支出 · {periodLabel}</div>
             {selectedCategory !== "all" && (
               <Button variant="ghost" size="xs" onClick={() => setSelectedCategory("all")}>
                 <X size={10} weight="bold" />清除篩選
@@ -1128,6 +1126,7 @@ export function CashFlowRoute() {
             <div className="muted text-body" style={{ textAlign: "center", padding: "30px 0" }}>本月尚無支出</div>
           )}
         </Card>
+        <RankingCard title="商家花費排行" rows={topMerchantSpend} emptyText="此期間尚無商家資料" currency={primaryCurrency} />
       </div>
 
       {preview ? (
@@ -1191,7 +1190,7 @@ export function CashFlowRoute() {
                   display: "flex", alignItems: "center", justifyContent: "space-between",
                   background: "var(--ns-bg-elev)",
                 }}>
-                  <span className="ns-eyebrow">{g.date}</span>
+                  <span className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{g.date}</span>
                   <span className="dim mono text-caption">
                     Net <span className={g.net >= 0 ? "pos" : "neg"}>
                       {(g.net >= 0 ? "+" : "−")}{primaryCurrency} {formatNumber(Math.abs(g.net))}
@@ -1230,7 +1229,6 @@ export function CashFlowRoute() {
 
         {/* Side rankings */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <RankingCard title="商家花費排行" rows={topMerchantSpend} emptyText="此期間尚無商家資料" currency={primaryCurrency} />
           <UpcomingPayments recurringRows={recurringRows} accountName={accountName} onPost={async (id) => { try { await postRecurring.mutateAsync(id); toast.success("已記入交易"); } catch { toast.error("記入失敗"); } }} posting={postRecurring.isPending} />
         </div>
       </div>
@@ -1659,7 +1657,7 @@ function StatCard({ label, value, tone }: { label: string; value: string; tone: 
   const color = tone === "pos" ? "var(--ns-pos)" : tone === "neg" ? "var(--ns-neg)" : "var(--ns-fg)";
   return (
     <Card style={{ padding: 18 }}>
-      <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{label}</div>
+      <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</div>
       <div className="num text-stat" style={{ fontWeight: 500, color }}>{value}</div>
     </Card>
   );

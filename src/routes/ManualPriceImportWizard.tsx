@@ -132,7 +132,7 @@ export function ManualPriceImportWizard({ open, onClose, assetId, assetLabel, cu
           {step === "upload" && (
             <div style={{ display: "grid", gap: 18 }}>
               <div>
-                <div className="ns-eyebrow" style={{ marginBottom: 8 }}>上傳 CSV 檔</div>
+                <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>上傳 CSV 檔</div>
                 <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
                 <button type="button" onClick={() => fileRef.current?.click()} style={{ width: "100%", padding: 22, borderRadius: "var(--ns-r-md)", cursor: "pointer", border: `1.5px dashed ${fileName ? "var(--ns-accent)" : "var(--ns-border)"}`, background: "transparent", color: "var(--ns-fg)", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                   {fileName ? <FileCsv size={26} style={{ color: "var(--ns-accent)" }} /> : <UploadSimple size={26} />}
@@ -147,7 +147,7 @@ export function ManualPriceImportWizard({ open, onClose, assetId, assetLabel, cu
           {step === "mapping" && (
             <div style={{ display: "grid", gap: 20 }}>
               <div>
-                <div className="ns-eyebrow" style={{ marginBottom: 10 }}>欄位對應</div>
+                <div className="text-xs" style={{  marginBottom: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>欄位對應</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
                   {MANUAL_PRICE_FIELDS.map((field) => {
                     const required = MANUAL_PRICE_REQUIRED_FIELDS.includes(field);
@@ -265,7 +265,7 @@ function StatPill({ label, value, tone }: { label: string; value: string | numbe
   const color = tone === "ok" ? "var(--ns-accent)" : tone === "warn" ? "var(--ns-neg)" : "var(--ns-fg-muted)";
   return (
     <div style={{ padding: "10px 14px", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", minWidth: 110 }}>
-      <div className="ns-eyebrow" style={{ marginBottom: 2 }}>{label}</div>
+      <div className="text-xs" style={{  marginBottom: 2 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</div>
       <div className="text-lg" style={{ fontWeight: 600, color }}>{value}</div>
     </div>
   );

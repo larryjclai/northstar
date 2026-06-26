@@ -104,7 +104,7 @@ function BenchmarkPicker({ current }: { current: string }) {
         </button>
       } />
       <PopoverContent align="end" style={{ width: 300, padding: 10 }}>
-        <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 8 }}>常用指標</div>
+        <div className="text-xs" style={{  fontSize: 10, marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>常用指標</div>
         <div style={{ display: "flex", flexDirection: "column", marginBottom: 10 }}>
           {BENCHMARK_PRESETS.map((preset) => (
             <button
@@ -123,7 +123,7 @@ function BenchmarkPicker({ current }: { current: string }) {
             </button>
           ))}
         </div>
-        <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 6 }}>或搜尋任意代號</div>
+        <div className="text-xs" style={{  fontSize: 10, marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>或搜尋任意代號</div>
         <TickerSearchField
           value={query}
           onChange={setQuery}
@@ -550,7 +550,7 @@ export function InvestmentsAnalyticsTab({
       <CossCard style={{ padding: 34 }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 20, marginBottom: 24 }}>
           <div>
-            <div className="ns-eyebrow" style={{ marginBottom: 10 }}>期間報酬 · {period}</div>
+            <div className="text-xs" style={{  marginBottom: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>期間報酬 · {period}</div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
               <span
                 className="num"
@@ -609,7 +609,7 @@ export function InvestmentsAnalyticsTab({
                 { l: "期末市值", v: periodSummary.endValue == null ? "—" : formatMoney(periodSummary.endValue, primaryCurrency) },
               ].map((s) => (
                 <div key={s.l}>
-                  <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 6 }}>{s.l}</div>
+                  <div className="text-xs" style={{  fontSize: 10, marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{s.l}</div>
                   <div className="num" style={{ fontSize: 18, fontWeight: 500, color: "var(--ns-fg-muted)" }}>{s.v}</div>
                 </div>
               ))}
@@ -638,7 +638,7 @@ export function InvestmentsAnalyticsTab({
               key={s.l}
               style={{ padding: "16px 20px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)" }}
             >
-              <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
+              <div className="text-xs" style={{  fontSize: 10, marginBottom: 6, display: "flex", alignItems: "center", gap: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>
                 {s.l}
                 <MetricHelp text={s.help} />
               </div>
@@ -685,7 +685,7 @@ export function InvestmentsAnalyticsTab({
             { label: "超額報酬", val: perf.alpha, color: perf.alpha != null && perf.alpha >= 0 ? "var(--ns-accent)" : "var(--ns-loss)", help: "投資組合報酬減掉指標報酬。正數代表本期間跑贏指標，負數代表落後。" },
           ].map((s, i) => (
             <div key={s.label} style={{ padding: "12px 16px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)", minWidth: 0 }}>
-              <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: 4 }}>
+              <div className="text-xs" style={{  fontSize: 10, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>
                 {s.label}{s.help ? <MetricHelp text={s.help} /> : null}
               </div>
               <div className="num text-stat" style={{ fontWeight: 600, fontFamily: "var(--ns-font-num)", color: s.color, fontVariantNumeric: "tabular-nums" }}>
@@ -785,7 +785,7 @@ export function InvestmentsAnalyticsTab({
               <div style={{ display: "grid", gridTemplateColumns: losers.length > 0 ? "repeat(auto-fit, minmax(min(100%, 420px), 1fr))" : "1fr", gap: 32, minWidth: 0 }}>
                 {winners.length > 0 && (
                   <div style={{ minWidth: 0 }}>
-                    <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 12, color: "var(--ns-gain)" }}>上漲 TOP {winners.length}</div>
+                    <div className="text-xs" style={{  fontSize: 10, marginBottom: 12, color: "var(--ns-gain)" , fontWeight: 500 }}>上漲 TOP {winners.length}</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       {winners.map((r) => (
                         <AttributionRow key={r.ticker} label={r.ticker} contribution={r.contribution} pct={r.pct} color="var(--ns-gain)" />
@@ -795,7 +795,7 @@ export function InvestmentsAnalyticsTab({
                 )}
                 {losers.length > 0 && (
                   <div style={{ minWidth: 0 }}>
-                    <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 12, color: "var(--ns-loss)" }}>下跌 TOP {losers.length}</div>
+                    <div className="text-xs" style={{  fontSize: 10, marginBottom: 12, color: "var(--ns-loss)" , fontWeight: 500 }}>下跌 TOP {losers.length}</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       {losers.map((r) => (
                         <AttributionRow key={r.ticker} label={r.ticker} contribution={r.contribution} pct={r.pct} color="var(--ns-loss)" />
@@ -1003,14 +1003,14 @@ export function InvestmentsAnalyticsTab({
               <NSAnHead kicker="集中度 · CONCENTRATION" title="最大持倉佔比" />
               <div style={{ display: "flex", gap: 28 }}>
                 <div>
-                  <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 8 }}>最大產業</div>
+                  <div className="text-xs" style={{  fontSize: 10, marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>最大產業</div>
                   <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>{allocationSummary.largestClass?.label ?? "—"}</div>
                   <div className="mono muted" style={{ fontSize: 12, marginTop: 2 }}>
                     {allocationSummary.largestClass ? `${allocationSummary.largestClass.pct.toFixed(1)}%` : "—"}
                   </div>
                 </div>
                 <div>
-                  <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 8 }}>最大單一持倉</div>
+                  <div className="text-xs" style={{  fontSize: 10, marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>最大單一持倉</div>
                   <div className="mono" style={{ fontSize: 22, fontWeight: 600 }}>{allocationSummary.largestHolding?.label ?? "—"}</div>
                   <div className="mono muted" style={{ fontSize: 12, marginTop: 2 }}>
                     {allocationSummary.topHoldingPct == null ? "—" : `${allocationSummary.topHoldingPct.toFixed(1)}%`}
@@ -1059,7 +1059,7 @@ export function InvestmentsAnalyticsTab({
                 { l: "累計股利", v: formatMoney(dividends.total, primaryCurrency), help: "有紀錄以來的現金股利合計（淨額）。" },
               ].map((s) => (
                 <div key={s.l}>
-                  <div className="ns-eyebrow" style={{ fontSize: 10, marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                  <div className="text-xs" style={{  fontSize: 10, marginBottom: 6, display: "flex", alignItems: "center", gap: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>
                     {s.l}<MetricHelp text={s.help} />
                   </div>
                   <div className="num" style={{ fontSize: 24, fontWeight: 600, color: "var(--ns-gain)", fontVariantNumeric: "tabular-nums" }}>{s.v}</div>
@@ -1068,7 +1068,7 @@ export function InvestmentsAnalyticsTab({
             </div>
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               <div>
-                <div className="ns-eyebrow" style={{ marginBottom: 10 }}>年度股利</div>
+                <div className="text-xs" style={{  marginBottom: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>年度股利</div>
                 {(() => {
                   const max = Math.max(...dividends.byYear.map((y) => y.total), 1);
                   return (
@@ -1087,7 +1087,7 @@ export function InvestmentsAnalyticsTab({
                 })()}
               </div>
               <div>
-                <div className="ns-eyebrow" style={{ marginBottom: 10 }}>個股股利貢獻</div>
+                <div className="text-xs" style={{  marginBottom: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>個股股利貢獻</div>
                 {(() => {
                   const max = Math.max(...dividends.byHolding.map((h) => h.total), 1);
                   return (
@@ -1148,7 +1148,7 @@ function KpiCard({ label, note, value, color, spark, sub, help }: {
   return (
     <CossCard style={{ padding: "18px 20px" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, gap: 8 }}>
-        <div className="ns-eyebrow" style={{ fontSize: 10, display: "flex", alignItems: "center", gap: 5 }}>
+        <div className="text-xs" style={{  fontSize: 10, display: "flex", alignItems: "center", gap: 5 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>
           {label}
           <MetricHelp text={help} />
         </div>
@@ -1205,7 +1205,7 @@ function RollingVolatilityCard({ rolling }: {
     <CossCard style={{ padding: 22 }}>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, marginBottom: open ? 12 : 0 }}>
         <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 4 }}>風險趨勢</div>
+          <div className="text-xs" style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>風險趨勢</div>
           <HeadingWithHelp
             title="滾動 30 日波動率"
             help="每一天都用前 30 個交易日重新計算一次年化波動率，用來看風險是正在升高、降低，還是維持穩定。"
@@ -1285,7 +1285,7 @@ function NSAnHead({ kicker, title, right, accent }: {
   return (
     <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginBottom: 20 }}>
       <div>
-        <div className="ns-eyebrow" style={{ marginBottom: 8, color: accent ?? "var(--ns-accent)" }}>{kicker}</div>
+        <div className="text-xs" style={{  marginBottom: 8, color: accent ?? "var(--ns-accent)" , fontWeight: 500 }}>{kicker}</div>
         <h3 style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontSize: 21, fontWeight: 600, letterSpacing: "-0.01em" }}>{title}</h3>
       </div>
       {right}

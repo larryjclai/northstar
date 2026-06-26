@@ -273,7 +273,7 @@ export function AccountsRoute() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 22, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{rows.length} accounts · {primaryCurrency} base</div>
+          <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{rows.length} accounts · {primaryCurrency} base</div>
           <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>帳戶</h1>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -295,7 +295,7 @@ export function AccountsRoute() {
             <Card key={c.label} style={{ padding: 16, flexDirection: "row", alignItems: "center", gap: 12 }}>
               <div style={{ width: 4, height: 38, borderRadius: 99, background: c.color, flexShrink: 0 }} />
               <div style={{ minWidth: 0 }}>
-                <div className="ns-eyebrow" style={{ marginBottom: 6 }}>{c.label}</div>
+                <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{c.label}</div>
                 <div className={`text-xl${c.tone === "neg" ? " neg" : ""}`} style={{ fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
                   {c.tone === "neg" && c.value !== 0 ? "−" : ""}{formatNumber(Math.abs(c.value))}
                 </div>
@@ -310,7 +310,7 @@ export function AccountsRoute() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(130px, 100%), 1fr))", gap: 14, marginBottom: 20 }}>
           {currencyBreakdown.map((c) => (
             <Card key={c.ccy} style={{ padding: 16 }}>
-              <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{c.ccy}</div>
+              <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{c.ccy}</div>
               <div className="text-[19px]" style={{ fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums" }}>{formatNumber(c.base)}</div>
               <div style={{ height: 6, borderRadius: 99, background: "var(--ns-bg-hover)", marginTop: 8, overflow: "hidden" }}>
                 <div style={{ width: `${c.pct}%`, height: "100%", background: c.color }} />
@@ -389,7 +389,7 @@ export function AccountsRoute() {
 
                 return (
                   <div key={a.id}>
-                  {showSubgroup ? <div className="ns-eyebrow" style={{ padding: "10px 22px 4px", borderTop: i ? "1px solid var(--ns-border)" : "none" }}>{subgroup}</div> : null}
+                  {showSubgroup ? <div className="text-xs" style={{  padding: "10px 22px 4px", borderTop: i ? "1px solid var(--ns-border)" : "none" , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{subgroup}</div> : null}
                   <div
                     className="ns-acct-row"
                     style={{
@@ -421,7 +421,7 @@ export function AccountsRoute() {
                       {utilPct !== null ? (
                         <div style={{ marginTop: 5 }}>
                           <div style={{ height: 3, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
-                            <div style={{ width: `${utilPct}%`, height: "100%", borderRadius: 99, background: utilBarColor, transition: "width 0.3s ease" }} />
+                              <div style={{ width: "100%", height: "100%", background: utilBarColor, transform: `scaleX(${(utilPct ?? 0) / 100})`, transformOrigin: "left", transition: "transform 0.3s var(--ns-ease)" }} />
                           </div>
                         </div>
                       ) : null}
@@ -858,7 +858,7 @@ function AccountDrawer({
 function DrawerField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>{label}</label>
+      <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</label>
       {children}
     </div>
   );

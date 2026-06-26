@@ -146,7 +146,7 @@ export function GoalsRoute() {
     <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]" style={{ maxWidth: 1180, margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 22, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Long-term progress</div>
+          <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Long-term progress</div>
           <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>目標・FIRE</h1>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -323,7 +323,7 @@ export function GoalsRoute() {
             <div className="muted text-body" style={{ marginBottom: 18 }}>用 FIRE 計算機追蹤財務自由進度，或建立旅遊、買車等自訂儲蓄目標。</div>
             <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
               <Button render={<Link to="/goals/fire" />}><Calculator size={14} />開啟 FIRE 計算機</Button>
-              <Button variant="outline" onClick={() => setEditor({ goal: null })}><Plus size={14} />新增自訂目標</Button>
+              <Button variant="outline" onClick={() => setEditor({ goal: null })}><Plus size={14} weight="bold" />新增自訂目標</Button>
             </div>
           </Card>
         )}

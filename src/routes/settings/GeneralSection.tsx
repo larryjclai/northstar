@@ -283,7 +283,7 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
       </Card>
 
       <Card className="p-5">
-        <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Demo</div>
+        <div className="text-xs" style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Demo</div>
         <h3 className="font-semibold mb-2">示範模式</h3>
         {inDemo ? (
           <>

@@ -293,12 +293,12 @@ export function HoldingDetailRoute() {
                 <UploadSimple size={14} />匯入價格
               </Button>
               <Button onClick={() => { setPriceFormOpen((open) => !open); setPriceMessage(""); }}>
-                <Plus size={14} strokeWidth={2} />更新價格
+                <Plus size={14} weight="bold" />更新價格
               </Button>
             </>
           ) : (
             <Button onClick={() => setAddOpen(true)}>
-              <Plus size={14} strokeWidth={2} />新增交易
+              <Plus size={14} weight="bold" />新增交易
             </Button>
           )}
         </div>
@@ -567,7 +567,7 @@ export function HoldingDetailRoute() {
           <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>交易紀錄 · {txns.length} 筆</h3>
           <div style={{ flex: 1 }} />
           <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
-            <Plus size={13} strokeWidth={2} /> 新增
+            <Plus size={14} weight="bold" /> 新增
           </Button>
         </div>
         {txns.length > 0 ? (

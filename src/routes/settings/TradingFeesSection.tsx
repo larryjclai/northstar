@@ -49,7 +49,7 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
   return (
     <div className="max-w-4xl space-y-6">
       <div>
-        <div className="ns-eyebrow" style={{ marginBottom: 4 }}>Investments</div>
+        <div className="text-xs" style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Investments</div>
         <h2 style={{ fontFamily: "var(--ns-font-display)", fontSize: 24, margin: 0, fontWeight: 600 }}>
           交易成本（台股）
         </h2>
@@ -94,7 +94,7 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
         {/* Rate fields */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <div>
-            <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>
+            <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>
               券商手續費率（%）
             </label>
             <input
@@ -112,7 +112,7 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
           </div>
 
           <div>
-            <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>
+            <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>
               最低手續費（NTD）
             </label>
             <input
@@ -129,7 +129,7 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
           </div>
 
           <div>
-            <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>
+            <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>
               證交稅率 — 股票賣出（%）
             </label>
             <input
@@ -147,7 +147,7 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
           </div>
 
           <div>
-            <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>
+            <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>
               證交稅率 — ETF 賣出（%）
             </label>
             <input

@@ -228,7 +228,7 @@ export function ReconcileRoute() {
 
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <div className="ns-eyebrow" style={{ marginBottom: 6 }}>Reconciliation · {account.currency}</div>
+          <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Reconciliation · {account.currency}</div>
           <h1 className="text-[26px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, fontWeight: 600 }}>{account.name} 對帳</h1>
           <p className="muted text-body" style={{ marginTop: 4, marginBottom: 0 }}>
             依結帳日將交易分期核對。
@@ -254,7 +254,7 @@ export function ReconcileRoute() {
       {/* Summary — current open cycle. */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 }}>
         <Card style={{ padding: 16 }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>本期消費</div>
+          <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>本期消費</div>
           <div className="num text-[19px]" style={{ color: currentSpend > 0 ? "var(--ns-neg)" : undefined }}>NT${formatNumber(currentSpend)}</div>
           {currentRefunds > 0.5 ? (
             <div className="muted text-caption" style={{ marginTop: 4 }}>
@@ -263,11 +263,11 @@ export function ReconcileRoute() {
           ) : null}
         </Card>
         <Card style={{ padding: 16 }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>本期已對帳 / 筆數</div>
+          <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>本期已對帳 / 筆數</div>
           <div className="num text-[19px]">{currentReconciled} / {currentCount}</div>
         </Card>
         <Card style={{ padding: 16 }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>卡片未繳總額</div>
+          <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>卡片未繳總額</div>
           <div className="num text-[19px]" style={{ color: owed > 0 ? "var(--ns-neg)" : undefined }}>NT${formatNumber(owed)}</div>
         </Card>
       </div>

@@ -337,7 +337,7 @@ function RecurringInvestmentSheet({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="ns-eyebrow" style={{ display: "block", marginBottom: 6 }}>{label}</label>
+      <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</label>
       {children}
     </div>
   );

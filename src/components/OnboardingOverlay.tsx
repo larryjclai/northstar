@@ -152,7 +152,7 @@ export function OnboardingOverlay() {
           </div>
 
           <div>
-            <div className="ns-eyebrow" style={{ marginBottom: 8 }}>{t("onboarding.stepIndicator", { current: step + 1, total: 4 })}</div>
+            <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{t("onboarding.stepIndicator", { current: step + 1, total: 4 })}</div>
             <h2 className="text-[30px]" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 650, letterSpacing: 0 }}>
               {t(`onboarding.panelTitle.${stepKeys[step]}`)}
             </h2>
@@ -180,7 +180,7 @@ export function OnboardingOverlay() {
 
         <section style={{ padding: 24, overflow: "auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 18 }}>
-            <div className="ns-eyebrow sm:hidden">{t("onboarding.stepIndicator", { current: step + 1, total: 4 })}</div>
+            <div className="text-xs sm:hidden" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{t("onboarding.stepIndicator", { current: step + 1, total: 4 })}</div>
             <button type="button" aria-label={t("onboarding.closeLabel")} onClick={dismiss} style={{ marginLeft: "auto", width: 32, height: 32, borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-border)", background: "var(--ns-bg-card)", color: "var(--ns-fg-muted)", display: "grid", placeItems: "center" }}>
               <X size={16} />
             </button>

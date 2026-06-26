@@ -97,19 +97,19 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
       {/* Top Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
         <Card style={{ padding: "20px 24px" }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>最大支出</div>
+          <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>最大支出</div>
           <div className="text-lg" style={{ fontWeight: 500 }}>
             {maxSpendCat ? `${maxSpendCat.name} · ${primaryCurrency} ${formatNumber(maxSpendCat.amount)}` : "無"}
           </div>
         </Card>
         <Card style={{ padding: "20px 24px" }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>交易最多</div>
+          <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>交易最多</div>
           <div className="text-lg" style={{ fontWeight: 500 }}>
             {maxCountCat ? `${maxCountCat.name} · ${maxCountCat.count} 筆` : "無"}
           </div>
         </Card>
         <Card style={{ padding: "20px 24px" }}>
-          <div className="ns-eyebrow" style={{ marginBottom: 8 }}>未分類</div>
+          <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>未分類</div>
           <div className="text-lg" style={{ fontWeight: 500 }}>
             {uncategorizedCount} 筆 · {uncategorizedPct.toFixed(1)}%
           </div>
@@ -124,7 +124,7 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
         <Card style={{ padding: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
             <div>
-              <div className="ns-eyebrow" style={{ marginBottom: 4 }}>{dateRange.label} 支出</div>
+              <div className="text-xs" style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{dateRange.label} 支出</div>
               <div className="num text-[24px]" style={{ fontWeight: 500 }}>{primaryCurrency} {formatNumber(totalPeriodSpend)}</div>
             </div>
             <Button variant="ghost" size="icon-sm" onClick={onSettingsClick}><Gear size={16} /></Button>
