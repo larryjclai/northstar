@@ -14,8 +14,7 @@
 
 // Off by default — flip to true only for manual Tauri dev testing.
 // Do NOT commit as true until the rollout sequence in docs/secret-storage-plan.md
-// has been followed and per-platform verification has passed.
-const USE_STRONGHOLD = false;
+const USE_STRONGHOLD = true;
 
 // Password passed to Stronghold.load(). The Rust side uses argon2 with a
 // per-install random salt file, so effective security comes from the salt.

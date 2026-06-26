@@ -90,7 +90,16 @@ export function ConnectStatus() {
   const toast = useToast();
   const syncWorkerConfigured = isSyncWorkerConfigured();
   const [identity] = useState(() => getOrCreateDeviceIdentity());
-  const [account, setAccount] = useState<SyncAccount | null>(() => loadSyncAccount());
+  const [account, setAccount] = useState<SyncAccount | null>(null);
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    loadSyncAccount().then(acc => {
+      setAccount(acc);
+      setIsReady(true);
+    });
+  }, []);
+
   const [devices, setDevices] = useState<DeviceRecord[]>([]);
   const [pending, setPending] = useState<number | null>(null);
   const [conflicts, setConflicts] = useState<SyncConflictRecord[] | null>(null);
@@ -262,7 +271,7 @@ export function ConnectStatus() {
       const vaultKey = (await loadVaultKey()) ?? (await generateVaultKey());
       await saveVaultKey(vaultKey);
 
-      const newAccount = getOrCreateSyncAccount();
+      const newAccount = await getOrCreateSyncAccount();
       const hash = await sha256Hex(newAccount.apiSecret);
       await registerUser({
         userId: newAccount.userId,
@@ -313,7 +322,8 @@ export function ConnectStatus() {
     setJoinLoading(true);
     try {
       await joinWithCode(joinCode, joinDeviceName, getDevicePlatform());
-      const joined = loadSyncAccount()!;
+      const joined = await loadSyncAccount();
+      if (!joined) throw new Error("加入成功但無法讀取本機帳號設定");
       setAccount(joined);
       // joinWithCode() already confirmed the Recovery Kit (the vault key was
       // inherited from the paired device) — refresh the stale React state so
@@ -541,6 +551,14 @@ export function ConnectStatus() {
   const codeDisplay = session
     ? session.code.slice(0, 4) + " – " + session.code.slice(5)
     : "——";
+
+  if (!isReady) {
+    return (
+      <Card className="p-5 flex items-center justify-center min-h-[200px]">
+        <Spinner size={24} className="animate-spin" style={{ color: "var(--ns-fg-muted)" }} />
+      </Card>
+    );
+  }
 
   // ── Not yet set up ──
   if (!account) {

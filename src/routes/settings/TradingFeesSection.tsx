@@ -180,10 +180,10 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
       <Card className="p-5 space-y-4">
         <div>
           <h3 style={{ fontFamily: "var(--ns-font-display)", fontSize: 16, margin: 0, fontWeight: 600 }}>
-            各券商手續費折扣
+            各券商手續費設定
           </h3>
           <p className="text-xs muted mt-1 mb-0">
-            輸入折數（例：6 = 6 折；留空 = 無折扣）。僅折抵券商手續費。
+            若該券商（如美股）不收手續費，請取消勾選。若有折數（如 6 折），請於勾選後輸入。
           </p>
         </div>
 
@@ -191,27 +191,59 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
           <div className="space-y-3">
             {investmentAccounts.map((a) => {
               const current = draft.accountDiscounts?.[a.id];
+              const isEnabled = current !== 0; // 0 means free (disabled)
+              
               return (
-                <div key={a.id} className="flex items-center justify-between gap-3">
-                  <span className="text-sm">{a.name}</span>
-                  <input
-                    className="ns-input"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="10"
-                    style={{ width: 96, fontFamily: "var(--ns-font-mono)", textAlign: "right" }}
-                    placeholder="10"
-                    value={current == null ? "" : (current * 10).toString()}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      const next = { ...(draft.accountDiscounts ?? {}) };
-                      if (raw === "") delete next[a.id];
-                      else next[a.id] = Math.min(1, Math.max(0, (parseFloat(raw) || 0) / 10));
-                      setDraft({ ...draft, accountDiscounts: next });
-                    }}
-                    onBlur={() => save(draft)}
-                  />
+                <div key={a.id} className="flex flex-col gap-3 p-3 rounded-md border" style={{ borderColor: "var(--ns-border)", background: isEnabled ? "transparent" : "var(--ns-surface-hover)" }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-medium text-sm">{a.name}</span>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={isEnabled}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          const next = { ...(draft.accountDiscounts ?? {}) };
+                          if (checked) {
+                            delete next[a.id]; // Restore to default full fee
+                          } else {
+                            next[a.id] = 0; // 0 multiplier = free
+                          }
+                          setDraft({ ...draft, accountDiscounts: next });
+                          save({ ...draft, accountDiscounts: next });
+                        }}
+                        style={{ accentColor: "var(--ns-accent)", width: 16, height: 16 }}
+                      />
+                      套用手續費
+                    </label>
+                  </div>
+                  
+                  {isEnabled && (
+                    <div className="flex items-center justify-between gap-3 pl-6">
+                      <span className="text-xs muted">手續費折扣（留空為無折扣）</span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          className="ns-input"
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="10"
+                          style={{ width: 80, fontFamily: "var(--ns-font-mono)", textAlign: "right", height: 28, fontSize: 13 }}
+                          placeholder="無"
+                          value={current == null || current === 0 ? "" : (current * 10).toString()}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            const next = { ...(draft.accountDiscounts ?? {}) };
+                            if (raw === "") delete next[a.id];
+                            else next[a.id] = Math.min(1, Math.max(0, (parseFloat(raw) || 0) / 10));
+                            setDraft({ ...draft, accountDiscounts: next });
+                          }}
+                          onBlur={() => save(draft)}
+                        />
+                        <span className="text-xs muted">折</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

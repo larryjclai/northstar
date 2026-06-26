@@ -1,6 +1,8 @@
 // Sync account: userId + apiSecret stored locally.
 // apiSecret is a random 32-byte hex string; only its SHA-256 hash is sent to the server.
 
+import { createSecretStore, migrateLocalStorageSecrets } from "../crypto/secretStore";
+
 const STORAGE_KEY = "northstar.sync.account.v1";
 
 export interface SyncAccount {
@@ -21,8 +23,10 @@ function randomHex(bytes: number): string {
     .join("");
 }
 
-export function loadSyncAccount(): SyncAccount | null {
-  const raw = localStorage.getItem(STORAGE_KEY);
+export async function loadSyncAccount(): Promise<SyncAccount | null> {
+  const store = await createSecretStore();
+  await migrateLocalStorageSecrets(store);
+  const raw = await store.get(STORAGE_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as SyncAccount;
@@ -31,21 +35,24 @@ export function loadSyncAccount(): SyncAccount | null {
   }
 }
 
-export function createSyncAccount(): SyncAccount {
+export async function createSyncAccount(): Promise<SyncAccount> {
   const account: SyncAccount = {
     userId: crypto.randomUUID(),
     apiSecret: randomHex(32),
   };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(account));
+  const store = await createSecretStore();
+  await store.set(STORAGE_KEY, JSON.stringify(account));
   return account;
 }
 
 /** Load the existing account or create one on first call. */
-export function getOrCreateSyncAccount(): SyncAccount {
-  return loadSyncAccount() ?? createSyncAccount();
+export async function getOrCreateSyncAccount(): Promise<SyncAccount> {
+  return (await loadSyncAccount()) ?? (await createSyncAccount());
 }
 
 /** Persist credentials received during device pairing (Device B). */
-export function setSyncAccount(account: SyncAccount): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(account));
+export async function setSyncAccount(account: SyncAccount): Promise<void> {
+  const store = await createSecretStore();
+  await store.set(STORAGE_KEY, JSON.stringify(account));
 }
+

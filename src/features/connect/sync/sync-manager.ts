@@ -52,7 +52,7 @@ export async function runSync(repo: FinanceRepository): Promise<SyncResult> {
 }
 
 async function _doSync(repo: FinanceRepository): Promise<SyncResult> {
-  const account = loadSyncAccount();
+  const account = await loadSyncAccount();
   if (!account) throw new Error("尚未設定同步帳號");
 
   const vaultKey = await loadVaultKey();
@@ -115,7 +115,7 @@ export async function forceFullResync(repo: FinanceRepository): Promise<SyncResu
   _syncRunning = true;
 
   try {
-    const account = loadSyncAccount();
+    const account = await loadSyncAccount();
     if (!account) throw new Error("尚未設定同步帳號");
 
     const vaultKey = await loadVaultKey();
@@ -170,7 +170,7 @@ export async function forceFullRepush(repo: FinanceRepository): Promise<SyncResu
   if (_syncRunning) throw new Error("同步正在進行中，請稍候");
   _syncRunning = true;
   try {
-    const account = loadSyncAccount();
+    const account = await loadSyncAccount();
     if (!account) throw new Error("尚未設定同步帳號");
     if (!(await loadVaultKey())) throw new Error("加密金鑰尚未初始化");
     if (!isRecoveryKitConfirmed()) throw new Error(RECOVERY_KIT_REQUIRED);

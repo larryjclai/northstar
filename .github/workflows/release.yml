@@ -19,6 +19,9 @@ concurrency:
   group: release-${{ inputs.tag }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   # Extract this version's "what's new" from CHANGELOG.md so the GitHub Release
   # body includes the feature notes (falls back to just the install table if the

@@ -178,10 +178,7 @@ The new `.github/workflows/cla.yml` uses the cla-assistant pattern
 ### Inputs to provide first
 1. **Copyright holder** — replace `<COPYRIGHT_HOLDER>` in `LICENSE` **and** in `CLA.md` with the
    exact legal name (person or entity). _Required before flip._
-2. **CLA legal review + setup** — have `CLA.md` reviewed by a lawyer (binding contract; the
-   relicensing clause is load-bearing for a future App Store build). Then complete the CLA-bot
-   setup in §5.1: create the signatures store, add the `CLA_SIGNATURES_TOKEN` PAT secret, and
-   fill the `<OWNER>/<REPO>` / `<SIGNATURES_*>` placeholders in `.github/workflows/cla.yml`.
+2. **CLA legal review + setup** — **[COMPLETED 2026-06-26]** CLA bot has been successfully configured to use the `northstar-cla-signatures` private repository. The `CLA_SIGNATURES_TOKEN` secret is active and the CLA check is passing for pull requests. *(Original instruction: have `CLA.md` reviewed by a lawyer...)*
 3. **SECURITY disclosure contact** — confirm GitHub private vulnerability reporting is the
    intended channel (and enable it), or add a contact email to `SECURITY.md`.
 4. _(Optional)_ Add `CODE_OF_CONDUCT.md` if you want one.

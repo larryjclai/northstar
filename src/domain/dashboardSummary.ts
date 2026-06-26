@@ -118,20 +118,30 @@ function daysInMonthUtc(year: number, zeroBasedMonth: number) {
   return new Date(Date.UTC(year, zeroBasedMonth + 1, 0)).getUTCDate();
 }
 
-/** The next date on or after `today` (YYYY-MM-DD) that falls on `day` of month. */
-function nextDayOfMonthOnOrAfter(today: string, day: number): string {
-  const [y, m, d] = today.slice(0, 10).split("-").map(Number); // m is 1-based
+/** The most recent date on or before `today` that falls on `day` of month. */
+function lastDayOfMonthOnOrBefore(today: string, day: number): string {
+  const [y, m, d] = today.slice(0, 10).split("-").map(Number);
   const dayThis = Math.min(day, daysInMonthUtc(y, m - 1));
-  if (d <= dayThis) return new Date(Date.UTC(y, m - 1, dayThis)).toISOString().slice(0, 10);
+  if (d >= dayThis) return new Date(Date.UTC(y, m - 1, dayThis)).toISOString().slice(0, 10);
+  const py = m === 1 ? y - 1 : y;
+  const pm = m === 1 ? 11 : m - 2;
+  return new Date(Date.UTC(py, pm, Math.min(day, daysInMonthUtc(py, pm)))).toISOString().slice(0, 10);
+}
+
+/** The first date strictly after `afterDate` that falls on `day` of month. */
+function nextDayOfMonthStrictlyAfter(afterDate: string, day: number): string {
+  const [y, m, d] = afterDate.slice(0, 10).split("-").map(Number);
+  const dayThis = Math.min(day, daysInMonthUtc(y, m - 1));
+  if (d < dayThis) return new Date(Date.UTC(y, m - 1, dayThis)).toISOString().slice(0, 10);
   const ny = m === 12 ? y + 1 : y;
-  const nm = m % 12; // next month, 0-based
+  const nm = m % 12;
   return new Date(Date.UTC(ny, nm, Math.min(day, daysInMonthUtc(ny, nm)))).toISOString().slice(0, 10);
 }
 
 /**
  * Upcoming credit-card payments: for each credit account with a payment-due
- * day and an outstanding balance, the next due date and amount owed (in the
- * primary currency). Sorted soonest-first.
+ * day and statement day, finds the most recently closed statement. If it's
+ * not paid yet, returns a reminder.
  */
 export function buildCreditCardReminders(
   accounts: Account[],
@@ -139,13 +149,24 @@ export function buildCreditCardReminders(
   toPrimary: (amount: number, currency: string) => number,
 ): CreditCardReminder[] {
   const reminders: CreditCardReminder[] = [];
+  const todayStr = today.slice(0, 10);
+  
   for (const account of accounts) {
-    if (account.deletedAt !== null || account.type !== "credit" || !account.paymentDueDay) continue;
+    if (account.deletedAt !== null || account.type !== "credit" || !account.paymentDueDay || !account.statementDay) continue;
     const owed = Math.max(0, -account.balance);
-    if (owed <= 0) continue;
-    const dueDate = nextDayOfMonthOnOrAfter(today, account.paymentDueDay);
+    if (owed <= 0) continue; // If the whole account is fully paid off, no reminder needed.
+    
+    // Find the most recently closed statement's date
+    const lastStatementClose = lastDayOfMonthOnOrBefore(todayStr, account.statementDay);
+    // Find the due date for that specific statement
+    const dueDate = nextDayOfMonthStrictlyAfter(lastStatementClose, account.paymentDueDay);
+    
+    // If the due date for the most recently closed statement is already marked as paid,
+    // they don't owe anything for it. (New purchases belong to the NEXT statement which hasn't closed yet).
     if (account.creditPaymentPaidUntil && account.creditPaymentPaidUntil >= dueDate) continue;
-    const daysUntilDue = Math.round((Date.parse(dueDate) - Date.parse(today.slice(0, 10))) / 86400000);
+    
+    const daysUntilDue = Math.round((Date.parse(dueDate) - Date.parse(todayStr)) / 86400000);
+    
     reminders.push({
       accountId: account.id,
       name: account.name,

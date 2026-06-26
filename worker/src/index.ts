@@ -120,10 +120,9 @@ export default {
       return withCors(err("Not found", 404));
     } catch (e) {
       console.error(e);
-      // Surface the real cause to the (single-tenant, private) client so sync
-      // failures are diagnosable from the app instead of an opaque 500.
-      const detail = e instanceof Error ? e.message : typeof e === "string" ? e : "Internal server error";
-      return withCors(err(detail, 500));
+      // To prevent Information Exposure (CWE-209), we log the error internally
+      // but only return a generic message to the client.
+      return withCors(err("Internal server error", 500));
     }
   },
 };

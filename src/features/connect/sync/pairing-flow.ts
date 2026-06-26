@@ -35,7 +35,7 @@ export async function initiatePairing(): Promise<PairingSession> {
   const vaultKey = await loadVaultKey();
   if (!vaultKey) throw new Error("Vault key not initialised. Complete sync setup first.");
 
-  const account = getOrCreateSyncAccount();
+  const account = await getOrCreateSyncAccount();
   const vaultKeyB64 = await exportVaultKey(vaultKey);
 
   const code = generatePairingCode();
@@ -93,7 +93,7 @@ export async function joinWithCode(
   // (see runSync) doesn't block this device from syncing.
   confirmRecoveryKit();
 
-  setSyncAccount({ userId: bundle.userId, apiSecret: bundle.apiSecret });
+  await setSyncAccount({ userId: bundle.userId, apiSecret: bundle.apiSecret });
 
   // Register this device on the Worker using the received credentials.
   // POST /devices (not /users — the account already exists).

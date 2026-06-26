@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import type { SymbolSearchResult } from "./provider";
 import { YahooFinanceProvider } from "./yahooFinanceProvider";
+import { TaiwanMarketDataProvider } from "./taiwanMarketDataProvider";
 
 const provider = new YahooFinanceProvider();
+const twProvider = new TaiwanMarketDataProvider();
 
 export function useSymbolSearch(query: string) {
   const [results, setResults] = useState<SymbolSearchResult[]>([]);
@@ -23,9 +25,24 @@ export function useSymbolSearch(query: string) {
     setError(null);
     const timer = window.setTimeout(() => {
       provider.searchSymbols(trimmed)
-        .then((items) => {
+        .then(async (items) => {
           if (cancelled) return;
-          setResults(items);
+          try {
+            const symbols = items.map((i) => i.symbol);
+            const profiles = await twProvider.fetchAssetProfiles(symbols);
+            if (cancelled) return;
+            const enriched = items.map((item) => {
+              const tw = profiles[item.symbol];
+              if (tw && tw.nameZh) {
+                return { ...item, name: tw.nameZh };
+              }
+              return item;
+            });
+            setResults(enriched);
+          } catch (err) {
+            if (cancelled) return;
+            setResults(items);
+          }
         })
         .catch((searchError: unknown) => {
           if (cancelled) return;

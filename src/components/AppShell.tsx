@@ -641,7 +641,7 @@ function useAutoSync() {
 
   const triggerSync = useCallback(async () => {
     // Skip if sync not configured
-    const account = loadSyncAccount();
+    const account = await loadSyncAccount();
     if (!account) return;
     const vaultKey = await loadVaultKey();
     if (!vaultKey) return;
