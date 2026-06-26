@@ -245,13 +245,18 @@ export function InvestmentsAnalyticsTab({
     void onEnsureBenchmark(benchmarkTicker);
   }, [benchmarkTicker, dailyPrices, onEnsureBenchmark]);
 
+  const fullSeriesResult = useMemo(() => {
+    return buildPortfolioValueSeries({ positions, dailyPrices, manualSnapshots, toPrimary, start: "1900-01-01", end });
+  }, [positions, dailyPrices, manualSnapshots, toPrimary, end]);
+
   const core = useMemo(() => {
     const start = periodStart(period, end);
-    const { series, excludedTickers } = buildPortfolioValueSeries({ positions, dailyPrices, manualSnapshots, toPrimary, start, end });
+    const startIndex = fullSeriesResult.series.findIndex(p => p.date >= start);
+    const series = startIndex >= 0 ? fullSeriesResult.series.slice(startIndex) : [];
     const values = series.map((p) => p.value);
     const returns = dailyReturns(values);
-    return { series, values, returns, excludedTickers };
-  }, [positions, dailyPrices, manualSnapshots, toPrimary, period, end]);
+    return { series, values, returns, excludedTickers: fullSeriesResult.excludedTickers };
+  }, [fullSeriesResult, period, end]);
 
   const enough = hasEnoughReturns(core.returns);
 
@@ -303,12 +308,11 @@ export function InvestmentsAnalyticsTab({
     if (allCashflows.length === 0) return { xirr: null, gated: true };
     const span = cashflowSpanDays(allCashflows, end);
     if (span < XIRR_MIN_DAYS) return { xirr: null, gated: true };
-    const fullSeries = buildPortfolioValueSeries({ positions, dailyPrices, manualSnapshots, toPrimary, start: "1900-01-01", end });
-    const lastValue = fullSeries.series.length > 0 ? fullSeries.series[fullSeries.series.length - 1].value : 0;
+    const lastValue = fullSeriesResult.series.length > 0 ? fullSeriesResult.series[fullSeriesResult.series.length - 1].value : 0;
     const terminal = { date: end, amount: lastValue };
     const xirr = calculateXirr(allCashflows, terminal);
     return { xirr, gated: false };
-  }, [positions, records, dailyPrices, manualSnapshots, toPrimary, end]);
+  }, [records, end, fullSeriesResult]);
 
   const attribution = useMemo(() => {
     return buildCostBasisAttribution({ positions, records, dailyPrices, manualSnapshots, toPrimary, end });
@@ -331,7 +335,8 @@ export function InvestmentsAnalyticsTab({
 
   const rolling = useMemo(() => {
     const start = daysAgo(365, end);
-    const { series } = buildPortfolioValueSeries({ positions, dailyPrices, manualSnapshots, toPrimary, start, end });
+    const startIndex = fullSeriesResult.series.findIndex(p => p.date >= start);
+    const series = startIndex >= 0 ? fullSeriesResult.series.slice(startIndex) : [];
     const returns = dailyReturns(series.map((p) => p.value));
     const roll = rollingVolatilityPct(returns, 30);
     const data = roll
@@ -343,7 +348,7 @@ export function InvestmentsAnalyticsTab({
     let peak: { vol: number; date: string } | null = null;
     for (const p of data) if (!peak || p.vol > peak.vol) peak = { vol: p.vol, date: p.date };
     return { data, current, avg90, peak };
-  }, [positions, dailyPrices, manualSnapshots, toPrimary, end]);
+  }, [fullSeriesResult, end]);
 
   // Priced entries shared by the sector and country breakdowns. Each dimension
   // groups the same values differently and independently sums to `total`.
@@ -428,9 +433,8 @@ export function InvestmentsAnalyticsTab({
   // currently-selected period — otherwise picking a short range (e.g. 1M, or YTD
   // early in January) blanks the entire tab even when years of data are loaded.
   const hasHistory = useMemo(() => {
-    const { series } = buildPortfolioValueSeries({ positions, dailyPrices, manualSnapshots, toPrimary, start: "1900-01-01", end });
-    return hasEnoughReturns(dailyReturns(series.map((p) => p.value)));
-  }, [positions, dailyPrices, manualSnapshots, toPrimary, end]);
+    return hasEnoughReturns(dailyReturns(fullSeriesResult.series.map((p) => p.value)));
+  }, [fullSeriesResult]);
 
   // Sticky in-page section nav (anchors). 股利 only appears with dividend history.
   const sections = useMemo(() => {

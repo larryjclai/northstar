@@ -1010,8 +1010,6 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   min-height: 36px;
-  /* Constant footprint across presets — see DateScopeControl. */
-  width: 216px;
 }
 
 /* ── Investment transactions ── */

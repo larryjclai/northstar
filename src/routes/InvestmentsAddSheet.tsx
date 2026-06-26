@@ -120,6 +120,7 @@ export function InvestmentEntryDrawer({
   initialMode = "transaction",
   onSubmitted,
   transactionPreset,
+  onOpenImport,
 }: {
   open: boolean;
   onClose: () => void;

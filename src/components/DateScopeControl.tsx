@@ -44,38 +44,27 @@ export function DateScopeControl({
         />
       </div>
 
-      {/* Fixed-width detail slot, ALWAYS rendered — the control must occupy
-          the same footprint for every preset, otherwise the toolbar reflows
-          and the whole filter row jumps around when switching presets. */}
-      <div className="ns-date-scope__detail">
-        {value.preset === "month" ? (
-          <MonthPicker
-            value={value.month}
-            onChange={(month) => onChange({ ...value, month })}
-            onSelectDay={(day) => onChange({ ...value, preset: "custom", start: day, end: day })}
-            triggerClassName="h-[36px] min-w-[112px] whitespace-nowrap"
-          />
-        ) : value.preset === "custom" ? (
-          <DateRangePicker
-            start={value.start}
-            end={value.end}
-            align={align}
-            className="h-[36px] w-full text-[13px]"
-            onChange={({ start, end }) => onChange({ ...value, start, end })}
-          />
-        ) : (
-          <button
-            type="button"
-            className="ns-input text-xs"
-            title="切換為自訂區間"
-            onClick={enterCustom}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 10px", cursor: "pointer", color: "var(--ns-fg-muted)" }}
-          >
-            <CalendarBlank size={14} />
-            自訂區間
-          </button>
-        )}
-      </div>
+      {/* Renders inline pickers when their preset is active. No fixed placeholder anymore so it collapses nicely. */}
+      {(value.preset === "month" || value.preset === "custom") && (
+        <div className="ns-date-scope__detail">
+          {value.preset === "month" ? (
+            <MonthPicker
+              value={value.month}
+              onChange={(month) => onChange({ ...value, month })}
+              onSelectDay={(day) => onChange({ ...value, preset: "custom", start: day, end: day })}
+              triggerClassName="h-[36px] min-w-[112px] whitespace-nowrap"
+            />
+          ) : (
+            <DateRangePicker
+              start={value.start}
+              end={value.end}
+              align={align}
+              className="h-[36px] w-full text-[13px]"
+              onChange={({ start, end }) => onChange({ ...value, start, end })}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }
