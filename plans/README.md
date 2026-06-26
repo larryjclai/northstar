@@ -8,17 +8,16 @@ honor its STOP conditions, and update your row when done.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 001  | Fix progress bar layout thrashing | P1 | S | — | DONE |
-| 002  | Replace ns-eyebrow with proper typographic hierarchy | P2 | M | — | DONE |
-| 003  | Reduce cognitive load in InvestmentAddSheet form | P1 | S | — | DONE |
+| 001  | Fix progress bar layout thrashing | P1 | S | — | DONE (Verified) |
+| 002  | Replace ns-eyebrow with proper typographic hierarchy | P2 | M | — | DONE (Verified) |
+| 003  | Reduce cognitive load in InvestmentAddSheet form | P1 | S | — | DONE (Verified) |
+| 004  | Unify Add Icons & Optimize Cash Flow Layout | P2 | S | — | DONE (Verified) |
 
 ## Dependency notes
 
-- 001 and 003 are independent and can be executed in parallel.
-- 002 is independent but the largest change; execute after 001 and 003 are verified.
+- All current UI phase 3 plans are fully executed, verified, merged to `main`, and released in `v0.1.0-alpha.46`.
 
 ## Findings considered and rejected
 
 - (P3) Dashboard card-heaviness: Flattening cards would require significant visual redesign across DashboardRoute. Better addressed as a dedicated design sprint, not an incremental plan.
 - Sidebar width transition in AppShell.tsx: Intentional structural animation, not a data-driven bar. Not a layout thrashing issue.
-- **Plan 004 (Add Icons & CashFlow Layout):** Unified all Add action buttons to use `<Plus size={14} weight="bold" />` for consistency (`InvestmentsRoute`, `HoldingDetailRoute`, `GoalsRoute`, `TransactionsRoute`). Restructured the CashFlow dashboard layout to make the Chart full-width and grouped Category Spend and Merchant Ranking side-by-side.
