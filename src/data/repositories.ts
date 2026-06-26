@@ -26,6 +26,7 @@ import { calculateInvestmentAccountQuantity, calculateInvestmentCashDelta, calcu
 import { buildPositionMetrics } from "../domain/portfolioMetrics";
 import { firstFutureRunDate, nextRecurringDate } from "../domain/recurringDates";
 import { buildInstallmentSchedule } from "../domain/installments";
+import { toCanonicalSector } from "../domain/canonicalSector";
 import { accountBalanceDelta, assertLedgerInvariants, assertTransferInvariants, buildRecalculationReport, deriveAccountBalances, findMissingFxPairs } from "../domain/ledgerTrust";
 import {
   buildPendingChanges,
@@ -2032,6 +2033,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("portfolio_assets", "asset_type", "text");
     await this.ensureSqliteColumn("portfolio_assets", "sector", "text");
     await this.ensureSqliteColumn("portfolio_assets", "industry", "text");
+    await this.ensureSqliteColumn("portfolio_assets", "sector_canonical", "text");
     await this.ensureSqliteColumn("portfolio_assets", "base_quantity", "real");
     await this.ensureSqliteColumn("portfolio_assets", "classification_locked", "integer not null default 0");
     await this.db.execute(
@@ -2360,7 +2362,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     const rows = await this.db.select<Array<PortfolioAsset & { classificationLocked?: number | boolean | null }>>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       ticker, name, name_zh as nameZh, name_en as nameEn, currency, total_quantity as totalQuantity, average_cost as averageCost, holding_source as holdingSource, acquisition_date as acquisitionDate,
-      asset_type as assetType, sector, industry, account_id as accountId, base_quantity as baseQuantity, classification_locked as classificationLocked
+      asset_type as assetType, sector, industry, sector_canonical as sectorCanonical, account_id as accountId, base_quantity as baseQuantity, classification_locked as classificationLocked
       from portfolio_assets where deleted_at is null order by ticker`);
     return rows.map((row) => ({
       ...row,
@@ -2369,6 +2371,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       assetType: row.assetType ?? null,
       sector: row.sector ?? null,
       industry: row.industry ?? null,
+      // Derive-on-read for pre-070 rows whose column is null (no destructive migration).
+      sectorCanonical: row.sectorCanonical ?? toCanonicalSector({ sector: row.sector, industry: row.industry }),
       accountId: row.accountId ?? null,
       baseQuantity: row.baseQuantity ?? null,
       classificationLocked: Boolean(row.classificationLocked),
@@ -2388,8 +2392,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     const classification = assetClassificationFields(input);
     await this.withTransaction(async () => {
       await this.db.execute(
-        `update portfolio_assets set revision = revision + 1, updated_at = $1, ticker = $2, name = $3, currency = $4, acquisition_date = $5, account_id = $6, asset_type = $7, sector = $8, industry = $9, base_quantity = $10 where id = $11 and holding_source = 'manual'`,
-        [nowIso(), input.ticker.trim().toUpperCase(), input.name.trim() || input.ticker.trim().toUpperCase(), input.currency.trim().toUpperCase(), input.acquisitionDate || null, input.accountId || null, classification.assetType, classification.sector, classification.industry, Math.max(0, Number(input.totalQuantity) || 0), id],
+        `update portfolio_assets set revision = revision + 1, updated_at = $1, ticker = $2, name = $3, currency = $4, acquisition_date = $5, account_id = $6, asset_type = $7, sector = $8, industry = $9, sector_canonical = $10, base_quantity = $11 where id = $12 and holding_source = 'manual'`,
+        [nowIso(), input.ticker.trim().toUpperCase(), input.name.trim() || input.ticker.trim().toUpperCase(), input.currency.trim().toUpperCase(), input.acquisitionDate || null, input.accountId || null, classification.assetType, classification.sector, classification.industry, classification.sectorCanonical, Math.max(0, Number(input.totalQuantity) || 0), id],
       );
       // Upsert the opening-balance record (single source of truth for qty/cost).
       const rebuilt = buildOpeningRecord({ id, accountId: input.accountId || null }, input);
@@ -2413,10 +2417,11 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.db.execute(
       `update portfolio_assets
        set revision = revision + 1, updated_at = $1, asset_type = $2, sector = $3, industry = $4,
-           name_zh = coalesce($5, name_zh), name_en = coalesce($6, name_en),
-           classification_locked = case when $7 = 1 then 1 else classification_locked end
-       where id = $8 and deleted_at is null`,
-      [nowIso(), classification.assetType, classification.sector, classification.industry, input.nameZh ?? null, input.nameEn ?? null, input.lockClassification ? 1 : 0, id],
+           sector_canonical = $5,
+           name_zh = coalesce($6, name_zh), name_en = coalesce($7, name_en),
+           classification_locked = case when $8 = 1 then 1 else classification_locked end
+       where id = $9 and deleted_at is null`,
+      [nowIso(), classification.assetType, classification.sector, classification.industry, classification.sectorCanonical, input.nameZh ?? null, input.nameEn ?? null, input.lockClassification ? 1 : 0, id],
     );
   }
 
@@ -3643,6 +3648,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
           assetType: asset.assetType ?? null,
           sector: asset.sector ?? null,
           industry: asset.industry ?? null,
+          // Older backups predate the canonical key; insertAssetRow derives it
+          // from sector/industry when this is null.
+          sectorCanonical: asset.sectorCanonical ?? null,
           accountId: asset.accountId ?? null,
         });
       }
@@ -3807,8 +3815,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   private async insertAssetRow(row: PortfolioAsset) {
     const now = nowIso();
     await this.db.execute(
-      `insert into portfolio_assets (id, space_id, revision, created_at, updated_at, deleted_at, ticker, name, name_zh, name_en, currency, total_quantity, average_cost, holding_source, acquisition_date, asset_type, sector, industry, account_id, base_quantity, classification_locked)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+      `insert into portfolio_assets (id, space_id, revision, created_at, updated_at, deleted_at, ticker, name, name_zh, name_en, currency, total_quantity, average_cost, holding_source, acquisition_date, asset_type, sector, industry, sector_canonical, account_id, base_quantity, classification_locked)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
       [
         row.id,
         row.spaceId ?? personalSpace,
@@ -3828,6 +3836,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         row.assetType ?? null,
         row.sector ?? null,
         row.industry ?? null,
+        // Persist the canonical key; derive it from the raw values when the row
+        // doesn't already carry one (e.g. older backups / sync rows).
+        row.sectorCanonical ?? toCanonicalSector({ sector: row.sector, industry: row.industry }),
         row.accountId ?? null,
         row.baseQuantity ?? null,
         row.classificationLocked ? 1 : 0,
@@ -4655,6 +4666,11 @@ function normalizePortfolioAsset(asset: PortfolioAsset): PortfolioAsset {
     assetType: normalizeAssetType(asset.assetType),
     sector: cleanOptionalText(asset.sector),
     industry: cleanOptionalText(asset.industry),
+    // Derive the canonical (coarse) key on read when an older row has none, so
+    // pre-070 data groups correctly without a destructive migration.
+    sectorCanonical:
+      cleanOptionalText(asset.sectorCanonical) ??
+      toCanonicalSector({ sector: asset.sector, industry: asset.industry }),
     accountId: asset.accountId ?? null,
     baseQuantity: asset.baseQuantity ?? null,
   };
@@ -4816,11 +4832,22 @@ function buildOpeningRecord(asset: Pick<PortfolioAsset, "id" | "accountId">, dra
   };
 }
 
+/**
+ * Normalize + derive the classification triple written on every classification
+ * path. This is the SINGLE place `sectorCanonical` is derived (plan 070): it's
+ * shared by `manualHoldingFields` (manual create), `updateManualHolding`, and
+ * both `updateAssetClassification` impls (manual edit + provider auto-backfill,
+ * which feed Yahoo/TWSE values in here). Deriving once here keeps browser ≡
+ * SQLite and means the providers don't each have to remember to set it.
+ */
 function assetClassificationFields(input: Pick<PortfolioAssetDraft, "assetType" | "sector" | "industry">) {
+  const sector = cleanOptionalText(input.sector);
+  const industry = cleanOptionalText(input.industry);
   return {
     assetType: normalizeAssetType(input.assetType),
-    sector: cleanOptionalText(input.sector),
-    industry: cleanOptionalText(input.industry),
+    sector,
+    industry,
+    sectorCanonical: toCanonicalSector({ sector, industry }),
   };
 }
 

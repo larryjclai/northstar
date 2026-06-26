@@ -22,7 +22,7 @@ import {
   type BreakdownEntry,
 } from "./portfolioAnalytics";
 import type { DailyPrice, ManualPriceSnapshot } from "./types";
-import { resolveSectorLabel } from "./sectorLabels";
+import { resolveSectorLabel, resolveCanonicalSectorLabel } from "./sectorLabels";
 import { resolveCountryLabel, resolveHoldingCountry } from "./assetCountry";
 
 const identity = (value: number) => value;
@@ -429,8 +429,11 @@ describe("constants", () => {
 
 const sumValues = (entries: BreakdownEntry[]) => entries.reduce((s, e) => s + e.value, 0);
 
+// Default opts now resolve onto the canonical (GICS-11) taxonomy. `canonicalLabelOf`
+// maps a canonical key → zh label; `sectorLabelOf` is kept for the fine industry level.
 const sectorOpts = {
   sectorLabelOf: (raw: string | null | undefined) => resolveSectorLabel(raw, "zh-Hant"),
+  canonicalLabelOf: (key: string | null | undefined) => resolveCanonicalSectorLabel(key, "zh-Hant"),
   etfBucket: "ETF / 基金",
   unknownLabel: "未知",
   otherLabel: "其他",
@@ -444,11 +447,54 @@ describe("buildSectorBreakdown", () => {
     ];
     const b = buildSectorBreakdown(entries, sectorOpts);
     const labels = b.buckets.map((x) => x.label);
-    expect(labels).toContain("半導體業");
+    // 半導體 (TWSE 24) collapses onto the canonical 資訊科技 bucket by default.
+    expect(labels).toContain("資訊科技");
+    expect(labels).not.toContain("半導體業");
     expect(labels).toContain("ETF / 基金");
     expect(labels).not.toContain("未知");
     expect(b.total).toBeCloseTo(sumValues(entries));
     expect(b.buckets.reduce((s, x) => s + x.value, 0)).toBeCloseTo(b.total);
+  });
+
+  it("collapses a TW 半導體 and a US Technology holding into ONE 資訊科技 bucket", () => {
+    const entries: BreakdownEntry[] = [
+      { position: pos({ assetId: "tsmc", ticker: "2330.TW", sector: "24", assetType: "equity" }), value: 300 },
+      { position: pos({ assetId: "nvda", ticker: "NVDA", sector: "Technology", assetType: "equity" }), value: 200 },
+    ];
+    const b = buildSectorBreakdown(entries, sectorOpts);
+    const byLabel = new Map(b.buckets.map((x) => [x.label, x.value]));
+    expect([...byLabel.keys()]).toEqual(["資訊科技"]); // single combined bucket
+    expect(byLabel.get("資訊科技")).toBeCloseTo(500);
+    expect(b.total).toBeCloseTo(500);
+  });
+
+  it("level: \"industry\" keeps the fine TWSE/Yahoo split (drill-down)", () => {
+    const entries: BreakdownEntry[] = [
+      { position: pos({ assetId: "tsmc", ticker: "2330.TW", sector: "24", assetType: "equity" }), value: 300 },
+      { position: pos({ assetId: "nvda", ticker: "NVDA", sector: "Technology", assetType: "equity" }), value: 200 },
+    ];
+    const b = buildSectorBreakdown(entries, { ...sectorOpts, level: "industry" });
+    const byLabel = new Map(b.buckets.map((x) => [x.label, x.value]));
+    expect(byLabel.get("半導體業")).toBeCloseTo(300); // fine TWSE label
+    expect(byLabel.get("資訊科技")).toBeCloseTo(200); // Yahoo Technology → zh fine label
+    expect(b.total).toBeCloseTo(500);
+  });
+
+  it("derives the canonical bucket from a legacy row's raw sector when sectorCanonical is null", () => {
+    const entries: BreakdownEntry[] = [
+      // Old row: only the TWSE code stored, no persisted canonical key.
+      { position: pos({ assetId: "old", ticker: "2882.TW", sector: "17", sectorCanonical: null, assetType: "equity" }), value: 100 },
+    ];
+    const b = buildSectorBreakdown(entries, sectorOpts);
+    expect(b.buckets.map((x) => x.label)).toEqual(["金融"]); // 金融保險 (17) → 金融
+  });
+
+  it("prefers a persisted sectorCanonical key over re-deriving from raw", () => {
+    const entries: BreakdownEntry[] = [
+      { position: pos({ assetId: "x", ticker: "X", sector: "24", sectorCanonical: "healthcare", assetType: "equity" }), value: 100 },
+    ];
+    const b = buildSectorBreakdown(entries, sectorOpts);
+    expect(b.buckets.map((x) => x.label)).toEqual(["醫療保健"]);
   });
 
   it("manual (locked) tag beats fetched weights beats bucket", () => {
@@ -481,9 +527,9 @@ describe("buildSectorBreakdown", () => {
     ];
     const b = buildSectorBreakdown(entries, sectorOpts);
     const byLabel = new Map(b.buckets.map((x) => [x.label, x.value]));
-    // Manual tag → 半導體業 100 (from the locked ETF), plus 70% of the fetched split = 140.
-    expect(byLabel.get("半導體業")).toBeCloseTo(100 + 140);
-    expect(byLabel.get("金融保險業")).toBeCloseTo(60); // 30% of 200
+    // Manual tag (24→資訊科技) 100 + 70% of the fetched split (24→資訊科技) = 140.
+    expect(byLabel.get("資訊科技")).toBeCloseTo(100 + 140);
+    expect(byLabel.get("金融")).toBeCloseTo(60); // 30% of 200, 17→金融
     expect(b.total).toBeCloseTo(300);
     expect(b.buckets.reduce((s, x) => s + x.value, 0)).toBeCloseTo(b.total);
   });
@@ -505,8 +551,8 @@ describe("buildSectorBreakdown", () => {
     ];
     const b = buildSectorBreakdown(entries, sectorOpts);
     const byLabel = new Map(b.buckets.map((x) => [x.label, x.value]));
-    expect(byLabel.get("半導體業")).toBeCloseTo(60);
-    expect(byLabel.get("金融保險業")).toBeCloseTo(20);
+    expect(byLabel.get("資訊科技")).toBeCloseTo(60); // 24→資訊科技
+    expect(byLabel.get("金融")).toBeCloseTo(20); // 17→金融
     expect(byLabel.get("其他")).toBeCloseTo(20);
     expect(b.buckets.reduce((s, x) => s + x.value, 0)).toBeCloseTo(100);
   });

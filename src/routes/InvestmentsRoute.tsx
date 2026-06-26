@@ -136,6 +136,8 @@ export function InvestmentsRoute() {
         isManual: a.holdingSource === "manual",
         assetClass: a.assetType ? assetTypeLabels[a.assetType] : undefined,
         sector: a.sector,
+        sectorCanonical: a.sectorCanonical ?? null,
+        industry: a.industry,
         assetType: a.assetType,
         classificationLocked: a.classificationLocked ?? false,
       })),
