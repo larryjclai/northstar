@@ -1,6 +1,7 @@
 import type { DailyPrice, InvestmentRecord, ManualPriceSnapshot } from "./types";
 import { buildQuoteLookup, findQuoteForTicker, quoteLookupKeys } from "./marketSymbols";
 import { buildPositionMetrics, buildQuantityTimeline } from "./portfolioMetrics";
+import { toCanonicalSector } from "./canonicalSector";
 
 /**
  * Portfolio analytics engine — risk metrics and time-series used by the
@@ -279,6 +280,15 @@ export interface AnalyticsPosition {
   assetClass?: string;
   /** Raw sector value (TWSE code or English GICS name); optional. */
   sector?: string | null;
+  /**
+   * Persisted canonical (coarse) GICS-11 key (plan 070). The default sector
+   * breakdown groups by this so TW (TWSE code) and US (Yahoo GICS) holdings land
+   * in one cross-market taxonomy. Absent ⇒ the breakdown derives it from
+   * `sector`/`industry` on the fly (covers legacy rows). Optional.
+   */
+  sectorCanonical?: string | null;
+  /** Fine source industry (TWSE/Yahoo); used by the `level: "industry"` drill-down. Optional. */
+  industry?: string | null;
   /** Asset type (equity / etf / mutual_fund / …); drives the ETF/fund bucket. */
   assetType?: import("./types").AssetType | null;
   /**
@@ -334,20 +344,32 @@ function finalizeBuckets(byLabel: Map<string, number>, total: number): Breakdown
 /**
  * Sector breakdown that attributes value by Decision A:
  * - **manual > fetched > bucket** precedence.
- * - A direct holding with a sector → that sector (resolved by `sectorLabelOf`).
+ * - A direct holding with a sector → that sector.
  * - An ETF/fund with **trustworthy `sectorWeights`** → value split across those
  *   sectors (renormalized; any shortfall to 100% goes to an 「其他」 remainder).
  * - An ETF/fund without weights (or any classification-locked manual tag absent)
  *   → the single 「ETF / 基金」 bucket (`etfBucket` label), never 未知.
  * - A non-ETF holding with no sector → the supplied `unknownLabel`.
  *
- * Σ buckets = Σ priced values, regardless of which path each holding took.
+ * **Taxonomy (plan 070).** By DEFAULT (`level: "canonical"`) every sector value —
+ * a direct holding's, a manual locked tag, and each ETF weight slice — is collapsed
+ * onto the canonical GICS-11 taxonomy via `toCanonicalSector`, so TW (TWSE code)
+ * and US (Yahoo GICS) holdings land in ONE coherent bucket (e.g. 半導體 + Technology
+ * → 資訊科技). `level: "industry"` keeps the fine TWSE/Yahoo industry split for a
+ * drill-down. Either way Σ buckets = Σ priced values.
  */
 export function buildSectorBreakdown(
   entries: BreakdownEntry[],
   opts: {
-    /** Resolve a raw sector value (TWSE code / GICS) → display label, or null. */
+    /** Resolve a raw sector value (TWSE code / GICS) → fine display label, or null. */
     sectorLabelOf: (raw: string | null | undefined) => string | null;
+    /**
+     * Resolve a canonical GICS-11 key (e.g. "technology") → display label. Required
+     * for the default canonical level; ignored when `level: "industry"`.
+     */
+    canonicalLabelOf?: (key: string | null | undefined) => string | null;
+    /** Grouping level. Default "canonical" (cross-market); "industry" = fine split. */
+    level?: "canonical" | "industry";
     /** Label for the ETF/fund default bucket. */
     etfBucket: string;
     /** Label for a 未知-sector non-ETF holding. */
@@ -358,20 +380,32 @@ export function buildSectorBreakdown(
     minTrustworthyCoverage?: number;
   },
 ): Breakdown {
-  const { sectorLabelOf, etfBucket, unknownLabel, otherLabel } = opts;
+  const { sectorLabelOf, canonicalLabelOf, etfBucket, unknownLabel, otherLabel } = opts;
+  const level = opts.level ?? "canonical";
   const minCoverage = opts.minTrustworthyCoverage ?? 0.5;
   const byLabel = new Map<string, number>();
   let total = 0;
   const add = (label: string, value: number) => byLabel.set(label, (byLabel.get(label) ?? 0) + value);
+
+  // Resolve one raw sector value to a bucket label for the active level. For the
+  // canonical level we map through `toCanonicalSector` first (with an optional
+  // pre-derived canonical key, e.g. a direct holding's persisted `sectorCanonical`),
+  // then localize via `canonicalLabelOf`. Returns null when it can't classify.
+  const labelFor = (raw: string | null | undefined, presetCanonical?: string | null): string | null => {
+    if (level === "industry") return sectorLabelOf(raw);
+    const key = presetCanonical ?? toCanonicalSector({ sector: raw });
+    if (!key) return null;
+    return (canonicalLabelOf?.(key) ?? key) || null;
+  };
 
   for (const { position, value } of entries) {
     if (!(value > EPS)) continue;
     total += value;
 
     const isFund = position.assetType === "etf" || position.assetType === "mutual_fund" || position.assetType === "index";
-    const manualSector = position.classificationLocked ? sectorLabelOf(position.sector) : null;
+    const manualSector = position.classificationLocked ? labelFor(position.sector) : null;
 
-    // 1) Manual tag wins outright.
+    // 1) Manual tag wins outright (mapped through the active taxonomy).
     if (manualSector) {
       add(manualSector, value);
       continue;
@@ -388,7 +422,7 @@ export function buildSectorBreakdown(
       for (const w of weights) {
         const share = Math.max(0, w.weight) / norm;
         const slice = value * share;
-        const label = sectorLabelOf(w.sector) ?? w.sector ?? otherLabel;
+        const label = labelFor(w.sector) ?? w.sector ?? otherLabel;
         add(label, slice);
         attributed += slice;
       }
@@ -403,8 +437,12 @@ export function buildSectorBreakdown(
       continue;
     }
 
-    // 4) A direct holding uses its own sector, else the unknown label.
-    const direct = sectorLabelOf(position.sector);
+    // 4) A direct holding uses its own sector (canonical level prefers the
+    //    persisted `sectorCanonical`, deriving from raw when absent), else 未知.
+    const direct =
+      level === "canonical"
+        ? labelFor(position.sector, position.sectorCanonical ?? toCanonicalSector({ sector: position.sector, industry: position.industry }))
+        : sectorLabelOf(position.sector);
     add(direct ?? unknownLabel, value);
   }
 

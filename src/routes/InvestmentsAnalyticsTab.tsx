@@ -49,6 +49,7 @@ import {
   type ManualPriceSnapshot,
   formatMoney,
   resolveSectorLabel,
+  resolveCanonicalSectorLabel,
   buildSectorBreakdown,
   buildCountryBreakdown,
   etfBucketLabel,
@@ -360,8 +361,11 @@ export function InvestmentsAnalyticsTab({
   const allocationSummary = useMemo(() => {
     // Sector breakdown — ETFs/funds land in the explicit 「ETF / 基金」 bucket (or
     // their fetched/manual weights), never 未知. manual > fetched > bucket.
+    // Default to the canonical (GICS-11) taxonomy so TW + US holdings share
+    // buckets; a future drill-down can pass level: "industry" for the fine split.
     const breakdown = buildSectorBreakdown(pricedEntries, {
       sectorLabelOf: (raw) => resolveSectorLabel(raw, nameLocale),
+      canonicalLabelOf: (key) => resolveCanonicalSectorLabel(key, nameLocale),
       etfBucket: etfBucketLabel(nameLocale),
       unknownLabel: "未知",
       otherLabel: "其他",

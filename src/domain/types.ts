@@ -165,6 +165,15 @@ export interface PortfolioAsset extends SyncFields {
   sector: string | null;
   industry: string | null;
   /**
+   * Canonical (coarse) GICS-11 sector key derived from `sector`/`industry` via
+   * `toCanonicalSector` (plan 070). Persisted so the cross-market sector
+   * breakdown can group TW (TWSE code) and US/intl (Yahoo GICS) holdings into one
+   * coherent taxonomy, while `industry` keeps the fine source detail for a
+   * drill-down. Optional/nullable for backward-compat: old rows have a null
+   * column and derive it on read.
+   */
+  sectorCanonical?: string | null;
+  /**
    * Set true when the user hand-edits the classification (類型/產業/行業) in the
    * holding edit modal. The 回補分類 (backfill) action skips locked rows so it
    * never overwrites a manual classification. Absent/false ⇒ unlocked (the

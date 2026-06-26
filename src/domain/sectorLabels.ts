@@ -1,5 +1,10 @@
 import type { NameLocalePreference } from "./assetName";
 
+// Re-export the canonical (GICS-11) taxonomy resolution so callers have one
+// sector-labels import surface for both the coarse canonical level and the fine
+// TWSE/Yahoo industry level. The mapping itself lives in `canonicalSector.ts`.
+export { resolveCanonicalSectorLabel, toCanonicalSector } from "./canonicalSector";
+
 /**
  * Default bucket an ETF / fund lands in on the **sector** breakdown when no
  * per-holding sector weights are available (and no manual tag overrides it).
