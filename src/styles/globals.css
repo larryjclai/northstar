@@ -434,6 +434,10 @@ html[data-native-glass] .ns-sidebar {
   background: color-mix(in srgb, var(--ns-bg-elev) 58%, transparent);
 }
 html[data-native-glass] .ns-app-main { background: var(--ns-bg); }
+/* Overlay title bar: content must clear the transparent title bar area.
+   28px matches the macOS title-bar height so the logo/nav don't sit under
+   the traffic-light buttons. */
+html[data-native-glass] .ns-sidebar { padding-top: 28px; }
 
 @media (prefers-color-scheme: dark) {
   html[data-native-glass]:not([data-theme="light"]) .ns-sidebar {

@@ -148,9 +148,12 @@ export function AppShell() {
           transition: "width 0.2s ease, min-width 0.2s ease, padding 0.2s ease",
         }}
       >
-        {/* Logo + collapse toggle */}
+        {/* Logo + collapse toggle — data-tauri-drag-region makes this strip
+           draggable on macOS so the user can move the window by grabbing the
+           sidebar header (the overlay title bar has no visible chrome). Interactive
+           children (buttons) are excluded automatically by Tauri. */}
         {collapsed ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "0 0 16px" }}>
+          <div data-tauri-drag-region style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "0 0 16px" }}>
             <img src={appIconUrl} alt="" style={{ width: 26, height: 26, borderRadius: 7 }} />
             <button
               type="button"
@@ -163,7 +166,7 @@ export function AppShell() {
             </button>
           </div>
         ) : (
-          <div style={{ padding: "0 8px 16px", display: "flex", alignItems: "center", gap: 9, justifyContent: "space-between" }}>
+          <div data-tauri-drag-region style={{ padding: "0 8px 16px", display: "flex", alignItems: "center", gap: 9, justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
               <img src={appIconUrl} alt="" style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0 }} />
               <span
