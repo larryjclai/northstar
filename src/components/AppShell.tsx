@@ -24,8 +24,9 @@ import { usePrivacySync, useUiPreferences } from "../state/uiPreferences";
 import { useQuickAdd } from "../state/quickAdd";
 import { useDemoMode } from "../state/demoMode";
 import { exitDemoMode } from "../data/demoData";
-import { usePostDueRecurring } from "../data/hooks";
+import { usePostDueRecurring, useFinanceData } from "../data/hooks";
 import { todayInTimezone } from "../domain";
+import { buildCreditCardReminders } from "../domain/dashboardSummary";
 import { GlobalSearch } from "./GlobalSearch";
 import { QuickAdd } from "./QuickAdd";
 import { useToast } from "./Toast";
@@ -87,6 +88,7 @@ export function AppShell() {
   useAutoMarketRefresh();
   useAutoUpdateCheck();
   useDailyLocalBackup();
+  useDockBadge();
   const timezone = useUiPreferences((state) => state.timezone);
   usePostDueRecurring(todayInTimezone(timezone));
   const privacyMode = useUiPreferences((state) => state.privacyMode);
@@ -580,6 +582,38 @@ function useDailyLocalBackup() {
       }
     })();
   }, []);
+}
+
+// ── Dock badge for due credit-card reminders (desktop only) ───────────────
+// Mirrors the dashboard's reminder logic (buildCreditCardReminders, due within
+// 45 days) and reflects the count on the macOS Dock badge via the Rust
+// set_dock_badge command. Only fires under Tauri; null clears the badge at 0.
+
+function useDockBadge() {
+  const { accounts } = useFinanceData();
+  const timezone = useUiPreferences((state) => state.timezone);
+
+  const dueCount = (() => {
+    const rows = accounts.data ?? [];
+    if (rows.length === 0) return 0;
+    return buildCreditCardReminders(
+      rows,
+      todayInTimezone(timezone),
+      (amount) => amount, // counting only — no currency conversion needed
+    ).filter((r) => r.daysUntilDue <= 45).length;
+  })();
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    void (async () => {
+      try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        await invoke("set_dock_badge", { count: dueCount > 0 ? dueCount : null });
+      } catch (e) {
+        console.warn("[dock] set badge failed", e);
+      }
+    })();
+  }, [dueCount]);
 }
 
 function useQuickAddShortcut(toggle: () => void) {

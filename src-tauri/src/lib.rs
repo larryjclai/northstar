@@ -150,6 +150,23 @@ fn is_allowed_market_data_url(url: &url::Url) -> bool {
     }
 }
 
+// ── Dock badge for unread reminders ──────────────────────────────────────
+// The web layer calls this command with the count of due credit-card
+// reminders. On macOS this sets the Dock badge; on other desktops it
+// updates the taskbar badge count. Pass 0 or None to clear.
+// On mobile the set_badge_count API is unavailable so this is a no-op.
+#[tauri::command]
+fn set_dock_badge(app: tauri::AppHandle, count: Option<i64>) {
+    #[cfg(desktop)]
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.set_badge_count(count);
+    }
+    #[cfg(not(desktop))]
+    {
+        let _ = (app, count);
+    }
+}
+
 // ── Desktop-only: native zh-TW menu bar ─────────────────────────────────
 // Menu labels are hardcoded zh-TW (the app's primary locale) — these do
 // NOT go through the web copy.csv i18n catalog because they are native
@@ -270,6 +287,7 @@ pub fn run() {
             foundation_models_available,
             parse_quick_add_on_device,
             foundation_models_prewarm,
+            set_dock_badge,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Northstar");
