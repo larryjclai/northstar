@@ -921,7 +921,7 @@ export function InvestmentsAnalyticsTab({
 
       {/* ── Allocation + Currency feature band ──────────────────────────────── */}
       <NSAnBand deep>
-        <div style={{ display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 48, alignItems: "start" }}>
+        <div className="ns-an-feature-split">
           <div>
             <NSAnHead kicker="產業 · SECTOR" title="產業分類分布" />
             {allocationSummary.rows.length > 0 ? (() => {

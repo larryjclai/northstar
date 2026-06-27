@@ -123,7 +123,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
   async function parse() {
     if (!text.trim()) return;
     const now = nowAsDatetimeLocal(timezone);
-    const ctx = { accounts: accountRows, merchantCategory: merchantCat, lexicon, mode, nowDatetimeLocal: now };
+    const ctx = { accounts: accountRows, merchantCategory: merchantCat, lexicon, mode, nowDatetimeLocal: now, categories: categoryGroups.map((g) => g.name) };
     const { result: parsed, source } = await orchestrate(text, ctx, onDeviceParser);
     const c = toConfirm(parsed, text, now);
     setConfirm(c);

@@ -15,7 +15,7 @@ import {
   TrendUp,
   X,
 } from "@phosphor-icons/react";
-import { Link, Outlet } from "@tanstack/react-router";
+import { Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { Button } from "./coss/button";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -24,8 +24,9 @@ import { usePrivacySync, useUiPreferences } from "../state/uiPreferences";
 import { useQuickAdd } from "../state/quickAdd";
 import { useDemoMode } from "../state/demoMode";
 import { exitDemoMode } from "../data/demoData";
-import { usePostDueRecurring } from "../data/hooks";
+import { usePostDueRecurring, useFinanceData } from "../data/hooks";
 import { todayInTimezone } from "../domain";
+import { buildCreditCardReminders } from "../domain/dashboardSummary";
 import { GlobalSearch } from "./GlobalSearch";
 import { QuickAdd } from "./QuickAdd";
 import { useToast } from "./Toast";
@@ -42,6 +43,7 @@ import { queryKeys } from "../data/hooks";
 import { refreshLatestMarketData } from "../features/market-data/useMarketRefresh";
 import { runDailyBackupIfDue } from "../features/local-backup/localBackup";
 import { isCrossDeviceLinkUpdateError, UPDATE_RESTART_RETRY_MESSAGE } from "../features/updater/errors";
+import { buildPaymentReminders, syncScheduledReminders } from "../features/notifications/scheduler";
 
 const appIconUrl = new URL("../../src-tauri/icons/icon.png", import.meta.url).href;
 
@@ -82,10 +84,13 @@ export function AppShell() {
   useBlockBrowserBackOnBackspace();
   usePrivacySync();
   usePrivacyShortcut();
+  useMenuSettingsShortcut();
   useAutoSync();
   useAutoMarketRefresh();
   useAutoUpdateCheck();
   useDailyLocalBackup();
+  useDockBadge();
+  useReminderNotifications();
   const timezone = useUiPreferences((state) => state.timezone);
   usePostDueRecurring(todayInTimezone(timezone));
   const privacyMode = useUiPreferences((state) => state.privacyMode);
@@ -148,9 +153,12 @@ export function AppShell() {
           transition: "width 0.2s ease, min-width 0.2s ease, padding 0.2s ease",
         }}
       >
-        {/* Logo + collapse toggle */}
+        {/* Logo + collapse toggle — data-tauri-drag-region makes this strip
+           draggable on macOS so the user can move the window by grabbing the
+           sidebar header (the overlay title bar has no visible chrome). Interactive
+           children (buttons) are excluded automatically by Tauri. */}
         {collapsed ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "0 0 16px" }}>
+          <div data-tauri-drag-region style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "0 0 16px" }}>
             <img src={appIconUrl} alt="" style={{ width: 26, height: 26, borderRadius: 7 }} />
             <button
               type="button"
@@ -163,7 +171,7 @@ export function AppShell() {
             </button>
           </div>
         ) : (
-          <div style={{ padding: "0 8px 16px", display: "flex", alignItems: "center", gap: 9, justifyContent: "space-between" }}>
+          <div data-tauri-drag-region style={{ padding: "0 8px 16px", display: "flex", alignItems: "center", gap: 9, justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
               <img src={appIconUrl} alt="" style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0 }} />
               <span
@@ -578,6 +586,68 @@ function useDailyLocalBackup() {
   }, []);
 }
 
+// ── Dock badge for due credit-card reminders (desktop only) ───────────────
+// Mirrors the dashboard's reminder logic (buildCreditCardReminders, due within
+// 45 days) and reflects the count on the macOS Dock badge via the Rust
+// set_dock_badge command. Only fires under Tauri; null clears the badge at 0.
+
+function useDockBadge() {
+  const { accounts } = useFinanceData();
+  const timezone = useUiPreferences((state) => state.timezone);
+
+  const dueCount = (() => {
+    const rows = accounts.data ?? [];
+    if (rows.length === 0) return 0;
+    return buildCreditCardReminders(
+      rows,
+      todayInTimezone(timezone),
+      (amount) => amount, // counting only — no currency conversion needed
+    ).filter((r) => r.daysUntilDue <= 45).length;
+  })();
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    void (async () => {
+      try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        await invoke("set_dock_badge", { count: dueCount > 0 ? dueCount : null });
+      } catch (e) {
+        console.warn("[dock] set badge failed", e);
+      }
+    })();
+  }, [dueCount]);
+}
+
+// ── Local notifications for due payment reminders ────────────────────────
+// When the user opts in (remindersEnabled), this hook schedules OS
+// notifications for upcoming credit-card due dates. If the toggle is off it
+// best-effort cancels any previously scheduled notifications. Mirrors
+// useDockBadge's data flow — same accounts + timezone + buildCreditCardReminders.
+
+function useReminderNotifications() {
+  const { accounts } = useFinanceData();
+  const timezone = useUiPreferences((state) => state.timezone);
+  const remindersEnabled = useUiPreferences((state) => state.remindersEnabled);
+
+  useEffect(() => {
+    const now = new Date();
+    if (!remindersEnabled) {
+      // Best-effort clear: pass empty array so all pending are cancelled.
+      void syncScheduledReminders([], now);
+      return;
+    }
+    const rows = accounts.data ?? [];
+    if (rows.length === 0) return;
+    const ccReminders = buildCreditCardReminders(
+      rows,
+      todayInTimezone(timezone),
+      (amount) => amount, // scheduling only — no currency conversion needed
+    );
+    const scheduled = buildPaymentReminders(ccReminders);
+    void syncScheduledReminders(scheduled, now);
+  }, [remindersEnabled, accounts.data, timezone]);
+}
+
 function useQuickAddShortcut(toggle: () => void) {
   useEffect(() => {
     function handler(event: KeyboardEvent) {
@@ -626,6 +696,29 @@ function usePrivacyShortcut() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [toggle]);
+}
+
+// ── Desktop menu → Settings navigation ───────────────────────────────────
+// The Rust menu bar emits "menu://settings" when the user picks
+// 設定… (⌘,). We listen here and navigate to /settings using the router.
+
+function useMenuSettingsShortcut() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+
+    let unlistenFn: (() => void) | null = null;
+
+    import("@tauri-apps/api/event").then(({ listen }) => {
+      listen("menu://settings", () => {
+        void navigate({ to: "/settings" });
+      }).then((unlisten) => {
+        unlistenFn = unlisten;
+      });
+    });
+
+    return () => { unlistenFn?.(); };
+  }, [navigate]);
 }
 
 // ── Auto-sync on Tauri window focus ────────────────────────────────────────

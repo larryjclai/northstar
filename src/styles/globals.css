@@ -434,6 +434,10 @@ html[data-native-glass] .ns-sidebar {
   background: color-mix(in srgb, var(--ns-bg-elev) 58%, transparent);
 }
 html[data-native-glass] .ns-app-main { background: var(--ns-bg); }
+/* Overlay title bar: content must clear the transparent title bar area.
+   28px matches the macOS title-bar height so the logo/nav don't sit under
+   the traffic-light buttons. */
+html[data-native-glass] .ns-sidebar { padding-top: 28px; }
 
 @media (prefers-color-scheme: dark) {
   html[data-native-glass]:not([data-theme="light"]) .ns-sidebar {
@@ -627,6 +631,14 @@ textarea:focus-visible {
   height: 100%;
   min-width: 0;
 }
+
+/* ── Analytics / Category responsive grids ─────────────────────────────────
+   Inline grids that missed the auto-fit pattern; collapsed via @media query
+   matching the existing 640px mobile convention. */
+.ns-an-feature-split { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 48px; align-items: start; }
+@media (max-width: 640px) { .ns-an-feature-split { grid-template-columns: 1fr; gap: 24px; } }
+.ns-cat-summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+@media (max-width: 640px) { .ns-cat-summary-grid { grid-template-columns: repeat(2, 1fr); } }
 
 /* ── Container-query split layout (powers <SplitLayout> in coss/layout.tsx) ──
    Stacks until the CONTAINER itself is wide enough, so it never depends on the
