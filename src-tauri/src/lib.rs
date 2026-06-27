@@ -1,3 +1,5 @@
+#[cfg(desktop)]
+use tauri::Emitter;
 use tauri::Manager;
 
 // ── Apple Foundation Models bridge ────────────────────────────────────────
@@ -148,12 +150,111 @@ fn is_allowed_market_data_url(url: &url::Url) -> bool {
     }
 }
 
+// ── Dock badge for unread reminders ──────────────────────────────────────
+// The web layer calls this command with the count of due credit-card
+// reminders. On macOS this sets the Dock badge; on other desktops it
+// updates the taskbar badge count. Pass 0 or None to clear.
+// On mobile the set_badge_count API is unavailable so this is a no-op.
+#[tauri::command]
+fn set_dock_badge(app: tauri::AppHandle, count: Option<i64>) {
+    #[cfg(desktop)]
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.set_badge_count(count);
+    }
+    #[cfg(not(desktop))]
+    {
+        let _ = (app, count);
+    }
+}
+
+// ── Desktop-only: native zh-TW menu bar ─────────────────────────────────
+// Menu labels are hardcoded zh-TW (the app's primary locale) — these do
+// NOT go through the web copy.csv i18n catalog because they are native
+// menu items rendered by the OS, not by the React layer.
+#[cfg(desktop)]
+fn build_native_menu(app: &tauri::App) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+
+    let handle = app.handle();
+
+    // Custom menu item: 設定… (Settings) — ⌘,
+    let settings_item = MenuItemBuilder::with_id("settings", "設定…")
+        .accelerator("CmdOrCtrl+,")
+        .build(handle)?;
+
+    // App submenu (Northstar)
+    let app_menu = SubmenuBuilder::new(handle, "Northstar")
+        .about_with_text("關於 Northstar", None)
+        .separator()
+        .item(&settings_item)
+        .separator()
+        .services()
+        .separator()
+        .hide_with_text("隱藏 Northstar")
+        .hide_others_with_text("隱藏其他")
+        .show_all_with_text("顯示全部")
+        .separator()
+        .quit_with_text("結束 Northstar")
+        .build()?;
+
+    // Edit 編輯 submenu
+    let edit_menu = SubmenuBuilder::new(handle, "編輯")
+        .undo_with_text("還原")
+        .redo_with_text("重做")
+        .separator()
+        .cut_with_text("剪下")
+        .copy_with_text("複製")
+        .paste_with_text("貼上")
+        .select_all_with_text("全選")
+        .build()?;
+
+    // View 檢視 submenu
+    let view_menu = SubmenuBuilder::new(handle, "檢視")
+        .fullscreen_with_text("進入全螢幕")
+        .build()?;
+
+    // Window 視窗 submenu
+    let window_menu = SubmenuBuilder::new(handle, "視窗")
+        .minimize_with_text("縮到最小")
+        .maximize_with_text("縮放")
+        .separator()
+        .close_window_with_text("關閉視窗")
+        .build()?;
+
+    // Help 說明 submenu (minimal)
+    let help_menu = SubmenuBuilder::new(handle, "說明").build()?;
+
+    let menu = MenuBuilder::new(handle)
+        .item(&app_menu)
+        .item(&edit_menu)
+        .item(&view_menu)
+        .item(&window_menu)
+        .item(&help_menu)
+        .build()?;
+
+    Ok(menu)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_fs::init());
+
+    // Desktop-only: restore the window's last size/position on launch, and
+    // handle the custom "settings" menu item → emit an event that the web
+    // layer (AppShell.tsx) listens for to navigate to /settings.
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .on_menu_event(|app, event| {
+            if event.id() == "settings" {
+                let _ = app.emit("menu://settings", ());
+            }
+        });
+
+    builder
         .setup(|app| {
             let salt_path = app
                 .path()
@@ -174,6 +275,13 @@ pub fn run() {
                 eprintln!("tauri-plugin-updater skipped: {e}");
             }
 
+            // Desktop-only: native zh-TW application menu.
+            #[cfg(desktop)]
+            {
+                let menu = build_native_menu(app)?;
+                app.set_menu(menu)?;
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -182,6 +290,7 @@ pub fn run() {
             foundation_models_available,
             parse_quick_add_on_device,
             foundation_models_prewarm,
+            set_dock_badge,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Northstar");

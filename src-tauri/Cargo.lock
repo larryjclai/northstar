@@ -2706,7 +2706,7 @@ dependencies = [
 
 [[package]]
 name = "northstar"
-version = "0.1.0-alpha.45"
+version = "0.1.0-alpha.46"
 dependencies = [
  "libc",
  "reqwest 0.12.28",
@@ -2719,6 +2719,7 @@ dependencies = [
  "tauri-plugin-sql",
  "tauri-plugin-stronghold",
  "tauri-plugin-updater",
+ "tauri-plugin-window-state",
  "url",
 ]
 
@@ -5136,6 +5137,21 @@ dependencies = [
  "url",
  "windows-sys 0.60.2",
  "zip 4.6.1",
+]
+
+[[package]]
+name = "tauri-plugin-window-state"
+version = "2.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73736611e14142408d15353e21e3cca2f12a3cfb523ad0ce85999b6d2ef1a704"
+dependencies = [
+ "bitflags 2.13.0",
+ "log",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
