@@ -15,7 +15,7 @@ import {
   TrendUp,
   X,
 } from "@phosphor-icons/react";
-import { Link, Outlet } from "@tanstack/react-router";
+import { Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { Button } from "./coss/button";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -82,6 +82,7 @@ export function AppShell() {
   useBlockBrowserBackOnBackspace();
   usePrivacySync();
   usePrivacyShortcut();
+  useMenuSettingsShortcut();
   useAutoSync();
   useAutoMarketRefresh();
   useAutoUpdateCheck();
@@ -629,6 +630,29 @@ function usePrivacyShortcut() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [toggle]);
+}
+
+// ── Desktop menu → Settings navigation ───────────────────────────────────
+// The Rust menu bar emits "menu://settings" when the user picks
+// 設定… (⌘,). We listen here and navigate to /settings using the router.
+
+function useMenuSettingsShortcut() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+
+    let unlistenFn: (() => void) | null = null;
+
+    import("@tauri-apps/api/event").then(({ listen }) => {
+      listen("menu://settings", () => {
+        void navigate({ to: "/settings" });
+      }).then((unlisten) => {
+        unlistenFn = unlisten;
+      });
+    });
+
+    return () => { unlistenFn?.(); };
+  }, [navigate]);
 }
 
 // ── Auto-sync on Tauri window focus ────────────────────────────────────────
