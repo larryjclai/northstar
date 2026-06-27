@@ -23,7 +23,7 @@ export default defineConfig({
   },
   clearScreen: false,
   server: {
-    host: tauriDevHost || false,
+    host: tauriDevHost || "127.0.0.1",
     strictPort: true,
     port: 5173,
     hmr: tauriDevHost
