@@ -17,11 +17,12 @@ interface OnDeviceContext {
   mode?: "ledger" | "investment";
 }
 
-function buildOnDeviceCtx(ctx: QuickAddContext): OnDeviceContext {
+export function buildOnDeviceCtx(ctx: QuickAddContext): OnDeviceContext {
   const today = ctx.nowDatetimeLocal?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
   return {
     accounts: ctx.accounts.map((a) => ({ id: a.id, name: a.name })),
-    categories: [], // populated from settings in QuickAdd.tsx via ctx extension
+    // top-level category names the model must choose from; empty when the caller provides none
+    categories: ctx.categories ?? [],
     today,
     nowDatetimeLocal: ctx.nowDatetimeLocal ?? `${today}T00:00`,
     mode: ctx.mode,

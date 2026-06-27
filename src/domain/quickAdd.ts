@@ -48,6 +48,12 @@ export interface QuickAddContext {
    * When provided, enables date keyword parsing (昨天/週三/3/15/etc.).
    */
   nowDatetimeLocal?: string;
+  /**
+   * Top-level category names available to constrain the on-device (Tier 1)
+   * parser's category output. Tier 0 ignores this. Empty/undefined when the
+   * caller has no category list.
+   */
+  categories?: string[];
 }
 
 // ---------------------------------------------------------------------------
