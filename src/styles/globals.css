@@ -407,6 +407,7 @@ input, textarea, select, [contenteditable="true"], .ns-selectable {
 }
 .ns-sidebar { border-right: 1px solid var(--ns-border); }
 .ns-mobile-dock { border-top: 1px solid var(--ns-border); }
+.ns-mobile-dock { z-index: 40; isolation: isolate; }
 
 /* Solid fallbacks: engines without backdrop-filter, or the user asked for
    less transparency. */
@@ -1533,6 +1534,10 @@ textarea:focus-visible {
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 }
+
+/* ── Horizontal scroll helper (hide scrollbar, touch-friendly) ── */
+.ns-hscroll { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.ns-hscroll::-webkit-scrollbar { display: none; }
 
 @layer base {
   * {
