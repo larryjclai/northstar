@@ -242,14 +242,17 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_fs::init());
 
-    // Desktop-only: handle the custom "settings" menu item → emit an event
-    // that the web layer (AppShell.tsx) listens for to navigate to /settings.
+    // Desktop-only: restore the window's last size/position on launch, and
+    // handle the custom "settings" menu item → emit an event that the web
+    // layer (AppShell.tsx) listens for to navigate to /settings.
     #[cfg(desktop)]
-    let builder = builder.on_menu_event(|app, event| {
-        if event.id() == "settings" {
-            let _ = app.emit("menu://settings", ());
-        }
-    });
+    let builder = builder
+        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .on_menu_event(|app, event| {
+            if event.id() == "settings" {
+                let _ = app.emit("menu://settings", ());
+            }
+        });
 
     builder
         .setup(|app| {

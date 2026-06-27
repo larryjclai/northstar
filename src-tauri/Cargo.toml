@@ -33,10 +33,12 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 url = "2"
 libc = "0.2"
 
-# Desktop-only: the self-updater is compiled out on iOS/Android (see lib.rs
-# cfg(desktop) gate and capabilities/desktop.json).
+# Desktop-only: the self-updater + window-state are compiled out on iOS/Android
+# (see lib.rs cfg(desktop) gate and capabilities/desktop.json).
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
+# Restores the window's last size/position on launch (desktop only).
+tauri-plugin-window-state = "2"
 
 # Pin tauri-plugin-sql to a vendored copy that forces the SQLite pool to a
 # single connection (vendor/tauri-plugin-sql/src/wrapper.rs). Upstream uses a
