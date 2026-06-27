@@ -11,6 +11,7 @@
     "process:default",
     "fs:allow-applocaldata-read-recursive",
     "fs:allow-applocaldata-write-recursive",
-    "fs:allow-applocaldata-meta-recursive"
+    "fs:allow-applocaldata-meta-recursive",
+    "notification:default"
   ]
 }
