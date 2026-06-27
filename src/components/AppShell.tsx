@@ -43,6 +43,7 @@ import { queryKeys } from "../data/hooks";
 import { refreshLatestMarketData } from "../features/market-data/useMarketRefresh";
 import { runDailyBackupIfDue } from "../features/local-backup/localBackup";
 import { isCrossDeviceLinkUpdateError, UPDATE_RESTART_RETRY_MESSAGE } from "../features/updater/errors";
+import { buildPaymentReminders, syncScheduledReminders } from "../features/notifications/scheduler";
 
 const appIconUrl = new URL("../../src-tauri/icons/icon.png", import.meta.url).href;
 
@@ -89,6 +90,7 @@ export function AppShell() {
   useAutoUpdateCheck();
   useDailyLocalBackup();
   useDockBadge();
+  useReminderNotifications();
   const timezone = useUiPreferences((state) => state.timezone);
   usePostDueRecurring(todayInTimezone(timezone));
   const privacyMode = useUiPreferences((state) => state.privacyMode);
@@ -614,6 +616,36 @@ function useDockBadge() {
       }
     })();
   }, [dueCount]);
+}
+
+// ── Local notifications for due payment reminders ────────────────────────
+// When the user opts in (remindersEnabled), this hook schedules OS
+// notifications for upcoming credit-card due dates. If the toggle is off it
+// best-effort cancels any previously scheduled notifications. Mirrors
+// useDockBadge's data flow — same accounts + timezone + buildCreditCardReminders.
+
+function useReminderNotifications() {
+  const { accounts } = useFinanceData();
+  const timezone = useUiPreferences((state) => state.timezone);
+  const remindersEnabled = useUiPreferences((state) => state.remindersEnabled);
+
+  useEffect(() => {
+    const now = new Date();
+    if (!remindersEnabled) {
+      // Best-effort clear: pass empty array so all pending are cancelled.
+      void syncScheduledReminders([], now);
+      return;
+    }
+    const rows = accounts.data ?? [];
+    if (rows.length === 0) return;
+    const ccReminders = buildCreditCardReminders(
+      rows,
+      todayInTimezone(timezone),
+      (amount) => amount, // scheduling only — no currency conversion needed
+    );
+    const scheduled = buildPaymentReminders(ccReminders);
+    void syncScheduledReminders(scheduled, now);
+  }, [remindersEnabled, accounts.data, timezone]);
 }
 
 function useQuickAddShortcut(toggle: () => void) {

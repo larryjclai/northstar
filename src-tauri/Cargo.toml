@@ -24,6 +24,7 @@ tauri-plugin-process = "2"
 # {appLocalData}/backups/ via this plugin; scope is locked to that dir in
 # capabilities/default.json. Cross-platform, so it lives here (not desktop-only).
 tauri-plugin-fs = "2"
+tauri-plugin-notification = "2"
 # Cross-platform deps. serde_json is needed by tauri::generate_context!, and
 # reqwest/url/serde back the fetch_yahoo command — all required on mobile too,
 # so they must live here, not under the desktop-only target block below.

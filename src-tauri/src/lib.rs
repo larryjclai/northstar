@@ -240,7 +240,8 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_fs::init());
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_notification::init());
 
     // Desktop-only: restore the window's last size/position on launch, and
     // handle the custom "settings" menu item → emit an event that the web
