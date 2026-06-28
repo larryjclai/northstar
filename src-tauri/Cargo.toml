@@ -24,6 +24,7 @@ tauri-plugin-process = "2"
 # {appLocalData}/backups/ via this plugin; scope is locked to that dir in
 # capabilities/default.json. Cross-platform, so it lives here (not desktop-only).
 tauri-plugin-fs = "2"
+tauri-plugin-notification = "2"
 # Cross-platform deps. serde_json is needed by tauri::generate_context!, and
 # reqwest/url/serde back the fetch_yahoo command — all required on mobile too,
 # so they must live here, not under the desktop-only target block below.
@@ -33,10 +34,12 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 url = "2"
 libc = "0.2"
 
-# Desktop-only: the self-updater is compiled out on iOS/Android (see lib.rs
-# cfg(desktop) gate and capabilities/desktop.json).
+# Desktop-only: the self-updater + window-state are compiled out on iOS/Android
+# (see lib.rs cfg(desktop) gate and capabilities/desktop.json).
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
+# Restores the window's last size/position on launch (desktop only).
+tauri-plugin-window-state = "2"
 
 # Pin tauri-plugin-sql to a vendored copy that forces the SQLite pool to a
 # single connection (vendor/tauri-plugin-sql/src/wrapper.rs). Upstream uses a
