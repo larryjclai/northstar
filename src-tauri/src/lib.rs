@@ -17,6 +17,7 @@ extern "C" {
     ) -> *mut libc::c_char;
     fn northstar_free_string(ptr: *mut libc::c_char);
     fn northstar_foundation_models_prewarm();
+    fn northstar_monthly_summary(input: *const libc::c_char) -> *mut libc::c_char;
 }
 
 #[tauri::command]
@@ -62,6 +63,31 @@ async fn foundation_models_prewarm() {
     #[cfg(any(target_os = "ios", target_os = "macos"))]
     {
         unsafe { northstar_foundation_models_prewarm() }
+    }
+}
+
+#[tauri::command]
+async fn monthly_summary_on_device(input_json: String) -> Result<String, String> {
+    #[cfg(any(target_os = "ios", target_os = "macos"))]
+    {
+        use std::ffi::{CStr, CString};
+        let c_input = CString::new(input_json).map_err(|e| e.to_string())?;
+
+        let ptr = unsafe { northstar_monthly_summary(c_input.as_ptr()) };
+        if ptr.is_null() {
+            return Err("Foundation Models returned null.".into());
+        }
+        let result = unsafe {
+            let s = CStr::from_ptr(ptr).to_string_lossy().into_owned();
+            northstar_free_string(ptr);
+            s
+        };
+        Ok(result)
+    }
+    #[cfg(not(any(target_os = "ios", target_os = "macos")))]
+    {
+        let _ = input_json;
+        Err("Foundation Models is only available on Apple platforms.".into())
     }
 }
 
@@ -291,6 +317,7 @@ pub fn run() {
             foundation_models_available,
             parse_quick_add_on_device,
             foundation_models_prewarm,
+            monthly_summary_on_device,
             set_dock_badge,
         ])
         .run(tauri::generate_context!())
