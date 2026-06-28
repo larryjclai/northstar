@@ -890,11 +890,13 @@ export function DashboardRoute() {
             {/* Period control + long-view toggle — only for netWorth (drives the trend chart) */}
             {activeMetric.key === "netWorth" && reconciledTrend.length > 1 ? (
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <SegmentedControl
-                  value={stripPeriod}
-                  onChange={setStripPeriod}
-                  options={STRIP_PERIODS.map((v) => ({ value: v, label: v }))}
-                />
+                <div className="ns-hscroll" style={{ maxWidth: "100%" }}>
+                  <SegmentedControl
+                    value={stripPeriod}
+                    onChange={setStripPeriod}
+                    options={STRIP_PERIODS.map((v) => ({ value: v, label: v }))}
+                  />
+                </div>
                 <Button
                   size="sm"
                   variant={longViewMode ? "default" : "outline"}
