@@ -157,10 +157,16 @@ export function buildCreditCardReminders(
     if (owed <= 0) continue; // If the whole account is fully paid off, no reminder needed.
     
     // Find the most recently closed statement's date
-    const lastStatementClose = lastDayOfMonthOnOrBefore(todayStr, account.statementDay);
+    let statementClose = lastDayOfMonthOnOrBefore(todayStr, account.statementDay);
     // Find the due date for that specific statement
-    const dueDate = nextDayOfMonthStrictlyAfter(lastStatementClose, account.paymentDueDay);
-    
+    let dueDate = nextDayOfMonthStrictlyAfter(statementClose, account.paymentDueDay);
+    // If that statement's due day has already passed, the next upcoming payment is
+    // the following statement cycle's due date — roll forward until it's not in the past.
+    while (dueDate < todayStr) {
+      statementClose = nextDayOfMonthStrictlyAfter(statementClose, account.statementDay);
+      dueDate = nextDayOfMonthStrictlyAfter(statementClose, account.paymentDueDay);
+    }
+
     // If the due date for the most recently closed statement is already marked as paid,
     // they don't owe anything for it. (New purchases belong to the NEXT statement which hasn't closed yet).
     if (account.creditPaymentPaidUntil && account.creditPaymentPaidUntil >= dueDate) continue;

@@ -45,6 +45,8 @@ export interface UiPreferences {
   longViewMode: boolean;
   /** Highest net-worth milestone tier already celebrated (high-water mark, primary currency). */
   milestoneReached: number;
+  /** Opt-in: schedule OS notifications for upcoming due payments. Off by default. */
+  remindersEnabled: boolean;
   setPrivacyMode: (value: boolean) => void;
   togglePrivacyMode: () => void;
   setNameLocale: (value: NameLocalePreference) => void;
@@ -64,6 +66,7 @@ export interface UiPreferences {
   setNorthstarMetric: (value: string) => void;
   toggleLongViewMode: () => void;
   setMilestoneReached: (value: number) => void;
+  setRemindersEnabled: (value: boolean) => void;
 }
 
 /** Toggleable holdings-table columns (the rest are always shown). */
@@ -98,6 +101,7 @@ interface PersistedShape {
   northstarMetric: string;
   longViewMode: boolean;
   milestoneReached: number;
+  remindersEnabled: boolean;
 }
 
 export type ClockMode = "24h" | "12h";
@@ -124,6 +128,7 @@ function loadPersisted(): PersistedShape {
     northstarMetric: "netWorth",
     longViewMode: false,
     milestoneReached: 0,
+    remindersEnabled: false,
   };
   if (typeof window === "undefined") return fallback;
   // Back-compat: honour the legacy onboarding dismiss key for existing installs.
@@ -179,6 +184,7 @@ function loadPersisted(): PersistedShape {
         typeof parsed.milestoneReached === "number" && Number.isFinite(parsed.milestoneReached)
           ? parsed.milestoneReached
           : 0,
+      remindersEnabled: typeof parsed.remindersEnabled === "boolean" ? parsed.remindersEnabled : false,
     };
   } catch {
     return { ...fallback, onboardingDismissed: legacyDismissed };
@@ -244,6 +250,7 @@ function snapshot(state: UiPreferences): PersistedShape {
     northstarMetric: state.northstarMetric,
     longViewMode: state.longViewMode,
     milestoneReached: state.milestoneReached,
+    remindersEnabled: state.remindersEnabled,
   };
 }
 
@@ -266,6 +273,7 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   northstarMetric: initial.northstarMetric,
   longViewMode: initial.longViewMode,
   milestoneReached: initial.milestoneReached,
+  remindersEnabled: initial.remindersEnabled,
   setPrivacyMode(value) {
     setPrivacyMaskOn(value);
     set({ privacyMode: value });
@@ -352,6 +360,10 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   },
   setMilestoneReached(value) {
     set({ milestoneReached: value });
+    persist(snapshot(get()));
+  },
+  setRemindersEnabled(value) {
+    set({ remindersEnabled: value });
     persist(snapshot(get()));
   },
 }));

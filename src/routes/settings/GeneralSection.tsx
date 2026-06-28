@@ -71,6 +71,8 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
   const setTimezone = useUiPreferences((state) => state.setTimezone);
   const assetLogosEnabled = useUiPreferences((state) => state.assetLogosEnabled);
   const setAssetLogosEnabled = useUiPreferences((state) => state.setAssetLogosEnabled);
+  const remindersEnabled = useUiPreferences((state) => state.remindersEnabled);
+  const setRemindersEnabled = useUiPreferences((state) => state.setRemindersEnabled);
   const gainLossPalette = useUiPreferences((state) => state.gainLossPalette);
   const setGainLossPalette = useUiPreferences((state) => state.setGainLossPalette);
   const density = useUiPreferences((state) => state.density);
@@ -415,6 +417,20 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
 
         {/* Benchmark 指標已移到「投資 → 分析 → 投資組合 vs 指標」就地切換
             （uiPreferences.benchmarkTicker 同一份設定）。 */}
+
+        {/* TODO(copy): label/hint should go through copy.csv once stabilised */}
+        <h3 className="font-semibold mb-4 mt-6">到期提醒通知</h3>
+        <button
+          onClick={() => setRemindersEnabled(!remindersEnabled)}
+          className="flex w-full items-center gap-3 rounded-md border p-3 text-left transition"
+          style={{ borderColor: remindersEnabled ? "var(--ns-accent)" : "var(--ns-border)", background: remindersEnabled ? "var(--ns-accent-soft)" : "transparent" }}
+        >
+          <DeviceMobile size={18} />
+          <div>
+            <div className="font-medium">到期提醒通知 - {remindersEnabled ? "已開啟" : "已關閉"}</div>
+            <div className="text-xs muted">在繳款日與週期入帳前發送系統通知</div>
+          </div>
+        </button>
 
         <h3 className="font-semibold mb-4 mt-6">新手導覽</h3>
         <button
