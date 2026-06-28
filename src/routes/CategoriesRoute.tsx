@@ -219,7 +219,7 @@ export function CategoriesRoute() {
       </div>
 
       {/* 4 Summary Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+      <div className="ns-cat-summary-grid">
         <SummaryCard label="已消費" value={formatMoney(totalExpense, primaryCurrency)} />
         <SummaryCard label="預算合計" value={formatMoney(totalBudget, primaryCurrency)} />
         <SummaryCard label="預算使用率" value={`${usagePercent.toFixed(1)}%`} />
