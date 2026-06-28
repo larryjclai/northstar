@@ -8,6 +8,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { QuickAddContext, QuickAddParseResult } from "../domain/quickAdd";
 import type { NlParser } from "../domain/nlParser";
+import type { MonthlySummaryInput } from "../domain/monthlySummary";
 
 interface OnDeviceContext {
   accounts: Array<{ id: string; name: string }>;
@@ -29,7 +30,7 @@ export function buildOnDeviceCtx(ctx: QuickAddContext): OnDeviceContext {
   };
 }
 
-async function isAvailable(): Promise<boolean> {
+export async function isAvailable(): Promise<boolean> {
   try {
     return await invoke<boolean>("foundation_models_available");
   } catch {
@@ -58,6 +59,22 @@ async function prewarm(): Promise<void> {
     await invoke("foundation_models_prewarm");
   } catch {
     // Prewarm is best-effort; ignore errors silently.
+  }
+}
+
+/**
+ * Generate a monthly financial summary narrative on-device.
+ * Returns the zh-TW text, or null on any error / unavailability.
+ * Privacy: the input must be a MonthlySummaryInput (aggregate numbers only).
+ */
+export async function generateMonthlySummary(
+  input: MonthlySummaryInput,
+): Promise<string | null> {
+  try {
+    const inputJson = JSON.stringify(input);
+    return await invoke<string>("monthly_summary_on_device", { inputJson });
+  } catch {
+    return null;
   }
 }
 

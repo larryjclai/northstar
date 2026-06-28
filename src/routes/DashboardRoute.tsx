@@ -1,6 +1,6 @@
 import { ArrowDown, ArrowsClockwise, ArrowUp, ChartBar } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFinanceData } from "../data/hooks";
@@ -66,6 +66,8 @@ import { useUiPreferences } from "../state/uiPreferences";
 import { buildQuoteLookup, findQuoteForTicker, quoteLookupKeys } from "../domain/marketSymbols";
 import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
 import { SquaresFour } from "@phosphor-icons/react";
+import { buildMonthlySummaryInput } from "../domain/monthlySummary";
+import { isAvailable as isFmAvailable, generateMonthlySummary } from "../lib/foundationModels";
 
 const STRIP_PERIOD_LABELS: Record<StripPeriod, string> = {
   "1D": "近 1 日",
@@ -101,6 +103,7 @@ const DASHBOARD_CARDS: Array<{ key: string; label: string }> = [
   { key: "recentActivity", label: "最近交易" },
   { key: "topMovers", label: "今日漲跌" },
   { key: "projection", label: "30 年淨值預測" },
+  { key: "monthlySummary", label: "本月摘要 (AI)" },
 ];
 
 
@@ -1250,7 +1253,114 @@ export function DashboardRoute() {
           primaryCurrency={primaryCurrency}
         />
       ) : null}
+
+      {/* Row 6 · On-device AI monthly summary */}
+      {cardVisible("monthlySummary") && hasAnyData ? (
+        <MonthlySummaryCard
+          monthKey={monthKey}
+          income={monthIncome}
+          expense={monthExpense}
+          savingsRatePct={savingsRate}
+          netWorthChange={momChange}
+          currency={primaryCurrency}
+          budgetCats={budgetCats}
+        />
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * On-device AI monthly summary card.
+ * Renders only when Foundation Models is available AND there is data.
+ * Uses aggregate numbers only — no raw transactions/merchants/accounts/tickers.
+ */
+function MonthlySummaryCard({
+  monthKey,
+  income,
+  expense,
+  savingsRatePct,
+  netWorthChange,
+  currency,
+  budgetCats,
+}: {
+  monthKey: string;
+  income: number;
+  expense: number;
+  savingsRatePct: number;
+  netWorthChange: number;
+  currency: string;
+  budgetCats: Array<{ name: string; spent: number }>;
+}) {
+  const [summaryText, setSummaryText] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [available, setAvailable] = useState<boolean | null>(null);
+  const ranRef = useRef(false);
+
+  // Check FM availability once on mount.
+  useEffect(() => {
+    let cancelled = false;
+    isFmAvailable().then((ok) => { if (!cancelled) setAvailable(ok); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const generate = useCallback(async () => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const categorySpend = new Map<string, number>();
+      for (const cat of budgetCats) {
+        if (cat.spent > 0) categorySpend.set(cat.name, cat.spent);
+      }
+      const input = buildMonthlySummaryInput({
+        month: monthKey,
+        income,
+        expense,
+        savingsRatePct,
+        netWorthChange,
+        currency,
+        categorySpend,
+      });
+      const text = await generateMonthlySummary(input);
+      setSummaryText(text);
+    } finally {
+      setLoading(false);
+    }
+  }, [monthKey, income, expense, savingsRatePct, netWorthChange, currency, budgetCats, loading]);
+
+  // Auto-generate once when data is ready and FM is available.
+  useEffect(() => {
+    if (ranRef.current || available !== true || income + expense === 0) return;
+    ranRef.current = true;
+    generate();
+  }, [available, income, expense, generate]);
+
+  // Don't render anything if FM is unavailable or still checking.
+  if (available === false || available === null) return null;
+  // Don't render if there's no month data yet.
+  if (income + expense === 0) return null;
+
+  return (
+    <Card style={{ padding: "var(--ns-pad-card)", marginBottom: 16 }}>
+      <SectionHead eyebrow="AI summary · on-device" title="本月摘要" />
+      {loading ? (
+        <div className="text-body" style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--ns-fg-muted)" }}>
+          <Skeleton style={{ width: "100%", height: 48 }} />
+        </div>
+      ) : summaryText ? (
+        <div className="text-body" style={{ lineHeight: 1.7, color: "var(--ns-fg)" }}>
+          {summaryText}
+        </div>
+      ) : (
+        <div className="text-body muted">摘要暫時無法產生</div>
+      )}
+      {!loading && summaryText ? (
+        <div style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span className="text-caption muted">由裝置端 AI 產生，不會上傳任何資料</span>
+          <Button variant="ghost" size="xs" onClick={generate}>重新產生</Button>
+        </div>
+      ) : null}
+    </Card>
   );
 }
 

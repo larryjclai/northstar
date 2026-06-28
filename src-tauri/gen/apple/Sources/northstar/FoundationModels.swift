@@ -235,7 +235,60 @@ public func prewarmFoundationModels() {
     }
 }
 
-/// Free a string returned by northstar_parse_on_device.
+// ── Monthly summary: free-form zh-TW narrative from aggregate numbers ─────
+// Privacy: the model receives ONLY aggregate numbers (income, expense,
+// savings rate, net-worth change, top category names + amounts).  No raw
+// transactions, merchant names, account names, or tickers are ever passed.
+
+@available(iOS 26.0, macOS 26.0, *)
+private func performMonthlySummary(inputJson: String) async -> String? {
+    guard SystemLanguageModel.default.availability == .available else { return nil }
+
+    let instructions = """
+    你是個人理財摘要助手。根據提供的月度彙總數據，用繁體中文寫 2–3 句簡潔的本月財務摘要。
+    語氣親切但專業，像在和朋友分享理財觀察。
+    只使用提供的數字，不要編造細節。
+    如果儲蓄率為負，委婉提醒注意支出。
+    不要使用 markdown 格式，純文字即可。
+    """
+
+    let session = LanguageModelSession(instructions: instructions)
+
+    do {
+        let response = try await session.respond(to: inputJson)
+        return response.content
+    } catch {
+        return nil
+    }
+}
+
+/// Generate a monthly financial summary from aggregate numbers.
+/// Returns a zh-TW narrative string (caller must free with northstar_free_string)
+/// or NULL on failure / unavailability.
+@_cdecl("northstar_monthly_summary")
+public func monthlySummary(
+    inputPtr: UnsafePointer<CChar>?
+) -> UnsafeMutablePointer<CChar>? {
+    guard #available(iOS 26.0, macOS 26.0, *),
+          let inputPtr else { return nil }
+
+    let inputJson = String(cString: inputPtr)
+
+    var resultText: String? = nil
+    let semaphore = DispatchSemaphore(value: 0)
+
+    Task.detached(priority: .userInitiated) {
+        resultText = await performMonthlySummary(inputJson: inputJson)
+        semaphore.signal()
+    }
+
+    // 12-second timeout — summary generation may take longer than parsing.
+    let outcome = semaphore.wait(timeout: .now() + 12.0)
+    guard outcome == .success, let text = resultText else { return nil }
+    return strdup(text)
+}
+
+/// Free a string returned by northstar_parse_on_device or northstar_monthly_summary.
 @_cdecl("northstar_free_string")
 public func freeString(ptr: UnsafeMutablePointer<CChar>?) {
     free(ptr)
