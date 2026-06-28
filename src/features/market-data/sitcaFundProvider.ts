@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { parseCsvTable } from "../../data/csv";
-import type { MarketQuote } from "./provider";
+import type { MarketQuote, SymbolSearchResult } from "./provider";
 
 // Daily NAV for Taiwan domestic open-end mutual funds, sourced from the SITCA
 // government open-data CSV (data.gov.tw #11109). One CSV holds all ~4,200 funds,
@@ -37,6 +37,16 @@ let fundCache: { updatedAt: number; byCode: Map<string, SitcaFund> } | null = nu
 export class SitcaFundProvider {
   readonly sourceName = "SITCA";
 
+  async searchFunds(query: string, max = 20): Promise<SymbolSearchResult[]> {
+    if (query.trim().length < 2) return [];
+    try {
+      const byCode = await fetchFunds();
+      return filterFunds(byCode, query, max);
+    } catch {
+      return [];
+    }
+  }
+
   async fetchQuotes(symbols: string[]): Promise<Record<string, MarketQuote>> {
     const wanted = [...new Set(symbols.map(normalizeSymbol).filter(isFundSymbol))];
     if (wanted.length === 0) return {};
@@ -61,6 +71,32 @@ export class SitcaFundProvider {
     }
     return result;
   }
+}
+
+/**
+ * Pure filter: match funds by code or name against a query string.
+ * Returns up to `max` SymbolSearchResult items. No I/O — testable standalone.
+ */
+export function filterFunds(
+  byCode: Map<string, SitcaFund>,
+  query: string,
+  max = 20,
+): SymbolSearchResult[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const out: SymbolSearchResult[] = [];
+  for (const fund of byCode.values()) {
+    const codeMatch = fund.code.toLowerCase().includes(q);
+    const nameMatch = (fund.name ?? "").toLowerCase().includes(q);
+    if (!codeMatch && !nameMatch) continue;
+    out.push({
+      symbol: `${SITCA_TICKER_PREFIX}${fund.code}`,
+      name: fund.name || `${SITCA_TICKER_PREFIX}${fund.code}`,
+      exchange: "SITCA",
+    });
+    if (out.length >= max) break;
+  }
+  return out;
 }
 
 async function fetchFunds(): Promise<Map<string, SitcaFund>> {
