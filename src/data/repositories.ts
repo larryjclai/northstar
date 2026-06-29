@@ -4255,7 +4255,32 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.db.execute(`delete from ${tableByEntity[change.entity]} where id = $1`, [String(payload.id)]);
     switch (change.entity) {
       case "account": await this.insertAccountRow(payload as unknown as Account); break;
-      case "ledger": await this.insertLedgerRow(payload as unknown as LedgerTransaction); break;
+      case "ledger": {
+        const incoming = payload as unknown as LedgerTransaction;
+        const key = incoming.recurringOccurrenceKey;
+        if (key && !incoming.deletedAt) {
+          const dupes = await this.db.select<Array<{ id: string }>>(
+            `select id from ledger_transactions
+             where recurring_occurrence_key = $1 and deleted_at is null and id <> $2`,
+            [key, incoming.id],
+          );
+          if (dupes.length > 0) {
+            const existingId = dupes[0].id;
+            const winner = [existingId, incoming.id].sort()[0];
+            const now = nowIso();
+            if (winner === incoming.id) {
+              await this.db.execute(
+                `update ledger_transactions set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`,
+                [now, existingId],
+              );
+            } else {
+              incoming.deletedAt = incoming.deletedAt ?? now;
+            }
+          }
+        }
+        await this.insertLedgerRow(incoming);
+        break;
+      }
       case "asset": await this.insertAssetRow(payload as unknown as PortfolioAsset); break;
       case "investment": await this.insertInvestmentRow(payload as unknown as InvestmentRecord); break;
       case "recurring": await this.insertRecurringRow(payload as unknown as RecurringTransaction); break;
