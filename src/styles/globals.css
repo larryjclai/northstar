@@ -439,6 +439,14 @@ html[data-native-glass] .ns-app-main { background: var(--ns-bg); }
    28px matches the macOS title-bar height so the logo/nav don't sit under
    the traffic-light buttons. */
 html[data-native-glass] .ns-sidebar { padding-top: 28px; }
+/* Full-width drag strip spanning the top edge so the entire window top is
+   draggable. Hidden on every platform except macOS Tauri (data-native-glass).
+   z-index 30 floats above content but below modals; fixed+inset:0 top edge
+   means traffic-light buttons (rendered above the webview by the OS) remain
+   clickable — the strip just fills the gap where no button lives. */
+.ns-titlebar-drag { display: none; }
+html[data-native-glass] .ns-titlebar-drag { display: block; position: fixed; top: 0; left: 0; right: 0; height: 28px; z-index: 30; }
+html[data-native-glass] .ns-app-main { padding-top: 28px; }
 
 @media (prefers-color-scheme: dark) {
   html[data-native-glass]:not([data-theme="light"]) .ns-sidebar {
