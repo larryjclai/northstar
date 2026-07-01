@@ -133,6 +133,8 @@ export function AppShell() {
       className="ns-app-shell min-h-screen lg:grid"
       style={{ gridTemplateColumns: collapsed ? "64px 1fr" : "240px 1fr", transition: "grid-template-columns 0.2s ease" }}
     >
+      {/* macOS overlay title bar: full-width draggable strip; hidden on non-macOS via CSS. */}
+      <div data-tauri-drag-region className="ns-titlebar-drag" aria-hidden="true" />
       {/* ── Desktop sidebar ── */}
       <aside
         className="ns-sidebar hidden lg:flex lg:flex-col lg:sticky lg:top-0 lg:h-screen lg:self-start"
