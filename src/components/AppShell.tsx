@@ -27,6 +27,7 @@ import { exitDemoMode } from "../data/demoData";
 import { usePostDueRecurring, useFinanceData } from "../data/hooks";
 import { todayInTimezone } from "../domain";
 import { buildCreditCardReminders } from "../domain/dashboardSummary";
+import { buildReminderNotifications, unacknowledgedReminders } from "../domain/reminderNotifications";
 import { GlobalSearch } from "./GlobalSearch";
 import { QuickAdd } from "./QuickAdd";
 import { useToast } from "./Toast";
@@ -44,6 +45,7 @@ import { refreshLatestMarketData } from "../features/market-data/useMarketRefres
 import { runDailyBackupIfDue } from "../features/local-backup/localBackup";
 import { isCrossDeviceLinkUpdateError, UPDATE_RESTART_RETRY_MESSAGE } from "../features/updater/errors";
 import { buildPaymentReminders, syncScheduledReminders } from "../features/notifications/scheduler";
+import { NotificationCenter } from "./NotificationCenter";
 
 const appIconUrl = new URL("../../src-tauri/icons/icon.png", import.meta.url).href;
 
@@ -284,8 +286,10 @@ export function AppShell() {
           ))}
         </nav>
 
-        {/* Bottom: onboarding (conditional) + privacy + local-first */}
+        {/* Bottom: onboarding (conditional) + notification center + privacy + local-first */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <NotificationCenter collapsed={collapsed} />
+
           {!onboardingDismissed && (
             <button
               type="button"
@@ -596,15 +600,13 @@ function useDailyLocalBackup() {
 function useDockBadge() {
   const { accounts } = useFinanceData();
   const timezone = useUiPreferences((state) => state.timezone);
+  const acknowledged = useUiPreferences((state) => state.acknowledgedReminders);
 
   const dueCount = (() => {
     const rows = accounts.data ?? [];
     if (rows.length === 0) return 0;
-    return buildCreditCardReminders(
-      rows,
-      todayInTimezone(timezone),
-      (amount) => amount, // counting only — no currency conversion needed
-    ).filter((r) => r.daysUntilDue <= 45).length;
+    const all = buildReminderNotifications(rows, todayInTimezone(timezone));
+    return unacknowledgedReminders(all, acknowledged).length;
   })();
 
   useEffect(() => {
@@ -617,7 +619,7 @@ function useDockBadge() {
         console.warn("[dock] set badge failed", e);
       }
     })();
-  }, [dueCount]);
+  }, [dueCount, acknowledged]);
 }
 
 // ── Local notifications for due payment reminders ────────────────────────
