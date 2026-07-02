@@ -141,7 +141,9 @@ export function AppShell() {
       <aside
         className="ns-sidebar hidden lg:flex lg:flex-col lg:sticky lg:top-0 lg:h-screen lg:self-start"
         style={{
-          padding: collapsed ? "16px 8px 14px" : "22px 14px 14px",
+          padding: collapsed
+            ? "calc(16px + var(--ns-titlebar-inset, 0px)) 8px 14px"
+            : "calc(22px + var(--ns-titlebar-inset, 0px)) 14px 14px",
           gap: 4,
           overflow: "hidden",
           width: collapsed ? 64 : 240,
