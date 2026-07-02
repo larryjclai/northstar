@@ -47,6 +47,8 @@ export interface UiPreferences {
   milestoneReached: number;
   /** Opt-in: schedule OS notifications for upcoming due payments. Off by default. */
   remindersEnabled: boolean;
+  /** Reminder notification ids the user has acknowledged (persisted; new occurrence = new id). */
+  acknowledgedReminders: string[];
   setPrivacyMode: (value: boolean) => void;
   togglePrivacyMode: () => void;
   setNameLocale: (value: NameLocalePreference) => void;
@@ -67,6 +69,8 @@ export interface UiPreferences {
   toggleLongViewMode: () => void;
   setMilestoneReached: (value: number) => void;
   setRemindersEnabled: (value: boolean) => void;
+  acknowledgeReminder: (id: string) => void;
+  clearAcknowledgedReminders: () => void;
 }
 
 /** Toggleable holdings-table columns (the rest are always shown). */
@@ -102,6 +106,7 @@ interface PersistedShape {
   longViewMode: boolean;
   milestoneReached: number;
   remindersEnabled: boolean;
+  acknowledgedReminders: string[];
 }
 
 export type ClockMode = "24h" | "12h";
@@ -129,6 +134,7 @@ function loadPersisted(): PersistedShape {
     longViewMode: false,
     milestoneReached: 0,
     remindersEnabled: false,
+    acknowledgedReminders: [],
   };
   if (typeof window === "undefined") return fallback;
   // Back-compat: honour the legacy onboarding dismiss key for existing installs.
@@ -185,6 +191,9 @@ function loadPersisted(): PersistedShape {
           ? parsed.milestoneReached
           : 0,
       remindersEnabled: typeof parsed.remindersEnabled === "boolean" ? parsed.remindersEnabled : false,
+      acknowledgedReminders: Array.isArray(parsed.acknowledgedReminders)
+        ? parsed.acknowledgedReminders.filter((k): k is string => typeof k === "string")
+        : [],
     };
   } catch {
     return { ...fallback, onboardingDismissed: legacyDismissed };
@@ -251,6 +260,7 @@ function snapshot(state: UiPreferences): PersistedShape {
     longViewMode: state.longViewMode,
     milestoneReached: state.milestoneReached,
     remindersEnabled: state.remindersEnabled,
+    acknowledgedReminders: state.acknowledgedReminders,
   };
 }
 
@@ -274,6 +284,7 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   longViewMode: initial.longViewMode,
   milestoneReached: initial.milestoneReached,
   remindersEnabled: initial.remindersEnabled,
+  acknowledgedReminders: initial.acknowledgedReminders,
   setPrivacyMode(value) {
     setPrivacyMaskOn(value);
     set({ privacyMode: value });
@@ -364,6 +375,14 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   },
   setRemindersEnabled(value) {
     set({ remindersEnabled: value });
+    persist(snapshot(get()));
+  },
+  acknowledgeReminder(id) {
+    set({ acknowledgedReminders: [...new Set([...get().acknowledgedReminders, id])] });
+    persist(snapshot(get()));
+  },
+  clearAcknowledgedReminders() {
+    set({ acknowledgedReminders: [] });
     persist(snapshot(get()));
   },
 }));
