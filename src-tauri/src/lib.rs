@@ -160,7 +160,10 @@ fn is_allowed_market_data_url(url: &url::Url) -> bool {
     }
 
     match url.host_str() {
-        Some("openapi.twse.com.tw") => url.path().starts_with("/v1/opendata/t187ap03_L"),
+        Some("openapi.twse.com.tw") => {
+            url.path().starts_with("/v1/opendata/t187ap03_L")
+                || url.path() == "/v1/exchangeReport/STOCK_DAY_ALL"
+        }
         Some("www.tpex.org.tw") => url.path().starts_with("/openapi/v1/mopsfin_t187ap03_O"),
         Some("mopsfin.twse.com.tw") => {
             url.path() == "/opendata/t187ap03_L.csv" || url.path() == "/opendata/t187ap03_O.csv"

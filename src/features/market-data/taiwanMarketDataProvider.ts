@@ -34,7 +34,16 @@ const DATASETS: Array<{ market: TaiwanMarket; jsonUrl: string; csvUrl: string; s
   },
 ];
 
+// ── STOCK_DAY_ALL: all TWSE securities (incl. ETFs) with Chinese names ──
+const STOCK_DAY_ALL_URL = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL";
+
+interface TwseSecurityRow {
+  Code?: string;
+  Name?: string;
+}
+
 let companyCache: { updatedAt: number; companies: TaiwanCompany[] } | null = null;
+let securityNamesCache: { updatedAt: number; names: Map<string, string> } | null = null;
 const cacheMaxAgeMs = 24 * 60 * 60 * 1000;
 
 export class TaiwanMarketDataProvider {
@@ -46,19 +55,40 @@ export class TaiwanMarketDataProvider {
 
     const companies = await fetchCompanies();
     const byKey = buildCompanyMap(companies);
+    let securityNames: Map<string, string>;
+    try {
+      securityNames = await fetchSecurityNames();
+    } catch {
+      securityNames = new Map();
+    }
     const result: Record<string, AssetProfile> = {};
 
     for (const symbol of wanted) {
       const company = byKey.get(symbol) ?? byKey.get(stripMarketSuffix(symbol));
-      if (!company) continue;
-      result[symbol] = {
-        symbol,
-        nameZh: company.nameZh,
-        nameEn: null,
-        assetType: "equity",
-        sector: company.industry,
-        industry: company.industry,
-      };
+      if (company) {
+        result[symbol] = {
+          symbol,
+          nameZh: company.nameZh,
+          nameEn: null,
+          assetType: "equity",
+          sector: company.industry,
+          industry: company.industry,
+        };
+        continue;
+      }
+
+      // Fallback: STOCK_DAY_ALL covers all TWSE securities incl. ETFs
+      const nameZh = securityNames.get(symbol) ?? securityNames.get(stripMarketSuffix(symbol));
+      if (nameZh) {
+        result[symbol] = {
+          symbol,
+          nameZh,
+          nameEn: null,
+          assetType: "etf",
+          sector: null,
+          industry: null,
+        };
+      }
     }
 
     return result;
@@ -72,6 +102,39 @@ async function fetchCompanies(): Promise<TaiwanCompany[]> {
   const companies = settled.flatMap((item) => (item.status === "fulfilled" ? item.value : []));
   companyCache = { updatedAt: Date.now(), companies };
   return companies;
+}
+
+/**
+ * Parse TWSE STOCK_DAY_ALL rows into a map of code → Chinese name.
+ * Keys both the bare code ("00878") and the suffixed form ("00878.TW").
+ */
+export function parseSecurityNames(rows: TwseSecurityRow[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    const code = clean(row.Code);
+    const name = clean(row.Name);
+    if (!code || !name) continue;
+    map.set(`${code}.TW`, name);
+    map.set(code, name);
+  }
+  return map;
+}
+
+async function fetchSecurityNames(): Promise<Map<string, string>> {
+  if (securityNamesCache && Date.now() - securityNamesCache.updatedAt < cacheMaxAgeMs) {
+    return securityNamesCache.names;
+  }
+
+  try {
+    const response = await fetchMarketData(STOCK_DAY_ALL_URL, "json");
+    const rows = JSON.parse(response) as TwseSecurityRow[];
+    const names = parseSecurityNames(rows);
+    securityNamesCache = { updatedAt: Date.now(), names };
+    return names;
+  } catch (error) {
+    console.warn("[market] TWSE STOCK_DAY_ALL unavailable; ETF Chinese names will be missing.", error);
+    return new Map();
+  }
 }
 
 async function fetchDataset(dataset: (typeof DATASETS)[number]): Promise<TaiwanCompany[]> {
