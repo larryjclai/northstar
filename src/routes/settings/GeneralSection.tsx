@@ -531,6 +531,8 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
                       ) : (
                         <>
                           <p className="text-xs muted mb-2">
+                            {/* 備份時間點日期顯示，非金額展示 — 不經 currency helpers */}
+                            {/* eslint-disable-next-line no-restricted-syntax */}
                             備份時間點：{new Date(restoreDiff.exportedAt).toLocaleString("zh-Hant")}
                           </p>
                           <div className="space-y-1 mb-3">

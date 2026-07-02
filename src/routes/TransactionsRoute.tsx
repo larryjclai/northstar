@@ -653,6 +653,8 @@ function SummaryCard({
 
 function formatMonthLabel(month: string) {
   const date = new Date(`${month}-01T00:00:00`);
+  // 月份名稱格式化，非金額展示 — 不經 currency helpers
+  // eslint-disable-next-line no-restricted-syntax
   return `${date.toLocaleString("en-US", { month: "long" }).toUpperCase()} ${date.getFullYear()}`;
 }
 

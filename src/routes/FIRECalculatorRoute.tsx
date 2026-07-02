@@ -418,6 +418,8 @@ function RetirementIncomeSection({
                   <input
                     className="ns-input mono"
                     style={{ textAlign: "right" }}
+                    // 數字輸入框編輯狀態，非金額展示 — 不經 currency helpers
+                    // eslint-disable-next-line no-restricted-syntax
                     value={item.monthlyAmount ? item.monthlyAmount.toLocaleString("zh-TW") : ""}
                     placeholder="20,000"
                     onChange={(e) => update(item.id, { monthlyAmount: numFromInput(e.target.value) })}

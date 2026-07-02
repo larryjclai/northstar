@@ -2705,6 +2705,8 @@ function fmtAmountDisplay(expr: string): string {
   if (/[+\-*/]/.test(expr)) return expr;
   const n = parseFloat(expr);
   if (isNaN(n)) return expr;
+  // 金額輸入框編輯狀態，非最終展示 — 不經 currency helpers
+  // eslint-disable-next-line no-restricted-syntax
   return Number.isInteger(n) ? n.toLocaleString("zh-TW") : n.toLocaleString("zh-TW", { maximumFractionDigits: 4 });
 }
 
