@@ -148,6 +148,10 @@ export function InvestmentEntryDrawer({
   // DRIP-only: the total dividend amount (A). Reinvested qty (Q) and price (P)
   // reuse transactionForm.quantity / .price. Residual = A − Q×P stays in cash.
   const [dripDividendAmount, setDripDividendAmount] = useState(0);
+  // dripAmountTouched: true once the user has manually edited the DRIP amount
+  // field; while true, changes to qty/price no longer auto-fill it. Mirrors
+  // feeTouchedRef below.
+  const dripAmountTouchedRef = useRef(false);
 
   // ── Taiwan broker-fee auto-fill ──────────────────────────────────────────
   // instrument: per-trade stock/ETF toggle (determines sell-tax rate in v1;
@@ -200,6 +204,7 @@ export function InvestmentEntryDrawer({
     setMessage("");
     // Reset auto-fill state whenever the drawer opens.
     feeTouchedRef.current = false;
+    dripAmountTouchedRef.current = false;
     setInstrument("stock");
   }, [open, emptyHoldingDraft, timezone, initialMode, transactionPreset]);
 
@@ -321,9 +326,9 @@ export function InvestmentEntryDrawer({
       if (side === "dividend" && dividendMode === "drip") {
         if (transactionForm.quantity <= 0) throw new Error("請輸入再投入股數。");
         if (transactionForm.price <= 0) throw new Error("請輸入再投入價格。");
-        if (dripDividendAmount + 0.000001 < transactionForm.quantity * transactionForm.price) {
-          throw new Error("股利金額不足以買進該股數（請確認金額 ≥ 股數 × 價格）。");
-        }
+        // Amount-vs-qty×price match check lives in the repository's shared
+        // validateDividendReinvestment (single source of truth, tolerant of
+        // broker rounding); failures surface via the catch below.
         const dripInput: DividendReinvestmentDraft = {
           ticker: transactionForm.ticker,
           name: transactionForm.name,
@@ -652,6 +657,8 @@ export function InvestmentEntryDrawer({
                       const next = value[0] as "cash" | "stock" | "drip" | undefined;
                       if (!next) return;
                       setDividendMode(next);
+                      // Leaving DRIP resets the amount auto-fill so re-entering starts fresh.
+                      if (next !== "drip") dripAmountTouchedRef.current = false;
                       // cash + drip both record a cashDividend leg; stock = 配股.
                       setTransactionForm((c) => normalizeTransactionDraft({ ...c, action: next === "stock" ? "stockDividend" : "cashDividend" }));
                       setMessage("");
@@ -673,16 +680,53 @@ export function InvestmentEntryDrawer({
                     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                       <div>
                         <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>股利金額（總額）</label>
-                        <NumberField className="ns-input mono text-lg" value={dripDividendAmount} onChange={setDripDividendAmount} decimals={2} placeholder="3,500" style={NUM_INPUT_STYLE} />
+                        <NumberField
+                          className="ns-input mono text-lg"
+                          value={dripDividendAmount}
+                          onChange={(amount) => {
+                            dripAmountTouchedRef.current = true;
+                            setDripDividendAmount(amount);
+                          }}
+                          decimals={2}
+                          placeholder="3,500"
+                          style={NUM_INPUT_STYLE}
+                        />
+                        <div className="muted text-caption" style={{ marginTop: 6 }}>
+                          未修改時自動帶入 股數 × 價格。
+                        </div>
                       </div>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                         <div>
                           <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>再投入股數</label>
-                          <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={5} placeholder="2" style={NUM_INPUT_STYLE} />
+                          <NumberField
+                            className="ns-input mono text-lg"
+                            value={transactionForm.quantity}
+                            onChange={(quantity) => {
+                              setTransactionForm({ ...transactionForm, quantity });
+                              if (!dripAmountTouchedRef.current) {
+                                setDripDividendAmount(Math.round(quantity * transactionForm.price * 100) / 100);
+                              }
+                            }}
+                            decimals={5}
+                            placeholder="2"
+                            style={NUM_INPUT_STYLE}
+                          />
                         </div>
                         <div>
                           <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>再投入價格</label>
-                          <NumberField className="ns-input mono text-lg" value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={5} placeholder="1,042.00" style={NUM_INPUT_STYLE} />
+                          <NumberField
+                            className="ns-input mono text-lg"
+                            value={transactionForm.price}
+                            onChange={(price) => {
+                              setTransactionForm({ ...transactionForm, price });
+                              if (!dripAmountTouchedRef.current) {
+                                setDripDividendAmount(Math.round(transactionForm.quantity * price * 100) / 100);
+                              }
+                            }}
+                            decimals={5}
+                            placeholder="1,042.00"
+                            style={NUM_INPUT_STYLE}
+                          />
                         </div>
                       </div>
                       <div className="muted text-caption">

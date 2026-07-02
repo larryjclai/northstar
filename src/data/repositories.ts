@@ -5186,14 +5186,19 @@ function dividendReinvestmentLegs(input: DividendReinvestmentDraft): { dividend:
   return { dividend, buy };
 }
 
-/** Shared DRIP-draft validation (Q > 0, P > 0, A ≥ Q × P). */
+/** Shared DRIP-draft validation (Q > 0, P > 0, A ≥ Q × P − tolerance). */
 function validateDividendReinvestment(input: DividendReinvestmentDraft) {
   const quantity = Math.max(0, Number(input.quantity) || 0);
   const price = Math.max(0, Number(input.price) || 0);
   const dividendAmount = Math.max(0, Number(input.dividendAmount) || 0);
   if (!(quantity > 0)) throw new Error("請輸入再投入股數。");
   if (!(price > 0)) throw new Error("請輸入再投入價格。");
-  if (dividendAmount + 0.000001 < quantity * price) throw new Error("股利金額不足以買進該股數（請確認金額 ≥ 股數 × 價格）。");
+  // 容差：券商把零股股數捨入到 4–6 位後，Q×P 可能比實際股利多出幾毫到幾元。
+  // 允許 Q×P 超出 A 至多 max(1 元, A 的 0.1%)；差額仍會如實入帳（cash 差額有界）。
+  const tolerance = Math.max(1, dividendAmount * 0.001);
+  if (dividendAmount + tolerance < quantity * price) {
+    throw new Error("股利金額與股數 × 價格差距過大（請確認三個數字，或留空金額讓系統自動帶入）。");
+  }
 }
 
 function computeAccountBalance(account: Account, ledgerRows: LedgerTransaction[], excludeLedgerId: string | null) {

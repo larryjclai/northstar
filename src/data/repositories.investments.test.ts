@@ -236,14 +236,42 @@ describe("股息再投入 (DRIP)", () => {
     expect(analysis.total).toBeCloseTo(200, 6); // full amount counted, not the net
   });
 
-  it("rejects when the dividend cannot cover qty × price", async () => {
+  it("rejects when the dividend cannot cover qty × price beyond tolerance", async () => {
     const repo = await repoWithHolding();
     await expect(
       repo.createDividendReinvestment({ ...dripBase, quantity: 1, price: 200, dividendAmount: 150 }),
-    ).rejects.toThrow("股利金額不足");
+    ).rejects.toThrow("差距過大");
     // No legs were written.
     const records = await repo.listInvestmentRecords();
     expect(records.some((r) => r.dripGroupId)).toBe(false);
+  });
+
+  it("accepts a broker-rounding mismatch within tolerance (Q×P slightly exceeds A)", async () => {
+    const repo = await repoWithHolding();
+    // A = 3500, Q = 3.3558, P = 1043 → Q×P = 3500.0994, over by 0.0994 (< tolerance of max(1, 3.5) = 3.5).
+    await repo.createDividendReinvestment({ ...dripBase, quantity: 3.3558, price: 1043, dividendAmount: 3500 });
+    const records = await repo.listInvestmentRecords();
+    const dripLegs = records.filter((r) => r.dripGroupId);
+    expect(dripLegs).toHaveLength(2);
+  });
+
+  it("rejects a mismatch beyond tolerance even when both numbers look plausible", async () => {
+    const repo = await repoWithHolding();
+    // A = 3500, Q = 4, P = 1000 → Q×P = 4000, over by 500 (>> tolerance of max(1, 3.5) = 3.5).
+    await expect(
+      repo.createDividendReinvestment({ ...dripBase, quantity: 4, price: 1000, dividendAmount: 3500 }),
+    ).rejects.toThrow("差距過大");
+    const records = await repo.listInvestmentRecords();
+    expect(records.some((r) => r.dripGroupId)).toBe(false);
+  });
+
+  it("accepts a small-currency mismatch within the 1-unit floor tolerance", async () => {
+    const repo = await repoWithHolding();
+    // A = 35, Q = 1.4287, P = 24.5 → Q×P = 35.00315, over by 0.00315 (< tolerance of max(1, 0.035) = 1).
+    await repo.createDividendReinvestment({ ...dripBase, quantity: 1.4287, price: 24.5, dividendAmount: 35 });
+    const records = await repo.listInvestmentRecords();
+    const dripLegs = records.filter((r) => r.dripGroupId);
+    expect(dripLegs).toHaveLength(2);
   });
 
   it("rejects non-positive quantity or price", async () => {
