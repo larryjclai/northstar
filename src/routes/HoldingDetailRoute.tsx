@@ -426,7 +426,7 @@ export function HoldingDetailRoute() {
                   <XAxis dataKey="date" hide />
                   <YAxis domain={['auto', 'auto']} hide />
                   <Tooltip
-                    formatter={(v) => [typeof v === "number" ? v.toFixed(2) : v, "price"]}
+                    formatter={(v) => [typeof v === "number" ? formatPrice(v) : v, "price"]}
                     contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }}
                     itemStyle={{ color: "var(--ns-fg)" }}
                     labelStyle={{ color: "var(--ns-fg)" }}

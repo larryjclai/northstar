@@ -664,7 +664,7 @@ export function InvestmentEntryDrawer({
                   {dividendMode === "stock" ? (
                     <div>
                       <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>配發股數</label>
-                      <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={4} placeholder="100" style={NUM_INPUT_STYLE} />
+                      <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={5} placeholder="100" style={NUM_INPUT_STYLE} />
                       <div className="muted text-caption" style={{ marginTop: 6 }}>
                         配股不涉及現金：股數增加、總成本不變，因此平均成本會下降。
                       </div>
@@ -678,11 +678,11 @@ export function InvestmentEntryDrawer({
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                         <div>
                           <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>再投入股數</label>
-                          <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={4} placeholder="2" style={NUM_INPUT_STYLE} />
+                          <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={5} placeholder="2" style={NUM_INPUT_STYLE} />
                         </div>
                         <div>
                           <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>再投入價格</label>
-                          <NumberField className="ns-input mono text-lg" value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={2} placeholder="1,042.00" style={NUM_INPUT_STYLE} />
+                          <NumberField className="ns-input mono text-lg" value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={5} placeholder="1,042.00" style={NUM_INPUT_STYLE} />
                         </div>
                       </div>
                       <div className="muted text-caption">
@@ -707,11 +707,11 @@ export function InvestmentEntryDrawer({
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                   <div>
                     <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>被註銷股數</label>
-                    <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={4} placeholder="20" style={NUM_INPUT_STYLE} />
+                    <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={5} placeholder="20" style={NUM_INPUT_STYLE} />
                   </div>
                   <div>
                     <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>每股退回現金</label>
-                    <NumberField className="ns-input mono text-lg" value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={2} placeholder="10" style={NUM_INPUT_STYLE} />
+                    <NumberField className="ns-input mono text-lg" value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={5} placeholder="10" style={NUM_INPUT_STYLE} />
                     <div className="muted text-caption" style={{ marginTop: 6 }}>
                       現金減資填每股退回金額；彌補虧損減資（不退現金）填 0。
                     </div>
@@ -745,11 +745,11 @@ export function InvestmentEntryDrawer({
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
                     <div>
                       <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>股數</label>
-                      <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={4} placeholder="100" style={NUM_INPUT_STYLE} />
+                      <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={5} placeholder="100" style={NUM_INPUT_STYLE} />
                     </div>
                     <div>
                       <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>每股價格</label>
-                      <NumberField className="ns-input mono text-lg" value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={2} placeholder="1,042.00" style={NUM_INPUT_STYLE} />
+                      <NumberField className="ns-input mono text-lg" value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={5} placeholder="1,042.00" style={NUM_INPUT_STYLE} />
                     </div>
                     <div>
                       <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>
