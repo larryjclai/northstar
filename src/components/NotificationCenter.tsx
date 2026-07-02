@@ -19,8 +19,19 @@ export function NotificationCenter({ collapsed }: { collapsed: boolean }) {
   const count = unacked.length;
 
   const [open, setOpen] = useState(false);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Capture the trigger button's viewport position when opening, so the
+  // panel (position: fixed) can be placed against the viewport instead of
+  // the sidebar — the sidebar's overflow:hidden (needed for the width
+  // transition) would otherwise clip anything wider than the rail.
+  useEffect(() => {
+    if (open && buttonRef.current) {
+      setAnchorRect(buttonRef.current.getBoundingClientRect());
+    }
+  }, [open]);
 
   // Close panel on outside click
   useEffect(() => {
@@ -38,6 +49,21 @@ export function NotificationCenter({ collapsed }: { collapsed: boolean }) {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
+
+  // A stale anchor rect would misposition the panel, so close it whenever
+  // the viewport resizes or the sidebar collapses/expands.
+  useEffect(() => {
+    if (!open) return;
+    function handleResize() {
+      setOpen(false);
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [open]);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [collapsed]);
 
   function handleAcknowledgeAll() {
     for (const n of unacked) {
@@ -92,19 +118,17 @@ export function NotificationCenter({ collapsed }: { collapsed: boolean }) {
         )}
       </button>
 
-      {open && (
+      {open && anchorRect && (
         <div
           ref={panelRef}
           role="dialog"
           aria-label="通知中心面板"
           style={{
-            position: "absolute",
-            bottom: "calc(100% + 8px)",
-            left: collapsed ? "calc(100% + 8px)" : 0,
-            right: collapsed ? "auto" : 0,
+            position: "fixed",
+            bottom: window.innerHeight - anchorRect.top + 8,
+            left: collapsed ? anchorRect.right + 8 : anchorRect.left,
             zIndex: 1200,
-            minWidth: 280,
-            maxWidth: 340,
+            width: 320,
             background: "var(--ns-surface)",
             border: "1px solid var(--ns-border)",
             borderRadius: "var(--ns-r-md, 10px)",
