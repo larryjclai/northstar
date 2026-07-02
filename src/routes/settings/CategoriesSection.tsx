@@ -12,7 +12,7 @@ import { downloadCsv, exportInvestmentCsv, exportLedgerCsv, exportFxRatesCsv } f
 import { getFinanceRepository, type RepositorySnapshot } from "../../data/repositories";
 import { enterDemoMode, exitDemoMode, clearAllData } from "../../data/demoData";
 import { useDemoMode } from "../../state/demoMode";
-import { COMMON_TIMEZONES, isValidTimezone } from "../../domain";
+import { COMMON_TIMEZONES, isValidTimezone, formatMoney } from "../../domain";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../../domain";
 import type { SyncConflictRecord } from "../../domain/sync";
 import { useRefreshFxRates } from "../../features/market-data/useMarketRefresh";
@@ -226,7 +226,7 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
                   NT$0
                 </span>
                 <span className="num muted ns-settings-category-budget text-body" style={{ textAlign:'right' }}>
-                  {c.budget?'NT$'+c.budget.toLocaleString():'—'}
+                  {c.budget ? formatMoney(c.budget, "TWD") : '—'}
                 </span>
                 <div className="ns-settings-category-usage" style={{ paddingLeft:8 }}>
                   {c.budget ? (

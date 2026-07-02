@@ -9,7 +9,7 @@ import { Card } from "../components/coss/card";
 import { Skeleton } from "../components/coss/skeleton";
 import { computeLinkedAccountsValue, computeNetWorthInCurrency } from "../features/goals/netWorth";
 import { GoalEditorSheet } from "../features/goals/GoalEditorSheet";
-import { projectRetirement, resolveTargetAmount, formatNumber, formatCompactNumber, type FinancialGoal } from "../domain";
+import { projectRetirement, resolveTargetAmount, formatNumber, formatCompactNumber, formatCompactMoney, type FinancialGoal } from "../domain";
 import { goalPace } from "../domain/goalPace";
 
 export function GoalsRoute() {
@@ -195,8 +195,8 @@ export function GoalsRoute() {
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 16 }}>
                   {isFire ? (
                     <>
-                      <span className="text-[40px]" style={{ fontWeight: 600, letterSpacing: -1 }}>NT${(currentValue / 1_000_000).toFixed(2)}M</span>
-                      <span className="text-sm" style={{ color: "var(--ns-fg-muted)" }}>/ NT${(stats.target / 1_000_000).toFixed(stats.target >= 10_000_000 ? 0 : 2)}M</span>
+                      <span className="text-[40px]" style={{ fontWeight: 600, letterSpacing: -1 }}>{formatCompactMoney(currentValue, selectedGoal.currency)}</span>
+                      <span className="text-sm" style={{ color: "var(--ns-fg-muted)" }}>/ {formatCompactNumber(stats.target)}</span>
                     </>
                   ) : (
                     <>

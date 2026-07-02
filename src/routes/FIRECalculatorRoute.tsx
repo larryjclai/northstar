@@ -2,7 +2,7 @@ import { CaretLeft, Star, Info, ChartLineUp, ChartBar, X } from "@phosphor-icons
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine, Line, LineChart } from "recharts";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { formatNumber, projectRetirementScenarios, todayInTimezone, type FinancialGoal, type IncomeItem } from "../domain";
+import { formatNumber, formatCompactMoney, projectRetirementScenarios, todayInTimezone, type FinancialGoal, type IncomeItem } from "../domain";
 import { computeNetWorthInCurrency } from "../features/goals/netWorth";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useToast } from "../components/Toast";
@@ -241,9 +241,9 @@ export function FIRECalculatorRoute() {
           
           {/* Top 4 Cards */}
           <div style={{ display: "flex", gap: 16 }}>
-            <MetricCard title="FIRE 目標" value={`NT$${(fireTarget / 1000000).toFixed(2)}M`} sub={`年支出 × ${Math.round(100/swr)} 倍`} />
+            <MetricCard title="FIRE 目標" value={formatCompactMoney(fireTarget, "TWD")} sub={`年支出 × ${Math.round(100/swr)} 倍`} />
             <MetricCard title="達成年份" value={`+${yearsToFi ?? "—"}y · ${projection.fiAge ?? "—"}歲`} sub={yearsToFi ? `預計 ${new Date().getFullYear() + yearsToFi} 年` : "—"} />
-            <MetricCard title="COAST-FIRE" value={`NT$${(projection.coastFireAmount / 1000000).toFixed(2)}M`} sub="達到此金額後即使停止儲蓄也能自然成長到 FIRE" />
+            <MetricCard title="COAST-FIRE" value={formatCompactMoney(projection.coastFireAmount, "TWD")} sub="達到此金額後即使停止儲蓄也能自然成長到 FIRE" />
             <MetricCard title="情境穩健度" value={`${projection.scenariosOnTrack} / 3`} sub="悲觀／中性／樂觀情境下仍能撐到計畫年齡的數量" />
           </div>
 
@@ -294,7 +294,7 @@ export function FIRECalculatorRoute() {
                     <div className="text-sm" style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 500 }}>
                       <div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--ns-warn)" }}></div> Lean FIRE
                     </div>
-                    <div className="text-[15px]" style={{ fontWeight: 500 }}>NT${(fireTarget * 0.7 / 1000000).toFixed(2)}M</div>
+                    <div className="text-[15px]" style={{ fontWeight: 500 }}>{formatCompactMoney(fireTarget * 0.7, "TWD")}</div>
                   </div>
                   <div className="text-xs" style={{ color: "var(--ns-fg-dim)", lineHeight: 1.5 }}>
                     以基本生活支出為基準，僅涵蓋必要開銷，適合願意維持節約生活型態的人。
@@ -305,7 +305,7 @@ export function FIRECalculatorRoute() {
                     <div className="text-sm" style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 500 }}>
                       <div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--ns-accent)" }}></div> Regular FIRE
                     </div>
-                    <div className="text-[15px]" style={{ fontWeight: 500 }}>NT${(fireTarget / 1000000).toFixed(2)}M</div>
+                    <div className="text-[15px]" style={{ fontWeight: 500 }}>{formatCompactMoney(fireTarget, "TWD")}</div>
                   </div>
                   <div className="text-xs" style={{ color: "var(--ns-fg-dim)", lineHeight: 1.5 }}>
                     以目前的生活水準為基準 (年支出 × {Math.round(100/swr)})，退休後可維持現有的消費習慣。
@@ -316,7 +316,7 @@ export function FIRECalculatorRoute() {
                     <div className="text-sm" style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 500 }}>
                       <div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--ns-chart-2)" }}></div> Fat FIRE
                     </div>
-                    <div className="text-[15px]" style={{ fontWeight: 500 }}>NT${(fireTarget * 1.5 / 1000000).toFixed(2)}M</div>
+                    <div className="text-[15px]" style={{ fontWeight: 500 }}>{formatCompactMoney(fireTarget * 1.5, "TWD")}</div>
                   </div>
                   <div className="text-xs" style={{ color: "var(--ns-fg-dim)", lineHeight: 1.5 }}>
                     以更優渥的生活為目標，涵蓋旅遊、嗜好等額外開銷，適合追求高品質退休生活的人。
@@ -340,7 +340,7 @@ export function FIRECalculatorRoute() {
                 </div>
                 <div className="text-sm" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ color: "var(--ns-fg-dim)" }}>SWR 3% vs 4%</div>
-                  <div style={{ fontWeight: 500 }}>NT${(annualExpense / 0.03 / 1000000).toFixed(1)}M target</div>
+                  <div style={{ fontWeight: 500 }}>{formatCompactMoney(annualExpense / 0.03, "TWD")} target</div>
                 </div>
                 <div className="text-sm" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ color: "var(--ns-fg-dim)" }}>報酬多 1%</div>
