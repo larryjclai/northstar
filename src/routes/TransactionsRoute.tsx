@@ -21,6 +21,7 @@ import type { InvestmentAction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { InvestmentEntryDrawer, type TransactionPreset } from "./InvestmentsAddSheet";
 import { isImportOpeningLot, txTypeLabel } from "./transactionsTxLabel";
+import { summarizeTransactions } from "./transactionsSummary";
 
 const actionLabels: Record<InvestmentAction, string> = {
   buy: "買進",
@@ -198,8 +199,6 @@ export function TransactionsRoute() {
       .sort((a, b) => `${b.date}-${b.createdAt}`.localeCompare(`${a.date}-${a.createdAt}`));
   }, [allTx, searchQuery, dateRange, assetTypeFilter, typeFilter, brokerFilter]);
 
-  const periodRecordRows = useMemo(() => recordRows.filter((record) => isWithinDateScope(record.date, dateRange)), [recordRows, dateRange]);
-
   const editingPreset = useMemo<TransactionPreset | undefined>(() => {
     const recordId = editingRecordId ?? duplicatingRecordId;
     if (!recordId) return undefined;
@@ -228,23 +227,9 @@ export function TransactionsRoute() {
 
   // Summary cards aggregate across currencies, so each record is converted to
   // the primary currency at its trade date before summing (USD buys no longer
-  // get added to TWD buys at face value).
-  const totals = useMemo(() => {
-    let bought = 0;
-    let sold = 0;
-    let dividends = 0;
-    for (const record of periodRecordRows) {
-      const currency = assetFor(record.assetId)?.currency ?? "TWD";
-      if (record.action === "buy") {
-        bought += toPrimary(record.price * record.quantity, currency, record.date);
-      } else if (record.action === "sell") {
-        sold += toPrimary(record.price * record.quantity, currency, record.date);
-      } else if (record.action === "cashDividend") {
-        dividends += toPrimary(record.price, currency, record.date);
-      }
-    }
-    return { bought, sold, dividends };
-  }, [periodRecordRows, assetRows, toPrimary]);
+  // get added to TWD buys at face value). Computed from filteredTx — the same
+  // rows the list renders — so the cards always agree with what's on screen.
+  const totals = useMemo(() => summarizeTransactions(filteredTx, toPrimary), [filteredTx, toPrimary]);
 
   const [page, setPage] = useState(1);
   const pageSize = 50;
@@ -327,7 +312,7 @@ export function TransactionsRoute() {
   return (
     <div className="mt-4 ns-investment-transactions">
       <div className="ns-invest-summary">
-        <SummaryCard label="交易筆數" value={`${periodRecordRows.length} 筆`} sublabel={dateRange.label} />
+        <SummaryCard label="交易筆數" value={`${totals.count} 筆`} sublabel={hasActiveFilters ? "符合篩選" : dateRange.label} />
         <SummaryCard label="總買入" value={formatMoney(totals.bought, primaryCurrency)} sublabel="期間買入金額" />
         <SummaryCard label="總賣出" value={formatMoney(totals.sold, primaryCurrency)} sublabel="期間賣出金額" />
         <SummaryCard label="總股利" value={formatMoney(totals.dividends, primaryCurrency)} sublabel="現金股利" />
