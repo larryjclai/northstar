@@ -12,10 +12,120 @@ honor its STOP conditions, and update your row when done.
 | 002  | Replace ns-eyebrow with proper typographic hierarchy | P2 | M | — | DONE (Verified) |
 | 003  | Reduce cognitive load in InvestmentAddSheet form | P1 | S | — | DONE (Verified) |
 | 004  | Unify Add Icons & Optimize Cash Flow Layout | P2 | S | — | DONE (Verified) |
+| 077  | Apple-native polish (macOS+iOS) — RWD, sync, native feel, extensions, on-device AI | P1 | L | — | PARTIALLY DONE via slices 079–084 (see breakdown); deferred sub-items remain (listed below) |
+| 078  | React Native mobile feasibility assessment (reference doc) | P2 | — | — | DONE (decision: stay with Tauri mobile) |
+| 079  | macOS native-feel polish — title bar, app menu, Dock badge, window state | P2 | M | — | ✅ MERGED on main (verified 2026-07-02: `data-native-glass` in AppShell.tsx on main; macOS GUI still needs a manual eyeball) |
+| 080  | Foundation Models: pass category list through to Tier 1 (completes 077 Phase 7 data path) | P1 | S | — | ✅ MERGED on main (verified 2026-07-02: `src/lib/foundationModels.ts` on main) |
+| 081  | Sync cursor/identity durability via file mirror (077 Phase 3.1, corrected) | P1 | M | — | ✅ MERGED on main (verified 2026-07-02: sync client + README on main) |
+| 082  | Local notifications for due reminders (077 Phase 6.1) | P2 | M | — | ✅ MERGED on main (verified 2026-07-02) |
+| 083  | Collapse the few non-responsive inline grids at 390px (077 Phase 1–2, scoped) | P2 | S | — | ✅ MERGED on main (verified 2026-07-02; 390px eyeball still worthwhile) |
+| 084  | Fix mobile bottom-nav tap target (z-index) + overflowing net-worth period strip | P1 | S | — | ✅ MERGED on main (verified 2026-07-02; live 379px nav re-test still worthwhile) |
+| 085  | SwiftUI Widget & App Intents — design/scaffold spec (decision doc, no dispatch) | P3 | S | — | DONE (design doc; awaiting your scope/account decision before Widget/App-Intents impl) |
+| 086  | Dependency license audit — confirm no copyleft, document (077 Phase 5) | P2 | S | — | ✅ MERGED on main (verified 2026-07-02: `license:check` script on main; deps clean; project intentionally GPL-3.0+CLA per 072) |
+| 087  | Verify & document power/perf budget (077 Phase 7.5) | P2 | S | — | ✅ MERGED on main (verified 2026-07-02: `docs/performance-budget.md` on main) |
+| 088  | On-device AI: auto-categorization + monthly summary (077 Phase 7.2, spec) | P3 | M | — | DONE (spec; 089 Feature B built; Feature A auto-categorization still TODO). Swift IS compile-gated via `check:tauri`→build.rs→swiftc; only model TEXT quality needs a device |
+| 089  | On-device monthly summary card (088 Feature B) | P3 | M | — | ✅ MERGED on main (verified 2026-07-02: `src/domain/monthlySummary.ts` on main; released in v0.1.0-alpha.47) |
+| 090  | Fix macOS window dragging — full-width top drag strip (079 regression) | P1 | S | — | REJECTED / SUPERSEDED by 094 — verified 2026-07-02 that its unique commit `734c80e8` is NOT on main (correct); do NOT merge `fix/ai-macos-window-drag` |
+| 091  | Make Taiwan SITCA funds findable in ticker search | P1 | M | — | ✅ MERGED on main (verified 2026-07-02: commit `e47e7040` on main) |
+| 092  | Resolve Chinese names for Taiwan ETFs (search shows English) | P2 | M | — | ✅ MERGED on main (verified 2026-07-02: commit `a725b014` + taiwanMarketDataProvider changes on main; the 2026-06-29 "not on main" warning is now resolved) |
+| 093  | Fix sync crash on duplicate recurring_occurrence_key (cross-device dedup) | P1 | M | — | ✅ MERGED on main (verified 2026-07-02: commit `b809449d` on main; the 2026-06-29 "message-only merge" warning is now resolved) |
+| 094  | macOS window drag — grant `core:window:allow-start-dragging` (+ full-width strip) | P1 | S | — | ✅ MERGED on main (verified 2026-07-02: `allow-start-dragging` in capabilities/desktop.json on main; SUPERSEDES 090) |
+| 095  | Notification center + acknowledge (makes the Dock badge clearable) | P2 | M | — | ✅ MERGED on main (verified 2026-07-02: `src/components/NotificationCenter.tsx` on main) |
+| 096  | Make imported-holding opening lots permanently cash-neutral (edit path leaks a 交割 ledger row) | P1 | M | — | DONE (executed + reviewed 2026-07-02; branch `fix/ai-opening-lot-cash-leak` off `b33bf55e`, unmerged; 803 tests / build / lint re-verified by reviewer; one approved deviation: SQLite update now writes `cashless` column explicitly) |
+| 097  | Sidebar clearance below macOS traffic lights + unclip notification panel | P1 | S | — | DONE (executed + reviewed 2026-07-02; branch `fix/ai-sidebar-titlebar-notification` off `b33bf55e`, unmerged; executor hit session limit after committing — reviewer re-verified build/lint/798 tests + diff; macOS visual check pending operator) |
+| 098  | Honor category 收入/支出 kind in Quick Add picker | P2 | S | — | DONE (executed + reviewed 2026-07-02; branch `fix/ai-quickadd-category-kind` off `b33bf55e`, unmerged; 802 tests / build / lint re-verified; remaining `categoryGroups.map` at QuickAdd.tsx:126 is the NL-parser ctx, correctly out of scope) |
+| 099  | 交易紀錄 summary cards follow active filters; exclude 匯入 baselines from 總買入 | P2 | S | 096 (DONE, merged) | DONE (executed + reviewed 2026-07-02; branch `fix/ai-tx-summary-follows-filters` off `b33bf55e`, unmerged; 803 tests / build / lint re-verified; merge into main verified conflict-free and preserves 096's 複製 change) |
+| 100  | Show changelog in the in-app updater (populate `latest.json` notes from CHANGELOG) + add alpha.51 CHANGELOG section | P2 | S | — | DONE (executed + reviewed 2026-07-02; branch `fix/ai-updater-changelog-notes` off `b33bf55e`, unmerged; `bash -n`/changelog-extract/NOTES_OK/build re-verified; merge into main verified conflict-free) |
+
+## ✅ Merge-state reconciled (2026-07-02) — supersedes the 2026-06-29 discrepancy
+
+The 2026-06-29 warning (090–093 "not on main", message-only merges) is **RESOLVED**. Re-verified
+against `main` @ `afef92ef` (version `0.1.0-alpha.50`) using real commit + file-content checks
+(`git merge-base --is-ancestor` alone is NOT trusted — a `-s ours` merge can make a branch an
+ancestor without its code; every claim below was confirmed by `git show main:<file>` / a distinctive
+code marker actually present on main):
+
+- **Everything through 096 is genuinely on `main`**: 079–089, 091, 092, 093, 094, 095, 096. Each was
+  confirmed by a distinctive file or commit present in main's tree (e.g. 092 `a725b014` +
+  `taiwanMarketDataProvider` changes; 093 `b809449d`; 094 `allow-start-dragging` in
+  `capabilities/desktop.json`; 096 the `cashless flag is a stored property` comment ×2). The operator
+  redid the earlier message-only merges properly.
+- **090 is correctly NOT on main** — superseded by 094; its unique commit `734c80e8` is absent. Leave it.
+- **Only 097, 098, 099 remain unmerged** (this session's work), each on its own branch, each
+  re-verified build/lint/tests green and merge-clean into main. See rows above.
+
+Housekeeping: ~20 stale agent worktrees exist under `.claude/worktrees/` from executed plans.
+Those whose branches are now merged (079–096) are safe to remove — `git worktree remove <path>`
+per worktree, or `git worktree prune` after deleting the merged branches. (Advisor does not mutate
+the tree; this is an operator action.)
 
 ## Dependency notes
 
 - All current UI phase 3 plans are fully executed, verified, merged to `main`, and released in `v0.1.0-alpha.46`.
+- **Apple-platform track (077, 078, 079)**: 078 is a decision doc (no execution) —
+  it concluded the project stays on Tauri rather than React Native for mobile. 077
+  (iOS) and 079 (macOS) are the two execution plans that follow from that decision;
+  they share the same codebase and the same reminder-count selector (077 Phase 6.1
+  notifications ↔ 079 Step 3 Dock badge). Either can go first; if 077 Phase 6.1 lands
+  first, 079 Step 3 reuses its scheduler.
+
+## 077 phase breakdown (mega-plan executed in slices)
+
+077 is a 7-phase plan, not a single executable unit. Slices carved out as standalone plans:
+- **Phase 3.1** (cursor durability) → **plan 081**, but the design was CORRECTED: 077's
+  suggested SQLite `_sync_meta` table is REJECTED (it would break the device-locality of
+  `deviceId`/cursors, since SQLite is backed up & synced). 081 uses a `plugin-fs` file
+  mirror in `AppLocalData` instead.
+- **Phase 3.2 throttle** is ALREADY DONE in `useAutoSync` (`MIN_SYNC_INTERVAL_MS`); only
+  the iOS `visibilitychange`/`tauri://resumed` listeners remain — deferred (touch
+  AppShell, GUI-verify).
+- **Phase 7 data path** (category list to on-device model) → **plan 080** (DONE).
+- **Phases 1/2 (RWD)** → **plan 083 (DONE)**. A code audit found the app was ALREADY
+  largely responsive: wide tables are gated `hidden sm:contents` with mobile card lists,
+  dashboard grids use `auto-fit/min(...,100%)` collapse, and `.ns-dash-activity-grid`
+  collapses at 900px. The only real gaps were 2 inline grids (Analytics 2-col band,
+  Categories 4-col summary) — fixed in 083. The 12-month strip was correctly left dense.
+- **Phase 4 (Liquid Glass)** → shipped in 079 (`data-ios-glass` CSS material was folded
+  into the macOS polish work). No separate plan needed.
+- Phases 6.2/7.2/7.3 are explicitly "do not build" (SwiftUI / product-gated).
+
+**Net: 077's main executable work shipped as slices 079–084.** What remains:
+
+### Outstanding — needs YOU (manual verification only; merges are DONE)
+- ~~Merge the stack~~ — **DONE**: 079–084 (and `fix/ai-vite-dev-host`) are all on `main` as of 2026-07-02 (verified this reconcile). No merge action left here.
+- **Manual verification** (can't be done headlessly, code is already shipped): 079 macOS GUI (title bar / menu / Dock badge / window restore) + iOS-sim build; 082 notification banner fires; 083/084 the 390px eyeball; **084 nav re-test** (does tapping 投資 navigate or go blank at 379px?).
+- **Live per-route 390px QA**: the static audit missed the nav + date-strip bugs the user found live (084). Other routes may have similar live-only issues — worth a pass through each at 390px.
+
+### Outstanding — small code gaps NOT yet executed
+- **077 Phase 5 — license audit** (`license-checker`, confirm no GPL/LGPL/AGPL/SSPL). Never run. S.
+- **077 Phase 7.5 — power/perf budget** (grep `setInterval`, confirm route code-splitting, chart memoization). Never run. S–M.
+- **077 Phase 3.2 — iOS lifecycle sync listeners** (`visibilitychange`/`tauri://resumed`). Deferred (touches AppShell, GUI-verify). S.
+- **077 Phase 7.4 — Writing Tools check** (confirm memo fields use native inputs). Trivial verify. XS.
+
+### Deferred by design — decide-then-build (SwiftUI / product-gated)
+- **086 Widget** + **087 App Intents** — design pinned in **085**; awaiting your simulator-vs-$99 decision + the Tauri-regeneration spike.
+- **077 Phase 7.2** — new on-device AI features (transaction auto-categorization, monthly summary). Product-gated design notes, not built.
+
+## Dependency notes — 2026-07-02 batch (096–099)
+
+- 096 and 099 both touch `src/routes/TransactionsRoute.tsx` (096 hides 複製 on
+  opening-lot rows; 099 rewrites the summary-cards data source). Execute 096
+  first; 099's drift check explicitly tolerates 096's diff.
+- 097 fixes the *visual* half of plan 095's pending "panel visual manual-verify"
+  note — the notification panel was being clipped by the sidebar's
+  `overflow: hidden` (a live-only bug the headless review couldn't catch).
+
+## Deferred from the 2026-07-02 user request (not planned yet)
+
+- **"分析的圖表和功能是不是真的有用" (analytics usefulness review)** — a
+  product-direction critique of InvestmentsAnalyticsTab / dashboard charts, not
+  a specifiable fix. Needs either a dedicated `/improve next` direction audit or
+  a live `/impeccable` session with the operator in the loop. The one concrete,
+  confirmed instance (summary cards ignoring filters) became plan 099.
+- **RecurringRulesTab 分類 is a free-text input** (RecurringRulesTab.tsx:460-467)
+  while every other entry surface uses a structured picker — inconsistent UX,
+  and it bypasses category-kind tagging entirely. Worth its own small plan when
+  recurring rules get attention.
 
 ## Findings considered and rejected
 
