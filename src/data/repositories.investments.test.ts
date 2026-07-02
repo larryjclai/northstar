@@ -732,3 +732,194 @@ describe("classification lock — 回補分類 must not overwrite user edits (Pl
   });
 });
 
+describe("opening-lot cash neutrality (plan 096)", () => {
+  const openingHolding: PortfolioAssetDraft = {
+    ticker: "NFLX",
+    name: "Netflix, Inc.",
+    currency: "USD",
+    totalQuantity: 11,
+    averageCost: 88.18,
+    acquisitionDate: "2025-01-01",
+    accountId: "acct_broker",
+  };
+
+  it("importing a manual holding is cash-neutral", async () => {
+    const repo = repository();
+    await repo.createManualHolding(openingHolding);
+
+    const [broker] = await repo.listAccounts();
+    expect(broker.balance).toBe(1000);
+    const ledger = await repo.listLedgerTransactions();
+    expect(ledger.length).toBe(0);
+  });
+
+  it("editing an opening lot stays cash-neutral even when the draft omits cashless", async () => {
+    const repo = repository();
+    await repo.createManualHolding(openingHolding);
+    const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "NFLX");
+    const openingId = `inv_open_${asset.id}`;
+
+    // Simulate the edit-form draft: no `cashless` field, quantity changed.
+    const editDraft: InvestmentDraft = {
+      ticker: "NFLX",
+      name: "Netflix, Inc.",
+      currency: "USD",
+      linkedAccountId: "acct_broker",
+      date: "2025-01-01",
+      action: "buy",
+      price: 88.18,
+      quantity: 15,
+      fee: 0,
+      note: "期初部位",
+    };
+    await repo.updateInvestmentRecord(openingId, editDraft);
+
+    const [broker] = await repo.listAccounts();
+    expect(broker.balance).toBe(1000);
+    const ledger = await repo.listLedgerTransactions();
+    expect(ledger.filter((row) => row.deletedAt === null).length).toBe(0);
+    const [record] = (await repo.listInvestmentRecords()).filter((r) => r.id === openingId);
+    expect(record.cashless).toBe(true);
+    expect(record.quantity).toBe(15);
+    expect(record.linkedLedgerTransactionId).toBeNull();
+  });
+
+  it("editing an opening lot never throws 購買力不足 even when its value exceeds account cash", async () => {
+    const repo = repository();
+    await repo.createManualHolding(openingHolding);
+    const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "NFLX");
+    const openingId = `inv_open_${asset.id}`;
+
+    const editDraft: InvestmentDraft = {
+      ticker: "NFLX",
+      name: "Netflix, Inc.",
+      currency: "USD",
+      linkedAccountId: "acct_broker",
+      date: "2025-01-01",
+      action: "buy",
+      price: 10000,
+      quantity: 100,
+      fee: 0,
+      note: "期初部位",
+    };
+    await expect(repo.updateInvestmentRecord(openingId, editDraft)).resolves.toBeUndefined();
+  });
+
+  it("repairs pre-existing corrupted data: a cashless record with a linked settled ledger row", async () => {
+    const corruptedAsset: PortfolioAsset = {
+      id: "asset_nflx",
+      spaceId: "space_test",
+      revision: 1,
+      createdAt: "2025-01-01T00:00:00.000Z",
+      updatedAt: "2025-01-01T00:00:00.000Z",
+      deletedAt: null,
+      ticker: "NFLX",
+      name: "Netflix, Inc.",
+      nameZh: null,
+      nameEn: null,
+      currency: "USD",
+      totalQuantity: 11,
+      baseQuantity: 11,
+      averageCost: 88.18,
+      holdingSource: "manual",
+      acquisitionDate: "2025-01-01",
+      accountId: "acct_broker",
+      assetType: null,
+      sector: null,
+      industry: null,
+      sectorCanonical: null,
+      classificationLocked: false,
+    };
+    const openingId = "inv_open_asset_nflx";
+    const corruptedLedgerId = "ledger_corrupt_1";
+    const corruptedOpeningRecord: InvestmentRecord = {
+      id: openingId,
+      spaceId: "space_test",
+      revision: 1,
+      createdAt: "2025-01-01T00:00:00.000Z",
+      updatedAt: "2025-01-01T00:00:00.000Z",
+      deletedAt: null,
+      assetId: corruptedAsset.id,
+      linkedAccountId: "acct_broker",
+      date: "2025-01-01",
+      action: "buy",
+      price: 88.18,
+      quantity: 11,
+      fee: 0,
+      note: "期初部位",
+      isReviewed: false,
+      // Corruption from the bug: cashless record with a linked ledger leg.
+      linkedLedgerTransactionId: corruptedLedgerId,
+      cashless: true,
+      dripGroupId: null,
+    };
+    const corruptedLedgerRow = {
+      id: corruptedLedgerId,
+      spaceId: "space_test",
+      revision: 1,
+      createdAt: "2025-01-01T00:00:00.000Z",
+      updatedAt: "2025-01-01T00:00:00.000Z",
+      deletedAt: null,
+      accountId: "acct_broker",
+      counterAccountId: null,
+      date: "2025-01-01",
+      name: "NFLX 買進",
+      amount: -969.98,
+      currency: "USD",
+      originalAmount: null,
+      originalCurrency: null,
+      category: "投資",
+      subcategory: "買進",
+      merchant: "",
+      entryType: "transfer" as const,
+      settlementStatus: "settled" as const,
+      note: "期初部位",
+      linkedInvestmentRecordId: openingId,
+      groupId: null,
+      isReviewed: false,
+      receiptAttachmentId: null,
+      recurringRuleId: null,
+    };
+
+    const repo = createMemoryFinanceRepositoryForTests({
+      accounts: [{ ...account, balance: 30.02 }], // openingBalance 1000 minus the erroneous -969.98 leg
+      ledgerTransactions: [corruptedLedgerRow],
+      portfolioAssets: [corruptedAsset],
+      investmentRecords: [corruptedOpeningRecord],
+      recurringTransactions: [],
+      marketQuotes: [],
+      dailyFxRates: [],
+      dailyPrices: [],
+      financialGoals: [],
+    });
+
+    // loadDataForTests runs the repair via normalizeStoredData but doesn't
+    // recompute balances; recalculateDerivedData does both explicitly.
+    await repo.recalculateDerivedData();
+
+    const ledgerAfter = await repo.listLedgerTransactions();
+    expect(ledgerAfter.some((row) => row.id === corruptedLedgerId)).toBe(false); // soft-deleted, excluded from list
+
+    const [recordAfter] = (await repo.listInvestmentRecords()).filter((r) => r.id === openingId);
+    expect(recordAfter.linkedLedgerTransactionId).toBeNull();
+    expect(recordAfter.cashless).toBe(true);
+
+    const [brokerAfter] = await repo.listAccounts();
+    // Balance self-corrects to the pre-corruption value (the account's own
+    // openingBalance, since the only ledger leg was the erroneous one).
+    expect(brokerAfter.balance).toBe(1000);
+  });
+
+  it("regression guard: a normal (non-cashless) buy still creates its ledger row and enforces 購買力不足", async () => {
+    const repo = repository();
+    await repo.createInvestmentRecord(buyDraft);
+
+    const ledger = await repo.listLedgerTransactions();
+    expect(ledger.length).toBe(1);
+    const [broker] = await repo.listAccounts();
+    expect(broker.balance).toBe(795);
+
+    await expect(repo.createInvestmentRecord({ ...buyDraft, price: 600, quantity: 2 })).rejects.toThrow("購買力不足");
+  });
+});
+

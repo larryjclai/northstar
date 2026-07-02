@@ -1064,19 +1064,22 @@ class BrowserFinanceRepository implements FinanceRepository {
   async updateInvestmentRecord(id: string, input: InvestmentDraft) {
     const existingRecord = this.data.investmentRecords.find((record) => record.id === id && record.deletedAt === null);
     if (!existingRecord) throw new Error("找不到投資交易。");
-    const existingAsset = this.findTransactionAsset(input) ?? this.findManualAsset(input);
-    this.validateInvestmentDraft(input, existingAsset, {
+    // The cashless flag is a stored property of the record, not something the edit
+    // UI supplies — an opening lot must stay cashless no matter what draft arrives.
+    const effective: InvestmentDraft = { ...input, cashless: existingRecord.cashless };
+    const existingAsset = this.findTransactionAsset(effective) ?? this.findManualAsset(effective);
+    this.validateInvestmentDraft(effective, existingAsset, {
       excludeRecordId: id,
       excludeLedgerId: existingRecord.linkedLedgerTransactionId,
     });
-    const asset = this.findOrCreateAsset(input);
-    const ledger = createInvestmentLedgerRow(input, id);
+    const asset = this.findOrCreateAsset(effective);
+    const ledger = createInvestmentLedgerRow(effective, id);
     let linkedLedgerTransactionId: string | null = existingRecord.linkedLedgerTransactionId;
     if (linkedLedgerTransactionId) {
       this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) => {
         if (row.id !== linkedLedgerTransactionId) return row;
         return ledger
-          ? bump({ ...row, ...investmentLedgerFields(input, id) })
+          ? bump({ ...row, ...investmentLedgerFields(effective, id) })
           : bump({ ...row, deletedAt: nowIso() });
       });
       if (!ledger) linkedLedgerTransactionId = null;
@@ -1085,7 +1088,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       this.data.ledgerTransactions.push(ledger);
     }
     this.data.investmentRecords = this.data.investmentRecords.map((record) =>
-      record.id === id ? bump({ ...record, ...investmentDraftFields(input), assetId: asset.id, linkedLedgerTransactionId }) : record,
+      record.id === id ? bump({ ...record, ...investmentDraftFields(effective), assetId: asset.id, linkedLedgerTransactionId }) : record,
     );
     this.recompute();
     await this.persist();
@@ -1725,6 +1728,8 @@ class BrowserFinanceRepository implements FinanceRepository {
       if (input.quantity > available + 0.000001) throw new Error(`賣出股數大於目前庫存，可賣出 ${available} 股。`);
     }
 
+    // Cashless opening lots never settle cash, so purchasing power is irrelevant.
+    if (input.cashless) return;
     const cashDelta = calculateInvestmentCashDelta(input);
     if (cashDelta >= 0) return;
     if (allowsTwdTPlus2Buffer(input, account.currency)) return;
@@ -2046,6 +2051,24 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     // (`inv_open_<assetId>`) — re-running, or two synced devices, converge on a
     // single row instead of duplicating the opening lot.
     await this.ensureSqliteColumn("investment_records", "cashless", "integer not null default 0");
+    // Data repair for the opening-lot cash leak: editing an opening lot used to
+    // silently create/update a settled ledger row against it. A cashless record
+    // must never carry a linked settled ledger leg — tombstone any such leg and
+    // clear the record's link so recomputeSqliteAccounts derives balances without
+    // the erroneous cash movement. Idempotent: once no cashless record has a
+    // linked ledger row, both statements match nothing. Revision/updated_at are
+    // bumped so the repair wins last-write-wins and propagates over sync.
+    await this.db.execute(
+      `update ledger_transactions set deleted_at = $1, updated_at = $1, revision = revision + 1
+       where deleted_at is null and linked_investment_record_id in
+         (select id from investment_records where cashless = 1)`,
+      [nowIso()],
+    );
+    await this.db.execute(
+      `update investment_records set linked_ledger_transaction_id = null, updated_at = $1, revision = revision + 1
+       where cashless = 1 and linked_ledger_transaction_id is not null`,
+      [nowIso()],
+    );
     // 股息再投入 (DRIP): links a record's cashDividend + buy legs. Null for non-DRIP.
     await this.ensureSqliteColumn("investment_records", "drip_group_id", "text");
     await this.db.execute(
@@ -2510,21 +2533,24 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       from investment_records where id = $1 and deleted_at is null`, [id]);
     const existingRecord = existingRows[0];
     if (!existingRecord) throw new Error("找不到投資交易。");
-    const ticker = input.ticker.trim().toUpperCase();
-    const transactionAssetId = await this.findSqliteTransactionAssetId(input);
-    const manualAssetId = !transactionAssetId ? (await this.findSqliteManualAsset(ticker, input.linkedAccountId ?? null))?.id : undefined;
+    // The cashless flag is a stored property of the record, not something the edit
+    // UI supplies — an opening lot must stay cashless no matter what draft arrives.
+    const effective: InvestmentDraft = { ...input, cashless: existingRecord.cashless };
+    const ticker = effective.ticker.trim().toUpperCase();
+    const transactionAssetId = await this.findSqliteTransactionAssetId(effective);
+    const manualAssetId = !transactionAssetId ? (await this.findSqliteManualAsset(ticker, effective.linkedAccountId ?? null))?.id : undefined;
     const existingAssetId = transactionAssetId ?? manualAssetId;
-    await this.validateSqliteInvestmentDraft(input, existingAssetId, {
+    await this.validateSqliteInvestmentDraft(effective, existingAssetId, {
       excludeRecordId: id,
       excludeLedgerId: existingRecord.linkedLedgerTransactionId,
     });
     await this.withTransaction(async () => {
-      const assetId = await this.findOrCreateSqliteAsset(input);
-      const ledger = createInvestmentLedgerRow(input, id);
+      const assetId = await this.findOrCreateSqliteAsset(effective);
+      const ledger = createInvestmentLedgerRow(effective, id);
       let linkedLedgerTransactionId: string | null = existingRecord.linkedLedgerTransactionId;
       if (linkedLedgerTransactionId) {
         if (ledger) {
-          const fields = investmentLedgerFields(input, id);
+          const fields = investmentLedgerFields(effective, id);
           await this.db.execute(
             `update ledger_transactions set revision = revision + 1, updated_at = $1, deleted_at = null, account_id = $2, date = $3, name = $4, amount = $5, currency = $6, category = $7, subcategory = $8, merchant = $9, entry_type = $10, settlement_status = $11, note = $12, linked_investment_record_id = $13, group_id = $14 where id = $15`,
             [nowIso(), fields.accountId, fields.date, fields.name, fields.amount, fields.currency, fields.category, fields.subcategory, fields.merchant, fields.entryType, fields.settlementStatus, fields.note, fields.linkedInvestmentRecordId, fields.groupId, linkedLedgerTransactionId],
@@ -2541,8 +2567,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         await this.insertLedgerRow(ledger);
       }
       await this.db.execute(
-        `update investment_records set revision = revision + 1, updated_at = $1, asset_id = $2, linked_account_id = $3, date = $4, action = $5, price = $6, quantity = $7, fee = $8, note = $9, linked_ledger_transaction_id = $10 where id = $11`,
-        [nowIso(), assetId, input.linkedAccountId ?? null, input.date, input.action, input.price, input.quantity, input.fee, input.note, linkedLedgerTransactionId, id],
+        `update investment_records set revision = revision + 1, updated_at = $1, asset_id = $2, linked_account_id = $3, date = $4, action = $5, price = $6, quantity = $7, fee = $8, note = $9, linked_ledger_transaction_id = $10, cashless = $11 where id = $12`,
+        [nowIso(), assetId, effective.linkedAccountId ?? null, effective.date, effective.action, effective.price, effective.quantity, effective.fee, effective.note, linkedLedgerTransactionId, effective.cashless ? 1 : 0, id],
       );
       await this.recomputeSqliteAccounts();
       await this.recomputeSqliteAssets();
@@ -4107,6 +4133,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       if (input.quantity > available + 0.000001) throw new Error(`賣出股數大於目前庫存，可賣出 ${available} 股。`);
     }
 
+    // Cashless opening lots never settle cash, so purchasing power is irrelevant.
+    if (input.cashless) return;
     const cashDelta = calculateInvestmentCashDelta(input);
     if (cashDelta >= 0) return;
     if (allowsTwdTPlus2Buffer(input, account.currency)) return;
@@ -4525,6 +4553,36 @@ function materializeOpeningRecords(assets: PortfolioAsset[], records: Investment
   return normalized;
 }
 
+/**
+ * Data repair for the opening-lot cash leak: editing an opening lot used to
+ * silently create a settled ledger row against it (see updateInvestmentRecord
+ * history). A cashless record must never carry a linked settled ledger leg —
+ * tombstone any such leg and clear the record's link so `recompute()` derives
+ * account balances without the erroneous cash movement. Idempotent: once a
+ * cashless record has no linked ledger row, it matches nothing here.
+ */
+function repairCashlessLedgerLegs(ledger: LedgerTransaction[], records: InvestmentRecord[]): { ledger: LedgerTransaction[]; records: InvestmentRecord[] } {
+  const cashlessRecordIds = new Set(records.filter((record) => record.cashless).map((record) => record.id));
+  if (cashlessRecordIds.size === 0) return { ledger, records };
+  let changed = false;
+  const nextLedger = ledger.map((row) => {
+    if (row.deletedAt !== null) return row;
+    if (!row.linkedInvestmentRecordId || !cashlessRecordIds.has(row.linkedInvestmentRecordId)) return row;
+    changed = true;
+    return bump({ ...row, deletedAt: nowIso() });
+  });
+  if (!changed) return { ledger, records };
+  const healedRecordIds = new Set(
+    nextLedger.filter((row) => row.deletedAt !== null && row.linkedInvestmentRecordId && cashlessRecordIds.has(row.linkedInvestmentRecordId)).map((row) => row.linkedInvestmentRecordId as string),
+  );
+  const nextRecords = records.map((record) =>
+    record.cashless && record.linkedLedgerTransactionId && healedRecordIds.has(record.id)
+      ? bump({ ...record, linkedLedgerTransactionId: null })
+      : record,
+  );
+  return { ledger: nextLedger, records: nextRecords };
+}
+
 function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
   const normalizedAssets = (data.portfolioAssets ?? []).map(normalizePortfolioAsset);
   // Collapse any historical manual+transaction split for a ticker into one asset
@@ -4532,6 +4590,8 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
   // that carries the opening record. Idempotent (see reconcileDuplicateAssets).
   const reconciled = reconcileDuplicateAssets(normalizedAssets, data.investmentRecords ?? []);
   const portfolioAssets = reconciled.assets;
+  const materializedRecords = materializeOpeningRecords(portfolioAssets, reconciled.records);
+  const repaired = repairCashlessLedgerLegs(data.ledgerTransactions ?? [], materializedRecords);
   return {
     accounts: (data.accounts ?? []).map((account) => ({
       ...account,
@@ -4540,7 +4600,7 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
       bankBrandDomain: account.bankBrandDomain ?? null,
       customGroup: account.customGroup ?? "",
     })),
-    ledgerTransactions: (data.ledgerTransactions ?? []).map((row) => ({
+    ledgerTransactions: repaired.ledger.map((row) => ({
       ...row,
       name: row.name ?? row.merchant ?? "",
       subcategory: row.subcategory ?? "",
@@ -4552,7 +4612,7 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
       recurringOccurrenceKey: row.recurringOccurrenceKey ?? null,
     })),
     portfolioAssets,
-    investmentRecords: materializeOpeningRecords(portfolioAssets, reconciled.records),
+    investmentRecords: repaired.records,
     recurringTransactions: (data.recurringTransactions ?? []).map((row) => ({
       ...row,
       subcategory: row.subcategory ?? "",

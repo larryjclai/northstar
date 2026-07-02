@@ -567,7 +567,9 @@ function InvestmentTransactionRow({
         {tx.recordId ? (
           <div className="ns-invest-row-actions">
             <Button variant="ghost" size="icon-xs" aria-label="編輯交易" onClick={() => onEdit(tx.recordId!)}><PencilSimple size={13} /></Button>
-            <Button variant="ghost" size="icon-xs" aria-label="複製交易" onClick={() => onDuplicate(tx.recordId!)}><CopySimple size={13} /></Button>
+            {!tx.isOpeningLot ? (
+              <Button variant="ghost" size="icon-xs" aria-label="複製交易" onClick={() => onDuplicate(tx.recordId!)}><CopySimple size={13} /></Button>
+            ) : null}
             <Button variant="ghost" size="icon-xs" aria-label="刪除交易" onClick={() => void onDelete(tx.recordId!)}><Trash size={13} /></Button>
           </div>
         ) : (
@@ -619,7 +621,9 @@ function InvestmentTransactionMobile({
       {tx.recordId ? (
         <div className="ns-invest-mobile-actions">
           <Button variant="ghost" size="icon-xs" aria-label="編輯交易" onClick={() => onEdit(tx.recordId!)}><PencilSimple size={13} /></Button>
-          <Button variant="ghost" size="icon-xs" aria-label="複製交易" onClick={() => onDuplicate(tx.recordId!)}><CopySimple size={13} /></Button>
+          {!tx.isOpeningLot ? (
+            <Button variant="ghost" size="icon-xs" aria-label="複製交易" onClick={() => onDuplicate(tx.recordId!)}><CopySimple size={13} /></Button>
+          ) : null}
           <Button variant="ghost" size="icon-xs" aria-label="刪除交易" onClick={() => void onDelete(tx.recordId!)}><Trash size={13} /></Button>
         </div>
       ) : null}
