@@ -2,6 +2,19 @@
 
 All notable changes to Northstar will be documented in this file.
 
+## [0.1.0-alpha.50] - 2026-07-02
+
+### Added
+- **通知中心**：側邊欄新增通知中心（鈴鐺），列出即將到期的信用卡繳款提醒；可逐筆或「全部標為已讀」，macOS Dock 上的紅點只計未讀提醒，讀完即消失。
+
+### Changed
+- **可搜尋台灣境內基金**：新增投資部位、搜尋代號時，現在可用基金名稱或代號找到台灣境內共同基金（SITCA），選取後以 `SITCA:<代號>` 記錄。
+- **ETF 顯示中文名稱**：搜尋台股 ETF（如 `00878`）現在顯示中文名稱（如「國泰永續高股息」），不再只顯示 Yahoo 的英文名。
+
+### Fixed
+- **修復跨裝置同步崩潰**：多裝置同步時，週期交易重複會觸發 `recurring_occurrence_key` UNIQUE 衝突（code 2067）導致整批同步中止；現在會自動去重，兩台裝置收斂為同一筆。
+- **修復 macOS 視窗無法拖曳**：補上 `core:window:allow-start-dragging` 權限，透明標題列現在可正常拖曳整個視窗。
+
 ## [0.1.0-alpha.45] - 2026-06-26
 
 ### Added
