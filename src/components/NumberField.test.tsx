@@ -46,4 +46,14 @@ describe("NumberField", () => {
     const input = screen.getByLabelText("amount") as HTMLInputElement;
     expect(input.value).toBe("1,234.5");
   });
+
+  it("accepts up to 5 decimal places without truncating (e.g. fractional-share price/quantity)", () => {
+    render(<Harness decimals={5} />);
+    const input = screen.getByLabelText("amount") as HTMLInputElement;
+
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "1.23456" } });
+    expect(input.value).toBe("1.23456");
+    expect(screen.getByTestId("value").textContent).toBe("1.23456");
+  });
 });
