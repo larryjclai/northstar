@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildNetWorthBreakdown, buildOutstandingSettlements, buildTopHoldingSummaries, calculateAvailableCash, calculateLiabilities, creditBalanceLabel, explainAccountBalance } from "./dashboardSummary";
+import { buildNetWorthBreakdown, buildOutstandingSettlements, buildTopHoldingSummaries, calculateAvailableCash, calculateLiabilities, changePctWithFloor, creditBalanceLabel, explainAccountBalance } from "./dashboardSummary";
 import type { Account, LedgerTransaction, PortfolioAsset } from "./types";
 
 function ledgerRow(overrides: Partial<LedgerTransaction>): LedgerTransaction {
@@ -174,6 +174,28 @@ describe("explainAccountBalance", () => {
     expect(result.contributions).toHaveLength(1);
     expect(result.contributions[0]).toMatchObject({ id: "p1", delta: 302, via: "counter" });
     expect(result.total).toBe(302);
+  });
+});
+
+describe("changePctWithFloor", () => {
+  it("computes a normal percent change from a healthy baseline", () => {
+    expect(changePctWithFloor(100, 110)).toBeCloseTo(10, 9);
+  });
+  it("computes a negative percent change on a decline", () => {
+    expect(changePctWithFloor(100, 90)).toBeCloseTo(-10, 9);
+  });
+  it("returns null for a zero baseline", () => {
+    expect(changePctWithFloor(0, 500)).toBeNull();
+  });
+  it("returns null when the baseline is too small relative to the endpoint", () => {
+    expect(changePctWithFloor(1000, 865000)).toBeNull();
+  });
+  it("returns a value right at the floor threshold (exclusive)", () => {
+    // 0.2 * 1000 = 200 === start, so the < comparison is false and a value is returned.
+    expect(changePctWithFloor(200, 1000)).not.toBeNull();
+  });
+  it("handles a negative baseline (negative net worth) correctly", () => {
+    expect(changePctWithFloor(-1000, -900)).toBeCloseTo(10, 9);
   });
 });
 
