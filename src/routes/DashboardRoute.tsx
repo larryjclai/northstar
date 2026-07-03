@@ -505,7 +505,12 @@ export function DashboardRoute() {
     if (alternativeAssets > 0) byClass.set("實體資產", (byClass.get("實體資產") ?? 0) + alternativeAssets);
     const total = [...byClass.values()].reduce((s, v) => s + v, 0);
     return [...byClass.entries()]
-      .map(([label, value], i) => ({ label, value, color: CHART_COLORS[i % CHART_COLORS.length], pct: total > 0 ? (value / total) * 100 : 0 }))
+      .map(([label, value], i) => ({
+        label,
+        value,
+        color: label === "現金" ? "var(--ns-chart-2)" : CHART_COLORS[i % CHART_COLORS.length],
+        pct: total > 0 ? (value / total) * 100 : 0,
+      }))
       .sort((a, b) => b.value - a.value);
   }, [filteredAssets, quoteRows, availableCash, alternativeAssets, toPrimary, dailyPriceLookup, manualPriceLookup, todayIso]);
 
