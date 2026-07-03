@@ -126,7 +126,7 @@ export function GoalsRoute() {
   }, [chartData]);
   const xUnit = isFire ? "歲" : "年";
 
-  const chartColor = !isFire ? "var(--ns-accent)" : activeProjection === "bear" ? "var(--ns-neg)" : activeProjection === "bull" ? "var(--ns-accent)" : "var(--ns-pos)";
+  const chartColor = !isFire ? "var(--ns-accent)" : activeProjection === "bear" ? "var(--ns-chart-3)" : activeProjection === "bull" ? "var(--ns-accent)" : "var(--ns-pos)";
 
   if (isInitialLoading) {
     return (
