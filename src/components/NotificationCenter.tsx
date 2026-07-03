@@ -6,7 +6,7 @@ import { buildReminderNotifications, unacknowledgedReminders } from "../domain/r
 import { useUiPreferences } from "../state/uiPreferences";
 import { Button } from "./coss/button";
 
-export function NotificationCenter({ collapsed }: { collapsed: boolean }) {
+export function NotificationCenter() {
   const { accounts } = useFinanceData();
   const timezone = useUiPreferences((state) => state.timezone);
   const acknowledged = useUiPreferences((state) => state.acknowledgedReminders);
@@ -51,7 +51,7 @@ export function NotificationCenter({ collapsed }: { collapsed: boolean }) {
   }, [open]);
 
   // A stale anchor rect would misposition the panel, so close it whenever
-  // the viewport resizes or the sidebar collapses/expands.
+  // the viewport resizes.
   useEffect(() => {
     if (!open) return;
     function handleResize() {
@@ -61,10 +61,6 @@ export function NotificationCenter({ collapsed }: { collapsed: boolean }) {
     return () => window.removeEventListener("resize", handleResize);
   }, [open]);
 
-  useEffect(() => {
-    setOpen(false);
-  }, [collapsed]);
-
   function handleAcknowledgeAll() {
     for (const n of unacked) {
       acknowledgeReminder(n.id);
@@ -73,31 +69,25 @@ export function NotificationCenter({ collapsed }: { collapsed: boolean }) {
 
   return (
     <div style={{ position: "relative" }}>
-      <button
+      <Button
         ref={buttonRef}
         type="button"
+        variant="outline"
         onClick={() => setOpen((v) => !v)}
         title="通知中心"
         aria-label="通知中心"
         aria-expanded={open}
-        className="ns-nav-link"
-        style={{
-          width: "100%",
-          justifyContent: collapsed ? "center" : "flex-start",
-          padding: collapsed ? "9px 8px" : "9px 11px",
-          gap: 8,
-          position: "relative",
-        }}
+        className="h-9 shrink-0 sm:h-9"
+        style={{ position: "relative" }}
       >
         <Bell size={16} weight={count > 0 ? "fill" : "duotone"} style={{ color: count > 0 ? "var(--ns-accent)" : undefined, flexShrink: 0 }} />
-        {!collapsed && <span style={{ flex: 1 }}>通知</span>}
         {count > 0 && (
           <span
             aria-label={`${count} 則未讀提醒`}
             style={{
-              position: collapsed ? "absolute" : "static",
-              top: collapsed ? 6 : undefined,
-              right: collapsed ? 6 : undefined,
+              position: "absolute",
+              top: 4,
+              right: 4,
               minWidth: 16,
               height: 16,
               borderRadius: 8,
@@ -116,7 +106,7 @@ export function NotificationCenter({ collapsed }: { collapsed: boolean }) {
             {count}
           </span>
         )}
-      </button>
+      </Button>
 
       {open && anchorRect && (
         <div
@@ -125,10 +115,10 @@ export function NotificationCenter({ collapsed }: { collapsed: boolean }) {
           aria-label="通知中心面板"
           style={{
             position: "fixed",
-            bottom: window.innerHeight - anchorRect.top + 8,
-            left: collapsed ? anchorRect.right + 8 : anchorRect.left,
+            top: anchorRect.bottom + 8,
+            right: window.innerWidth - anchorRect.right,
             zIndex: 1200,
-            width: 320,
+            width: "min(340px, calc(100vw - 32px))",
             background: "var(--ns-surface)",
             border: "1px solid var(--ns-border)",
             borderRadius: "var(--ns-r-md, 10px)",
