@@ -188,7 +188,7 @@ export function NetWorthProjectionCard({
               <Area
                 type="monotone"
                 dataKey="bearBalance"
-                stroke="var(--ns-neg)"
+                stroke="var(--ns-chart-3)"
                 strokeDasharray="4 4"
                 strokeWidth={1}
                 fill="var(--ns-bg)"
@@ -221,7 +221,7 @@ export function NetWorthProjectionCard({
             color: "var(--ns-fg-dim)",
           }}
         >
-          <LegendDot color="var(--ns-neg)" dashed label={`悲觀 ${bearCagr.toFixed(1)}%`} />
+          <LegendDot color="var(--ns-chart-3)" dashed label={`悲觀 ${bearCagr.toFixed(1)}%`} />
           <LegendDot color="var(--ns-accent)" label={`中性 ${returnPct.toFixed(1)}%`} />
           <LegendDot color="var(--ns-pos)" dashed label={`樂觀 ${bullCagr.toFixed(1)}%`} />
         </div>

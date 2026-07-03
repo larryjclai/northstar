@@ -114,6 +114,16 @@ export function GoalsRoute() {
     }
     return out;
   }, [selectedGoal, isFire, projection, stats, currentValue]);
+
+  // 提領期資產耗盡的年齡：曲線曾為正、之後首次 ≤ 0 的點（無則 null）。
+  const depletionX = useMemo(() => {
+    let seenPositive = false;
+    for (const p of chartData) {
+      if (p.portfolio > 0) seenPositive = true;
+      else if (seenPositive && p.portfolio <= 0) return p.x;
+    }
+    return null;
+  }, [chartData]);
   const xUnit = isFire ? "歲" : "年";
 
   const chartColor = !isFire ? "var(--ns-accent)" : activeProjection === "bear" ? "var(--ns-neg)" : activeProjection === "bull" ? "var(--ns-accent)" : "var(--ns-pos)";
@@ -302,6 +312,10 @@ export function GoalsRoute() {
                       />
                       {stats.target > 0 ? (
                         <ReferenceLine y={stats.target} stroke="var(--ns-border-strong)" strokeDasharray="4 4" label={{ value: "目標", position: "insideTopRight", fill: "var(--ns-fg-muted)", fontSize: 10 }} />
+                      ) : null}
+                      {depletionX != null ? (
+                        <ReferenceLine x={depletionX} stroke="var(--ns-warn)" strokeDasharray="4 4"
+                          label={{ value: "預估資產耗盡", position: "insideTopLeft", fill: "var(--ns-warn)", fontSize: 10 }} />
                       ) : null}
                       <Area type="monotone" dataKey="portfolio" stroke={chartColor} fill="url(#fireChartGradient)" strokeWidth={2} isAnimationActive={false} />
                     </AreaChart>

@@ -1085,6 +1085,10 @@ function HoldingsTab({
     }
     return [...seen].sort();
   }, [positions, assetsById, nameLocale]);
+  // Filter is only useful when at least one position resolves to a known
+  // sector — if everything is 未知/空, the dropdown can't actually filter
+  // anything and just adds noise, so hide it entirely.
+  const hasKnownSectors = useMemo(() => sectorOptions.some((s) => s && s !== "未知"), [sectorOptions]);
 
   useEffect(() => setPage(1), [filterAccount, filterSector, searchTerm]);
 
@@ -1297,26 +1301,28 @@ function HoldingsTab({
                 style={{ ...filterControlStyle, width: "100%", minWidth: 0, maxWidth: "none", padding: "0 12px" }}
               />
             </div>
-            <select
-              className="ns-input"
-              value={filterSector}
-              onChange={(e) => setFilterSector(e.target.value)}
-              style={{
-                ...filterControlStyle,
-                flex: "1 1 180px",
-                minWidth: 148,
-                maxWidth: 220,
-                width: "auto",
-                padding: "0 34px 0 12px",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <option value="all">所有產業</option>
-              {sectorOptions.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
+            {hasKnownSectors ? (
+              <select
+                className="ns-input"
+                value={filterSector}
+                onChange={(e) => setFilterSector(e.target.value)}
+                style={{
+                  ...filterControlStyle,
+                  flex: "1 1 180px",
+                  minWidth: 148,
+                  maxWidth: 220,
+                  width: "auto",
+                  padding: "0 34px 0 12px",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <option value="all">所有產業</option>
+                {sectorOptions.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            ) : null}
             <Popover>
               <PopoverTrigger
                 className="inline-flex items-center gap-1.5 rounded-lg border px-3 text-sm font-medium whitespace-nowrap"
@@ -1533,7 +1539,7 @@ function HoldingsTab({
         </div>
       </Card>
       {editingAsset && editForm ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center" onClick={() => setEditingAsset(null)}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" style={{ background: "var(--ns-scrim)" }} onClick={() => setEditingAsset(null)}>
           <div
             className="w-full max-w-2xl rounded-lg border shadow-xl"
             style={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}
