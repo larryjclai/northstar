@@ -219,7 +219,7 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
           display:'grid', gridTemplateColumns:'2.2fr 1fr 1fr 1.6fr 80px',
           color:'var(--ns-fg-dim)', fontFamily:'var(--ns-font-mono)',
           letterSpacing:0.07, textTransform:'uppercase' }}>
-          <span>Category</span>
+          <span>{t('settings.category')}</span>
           <span style={{textAlign:'right'}}>{t('settings.spent')}</span>
           <span className="ns-settings-category-budget" style={{textAlign:'right'}}>{t('settings.budget')}</span>
           <span className="ns-settings-category-usage" style={{paddingLeft:8}}>{t('settings.usage')}</span>

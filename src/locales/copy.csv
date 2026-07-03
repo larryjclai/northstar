@@ -19,6 +19,7 @@ settings.general,,一般與備份,General & Export,2026-06-13 08:22,2026-06-13 0
 settings.categoriesDesc,,每筆交易可歸入一個分類，並設定月預算上限。,Manage categories and monthly budgets.,2026-06-13 08:22,2026-06-13 08:22,
 settings.addCategory,,新增分類,Add Category,2026-06-13 08:22,2026-06-13 08:22,
 settings.newCategory,,新分類,New Category,2026-06-13 08:22,2026-06-13 08:22,
+settings.category,,分類,Category,2026-07-03 08:26,2026-07-03 08:26,
 settings.spent,,已消費,Spent,2026-06-13 08:22,2026-06-13 08:22,
 settings.budget,,預算,Budget,2026-06-13 08:22,2026-06-13 08:22,
 settings.usage,,使用量,Usage,2026-06-13 08:22,2026-06-13 08:22,
