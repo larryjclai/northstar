@@ -106,7 +106,13 @@ echo "▶ Generating latest.json (urls → $PUBLIC_REPO) …"
 STAGE="$(mktemp -d)"
 cp "$APP_TARBALL" "$APP_SIG" "$DMG" "$STAGE/"
 
-VERSION="$VERSION" TAG="$TAG" ASSET_URL="$ASSET_URL" SIGNATURE="$SIGNATURE" \
+# In-app updater "更新內容" reads latest.json.notes. Use the CHANGELOG body
+# (no install table — that's GitHub-only) so the app shows the same "what's new"
+# as the GitHub release. Fall back to the version string if there's no section.
+UPDATER_NOTES="$(node scripts/changelog-notes.mjs "$VERSION" || true)"
+[ -n "$UPDATER_NOTES" ] || UPDATER_NOTES="Northstar $TAG"
+
+VERSION="$VERSION" TAG="$TAG" ASSET_URL="$ASSET_URL" SIGNATURE="$SIGNATURE" UPDATER_NOTES="$UPDATER_NOTES" \
 python3 - "$STAGE/latest.json" <<'PY'
 import json, os, sys, datetime
 # Universal build → both arch keys point at the same universal tarball, matching
@@ -114,7 +120,7 @@ import json, os, sys, datetime
 entry = {"signature": os.environ["SIGNATURE"], "url": os.environ["ASSET_URL"]}
 doc = {
     "version": os.environ["VERSION"],
-    "notes": f"Northstar {os.environ['TAG']}",
+    "notes": os.environ.get("UPDATER_NOTES") or f"Northstar {os.environ['TAG']}",
     "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     "platforms": {"darwin-aarch64": entry, "darwin-x86_64": entry},
 }
