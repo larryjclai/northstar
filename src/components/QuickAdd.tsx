@@ -4,7 +4,7 @@ import { Button } from "./coss/button";
 import { Card } from "./coss/card";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { buildLedgerSuggestions, buildMerchantCategoryMap, buildUserLexicon, formatMoney, loadCorrections, nowAsDatetimeLocal, parseQuickAdd, saveCorrection, type CorrectionStore, type QuickAddParsed } from "../domain";
+import { buildLedgerSuggestions, buildMerchantCategoryMap, buildUserLexicon, categoryPickerOptions, formatMoney, loadCorrections, nowAsDatetimeLocal, parseQuickAdd, saveCorrection, type CorrectionStore, type QuickAddParsed } from "../domain";
 import { orchestrate, type ParseSource } from "../domain/nlParser";
 import { createOnDeviceParser } from "../lib/foundationModels";
 import { useUiPreferences } from "../state/uiPreferences";
@@ -246,7 +246,12 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
               </div>
               <Button variant="ghost" size="icon-sm" onClick={() => setConfirm(null)}><X size={14} /></Button>
             </div>
-            {confirm.kind === "ledger" ? (
+            {confirm.kind === "ledger" ? (() => {
+              // Only offer categories matching the entry's 收入/支出 type (plan 056 +
+              // plan 098). The selected category is always kept visible even if its
+              // kind doesn't match — e.g. an NL-parser guess — so it stays deselectable.
+              const pickerCategories = categoryPickerOptions(categoryGroups, confirm.entryType, confirm.category);
+              return (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <Field label="金額"><input
                   className="ns-input"
@@ -262,7 +267,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                   {/* Two-level picker: category chips (icon glyph + name, contrast-aware
                       when active) then its subcategories below (B11 + B14). */}
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                    {categoryGroups.map((category) => {
+                    {pickerCategories.map((category) => {
                       const active = confirm.category === category.name;
                       const color = category.color || "var(--ns-accent)";
                       return (
@@ -286,7 +291,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                     })}
                   </div>
                   {(() => {
-                    const subs = categoryGroups.find((c) => c.name === confirm.category)?.children ?? [];
+                    const subs = pickerCategories.find((c) => c.name === confirm.category)?.children ?? [];
                     return subs.length ? (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 7, paddingLeft: 8, borderLeft: "2px solid var(--ns-border)" }}>
                         {subs.map((s) => {
@@ -359,7 +364,8 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                   {confirm.category ? ` · ${confirm.category}${confirm.subcategory ? ` / ${confirm.subcategory}` : ""}` : ""}
                 </div>
               </div>
-            ) : (
+              );
+            })() : (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <Field label="代號"><input className="ns-input" value={confirm.ticker} onChange={(e) => setConfirm({ ...confirm, ticker: e.target.value })} /></Field>
                 <Field label="帳戶"><AccountFilter accounts={accountRows.filter((a) => a.type === "investment")} value={confirm.accountId} onChange={(id) => setConfirm({ ...confirm, accountId: id })} allowAll={false} placeholder="未指定" style={{ width: "100%", maxWidth: "none", minWidth: 0 }} positionerClassName="z-[90]" /></Field>

@@ -30,3 +30,20 @@ export function filterCategoriesByType<T extends CategoryGroup>(
   const filtered = categories.filter((category) => categoryMatchesType(category, type));
   return filtered.length > 0 ? filtered : categories;
 }
+
+/**
+ * Picker options for a specific entry type, guaranteeing the currently-selected
+ * category stays visible even when its kind doesn't match (e.g. an NL-parser
+ * guess or stale saved data) — otherwise the active chip would disappear and
+ * the user couldn't deselect it. Order of the underlying list is preserved.
+ */
+export function categoryPickerOptions<T extends CategoryGroup>(
+  categories: T[],
+  type: CategoryPickerType,
+  selectedName: string,
+): T[] {
+  const filtered = filterCategoriesByType(categories, type);
+  if (!selectedName || filtered.some((category) => category.name === selectedName)) return filtered;
+  const selected = categories.find((category) => category.name === selectedName);
+  return selected ? [...filtered, selected] : filtered;
+}
