@@ -1,4 +1,5 @@
-import type { Account, DailyFxRate, InvestmentRecord, LedgerTransaction, PortfolioAsset } from "../domain";
+import type { Account, AnnualReportYear, DailyFxRate, InvestmentRecord, LedgerTransaction, PortfolioAsset } from "../domain";
+import { resolveCountryLabel } from "../domain";
 import type { InvestmentDraft, LedgerDraft } from "./repositories";
 
 export interface ImportPreview<T> {
@@ -78,6 +79,24 @@ export function exportInvestmentCsv(records: InvestmentRecord[], assetFor: (id: 
         note: record.note,
       };
     }),
+  );
+}
+
+/** Annual tax report, per-holding rows (Plan 114). One CSV row per (year, holding). */
+export function exportAnnualTaxCsv(rows: AnnualReportYear[], currency: string) {
+  return toCsv(
+    ["year", "ticker", "country", "region", "realizedGain", "dividends", "currency"],
+    rows.flatMap((year) =>
+      year.byHolding.map((h) => ({
+        year: year.year,
+        ticker: h.ticker,
+        country: resolveCountryLabel(h.country, "zh-Hant"),
+        region: h.country === "TW" ? "境內" : "海外",
+        realizedGain: h.realizedGain,
+        dividends: h.dividends,
+        currency,
+      })),
+    ),
   );
 }
 
