@@ -9,6 +9,7 @@ import { enterDemoMode } from "../data/demoData";
 import { useDemoMode } from "../state/demoMode";
 import { useToast } from "../components/Toast";
 import { AccountFilter } from "../components/AccountFilter";
+import { NotificationCenter } from "../components/NotificationCenter";
 import { openOnboarding } from "../components/OnboardingOverlay";
 import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
@@ -793,6 +794,7 @@ export function DashboardRoute() {
                 </PopoverContent>
               </Popover>
             ) : null}
+            <NotificationCenter />
           </div>
         </div>
       </div>
