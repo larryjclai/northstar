@@ -159,13 +159,20 @@ export function AppShell() {
           transition: "width 0.2s ease, min-width 0.2s ease, padding 0.2s ease",
         }}
       >
-        {/* Logo + collapse toggle — data-tauri-drag-region makes this strip
+        {/* macOS: drag cap for the sidebar's top whitespace — .ns-titlebar-drag
+           (z-index 30) sits below the aside (z-index 1100), so it can't be
+           grabbed where the aside covers it. This patches that gap from inside
+           the aside. display:none on every non-macOS platform. */}
+        <div data-tauri-drag-region className="ns-sidebar-drag-cap" aria-hidden="true" />
+        {/* Logo + collapse toggle — the drag-region attribute makes this strip
            draggable on macOS so the user can move the window by grabbing the
-           sidebar header (the overlay title bar has no visible chrome). Interactive
-           children (buttons) are excluded automatically by Tauri. */}
+           sidebar header (the overlay title bar has no visible chrome). It does
+           NOT propagate to child elements, so every non-interactive child
+           (img/span/wrapper div) needs its own data-tauri-drag-region. The
+           collapse buttons are deliberately excluded so they stay clickable. */}
         {collapsed ? (
           <div data-tauri-drag-region style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "0 0 16px" }}>
-            <img src={appIconUrl} alt="" style={{ width: 26, height: 26, borderRadius: 7 }} />
+            <img data-tauri-drag-region src={appIconUrl} alt="" style={{ width: 26, height: 26, borderRadius: 7 }} />
             <button
               type="button"
               onClick={toggleSidebarCollapsed}
@@ -178,9 +185,10 @@ export function AppShell() {
           </div>
         ) : (
           <div data-tauri-drag-region style={{ padding: "0 8px 16px", display: "flex", alignItems: "center", gap: 9, justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-              <img src={appIconUrl} alt="" style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0 }} />
+            <div data-tauri-drag-region style={{ display: "flex", alignItems: "center", gap: 9 }}>
+              <img data-tauri-drag-region src={appIconUrl} alt="" style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0 }} />
               <span
+                data-tauri-drag-region
                 className="text-[15px]"
                 style={{ fontFamily: "var(--ns-font-brand)", fontWeight: 600, letterSpacing: -0.01, whiteSpace: "nowrap" }}
               >
