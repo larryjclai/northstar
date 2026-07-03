@@ -1161,7 +1161,7 @@ export function DashboardRoute() {
         {/* Goals */}
         {cardVisible("goals") ? (
         <Card style={{ padding: "var(--ns-pad-card)" }}>
-          <SectionHead eyebrow="Goals" title={`${goals.length} active`} action={<Button variant="ghost" size="xs" render={<Link to="/goals" />}>全部 →</Button>} />
+          <SectionHead eyebrow="Goals" title={`${goals.length} 個進行中目標`} action={<Button variant="ghost" size="xs" render={<Link to="/goals" />}>全部 →</Button>} />
           {goals.length === 0 ? (
             <div className="muted text-body">還沒有設定目標。<Link to="/goals" style={{ color: "var(--ns-accent)" }}>建立 FIRE 目標 →</Link></div>
           ) : (
@@ -1469,7 +1469,7 @@ function TopMoversCard({ gainers, losers }: { gainers: Mover[]; losers: Mover[] 
       <div style={{ padding: "14px 18px 10px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
         <div>
           <div className="text-xs" style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Today</div>
-          <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>Top Movers</h3>
+          <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>今日漲跌</h3>
         </div>
         <Button variant="ghost" size="xs" render={<Link to="/investments" />}>詳細 →</Button>
       </div>

@@ -331,7 +331,7 @@ export function GoalsRoute() {
         {/* Goals list */}
         <Card style={{ padding: "24px 0", overflow: "hidden" }}>
           <div style={{ padding: "0 32px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <h2 className="text-lg" style={{ fontWeight: 500, margin: 0 }}>{goals.length} active {goals.length === 1 ? "goal" : "goals"}</h2>
+            <h2 className="text-lg" style={{ fontWeight: 500, margin: 0 }}>{goals.length} 個進行中目標</h2>
           </div>
 
           {goals.length === 0 ? (

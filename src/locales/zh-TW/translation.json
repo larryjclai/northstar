@@ -24,6 +24,7 @@
     "categoriesDesc": "每筆交易可歸入一個分類，並設定月預算上限。",
     "addCategory": "新增分類",
     "newCategory": "新分類",
+    "category": "分類",
     "spent": "已消費",
     "budget": "預算",
     "usage": "使用量",
