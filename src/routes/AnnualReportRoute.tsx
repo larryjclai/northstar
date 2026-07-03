@@ -98,7 +98,7 @@ export function AnnualReportRoute() {
       {/* Header — English eyebrow + Chinese h1 (DESIGN.md §3.5). */}
       <div style={{ marginBottom: 22, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
         <div>
-          <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Annual tax summary</div>
+          <div className="text-xs ns-field-label">Annual tax summary</div>
           <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>
             年度報表
           </h1>

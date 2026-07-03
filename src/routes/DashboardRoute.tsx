@@ -770,7 +770,7 @@ export function DashboardRoute() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Overview · {monthLabel}</div>
+          <div className="text-xs ns-field-label">Overview · {monthLabel}</div>
           <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>{greeting}</h1>
         </div>
         {/* Account filter + 更新. The single time-range control lives on the net

@@ -447,6 +447,21 @@ const monthlyAmt = r.freq === 'yearly'  ? r.amt / 12
                  : r.amt;
 ```
 
+### 12.8 樣式撰寫優先序
+
+撰寫任何元件樣式時，依序考慮：
+
+1. **COSS 元件**——優先使用既有 COSS 元件（`src/components/coss/**`）內建的樣式行為。
+2. **`ns-*` utility class 與 Tailwind utilities**——靜態樣式一律走既有 `ns-*` class（如
+   `.ns-eyebrow`、`.muted`）或 Tailwind utility，不要重複用 inline `style={{}}` 表達同一組
+   靜態值。
+3. **inline `style={{}}`**——**僅限動態值**（來自 props/state/計算）。
+
+靜態樣式不要寫 inline；重複 3 次以上的靜態 inline 模式應抽成共用 `ns-*` class。範例：
+`.ns-field-label`（`margin-bottom: 6px; color: var(--ns-fg-muted); font-weight: 500;`）取代了
+散落全專案數十處的 `{ marginBottom: 6, color: "var(--ns-fg-muted)", fontWeight: 500 }` inline
+物件。
+
 ---
 
 ## 13. 已知缺口與待辦

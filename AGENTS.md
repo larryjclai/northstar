@@ -77,3 +77,6 @@ npm run tauri        # tauri CLI (dev/build the desktop/mobile app)
   don't hand-edit strings straight in `.tsx`.
 - vitest jsdom has no `localStorage`; stub per-test with `vi.stubGlobal`.
 - i18n is zh-TW default; header convention is English eyebrow + Chinese h1.
+- **樣式撰寫優先序**：(1) COSS 元件；(2) `ns-*` utility class 與 Tailwind utilities；(3) inline
+  `style={{}}` **僅限動態值**（來自 props/state/計算）。靜態樣式不要寫 inline——用既有 class 或抽新的
+  `ns-*` class。重複 3 次以上的靜態 inline 模式應抽成共用 class（例：`.ns-field-label`）。

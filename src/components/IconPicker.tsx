@@ -49,7 +49,7 @@ export function IconPicker({
         ) : (
           groups.map((g) => (
             <div key={g.label}>
-              <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{g.label}</div>
+              <div className="text-xs ns-field-label">{g.label}</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 4 }}>
                 {g.names.map((name) => {
                   const Icon = ICON_REGISTRY[name];

@@ -400,7 +400,7 @@ export function InvestmentsRoute() {
       {/* Header */}
       <div className="ns-invest-header" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 0 }}>
         <div>
-          <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>投資組合</div>
+          <div className="text-xs ns-field-label">投資組合</div>
           <h1 className="text-[28px]" style={{ fontFamily: 'var(--ns-font-display)', margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>投資</h1>
         </div>
         <div className="ns-invest-header-actions" style={{ display: 'flex', gap: 8 }}>

@@ -885,7 +885,7 @@ export function CashFlowRoute() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginBottom: 22, flexWrap: "wrap" }}>
         <div>
-          <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{periodLabel}</div>
+          <div className="text-xs ns-field-label">{periodLabel}</div>
           <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>
             記帳
           </h1>
@@ -958,7 +958,7 @@ export function CashFlowRoute() {
         <Card id="cashflow-chart" style={{ padding: 24 }}>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 16, marginBottom: 14, flexWrap: "wrap" }}>
             <div>
-              <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>現金流 · Net</div>
+              <div className="text-xs ns-field-label">現金流 · Net</div>
               <div className={"ns-num-lg " + (periodNet >= 0 ? "pos" : "neg")}>
                 {periodNet >= 0 ? "+" : "−"}{primaryCurrency} {formatNumber(Math.abs(periodNet))}
               </div>

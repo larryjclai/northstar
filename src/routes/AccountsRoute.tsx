@@ -273,7 +273,7 @@ export function AccountsRoute() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 22, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{rows.length} accounts · {primaryCurrency} base</div>
+          <div className="text-xs ns-field-label">{rows.length} accounts · {primaryCurrency} base</div>
           <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>帳戶</h1>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -295,7 +295,7 @@ export function AccountsRoute() {
             <Card key={c.label} style={{ padding: 16, flexDirection: "row", alignItems: "center", gap: 12 }}>
               <div style={{ width: 4, height: 38, borderRadius: 99, background: c.color, flexShrink: 0 }} />
               <div style={{ minWidth: 0 }}>
-                <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{c.label}</div>
+                <div className="text-xs ns-field-label">{c.label}</div>
                 <div className={`text-xl${c.tone === "neg" ? " neg" : ""}`} style={{ fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
                   {c.tone === "neg" && c.value !== 0 ? "−" : ""}{formatNumber(Math.abs(c.value))}
                 </div>

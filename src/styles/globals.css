@@ -548,6 +548,10 @@ textarea:focus-visible {
   color: var(--ns-fg-muted);
 }
 
+/* 表單/區塊小標：muted 小字 + 中等字重。取代重複的
+   { marginBottom: 6, color: var(--ns-fg-muted), fontWeight: 500 } inline 模式。 */
+.ns-field-label { margin-bottom: 6px; color: var(--ns-fg-muted); font-weight: 500; }
+
 /* Account name is a link into the filtered ledger — underline on hover. */
 .ns-acct-name { transition: color 0.12s; }
 .ns-acct-row:hover .ns-acct-name { color: var(--ns-accent); text-decoration: underline; text-underline-offset: 2px; }

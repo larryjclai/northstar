@@ -228,7 +228,7 @@ export function ReconcileRoute() {
 
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Reconciliation · {account.currency}</div>
+          <div className="text-xs ns-field-label">Reconciliation · {account.currency}</div>
           <h1 className="text-[26px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, fontWeight: 600 }}>{account.name} 對帳</h1>
           <p className="muted text-body" style={{ marginTop: 4, marginBottom: 0 }}>
             依結帳日將交易分期核對。
