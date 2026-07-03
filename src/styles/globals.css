@@ -1561,8 +1561,19 @@ textarea:focus-visible {
 }
 
 /* ── Horizontal scroll helper (hide scrollbar, touch-friendly) ── */
-.ns-hscroll { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.ns-hscroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
 .ns-hscroll::-webkit-scrollbar { display: none; }
+/* 可捲提示：右緣 16px 淡出。內容不溢出時由 scroll-driven 版本蓋掉是未來優化；
+   目前為常駐淡出，代價是捲到底時最後一項略淡。 */
+.ns-hscroll {
+  mask-image: linear-gradient(to right, black calc(100% - 16px), transparent);
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 16px), transparent);
+}
+.ns-hscroll--nofade { mask-image: none; -webkit-mask-image: none; }
 
 @layer base {
   * {

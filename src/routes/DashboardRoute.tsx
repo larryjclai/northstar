@@ -771,27 +771,29 @@ export function DashboardRoute() {
             worth card (the period segmented control), matching the prototype. */}
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
           <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} style={{ maxWidth: "none" }} />
-          <Button variant="outline" className="h-9 shrink-0 sm:h-9" onClick={refreshMarket} loading={refreshingMarket} disabled={refreshingMarket || (assetRows.length === 0 && (appSettings?.exchangeRates?.length ?? 0) === 0)} title="更新持倉報價、匯率與每日歷史股價">
-            <ArrowsClockwise size={14} />{refreshingMarket ? "更新中" : "更新行情"}
-          </Button>
-          {hasAnyData ? (
-            <Popover>
-              <PopoverTrigger render={<Button variant="outline" className="h-9 shrink-0 sm:h-9" />}>
-                <SquaresFour size={14} />版面
-              </PopoverTrigger>
-              <PopoverContent align="end" style={{ width: 220, padding: 8 }}>
-                <div className="text-xs" style={{  padding: "6px 8px 8px" , color: "var(--ns-fg-muted)", fontWeight: 500 }}>編輯版面 · 顯示卡片</div>
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  {DASHBOARD_CARDS.map((c) => (
-                    <label key={c.key} className="text-body" style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 8px", borderRadius: "var(--ns-r-sm)", cursor: "pointer" }}>
-                      <input type="checkbox" checked={cardVisible(c.key)} onChange={() => toggleCard(c.key)} />
-                      {c.label}
-                    </label>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-          ) : null}
+          <div className="flex w-full gap-2 sm:contents">
+            <Button variant="outline" className="h-9 flex-1 sm:flex-none shrink-0 sm:h-9" onClick={refreshMarket} loading={refreshingMarket} disabled={refreshingMarket || (assetRows.length === 0 && (appSettings?.exchangeRates?.length ?? 0) === 0)} title="更新持倉報價、匯率與每日歷史股價">
+              <ArrowsClockwise size={14} />{refreshingMarket ? "更新中" : "更新行情"}
+            </Button>
+            {hasAnyData ? (
+              <Popover>
+                <PopoverTrigger render={<Button variant="outline" className="h-9 flex-1 sm:flex-none shrink-0 sm:h-9" />}>
+                  <SquaresFour size={14} />版面
+                </PopoverTrigger>
+                <PopoverContent align="end" style={{ width: 220, padding: 8 }}>
+                  <div className="text-xs" style={{  padding: "6px 8px 8px" , color: "var(--ns-fg-muted)", fontWeight: 500 }}>編輯版面 · 顯示卡片</div>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    {DASHBOARD_CARDS.map((c) => (
+                      <label key={c.key} className="text-body" style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 8px", borderRadius: "var(--ns-r-sm)", cursor: "pointer" }}>
+                        <input type="checkbox" checked={cardVisible(c.key)} onChange={() => toggleCard(c.key)} />
+                        {c.label}
+                      </label>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            ) : null}
+          </div>
         </div>
       </div>
 
