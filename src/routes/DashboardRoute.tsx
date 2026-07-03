@@ -54,7 +54,7 @@ import {
   type PortfolioAsset,
   todayInTimezone,
 } from "../domain";
-import { calculateAvailableCash } from "../domain/dashboardSummary";
+import { calculateAvailableCash, changePctWithFloor } from "../domain/dashboardSummary";
 import { stripStartDate, STRIP_PERIODS, type StripPeriod } from "../domain/dateScope";
 import { trailingMonthlyNet } from "../domain/northstarMetrics";
 import { smoothTrend } from "../domain/trendSmoothing";
@@ -395,11 +395,11 @@ export function DashboardRoute() {
   // anchor point at the window start (carrying the last value before it) keeps
   // the line spanning the full range even across quiet stretches.
   const rangeView = useMemo(() => {
-    if (reconciledTrend.length < 2) return { points: reconciledTrend, change: 0, pct: 0 };
+    if (reconciledTrend.length < 2) return { points: reconciledTrend, change: 0, pct: null as number | null };
     if (stripPeriod === "All") {
       const first = reconciledTrend[0].value;
       const last = reconciledTrend[reconciledTrend.length - 1].value;
-      return { points: reconciledTrend, change: last - first, pct: first !== 0 ? ((last - first) / Math.abs(first)) * 100 : 0 };
+      return { points: reconciledTrend, change: last - first, pct: changePctWithFloor(first, last) };
     }
     const startIso = stripStartDate(stripPeriod, todayIso);
     const within = reconciledTrend.filter((p) => p.iso >= startIso);
@@ -419,7 +419,7 @@ export function DashboardRoute() {
     const startValue = points[0].value;
     const endValue = points[points.length - 1].value;
     const change = endValue - startValue;
-    const pct = startValue !== 0 ? (change / Math.abs(startValue)) * 100 : 0;
+    const pct = changePctWithFloor(startValue, endValue);
     return { points, change, pct };
   }, [reconciledTrend, stripPeriod, todayIso]);
   // Long-view mode (Plan 040, Decision C): when on, render the trend through a
@@ -435,7 +435,7 @@ export function DashboardRoute() {
     const startValue = smoothed[0].value;
     const endValue = smoothed[smoothed.length - 1].value;
     const change = endValue - startValue;
-    const pct = startValue !== 0 ? (change / Math.abs(startValue)) * 100 : 0;
+    const pct = changePctWithFloor(startValue, endValue);
     return { points: smoothed, change, pct };
   }, [longViewMode, rangeView]);
   const visibleTrend = longView.points;
@@ -856,8 +856,7 @@ export function DashboardRoute() {
                 <span style={{
                   fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums lining-nums",
                   fontSize: "clamp(28px, 4vw, 56px)", letterSpacing: "-0.025em", fontWeight: 600,
-                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%",
-                  flexShrink: 1,
+                  whiteSpace: "nowrap", flexShrink: 0,
                 }}>
                   {activeMetric.display}
                 </span>
@@ -866,7 +865,10 @@ export function DashboardRoute() {
                   <>
                     <Badge variant={momChange >= 0 ? "success" : "error"} className="gap-1 rounded-full px-2">
                       {momChange >= 0 ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />}
-                      <span className="num">{momChange >= 0 ? "+" : "−"}{formatNumber(Math.abs(momChange))} · {Math.abs(momPct).toFixed(2)}%</span>
+                      <span className="num">
+                        {momChange >= 0 ? "+" : "−"}{formatNumber(Math.abs(momChange))}
+                        {momPct != null ? <> · {Math.abs(momPct).toFixed(2)}%</> : null}
+                      </span>
                     </Badge>
                     <span className="muted text-xs">{STRIP_PERIOD_LABELS[stripPeriod]}</span>
                   </>

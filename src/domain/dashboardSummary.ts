@@ -278,6 +278,22 @@ export function buildOutstandingSettlements(
   };
 }
 
+/**
+ * Percent change guarded for tiny baselines. Returns null when the start
+ * value is too small (|start| < floorRatio × |end|) for a percentage to be
+ * meaningful — e.g. a fresh ledger whose net worth starts near zero would
+ * otherwise show +570% for a month of ordinary deposits.
+ */
+export function changePctWithFloor(
+  start: number,
+  end: number,
+  floorRatio = 0.2,
+): number | null {
+  if (start === 0) return null;
+  if (Math.abs(start) < Math.abs(end) * floorRatio) return null;
+  return ((end - start) / Math.abs(start)) * 100;
+}
+
 export function buildTopHoldingSummaries(
   assets: PortfolioAsset[],
   quotes: DashboardQuote[],

@@ -305,13 +305,13 @@ export function InvestmentsAnalyticsTab({
       const { cashflows } = buildPositionMetrics(recs);
       allCashflows.push(...cashflows);
     }
-    if (allCashflows.length === 0) return { xirr: null, gated: true };
+    if (allCashflows.length === 0) return { xirr: null, gated: true, spanDays: null as number | null };
     const span = cashflowSpanDays(allCashflows, end);
-    if (span < XIRR_MIN_DAYS) return { xirr: null, gated: true };
+    if (span < XIRR_MIN_DAYS) return { xirr: null, gated: true, spanDays: span };
     const lastValue = fullSeriesResult.series.length > 0 ? fullSeriesResult.series[fullSeriesResult.series.length - 1].value : 0;
     const terminal = { date: end, amount: lastValue };
     const xirr = calculateXirr(allCashflows, terminal);
-    return { xirr, gated: false };
+    return { xirr, gated: false, spanDays: span };
   }, [records, end, fullSeriesResult]);
 
   const attribution = useMemo(() => {
@@ -629,7 +629,10 @@ export function InvestmentsAnalyticsTab({
             },
             {
               l: "年化 XIRR",
-              sub: "全期間 · 考慮金流時間",
+              sub: xirrResult.spanDays != null && xirrResult.spanDays < 365
+                ? `年化自 ${xirrResult.spanDays} 天紀錄推算，僅供參考`
+                : "全期間 · 考慮金流時間",
+              subTone: xirrResult.spanDays != null && xirrResult.spanDays < 365 ? "warn" : undefined,
               v: xirrResult.gated ? null : xirrResult.xirr != null ? xirrResult.xirr * 100 : null,
               help: "金額加權年化報酬：涵蓋你有紀錄以來的所有金流，不隨上方期間切換而改變，反映實際的資金成果。",
             },
@@ -654,7 +657,7 @@ export function InvestmentsAnalyticsTab({
               >
                 {s.v == null ? "—" : `${s.v >= 0 ? "+" : "−"}${Math.abs(s.v).toFixed(1)}%`}
               </div>
-              <div className="dim" style={{ fontSize: 11.5 }}>{s.sub}</div>
+              <div className="dim" style={{ fontSize: 11.5, color: s.subTone === "warn" ? "var(--ns-warn)" : undefined }}>{s.sub}</div>
             </div>
           ))}
         </div>
