@@ -12,7 +12,7 @@ import { downloadCsv, exportInvestmentCsv, exportLedgerCsv, exportFxRatesCsv } f
 import { getFinanceRepository, type RepositorySnapshot } from "../../data/repositories";
 import { enterDemoMode, exitDemoMode, clearAllData } from "../../data/demoData";
 import { useDemoMode } from "../../state/demoMode";
-import { COMMON_TIMEZONES, isValidTimezone, formatMoney } from "../../domain";
+import { COMMON_TIMEZONES, isValidTimezone, formatMoney, categoryPeriodSpend, convertCurrency, makeDefaultDateScope, resolveDateScope } from "../../domain";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../../domain";
 import type { SyncConflictRecord } from "../../domain/sync";
 import { useRefreshFxRates } from "../../features/market-data/useMarketRefresh";
@@ -63,6 +63,31 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
   const [editSubValue, setEditSubValue] = useState('');
   const [addingSubFor, setAddingSubFor] = useState<string | null>(null);
   const [newSubValue, setNewSubValue] = useState('');
+
+  // Real "已消費" figures for the current month, computed via the canonical
+  // categoryPeriodSpend aggregator (same helper CategoriesRoute uses) so this table
+  // agrees with the 記帳 pages instead of showing a hardcoded 0.
+  const { ledger, settings, dailyFxRates } = useFinanceData();
+  const timezone = useUiPreferences((state) => state.timezone);
+  const ledgerRows = ledger.data ?? [];
+  const appSettings = settings.data;
+  const primaryCurrency = appSettings?.primaryCurrency ?? "TWD";
+  const fxHistory = dailyFxRates.data ?? [];
+  const dateScope = useMemo(() => makeDefaultDateScope(timezone, "month"), [timezone]);
+  const dateRange = useMemo(() => resolveDateScope(dateScope, timezone), [dateScope, timezone]);
+  const toPrimaryFn = useMemo(
+    () => (row: (typeof ledgerRows)[number]) =>
+      convertCurrency(row.amount, row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date }),
+    [primaryCurrency, appSettings, fxHistory],
+  );
+  const periodSpend = useMemo(
+    () => categoryPeriodSpend(ledgerRows, dateRange, primaryCurrency, toPrimaryFn),
+    [ledgerRows, dateRange, primaryCurrency, toPrimaryFn],
+  );
+  const spentByCategory = useMemo(
+    () => new Map(periodSpend.categories.map((c) => [c.name, c.amount])),
+    [periodSpend],
+  );
 
   function renameSubcategory(catName: string, oldSub: string, rawNext: string) {
     const next = rawNext.trim();
@@ -201,7 +226,7 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
           <span />
         </div>
         {form.categories.map((c, i: number) => {
-          const spent = 0; // Mock spent for now, usually computed from ledger
+          const spent = spentByCategory.get(c.name) ?? 0;
           const over = c.budget && spent > c.budget;
           const pct  = c.budget ? Math.min(spent / c.budget, 1) : 0;
           const isEdit = editId === c.name;
@@ -223,7 +248,7 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
                   {expandId===c.name ? <CaretDown size={12} /> : <CaretRight size={12} />}
                 </div>
                 <span className={'num text-sm '+(over?'neg':'')} style={{ textAlign:'right',fontWeight:over?600:400 }}>
-                  NT$0
+                  {formatMoney(spent, "TWD")}
                 </span>
                 <span className="num muted ns-settings-category-budget text-body" style={{ textAlign:'right' }}>
                   {c.budget ? formatMoney(c.budget, "TWD") : '—'}
