@@ -126,6 +126,7 @@
   --ns-neg-soft:    color-mix(in srgb, #c62a1d 12%, transparent);
   --ns-warn:        #b07d10;
   --ns-info:        #2563e8;
+  --ns-scrim:       oklch(0.25 0.01 250 / 0.4);
 
   --ns-chart-1: #5aa832; --ns-chart-2: #2f6fe0;
   --ns-chart-3: #c98f1f; --ns-chart-4: #c44a82; --ns-chart-5: #6e58d8;
@@ -180,6 +181,7 @@
     --ns-neg-soft:    color-mix(in srgb, #ff7d6b 16%, transparent);
     --ns-warn:        #f0c050;
     --ns-info:        #6fb3ff;
+    --ns-scrim:       oklch(0.13 0.01 250 / 0.55);
 
     --ns-chart-1: #9fe870; --ns-chart-2: #6fb3ff;
     --ns-chart-3: #f0c050; --ns-chart-4: #d97a9c; --ns-chart-5: #a99cff;
@@ -234,6 +236,7 @@
   --ns-neg-soft:    color-mix(in srgb, #ff7d6b 16%, transparent);
   --ns-warn:        #f0c050;
   --ns-info:        #6fb3ff;
+  --ns-scrim:       oklch(0.13 0.01 250 / 0.55);
 
   --ns-chart-1: #9fe870; --ns-chart-2: #6fb3ff;
   --ns-chart-3: #f0c050; --ns-chart-4: #d97a9c; --ns-chart-5: #a99cff;

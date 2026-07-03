@@ -98,6 +98,9 @@ Wordmark 在 `AppShell.tsx` sidebar：app icon 圖檔 + "Northstar" 文字。
 | `--ns-neg` | `#ff7d6b` | `#c22a1e` |
 | `--ns-warn` | `#f0c050` | `#c98a18` |
 | `--ns-info` | `#6fb3ff` | `#2c6df0` |
+| `--ns-scrim` | `oklch(0.13 0.01 250 / 0.55)` | `oklch(0.25 0.01 250 / 0.4)` |
+
+`--ns-scrim` 是 modal/sheet 背後的遮罩色 — 帶品牌色相的半透明深色，取代純黑 `bg-black/*`（設計原則：不用純黑）。
 
 各有 `-soft` 變體（12–16% color-mix）。新寫損益/漲跌相關 UI 時一律取 gain/loss，判斷準則：「台股使用者會不會預期這個數字紅漲綠跌？」會 → gain/loss；不會 → pos/neg。
 
@@ -290,7 +293,7 @@ Base UI + Tailwind v4 的受控元件，透過 §2.7 的 bridge tokens 自動跟
 無共用 Dialog 元件；慣例為 fixed overlay（參考 `HoldingEditModal.tsx`、`GoalEditorSheet.tsx`）：
 
 ```jsx
-<div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center" onClick={onClose}>
+<div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" style={{ background: "var(--ns-scrim)" }} onClick={onClose}>
   <div className="w-full max-w-lg rounded-lg border shadow-xl"
        style={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}
        onClick={(e) => e.stopPropagation()}>

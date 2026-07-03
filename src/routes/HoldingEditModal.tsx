@@ -158,7 +158,7 @@ export function HoldingEditModal({
     .sort((a, b) => b.date.localeCompare(a.date));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" style={{ background: "var(--ns-scrim)" }} onClick={onClose}>
       <div
         className="w-full max-w-2xl rounded-lg border shadow-xl"
         style={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}
