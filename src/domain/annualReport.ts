@@ -1,3 +1,4 @@
+import { resolveHoldingCountry } from "./assetCountry";
 import type { InvestmentRecord, PortfolioAsset } from "./types";
 
 /**
@@ -31,6 +32,18 @@ function openingFirst(a: InvestmentRecord, b: InvestmentRecord): number {
   return a.date.localeCompare(b.date);
 }
 
+/** Per-holding realized gain + dividends for one tax year. */
+export interface AnnualHoldingTaxDetail {
+  assetId: string;
+  ticker: string;
+  /** ISO alpha-2 from `resolveHoldingCountry`; null = undeterminable (treated as overseas). */
+  country: string | null;
+  /** This holding's realized P/L attributed to this year (primary currency). */
+  realizedGain: number;
+  /** This holding's cash dividends received this year (primary currency, net). */
+  dividends: number;
+}
+
 export interface AnnualReportYear {
   /** Calendar year, e.g. "2025". */
   year: string;
@@ -42,6 +55,12 @@ export interface AnnualReportYear {
   tradingCost: number;
   /** realizedGain + dividends (does NOT subtract tradingCost). */
   total: number;
+  /** Per-holding breakdown, descending by |realizedGain| + dividends. */
+  byHolding: AnnualHoldingTaxDetail[];
+  /** Sum of byHolding entries where country === "TW". */
+  domestic: { realizedGain: number; dividends: number };
+  /** Sum of byHolding entries where country !== "TW" (including null/undeterminable). */
+  overseas: { realizedGain: number; dividends: number };
 }
 
 /**
@@ -123,22 +142,48 @@ export interface BuildAnnualReportInput {
  * realized gain, a dividend, OR a trading cost appears (so a dividends-only year
  * still shows with realizedGain 0).
  */
+/** Net dividend total of a single cashDividend record, in its native currency. Mirrors dividendAnalysis.ts's `dividendNative`. */
+function dividendNative(record: InvestmentRecord): number {
+  const gross = record.quantity > 0 ? record.price * record.quantity : record.price;
+  return gross - record.fee;
+}
+
+type HoldingYearBucket = { ticker: string; country: string | null; realizedGain: number; dividends: number };
+
 export function buildAnnualReport(input: BuildAnnualReportInput): AnnualReportYear[] {
   const { assets, recordsByAsset, dividendByYear, toPrimary } = input;
 
   const realizedMap = new Map<string, number>();
   const tradingCostMap = new Map<string, number>();
   const dividendMap = new Map<string, number>();
+  // year -> assetId -> per-holding bucket (Decision A/B/C mirrored per-asset).
+  const byHoldingMap = new Map<string, Map<string, HoldingYearBucket>>();
+
+  const bucketFor = (year: string, assetId: string, ticker: string, country: string | null): HoldingYearBucket => {
+    let yearMap = byHoldingMap.get(year);
+    if (!yearMap) {
+      yearMap = new Map();
+      byHoldingMap.set(year, yearMap);
+    }
+    let bucket = yearMap.get(assetId);
+    if (!bucket) {
+      bucket = { ticker, country, realizedGain: 0, dividends: 0 };
+      yearMap.set(assetId, bucket);
+    }
+    return bucket;
+  };
 
   for (const asset of assets) {
     if (asset.deletedAt !== null) continue;
     const records = recordsByAsset(asset.id);
     const currency = asset.currency;
+    const country = resolveHoldingCountry(asset.ticker, asset.currency);
 
     // Per-year realized gains (Decision A), converted at disposal date (Decision C).
     const realized = realizedByYearForAsset(records, currency, toPrimary);
     for (const [year, amount] of realized) {
       realizedMap.set(year, (realizedMap.get(year) ?? 0) + amount);
+      bucketFor(year, asset.id, asset.ticker, country).realizedGain += amount;
     }
 
     // Per-year trading cost = Σ fee (Decision B, informational), converted at the
@@ -147,6 +192,17 @@ export function buildAnnualReport(input: BuildAnnualReportInput): AnnualReportYe
       if (r.deletedAt !== null || !r.fee) continue;
       const year = yearOf(day(r.date));
       tradingCostMap.set(year, (tradingCostMap.get(year) ?? 0) + toPrimary(r.fee, currency, day(r.date)));
+    }
+
+    // Per-year, per-holding dividends — mirrors buildDividendAnalysis's cashDividend
+    // loop (Decision B/C) but keyed by (assetId, year) instead of just year.
+    for (const r of records) {
+      if (r.deletedAt !== null || r.action !== "cashDividend") continue;
+      const rd = day(r.date);
+      const amount = toPrimary(dividendNative(r), currency, rd);
+      if (amount === 0) continue;
+      const year = yearOf(rd);
+      bucketFor(year, asset.id, asset.ticker, country).dividends += amount;
     }
   }
 
@@ -158,6 +214,7 @@ export function buildAnnualReport(input: BuildAnnualReportInput): AnnualReportYe
     ...realizedMap.keys(),
     ...dividendMap.keys(),
     ...tradingCostMap.keys(),
+    ...byHoldingMap.keys(),
   ]);
 
   return [...years]
@@ -165,8 +222,31 @@ export function buildAnnualReport(input: BuildAnnualReportInput): AnnualReportYe
       const realizedGain = realizedMap.get(year) ?? 0;
       const dividends = dividendMap.get(year) ?? 0;
       const tradingCost = tradingCostMap.get(year) ?? 0;
+
+      const yearHoldings = byHoldingMap.get(year);
+      const byHolding: AnnualHoldingTaxDetail[] = yearHoldings
+        ? [...yearHoldings.entries()]
+            .map(([assetId, bucket]) => ({
+              assetId,
+              ticker: bucket.ticker,
+              country: bucket.country,
+              realizedGain: bucket.realizedGain,
+              dividends: bucket.dividends,
+            }))
+            .filter((h) => h.realizedGain !== 0 || h.dividends !== 0)
+            .sort((a, b) => Math.abs(b.realizedGain) + b.dividends - (Math.abs(a.realizedGain) + a.dividends))
+        : [];
+
+      const domestic = { realizedGain: 0, dividends: 0 };
+      const overseas = { realizedGain: 0, dividends: 0 };
+      for (const h of byHolding) {
+        const bucket = h.country === "TW" ? domestic : overseas;
+        bucket.realizedGain += h.realizedGain;
+        bucket.dividends += h.dividends;
+      }
+
       // total excludes tradingCost — fees are already netted into realizedGain.
-      return { year, realizedGain, dividends, tradingCost, total: realizedGain + dividends };
+      return { year, realizedGain, dividends, tradingCost, total: realizedGain + dividends, byHolding, domestic, overseas };
     })
     .sort((a, b) => a.year.localeCompare(b.year));
 }
