@@ -1,8 +1,9 @@
-import { Info } from "@phosphor-icons/react";
-import { useMemo } from "react";
+import { CaretDown, CaretRight, DownloadSimple, Info } from "@phosphor-icons/react";
+import { Fragment, useMemo, useState } from "react";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
 import { Skeleton } from "../components/coss/skeleton";
+import { downloadCsv, exportAnnualTaxCsv } from "../data/csv";
 import { useFinanceData } from "../data/hooks";
 import {
   buildAnnualReport,
@@ -10,7 +11,9 @@ import {
   createFxConverter,
   formatSignedMoney,
   formatMoney,
+  resolveCountryLabel,
   todayInTimezone,
+  type AnnualHoldingTaxDetail,
   type AnnualReportYear,
   type InvestmentRecord,
 } from "../domain";
@@ -64,6 +67,8 @@ export function AnnualReportRoute() {
   // Descending so the most recent (most relevant for 報稅) year is first.
   const rows = useMemo(() => [...report].reverse(), [report]);
 
+  const [expandedYear, setExpandedYear] = useState<string | null>(null);
+
   if (isInitialLoading) {
     return (
       <div className="grid gap-5" style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
@@ -91,14 +96,25 @@ export function AnnualReportRoute() {
   return (
     <div style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
       {/* Header — English eyebrow + Chinese h1 (DESIGN.md §3.5). */}
-      <div style={{ marginBottom: 22 }}>
-        <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Annual tax summary</div>
-        <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>
-          年度報表
-        </h1>
-        <p className="muted text-body" style={{ marginTop: 8, maxWidth: 640 }}>
-          依處分日年度彙總證券交易所得（已實現損益）與股利所得，供報稅參考。已實現損益採移動平均成本計算。
-        </p>
+      <div style={{ marginBottom: 22, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+        <div>
+          <div className="text-xs" style={{  marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Annual tax summary</div>
+          <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>
+            年度報表
+          </h1>
+          <p className="muted text-body" style={{ marginTop: 8, maxWidth: 640 }}>
+            依處分日年度彙總證券交易所得（已實現損益）與股利所得，供報稅參考。已實現損益採移動平均成本計算。
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          disabled={rows.length === 0}
+          title={rows.length === 0 ? "尚無資料可匯出" : "匯出逐檔年度報稅明細"}
+          onClick={() => downloadCsv("annual-tax.csv", exportAnnualTaxCsv(rows, primaryCurrency))}
+          style={{ flexShrink: 0 }}
+        >
+          <DownloadSimple size={14} />匯出 CSV
+        </Button>
       </div>
 
       <Card style={{ padding: 0, overflow: "hidden" }}>
@@ -119,15 +135,44 @@ export function AnnualReportRoute() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, i) => (
-                  <tr key={row.year} style={{ borderBottom: i < rows.length - 1 ? "1px solid var(--ns-border)" : "none" }}>
-                    <Td align="left" style={{ fontWeight: 600 }}>{row.year}</Td>
-                    <SignedTd amount={row.realizedGain} currency={primaryCurrency} />
-                    <Td align="right">{formatMoney(row.dividends, primaryCurrency)}</Td>
-                    <Td align="right" style={{ color: "var(--ns-fg-muted)" }}>{formatMoney(row.tradingCost, primaryCurrency)}</Td>
-                    <SignedTd amount={row.total} currency={primaryCurrency} strong />
-                  </tr>
-                ))}
+                {rows.map((row, i) => {
+                  const isOpen = expandedYear === row.year;
+                  const hasDetail = row.byHolding.length > 0;
+                  const isLast = i === rows.length - 1;
+                  return (
+                    <Fragment key={row.year}>
+                      <tr
+                        onClick={hasDetail ? () => setExpandedYear(isOpen ? null : row.year) : undefined}
+                        style={{
+                          borderBottom: isLast && !isOpen ? "none" : "1px solid var(--ns-border)",
+                          cursor: hasDetail ? "pointer" : undefined,
+                        }}
+                      >
+                        <Td align="left" style={{ fontWeight: 600 }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                            {hasDetail ? (
+                              isOpen ? <CaretDown size={13} /> : <CaretRight size={13} />
+                            ) : (
+                              <span style={{ display: "inline-block", width: 13 }} />
+                            )}
+                            {row.year}
+                          </span>
+                        </Td>
+                        <SignedTd amount={row.realizedGain} currency={primaryCurrency} />
+                        <Td align="right">{formatMoney(row.dividends, primaryCurrency)}</Td>
+                        <Td align="right" style={{ color: "var(--ns-fg-muted)" }}>{formatMoney(row.tradingCost, primaryCurrency)}</Td>
+                        <SignedTd amount={row.total} currency={primaryCurrency} strong />
+                      </tr>
+                      {isOpen && hasDetail ? (
+                        <tr style={{ borderBottom: isLast ? "none" : "1px solid var(--ns-border)" }}>
+                          <td colSpan={5} style={{ padding: "0 18px 16px", background: "var(--ns-bg-subtle, rgba(0,0,0,0.02))" }}>
+                            <YearDetail row={row} currency={primaryCurrency} />
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -150,6 +195,46 @@ export function AnnualReportRoute() {
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Expanded per-holding detail for one tax year, plus 境內/海外 subtotals. */
+function YearDetail({ row, currency }: { row: AnnualReportYear; currency: string }) {
+  return (
+    <div style={{ paddingTop: 12 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
+        <thead>
+          <tr>
+            <Th align="left">代號</Th>
+            <Th align="left">國別</Th>
+            <Th align="right">已實現損益</Th>
+            <Th align="right">股利所得</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {row.byHolding.map((h: AnnualHoldingTaxDetail) => (
+            <tr key={h.assetId}>
+              <Td align="left">{h.ticker}</Td>
+              <Td align="left" style={{ color: "var(--ns-fg-muted)" }}>{resolveCountryLabel(h.country, "zh-Hant")}</Td>
+              <SignedTd amount={h.realizedGain} currency={currency} />
+              <Td align="right">{formatMoney(h.dividends, currency)}</Td>
+            </tr>
+          ))}
+          <tr style={{ borderTop: "1px solid var(--ns-border)" }}>
+            <Td align="left" style={{ fontWeight: 600 }}>境內小計</Td>
+            <Td align="left">{""}</Td>
+            <SignedTd amount={row.domestic.realizedGain} currency={currency} strong />
+            <Td align="right" style={{ fontWeight: 600 }}>{formatMoney(row.domestic.dividends, currency)}</Td>
+          </tr>
+          <tr>
+            <Td align="left" style={{ fontWeight: 600 }}>海外小計</Td>
+            <Td align="left">{""}</Td>
+            <SignedTd amount={row.overseas.realizedGain} currency={currency} strong />
+            <Td align="right" style={{ fontWeight: 600 }}>{formatMoney(row.overseas.dividends, currency)}</Td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   );
 }
