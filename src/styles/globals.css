@@ -449,6 +449,22 @@ html[data-native-glass] { --ns-titlebar-inset: 40px; }
 html[data-native-glass] .ns-titlebar-drag { display: block; position: fixed; top: 0; left: 0; right: 0; height: 28px; z-index: 30; }
 html[data-native-glass] .ns-app-main { padding-top: 28px; }
 
+/* Sidebar top-whitespace drag cap: the aside (z-index 1100) sits above
+   .ns-titlebar-drag (z-index 30), so that strip is unreachable wherever the
+   sidebar covers it. This covers just the sidebar's top padding/inset so the
+   window can still be dragged by grabbing the sidebar's empty header space.
+   Hidden on every platform except macOS Tauri (data-native-glass). */
+.ns-sidebar-drag-cap { display: none; }
+html[data-native-glass] .ns-sidebar-drag-cap {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--ns-titlebar-inset, 0px) + 22px);
+  z-index: 1;
+}
+
 @media (prefers-color-scheme: dark) {
   html[data-native-glass]:not([data-theme="light"]) .ns-sidebar {
     background: color-mix(in srgb, var(--ns-bg-elev) 88%, transparent);
