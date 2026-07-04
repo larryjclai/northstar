@@ -106,7 +106,7 @@ export function RecurringRulesTab() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--ns-gap-card)" }}>
+    <div className="flex flex-col" style={{ gap: "var(--ns-gap-card)" }}>
       {/* Summary KPI strip */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))", gap: 12 }}>
         <KpiCard label="月收入（預估）" value={`NT$${formatNumber(monthlyIncome)}`} color="var(--ns-pos)" />
@@ -122,17 +122,17 @@ export function RecurringRulesTab() {
       {/* Table card */}
       <Card style={{ padding: 0, overflow: "hidden" }}>
         {/* Header */}
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", gap: 12 }}>
+        <div className="flex items-center gap-3" style={{ padding: "16px 20px", borderBottom: "1px solid var(--ns-border)" }}>
           <ArrowsClockwise size={15} weight="duotone" style={{ color: "var(--ns-accent)" }} />
-          <span className="text-sm" style={{ fontWeight: 600 }}>週期規則</span>
-          <div style={{ flex: 1 }} />
+          <span className="text-sm font-semibold">週期規則</span>
+          <div className="flex-1" />
           <Button className="text-xs" style={{ padding: "5px 12px", minHeight: "auto" }} onClick={openCreate}>
             <Plus size={12} weight="bold" />新增規則
           </Button>
         </div>
 
         {/* Filter bar */}
-        <div style={{ padding: "10px 20px", borderBottom: "1px solid var(--ns-border)", display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <div className="flex gap-1.5" style={{ padding: "10px 20px", borderBottom: "1px solid var(--ns-border)", flexWrap: "wrap" }}>
           {filterOptions.map((o) => (
             <button
               key={o.key}
@@ -155,7 +155,7 @@ export function RecurringRulesTab() {
             tappable card. The full table returns at sm+. */}
         <div className="flex flex-col gap-2 p-3 sm:hidden">
           {filtered.length === 0 ? (
-            <div className="muted text-body" style={{ padding: "20px", textAlign: "center" }}>
+            <div className="muted text-body p-5 text-center">
               {filter === "paused" ? "沒有暫停中的規則。" : "還沒有週期規則，點擊「新增規則」建立第一條。"}
             </div>
           ) : filtered.map((rule) => (
@@ -167,8 +167,8 @@ export function RecurringRulesTab() {
               style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)", opacity: rule.isActive ? 1 : 0.55 }}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-sm" style={{ fontWeight: 500 }}>{rule.merchant || rule.category}</span>
-                <span className="num text-sm" style={{ fontWeight: 500, whiteSpace: "nowrap", color: rule.entryType === "income" ? "var(--ns-pos)" : "var(--ns-neg)" }}>
+                <span className="truncate text-sm font-medium">{rule.merchant || rule.category}</span>
+                <span className="num text-sm font-medium" style={{ whiteSpace: "nowrap", color: rule.entryType === "income" ? "var(--ns-pos)" : "var(--ns-neg)" }}>
                   {rule.entryType === "income" ? "+" : "−"}NT${formatNumber(Math.abs(monthlyEquivalent(rule)))}
                 </span>
               </div>
@@ -176,7 +176,7 @@ export function RecurringRulesTab() {
                 <span className="muted truncate text-xs">
                   {rule.category}{rule.subcategory ? ` / ${rule.subcategory}` : ""} · {freqLabel(rule)} · {accountName(rule.accountId)}
                 </span>
-                <span className="text-caption" style={{ flexShrink: 0, display: "inline-block", padding: "2px 8px", borderRadius: 999, fontWeight: 500, background: rule.isActive ? "var(--ns-pos-soft)" : "var(--ns-border)", color: rule.isActive ? "var(--ns-pos)" : "var(--ns-fg-muted)" }}>
+                <span className="text-caption shrink-0 font-medium" style={{ display: "inline-block", padding: "2px 8px", borderRadius: 999, background: rule.isActive ? "var(--ns-pos-soft)" : "var(--ns-border)", color: rule.isActive ? "var(--ns-pos)" : "var(--ns-fg-muted)" }}>
                   {rule.isActive ? "啟用" : "暫停"}
                 </span>
               </div>
@@ -196,7 +196,7 @@ export function RecurringRulesTab() {
           }}>
             <span>規則名稱 / 分類</span>
             <span>週期</span>
-            <span style={{ textAlign: "right" }}>月均金額</span>
+            <span className="text-right">月均金額</span>
             <span>帳戶</span>
             <span>下次觸發</span>
             <span>狀態</span>
@@ -205,7 +205,7 @@ export function RecurringRulesTab() {
 
         {/* Rows */}
         {filtered.length === 0 ? (
-          <div className="muted text-body" style={{ padding: "32px 20px", textAlign: "center" }}>
+          <div className="muted text-body text-center" style={{ padding: "32px 20px" }}>
             {filter === "paused" ? "沒有暫停中的規則。" : "還沒有週期規則，點擊「新增規則」建立第一條。"}
           </div>
         ) : (
@@ -222,32 +222,32 @@ export function RecurringRulesTab() {
               onMouseEnter={(e) => (e.currentTarget.style.background = "var(--ns-bg-hover)")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "")}
             >
-              <div style={{ minWidth: 0 }}>
-                <div className="text-body" style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div className="min-w-0">
+                <div className="text-body font-medium truncate">
                   {rule.merchant || rule.category}
                 </div>
                 <div className="muted text-caption" style={{ marginTop: 1 }}>{rule.category}{rule.subcategory ? ` / ${rule.subcategory}` : ""}</div>
               </div>
               <span className="text-xs" style={{ color: "var(--ns-fg-dim)", alignSelf: "center" }}>{freqLabel(rule)}</span>
               <span
-                className="num text-body"
+                className="num text-body font-medium text-right"
                 style={{
-                  fontWeight: 500, textAlign: "right", alignSelf: "center",
+                  alignSelf: "center",
                   color: rule.entryType === "income" ? "var(--ns-pos)" : "var(--ns-neg)",
                 }}
               >
                 {rule.entryType === "income" ? "+" : "−"}NT${formatNumber(Math.abs(monthlyEquivalent(rule)))}
               </span>
-              <span className="text-xs" style={{ color: "var(--ns-fg-dim)", alignSelf: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <span className="text-xs truncate" style={{ color: "var(--ns-fg-dim)", alignSelf: "center" }}>
                 {accountName(rule.accountId)}
               </span>
               <span className="text-xs" style={{ color: "var(--ns-fg-dim)", alignSelf: "center" }}>
-                <CalendarBlank size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />
+                <CalendarBlank size={12} className="mr-1" style={{ verticalAlign: "middle" }} />
                 {rule.nextRunDate}
               </span>
               <span style={{ alignSelf: "center" }}>
-                <span className="text-caption" style={{
-                  display: "inline-block", padding: "2px 8px", borderRadius: 999, fontWeight: 500,
+                <span className="text-caption font-medium" style={{
+                  display: "inline-block", padding: "2px 8px", borderRadius: 999,
                   background: rule.isActive ? "var(--ns-pos-soft)" : "var(--ns-border)",
                   color: rule.isActive ? "var(--ns-pos)" : "var(--ns-fg-muted)",
                 }}>
@@ -294,7 +294,7 @@ function KpiCard({ label, value, color }: { label: string; value: string; color:
   return (
     <Card style={{ padding: "14px 16px" }}>
       <div className="text-caption" style={{ color: "var(--ns-fg-muted)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>{label}</div>
-      <div className="num text-lg" style={{ fontWeight: 600, color }}>{value}</div>
+      <div className="num text-lg font-semibold" style={{ color }}>{value}</div>
     </Card>
   );
 }
@@ -353,35 +353,36 @@ function RuleEditSheet({
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 998 }} />
       <div
+        className="flex flex-col"
         style={{
           position: "fixed", top: 0, right: 0, bottom: 0, width: "min(460px, 100%)",
           background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
-          zIndex: 999, display: "flex", flexDirection: "column",
+          zIndex: 999,
           boxShadow: "-8px 0 32px rgba(0,0,0,0.12)",
           animation: "slideInRight 0.2s ease",
         }}
       >
         {/* Header */}
-        <div style={{ padding: "18px 24px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="flex items-center gap-2.5" style={{ padding: "18px 24px", borderBottom: "1px solid var(--ns-border)" }}>
           <ArrowsClockwise size={16} style={{ color: "var(--ns-accent)" }} />
-          <span className="text-[15px]" style={{ fontWeight: 600 }}>{isCreating ? "新增週期規則" : "編輯週期規則"}</span>
-          <div style={{ flex: 1 }} />
+          <span className="text-[15px] font-semibold">{isCreating ? "新增週期規則" : "編輯週期規則"}</span>
+          <div className="flex-1" />
           <Button variant="ghost" size="icon-sm" onClick={onClose}><X size={16} /></Button>
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, overflow: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="flex flex-col gap-4" style={{ flex: 1, overflow: "auto", padding: "20px 24px" }}>
 
           {/* Entry type toggle */}
           <RuleField label="類型">
-            <div style={{ display: "flex", gap: 6 }}>
+            <div className="flex gap-1.5">
               {(["expense", "income"] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setForm({ ...form, entryType: t })}
-                  className="text-body"
+                  className="text-body font-medium"
                   style={{
-                    padding: "6px 16px", borderRadius: 999, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
+                    padding: "6px 16px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit",
                     border: form.entryType === t ? "none" : "1px solid var(--ns-border)",
                     background: form.entryType === t ? (t === "expense" ? "var(--ns-neg)" : "var(--ns-pos)") : "var(--ns-bg-card)",
                     color: form.entryType === t ? "#fff" : "var(--ns-fg-dim)",
@@ -508,11 +509,11 @@ function RuleEditSheet({
 
           {/* Danger zone */}
           {!isCreating && (
-            <div style={{ marginTop: 8, padding: "14px 16px", borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-neg-soft)" }}>
-              <div className="text-xs" style={{ fontWeight: 600, color: "var(--ns-neg)", marginBottom: 8 }}>刪除規則</div>
+            <div className="mt-2" style={{ padding: "14px 16px", borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-neg-soft)" }}>
+              <div className="text-xs font-semibold mb-2" style={{ color: "var(--ns-neg)" }}>刪除規則</div>
               {confirmDelete ? (
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <span className="text-xs" style={{ color: "var(--ns-fg-muted)", flex: 1 }}>確定刪除？此操作無法復原。</span>
+                <div className="flex gap-2 items-center">
+                  <span className="text-xs flex-1" style={{ color: "var(--ns-fg-muted)" }}>確定刪除？此操作無法復原。</span>
                   <Button variant="outline" className="text-xs" style={{ padding: "4px 12px", minHeight: "auto", color: "var(--ns-neg)" }} onClick={() => onDelete(rule!.id)}>確定刪除</Button>
                   <Button variant="ghost" className="text-xs" style={{ padding: "4px 12px", minHeight: "auto" }} onClick={() => setConfirmDelete(false)}>取消</Button>
                 </div>
@@ -530,10 +531,11 @@ function RuleEditSheet({
         </div>
 
         {/* Footer */}
-        <div style={{ padding: "14px 24px", borderTop: "1px solid var(--ns-border)", display: "flex", gap: 8 }}>
+        <div className="flex gap-2" style={{ padding: "14px 24px", borderTop: "1px solid var(--ns-border)" }}>
           <Button variant="ghost" style={{ flex: "0 0 80px", justifyContent: "center" }} onClick={onClose}>取消</Button>
           <Button
-            style={{ flex: 1, justifyContent: "center" }}
+            className="flex-1"
+            style={{ justifyContent: "center" }}
             onClick={handleSave}
             disabled={saving}
           >
@@ -556,7 +558,7 @@ function RuleEditSheet({
 function RuleField({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-caption" style={{ display: "block", color: "var(--ns-fg-muted)", marginBottom: 6, letterSpacing: 0.04, textTransform: "uppercase" }}>
+      <label className="text-caption block" style={{ color: "var(--ns-fg-muted)", marginBottom: 6, letterSpacing: 0.04, textTransform: "uppercase" }}>
         {label}{required && <span style={{ color: "var(--ns-neg)", marginLeft: 3 }}>*</span>}
       </label>
       {children}
