@@ -25,9 +25,12 @@ merge **clean** into current main, each 1 commit ahead / 30 behind:
 
 **Outstanding (not release-blocking)**:
 - **Manual/GUI verification** (headless can't do): macOS sidebar drag (111) + logo/notification (097); 隱藏金額 full-page mask (101); DRIP record (109); annual-tax expand + CSV (114); 現金同色 (112); bear amber line (113); GitHub Actions CI first run after next push (102).
-- **115 Phase 2**: per-file inline-style cleanup (CashFlowRoute 211 → InvestmentsAnalyticsTab 174 → …), one file per dispatch. Ongoing.
+- **115 Phase 2**: per-file inline-style cleanup, one file per dispatch. Ongoing.
+  - ✅ **CashFlowRoute** done (merge `3146ea84`, 2026-07-04): 209→109 inline (100 static sites converted to Tailwind/`ns` utilities); extracted `.ns-modal-scrim`/`.ns-modal-panel` (3 identical modals); pixel-identity confirmed in preview (desktop `.ns-field-label` computed exact, drawer + mobile clean, no console errors); 826 tests green. Repo-wide inline count 2157→2047.
+  - **Follow-up nit**: the new `.ns-modal-scrim` hardcodes `rgba(0,0,0,0.4)` (byte-copied from the old inline — pixel-identical, correct for a refactor). It could adopt `var(--ns-scrim)` (plan 107's canonical token) to align CashFlowRoute's 3 modals with the rest of the app — a small *visual* change, opt-in.
+  - **Next targets** (by inline count): InvestmentsAnalyticsTab (~174) → DashboardRoute (~163) → AccountsRoute (~115) → settings/ConnectSection (~101) → FIRECalculatorRoute (~101) → rest >40.
 - **114 dividend seam** (index-noted): year-total dividends vs per-holding scan — consistent for the real route, optional future unify.
-- **手續費/證交稅 split** (114 deferred): needs `InvestmentRecord.fee` schema change — separate decision.
+- ~~手續費/證交稅 split~~ — **RETIRED 2026-07-04 (operator: not needed)**: TW personal tax does not require reporting brokerage commission or securities-transaction tax (證所稅 currently suspended), so splitting the single `fee` field serves no filing purpose. Won't do.
 
 
 ## Execution order & status
