@@ -154,12 +154,12 @@ export function GoalsRoute() {
 
   return (
     <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]" style={{ maxWidth: 1180, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 22, gap: 16, flexWrap: "wrap" }}>
+      <div className="flex justify-between gap-4" style={{ alignItems: "flex-end", marginBottom: 22, flexWrap: "wrap" }}>
         <div>
           <div className="text-xs ns-field-label">Long-term progress</div>
           <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>目標・FIRE</h1>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="flex gap-2">
           <Button variant="ghost" render={<Link to="/goals/fire" />}>
             <Calculator size={16} /> FIRE Calculator
           </Button>
@@ -169,16 +169,16 @@ export function GoalsRoute() {
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <div className="flex flex-col gap-6">
         {/* Main goal hero card — shows whichever active goal is selected. */}
         {selectedGoal && stats ? (
-          <Card style={{ padding: 20, flexDirection: "row", gap: 32, flexWrap: "wrap" }}>
+          <Card className="p-5 gap-8" style={{ flexDirection: "row", flexWrap: "wrap" }}>
             {/* Left column */}
-            <div style={{ flex: "1 1 280px", minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+            <div className="flex flex-col justify-between min-w-0" style={{ flex: "1 1 280px" }}>
               <div>
                 {/* Goal switcher — only when there's more than one active goal. */}
                 {goals.length > 1 ? (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+                  <div className="flex gap-1.5 mb-4" style={{ flexWrap: "wrap" }}>
                     {goals.map((g) => {
                       const active = g.id === selectedGoal.id;
                       return (
@@ -200,22 +200,22 @@ export function GoalsRoute() {
                     })}
                   </div>
                 ) : (
-                  <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginBottom: 12, letterSpacing: 0.5 }}>{selectedGoal.name}</div>
+                  <div className="text-xs mb-3" style={{ color: "var(--ns-fg-muted)", letterSpacing: 0.5 }}>{selectedGoal.name}</div>
                 )}
-                <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 16 }}>
+                <div className="flex items-baseline gap-2 mb-4">
                   {isFire ? (
                     <>
-                      <span className="text-[40px]" style={{ fontWeight: 600, letterSpacing: -1 }}>{formatCompactMoney(currentValue, selectedGoal.currency)}</span>
+                      <span className="text-[40px] font-semibold" style={{ letterSpacing: -1 }}>{formatCompactMoney(currentValue, selectedGoal.currency)}</span>
                       <span className="text-sm" style={{ color: "var(--ns-fg-muted)" }}>/ {formatCompactNumber(stats.target)}</span>
                     </>
                   ) : (
                     <>
-                      <span className="text-[40px]" style={{ fontWeight: 600, letterSpacing: -1 }}>{selectedGoal.currency} {formatNumber(currentValue)}</span>
+                      <span className="text-[40px] font-semibold" style={{ letterSpacing: -1 }}>{selectedGoal.currency} {formatNumber(currentValue)}</span>
                       <span className="text-sm" style={{ color: "var(--ns-fg-muted)" }}>/ {formatNumber(stats.target)}</span>
                     </>
                   )}
                 </div>
-                <div style={{ height: 6, borderRadius: 3, background: "var(--ns-surface-strong)", overflow: "hidden", marginBottom: 12 }}>
+                <div className="mb-3" style={{ height: 6, borderRadius: 3, background: "var(--ns-surface-strong)", overflow: "hidden" }}>
                   <div style={{ width: `${stats.progress.toFixed(1)}%`, height: "100%", background: "linear-gradient(90deg, var(--ns-accent), var(--ns-pos))", borderRadius: 3 }} />
                 </div>
                 <div className="text-body" style={{ color: "var(--ns-fg-dim)" }}>
@@ -245,7 +245,7 @@ export function GoalsRoute() {
                     )}
                 </div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))", gap: 24, marginTop: 48 }}>
+              <div className="gap-6" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))", marginTop: 48 }}>
                 {isFire ? (
                   <>
                     <Stat label="年儲蓄" value={`NT$${formatNumber(stats.annualSaving)}`} />
@@ -265,11 +265,11 @@ export function GoalsRoute() {
             </div>
 
             {/* Right column: chart */}
-            <div style={{ flex: 1, minWidth: 280, display: "flex", flexDirection: "column" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div className="flex-1 flex flex-col" style={{ minWidth: 280 }}>
+              <div className="flex justify-between items-center mb-4">
                 <div className="text-caption" style={{ fontFamily: "var(--ns-font-mono)", color: "var(--ns-fg-muted)", letterSpacing: 1 }}>PROJECTION</div>
                 {isFire ? (
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div className="flex gap-2">
                     {([["bear", "保守 5%"], ["base", "基準 7.2%"], ["bull", "樂觀 10%"]] as const).map(([k, label]) => (
                       <button
                         key={k}
@@ -290,7 +290,7 @@ export function GoalsRoute() {
                   <div className="text-caption" style={{ color: "var(--ns-fg-dim)" }}>依年儲蓄推估</div>
                 )}
               </div>
-              <div style={{ flex: 1, minHeight: 220, width: "100%" }}>
+              <div className="flex-1 w-full" style={{ minHeight: 220 }}>
                 {chartData.length > 1 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData} margin={{ top: 20, right: 8, left: 0, bottom: 0 }}>
@@ -321,7 +321,7 @@ export function GoalsRoute() {
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="muted text-body" style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div className="muted text-body flex items-center justify-center" style={{ height: "100%" }}>
                     補上年齡 / 報酬假設後即可預估退休曲線。
                   </div>
                 )}
@@ -329,13 +329,13 @@ export function GoalsRoute() {
             </div>
           </Card>
         ) : (
-          <Card style={{ padding: 40, textAlign: "center" }}>
-            <div style={{ width: 56, height: 56, borderRadius: "var(--ns-r-md)", background: "var(--ns-accent-soft)", color: "var(--ns-accent)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+          <Card className="text-center" style={{ padding: 40 }}>
+            <div className="items-center justify-center mb-4" style={{ width: 56, height: 56, borderRadius: "var(--ns-r-md)", background: "var(--ns-accent-soft)", color: "var(--ns-accent)", display: "inline-flex" }}>
               <Star size={26} weight="fill" />
             </div>
-            <div className="text-base" style={{ fontWeight: 600, marginBottom: 6 }}>還沒有目標</div>
+            <div className="text-base font-semibold mb-1.5">還沒有目標</div>
             <div className="muted text-body" style={{ marginBottom: 18 }}>用 FIRE 計算機追蹤財務自由進度，或建立旅遊、買車等自訂儲蓄目標。</div>
-            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+            <div className="flex justify-center" style={{ gap: 10 }}>
               <Button render={<Link to="/goals/fire" />}><Calculator size={14} />開啟 FIRE 計算機</Button>
               <Button variant="outline" onClick={() => setEditor({ goal: null })}><Plus size={14} weight="bold" />新增自訂目標</Button>
             </div>
@@ -344,8 +344,8 @@ export function GoalsRoute() {
 
         {/* Goals list */}
         <Card style={{ padding: "24px 0", overflow: "hidden" }}>
-          <div style={{ padding: "0 32px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <h2 className="text-lg" style={{ fontWeight: 500, margin: 0 }}>{goals.length} 個進行中目標</h2>
+          <div className="flex justify-between items-center mb-5" style={{ padding: "0 32px" }}>
+            <h2 className="text-lg font-medium" style={{ margin: 0 }}>{goals.length} 個進行中目標</h2>
           </div>
 
           {goals.length === 0 ? (
@@ -353,7 +353,7 @@ export function GoalsRoute() {
               還沒有目標。到 <Link to="/goals/fire" style={{ color: "var(--ns-accent)" }}>FIRE 計算機</Link> 建立第一個目標。
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column" }}>
+            <div className="flex flex-col">
               {goals.map((goal, i) => {
                 const target = resolveTargetAmount(goal);
                 const current = goalCurrentValues[goal.id] ?? 0;
@@ -363,35 +363,35 @@ export function GoalsRoute() {
                 const Icon = goal.kind === "fire" ? Star : Target;
                 const color = goal.kind === "fire" ? "var(--ns-pos)" : "var(--ns-accent)";
                 return (
-                  <div key={goal.id} style={{ display: "flex", alignItems: "center", flexWrap: "wrap", rowGap: 12, padding: "14px 18px", borderBottom: i < goals.length - 1 ? "1px solid var(--ns-border)" : "none" }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--ns-surface-strong)", display: "flex", alignItems: "center", justifyContent: "center", marginRight: 16, flexShrink: 0 }}>
+                  <div key={goal.id} className="flex items-center" style={{ flexWrap: "wrap", rowGap: 12, padding: "14px 18px", borderBottom: i < goals.length - 1 ? "1px solid var(--ns-border)" : "none" }}>
+                    <div className="flex items-center justify-center mr-4 shrink-0" style={{ width: 40, height: 40, borderRadius: 10, background: "var(--ns-surface-strong)" }}>
                       <Icon size={20} color={color} weight={goal.kind === "fire" ? "fill" : "regular"} />
                     </div>
-                    <div style={{ flex: "1 1 140px", minWidth: 0 }}>
-                      <div className="text-[15px]" style={{ fontWeight: 500, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{goal.name}</div>
+                    <div className="min-w-0" style={{ flex: "1 1 140px" }}>
+                      <div className="text-[15px] font-medium mb-1 truncate">{goal.name}</div>
                       <div className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>
                         {goal.kind === "fire"
                           ? "FIRE · 依淨值估算"
                           : boundCount > 0 ? `自訂目標 · 綁定 ${boundCount} 個帳戶` : "自訂目標 · 尚未綁定帳戶"}
                       </div>
                     </div>
-                    <div style={{ flex: "0 0 auto", textAlign: "right" }}>
-                      <div className="text-sm" style={{ fontWeight: 500, marginBottom: 4, whiteSpace: "nowrap" }}>{goal.currency} {formatNumber(current)}</div>
+                    <div className="text-right" style={{ flex: "0 0 auto" }}>
+                      <div className="text-sm font-medium mb-1" style={{ whiteSpace: "nowrap" }}>{goal.currency} {formatNumber(current)}</div>
                       <div className="text-xs" style={{ color: "var(--ns-fg-dim)", whiteSpace: "nowrap" }}>/ {formatNumber(target)}</div>
                     </div>
-                    <div style={{ flex: "1 1 180px", display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ flex: 1, height: 6, borderRadius: 3, background: "var(--ns-surface-strong)", overflow: "hidden" }}>
+                    <div className="flex items-center gap-3" style={{ flex: "1 1 180px" }}>
+                      <div className="flex-1" style={{ height: 6, borderRadius: 3, background: "var(--ns-surface-strong)", overflow: "hidden" }}>
                         <div style={{ height: "100%", width: `${progress}%`, background: color, borderRadius: 3 }} />
                       </div>
-                      <div className="text-body" style={{ color: "var(--ns-fg-dim)", width: 48, textAlign: "right", flexShrink: 0 }}>{progress.toFixed(1)}%</div>
+                      <div className="text-body text-right shrink-0" style={{ color: "var(--ns-fg-dim)", width: 48 }}>{progress.toFixed(1)}%</div>
                     </div>
-                    <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 12, marginLeft: "auto" }}>
+                    <div className="flex items-center gap-3" style={{ flex: "0 0 auto", marginLeft: "auto" }}>
                       {achieved ? (
-                        <span className="text-body" style={{ color: "var(--ns-pos)", display: "flex", alignItems: "center", gap: 4 }}><CheckCircle size={14} weight="fill" /> 達成</span>
+                        <span className="text-body flex items-center gap-1" style={{ color: "var(--ns-pos)" }}><CheckCircle size={14} weight="fill" /> 達成</span>
                       ) : (
                         <span className="text-body" style={{ color: "var(--ns-fg-dim)" }}>追蹤中</span>
                       )}
-                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <div className="flex gap-2 items-center">
                         {confirmDeleteId === goal.id ? (
                           <>
                             <Button variant="outline" size="sm" className="text-xs" style={{ color: "var(--ns-neg)" }} onClick={() => handleDeleteGoal(goal.id)}>確定刪除</Button>
@@ -431,8 +431,8 @@ export function GoalsRoute() {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginBottom: 4 }}>{label}</div>
-      <div className="text-lg" style={{ fontWeight: 500 }}>{value}</div>
+      <div className="text-xs mb-1" style={{ color: "var(--ns-fg-muted)" }}>{label}</div>
+      <div className="text-lg font-medium">{value}</div>
     </div>
   );
 }
