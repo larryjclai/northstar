@@ -191,28 +191,28 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
   ];
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto", padding: "32px 16px" }}>
+    <div className="flex justify-center" style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", alignItems: "flex-start", overflowY: "auto", padding: "32px 16px" }}>
       <div className="ns-surface" style={{ width: "100%", maxWidth: 980, borderRadius: "var(--ns-r-lg)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)" }}>
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 22px", borderBottom: "1px solid var(--ns-border)" }}>
-          <div className="text-lg" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>匯入證券交易</div>
+        <div className="flex items-center justify-between" style={{ padding: "16px 22px", borderBottom: "1px solid var(--ns-border)" }}>
+          <div className="text-lg font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>匯入證券交易</div>
           <Button variant="ghost" size="icon-sm" onClick={onClose}><X size={16} /></Button>
         </div>
 
         {/* Stepper */}
-        <div style={{ display: "flex", gap: 8, padding: "14px 22px", borderBottom: "1px solid var(--ns-border)" }}>
+        <div className="flex gap-2" style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)" }}>
           {steps.map((s, i) => {
             const activeIdx = steps.findIndex((x) => x.id === step);
             const done = i < activeIdx;
             const active = s.id === step;
             return (
-              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, opacity: active || done ? 1 : 0.5 }}>
-                <div className="text-caption" style={{ width: 22, height: 22, borderRadius: 99, display: "flex", alignItems: "center", justifyContent: "center",
+              <div key={s.id} className="flex items-center gap-2" style={{ opacity: active || done ? 1 : 0.5 }}>
+                <div className="text-caption flex items-center justify-center" style={{ width: 22, height: 22, borderRadius: 99,
                   border: `1.5px solid ${active ? "var(--ns-accent)" : "var(--ns-border)"}`, background: done ? "var(--ns-accent)" : "transparent", color: done ? "#000" : "var(--ns-fg)" }}>
                   {done ? <CheckCircle size={13} weight="bold" /> : i + 1}
                 </div>
                 <span className="text-body" style={{ fontWeight: active ? 600 : 400 }}>{s.label}</span>
-                {i < steps.length - 1 && <span className="muted" style={{ margin: "0 4px" }}>—</span>}
+                {i < steps.length - 1 && <span className="muted mx-1">—</span>}
               </div>
             );
           })}
@@ -223,7 +223,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
           {step === "upload" && (
             <div style={{ display: "grid", gap: 18 }}>
               <div>
-                <div className="ns-eyebrow" style={{ marginBottom: 8 }}>1 · 選擇投資帳戶</div>
+                <div className="ns-eyebrow mb-2">1 · 選擇投資帳戶</div>
                 {investAccounts.length === 0 ? (
                   <div className="ns-surface p-3 text-sm" style={{ border: "1px solid var(--ns-neg)" }}>
                     尚無投資帳戶。請先到「帳戶」新增一個類型為「投資」的帳戶，匯入的交易會記在該帳戶並以其幣別交割。
@@ -241,25 +241,25 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
                   />
                 )}
                 {hasRowAccount ? (
-                  <div className="muted text-xs" style={{ marginTop: 6 }}>
+                  <div className="muted text-xs mt-1.5">
                     這份 CSV 含有帳戶欄位，預覽時會優先用每列的 accountName / accountId；上方帳戶只作為找不到對應時的預設值。
                   </div>
                 ) : null}
               </div>
 
               <div>
-                <div className="ns-eyebrow" style={{ marginBottom: 8 }}>2 · 上傳 CSV 檔</div>
+                <div className="ns-eyebrow mb-2">2 · 上傳 CSV 檔</div>
                 <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
-                <button type="button" onClick={() => fileRef.current?.click()} style={{ width: "100%", padding: 22, borderRadius: "var(--ns-r-md)", cursor: "pointer", border: `1.5px dashed ${fileName ? "var(--ns-accent)" : "var(--ns-border)"}`, background: "transparent", color: "var(--ns-fg)", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <button type="button" onClick={() => fileRef.current?.click()} className="flex flex-col items-center gap-1.5" style={{ width: "100%", padding: 22, borderRadius: "var(--ns-r-md)", cursor: "pointer", border: `1.5px dashed ${fileName ? "var(--ns-accent)" : "var(--ns-border)"}`, background: "transparent", color: "var(--ns-fg)" }}>
                   {fileName ? <FileCsv size={26} style={{ color: "var(--ns-accent)" }} /> : <UploadSimple size={26} />}
-                  <div style={{ fontWeight: 500 }}>{fileName || "點擊或拖放上傳 CSV"}</div>
+                  <div className="font-medium">{fileName || "點擊或拖放上傳 CSV"}</div>
                   <div className="muted text-xs">{fileName ? `${rows.length} 列 · 分隔符 ${delimiter === "\t" ? "Tab" : delimiter}` : "僅支援 CSV"}</div>
                 </button>
               </div>
 
               {templates.length > 0 && (
                 <div>
-                  <div className="ns-eyebrow" style={{ marginBottom: 8 }}>3 · 套用範本（選用）</div>
+                  <div className="ns-eyebrow mb-2">3 · 套用範本（選用）</div>
                   <AppSelect
                     value={templateId}
                     onChange={applyTemplate}
@@ -272,7 +272,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
 
               {headers.length > 0 && (
                 <div>
-                  <div className="muted text-xs" style={{ marginBottom: 6 }}>預覽（前 5 列）</div>
+                  <div className="muted text-xs mb-1.5">預覽（前 5 列）</div>
                   <PreviewTable headers={previewHeaders(headers, mapping)} totalColumns={headers.length} rows={rows.slice(0, 5)} />
                 </div>
               )}
@@ -281,16 +281,16 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
 
           {/* ─── Step 2: Mapping ─── */}
           {step === "mapping" && (
-            <div style={{ display: "grid", gap: 20 }}>
+            <div className="grid gap-5">
               <div>
-                <div className="text-xs" style={{  marginBottom: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>欄位對應</div>
+                <div className="text-xs mb-2.5 font-medium" style={{ color: "var(--ns-fg-muted)" }}>欄位對應</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
                   {INVESTMENT_FIELDS.map((field) => {
                     const required = REQUIRED_FIELDS.includes(field);
                     const unset = required && !mapping.fields[field];
                     return (
                       <div key={field}>
-                        <label className="text-xs" style={{ display: "block", marginBottom: 4, color: unset ? "var(--ns-neg)" : "var(--ns-fg-muted)" }}>
+                        <label className="text-xs block mb-1" style={{ color: unset ? "var(--ns-neg)" : "var(--ns-fg-muted)" }}>
                           {FIELD_LABELS[field]}{required && <span style={{ color: "var(--ns-neg)" }}> *</span>}
                         </label>
                         <AppSelect
@@ -305,7 +305,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
                     );
                   })}
                   <div>
-                    <label className="text-xs" style={{ display: "block", marginBottom: 4, color: "var(--ns-fg-muted)" }}>日期格式</label>
+                    <label className="text-xs block mb-1" style={{ color: "var(--ns-fg-muted)" }}>日期格式</label>
                     <AppSelect
                       value={mapping.dateFormat}
                       onChange={(dateFormat) => setMapping((p) => ({ ...p, dateFormat: dateFormat as DateFormat }))}
@@ -318,18 +318,18 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
               </div>
 
               <div>
-                <div className="text-xs" style={{  marginBottom: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>交易類別對應</div>
+                <div className="text-xs mb-2.5 font-medium" style={{ color: "var(--ns-fg-muted)" }}>交易類別對應</div>
                 {!actionHeader ? (
                   <div className="muted text-sm">請先在上方把「交易類別」對應到一個欄位。</div>
                 ) : actionValues.length === 0 ? (
                   <div className="muted text-sm">該欄位沒有可對應的值。</div>
                 ) : (
-                  <div style={{ display: "grid", gap: 8 }}>
+                  <div className="grid gap-2">
                     {actionValues.map((value) => {
                       const cur = mapping.activityMap[value];
                       const pending = cur === undefined;
                       return (
-                        <div key={value} style={{ display: "grid", gridTemplateColumns: "1fr 200px", gap: 10, alignItems: "center" }}>
+                        <div key={value} className="items-center" style={{ display: "grid", gridTemplateColumns: "1fr 200px", gap: 10 }}>
                           <span className="mono text-body">{value}</span>
                           <AppSelect
                             value={cur ?? ""}
@@ -350,9 +350,9 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
               </div>
 
               {/* Template controls */}
-              <div style={{ borderTop: "1px solid var(--ns-border)", paddingTop: 16 }}>
-                <div className="text-xs" style={{  marginBottom: 10 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>範本</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              <div className="pt-4" style={{ borderTop: "1px solid var(--ns-border)" }}>
+                <div className="text-xs mb-2.5 font-medium" style={{ color: "var(--ns-fg-muted)" }}>範本</div>
+                <div className="flex flex-wrap items-center gap-2">
                   <input className="ns-input" style={{ flex: "1 1 200px" }} placeholder="範本名稱（例：Firstrade）" value={templateName} onChange={(e) => setTemplateName(e.target.value)} />
                   {templateId
                     ? <Button variant="outline" onClick={() => saveTemplate(false)}><FloppyDisk size={14} />更新範本</Button>
@@ -366,15 +366,15 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
 
           {/* ─── Step 3: Review ─── */}
           {step === "review" && preview && (
-            <div style={{ display: "grid", gap: 16 }}>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <div className="grid gap-4">
+              <div className="flex gap-3 flex-wrap">
                 <StatPill label="可匯入" value={preview.valid.length} tone="ok" />
                 <StatPill label="略過 / 錯誤" value={preview.invalid.length} tone={preview.invalid.length ? "warn" : "muted"} />
                 <StatPill label="目標帳戶" value={hasRowAccount ? "依 CSV 每列" : account ? `${account.name}` : "—"} tone="muted" />
               </div>
 
               {preview.invalid.length > 0 && (
-                <div className="ns-surface" style={{ border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-md)", padding: 12, maxHeight: 180, overflowY: "auto" }}>
+                <div className="ns-surface p-3" style={{ border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-md)", maxHeight: 180, overflowY: "auto" }}>
                   <div className="text-sm font-medium mb-2" style={{ color: "var(--ns-neg)" }}>未匯入的列</div>
                   {preview.invalid.map((item) => (
                     <div key={item.row} className="text-xs" style={{ marginBottom: 3 }}>第 {item.row} 列：{item.reason}</div>
@@ -383,7 +383,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
               )}
 
               {importError ? (
-                <div className="ns-surface" style={{ border: "1px solid var(--ns-neg)", borderRadius: "var(--ns-r-md)", padding: 12 }}>
+                <div className="ns-surface p-3" style={{ border: "1px solid var(--ns-neg)", borderRadius: "var(--ns-r-md)" }}>
                   <div className="text-sm font-medium mb-1" style={{ color: "var(--ns-neg)" }}>匯入失敗</div>
                   <div className="text-xs" style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{importError}</div>
                 </div>
@@ -407,8 +407,8 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
                 </div>
               )}
 
-              <div className="muted text-caption" style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
-                <Warning size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+              <div className="muted text-caption flex items-start gap-1.5">
+                <Warning size={14} className="shrink-0" style={{ marginTop: 1 }} />
                 <span>買入交易需要該投資帳戶有足夠現金交割；若帳戶餘額不足，匯入時該筆會被拒絕並顯示原因。</span>
               </div>
             </div>
@@ -416,7 +416,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
         </div>
 
         {/* Footer */}
-        <div style={{ display: "flex", justifyContent: "space-between", padding: "16px 22px", borderTop: "1px solid var(--ns-border)" }}>
+        <div className="flex justify-between" style={{ padding: "16px 22px", borderTop: "1px solid var(--ns-border)" }}>
           <Button variant="ghost" onClick={() => {
             if (step === "mapping") setStep("upload");
             else if (step === "review") setStep("mapping");
@@ -484,7 +484,7 @@ function PreviewTable({ headers, totalColumns, rows }: { headers: string[]; tota
   return (
     <div>
       {totalColumns > headers.length ? (
-        <div className="muted text-caption" style={{ marginBottom: 6 }}>只顯示 {headers.length} 個關鍵欄位，另有 {totalColumns - headers.length} 欄會在匯入時保留解析。</div>
+        <div className="muted text-caption mb-1.5">只顯示 {headers.length} 個關鍵欄位，另有 {totalColumns - headers.length} 欄會在匯入時保留解析。</div>
       ) : null}
       <div style={{ overflowX: "auto", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-md)", maxWidth: "100%" }}>
       <table className="text-xs" style={{ width: "100%", minWidth: Math.min(760, headers.length * 120), borderCollapse: "collapse", tableLayout: "fixed" }}>
@@ -540,7 +540,7 @@ function StatPill({ label, value, tone }: { label: string; value: string | numbe
   return (
     <div style={{ padding: "10px 14px", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", minWidth: 110 }}>
       <div className="text-xs" style={{  marginBottom: 2 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</div>
-      <div className="text-lg" style={{ fontWeight: 600, color }}>{value}</div>
+      <div className="text-lg font-semibold" style={{ color }}>{value}</div>
     </div>
   );
 }
