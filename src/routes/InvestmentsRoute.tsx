@@ -383,7 +383,7 @@ export function InvestmentsRoute() {
     return (
       <div className="grid min-h-[50vh] place-items-center p-6 text-center">
         <div className="max-w-md">
-          <h3 className="text-[17px]" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+          <h3 className="text-[17px] font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>
             無法載入資料
           </h3>
           <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
@@ -398,12 +398,12 @@ export function InvestmentsRoute() {
   return (
     <div className="ns-invest-page" style={{ padding: '24px 32px 120px', maxWidth: 1180, margin: '0 auto' }}>
       {/* Header */}
-      <div className="ns-invest-header" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 0 }}>
+      <div className="ns-invest-header flex items-end justify-between mb-0">
         <div>
           <div className="text-xs ns-field-label">投資組合</div>
           <h1 className="text-[28px]" style={{ fontFamily: 'var(--ns-font-display)', margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>投資</h1>
         </div>
-        <div className="ns-invest-header-actions" style={{ display: 'flex', gap: 8 }}>
+        <div className="ns-invest-header-actions flex gap-2">
           {/* Entry point restored — it was lost in the holdings→portfolio tab
               rename, leaving backfillClassifications unreachable. */}
           {tab === "portfolio" ? (
@@ -458,7 +458,7 @@ export function InvestmentsRoute() {
               ['今年股利', `NT$${formatCompactNumber(dividendsYTD)}`, `NT$${formatNumber(dividendsYTD)}`, '', true],
             ] as const).map(([label, val, exact, pct, pos], i) => (
               <CossCard key={i} className="p-4 sm:p-5 min-w-0">
-                <div className="text-xs" style={{  marginBottom: 8, flexShrink: 0 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</div>
+                <div className="text-xs mb-2 shrink-0 font-medium" style={{ color: "var(--ns-fg-muted)" }}>{label}</div>
                 {/* Value takes the full card width (compact 萬/億 keeps it short);
                     the % change sits on its own line so it never squeezes the
                     number into an ellipsis. */}
@@ -978,8 +978,8 @@ function HoldingsAllocation({ positions, assetsById, nameLocale, toPrimary, prim
   if (data.length === 0) return null;
 
   return (
-    <CossCard className="ns-holdings-allocation" style={{ padding: 20, marginBottom: 20 }}>
-      <div className="text-xs" style={{  marginBottom: 14 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>持倉配置</div>
+    <CossCard className="ns-holdings-allocation p-5 mb-5">
+      <div className="text-xs mb-3.5 font-medium" style={{ color: "var(--ns-fg-muted)" }}>持倉配置</div>
       <div className="ns-holdings-allocation-body">
         <div className="ns-holdings-allocation-chart">
           <ResponsiveContainer width="100%" height="100%">
@@ -998,10 +998,10 @@ function HoldingsAllocation({ positions, assetsById, nameLocale, toPrimary, prim
         </div>
         <div className="ns-holdings-allocation-list">
           {data.map((d, i) => (
-            <div key={i} className="text-xs" style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+            <div key={i} className="text-xs flex items-center gap-2 min-w-0">
               <span style={{ width: 9, height: 9, borderRadius: 2, background: ALLOCATION_COLORS[i % ALLOCATION_COLORS.length], flexShrink: 0 }} />
-              <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={d.name}>{d.name}</span>
-              <span className="mono dim" style={{ flexShrink: 0 }}>{d.pct.toFixed(1)}%</span>
+              <span className="flex-1 min-w-0 truncate" title={d.name}>{d.name}</span>
+              <span className="mono dim shrink-0">{d.pct.toFixed(1)}%</span>
             </div>
           ))}
         </div>
@@ -1519,10 +1519,10 @@ function HoldingsTab({
           </table>
         </div>
         {filteredPositions.length === 0 && (
-          <div className="muted text-body" style={{ padding: "24px 0", textAlign: "center" }}>找不到符合的持倉</div>
+          <div className="muted text-body py-6 text-center">找不到符合的持倉</div>
         )}
         {totalPages > 1 && (
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--ns-border)' }}>
+          <div className="flex justify-center items-center gap-4 mt-6 pt-4" style={{ borderTop: '1px solid var(--ns-border)' }}>
             <Button variant="ghost" disabled={page === 1} onClick={() => setPage(p => p - 1)}>
               <CaretLeft size={16} />上一頁
             </Button>
