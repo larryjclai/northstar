@@ -115,37 +115,38 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
         }}
       >
         {/* Header */}
-        <div style={{ padding: "18px 24px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div className="text-body" style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
+        <div className="flex items-center justify-between" style={{ padding: "18px 24px", borderBottom: "1px solid var(--ns-border)" }}>
+          <div className="text-body flex items-center gap-2 font-semibold">
             <Receipt size={16} />
             交易詳情
           </div>
-          <Button variant="ghost" size="icon-sm" onClick={onClose} style={{ padding: 6 }}>
+          <Button variant="ghost" size="icon-sm" onClick={onClose} className="p-1.5">
             <X size={16} />
           </Button>
         </div>
 
         {/* Content */}
-        <div style={{ flex: 1, overflow: "auto", padding: "28px 24px" }}>
+        <div className="flex-1" style={{ overflow: "auto", padding: "28px 24px" }}>
           {/* Amount Hero */}
-          <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div className="text-center" style={{ marginBottom: 32 }}>
             <div
+              className="mb-3.5"
               style={{
                 display: "inline-flex", alignItems: "center", justifyContent: "center",
                 width: 56, height: 56, borderRadius: "var(--ns-r-md)",
-                background: meta.color + "18", marginBottom: 14,
+                background: meta.color + "18",
               }}
             >
               <Receipt size={26} color={meta.color} weight="duotone" />
             </div>
-            <div className="text-[32px]" style={{ fontWeight: 600, fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums lining-nums", color: meta.color, letterSpacing: -1 }}>
+            <div className="text-[32px] font-semibold" style={{ fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums lining-nums", color: meta.color, letterSpacing: -1 }}>
               {meta.sign}{row.currency === "TWD" ? "NT$" : row.currency + " "}{formatNumber(Math.abs(row.amount))}
             </div>
-            <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+            <div className="flex justify-center mt-2 gap-1.5" style={{ flexWrap: "wrap" }}>
               <span
-                className="text-caption"
+                className="text-caption font-medium"
                 style={{
-                  padding: "3px 10px", borderRadius: 99, fontWeight: 500,
+                  padding: "3px 10px", borderRadius: 99,
                   background: meta.color + "18", color: meta.color,
                 }}
               >
@@ -153,9 +154,9 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
               </span>
               {!isSettled && settlementLabel && (
                 <span
-                  className="text-caption"
+                  className="text-caption font-medium"
                   style={{
-                    padding: "3px 10px", borderRadius: 99, fontWeight: 500,
+                    padding: "3px 10px", borderRadius: 99,
                     background: "var(--ns-chart-3)" + "18", color: "var(--ns-chart-3)",
                   }}
                 >
@@ -164,9 +165,9 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
               )}
               {isReimbursement && (
                 <span
-                  className="text-caption"
+                  className="text-caption font-medium"
                   style={{
-                    padding: "3px 10px", borderRadius: 99, fontWeight: 500,
+                    padding: "3px 10px", borderRadius: 99,
                     background: "var(--ns-chart-4)" + "18", color: "var(--ns-chart-4)",
                   }}
                 >
@@ -175,11 +176,10 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
               )}
               {row.recurringRuleId ? (
                 <span
-                  className="text-caption"
+                  className="text-caption font-medium flex items-center gap-1"
                   style={{
-                    padding: "3px 10px", borderRadius: 99, fontWeight: 500,
+                    padding: "3px 10px", borderRadius: 99,
                     background: "var(--ns-accent-soft)", color: "var(--ns-accent)",
-                    display: "inline-flex", alignItems: "center", gap: 4,
                   }}
                 >
                   <ArrowsClockwise size={10} weight="bold" />
@@ -187,9 +187,9 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
                 </span>
               ) : (
                 <span
-                  className="text-caption"
+                  className="text-caption font-medium"
                   style={{
-                    padding: "3px 10px", borderRadius: 99, fontWeight: 500,
+                    padding: "3px 10px", borderRadius: 99,
                     background: "var(--ns-border)", color: "var(--ns-fg-muted)",
                   }}
                 >
@@ -202,7 +202,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
                 </Badge>
               ) : null}
               {isRefund ? (
-                <span className="text-caption" style={{ padding: "3px 10px", borderRadius: 99, fontWeight: 500, background: "var(--ns-pos)" + "18", color: "var(--ns-pos)" }}>
+                <span className="text-caption font-medium" style={{ padding: "3px 10px", borderRadius: 99, background: "var(--ns-pos)" + "18", color: "var(--ns-pos)" }}>
                   退款
                 </span>
               ) : null}
@@ -210,7 +210,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
           </div>
 
           {/* Detail Fields */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+          <div className="flex flex-col gap-0">
             <DetailField icon={<PencilSimple size={15} />} label="名稱" value={row.name || "—"} />
             <DetailField icon={<Tag size={15} />} label="分類" value={
               row.subcategory ? `${row.category} / ${row.subcategory}` : row.category || "未分類"
@@ -247,8 +247,8 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
           {/* Settle (結清): only for an unsettled receivable/payable. Hands off
               to the existing settle flow (opens SettleModal in CashFlowRoute). */}
           {onSettle && !isSettled && (row.settlementStatus === "receivable" || row.settlementStatus === "payable") ? (
-            <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--ns-border)" }}>
-              <Button variant="outline" style={{ width: "100%", justifyContent: "center" }} onClick={() => onSettle(row)}>
+            <div className="mt-6 pt-5" style={{ borderTop: "1px solid var(--ns-border)" }}>
+              <Button variant="outline" className="w-full justify-center" onClick={() => onSettle(row)}>
                 <Check size={14} />{isReceivable ? "收款結清" : "付款結清"}
               </Button>
             </div>
@@ -258,39 +258,39 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
               to this row, so it nets against the original category's spend
               instead of inflating income. Only offered for ordinary expenses. */}
           {canRefund ? (
-            <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--ns-border)" }}>
+            <div className="mt-6 pt-5" style={{ borderTop: "1px solid var(--ns-border)" }}>
               {!refundOpen ? (
-                <Button variant="outline" style={{ width: "100%", justifyContent: "center" }} onClick={() => { setRefundOpen(true); setRefundAmount(String(Math.abs(row.amount))); setRefundError(""); }}>
+                <Button variant="outline" className="w-full justify-center" onClick={() => { setRefundOpen(true); setRefundAmount(String(Math.abs(row.amount))); setRefundError(""); }}>
                   <ArrowsClockwise size={14} />記一筆退款
                 </Button>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <div className="text-body" style={{ fontWeight: 600 }}>記退款</div>
+                <div className="flex flex-col gap-3">
+                  <div className="text-body font-semibold">記退款</div>
                   <div className="muted text-xs" style={{ lineHeight: 1.5 }}>
                     退款會沖減此筆「{row.category || "未分類"}」分類的支出，不會被當成收入。
                   </div>
-                  <label className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>
+                  <label className="text-xs muted">
                     退款金額 · {row.currency}
-                    <input className="ns-input" inputMode="decimal" value={refundAmount}
+                    <input className="ns-input mt-1" inputMode="decimal" value={refundAmount}
                       onChange={(e) => setRefundAmount(e.target.value)}
-                      style={{ marginTop: 4, fontFamily: "var(--ns-font-num)" }} />
+                      style={{ fontFamily: "var(--ns-font-num)" }} />
                   </label>
-                  <label className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>
+                  <label className="text-xs muted">
                     退款日期
-                    <input className="ns-input" type="date" value={refundDate || row.date.slice(0, 10)}
-                      onChange={(e) => setRefundDate(e.target.value)} style={{ marginTop: 4 }} />
+                    <input className="ns-input mt-1" type="date" value={refundDate || row.date.slice(0, 10)}
+                      onChange={(e) => setRefundDate(e.target.value)} />
                   </label>
-                  <label className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>
+                  <label className="text-xs muted">
                     備註（選填）
-                    <input className="ns-input" value={refundNote} placeholder="退貨 / 部分退款…"
-                      onChange={(e) => setRefundNote(e.target.value)} style={{ marginTop: 4 }} />
+                    <input className="ns-input mt-1" value={refundNote} placeholder="退貨 / 部分退款…"
+                      onChange={(e) => setRefundNote(e.target.value)} />
                   </label>
-                  {refundError ? <div className="text-xs" style={{ color: "var(--ns-neg)" }}>{refundError}</div> : null}
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <Button style={{ flex: 1, justifyContent: "center" }} disabled={refundSubmitting} onClick={submitRefund}>
+                  {refundError ? <div className="text-xs neg">{refundError}</div> : null}
+                  <div className="flex gap-2">
+                    <Button className="flex-1 justify-center" disabled={refundSubmitting} onClick={submitRefund}>
                       {refundSubmitting ? "建立中…" : "確認退款"}
                     </Button>
-                    <Button variant="ghost" style={{ flex: 0.6, justifyContent: "center" }} onClick={() => setRefundOpen(false)}>取消</Button>
+                    <Button variant="ghost" className="justify-center" style={{ flex: 0.6 }} onClick={() => setRefundOpen(false)}>取消</Button>
                   </div>
                 </div>
               )}
@@ -299,33 +299,35 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
         </div>
 
         {/* Footer Actions */}
-        <div style={{ padding: "16px 24px", borderTop: "1px solid var(--ns-border)", display: "flex", gap: 10 }}>
+        <div className="flex py-4 px-6 gap-2.5" style={{ borderTop: "1px solid var(--ns-border)" }}>
           {confirmDelete ? (
             <>
               <Button variant="outline"
-                style={{ flex: 1, justifyContent: "center", color: "var(--ns-neg)" }}
+                className="flex-1 justify-center"
+                style={{ color: "var(--ns-neg)" }}
                 onClick={() => onDelete(row)}
               >
                 <Trash size={14} />確定刪除
               </Button>
-              <Button variant="ghost" style={{ flex: 0.7, justifyContent: "center" }} onClick={() => setConfirmDelete(false)}>
+              <Button variant="ghost" className="justify-center" style={{ flex: 0.7 }} onClick={() => setConfirmDelete(false)}>
                 取消
               </Button>
             </>
           ) : (
             <Button variant="outline"
-              style={{ flex: 1, justifyContent: "center", color: "var(--ns-neg)" }}
+              className="flex-1 justify-center"
+              style={{ color: "var(--ns-neg)" }}
               onClick={() => row.installmentGroupId ? onDelete(row) : setConfirmDelete(true)}
             >
               <Trash size={14} />刪除
             </Button>
           )}
           {onDuplicate ? (
-            <Button variant="outline" style={{ flex: 1, justifyContent: "center" }} onClick={() => onDuplicate(row)}>
+            <Button variant="outline" className="flex-1 justify-center" onClick={() => onDuplicate(row)}>
               <CopySimple size={14} />複製
             </Button>
           ) : null}
-          <Button style={{ flex: 2, justifyContent: "center" }} onClick={() => onEdit(row)}>
+          <Button className="justify-center" style={{ flex: 2 }} onClick={() => onEdit(row)}>
             <PencilSimple size={14} />編輯交易
           </Button>
         </div>
@@ -343,14 +345,13 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
 
 function DetailField({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div style={{
-      display: "grid", gridTemplateColumns: "28px 72px 1fr", alignItems: "center",
-      padding: "14px 0", borderBottom: "1px solid var(--ns-border)",
-      gap: 8,
+    <div className="items-center py-3.5 px-0 gap-2" style={{
+      display: "grid", gridTemplateColumns: "28px 72px 1fr",
+      borderBottom: "1px solid var(--ns-border)",
     }}>
-      <span style={{ color: "var(--ns-fg-muted)" }}>{icon}</span>
-      <span className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</span>
-      <span className="text-sm" style={{ fontWeight: 500, textAlign: "right" }}>{value}</span>
+      <span className="muted">{icon}</span>
+      <span className="text-xs muted font-medium">{label}</span>
+      <span className="text-sm text-right font-medium">{value}</span>
     </div>
   );
 }
