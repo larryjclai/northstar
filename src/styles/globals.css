@@ -552,6 +552,11 @@ textarea:focus-visible {
    { marginBottom: 6, color: var(--ns-fg-muted), fontWeight: 500 } inline 模式。 */
 .ns-field-label { margin-bottom: 6px; color: var(--ns-fg-muted); font-weight: 500; }
 
+/* Centered modal scrim + panel: repeated ≥3x (CashFlowRoute settle/recurring-
+   scope/installment-delete choosers) as identical inline style objects. */
+.ns-modal-scrim { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.ns-modal-panel { width: min(420px, 96vw); background: var(--ns-bg-elev); border: 1px solid var(--ns-border); border-radius: var(--ns-r-lg); box-shadow: var(--ns-shadow-xl); padding: 20px; }
+
 /* Account name is a link into the filtered ledger — underline on hover. */
 .ns-acct-name { transition: color 0.12s; }
 .ns-acct-row:hover .ns-acct-name { color: var(--ns-accent); text-decoration: underline; text-underline-offset: 2px; }

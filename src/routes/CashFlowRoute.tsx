@@ -853,7 +853,7 @@ export function CashFlowRoute() {
 
   if (isInitialLoading) {
     return (
-      <div className="grid gap-5 p-1" style={{ maxWidth: 1180, margin: "0 auto" }}>
+      <div className="grid gap-5 p-1 max-w-[1180px] mx-auto">
         <Skeleton className="h-[200px]" />
         <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
           {Array.from({ length: 4 }).map((_, i) => (
@@ -868,7 +868,7 @@ export function CashFlowRoute() {
     return (
       <div className="grid min-h-[50vh] place-items-center p-6 text-center">
         <div className="max-w-md">
-          <h3 className="text-[17px]" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+          <h3 className="text-[17px] font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>
             無法載入資料
           </h3>
           <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
@@ -881,16 +881,16 @@ export function CashFlowRoute() {
   }
 
   return (
-    <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]" style={{ maxWidth: 1180, margin: "0 auto" }}>
+    <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px] max-w-[1180px] mx-auto">
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginBottom: 22, flexWrap: "wrap" }}>
+      <div className="flex items-end justify-between gap-4 mb-[22px] flex-wrap">
         <div>
           <div className="text-xs ns-field-label">{periodLabel}</div>
-          <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>
+          <h1 className="text-[28px] m-0 font-semibold" style={{ fontFamily: "var(--ns-font-display)", letterSpacing: -0.02 }}>
             記帳
           </h1>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <div className="flex gap-2 flex-wrap justify-end">
           <input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsv} />
           <DateScopeControl value={dateScope} onChange={setDateScope} />
 
@@ -904,15 +904,15 @@ export function CashFlowRoute() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--ns-border)', marginBottom: 24, overflowX: "auto" }}>
+      <div className="flex mb-6 overflow-x-auto" style={{ borderBottom: '1px solid var(--ns-border)' }}>
         {[
           { id: 'overview', label: '交易' },
           { id: 'categories', label: '分類' },
           { id: 'merchants', label: '商家' },
           { id: 'recurring', label: '週期規則' },
         ].map(t => (
-          <button key={t.id} className="text-sm" onClick={() => setActiveTab(t.id as any)} style={{
-            padding: '10px 20px', background: 'none', border: 'none', cursor: 'pointer', whiteSpace: "nowrap",
+          <button key={t.id} className="text-sm whitespace-nowrap cursor-pointer" onClick={() => setActiveTab(t.id as any)} style={{
+            padding: '10px 20px', background: 'none', border: 'none',
             fontFamily: 'inherit', fontWeight: activeTab === t.id ? 600 : 400,
             color: activeTab === t.id ? 'var(--ns-fg)' : 'var(--ns-fg-muted)',
             borderBottom: activeTab === t.id ? '2px solid var(--ns-accent)' : '2px solid transparent',
@@ -924,51 +924,51 @@ export function CashFlowRoute() {
       {activeTab === "overview" && (
         <>
           {missingFx.length > 0 ? (
-            <Card className="text-body" style={{ padding: "10px 14px", marginBottom: 14, color: "var(--ns-neg)" }}>
+            <Card className="text-body px-3.5 py-2.5 mb-3.5" style={{ color: "var(--ns-neg)" }}>
               總額不完整：缺少匯率 {missingFx.join("、")}。請至設定更新匯率；原幣交易仍會保留。
             </Card>
           ) : null}
           {/* Outstanding receivables / payables reminder */}
           {settlements.items.length > 0 ? (
             <Card
-              style={{ padding: "12px 16px", marginBottom: 14, flexDirection: "row", alignItems: "center", gap: 16, flexWrap: "wrap", cursor: "pointer" }}
+              className="flex-row items-center gap-4 flex-wrap cursor-pointer mb-3.5 px-4 py-3"
               onClick={() => {
                 const first = ledgerRows.find((r) => r.id === settlements.items[0]?.id);
                 if (first) setDetailRow(first);
               }}
             >
-              <span className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>未結清</span>
+              <span className="text-xs muted font-medium">未結清</span>
               {settlements.receivableTotal > 0 ? (
-                <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                <div className="flex items-baseline gap-1.5">
                   <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收 {settlements.receivableCount}</Badge>
                   <span className="num text-[15px]" style={{ color: "var(--ns-pos)" }}>+{primaryCurrency} {formatNumber(settlements.receivableTotal)}</span>
                 </div>
               ) : null}
               {settlements.payableTotal > 0 ? (
-                <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                <div className="flex items-baseline gap-1.5">
                   <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}>應付 {settlements.payableCount}</Badge>
                   <span className="num text-[15px]" style={{ color: "var(--ns-neg)" }}>−{primaryCurrency} {formatNumber(settlements.payableTotal)}</span>
                 </div>
               ) : null}
-              <span className="muted text-xs" style={{ marginLeft: "auto" }}>結清後會計入收支 · 點此查看並結清</span>
+              <span className="muted text-xs ml-auto">結清後會計入收支 · 點此查看並結清</span>
             </Card>
           ) : null}
-          <div style={{ marginBottom: 20 }}>
+          <div className="mb-5">
         {/* Cashflow Chart */}
-        <Card id="cashflow-chart" style={{ padding: 24 }}>
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 16, marginBottom: 14, flexWrap: "wrap" }}>
+        <Card id="cashflow-chart" className="p-6">
+          <div className="flex items-end gap-4 mb-3.5 flex-wrap">
             <div>
               <div className="text-xs ns-field-label">現金流 · Net</div>
               <div className={"ns-num-lg " + (periodNet >= 0 ? "pos" : "neg")}>
                 {periodNet >= 0 ? "+" : "−"}{primaryCurrency} {formatNumber(Math.abs(periodNet))}
               </div>
             </div>
-            <div style={{ flex: 1 }}/>
+            <div className="flex-1"/>
             {/* Income / Spending / Savings — 儲蓄率 hero + secondary 收入/支出 pair */}
-            <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+            <div className="flex gap-2 items-stretch">
               {/* Hero: 儲蓄率 */}
-              <div className="ns-surface" style={{ padding: "10px 14px", borderRadius: "var(--ns-r-sm)", background: "var(--ns-accent-soft)", display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 104 }}>
-                <div className="text-xs" style={{  fontSize: 10, marginBottom: 2 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>儲蓄率</div>
+              <div className="ns-surface flex flex-col justify-center min-w-[104px]" style={{ padding: "10px 14px", borderRadius: "var(--ns-r-sm)", background: "var(--ns-accent-soft)" }}>
+                <div className="text-xs muted font-medium" style={{ fontSize: 10, marginBottom: 2 }}>儲蓄率</div>
                 <div
                   className={"num " + (periodIncome > 0 && periodNet >= 0 ? "pos" : "muted")}
                   style={{ fontSize: 22, fontWeight: 600, fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", lineHeight: 1.1 }}
@@ -977,39 +977,39 @@ export function CashFlowRoute() {
                 </div>
               </div>
               {/* Secondary: 收入 / 支出 stacked compact */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, justifyContent: "center" }}>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 6, whiteSpace: "nowrap" }}>
-                  <span className="muted text-caption" style={{ minWidth: 28 }}>收入</span>
-                  <span className="num pos text-caption" style={{ fontWeight: 500 }}>{primaryCurrency} {formatNumber(periodIncome)}</span>
+              <div className="flex flex-col gap-1.5 justify-center">
+                <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+                  <span className="muted text-caption min-w-[28px]">收入</span>
+                  <span className="num pos text-caption font-medium">{primaryCurrency} {formatNumber(periodIncome)}</span>
                 </div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 6, whiteSpace: "nowrap" }}>
-                  <span className="muted text-caption" style={{ minWidth: 28 }}>支出</span>
-                  <span className="num neg text-caption" style={{ fontWeight: 500 }}>{primaryCurrency} {formatNumber(periodExpense)}</span>
+                <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+                  <span className="muted text-caption min-w-[28px]">支出</span>
+                  <span className="num neg text-caption font-medium">{primaryCurrency} {formatNumber(periodExpense)}</span>
                 </div>
               </div>
             </div>
           </div>
           {/* Legend + 日/週/月/年 granularity selector */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+            <div className="flex items-center gap-3.5">
               {([
                 { label: "收入", color: "var(--ns-pos)" },
                 { label: "支出", color: "var(--ns-neg)" },
               ]).map((l) => (
-                <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <div key={l.label} className="flex items-center gap-1.5">
                   <span style={{ width: 9, height: 9, borderRadius: 2, background: l.color, flexShrink: 0 }} />
                   <span className="muted text-caption">{l.label}</span>
                 </div>
               ))}
               {/* Cumulative-net line legend uses a horizontal stroke */}
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <span style={{ width: 12, height: 2, background: "var(--ns-accent)", flexShrink: 0, borderRadius: 1 }} />
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-0.5 shrink-0 rounded-[1px]" style={{ background: "var(--ns-accent)" }} />
                 <span className="muted text-caption">累積淨額</span>
               </div>
             </div>
             <SegmentedControl value={chartGranularity} options={CHART_GRANULARITY_OPTIONS} onChange={setChartGranularity} />
           </div>
-          <div style={{ height: 220 }}>
+          <div className="h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
               {/* Grouped income/expense bars (left axis) + a cumulative-net line
                   on a secondary right axis so the running total doesn't get
@@ -1068,10 +1068,10 @@ export function CashFlowRoute() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5" style={{ marginBottom: 20 }}>
-        <Card style={{ padding: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>分類支出 · {periodLabel}</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+        <Card className="p-5">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs muted font-medium">分類支出 · {periodLabel}</div>
             {selectedCategory !== "all" && (
               <Button variant="ghost" size="xs" onClick={() => setSelectedCategory("all")}>
                 <X size={10} weight="bold" />清除篩選
@@ -1081,7 +1081,7 @@ export function CashFlowRoute() {
 
           {/* Category Bar List */}
           {allCategorySpend.length > 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="flex flex-col gap-3">
               {(showAllCategories ? allCategorySpend : allCategorySpend.slice(0, CATEGORY_BAR_LIMIT)).map((r) => {
                 const pct = totalCategorySpend > 0 ? (r.amount / totalCategorySpend) * 100 : 0;
                 const isActive = selectedCategory === "all" || selectedCategory === r.name;
@@ -1090,16 +1090,16 @@ export function CashFlowRoute() {
                   <div
                     key={r.name}
                     onClick={() => setSelectedCategory(prev => prev === r.name ? "all" : r.name)}
+                    className="cursor-pointer"
                     style={{
-                      cursor: "pointer",
                       opacity: isActive ? 1 : 0.45,
                       transition: "opacity 0.15s ease",
                     }}
                   >
-                    <div className="text-body" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div className="text-body flex justify-between items-center mb-[5px]">
+                      <div className="flex items-center gap-1.5">
                         <Glyph name={r.icon} size={14} />
-                        <span style={{ fontWeight: 500 }}>{r.name}</span>
+                        <span className="font-medium">{r.name}</span>
                       </div>
                       <span className="num muted text-xs">
                         {displayPct}% · {primaryCurrency} {formatNumber(r.amount)}
@@ -1115,29 +1115,29 @@ export function CashFlowRoute() {
                 <button
                   type="button"
                   onClick={() => setShowAllCategories((v) => !v)}
-                  className="muted text-xs"
-                  style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: "2px 0", color: "var(--ns-accent)", fontFamily: "var(--ns-font-mono)" }}
+                  className="muted text-xs text-left cursor-pointer py-0.5"
+                  style={{ background: "none", border: "none", color: "var(--ns-accent)", fontFamily: "var(--ns-font-mono)" }}
                 >
                   {showAllCategories ? "▲ 收合" : `▼ 顯示其餘 ${allCategorySpend.length - CATEGORY_BAR_LIMIT} 類`}
                 </button>
               )}
             </div>
           ) : (
-            <div className="muted text-body" style={{ textAlign: "center", padding: "30px 0" }}>本月尚無支出</div>
+            <div className="muted text-body text-center py-[30px]">本月尚無支出</div>
           )}
         </Card>
         <RankingCard title="商家花費排行" rows={topMerchantSpend} emptyText="此期間尚無商家資料" currency={primaryCurrency} />
       </div>
 
       {preview ? (
-        <Card style={{ marginBottom: 16, padding: "var(--ns-pad-card)" }}>
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>
+        <Card className="mb-4" style={{ padding: "var(--ns-pad-card)" }}>
+          <div className="font-semibold mb-1.5">
             匯入預覽：{preview.valid.length} valid / {preview.invalid.length} invalid
           </div>
           {preview.invalid.map((item) => (
             <div key={item.row} className="text-body" style={{ color: "var(--ns-neg)" }}>Row {item.row}: {item.reason}</div>
           ))}
-          <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+          <div className="mt-3 flex gap-2">
             <Button
               onClick={async () => {
                 const rows = preview.valid.map((item) => item.value);
@@ -1156,25 +1156,25 @@ export function CashFlowRoute() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-5 items-start">
         {/* Transactions grouped by day */}
-        <Card style={{ padding: 0 }}>
+        <Card className="p-0">
            <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--ns-border)" }}>
-             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-               <span className="text-[15px]" style={{ fontWeight: 600 }}>近期動態</span>
+             <div className="flex items-center justify-between gap-3">
+               <span className="text-[15px] font-semibold">近期動態</span>
                <span className="muted text-xs">{displayRows.length} 筆</span>
              </div>
              {/* Search on its own row below the title (B9). */}
-             <label style={{ position: "relative", display: "block", marginTop: 10 }}>
+             <label className="relative block mt-2.5">
                <MagnifyingGlass size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--ns-muted)" }} />
-               <input className="ns-input text-xs" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜尋商家、分類或備註" style={{ width: "100%", height: 34, padding: "0 12px 0 30px" }} />
+               <input className="ns-input text-xs w-full h-[34px]" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜尋商家、分類或備註" style={{ padding: "0 12px 0 30px" }} />
              </label>
            </div>
 
            {dayGroups.length === 0 ? (
-            <div style={{ padding: "56px 20px", textAlign: "center" }}>
-              <div style={{ width: 52, height: 52, borderRadius: "var(--ns-r-md)", background: "var(--ns-accent-soft)", color: "var(--ns-accent)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
+            <div className="text-center" style={{ padding: "56px 20px" }}>
+              <div className="w-[52px] h-[52px] inline-flex items-center justify-center mb-3.5" style={{ borderRadius: "var(--ns-r-md)", background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
                 <Receipt size={24} weight="duotone" />
               </div>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>還沒有記帳資料</div>
+              <div className="font-semibold mb-1.5">還沒有記帳資料</div>
               <div className="flex flex-wrap justify-center gap-2">
                 <Button onClick={() => openCreate("expense")}><Plus size={14} weight="bold" />新增交易</Button>
                 <Button variant="outline" onClick={() => csvInputRef.current?.click()}><UploadSimple size={14} />匯入 CSV</Button>
@@ -1184,13 +1184,12 @@ export function CashFlowRoute() {
             <>
               {dayGroups.map((g, gi) => (
               <div key={g.date}>
-                <div style={{
+                <div className="flex items-center justify-between" style={{
                   padding: "14px 22px", borderBottom: "1px solid var(--ns-border)",
                   borderTop: gi === 0 ? "none" : "none",
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
                   background: "var(--ns-bg-elev)",
                 }}>
-                  <span className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{g.date}</span>
+                  <span className="text-xs muted font-medium">{g.date}</span>
                   <span className="dim mono text-caption">
                     Net <span className={g.net >= 0 ? "pos" : "neg"}>
                       {(g.net >= 0 ? "+" : "−")}{primaryCurrency} {formatNumber(Math.abs(g.net))}
@@ -1217,9 +1216,9 @@ export function CashFlowRoute() {
               </div>
               ))}
               {totalPages > 1 && (
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 12, padding: '16px 20px 20px' }}>
+                <div className="flex justify-center gap-3" style={{ padding: '16px 20px 20px' }}>
                   <Button variant="outline" disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>上一頁</Button>
-                  <span className="text-body" style={{ alignSelf: 'center', color: 'var(--ns-fg-muted)' }}>{page} / {totalPages}</span>
+                  <span className="text-body self-center muted">{page} / {totalPages}</span>
                   <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>下一頁</Button>
                 </div>
               )}
@@ -1228,7 +1227,7 @@ export function CashFlowRoute() {
         </Card>
 
         {/* Side rankings */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div className="flex flex-col gap-5">
           <UpcomingPayments recurringRows={recurringRows} accountName={accountName} onPost={async (id) => { try { await postRecurring.mutateAsync(id); toast.success("已記入交易"); } catch { toast.error("記入失敗"); } }} posting={postRecurring.isPending} />
         </div>
       </div>
@@ -1381,14 +1380,14 @@ function SettleModal({
   return (
     <div
       onClick={onCancel}
-      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+      className="ns-modal-scrim"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)", padding: 20 }}
+        className="ns-modal-panel"
       >
-        <div className="text-[15px]" style={{ fontWeight: 600, marginBottom: 4 }}>{isReceivable ? "收款結清" : "付款結清"}</div>
-        <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginBottom: 16, lineHeight: 1.6 }}>
+        <div className="text-[15px] font-semibold mb-1">{isReceivable ? "收款結清" : "付款結清"}</div>
+        <div className="text-xs muted mb-4" style={{ lineHeight: 1.6 }}>
           {row.merchant || row.name || (isReceivable ? "應收款項" : "應付款項")} · {amountLabel}
           <br />
           {isReceivable ? "款項實際收到哪個帳戶？" : "從哪個帳戶付款？"}
@@ -1404,7 +1403,7 @@ function SettleModal({
             positionerClassName="z-[1001]"
           />
         </DrawerField>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+        <div className="flex justify-end gap-2" style={{ marginTop: 18 }}>
           <Button variant="outline" onClick={onCancel} disabled={pending}>取消</Button>
           <Button onClick={() => accountId && onConfirm(accountId)} disabled={pending || !accountId}>
             <Check size={14} weight="bold" />結清
@@ -1434,15 +1433,15 @@ function RecurringScopeModal({
   return (
     <div
       onClick={onCancel}
-      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+      className="ns-modal-scrim"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)", padding: 20 }}
+        className="ns-modal-panel"
       >
-        <div className="text-[15px]" style={{ fontWeight: 600, marginBottom: 4 }}>套用變更範圍</div>
-        <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginBottom: 16 }}>這是由週期規則產生的紀錄，請選擇要套用的範圍。</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="text-[15px] font-semibold mb-1">套用變更範圍</div>
+        <div className="text-xs muted mb-4">這是由週期規則產生的紀錄，請選擇要套用的範圍。</div>
+        <div className="flex flex-col gap-2">
           {options.map((o) => (
             <button
               key={o.scope}
@@ -1455,11 +1454,11 @@ function RecurringScopeModal({
               }}
             >
               <div className="text-body" style={{ fontWeight: 500, color: "var(--ns-fg)" }}>{o.label}</div>
-              <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginTop: 3, lineHeight: 1.5 }}>{o.desc}</div>
+              <div className="text-xs muted" style={{ marginTop: 3, lineHeight: 1.5 }}>{o.desc}</div>
             </button>
           ))}
         </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+        <div className="flex justify-end mt-4">
           <Button variant="outline" onClick={onCancel} disabled={pending}>取消</Button>
         </div>
       </div>
@@ -1489,17 +1488,17 @@ function InstallmentDeleteModal({
   return (
     <div
       onClick={onCancel}
-      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+      className="ns-modal-scrim"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)", padding: 20 }}
+        className="ns-modal-panel"
       >
-        <div className="text-[15px]" style={{ fontWeight: 600, marginBottom: 4 }}>刪除分期紀錄</div>
-        <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginBottom: 16 }}>
+        <div className="text-[15px] font-semibold mb-1">刪除分期紀錄</div>
+        <div className="text-xs muted mb-4">
           {label ? `這是第 ${row.installmentIndex}/${row.installmentTotal} 期的分期紀錄，請選擇刪除範圍。` : "請選擇刪除範圍。"}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="flex flex-col gap-2">
           {options.map((o) => (
             <button
               key={o.mode}
@@ -1512,11 +1511,11 @@ function InstallmentDeleteModal({
               }}
             >
               <div className="text-body" style={{ fontWeight: 500, color: o.mode === "all" ? "var(--ns-neg)" : "var(--ns-fg)" }}>{o.label}</div>
-              <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginTop: 3, lineHeight: 1.5 }}>{o.desc}</div>
+              <div className="text-xs muted" style={{ marginTop: 3, lineHeight: 1.5 }}>{o.desc}</div>
             </button>
           ))}
         </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+        <div className="flex justify-end mt-4">
           <Button variant="outline" onClick={onCancel} disabled={pending}>取消</Button>
         </div>
       </div>
@@ -1565,28 +1564,28 @@ function LedgerRow({
     ].filter(Boolean);
     return (
       <div
-        className="ns-cf-row"
+        className="ns-cf-row flex items-center gap-3 cursor-pointer"
         onClick={onEdit}
-        style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderBottom: "1px solid var(--ns-border)", cursor: "pointer" }}
+        style={{ padding: "12px 20px", borderBottom: "1px solid var(--ns-border)" }}
       >
-        <div style={{ width: 34, height: 34, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div className="w-[34px] h-[34px] shrink-0 flex items-center justify-center" style={{ borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)" }}>
           <ArrowsLeftRight size={15} />
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span className="text-sm" style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium whitespace-nowrap overflow-hidden text-ellipsis">
               轉帳{crossCcy ? ` · ${source.currency} → ${dest.currency}` : ""}
             </span>
           </div>
-          <div className="muted text-caption" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subtitleParts.join(" · ")}</div>
+          <div className="muted text-caption truncate">{subtitleParts.join(" · ")}</div>
         </div>
-        <div style={{ textAlign: "right" }}>
+        <div className="text-right">
           <div className="num text-[14.5px]" style={{ color: "var(--ns-fg)" }}>{currencySymbol(source.currency)}{formatNumber(Math.abs(source.amount))}</div>
           {crossCcy ? (
             <div className="muted text-micro" style={{ fontFamily: "var(--ns-font-mono)" }}>→ {currencySymbol(dest.currency)}{formatNumber(Math.abs(dest.amount))}</div>
           ) : null}
         </div>
-        <div className="ns-cf-actions" style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
+        <div className="ns-cf-actions flex gap-1" onClick={e => e.stopPropagation()}>
           <Button variant="ghost" size="icon-sm" title="複製" onClick={onDuplicate}><CopySimple size={13} /></Button>
           <Button variant="ghost" size="icon-sm" title="刪除" onClick={onDelete} style={{ color: "var(--ns-neg)" }}><Trash size={13} /></Button>
         </div>
@@ -1609,25 +1608,25 @@ function LedgerRow({
 
   return (
     <div
-      className="ns-cf-row"
+      className="ns-cf-row flex items-center gap-3 cursor-pointer"
       onClick={onEdit}
-      style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderBottom: "1px solid var(--ns-border)", cursor: "pointer" }}
+      style={{ padding: "12px 20px", borderBottom: "1px solid var(--ns-border)" }}
     >
-      <div style={{ width: 34, height: 34, borderRadius: "var(--ns-r-sm)", flexShrink: 0, background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div className="w-[34px] h-[34px] shrink-0 flex items-center justify-center" style={{ borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)" }}>
         {isTransfer ? <ArrowsLeftRight size={15} /> : categoryIcon ? <Glyph name={categoryIcon} size={16} /> : <Tag size={15} />}
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span className="text-sm" style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium whitespace-nowrap overflow-hidden text-ellipsis">
             {row.name || row.category || (isTransfer ? "轉帳" : "未命名")}
           </span>
           {isReceivable ? <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收</Badge> : null}
           {isPayable ? <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}>應付</Badge> : null}
           {installmentLabel(row) ? <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-accent)", borderColor: "var(--ns-accent)" }}>{installmentLabel(row)}</Badge> : null}
         </div>
-        <div className="muted text-caption" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subtitle}</div>
+        <div className="muted text-caption truncate">{subtitle}</div>
       </div>
-      <div style={{ textAlign: "right" }}>
+      <div className="text-right">
         {row.originalCurrency && row.originalAmount != null ? (
           <>
             <div className="num text-[14.5px]" style={{ color }}>{sign}{currencySymbol(row.originalCurrency)}{formatNumber(Math.abs(row.originalAmount))}</div>
@@ -1637,7 +1636,7 @@ function LedgerRow({
           <div className="num text-[14.5px]" style={{ color }}>{sign}{currencySymbol(row.currency)}{formatNumber(Math.abs(row.amount))}</div>
         )}
       </div>
-      <div className="ns-cf-actions" style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>
+      <div className="ns-cf-actions flex gap-1" onClick={e => e.stopPropagation()}>
         {(isReceivable || isPayable) ? (
           <Button variant="ghost" size="icon-sm" title="結清" onClick={onSettle}><Check size={14} /></Button>
         ) : null}
@@ -1657,8 +1656,8 @@ function StatCard({ label, value, tone }: { label: string; value: string; tone: 
   const color = tone === "pos" ? "var(--ns-pos)" : tone === "neg" ? "var(--ns-neg)" : "var(--ns-fg)";
   return (
     <Card style={{ padding: 18 }}>
-      <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</div>
-      <div className="num text-stat" style={{ fontWeight: 500, color }}>{value}</div>
+      <div className="text-xs mb-2 muted font-medium">{label}</div>
+      <div className="num text-stat font-medium" style={{ color }}>{value}</div>
     </Card>
   );
 }
@@ -1667,15 +1666,15 @@ function RankingCard({ title, rows, emptyText, currency }: { title: string; rows
   const max = rows[0]?.amount ?? 1;
   return (
     <Card style={{ padding: "var(--ns-pad-card)" }}>
-      <div className="text-sm" style={{ fontWeight: 600, marginBottom: 14 }}>{title}</div>
+      <div className="text-sm font-semibold mb-3.5">{title}</div>
       {rows.length === 0 ? (
         <div className="muted text-body">{emptyText}</div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div className="flex flex-col gap-3">
           {rows.map((row) => (
             <div key={row.name}>
-              <div className="text-body" style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.name}</span>
+              <div className="text-body flex justify-between mb-[5px]">
+                <span className="truncate">{row.name}</span>
                 <span className="num muted">{currency} {formatNumber(row.amount)}</span>
               </div>
               <div style={{ height: 6, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
@@ -1702,21 +1701,21 @@ function UpcomingPayments({ recurringRows, accountName, onPost, posting }: { rec
 
   return (
     <Card style={{ padding: "var(--ns-pad-card)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+      <div className="flex items-center gap-2 mb-3.5">
         <CalendarBlank size={15} weight="duotone" style={{ color: "var(--ns-accent)" }} />
-        <span className="text-sm" style={{ fontWeight: 600 }}>近 2 週固定收支</span>
+        <span className="text-sm font-semibold">近 2 週固定收支</span>
       </div>
       {upcoming.length === 0 ? (
         <div className="muted text-body">近期沒有排定的週期事件。</div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="flex flex-col gap-2">
           {upcoming.map((row) => (
-            <div key={row.id} className="text-body" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.merchant || row.category}</div>
+            <div key={row.id} className="text-body flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="truncate">{row.merchant || row.category}</div>
                 <div className="muted text-caption">{row.nextRunDate} · {accountName(row.accountId)}</div>
               </div>
-              <span className="num" style={{ color: row.entryType === "income" ? "var(--ns-pos)" : "var(--ns-neg)", whiteSpace: "nowrap" }}>
+              <span className="num whitespace-nowrap" style={{ color: row.entryType === "income" ? "var(--ns-pos)" : "var(--ns-neg)" }}>
                 {row.entryType === "income" ? "+" : "−"}{row.currency} {formatNumber(Math.abs(row.amount))}
               </span>
               <Button variant="ghost" size="xs" className="whitespace-nowrap" disabled={posting} onClick={() => onPost(row.id)} title="立即記入這筆交易">記入</Button>
@@ -1895,32 +1894,32 @@ function EntryDrawer({
     : [];
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={onClose}>
+    <div className="fixed inset-0 z-50" onClick={onClose}>
       {/* Scrim covers only the content area, leaving the native-vibrancy
           sidebar untouched on desktop; full-width below the lg breakpoint. */}
       <style>{`@media (max-width:1023.98px){.ns-entry-scrim{left:0 !important;}}`}</style>
       <div
-        className="ns-entry-scrim"
-        style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: scrimLeft, background: "rgba(0,0,0,0.4)" }}
+        className="ns-entry-scrim absolute top-0 right-0 bottom-0"
+        style={{ left: scrimLeft, background: "rgba(0,0,0,0.4)" }}
       />
       <div
         onClick={(event) => event.stopPropagation()}
-        className="animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)]"
+        className="animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)] absolute right-0 top-0 bottom-0 flex flex-col"
         style={{
-          position: "absolute", right: 0, top: 0, bottom: 0, width: "min(500px, 100%)",
+          width: "min(500px, 100%)",
           background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
-          display: "flex", flexDirection: "column", boxShadow: "-20px 0 60px rgba(0,0,0,0.4)",
+          boxShadow: "-20px 0 60px rgba(0,0,0,0.4)",
         }}
       >
         {/* Header */}
-        <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 32, height: 32, borderRadius: "var(--ns-r-sm)", background: meta.color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div className="flex items-center gap-3" style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--ns-border)" }}>
+          <div className="w-8 h-8 flex items-center justify-center" style={{ borderRadius: "var(--ns-r-sm)", background: meta.color, color: "#fff" }}>
             <Plus size={15} weight="bold" />
           </div>
-          <h2 className="text-lg" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+          <h2 className="text-lg m-0 font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>
             {editing ? "編輯交易" : "新增交易"}
           </h2>
-          <div style={{ flex: 1 }} />
+          <div className="flex-1" />
           {onOpenImport && !editing && (
             <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => { onClose(); onOpenImport(); }}>
               <UploadSimple size={14} style={{ marginRight: 6 }} />匯入 CSV
@@ -1931,7 +1930,7 @@ function EntryDrawer({
 
         {/* Type tabs */}
         <div style={{ padding: "16px 24px 0" }}>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <div className="flex gap-1.5 flex-wrap">
             {TYPE_ORDER.map((t) => {
               const m = TYPE_META[t];
               const active = type === t;
@@ -1956,16 +1955,15 @@ function EntryDrawer({
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, overflow: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
+        <div className="flex-1 overflow-auto flex flex-col gap-[18px]" style={{ padding: "20px 24px" }}>
           {/* Recurring rule banner */}
           {linkedRule && (
-            <div className="text-xs" style={{
+            <div className="text-xs flex items-center gap-2" style={{
               padding: "10px 14px", borderRadius: "var(--ns-r-sm)",
               background: "var(--ns-accent-soft)", border: "1px solid var(--ns-accent)",
-              display: "flex", alignItems: "center", gap: 8,
             }}>
-              <span style={{ color: "var(--ns-accent)", fontWeight: 600 }}>週期交易</span>
-              <span style={{ color: "var(--ns-fg-muted)" }}>
+              <span className="font-semibold" style={{ color: "var(--ns-accent)" }}>週期交易</span>
+              <span className="muted">
                 此筆由週期規則「{linkedRule.merchant || linkedRule.category}」自動產生（{recurringFrequencyLabels[linkedRule.frequency]}）
               </span>
             </div>
@@ -2084,7 +2082,7 @@ function EntryDrawer({
 
           {/* Transfer from → to */}
           {type === "transfer" && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="grid grid-cols-2 gap-3.5">
               <DrawerField label="從（轉出）" required>
                 <AccountFilter
                   accounts={accountRows}
@@ -2125,7 +2123,7 @@ function EntryDrawer({
                 style={{ fontFamily: "var(--ns-font-mono)" }}
                 {...destAmountField}
               />
-              <div className="muted text-caption" style={{ marginTop: 4 }}>
+              <div className="muted text-caption mt-1">
                 跨幣轉帳：輸入對方帳戶實際收到的金額
                 {transferForm.sourceAmount > 0 && (transferForm.destinationAmount ?? 0) > 0
                   ? `（匯率約 1 ${transferForm.sourceCurrency} ≈ ${(transferForm.destinationAmount! / transferForm.sourceAmount).toFixed(4)} ${transferForm.destinationCurrency}）`
@@ -2143,7 +2141,7 @@ function EntryDrawer({
                 style={{ fontFamily: "var(--ns-font-mono)" }}
                 {...transferFeeField}
               />
-              <div className="muted text-caption" style={{ marginTop: 4 }}>跨行/跨國轉帳手續費，將從轉出帳戶另計一筆「手續費」支出。</div>
+              <div className="muted text-caption mt-1">跨行/跨國轉帳手續費，將從轉出帳戶另計一筆「手續費」支出。</div>
             </DrawerField>
           )}
 
@@ -2206,7 +2204,7 @@ function EntryDrawer({
 
               {/* 2 · Account + date, with a suggested account from history */}
               <div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div className="grid grid-cols-2 gap-3.5">
                   <DrawerField label={type === "expense" ? "支出帳戶" : "收入帳戶"} required>
                     <AccountFilter
                       accounts={accountRows}
@@ -2237,7 +2235,7 @@ function EntryDrawer({
 
               {/* 3 · Name + merchant, with suggested merchants for this category */}
               <div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div className="grid grid-cols-2 gap-3.5">
                   <DrawerField label="名稱">
                     <input className="ns-input" value={ledgerForm.name} onChange={(e) => setLedgerForm({ ...ledgerForm, name: e.target.value })} placeholder={type === "expense" ? "計程車" : "月薪"} />
                   </DrawerField>
@@ -2280,7 +2278,7 @@ function EntryDrawer({
                       setInstallmentPeriods(Number.isNaN(v) || v < 0 ? 0 : Math.min(60, v));
                     }}
                   />
-                  <div className="muted text-caption" style={{ marginTop: 4 }}>
+                  <div className="muted text-caption mt-1">
                     {activeInstallment
                       ? `總額將平均拆成 ${installmentPeriods} 筆，逐月入帳到對應的帳單週期。`
                       : "輸入 2–60（期數）啟用分期；留空或填 0 表示不分期。"}
@@ -2290,7 +2288,7 @@ function EntryDrawer({
 
               {type === "expense" && isCreditAccount && (
                 <DrawerField label="入帳時間（信用卡）">
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div className="flex gap-2">
                     <button
                       type="button"
                       className="ns-input"
@@ -2317,7 +2315,7 @@ function EntryDrawer({
                       style={{ fontFamily: "var(--ns-font-mono)", marginTop: 8 }}
                     />
                   )}
-                  <div className="muted text-caption" style={{ marginTop: 4 }}>
+                  <div className="muted text-caption mt-1">
                     {ledgerForm.postDate
                       ? "這筆消費仍立即計為負債，但會歸到入帳日所屬的帳單週期。"
                       : "預設依消費日歸入帳單週期。"}
@@ -2347,7 +2345,7 @@ function EntryDrawer({
                         style={{ fontFamily: "var(--ns-font-mono)" }}
                         {...expenseFeeField}
                       />
-                      <div className="muted text-caption" style={{ marginTop: 4 }}>
+                      <div className="muted text-caption mt-1">
                         {type === "income"
                           ? "薪轉/跨行/海外匯入手續費，將另計一筆「手續費」支出。收入以總額（gross）計入，帳戶實際入帳為總額扣除手續費。"
                           : "海外刷卡/跨國交易手續費，將另計一筆「手續費」支出。"}
@@ -2398,7 +2396,7 @@ function EntryDrawer({
                 <input className="ns-input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={{ fontFamily: "var(--ns-font-mono)" }} />
               </DrawerField>
               <DrawerField label="分類">
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                <div className="flex flex-wrap gap-1.5">
                   {categories.map((c) => {
                     const active = ledgerForm.category === c.name;
                     return (
@@ -2457,7 +2455,7 @@ function EntryDrawer({
         </div>
 
         {/* Footer */}
-        <div style={{ padding: "14px 24px", borderTop: "1px solid var(--ns-border)", display: "flex", gap: 8 }}>
+        <div className="flex gap-2" style={{ padding: "14px 24px", borderTop: "1px solid var(--ns-border)" }}>
           <Button variant="outline" className="shrink-0 grow-0 basis-20 justify-center" onClick={onClose}>取消</Button>
           <Button
             className="flex-1 justify-center"
@@ -2476,7 +2474,7 @@ function EntryDrawer({
 function DrawerField({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
   return (
     <div>
-      <label className="text-caption" style={{ display: "block", color: "var(--ns-fg-muted)", marginBottom: 6, letterSpacing: 0.04, textTransform: "uppercase" }}>
+      <label className="text-caption block muted mb-1.5 uppercase" style={{ letterSpacing: 0.04 }}>
         {label}
         {required ? <span style={{ color: "var(--ns-neg)", marginLeft: 3 }}>*</span> : null}
       </label>
@@ -2622,8 +2620,8 @@ function SuggestionRow({
   onPick: (key: string) => void;
 }) {
   return (
-    <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
-      <span className="muted text-caption" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      <span className="muted text-caption inline-flex items-center gap-1">
         <Sparkle size={12} weight="fill" style={{ color: "var(--ns-accent)" }} />
         依過往紀錄建議
       </span>
@@ -2661,7 +2659,7 @@ function MerchantAutocomplete({
   const [open, setOpen] = useState(false);
   const showPanel = open && suggestions.length > 0;
   return (
-    <div style={{ position: "relative" }}>
+    <div className="relative">
       <input
         className="ns-input"
         value={value}
@@ -2671,7 +2669,7 @@ function MerchantAutocomplete({
         placeholder={placeholder}
       />
       {showPanel ? (
-        <div style={{ position: "absolute", left: 0, right: 0, zIndex: 20, marginTop: 4, overflow: "hidden", borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-border)", background: "var(--ns-bg-card)", boxShadow: "var(--ns-shadow-2)" }}>
+        <div className="absolute left-0 right-0 z-20 mt-1 overflow-hidden" style={{ borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-border)", background: "var(--ns-bg-card)", boxShadow: "var(--ns-shadow-2)" }}>
           {suggestions.slice(0, 8).map((suggestion) => (
             <button
               key={suggestion}
@@ -2681,8 +2679,8 @@ function MerchantAutocomplete({
                 onChange(suggestion);
                 setOpen(false);
               }}
-              className="text-body"
-              style={{ display: "block", width: "100%", padding: "8px 12px", textAlign: "left", background: "transparent", border: "none", color: "var(--ns-fg)", cursor: "pointer" }}
+              className="text-body block w-full text-left cursor-pointer"
+              style={{ padding: "8px 12px", background: "transparent", border: "none", color: "var(--ns-fg)" }}
             >
               {suggestion}
             </button>
