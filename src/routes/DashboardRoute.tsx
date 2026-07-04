@@ -69,6 +69,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popove
 import { SquaresFour } from "@phosphor-icons/react";
 import { buildMonthlySummaryInput } from "../domain/monthlySummary";
 import { isAvailable as isFmAvailable, generateMonthlySummary } from "../lib/foundationModels";
+import { MarkdownText } from "../components/MarkdownText";
 
 const STRIP_PERIOD_LABELS: Record<StripPeriod, string> = {
   "1D": "近 1 日",
@@ -104,7 +105,8 @@ const DASHBOARD_CARDS: Array<{ key: string; label: string }> = [
   { key: "recentActivity", label: "最近交易" },
   { key: "topMovers", label: "今日漲跌" },
   { key: "projection", label: "30 年淨值預測" },
-  { key: "monthlySummary", label: "本月摘要 (AI)" },
+  // 本月摘要 (AI) moved inline under the greeting header (2026-07 · plan 116);
+  // no longer a layout-toggle card — shows whenever FM is available and there's data.
 ];
 
 
@@ -772,6 +774,17 @@ export function DashboardRoute() {
         <div>
           <div className="text-xs ns-field-label">Overview · {monthLabel}</div>
           <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>{greeting}</h1>
+          {hasAnyData ? (
+            <MonthlySummaryInline
+              monthKey={monthKey}
+              income={monthIncome}
+              expense={monthExpense}
+              savingsRatePct={savingsRate}
+              netWorthChange={momChange}
+              currency={primaryCurrency}
+              budgetCats={budgetCats}
+            />
+          ) : null}
         </div>
         {/* Account filter + 更新. The single time-range control lives on the net
             worth card (the period segmented control), matching the prototype. */}
@@ -1265,28 +1278,17 @@ export function DashboardRoute() {
         />
       ) : null}
 
-      {/* Row 6 · On-device AI monthly summary */}
-      {cardVisible("monthlySummary") && hasAnyData ? (
-        <MonthlySummaryCard
-          monthKey={monthKey}
-          income={monthIncome}
-          expense={monthExpense}
-          savingsRatePct={savingsRate}
-          netWorthChange={momChange}
-          currency={primaryCurrency}
-          budgetCats={budgetCats}
-        />
-      ) : null}
     </div>
   );
 }
 
 /**
- * On-device AI monthly summary card.
- * Renders only when Foundation Models is available AND there is data.
- * Uses aggregate numbers only — no raw transactions/merchants/accounts/tickers.
+ * On-device AI monthly summary, rendered inline under the greeting header
+ * (not a card — kept low-key/immersive). Renders only when Foundation
+ * Models is available AND there is data. Uses aggregate numbers only — no
+ * raw transactions/merchants/accounts/tickers.
  */
-function MonthlySummaryCard({
+function MonthlySummaryInline({
   monthKey,
   income,
   expense,
@@ -1350,28 +1352,29 @@ function MonthlySummaryCard({
   if (available === false || available === null) return null;
   // Don't render if there's no month data yet.
   if (income + expense === 0) return null;
+  // Don't render if generation failed with nothing to show — stay quiet.
+  if (!loading && !summaryText) return null;
 
   return (
-    <Card style={{ padding: "var(--ns-pad-card)", marginBottom: 16 }}>
-      <SectionHead eyebrow="AI summary · on-device" title="本月摘要" />
+    <div className="mt-2 flex max-w-xl items-start gap-2">
       {loading ? (
-        <div className="text-body" style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--ns-fg-muted)" }}>
-          <Skeleton style={{ width: "100%", height: 48 }} />
-        </div>
-      ) : summaryText ? (
-        <div className="text-body" style={{ lineHeight: 1.7, color: "var(--ns-fg)" }}>
-          {summaryText}
-        </div>
+        <Skeleton className="h-5 w-full" />
       ) : (
-        <div className="text-body muted">摘要暫時無法產生</div>
+        <MarkdownText text={summaryText ?? ""} className="text-body muted leading-relaxed" />
       )}
       {!loading && summaryText ? (
-        <div style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span className="text-caption muted">由裝置端 AI 產生，不會上傳任何資料</span>
-          <Button variant="ghost" size="xs" onClick={generate}>重新產生</Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="xs"
+          className="shrink-0"
+          onClick={generate}
+          title="由裝置端 AI 產生，不會上傳任何資料 · 重新產生"
+          aria-label="重新產生本月摘要"
+        >
+          <ArrowsClockwise size={12} />
+        </Button>
       ) : null}
-    </Card>
+    </div>
   );
 }
 
