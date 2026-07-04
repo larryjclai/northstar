@@ -187,7 +187,7 @@ export function ReconcileRoute() {
     return (
       <div className="grid min-h-[50vh] place-items-center p-6 text-center">
         <div className="max-w-md">
-          <h3 className="text-[17px]" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+          <h3 className="text-[17px] font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>
             無法載入資料
           </h3>
           <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
@@ -220,23 +220,23 @@ export function ReconcileRoute() {
   return (
     <div style={{ height: "100%", overflow: "auto", padding: "24px 32px 100px" }}>
       {/* Breadcrumb */}
-      <div className="text-body" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18, color: "var(--ns-fg-muted)" }}>
+      <div className="text-body flex items-center gap-2" style={{ marginBottom: 18, color: "var(--ns-fg-muted)" }}>
         <span style={{ cursor: "pointer" }} onClick={() => navigate({ to: "/accounts" })}>帳戶</span>
         <CaretRight size={13} />
-        <span style={{ fontWeight: 500, color: "var(--ns-fg)" }}>{account.name} · 對帳</span>
+        <span className="font-medium" style={{ color: "var(--ns-fg)" }}>{account.name} · 對帳</span>
       </div>
 
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, gap: 16, flexWrap: "wrap" }}>
+      <div className="flex items-end justify-between flex-wrap gap-4 mb-5">
         <div>
           <div className="text-xs ns-field-label">Reconciliation · {account.currency}</div>
-          <h1 className="text-[26px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, fontWeight: 600 }}>{account.name} 對帳</h1>
-          <p className="muted text-body" style={{ marginTop: 4, marginBottom: 0 }}>
+          <h1 className="text-[26px] m-0 font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>{account.name} 對帳</h1>
+          <p className="muted text-body mt-1 mb-0">
             依結帳日將交易分期核對。
             {account.statementDay ? ` 結帳日每月 ${account.statementDay} 號。` : ""}
             {account.paymentDueDay ? ` 繳款日每月 ${account.paymentDueDay} 號。` : ""}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="flex gap-2">
           {account.type === "credit" && account.paymentDueDay && (
             <Button
               variant={isPaid ? "default" : "outline"}
@@ -253,45 +253,46 @@ export function ReconcileRoute() {
 
       {/* Summary — current open cycle. */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 }}>
-        <Card style={{ padding: 16 }}>
-          <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>本期消費</div>
+        <Card className="p-4">
+          <div className="text-xs mb-2 font-medium" style={{ color: "var(--ns-fg-muted)" }}>本期消費</div>
           <div className="num text-[19px]" style={{ color: currentSpend > 0 ? "var(--ns-neg)" : undefined }}>NT${formatNumber(currentSpend)}</div>
           {currentRefunds > 0.5 ? (
-            <div className="muted text-caption" style={{ marginTop: 4 }}>
+            <div className="muted text-caption mt-1">
               退款 −NT${formatNumber(currentRefunds)} · 淨額 NT${formatNumber(currentNet)}
             </div>
           ) : null}
         </Card>
-        <Card style={{ padding: 16 }}>
-          <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>本期已對帳 / 筆數</div>
+        <Card className="p-4">
+          <div className="text-xs mb-2 font-medium" style={{ color: "var(--ns-fg-muted)" }}>本期已對帳 / 筆數</div>
           <div className="num text-[19px]">{currentReconciled} / {currentCount}</div>
         </Card>
-        <Card style={{ padding: 16 }}>
-          <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>卡片未繳總額</div>
+        <Card className="p-4">
+          <div className="text-xs mb-2 font-medium" style={{ color: "var(--ns-fg-muted)" }}>卡片未繳總額</div>
           <div className="num text-[19px]" style={{ color: owed > 0 ? "var(--ns-neg)" : undefined }}>NT${formatNumber(owed)}</div>
         </Card>
       </div>
       {currentUnreconciled > 0 ? (
-        <div className="muted text-xs" style={{ marginBottom: 12 }}>本期尚有 NT${formatNumber(currentUnreconciled)} 未對帳。</div>
+        <div className="muted text-xs mb-3">本期尚有 NT${formatNumber(currentUnreconciled)} 未對帳。</div>
       ) : null}
 
       {/* Statement periods */}
       {periods.length === 0 ? (
-        <Card style={{ padding: "var(--ns-pad-card)" }}><div className="muted text-body" style={{ padding: 40, textAlign: "center" }}>此帳戶尚無交易紀錄。</div></Card>
+        <Card style={{ padding: "var(--ns-pad-card)" }}><div className="muted text-body text-center" style={{ padding: 40 }}>此帳戶尚無交易紀錄。</div></Card>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div className="flex flex-col gap-3">
           {periods.map((period) => {
             const open = isOpen(period.key);
             const unreconciled = period.rows.filter((r) => !r.isReviewed).length;
             return (
-              <Card key={period.key} style={{ padding: 0 }}>
+              <Card key={period.key} className="p-0">
                 <div
                   onClick={() => toggleExpand(period.key)}
-                  style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", borderBottom: open ? "1px solid var(--ns-border)" : "none" }}
+                  className="flex items-center gap-3"
+                  style={{ padding: "14px 18px", cursor: "pointer", borderBottom: open ? "1px solid var(--ns-border)" : "none" }}
                 >
                   {open ? <CaretDown size={14} /> : <CaretRight size={14} />}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="text-sm" style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 500 }}>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm flex items-center gap-2 font-medium">
                       {period.isCurrent ? <Badge variant="outline" className="rounded-full text-micro" style={{ padding: "2px 7px" }}>本期</Badge> : null}
                       {period.label}
                       {period.isPaid ? <Badge variant="outline" className="rounded-full text-micro" style={{ padding: "2px 7px", color: "var(--ns-pos)", borderColor: "var(--ns-pos)" }}>已繳款</Badge> : null}
@@ -301,8 +302,8 @@ export function ReconcileRoute() {
                       {period.dueDate ? ` · 繳款日 ${period.dueDate.slice(5)}` : ""}
                     </div>
                   </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div className="num text-[15px]" style={{ fontWeight: 500, color: period.spend > 0 ? "var(--ns-neg)" : "var(--ns-fg-dim)" }}>
+                  <div className="text-right">
+                    <div className="num text-[15px] font-medium" style={{ color: period.spend > 0 ? "var(--ns-neg)" : "var(--ns-fg-dim)" }}>
                       NT${formatNumber(period.spend)}
                     </div>
                     {period.spend + period.total > 0.5 ? (
@@ -328,14 +329,15 @@ export function ReconcileRoute() {
                       <div
                         key={row.id}
                         onClick={() => toggle(row.id, row.isReviewed)}
-                        style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none", cursor: "pointer", opacity: row.isReviewed ? 0.6 : 1 }}
+                        className="flex items-center gap-3.5 px-5 py-3"
+                        style={{ borderTop: i ? "1px solid var(--ns-border)" : "none", cursor: "pointer", opacity: row.isReviewed ? 0.6 : 1 }}
                       >
-                        {row.isReviewed ? <CheckCircle size={20} weight="fill" style={{ color: "var(--ns-accent)", flexShrink: 0 }} /> : <Circle size={20} style={{ color: "var(--ns-fg-dim)", flexShrink: 0 }} />}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div className="text-sm" style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.merchant || row.name || row.category || "交易"}</div>
+                        {row.isReviewed ? <CheckCircle size={20} weight="fill" className="shrink-0" style={{ color: "var(--ns-accent)" }} /> : <Circle size={20} className="shrink-0" style={{ color: "var(--ns-fg-dim)" }} />}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">{row.merchant || row.name || row.category || "交易"}</div>
                           <div className="muted text-caption">
                             {row.date.slice(0, 10)}{row.category ? ` · ${row.category}` : ""}
-                            {row.postDate ? <Badge variant="outline" className="rounded-full text-micro" style={{ marginLeft: 6, padding: "1px 6px", color: "var(--ns-accent)", borderColor: "var(--ns-accent)" }}>延後 {row.postDate.slice(5, 10)}</Badge> : null}
+                            {row.postDate ? <Badge variant="outline" className="rounded-full text-micro ml-1.5" style={{ padding: "1px 6px", color: "var(--ns-accent)", borderColor: "var(--ns-accent)" }}>延後 {row.postDate.slice(5, 10)}</Badge> : null}
                           </div>
                         </div>
                         <div className="num text-sm" style={{ color: row.amount < 0 ? "var(--ns-neg)" : "var(--ns-pos)", whiteSpace: "nowrap" }}>
@@ -424,26 +426,29 @@ function PayCardModal({
   return (
     <div
       onClick={onCancel}
-      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+      className="flex items-center justify-center p-5"
+      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.4)" }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)", padding: 20 }}
+        className="p-5"
+        style={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)" }}
       >
-        <div className="text-[15px]" style={{ fontWeight: 600, marginBottom: 4 }}>信用卡繳款</div>
-        <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginBottom: 16, lineHeight: 1.6 }}>
+        <div className="text-[15px] font-semibold mb-1">信用卡繳款</div>
+        <div className="text-xs mb-4" style={{ color: "var(--ns-fg-muted)", lineHeight: 1.6 }}>
           未繳總額 NT${formatNumber(owed)} · 從帳戶轉帳繳款，可選填帳單折抵 / 回饋。
         </div>
 
-        <div style={{ marginBottom: 14 }}>
-          <div className="text-xs" style={{ fontWeight: 500, marginBottom: 6 }}>付款帳戶</div>
+        <div className="mb-3.5">
+          <div className="text-xs font-medium mb-1.5">付款帳戶</div>
           {noAccounts ? (
             <div className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>沒有可扣款的同幣別帳戶（{currency}）。</div>
           ) : (
             <select
               value={payAccountId}
               onChange={(e) => setPayAccountId(e.target.value)}
-              style={{ width: "100%", padding: "8px 10px", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)", color: "var(--ns-fg)" }}
+              className="w-full px-2.5 py-2"
+              style={{ borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)", color: "var(--ns-fg)" }}
             >
               {payingAccounts.map((a) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
@@ -452,29 +457,31 @@ function PayCardModal({
           )}
         </div>
 
-        <div style={{ marginBottom: 14 }}>
-          <div className="text-xs" style={{ fontWeight: 500, marginBottom: 6 }}>繳款金額</div>
+        <div className="mb-3.5">
+          <div className="text-xs font-medium mb-1.5">繳款金額</div>
           <input
             type="number"
             value={payAmount}
             onChange={(e) => setPayAmount(e.target.value)}
             min={0}
-            style={{ width: "100%", padding: "8px 10px", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)", color: "var(--ns-fg)" }}
+            className="w-full px-2.5 py-2"
+            style={{ borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)", color: "var(--ns-fg)" }}
           />
         </div>
 
-        <div style={{ marginBottom: 4 }}>
-          <div className="text-xs" style={{ fontWeight: 500, marginBottom: 6 }}>帳單折抵 / 回饋（選填）</div>
+        <div className="mb-1">
+          <div className="text-xs font-medium mb-1.5">帳單折抵 / 回饋（選填）</div>
           <input
             type="number"
             value={creditAmount}
             onChange={(e) => setCreditAmount(e.target.value)}
             min={0}
-            style={{ width: "100%", padding: "8px 10px", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)", color: "var(--ns-fg)" }}
+            className="w-full px-2.5 py-2"
+            style={{ borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)", color: "var(--ns-fg)" }}
           />
         </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+        <div className="flex justify-end gap-2" style={{ marginTop: 18 }}>
           <Button variant="outline" onClick={onCancel} disabled={pending}>取消</Button>
           <Button onClick={() => onConfirm(payAccountId, pay, credit)} disabled={!canConfirm}>
             <CurrencyCircleDollar size={14} weight="fill" />確認繳款
@@ -501,28 +508,31 @@ function DeferPostingModal({
   return (
     <div
       onClick={onCancel}
-      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+      className="flex items-center justify-center p-5"
+      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.4)" }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)", padding: 20 }}
+        className="p-5"
+        style={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)" }}
       >
-        <div className="text-[15px]" style={{ fontWeight: 600, marginBottom: 4 }}>延後入帳</div>
-        <div className="text-xs" style={{ color: "var(--ns-fg-muted)", marginBottom: 16, lineHeight: 1.6 }}>
+        <div className="text-[15px] font-semibold mb-1">延後入帳</div>
+        <div className="text-xs mb-4" style={{ color: "var(--ns-fg-muted)", lineHeight: 1.6 }}>
           選擇入帳日；這筆消費會歸到該日所屬的帳單週期。仍會立即計為負債，餘額不變。
         </div>
 
-        <div style={{ marginBottom: 4 }}>
-          <div className="text-xs" style={{ fontWeight: 500, marginBottom: 6 }}>入帳日</div>
+        <div className="mb-1">
+          <div className="text-xs font-medium mb-1.5">入帳日</div>
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            style={{ width: "100%", padding: "8px 10px", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)", color: "var(--ns-fg)", fontFamily: "var(--ns-font-mono)" }}
+            className="w-full px-2.5 py-2"
+            style={{ borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)", color: "var(--ns-fg)", fontFamily: "var(--ns-font-mono)" }}
           />
         </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
+        <div className="flex justify-end gap-2 flex-wrap" style={{ marginTop: 18 }}>
           <Button variant="outline" onClick={onCancel} disabled={pending}>取消</Button>
           {hasDefer ? (
             <Button variant="outline" onClick={() => onConfirm(null)} disabled={pending}>改回當下入帳</Button>
