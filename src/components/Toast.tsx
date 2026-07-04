@@ -10,6 +10,7 @@ import {
   type PropsWithChildren,
   type ReactNode,
 } from "react";
+import { MarkdownText } from "./MarkdownText";
 
 export type ToastTone = "success" | "error" | "info" | "warning";
 
@@ -24,6 +25,8 @@ export interface ToastDescriptor {
    * user can paste them back to us without opening devtools.
    */
   detail?: string;
+  /** Optional collapsible detail body (markdown). Hidden until the user expands. */
+  details?: string;
   /** Milliseconds before auto-dismiss. Errors default to sticky (0). */
   durationMs?: number;
   /** Optional inline action like "Undo" / "重試". */
@@ -126,6 +129,7 @@ function ToastViewport({ toasts, onDismiss }: { toasts: ToastDescriptor[]; onDis
 
 function ToastItem({ toast, onDismiss }: { toast: ToastDescriptor; onDismiss: (id: string) => void }) {
   const [showDetail, setShowDetail] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const palette = toneStyles(toast.tone);
@@ -171,6 +175,25 @@ function ToastItem({ toast, onDismiss }: { toast: ToastDescriptor; onDismiss: (i
           <div className="text-sm font-semibold leading-5">{toast.title}</div>
           {toast.description ? (
             <div className="mt-1 text-xs leading-5" style={{ color: palette.muted }}>{toast.description}</div>
+          ) : null}
+          {toast.details ? (
+            <div className="mt-1">
+              <button
+                type="button"
+                onClick={() => setShowDetails((v) => !v)}
+                className="text-xs font-semibold underline-offset-2 hover:underline"
+                style={{ color: palette.icon }}
+              >
+                {showDetails ? "更新內容 ▴" : "更新內容 ▾"}
+              </button>
+              {showDetails ? (
+                <MarkdownText
+                  text={toast.details}
+                  className="mt-1 text-xs"
+                  style={{ color: palette.muted, maxHeight: 200, overflowY: "auto" }}
+                />
+              ) : null}
+            </div>
           ) : null}
           {toast.detail ? (
             <div className="mt-2">

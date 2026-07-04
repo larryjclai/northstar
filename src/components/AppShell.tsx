@@ -556,9 +556,8 @@ function useAutoUpdateCheck() {
       const notes = update.body?.trim();
       toast.info(`有新版本可下載 · v${update.version}`, {
         durationMs: 0,
-        description: notes
-          ? (notes.length > 140 ? `${notes.slice(0, 140)}…` : notes)
-          : "已備妥一個新版本，更新後即可使用最新功能。",
+        description: "更新後即可使用最新功能。",
+        details: notes || undefined,
         action: { label: "立即更新", onClick: () => void runInstall(update.version, () => update.downloadAndInstall()) },
       });
     } catch {
