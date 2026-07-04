@@ -93,24 +93,24 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
   const uncategorizedTopMerchant = uncategorizedTopMerchantRaw === "無" ? "−" : uncategorizedTopMerchantRaw;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+    <div className="flex flex-col gap-6">
       {/* Top Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
-        <Card style={{ padding: "20px 24px" }}>
-          <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>最大支出</div>
-          <div className="text-lg" style={{ fontWeight: 500 }}>
+        <Card className="py-5 px-6">
+          <div className="text-xs muted font-medium mb-2">最大支出</div>
+          <div className="text-lg font-medium">
             {maxSpendCat ? `${maxSpendCat.name} · ${primaryCurrency} ${formatNumber(maxSpendCat.amount)}` : "無"}
           </div>
         </Card>
-        <Card style={{ padding: "20px 24px" }}>
-          <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>交易最多</div>
-          <div className="text-lg" style={{ fontWeight: 500 }}>
+        <Card className="py-5 px-6">
+          <div className="text-xs muted font-medium mb-2">交易最多</div>
+          <div className="text-lg font-medium">
             {maxCountCat ? `${maxCountCat.name} · ${maxCountCat.count} 筆` : "無"}
           </div>
         </Card>
-        <Card style={{ padding: "20px 24px" }}>
-          <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>未分類</div>
-          <div className="text-lg" style={{ fontWeight: 500 }}>
+        <Card className="py-5 px-6">
+          <div className="text-xs muted font-medium mb-2">未分類</div>
+          <div className="text-lg font-medium">
             {uncategorizedCount} 筆 · {uncategorizedPct.toFixed(1)}%
           </div>
         </Card>
@@ -121,11 +121,11 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
           enough (container query, not a viewport breakpoint). */}
       <SplitLayout sideWidth={300} sidePosition="start">
         {/* Left: Donut Chart */}
-        <Card style={{ padding: 24 }}>
+        <Card className="p-6">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
             <div>
-              <div className="text-xs" style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{dateRange.label} 支出</div>
-              <div className="num text-[24px]" style={{ fontWeight: 500 }}>{primaryCurrency} {formatNumber(totalPeriodSpend)}</div>
+              <div className="text-xs muted font-medium mb-1">{dateRange.label} 支出</div>
+              <div className="num text-[24px] font-medium">{primaryCurrency} {formatNumber(totalPeriodSpend)}</div>
             </div>
             <Button variant="ghost" size="icon-sm" onClick={onSettingsClick}><Gear size={16} /></Button>
           </div>
@@ -155,10 +155,10 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
             </ResponsiveContainer>
           </div>
           
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div className="flex flex-col gap-3">
             {allCategorySpend.map(r => (
-              <div key={r.name} className="text-body" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div key={r.name} className="text-body flex items-center justify-between">
+                <div className="flex items-center gap-2">
                   <div style={{ width: 8, height: 8, borderRadius: "50%", background: r.color }} />
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Glyph name={r.icon} size={14} /> {r.name}</span>
                 </div>
@@ -166,8 +166,8 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
               </div>
             ))}
             {uncategorizedAmount > 0 && (
-              <div className="text-body" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div className="text-body flex items-center justify-between">
+                <div className="flex items-center gap-2">
                   <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--ns-muted)" }} />
                   <span>... 其他</span>
                 </div>
@@ -196,7 +196,7 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
                     <Glyph name={r.icon} size={16} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate" style={{ fontWeight: 500 }}>{r.name}</div>
+                    <div className="truncate font-medium">{r.name}</div>
                     <div className="muted truncate text-xs">{r.count} 筆 · {pct.toFixed(1)}%{r.topMerchant ? ` · ${r.topMerchant}` : ""}</div>
                   </div>
                   <div className="num text-sm" style={{ whiteSpace: "nowrap" }}>−{primaryCurrency} {formatNumber(r.periodAmount)}</div>
@@ -214,7 +214,7 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
             <div>佔比 / 主要商家</div>
             <div></div>
           </div>
-          <div style={{ flex: 1, overflowY: "auto" }}>
+          <div className="flex-1" style={{ overflowY: "auto" }}>
             {sortedCategories.map((r) => {
               const pct = totalPeriodSpend > 0 ? (r.amount / totalPeriodSpend) * 100 : 0;
               return (
@@ -230,15 +230,15 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
                     onMouseEnter={(e) => (e.currentTarget.style.background = "var(--ns-bg-hover)")}
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div className="flex items-center gap-3">
                       <div className="text-base" style={{ width: 32, height: 32, borderRadius: 8, background: "var(--ns-bg-hover)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <Glyph name={r.icon} size={16} />
                       </div>
-                      <span style={{ fontWeight: 500 }}>{r.name}</span>
+                      <span className="font-medium">{r.name}</span>
                     </div>
                     <div>{r.count} 筆</div>
                     <div className="num">−{primaryCurrency} {formatNumber(r.periodAmount)}</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div className="flex items-center gap-2">
                       <span className="text-caption" style={{ background: "var(--ns-bg-hover)", color: r.color, padding: "2px 6px", borderRadius: 99, fontWeight: 600 }}>
                         {pct.toFixed(1)}%
                       </span>
@@ -254,15 +254,15 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
             
             {uncategorizedAmount > 0 && (
               <div className="text-sm" style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div className="flex items-center gap-3">
                   <div className="text-base" style={{ width: 32, height: 32, borderRadius: 8, background: "var(--ns-bg-hover)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ns-fg-muted)" }}>
                     ...
                   </div>
-                  <span style={{ fontWeight: 500 }}>其他</span>
+                  <span className="font-medium">其他</span>
                 </div>
                 <div>{uncategorizedCount} 筆</div>
                 <div className="num">−{primaryCurrency} {formatNumber(uncategorizedAmount)}</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div className="flex items-center gap-2">
                   <span className="text-caption" style={{ background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)", padding: "2px 6px", borderRadius: 99, fontWeight: 600 }}>
                     {uncategorizedPct.toFixed(1)}%
                   </span>
