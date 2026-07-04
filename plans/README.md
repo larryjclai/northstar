@@ -116,6 +116,22 @@ file-by-file before `--force`). All branches retained; `claude/blissful-swartz-6
 worktree left untouched (not an agent worktree, likely another Claude session's).
 Merged branches (`fix/ai-*` for 079–097, 108) can be deleted at leisure with `git branch -d`.
 
+## 2026-07-04 batch (116–117) — AI summary + updater notification polish
+
+Planned against main @ `4c22f478` (after v0.1.0-alpha.52 release + CashFlowRoute style cleanup + modal-scrim `--ns-scrim` fix). From operator feedback on the alpha.52 build.
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 116  | AI 本月摘要移到問候語下方、去卡片化、渲染 markdown | P2 | M | — (creates shared `MarkdownText`) | TODO |
+| 117  | 更新通知預設不顯示 changelog（展開才看）+ markdown 渲染 | P2 | M | 116 (shares `MarkdownText`; self-builds if 116 undone) | TODO |
+
+Shared insight: the raw `**bold**` / `###` markdown the operator saw in BOTH the AI
+summary and the update toast is the same root cause — no markdown renderer. 116 creates
+a small no-dependency `MarkdownText` component; 117 reuses it. The on-device model already
+gets a "2–3 句, no markdown" instruction but ignores it, so the fix is to *render* the
+markdown, not to re-instruct. "更簡短" via the Swift prompt (`FoundationModels.swift:247`)
+is an optional on-device follow-up (device-verify only), noted in 116, not in JS scope.
+
 ## Dependency notes
 
 - All current UI phase 3 plans are fully executed, verified, merged to `main`, and released in `v0.1.0-alpha.46`.
