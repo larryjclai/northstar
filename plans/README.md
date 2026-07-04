@@ -122,7 +122,7 @@ Planned against main @ `4c22f478` (after v0.1.0-alpha.52 release + CashFlowRoute
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 116  | AI 本月摘要移到問候語下方、去卡片化、渲染 markdown | P2 | M | — (creates shared `MarkdownText`) | TODO |
+| 116  | AI 本月摘要移到問候語下方、去卡片化、渲染 markdown | P2 | M | — (creates shared `MarkdownText`) | ✅ MERGED on main (`27d67be7`, 2026-07-04; executor hit session limit BEFORE committing — reviewer verified the uncommitted work (tsc/lint/831 tests + full diff + 5 MarkdownText unit tests + live: no console errors, bottom card removed, bold regex sanity-checked), committed on its branch, merged clean; `MarkdownText.tsx` created (no-dep `**bold**`/`##`/`-` renderer); summary now inline under greeting, de-carded, 重新產生 is icon-only + privacy note in tooltip. **On-device FM summary can't render in the browser dev shell — operator must eyeball the real immersive summary + markdown on macOS.**) |
 | 117  | 更新通知預設不顯示 changelog（展開才看）+ markdown 渲染 | P2 | M | 116 (shares `MarkdownText`; self-builds if 116 undone) | TODO |
 
 Shared insight: the raw `**bold**` / `###` markdown the operator saw in BOTH the AI
