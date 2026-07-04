@@ -706,6 +706,7 @@ textarea:focus-visible {
 .neg  { color: var(--ns-neg); }
 .muted { color: var(--ns-fg-muted); }
 .dim  { color: var(--ns-fg-dim); }
+.accent { color: var(--ns-accent); }
 /* Market gain/loss text — follows the [data-gainloss] palette. Use for
    損益/報酬率/漲跌幅; keep .pos/.neg for fixed success/income/expense. */
 .gain { color: var(--ns-gain); }
