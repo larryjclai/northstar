@@ -222,7 +222,7 @@ export function HoldingDetailRoute() {
     return (
       <div style={{ padding: "24px 32px 100px" }}>
         <Button variant="ghost" onClick={() => navigate({ to: "/investments" })}>返回投資</Button>
-        <div style={{ marginTop: 20 }}>找不到此持倉。</div>
+        <div className="mt-5">找不到此持倉。</div>
       </div>
     );
   }
@@ -260,17 +260,17 @@ export function HoldingDetailRoute() {
     : asset?.assetType === "crypto" ? "var(--ns-chart-3)" : "var(--ns-chart-2)";
 
   return (
-    <div style={{ height: "100%", overflow: "auto", padding: "24px 32px 100px" }}>
+    <div className="h-full overflow-auto" style={{ padding: "24px 32px 100px" }}>
       {/* Breadcrumb */}
-      <div className="text-body" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18, color: "var(--ns-fg-muted)" }}>
+      <div className="text-body flex items-center gap-2" style={{ marginBottom: 18, color: "var(--ns-fg-muted)" }}>
         <span style={{ cursor: "pointer" }} onClick={() => navigate({ to: "/investments" })}>持倉投資</span>
         <CaretRight size={13} />
-        <span className="mono" style={{ fontWeight: 500, color: "var(--ns-fg)" }}>{asset.ticker}</span>
+        <span className="mono font-medium" style={{ color: "var(--ns-fg)" }}>{asset.ticker}</span>
       </div>
 
       {/* Hero header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 22 }}>
-        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+      <div className="flex items-start justify-between" style={{ marginBottom: 22 }}>
+        <div className="flex items-center" style={{ gap: 14 }}>
           <AssetLogo ticker={asset.ticker} name={resolveAssetName(asset, nameLocale)} size={52} />
           <div>
             <div className="mono text-body" style={{ marginBottom: 2, letterSpacing: 0.04, color: "var(--ns-fg-muted)", textTransform: "uppercase" }}>
@@ -279,13 +279,13 @@ export function HoldingDetailRoute() {
             <h1 className="text-[24px]" style={{ fontFamily: "var(--ns-font-display)", margin: "0 0 4px", fontWeight: 600, letterSpacing: -0.02 }}>
               {resolveAssetName(asset, nameLocale)}
             </h1>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div className="flex gap-2">
               {resolveSectorLabel(asset.sector, nameLocale) && <Badge variant="outline" className="rounded-full">{resolveSectorLabel(asset.sector, nameLocale)}</Badge>}
               <Badge variant="outline" className="rounded-full">{formatQuantity(asset.totalQuantity)} 股</Badge>
             </div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="flex gap-2">
           <Button variant="ghost" onClick={() => setEditOpen(true)}><PencilSimple size={14} />編輯持倉</Button>
           {isCustomAsset ? (
             <>
@@ -306,7 +306,7 @@ export function HoldingDetailRoute() {
 
       {/* Custom asset: manual-price indicator + inline 更新價格 form */}
       {isCustomAsset ? (
-        <Card style={{ padding: 18, marginBottom: 20 }}>
+        <Card className="mb-5" style={{ padding: 18 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
             <span className="muted text-xs" style={{ textTransform: "uppercase", letterSpacing: 0.04 }}>手動價格</span>
             {latestManualSnapshot ? (
@@ -319,7 +319,7 @@ export function HoldingDetailRoute() {
             )}
           </div>
           {priceFormOpen ? (
-            <div className="grid gap-3" style={{ marginTop: 16 }}>
+            <div className="grid gap-3 mt-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_160px]">
                 <Field label="價格">
                   <TextInput
@@ -336,7 +336,7 @@ export function HoldingDetailRoute() {
               <Field label="備註（選填）">
                 <TextInput value={priceNote} onChange={(event) => setPriceNote(event.target.value)} placeholder="例如：最新估值" />
               </Field>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div className="flex items-center gap-2">
                 <Button onClick={submitManualPrice} disabled={createManualPrice.isPending}>
                   {createManualPrice.isPending ? "儲存中…" : "儲存價格"}
                 </Button>
@@ -350,7 +350,7 @@ export function HoldingDetailRoute() {
               deletable via a two-click inline confirm (no window.confirm). */}
           {manualHistoryRows.length > 0 ? (
             <div style={{ marginTop: 18, borderTop: "1px solid var(--ns-border)", paddingTop: 14 }}>
-              <div className="muted text-xs" style={{ textTransform: "uppercase", letterSpacing: 0.04, marginBottom: 8 }}>價格紀錄 · {manualHistoryRows.length}</div>
+              <div className="muted text-xs mb-2" style={{ textTransform: "uppercase", letterSpacing: 0.04 }}>價格紀錄 · {manualHistoryRows.length}</div>
               <div className="grid" style={{ gap: 2 }}>
                 {manualHistoryRows.map((snap) => (
                   <div
@@ -361,10 +361,10 @@ export function HoldingDetailRoute() {
                     }}
                   >
                     <span className="mono muted text-xs">{snap.date}</span>
-                    <span className="mono text-body" style={{ fontWeight: 500, textAlign: "right" }}>{formatPrice(snap.price)} {asset.currency}</span>
-                    <span className="muted text-xs" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={snap.note}>{snap.note || "—"}</span>
+                    <span className="mono text-body font-medium text-right">{formatPrice(snap.price)} {asset.currency}</span>
+                    <span className="muted text-xs truncate" title={snap.note}>{snap.note || "—"}</span>
                     {confirmDeleteId === snap.id ? (
-                      <span style={{ display: "flex", gap: 6, justifySelf: "end" }}>
+                      <span className="flex gap-1.5" style={{ justifySelf: "end" }}>
                         <Button variant="ghost" size="sm" onClick={() => deleteManualSnapshot(snap.id)} disabled={deleteManualPrice.isPending} style={{ color: "var(--ns-danger, #d33)" }}>確認刪除</Button>
                         <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>取消</Button>
                       </span>
@@ -380,16 +380,16 @@ export function HoldingDetailRoute() {
       ) : null}
 
       {/* Price + position */}
-      <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-[1fr_360px]" style={{ marginBottom: 20 }}>
+      <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-[1fr_360px] mb-5">
         {/* Chart card */}
         <Card style={{ padding: 22 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+              <div className="flex gap-3" style={{ alignItems: "baseline" }}>
                 <span className="ns-num-lg mono">{formatPrice(marketPrice)}</span>
                 <span className="dim mono text-body">{asset.currency}</span>
               </div>
-              <div style={{ display: "flex", gap: 10, marginTop: 4, alignItems: "center" }}>
+              <div className="flex items-center gap-2.5 mt-1">
                 <Badge variant={pos ? "success" : "error"} className="gap-1 rounded-full px-2">
                   {pos && <ArrowUp size={11} strokeWidth={2} />}
                   <span className="num">{pos ? "+" : ""}{formatNumber(unrealizedGain)}</span>
@@ -445,12 +445,12 @@ export function HoldingDetailRoute() {
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                <div style={{ background: "rgba(164, 219, 108, 0.2)", borderRadius: 12, padding: 12, marginBottom: 16 }}>
+              <div className="flex flex-col items-center justify-center" style={{ height: "100%" }}>
+                <div className="mb-4" style={{ background: "rgba(164, 219, 108, 0.2)", borderRadius: 12, padding: 12 }}>
                   <ChartLineUp size={24} color="var(--ns-chart-1)" />
                 </div>
-                <div className="text-[15px]" style={{ fontWeight: 600, marginBottom: 8 }}>還沒有足夠的歷史股價</div>
-                <div className="muted text-body" style={{ textAlign: "center", maxWidth: 360, lineHeight: 1.6 }}>
+                <div className="text-[15px] font-semibold mb-2">還沒有足夠的歷史股價</div>
+                <div className="muted text-body text-center" style={{ maxWidth: 360, lineHeight: 1.6 }}>
                   先用「更新報價」或在編輯頁新增歷史快照，這裡就會依所選區間畫出投資市值趨勢。
                 </div>
               </div>
@@ -458,18 +458,18 @@ export function HoldingDetailRoute() {
           </div>
           {/* Buy/sell marker legend + toggle (only when there are trades to mark) */}
           {series.length > 0 && tradeMarkers.length > 0 ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
-              <label className="text-xs" style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", color: "var(--ns-fg-muted)" }}>
+            <div className="flex items-center mt-2.5" style={{ gap: 16, flexWrap: "wrap" }}>
+              <label className="text-xs flex items-center gap-1.5" style={{ cursor: "pointer", color: "var(--ns-fg-muted)" }}>
                 <input type="checkbox" checked={showTradeMarkers} onChange={(e) => setShowTradeMarkers(e.target.checked)} />
                 顯示買賣標記
               </label>
               {showTradeMarkers ? (
-                <div className="text-caption" style={{ display: "flex", gap: 14 }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <div className="text-caption flex" style={{ gap: 14 }}>
+                  <span className="flex items-center" style={{ gap: 5 }}>
                     <svg width={11} height={11} viewBox="0 0 11 11"><path d="M5.5 1 L10 9 L1 9 Z" fill="var(--ns-gain)" /></svg>
                     <span className="muted">買進</span>
                   </span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <span className="flex items-center" style={{ gap: 5 }}>
                     <svg width={11} height={11} viewBox="0 0 11 11"><path d="M5.5 10 L10 2 L1 2 Z" fill="var(--ns-loss)" /></svg>
                     <span className="muted">賣出</span>
                   </span>
@@ -481,10 +481,10 @@ export function HoldingDetailRoute() {
 
         {/* Position summary — stretches to the chart card's height so the two
             cards line up top and bottom; stats distribute to fill. */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Card style={{ padding: 20, flex: 1 }}>
-            <div className="ns-eyebrow" style={{ marginBottom: 12 }}>你的部位 · 平均成本</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, flex: 1, alignContent: "space-between" }}>
+        <div className="flex flex-col" style={{ gap: 14 }}>
+          <Card className="p-5 flex-1">
+            <div className="ns-eyebrow mb-3">你的部位 · 平均成本</div>
+            <div className="flex-1" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, alignContent: "space-between" }}>
               {[
                 ["市值", formatNumber(marketValue), null],
                 ["成本基礎", formatNumber(costBasis), null],
@@ -501,7 +501,7 @@ export function HoldingDetailRoute() {
               ].map(([l, v, c, t]) => (
                 <div key={l}>
                   <div className="muted text-caption">{l}</div>
-                  <div className={"num text-base " + (c || "")} style={{ fontWeight: 500 }} title={t ?? undefined}>{v}</div>
+                  <div className={"num text-base font-medium " + (c || "")} title={t ?? undefined}>{v}</div>
                 </div>
               ))}
             </div>
@@ -511,10 +511,10 @@ export function HoldingDetailRoute() {
 
       {/* Open lots — FIFO tax-lot view (kept separate from the moving-average
           P/L above; useful for lot-level tax planning). */}
-      <Card style={{ padding: 0, marginBottom: 16 }}>
-        <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center" }}>
-          <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>稅務批次 (FIFO) · {lots.length}</h3>
-          <div style={{ flex: 1 }} />
+      <Card className="p-0 mb-4">
+        <div className="flex items-center" style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)" }}>
+          <h3 className="text-base font-medium" style={{ margin: 0, fontFamily: "var(--ns-font-display)" }}>稅務批次 (FIFO) · {lots.length}</h3>
+          <div className="flex-1" />
           <span className="muted mono text-caption">FIFO 批次成本，僅供稅務參考</span>
         </div>
         {lots.length > 0 ? (
@@ -529,11 +529,11 @@ export function HoldingDetailRoute() {
               }}
             >
               <span>Date</span>
-              <span style={{ textAlign: "right" }}>Qty</span>
-              <span style={{ textAlign: "right" }}>Cost</span>
-              <span style={{ textAlign: "right" }}>Last</span>
-              <span style={{ textAlign: "right" }}>P/L</span>
-              <span style={{ textAlign: "right" }}>P/L %</span>
+              <span className="text-right">Qty</span>
+              <span className="text-right">Cost</span>
+              <span className="text-right">Last</span>
+              <span className="text-right">P/L</span>
+              <span className="text-right">P/L %</span>
             </div>
             {lots.map((l) => (
               <div
@@ -544,28 +544,28 @@ export function HoldingDetailRoute() {
                 }}
               >
                 <span className="mono muted text-body">{l.date}</span>
-                <span className="num text-body" style={{ textAlign: "right" }}>{formatQuantity(l.qty)}</span>
-                <span className="num muted text-body" style={{ textAlign: "right" }}>{formatPrice(l.cost)}</span>
-                <span className="num text-body" style={{ textAlign: "right" }}>{formatPrice(l.last)}</span>
-                <span className={"num text-sm " + (l.pl >= 0 ? "gain" : "loss")} style={{ textAlign: "right", fontWeight: 500 }}>
+                <span className="num text-body text-right">{formatQuantity(l.qty)}</span>
+                <span className="num muted text-body text-right">{formatPrice(l.cost)}</span>
+                <span className="num text-body text-right">{formatPrice(l.last)}</span>
+                <span className={"num text-sm text-right font-medium " + (l.pl >= 0 ? "gain" : "loss")}>
                   {l.pl >= 0 ? "+" : ""}{formatNumber(l.pl)}
                 </span>
-                <span className={"num text-sm " + (l.pct >= 0 ? "gain" : "loss")} style={{ textAlign: "right" }}>
+                <span className={"num text-sm text-right " + (l.pct >= 0 ? "gain" : "loss")}>
                   {l.pct >= 0 ? "+" : ""}{l.pct.toFixed(2)}%
                 </span>
               </div>
             ))}
           </>
         ) : (
-          <div className="muted text-body" style={{ padding: "28px 22px", textAlign: "center" }}>目前無未平倉部位</div>
+          <div className="muted text-body text-center" style={{ padding: "28px 22px" }}>目前無未平倉部位</div>
         )}
       </Card>
 
       {/* Transaction history */}
-      <Card style={{ padding: 0 }}>
-        <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center" }}>
-          <h3 className="text-base" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>交易紀錄 · {txns.length} 筆</h3>
-          <div style={{ flex: 1 }} />
+      <Card className="p-0">
+        <div className="flex items-center" style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)" }}>
+          <h3 className="text-base font-medium" style={{ margin: 0, fontFamily: "var(--ns-font-display)" }}>交易紀錄 · {txns.length} 筆</h3>
+          <div className="flex-1" />
           <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
             <Plus size={14} weight="bold" /> 新增
           </Button>
@@ -584,19 +584,19 @@ export function HoldingDetailRoute() {
               <Badge variant={tx.action === "buy" ? "success" : tx.action === "sell" ? "error" : "secondary"} className="rounded-full uppercase" style={{ justifySelf: "start" }}>
                 {tx.action}
               </Badge>
-              <span className="num text-body" style={{ textAlign: "right" }}>{formatQuantity(tx.quantity)}</span>
-              <span className="num text-body" style={{ textAlign: "right" }}>{formatPrice(tx.price)}</span>
-              <span className="num muted text-xs" style={{ textAlign: "right" }}>fee {tx.fee || "–"}</span>
-              <span className={"num text-sm " + (tx.action === "sell" ? "pos" : tx.action === "buy" ? "" : "pos")} style={{ textAlign: "right", fontWeight: 500 }}>
+              <span className="num text-body text-right">{formatQuantity(tx.quantity)}</span>
+              <span className="num text-body text-right">{formatPrice(tx.price)}</span>
+              <span className="num muted text-xs text-right">fee {tx.fee || "–"}</span>
+              <span className={"num text-sm text-right font-medium " + (tx.action === "sell" ? "pos" : tx.action === "buy" ? "" : "pos")}>
                 {tx.action === "sell" ? "+" : tx.action === "cashDividend" ? "+" : "−"}{formatNumber(tx.quantity * tx.price)}
               </span>
-              <span className="muted text-xs" style={{ textAlign: "right" }}>
+              <span className="muted text-xs text-right">
                 {accountRows.find(a => a.id === tx.linkedAccountId)?.name || "–"}
               </span>
             </div>
           ))
         ) : (
-          <div className="muted text-body" style={{ padding: "28px 22px", textAlign: "center" }}>尚無交易紀錄</div>
+          <div className="muted text-body text-center" style={{ padding: "28px 22px" }}>尚無交易紀錄</div>
         )}
       </Card>
 
