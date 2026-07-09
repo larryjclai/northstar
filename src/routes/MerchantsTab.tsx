@@ -72,24 +72,24 @@ export function MerchantsTab({ dateRange, ledgerRows, primaryCurrency, toPrimary
   }, [allMerchantSpend]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+    <div className="flex flex-col gap-6">
       {/* Top Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))", gap: 20 }}>
-        <Card style={{ padding: "20px 24px" }}>
-          <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>最高支出商家</div>
-          <div className="text-lg" style={{ fontWeight: 500 }}>
+      <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))" }}>
+        <Card className="py-5 px-6">
+          <div className="text-xs muted mb-2 font-medium">最高支出商家</div>
+          <div className="text-lg font-medium">
             {maxSpendMerchant ? `${maxSpendMerchant.name} · ${primaryCurrency} ${formatNumber(maxSpendMerchant.amount)}` : "無"}
           </div>
         </Card>
-        <Card style={{ padding: "20px 24px" }}>
-          <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>最常消費</div>
-          <div className="text-lg" style={{ fontWeight: 500 }}>
+        <Card className="py-5 px-6">
+          <div className="text-xs muted mb-2 font-medium">最常消費</div>
+          <div className="text-lg font-medium">
             {maxVisitsMerchant ? `${maxVisitsMerchant.name} · ${maxVisitsMerchant.visits} 次` : "無"}
           </div>
         </Card>
-        <Card style={{ padding: "20px 24px" }}>
-          <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{dateRange.label} 總支出</div>
-          <div className="text-lg" style={{ fontWeight: 500 }}>
+        <Card className="py-5 px-6">
+          <div className="text-xs muted mb-2 font-medium">{dateRange.label} 總支出</div>
+          <div className="text-lg font-medium">
             {primaryCurrency} {formatNumber(totalSpend)} · {allMerchantSpend.length} 個商家
           </div>
         </Card>
@@ -98,7 +98,7 @@ export function MerchantsTab({ dateRange, ledgerRows, primaryCurrency, toPrimary
       {/* Top 5 spend merchants pie (B22) */}
       {top5Pie.length > 0 ? (
         <Card style={{ padding: "var(--ns-pad-card)" }}>
-          <div className="text-xs" style={{  marginBottom: 12 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Top 5 支出商家 · {dateRange.label}</div>
+          <div className="text-xs muted mb-3 font-medium">Top 5 支出商家 · {dateRange.label}</div>
           <div className="grid grid-cols-1 items-center gap-5 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-6">
             <div style={{ width: 180, height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -124,14 +124,14 @@ export function MerchantsTab({ dateRange, ledgerRows, primaryCurrency, toPrimary
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div className="flex flex-col gap-2">
               {top5Pie.map((m) => {
                 const rowContent = (
                   <>
-                    <span style={{ width: 10, height: 10, borderRadius: 3, background: m.color, flexShrink: 0 }} />
-                    <span style={{ flex: 1, minWidth: 0, lineHeight: 1.25, wordBreak: "break-word" }}>{m.name}</span>
-                    <span className="num muted text-xs" style={{ flexShrink: 0 }}>{formatCompactMoney(m.value, primaryCurrency)}</span>
-                    <span className="num" style={{ minWidth: 44, textAlign: "right", flexShrink: 0 }}>{totalSpend > 0 ? ((m.value / totalSpend) * 100).toFixed(1) : "0.0"}%</span>
+                    <span className="shrink-0" style={{ width: 10, height: 10, borderRadius: 3, background: m.color }} />
+                    <span className="flex-1 min-w-0" style={{ lineHeight: 1.25, wordBreak: "break-word" }}>{m.name}</span>
+                    <span className="num muted text-xs shrink-0">{formatCompactMoney(m.value, primaryCurrency)}</span>
+                    <span className="num text-right shrink-0" style={{ minWidth: 44 }}>{totalSpend > 0 ? ((m.value / totalSpend) * 100).toFixed(1) : "0.0"}%</span>
                   </>
                 );
                 const rowStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid var(--ns-border)", paddingBottom: 6 };
@@ -157,13 +157,13 @@ export function MerchantsTab({ dateRange, ledgerRows, primaryCurrency, toPrimary
       ) : null}
 
       {/* Main Content */}
-      <Card style={{ padding: "var(--ns-pad-card)",  overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <Card className="flex flex-col" style={{ padding: "var(--ns-pad-card)", overflow: "hidden" }}>
         {/* Mobile: a 4-column table can't fit a phone, so each merchant is a
             tappable card (avatar, name, category · visits, period spend). The full
             table returns at sm+. */}
         <div className="flex flex-col gap-2 sm:hidden">
           {allMerchantSpend.length === 0 ? (
-            <div className="muted text-body" style={{ padding: 24, textAlign: "center" }}>無商家紀錄</div>
+            <div className="muted text-body p-6 text-center">無商家紀錄</div>
           ) : allMerchantSpend.map((r, idx) => {
             const bg = defaultColors[idx % defaultColors.length];
             return (
@@ -174,9 +174,9 @@ export function MerchantsTab({ dateRange, ledgerRows, primaryCurrency, toPrimary
                 className="flex items-center gap-3 rounded-xl border p-3 no-underline"
                 style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)", color: "inherit" }}
               >
-                <div className="text-[15px]" style={{ width: 38, height: 38, borderRadius: 10, background: bg, color: readableTextColor(bg), display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, flexShrink: 0 }}>{getInitials(r.name)}</div>
+                <div className="text-[15px] flex items-center justify-center font-semibold shrink-0" style={{ width: 38, height: 38, borderRadius: 10, background: bg, color: readableTextColor(bg) }}>{getInitials(r.name)}</div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate" style={{ fontWeight: 500 }}>{r.name}</div>
+                  <div className="truncate font-medium">{r.name}</div>
                   <div className="muted truncate text-xs">{r.category} · {r.visits} 次</div>
                 </div>
                 <div className="num text-sm" style={{ whiteSpace: "nowrap" }}>−{primaryCurrency} {formatNumber(r.amount)}</div>
@@ -187,7 +187,7 @@ export function MerchantsTab({ dateRange, ledgerRows, primaryCurrency, toPrimary
 
         {/* Desktop: full table */}
         <div className="hidden sm:contents">
-        <div className="text-xs" style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", fontWeight: 500, color: "var(--ns-fg-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+        <div className="text-xs py-4 px-6 font-medium muted" style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", borderBottom: "1px solid var(--ns-border)", textTransform: "uppercase", letterSpacing: 0.5 }}>
           <button style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textAlign: "left", textTransform: "uppercase", letterSpacing: 0.5 }} onClick={() => toggleMerchantSort("name")}>商家{merchantSort.key === "name" ? (merchantSort.dir === "asc" ? " ▲" : " ▼") : ""}</button>
           <div>分類</div>
           <button style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textAlign: "left", textTransform: "uppercase", letterSpacing: 0.5 }} onClick={() => toggleMerchantSort("visits")}>期間次數{merchantSort.key === "visits" ? (merchantSort.dir === "asc" ? " ▲" : " ▼") : ""}</button>
@@ -195,9 +195,9 @@ export function MerchantsTab({ dateRange, ledgerRows, primaryCurrency, toPrimary
           <div></div>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto" }}>
+        <div className="flex-1" style={{ overflowY: "auto" }}>
           {allMerchantSpend.length === 0 ? (
-            <div className="muted text-body" style={{ padding: "40px", textAlign: "center" }}>無商家紀錄</div>
+            <div className="muted text-body text-center" style={{ padding: "40px" }}>無商家紀錄</div>
           ) : (
             sortedMerchants.map((r, idx) => {
               const bg = defaultColors[idx % defaultColors.length];
@@ -209,24 +209,24 @@ export function MerchantsTab({ dateRange, ledgerRows, primaryCurrency, toPrimary
                   style={{ display: "block", textDecoration: "none", color: "inherit" }}
                 >
                   <div
-                    className="text-sm"
-                    style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", alignItems: "center", cursor: "pointer", transition: "background 0.15s" }}
+                    className="text-sm py-4 px-6 items-center"
+                    style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 40px", borderBottom: "1px solid var(--ns-border)", cursor: "pointer", transition: "background 0.15s" }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = "var(--ns-bg-hover)")}
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div className="text-base" style={{ width: 40, height: 40, borderRadius: 10, background: bg, color: readableTextColor(bg), display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600 }}>
+                    <div className="flex items-center gap-3">
+                      <div className="text-base flex items-center justify-center font-semibold" style={{ width: 40, height: 40, borderRadius: 10, background: bg, color: readableTextColor(bg) }}>
                         {getInitials(r.name)}
                       </div>
                       <div>
-                        <div style={{ fontWeight: 500 }}>{r.name}</div>
+                        <div className="font-medium">{r.name}</div>
                         <div className="muted text-xs">最近：{r.lastVisit}</div>
                       </div>
                     </div>
                     <div>{r.category}</div>
                     <div>{r.visits} 次</div>
                     <div className="num">−{primaryCurrency} {formatNumber(r.amount)}</div>
-                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <div className="flex" style={{ justifyContent: "flex-end" }}>
                       <CaretRight size={16} className="muted" />
                     </div>
                   </div>
