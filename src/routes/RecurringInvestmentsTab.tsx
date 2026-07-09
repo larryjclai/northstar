@@ -139,7 +139,7 @@ export function RecurringInvestmentsTab() {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
+      <div className="flex items-center justify-between mb-4 gap-3" style={{ flexWrap: "wrap" }}>
         <div className="muted text-body">
           {rules.filter((r) => r.isActive).length} 個進行中 · 每月約投入 <span className="num" style={{ color: "var(--ns-fg)" }}>NT${formatNumber(Math.round(monthlyTotal))}</span>
         </div>
@@ -147,42 +147,42 @@ export function RecurringInvestmentsTab() {
       </div>
 
       {investmentAccounts.length === 0 ? (
-        <Card style={{ padding: 32, textAlign: "center" }}>
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>還沒有投資帳戶</div>
+        <Card className="p-8 text-center">
+          <div className="font-semibold mb-1.5">還沒有投資帳戶</div>
           <div className="muted text-body">請先在「帳戶」新增券商（投資）帳戶，才能設定定期定額並扣交割款。</div>
         </Card>
       ) : rules.length === 0 ? (
-        <Card style={{ padding: 32, textAlign: "center" }}>
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>還沒有定期定額計畫</div>
-          <div className="muted text-body" style={{ marginBottom: 16 }}>設定定期定額或定期定股，到期時會在總覽與投資頁提醒你補交割款。</div>
+        <Card className="p-8 text-center">
+          <div className="font-semibold mb-1.5">還沒有定期定額計畫</div>
+          <div className="muted text-body mb-4">設定定期定額或定期定股，到期時會在總覽與投資頁提醒你補交割款。</div>
           <Button onClick={openCreate}><Plus size={14} weight="bold" />建立第一個計畫</Button>
         </Card>
       ) : (
-        <Card style={{ padding: 0 }}>
+        <Card className="p-0">
           {rules.map((rule, i) => {
             const due = rule.isActive && rule.nextRunDate <= today;
             return (
-              <div key={rule.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", borderTop: i ? "1px solid var(--ns-border)" : "none", opacity: rule.isActive ? 1 : 0.55 }}>
-                <div className="text-caption" style={{ width: 38, height: 38, borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontWeight: 600 }}>
+              <div key={rule.id} className="flex items-center gap-3.5" style={{ padding: "14px 18px", borderTop: i ? "1px solid var(--ns-border)" : "none", opacity: rule.isActive ? 1 : 0.55 }}>
+                <div className="text-caption flex items-center shrink-0 font-semibold" style={{ width: 38, height: 38, borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)", justifyContent: "center" }}>
                   {rule.ticker.replace(/\..*$/, "").slice(0, 4)}
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span className="text-sm" style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{rule.name || rule.ticker}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium truncate">{rule.name || rule.ticker}</span>
                     <Badge variant="outline" className="rounded-full text-micro" style={{ padding: "2px 7px" }}>{recurringInvestmentModeLabels[rule.mode]}</Badge>
                     {due ? <Badge variant="outline" className="rounded-full text-micro" style={{ padding: "2px 7px", color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }}>待投入</Badge> : null}
                   </div>
-                  <div className="muted text-xs" style={{ marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
+                  <div className="muted text-xs flex items-center gap-1.5" style={{ marginTop: 2 }}>
                     <CalendarBlank size={12} /> {freqLabel(rule)} · {accountName(rule.accountId)} · 下次 {rule.nextRunDate.slice(5)}
                   </div>
                 </div>
-                <div style={{ textAlign: "right" }}>
-                  <div className="num text-sm" style={{ fontWeight: 500 }}>
+                <div className="text-right">
+                  <div className="num text-sm font-medium">
                     {rule.mode === "fixedShares" ? `${formatQuantity(rule.quantity)} 股` : `NT$${formatNumber(rule.amount)}`}
                   </div>
                   <div className="muted mono text-caption">交割約 NT${formatNumber(Math.round(perPeriodCash(rule)))}</div>
                 </div>
-                <div style={{ display: "flex", gap: 4 }}>
+                <div className="flex gap-1">
                   <Button variant="ghost" size="icon-sm" title="記錄本期投入" onClick={() => post(rule)} disabled={postRule.isPending}><Check size={14} /></Button>
                   <Button variant="ghost" size="icon-sm" title="編輯" onClick={() => openEdit(rule)}><PencilSimple size={14} /></Button>
                   <Button variant="ghost" size="icon-sm" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={() => remove(rule.id)}><Trash size={14} /></Button>
@@ -225,14 +225,15 @@ function RecurringInvestmentSheet({
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} />
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "min(480px, 100%)", background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)", display: "flex", flexDirection: "column", boxShadow: "-24px 0 60px rgba(0,0,0,0.45)" }}
+        className="flex flex-col"
+        style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "min(480px, 100%)", background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)", boxShadow: "-24px 0 60px rgba(0,0,0,0.45)" }}
       >
-        <div style={{ padding: "18px 22px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h2 className="text-lg" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>{editing ? "編輯定期定額" : "新增定期定額"}</h2>
+        <div className="flex items-center justify-between" style={{ padding: "18px 22px", borderBottom: "1px solid var(--ns-border)" }}>
+          <h2 className="text-lg m-0 font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>{editing ? "編輯定期定額" : "新增定期定額"}</h2>
           <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="關閉"><X size={16} /></Button>
         </div>
 
-        <div style={{ flex: 1, overflow: "auto", padding: 22, display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="flex flex-1 flex-col gap-4" style={{ overflow: "auto", padding: 22 }}>
           <Field label="標的代號 *">
             <TickerSearchField
               value={draft.ticker}
@@ -245,14 +246,14 @@ function RecurringInvestmentSheet({
           </Field>
 
           <Field label="模式">
-            <div style={{ display: "flex", gap: 8 }}>
+            <div className="flex gap-2">
               {(["fixedAmount", "fixedShares"] as RecurringInvestmentMode[]).map((m) => (
                 <button
                   key={m}
                   onClick={() => setDraft({ ...draft, mode: m })}
-                  className="text-body"
+                  className="text-body flex-1 py-2 px-0"
                   style={{
-                    flex: 1, padding: "8px 0", borderRadius: 8, cursor: "pointer", border: "1px solid",
+                    borderRadius: 8, cursor: "pointer", border: "1px solid",
                     background: draft.mode === m ? "var(--ns-accent-soft)" : "transparent",
                     borderColor: draft.mode === m ? "var(--ns-accent)" : "var(--ns-border)",
                     color: draft.mode === m ? "var(--ns-fg)" : "var(--ns-fg-muted)",
@@ -264,7 +265,7 @@ function RecurringInvestmentSheet({
             </div>
           </Field>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div className="gap-3.5" style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
             {draft.mode === "fixedAmount" ? (
               <Field label={`每期金額（${draft.currency}）*`}>
                 <input className="ns-input" type="number" value={draft.amount || ""} onChange={(e) => setDraft({ ...draft, amount: Number(e.target.value) || 0 })} placeholder="10000" />
@@ -279,7 +280,7 @@ function RecurringInvestmentSheet({
             </Field>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div className="gap-3.5" style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
             <Field label="手續費">
               <input className="ns-input" type="number" value={draft.fee || ""} onChange={(e) => setDraft({ ...draft, fee: Number(e.target.value) || 0 })} placeholder="0" />
             </Field>
@@ -297,7 +298,7 @@ function RecurringInvestmentSheet({
             </Field>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div className="gap-3.5" style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
             <Field label="頻率">
               <AppSelect
                 value={draft.frequency}
@@ -315,19 +316,19 @@ function RecurringInvestmentSheet({
             <input className="ns-input" type="date" value={draft.nextRunDate} onChange={(e) => setDraft({ ...draft, nextRunDate: e.target.value })} />
           </Field>
 
-          <label className="text-body" style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+          <label className="text-body flex items-center gap-2" style={{ cursor: "pointer" }}>
             <input type="checkbox" checked={draft.isActive} onChange={(e) => setDraft({ ...draft, isActive: e.target.checked })} />
             啟用（顯示提醒）
           </label>
 
-          <Card className="text-xs" style={{ flexDirection: "row",  padding: "10px 14px", display: "flex", alignItems: "center", gap: 8, color: "var(--ns-fg-muted)" }}>
+          <Card className="text-xs flex items-center gap-2 py-2.5 px-3.5" style={{ flexDirection: "row", color: "var(--ns-fg-muted)" }}>
             <ArrowsClockwise size={14} /> 每期預估交割款約 <span className="num" style={{ color: "var(--ns-fg)" }}>NT${formatNumber(Math.round(cash))}</span>，記錄時會自動扣款。
           </Card>
         </div>
 
-        <div style={{ padding: "14px 22px", borderTop: "1px solid var(--ns-border)", display: "flex", gap: 8 }}>
+        <div className="flex gap-2" style={{ padding: "14px 22px", borderTop: "1px solid var(--ns-border)" }}>
           <Button variant="ghost" style={{ flex: "0 0 90px", justifyContent: "center" }} onClick={onClose}>取消</Button>
-          <Button style={{ flex: 1, justifyContent: "center" }} onClick={onSubmit} disabled={pending}>{pending ? "儲存中…" : editing ? "儲存變更" : "建立"}</Button>
+          <Button className="flex-1" style={{ justifyContent: "center" }} onClick={onSubmit} disabled={pending}>{pending ? "儲存中…" : editing ? "儲存變更" : "建立"}</Button>
         </div>
       </div>
     </div>
@@ -337,7 +338,7 @@ function RecurringInvestmentSheet({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</label>
+      <label className="text-xs ns-field-label block">{label}</label>
       {children}
     </div>
   );
