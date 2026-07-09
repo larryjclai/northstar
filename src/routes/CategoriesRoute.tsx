@@ -185,7 +185,7 @@ export function CategoriesRoute() {
     return (
       <div className="grid min-h-[50vh] place-items-center p-6 text-center">
         <div className="max-w-md">
-          <h3 className="text-[17px]" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+          <h3 className="text-[17px] font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>
             無法載入資料
           </h3>
           <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
@@ -200,17 +200,17 @@ export function CategoriesRoute() {
   return (
     <div style={{ padding: "32px 40px 100px", overflowY: "auto", minHeight: "100vh" }}>
       {/* Header Area */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 32 }}>
+      <div className="flex justify-between" style={{ alignItems: "flex-end", marginBottom: 32 }}>
         <div>
-          <div className="text-caption" style={{ fontFamily: "var(--ns-font-mono)", letterSpacing: 1.5, color: "var(--ns-fg-muted)", marginBottom: 8 }}>
+          <div className="text-caption muted mb-2" style={{ fontFamily: "var(--ns-font-mono)", letterSpacing: 1.5 }}>
             {dateRange.label} · {categoryStats.length} 個分類
           </div>
-          <h1 className="text-[32px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.5, fontWeight: 600 }}>
+          <h1 className="text-[32px] font-semibold" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.5 }}>
             分類
           </h1>
         </div>
         
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="flex items-center gap-2.5">
           <DateScopeControl value={dateScope} onChange={setDateScope} />
           <Button onClick={() => setCategoryDrawerOpen(true)}>
             <Plus size={14} weight="bold" /> 管理分類
@@ -228,14 +228,14 @@ export function CategoriesRoute() {
           value={overSpentCats.length > 0 ? `${overSpentCats.length} (${overSpentCats[0].name})` : "0"} 
         />
       </div>
-      {missingFxPairs.length ? <div className="ns-surface text-body" style={{ padding: "10px 14px", marginBottom: 16 }}>總額不完整：缺少 {missingFxPairs.join("、")} 匯率。</div> : null}
+      {missingFxPairs.length ? <div className="ns-surface text-body mb-4" style={{ padding: "10px 14px" }}>總額不完整：缺少 {missingFxPairs.join("、")} 匯率。</div> : null}
 
-      <div style={{ display: "flex", gap: 24 }}>
+      <div className="flex gap-6">
         {/* Left: Donut Chart */}
-        <Card style={{ flex: "0 0 340px", padding: 32, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <Card className="flex flex-col items-center" style={{ flex: "0 0 340px", padding: 32 }}>
           {categoryStats.length > 0 ? (
             <>
-              <div style={{ width: "100%", height: 260, position: "relative", marginBottom: 24 }}>
+              <div className="w-full mb-6" style={{ height: 260, position: "relative" }}>
                 <ResponsiveContainer>
                   <PieChart>
                     <Pie
@@ -276,18 +276,17 @@ export function CategoriesRoute() {
               
               {/* Legend Grid */}
               {selectedCategory && (
-                <Button variant="ghost" className="text-caption" style={{ marginBottom: 8, alignSelf: 'center' }} onClick={() => setSelectedCategory(null)}>
+                <Button variant="ghost" className="text-caption mb-2" style={{ alignSelf: 'center' }} onClick={() => setSelectedCategory(null)}>
                   <X size={10} weight="bold" />清除篩選: {selectedCategory}
                 </Button>
               )}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 24px", width: "100%" }}>
+              <div className="w-full" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 24px" }}>
                 {categoryStats.map(cat => (
                   <div
                     key={cat.name}
-                    className="text-body"
+                    className="text-body flex items-center gap-2"
                     onClick={() => setSelectedCategory(prev => prev === cat.name ? null : cat.name)}
                     style={{
-                      display: "flex", alignItems: "center", gap: 8,
                       cursor: "pointer", padding: "4px 6px", borderRadius: "var(--ns-r-xs)",
                       background: selectedCategory === cat.name ? "var(--ns-bg-hover)" : "transparent",
                       opacity: !selectedCategory || selectedCategory === cat.name ? 1 : 0.45,
@@ -295,31 +294,31 @@ export function CategoriesRoute() {
                     }}
                   >
                     <Glyph name={cat.emoji} size={16} />
-                    <span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cat.name}</span>
+                    <span className="font-medium truncate">{cat.name}</span>
                   </div>
                 ))}
               </div>
             </>
           ) : (
-            <div style={{ height: 300, display: "flex", alignItems: "center", justifyContent: "center" }} className="muted">
+            <div style={{ height: 300, justifyContent: "center" }} className="muted flex items-center">
               沒有足夠的支出資料
             </div>
           )}
         </Card>
 
         {/* Right: Categories List */}
-        <Card style={{ flex: 1, padding: "24px 0" }}>
+        <Card className="flex-1" style={{ padding: "24px 0" }}>
           {/* List Header */}
-          <div className="text-caption" style={{ display: "flex", padding: "0 32px 12px", borderBottom: "1px solid var(--ns-border)", fontFamily: "var(--ns-font-mono)", color: "var(--ns-fg-muted)", letterSpacing: 1 }}>
+          <div className="text-caption muted flex" style={{ padding: "0 32px 12px", borderBottom: "1px solid var(--ns-border)", fontFamily: "var(--ns-font-mono)", letterSpacing: 1 }}>
             <button style={{ flex: "0 0 160px", background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textAlign: "left", letterSpacing: 1 }} onClick={() => toggleCatRouteSort("name")}>分類{catRouteSort.key === "name" ? (catRouteSort.dir === "asc" ? " ▲" : " ▼") : ""}</button>
-            <button style={{ flex: 1, background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textAlign: "right", letterSpacing: 1 }} onClick={() => toggleCatRouteSort("amount")}>已消費{catRouteSort.key === "amount" ? (catRouteSort.dir === "asc" ? " ▲" : " ▼") : ""}</button>
-            <div style={{ flex: "0 0 240px", textAlign: "right" }}>預算</div>
-            <button style={{ flex: "0 0 120px", background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textAlign: "center", letterSpacing: 1 }} onClick={() => toggleCatRouteSort("usage")}>使用率{catRouteSort.key === "usage" ? (catRouteSort.dir === "asc" ? " ▲" : " ▼") : ""}</button>
+            <button className="text-right" style={{ flex: 1, background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", letterSpacing: 1 }} onClick={() => toggleCatRouteSort("amount")}>已消費{catRouteSort.key === "amount" ? (catRouteSort.dir === "asc" ? " ▲" : " ▼") : ""}</button>
+            <div className="text-right" style={{ flex: "0 0 240px" }}>預算</div>
+            <button className="text-center" style={{ flex: "0 0 120px", background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", letterSpacing: 1 }} onClick={() => toggleCatRouteSort("usage")}>使用率{catRouteSort.key === "usage" ? (catRouteSort.dir === "asc" ? " ▲" : " ▼") : ""}</button>
             <div style={{ width: 40 }}></div>
           </div>
 
           {/* List Items */}
-          <div style={{ display: "flex", flexDirection: "column" }}>
+          <div className="flex flex-col">
             {sortedCategoryStats.map((cat, index) => {
               const hasBudget = cat.budget !== null;
               const percent = hasBudget ? (cat.amount / cat.budget!) * 100 : 0;
@@ -334,40 +333,40 @@ export function CategoriesRoute() {
                 <div
                   onClick={() => setSelectedCategory(prev => prev === cat.name ? null : cat.name)}
                   style={{
-                    display: "flex", alignItems: "center", padding: "16px 32px",
+                    padding: "16px 32px",
                     borderBottom: index < categoryStats.length - 1 ? "1px solid var(--ns-border)" : "none",
                     transition: "background 0.2s", cursor: "pointer",
                     opacity: !selectedCategory || selectedCategory === cat.name ? 1 : 0.5,
                     background: selectedCategory === cat.name ? "var(--ns-bg-hover)" : "transparent",
                   }}
-                  className="hover:bg-[var(--ns-surface)]"
+                  className="hover:bg-[var(--ns-surface)] flex items-center"
                 >
                   
                   {/* Category Info */}
-                  <div style={{ flex: "0 0 160px", display: "flex", alignItems: "center", gap: 16 }}>
-                    <div className="text-xl" style={{ width: 36, height: 36, borderRadius: 10, background: (cat.color || 'var(--ns-surface-strong)') + '18', display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div className="flex items-center gap-4" style={{ flex: "0 0 160px" }}>
+                    <div className="text-xl flex items-center" style={{ width: 36, height: 36, borderRadius: 10, background: (cat.color || 'var(--ns-surface-strong)') + '18', justifyContent: "center" }}>
                       <Glyph name={cat.emoji} size={20} />
                     </div>
                     <div>
-                      <div className="text-[15px]" style={{ fontWeight: 500, marginBottom: 2 }}>{cat.name}</div>
-                      <div className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>{cat.count} 筆</div>
+                      <div className="text-[15px] font-medium" style={{ marginBottom: 2 }}>{cat.name}</div>
+                      <div className="text-xs muted">{cat.count} 筆</div>
                     </div>
                   </div>
                   
                   {/* Spent */}
-                  <div className="text-[15px]" style={{ flex: 1, textAlign: "right", fontWeight: 500 }}>
+                  <div className="text-[15px] flex-1 text-right font-medium">
                     {formatMoney(cat.amount, primaryCurrency)}
                   </div>
                   
                   {/* Budget */}
                   <div style={{ flex: "0 0 240px", paddingLeft: 48 }}>
-                    <div className="text-sm" style={{ fontWeight: 500, marginBottom: 4 }}>
+                    <div className="text-sm font-medium mb-1">
                       {hasBudget ? formatMoney(cat.budget!, primaryCurrency) : "—"}
                     </div>
-                    <div className="text-caption" style={{ color: "var(--ns-fg-muted)" }}>
+                    <div className="text-caption muted">
                       {hasBudget ? (
                         isOver ? (
-                          <span style={{ color: "var(--ns-neg)" }}>{percent.toFixed(0)}% · 超支 {formatMoney(cat.amount - cat.budget!, primaryCurrency)}</span>
+                          <span className="neg">{percent.toFixed(0)}% · 超支 {formatMoney(cat.amount - cat.budget!, primaryCurrency)}</span>
                         ) : (
                           <span>{percent.toFixed(0)}%</span>
                         )
@@ -383,8 +382,8 @@ export function CategoriesRoute() {
                   </div>
                   
                   {/* Usage Bar */}
-                  <div style={{ flex: "0 0 120px", display: "flex", alignItems: "center" }}>
-                    <div style={{ width: "100%", height: 6, borderRadius: 3, background: "var(--ns-surface-strong)", overflow: "hidden" }}>
+                  <div className="flex items-center" style={{ flex: "0 0 120px" }}>
+                    <div className="w-full" style={{ height: 6, borderRadius: 3, background: "var(--ns-surface-strong)", overflow: "hidden" }}>
                       {hasBudget && (
                         <div style={{ height: "100%", background: barColor, width: `${displayPercent}%`, borderRadius: 3 }} />
                       )}
@@ -392,7 +391,7 @@ export function CategoriesRoute() {
                   </div>
                   
                   {/* Settings */}
-                  <div style={{ width: 40, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, color: "var(--ns-fg-muted)" }}>
+                  <div className="muted flex items-center gap-2" style={{ width: 40, justifyContent: "flex-end" }}>
                     <button
                       className="text-caption"
                       style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: annualCategory === cat.name ? "var(--ns-fg)" : "var(--ns-fg-muted)", fontFamily: "var(--ns-font-mono)" }}
@@ -418,7 +417,7 @@ export function CategoriesRoute() {
             })}
             
             {categoryStats.length === 0 && (
-              <div className="muted" style={{ textAlign: "center", padding: "40px 0" }}>沒有分類資料</div>
+              <div className="muted text-center" style={{ padding: "40px 0" }}>沒有分類資料</div>
             )}
           </div>
         </Card>
@@ -448,7 +447,7 @@ function AnnualGrid({ months, series, monthlyBudget, rollover, primaryCurrency }
   const summary = annualBudgetSummary({ monthlyBudget, rollover, monthlySpend: series });
   return (
     <div className="ns-surface" style={{ margin: "0 32px 16px", padding: "16px 20px", borderRadius: "var(--ns-r-sm)" }}>
-      <div className="text-caption" style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, fontFamily: "var(--ns-font-mono)", color: "var(--ns-fg-muted)", letterSpacing: 1 }}>
+      <div className="text-caption muted flex justify-between mb-3" style={{ fontFamily: "var(--ns-font-mono)", letterSpacing: 1 }}>
         <span>近 12 個月</span>
         <span>年度支出 {formatMoney(summary.annualSpend, primaryCurrency)} / 年度預算 {formatMoney(summary.annualBudget, primaryCurrency)}（月預算 ×12）</span>
       </div>
@@ -457,11 +456,11 @@ function AnnualGrid({ months, series, monthlyBudget, rollover, primaryCurrency }
           const over = monthlyBudget > 0 && m.spend > m.available;
           const pct = m.available > 0 ? Math.min(100, (m.spend / m.available) * 100) : 0;
           return (
-            <div key={months[i]} title={`${months[i]} · 支出 ${formatMoney(m.spend, primaryCurrency)}${rollover ? ` · 可用 ${formatMoney(m.available, primaryCurrency)}` : ""}`} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div key={months[i]} title={`${months[i]} · 支出 ${formatMoney(m.spend, primaryCurrency)}${rollover ? ` · 可用 ${formatMoney(m.available, primaryCurrency)}` : ""}`} className="flex flex-col gap-1">
               <div style={{ height: 48, display: "flex", flexDirection: "column-reverse", background: "var(--ns-bg-hover)", borderRadius: 4, overflow: "hidden" }}>
                 <div style={{ height: `${pct}%`, background: over ? "var(--ns-neg)" : "var(--ns-accent)" }} />
               </div>
-              <div className="text-micro" style={{ textAlign: "center", color: "var(--ns-fg-muted)", fontFamily: "var(--ns-font-mono)" }}>{months[i].slice(5)}</div>
+              <div className="text-micro muted text-center" style={{ fontFamily: "var(--ns-font-mono)" }}>{months[i].slice(5)}</div>
             </div>
           );
         })}
@@ -472,9 +471,9 @@ function AnnualGrid({ months, series, monthlyBudget, rollover, primaryCurrency }
 
 function SummaryCard({ label, value }: { label: string, value: string }) {
   return (
-    <Card style={{ padding: "24px", display: "flex", flexDirection: "column", gap: 12 }}>
-      <div className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>{label}</div>
-      <div className="text-[24px]" style={{ fontWeight: 500 }}>{value}</div>
+    <Card className="p-6 flex flex-col gap-3">
+      <div className="text-xs muted">{label}</div>
+      <div className="text-[24px] font-medium">{value}</div>
     </Card>
   );
 }
