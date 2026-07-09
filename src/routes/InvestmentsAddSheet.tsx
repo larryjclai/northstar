@@ -475,14 +475,14 @@ export function InvestmentEntryDrawer({
         }}
       >
         {/* Header */}
-        <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", gap: 12 }}>
+        <div className="flex items-center gap-3" style={{ padding: "20px 24px", borderBottom: "1px solid var(--ns-border)" }}>
           <h2 className="text-xl" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 600, letterSpacing: -0.02 }}>
             {mode === "snapshot" ? "建立目前部位" : title}
           </h2>
-          <div style={{ flex: 1 }} />
+          <div className="flex-1" />
           {onOpenImport && !transactionPreset && mode === "transaction" && (
             <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => { onClose(); onOpenImport(); }}>
-              <UploadSimple size={14} style={{ marginRight: 6 }} />匯入 CSV
+              <UploadSimple size={14} className="mr-1.5" />匯入 CSV
             </Button>
           )}
           {!transactionPreset ? (
@@ -498,8 +498,8 @@ export function InvestmentEntryDrawer({
         </div>
 
         {eligibleAccounts.length === 0 ? (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 32, textAlign: "center" }}>
-            <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--ns-accent-soft)", color: "var(--ns-accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
+            <div className="flex items-center justify-center" style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
               <Bank size={24} weight="duotone" />
             </div>
             <div>
@@ -511,13 +511,11 @@ export function InvestmentEntryDrawer({
             <Button render={<Link to="/accounts" onClick={onClose} />} className="mt-2">前往建立帳戶</Button>
           </div>
         ) : mode === "snapshot" ? (
-          <div style={{ flex: 1, overflow: "auto", padding: "20px 24px" }}>
+          <div className="flex-1" style={{ overflow: "auto", padding: "20px 24px" }}>
             <label
+              className="mb-4 flex gap-2.5"
               style={{
-                display: "flex",
                 alignItems: "flex-start",
-                gap: 10,
-                marginBottom: 16,
                 padding: "12px 14px",
                 borderRadius: 10,
                 border: "1px solid var(--ns-border)",
@@ -532,8 +530,8 @@ export function InvestmentEntryDrawer({
                 style={{ marginTop: 2, accentColor: "var(--ns-accent)" }}
               />
               <span>
-                <span style={{ display: "block", fontWeight: 600 }}>自訂資產（無報價）</span>
-                <span className="muted text-xs" style={{ display: "block", marginTop: 2, lineHeight: 1.5 }}>
+                <span className="block font-semibold">自訂資產（無報價）</span>
+                <span className="muted text-xs block" style={{ marginTop: 2, lineHeight: 1.5 }}>
                   無市場報價的資產（例如未上市股權、不動產、收藏品）。不需 ticker，市值由你之後在持倉頁手動更新價格決定；未更新前以平均成本計價。
                 </span>
               </span>
@@ -545,7 +543,7 @@ export function InvestmentEntryDrawer({
               submitLabel={createHolding.isPending ? "儲存中…" : "儲存持倉"}
               accounts={accounts}
             />
-            {message ? <div style={{ marginTop: 12 }}><StatusText>{message}</StatusText></div> : null}
+            {message ? <div className="mt-3"><StatusText>{message}</StatusText></div> : null}
           </div>
         ) : (
           <>
@@ -568,10 +566,10 @@ export function InvestmentEntryDrawer({
               </ToggleGroup>
             </div>
 
-            <div style={{ flex: 1, overflow: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
+            <div className="flex flex-1 flex-col" style={{ overflow: "auto", padding: "20px 24px", gap: 18 }}>
               {/* Ticker + quick chips */}
               <div>
-                <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>股票代號 / Symbol</label>
+                <label className="text-xs ns-field-label block">股票代號 / Symbol</label>
                 <TickerSearchField
                   value={transactionForm.ticker}
                   onChange={(ticker) => setTransactionForm({ ...transactionForm, ticker })}
@@ -588,7 +586,7 @@ export function InvestmentEntryDrawer({
                   }}
                 />
                 {tickerSuggestions.length > 0 ? (
-                  <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <div className="mt-2 flex gap-1.5" style={{ flexWrap: "wrap" }}>
                     {tickerSuggestions.map((s) => (
                       <Button key={s} variant="outline" size="xs" className="font-mono" onClick={() => setTransactionForm({ ...transactionForm, ticker: s })}>
                         {s}
@@ -601,11 +599,11 @@ export function InvestmentEntryDrawer({
               {/* Date + account */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                 <div>
-                  <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>日期</label>
+                  <label className="text-xs ns-field-label block">日期</label>
                   <input className="ns-input" type="datetime-local" value={transactionForm.date} onChange={(e) => setTransactionForm({ ...transactionForm, date: e.target.value })} />
                 </div>
                 <div>
-                  <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>券商 / 帳戶</label>
+                  <label className="text-xs ns-field-label block">券商 / 帳戶</label>
                   <AccountFilter
                     accounts={eligibleAccounts}
                     value={transactionForm.linkedAccountId ?? "all"}
@@ -632,7 +630,7 @@ export function InvestmentEntryDrawer({
               {/* Side-specific numeric fields */}
               {side === "split" ? (
                 <div>
-                  <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>拆股比例（1 股 → N 股）</label>
+                  <label className="text-xs ns-field-label block">拆股比例（1 股 → N 股）</label>
                   <NumberField
                     value={transactionForm.quantity}
                     onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })}
@@ -641,12 +639,12 @@ export function InvestmentEntryDrawer({
                     className="ns-input mono text-lg"
                     style={NUM_INPUT_STYLE}
                   />
-                  <div className="muted text-caption" style={{ marginTop: 6 }}>
+                  <div className="muted text-caption mt-1.5">
                     輸入 3 = 3-for-1（持股 ×3、均價 ÷3、總成本不變）；小於 1 為反向拆股（例 0.5 = 2 併 1）。無手續費。
                   </div>
                 </div>
               ) : side === "dividend" ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div className="flex flex-col gap-3.5">
                   {/* 現金股利 / 股票股利(配股) / 股息再投入(DRIP) sub-toggle. Editing an
                       existing record stays on cash/stock — DRIP is create-only. */}
                   <ToggleGroup
@@ -670,16 +668,16 @@ export function InvestmentEntryDrawer({
                   </ToggleGroup>
                   {dividendMode === "stock" ? (
                     <div>
-                      <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>配發股數</label>
+                      <label className="text-xs ns-field-label block">配發股數</label>
                       <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={5} placeholder="100" style={NUM_INPUT_STYLE} />
-                      <div className="muted text-caption" style={{ marginTop: 6 }}>
+                      <div className="muted text-caption mt-1.5">
                         配股不涉及現金：股數增加、總成本不變，因此平均成本會下降。
                       </div>
                     </div>
                   ) : dividendMode === "drip" ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    <div className="flex flex-col gap-3.5">
                       <div>
-                        <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>股利金額（總額）</label>
+                        <label className="text-xs ns-field-label block">股利金額（總額）</label>
                         <NumberField
                           className="ns-input mono text-lg"
                           value={dripDividendAmount}
@@ -691,13 +689,13 @@ export function InvestmentEntryDrawer({
                           placeholder="3,500"
                           style={NUM_INPUT_STYLE}
                         />
-                        <div className="muted text-caption" style={{ marginTop: 6 }}>
+                        <div className="muted text-caption mt-1.5">
                           未修改時自動帶入 股數 × 價格。
                         </div>
                       </div>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                         <div>
-                          <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>再投入股數</label>
+                          <label className="text-xs ns-field-label block">再投入股數</label>
                           <NumberField
                             className="ns-input mono text-lg"
                             value={transactionForm.quantity}
@@ -713,7 +711,7 @@ export function InvestmentEntryDrawer({
                           />
                         </div>
                         <div>
-                          <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>再投入價格</label>
+                          <label className="text-xs ns-field-label block">再投入價格</label>
                           <NumberField
                             className="ns-input mono text-lg"
                             value={transactionForm.price}
@@ -737,11 +735,11 @@ export function InvestmentEntryDrawer({
                   ) : (
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                       <div>
-                        <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>股利金額（總額）</label>
+                        <label className="text-xs ns-field-label block">股利金額（總額）</label>
                         <NumberField className="ns-input mono text-lg" value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={2} placeholder="3,500" style={NUM_INPUT_STYLE} />
                       </div>
                       <div>
-                        <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>代扣稅 / 手續費</label>
+                        <label className="text-xs ns-field-label block">代扣稅 / 手續費</label>
                         <NumberField className="ns-input mono text-lg" value={transactionForm.fee} onChange={(fee) => setTransactionForm({ ...transactionForm, fee })} placeholder="0" style={NUM_INPUT_STYLE} />
                       </div>
                     </div>
@@ -750,25 +748,25 @@ export function InvestmentEntryDrawer({
               ) : side === "reduction" ? (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                   <div>
-                    <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>被註銷股數</label>
+                    <label className="text-xs ns-field-label block">被註銷股數</label>
                     <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={5} placeholder="20" style={NUM_INPUT_STYLE} />
                   </div>
                   <div>
-                    <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>每股退回現金</label>
+                    <label className="text-xs ns-field-label block">每股退回現金</label>
                     <NumberField className="ns-input mono text-lg" value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={5} placeholder="10" style={NUM_INPUT_STYLE} />
-                    <div className="muted text-caption" style={{ marginTop: 6 }}>
+                    <div className="muted text-caption mt-1.5">
                       現金減資填每股退回金額；彌補虧損減資（不退現金）填 0。
                     </div>
                   </div>
                 </div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div className="flex flex-col gap-3">
                   {/* Stock / ETF instrument toggle — determines sell-tax rate when
                       auto-fill is enabled; also shown on buys so the user's choice
                       persists if they switch between buy and sell. */}
                   {feeConfig.enabled && isTaiwanTicker(transactionForm.ticker) && (
                     <div>
-                      <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>標的類型</label>
+                      <label className="text-xs ns-field-label block">標的類型</label>
                       <ToggleGroup
                         variant="outline"
                         className="w-full"
@@ -788,18 +786,18 @@ export function InvestmentEntryDrawer({
                   )}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
                     <div>
-                      <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>股數</label>
+                      <label className="text-xs ns-field-label block">股數</label>
                       <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={5} placeholder="100" style={NUM_INPUT_STYLE} />
                     </div>
                     <div>
-                      <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>每股價格</label>
+                      <label className="text-xs ns-field-label block">每股價格</label>
                       <NumberField className="ns-input mono text-lg" value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={5} placeholder="1,042.00" style={NUM_INPUT_STYLE} />
                     </div>
                     <div>
-                      <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>
+                      <label className="text-xs ns-field-label block">
                         手續費
                         {feeConfig.enabled && isTaiwanTicker(transactionForm.ticker) && !feeTouchedRef.current && (
-                          <span className="muted" style={{ fontSize: 10, marginLeft: 6, fontWeight: 400, letterSpacing: 0 }}>自動試算</span>
+                          <span className="muted ml-1.5" style={{ fontSize: 10, fontWeight: 400, letterSpacing: 0 }}>自動試算</span>
                         )}
                       </label>
                       <NumberField
@@ -853,18 +851,18 @@ export function InvestmentEntryDrawer({
 
               {/* Note */}
               <div>
-                <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>備註</label>
+                <label className="text-xs ns-field-label block">備註</label>
                 <input className="ns-input" value={transactionForm.note} onChange={(e) => setTransactionForm({ ...transactionForm, note: e.target.value })} placeholder="選填" />
               </div>
 
               {/* FIFO impact preview */}
               <Card className="gap-0 rounded-[var(--ns-r-md)] border-[var(--ns-accent)] bg-[var(--ns-accent-soft)] p-4 shadow-none before:hidden">
-                <div className="text-xs" style={{  marginBottom: 10, color: "var(--ns-accent)" , fontWeight: 500 }}>部位影響預覽</div>
+                <div className="text-xs mb-2.5 font-medium" style={{ color: "var(--ns-accent)" }}>部位影響預覽</div>
                 <div className="text-body" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <div><span className="muted">{totalLabel}</span><br /><span className="num text-base" style={{ fontWeight: 500 }}>{side === "split" ? `×${formatNumber(totalValue)}` : side === "dividend" && isStockDividend(transactionForm.action) ? `+${formatQuantity(totalValue)} 股` : formatPreviewMoney(totalValue, currency)}</span></div>
-                  <div><span className="muted">新平均成本</span><br /><span className="num text-base" style={{ fontWeight: 500 }}>{formatPreviewMoney(newAvg, currency)}</span></div>
-                  <div><span className="muted">新部位股數</span><br /><span className="num text-base" style={{ fontWeight: 500 }}>{formatQuantity(newQty)} 股</span></div>
-                  <div><span className="muted">新市值</span><br /><span className="num pos text-base" style={{ fontWeight: 500 }}>{formatPreviewMoney(newMarketValue, currency)}</span></div>
+                  <div><span className="muted">{totalLabel}</span><br /><span className="num text-base font-medium">{side === "split" ? `×${formatNumber(totalValue)}` : side === "dividend" && isStockDividend(transactionForm.action) ? `+${formatQuantity(totalValue)} 股` : formatPreviewMoney(totalValue, currency)}</span></div>
+                  <div><span className="muted">新平均成本</span><br /><span className="num text-base font-medium">{formatPreviewMoney(newAvg, currency)}</span></div>
+                  <div><span className="muted">新部位股數</span><br /><span className="num text-base font-medium">{formatQuantity(newQty)} 股</span></div>
+                  <div><span className="muted">新市值</span><br /><span className="num pos text-base font-medium">{formatPreviewMoney(newMarketValue, currency)}</span></div>
                 </div>
               </Card>
 
@@ -877,7 +875,7 @@ export function InvestmentEntryDrawer({
             </div>
 
             {/* Footer */}
-            <div style={{ padding: "16px 24px", borderTop: "1px solid var(--ns-border)", display: "flex", gap: 10 }}>
+            <div className="flex gap-2.5" style={{ padding: "16px 24px", borderTop: "1px solid var(--ns-border)" }}>
               <Button variant="outline" className="flex-1" onClick={onClose}>取消</Button>
               <Button
                 className="flex-[2]"
