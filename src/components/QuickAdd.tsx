@@ -227,19 +227,19 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 80, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+    <div className="flex" style={{ position: "fixed", inset: 0, zIndex: 80, alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} />
       <div
         onClick={(e) => e.stopPropagation()}
-        className="animate-[ns-drawer-in_180ms_cubic-bezier(0.22,1,0.36,1)]"
-        style={{ position: "relative", width: "min(620px, 94vw)", marginBottom: 28, display: "flex", flexDirection: "column", gap: 10 }}
+        className="animate-[ns-drawer-in_180ms_cubic-bezier(0.22,1,0.36,1)] flex flex-col gap-2.5"
+        style={{ position: "relative", width: "min(620px, 94vw)", marginBottom: 28 }}
       >
         {/* Confirm card (shown after parsing) */}
         {confirm ? (
-          <Card style={{ padding: 16, boxShadow: "var(--ns-shadow-xl)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>確認 · {confirm.kind === "investment" ? (confirm.action === "buy" ? "買入" : "賣出") : confirm.entryType === "expense" ? "支出" : "收入"}</span>
+          <Card className="p-4" style={{ boxShadow: "var(--ns-shadow-xl)" }}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium" style={{ color: "var(--ns-fg-muted)" }}>確認 · {confirm.kind === "investment" ? (confirm.action === "buy" ? "買入" : "賣出") : confirm.entryType === "expense" ? "支出" : "收入"}</span>
                 {parseSource === "on-device" ? (
                   <span className="text-micro" title="由裝置端 AI 解析（Apple Foundation Models）" style={{ opacity: 0.6, padding: "1px 6px", borderRadius: 999, border: "1px solid var(--ns-border)", letterSpacing: "0.02em" }}>AI</span>
                 ) : null}
@@ -252,7 +252,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
               // kind doesn't match — e.g. an NL-parser guess — so it stays deselectable.
               const pickerCategories = categoryPickerOptions(categoryGroups, confirm.entryType, confirm.category);
               return (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div className="gap-2.5" style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
                 <Field label="金額"><input
                   className="ns-input"
                   type="text"
@@ -266,7 +266,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                 <Field label="分類">
                   {/* Two-level picker: category chips (icon glyph + name, contrast-aware
                       when active) then its subcategories below (B11 + B14). */}
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                  <div className="flex" style={{ flexWrap: "wrap", gap: 5 }}>
                     {pickerCategories.map((category) => {
                       const active = confirm.category === category.name;
                       const color = category.color || "var(--ns-accent)";
@@ -275,13 +275,13 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                           key={category.name}
                           type="button"
                           onClick={() => setConfirm({ ...confirm, category: active ? "" : category.name, subcategory: "" })}
-                          className="text-xs"
+                          className="text-xs items-center gap-1"
                           style={{
                             padding: "4px 10px", borderRadius: 999, cursor: "pointer",
                             background: active ? color : "var(--ns-bg-card)",
                             color: active ? readableTextColor(color) : "var(--ns-fg)",
                             border: active ? "1px solid rgba(0,0,0,0.12)" : "1px solid var(--ns-border)",
-                            display: "inline-flex", alignItems: "center", gap: 4, fontFamily: "inherit",
+                            display: "inline-flex", fontFamily: "inherit",
                           }}
                         >
                           {category.iconName && <Glyph name={category.iconName} size={13} />}
@@ -293,7 +293,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                   {(() => {
                     const subs = pickerCategories.find((c) => c.name === confirm.category)?.children ?? [];
                     return subs.length ? (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 7, paddingLeft: 8, borderLeft: "2px solid var(--ns-border)" }}>
+                      <div className="flex pl-2" style={{ flexWrap: "wrap", gap: 5, marginTop: 7, borderLeft: "2px solid var(--ns-border)" }}>
                         {subs.map((s) => {
                           const active = confirm.subcategory === s;
                           return (
@@ -350,7 +350,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                   {(ledgerSuggestions.merchants.length > 0 || ledgerSuggestions.accountIds.length > 0) ? (
                     <div className="muted" style={{ marginBottom: 5 }}>依過往紀錄建議</div>
                   ) : null}
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                  <div className="flex" style={{ flexWrap: "wrap", gap: 5 }}>
                     {ledgerSuggestions.merchants.map((merchant) => <Button key={merchant} variant="outline" size="xs" onClick={() => chooseMerchant(merchant)}>{merchant}</Button>)}
                     {ledgerSuggestions.accountIds.map((accountId) => {
                       const account = accountRows.find((row) => row.id === accountId);
@@ -366,17 +366,17 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
               </div>
               );
             })() : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div className="gap-2.5" style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
                 <Field label="代號"><input className="ns-input" value={confirm.ticker} onChange={(e) => setConfirm({ ...confirm, ticker: e.target.value })} /></Field>
                 <Field label="帳戶"><AccountFilter accounts={accountRows.filter((a) => a.type === "investment")} value={confirm.accountId} onChange={(id) => setConfirm({ ...confirm, accountId: id })} allowAll={false} placeholder="未指定" style={{ width: "100%", maxWidth: "none", minWidth: 0 }} positionerClassName="z-[90]" /></Field>
                 <Field label="股數"><input className="ns-input" inputMode="decimal" value={confirm.quantity} onChange={(e) => setConfirm({ ...confirm, quantity: e.target.value.replace(/[^\d.]/g, "") })} /></Field>
                 <Field label="價格"><input className="ns-input" inputMode="decimal" value={confirm.price} onChange={(e) => setConfirm({ ...confirm, price: e.target.value.replace(/[^\d.]/g, "") })} /></Field>
               </div>
             )}
-            {error ? <div className="text-xs" style={{ color: "var(--ns-neg)", marginTop: 10 }}>{error}</div> : null}
-            <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+            {error ? <div className="text-xs mt-2.5" style={{ color: "var(--ns-neg)" }}>{error}</div> : null}
+            <div className="flex gap-2 mt-3.5">
               <Button variant="outline" style={{ flex: "0 0 auto" }} onClick={() => setConfirm(null)}>返回</Button>
-              <Button style={{ flex: 1, justifyContent: "center" }} onClick={submit} disabled={pending}>{pending ? "儲存中…" : "確認新增"}</Button>
+              <Button className="flex-1" style={{ justifyContent: "center" }} onClick={submit} disabled={pending}>{pending ? "儲存中…" : "確認新增"}</Button>
             </div>
           </Card>
         ) : null}
@@ -385,7 +385,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
             correctly instead of guessing (investment input rarely starts with
             a 買/賣 verb). Hidden once a confirm card is open. */}
         {!confirm ? (
-          <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
+          <div className="flex gap-1.5" style={{ justifyContent: "center" }}>
             {([["ledger", "記帳"], ["investment", "投資"]] as const).map(([value, label]) => {
               const active = mode === value;
               return (
@@ -412,14 +412,14 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
         {/* Device-side AI availability hint (only when not confirming). Lets the
             user see whether Apple Foundation Models is actually backing the parser. */}
         {!confirm && aiAvailable !== null ? (
-          <div style={{ display: "flex", justifyContent: "center" }}>
+          <div className="flex" style={{ justifyContent: "center" }}>
             <span
-              className="text-micro"
+              className="text-micro items-center"
               title={aiAvailable
                 ? "裝置端 AI（Apple Foundation Models）可用，會在規則無法解析時自動接手"
                 : "此裝置無法使用 Apple Foundation Models（需 macOS/iOS 26+、Apple Silicon 並開啟 Apple Intelligence），改用規則解析"}
               style={{
-                display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 9px", borderRadius: 999,
+                display: "inline-flex", gap: 5, padding: "2px 9px", borderRadius: 999,
                 border: "1px solid var(--ns-border)", color: "var(--ns-fg-muted)", opacity: 0.85,
               }}
             >
@@ -435,16 +435,16 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
         ) : null}
 
         {/* Input bar */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--ns-bg-card)", border: "1px solid var(--ns-border)", borderRadius: 999, padding: "6px 6px 6px 18px", boxShadow: "var(--ns-shadow-xl)" }}>
-          <Plus size={16} weight="bold" style={{ color: "var(--ns-accent)", flexShrink: 0 }} />
+        <div className="flex items-center gap-1" style={{ background: "var(--ns-bg-card)", border: "1px solid var(--ns-border)", borderRadius: 999, padding: "6px 6px 6px 18px", boxShadow: "var(--ns-shadow-xl)" }}>
+          <Plus size={16} weight="bold" className="shrink-0" style={{ color: "var(--ns-accent)" }} />
           <input
             ref={inputRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") parse(); }}
             placeholder={mode === "investment" ? "投資 · 試試「2330.TW 5股 @1042」或「賣 AAPL 10 @180」" : "記帳 · 試試「午餐 @添飯 120 信用卡」或「+ 接案 5000 富邦」"}
-            className="text-body"
-            style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--ns-fg)", fontFamily: "inherit", padding: "8px" }}
+            className="text-body flex-1 p-2"
+            style={{ background: "transparent", border: "none", outline: "none", color: "var(--ns-fg)", fontFamily: "inherit" }}
           />
           <Badge variant="outline" className="rounded-full text-micro"><span className="mono">⌘N</span></Badge>
           <Button style={{ padding: "8px 16px", borderRadius: 999 }} onClick={parse} disabled={!text.trim()}>
@@ -459,7 +459,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-xs" style={{  display: "block", marginBottom: 5, fontSize: 10.5 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</label>
+      <label className="text-xs font-medium" style={{ display: "block", marginBottom: 5, fontSize: 10.5, color: "var(--ns-fg-muted)" }}>{label}</label>
       {children}
     </div>
   );
@@ -504,10 +504,10 @@ function PreviewChips({ parsed, accounts }: { parsed: QuickAddParsed; accounts: 
   if (chips.length === 0) return null;
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", padding: "6px 14px", background: "var(--ns-bg-card)", borderRadius: 12, border: "1px solid var(--ns-border)", boxShadow: "var(--ns-shadow-sm)" }}>
+    <div className="flex items-center gap-1.5" style={{ flexWrap: "wrap", padding: "6px 14px", background: "var(--ns-bg-card)", borderRadius: 12, border: "1px solid var(--ns-border)", boxShadow: "var(--ns-shadow-sm)" }}>
       {chips.map((chip) => (
-        <span key={chip.label} className="text-micro" style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 8px", borderRadius: 999, background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)" }}>
-          <span style={{ color: chip.color, fontWeight: 600 }}>{chip.label}</span>
+        <span key={chip.label} className="text-micro items-center" style={{ display: "inline-flex", gap: 3, padding: "2px 8px", borderRadius: 999, background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)" }}>
+          <span className="font-semibold" style={{ color: chip.color }}>{chip.label}</span>
           <span>{chip.value}</span>
         </span>
       ))}
