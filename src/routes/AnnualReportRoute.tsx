@@ -81,7 +81,7 @@ export function AnnualReportRoute() {
     return (
       <div className="grid min-h-[50vh] place-items-center p-6 text-center">
         <div className="max-w-md">
-          <h3 className="text-[17px]" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+          <h3 className="text-[17px] font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>
             無法載入資料
           </h3>
           <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
@@ -96,13 +96,13 @@ export function AnnualReportRoute() {
   return (
     <div style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
       {/* Header — English eyebrow + Chinese h1 (DESIGN.md §3.5). */}
-      <div style={{ marginBottom: 22, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+      <div className="flex justify-between" style={{ marginBottom: 22, alignItems: "flex-start", gap: 16 }}>
         <div>
           <div className="text-xs ns-field-label">Annual tax summary</div>
-          <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>
+          <h1 className="text-[28px] font-semibold" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02 }}>
             年度報表
           </h1>
-          <p className="muted text-body" style={{ marginTop: 8, maxWidth: 640 }}>
+          <p className="muted text-body mt-2" style={{ maxWidth: 640 }}>
             依處分日年度彙總證券交易所得（已實現損益）與股利所得，供報稅參考。已實現損益採移動平均成本計算。
           </p>
         </div>
@@ -111,7 +111,6 @@ export function AnnualReportRoute() {
           disabled={rows.length === 0}
           title={rows.length === 0 ? "尚無資料可匯出" : "匯出逐檔年度報稅明細"}
           onClick={() => downloadCsv("annual-tax.csv", exportAnnualTaxCsv(rows, primaryCurrency))}
-          style={{ flexShrink: 0 }}
         >
           <DownloadSimple size={14} />匯出 CSV
         </Button>
@@ -119,12 +118,12 @@ export function AnnualReportRoute() {
 
       <Card style={{ padding: 0, overflow: "hidden" }}>
         {rows.length === 0 ? (
-          <div className="muted text-body" style={{ padding: "40px 24px", textAlign: "center" }}>
+          <div className="muted text-body text-center" style={{ padding: "40px 24px" }}>
             尚無已實現損益或股利紀錄。賣出持股或登錄現金股利後，年度摘要會在此顯示。
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
+            <table className="w-full" style={{ borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--ns-border)" }}>
                   <Th align="left">年度</Th>
@@ -149,7 +148,7 @@ export function AnnualReportRoute() {
                         }}
                       >
                         <Td align="left" style={{ fontWeight: 600 }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          <span className="items-center" style={{ display: "inline-flex", gap: 6 }}>
                             {hasDetail ? (
                               isOpen ? <CaretDown size={13} /> : <CaretRight size={13} />
                             ) : (
@@ -181,10 +180,10 @@ export function AnnualReportRoute() {
 
       {/* FX口徑 caveat (Decision C) — mirror plan 015's note pattern. */}
       <div
-        className="text-body"
-        style={{ marginTop: 16, display: "flex", gap: 8, color: "var(--ns-fg-muted)", maxWidth: 720 }}
+        className="text-body mt-4 flex"
+        style={{ gap: 8, color: "var(--ns-fg-muted)", maxWidth: 720 }}
       >
-        <Info size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+        <Info size={16} className="shrink-0" style={{ marginTop: 2 }} />
         <div>
           <p style={{ margin: 0 }}>
             外幣交易以「處分日」匯率換算為{primaryCurrency}；若該日無匯率資料，則回退至目前匯率。
@@ -202,8 +201,8 @@ export function AnnualReportRoute() {
 /** Expanded per-holding detail for one tax year, plus 境內/海外 subtotals. */
 function YearDetail({ row, currency }: { row: AnnualReportYear; currency: string }) {
   return (
-    <div style={{ paddingTop: 12 }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
+    <div className="pt-3">
+      <table className="w-full" style={{ borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
         <thead>
           <tr>
             <Th align="left">代號</Th>
