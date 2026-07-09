@@ -176,8 +176,8 @@ export function AppShell() {
               type="button"
               onClick={toggleSidebarCollapsed}
               title="展開側欄"
-              className="ns-nav-link"
-              style={{ justifyContent: "center", padding: "9px 8px", color: "var(--ns-fg-dim)" }}
+              className="ns-nav-link dim"
+              style={{ justifyContent: "center", padding: "9px 8px" }}
             >
               <CaretRight size={14} />
             </button>
@@ -198,8 +198,8 @@ export function AppShell() {
               type="button"
               onClick={toggleSidebarCollapsed}
               title="收合側欄"
-              className="ns-nav-link"
-              style={{ padding: "5px 6px", flexShrink: 0, color: "var(--ns-fg-dim)" }}
+              className="ns-nav-link shrink-0 dim"
+              style={{ padding: "5px 6px" }}
             >
               <CaretLeft size={14} />
             </button>
@@ -213,8 +213,8 @@ export function AppShell() {
               type="button"
               onClick={() => setSearchOpen(true)}
               title="搜尋 (⌘K)"
-              className="ns-nav-link"
-              style={{ width: "100%", justifyContent: "center", padding: "9px 8px" }}
+              className="ns-nav-link w-full"
+              style={{ justifyContent: "center", padding: "9px 8px" }}
             >
               <MagnifyingGlass size={16} />
             </button>
@@ -222,8 +222,7 @@ export function AppShell() {
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-body text-muted-foreground bg-secondary/30 hover:bg-secondary/50 rounded-md border border-border/50 transition-colors"
-              style={{ color: "var(--ns-fg-muted)" }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-body text-muted-foreground bg-secondary/30 hover:bg-secondary/50 rounded-md border border-border/50 transition-colors muted"
             >
               <MagnifyingGlass size={15} />
               <span className="flex-1 text-left">Search...</span>
@@ -241,8 +240,8 @@ export function AppShell() {
               type="button"
               onClick={() => setQuickAddOpen(true)}
               title="快速記帳 (⌘N)"
-              className="ns-nav-link"
-              style={{ width: "100%", justifyContent: "center", padding: "9px 8px", background: "var(--ns-accent)", color: "var(--ns-accent-fg)", borderRadius: "var(--ns-r-sm)" }}
+              className="ns-nav-link w-full"
+              style={{ justifyContent: "center", padding: "9px 8px", background: "var(--ns-accent)", color: "var(--ns-accent-fg)", borderRadius: "var(--ns-r-sm)" }}
             >
               <Plus size={16} weight="bold" />
             </button>
@@ -261,7 +260,7 @@ export function AppShell() {
         </div>
 
         {/* Nav items */}
-        <nav style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
+        <nav className="flex flex-col flex-1" style={{ gap: 2 }}>
           {navItems.map((item) => (
             <Link
               key={item.to}
@@ -277,7 +276,7 @@ export function AppShell() {
             </Link>
           ))}
 
-          {!collapsed && <div className="text-xs" style={{  padding: '18px 11px 8px' , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Settings</div>}
+          {!collapsed && <div className="text-xs muted font-medium" style={{ padding: '18px 11px 8px' }}>Settings</div>}
           {collapsed && <div style={{ height: 18 }} />}
           {nav2Items.map((item) => (
             <Link
@@ -296,7 +295,7 @@ export function AppShell() {
         </nav>
 
         {/* Bottom: onboarding (conditional) + privacy + local-first */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="flex flex-col gap-2">
           {!onboardingDismissed && (
             <button
               type="button"
@@ -328,21 +327,21 @@ export function AppShell() {
           </button>
 
           {!collapsed && (
-            <div className="ns-surface" style={{ padding: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
-                <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--ns-fg-muted)" }}>
+            <div className="ns-surface p-3">
+              <div className="flex items-center mb-1" style={{ gap: 7 }}>
+                <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="muted">
                   <rect x="5" y="9" width="10" height="8" rx="1.5"/>
                   <path d="M7 9V6a3 3 0 016 0v3"/>
                 </svg>
-                <span className="text-xs" style={{ fontWeight: 500 }}>Local-first</span>
+                <span className="text-xs font-medium">Local-first</span>
               </div>
-              <div className="text-caption" style={{ lineHeight: 1.45, color: "var(--ns-fg-dim)" }}>
+              <div className="text-caption dim" style={{ lineHeight: 1.45 }}>
                 {t("shell.dataSavedLocally")}
               </div>
             </div>
           )}
           {collapsed && (
-            <div title={t("shell.dataSavedLocally")} style={{ display: "flex", justifyContent: "center", padding: "6px 0", color: "var(--ns-fg-dim)" }}>
+            <div title={t("shell.dataSavedLocally")} className="flex dim" style={{ justifyContent: "center", padding: "6px 0" }}>
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="5" y="9" width="10" height="8" rx="1.5"/>
                 <path d="M7 9V6a3 3 0 016 0v3"/>
@@ -357,24 +356,24 @@ export function AppShell() {
           it's a no-op there). Each route keeps its own top padding on top of it. */}
       <main
         key={privacyMode ? "privacy-on" : "privacy-off"}
-        className="ns-app-main pb-20 lg:pb-0"
+        className="ns-app-main pb-20 lg:pb-0 min-w-0"
         // overflowX clip is a second line of defense (besides html/body): it
         // contains any route-level horizontal overflow here so a single wide
         // element can't push content off-screen or trip the iOS webview into
         // widening its layout viewport. Wide tables still scroll in their own
         // overflow-x:auto wrapper.
-        style={{ paddingTop: "env(safe-area-inset-top)", overflowX: "clip", minWidth: 0 }}
+        style={{ paddingTop: "env(safe-area-inset-top)", overflowX: "clip" }}
       >
         {demoActive ? (
           <div
-            className="flex items-center gap-3 text-body"
-            style={{ padding: "8px 16px", background: "var(--ns-accent-soft)", color: "var(--ns-accent)", borderBottom: "1px solid var(--ns-border)", position: "sticky", top: 0, zIndex: 30 }}
+            className="flex items-center gap-3 text-body py-2 px-4 accent"
+            style={{ background: "var(--ns-accent-soft)", borderBottom: "1px solid var(--ns-border)", position: "sticky", top: 0, zIndex: 30 }}
           >
-            <span style={{ fontWeight: 600 }}>示範模式</span>
-            <span style={{ flex: 1, minWidth: 0, color: "var(--ns-fg-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span className="font-semibold">示範模式</span>
+            <span className="flex-1 min-w-0 muted truncate">
               你的資料已安全保存，結束後會還原。
             </span>
-            <Button variant="outline" style={{ height: 30, flexShrink: 0 }} onClick={handleExitDemo} loading={demoExiting}>
+            <Button variant="outline" className="shrink-0" style={{ height: 30 }} onClick={handleExitDemo} loading={demoExiting}>
               {demoExiting ? "還原中…" : "結束示範"}
             </Button>
           </div>
@@ -406,8 +405,8 @@ export function AppShell() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-4 pt-3 pb-1">
-              <span className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>更多</span>
-              <button type="button" aria-label="關閉" onClick={() => setMoreOpen(false)} style={{ background: "none", border: "none", color: "var(--ns-fg-muted)", cursor: "pointer" }}>
+              <span className="text-xs muted font-medium">更多</span>
+              <button type="button" aria-label="關閉" onClick={() => setMoreOpen(false)} className="muted" style={{ background: "none", border: "none", cursor: "pointer" }}>
                 <X size={18} />
               </button>
             </div>
@@ -814,10 +813,9 @@ export function PageHeader({
     <header className="mb-6 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
       <div className="min-w-0">
         <h1
-          className="text-[26px]"
+          className="text-[26px] font-semibold"
           style={{
             fontFamily: "var(--ns-font-display)",
-            fontWeight: 600,
             letterSpacing: -0.02,
             margin: 0,
             lineHeight: 1.15,
@@ -825,7 +823,7 @@ export function PageHeader({
         >
           {title}
         </h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6" style={{ color: "var(--ns-fg-muted)" }}>
+        <p className="mt-2 max-w-3xl text-sm leading-6 muted">
           {description}
         </p>
         {meta ? <div className="mt-3 flex flex-wrap gap-2">{meta}</div> : null}
