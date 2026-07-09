@@ -1,7 +1,22 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryFinanceRepositoryForTests } from "./repositories";
 import { nextRecurringDate } from "../domain";
 import type { Account, RecurringTransaction } from "../domain";
+
+// `createRecurringTransaction` routes nextRunDate through `firstFutureRunDate`,
+// which reads the real clock to advance a rule to its first *future* occurrence.
+// Without a fixed clock the "does not duplicate the seed…" test flips between
+// pass/fail depending on the calendar day it runs (e.g. it broke on 2026-07-05,
+// one month after the hard-coded 2026-06-05 seed). Pin "today" to the seed date
+// so every date-sensitive assertion is deterministic. Only Date is faked — timers
+// stay real so async persist()/microtasks are unaffected.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-06-05T00:00:00Z"));
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 const account: Account = {
   id: "acct_cash",
