@@ -105,7 +105,7 @@ export function ManualPriceImportWizard({ open, onClose, assetId, assetLabel, cu
             <div className="text-lg font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>匯入手動價格</div>
             <div className="muted text-xs" style={{ marginTop: 2 }}>{assetLabel}</div>
           </div>
-          <Button variant="ghost" size="icon-sm" onClick={onClose}><X size={16} /></Button>
+          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={onClose}><X size={16} /></Button>
         </div>
 
         {/* Stepper */}

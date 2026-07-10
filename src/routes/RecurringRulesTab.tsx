@@ -367,7 +367,7 @@ function RuleEditSheet({
           <ArrowsClockwise size={16} style={{ color: "var(--ns-accent)" }} />
           <span className="text-[15px] font-semibold">{isCreating ? "新增週期規則" : "編輯週期規則"}</span>
           <div className="flex-1" />
-          <Button variant="ghost" size="icon-sm" onClick={onClose}><X size={16} /></Button>
+          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={onClose}><X size={16} /></Button>
         </div>
 
         {/* Body */}

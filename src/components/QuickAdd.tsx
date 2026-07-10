@@ -244,7 +244,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                   <span className="text-micro" title="由裝置端 AI 解析（Apple Foundation Models）" style={{ opacity: 0.6, padding: "1px 6px", borderRadius: 999, border: "1px solid var(--ns-border)", letterSpacing: "0.02em" }}>AI</span>
                 ) : null}
               </div>
-              <Button variant="ghost" size="icon-sm" onClick={() => setConfirm(null)}><X size={14} /></Button>
+              <Button variant="ghost" size="icon-sm" aria-label="取消" onClick={() => setConfirm(null)}><X size={14} /></Button>
             </div>
             {confirm.kind === "ledger" ? (() => {
               // Only offer categories matching the entry's 收入/支出 type (plan 056 +

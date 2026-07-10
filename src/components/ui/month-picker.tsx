@@ -98,6 +98,7 @@ export function MonthPicker({ value, onChange, className, triggerClassName, onSe
             <div className="flex items-center justify-between mb-4">
               <button
                 onClick={() => setYear((y) => y - 1)}
+                aria-label="上一年"
                 className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
               >
                 <CaretLeft size={18} />
@@ -105,6 +106,7 @@ export function MonthPicker({ value, onChange, className, triggerClassName, onSe
               <div className="font-semibold text-sm tabular-nums">{year}</div>
               <button
                 onClick={() => setYear((y) => y + 1)}
+                aria-label="下一年"
                 className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
               >
                 <CaretRight size={18} />

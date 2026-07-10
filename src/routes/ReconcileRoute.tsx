@@ -346,7 +346,7 @@ export function ReconcileRoute() {
                         {row.amount < 0 ? (
                           <Button
                             variant="ghost"
-                            size="icon-sm"
+                            size="icon-sm" aria-label="延後入帳"
                             title="延後入帳"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -358,7 +358,7 @@ export function ReconcileRoute() {
                         ) : null}
                         <Button
                           variant="ghost"
-                          size="icon-sm"
+                          size="icon-sm" aria-label="編輯交易"
                           title="編輯交易"
                           onClick={(e) => {
                             e.stopPropagation();

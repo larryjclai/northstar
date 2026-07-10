@@ -143,7 +143,7 @@ export function SettingsFX({ form, submit, dailyFxRates, t }: Omit<SettingsTabPr
               <input className="ns-input" style={{textAlign:'right'}} value={r.to || form.primaryCurrency} onChange={e=>updateRate(i, { to: e.target.value.toUpperCase() })} />
               <div className="dim" style={{fontSize: 11, textAlign: 'right'}}>{stat ? `${stat.count} records` : 'No history'}</div>
               <div style={{display:'flex',justifyContent:'flex-end'}}>
-                <Button variant="ghost" size="icon-sm" style={{color:'var(--ns-neg)'}} onClick={()=>deleteRate(i)}><Trash size={14}/></Button>
+                <Button variant="ghost" size="icon-sm" aria-label="刪除" style={{color:'var(--ns-neg)'}} onClick={()=>deleteRate(i)}><Trash size={14}/></Button>
               </div>
             </div>
           )

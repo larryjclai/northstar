@@ -886,7 +886,7 @@ export function ConnectStatus() {
                     <Button variant="ghost" className="text-caption" style={{ padding: "4px 8px" }} onClick={() => setConfirmRevokeId(null)}>取消</Button>
                     <Button variant="outline" className="text-caption" style={{ padding: "4px 8px", color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} onClick={() => handleRevoke(dev.id)}>確認移除</Button>
                   </div>
-                : <Button variant="ghost" size="icon-sm" style={{ color: "var(--ns-neg)", padding: "4px 6px" }} onClick={() => setConfirmRevokeId(dev.id)}>
+                : <Button variant="ghost" size="icon-sm" aria-label="移除裝置" style={{ color: "var(--ns-neg)", padding: "4px 6px" }} onClick={() => setConfirmRevokeId(dev.id)}>
                     <Trash size={13} />
                   </Button>
             }
@@ -1070,7 +1070,7 @@ function AddDeviceDialog({
         {/* Header */}
         <div className="flex items-center justify-between" style={{ padding: "18px 22px 0" }}>
           <h3 className="text-lg font-semibold" style={{ fontFamily: "var(--ns-font-display)", margin: 0 }}>新增裝置</h3>
-          <Button variant="ghost" size="icon-sm" onClick={onClose}><X size={16} /></Button>
+          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={onClose}><X size={16} /></Button>
         </div>
 
         {/* Tabs */}

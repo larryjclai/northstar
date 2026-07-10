@@ -404,8 +404,7 @@ function RetirementIncomeSection({
                 />
                 <Button
                   variant="ghost"
-                  size="icon-sm"
-                  aria-label="移除"
+                  size="icon-sm" aria-label="移除"
                   onClick={() => setItems(items.filter((it) => it.id !== item.id))}
                 >
                   <X size={14} />

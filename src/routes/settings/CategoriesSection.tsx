@@ -266,7 +266,7 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
                   ) : <span className="dim text-caption">{t('settings.noLimit')}</span>}
                 </div>
                 <div style={{ display:'flex', gap:4, justifyContent:'flex-end' }}>
-                  <Button variant="ghost" size="icon-sm" className="p-1.5" onClick={() => setEditId(isEdit?null:c.name)}>
+                  <Button variant="ghost" size="icon-sm" aria-label="設定" className="p-1.5" onClick={() => setEditId(isEdit?null:c.name)}>
                     <Gear size={14} />
                   </Button>
                   {confirmDeleteId === c.name ? (
@@ -279,7 +279,7 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
                       </Button>
                     </>
                   ) : (
-                    <Button variant="ghost" size="icon-sm" className="p-1.5" style={{color:'var(--ns-neg)'}} onClick={() => setConfirmDeleteId(c.name)}>
+                    <Button variant="ghost" size="icon-sm" aria-label="刪除" className="p-1.5" style={{color:'var(--ns-neg)'}} onClick={() => setConfirmDeleteId(c.name)}>
                       <Backspace size={14} />
                     </Button>
                   )}
@@ -317,9 +317,9 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
                         )}
                         <div className="flex gap-1">
                           {!isEditingSub && (
-                            <Button variant="ghost" size="icon-sm" style={{padding:'3px 6px'}} onClick={() => { setEditingSub({ cat: c.name, sub: s }); setEditSubValue(s); }}><PencilSimple size={12}/></Button>
+                            <Button variant="ghost" size="icon-sm" aria-label="編輯" style={{padding:'3px 6px'}} onClick={() => { setEditingSub({ cat: c.name, sub: s }); setEditSubValue(s); }}><PencilSimple size={12}/></Button>
                           )}
-                          <Button variant="ghost" size="icon-sm" style={{color:'var(--ns-neg)', padding:'3px 6px'}} onClick={() => {
+                          <Button variant="ghost" size="icon-sm" aria-label="刪除" style={{color:'var(--ns-neg)', padding:'3px 6px'}} onClick={() => {
                             const nextForm = { ...form, categories: form.categories.map((cat) => cat.name === c.name ? { ...cat, children: cat.children.filter((x: string) => x !== s) } : cat) };
                             submit(nextForm);
                           }}><Trash size={12}/></Button>
