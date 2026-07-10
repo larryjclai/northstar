@@ -292,19 +292,43 @@ Base UI + Tailwind v4 的受控元件，透過 §2.7 的 bridge tokens 自動跟
 
 ### 6.4 Modal / Sheet 模式
 
-無共用 Dialog 元件；慣例為 fixed overlay（參考 `HoldingEditModal.tsx`、`GoalEditorSheet.tsx`）：
+新 modal / sheet / drawer 一律用共用元件 **`ModalShell`**（`src/components/ModalShell.tsx`）。
+它提供 `role="dialog"`、`aria-modal`、焦點陷阱 + 進出焦點還原、Escape / 遮罩點擊關閉、
+body 捲動鎖定，無新依賴。遮罩沿用 `var(--ns-scrim)`。
 
 ```jsx
-<div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" style={{ background: "var(--ns-scrim)" }} onClick={onClose}>
-  <div className="w-full max-w-lg rounded-lg border shadow-xl"
-       style={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}
-       onClick={(e) => e.stopPropagation()}>
-    {/* header(border-b) / 內容(max-h-[70vh] overflow-y-auto) / footer(border-t) */}
-  </div>
-</div>
+<ModalShell
+  variant="center"          // "center" | "sheet" | "drawer"
+  title="編輯持倉"          // aria-label（或用 labelledById 指向面板內的標題 id）
+  onClose={onClose}
+  panelClassName="w-full max-w-2xl rounded-lg border shadow-xl"
+  panelStyle={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}
+>
+  {/* header(border-b) / 內容(max-h-[70vh] overflow-y-auto) / footer(border-t) */}
+</ModalShell>
 ```
 
-手機（窄幅）時 `items-end` 自然形成 bottom sheet。
+Props：
+
+| Prop | 說明 |
+|---|---|
+| `onClose` | 遮罩點擊 / Escape 觸發 |
+| `title` / `labelledById` | 無障礙名稱（擇一，`labelledById` 優先） |
+| `variant` | `center`（置中，手機底部 sheet）、`sheet`（側面板自行定位）、`drawer`（抽屜自行定位） |
+| `panelClassName` / `panelStyle` | 面板樣式——沿用原 modal 的 class/style 以維持像素一致 |
+| `className` / `style` | 疊加到遮罩（例如自訂 `z-index`） |
+| `disableEscape` | 面板內若有以 Escape 取消的子編輯（如 `CategoryManagementDrawer` 的行內改名）需設此，避免 Escape 同時關閉整個 modal |
+| `disableScrimClose` | 關閉遮罩點擊關閉 |
+
+- 內含會 portal 到 `document.body` 的 Base UI popover（`AppSelect`、`DatePicker`、`IconPicker`）
+  仍正常運作：焦點陷阱綁在面板節點上，popover 的鍵盤行為（Tab / Escape）不受干擾。
+- 若面板有預設焦點目標，於該元素加 `data-autofocus`；否則面板本身取得焦點。
+
+**Legacy pattern（遷移中）**：舊有 modal 仍是手刻 fixed overlay（`fixed inset-0 z-50 flex
+items-end justify-center p-4 sm:items-center` + `stopPropagation` 面板），無 `role`/焦點管理。
+逐檔遷移到 `ModalShell`；已遷移：`HoldingEditModal`、`TransactionDetailPanel`、
+`AccountsRoute`（調整餘額）、`CategoryManagementDrawer`。手機窄幅時 `items-end` 自然形成
+bottom sheet。
 
 ---
 

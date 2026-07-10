@@ -10,6 +10,7 @@ import { Skeleton } from "../components/coss/skeleton";
 import { AppSelect } from "../components/AppSelect";
 import { FilterPill } from "../components/FilterPill";
 import { IconPicker } from "../components/IconPicker";
+import { ModalShell } from "../components/ModalShell";
 import { Glyph, DEFAULT_ACCOUNT_ICON } from "../lib/icons";
 import { BankLogo } from "../components/BankLogo";
 import { openOnboarding } from "../components/OnboardingOverlay";
@@ -494,8 +495,14 @@ export function AccountsRoute() {
 
       {/* Adjust modal */}
       {adjustingAccount ? (
-        <div className="flex items-center justify-center p-4" style={{ position: "fixed", inset: 0, zIndex: 50, background: "var(--ns-scrim)" }} onClick={() => setAdjustingAccountId(null)}>
-          <Card className="w-full p-0" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+        <ModalShell
+          variant="center"
+          title={`調整餘額 · ${adjustingAccount.name}`}
+          onClose={() => setAdjustingAccountId(null)}
+          panelClassName="w-full"
+          panelStyle={{ maxWidth: 420 }}
+        >
+          <Card className="w-full p-0">
             <div className="py-4 px-5" style={{ borderBottom: "1px solid var(--ns-border)" }}>
               <h2 className="text-base font-semibold" style={{ margin: 0 }}>調整餘額 · {adjustingAccount.name}</h2>
               <div className="muted text-xs" style={{ marginTop: 2 }}>目前餘額：{formatNumber(adjustingAccount.balance)} {adjustingAccount.currency}</div>
@@ -517,7 +524,7 @@ export function AccountsRoute() {
               </div>
             </div>
           </Card>
-        </div>
+        </ModalShell>
       ) : null}
     </div>
   );

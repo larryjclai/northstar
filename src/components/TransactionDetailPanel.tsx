@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Button } from "./coss/button";
 import { Badge } from "./coss/badge";
 import { arApAccountRoles } from "./arApAccountRoles";
+import { ModalShell } from "./ModalShell";
 import type { LedgerTransaction, RecurringTransaction } from "../domain";
 import { formatNumber, installmentLabel, recurringFrequencyLabels, todayInTimezone } from "../domain";
 
@@ -94,26 +95,19 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
   const isReceivable = row.entryType === "income";
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{
-          position: "fixed", inset: 0, background: "var(--ns-scrim)",
-          zIndex: 998, transition: "opacity 0.2s", opacity: 1,
-        }}
-      />
-
-      {/* Panel */}
-      <div
-        style={{
-          position: "fixed", top: 0, right: 0, bottom: 0, width: 460,
-          background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
-          zIndex: 999, display: "flex", flexDirection: "column",
-          boxShadow: "var(--ns-shadow-2)",
-          animation: "slideInRight 0.2s ease",
-        }}
-      >
+    <ModalShell
+      variant="sheet"
+      title="交易詳情"
+      onClose={onClose}
+      style={{ zIndex: 998 }}
+      panelStyle={{
+        position: "fixed", top: 0, right: 0, bottom: 0, width: 460,
+        background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
+        zIndex: 999, display: "flex", flexDirection: "column",
+        boxShadow: "var(--ns-shadow-2)",
+        animation: "slideInRight 0.2s ease",
+      }}
+    >
         {/* Header */}
         <div className="flex items-center justify-between" style={{ padding: "18px 24px", borderBottom: "1px solid var(--ns-border)" }}>
           <div className="text-body flex items-center gap-2 font-semibold">
@@ -331,7 +325,6 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
             <PencilSimple size={14} />編輯交易
           </Button>
         </div>
-      </div>
 
       <style>{`
         @keyframes slideInRight {
@@ -339,7 +332,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
           to { transform: translateX(0); opacity: 1; }
         }
       `}</style>
-    </>
+    </ModalShell>
   );
 }
 
