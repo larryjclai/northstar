@@ -497,7 +497,7 @@ function RuleEditSheet({
               }}>
                 <div style={{
                   position: "absolute", top: 2, width: 14, height: 14, borderRadius: 7,
-                  background: "#fff", transition: "left 0.2s",
+                  background: "var(--ns-bg-elev)", transition: "left 0.2s",
                   left: form.isActive ? 16 : 2,
                 }} />
               </div>

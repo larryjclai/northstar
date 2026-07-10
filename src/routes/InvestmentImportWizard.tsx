@@ -208,7 +208,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
             return (
               <div key={s.id} className="flex items-center gap-2" style={{ opacity: active || done ? 1 : 0.5 }}>
                 <div className="text-caption flex items-center justify-center" style={{ width: 22, height: 22, borderRadius: 99,
-                  border: `1.5px solid ${active ? "var(--ns-accent)" : "var(--ns-border)"}`, background: done ? "var(--ns-accent)" : "transparent", color: done ? "#000" : "var(--ns-fg)" }}>
+                  border: `1.5px solid ${active ? "var(--ns-accent)" : "var(--ns-border)"}`, background: done ? "var(--ns-accent)" : "transparent", color: done ? "var(--ns-accent-fg)" : "var(--ns-fg)" }}>
                   {done ? <CheckCircle size={13} weight="bold" /> : i + 1}
                 </div>
                 <span className="text-body" style={{ fontWeight: active ? 600 : 400 }}>{s.label}</span>
@@ -539,7 +539,7 @@ function StatPill({ label, value, tone }: { label: string; value: string | numbe
   const color = tone === "ok" ? "var(--ns-accent)" : tone === "warn" ? "var(--ns-neg)" : "var(--ns-fg-muted)";
   return (
     <div style={{ padding: "10px 14px", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", minWidth: 110 }}>
-      <div className="text-xs" style={{  marginBottom: 2 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</div>
+      <div className="text-xs ns-field-label" style={{ marginBottom: 2 }}>{label}</div>
       <div className="text-lg font-semibold" style={{ color }}>{value}</div>
     </div>
   );

@@ -630,7 +630,7 @@ function SummaryCard({
 }) {
   return (
     <CossCard className="p-4 sm:p-5">
-      <div className="text-xs" style={{  marginBottom: 8 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</div>
+      <div className="text-xs ns-field-label" style={{ marginBottom: 8 }}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <div className="num text-stat" style={{ fontWeight: 500 }}>{value}</div>
         {sublabel && <div className="num text-body" style={{ color: 'var(--ns-muted)' }}>{sublabel}</div>}

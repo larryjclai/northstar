@@ -945,7 +945,7 @@ interface HoldingsSortState {
 // Donut palette — DS chart tokens plus two accents, matching the dashboard.
 const ALLOCATION_COLORS = [
   "var(--ns-chart-1)", "var(--ns-chart-2)", "var(--ns-chart-3)",
-  "var(--ns-chart-4)", "var(--ns-chart-5)", "#2dd4bf", "#fb923c",
+  "var(--ns-chart-4)", "var(--ns-chart-5)", "var(--ns-chart-6)", "var(--ns-chart-7)",
 ];
 
 /** Portfolio composition donut (by holding, valued in base currency). */

@@ -137,6 +137,7 @@
 
   --ns-chart-1: #5aa832; --ns-chart-2: #2f6fe0;
   --ns-chart-3: #c98f1f; --ns-chart-4: #c44a82; --ns-chart-5: #6e58d8;
+  --ns-chart-6: #0d9488; --ns-chart-7: #dd6b20;
 
   --ns-shadow-1: 0 1px 0 rgba(255,255,255,0.9) inset, 0 1px 2px oklch(0.4 0.02 250 / 0.07);
   --ns-shadow-2: 0 24px 60px oklch(0.4 0.03 250 / 0.10);
@@ -192,6 +193,7 @@
 
     --ns-chart-1: #9fe870; --ns-chart-2: #6fb3ff;
     --ns-chart-3: #f0c050; --ns-chart-4: #d97a9c; --ns-chart-5: #a99cff;
+    --ns-chart-6: #2dd4bf; --ns-chart-7: #fb923c;
 
     --ns-shadow-1: 0 1px 0 rgba(255,255,255,.03) inset, 0 1px 2px rgba(0,0,0,.3);
     --ns-shadow-2: 0 24px 60px rgba(0,0,0,.5);
@@ -247,6 +249,7 @@
 
   --ns-chart-1: #9fe870; --ns-chart-2: #6fb3ff;
   --ns-chart-3: #f0c050; --ns-chart-4: #d97a9c; --ns-chart-5: #a99cff;
+  --ns-chart-6: #2dd4bf; --ns-chart-7: #fb923c;
 
   --ns-shadow-1: 0 1px 0 rgba(255,255,255,.03) inset, 0 1px 2px rgba(0,0,0,.3);
   --ns-shadow-2: 0 24px 60px rgba(0,0,0,.5);

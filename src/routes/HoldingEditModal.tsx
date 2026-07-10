@@ -4,6 +4,7 @@ import { ActionButton } from "../components/ActionButton";
 import { DatePicker } from "../components/ui/date-picker";
 import { Field, TextInput } from "../components/Field";
 import { HoldingForm, makeEmptyHoldingDraft } from "../components/HoldingForm";
+import { ModalShell } from "../components/ModalShell";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { StatusText } from "../components/StatusText";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -158,12 +159,13 @@ export function HoldingEditModal({
     .sort((a, b) => b.date.localeCompare(a.date));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" style={{ background: "var(--ns-scrim)" }} onClick={onClose}>
-      <div
-        className="w-full max-w-2xl rounded-lg border shadow-xl"
-        style={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}
-        onClick={(event) => event.stopPropagation()}
-      >
+    <ModalShell
+      variant="center"
+      title="編輯持倉"
+      onClose={onClose}
+      panelClassName="w-full max-w-2xl rounded-lg border shadow-xl"
+      panelStyle={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}
+    >
         <header className="flex items-center justify-between border-b px-5 py-3" style={{ borderColor: "var(--ns-border)" }}>
           <h2 className="text-lg font-semibold">編輯持倉</h2>
           <button
@@ -308,7 +310,6 @@ export function HoldingEditModal({
             </div>
           ) : null}
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
