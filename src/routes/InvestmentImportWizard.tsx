@@ -539,7 +539,7 @@ function StatPill({ label, value, tone }: { label: string; value: string | numbe
   const color = tone === "ok" ? "var(--ns-accent)" : tone === "warn" ? "var(--ns-neg)" : "var(--ns-fg-muted)";
   return (
     <div style={{ padding: "10px 14px", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", minWidth: 110 }}>
-      <div className="text-xs" style={{  marginBottom: 2 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</div>
+      <div className="text-xs ns-field-label" style={{ marginBottom: 2 }}>{label}</div>
       <div className="text-lg font-semibold" style={{ color }}>{value}</div>
     </div>
   );
