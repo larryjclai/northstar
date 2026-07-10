@@ -75,7 +75,7 @@ DCA 重做（已暫時隱藏）、iOS 上架、Apple 公證、家庭協作、預
 
 **安全 / 信任**
 - Webview **CSP 已啟用**（先前為關閉）；更新前**強制明確確認**才下載安裝（避免靜默更新）。
-- Stronghold-backed secret store spike（flagged，預設關閉）。
+- Stronghold-backed secret store：已啟用（USE_STRONGHOLD=true），vault key／裝置金鑰對／同步帳號皆改走加密儲存；既有安裝首次存取時遷移，清除舊 localStorage 副本為後續步驟（需各平台驗證）。
 
 **介面 / 個人化**
 - Dashboard 卡片自訂（顯示/隱藏）、Phosphor 圖示 + IconPicker、可搜尋帳戶 Combobox、range 日曆。
