@@ -372,15 +372,23 @@ async function handlePushEnvelopes(
   // tokens have no device dimension.
   const effectiveDeviceId = (e: Envelope): string => authDeviceId ?? e.deviceId;
 
-  // relay_sequence has a UNIQUE index. Previously every row computed its own
-  // (SELECT MAX(relay_sequence)+1) subquery; within a single batch the subquery
-  // can resolve to the same value for multiple rows, tripping the UNIQUE index
-  // and failing the whole push (the "Internal server error" 500). Read the
-  // current max once and assign explicit, monotonically-increasing sequences in
-  // JS so every row in the batch is distinct.
+  // relay_sequence is unique PER USER (idx_envelopes_user_sequence). Previously
+  // every row computed its own (SELECT MAX(relay_sequence)+1) subquery; within a
+  // single batch the subquery can resolve to the same value for multiple rows,
+  // tripping the unique index and failing the whole push (the "Internal server
+  // error" 500). Read the current max once and assign explicit,
+  // monotonically-increasing sequences in JS so every row in the batch is
+  // distinct.
+  //
+  // The MAX read is scoped to THIS user so two concurrent pushes from different
+  // accounts no longer read the same global max and collide (Plan 133 item A).
+  // Pull is already per-user (WHERE user_id = ? AND relay_sequence > ?), so a
+  // per-user counter keeps cursors correct.
   const maxRow = await env.DB.prepare(
-    "SELECT COALESCE(MAX(relay_sequence), 0) AS maxSeq FROM sync_envelopes",
-  ).first<{ maxSeq: number }>();
+    "SELECT COALESCE(MAX(relay_sequence), 0) AS maxSeq FROM sync_envelopes WHERE user_id = ?",
+  )
+    .bind(userId)
+    .first<{ maxSeq: number }>();
   let nextSequence = (maxRow?.maxSeq ?? 0) + 1;
 
   const stmt = env.DB.prepare(

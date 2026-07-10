@@ -269,6 +269,72 @@ describe("envelopes push + cursor pull", () => {
   });
 });
 
+// ---- per-user relay sequence (Plan 133 item A) -----------------------------
+
+describe("per-user relay sequence (Plan 133 item A)", () => {
+  async function push(acct: Account, envelopes: unknown[]) {
+    return call("/envelopes", {
+      method: "POST",
+      headers: bearer(acct.apiSecret),
+      body: JSON.stringify({ envelopes }),
+    });
+  }
+  async function pull(acct: Account, cursor = 0) {
+    const res = await call(`/envelopes?cursor=${cursor}`, { headers: bearer(acct.apiSecret) });
+    return res.json<{ envelopes: Array<Record<string, unknown>>; nextCursor: string; count: number }>();
+  }
+
+  it("scopes the sequence counter per user — a second account starts at 1, not the global max", async () => {
+    const a = await register();
+    const b = await register();
+    await push(a, [
+      envelope({ entityId: "a1" }),
+      envelope({ entityId: "a2" }),
+      envelope({ entityId: "a3" }),
+    ]);
+    const bRes = await push(b, [envelope({ entityId: "b1" })]);
+    expect(bRes.status).toBe(200);
+
+    const bPage = await pull(b);
+    expect(bPage.count).toBe(1);
+    // Under the old GLOBAL MAX this would be 4; the scoped MAX(WHERE user_id) → 1.
+    expect(Number(bPage.envelopes[0].sequence)).toBe(1);
+  });
+
+  it("lets two accounts hold the SAME relay_sequence value (per-user unique index)", async () => {
+    const a = await register();
+    const b = await register();
+    // a takes relay_sequence 1. Under the old GLOBAL unique index, b re-using
+    // relay_sequence 1 would trip the unique constraint and 500 the whole batch.
+    const ra = await push(a, [envelope({ entityId: "x" })]);
+    const rb = await push(b, [envelope({ entityId: "x" })]);
+    expect(ra.status).toBe(200);
+    expect(rb.status).toBe(200);
+
+    expect(Number((await pull(a)).envelopes[0].sequence)).toBe(1);
+    expect(Number((await pull(b)).envelopes[0].sequence)).toBe(1);
+  });
+
+  it("interleaved concurrent pushes from different accounts both succeed, per-user ordering intact", async () => {
+    const a = await register();
+    const b = await register();
+    const [ra, rb] = await Promise.all([
+      push(a, [envelope({ entityId: "a1" }), envelope({ entityId: "a2" }), envelope({ entityId: "a3" })]),
+      push(b, [envelope({ entityId: "b1" }), envelope({ entityId: "b2" }), envelope({ entityId: "b3" })]),
+    ]);
+    expect(ra.status).toBe(200);
+    expect(rb.status).toBe(200);
+
+    const aPage = await pull(a);
+    const bPage = await pull(b);
+    expect(aPage.envelopes.map((e) => e.entityId)).toEqual(["a1", "a2", "a3"]);
+    expect(bPage.envelopes.map((e) => e.entityId)).toEqual(["b1", "b2", "b3"]);
+    // Each user's sequences are strictly increasing and independent of the other's.
+    expect(aPage.envelopes.map((e) => Number(e.sequence))).toEqual([1, 2, 3]);
+    expect(bPage.envelopes.map((e) => Number(e.sequence))).toEqual([1, 2, 3]);
+  });
+});
+
 // ---- key envelopes ---------------------------------------------------------
 
 describe("key envelopes store + fetch", () => {
