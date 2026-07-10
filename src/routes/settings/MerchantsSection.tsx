@@ -146,7 +146,7 @@ export function SettingsMerchants({ form, setForm, submit, t, renameMerchant }: 
               onBlur={addMerchant}
             />
             <div style={{display:'flex',justifyContent:'flex-end'}}>
-              <Button variant="ghost" size="icon-sm" onClick={addMerchant}><CheckCircle size={16}/></Button>
+              <Button variant="ghost" size="icon-sm" aria-label="新增商家" onClick={addMerchant}><CheckCircle size={16}/></Button>
             </div>
           </div>
         )}
@@ -177,11 +177,11 @@ export function SettingsMerchants({ form, setForm, submit, t, renameMerchant }: 
             )}
             <div style={{display:'flex',justifyContent:'flex-end', gap:4}}>
               {editingMerchant !== m && (
-                <Button variant="ghost" size="icon-sm" style={{color:'var(--ns-fg-muted)'}} onClick={()=>startEdit(m)}>
+                <Button variant="ghost" size="icon-sm" aria-label="編輯" style={{color:'var(--ns-fg-muted)'}} onClick={()=>startEdit(m)}>
                   <PencilSimple size={14}/>
                 </Button>
               )}
-              <Button variant="ghost" size="icon-sm" style={{color:'var(--ns-neg)'}} onClick={()=>deleteMerchant(m)}>
+              <Button variant="ghost" size="icon-sm" aria-label="刪除" style={{color:'var(--ns-neg)'}} onClick={()=>deleteMerchant(m)}>
                 <Trash size={14}/>
               </Button>
             </div>

@@ -127,7 +127,7 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
               <div className="text-xs muted font-medium mb-1">{dateRange.label} 支出</div>
               <div className="num text-[24px] font-medium">{primaryCurrency} {formatNumber(totalPeriodSpend)}</div>
             </div>
-            <Button variant="ghost" size="icon-sm" onClick={onSettingsClick}><Gear size={16} /></Button>
+            <Button variant="ghost" size="icon-sm" aria-label="分類設定" onClick={onSettingsClick}><Gear size={16} /></Button>
           </div>
           
           <div style={{ height: 220, marginBottom: 24, position: "relative" }}>

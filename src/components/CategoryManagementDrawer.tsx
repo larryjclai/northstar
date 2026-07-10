@@ -108,7 +108,7 @@ export function CategoryManagementDrawer({
       >
         <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <h2 className="text-base" style={{ fontWeight: 600 }}>分類管理</h2>
-          <Button variant="ghost" size="icon-sm" onClick={onClose}><X size={18} /></Button>
+          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={onClose}><X size={18} /></Button>
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
@@ -184,9 +184,9 @@ export function CategoryManagementDrawer({
                         </>
                       ) : (
                         <>
-                          <Button variant="ghost" size="icon-sm" onClick={() => { setAddingSubFor(group.name); setDraftSub(""); setExpanded(prev => ({ ...prev, [group.name]: true })); }}><Plus size={14} /></Button>
-                          <Button variant="ghost" size="icon-sm" onClick={() => { setRenamingMain(group.name); setDraftRename(group.name); }}><PencilSimple size={14} /></Button>
-                          <Button variant="ghost" size="icon-sm" style={{ color: "var(--ns-danger)" }} onClick={() => setConfirmRemove(group.name)}><Trash size={14} /></Button>
+                          <Button variant="ghost" size="icon-sm" aria-label="新增子分類" onClick={() => { setAddingSubFor(group.name); setDraftSub(""); setExpanded(prev => ({ ...prev, [group.name]: true })); }}><Plus size={14} /></Button>
+                          <Button variant="ghost" size="icon-sm" aria-label="重新命名" onClick={() => { setRenamingMain(group.name); setDraftRename(group.name); }}><PencilSimple size={14} /></Button>
+                          <Button variant="ghost" size="icon-sm" aria-label="刪除" style={{ color: "var(--ns-danger)" }} onClick={() => setConfirmRemove(group.name)}><Trash size={14} /></Button>
                         </>
                       )}
                     </div>
@@ -216,9 +216,9 @@ export function CategoryManagementDrawer({
                             )}
                             <div style={{ display: "flex", gap: 4 }}>
                               {!isRenamingThis && (
-                                <Button variant="ghost" size="icon-sm" onClick={() => { setRenamingSub({ main: group.name, sub: child }); setDraftRename(child); }}><PencilSimple size={12} /></Button>
+                                <Button variant="ghost" size="icon-sm" aria-label="重新命名" onClick={() => { setRenamingSub({ main: group.name, sub: child }); setDraftRename(child); }}><PencilSimple size={12} /></Button>
                               )}
-                              <Button variant="ghost" size="icon-sm" style={{ color: "var(--ns-danger)" }} onClick={() => removeSubCategory(group.name, child)}><Trash size={12} /></Button>
+                              <Button variant="ghost" size="icon-sm" aria-label="刪除" style={{ color: "var(--ns-danger)" }} onClick={() => removeSubCategory(group.name, child)}><Trash size={12} /></Button>
                             </div>
                           </div>
                         );
@@ -238,7 +238,7 @@ export function CategoryManagementDrawer({
                             }}
                             onBlur={() => commitAddSub(group.name, draftSub)}
                           />
-                          <Button variant="ghost" size="icon-sm" onClick={() => commitAddSub(group.name, draftSub)}><Check size={14} /></Button>
+                          <Button variant="ghost" size="icon-sm" aria-label="確認新增" onClick={() => commitAddSub(group.name, draftSub)}><Check size={14} /></Button>
                         </div>
                       )}
                     </div>

@@ -196,7 +196,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
         {/* Header */}
         <div className="flex items-center justify-between" style={{ padding: "16px 22px", borderBottom: "1px solid var(--ns-border)" }}>
           <div className="text-lg font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>匯入證券交易</div>
-          <Button variant="ghost" size="icon-sm" onClick={onClose}><X size={16} /></Button>
+          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={onClose}><X size={16} /></Button>
         </div>
 
         {/* Stepper */}

@@ -120,7 +120,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
             <Receipt size={16} />
             交易詳情
           </div>
-          <Button variant="ghost" size="icon-sm" onClick={onClose} className="p-1.5">
+          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={onClose} className="p-1.5">
             <X size={16} />
           </Button>
         </div>
