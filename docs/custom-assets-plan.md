@@ -29,8 +29,15 @@ live quote (current dates) → daily close at-or-before → average cost.
   net-worth trend (they value through the same canonical `priceAssetOnDate` path).
 
 ## Deferred follow-up (NOT in Phase 1)
-- The create-custom-asset UI and the "log a manual price" entry form
-  (will reuse the existing `createManualPriceSnapshot` repository CRUD).
-- A data-health rule flagging stale custom-asset prices.
+- ~~The create-custom-asset UI and the "log a manual price" entry form
+  (will reuse the existing `createManualPriceSnapshot` repository CRUD).~~
+  **Done** — `InvestmentsAddSheet` snapshot mode has a "自訂資產（無報價）" toggle
+  that creates `assetType: "custom"` holdings, and `HoldingEditModal` has the
+  manual-price ("手動") snapshot form. (2026-07-10)
+- ~~A data-health rule flagging stale custom-asset prices.~~
+  **Done** — `stale-manual-price` rule in `src/domain/dataHealth.ts`
+  (`CUSTOM_PRICE_STALE_DAYS = 90`, warn severity, with a distinct
+  "尚未記錄任何價格" no-snapshot variant); surfaces on the Dashboard
+  data-health banner. (Plan 141, 2026-07-10)
 
 Phase 1 stops once the valuation math reads manual snapshots correctly and is unit-tested.
