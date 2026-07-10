@@ -1,8 +1,42 @@
 import type { AppSettings, DailyFxRate } from "./types";
 
+/**
+ * Pre-bucketed, per-pair-sorted view of a daily-FX array. Built once by
+ * `createFxConverter` (or `buildDailyRateIndex`) so per-conversion lookups can
+ * binary-search a single pair's rows instead of linear-scanning the whole
+ * array. Keyed by `${from}→${to}`; each list is sorted ascending by date.
+ */
+export type DailyRateIndex = Map<string, DailyFxRate[]>;
+
 export interface ConvertOptions {
   dailyRates?: DailyFxRate[];
+  /**
+   * Prebuilt index (see `buildDailyRateIndex`). When present it takes
+   * precedence over `dailyRates` and resolves via binary search — producing
+   * results bit-identical to the `dailyRates` linear scan.
+   */
+  dailyRateIndex?: DailyRateIndex;
   asOfDate?: string;
+}
+
+/**
+ * Bucket a daily-FX array by currency pair and sort each bucket ascending by
+ * date. Node's `Array.prototype.sort` is stable, so rows sharing a date keep
+ * their original relative order — this is what lets the indexed lookup match
+ * `pickDailyRate`'s tie-break exactly.
+ */
+export function buildDailyRateIndex(rates: DailyFxRate[]): DailyRateIndex {
+  const ratesByPair: DailyRateIndex = new Map();
+  for (const row of rates) {
+    const key = `${row.from}→${row.to}`;
+    const list = ratesByPair.get(key);
+    if (list) list.push(row);
+    else ratesByPair.set(key, [row]);
+  }
+  for (const list of ratesByPair.values()) {
+    list.sort((a, b) => (a.date < b.date ? -1 : 1));
+  }
+  return ratesByPair;
 }
 
 export function convertCurrency(
@@ -16,7 +50,13 @@ export function convertCurrency(
   const target = to.toUpperCase();
   if (source === target) return amount;
 
-  if (options?.dailyRates && options.dailyRates.length && options.asOfDate) {
+  if (options?.asOfDate && options.dailyRateIndex) {
+    const asOf = options.asOfDate.slice(0, 10);
+    const daily = pickDailyRateFromIndex(options.dailyRateIndex, source, target, asOf);
+    if (daily !== null) return amount * daily;
+    const inverseDaily = pickDailyRateFromIndex(options.dailyRateIndex, target, source, asOf);
+    if (inverseDaily !== null) return amount / inverseDaily;
+  } else if (options?.dailyRates && options.dailyRates.length && options.asOfDate) {
     const asOf = options.asOfDate.slice(0, 10);
     const daily = pickDailyRate(options.dailyRates, source, target, asOf);
     if (daily !== null) return amount * daily;
@@ -45,15 +85,50 @@ function pickDailyRate(rates: DailyFxRate[], from: string, to: string, asOfDate:
   return best ? best.rate : null;
 }
 
+/**
+ * Indexed equivalent of `pickDailyRate`: binary-searches the pre-sorted rows
+ * for a pair for the latest date <= asOfDate. Bit-identical to `pickDailyRate`
+ * — including its tie-break: when several rows share the max qualifying date,
+ * the linear scan keeps the FIRST in original array order, so we walk back to
+ * the first row of the max-date run (stable sort preserves that order).
+ */
+function pickDailyRateFromIndex(
+  index: DailyRateIndex,
+  from: string,
+  to: string,
+  asOfDate: string,
+): number | null {
+  const list = index.get(`${from}→${to}`);
+  if (!list || list.length === 0) return null;
+  let lo = 0;
+  let hi = list.length - 1;
+  let best = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1;
+    if (list[mid].date <= asOfDate) {
+      best = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  if (best < 0) return null;
+  const bestDate = list[best].date;
+  let i = best;
+  while (i > 0 && list[i - 1].date === bestDate) i -= 1;
+  return list[i].rate;
+}
+
 export function createFxConverter(
   settings: AppSettings | undefined,
   dailyRates: DailyFxRate[] | undefined,
 ) {
   const primary = settings?.primaryCurrency ?? "TWD";
   const rates = dailyRates ?? [];
+  const dailyRateIndex = buildDailyRateIndex(rates);
   function toPrimary(amount: number, currency: string, asOfDate?: string) {
     return convertCurrency(amount, currency, primary, settings, {
-      dailyRates: rates,
+      dailyRateIndex,
       asOfDate,
     }) ?? 0;
   }
