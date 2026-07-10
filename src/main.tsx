@@ -8,7 +8,15 @@ import { hydrateDeviceIdentity } from "./state/deviceIdentity";
 import "./styles/globals.css";
 import "./i18n";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: Infinity,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 async function bootstrap() {
   await hydrateDeviceIdentity();
