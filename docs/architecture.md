@@ -15,7 +15,7 @@ SQLite is the source of truth. Every domain object includes sync-ready metadata 
 - `updatedAt`
 - `deletedAt`
 
-Repositories hide storage details from UI components. Local-only mode must keep working without Supabase.
+Repositories hide storage details from UI components. Local-only mode must keep working without the Connect Worker or any network.
 
 ## Market Data
 
@@ -31,18 +31,33 @@ Yahoo is acceptable for v1 but treated as replaceable.
 
 ## Connect And E2EE
 
-Supabase is infrastructure, not a readable finance backend.
+The sync backend is the **Connect Worker** — a Cloudflare Worker (`worker/src/index.ts`) backed
+by Cloudflare **D1** (SQLite at the edge). The frontend talks to it through
+`src/features/connect/sync/client.ts`, pointed at `VITE_NORTHSTAR_SYNC_WORKER_URL` and
+authenticated with a per-device `Authorization: Bearer <api_secret>` token. It is a blind relay,
+not a readable finance backend. (Supabase was an earlier design; it is no longer used — there is no
+`supabase/` directory in the tree.)
 
-Supabase may store:
+The Worker exposes:
+
+- `POST /users` — register a sync account + its first device (idempotent).
+- `POST /devices`, `GET /devices`, `POST /devices/:id/credential` — device registration, listing,
+  and per-device credential self-provisioning / revocation.
+- `POST /envelopes`, `GET /envelopes?cursor=` — push and pull encrypted change records (the
+  `sync_envelopes` table), ordered by a per-user `relay_sequence` cursor.
+- `POST /keys/:target_device_id`, `GET /keys/:target_device_id` — the wrapped key-envelope mailbox.
+- `POST /pairing`, `POST /pairing/join`, `GET /pairing/:code`, `GET /keys/:device` (with
+  `X-Pairing-Token`) — ECDH pairing sessions for onboarding a new trusted device.
+
+The Worker's D1 tables therefore hold only:
 
 - encrypted sync envelopes
-- encrypted key envelopes
-- device metadata
-- household membership metadata
-- subscription metadata
-- encrypted attachment blobs
+- encrypted (wrapped) key envelopes
+- device metadata and credentials
+- pairing session state
+- household membership metadata (planned)
 
-Supabase must not store readable:
+The Worker must never hold readable:
 
 - transactions
 - holdings
@@ -69,10 +84,11 @@ Local write flow:
 1. Write to SQLite.
 2. Append mutation to local outbox.
 3. Encrypt payload locally.
-4. Push encrypted envelope to Supabase.
-5. Other devices pull by cursor, decrypt locally, and apply revisions.
+4. Push encrypted envelope to the Connect Worker (`POST /envelopes`).
+5. Other devices pull by per-user `relay_sequence` cursor (`GET /envelopes?cursor=`), decrypt
+   locally, and apply revisions.
 
-Realtime is only a notification channel.
+There is no realtime push channel: devices pull on startup/focus (a debounced auto-push is planned — see ROADMAP 5.3).
 
 ## Household Sharing
 
