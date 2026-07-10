@@ -81,3 +81,21 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm test
+
+  # Playwright smoke test: drives the wired-up first-run flow (trust surfaces →
+  # cash-flow filters → ⌘N quick-add → recompute) that the unit suite can't cover.
+  # playwright.config.ts runs the single smoke spec under two projects — chromium
+  # and a mobile (WebKit) device — so both browsers are installed. The dev server
+  # is launched by the config's `webServer` (npm run dev).
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:e2e
