@@ -700,8 +700,13 @@ export function CashFlowRoute() {
   async function handleCsv(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    setPreview(parseLedgerCsv(await file.text(), accountFor));
-    event.target.value = "";
+    try {
+      setPreview(parseLedgerCsv(await file.text(), accountFor));
+    } catch (error) {
+      toast.error(`CSV 解析失敗：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      event.target.value = "";
+    }
   }
 
   const scopedRows = useMemo(() => ledgerRows.filter((row) => {

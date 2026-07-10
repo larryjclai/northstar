@@ -88,9 +88,13 @@ export function buildPositionMetrics(records: InvestmentRecord[]): PositionMetri
     } else if (r.action === "sell") {
       const avg = quantity === 0 ? 0 : cost / quantity;
       const soldQty = Math.min(r.quantity, quantity);
-      const proceeds = r.price * r.quantity - r.fee;
+      // Clamp to shares actually held: an oversell (backdated ordering, import,
+      // or sync) must not book proceeds for phantom shares nor drive quantity
+      // negative — that would inflate the XIRR cashflow and disagree with the
+      // quantity/cost-basis timelines, which floor at zero.
+      const proceeds = r.price * soldQty - r.fee;
       realizedGain += proceeds - avg * soldQty;
-      quantity -= r.quantity;
+      quantity -= soldQty;
       cost -= avg * soldQty;
       cashflows.push({ date: day(r.date), amount: proceeds });
       settle();
