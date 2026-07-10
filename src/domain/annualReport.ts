@@ -74,7 +74,7 @@ export interface AnnualReportYear {
 function realizedByYearForAsset(
   records: InvestmentRecord[],
   currency: string,
-  toPrimary: (value: number, currency: string, asOfDate?: string) => number,
+  toPrimary: (value: number, currency: string, asOfDate?: string) => number | null,
 ): Map<string, number> {
   const sorted = records.filter((r) => r.deletedAt === null).sort(openingFirst);
   const byYear = new Map<string, number>();
@@ -89,8 +89,12 @@ function realizedByYearForAsset(
     }
   };
   const add = (date: string, nativeAmount: number) => {
+    // A null (unpriced) leg is skipped and counted by the injected converter;
+    // dropping it here mirrors the exclude-and-warn口徑 used for dividends/fees.
+    const converted = toPrimary(nativeAmount, currency, day(date));
+    if (converted === null) return;
     const y = yearOf(day(date));
-    byYear.set(y, (byYear.get(y) ?? 0) + toPrimary(nativeAmount, currency, day(date)));
+    byYear.set(y, (byYear.get(y) ?? 0) + converted);
   };
 
   for (const r of sorted) {
@@ -133,8 +137,24 @@ export interface BuildAnnualReportInput {
   recordsByAsset: (assetId: string) => InvestmentRecord[];
   /** Per-year net dividends, primary currency — pass `dividendAnalysis.byYear`. */
   dividendByYear: Array<{ year: string; total: number }>;
-  /** FX seam (Decision C): convert a native amount to primary, dated at disposal. */
-  toPrimary: (value: number, currency: string, asOfDate?: string) => number;
+  /**
+   * FX seam (Decision C): convert a native amount to primary, dated at disposal.
+   * Returns `null` when no rate covers the pair — such legs are EXCLUDED from the
+   * year buckets and tallied in {@link AnnualReport.fxMisses} instead of silently
+   * contributing 0.
+   */
+  toPrimary: (value: number, currency: string, asOfDate?: string) => number | null;
+}
+
+export interface AnnualReport {
+  /** Year-by-year buckets, ascending by year. */
+  years: AnnualReportYear[];
+  /**
+   * Amounts (realized legs, fees, dividends) EXCLUDED because no FX rate covered
+   * their currency on their date. `currencies` lists the distinct source
+   * currencies that missed, ascending.
+   */
+  fxMisses: { count: number; currencies: string[] };
 }
 
 /**
@@ -150,8 +170,21 @@ function dividendNative(record: InvestmentRecord): number {
 
 type HoldingYearBucket = { ticker: string; country: string | null; realizedGain: number; dividends: number };
 
-export function buildAnnualReport(input: BuildAnnualReportInput): AnnualReportYear[] {
+export function buildAnnualReport(input: BuildAnnualReportInput): AnnualReport {
   const { assets, recordsByAsset, dividendByYear, toPrimary } = input;
+
+  // Wrap the injected converter so every unpriced (null) leg is counted once and
+  // reported via `fxMisses`, keeping tax totals from silently absorbing a 0.
+  let fxMissCount = 0;
+  const fxMissCurrencies = new Set<string>();
+  const convert = (value: number, currency: string, asOfDate?: string): number | null => {
+    const converted = toPrimary(value, currency, asOfDate);
+    if (converted === null) {
+      fxMissCount += 1;
+      fxMissCurrencies.add(currency);
+    }
+    return converted;
+  };
 
   const realizedMap = new Map<string, number>();
   const tradingCostMap = new Map<string, number>();
@@ -180,7 +213,7 @@ export function buildAnnualReport(input: BuildAnnualReportInput): AnnualReportYe
     const country = resolveHoldingCountry(asset.ticker, asset.currency);
 
     // Per-year realized gains (Decision A), converted at disposal date (Decision C).
-    const realized = realizedByYearForAsset(records, currency, toPrimary);
+    const realized = realizedByYearForAsset(records, currency, convert);
     for (const [year, amount] of realized) {
       realizedMap.set(year, (realizedMap.get(year) ?? 0) + amount);
       bucketFor(year, asset.id, asset.ticker, country).realizedGain += amount;
@@ -190,8 +223,10 @@ export function buildAnnualReport(input: BuildAnnualReportInput): AnnualReportYe
     // record's own date so the口徑 matches the realized line.
     for (const r of records) {
       if (r.deletedAt !== null || !r.fee) continue;
+      const feePrimary = convert(r.fee, currency, day(r.date));
+      if (feePrimary === null) continue;
       const year = yearOf(day(r.date));
-      tradingCostMap.set(year, (tradingCostMap.get(year) ?? 0) + toPrimary(r.fee, currency, day(r.date)));
+      tradingCostMap.set(year, (tradingCostMap.get(year) ?? 0) + feePrimary);
     }
 
     // Per-year, per-holding dividends — mirrors buildDividendAnalysis's cashDividend
@@ -199,8 +234,8 @@ export function buildAnnualReport(input: BuildAnnualReportInput): AnnualReportYe
     for (const r of records) {
       if (r.deletedAt !== null || r.action !== "cashDividend") continue;
       const rd = day(r.date);
-      const amount = toPrimary(dividendNative(r), currency, rd);
-      if (amount === 0) continue;
+      const amount = convert(dividendNative(r), currency, rd);
+      if (amount === null || amount === 0) continue;
       const year = yearOf(rd);
       bucketFor(year, asset.id, asset.ticker, country).dividends += amount;
     }
@@ -217,7 +252,7 @@ export function buildAnnualReport(input: BuildAnnualReportInput): AnnualReportYe
     ...byHoldingMap.keys(),
   ]);
 
-  return [...years]
+  const yearRows = [...years]
     .map((year) => {
       const realizedGain = realizedMap.get(year) ?? 0;
       const dividends = dividendMap.get(year) ?? 0;
@@ -249,4 +284,6 @@ export function buildAnnualReport(input: BuildAnnualReportInput): AnnualReportYe
       return { year, realizedGain, dividends, tradingCost, total: realizedGain + dividends, byHolding, domestic, overseas };
     })
     .sort((a, b) => a.year.localeCompare(b.year));
+
+  return { years: yearRows, fxMisses: { count: fxMissCount, currencies: [...fxMissCurrencies].sort() } };
 }

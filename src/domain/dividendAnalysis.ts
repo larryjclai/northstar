@@ -30,13 +30,20 @@ export interface DividendAnalysis {
   ttmTotal: number;
   /** TTM yield on current market value (%), or null when value is unknown/zero. */
   yieldPct: number | null;
+  /**
+   * Dividends EXCLUDED from every total above because no FX rate covered their
+   * currency on their date (a null conversion, not a genuine zero). `currencies`
+   * lists the distinct source currencies that missed, ascending. Surfaced so the
+   * UI can warn instead of silently understating income.
+   */
+  fxMisses: { count: number; currencies: string[] };
 }
 
 export function buildDividendAnalysis(opts: {
   records: InvestmentRecord[];
   /** assetId → {ticker, currency} for labelling and FX conversion. */
   assetMeta: Map<string, { ticker: string; currency: string }>;
-  toPrimary: (value: number, currency: string, asOf?: string) => number;
+  toPrimary: (value: number, currency: string, asOf?: string) => number | null;
   /** Current portfolio market value (primary currency) for the yield denominator. */
   currentMarketValue: number;
   /** Today (YYYY-MM-DD); the TTM window is the 365 days up to this date. */
@@ -54,6 +61,8 @@ export function buildDividendAnalysis(opts: {
   const byHoldingMap = new Map<string, { ticker: string; total: number }>();
   let total = 0;
   let ttmTotal = 0;
+  let fxMissCount = 0;
+  const fxMissCurrencies = new Set<string>();
 
   for (const r of records) {
     if (r.deletedAt !== null || r.action !== "cashDividend") continue;
@@ -61,6 +70,13 @@ export function buildDividendAnalysis(opts: {
     const currency = meta?.currency ?? "TWD";
     const rd = day(r.date);
     const amount = toPrimary(dividendNative(r), currency, rd);
+    // null = no rate covered this currency on this date. Exclude + count so the
+    // total isn't silently understated; a genuine 0 dividend still `continue`s.
+    if (amount === null) {
+      fxMissCount += 1;
+      fxMissCurrencies.add(currency);
+      continue;
+    }
     if (amount === 0) continue;
     total += amount;
     if (rd > ttmCutoff && rd <= asOf) ttmTotal += amount;
@@ -79,6 +95,7 @@ export function buildDividendAnalysis(opts: {
     .map(([assetId, v]) => ({ assetId, ticker: v.ticker, total: v.total }))
     .sort((a, b) => b.total - a.total);
   const yieldPct = currentMarketValue > 0 ? (ttmTotal / currentMarketValue) * 100 : null;
+  const fxMisses = { count: fxMissCount, currencies: [...fxMissCurrencies].sort() };
 
-  return { byYear, byHolding, total, ttmTotal, yieldPct };
+  return { byYear, byHolding, total, ttmTotal, yieldPct, fxMisses };
 }

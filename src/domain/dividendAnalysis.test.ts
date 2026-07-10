@@ -60,4 +60,30 @@ describe("buildDividendAnalysis", () => {
     expect(r.total).toBe(0);
     expect(r.ttmTotal).toBe(0);
   });
+
+  it("excludes and counts a dividend whose currency has no rate (null conversion)", () => {
+    // toPrimary returns null for USD (no rate), passes TWD through.
+    const toPrimary = (v: number, c: string): number | null => (c === "USD" ? null : v);
+    const usdMeta = new Map([
+      ["a", { ticker: "AAA", currency: "TWD" }],
+      ["u", { ticker: "UUU", currency: "USD" }],
+    ]);
+    const records = [
+      record({ assetId: "a", date: "2026-02-01", action: "cashDividend", price: 1_000, quantity: 0 }), // counted
+      record({ assetId: "u", date: "2026-03-01", action: "cashDividend", price: 500, quantity: 0 }), // no USD rate → excluded
+    ];
+    const r = buildDividendAnalysis({ records, assetMeta: usdMeta, toPrimary, currentMarketValue: 0, asOf: "2026-06-11" });
+    // Only the TWD dividend counts; the USD one is excluded, not valued at 0.
+    expect(r.total).toBeCloseTo(1_000, 6);
+    expect(r.byHolding.map((h) => h.ticker)).toEqual(["AAA"]);
+    expect(r.fxMisses.count).toBe(1);
+    expect(r.fxMisses.currencies).toEqual(["USD"]);
+  });
+
+  it("reports zero fx misses when every dividend converts", () => {
+    const records = [record({ assetId: "a", date: "2026-03-01", action: "cashDividend", price: 500, quantity: 0 })];
+    const r = buildDividendAnalysis({ records, assetMeta: meta, toPrimary: identity, currentMarketValue: 0, asOf: "2026-06-11" });
+    expect(r.total).toBeCloseTo(500, 6);
+    expect(r.fxMisses).toEqual({ count: 0, currencies: [] });
+  });
 });

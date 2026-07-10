@@ -132,7 +132,18 @@ export function createFxConverter(
       asOfDate,
     }) ?? 0;
   }
-  return { toPrimary, primaryCurrency: primary };
+  /**
+   * Null-aware sibling of {@link toPrimary}: returns `null` (instead of silently
+   * coercing to `0`) when no rate covers the pair, so aggregates can EXCLUDE and
+   * COUNT the miss rather than understate a total. Same lookup口徑 as `toPrimary`.
+   */
+  function toPrimaryOrNull(amount: number, currency: string, asOfDate?: string): number | null {
+    return convertCurrency(amount, currency, primary, settings, {
+      dailyRateIndex,
+      asOfDate,
+    });
+  }
+  return { toPrimary, toPrimaryOrNull, primaryCurrency: primary };
 }
 
 // Module-level flag, kept in sync by `usePrivacySync` (see state/uiPreferences).

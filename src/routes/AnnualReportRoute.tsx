@@ -9,6 +9,7 @@ import {
   buildAnnualReport,
   buildDividendAnalysis,
   createFxConverter,
+  formatNumber,
   formatSignedMoney,
   formatMoney,
   resolveCountryLabel,
@@ -25,7 +26,7 @@ export function AnnualReportRoute() {
   const assetRows = assets.data ?? [];
   const recordRows = investments.data ?? [];
   const appSettings = settings.data;
-  const { primaryCurrency, toPrimary } = useMemo(
+  const { primaryCurrency, toPrimaryOrNull } = useMemo(
     () => createFxConverter(appSettings, dailyFxRates.data ?? []),
     [appSettings, dailyFxRates.data],
   );
@@ -49,22 +50,23 @@ export function AnnualReportRoute() {
     return map;
   }, [recordRows]);
 
-  const report = useMemo<AnnualReportYear[]>(() => {
+  const { report, dividendFxMisses } = useMemo(() => {
     // We only consume `byYear`; the yield denominator is irrelevant here.
     const dividends = buildDividendAnalysis({
       records: recordRows,
       assetMeta: allAssetMeta,
-      toPrimary,
+      toPrimary: toPrimaryOrNull,
       currentMarketValue: 0,
       asOf: today,
     });
-    return buildAnnualReport({
+    const { years } = buildAnnualReport({
       assets: assetRows,
       recordsByAsset: (assetId) => recordsByAsset.get(assetId) ?? [],
       dividendByYear: dividends.byYear,
-      toPrimary,
+      toPrimary: toPrimaryOrNull,
     });
-  }, [recordRows, assetRows, allAssetMeta, recordsByAsset, toPrimary, today]);
+    return { report: years, dividendFxMisses: dividends.fxMisses };
+  }, [recordRows, assetRows, allAssetMeta, recordsByAsset, toPrimaryOrNull, today]);
 
   // Descending so the most recent (most relevant for 報稅) year is first.
   const rows = useMemo(() => [...report].reverse(), [report]);
@@ -179,6 +181,21 @@ export function AnnualReportRoute() {
           </div>
         )}
       </Card>
+
+      {/* Missing-rate warning — dividends excluded from the totals above because
+          no FX rate covered their currency on their date (plan 121). */}
+      {dividendFxMisses.count > 0 ? (
+        <div
+          className="text-body mt-4 flex"
+          style={{ gap: 8, color: "var(--ns-warn)", maxWidth: 720 }}
+        >
+          <Info size={16} className="shrink-0" style={{ marginTop: 2 }} />
+          <p style={{ margin: 0 }}>
+            有 {formatNumber(dividendFxMisses.count)} 筆配息因缺少匯率未計入（
+            {dividendFxMisses.currencies.map((c) => `${c}→${primaryCurrency}`).join("、")}）。
+          </p>
+        </div>
+      ) : null}
 
       {/* FX口徑 caveat (Decision C) — mirror plan 015's note pattern. */}
       <div

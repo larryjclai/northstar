@@ -161,7 +161,7 @@ describe("holdingsMarketValue", () => {
       { ticker: "0050.TW", currency: "TWD", averageCost: 50, totalQuantity: 100 },
       { ticker: "2330.TW", currency: "TWD", averageCost: 600, totalQuantity: 0 },
     ];
-    const total = holdingsMarketValue(assets, TODAY, identity, {
+    const { total } = holdingsMarketValue(assets, TODAY, identity, {
       todayIso: TODAY,
       dailyPriceLookup: lookup,
       quoteFor: (t) => (t === "0050.TW" ? undefined : { price: 700, currency: "TWD" }),
@@ -175,12 +175,29 @@ describe("holdingsMarketValue", () => {
       { ticker: "0050.TW", currency: "TWD", averageCost: 50, totalQuantity: 100 },
       { id: "fund-1", ticker: "", currency: "TWD", averageCost: 100, assetType: "custom", totalQuantity: 10 },
     ];
-    const total = holdingsMarketValue(assets, TODAY, identity, {
+    const { total } = holdingsMarketValue(assets, TODAY, identity, {
       todayIso: TODAY,
       dailyPriceLookup: lookup,
       quoteFor: () => undefined, // 0050 → latest close 58 × 100 = 5800
       manualPriceLookup: (_id, _date) => ({ price: 120, currency: "TWD" }), // custom → 120 × 10 = 1200
     });
     expect(total).toBe(5800 + 1200);
+  });
+
+  it("excludes and counts a leg whose currency has no rate (null conversion)", () => {
+    // toPrimary returns null for USD (no rate), passes TWD through.
+    const toPrimary = (v: number, c: string): number | null => (c === "USD" ? null : v);
+    const assets = [
+      { ticker: "0050.TW", currency: "TWD", averageCost: 50, totalQuantity: 100 }, // 58 × 100 = 5800
+      { ticker: "AAPL", currency: "USD", averageCost: 100, totalQuantity: 10 }, // priced in USD → no rate
+    ];
+    const { total, fxMissCount } = holdingsMarketValue(assets, TODAY, toPrimary, {
+      todayIso: TODAY,
+      dailyPriceLookup: lookup,
+      quoteFor: (t) => (t === "AAPL" ? { price: 200, currency: "USD" } : undefined),
+    });
+    // Only the TWD leg is summed; the USD leg is excluded, not valued at 0.
+    expect(total).toBe(5800);
+    expect(fxMissCount).toBe(1);
   });
 });

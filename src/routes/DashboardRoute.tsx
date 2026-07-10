@@ -239,7 +239,7 @@ export function DashboardRoute() {
   // market value, the allocation donut, and the net-worth trend so all three value
   // custom assets identically (manual snapshot → average cost).
   const manualPriceLookup = useMemo(() => buildManualPriceLookup(manualSnapshotRows), [manualSnapshotRows]);
-  const marketValue = holdingsMarketValue(filteredAssets, todayIso, toPrimary, {
+  const { total: marketValue } = holdingsMarketValue(filteredAssets, todayIso, toPrimary, {
     todayIso,
     dailyPriceLookup,
     quoteFor,

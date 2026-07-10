@@ -177,14 +177,20 @@ export interface HoldingsValueOptions {
 /**
  * Total market value (primary currency) of `assets` on `date`, valuing each at
  * {@link priceAssetOnDate}. Positions with no quantity contribute nothing.
+ *
+ * A leg whose currency has no rate on `date` is EXCLUDED and tallied in
+ * `fxMissCount` rather than silently valued at 0, so callers can flag that the
+ * headline `total` is incomplete. (Numerically identical to the old silent-0
+ * when `toPrimary` never returns null.)
  */
 export function holdingsMarketValue(
   assets: Array<PriceableAsset & { totalQuantity: number }>,
   date: string,
-  toPrimary: (value: number, currency: string, asOf?: string) => number,
+  toPrimary: (value: number, currency: string, asOf?: string) => number | null,
   opts: HoldingsValueOptions,
-): number {
-  let sum = 0;
+): { total: number; fxMissCount: number } {
+  let total = 0;
+  let fxMissCount = 0;
   for (const asset of assets) {
     if (Math.abs(asset.totalQuantity) < QTY_EPS) continue;
     const price = priceAssetOnDate(asset, date, {
@@ -193,7 +199,12 @@ export function holdingsMarketValue(
       quote: opts.quoteFor(asset.ticker),
       manualPriceLookup: opts.manualPriceLookup,
     });
-    sum += toPrimary(price.value * asset.totalQuantity, price.currency, date);
+    const converted = toPrimary(price.value * asset.totalQuantity, price.currency, date);
+    if (converted === null) {
+      fxMissCount += 1;
+      continue;
+    }
+    total += converted;
   }
-  return sum;
+  return { total, fxMissCount };
 }
