@@ -102,7 +102,7 @@ export function CategoriesRoute() {
     ? allExpenseRows.filter((row) => row.category === selectedCategory)
     : allExpenseRows;
 
-  const defaultColors = ["var(--ns-chart-1)", "var(--ns-chart-2)", "var(--ns-chart-3)", "var(--ns-chart-4)", "var(--ns-chart-5)", "#2dd4bf", "#fb923c"];
+  const defaultColors = ["var(--ns-chart-1)", "var(--ns-chart-2)", "var(--ns-chart-3)", "var(--ns-chart-4)", "var(--ns-chart-5)", "var(--ns-chart-6)", "var(--ns-chart-7)"];
 
   const categoryStats = useMemo(() => {
     return periodSpend.categories.map((cat, index) => {

@@ -62,7 +62,7 @@ export function MerchantsTab({ dateRange, ledgerRows, primaryCurrency, toPrimary
     return name.slice(0, 2).toUpperCase();
   };
   
-  const defaultColors = ["#f87171", "#fb923c", "#facc15", "#4ade80", "#2dd4bf", "#60a5fa", "#a78bfa", "#f472b6"];
+  const defaultColors = ["var(--ns-chart-1)", "var(--ns-chart-2)", "var(--ns-chart-3)", "var(--ns-chart-4)", "var(--ns-chart-5)", "var(--ns-chart-6)", "var(--ns-chart-7)"];
 
   // Top-5 spend merchants for the pie, with the remainder folded into 其他 (B22).
   const top5Pie = useMemo(() => {

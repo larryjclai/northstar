@@ -113,6 +113,8 @@ Wordmark 在 `AppShell.tsx` sidebar：app icon 圖檔 + "Northstar" 文字。
 | `--ns-chart-3` | `#f0c050` | `#d18a18` |
 | `--ns-chart-4` | `#d97a9c` | `#c44a82` |
 | `--ns-chart-5` | `#a99cff` | `#6e58d8` |
+| `--ns-chart-6` | `#2dd4bf` | `#0d9488` |
+| `--ns-chart-7` | `#fb923c` | `#dd6b20` |
 
 ### 2.6 陰影
 

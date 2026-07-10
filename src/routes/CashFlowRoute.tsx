@@ -767,7 +767,7 @@ export function CashFlowRoute() {
       // Signed (−amount): refunds net against the category they refund.
       map.set(key, (map.get(key) ?? 0) - (toPrimary(row) ?? 0));
     }
-    const defaultColors = ["var(--ns-chart-1)","var(--ns-chart-2)","var(--ns-chart-3)","var(--ns-chart-4)","var(--ns-chart-5)","#2dd4bf","#fb923c","#a78bfa","#f472b6","#facc15"];
+    const defaultColors = ["var(--ns-chart-1)","var(--ns-chart-2)","var(--ns-chart-3)","var(--ns-chart-4)","var(--ns-chart-5)","var(--ns-chart-6)","var(--ns-chart-7)","#a78bfa","#f472b6","#facc15"];
     return [...map.entries()]
       // A category can net negative if refunds exceed spend in the period;
       // hide it from the spend donut rather than drawing a negative slice.

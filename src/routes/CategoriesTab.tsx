@@ -43,7 +43,7 @@ export function CategoriesTab({ dateRange, ledgerRows, appSettings, primaryCurre
     return [...inner.entries()].sort((a, b) => b[1] - a[1])[0][0];
   }
 
-  const defaultColors = ["var(--ns-chart-1)","var(--ns-chart-2)","var(--ns-chart-3)","var(--ns-chart-4)","var(--ns-chart-5)","#2dd4bf","#fb923c","#a78bfa","#f472b6","#facc15"];
+  const defaultColors = ["var(--ns-chart-1)","var(--ns-chart-2)","var(--ns-chart-3)","var(--ns-chart-4)","var(--ns-chart-5)","var(--ns-chart-6)","var(--ns-chart-7)","#a78bfa","#f472b6","#facc15"];
 
   const allCategorySpend = spend.categories.map((cat, idx) => {
     const catSetting = appSettings?.categories?.find((c) => c.name === cat.name);

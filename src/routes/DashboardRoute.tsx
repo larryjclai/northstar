@@ -116,8 +116,8 @@ const CHART_COLORS = [
   "var(--ns-chart-3)",
   "var(--ns-chart-4)",
   "var(--ns-chart-5)",
-  "#2dd4bf",
-  "#fb923c",
+  "var(--ns-chart-6)",
+  "var(--ns-chart-7)",
 ];
 
 export function DashboardRoute() {
