@@ -351,14 +351,14 @@ function RuleEditSheet({
 
   return (
     <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 998 }} />
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "var(--ns-scrim)", zIndex: 998 }} />
       <div
         className="flex flex-col"
         style={{
           position: "fixed", top: 0, right: 0, bottom: 0, width: "min(460px, 100%)",
           background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
           zIndex: 999,
-          boxShadow: "-8px 0 32px rgba(0,0,0,0.12)",
+          boxShadow: "var(--ns-shadow-2)",
           animation: "slideInRight 0.2s ease",
         }}
       >

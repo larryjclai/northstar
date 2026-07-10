@@ -1918,7 +1918,7 @@ function EntryDrawer({
       <style>{`@media (max-width:1023.98px){.ns-entry-scrim{left:0 !important;}}`}</style>
       <div
         className="ns-entry-scrim absolute top-0 right-0 bottom-0"
-        style={{ left: scrimLeft, background: "rgba(0,0,0,0.4)" }}
+        style={{ left: scrimLeft, background: "var(--ns-scrim)" }}
       />
       <div
         onClick={(event) => event.stopPropagation()}
@@ -1926,7 +1926,7 @@ function EntryDrawer({
         style={{
           width: "min(500px, 100%)",
           background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
-          boxShadow: "-20px 0 60px rgba(0,0,0,0.4)",
+          boxShadow: "var(--ns-shadow-2)",
         }}
       >
         {/* Header */}

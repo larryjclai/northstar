@@ -426,8 +426,7 @@ function PayCardModal({
   return (
     <div
       onClick={onCancel}
-      className="flex items-center justify-center p-5"
-      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.4)" }}
+      className="ns-modal-scrim"
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -508,8 +507,7 @@ function DeferPostingModal({
   return (
     <div
       onClick={onCancel}
-      className="flex items-center justify-center p-5"
-      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.4)" }}
+      className="ns-modal-scrim"
     >
       <div
         onClick={(e) => e.stopPropagation()}

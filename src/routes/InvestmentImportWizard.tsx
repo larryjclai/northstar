@@ -191,7 +191,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
   ];
 
   return (
-    <div className="flex justify-center" style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", alignItems: "flex-start", overflowY: "auto", padding: "32px 16px" }}>
+    <div className="flex justify-center" style={{ position: "fixed", inset: 0, zIndex: 200, background: "var(--ns-scrim)", alignItems: "flex-start", overflowY: "auto", padding: "32px 16px" }}>
       <div className="ns-surface" style={{ width: "100%", maxWidth: 980, borderRadius: "var(--ns-r-lg)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)" }}>
         {/* Header */}
         <div className="flex items-center justify-between" style={{ padding: "16px 22px", borderBottom: "1px solid var(--ns-border)" }}>

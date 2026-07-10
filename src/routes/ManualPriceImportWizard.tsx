@@ -97,7 +97,7 @@ export function ManualPriceImportWizard({ open, onClose, assetId, assetLabel, cu
   ];
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto", padding: "32px 16px" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "var(--ns-scrim)", display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto", padding: "32px 16px" }}>
       <div className="ns-surface" style={{ width: "100%", maxWidth: 760, borderRadius: "var(--ns-r-lg)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)" }}>
         {/* Header */}
         <div className="flex items-center justify-between" style={{ padding: "16px 22px", borderBottom: "1px solid var(--ns-border)" }}>

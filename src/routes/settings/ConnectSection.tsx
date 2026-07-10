@@ -1114,7 +1114,7 @@ function AddDeviceDialog({
   return (
     <div className="fixed inset-0 flex items-center justify-center" style={{
       zIndex: 200,
-      background: "rgba(0,0,0,0.45)",
+      background: "var(--ns-scrim)",
     }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <Card style={{ width: 480, padding: 0, overflow: "hidden" }}>
         {/* Header */}

@@ -99,7 +99,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
       <div
         onClick={onClose}
         style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)",
+          position: "fixed", inset: 0, background: "var(--ns-scrim)",
           zIndex: 998, transition: "opacity 0.2s", opacity: 1,
         }}
       />
@@ -110,7 +110,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
           position: "fixed", top: 0, right: 0, bottom: 0, width: 460,
           background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
           zIndex: 999, display: "flex", flexDirection: "column",
-          boxShadow: "-8px 0 32px rgba(0,0,0,0.12)",
+          boxShadow: "var(--ns-shadow-2)",
           animation: "slideInRight 0.2s ease",
         }}
       >

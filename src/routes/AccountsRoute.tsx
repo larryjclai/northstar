@@ -494,7 +494,7 @@ export function AccountsRoute() {
 
       {/* Adjust modal */}
       {adjustingAccount ? (
-        <div className="flex items-center justify-center p-4" style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} onClick={() => setAdjustingAccountId(null)}>
+        <div className="flex items-center justify-center p-4" style={{ position: "fixed", inset: 0, zIndex: 50, background: "var(--ns-scrim)" }} onClick={() => setAdjustingAccountId(null)}>
           <Card className="w-full p-0" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
             <div className="py-4 px-5" style={{ borderBottom: "1px solid var(--ns-border)" }}>
               <h2 className="text-base font-semibold" style={{ margin: 0 }}>調整餘額 · {adjustingAccount.name}</h2>
@@ -578,11 +578,11 @@ function AccountDrawer({
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={onClose}>
-      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} />
+      <div style={{ position: "absolute", inset: 0, background: "var(--ns-scrim)" }} />
       <div
         onClick={(e) => e.stopPropagation()}
         className="animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)] flex flex-col"
-        style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "min(520px, 100%)", background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)", boxShadow: "-24px 0 60px rgba(0,0,0,0.45)" }}
+        style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "min(520px, 100%)", background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)", boxShadow: "var(--ns-shadow-2)" }}
       >
         <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--ns-border)" }}>
           <div className="flex items-center justify-between mb-4">

@@ -468,14 +468,14 @@ export function InvestmentEntryDrawer({
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={onClose}>
-      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} />
+      <div style={{ position: "absolute", inset: 0, background: "var(--ns-scrim)" }} />
       <div
         onClick={(event) => event.stopPropagation()}
         className="animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)]"
         style={{
           position: "absolute", right: 0, top: 0, bottom: 0, width: "min(520px, 100%)",
           background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
-          display: "flex", flexDirection: "column", boxShadow: "-20px 0 60px rgba(0,0,0,0.4)",
+          display: "flex", flexDirection: "column", boxShadow: "var(--ns-shadow-2)",
         }}
       >
         {/* Header */}

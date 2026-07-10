@@ -222,11 +222,11 @@ function RecurringInvestmentSheet({
   const cash = perPeriodCash(draft);
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={onClose}>
-      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} />
+      <div style={{ position: "absolute", inset: 0, background: "var(--ns-scrim)" }} />
       <div
         onClick={(e) => e.stopPropagation()}
         className="flex flex-col"
-        style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "min(480px, 100%)", background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)", boxShadow: "-24px 0 60px rgba(0,0,0,0.45)" }}
+        style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "min(480px, 100%)", background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)", boxShadow: "var(--ns-shadow-2)" }}
       >
         <div className="flex items-center justify-between" style={{ padding: "18px 22px", borderBottom: "1px solid var(--ns-border)" }}>
           <h2 className="text-lg m-0 font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>{editing ? "編輯定期定額" : "新增定期定額"}</h2>

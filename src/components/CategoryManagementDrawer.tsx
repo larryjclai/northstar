@@ -96,7 +96,7 @@ export function CategoryManagementDrawer({
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 100 }} onClick={onClose}>
-      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} />
+      <div style={{ position: "absolute", inset: 0, background: "var(--ns-scrim)" }} />
       <div
         onClick={(e) => e.stopPropagation()}
         className="animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)]"
