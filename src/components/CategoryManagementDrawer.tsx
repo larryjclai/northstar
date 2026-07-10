@@ -5,6 +5,7 @@ import { X, Plus, Trash, PencilSimple, CaretRight, CaretDown, Tag, Check } from 
 import { IconPicker } from "./IconPicker";
 import { Glyph } from "../lib/icons";
 import { Popover, PopoverTrigger, PopoverContent } from "./ui/popover";
+import { ModalShell } from "./ModalShell";
 import { CategoryGroup } from "../domain";
 
 export function CategoryManagementDrawer({
@@ -95,17 +96,25 @@ export function CategoryManagementDrawer({
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 100 }} onClick={onClose}>
-      <div style={{ position: "absolute", inset: 0, background: "var(--ns-scrim)" }} />
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)]"
-        style={{
-          position: "absolute", right: 0, top: 0, bottom: 0, width: "100%", maxWidth: 400,
-          background: "var(--ns-bg)", borderLeft: "1px solid var(--ns-border)",
-          display: "flex", flexDirection: "column", boxShadow: "var(--ns-shadow-xl)",
-        }}
-      >
+    // disableEscape: the inline main/sub name editors bind Escape to cancel-edit.
+    // The shell's panel-scoped keydown listener fires before those React handlers
+    // (and, being isolated from the body-portalled IconPicker popover, can't be
+    // cooperatively cancelled), so a shell Escape-to-close would also discard the
+    // whole drawer's unsaved edits. The drawer stays keyboard-dismissable via its
+    // 取消 / X buttons and scrim click.
+    <ModalShell
+      variant="drawer"
+      title="分類管理"
+      onClose={onClose}
+      disableEscape
+      style={{ zIndex: 100 }}
+      panelClassName="animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)]"
+      panelStyle={{
+        position: "absolute", right: 0, top: 0, bottom: 0, width: "100%", maxWidth: 400,
+        background: "var(--ns-bg)", borderLeft: "1px solid var(--ns-border)",
+        display: "flex", flexDirection: "column", boxShadow: "var(--ns-shadow-xl)",
+      }}
+    >
         <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <h2 className="text-base" style={{ fontWeight: 600 }}>分類管理</h2>
           <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={onClose}><X size={18} /></Button>
@@ -253,7 +262,6 @@ export function CategoryManagementDrawer({
           <Button variant="outline" style={{ flex: 1, justifyContent: "center" }} onClick={onClose}>取消</Button>
           <Button style={{ flex: 1, justifyContent: "center" }} onClick={async () => { await onSave(local); onClose(); }}>儲存變更</Button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
