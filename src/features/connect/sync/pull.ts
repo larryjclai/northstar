@@ -67,6 +67,25 @@ export async function pullAndApply(
   );
   const decrypted = settled.map((r) => (r.status === "rejected" ? null : r.value));
 
+  // Prefetch every local record this page might merge against, one batched query
+  // per entity, instead of a getSyncPayload SELECT per envelope (an N+1 that made
+  // initial sync thousands of serialized round-trips). The loop below reads only
+  // from this map; applySyncChanges still runs once at the end, so each lookup
+  // sees the same pre-page local state getSyncPayload would have returned.
+  const idsByEntity = new Map<SyncEntity, string[]>();
+  for (const e of foreign) {
+    const entity = e.entity as SyncEntity;
+    if (!VALID_ENTITIES.has(entity)) continue; // bad entity → skipped in the loop
+    const list = idsByEntity.get(entity);
+    if (list) list.push(e.entityId);
+    else idsByEntity.set(entity, [e.entityId]);
+  }
+  const existingByKey = new Map<string, Record<string, unknown>>();
+  for (const [entity, ids] of idsByEntity) {
+    const payloads = await repo.getSyncPayloads(entity, ids);
+    for (const [id, payload] of payloads) existingByKey.set(`${entity}:${id}`, payload);
+  }
+
   const changes: SyncApplyChange[] = [];
   const conflicts: SyncConflictRecord[] = [];
   let applied = 0;
@@ -90,7 +109,7 @@ export async function pullAndApply(
       continue;
     }
     const entity = envelope.entity as SyncEntity;
-    const existing = await repo.getSyncPayload(entity, envelope.entityId);
+    const existing = existingByKey.get(`${entity}:${envelope.entityId}`) ?? null;
     // Same logical record edited to the same revision on two devices but with
     // different content. We auto-resolve by `updatedAt` (newer edit wins, see
     // shouldApply) so the user is never asked to triage routine concurrent

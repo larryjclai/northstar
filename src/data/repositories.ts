@@ -328,6 +328,14 @@ export interface FinanceRepository {
   exportSnapshot(): Promise<RepositorySnapshot>;
   importSnapshot(snapshot: RepositorySnapshot): Promise<void>;
   getSyncPayload(entity: SyncEntity, entityId: string): Promise<Record<string, unknown> | null>;
+  /**
+   * Batched form of getSyncPayload: fetch every existing payload for the given
+   * entity ids in one shot, keyed by entity id (missing ids are simply absent).
+   * The sync pull uses this to prefetch a page's records instead of issuing one
+   * SELECT per incoming envelope (N+1). Payloads are byte-identical to what
+   * getSyncPayload returns for the same id.
+   */
+  getSyncPayloads(entity: SyncEntity, entityIds: string[]): Promise<Map<string, Record<string, unknown>>>;
   applySyncChanges(changes: SyncApplyChange[], conflicts?: SyncConflictRecord[]): Promise<void>;
   recalculateDerivedData(): Promise<RecalculationReport>;
   /** Connect Sync prep: records changed since `sinceCursor` (an updatedAt). */
@@ -1583,6 +1591,17 @@ class BrowserFinanceRepository implements FinanceRepository {
       goal: this.data.financialGoals,
     };
     return (rowsByEntity[entity].find((row) => row.id === entityId) as unknown as Record<string, unknown> | undefined) ?? null;
+  }
+
+  async getSyncPayloads(entity: SyncEntity, entityIds: string[]): Promise<Map<string, Record<string, unknown>>> {
+    const map = new Map<string, Record<string, unknown>>();
+    // Dedupe so a page with repeated ids resolves each once. In-memory lookups
+    // have no round-trip cost, so a per-id resolve keeps parity with getSyncPayload.
+    for (const id of new Set(entityIds)) {
+      const payload = await this.getSyncPayload(entity, id);
+      if (payload) map.set(id, payload);
+    }
+    return map;
   }
 
   async importSnapshot(snapshot: RepositorySnapshot) {
@@ -3648,6 +3667,47 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       [entityId],
     );
     return rows[0] ? normalizeSqliteSyncPayload(entity, rows[0]) : null;
+  }
+
+  override async getSyncPayloads(entity: SyncEntity, entityIds: string[]): Promise<Map<string, Record<string, unknown>>> {
+    const map = new Map<string, Record<string, unknown>>();
+    const ids = [...new Set(entityIds)];
+    if (ids.length === 0) return map;
+
+    // Settings is a single synthetic row; nothing to batch.
+    if (entity === "settings") {
+      for (const id of ids) {
+        const payload = await this.getSyncPayload(entity, id);
+        if (payload) map.set(id, payload);
+      }
+      return map;
+    }
+
+    const tableByEntity: Record<Exclude<SyncEntity, "settings">, string> = {
+      account: "accounts",
+      ledger: "ledger_transactions",
+      asset: "portfolio_assets",
+      investment: "investment_records",
+      recurring: "recurring_transactions",
+      recurringInvestment: "recurring_investments",
+      goal: "financial_goals",
+    };
+    const table = tableByEntity[entity];
+
+    // Chunk to stay under SQLite's ~999 bound-parameter limit.
+    const CHUNK = 500;
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const chunk = ids.slice(i, i + CHUNK);
+      const placeholders = chunk.map((_, j) => `$${j + 1}`).join(", ");
+      const rows = await this.db.select<Array<Record<string, unknown>>>(
+        `select * from ${table} where id in (${placeholders})`,
+        chunk,
+      );
+      for (const row of rows) {
+        map.set(String(row.id), normalizeSqliteSyncPayload(entity, row));
+      }
+    }
+    return map;
   }
 
   override async applySyncChanges(changes: SyncApplyChange[], conflicts: SyncConflictRecord[] = []) {
