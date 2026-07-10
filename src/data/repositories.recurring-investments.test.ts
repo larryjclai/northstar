@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { createMemoryFinanceRepositoryForTests } from "./repositories";
+import { expect, it } from "vitest";
+import { describeEachRepo } from "./repositories.testHarness";
 import type { Account, RecurringInvestment } from "../domain";
 
 const cash: Account = {
@@ -53,9 +53,9 @@ function rule(overrides: Partial<RecurringInvestment> = {}): RecurringInvestment
   };
 }
 
-describe("recurring investments", () => {
+describeEachRepo("recurring investments", (makeRepo) => {
   it("posting a fixedAmount plan creates a buy record + cash settlement and advances", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [cash], recurringInvestments: [rule()] });
+    const repo = await makeRepo({ accounts: [cash], recurringInvestments: [rule()] });
     await repo.postRecurringInvestment("recinv_0050");
 
     const records = await repo.listInvestmentRecords();
@@ -72,7 +72,7 @@ describe("recurring investments", () => {
   });
 
   it("posting a fixedShares plan buys the configured share count", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({
+    const repo = await makeRepo({
       accounts: [cash],
       recurringInvestments: [rule({ mode: "fixedShares", quantity: 50, amount: 0, price: 100 })],
     });
@@ -84,12 +84,12 @@ describe("recurring investments", () => {
   });
 
   it("rejects posting without a usable price", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [cash], recurringInvestments: [rule({ price: 0 })] });
+    const repo = await makeRepo({ accounts: [cash], recurringInvestments: [rule({ price: 0 })] });
     await expect(repo.postRecurringInvestment("recinv_0050")).rejects.toThrow();
   });
 
   it("create / update / delete round-trips", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [cash] });
+    const repo = await makeRepo({ accounts: [cash] });
     await repo.createRecurringInvestment({
       accountId: "acct_cash", ticker: "2330.tw", name: "台積電", currency: "TWD",
       mode: "fixedShares", amount: 0, quantity: 10, price: 1000, fee: 0,
