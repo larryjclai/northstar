@@ -2,7 +2,9 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createLocalStorageStore,
   createSecretStore,
+  getSecretStore,
   migrateLocalStorageSecrets,
+  resetSecretStoreForTests,
   SECRET_KEYS,
 } from "./secretStore";
 
@@ -197,5 +199,38 @@ describe("migrateLocalStorageSecrets", () => {
     expect(SECRET_KEYS).toContain("northstar.device.keypair.v1");
     expect(SECRET_KEYS).toContain("northstar.sync.account.v1");
     expect(SECRET_KEYS).toHaveLength(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Suite 4: getSecretStore — memoized instance + migration at init
+// ---------------------------------------------------------------------------
+
+describe("getSecretStore", () => {
+  beforeEach(() => {
+    resetSecretStoreForTests();
+  });
+
+  it("migrates existing localStorage secrets into the store on first access", async () => {
+    // Simulate an existing install with plaintext secrets in localStorage.
+    localStorage.setItem("northstar.vault.key.v1", "vault-key-preexisting");
+    localStorage.setItem("northstar.sync.account.v1", "account-preexisting");
+
+    const store = await getSecretStore();
+
+    // Secrets are readable through the store (migration ran at init).
+    expect(await store.get("northstar.vault.key.v1")).toBe("vault-key-preexisting");
+    expect(await store.get("northstar.sync.account.v1")).toBe("account-preexisting");
+    // Non-destructive: localStorage copies are retained.
+    expect(localStorage.getItem("northstar.vault.key.v1")).toBe(
+      "vault-key-preexisting",
+    );
+  });
+
+  it("returns the same memoized instance on repeated calls (no re-init/race)", async () => {
+    const [a, b] = await Promise.all([getSecretStore(), getSecretStore()]);
+    expect(a).toBe(b);
+    const c = await getSecretStore();
+    expect(c).toBe(a);
   });
 });

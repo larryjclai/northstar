@@ -1,19 +1,27 @@
 /**
  * SecretStore: pluggable storage for application secrets.
  *
- * Two backends:
- *  - localStorage (default, current behavior)
- *  - Stronghold (Tauri encrypted snapshot — disabled by default; flip USE_STRONGHOLD to test)
+ * Two backends, selected at runtime:
+ *  - Stronghold (Tauri encrypted-at-rest snapshot) — the active backend on device.
+ *  - localStorage — fallback for the web dev shell (where the Stronghold plugin
+ *    and `invoke` are unavailable) and for jsdom tests.
  *
  * The Stronghold backend dynamically imports @tauri-apps/plugin-stronghold so it
- * never loads in the web dev shell (where `invoke` is unavailable).
+ * never loads in the web dev shell.
  *
- * docs/secret-storage-plan.md contains the full design rationale, threat model,
- * rollout sequence, and per-platform verification checklist.
+ * Rollout status (this is the shipped state): USE_STRONGHOLD is ON. The vault key
+ * (vault.ts), the device ECDH keypair (pairing.ts), and the sync account
+ * (account.ts) are all routed through this store via getSecretStore(). Existing
+ * installs are migrated on first access by migrateLocalStorageSecrets. The
+ * plaintext localStorage copies are RETAINED for now (migration is
+ * non-destructive); clearing them is a separate follow-up gated on the
+ * per-platform verification checklist in docs/secret-storage-plan.md §4.
  */
 
-// Off by default — flip to true only for manual Tauri dev testing.
-// Do NOT commit as true until the rollout sequence in docs/secret-storage-plan.md
+// Stronghold is the active backend on device; localStorage is the web/test
+// fallback (see createSecretStore). This flag is committed ON — the cutover is
+// shipped. See docs/secret-storage-plan.md for the threat model and the one
+// remaining rollout step (clearing the retained localStorage copies).
 const USE_STRONGHOLD = true;
 
 // Password passed to Stronghold.load(). The Rust side uses argon2 with a
@@ -148,10 +156,12 @@ export async function createStrongholdStore(): Promise<SecretStore> {
 /**
  * Returns the appropriate SecretStore for the current environment.
  *
- * - When USE_STRONGHOLD is false (default): returns localStorage store.
- * - When USE_STRONGHOLD is true AND running inside Tauri: returns Stronghold store.
- * - When USE_STRONGHOLD is true but NOT in Tauri (web dev shell): falls back to
- *   localStorage store with a console warning.
+ * - USE_STRONGHOLD is true AND running inside Tauri: returns the Stronghold store
+ *   (falling back to localStorage if Stronghold init throws).
+ * - Not in Tauri (web dev shell / jsdom tests): returns the localStorage store.
+ *
+ * Prefer getSecretStore() over calling this directly — it memoizes a single
+ * process-wide instance and runs the one-time migration.
  */
 export async function createSecretStore(): Promise<SecretStore> {
   if (USE_STRONGHOLD && isTauriRuntime()) {
@@ -193,4 +203,42 @@ export async function migrateLocalStorageSecrets(
 
     await store.set(key, existing);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Shared instance accessor
+// ---------------------------------------------------------------------------
+
+// Memoized promise so every caller (vault key, device keypair, sync account)
+// shares ONE store instance. Critically, this means two concurrent callers
+// during startup await the same createSecretStore() — a single Stronghold load,
+// no race. The one-time localStorage→store migration runs inside the same
+// promise, so it completes before any consumer's first get()/set().
+let secretStorePromise: Promise<SecretStore> | null = null;
+
+/**
+ * Return the process-wide shared SecretStore, creating it on first call and
+ * running the (idempotent, non-destructive) localStorage→store migration once.
+ *
+ * All secret consumers should use this rather than createSecretStore() directly
+ * so that a single backend instance is reused and migration happens exactly once
+ * per session.
+ */
+export function getSecretStore(): Promise<SecretStore> {
+  if (secretStorePromise == null) {
+    secretStorePromise = (async () => {
+      const store = await createSecretStore();
+      await migrateLocalStorageSecrets(store);
+      return store;
+    })();
+  }
+  return secretStorePromise;
+}
+
+/**
+ * Test-only: drop the memoized store so the next getSecretStore() rebuilds it.
+ * Not used in production code paths.
+ */
+export function resetSecretStoreForTests(): void {
+  secretStorePromise = null;
 }

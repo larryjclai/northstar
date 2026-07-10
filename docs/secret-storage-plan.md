@@ -1,6 +1,6 @@
 # Secret Storage Plan: Stronghold-backed SecretStore
 
-**Status**: SPIKE — USE_STRONGHOLD=false (off by default). Awaiting operator sign-off before cutover.
+**Status**: IN ROLLOUT — USE_STRONGHOLD=true; vault key + device keypair + sync account cut over as of plan 130 (all routed through `getSecretStore()`). Existing installs migrate on first access (non-destructive). Remaining step: clearing the retained plaintext localStorage copies, gated on the per-platform verification checklist in §4.
 **Authored**: 2026-06-15 (against commit 9115a2b5)
 **Depends on**: Plan 004 (crypto characterization tests done — b5ae1fd5)
 

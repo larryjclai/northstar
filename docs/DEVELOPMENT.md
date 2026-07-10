@@ -10,7 +10,7 @@
 - TanStack Router / Query / Table
 - Zustand · React Hook Form · Zod · Recharts
 - SQLite（透過 `tauri-plugin-sql`）
-- Stronghold（vault key 儲存）
+- Stronghold（機密儲存：vault key／裝置金鑰對／同步帳號；web shell 以 localStorage 備援，既有安裝首次存取時遷移）
 - 匯率與報價：Yahoo Finance（透過 Tauri Rust 代理）
 
 > 這個分支是 Tauri 重寫版。先前的 SwiftUI / SwiftData 實作保留在 GitHub 分支 `archive/swift-native-before-tauri`。
