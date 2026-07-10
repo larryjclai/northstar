@@ -4,7 +4,7 @@ import { Button } from "./coss/button";
 import { Card } from "./coss/card";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { buildLedgerSuggestions, buildMerchantCategoryMap, buildUserLexicon, categoryPickerOptions, formatMoney, loadCorrections, nowAsDatetimeLocal, parseQuickAdd, saveCorrection, type CorrectionStore, type QuickAddParsed } from "../domain";
+import { buildLedgerSuggestions, buildMerchantCategoryMap, buildUserLexicon, categoryPickerOptions, formatMoney, formatNumber, formatPrice, loadCorrections, nowAsDatetimeLocal, parseQuickAdd, saveCorrection, type CorrectionStore, type QuickAddParsed } from "../domain";
 import { orchestrate, type ParseSource } from "../domain/nlParser";
 import { createOnDeviceParser } from "../lib/foundationModels";
 import { useUiPreferences } from "../state/uiPreferences";
@@ -473,18 +473,18 @@ function PreviewChips({ parsed, accounts }: { parsed: QuickAddParsed; accounts: 
   const chips: PreviewChip[] = [];
 
   if (parsed.kind === "ledger") {
-    if (parsed.amount) chips.push({ label: "金額", value: parsed.amount.toLocaleString("zh-TW"), color: "var(--ns-pos)" });
+    if (parsed.amount) chips.push({ label: "金額", value: formatNumber(parsed.amount), color: "var(--ns-pos)" });
     if (parsed.accountId) {
       const name = accounts.find((a) => a.id === parsed.accountId)?.name ?? parsed.accountId;
       chips.push({ label: "帳戶", value: name, color: "var(--ns-accent)" });
     }
-    if (parsed.category) chips.push({ label: "分類", value: parsed.category + (parsed.subcategory ? ` / ${parsed.subcategory}` : ""), color: "#a855f7" });
-    if (parsed.date) chips.push({ label: "日期", value: parsed.date.slice(0, 10), color: "#f59e0b" });
+    if (parsed.category) chips.push({ label: "分類", value: parsed.category + (parsed.subcategory ? ` / ${parsed.subcategory}` : ""), color: "var(--ns-info)" });
+    if (parsed.date) chips.push({ label: "日期", value: parsed.date.slice(0, 10), color: "var(--ns-warn)" });
     // When @ syntax is used, show name and merchant as separate chips.
     // Otherwise they're the same string — show only one chip labelled "商家".
     if (parsed.name && parsed.merchant && parsed.name !== parsed.merchant) {
       chips.push({ label: "名稱", value: parsed.name, color: "var(--ns-fg-muted)" });
-      chips.push({ label: "商家", value: parsed.merchant, color: "var(--ns-accent)" });
+      chips.push({ label: "商家", value: parsed.merchant, color: "var(--ns-fg-muted)" });
     } else if (parsed.merchant) {
       chips.push({ label: "商家", value: parsed.merchant, color: "var(--ns-fg-muted)" });
     }
@@ -493,10 +493,10 @@ function PreviewChips({ parsed, accounts }: { parsed: QuickAddParsed; accounts: 
   if (parsed.kind === "investment") {
     if (parsed.ticker) chips.push({ label: "標的", value: parsed.ticker, color: "var(--ns-accent)" });
     if (parsed.quantity) chips.push({ label: "股數", value: String(parsed.quantity), color: "var(--ns-pos)" });
-    if (parsed.price) chips.push({ label: "價格", value: parsed.price.toLocaleString("zh-TW"), color: "#f59e0b" });
+    if (parsed.price) chips.push({ label: "價格", value: formatPrice(parsed.price), color: "var(--ns-warn)" });
     if (parsed.accountId) {
       const name = accounts.find((a) => a.id === parsed.accountId)?.name ?? parsed.accountId;
-      chips.push({ label: "帳戶", value: name, color: "#a855f7" });
+      chips.push({ label: "帳戶", value: name, color: "var(--ns-accent)" });
     }
     chips.push({ label: "操作", value: parsed.action === "buy" ? "買入" : "賣出", color: parsed.action === "buy" ? "var(--ns-pos)" : "var(--ns-neg)" });
   }
