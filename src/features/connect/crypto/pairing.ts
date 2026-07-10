@@ -83,6 +83,42 @@ export async function deriveSharedKey(
   );
 }
 
+/**
+ * Derive a shared AES-GCM key from an ECDH key exchange, usable for BOTH key
+ * wrapping (the vault key, via wrapVaultKey/unwrapVaultKey) and payload
+ * encryption (the account JSON, via vault.ts encryptPayload/decryptPayload).
+ * Used by the ECDH pairing flow where a single shared secret protects both the
+ * `vault-v1` and `account-v1` key envelopes.
+ */
+export async function deriveSharedKeyExtended(
+  myPrivateKey: CryptoKey,
+  theirPublicKey: CryptoKey,
+): Promise<CryptoKey> {
+  return crypto.subtle.deriveKey(
+    { name: "ECDH", public: theirPublicKey },
+    myPrivateKey,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["wrapKey", "unwrapKey", "encrypt", "decrypt"],
+  );
+}
+
+/**
+ * Short SAS-style fingerprint for out-of-band verification: the first 8 hex
+ * chars of SHA-256 over the raw public key bytes. Derived from the PUBLIC KEY
+ * (not the pairing code) so the user confirms the actual key material that will
+ * receive the wrapped vault key.
+ */
+export async function fingerprintPublicKey(publicKeyB64: string): Promise<string> {
+  const raw = Uint8Array.from(atob(publicKeyB64), (c) => c.charCodeAt(0));
+  const digest = await crypto.subtle.digest("SHA-256", raw);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 8)
+    .toUpperCase();
+}
+
 /** Wrap the vault key with the shared key so it can be relayed via the server. */
 export async function wrapVaultKey(sharedKey: CryptoKey, vaultKey: CryptoKey): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -126,11 +162,26 @@ export function generatePairingCode(): string {
   return `${raw.slice(0, 4)}-${raw.slice(4)}`;
 }
 
+// Legacy constant salt for the DEPRECATED code-encrypted vault-key bundle path.
+// Kept only so old-version devices can still be claimed during the transition.
+const LEGACY_BUNDLE_SALT = "northstar-pairing-v1";
+
+/** Generate a random per-session PBKDF2 salt (16 bytes, base64) for deriveBundleKey. */
+export function generateBundleSalt(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return btoa(String.fromCharCode(...bytes));
+}
+
 /**
  * Derive a 256-bit AES-GCM key from the pairing code via PBKDF2.
  * Both Device A and Device B run this independently to get the same key.
+ *
+ * `saltB64` — a per-session random salt (see generateBundleSalt), carried in the
+ * clear alongside the bundle. When omitted, falls back to the legacy constant
+ * salt for the DEPRECATED code-encrypted bundle path. A per-session salt defeats
+ * precomputed offline dictionary attacks against the (low-entropy) pairing code.
  */
-export async function deriveBundleKey(code: string): Promise<CryptoKey> {
+export async function deriveBundleKey(code: string, saltB64?: string): Promise<CryptoKey> {
   const normalized = code.replace("-", "");
   const baseKey = await crypto.subtle.importKey(
     "raw",
@@ -139,10 +190,13 @@ export async function deriveBundleKey(code: string): Promise<CryptoKey> {
     false,
     ["deriveKey"],
   );
+  const salt = saltB64
+    ? Uint8Array.from(atob(saltB64), (c) => c.charCodeAt(0))
+    : new TextEncoder().encode(LEGACY_BUNDLE_SALT);
   return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt: new TextEncoder().encode("northstar-pairing-v1"),
+      salt,
       iterations: 100_000,
       hash: "SHA-256",
     },
@@ -153,13 +207,31 @@ export async function deriveBundleKey(code: string): Promise<CryptoKey> {
   );
 }
 
+/**
+ * The public bundle published by the JOINING device (Device B) in the ECDH
+ * pairing flow. Contains ONLY a device id and an ECDH PUBLIC key — worthless to
+ * an attacker who grinds the pairing code, since no secret is derivable from it.
+ */
+export interface PublicPairingBundle {
+  deviceId: string;
+  publicKeyB64: string;
+}
+
+/**
+ * @deprecated Legacy code-encrypted credentials bundle. The pairing code was the
+ * SOLE protection of the vault key + account secret; replaced by the ECDH flow
+ * (see pairing-flow.ts). Kept only for the transition window.
+ */
 export interface CredentialsBundle {
   userId: string;
   apiSecret: string;
   vaultKeyB64: string;
 }
 
-/** Encrypt the credentials bundle with the bundle key derived from the pairing code. */
+/**
+ * @deprecated Part of the legacy code-encrypted bundle path. Use the ECDH flow.
+ * Encrypt the credentials bundle with the bundle key derived from the pairing code.
+ */
 export async function encryptBundle(
   bundleKey: CryptoKey,
   bundle: CredentialsBundle,
@@ -173,7 +245,10 @@ export async function encryptBundle(
   return btoa(String.fromCharCode(...combined));
 }
 
-/** Decrypt the credentials bundle using the bundle key derived from the pairing code. */
+/**
+ * @deprecated Part of the legacy code-encrypted bundle path. Use the ECDH flow.
+ * Decrypt the credentials bundle using the bundle key derived from the pairing code.
+ */
 export async function decryptBundle(
   bundleKey: CryptoKey,
   b64: string,
