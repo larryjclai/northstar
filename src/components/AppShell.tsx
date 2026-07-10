@@ -566,9 +566,10 @@ function useAutoUpdateCheck() {
   }, [toast, runInstall]);
 
   useEffect(() => {
-    if (checkedRef.current) return; // guard StrictMode double-mount
-    checkedRef.current = true;
-    void checkForUpdate();
+    if (!checkedRef.current) {
+      checkedRef.current = true; // guard StrictMode double-mount for the initial check only
+      void checkForUpdate();
+    }
     window.addEventListener("focus", checkForUpdate);
     return () => window.removeEventListener("focus", checkForUpdate);
   }, [checkForUpdate]);
