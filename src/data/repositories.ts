@@ -1627,6 +1627,33 @@ class BrowserFinanceRepository implements FinanceRepository {
         recurringInvestment: "recurringInvestments",
         goal: "financialGoals",
       } as const;
+      // Recurring-occurrence de-dup: when two devices each post the same
+      // occurrence, both rows arrive via sync under one recurringOccurrenceKey.
+      // Converge to a single live row using the same winner rule as the SQLite
+      // twin (applySqliteSyncChange): among non-deleted rows sharing the key,
+      // the lexicographically smallest id survives; the loser is tombstoned
+      // (bump() so the tombstone itself propagates to other devices).
+      if (change.entity === "ledger") {
+        const incoming = payload as unknown as LedgerTransaction;
+        const occurrenceKey = incoming.recurringOccurrenceKey;
+        if (occurrenceKey && !incoming.deletedAt) {
+          const dupes = this.data.ledgerTransactions.filter(
+            (row) => row.recurringOccurrenceKey === occurrenceKey && row.deletedAt === null && row.id !== incoming.id,
+          );
+          if (dupes.length > 0) {
+            const existingId = dupes[0].id;
+            const winner = [existingId, incoming.id].sort()[0];
+            const now = nowIso();
+            if (winner === incoming.id) {
+              this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
+                row.id === existingId ? bump({ ...row, deletedAt: now }) : row,
+              );
+            } else {
+              incoming.deletedAt = incoming.deletedAt ?? now;
+            }
+          }
+        }
+      }
       const key = keyByEntity[change.entity];
       const rows = this.data[key] as Array<{ id: string }>;
       const index = rows.findIndex((row) => row.id === payload.id);

@@ -162,3 +162,58 @@ describe("sync recurring-occurrence dedup (SQLite)", () => {
     expect(loserPayload!.deletedAt).not.toBeNull();
   });
 });
+
+// The browser/in-memory repository must converge to the SAME end state as the
+// SQLite path above: among non-deleted rows sharing a recurringOccurrenceKey,
+// the lexicographically smallest id survives; the loser is tombstoned.
+describe("sync recurring-occurrence dedup (memory)", () => {
+  const OCCURRENCE_KEY = "rule_1:2026-06-01";
+
+  it("incoming id < existing id: incoming wins, existing is tombstoned", async () => {
+    const repo = createMemoryFinanceRepositoryForTests({});
+
+    // Seed the existing occurrence row tx_bbb (e.g. posted locally).
+    await repo.applySyncChanges([{
+      entity: "ledger",
+      payload: makeLedgerPayload("tx_bbb", "acct_cash", OCCURRENCE_KEY),
+    }]);
+
+    // Apply a duplicate from a remote device with a smaller id tx_aaa.
+    await repo.applySyncChanges([{
+      entity: "ledger",
+      payload: makeLedgerPayload("tx_aaa", "acct_cash", OCCURRENCE_KEY),
+    }]);
+
+    const live = await repo.listLedgerTransactions();
+    const liveWithKey = live.filter((r) => r.recurringOccurrenceKey === OCCURRENCE_KEY);
+    expect(liveWithKey).toHaveLength(1);
+    expect(liveWithKey[0].id).toBe("tx_aaa"); // min(id) wins
+
+    const loserPayload = await repo.getSyncPayload("ledger", "tx_bbb");
+    expect(loserPayload).not.toBeNull();
+    expect(loserPayload!.deletedAt).not.toBeNull();
+  });
+
+  it("incoming id > existing id: existing wins, incoming is stored tombstoned", async () => {
+    const repo = createMemoryFinanceRepositoryForTests({});
+
+    await repo.applySyncChanges([{
+      entity: "ledger",
+      payload: makeLedgerPayload("tx_aaa", "acct_cash", OCCURRENCE_KEY),
+    }]);
+
+    await repo.applySyncChanges([{
+      entity: "ledger",
+      payload: makeLedgerPayload("tx_zzz", "acct_cash", OCCURRENCE_KEY),
+    }]);
+
+    const live = await repo.listLedgerTransactions();
+    const liveWithKey = live.filter((r) => r.recurringOccurrenceKey === OCCURRENCE_KEY);
+    expect(liveWithKey).toHaveLength(1);
+    expect(liveWithKey[0].id).toBe("tx_aaa"); // min(id) wins
+
+    const loserPayload = await repo.getSyncPayload("ledger", "tx_zzz");
+    expect(loserPayload).not.toBeNull();
+    expect(loserPayload!.deletedAt).not.toBeNull();
+  });
+});
