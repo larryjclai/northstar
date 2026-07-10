@@ -75,6 +75,13 @@
   --destructive-foreground: var(--ns-neg);
   --success: var(--ns-pos);
   --success-foreground: var(--ns-pos);
+  /* Market up/down (DESIGN.md §2.4): follow --ns-gain/--ns-loss, which are
+     redefined per theme AND per [data-gainloss] (紅漲綠跌). Single-source like
+     --success above — the ns-* cascade carries every theme + gainloss mode. */
+  --gain: var(--ns-gain);
+  --gain-foreground: var(--ns-gain);
+  --loss: var(--ns-loss);
+  --loss-foreground: var(--ns-loss);
   --warning: var(--ns-warn);
   --warning-foreground: var(--ns-warn);
   --info: var(--ns-info);
@@ -1496,6 +1503,10 @@ textarea:focus-visible {
   --text-stat--line-height: 1.2;
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+  --color-gain: var(--gain);
+  --color-gain-foreground: var(--gain-foreground);
+  --color-loss: var(--loss);
+  --color-loss-foreground: var(--loss-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-info: var(--info);

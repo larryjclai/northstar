@@ -1384,7 +1384,7 @@ function nsHeat(ret: number | null, scale = 9): string {
   if (ret == null) return "var(--ns-bg-elev)";
   const t = Math.max(-1, Math.min(1, ret / scale));
   const mag = Math.abs(t);
-  const base = t >= 0 ? "var(--ns-pos)" : "var(--ns-neg)";
+  const base = t >= 0 ? "var(--ns-gain)" : "var(--ns-loss)";
   const pct = (10 + mag * 78).toFixed(1);
   return `color-mix(in srgb, ${base} ${pct}%, var(--ns-bg-elev))`;
 }
@@ -1616,7 +1616,7 @@ function NSTreemap({
               </span>
               {c.ret != null && (
                 <span className="muted">
-                  1Y <span style={{ color: c.ret >= 0 ? "var(--ns-pos)" : "var(--ns-neg)", fontWeight: 600 }}>
+                  1Y <span style={{ color: c.ret >= 0 ? "var(--ns-gain)" : "var(--ns-loss)", fontWeight: 600 }}>
                     {c.ret >= 0 ? "+" : "−"}{Math.abs(c.ret).toFixed(1)}%
                   </span>
                 </span>
@@ -1778,7 +1778,7 @@ function NSCalendarHeatmap({
             fontSize: 11.5,
           }}>
             <span className="muted">{d.getUTCMonth() + 1}/{d.getUTCDate()} </span>
-            <span style={{ color: v >= 0 ? "var(--ns-pos)" : "var(--ns-neg)", fontWeight: 600 }}>
+            <span style={{ color: v >= 0 ? "var(--ns-gain)" : "var(--ns-loss)", fontWeight: 600 }}>
               {v >= 0 ? "+" : "−"}{Math.abs(v).toFixed(2)}%
             </span>
           </div>

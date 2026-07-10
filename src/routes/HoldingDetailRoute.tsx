@@ -390,12 +390,12 @@ export function HoldingDetailRoute() {
                 <span className="dim mono text-body">{asset.currency}</span>
               </div>
               <div className="flex items-center gap-2.5 mt-1">
-                <Badge variant={pos ? "success" : "error"} className="gap-1 rounded-full px-2">
+                <Badge variant={pos ? "gain" : "loss"} className="gap-1 rounded-full px-2">
                   {pos && <ArrowUp size={11} strokeWidth={2} />}
                   <span className="num">{pos ? "+" : ""}{formatNumber(unrealizedGain)}</span>
                 </Badge>
-                <Badge variant={pos ? "success" : "error"} className="rounded-full px-2">
-                  <span className="num">{pos ? "+" : ""}{unrealizedGainPercent.toFixed(2)}% (Total)</span>
+                <Badge variant={pos ? "gain" : "loss"} className="rounded-full px-2">
+                  <span className="num">{pos ? "+" : ""}{unrealizedGainPercent.toFixed(2)}% (總計)</span>
                 </Badge>
                 {quote?.updatedAt && <span className="muted mono text-xs">更新 {new Date(quote.updatedAt).toLocaleTimeString()}</span>}
               </div>
