@@ -12,7 +12,7 @@ import { downloadCsv, exportInvestmentCsv, exportLedgerCsv, exportFxRatesCsv } f
 import { getFinanceRepository, type RepositorySnapshot } from "../../data/repositories";
 import { enterDemoMode, exitDemoMode, clearAllData } from "../../data/demoData";
 import { useDemoMode } from "../../state/demoMode";
-import { COMMON_TIMEZONES, isValidTimezone, formatMoney, categoryPeriodSpend, convertCurrency, makeDefaultDateScope, resolveDateScope } from "../../domain";
+import { COMMON_TIMEZONES, isValidTimezone, formatMoney, categoryPeriodSpend, convertCurrency, makeDefaultDateScope, resolveDateScope, todayInTimezone } from "../../domain";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../../domain";
 import type { SyncConflictRecord } from "../../domain/sync";
 import { useRefreshFxRates } from "../../features/market-data/useMarketRefresh";
@@ -365,7 +365,8 @@ function EditCatForm({ cat, colors, onSave, onCancel }: { cat: CategoryGroup; co
   // Which entry types this category appears for in the 收入/支出 picker (plan 056).
   // Absent ⇒ "both" so existing categories keep showing for both types.
   const [kind, setKind] = useState<NonNullable<CategoryGroup['kind']>>(cat.kind ?? 'both');
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const timezone = useUiPreferences((state) => state.timezone);
+  const currentMonth = todayInTimezone(timezone).slice(0, 7);
   return (
     <div className="gap-3" style={{ display:'grid', gridTemplateColumns:'1fr 1fr' }}>
       <div>

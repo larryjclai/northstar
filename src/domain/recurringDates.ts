@@ -1,7 +1,11 @@
 import type { RecurringFrequency } from "./types";
 
-export function firstFutureRunDate(value: string, frequency: RecurringFrequency, dayOfMonth: number): string {
-  const today = new Date().toISOString().slice(0, 10);
+export function firstFutureRunDate(
+  value: string,
+  frequency: RecurringFrequency,
+  dayOfMonth: number,
+  today: string = new Date().toISOString().slice(0, 10),
+): string {
   let next = value.slice(0, 10);
   let guard = 0;
   while (next < today && guard < 600) {

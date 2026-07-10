@@ -149,7 +149,7 @@ export function DashboardRoute() {
   const toast = useToast();
   // Current month for the cash-flow KPI and budget card. Recomputed each
   // render; there is intentionally no month switcher on the dashboard.
-  const monthKey = new Date().toISOString().slice(0, 7);
+  const monthKey = todayInTimezone(timezone).slice(0, 7);
   const [selectedAccount, setSelectedAccount] = useState<string>("all");
   const [demoLoading, setDemoLoading] = useState(false);
 

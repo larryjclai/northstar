@@ -1239,7 +1239,7 @@ export function CashFlowRoute() {
 
         {/* Side rankings */}
         <div className="flex flex-col gap-5">
-          <UpcomingPayments recurringRows={recurringRows} accountName={accountName} onPost={async (id) => { try { await postRecurring.mutateAsync(id); toast.success("已記入交易"); } catch { toast.error("記入失敗"); } }} posting={postRecurring.isPending} />
+          <UpcomingPayments recurringRows={recurringRows} accountName={accountName} timezone={timezone} onPost={async (id) => { try { await postRecurring.mutateAsync(id); toast.success("已記入交易"); } catch { toast.error("記入失敗"); } }} posting={postRecurring.isPending} />
         </div>
       </div>
       </>
@@ -1699,12 +1699,13 @@ function RankingCard({ title, rows, emptyText, currency }: { title: string; rows
   );
 }
 
-function UpcomingPayments({ recurringRows, accountName, onPost, posting }: { recurringRows: RecurringTransaction[]; accountName: (id: string) => string; onPost: (id: string) => void; posting: boolean }) {
-  const today = new Date().toISOString().slice(0, 10);
+function UpcomingPayments({ recurringRows, accountName, timezone, onPost, posting }: { recurringRows: RecurringTransaction[]; accountName: (id: string) => string; timezone: string; onPost: (id: string) => void; posting: boolean }) {
+  const today = todayInTimezone(timezone);
   const horizon = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 14);
-    return d.toISOString().slice(0, 10);
+    // Deterministic date-string arithmetic from `today` (UTC-anchored so the
+    // result is independent of the host timezone / DST).
+    const [y, m, d] = today.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d + 14)).toISOString().slice(0, 10);
   })();
   const upcoming = recurringRows
     .filter((row) => row.isActive && row.nextRunDate >= today && row.nextRunDate <= horizon)
