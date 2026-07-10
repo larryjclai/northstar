@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { createMemoryFinanceRepositoryForTests, type LedgerDraft } from "./repositories";
+import { expect, it } from "vitest";
+import { type LedgerDraft } from "./repositories";
+import { describeEachRepo } from "./repositories.testHarness";
 import type { Account } from "../domain";
 
 const card: Account = {
@@ -44,9 +45,9 @@ function draft(overrides: Partial<LedgerDraft> = {}): LedgerDraft {
   };
 }
 
-describe("createInstallmentPlan", () => {
+describeEachRepo("createInstallmentPlan", (makeRepo) => {
   it("posts N monthly rows that sum to the total, with clamped dates", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [card] });
+    const repo = await makeRepo({ accounts: [card] });
     await repo.createInstallmentPlan(draft(), 12);
 
     const rows = await repo.listLedgerTransactions();
@@ -68,7 +69,7 @@ describe("createInstallmentPlan", () => {
   });
 
   it("deleteInstallmentPlan with fromIndex keeps earlier periods (提前清償)", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [card] });
+    const repo = await makeRepo({ accounts: [card] });
     await repo.createInstallmentPlan(draft(), 6);
 
     const rows = await repo.listLedgerTransactions();
@@ -81,7 +82,7 @@ describe("createInstallmentPlan", () => {
   });
 
   it("deleteInstallmentPlan without fromIndex removes the whole plan", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [card] });
+    const repo = await makeRepo({ accounts: [card] });
     await repo.createInstallmentPlan(draft(), 3);
     const rows = await repo.listLedgerTransactions();
     await repo.deleteInstallmentPlan(rows[0].installmentGroupId!);
@@ -91,7 +92,7 @@ describe("createInstallmentPlan", () => {
   });
 
   it("plain deleteLedgerTransaction removes only that period (no groupId cascade)", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [card] });
+    const repo = await makeRepo({ accounts: [card] });
     await repo.createInstallmentPlan(draft(), 3);
     const rows = await repo.listLedgerTransactions();
     await repo.deleteLedgerTransaction(rows[0].id);
@@ -99,7 +100,7 @@ describe("createInstallmentPlan", () => {
   });
 
   it("editing one period preserves its installment metadata", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [card] });
+    const repo = await makeRepo({ accounts: [card] });
     await repo.createInstallmentPlan(draft(), 3);
     const rows = await repo.listLedgerTransactions();
     const target = rows.find((r) => r.installmentIndex === 2)!;
