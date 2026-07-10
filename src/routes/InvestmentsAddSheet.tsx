@@ -17,6 +17,7 @@ import { assertExplicitMarketSuffix } from "../domain/marketSymbols";
 import { YahooFinanceProvider } from "../features/market-data/yahooFinanceProvider";
 import { useUiPreferences } from "../state/uiPreferences";
 import { computeTradeFee, brokerFeeDiscountFor, isTaiwanTicker, DEFAULT_TW_FEES } from "../domain/tradingFees";
+import { feeStartsTouched } from "./investmentsAddSheetFee";
 
 export type InvestmentEntryMode = "snapshot" | "transaction";
 
@@ -202,8 +203,11 @@ export function InvestmentEntryDrawer({
     }
     setDripDividendAmount(0);
     setMessage("");
-    // Reset auto-fill state whenever the drawer opens.
-    feeTouchedRef.current = false;
+    // Reset auto-fill state whenever the drawer opens. In edit mode the stored
+    // fee is data, not a suggestion target, so start it "touched" — otherwise
+    // the auto-fill effect (whose deps all change as the preset loads) clobbers
+    // the record's real fee with a fresh formula estimate. See feeStartsTouched.
+    feeTouchedRef.current = feeStartsTouched(transactionPreset);
     dripAmountTouchedRef.current = false;
     setInstrument("stock");
   }, [open, emptyHoldingDraft, timezone, initialMode, transactionPreset]);
