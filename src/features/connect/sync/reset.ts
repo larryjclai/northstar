@@ -11,14 +11,18 @@
 // The server copy is untouched in either case: after this, the user pairs again
 // (or restores from a Recovery Kit) and pulls their data back down.
 //
-// TODO: if secrets are migrated to Stronghold in the future (see
-// docs/secret-storage-plan.md and USE_STRONGHOLD in secretStore.ts), the
-// sync-state clear must also clear the Stronghold snapshot — today secrets live
-// in localStorage, so removing the SECRET_KEYS keys is sufficient.
+// Secrets now live in the SecretStore (Stronghold on device, localStorage in the
+// web/test fallback) — see docs/secret-storage-plan.md and USE_STRONGHOLD in
+// secretStore.ts. So the sync-state clear removes each SECRET_KEYS entry from the
+// SecretStore itself; on device the Stronghold snapshot is the only place the
+// vault key, device keypair, account secret, and device credential actually live,
+// so wiping localStorage alone would leave them intact. We also remove the
+// localStorage copies (harmless, and covers the retained fallback copies + the
+// pure-web backend).
 
 import type { FinanceRepository } from "../../../data/repositories";
 import { clearAllData } from "../../../data/demoData";
-import { SECRET_KEYS } from "../crypto/secretStore";
+import { SECRET_KEYS, getSecretStore } from "../crypto/secretStore";
 import { clearRecoveryKitStatus } from "../crypto/recovery-kit";
 
 const DEVICE_KEY = "northstar.device.v1";
@@ -29,7 +33,19 @@ async function clearSyncIdentity(repo: FinanceRepository): Promise<void> {
   // Local sync conflicts.
   await repo.clearSyncConflicts();
 
+  // Secrets: wipe every SECRET_KEYS entry from the SecretStore (Stronghold on
+  // device — the authoritative store — or the localStorage fallback in web/tests).
+  // Iterate SECRET_KEYS so any key added later (e.g. the device credential) is
+  // cleared automatically.
+  const store = await getSecretStore();
+  for (const key of SECRET_KEYS) {
+    try { await store.remove(key); } catch { /* ignore backend errors */ }
+  }
+
   // All sync-related localStorage keys (identity, cursors, account, secrets).
+  // The SECRET_KEYS localStorage copies are cleared here too: harmless on device
+  // (already gone from Stronghold above) and required for the pure-web backend
+  // plus the retained migration copies.
   const keys = [DEVICE_KEY, ACCOUNT_KEY, ...SECRET_KEYS];
   for (const key of keys) {
     try { localStorage.removeItem(key); } catch { /* ignore quota/private mode */ }

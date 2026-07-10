@@ -1,7 +1,7 @@
 // Sync account: userId + apiSecret stored locally.
 // apiSecret is a random 32-byte hex string; only its SHA-256 hash is sent to the server.
 
-import { createSecretStore, migrateLocalStorageSecrets } from "../crypto/secretStore";
+import { getSecretStore } from "../crypto/secretStore";
 import { getOrCreateDeviceIdentity } from "../../../state/deviceIdentity";
 import { provisionDeviceCredential } from "./client";
 
@@ -32,8 +32,9 @@ function randomHex(bytes: number): string {
 }
 
 export async function loadSyncAccount(): Promise<SyncAccount | null> {
-  const store = await createSecretStore();
-  await migrateLocalStorageSecrets(store);
+  // getSecretStore() returns the process-wide shared store and runs the
+  // localStorage→store migration once, so no explicit migrate call is needed.
+  const store = await getSecretStore();
   const raw = await store.get(STORAGE_KEY);
   if (!raw) return null;
   try {
@@ -48,7 +49,7 @@ export async function createSyncAccount(): Promise<SyncAccount> {
     userId: crypto.randomUUID(),
     apiSecret: randomHex(32),
   };
-  const store = await createSecretStore();
+  const store = await getSecretStore();
   await store.set(STORAGE_KEY, JSON.stringify(account));
   return account;
 }
@@ -60,7 +61,7 @@ export async function getOrCreateSyncAccount(): Promise<SyncAccount> {
 
 /** Persist credentials received during device pairing (Device B). */
 export async function setSyncAccount(account: SyncAccount): Promise<void> {
-  const store = await createSecretStore();
+  const store = await getSecretStore();
   await store.set(STORAGE_KEY, JSON.stringify(account));
 }
 
@@ -73,14 +74,13 @@ export function generateDeviceSecret(): string {
 
 /** The device secret stored on this install, or null if none provisioned yet. */
 export async function loadDeviceSecret(): Promise<string | null> {
-  const store = await createSecretStore();
-  await migrateLocalStorageSecrets(store);
+  const store = await getSecretStore();
   return store.get(DEVICE_SECRET_KEY);
 }
 
 /** Persist this device's own relay credential. */
 export async function saveDeviceSecret(secret: string): Promise<void> {
-  const store = await createSecretStore();
+  const store = await getSecretStore();
   await store.set(DEVICE_SECRET_KEY, secret);
 }
 
@@ -90,7 +90,7 @@ export async function saveDeviceSecret(secret: string): Promise<void> {
  * secret from a previous account can't be presented as this device's token.
  */
 export async function clearDeviceSecret(): Promise<void> {
-  const store = await createSecretStore();
+  const store = await getSecretStore();
   await store.remove(DEVICE_SECRET_KEY);
 }
 
