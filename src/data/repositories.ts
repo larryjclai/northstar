@@ -4513,12 +4513,20 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       name, currency, opening_balance as openingBalance, balance, type, credit_limit as creditLimit, credit_limit_group as creditLimitGroup, is_shared_to_household as isSharedToHousehold
       from accounts`);
+    // deriveAccountBalances (recomputeAccounts) skips tombstoned ledger rows, so
+    // filtering them in SQL yields an identical derivation while avoiding a
+    // full-table load (every tombstone included) on the serialized connection.
     const ledger = await this.db.select<LedgerTransaction[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       account_id as accountId, counter_account_id as counterAccountId, date, name, amount, currency, original_amount as originalAmount, original_currency as originalCurrency,
       category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note, linked_investment_record_id as linkedInvestmentRecordId,
-      group_id as groupId, is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId, recurring_occurrence_key as recurringOccurrenceKey from ledger_transactions`);
+      group_id as groupId, is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId, recurring_occurrence_key as recurringOccurrenceKey
+      from ledger_transactions where deleted_at is null`);
+    // Only write accounts whose balance actually changed — most mutations touch a
+    // handful of accounts, not every account in the file.
+    const before = new Map(accounts.map((a) => [a.id, a.balance]));
     for (const account of recomputeAccounts(accounts, ledger)) {
+      if (before.get(account.id) === account.balance) continue;
       await this.db.execute(`update accounts set balance = $1 where id = $2`, [account.balance, account.id]);
     }
   }
@@ -4526,11 +4534,21 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   private async recomputeSqliteAssets() {
     const assets = await this.listPortfolioAssets();
     const records = await this.listInvestmentRecords();
+    // Membership set built once (was an O(assets × records) `records.some(...)`
+    // scan per asset). Mirrors the prior predicate exactly: an asset is written
+    // iff at least one record references it, tombstoned or not.
+    const assetIdsWithRecords = new Set(records.map((r) => r.assetId));
+    const before = new Map(assets.map((a) => [a.id, a] as const));
     for (const asset of recomputeAssets(assets, records)) {
       // Manual holdings now carry their opening lot as a record, so every asset
       // with records persists both derived quantity AND blended average cost.
       // Skip assets with no records (manual snapshot pre-migration edge).
-      if (!records.some((r) => r.assetId === asset.id)) continue;
+      if (!assetIdsWithRecords.has(asset.id)) continue;
+      // Skip no-op writes. Derived quantity/cost come straight from the loaded
+      // record math, so an unchanged asset round-trips to the identical value;
+      // Object.is keeps a NaN self-compare from masquerading as "unchanged".
+      const prev = before.get(asset.id);
+      if (prev && Object.is(prev.totalQuantity, asset.totalQuantity) && Object.is(prev.averageCost, asset.averageCost)) continue;
       await this.db.execute(`update portfolio_assets set total_quantity = $1, average_cost = $2 where id = $3`, [asset.totalQuantity, asset.averageCost, asset.id]);
     }
   }
