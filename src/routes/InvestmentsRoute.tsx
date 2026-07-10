@@ -95,8 +95,10 @@ export function InvestmentsRoute() {
   const dailyPriceRows = dailyPrices.data ?? [];
   const manualSnapshotRows = manualPriceSnapshots.data ?? [];
   const appSettings = settings.data;
-  const fxHistory = dailyFxRates.data ?? [];
-  const { primaryCurrency, toPrimary } = createFxConverter(appSettings, fxHistory);
+  const { primaryCurrency, toPrimary } = useMemo(
+    () => createFxConverter(appSettings, dailyFxRates.data ?? []),
+    [appSettings, dailyFxRates.data],
+  );
 
   const quoteMap = useMemo(() => {
     const map: Record<string, DomainMarketQuote | undefined> = {};

@@ -721,19 +721,30 @@ export function CashFlowRoute() {
       accountName(row.accountId),
     ].some((value) => value.toLocaleLowerCase().includes(query)));
   }, [scopedRows, searchQuery, accountRows]);
-  const periodIncome = scopedRows
-    .filter((row) => row.entryType === "income" && row.settlementStatus === "settled" && !isNeutralLedgerRow(row))
-    .reduce((sum, row) => sum + Math.max(0, toPrimary(row) ?? 0), 0);
-  const periodExpense = scopedRows
-    .filter((row) => row.entryType === "expense" && row.settlementStatus === "settled" && !isNeutralLedgerRow(row))
-    // Signed: expense amounts are negative, so −amount is positive spend; a
-    // refund (positive-amount expense) nets back out instead of adding.
-    .reduce((sum, row) => sum - (toPrimary(row) ?? 0), 0);
-  const periodNet = periodIncome - periodExpense;
-  const periodTransferCount = new Set(scopedRows.filter((row) => row.entryType === "transfer").map((row) => row.groupId ?? row.id)).size;
-  const missingFx = [...new Set(scopedRows
-    .filter((row) => !isNeutralLedgerRow(row) && row.settlementStatus === "settled" && toPrimary(row) === null)
-    .map((row) => `${row.currency} → ${primaryCurrency}`))];
+  // Period aggregates: a full filter+reduce pass over `scopedRows` each. Keyed
+  // on the scoped rows and converter only — NOT `searchQuery` — so typing in
+  // the search box (which only affects `activityRows`) doesn't re-run them.
+  const { periodIncome, periodExpense, periodNet, periodTransferCount, missingFx } = useMemo(() => {
+    const income = scopedRows
+      .filter((row) => row.entryType === "income" && row.settlementStatus === "settled" && !isNeutralLedgerRow(row))
+      .reduce((sum, row) => sum + Math.max(0, toPrimary(row) ?? 0), 0);
+    const expense = scopedRows
+      .filter((row) => row.entryType === "expense" && row.settlementStatus === "settled" && !isNeutralLedgerRow(row))
+      // Signed: expense amounts are negative, so −amount is positive spend; a
+      // refund (positive-amount expense) nets back out instead of adding.
+      .reduce((sum, row) => sum - (toPrimary(row) ?? 0), 0);
+    const transferCount = new Set(scopedRows.filter((row) => row.entryType === "transfer").map((row) => row.groupId ?? row.id)).size;
+    const missing = [...new Set(scopedRows
+      .filter((row) => !isNeutralLedgerRow(row) && row.settlementStatus === "settled" && toPrimary(row) === null)
+      .map((row) => `${row.currency} → ${primaryCurrency}`))];
+    return {
+      periodIncome: income,
+      periodExpense: expense,
+      periodNet: income - expense,
+      periodTransferCount: transferCount,
+      missingFx: missing,
+    };
+  }, [scopedRows, toPrimary, primaryCurrency]);
 
   // Category spending for donut chart (all categories, not just top 5)
   const allCategorySpend = useMemo(() => {
