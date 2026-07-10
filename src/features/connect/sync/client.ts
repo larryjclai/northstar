@@ -31,6 +31,8 @@ export interface KeyEnvelopeRecord {
   sourceDeviceId: string;
   keyType: string;
   wrappedKey: string;
+  /** ECDH pairing: the source device's public key, so the target can derive the shared secret. */
+  sourcePublicKeyB64?: string;
   createdAt: string;
 }
 
@@ -123,7 +125,7 @@ export async function storeKeyEnvelope(
   });
 }
 
-/** Fetch key envelopes destined for a specific device. */
+/** Fetch key envelopes destined for a specific device (authenticated device path). */
 export async function fetchKeyEnvelopes(
   apiSecret: string,
   targetDeviceId: string,
@@ -131,11 +133,42 @@ export async function fetchKeyEnvelopes(
   return request<KeyEnvelopeRecord[]>(`/keys/${targetDeviceId}`, { apiSecret });
 }
 
+/**
+ * ECDH pairing (Device B): fetch the wrapped vault/account envelopes using the
+ * single-purpose pairing token — B has no account credentials yet. The token is
+ * scoped server-side to this exact device id.
+ */
+export async function fetchKeyEnvelopesWithToken(
+  pairingToken: string,
+  targetDeviceId: string,
+): Promise<KeyEnvelopeRecord[]> {
+  return request<KeyEnvelopeRecord[]>(`/keys/${targetDeviceId}`, {
+    headers: { "X-Pairing-Token": pairingToken },
+  });
+}
+
 // ---------- pairing ----------
 
 /**
- * Device A: deposit an encrypted credentials bundle on the Worker.
- * The bundle can only be decrypted by someone who knows the pairing code.
+ * ECDH pairing (Device B, the joiner): publish a public-key bundle + device id
+ * to the relay. Returns a single-purpose pairing token B uses to later fetch the
+ * wrapped vault/account envelopes. Unauthenticated — B has no account yet.
+ */
+export async function joinPairingSession(
+  code: string,
+  encryptedBundle: string,
+  deviceId: string,
+): Promise<{ pairingToken: string }> {
+  return request<{ pairingToken: string }>("/pairing/join", {
+    method: "POST",
+    body: JSON.stringify({ code, encryptedBundle, deviceId }),
+  });
+}
+
+/**
+ * @deprecated Legacy code-encrypted bundle path (Device A deposits credentials).
+ * Superseded by the ECDH flow (joinPairingSession + key envelopes). Kept working
+ * during the transition.
  */
 export async function createPairingSession(
   apiSecret: string,
@@ -150,8 +183,9 @@ export async function createPairingSession(
 }
 
 /**
- * Device B: claim the encrypted bundle using the pairing code.
- * One-time — the server marks the session as claimed on first successful fetch.
+ * Claim the encrypted bundle using the pairing code. One-time — the server marks
+ * the session claimed on first successful fetch. Used by the ECDH flow (Device A
+ * claims B's public-key bundle) and the legacy flow (Device B claims A's bundle).
  */
 export async function claimPairingSession(
   code: string,

@@ -209,12 +209,16 @@ export async function deriveBundleKey(code: string, saltB64?: string): Promise<C
 
 /**
  * The public bundle published by the JOINING device (Device B) in the ECDH
- * pairing flow. Contains ONLY a device id and an ECDH PUBLIC key — worthless to
- * an attacker who grinds the pairing code, since no secret is derivable from it.
+ * pairing flow. Contains ONLY a device id, an ECDH PUBLIC key, and the device's
+ * display name/platform — worthless to an attacker who grinds the pairing code,
+ * since no secret (vault key / account secret) is derivable from it. The name is
+ * shown on the approving device alongside the key fingerprint for confirmation.
  */
 export interface PublicPairingBundle {
   deviceId: string;
   publicKeyB64: string;
+  name: string;
+  platform: string;
 }
 
 /**

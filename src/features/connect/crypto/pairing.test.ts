@@ -87,7 +87,7 @@ describe("per-session salt bundle round-trip", () => {
       deriveBundleKey(code, salt),
       deriveBundleKey(code, salt),
     ]);
-    const bundle: PublicPairingBundle = { deviceId: "dev-b-1", publicKeyB64: "cHVi" };
+    const bundle: PublicPairingBundle = { deviceId: "dev-b-1", publicKeyB64: "cHVi", name: "My Mac", platform: "macos" };
     const ct = await encryptBundle(keyA, bundle as unknown as CredentialsBundle);
     const result = await decryptBundle(keyB, ct);
     expect(result).toEqual(bundle);
@@ -97,7 +97,7 @@ describe("per-session salt bundle round-trip", () => {
     const code = "ABCD-2345";
     const keyA = await deriveBundleKey(code, generateBundleSalt());
     const keyWrong = await deriveBundleKey(code, generateBundleSalt());
-    const bundle: PublicPairingBundle = { deviceId: "dev-b-1", publicKeyB64: "cHVi" };
+    const bundle: PublicPairingBundle = { deviceId: "dev-b-1", publicKeyB64: "cHVi", name: "My Mac", platform: "macos" };
     const ct = await encryptBundle(keyA, bundle as unknown as CredentialsBundle);
     await expect(decryptBundle(keyWrong, ct)).rejects.toThrow();
   });
