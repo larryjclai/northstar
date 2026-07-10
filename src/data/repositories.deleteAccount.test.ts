@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { createMemoryFinanceRepositoryForTests, type LedgerDraft } from "./repositories";
+import { expect, it } from "vitest";
+import { type LedgerDraft } from "./repositories";
+import { describeEachRepo } from "./repositories.testHarness";
 import type { Account } from "../domain";
 
 function account(overrides: Partial<Account> & Pick<Account, "id" | "name">): Account {
@@ -51,9 +52,9 @@ function receivableDraft(overrides: Partial<LedgerDraft> = {}): LedgerDraft {
   };
 }
 
-describe("deleteAccount guard — counter-account references", () => {
+describeEachRepo("deleteAccount guard — counter-account references", (makeRepo) => {
   it("blocks deleting an account referenced only via counterAccountId", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [accountA, accountB] });
+    const repo = await makeRepo({ accounts: [accountA, accountB] });
     await repo.createLedgerTransaction(receivableDraft());
 
     await expect(repo.deleteAccount(accountB.id)).rejects.toThrow("已有交易的帳戶不能刪除。");
@@ -64,7 +65,7 @@ describe("deleteAccount guard — counter-account references", () => {
   });
 
   it("still allows deleting an account with no references", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [accountA, accountB] });
+    const repo = await makeRepo({ accounts: [accountA, accountB] });
 
     await expect(repo.deleteAccount(accountA.id)).resolves.toBeUndefined();
 
