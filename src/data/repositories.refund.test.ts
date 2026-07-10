@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { createMemoryFinanceRepositoryForTests, type LedgerDraft } from "./repositories";
+import { expect, it } from "vitest";
+import { type LedgerDraft } from "./repositories";
+import { describeEachRepo } from "./repositories.testHarness";
 import type { Account } from "../domain";
 
 const card: Account = {
@@ -44,9 +45,9 @@ function expenseDraft(overrides: Partial<LedgerDraft> = {}): LedgerDraft {
   };
 }
 
-describe("refund ledger rows (退款沖銷)", () => {
+describeEachRepo("refund ledger rows (退款沖銷)", (makeRepo) => {
   it("a refund is a positive-amount expense linked to the original row", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [card] });
+    const repo = await makeRepo({ accounts: [card] });
     await repo.createLedgerTransaction(expenseDraft());
     const original = (await repo.listLedgerTransactions())[0];
 
@@ -71,7 +72,7 @@ describe("refund ledger rows (退款沖銷)", () => {
   });
 
   it("rejects a negative-amount refund", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [card] });
+    const repo = await makeRepo({ accounts: [card] });
     await expect(
       repo.createLedgerTransaction(expenseDraft({ amount: -400, refundOfLedgerId: "ledger_x" })),
     ).rejects.toThrow();
