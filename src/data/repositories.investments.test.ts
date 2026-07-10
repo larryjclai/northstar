@@ -42,12 +42,11 @@ const buyDraft: InvestmentDraft = {
   note: "",
 };
 
-describeEachRepo("investments", (makeRepo, repoLabel) => {
-  // DIVERGENCE (see executor report): SQLite's list* methods return integer 0/1
-  // for boolean columns (e.g. `cashless`), whereas the memory repo returns JS
-  // booleans. Pin the real per-repo representation instead of narrowing the
-  // assertion, so a regression in either direction is still caught.
-  const expectedCashless = repoLabel === "sqlite" ? 1 : true;
+describeEachRepo("investments", (makeRepo) => {
+  // Both repos hydrate the SQLite `cashless` column to a real JS boolean, so the
+  // opening lot reads back as `true` regardless of backend (see toBool in the
+  // SQLite repository).
+  const expectedCashless = true;
   function repository() {
     return makeRepo({
       accounts: [account],

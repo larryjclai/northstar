@@ -2182,6 +2182,16 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.recalculateDerivedData();
   }
 
+  /**
+   * SQLite has no boolean type: boolean columns come back as integer 0/1. The
+   * memory repo (and our domain types) use real JS booleans, so every list/read
+   * mapper must hydrate boolean columns through this helper to keep the two
+   * repositories in parity (see the dual-repo test harness).
+   */
+  private toBool(value: unknown): boolean {
+    return value === 1 || value === true;
+  }
+
   override async listAccounts() {
     return (await this.db.select<Account[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
@@ -2237,7 +2247,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async listLedgerTransactions() {
-    return this.db.select<LedgerTransaction[]>(`select
+    return (await this.db.select<LedgerTransaction[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       account_id as accountId, counter_account_id as counterAccountId, date, name, amount, currency, original_amount as originalAmount, original_currency as originalCurrency,
       category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note,
@@ -2246,7 +2256,10 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       refund_of_ledger_id as refundOfLedgerId,
       is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId, recurring_rule_id as recurringRuleId,
       recurring_occurrence_key as recurringOccurrenceKey, post_date as postDate
-      from ledger_transactions where deleted_at is null order by date desc, created_at desc`);
+      from ledger_transactions where deleted_at is null order by date desc, created_at desc`)).map((row) => ({
+        ...row,
+        isReviewed: this.toBool(row.isReviewed),
+      }));
   }
 
   override async createLedgerTransaction(input: LedgerDraft) {
@@ -2498,11 +2511,15 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async listInvestmentRecords() {
-    return this.db.select<InvestmentRecord[]>(`select
+    return (await this.db.select<InvestmentRecord[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       asset_id as assetId, linked_account_id as linkedAccountId, date, action, price, quantity, fee, note,
       is_reviewed as isReviewed, linked_ledger_transaction_id as linkedLedgerTransactionId, cashless, drip_group_id as dripGroupId
-      from investment_records where deleted_at is null order by date desc, created_at desc`);
+      from investment_records where deleted_at is null order by date desc, created_at desc`)).map((row) => ({
+        ...row,
+        isReviewed: this.toBool(row.isReviewed),
+        cashless: this.toBool(row.cashless),
+      }));
   }
 
   override async createInvestmentRecord(input: InvestmentDraft) {
