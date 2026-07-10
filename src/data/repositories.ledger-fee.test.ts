@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { createMemoryFinanceRepositoryForTests, type LedgerDraft } from "./repositories";
+import { expect, it } from "vitest";
+import { type LedgerDraft } from "./repositories";
+import { describeEachRepo } from "./repositories.testHarness";
 import type { Account } from "../domain";
 
 const account: Account = {
@@ -44,9 +45,9 @@ function draft(overrides: Partial<LedgerDraft> = {}): LedgerDraft {
   };
 }
 
-describe("createLedgerTransaction fee leg", () => {
+describeEachRepo("createLedgerTransaction fee leg", (makeRepo) => {
   it("income with feeAmount posts a gross income row plus a linked fee expense", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [account] });
+    const repo = await makeRepo({ accounts: [account] });
     await repo.createLedgerTransaction(draft({ feeAmount: 30 }));
 
     const rows = await repo.listLedgerTransactions();
@@ -68,7 +69,7 @@ describe("createLedgerTransaction fee leg", () => {
   });
 
   it("expense with feeAmount keeps the FX-surcharge subcategory", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [account] });
+    const repo = await makeRepo({ accounts: [account] });
     await repo.createLedgerTransaction(draft({
       name: "海外刷卡",
       amount: -1_000,
@@ -88,7 +89,7 @@ describe("createLedgerTransaction fee leg", () => {
   });
 
   it("no feeAmount posts a single row", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [account] });
+    const repo = await makeRepo({ accounts: [account] });
     await repo.createLedgerTransaction(draft());
     expect(await repo.listLedgerTransactions()).toHaveLength(1);
   });
