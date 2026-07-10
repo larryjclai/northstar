@@ -25,8 +25,10 @@ export function AnnualReportRoute() {
   const assetRows = assets.data ?? [];
   const recordRows = investments.data ?? [];
   const appSettings = settings.data;
-  const fxHistory = dailyFxRates.data ?? [];
-  const { primaryCurrency, toPrimary } = createFxConverter(appSettings, fxHistory);
+  const { primaryCurrency, toPrimary } = useMemo(
+    () => createFxConverter(appSettings, dailyFxRates.data ?? []),
+    [appSettings, dailyFxRates.data],
+  );
 
   const timezone = useUiPreferences((state) => state.timezone);
   const today = todayInTimezone(timezone);

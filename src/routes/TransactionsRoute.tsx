@@ -94,7 +94,10 @@ interface UnifiedTx {
 export function TransactionsRoute() {
   const { accounts, assets, investments, ledger, settings, dailyFxRates, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   const timezone = useUiPreferences((state) => state.timezone);
-  const { primaryCurrency, toPrimary } = createFxConverter(settings.data, dailyFxRates.data ?? []);
+  const { primaryCurrency, toPrimary } = useMemo(
+    () => createFxConverter(settings.data, dailyFxRates.data ?? []),
+    [settings.data, dailyFxRates.data],
+  );
   const [importOpen, setImportOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);

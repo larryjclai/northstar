@@ -179,7 +179,10 @@ export function DashboardRoute() {
   const investmentRows = investments.data ?? [];
   const goalRows = financialGoals.data ?? [];
 
-  const { primaryCurrency, toPrimary } = createFxConverter(appSettings, fxHistory);
+  const { primaryCurrency, toPrimary } = useMemo(
+    () => createFxConverter(appSettings, dailyFxRates.data ?? []),
+    [appSettings, dailyFxRates.data],
+  );
 
   // "更新" refreshes stock quotes and FX rates together (B6).
   const refreshingMarket = refreshQuotes.isPending || refreshFxRates.isPending || refreshDailyPrices.isPending;
