@@ -25,6 +25,65 @@ async function sha256Hex(text: string): Promise<string> {
     .join("");
 }
 
+// ---------- rate limiting ----------
+
+// Per-scope requests allowed per fixed 1-minute window, keyed on client IP.
+// Unauthenticated endpoints only — authenticated routes are already bounded by
+// the account/device credential.
+const RATE_LIMITS = {
+  users: 10, // POST /users (account registration)
+  pairing: 30, // POST /pairing/join + GET /pairing/:code
+} as const;
+
+const RATE_WINDOW_MS = 60_000;
+
+// Best-effort, fail-open rate limiter backed by D1 (Plan 133 item B). Returns a
+// 429 Response when the caller has exceeded `limit` requests in the current
+// 1-minute window, or null to let the request proceed.
+//
+// Fail-open by design: a rate-limiter storage error must never break sync
+// onboarding for a legitimate user. When there is no client IP to bucket on
+// (e.g. local dev / non-Cloudflare edge), the check is skipped — in production
+// Cloudflare always sets CF-Connecting-IP, so real traffic is always limited.
+async function rateLimit(
+  env: Env,
+  scope: keyof typeof RATE_LIMITS,
+  request: Request,
+): Promise<Response | null> {
+  const ip = request.headers.get("CF-Connecting-IP");
+  if (!ip) return null;
+
+  const now = Date.now();
+  const windowStart = Math.floor(now / RATE_WINDOW_MS);
+  const key = `${scope}:${ip}:${windowStart}`;
+  // Keep the row one full window past the current one, then it is prunable.
+  const expiresAt = (windowStart + 2) * RATE_WINDOW_MS;
+
+  try {
+    const row = await env.DB.prepare(
+      `INSERT INTO rate_limits (key, count, expires_at) VALUES (?, 1, ?)
+       ON CONFLICT(key) DO UPDATE SET count = count + 1
+       RETURNING count`,
+    )
+      .bind(key, expiresAt)
+      .first<{ count: number }>();
+
+    // First hit of a fresh window: opportunistically prune expired rows so the
+    // table stays bounded without a dedicated cron.
+    if (row?.count === 1) {
+      await env.DB.prepare("DELETE FROM rate_limits WHERE expires_at < ?").bind(now).run();
+    }
+
+    if (row && row.count > RATE_LIMITS[scope]) {
+      return err("Rate limit exceeded", 429);
+    }
+  } catch (e) {
+    console.error("rateLimit error (failing open)", e);
+    return null;
+  }
+  return null;
+}
+
 // ---------- auth ----------
 
 // Auth result: userId is always resolved; deviceId is non-null only when the
@@ -108,6 +167,8 @@ export default {
     try {
       // POST /users — register a new sync account + first device
       if (method === "POST" && path === "/users") {
+        const limited = await rateLimit(env, "users", request);
+        if (limited) return withCors(limited);
         return handleRegister(request, env);
       }
 
@@ -115,6 +176,8 @@ export default {
       // bundle (unauthenticated; B has no account yet). Returns a single-purpose
       // pairing token B uses to later fetch its wrapped key envelopes.
       if (method === "POST" && path === "/pairing/join") {
+        const limited = await rateLimit(env, "pairing", request);
+        if (limited) return withCors(limited);
         return withCors(await handleJoinPairing(request, env));
       }
 
@@ -123,6 +186,8 @@ export default {
       // ECDH path: Device A claims B's public-key bundle.
       const pairingClaim = path.match(/^\/pairing\/([A-Z0-9]{4}-[A-Z0-9]{4})$/);
       if (method === "GET" && pairingClaim) {
+        const limited = await rateLimit(env, "pairing", request);
+        if (limited) return withCors(limited);
         return withCors(await handleClaimPairing(env, pairingClaim[1]));
       }
 

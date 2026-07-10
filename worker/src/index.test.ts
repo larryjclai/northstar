@@ -463,3 +463,88 @@ describe("pairing create + claim (legacy)", () => {
     expect(res.status).toBe(404);
   });
 });
+
+// ---- rate limiting on unauthenticated endpoints (Plan 133 item B) -----------
+
+describe("rate limiting (Plan 133 item B)", () => {
+  function ipHeaders(ip: string): Record<string, string> {
+    return { "Content-Type": "application/json", "CF-Connecting-IP": ip };
+  }
+
+  async function registerFrom(ip: string): Promise<number> {
+    userSeq += 1;
+    const userId = `rl_${userSeq}_${crypto.randomUUID()}`;
+    const res = await call("/users", {
+      method: "POST",
+      headers: ipHeaders(ip),
+      body: JSON.stringify({
+        userId,
+        apiSecretHash: await sha256Hex(`s-${userId}`),
+        device: { id: `dev_${crypto.randomUUID()}`, name: "Mac", platform: "macos" },
+      }),
+    });
+    return res.status;
+  }
+
+  it("throttles POST /users to 10 per IP per window; the 11th is 429", async () => {
+    const ip = "203.0.113.7";
+    for (let i = 0; i < 10; i++) {
+      expect(await registerFrom(ip)).toBe(201);
+    }
+    expect(await registerFrom(ip)).toBe(429);
+  });
+
+  it("buckets per IP — a second IP is unaffected by the first's exhaustion", async () => {
+    const ip1 = "203.0.113.10";
+    for (let i = 0; i < 11; i++) await registerFrom(ip1);
+    expect(await registerFrom(ip1)).toBe(429);
+    // A different client is on its own counter.
+    expect(await registerFrom("203.0.113.11")).toBe(201);
+  });
+
+  it("does not throttle when there is no client IP (local dev / non-CF edge)", async () => {
+    // The existing suite hits /users with no CF-Connecting-IP; those must never
+    // be blocked. Well past the /users limit still succeeds.
+    for (let i = 0; i < 15; i++) {
+      userSeq += 1;
+      const userId = `noip_${userSeq}_${crypto.randomUUID()}`;
+      const res = await call("/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          apiSecretHash: await sha256Hex(`s-${userId}`),
+          device: { id: `dev_${crypto.randomUUID()}`, name: "Mac", platform: "macos" },
+        }),
+      });
+      expect(res.status).toBe(201);
+    }
+  });
+
+  it("throttles pairing endpoints to 30 per IP per window; the 31st is 429", async () => {
+    const ip = "203.0.113.20";
+    for (let i = 0; i < 30; i++) {
+      // Unknown codes 404, but the rate check runs first and still counts.
+      const res = await call("/pairing/QQ00-WW11", { headers: { "CF-Connecting-IP": ip } });
+      expect(res.status).toBe(404);
+    }
+    const blocked = await call("/pairing/QQ00-WW11", { headers: { "CF-Connecting-IP": ip } });
+    expect(blocked.status).toBe(429);
+  });
+
+  it("shares the pairing budget across /pairing/join and GET /pairing/:code", async () => {
+    const ip = "203.0.113.21";
+    // Spend 30 on /pairing/join…
+    for (let i = 0; i < 30; i++) {
+      const res = await call("/pairing/join", {
+        method: "POST",
+        headers: ipHeaders(ip),
+        body: JSON.stringify({ code: randomCode(), encryptedBundle: "b", deviceId: `dev_${i}` }),
+      });
+      expect(res.status).toBe(201);
+    }
+    // …the next claim on the SAME IP is already over budget.
+    const blocked = await call("/pairing/QQ00-WW11", { headers: { "CF-Connecting-IP": ip } });
+    expect(blocked.status).toBe(429);
+  });
+});
