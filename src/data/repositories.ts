@@ -1271,13 +1271,17 @@ class BrowserFinanceRepository implements FinanceRepository {
       }
       if (next !== rule.nextRunDate) advanced.set(rule.id, next);
     }
-    if (posted > 0) {
+    // Persist advances even when nothing was posted: if every due occurrence
+    // already exists (e.g. arrived via sync), the rule must still move past
+    // today rather than stay perpetually overdue. Matches the SQLite twin,
+    // which writes the advance unconditionally per rule.
+    if (advanced.size > 0) {
       this.data.recurringTransactions = this.data.recurringTransactions.map((row) =>
         advanced.has(row.id) ? bump({ ...row, nextRunDate: advanced.get(row.id)! }) : row,
       );
-      this.recompute();
-      await this.persist();
     }
+    if (posted > 0) this.recompute(); // balances only change when rows were created
+    if (advanced.size > 0 || posted > 0) await this.persist();
     return posted;
   }
 

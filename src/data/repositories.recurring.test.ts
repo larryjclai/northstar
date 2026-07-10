@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryFinanceRepositoryForTests } from "./repositories";
 import { nextRecurringDate } from "../domain";
-import type { Account, RecurringTransaction } from "../domain";
+import type { Account, LedgerTransaction, RecurringTransaction } from "../domain";
 
 // `createRecurringTransaction` routes nextRunDate through `firstFutureRunDate`,
 // which reads the real clock to advance a rule to its first *future* occurrence.
@@ -69,6 +69,44 @@ function recurring(overrides: Partial<RecurringTransaction> = {}): RecurringTran
   };
 }
 
+// A ledger occurrence row as the poster (or a sync from another device) would
+// have written it, keyed by `recurringKey(ruleId, date)` = `${ruleId}:${date}`.
+function occurrenceRow(recurringOccurrenceKey: string, occurrenceDate: string): LedgerTransaction {
+  return {
+    id: `led_${recurringOccurrenceKey}`,
+    spaceId: "space_test",
+    revision: 1,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    deletedAt: null,
+    accountId: "acct_cash",
+    counterAccountId: null,
+    date: `${occurrenceDate}T09:00`,
+    name: "房東",
+    amount: -1000,
+    currency: "TWD",
+    originalAmount: null,
+    originalCurrency: null,
+    category: "居住",
+    subcategory: "房租",
+    merchant: "房東",
+    entryType: "expense",
+    settlementStatus: "settled",
+    note: "",
+    linkedInvestmentRecordId: null,
+    groupId: null,
+    isReviewed: false,
+    receiptAttachmentId: null,
+    recurringRuleId: "rec_rent",
+    recurringOccurrenceKey,
+    installmentGroupId: null,
+    installmentIndex: null,
+    installmentTotal: null,
+    refundOfLedgerId: null,
+    postDate: null,
+  };
+}
+
 describe("postDueRecurringTransactions", () => {
   it("catches up every missed monthly period and advances past today", async () => {
     const repo = createMemoryFinanceRepositoryForTests({ accounts: [account], recurringTransactions: [recurring()] });
@@ -82,6 +120,27 @@ describe("postDueRecurringTransactions", () => {
 
     const [rule] = await repo.listRecurringTransactions();
     expect(rule.nextRunDate).toBe("2026-06-05");
+  });
+
+  it("advances nextRunDate past today even when every due occurrence already exists", async () => {
+    // Every due period (03-05, 04-05, 05-05) already has a ledger row — e.g. the
+    // occurrences arrived via sync from another device. The poster must still
+    // advance the rule past today instead of leaving it perpetually overdue.
+    const preexisting = ["2026-03-05", "2026-04-05", "2026-05-05"].map((d) => occurrenceRow(`rec_rent:${d}`, d));
+    const repo = createMemoryFinanceRepositoryForTests({
+      accounts: [account],
+      recurringTransactions: [recurring()],
+      ledgerTransactions: preexisting,
+    });
+
+    const posted = await repo.postDueRecurringTransactions("2026-05-29");
+    expect(posted).toBe(0);
+
+    // No duplicate rows created for the already-present occurrences.
+    expect(await repo.listLedgerTransactions()).toHaveLength(3);
+
+    const [rule] = await repo.listRecurringTransactions();
+    expect(rule.nextRunDate).toBe("2026-06-05"); // advanced past today, not stuck at 2026-03-05
   });
 
   it("posts nothing when the rule is already in the future", async () => {
