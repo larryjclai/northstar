@@ -7,8 +7,8 @@
 - Tauri 2（桌面 / 行動端打包）
 - React 19 + TypeScript + Vite
 - Tailwind CSS v4 · Base UI · Phosphor Icons
-- TanStack Router / Query / Table
-- Zustand · React Hook Form · Zod · Recharts
+- TanStack Router / Query
+- Zustand · Recharts
 - SQLite（透過 `tauri-plugin-sql`）
 - Stronghold（機密儲存：vault key／裝置金鑰對／同步帳號；web shell 以 localStorage 備援，既有安裝首次存取時遷移）
 - 匯率與報價：Yahoo Finance（透過 Tauri Rust 代理）
@@ -121,7 +121,11 @@ git push && git push --tags           # tag push 觸發 .github/workflows/releas
 | Linux (x64) | ⚠️ 未驗證 | ✅ CI | ✅ | — |
 | iOS / Android | ⚠️ 實驗 | ⚠️ | ❌ | ❌ |
 
-> Release CI（`release.yml`）已對 macOS（arm64 / x64）、Windows、Linux 做 matrix 打包；但 macOS 以外尚未經過完整實機功能驗證。Windows 第一級支援的逐步計畫（本機驗證 → CI → installer 選型 → code signing → 發行通道）見下。
+> **兩條 CI pipeline 別混淆：**
+> - **日常把關 `ci.yml`**（每次 push / PR 觸發，Linux runner）：**lint → `tsc` → 單元測試（Vitest）→ 前端 `npm run build` → `cargo check`（`check:tauri`）→ worker 測試 → Playwright e2e**。這是每次改動的關卡，但**不做**跨平台 `tauri build` 打包。
+> - **`release.yml`**（tag push 觸發）：對 macOS（arm64 / x64）、Windows、Linux 做 **matrix `tauri build` 打包**；但 macOS 以外尚未經過完整實機功能驗證。
+>
+> 下表「CI 驗證」欄指的是 `release.yml` 的打包矩陣（能否在該平台 build 出安裝檔），與日常 `ci.yml` 的程式碼把關是不同的 pipeline。Windows 第一級支援的逐步計畫（本機驗證 → CI → installer 選型 → code signing → 發行通道）見下。
 
 ## Windows 第一級支援計畫
 
