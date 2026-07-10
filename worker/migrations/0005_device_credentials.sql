@@ -1,0 +1,12 @@
+-- Plan 132: per-device API credentials.
+--
+-- Every paired device previously shared the account's single api_secret
+-- (users.api_secret_hash), so "revoking" a device (deleting its row) never cut
+-- off relay access. This column gives each device its OWN secret; only the
+-- SHA-256 hash is stored server-side (the plaintext never leaves the device).
+--
+-- Nullable on purpose: legacy rows and not-yet-migrated devices keep NULL and
+-- continue to authenticate with the account secret (deprecated) until they
+-- self-provision a device credential. Revocation is a hard DELETE of the row,
+-- so a device-token lookup for a revoked device returns no row -> 401.
+ALTER TABLE devices ADD COLUMN device_secret_hash TEXT;

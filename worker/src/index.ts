@@ -27,20 +27,63 @@ async function sha256Hex(text: string): Promise<string> {
 
 // ---------- auth ----------
 
+// Auth result: userId is always resolved; deviceId is non-null only when the
+// request authenticated with a per-device credential (Plan 132). Legacy
+// account-secret auth resolves the user but leaves deviceId null, so callers
+// that need a trusted device dimension (e.g. push envelope stamping) know to
+// fall back to body-supplied values for legacy tokens.
+interface AuthContext {
+  userId: string;
+  deviceId: string | null;
+}
+
 async function authenticate(
   request: Request,
   env: Env,
-): Promise<{ userId: string } | Response> {
+): Promise<AuthContext | Response> {
   const auth = request.headers.get("Authorization") ?? "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
   if (!token) return err("Missing Authorization header", 401);
 
+  // Device-credential auth (preferred). Token format: "<deviceId>.<deviceSecret>".
+  // Device ids are UUID/`dev_*` style and never contain a dot, and account
+  // secrets are 64-hex-char strings with no dot either, so a dotted token is
+  // unambiguously a device token — never fall back to legacy for it.
+  const dot = token.indexOf(".");
+  if (dot > 0) {
+    const deviceId = token.slice(0, dot);
+    const deviceSecret = token.slice(dot + 1);
+    if (deviceSecret.length > 0) {
+      const secretHash = await sha256Hex(deviceSecret);
+      const device = await env.DB.prepare(
+        "SELECT user_id, device_secret_hash FROM devices WHERE id = ?",
+      )
+        .bind(deviceId)
+        .first<{ user_id: string; device_secret_hash: string | null }>();
+      // A revoked device has no row (revocation hard-deletes it) -> 401.
+      // Return the SAME generic 401 whether the device is missing or the secret
+      // mismatches, so a caller can't distinguish "no such device" from
+      // "bad secret".
+      if (
+        device &&
+        device.device_secret_hash &&
+        device.device_secret_hash === secretHash
+      ) {
+        return { userId: device.user_id, deviceId };
+      }
+    }
+    return err("Invalid token", 401);
+  }
+
+  // Legacy account-secret auth (DEPRECATED — kept working during the per-device
+  // credential migration; removal is a follow-up once every device holds its own
+  // credential). Grants full relay access to any holder of the account secret.
   const hash = await sha256Hex(token);
   const user = await env.DB.prepare("SELECT id FROM users WHERE api_secret_hash = ?")
     .bind(hash)
     .first<{ id: string }>();
   if (!user) return err("Invalid token", 401);
-  return { userId: user.id };
+  return { userId: user.id, deviceId: null };
 }
 
 // ---------- router ----------
@@ -96,7 +139,7 @@ export default {
       // All routes below require auth
       const auth = await authenticate(request, env);
       if (auth instanceof Response) return withCors(auth);
-      const { userId } = auth;
+      const { userId, deviceId: authDeviceId } = auth;
 
       // POST /devices — register a device
       if (method === "POST" && path === "/devices") {
@@ -106,6 +149,16 @@ export default {
       if (method === "GET" && path === "/devices") {
         return withCors(await handleListDevices(env, userId));
       }
+      // POST /devices/:id/credential — self-provision a device credential
+      // (one-time upgrade for existing installs that still auth with the account
+      // secret). Only succeeds if the device is owned by this account and has no
+      // credential yet.
+      const deviceCredential = path.match(/^\/devices\/([^/]+)\/credential$/);
+      if (method === "POST" && deviceCredential) {
+        return withCors(
+          await handleProvisionDeviceCredential(request, env, userId, deviceCredential[1]),
+        );
+      }
       // DELETE /devices/:id — revoke a device
       const deviceRevoke = path.match(/^\/devices\/([^/]+)$/);
       if (method === "DELETE" && deviceRevoke) {
@@ -114,7 +167,7 @@ export default {
 
       // POST /envelopes — upload encrypted change records
       if (method === "POST" && path === "/envelopes") {
-        return withCors(await handlePushEnvelopes(request, env, userId));
+        return withCors(await handlePushEnvelopes(request, env, userId, authDeviceId));
       }
       // GET /envelopes?cursor= — fetch changes since cursor
       if (method === "GET" && path === "/envelopes") {
@@ -157,7 +210,10 @@ function withCors(response: Response): Response {
 interface RegisterBody {
   userId: string;
   apiSecretHash: string;
-  device: { id: string; name: string; platform: string };
+  // device.secretHash: SHA-256 of the first device's own credential (Plan 132).
+  // Optional for backward compatibility with older clients; when present the
+  // device row is created already carrying its credential.
+  device: { id: string; name: string; platform: string; secretHash?: string };
 }
 
 async function handleRegister(request: Request, env: Env): Promise<Response> {
@@ -171,8 +227,16 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
     env.DB.prepare("INSERT OR IGNORE INTO users (id, api_secret_hash, created_at) VALUES (?, ?, ?)")
       .bind(body.userId, body.apiSecretHash, now),
     env.DB.prepare(
-      "INSERT OR IGNORE INTO devices (id, user_id, name, platform, trusted_at, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-    ).bind(body.device.id, body.userId, body.device.name, body.device.platform, now, now),
+      "INSERT OR IGNORE INTO devices (id, user_id, name, platform, device_secret_hash, trusted_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ).bind(
+      body.device.id,
+      body.userId,
+      body.device.name,
+      body.device.platform,
+      body.device.secretHash ?? null,
+      now,
+      now,
+    ),
   ]);
 
   // Reject a userId collision under a different secret (would otherwise let a
@@ -191,6 +255,10 @@ interface DeviceBody {
   id: string;
   name: string;
   platform: string;
+  // secretHash: SHA-256 of the joining device's own credential (Plan 132). The
+  // joining device (B) generates its secret locally and only the hash rides the
+  // pairing bundle to the approving device (A), which forwards it here.
+  secretHash?: string;
 }
 
 async function handleAddDevice(
@@ -203,10 +271,53 @@ async function handleAddDevice(
 
   const now = new Date().toISOString();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO devices (id, user_id, name, platform, created_at) VALUES (?, ?, ?, ?, ?)",
+    "INSERT OR IGNORE INTO devices (id, user_id, name, platform, device_secret_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)",
   )
-    .bind(body.id, userId, body.name, body.platform, now)
+    .bind(body.id, userId, body.name, body.platform, body.secretHash ?? null, now)
     .run();
+
+  return json({ ok: true }, 201);
+}
+
+interface ProvisionCredentialBody {
+  secretHash: string;
+}
+
+/**
+ * Self-provision a device credential for an existing install (Plan 132 step 5).
+ *
+ * Migration path: a device that still authenticates with the account secret
+ * (legacy) generates its own credential and registers only the hash here. The
+ * UPDATE is guarded by `device_secret_hash IS NULL`, so a credential can be set
+ * exactly once and never overwritten — an already-provisioned device cannot be
+ * silently re-keyed (which would be a covert revocation).
+ *
+ * Residual, accepted risk: whoever holds the account secret already has full
+ * relay access via legacy auth, so they could pre-claim a not-yet-migrated
+ * device's slot. This grants them nothing they don't already have; the real fix
+ * is retiring legacy auth once every device is migrated (tracked as follow-up).
+ */
+async function handleProvisionDeviceCredential(
+  request: Request,
+  env: Env,
+  userId: string,
+  deviceId: string,
+): Promise<Response> {
+  const body = await request.json<ProvisionCredentialBody>();
+  if (!body.secretHash) return err("Missing fields", 400);
+
+  const result = await env.DB.prepare(
+    "UPDATE devices SET device_secret_hash = ? WHERE id = ? AND user_id = ? AND device_secret_hash IS NULL",
+  )
+    .bind(body.secretHash, deviceId, userId)
+    .run();
+
+  // meta.changes === 0 means the device is absent, not owned by this account, or
+  // already has a credential. Report a conflict without distinguishing which, so
+  // the endpoint can't be used to probe device ownership.
+  if (!result.meta.changes) {
+    return err("Device credential already set or device not found", 409);
+  }
 
   return json({ ok: true }, 201);
 }
@@ -246,12 +357,20 @@ async function handlePushEnvelopes(
   request: Request,
   env: Env,
   userId: string,
+  authDeviceId: string | null,
 ): Promise<Response> {
   const { envelopes } = await request.json<{ envelopes: Envelope[] }>();
   if (!Array.isArray(envelopes) || envelopes.length === 0) {
     return err("envelopes must be a non-empty array", 400);
   }
   if (envelopes.length > 500) return err("Max 500 envelopes per request", 400);
+
+  // When the request authenticated with a device credential, stamp every
+  // envelope with the AUTHENTICATED device id and ignore whatever the body
+  // claims — a device can only push under its own id. Legacy account-secret
+  // auth (authDeviceId === null) keeps trusting the body value, since those
+  // tokens have no device dimension.
+  const effectiveDeviceId = (e: Envelope): string => authDeviceId ?? e.deviceId;
 
   // relay_sequence has a UNIQUE index. Previously every row computed its own
   // (SELECT MAX(relay_sequence)+1) subquery; within a single batch the subquery
@@ -271,7 +390,7 @@ async function handlePushEnvelopes(
      ON CONFLICT(user_id, entity, entity_id, revision, device_id) DO NOTHING`,
   );
   const batch = envelopes.map((e) =>
-    stmt.bind(e.id, userId, e.deviceId, e.entity, e.entityId, e.revision, e.encryptedPayload, e.updatedAt, nextSequence++),
+    stmt.bind(e.id, userId, effectiveDeviceId(e), e.entity, e.entityId, e.revision, e.encryptedPayload, e.updatedAt, nextSequence++),
   );
   await env.DB.batch(batch);
 
