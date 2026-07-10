@@ -57,7 +57,7 @@ export default {
         headers: {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-          "Access-Control-Allow-Headers": "Authorization, Content-Type",
+          "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Pairing-Token",
         },
       });
     }
@@ -68,10 +68,29 @@ export default {
         return handleRegister(request, env);
       }
 
-      // GET /pairing/:code — Device B claims the bundle (unauthenticated; code is the credential)
+      // POST /pairing/join — the JOINING device (B) publishes its ECDH public key
+      // bundle (unauthenticated; B has no account yet). Returns a single-purpose
+      // pairing token B uses to later fetch its wrapped key envelopes.
+      if (method === "POST" && path === "/pairing/join") {
+        return withCors(await handleJoinPairing(request, env));
+      }
+
+      // GET /pairing/:code — claim the bundle (unauthenticated; code is the credential).
+      // Legacy path: Device B claims A's credentials bundle.
+      // ECDH path: Device A claims B's public-key bundle.
       const pairingClaim = path.match(/^\/pairing\/([A-Z0-9]{4}-[A-Z0-9]{4})$/);
       if (method === "GET" && pairingClaim) {
         return withCors(await handleClaimPairing(env, pairingClaim[1]));
+      }
+
+      // GET /keys/:device with X-Pairing-Token — the joining device (B) fetches
+      // its wrapped vault/account envelopes before it has account credentials.
+      const keyFetchByToken = path.match(/^\/keys\/([^/]+)$/);
+      const pairingToken = request.headers.get("X-Pairing-Token");
+      if (method === "GET" && keyFetchByToken && pairingToken) {
+        return withCors(
+          await handleFetchKeyByToken(env, keyFetchByToken[1], pairingToken),
+        );
       }
 
       // All routes below require auth
@@ -291,6 +310,8 @@ interface KeyEnvelopeBody {
   sourceDeviceId: string;
   keyType: string;
   wrappedKey: string;
+  // ECDH pairing: A's public key so B can derive the shared secret. Opaque here.
+  sourcePublicKeyB64?: string;
 }
 
 async function handleStoreKey(
@@ -307,18 +328,33 @@ async function handleStoreKey(
   const now = new Date().toISOString();
   await env.DB.prepare(
     `INSERT INTO key_envelopes
-       (id, user_id, target_device_id, source_device_id, key_type, wrapped_key, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
+       (id, user_id, target_device_id, source_device_id, key_type, wrapped_key, source_public_key, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id, target_device_id, key_type)
      DO UPDATE SET wrapped_key = excluded.wrapped_key,
                    source_device_id = excluded.source_device_id,
+                   source_public_key = excluded.source_public_key,
                    created_at = excluded.created_at`,
   )
-    .bind(body.id, userId, targetDeviceId, body.sourceDeviceId, body.keyType, body.wrappedKey, now)
+    .bind(
+      body.id,
+      userId,
+      targetDeviceId,
+      body.sourceDeviceId,
+      body.keyType,
+      body.wrappedKey,
+      body.sourcePublicKeyB64 ?? null,
+      now,
+    )
     .run();
 
   return json({ ok: true }, 201);
 }
+
+const KEY_ENVELOPE_SELECT = `SELECT id, source_device_id as sourceDeviceId, key_type as keyType,
+            wrapped_key as wrappedKey, source_public_key as sourcePublicKeyB64,
+            created_at as createdAt
+     FROM key_envelopes`;
 
 async function handleFetchKey(
   env: Env,
@@ -326,15 +362,62 @@ async function handleFetchKey(
   targetDeviceId: string,
 ): Promise<Response> {
   const row = await env.DB.prepare(
-    `SELECT id, source_device_id as sourceDeviceId, key_type as keyType,
-            wrapped_key as wrappedKey, created_at as createdAt
-     FROM key_envelopes
-     WHERE user_id = ? AND target_device_id = ?`,
+    `${KEY_ENVELOPE_SELECT} WHERE user_id = ? AND target_device_id = ?`,
   )
     .bind(userId, targetDeviceId)
     .all();
 
   return json(row.results);
+}
+
+interface KeyEnvelopeRow {
+  keyType: string;
+}
+
+// GET /keys/:device authenticated by a pairing token (the joining device B has
+// no account credentials yet). The token proves B minted this session for this
+// exact device id; it is TTL-bound and single-use. Note the wrapped envelopes
+// are themselves encrypted to B's ECDH public key, so even an invalid reader
+// learns nothing — the token is defence-in-depth + rate-limiting, not the sole
+// protection.
+async function handleFetchKeyByToken(
+  env: Env,
+  targetDeviceId: string,
+  presentedToken: string,
+): Promise<Response> {
+  const now = new Date().toISOString();
+  const tokenHash = await sha256Hex(presentedToken);
+
+  const session = await env.DB.prepare(
+    `SELECT code, pairing_token_expires_at, pairing_token_consumed
+       FROM pairing_sessions
+      WHERE target_device_id = ? AND pairing_token_hash = ?`,
+  )
+    .bind(targetDeviceId, tokenHash)
+    .first<{ code: string; pairing_token_expires_at: string | null; pairing_token_consumed: number }>();
+
+  if (!session || !session.pairing_token_expires_at) return err("Invalid pairing token", 401);
+  if (session.pairing_token_consumed) return err("Pairing token already used", 410);
+  if (session.pairing_token_expires_at < now) return err("Pairing token expired", 410);
+
+  const rows = await env.DB.prepare(
+    `${KEY_ENVELOPE_SELECT} WHERE target_device_id = ?`,
+  )
+    .bind(targetDeviceId)
+    .all<KeyEnvelopeRow>();
+
+  const types = new Set(rows.results.map((r) => r.keyType));
+  // Consume the token only once BOTH envelopes have landed, so B may poll
+  // harmlessly while A is still approving.
+  if (types.has("vault-v1") && types.has("account-v1")) {
+    await env.DB.prepare(
+      "UPDATE pairing_sessions SET pairing_token_consumed = 1 WHERE target_device_id = ? AND pairing_token_hash = ?",
+    )
+      .bind(targetDeviceId, tokenHash)
+      .run();
+  }
+
+  return json(rows.results);
 }
 
 // ---------- pairing ----------
@@ -344,6 +427,11 @@ interface CreatePairingBody {
   encryptedBundle: string;
 }
 
+/**
+ * @deprecated Legacy path — Device A deposits a code-encrypted credentials
+ * bundle. Superseded by POST /pairing/join (ECDH). Kept working during the
+ * transition; schedule removal once the ECDH flow is verified on real devices.
+ */
 async function handleCreatePairing(request: Request, env: Env): Promise<Response> {
   const body = await request.json<CreatePairingBody>();
   if (!body.code || !body.encryptedBundle) return err("Missing fields", 400);
@@ -359,6 +447,51 @@ async function handleCreatePairing(request: Request, env: Env): Promise<Response
     .run();
 
   return json({ ok: true }, 201);
+}
+
+interface JoinPairingBody {
+  code: string;
+  // Public-key bundle (deviceId + ECDH public key), encrypted only so a passive
+  // relay observer can't trivially correlate it to a device. Carries no secret.
+  encryptedBundle: string;
+  // Cleartext device id the pairing token is scoped to. Not secret — the device
+  // id already appears on every sync envelope. Used to bind the token.
+  deviceId: string;
+}
+
+/**
+ * ECDH pairing — the JOINING device (B), which has NO account credentials,
+ * publishes its public-key bundle and receives a single-purpose pairing token.
+ * B later presents that token on GET /keys/:deviceId to fetch the vault/account
+ * envelopes A wrapped to it.
+ */
+async function handleJoinPairing(request: Request, env: Env): Promise<Response> {
+  const body = await request.json<JoinPairingBody>();
+  if (!body.code || !body.encryptedBundle || !body.deviceId) return err("Missing fields", 400);
+  if (!/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(body.code)) return err("Invalid code format", 400);
+
+  const now = Date.now();
+  const sessionExpiresAt = new Date(now + 5 * 60 * 1000).toISOString();
+  // The token outlives the 5-min claim window so B can keep polling for the
+  // wrapped envelopes after A approves. 10-min TTL, single-use.
+  const tokenExpiresAt = new Date(now + 10 * 60 * 1000).toISOString();
+
+  // 32-byte random token; only its hash is stored server-side.
+  const token = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  const tokenHash = await sha256Hex(token);
+
+  await env.DB.prepare(
+    `INSERT INTO pairing_sessions
+       (code, encrypted_bundle, expires_at, target_device_id,
+        pairing_token_hash, pairing_token_expires_at, pairing_token_consumed)
+     VALUES (?, ?, ?, ?, ?, ?, 0)`,
+  )
+    .bind(body.code, body.encryptedBundle, sessionExpiresAt, body.deviceId, tokenHash, tokenExpiresAt)
+    .run();
+
+  return json({ ok: true, pairingToken: token }, 201);
 }
 
 async function handleClaimPairing(env: Env, code: string): Promise<Response> {
