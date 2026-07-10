@@ -6,8 +6,10 @@ on:
   pull_request:
 
 jobs:
+  # Existing gate: lint + tsc + vitest. Unchanged in content.
   checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,3 +20,63 @@ jobs:
       - run: npm run lint
       - run: npx tsc
       - run: npm test
+
+  # Catches bundler-only failures the tsc gate misses (`build` = tsc && vite build).
+  # `prebuild` (inject-private-assets.mjs) no-ops gracefully when private-assets/ is
+  # absent, so no secrets are required here.
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  # Compiles the Rust shell (cargo fmt --check && cargo check). Rust setup and the
+  # Linux system deps mirror release.yml's publish-tauri job for consistency.
+  tauri:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci
+      - run: npm run check:tauri
+
+  # Typechecks the sync worker (its own package.json / tsconfig, compiles standalone).
+  worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
