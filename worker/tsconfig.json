@@ -9,5 +9,9 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  // Tests run under vitest-pool-workers (its own transform + the cloudflare:test
+  // ambient module); keep the production typecheck (`tsc --noEmit`, used by CI)
+  // scoped to shipping source so test-only deps don't leak in.
+  "exclude": ["**/*.test.ts", "test"]
 }
