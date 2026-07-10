@@ -22,7 +22,7 @@ What Northstar aims to help you achieve:
 - The net-worth trend line covers historical investment positions (back-calculated at the cost of the period), not just cash.
 
 **Cash-flow tracking & savings rate**
-- Income/expense entries, transfers, recurring income/expense, and dollar-cost-averaging (DCA, by amount or by shares) reminders.
+- Income/expense entries, transfers, and recurring income/expense auto-posting.
 - **⌘N Quick Add**: record an expense / income / investment buy-or-sell in one sentence of natural language.
 - Installment payments, refund reversals, receivables / payables (incl. money fronted for others), and automatic merchant categorization.
 - Credit cards split billing cycles by statement date, distinguishing current-cycle spend from the net amount (after refunds).
