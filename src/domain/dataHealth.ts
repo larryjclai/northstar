@@ -3,10 +3,12 @@ import { convertCurrency } from "./currency";
 
 /**
  * Staleness threshold (days) for a custom asset's latest manual price snapshot.
- * Mirrors the 5-day stale-quote basis; bump this constant if it proves noisy
- * for slow-moving funds.
+ * 90 days ≈ a quarter: manually-priced assets (unlisted funds, real assets)
+ * reprice slowly, so the 5-day stale-quote basis would be far too noisy here.
+ * This constant is the tuning knob if FIRE/projection features later lean on
+ * custom-asset values and demand fresher prices.
  */
-const STALE_MANUAL_PRICE_DAYS = 5;
+const CUSTOM_PRICE_STALE_DAYS = 90;
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -154,7 +156,9 @@ export function buildDataHealthReport(input: BuildDataHealthReportInput): DataHe
   // ── Rule 1b: stale-manual-price ────────────────────────────────────────────
   // Custom assets are valued at their latest manual ManualPriceSnapshot. If the
   // user stops logging prices the value silently drifts, so flag custom holdings
-  // whose latest snapshot is older than the threshold (or which have none).
+  // whose latest snapshot is older than the threshold, and — separately — those
+  // that have never recorded a price at all. Uses string-date comparison for the
+  // "latest snapshot" pick to stay consistent with the valuation path.
   const latestSnapshotDateByAsset = new Map<string, string>();
   for (const snap of manualPriceSnapshots ?? []) {
     const prev = latestSnapshotDateByAsset.get(snap.assetId);
@@ -162,13 +166,17 @@ export function buildDataHealthReport(input: BuildDataHealthReportInput): DataHe
     if (!prev || date > prev) latestSnapshotDateByAsset.set(snap.assetId, date);
   }
   const staleManualPriceNames: string[] = [];
+  const noPriceCustomNames: string[] = [];
   for (const asset of assets) {
     if (asset.deletedAt !== null) continue;
     if (asset.assetType !== "custom") continue;
     if (asset.totalQuantity <= 1e-9) continue;
+    const label = asset.name || asset.ticker || asset.id;
     const latestDate = latestSnapshotDateByAsset.get(asset.id);
-    if (latestDate === undefined || daysBetween(latestDate, todayIso) > STALE_MANUAL_PRICE_DAYS) {
-      staleManualPriceNames.push(asset.name || asset.ticker || asset.id);
+    if (latestDate === undefined) {
+      noPriceCustomNames.push(label);
+    } else if (daysBetween(latestDate, todayIso) > CUSTOM_PRICE_STALE_DAYS) {
+      staleManualPriceNames.push(label);
     }
   }
   if (staleManualPriceNames.length > 0) {
@@ -176,8 +184,17 @@ export function buildDataHealthReport(input: BuildDataHealthReportInput): DataHe
       id: "stale-manual-price",
       severity: "warn",
       kind: "stale-manual-price",
-      message: `以下自訂資產的手動價格已超過 ${STALE_MANUAL_PRICE_DAYS} 天未更新：${staleManualPriceNames.join("、")}`,
+      message: `以下自訂資產的價格已超過 ${CUSTOM_PRICE_STALE_DAYS} 天未更新：${staleManualPriceNames.join("、")}`,
       affected: staleManualPriceNames,
+    });
+  }
+  if (noPriceCustomNames.length > 0) {
+    issues.push({
+      id: "stale-manual-price-missing",
+      severity: "warn",
+      kind: "stale-manual-price",
+      message: `以下自訂資產尚未記錄任何價格：${noPriceCustomNames.join("、")}`,
+      affected: noPriceCustomNames,
     });
   }
 

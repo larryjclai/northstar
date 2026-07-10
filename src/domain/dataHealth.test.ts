@@ -227,36 +227,45 @@ describe("stale-quote", () => {
 // ─── Rule 1b: stale-manual-price ─────────────────────────────────────────────
 
 describe("stale-manual-price", () => {
-  it("triggers when a custom asset's latest manual snapshot is older than 5 days", () => {
+  it("triggers when a custom asset's latest manual snapshot is older than 90 days", () => {
     const input = healthyInput();
     input.assets = [makeCustomAsset()];
     input.quotes = [];
-    // todayIso = 2026-06-11; snapshot from 2026-06-01 is 10 days old → stale.
-    input.manualPriceSnapshots = [makeManualSnapshot({ assetId: "custom1", date: "2026-06-01" })];
+    // todayIso = 2026-06-11; snapshot from 2026-03-12 is 91 days old → stale.
+    input.manualPriceSnapshots = [makeManualSnapshot({ assetId: "custom1", date: "2026-03-12" })];
     const report = buildDataHealthReport(input);
-    const issue = report.issues.find((i) => i.kind === "stale-manual-price");
+    const issue = report.issues.find((i) => i.id === "stale-manual-price");
     expect(issue).toBeDefined();
     expect(issue!.severity).toBe("warn");
     expect(issue!.affected).toContain("未上市股權");
+    expect(issue!.message).toContain("已超過 90 天未更新");
   });
 
-  it("triggers when a custom asset with qty>0 has NO snapshot at all", () => {
+  it("emits the no-price variant when a custom asset with qty>0 has NO snapshot at all", () => {
     const input = healthyInput();
     input.assets = [makeCustomAsset()];
     input.quotes = [];
     input.manualPriceSnapshots = [];
     const report = buildDataHealthReport(input);
-    expect(report.issues.find((i) => i.kind === "stale-manual-price")).toBeDefined();
+    const issue = report.issues.find((i) => i.id === "stale-manual-price-missing");
+    expect(issue).toBeDefined();
+    expect(issue!.kind).toBe("stale-manual-price");
+    expect(issue!.severity).toBe("warn");
+    expect(issue!.message).toContain("尚未記錄任何價格");
+    expect(issue!.affected).toContain("未上市股權");
+    // A missing snapshot must NOT also fire the "stale" (has-old-price) variant.
+    expect(report.issues.find((i) => i.id === "stale-manual-price")).toBeUndefined();
   });
 
-  it("does NOT trigger when the latest snapshot is recent (within 5 days)", () => {
+  it("does NOT trigger when the latest snapshot is within 90 days (widened from the 5-day quote basis)", () => {
     const input = healthyInput();
     input.assets = [makeCustomAsset()];
     input.quotes = [];
-    // Multiple snapshots — the latest (2026-06-10, 1 day old) governs.
+    // Latest snapshot 2026-05-01 is 41 days old — stale under the old 5-day rule,
+    // fresh under the 90-day custom-asset rule. The older 2026-03-01 is ignored.
     input.manualPriceSnapshots = [
-      makeManualSnapshot({ id: "s-old", assetId: "custom1", date: "2026-05-01" }),
-      makeManualSnapshot({ id: "s-new", assetId: "custom1", date: "2026-06-10" }),
+      makeManualSnapshot({ id: "s-old", assetId: "custom1", date: "2026-03-01" }),
+      makeManualSnapshot({ id: "s-new", assetId: "custom1", date: "2026-05-01" }),
     ];
     const report = buildDataHealthReport(input);
     expect(report.issues.find((i) => i.kind === "stale-manual-price")).toBeUndefined();
