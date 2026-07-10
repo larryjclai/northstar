@@ -17,6 +17,7 @@ import { assertExplicitMarketSuffix } from "../domain/marketSymbols";
 import { YahooFinanceProvider } from "../features/market-data/yahooFinanceProvider";
 import { useUiPreferences } from "../state/uiPreferences";
 import { computeTradeFee, brokerFeeDiscountFor, isTaiwanTicker, DEFAULT_TW_FEES } from "../domain/tradingFees";
+import { feeStartsTouched } from "./investmentsAddSheetFee";
 
 export type InvestmentEntryMode = "snapshot" | "transaction";
 
@@ -73,20 +74,6 @@ function sideFromAction(action: InvestmentAction): TxSide {
 export interface TransactionPreset {
   id?: string;
   draft: InvestmentDraft;
-}
-
-/**
- * On drawer open, decide whether the fee field should start "touched" — i.e.
- * whether its current value is stored data that the TW fee auto-fill must not
- * overwrite.
- *
- * Edit mode (a preset carrying a fee) → touched: the record's fee is real data
- * the user imported / corrected, so auto-fill must leave it alone. A `0` fee is
- * a legitimate stored value (free trades), hence `!= null`, not truthiness.
- * Create mode (no preset) → untouched: a fresh TW buy/sell still auto-fills.
- */
-export function feeStartsTouched(preset?: TransactionPreset): boolean {
-  return Boolean(preset && preset.draft.fee != null);
 }
 
 export function emptyTransactionDraft(timezone: string): InvestmentDraft {
