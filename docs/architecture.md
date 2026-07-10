@@ -35,8 +35,8 @@ The sync backend is the **Connect Worker** — a Cloudflare Worker (`worker/src/
 by Cloudflare **D1** (SQLite at the edge). The frontend talks to it through
 `src/features/connect/sync/client.ts`, pointed at `VITE_NORTHSTAR_SYNC_WORKER_URL` and
 authenticated with a per-device `Authorization: Bearer <api_secret>` token. It is a blind relay,
-not a readable finance backend. (Supabase was an earlier design; it is no longer used — there is no
-`supabase/` directory in the tree.)
+not a readable finance backend. (An earlier design used a hosted SQL/Postgres backend; that is no
+longer used — there is no such directory in the tree.)
 
 The Worker exposes:
 
