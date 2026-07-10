@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createMemoryFinanceRepositoryForTests } from "./repositories";
+import { describeEachRepo } from "./repositories.testHarness";
 import { nextRecurringDate } from "../domain";
 import type { Account, LedgerTransaction, RecurringTransaction } from "../domain";
 
@@ -107,9 +107,10 @@ function occurrenceRow(recurringOccurrenceKey: string, occurrenceDate: string): 
   };
 }
 
-describe("postDueRecurringTransactions", () => {
+describeEachRepo("recurring", (makeRepo) => {
+  describe("postDueRecurringTransactions", () => {
   it("catches up every missed monthly period and advances past today", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [account], recurringTransactions: [recurring()] });
+    const repo = await makeRepo({ accounts: [account], recurringTransactions: [recurring()] });
     // From 2026-03-05 up to 2026-05-29: 03-05, 04-05, 05-05 are due → 3 rows.
     const posted = await repo.postDueRecurringTransactions("2026-05-29");
     expect(posted).toBe(3);
@@ -127,7 +128,7 @@ describe("postDueRecurringTransactions", () => {
     // occurrences arrived via sync from another device. The poster must still
     // advance the rule past today instead of leaving it perpetually overdue.
     const preexisting = ["2026-03-05", "2026-04-05", "2026-05-05"].map((d) => occurrenceRow(`rec_rent:${d}`, d));
-    const repo = createMemoryFinanceRepositoryForTests({
+    const repo = await makeRepo({
       accounts: [account],
       recurringTransactions: [recurring()],
       ledgerTransactions: preexisting,
@@ -144,20 +145,20 @@ describe("postDueRecurringTransactions", () => {
   });
 
   it("posts nothing when the rule is already in the future", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [account], recurringTransactions: [recurring({ nextRunDate: "2099-01-05" })] });
+    const repo = await makeRepo({ accounts: [account], recurringTransactions: [recurring({ nextRunDate: "2099-01-05" })] });
     const posted = await repo.postDueRecurringTransactions("2026-05-29");
     expect(posted).toBe(0);
     expect(await repo.listLedgerTransactions()).toHaveLength(0);
   });
 
   it("ignores inactive rules", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [account], recurringTransactions: [recurring({ isActive: false })] });
+    const repo = await makeRepo({ accounts: [account], recurringTransactions: [recurring({ isActive: false })] });
     const posted = await repo.postDueRecurringTransactions("2026-05-29");
     expect(posted).toBe(0);
   });
 
   it("does not duplicate the seed transaction when a new monthly rule starts next period", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [account] });
+    const repo = await makeRepo({ accounts: [account] });
     await repo.createLedgerTransaction({
       accountId: "acct_cash",
       date: "2026-06-05T09:00",
@@ -195,7 +196,7 @@ describe("postDueRecurringTransactions", () => {
   });
 
   it("carries counterAccountId from a 代墊 rule into each posted occurrence", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({
+    const repo = await makeRepo({
       accounts: [account],
       recurringTransactions: [recurring({ settlementStatus: "receivable", entryType: "income", amount: 500, counterAccountId: "acct_pay" })],
     });
@@ -208,7 +209,7 @@ describe("postDueRecurringTransactions", () => {
 
 describe("applyRecurringScopeEdit", () => {
   async function setup() {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [account], recurringTransactions: [recurring()] });
+    const repo = await makeRepo({ accounts: [account], recurringTransactions: [recurring()] });
     await repo.postDueRecurringTransactions("2026-05-29"); // posts 03-05, 04-05, 05-05
     const ledger = await repo.listLedgerTransactions();
     return { repo, ledger };
@@ -264,4 +265,5 @@ describe("applyRecurringScopeEdit", () => {
     const [rule] = await repo.listRecurringTransactions();
     expect(rule.amount).toBe(-2000);
   });
+});
 });
