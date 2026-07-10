@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { createMemoryFinanceRepositoryForTests, type LedgerDraft } from "./repositories";
+import { expect, it } from "vitest";
+import { type LedgerDraft } from "./repositories";
+import { describeEachRepo } from "./repositories.testHarness";
 import type { Account } from "../domain";
 
 const card: Account = {
@@ -44,9 +45,9 @@ function expenseDraft(overrides: Partial<LedgerDraft> = {}): LedgerDraft {
   };
 }
 
-describe("setLedgerPostDate (延後入帳)", () => {
+describeEachRepo("setLedgerPostDate (延後入帳)", (makeRepo) => {
   it("sets and clears postDate", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [card] });
+    const repo = await makeRepo({ accounts: [card] });
     await repo.createLedgerTransaction(expenseDraft());
     const row = (await repo.listLedgerTransactions())[0];
 
@@ -60,7 +61,7 @@ describe("setLedgerPostDate (延後入帳)", () => {
   });
 
   it("is balance-neutral", async () => {
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [card] });
+    const repo = await makeRepo({ accounts: [card] });
     await repo.createLedgerTransaction(expenseDraft());
     const row = (await repo.listLedgerTransactions())[0];
 
