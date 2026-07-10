@@ -746,7 +746,7 @@ export function DashboardRoute() {
                 {dataHealthReport.issues.some((i) => i.kind === "missing-fx" || i.kind === "stale-fx") ? (
                   <Link to="/settings" className="text-xs">前往更新匯率</Link>
                 ) : null}
-                {dataHealthReport.issues.some((i) => i.kind === "missing-price-history" || i.kind === "stale-quote") ? (
+                {dataHealthReport.issues.some((i) => i.kind === "missing-price-history" || i.kind === "stale-quote" || i.kind === "stale-manual-price") ? (
                   <Link to="/investments" className="text-xs">前往投資回補</Link>
                 ) : null}
               </div>
