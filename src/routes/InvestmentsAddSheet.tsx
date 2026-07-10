@@ -75,6 +75,20 @@ export interface TransactionPreset {
   draft: InvestmentDraft;
 }
 
+/**
+ * On drawer open, decide whether the fee field should start "touched" — i.e.
+ * whether its current value is stored data that the TW fee auto-fill must not
+ * overwrite.
+ *
+ * Edit mode (a preset carrying a fee) → touched: the record's fee is real data
+ * the user imported / corrected, so auto-fill must leave it alone. A `0` fee is
+ * a legitimate stored value (free trades), hence `!= null`, not truthiness.
+ * Create mode (no preset) → untouched: a fresh TW buy/sell still auto-fills.
+ */
+export function feeStartsTouched(preset?: TransactionPreset): boolean {
+  return Boolean(preset && preset.draft.fee != null);
+}
+
 export function emptyTransactionDraft(timezone: string): InvestmentDraft {
   return {
     ticker: "",
@@ -202,8 +216,11 @@ export function InvestmentEntryDrawer({
     }
     setDripDividendAmount(0);
     setMessage("");
-    // Reset auto-fill state whenever the drawer opens.
-    feeTouchedRef.current = false;
+    // Reset auto-fill state whenever the drawer opens. In edit mode the stored
+    // fee is data, not a suggestion target, so start it "touched" — otherwise
+    // the auto-fill effect (whose deps all change as the preset loads) clobbers
+    // the record's real fee with a fresh formula estimate. See feeStartsTouched.
+    feeTouchedRef.current = feeStartsTouched(transactionPreset);
     dripAmountTouchedRef.current = false;
     setInstrument("stock");
   }, [open, emptyHoldingDraft, timezone, initialMode, transactionPreset]);
