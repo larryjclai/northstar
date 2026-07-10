@@ -67,15 +67,19 @@ const makeSqliteRepo: MakeRepo = async (seed = {}) => {
   return repo;
 };
 
+export type RepoLabel = "memory" | "sqlite";
+
 export const repoFactories = [
   ["memory", makeMemoryRepo],
   ["sqlite", makeSqliteRepo],
-] as const;
+] as const satisfies ReadonlyArray<readonly [RepoLabel, MakeRepo]>;
 
 /**
  * Run a suite body once per repository implementation (memory twin + real
  * SQLite). The body receives a `makeRepo(seed?)` factory; call it in each test
  * (or a beforeEach) to get a fresh, isolated repo seeded with the given data.
+ * The second arg is the repo label ("memory" | "sqlite"), for the rare test
+ * that must pin a known representational divergence between the two repos.
  *
  * Usage:
  *   describeEachRepo("refund", (makeRepo) => {
@@ -85,6 +89,6 @@ export const repoFactories = [
  *     });
  *   });
  */
-export function describeEachRepo(name: string, body: (makeRepo: MakeRepo) => void) {
-  describe.each(repoFactories)(`${name} [%s]`, (_label, makeRepo) => body(makeRepo));
+export function describeEachRepo(name: string, body: (makeRepo: MakeRepo, repoLabel: RepoLabel) => void) {
+  describe.each(repoFactories)(`${name} [%s]`, (label, makeRepo) => body(makeRepo, label));
 }

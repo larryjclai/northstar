@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createMemoryFinanceRepositoryForTests, type DividendReinvestmentDraft, type InvestmentDraft, type PortfolioAssetDraft } from "./repositories";
+import { type DividendReinvestmentDraft, type InvestmentDraft, type PortfolioAssetDraft } from "./repositories";
+import { describeEachRepo } from "./repositories.testHarness";
 import type { Account, InvestmentRecord, PortfolioAsset } from "../domain";
 import { buildDividendAnalysis } from "../domain/dividendAnalysis";
 
@@ -41,23 +42,29 @@ const buyDraft: InvestmentDraft = {
   note: "",
 };
 
-function repository() {
-  return createMemoryFinanceRepositoryForTests({
-    accounts: [account],
-    ledgerTransactions: [],
-    portfolioAssets: [],
-    investmentRecords: [],
-    recurringTransactions: [],
-    marketQuotes: [],
-    dailyFxRates: [],
-    dailyPrices: [],
-    financialGoals: [],
-  });
-}
+describeEachRepo("investments", (makeRepo, repoLabel) => {
+  // DIVERGENCE (see executor report): SQLite's list* methods return integer 0/1
+  // for boolean columns (e.g. `cashless`), whereas the memory repo returns JS
+  // booleans. Pin the real per-repo representation instead of narrowing the
+  // assertion, so a regression in either direction is still caught.
+  const expectedCashless = repoLabel === "sqlite" ? 1 : true;
+  function repository() {
+    return makeRepo({
+      accounts: [account],
+      ledgerTransactions: [],
+      portfolioAssets: [],
+      investmentRecords: [],
+      recurringTransactions: [],
+      marketQuotes: [],
+      dailyFxRates: [],
+      dailyPrices: [],
+      financialGoals: [],
+    });
+  }
 
-describe("investment repository cash posting", () => {
+  describe("investment repository cash posting", () => {
   it("creates linked ledger rows and recomputes brokerage cash", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createInvestmentRecord(buyDraft);
 
     const [ledger] = await repo.listLedgerTransactions();
@@ -71,18 +78,18 @@ describe("investment repository cash posting", () => {
   });
 
   it("blocks buys that exceed brokerage cash", async () => {
-    const repo = repository();
+    const repo = await repository();
     await expect(repo.createInvestmentRecord({ ...buyDraft, price: 600, quantity: 2 })).rejects.toThrow("購買力不足");
   });
 
   it("blocks sells above the selected brokerage inventory", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createInvestmentRecord(buyDraft);
     await expect(repo.createInvestmentRecord({ ...buyDraft, action: "sell", price: 100, quantity: 3, fee: 0 })).rejects.toThrow("賣出股數大於目前庫存");
   });
 
   it("allows sells from manual holdings and recomputes quantity", async () => {
-    const repo = repository();
+    const repo = await repository();
     const holding: PortfolioAssetDraft = {
       ticker: "NFLX",
       name: "Netflix, Inc.",
@@ -113,7 +120,7 @@ describe("investment repository cash posting", () => {
   });
 
   it("blocks sells that exceed manual holding quantity", async () => {
-    const repo = repository();
+    const repo = await repository();
     const holding: PortfolioAssetDraft = {
       ticker: "NFLX",
       name: "Netflix, Inc.",
@@ -141,7 +148,7 @@ describe("investment repository cash posting", () => {
   });
 
   it("updates and deletes linked ledger rows", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createInvestmentRecord(buyDraft);
     const [created] = await repo.listInvestmentRecords();
 
@@ -161,7 +168,7 @@ describe("investment repository cash posting", () => {
 describe("股息再投入 (DRIP)", () => {
   // Hold an existing position so the reinvestment buy blends into a real cost.
   async function repoWithHolding(quantity = 10, averageCost = 100) {
-    const repo = repository();
+    const repo = await repository();
     await repo.createManualHolding({
       ticker: "QQQ",
       name: "Invesco QQQ",
@@ -301,7 +308,7 @@ describe("股息再投入 (DRIP)", () => {
 
   it("posts the dividend before the buy so a zero-balance account still reinvests", async () => {
     // Fresh broker with NO opening cash; only the dividend funds the buy.
-    const repo = createMemoryFinanceRepositoryForTests({
+    const repo = await makeRepo({
       accounts: [{ ...account, openingBalance: 0, balance: 0 }],
       ledgerTransactions: [],
       portfolioAssets: [],
@@ -335,12 +342,12 @@ describe("manual holdings as opening-balance lots", () => {
   };
 
   it("creates a single cashless opening record and posts no cash leg", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createManualHolding(snapshot);
 
     const records = await repo.listInvestmentRecords();
     expect(records).toHaveLength(1);
-    expect(records[0]).toMatchObject({ action: "buy", cashless: true, quantity: 10, price: 400, date: "2026-01-02" });
+    expect(records[0]).toMatchObject({ action: "buy", cashless: expectedCashless, quantity: 10, price: 400, date: "2026-01-02" });
 
     // The opening lot records an already-held position — no 交割 ledger leg, so
     // the linked account cash is untouched.
@@ -354,7 +361,7 @@ describe("manual holdings as opening-balance lots", () => {
   });
 
   it("blends average cost when a later real buy is recorded (and that buy posts a cash leg)", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createManualHolding(snapshot);
     // Real buy: 10 @ 50 (affordable within the 1000 balance). Blended average =
     // (10*400 + 10*50) / 20 = 4500 / 20 = 225.
@@ -374,7 +381,7 @@ describe("manual holdings as opening-balance lots", () => {
   });
 
   it("deletes a pure snapshot (removing its opening lot)", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createManualHolding(snapshot);
     const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
     await repo.deleteManualHolding(asset.id);
@@ -383,7 +390,7 @@ describe("manual holdings as opening-balance lots", () => {
   });
 
   it("blocks deletion once a real trade exists", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createManualHolding(snapshot);
     const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
     await repo.createInvestmentRecord({
@@ -394,7 +401,7 @@ describe("manual holdings as opening-balance lots", () => {
   });
 
   it("removes the holding when its opening lot is deleted via deleteInvestmentRecord (no resurrection)", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createManualHolding({ ...snapshot, totalQuantity: 3.5, averageCost: 200 });
     const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
     expect(asset.baseQuantity).toBe(3.5);
@@ -415,7 +422,7 @@ describe("manual holdings as opening-balance lots", () => {
   });
 
   it("blocks opening-lot deletion via deleteInvestmentRecord when a real trade exists", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createManualHolding(snapshot);
     const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
     await repo.createInvestmentRecord({
@@ -430,7 +437,7 @@ describe("manual holdings as opening-balance lots", () => {
   });
 
   it("regression: deleting a normal buy leaves the asset and recomputes quantity", async () => {
-    const repo = repository();
+    const repo = await repository();
     // Transaction-based holding (no opening lot, no baseQuantity).
     await repo.createInvestmentRecord({
       ticker: "VOO", name: "Vanguard S&P 500", currency: "USD", linkedAccountId: "acct_broker",
@@ -475,12 +482,12 @@ describe("manual holdings as opening-balance lots", () => {
       accountId: "acct_broker",
       baseQuantity: 10,
     };
-    const repo = createMemoryFinanceRepositoryForTests({ accounts: [account], portfolioAssets: [legacyAsset], investmentRecords: [] });
+    const repo = await makeRepo({ accounts: [account], portfolioAssets: [legacyAsset], investmentRecords: [] });
 
     // normalizeStoredData (run on load) materializes the opening lot.
     const records = await repo.listInvestmentRecords();
     expect(records).toHaveLength(1);
-    expect(records[0]).toMatchObject({ id: "inv_open_asset_legacy", assetId: "asset_legacy", cashless: true, quantity: 10, price: 400 });
+    expect(records[0]).toMatchObject({ id: "inv_open_asset_legacy", assetId: "asset_legacy", cashless: expectedCashless, quantity: 10, price: 400 });
 
     // Deriving from the opening lot reproduces the snapshot quantity + cost.
     await repo.recalculateDerivedData();
@@ -490,7 +497,7 @@ describe("manual holdings as opening-balance lots", () => {
 
     // Idempotent: export → re-import does not duplicate the opening lot.
     const exported = await repo.exportSnapshot();
-    const repo2 = createMemoryFinanceRepositoryForTests();
+    const repo2 = await makeRepo();
     await repo2.importSnapshot(exported);
     expect(await repo2.listInvestmentRecords()).toHaveLength(1);
   });
@@ -521,7 +528,7 @@ describe("same-ticker holding identity (Plan 058)", () => {
   };
 
   it("account-less import + later buy of same ticker accumulates into ONE asset", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createManualHolding(imported);
     await repo.createInvestmentRecord(buyCrwd);
 
@@ -553,7 +560,7 @@ describe("same-ticker holding identity (Plan 058)", () => {
   });
 
   it("import linked to account A + buy in account A stays ONE asset (regression guard)", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createManualHolding({ ...imported, accountId: "acct_broker" });
     await repo.createInvestmentRecord(buyCrwd);
 
@@ -564,7 +571,7 @@ describe("same-ticker holding identity (Plan 058)", () => {
   });
 
   it("GOOG and GOOGL remain separate (different securities, no cross-ticker merge)", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createManualHolding({ ...imported, ticker: "GOOG", name: "Alphabet C" });
     await repo.createInvestmentRecord({ ...buyCrwd, ticker: "GOOGL", name: "Alphabet A" });
 
@@ -622,7 +629,7 @@ describe("same-ticker holding identity (Plan 058)", () => {
       linkedLedgerTransactionId: null,
       cashless: false,
     };
-    const repo = createMemoryFinanceRepositoryForTests({
+    const repo = await makeRepo({
       accounts: [account],
       portfolioAssets: [manualAsset, txAsset],
       investmentRecords: [txBuy],
@@ -642,7 +649,7 @@ describe("same-ticker holding identity (Plan 058)", () => {
 
     // Idempotent: export → re-import yields the same single live asset, no new split.
     const exported = await repo.exportSnapshot();
-    const repo2 = createMemoryFinanceRepositoryForTests();
+    const repo2 = await makeRepo();
     await repo2.importSnapshot(exported);
     await repo2.recalculateDerivedData();
     const live2 = (await repo2.listPortfolioAssets()).filter((a) => a.ticker === "CRWD" && a.deletedAt === null);
@@ -674,7 +681,7 @@ describe("classification lock — 回補分類 must not overwrite user edits (Pl
   }
 
   it("a manual classification edit locks the asset", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createManualHolding(snapshot);
     const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
     expect(asset.classificationLocked ?? false).toBe(false);
@@ -694,7 +701,7 @@ describe("classification lock — 回補分類 must not overwrite user edits (Pl
   });
 
   it("a backfill-style call (no signal) does NOT overwrite a locked asset because it is excluded from candidates", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createManualHolding(snapshot);
     const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
     await repo.updateAssetClassification(asset.id, {
@@ -721,7 +728,7 @@ describe("classification lock — 回補分類 must not overwrite user edits (Pl
   });
 
   it("an unlocked asset still auto-classifies (no-signal call updates fields, stays unlocked)", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createManualHolding({ ...snapshot, assetType: undefined, sector: undefined, industry: undefined });
     const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
     expect(asset.classificationLocked ?? false).toBe(false);
@@ -741,7 +748,7 @@ describe("classification lock — 回補分類 must not overwrite user edits (Pl
   });
 
   it("classificationLocked survives export → import", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createManualHolding(snapshot);
     const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
     await repo.updateAssetClassification(asset.id, {
@@ -752,7 +759,7 @@ describe("classification lock — 回補分類 must not overwrite user edits (Pl
     });
 
     const exported = await repo.exportSnapshot();
-    const repo2 = createMemoryFinanceRepositoryForTests();
+    const repo2 = await makeRepo();
     await repo2.importSnapshot(exported);
 
     const [reimported] = (await repo2.listPortfolioAssets()).filter((a) => a.ticker === "VOO");
@@ -772,7 +779,7 @@ describe("opening-lot cash neutrality (plan 096)", () => {
   };
 
   it("importing a manual holding is cash-neutral", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createManualHolding(openingHolding);
 
     const [broker] = await repo.listAccounts();
@@ -782,7 +789,7 @@ describe("opening-lot cash neutrality (plan 096)", () => {
   });
 
   it("editing an opening lot stays cash-neutral even when the draft omits cashless", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createManualHolding(openingHolding);
     const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "NFLX");
     const openingId = `inv_open_${asset.id}`;
@@ -807,13 +814,13 @@ describe("opening-lot cash neutrality (plan 096)", () => {
     const ledger = await repo.listLedgerTransactions();
     expect(ledger.filter((row) => row.deletedAt === null).length).toBe(0);
     const [record] = (await repo.listInvestmentRecords()).filter((r) => r.id === openingId);
-    expect(record.cashless).toBe(true);
+    expect(record.cashless).toBe(expectedCashless);
     expect(record.quantity).toBe(15);
     expect(record.linkedLedgerTransactionId).toBeNull();
   });
 
   it("editing an opening lot never throws 購買力不足 even when its value exceeds account cash", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createManualHolding(openingHolding);
     const [asset] = (await repo.listPortfolioAssets()).filter((a) => a.ticker === "NFLX");
     const openingId = `inv_open_${asset.id}`;
@@ -909,7 +916,7 @@ describe("opening-lot cash neutrality (plan 096)", () => {
       recurringRuleId: null,
     };
 
-    const repo = createMemoryFinanceRepositoryForTests({
+    const repo = await makeRepo({
       accounts: [{ ...account, balance: 30.02 }], // openingBalance 1000 minus the erroneous -969.98 leg
       ledgerTransactions: [corruptedLedgerRow],
       portfolioAssets: [corruptedAsset],
@@ -930,7 +937,7 @@ describe("opening-lot cash neutrality (plan 096)", () => {
 
     const [recordAfter] = (await repo.listInvestmentRecords()).filter((r) => r.id === openingId);
     expect(recordAfter.linkedLedgerTransactionId).toBeNull();
-    expect(recordAfter.cashless).toBe(true);
+    expect(recordAfter.cashless).toBe(expectedCashless);
 
     const [brokerAfter] = await repo.listAccounts();
     // Balance self-corrects to the pre-corruption value (the account's own
@@ -939,7 +946,7 @@ describe("opening-lot cash neutrality (plan 096)", () => {
   });
 
   it("regression guard: a normal (non-cashless) buy still creates its ledger row and enforces 購買力不足", async () => {
-    const repo = repository();
+    const repo = await repository();
     await repo.createInvestmentRecord(buyDraft);
 
     const ledger = await repo.listLedgerTransactions();
@@ -949,5 +956,6 @@ describe("opening-lot cash neutrality (plan 096)", () => {
 
     await expect(repo.createInvestmentRecord({ ...buyDraft, price: 600, quantity: 2 })).rejects.toThrow("購買力不足");
   });
+});
 });
 
