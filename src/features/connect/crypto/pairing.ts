@@ -19,6 +19,11 @@
 //
 // Security: code is 40-bit entropy, valid 5 min, one-time claim, 5-attempt limit.
 
+import { getSecretStore } from "./secretStore";
+
+// SecretStore key string (Stronghold on device, localStorage fallback in the web
+// shell/tests). Must stay identical so the fallback backend and
+// migrateLocalStorageSecrets keep addressing the same entry.
 const STORAGE_KEY = "northstar.device.keypair.v1";
 
 interface StoredKeyPair {
@@ -37,11 +42,13 @@ export async function saveDeviceKeyPair(pair: CryptoKeyPair): Promise<void> {
     crypto.subtle.exportKey("jwk", pair.publicKey),
     crypto.subtle.exportKey("jwk", pair.privateKey),
   ]);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ publicKey: pub, privateKey: priv }));
+  const store = await getSecretStore();
+  await store.set(STORAGE_KEY, JSON.stringify({ publicKey: pub, privateKey: priv }));
 }
 
 export async function loadDeviceKeyPair(): Promise<CryptoKeyPair | null> {
-  const raw = localStorage.getItem(STORAGE_KEY);
+  const store = await getSecretStore();
+  const raw = await store.get(STORAGE_KEY);
   if (!raw) return null;
   const stored: StoredKeyPair = JSON.parse(raw);
   const [pub, priv] = await Promise.all([

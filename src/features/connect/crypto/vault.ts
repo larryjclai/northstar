@@ -1,8 +1,13 @@
 // Vault key: AES-GCM 256-bit key used to encrypt all sync envelopes.
-// Stored locally as base64-encoded raw bytes in localStorage.
-// On first sync setup this key is generated; on pairing it is received
-// wrapped from the existing trusted device.
+// Persisted as base64-encoded raw bytes through the SecretStore (Stronghold on
+// device, localStorage fallback in the web shell/tests). On first sync setup
+// this key is generated; on pairing it is received wrapped from the existing
+// trusted device.
 
+import { getSecretStore } from "./secretStore";
+
+// SecretStore key string. Must stay identical so the localStorage fallback
+// backend and migrateLocalStorageSecrets keep addressing the same entry.
 const STORAGE_KEY = "northstar.vault.key.v1";
 
 export async function generateVaultKey(): Promise<CryptoKey> {
@@ -25,15 +30,17 @@ export async function importVaultKey(b64: string): Promise<CryptoKey> {
   ]);
 }
 
-/** Persist the vault key locally. */
+/** Persist the vault key locally via the SecretStore. */
 export async function saveVaultKey(key: CryptoKey): Promise<void> {
   const b64 = await exportVaultKey(key);
-  localStorage.setItem(STORAGE_KEY, b64);
+  const store = await getSecretStore();
+  await store.set(STORAGE_KEY, b64);
 }
 
-/** Load the local vault key, or null if not yet set up. */
+/** Load the local vault key from the SecretStore, or null if not yet set up. */
 export async function loadVaultKey(): Promise<CryptoKey | null> {
-  const b64 = localStorage.getItem(STORAGE_KEY);
+  const store = await getSecretStore();
+  const b64 = await store.get(STORAGE_KEY);
   if (!b64) return null;
   return importVaultKey(b64);
 }
