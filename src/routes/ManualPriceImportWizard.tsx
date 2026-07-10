@@ -117,7 +117,7 @@ export function ManualPriceImportWizard({ open, onClose, assetId, assetLabel, cu
             return (
               <div key={s.id} className="flex items-center" style={{ gap: 8, opacity: active || done ? 1 : 0.5 }}>
                 <div className="text-caption" style={{ width: 22, height: 22, borderRadius: 99, display: "flex", alignItems: "center", justifyContent: "center",
-                  border: `1.5px solid ${active ? "var(--ns-accent)" : "var(--ns-border)"}`, background: done ? "var(--ns-accent)" : "transparent", color: done ? "#000" : "var(--ns-fg)" }}>
+                  border: `1.5px solid ${active ? "var(--ns-accent)" : "var(--ns-border)"}`, background: done ? "var(--ns-accent)" : "transparent", color: done ? "var(--ns-accent-fg)" : "var(--ns-fg)" }}>
                   {done ? <CheckCircle size={13} weight="bold" /> : i + 1}
                 </div>
                 <span className="text-body" style={{ fontWeight: active ? 600 : 400 }}>{s.label}</span>

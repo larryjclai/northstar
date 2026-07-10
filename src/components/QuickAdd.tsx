@@ -305,7 +305,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                               style={{
                                 padding: "3px 9px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit",
                                 background: active ? "var(--ns-accent)" : "var(--ns-bg-hover)",
-                                color: active ? "#fff" : "var(--ns-fg-muted)",
+                                color: active ? "var(--ns-accent-fg)" : "var(--ns-fg-muted)",
                                 border: "none",
                               }}
                             >
@@ -397,7 +397,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                   style={{
                     padding: "5px 16px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit",
                     background: active ? "var(--ns-accent)" : "var(--ns-bg-card)",
-                    color: active ? "#fff" : "var(--ns-fg-muted)",
+                    color: active ? "var(--ns-accent-fg)" : "var(--ns-fg-muted)",
                     border: active ? "1px solid var(--ns-accent)" : "1px solid var(--ns-border)",
                     boxShadow: active ? "var(--ns-shadow-sm)" : "none",
                   }}

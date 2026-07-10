@@ -2207,7 +2207,7 @@ function EntryDrawer({
                           style={{
                             padding: "4px 10px", borderRadius: 999, cursor: "pointer",
                             background: active ? "var(--ns-accent)" : "var(--ns-bg-hover)",
-                            color: active ? "#fff" : "var(--ns-fg-muted)",
+                            color: active ? "var(--ns-accent-fg)" : "var(--ns-fg-muted)",
                             border: active ? "none" : "1px solid var(--ns-border)",
                             fontFamily: "inherit",
                           }}

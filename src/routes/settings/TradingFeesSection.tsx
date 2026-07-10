@@ -77,7 +77,7 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
           }}>
             <div style={{
               position: "absolute", top: 2, left: draft.enabled ? 18 : 2,
-              width: 16, height: 16, borderRadius: "50%", background: "#fff",
+              width: 16, height: 16, borderRadius: "50%", background: "var(--ns-bg-elev)",
               transition: "left 0.15s",
             }} />
           </div>
