@@ -2318,6 +2318,14 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.recomputeSqliteAccounts();
   }
 
+  override async applyRecurringScopeEdit(id: string, scope: RecurringEditScope, input: LedgerDraft) {
+    // Wrap the inherited series edit in one transaction so a mid-loop failure on
+    // scope === "all" rolls back every sibling update instead of half-applying it.
+    // withTransaction is re-entrant (txDepth guard), so the inner update/recompute
+    // writes run inline within this BEGIN…COMMIT rather than issuing their own.
+    await this.withTransaction(() => super.applyRecurringScopeEdit(id, scope, input));
+  }
+
   override async setLedgerReviewed(id: string, reviewed: boolean) {
     await this.db.execute(
       `update ledger_transactions set is_reviewed = $1, updated_at = $2, revision = revision + 1 where id = $3`,

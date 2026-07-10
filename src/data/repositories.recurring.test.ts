@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { describeEachRepo } from "./repositories.testHarness";
+import type { FinanceRepository } from "./repositories";
 import { nextRecurringDate } from "../domain";
 import type { Account, LedgerTransaction, RecurringTransaction } from "../domain";
 
@@ -107,7 +108,7 @@ function occurrenceRow(recurringOccurrenceKey: string, occurrenceDate: string): 
   };
 }
 
-describeEachRepo("recurring", (makeRepo) => {
+describeEachRepo("recurring", (makeRepo, repoLabel) => {
   describe("postDueRecurringTransactions", () => {
   it("catches up every missed monthly period and advances past today", async () => {
     const repo = await makeRepo({ accounts: [account], recurringTransactions: [recurring()] });
@@ -264,6 +265,39 @@ describe("applyRecurringScopeEdit", () => {
     expect(after.map((r) => r.date).sort()).toEqual([dates[0], dates[2], "2026-09-09T09:00"].sort());
     const [rule] = await repo.listRecurringTransactions();
     expect(rule.amount).toBe(-2000);
+  });
+
+  it("scope=all is atomic: a mid-loop sibling failure rolls back the whole series (sqlite)", async () => {
+    // Only the SQLite repo wraps the series in a single transaction; the memory
+    // repo has nothing to roll back, so this divergence is pinned to sqlite.
+    if (repoLabel !== "sqlite") return;
+    const { repo, ledger } = await setup(); // 3 posted occurrences, all amount -1000
+    const target = ledger[0];
+
+    // Fail the 2nd sibling update (3rd updateLedgerTransaction call overall:
+    // call 1 = target, calls 2 & 3 = siblings). By then the target and the 1st
+    // sibling have already been written inside the transaction.
+    const original = repo.updateLedgerTransaction.bind(repo);
+    let calls = 0;
+    (repo as { updateLedgerTransaction: FinanceRepository["updateLedgerTransaction"] }).updateLedgerTransaction =
+      async (idArg, inputArg) => {
+        calls += 1;
+        if (calls === 3) throw new Error("boom: simulated mid-loop failure");
+        return original(idArg, inputArg);
+      };
+
+    await expect(
+      repo.applyRecurringScopeEdit(target.id, "all", { ...draftFrom(target), date: "2026-09-09T09:00" }),
+    ).rejects.toThrow(/boom/);
+
+    // Every row must still hold its ORIGINAL values — the failed 2nd sibling
+    // update must have rolled back the target and the 1st sibling as well.
+    const after = await repo.listLedgerTransactions();
+    expect(after).toHaveLength(3);
+    expect(after.every((r) => r.amount === -1000)).toBe(true);
+    expect(after.every((r) => r.merchant === "房東")).toBe(true);
+    const [rule] = await repo.listRecurringTransactions();
+    expect(rule.amount).toBe(-1000); // rule untouched too
   });
 });
 });
