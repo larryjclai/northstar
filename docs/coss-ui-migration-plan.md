@@ -261,6 +261,15 @@ changes need their own QA pass), optionally fix the `dark:` Tailwind variant to 
 `data-theme` (currently inert; ~79 untested usages), and consolidate the two Base UI
 packages (`@base-ui/react` vs `@base-ui-components/react`)._
 
+_**2026-07 reality check (verified against the tree):** "Phases 0–10 COMPLETE" means every
+*migratable* surface is on COSS — **not** that `src/components/ui/` is gone. A **documented
+permanent whitelist** stays there because COSS UI has no equivalents: `command`, `popover`,
+`date-picker`/`calendar`, and `month-picker` (whitelist lives in `src/components/ui/README.md`;
+~17 files still import `ui/popover`). Separately, four COSS primitives exist with **zero app
+importers** — `coss/checkbox.tsx`, `coss/field.tsx`, `coss/label.tsx`, `coss/select.tsx` — these
+are **intentional scaffolding** staged ahead of the deferred `ns-input`/`<select>` → COSS field
+migration, not dead code to delete._
+
 ---
 
 ## 6. Type-scale convergence (4.4, started 2026-06-12)
