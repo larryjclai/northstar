@@ -38,7 +38,8 @@ import {
   type DeviceRecord,
 } from "../../features/connect/sync/client";
 import {
-  initiatePairing, joinWithCode, type PairingSession,
+  startJoinSession, completeJoin, inspectJoinRequest, approveJoiningDevice,
+  type JoinSession, type PendingJoinApproval,
 } from "../../features/connect/sync/pairing-flow";
 import { runSync, forceFullResync, forceFullRepush } from "../../features/connect/sync/sync-manager";
 import { clearLocalSyncState, unlinkSync } from "../../features/connect/sync/reset";
@@ -107,7 +108,6 @@ export function ConnectStatus() {
 
   // Dialog: add device
   const [showDialog, setShowDialog] = useState(false);
-  const [dialogTab, setDialogTab] = useState<"show" | "join">("show");
 
   // Recovery Kit
   const [kitStatus, setKitStatus] = useState<LocalRecoveryKitStatus | null>(() => loadLocalRecoveryKitStatus());
@@ -169,15 +169,19 @@ export function ConnectStatus() {
     listBackups().then(setBackups).catch(() => setBackups([]));
   }, [showBackups]);
 
-  // Device A: show pairing code
-  const [session, setSession] = useState<PairingSession | null>(null);
+  // Joining device (B): publish this device's public key, show the code, and
+  // poll until the existing device wraps the vault key to us.
+  const [session, setSession] = useState<JoinSession | null>(null);
   const [sessionLoading, setSessionLoading] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [joinWaiting, setJoinWaiting] = useState(false);
 
-  // Device B: join with code
+  // Approving device (A): enter B's code, confirm the device, wrap the vault key.
   const [joinCode, setJoinCode] = useState("");
   const [joinLoading, setJoinLoading] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
+  const [pendingApproval, setPendingApproval] = useState<PendingJoinApproval | null>(null);
+  const [approveLoading, setApproveLoading] = useState(false);
   const [joinDeviceName, setJoinDeviceName] = useState(() => `My ${getDevicePlatform() === "windows" ? "PC" : "Mac"}`);
 
   // Load pending changes count
@@ -258,6 +262,47 @@ export function ConnectStatus() {
     return () => clearInterval(id);
   }, [session]);
 
+  // Joining device (B): poll the relay until the existing device (A) approves
+  // this device and deposits the wrapped vault key + account secret.
+  useEffect(() => {
+    if (!session) { setJoinWaiting(false); return; }
+    let active = true;
+    setJoinWaiting(true);
+    const poll = async () => {
+      try {
+        const result = await completeJoin(session);
+        if (!active || !result) return; // A hasn't approved yet — keep polling.
+        clearInterval(id);
+        setJoinWaiting(false);
+        const joined = await loadSyncAccount();
+        if (joined) setAccount(joined);
+        setKitStatus(loadLocalRecoveryKitStatus());
+        setShowDialog(false);
+        setSession(null);
+        toast.success("裝置已加入，正在下載資料…");
+        try {
+          syncStatus.setPhase("pulling");
+          const repo = await getFinanceRepository();
+          const r = await forceFullResync(repo);
+          syncStatus.setSyncDone(r.pushed, r.pulled, r.applied);
+          await queryClient.invalidateQueries();
+          toast.success(r.applied > 0 ? `已下載並套用 ${r.applied} 筆資料` : "已加入同步（伺服器目前沒有可下載的資料）");
+        } catch (pullErr) {
+          const msg = pullErr instanceof Error ? pullErr.message : String(pullErr);
+          console.error("[sync] post-join resync failed:", pullErr);
+          syncStatus.setError(msg);
+          toast.error("已加入同步，但自動下載失敗，請稍後在設定按「完整重新下載」。");
+        }
+      } catch (e) {
+        console.error("[pairing] poll failed:", e);
+      }
+    };
+    const id = setInterval(poll, 2000);
+    void poll();
+    return () => { active = false; clearInterval(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
   // ── First-time setup ──
   async function handleSetup() {
     if (!syncWorkerConfigured) {
@@ -294,72 +339,66 @@ export function ConnectStatus() {
     }
   }
 
-  // ── Generate pairing code (Device A) ──
-  async function handleGenerateCode() {
-    if (!account) return;
+  // ── Joining device (B): publish this device's public key + show the code ──
+  async function handleStartJoin() {
     if (!syncWorkerConfigured) {
       toast.error("這個 build 未設定同步服務 endpoint，無法產生配對碼。");
       return;
     }
+    if (!joinDeviceName.trim()) return;
     setSessionLoading(true);
     try {
-      const s = await initiatePairing();
-      setSession(s);
+      const s = await startJoinSession(joinDeviceName.trim(), getDevicePlatform());
+      setSession(s); // triggers the polling effect
     } catch (e) {
       toast.error("無法產生配對碼，請確認網路連線");
+      console.error(e);
     } finally {
       setSessionLoading(false);
     }
   }
 
-  // ── Join with code (Device B) ──
-  async function handleJoin() {
+  // ── Approving device (A), step 1: claim B's public key + show the fingerprint ──
+  async function handleInspect() {
     if (!syncWorkerConfigured) {
-      setJoinError("這個 build 未設定同步服務 endpoint，無法加入同步。");
+      setJoinError("這個 build 未設定同步服務 endpoint，無法配對。");
       return;
     }
     setJoinError(null);
     setJoinLoading(true);
     try {
-      await joinWithCode(joinCode, joinDeviceName, getDevicePlatform());
-      const joined = await loadSyncAccount();
-      if (!joined) throw new Error("加入成功但無法讀取本機帳號設定");
-      setAccount(joined);
-      // joinWithCode() already confirmed the Recovery Kit (the vault key was
-      // inherited from the paired device) — refresh the stale React state so
-      // the UI doesn't keep demanding a new kit until the next app restart.
-      setKitStatus(loadLocalRecoveryKitStatus());
-      const devs = await listDevices(joined.apiSecret);
-      setDevices(devs);
-      setShowDialog(false);
-      setJoinCode("");
-
-      // Pairing alone leaves this device empty — immediately pull the account's
-      // data so "join" restores in one step. (forceFullResync is pull-only; it
-      // never overwrites the server.)
-      toast.success("裝置已加入，正在下載資料…");
-      try {
-        syncStatus.setPhase("pulling");
-        const repo = await getFinanceRepository();
-        const result = await forceFullResync(repo);
-        syncStatus.setSyncDone(result.pushed, result.pulled, result.applied);
-        await queryClient.invalidateQueries();
-        toast.success(
-          result.applied > 0
-            ? `已下載並套用 ${result.applied} 筆資料`
-            : "已加入同步（伺服器目前沒有可下載的資料）",
-        );
-      } catch (pullErr) {
-        const msg = pullErr instanceof Error ? pullErr.message : String(pullErr);
-        console.error("[sync] post-join resync failed:", pullErr);
-        syncStatus.setError(msg);
-        toast.error("已加入同步，但自動下載失敗，請稍後在設定按「完整重新下載」。");
-      }
+      const approval = await inspectJoinRequest(joinCode);
+      setPendingApproval(approval); // shows the confirm-device step
     } catch (e) {
-      setJoinError(e instanceof Error ? e.message : "配對失敗，請確認配對碼是否正確");
+      setJoinError(e instanceof Error ? e.message : "找不到這組配對碼，請確認是否正確或已過期。");
     } finally {
       setJoinLoading(false);
     }
+  }
+
+  // ── Approving device (A), step 2: after the user confirms, wrap the vault key ──
+  async function handleApprove() {
+    if (!account || !pendingApproval) return;
+    setApproveLoading(true);
+    try {
+      await approveJoiningDevice(pendingApproval);
+      const devs = await listDevices(account.apiSecret);
+      setDevices(devs);
+      setShowDialog(false);
+      setPendingApproval(null);
+      setJoinCode("");
+      toast.success(`已授權新裝置「${pendingApproval.name}」，對方將自動完成加入。`);
+    } catch (e) {
+      setJoinError(e instanceof Error ? e.message : "授權裝置失敗，請稍後再試。");
+      console.error(e);
+    } finally {
+      setApproveLoading(false);
+    }
+  }
+
+  function handleCancelApprove() {
+    setPendingApproval(null);
+    setJoinError(null);
   }
 
   // ── Revoke device ──
@@ -539,13 +578,15 @@ export function ConnectStatus() {
     }
   }
 
-  function openDialog(tab: "show" | "join") {
-    setDialogTab(tab);
+  // mode "show"    → joining device (B): show this device's code and wait.
+  // mode "approve" → existing device (A): enter the joiner's code and confirm it.
+  function openDialog(mode: "show" | "approve") {
     setSession(null);
     setJoinCode("");
     setJoinError(null);
+    setPendingApproval(null);
     setShowDialog(true);
-    if (tab === "show") handleGenerateCode();
+    if (mode === "show") void handleStartJoin();
   }
 
   const codeDisplay = session
@@ -592,8 +633,8 @@ export function ConnectStatus() {
             {loading ? <Spinner size={14} className="animate-spin" /> : <WifiHigh size={14} />}
             {loading ? "啟用中…" : "啟用同步"}
           </Button>
-          <Button variant="ghost" onClick={() => openDialog("join")} disabled={!syncWorkerConfigured}>
-            我有配對碼
+          <Button variant="ghost" onClick={() => openDialog("show")} disabled={!syncWorkerConfigured || !joinDeviceName.trim()}>
+            以配對碼加入現有裝置
           </Button>
           <Button variant="ghost" onClick={() => setShowRestore(!showRestore)}>
             <Key size={14} />用備援碼還原
@@ -623,25 +664,26 @@ export function ConnectStatus() {
           </div>
         )}
 
-        {/* Join dialog (for device B before account exists) */}
+        {/* Joining device (B): show this device's code and wait for approval. */}
         {showDialog && (
           <AddDeviceDialog
-            tab={dialogTab}
-            onTabChange={setDialogTab}
-            onClose={() => setShowDialog(false)}
+            mode="show"
+            onClose={() => { setShowDialog(false); setSession(null); }}
             session={session}
             sessionLoading={sessionLoading}
             secondsLeft={secondsLeft}
             codeDisplay={codeDisplay}
-            onGenerateCode={handleGenerateCode}
+            joinWaiting={joinWaiting}
+            onRegenerate={handleStartJoin}
             joinCode={joinCode}
             onJoinCodeChange={setJoinCode}
-            joinDeviceName={joinDeviceName}
-            onJoinDeviceNameChange={setJoinDeviceName}
             joinLoading={joinLoading}
             joinError={joinError}
-            onJoin={handleJoin}
-            hideShowTab
+            onInspect={handleInspect}
+            pendingApproval={pendingApproval}
+            approveLoading={approveLoading}
+            onApprove={handleApprove}
+            onCancelApprove={handleCancelApprove}
           />
         )}
       </Card>
@@ -671,7 +713,7 @@ export function ConnectStatus() {
             <ArrowsClockwise size={13} style={{ animation: (syncStatus.phase === "pushing" || syncStatus.phase === "pulling") ? "spin 1s linear infinite" : undefined }} />
             {syncStatus.phase === "pushing" ? "上傳中…" : syncStatus.phase === "pulling" ? "下載中…" : "立即同步"}
           </Button>
-          <Button variant="ghost" className="text-xs" onClick={() => openDialog("show")} disabled={!syncWorkerConfigured}>
+          <Button variant="ghost" className="text-xs" onClick={() => openDialog("approve")} disabled={!syncWorkerConfigured}>
             <Plus size={13} />新增裝置
           </Button>
         </div>
@@ -988,27 +1030,26 @@ export function ConnectStatus() {
         )}
       </div>
 
-      {/* Add device dialog */}
+      {/* Approving device (A): enter the joiner's code and confirm the device. */}
       {showDialog && (
         <AddDeviceDialog
-          tab={dialogTab}
-          onTabChange={tab => {
-            setDialogTab(tab);
-            if (tab === "show" && !session) handleGenerateCode();
-          }}
-          onClose={() => setShowDialog(false)}
+          mode="approve"
+          onClose={() => { setShowDialog(false); setPendingApproval(null); }}
           session={session}
           sessionLoading={sessionLoading}
           secondsLeft={secondsLeft}
           codeDisplay={codeDisplay}
-          onGenerateCode={handleGenerateCode}
+          joinWaiting={joinWaiting}
+          onRegenerate={handleStartJoin}
           joinCode={joinCode}
           onJoinCodeChange={setJoinCode}
-          joinDeviceName={joinDeviceName}
-          onJoinDeviceNameChange={setJoinDeviceName}
           joinLoading={joinLoading}
           joinError={joinError}
-          onJoin={handleJoin}
+          onInspect={handleInspect}
+          pendingApproval={pendingApproval}
+          approveLoading={approveLoading}
+          onApprove={handleApprove}
+          onCancelApprove={handleCancelApprove}
         />
       )}
     </Card>
@@ -1018,30 +1059,32 @@ export function ConnectStatus() {
 // ─────── Add Device Dialog ───────
 
 interface AddDeviceDialogProps {
-  tab: "show" | "join";
-  onTabChange: (t: "show" | "join") => void;
+  mode: "show" | "approve";
   onClose: () => void;
-  session: PairingSession | null;
+  // show mode — the joining device (B)
+  session: JoinSession | null;
   sessionLoading: boolean;
   secondsLeft: number;
   codeDisplay: string;
-  onGenerateCode: () => void;
+  joinWaiting: boolean;
+  onRegenerate: () => void;
+  // approve mode — the existing device (A)
   joinCode: string;
   onJoinCodeChange: (v: string) => void;
-  joinDeviceName: string;
-  onJoinDeviceNameChange: (v: string) => void;
   joinLoading: boolean;
   joinError: string | null;
-  onJoin: () => void;
-  hideShowTab?: boolean;
+  onInspect: () => void;
+  pendingApproval: PendingJoinApproval | null;
+  approveLoading: boolean;
+  onApprove: () => void;
+  onCancelApprove: () => void;
 }
 
 function AddDeviceDialog({
-  tab, onTabChange, onClose,
-  session, sessionLoading, secondsLeft, codeDisplay, onGenerateCode,
-  joinCode, onJoinCodeChange, joinDeviceName, onJoinDeviceNameChange,
-  joinLoading, joinError, onJoin,
-  hideShowTab,
+  mode, onClose,
+  session, sessionLoading, secondsLeft, codeDisplay, joinWaiting, onRegenerate,
+  joinCode, onJoinCodeChange, joinLoading, joinError, onInspect,
+  pendingApproval, approveLoading, onApprove, onCancelApprove,
 }: AddDeviceDialogProps) {
   const toast = useToast();
 
@@ -1069,32 +1112,18 @@ function AddDeviceDialog({
       <Card style={{ width: 480, padding: 0, overflow: "hidden" }}>
         {/* Header */}
         <div className="flex items-center justify-between" style={{ padding: "18px 22px 0" }}>
-          <h3 className="text-lg font-semibold" style={{ fontFamily: "var(--ns-font-display)", margin: 0 }}>新增裝置</h3>
+          <h3 className="text-lg font-semibold" style={{ fontFamily: "var(--ns-font-display)", margin: 0 }}>
+            {mode === "show" ? "加入現有裝置" : "新增裝置"}
+          </h3>
           <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={onClose}><X size={16} /></Button>
         </div>
 
-        {/* Tabs */}
-        {!hideShowTab && (
-          <div className="flex" style={{ gap: 0, padding: "14px 22px 0", borderBottom: "1px solid var(--ns-border)" }}>
-            {(["show", "join"] as const).map(t => (
-              <button key={t} onClick={() => onTabChange(t)} className="text-body font-medium" style={{
-                padding: "8px 16px",
-                borderBottom: tab === t ? "2px solid var(--ns-accent)" : "2px solid transparent",
-                color: tab === t ? "var(--ns-fg)" : "var(--ns-fg-muted)",
-                background: "none", border: "none", borderRadius: 0, cursor: "pointer",
-              }}>
-                {t === "show" ? "顯示配對碼" : "輸入配對碼"}
-              </button>
-            ))}
-          </div>
-        )}
-
         <div style={{ padding: "24px 22px 22px" }}>
-          {/* ── Show pairing code (Device A) ── */}
-          {tab === "show" && (
+          {/* ── Joining device (B): show this device's code, wait for approval ── */}
+          {mode === "show" && (
             <div>
               <p className="text-sm muted mb-5">
-                在新裝置上開啟 Northstar，選擇「我有配對碼」，輸入下方的配對碼，或掃描 QR Code。
+                在已有資料的裝置上開啟 Northstar，點「設定 → 新增裝置」，輸入下方的配對碼或掃描 QR Code，並確認本裝置。
               </p>
 
               {sessionLoading && (
@@ -1127,13 +1156,21 @@ function AddDeviceDialog({
                     </div>
                   </div>
 
+                  {/* Waiting-for-approval status */}
+                  {joinWaiting && secondsLeft > 0 && (
+                    <div className="text-caption flex items-center justify-center gap-1.5 mb-4" style={{ color: "var(--ns-fg-muted)" }}>
+                      <Spinner size={13} className="animate-spin" />
+                      等待另一台裝置確認中…
+                    </div>
+                  )}
+
                   {/* Actions */}
                   <div className="flex justify-center gap-2">
                     <Button variant="ghost" onClick={handleCopyCode}>
                       <CopySimple size={13} />複製配對碼
                     </Button>
                     {secondsLeft === 0 && (
-                      <Button variant="outline" onClick={onGenerateCode}>
+                      <Button variant="outline" onClick={onRegenerate}>
                         <ArrowsClockwise size={13} />重新產生
                       </Button>
                     )}
@@ -1143,14 +1180,14 @@ function AddDeviceDialog({
             </div>
           )}
 
-          {/* ── Enter pairing code (Device B) ── */}
-          {tab === "join" && (
+          {/* ── Existing device (A): enter B's code, then confirm the device ── */}
+          {mode === "approve" && !pendingApproval && (
             <div>
               <p className="text-sm muted mb-5">
-                在已有資料的裝置上點「新增裝置 → 顯示配對碼」，然後在這裡輸入配對碼，或掃描 QR Code。
+                在新裝置上點「以配對碼加入現有裝置」取得配對碼，然後在這裡輸入，或掃描它顯示的 QR Code。
               </p>
 
-              <div className="mb-3.5">
+              <div className="mb-5">
                 <label className="text-caption block" style={{ color: "var(--ns-fg-muted)", marginBottom: 5 }}>配對碼</label>
                 <input
                   className="ns-input text-stat w-full text-center"
@@ -1159,18 +1196,8 @@ function AddDeviceDialog({
                   value={joinCode}
                   maxLength={9}
                   onChange={e => handleCodeInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter" && joinCode.length === 9) onJoin(); }}
+                  onKeyDown={e => { if (e.key === "Enter" && joinCode.length === 9) onInspect(); }}
                   autoFocus
-                />
-              </div>
-
-              <div className="mb-5">
-                <label className="text-caption block" style={{ color: "var(--ns-fg-muted)", marginBottom: 5 }}>這台裝置的名稱</label>
-                <input
-                  className="ns-input w-full"
-                  placeholder="My Mac"
-                  value={joinDeviceName}
-                  onChange={e => onJoinDeviceNameChange(e.target.value)}
                 />
               </div>
 
@@ -1182,12 +1209,46 @@ function AddDeviceDialog({
 
               <Button
                 className="w-full"
-                disabled={joinCode.length !== 9 || !joinDeviceName.trim() || joinLoading}
-                onClick={onJoin}
+                disabled={joinCode.length !== 9 || joinLoading}
+                onClick={onInspect}
               >
                 {joinLoading ? <Spinner size={14} className="animate-spin" /> : <CheckCircle size={14} weight="bold" />}
-                {joinLoading ? "配對中…" : "加入同步"}
+                {joinLoading ? "查詢中…" : "查詢裝置"}
               </Button>
+            </div>
+          )}
+
+          {/* ── Existing device (A): confirm the joining device before wrapping keys ── */}
+          {mode === "approve" && pendingApproval && (
+            <div>
+              <p className="text-sm muted mb-4">
+                確認這是你要加入的裝置。核對裝置名稱與指紋無誤後再授權——授權後才會把加密金鑰傳給對方。
+              </p>
+
+              <div className="mb-4" style={{ padding: "14px 16px", borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)" }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <PlatformIcon platform={pendingApproval.platform} />
+                  <span className="font-semibold">確認新裝置：{pendingApproval.name}</span>
+                </div>
+                <div className="text-caption" style={{ color: "var(--ns-fg-muted)" }}>金鑰指紋</div>
+                <div className="mono text-body" style={{ letterSpacing: 2, fontWeight: 600 }}>{pendingApproval.fingerprint}</div>
+              </div>
+
+              {joinError && (
+                <div className="text-xs mb-3.5" style={{ color: "var(--ns-neg)", padding: "10px 12px", background: "var(--ns-neg-soft)", borderRadius: "var(--ns-r-sm)" }}>
+                  {joinError}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button className="flex-1" disabled={approveLoading} onClick={onApprove}>
+                  {approveLoading ? <Spinner size={14} className="animate-spin" /> : <CheckCircle size={14} weight="bold" />}
+                  {approveLoading ? "授權中…" : "確認並授權"}
+                </Button>
+                <Button variant="outline" disabled={approveLoading} onClick={onCancelApprove}>
+                  取消
+                </Button>
+              </div>
             </div>
           )}
         </div>
