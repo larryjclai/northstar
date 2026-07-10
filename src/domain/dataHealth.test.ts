@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildDataHealthReport } from "./dataHealth";
+import {
+  buildDataHealthReport,
+  classifyCustomPriceStaleness,
+  customPriceStaleness,
+  latestManualPriceDate,
+} from "./dataHealth";
 import type { BuildDataHealthReportInput, QuoteForHealth } from "./dataHealth";
 import type { Account, AppSettings, DailyFxRate, DailyPrice, LedgerTransaction, ManualPriceSnapshot, PortfolioAsset } from "./types";
 
@@ -602,5 +607,82 @@ describe("orphaned-row", () => {
     ];
     const report = buildDataHealthReport(input);
     expect(report.issues.find((i) => i.kind === "orphaned-row")).toBeUndefined();
+  });
+});
+
+describe("customPriceStaleness helper (per-holding badge / plan 150)", () => {
+  const TODAY = "2026-07-10";
+
+  it("returns 'not-custom' for a non-custom asset regardless of snapshots", () => {
+    const asset = makeAsset(); // assetType "etf"
+    expect(customPriceStaleness(asset, [], TODAY)).toBe("not-custom");
+    expect(
+      customPriceStaleness(asset, [makeManualSnapshot({ date: "2020-01-01" })], TODAY),
+    ).toBe("not-custom");
+  });
+
+  it("returns 'missing' for a custom asset with no snapshots", () => {
+    const asset = makeCustomAsset();
+    expect(customPriceStaleness(asset, [], TODAY)).toBe("missing");
+  });
+
+  it("returns 'fresh' when the latest snapshot is within 90 days", () => {
+    const asset = makeCustomAsset();
+    // 89 days before TODAY (2026-07-10) → 2026-04-12
+    expect(customPriceStaleness(asset, [makeManualSnapshot({ date: "2026-04-12" })], TODAY)).toBe(
+      "fresh",
+    );
+  });
+
+  it("returns 'stale' when the latest snapshot is > 90 days old (91d)", () => {
+    const asset = makeCustomAsset();
+    // 91 days before TODAY → 2026-04-10
+    expect(customPriceStaleness(asset, [makeManualSnapshot({ date: "2026-04-10" })], TODAY)).toBe(
+      "stale",
+    );
+  });
+
+  it("is 'fresh' exactly at the 90-day boundary (not yet stale)", () => {
+    const asset = makeCustomAsset();
+    // exactly 90 days before TODAY → 2026-04-11
+    expect(customPriceStaleness(asset, [makeManualSnapshot({ date: "2026-04-11" })], TODAY)).toBe(
+      "fresh",
+    );
+  });
+
+  it("picks the most-recent snapshot when several exist", () => {
+    const asset = makeCustomAsset();
+    const snaps = [
+      makeManualSnapshot({ id: "a", date: "2020-01-01" }),
+      makeManualSnapshot({ id: "b", date: "2026-07-01" }), // fresh
+      makeManualSnapshot({ id: "c", date: "2021-01-01" }),
+    ];
+    expect(customPriceStaleness(asset, snaps, TODAY)).toBe("fresh");
+    expect(latestManualPriceDate(snaps)).toBe("2026-07-01");
+  });
+
+  it("latestManualPriceDate returns null for no snapshots", () => {
+    expect(latestManualPriceDate([])).toBeNull();
+  });
+
+  it("classifyCustomPriceStaleness matches the wrapper for a resolved date", () => {
+    const asset = makeCustomAsset();
+    expect(classifyCustomPriceStaleness(asset, null, TODAY)).toBe("missing");
+    expect(classifyCustomPriceStaleness(asset, "2026-04-10", TODAY)).toBe("stale");
+    expect(classifyCustomPriceStaleness(asset, "2026-07-01", TODAY)).toBe("fresh");
+  });
+
+  it("agrees with the Dashboard data-health banner for the same fixtures", () => {
+    // A stale custom asset should surface in BOTH the helper and the report.
+    const staleAsset = makeCustomAsset({ id: "custom1" });
+    const staleSnap = makeManualSnapshot({ assetId: "custom1", date: "2026-04-10" }); // 91d
+    expect(customPriceStaleness(staleAsset, [staleSnap], TODAY)).toBe("stale");
+
+    const input = healthyInput();
+    input.assets = [staleAsset];
+    input.manualPriceSnapshots = [staleSnap];
+    input.todayIso = TODAY;
+    const report = buildDataHealthReport(input);
+    expect(report.issues.find((i) => i.id === "stale-manual-price")).toBeDefined();
   });
 });
