@@ -13,7 +13,7 @@ import type { SyncFields } from "../../../domain/types";
 import type { SyncApplyChange, SyncConflictRecord, SyncEntity } from "../../../domain/sync";
 import { loadVaultKey, decryptPayload } from "../crypto/vault";
 import { pullEnvelopes, type EnvelopeRecord } from "./client";
-import type { SyncAccount } from "./account";
+import { getSyncAuthToken, type SyncAccount } from "./account";
 import type { FinanceRepository } from "../../../data/repositories";
 
 export interface SyncPullResult {
@@ -43,7 +43,7 @@ export async function pullAndApply(
   const vaultKey = await loadVaultKey();
   if (!vaultKey) throw new Error("Vault key not initialised.");
 
-  const result = await pullEnvelopes(account.apiSecret, cursor);
+  const result = await pullEnvelopes(await getSyncAuthToken(account), cursor);
   const foreign = opts.includeOwnDevice
     ? result.envelopes
     : result.envelopes.filter((e: EnvelopeRecord) => e.deviceId !== deviceId);

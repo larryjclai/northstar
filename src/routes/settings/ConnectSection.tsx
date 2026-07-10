@@ -27,6 +27,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "../../components/ui/pop
 import QRCode from "react-qr-code";
 import {
   loadSyncAccount, getOrCreateSyncAccount, setSyncAccount, sha256Hex,
+  generateDeviceSecret, saveDeviceSecret,
   type SyncAccount,
 } from "../../features/connect/sync/account";
 import {
@@ -318,6 +319,10 @@ export function ConnectStatus() {
 
       const newAccount = await getOrCreateSyncAccount();
       const hash = await sha256Hex(newAccount.apiSecret);
+      // Mint this first device's own relay credential (Plan 132). Only the hash
+      // is registered; the secret is persisted locally after /users succeeds.
+      const deviceSecret = generateDeviceSecret();
+      const deviceSecretHash = await sha256Hex(deviceSecret);
       await registerUser({
         userId: newAccount.userId,
         apiSecretHash: hash,
@@ -325,8 +330,10 @@ export function ConnectStatus() {
           id: identity.deviceId,
           name: joinDeviceName,
           platform: getDevicePlatform(),
+          secretHash: deviceSecretHash,
         },
       });
+      await saveDeviceSecret(deviceSecret);
       setAccount(newAccount);
       const devs = await listDevices(newAccount.apiSecret);
       setDevices(devs);

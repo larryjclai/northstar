@@ -219,6 +219,10 @@ export interface PublicPairingBundle {
   publicKeyB64: string;
   name: string;
   platform: string;
+  // secretHash: SHA-256 of B's own relay credential (Plan 132). Only the HASH
+  // travels — B's device secret never leaves B. A forwards this to the relay
+  // when it registers B, so B can immediately authenticate with its own token.
+  secretHash?: string;
 }
 
 /**

@@ -1,15 +1,29 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryFinanceRepositoryForTests } from "../../../data/repositories";
 import { pullAndApply } from "./pull";
 import { pullEnvelopes } from "./client";
 import type { SyncEntity } from "../../../domain/sync";
 
-vi.mock("./client", () => ({ pullEnvelopes: vi.fn() }));
+vi.mock("./client", () => ({ pullEnvelopes: vi.fn(), provisionDeviceCredential: vi.fn() }));
 vi.mock("../crypto/vault", () => ({
   loadVaultKey: vi.fn(async () => ({})),
   decryptPayload: vi.fn(async (_k: unknown, p: string) => JSON.parse(p)),
 }));
 const mockedPull = vi.mocked(pullEnvelopes);
+
+// getSyncAuthToken → loadDeviceSecret reaches the SecretStore (localStorage off
+// device). jsdom has no localStorage; stub an empty one so the token resolves to
+// the account secret.
+beforeEach(() => {
+  const mem = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (k: string) => mem.get(k) ?? null,
+    setItem: (k: string, v: string) => void mem.set(k, v),
+    removeItem: (k: string) => void mem.delete(k),
+    clear: () => mem.clear(),
+  });
+});
+afterEach(() => vi.unstubAllGlobals());
 
 async function fullSync(from: any, to: any, opts: { dropOpening?: boolean } = {}) {
   // Serialize every entity from A exactly as push would (getSyncPayload),

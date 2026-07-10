@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryFinanceRepositoryForTests } from "../../../data/repositories";
 import type { Account } from "../../../domain/types";
 import { pullAndApply } from "./pull";
@@ -6,6 +6,9 @@ import { pullEnvelopes } from "./client";
 
 vi.mock("./client", () => ({
   pullEnvelopes: vi.fn(),
+  // getSyncAuthToken (via account.ts) reads the device secret from the store;
+  // provisionDeviceCredential is imported by account.ts but unused on this path.
+  provisionDeviceCredential: vi.fn(),
 }));
 
 vi.mock("../crypto/vault", () => ({
@@ -50,7 +53,18 @@ function envelope(payload: Account, deviceId = "device_b") {
 describe("pullAndApply", () => {
   beforeEach(() => {
     mockedPullEnvelopes.mockReset();
+    // getSyncAuthToken → loadDeviceSecret touches the SecretStore, which falls
+    // back to localStorage off-device. jsdom has no localStorage, so stub it
+    // (empty → no device secret → token falls back to the account secret).
+    const mem = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => mem.get(k) ?? null,
+      setItem: (k: string, v: string) => void mem.set(k, v),
+      removeItem: (k: string) => void mem.delete(k),
+      clear: () => mem.clear(),
+    });
   });
+  afterEach(() => vi.unstubAllGlobals());
 
   it("applies only the changed record and preserves unrelated local rows", async () => {
     const repo = createMemoryFinanceRepositoryForTests();

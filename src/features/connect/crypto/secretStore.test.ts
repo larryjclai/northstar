@@ -194,11 +194,13 @@ describe("migrateLocalStorageSecrets", () => {
     expect(mockStore.data.size).toBe(0);
   });
 
-  it("SECRET_KEYS covers all three known keys", () => {
+  it("SECRET_KEYS covers all known secret keys", () => {
     expect(SECRET_KEYS).toContain("northstar.vault.key.v1");
     expect(SECRET_KEYS).toContain("northstar.device.keypair.v1");
     expect(SECRET_KEYS).toContain("northstar.sync.account.v1");
-    expect(SECRET_KEYS).toHaveLength(3);
+    // Per-device relay credential (Plan 132).
+    expect(SECRET_KEYS).toContain("northstar.device.secret.v1");
+    expect(SECRET_KEYS).toHaveLength(4);
   });
 });
 

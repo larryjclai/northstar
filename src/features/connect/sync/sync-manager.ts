@@ -12,7 +12,7 @@ import type { FinanceRepository } from "../../../data/repositories";
 import { getOrCreateDeviceIdentity, setRemotePullCursor, setLocalPushCursor, resetSyncCursors } from "../../../state/deviceIdentity";
 import { loadVaultKey } from "../crypto/vault";
 import { isRecoveryKitConfirmed } from "../crypto/recovery-kit";
-import { loadSyncAccount } from "./account";
+import { loadSyncAccount, ensureDeviceCredential } from "./account";
 
 /** Thrown by runSync when the Recovery Kit has not been confirmed yet. */
 export const RECOVERY_KIT_REQUIRED = "請先備份並確認 Recovery Kit 才能開始同步";
@@ -62,6 +62,10 @@ async function _doSync(repo: FinanceRepository): Promise<SyncResult> {
   // Without the kit, a lost device means permanently lost data — see
   // canEnableCloudBackedFeature in policies.ts.
   if (!isRecoveryKitConfirmed()) throw new Error(RECOVERY_KIT_REQUIRED);
+
+  // Migrate existing installs onto a per-device credential before we push/pull.
+  // Best-effort: never blocks sync (falls back to the account secret on failure).
+  await ensureDeviceCredential(account);
 
   const device = getOrCreateDeviceIdentity();
 

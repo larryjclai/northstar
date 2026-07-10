@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const relay = vi.hoisted(() => ({
   sessions: new Map<string, { encryptedBundle: string; deviceId: string; token: string; claimed: boolean }>(),
   keyEnvelopes: new Map<string, Array<{ id: string; sourceDeviceId: string; keyType: string; wrappedKey: string; sourcePublicKeyB64?: string; createdAt: string }>>(),
-  devices: [] as Array<{ id: string; name: string; platform: string }>,
+  devices: [] as Array<{ id: string; name: string; platform: string; secretHash?: string }>,
   bundles: [] as string[],
   reset() {
     this.sessions.clear();
@@ -50,11 +50,13 @@ vi.mock("./client", () => ({
     if (!ok) throw new Error("Invalid pairing token");
     return relay.keyEnvelopes.get(target) ?? [];
   }),
-  addDevice: vi.fn(async (_apiSecret: string, device: { id: string; name: string; platform: string }) => {
+  addDevice: vi.fn(async (_apiSecret: string, device: { id: string; name: string; platform: string; secretHash?: string }) => {
     relay.devices.push(device);
   }),
   // legacy — unused by the ECDH flow but imported by the module under test
   createPairingSession: vi.fn(),
+  // imported by account.ts (ensureDeviceCredential); unused on the pairing path
+  provisionDeviceCredential: vi.fn(),
 }));
 
 import {
@@ -64,7 +66,7 @@ import {
   approveJoiningDevice,
 } from "./pairing-flow";
 import { generateVaultKey, saveVaultKey, loadVaultKey, exportVaultKey } from "../crypto/vault";
-import { getOrCreateSyncAccount, loadSyncAccount } from "./account";
+import { getOrCreateSyncAccount, loadSyncAccount, loadDeviceSecret, getSyncAuthToken, sha256Hex } from "./account";
 import { resetSecretStoreForTests } from "../crypto/secretStore";
 
 function makeLocalStorage(): Storage {
@@ -141,8 +143,12 @@ describe("ECDH pairing end-to-end", () => {
     expect(acctEnv.wrappedKey).not.toContain(aAccount.apiSecret);
     expect(vaultEnv.sourcePublicKeyB64).toBeTruthy();
 
-    // A registered B.
-    expect(relay.devices).toContainEqual({ id: session.deviceId, name: "我的 iPhone", platform: "ios" });
+    // A registered B — with B's device-credential HASH (Plan 132), never a secret.
+    const registered = relay.devices.find((d) => d.id === session.deviceId)!;
+    expect(registered).toMatchObject({ id: session.deviceId, name: "我的 iPhone", platform: "ios" });
+    expect(registered.secretHash).toBeTruthy();
+    // The bundle A processed must carry only the HASH, never B's raw secret.
+    expect(relay.bundles[0]).not.toContain(session.deviceSecret);
 
     // ── Device B: polls again, completes the join ──
     activate(deviceB);
@@ -158,6 +164,18 @@ describe("ECDH pairing end-to-end", () => {
     // …and A's account secret.
     const bAccount = await loadSyncAccount();
     expect(bAccount).toEqual({ userId: aAccount.userId, apiSecret: aAccount.apiSecret });
+
+    // Plan 132: B now holds its OWN relay credential, and the hash A registered
+    // matches it — so B authenticates as itself, and revoking B's row severs it.
+    const bSecret = await loadDeviceSecret();
+    expect(bSecret).toBe(session.deviceSecret);
+    expect(await sha256Hex(bSecret!)).toBe(registered.secretHash);
+
+    // B syncs using its DEVICE token ("<deviceId>.<deviceSecret>"), NOT the
+    // shared account secret.
+    const token = await getSyncAuthToken(bAccount!);
+    expect(token).toBe(`${session.deviceId}.${bSecret}`);
+    expect(token).not.toBe(bAccount!.apiSecret);
   });
 
   it("a wrong pairing code cannot claim the session", async () => {

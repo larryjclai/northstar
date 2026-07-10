@@ -6,7 +6,7 @@ import type { FinanceRepository } from "../../../data/repositories";
 import { getOrCreateDeviceIdentity, setLocalPushCursor } from "../../../state/deviceIdentity";
 import { loadVaultKey, encryptPayload } from "../crypto/vault";
 import { pushEnvelopes, type EnvelopeRecord } from "./client";
-import type { SyncAccount } from "./account";
+import { getSyncAuthToken, type SyncAccount } from "./account";
 
 const BATCH_SIZE = 200;
 
@@ -32,6 +32,9 @@ export async function pushPendingChanges(
   if (changeSet.count === 0) {
     return { pushed: 0, nextCursor: device.localPushCursor };
   }
+
+  // Prefer this device's own credential; falls back to the account secret.
+  const authToken = await getSyncAuthToken(account);
 
   // Process in batches to stay within the Worker's 500-envelope limit.
   for (let i = 0; i < changeSet.changes.length; i += BATCH_SIZE) {
@@ -60,7 +63,7 @@ export async function pushPendingChanges(
         };
       }),
     );
-    await pushEnvelopes(account.apiSecret, envelopes);
+    await pushEnvelopes(authToken, envelopes);
     await repo.acknowledgePendingChanges(
       batch.flatMap((change) => change.outboxId ? [change.outboxId] : []),
     );

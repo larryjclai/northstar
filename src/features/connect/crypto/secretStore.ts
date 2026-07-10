@@ -35,12 +35,15 @@ const STRONGHOLD_FILENAME = "northstar-stronghold.bin";
 // Client name inside the Stronghold snapshot.
 const STRONGHOLD_CLIENT = "northstar-secrets";
 
-// The three localStorage keys that hold secrets today.
+// The localStorage keys that hold secrets today.
 // Referenced by migrateLocalStorageSecrets; kept here for a single source of truth.
 export const SECRET_KEYS = [
   "northstar.vault.key.v1",
   "northstar.device.keypair.v1",
   "northstar.sync.account.v1",
+  // Per-device relay credential (Plan 132). The plaintext secret; only its
+  // SHA-256 hash is ever sent to the worker.
+  "northstar.device.secret.v1",
 ] as const;
 
 export type SecretKey = (typeof SECRET_KEYS)[number];

@@ -38,7 +38,14 @@ import {
   fingerprintPublicKey,
   type PublicPairingBundle,
 } from "../crypto/pairing";
-import { getOrCreateSyncAccount, setSyncAccount } from "./account";
+import {
+  getOrCreateSyncAccount,
+  setSyncAccount,
+  generateDeviceSecret,
+  saveDeviceSecret,
+  clearDeviceSecret,
+  sha256Hex,
+} from "./account";
 import { confirmRecoveryKit } from "../crypto/recovery-kit";
 import {
   createPairingSession,
@@ -90,6 +97,12 @@ export interface JoinSession {
   pairingToken: string;
   /** This device's id (target of the wrapped envelopes). */
   deviceId: string;
+  /**
+   * This device's freshly-generated relay credential (Plan 132). Device-local
+   * and NEVER transmitted — only its hash rides the pairing bundle. Persisted by
+   * completeJoin() once the join succeeds.
+   */
+  deviceSecret: string;
   deviceName: string;
   platform: string;
 }
@@ -108,6 +121,10 @@ export async function startJoinSession(
   const publicKeyB64 = await exportPublicKey(pair.publicKey);
   const device = getOrCreateDeviceIdentity();
 
+  // Mint this device's relay credential now; only its hash goes into the bundle.
+  const deviceSecret = generateDeviceSecret();
+  const secretHash = await sha256Hex(deviceSecret);
+
   const code = generatePairingCode();
   const salt = generateBundleSalt();
   const bundleKey = await deriveBundleKey(code, salt);
@@ -116,6 +133,7 @@ export async function startJoinSession(
     publicKeyB64,
     name: deviceName,
     platform,
+    secretHash,
   };
   const cipher = await encryptPayload(bundleKey, publicBundle);
 
@@ -127,6 +145,7 @@ export async function startJoinSession(
     expiresAt: new Date(Date.now() + 5 * 60 * 1000),
     pairingToken,
     deviceId: device.deviceId,
+    deviceSecret,
     deviceName,
     platform,
   };
@@ -166,6 +185,11 @@ export async function completeJoin(session: JoinSession): Promise<JoinResult | n
   const acct = (await decryptPayload(shared, account.wrappedKey)) as { userId: string; apiSecret: string };
   await setSyncAccount({ userId: acct.userId, apiSecret: acct.apiSecret });
 
+  // Persist this device's own relay credential. Device A already registered its
+  // hash (via addDevice) when it approved us, so this device can authenticate
+  // with its own token ("<deviceId>.<deviceSecret>") from the first sync.
+  await saveDeviceSecret(session.deviceSecret);
+
   // Device A already registered this device (addDevice) when it approved it.
   return { userId: acct.userId };
 }
@@ -179,6 +203,8 @@ export interface PendingJoinApproval {
   platform: string;
   /** 8-hex SAS fingerprint of the joining device's public key, for user confirmation. */
   fingerprint: string;
+  /** Hash of B's own relay credential (Plan 132); forwarded to the relay on approval. */
+  secretHash?: string;
 }
 
 /**
@@ -199,6 +225,7 @@ export async function inspectJoinRequest(input: string): Promise<PendingJoinAppr
     name: bundle.name,
     platform: bundle.platform,
     fingerprint,
+    secretHash: bundle.secretHash,
   };
 }
 
@@ -248,6 +275,7 @@ export async function approveJoiningDevice(approval: PendingJoinApproval): Promi
     id: approval.deviceId,
     name: approval.name,
     platform: approval.platform,
+    secretHash: approval.secretHash,
   });
 }
 
@@ -310,6 +338,12 @@ export async function joinWithCode(
   confirmRecoveryKit();
 
   await setSyncAccount({ userId: bundle.userId, apiSecret: bundle.apiSecret });
+
+  // Legacy path registers this device WITHOUT a device credential, so it must
+  // authenticate with the account secret. Drop any stale device secret from a
+  // previous account so getSyncAuthToken doesn't present a bogus device token;
+  // ensureDeviceCredential will provision a fresh one on the next sync.
+  await clearDeviceSecret();
 
   const device = getOrCreateDeviceIdentity();
   await addDevice(bundle.apiSecret, {

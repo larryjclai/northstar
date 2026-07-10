@@ -67,7 +67,8 @@ async function request<T>(
 export async function registerUser(opts: {
   userId: string;
   apiSecretHash: string;
-  device: { id: string; name: string; platform: string };
+  // device.secretHash: SHA-256 of this device's own credential (Plan 132).
+  device: { id: string; name: string; platform: string; secretHash?: string };
 }): Promise<void> {
   await request("/users", { method: "POST", body: JSON.stringify(opts) });
 }
@@ -97,9 +98,30 @@ export async function pullEnvelopes(
 /** Register an additional device on an existing account (Device B pairing path). */
 export async function addDevice(
   apiSecret: string,
-  device: { id: string; name: string; platform: string },
+  // secretHash: SHA-256 of the joining device's own credential (Plan 132); the
+  // joining device generates the secret locally and only its hash travels here.
+  device: { id: string; name: string; platform: string; secretHash?: string },
 ): Promise<void> {
   await request("/devices", { method: "POST", apiSecret, body: JSON.stringify(device) });
+}
+
+/**
+ * Self-provision this device's relay credential on an existing account (Plan 132
+ * migration path). Authenticated with the account secret (legacy); the worker
+ * only sets the credential if the device row currently has none. Throws on a
+ * 409 (already provisioned / not owned) so the caller can keep using the account
+ * secret and retry later.
+ */
+export async function provisionDeviceCredential(
+  apiSecret: string,
+  deviceId: string,
+  secretHash: string,
+): Promise<void> {
+  await request(`/devices/${deviceId}/credential`, {
+    method: "POST",
+    apiSecret,
+    body: JSON.stringify({ secretHash }),
+  });
 }
 
 /** List trusted devices for this account. */
