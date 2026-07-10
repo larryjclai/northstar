@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCostBasisTimeline, buildPositionMetrics, calculateXirr, cashflowSpanDays } from "./portfolioMetrics";
+import { buildCostBasisTimeline, buildPositionMetrics, buildQuantityTimeline, calculateXirr, cashflowSpanDays } from "./portfolioMetrics";
 import type { InvestmentRecord } from "./types";
 
 function record(partial: Partial<InvestmentRecord>): InvestmentRecord {
@@ -47,6 +47,24 @@ describe("buildPositionMetrics (moving average)", () => {
     expect(m.quantity).toBe(6);
     expect(m.averageCost).toBeCloseTo(100, 6);
     expect(m.costBasis).toBeCloseTo(600, 6);
+  });
+
+  it("clamps an oversell to shares held: no proceeds for phantom shares, quantity floors at 0", () => {
+    const records = [
+      record({ date: "2024-01-01", action: "buy", price: 100, quantity: 4, fee: 0 }),
+      record({ date: "2024-02-01", action: "sell", price: 150, quantity: 10, fee: 10 }),
+    ];
+    const m = buildPositionMetrics(records);
+    // Only 4 shares held: proceeds = 150*4 - 10 = 590 (not 150*10 - 10 = 1490).
+    expect(m.quantity).toBe(0);
+    expect(m.costBasis).toBeCloseTo(0, 6);
+    // realized = proceeds - cost of 4 @ avg 100 = 590 - 400 = 190.
+    expect(m.realizedGain).toBeCloseTo(190, 6);
+    const sellFlow = m.cashflows.find((c) => c.date === "2024-02-01");
+    expect(sellFlow?.amount).toBeCloseTo(590, 6);
+    // The XIRR cashflow must agree with the quantity timeline (which clamps too).
+    const finalQty = buildQuantityTimeline(records).reduce((sum, d) => sum + d.delta, 0);
+    expect(finalQty).toBe(0);
   });
 
   it("stock dividend keeps total cost and lowers average", () => {
