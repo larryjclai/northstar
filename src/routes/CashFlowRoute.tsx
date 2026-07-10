@@ -44,7 +44,7 @@ import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer
 import { useToast } from "../components/Toast";
 import type { LedgerDraft, TransferDraft } from "../data/repositories";
 import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, evaluateAmountExpression, filterCategoriesByType, formatNumber, installmentLabel, isNeutralLedgerRow, isWithinDateScope, makeDefaultDateScope, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, resolveDateScope, todayInTimezone } from "../domain";
-import { convertCurrency, formatCompactNumber } from "../domain/currency";
+import { convertCurrency, buildDailyRateIndex, formatCompactNumber } from "../domain/currency";
 import type { Account, LedgerTransaction, RecurringFrequency, RecurringTransaction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useNumericField } from "../hooks/useNumericField";
@@ -178,10 +178,11 @@ export function CashFlowRoute() {
   const ledgerRows = ledger.data ?? [];
   const recurringRows = recurring.data ?? [];
   const fxHistory = dailyFxRates.data ?? [];
+  const fxIndex = useMemo(() => buildDailyRateIndex(fxHistory), [fxHistory]);
   const primaryCurrency = appSettings?.primaryCurrency ?? "TWD";
   const toPrimary = useCallback((row: LedgerTransaction, amount = row.amount) =>
-    convertCurrency(amount, row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date }),
-  [appSettings, fxHistory, primaryCurrency]);
+    convertCurrency(amount, row.currency, primaryCurrency, appSettings, { dailyRateIndex: fxIndex, asOfDate: row.date }),
+  [appSettings, fxIndex, primaryCurrency]);
 
   // Deep-link from the Reconcile screen: open the transaction's detail panel once
   // the ledger has loaded (matching what a tap on a CashFlow row does).
@@ -857,9 +858,9 @@ export function CashFlowRoute() {
   const settlements = useMemo(
     () => buildOutstandingSettlements(
       selectedAccount === "all" ? ledgerRows : ledgerRows.filter((r) => r.accountId === selectedAccount),
-      (amount, currency) => convertCurrency(amount, currency, primaryCurrency, appSettings, { dailyRates: fxHistory }) ?? amount,
+      (amount, currency) => convertCurrency(amount, currency, primaryCurrency, appSettings, { dailyRateIndex: fxIndex }) ?? amount,
     ),
-    [ledgerRows, selectedAccount, appSettings, fxHistory, primaryCurrency],
+    [ledgerRows, selectedAccount, appSettings, fxIndex, primaryCurrency],
   );
 
   if (isInitialLoading) {
