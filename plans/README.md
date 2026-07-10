@@ -135,6 +135,82 @@ gets a "2–3 句, no markdown" instruction but ignores it, so the fix is to *re
 markdown, not to re-instruct. "更簡短" via the Swift prompt (`FoundationModels.swift:247`)
 is an optional on-device follow-up (device-verify only), noted in 116, not in JS scope.
 
+> **Execution log (2026-07-09).** Merged to main so far this session: 118, 144
+> (new — from 124's audit), 123, 124. Main advanced `65fe04c1` → `1c64e00d`,
+> 843 tests green. **Harness note for future `execute` runs:** agent worktrees
+> are created from the session's ORIGINAL commit, not live `main` — so any plan
+> depending on freshly-merged work must have its executor run
+> `git merge --ff-only main` in the worktree BEFORE editing (124 re-STOPPED
+> twice until this was done). Merged agent branches (`fix/ai-fee-autofill-*`,
+> `fix/ai-accounts-recalc-invalidation`, `fix/ai-fx-converter-perf`,
+> `fix/ai-query-staletime`) and their `.claude/worktrees/agent-*` dirs can be
+> cleaned up at leisure. Optional follow-up (plan 124 maintenance note, not
+> done): add a one-line AGENTS.md gotcha that new mutations must invalidate
+> their query keys now that `staleTime: Infinity` no longer masks omissions.
+
+## 2026-07-09 deep-audit batch (118–143)
+
+Source: `/improve deep` + `/impeccable` lens, planned against `main` @ `65fe04c1`
+(v0.1.0-alpha.53, 831 tests green). 8 parallel category audits (correctness ×2,
+security, perf, tests+DX, debt+deps, docs+direction, UI/UX); every finding
+vetted against the code before planning. Operator selected ALL eight clusters.
+
+**Suggested execution order** (independent unless noted): quick wins first
+(118, 123, 124, 135), then test foundation (126–128) before the risky perf/
+refactor work (125), security in sequence (130 → 131 → 132; 133 anytime),
+everything else parallel-friendly.
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 118 | Fee auto-fill preserves stored fee on TW edit | P1 | S | — | ✅ MERGED on main (merge `deef1703`, 2026-07-09; commits `b2a8e695`+`1c246f38`). Helper in leaf module `investmentsAddSheetFee.ts` + 4-case test; post-merge main re-verified tsc 0 / 835 tests / lint 0. |
+| 119 | Repo parity: recurring nextRunDate advance + browser sync occurrence dedup | P1 | M | — | ✅ MERGED on main (fast-forward `5f5c3aa6`, 2026-07-09; commits `86b5fe6a`+`5f5c3aa6`). Bug1: browser advances `nextRunDate` on `advanced.size>0` (recompute still gated on `posted>0`). Bug2: browser `applySyncChanges` applies the SQLite winner rule (`sort()[0]`, loser tombstoned with `bump()`). +3 tests (fail-first). Recurring-investments path checked — no bug1 pattern (single-rule post). Post-merge main: tsc 0 / 846 tests / lint 0. Removes 2 divergences plan 126 would flag. |
+| 120 | Timezone-aware "today/current month" sweep (4 high-impact sites) | P2 | S | — | ✅ MERGED (partial) on main (fast-forward `ae0c9ce1`, 2026-07-09; commit `ae0c9ce1`). 3 user-facing sites fixed (Dashboard month KPI, budget currentMonth, CashFlow UpcomingPayments) + `firstFutureRunDate` made injectable + 6 tests. **Repo-caller site legitimately STOPPED** (data layer has no timezone — validated) → deferred to plan 146. Post-merge main: tsc 0 / 852 tests / lint 0. |
+| 145 | CashFlow per-row FX uses the daily-rate index (plan-123 follow-up) | P2 | S | 123 (merged) | ✅ MERGED on main (fast-forward `1330280e`, 2026-07-09; commit `1330280e`). Both per-row daily `convertCurrency` calls now pass `dailyRateIndex: fxIndex` (memoized on `fxHistory`); grep→0; bit-identical per 123's proof. Post-merge main: tsc 0 / 852 tests / lint 0. |
+| 146 | Recurring-seed timezone plumbing (finishes 120's deferred repo-caller piece) | P3 | S | 120 (merged) | TODO — thread `seedToday: todayInTimezone(tz)` through the draft to the two `firstFutureRunDate` callers. |
+| 121 | FX missing-rate visibility (toPrimaryOrNull + annual-report warning) | P2 | M | — | TODO |
+| 122 | Small-fix basket: CSV error path / update-listener StrictMode / scope-edit tx / oversell clamp | P2 | M | — | TODO |
+| 123 | FX converter useMemo + per-pair rate index + CashFlow aggregate memo | P1 | S | coordinate w/ 121 | ✅ MERGED on main (merge `bd2292c2`, 2026-07-09; commits `0aebf545`+`9c00fdb0`). Per-pair binary-search index proven bit-identical (tie-break walk-back + 50×20 property test); 4 route sites memoized, 5th correctly excluded (plain helper already inside a useMemo); CashFlow aggregates memoized off searchQuery. Post-merge main: tsc 0 / 843 tests / lint 0. |
+| 124 | QueryClient staleTime Infinity + no focus refetch | P1 | S | 144 (merged) | ✅ MERGED on main (fast-forward `1c64e00d`, 2026-07-09). `QueryClient` now `staleTime: Infinity` + `refetchOnWindowFocus: false` + `retry: 1`. Guarded by the full Step-1 invalidation audit (mutations + sync-apply all invalidate; 144 closed the one gap; market-data has its own focus listener). Post-merge main: tsc 0 / 843 tests / lint 0. Took 3 executor attempts (2 lost to the worktree-base quirk + an infra outage). |
+| 144 | Fix missing `assets` invalidation in AccountsRoute.recalculate (124 prerequisite) | P1 | S | — | ✅ MERGED on main (fast-forward `abf17052`, 2026-07-09). `accounts.refetch()`→`queryClient.invalidateQueries()` matching GeneralSection; post-merge main re-verified tsc 0 / 835 tests / lint 0. |
+| 125 | Scope the SQLite recompute (tombstone filter, changed-rows only, kill O(n²)) | P2 | M | 126 preferred | TODO |
+| 126 | Dual-repo test harness (money suites × memory+SQLite) | P1 | L | 119 first | TODO |
+| 127 | Legacy-schema migration + repair-chain tests | P1 | M | — | TODO |
+| 128 | CI covers build surface (vite build / check:tauri / worker / e2e smoke) | P1 | S–M | — | TODO |
+| 129 | Sync orchestration + worker endpoint tests; pull N+1 batch fetch | P2 | M–L | — | TODO |
+| 130 | Stronghold cutover completion (vault key + keypair; docs truth-sync) | P1 | M | — | TODO |
+| 131 | Pairing via ECDH key exchange (vault key never code-protected on relay) | P1 | M–L | 130; 129 rec. | TODO |
+| 132 | Per-device credentials — revocation actually revokes | P1 | L | 130, 131, 129 | TODO |
+| 133 | Worker + shell hardening (per-user relay_sequence, rate limits, CSP, SQL caps) | P2 | M | 129 rec. | TODO |
+| 134 | gain/loss semantic tokens on investment P&L (HoldingDetail hero, Analytics) | P2 | M | — | TODO |
+| 135 | aria-labels for ~28 icon-only buttons | P2 | S | — | ✅ MERGED on main (merge `d788440a`, 2026-07-09; commit `d5a4aa54`). 28 icon-only buttons + 2 raw month-picker arrows labeled (zh-TW, handler-derived: 關閉/取消/新增/編輯/刪除/確認…); grep→0; 16 .tsx files, attribute-only. Post-merge main: tsc 0 / 846 tests / lint 0. |
+| 136 | Scrim/shadow token adoption (~12 overlays, drop decorative blur) | P3 | M | — | TODO |
+| 137 | Design-token compliance batch (chart-6/7 tokens, accent-fg, formatPercent, field labels, QuickAdd chips) | P3 | M | after 134 if both run | TODO |
+| 138 | Accessible ModalShell (role/focus-trap/Escape) + 4 pilot migrations | P2 | L | 136 rec. | TODO |
+| 139 | Docs reality-sync (architecture/README/ROADMAP/DEVELOPMENT/COSS-plan) + drop 3 unused deps | P2 | S–M | skip §130-overlap if 130 landed | TODO |
+| 140 | Analytics trust P1s (router error boundary, QueryGate, fixed-basket caveat, tappable help) | P2 | M | — | TODO |
+| 141 | Custom-asset staleness data-health rule + entry-flow gap check | P2 | S–M | — | TODO |
+| 142 | DCA finish-or-retire decision doc (spike — docs/dca-decision.md) | P3 | S–M | — | TODO |
+| 143 | Household sharing (Connect Duo) design spike (docs/household-sharing-spike.md) | P3 | M | read 130–132 | TODO |
+
+Batch dependency notes:
+- **144 → 124**: the plan-124 executor's mandatory invalidation audit found
+  `AccountsRoute.recalculate` persists recomputed assets but only refetches
+  `accounts` (never invalidates `assets`) — reviewer-confirmed against
+  GeneralSection's correct sibling. Landing 124's config with this gap open
+  would leave holdings stale for the session. 144 fixes it; 124 re-runs after.
+- **119 → 126**: the harness would immediately flag 119's two known divergences;
+  fix first so its first run is clean.
+- **126/127 → 125**: recompute changes are money-critical; land the safety net first.
+- **130 → 131 → 132** is a hard security sequence (storage → key exchange →
+  credentials). 132's crypto-revocation gap (vault-key rotation) is an explicit
+  deferred follow-up recorded in its plan.
+- **121 + 123** both touch `createFxConverter` — trivially composable, but
+  whichever runs second re-checks the factory excerpt.
+- **134 before 137** if both run (shared files: HoldingDetailRoute, AnalyticsTab).
+- Deep-audit clean bill (do not re-audit): `npm audit` 0 vulns; AES-GCM envelope
+  crypto sound (fresh IVs); no XSS sinks (MarkdownText parses to elements); all
+  SQL parameterized; `.env` never committed; entry bundle clean; no circular deps.
+
 ## Dependency notes
 
 - All current UI phase 3 plans are fully executed, verified, merged to `main`, and released in `v0.1.0-alpha.46`.
@@ -257,3 +333,19 @@ Source: operator's 4-item report (小數位數 / DRIP 驗證 / 通知位置 / si
 - `InvestmentsRoute.tsx:1339`/`1448` `hover:bg-black/5 dark:hover:bg-white/5`: impeccable 偵測器 flag 為 pure-black background — 誤報，是合法的列 hover 微調，非 scrim。107 明確排除，勿再掃出。
 - Dashboard KPI 卡的 4px 色籤（`KpiCard`, DashboardRoute.tsx:1370）曾疑似 side-stripe 反模式 — 查證為圓角 pill 元素（非 border-left），屬允許寫法，不修。
 - QuickAdd FAB 蓋到 Dashboard 圖表右下（375px）— 標準 FAB 行為，demo 資料下才明顯，影響低，不值得做。
+
+### From the 2026-07-09 deep audit (vetted-rejected — do not re-flag)
+
+- "DESIGN.md prescribes SwiftUI" — mis-attributed by a subagent; the line is in the known-stale `.impeccable.md:17`, not DESIGN.md. DESIGN.md is accurate.
+- TransactionsRoute 「JANUARY 2026」English month header (`transactionsTxLabel`-adjacent, ~:643) — intentional: explicit eslint-disable + comment; matches the English-eyebrow convention. Not stray i18n.
+- QuickAdd editable-input `toLocaleString` (~:261) and NumberField/FIRECalculator input formatting — inputs are exempt from the privacy-mask rule by convention (you can't mask a field mid-edit). Only DISPLAY chips were planned (137-E).
+- Direct `getFinanceRepository()` calls in 10 files — mostly legitimate imperative one-offs (demo mode, export, device connect); not worth a consolidation plan.
+- TypeScript 7 / ESLint 10 / worker-types v5 majors — track, don't migrate; all runtime deps are current-major. Batch the ESLint ecosystem when it's actually needed.
+- Sortino/Sharpe/MaxDrawdown KpiCard ACCENT colors using pos/neg (AnalyticsTab :843/:861) — metric-quality cues, not price direction; the gain/loss litmus does not apply. Recorded in plan 134 as leave-alone.
+- worker CORS `*` — re-confirmed fine (Bearer auth, no cookies). Standing rejection from the June audit.
+- "Custom assets have no entry UI" (original DIR-04 wording) — STALE at vetting: InvestmentsAddSheet:304 creates `assetType:"custom"` and HoldingEditModal logs manual prices. Only the staleness data-health rule remained → plan 141 re-scoped.
+- `next-themes`/`react-hook-form`/`@tanstack/react-table` as "maybe planned" — no; verified zero imports, removal is plan 139 item 6.
+- Dead COSS primitives (coss/checkbox|field|label|select, 0 importers) — intentional scaffolding for the deferred form-primitive migration; plan 139 documents them instead of deleting.
+- `components/ui/` "dual component stack" — largely by-design per `src/components/ui/README.md`'s whitelist (command/popover/date-picker have no COSS counterpart); only the migration-plan doc's "COMPLETE" wording drifted → folded into plan 139.
+- NotificationCenter/FilterPill/SegmentedControl small `rgba(0,0,0,…)` shadows and CashFlow/QuickAdd active-chip `rgba(0,0,0,0.12)` borders — subtle elevation/edges, not scrims; excluded from plan 136 (leave-alone list inside the plan).
+- `InvestmentsRoute.createSnapshot/deleteSnapshot` invalidating only `["manualPriceSnapshots"]` (narrower than HoldingEditModal's siblings) — investigated during plan-124 execution: NOT a gap. Custom-asset valuation re-derives at render from the invalidated `manualPriceSnapshots` query; `createManualPriceSnapshot` only inserts a row, it does not recompute `portfolioAssets`. The siblings' extra keys are defensive redundancy, not required. Do not "fix".
