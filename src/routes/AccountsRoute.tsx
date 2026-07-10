@@ -1,6 +1,7 @@
 import { ArrowsClockwise, CaretDown, CaretRight, Check, DownloadSimple, ListChecks, PencilSimple, Percent, Plus, Scales, Trash, X, MagnifyingGlass } from "@phosphor-icons/react";
 import { ReactNode, useMemo, useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
 import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
@@ -80,6 +81,7 @@ const MARK_COLORS = ["var(--ns-chart-1)", "var(--ns-chart-2)", "var(--ns-chart-3
 export function AccountsRoute() {
   const { accounts, settings, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const timezone = useUiPreferences((state) => state.timezone);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -231,7 +233,7 @@ export function AccountsRoute() {
     try {
       const repository = await getFinanceRepository();
       const report = await repository.recalculateDerivedData();
-      await accounts.refetch();
+      await queryClient.invalidateQueries();
       setMessage(`重新計算完成：修正 ${report.changedAccounts} 個帳戶、${report.changedAssets} 個持倉。${report.incompleteTransferGroupIds.length ? ` 發現 ${report.incompleteTransferGroupIds.length} 組不完整轉帳。` : ""}${report.missingFxPairs.length ? ` 缺少匯率：${report.missingFxPairs.join("、")}。` : ""}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "重新計算失敗。");
