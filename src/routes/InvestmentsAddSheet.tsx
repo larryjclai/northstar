@@ -495,7 +495,7 @@ export function InvestmentEntryDrawer({
               size="sm"
               onClick={() => { setMode(mode === "snapshot" ? "transaction" : "snapshot"); setMessage(""); }}
             >
-              {mode === "snapshot" ? "改記一筆交易" : "匯入現有持倉"}
+              {mode === "snapshot" ? "改記一筆交易" : "建立持倉／自訂資產"}
             </Button>
           ) : null}
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="關閉"><X size={16} /></Button>

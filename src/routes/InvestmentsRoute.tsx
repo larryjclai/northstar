@@ -7,6 +7,7 @@ import { AccountFilter } from "../components/AccountFilter";
 import { AssetLogo } from "../components/AssetLogo";
 import { PageHeader } from "../components/AppShell";
 import { Card } from "../components/Card";
+import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
 import { Card as CossCard } from "../components/coss/card";
 import { Skeleton } from "../components/coss/skeleton";
@@ -54,6 +55,7 @@ import { RecurringInvestmentsTab } from "./RecurringInvestmentsTab";
 import { TransactionsRoute } from "./TransactionsRoute";
 import { InvestmentImportWizard, type InvestmentActivityImportPlan } from "./InvestmentImportWizard";
 import { quoteLookupKeys } from "../domain/marketSymbols";
+import { customPriceStaleness } from "../domain/dataHealth";
 
 export function InvestmentsRoute() {
   const navigate = useNavigate();
@@ -1077,6 +1079,31 @@ function HoldingsTab({
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
+  // Per-holding stale-price signal for custom assets (plan 150). Groups the
+  // manual snapshots once, then classifies each row via the shared domain helper
+  // so this badge and the Dashboard data-health banner never disagree.
+  const snapshotsByAsset = useMemo(() => {
+    const map = new Map<string, ManualPriceSnapshot[]>();
+    for (const snap of manualPriceSnapshots) {
+      const list = map.get(snap.assetId);
+      if (list) list.push(snap);
+      else map.set(snap.assetId, [snap]);
+    }
+    return map;
+  }, [manualPriceSnapshots]);
+  const todayIso = todayInTimezone(timezone);
+  const customPriceBadge = (asset: PortfolioAsset | null) => {
+    if (!asset) return null;
+    const staleness = customPriceStaleness(asset, snapshotsByAsset.get(asset.id) ?? [], todayIso);
+    if (staleness === "stale") {
+      return <Badge variant="warning" size="sm" title={`價格已超過 90 天未更新`}>價格過期</Badge>;
+    }
+    if (staleness === "missing") {
+      return <Badge variant="warning" size="sm" title="尚未記錄任何價格">未定價</Badge>;
+    }
+    return null;
+  };
+
   // Unique resolved sector labels across all positions, for the sector filter dropdown
   const sectorOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -1378,6 +1405,7 @@ function HoldingsTab({
                   <div className="flex items-center gap-2">
                     <span className="font-semibold whitespace-nowrap">{position.ticker}</span>
                     <span className="truncate text-xs" style={{ color: "var(--ns-muted)" }}>{displayName}</span>
+                    {customPriceBadge(asset)}
                   </div>
                   <div className="mt-0.5 truncate text-xs tabular" style={{ color: "var(--ns-muted)" }}>
                     {formatQuantity(position.quantity)} 股 · {account ? account.name : "未指定"}
@@ -1464,7 +1492,10 @@ function HoldingsTab({
                       </span>
                     </td>
                     <td className="max-w-[14rem] py-3" title={displayName}>
-                      <span className="block truncate">{displayName}</span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="truncate">{displayName}</span>
+                        {customPriceBadge(asset)}
+                      </span>
                     </td>
                     {visibleCol("account") ? (
                       <td className="max-w-[11rem] py-3" title={account ? account.name : "未指定"}>

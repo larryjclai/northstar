@@ -60,6 +60,58 @@ function daysBetween(isoA: string, isoB: string): number {
   return Math.abs(b - a) / msPerDay;
 }
 
+// ─── Custom-asset price staleness (shared banner + per-holding badge) ──────────
+
+/**
+ * Classification of a custom asset's manual-price freshness. `not-custom` is
+ * returned for any non-custom asset so callers can branch uniformly.
+ */
+export type CustomPriceStaleness = "fresh" | "stale" | "missing" | "not-custom";
+
+/**
+ * Latest manual-price date (YYYY-MM-DD) for a set of snapshots, or `null` when
+ * there are none. Uses string-date comparison — the same "latest snapshot" pick
+ * the valuation path and the data-health banner use, so all three agree.
+ */
+export function latestManualPriceDate(snapshots: readonly ManualPriceSnapshot[]): string | null {
+  let latest: string | null = null;
+  for (const snap of snapshots) {
+    const date = snap.date.slice(0, 10);
+    if (latest === null || date > latest) latest = date;
+  }
+  return latest;
+}
+
+/**
+ * Classify a custom asset's price freshness from its already-resolved latest
+ * snapshot date. Non-custom assets are always `not-custom`; custom assets with
+ * no snapshot are `missing`; otherwise `stale` past {@link CUSTOM_PRICE_STALE_DAYS},
+ * else `fresh`. This is the single source of truth shared by the Dashboard
+ * data-health banner (Rule 1b) and the per-holding badge, so the two never disagree.
+ */
+export function classifyCustomPriceStaleness(
+  asset: Pick<PortfolioAsset, "assetType">,
+  latestSnapshotDate: string | null,
+  todayIso: string,
+): CustomPriceStaleness {
+  if (asset.assetType !== "custom") return "not-custom";
+  if (latestSnapshotDate === null) return "missing";
+  return daysBetween(latestSnapshotDate, todayIso) > CUSTOM_PRICE_STALE_DAYS ? "stale" : "fresh";
+}
+
+/**
+ * Convenience wrapper: classify a custom asset's price freshness directly from
+ * its manual snapshots. Pass only the snapshots for this asset (the caller
+ * filters); the latest is picked internally via {@link latestManualPriceDate}.
+ */
+export function customPriceStaleness(
+  asset: Pick<PortfolioAsset, "assetType">,
+  snapshots: readonly ManualPriceSnapshot[],
+  todayIso: string,
+): CustomPriceStaleness {
+  return classifyCustomPriceStaleness(asset, latestManualPriceDate(snapshots), todayIso);
+}
+
 // ─── Main entry point ─────────────────────────────────────────────────────────
 
 export interface BuildDataHealthReportInput {
@@ -172,10 +224,11 @@ export function buildDataHealthReport(input: BuildDataHealthReportInput): DataHe
     if (asset.assetType !== "custom") continue;
     if (asset.totalQuantity <= 1e-9) continue;
     const label = asset.name || asset.ticker || asset.id;
-    const latestDate = latestSnapshotDateByAsset.get(asset.id);
-    if (latestDate === undefined) {
+    const latestDate = latestSnapshotDateByAsset.get(asset.id) ?? null;
+    const staleness = classifyCustomPriceStaleness(asset, latestDate, todayIso);
+    if (staleness === "missing") {
       noPriceCustomNames.push(label);
-    } else if (daysBetween(latestDate, todayIso) > CUSTOM_PRICE_STALE_DAYS) {
+    } else if (staleness === "stale") {
       staleManualPriceNames.push(label);
     }
   }
