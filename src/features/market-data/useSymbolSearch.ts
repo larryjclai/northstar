@@ -27,14 +27,16 @@ export function useSymbolSearch(query: string) {
     setError(null);
     const timer = window.setTimeout(async () => {
       try {
-        const [yahoo, funds] = await Promise.allSettled([
+        const [yahoo, funds, twLocal] = await Promise.allSettled([
           provider.searchSymbols(trimmed),
           sitcaProvider.searchFunds(trimmed),
+          twProvider.searchSecurities(trimmed),
         ]);
         if (cancelled) return;
 
         const yahooItems = yahoo.status === "fulfilled" ? yahoo.value : [];
         const fundItems = funds.status === "fulfilled" ? funds.value : [];
+        const twItems = twLocal.status === "fulfilled" ? twLocal.value : [];
 
         // Enrich Yahoo results with Taiwan asset profiles (best-effort).
         let enrichedYahoo = yahooItems;
@@ -57,14 +59,16 @@ export function useSymbolSearch(query: string) {
 
         if (cancelled) return;
 
-        // De-duplicate: if Yahoo already returned a symbol, skip the SITCA entry.
+        // De-duplicate: if Yahoo already returned a symbol, skip the local TW / SITCA entry.
         const seen = new Set(enrichedYahoo.map((r) => r.symbol));
+        const uniqueTw = twItems.filter((r) => !seen.has(r.symbol));
+        uniqueTw.forEach((r) => seen.add(r.symbol));
         const uniqueFunds = fundItems.filter((f) => !seen.has(f.symbol));
 
-        setResults([...enrichedYahoo, ...uniqueFunds]);
+        setResults([...enrichedYahoo, ...uniqueTw, ...uniqueFunds]);
 
-        // Only show an error when Yahoo failed AND no fund results to fall back on.
-        if (yahoo.status === "rejected" && uniqueFunds.length === 0) {
+        // Only show an error when Yahoo failed AND no local/fund results to fall back on.
+        if (yahoo.status === "rejected" && uniqueTw.length === 0 && uniqueFunds.length === 0) {
           const err = yahoo.reason;
           setError(err instanceof Error ? err.message : "搜尋 ticker 失敗。");
         }
