@@ -249,6 +249,76 @@ Batch dependency notes:
   crypto sound (fresh IVs); no XSS sinks (MarkdownText parses to elements); all
   SQL parameterized; `.env` never committed; entry bundle clean; no circular deps.
 
+## 2026-07-11 GitHub security-alerts batch (150)
+
+Source: operator review of the GitHub Security tab (9 Dependabot + 7 CodeQL open
+on `main`). Planned against `main` @ `da946482`. All findings vetted against the
+code: the 2 High CodeQL alerts are a real (but low-practical-risk) taint chain
+from `deviceIdentity.ts:33`'s `Math.random()` fallback into the sync Bearer
+token; the 5 Medium are missing `permissions:` in ci.yml; the 8 npm Dependabot
+alerts are dev-scope transitives of the worker's `wrangler` (fixed by lockfile
+refresh). **Rejected/deferred**: Rust `glib` 0.18.5 alert — pinned by Tauri 2's
+gtk 0.18 Linux stack, no local fix; operator should dismiss or await a Tauri
+upgrade. The "CodeQL is reporting errors" banner is scanning infra, not repo
+code — operator to check which language/job errors once.
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 150  | Clear GitHub security alerts — CSPRNG device-ID fallback, CI permissions, worker dep bumps | P2 | S | — | DONE (executed + reviewed 2026-07-11; branch `fix/ai-security-alerts` @ `ebc37851`, unmerged; reviewer re-verified all gates: Math.random grep 0 / ci.yml permissions / ws 8.21.0 + undici 7.28.0 + esbuild 0.28.1 / root tsc 0 + lint 0 + 984 tests / worker tsc 0 + 33 tests; one approved deviation: randomUUID guard uses `typeof crypto.randomUUID === "function"` instead of the plan's `"randomUUID" in crypto` — the `in` form fails tsc narrowing (DOM lib makes the negated branch `never`); runtime semantics identical. Alerts close on next main scan after merge; glib alert stays open by design — operator dismisses) |
+
+## 2026-07-11 operator bug batch (151–155)
+
+Source: `/improve plan` with five operator-reported bugs. Planned against
+`main` @ `da946482`. Every root cause was verified before planning — the two
+search bugs against live data sources (the reported fund exists in the SITCA
+CSV under 受益憑證代號 `T1605Y`, which the app never indexes; Yahoo's search
+endpoint empirically returns nothing for 台積電/富邦金), the two layout bugs
+reproduced in the dev preview with the mechanism confirmed via DOM inspection
+(sidebar z-1100 vs QuickAdd z-80; body scroll-lock inert + sticky-breaking
+under `html{overflow-x:clip}`), and the category bug traced to
+`normalizeCategoryGroups` provably stripping `kind`/`rollover`/`rolloverStart`
+on every save.
+
+All five are independent — any order works. Suggested: 154 first (data loss),
+then 155, 151, 153, 152.
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 151  | SITCA funds findable by 受益憑證代號 (e.g. T1605Y) | P1 | S | — | ✅ MERGED on main (merge `af99c4e0`, 2026-07-11; commit `1a4c9e80`). certCode parsed + matched in filterFunds; 13/13 provider tests incl. the real T1605Y regression row; reviewer re-ran tsc/tests in the worktree. Live end-to-end blocked by the pre-existing dev-proxy 502 (see batch note) — Tauri path unaffected; operator can spot-check in the app. |
+| 152  | Ticker search by Chinese name (local TWSE/TPEx name index) | P2 | M | — | ✅ MERGED on main (merge `92bc0bf5`, 2026-07-11; commit `bbf5beb3`). nameShort captured; pure `filterTaiwanSecurities` + `searchSecurities` merged into useSymbolSearch (yahoo → tw-local → funds, deduped); 7 new filter tests. Reviewer verified the UI fires the new TWSE/TPEx/STOCK_DAY_ALL requests on typing 台積電; network data in the browser dev shell blocked by the pre-existing dev-proxy 502 (Tauri unaffected) — operator spot-check in the app. |
+| 153  | Quick Add bar clipped by sidebar in narrow windows | P1 | S | — | ✅ MERGED on main (merge `3937373e`, 2026-07-11; commit `981b50b7`). Overlay left-offset by live sidebar width (64/240) with <1024px reset to 0, EntryDrawer-scrim pattern; z-1100 decision untouched. Live-verified post-merge at 1040×650: bar fully visible, sidebar not greyed. |
+| 154  | Category 收入/支出 kind (+rollover) stripped on save — persist it | P1 | S–M | — | ✅ MERGED on main (merge `e7928f96`, 2026-07-11; commit `63932c4f`). normalizeCategoryGroups now preserves kind/rollover/rolloverStart (fail-first proven: 6 of 10 round-trip cases failed pre-fix); drawer re-seeds `local` on closed→open. Live-verified post-merge: kind=income persisted in IndexedDB across reload; 支出 picker hides the 收入 category, 收入 picker shows it. One approved deviation: explicit union cast on `kind` (tsc widening). |
+| 155  | Scroll-lock on body inert under overflow-x:clip — lock documentElement | P1 | S | — | ✅ MERGED on main (merge `733d7b6a`, 2026-07-11; commit `eb3bdcf8`). Shared `lockViewportScroll()` in src/lib; ModalShell + EntryDrawer switched; `body.style.overflow` grep → 0; 5 helper tests (incl. honest out-of-order-release limitation) + 11 ModalShell tests green. Live-verified post-merge: drawer open ⇒ wheel scroll locked (scrollY stays 0), sidebar sticky intact, lock releases on close. |
+
+Batch notes:
+- 154 is the highest-value fix: `normalizeCategoryGroups` silently discards
+  `kind` (plan 056's feature), `rollover` and `rolloverStart` (plan 039's
+  feature) on EVERY settings save — those features never actually persisted.
+  It also fixes the CategoryManagementDrawer's stale mount-time snapshot.
+- 155 answers the operator's「Sidebar 是不是要 always on top?」question: the
+  sidebar sticky was correct; the drawer's body scroll-lock silently failed
+  (root has `overflow-x: clip`, so body overflow never propagates to the
+  viewport) AND broke sticky. Locking `documentElement` was verified live.
+- 153 deliberately does NOT touch the sidebar's z-1100 decision (plans 052/063);
+  it offsets the QuickAdd overlay to the content area, same pattern as the
+  EntryDrawer scrim.
+- 151+152 both extend ticker search but touch different providers; trivially
+  composable. English-name search already works via Yahoo — only Chinese needs
+  the local index (152).
+- Vetted, not re-flag: `TickerSearchField`'s `.toUpperCase()` on input is
+  harmless (CJK has no case; codes want uppercase). QuickAdd having no scroll
+  lock is a product call, noted in 153/155, not a bug.
+- **Found during post-merge verification (pre-existing, NOT from this batch):**
+  the browser dev shell's `/api/market-data` Vite middleware 502s on every
+  request — Connect leaves `request.url = "/?url=…"` after mount-path
+  stripping, the `replace(/^\?/, "")` doesn't strip `"/?"`, so the `url` param
+  reads null → `new URL("")` throws → 502 "Invalid URL". `vite.config.ts` is
+  untouched since plan 092 (`a725b014`), so SITCA/TWSE data has never loaded
+  in the browser dev shell; the Tauri app uses the Rust `fetch_market_data`
+  command and works. One-line fix: parse via
+  `new URL(request.url ?? "/", "http://localhost").searchParams`. Flagged as a
+  background task chip 2026-07-11; fix in vite.config.ts only.
+
 ## Dependency notes
 
 - All current UI phase 3 plans are fully executed, verified, merged to `main`, and released in `v0.1.0-alpha.46`.
