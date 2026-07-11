@@ -29,8 +29,13 @@ async function mirrorToFile(identity: DeviceIdentity): Promise<void> {
 }
 
 function uuid(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // Fallback for webviews without randomUUID (non-secure contexts):
+  // getRandomValues is available everywhere we run (browsers, Tauri WebView, jsdom, Node).
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return `dev_${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
 
 function read(): DeviceIdentity | null {
