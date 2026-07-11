@@ -40,8 +40,24 @@ interface SitcaFund {
   date: string;
 }
 
+// Sanity floor before a fetched parse may replace the cache. The live file
+// has held ~4,400 rows for years, but the SITCA server intermittently serves
+// a truncated file (~37 rows / 4.5 KB observed 2026-07-11) — caching that for
+// an hour empties fund search and stalls every held fund's NAV.
+export const MIN_EXPECTED_FUND_COUNT = 1000;
+
+/** Pure guard: does a parsed fund list look like the full SITCA universe? */
+export function isPlausibleFundList(funds: SitcaFund[]): boolean {
+  return funds.length >= MIN_EXPECTED_FUND_COUNT;
+}
+
 const cacheMaxAgeMs = 60 * 60 * 1000;
-let fundCache: { updatedAt: number; funds: SitcaFund[]; bySuffix: Map<string, SitcaFund> } | null = null;
+type FundCacheEntry = { updatedAt: number; funds: SitcaFund[]; bySuffix: Map<string, SitcaFund> };
+let fundCache: FundCacheEntry | null = null;
+
+export function resetSitcaFundCacheForTests(): void {
+  fundCache = null;
+}
 
 export class SitcaFundProvider {
   readonly sourceName = "SITCA";
@@ -120,6 +136,13 @@ async function fetchFunds(): Promise<{ funds: SitcaFund[]; bySuffix: Map<string,
   if (fundCache && Date.now() - fundCache.updatedAt < cacheMaxAgeMs) return fundCache;
   const csv = await fetchMarketData(SITCA_NAV_URL);
   const funds = parseSitcaNavCsv(csv);
+  if (!isPlausibleFundList(funds)) {
+    // Truncated download — a stale full universe beats a fresh sliver, and a
+    // sliver must never be pinned for an hour: serve it uncached so the next
+    // call retries.
+    if (fundCache) return fundCache;
+    return { funds, bySuffix: buildFundSymbolIndex(funds) };
+  }
   fundCache = { updatedAt: Date.now(), funds, bySuffix: buildFundSymbolIndex(funds) };
   return fundCache;
 }
