@@ -6,6 +6,7 @@ import { Card } from "../components/coss/card";
 import { AccountFilter } from "../components/AccountFilter";
 import { ToggleGroup, ToggleGroupItem } from "../components/coss/toggle-group";
 import { HoldingForm, makeEmptyHoldingDraft } from "../components/HoldingForm";
+import { ModalShell } from "../components/ModalShell";
 import { NumberField } from "../components/NumberField";
 import { StatusText } from "../components/StatusText";
 import { TickerSearchField } from "../components/TickerSearchField";
@@ -244,19 +245,7 @@ export function InvestmentEntryDrawer({
     instrument,
   ]);
 
-  useEffect(() => {
-    if (!open) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open, onClose]);
+  // Escape-to-close and body scroll-lock are provided by <ModalShell> below.
 
   const eligibleAccounts = accounts.filter(
     (account) => account.deletedAt === null && account.type === "investment",
@@ -467,17 +456,18 @@ export function InvestmentEntryDrawer({
   const tPlus2Date = addDays(transactionForm.date, 2);
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={onClose}>
-      <div style={{ position: "absolute", inset: 0, background: "var(--ns-scrim)" }} />
-      <div
-        onClick={(event) => event.stopPropagation()}
-        className="animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)]"
-        style={{
-          position: "absolute", right: 0, top: 0, bottom: 0, width: "min(520px, 100%)",
-          background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
-          display: "flex", flexDirection: "column", boxShadow: "var(--ns-shadow-2)",
-        }}
-      >
+    <ModalShell
+      variant="drawer"
+      title={mode === "snapshot" ? "建立目前部位" : title}
+      onClose={onClose}
+      style={{ zIndex: 50 }}
+      panelClassName="animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)]"
+      panelStyle={{
+        position: "absolute", right: 0, top: 0, bottom: 0, width: "min(520px, 100%)",
+        background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
+        display: "flex", flexDirection: "column", boxShadow: "var(--ns-shadow-2)",
+      }}
+    >
         {/* Header */}
         <div className="flex items-center gap-3" style={{ padding: "20px 24px", borderBottom: "1px solid var(--ns-border)" }}>
           <h2 className="text-xl" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 600, letterSpacing: -0.02 }}>
@@ -891,8 +881,7 @@ export function InvestmentEntryDrawer({
             </div>
           </>
         )}
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 

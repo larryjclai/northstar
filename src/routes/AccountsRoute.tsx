@@ -584,13 +584,14 @@ function AccountDrawer({
   const canAdvance = step === 0 ? !!typeStep : step === 1 ? !!form.name.trim() : true;
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={onClose}>
-      <div style={{ position: "absolute", inset: 0, background: "var(--ns-scrim)" }} />
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)] flex flex-col"
-        style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "min(520px, 100%)", background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)", boxShadow: "var(--ns-shadow-2)" }}
-      >
+    <ModalShell
+      variant="drawer"
+      title={isEditing ? "編輯帳戶" : "新增帳戶"}
+      onClose={onClose}
+      style={{ zIndex: 50 }}
+      panelClassName="animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)] flex flex-col"
+      panelStyle={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "min(520px, 100%)", background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)", boxShadow: "var(--ns-shadow-2)" }}
+    >
         <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--ns-border)" }}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2.5">
@@ -855,8 +856,7 @@ function AccountDrawer({
             </>
           )}
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 

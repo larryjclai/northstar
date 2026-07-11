@@ -10,6 +10,7 @@ import {
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
 import { AppSelect } from "../components/AppSelect";
+import { ModalShell } from "../components/ModalShell";
 import { useState } from "react";
 import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -351,13 +352,15 @@ function RuleEditSheet({
 
   return (
     <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "var(--ns-scrim)", zIndex: 998 }} />
-      <div
-        className="flex flex-col"
-        style={{
-          position: "fixed", top: 0, right: 0, bottom: 0, width: "min(460px, 100%)",
+      <ModalShell
+        variant="drawer"
+        title={isCreating ? "新增週期規則" : "編輯週期規則"}
+        onClose={onClose}
+        style={{ zIndex: 998 }}
+        panelClassName="flex flex-col"
+        panelStyle={{
+          position: "absolute", top: 0, right: 0, bottom: 0, width: "min(460px, 100%)",
           background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
-          zIndex: 999,
           boxShadow: "var(--ns-shadow-2)",
           animation: "slideInRight 0.2s ease",
         }}
@@ -543,7 +546,7 @@ function RuleEditSheet({
             {saving ? "儲存中…" : isCreating ? "建立規則" : "儲存變更"}
           </Button>
         </div>
-      </div>
+      </ModalShell>
 
       <style>{`
         @keyframes slideInRight {

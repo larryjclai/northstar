@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle, FileCsv, UploadSimple, X } from "@phosphor-icons/react";
 import { Button } from "../components/coss/button";
 import { AppSelect } from "../components/AppSelect";
+import { ModalShell } from "../components/ModalShell";
 import { useToast } from "../components/Toast";
 import { detectDelimiter, parseCsvTable } from "../data/csv";
 import type { ManualPriceSnapshotDraft } from "../data/repositories";
@@ -97,8 +98,16 @@ export function ManualPriceImportWizard({ open, onClose, assetId, assetLabel, cu
   ];
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "var(--ns-scrim)", display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto", padding: "32px 16px" }}>
-      <div className="ns-surface" style={{ width: "100%", maxWidth: 760, borderRadius: "var(--ns-r-lg)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)" }}>
+    <ModalShell
+      variant="sheet"
+      title="匯入手動價格"
+      onClose={onClose}
+      disableScrimClose
+      disableEscape
+      style={{ zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto", padding: "32px 16px" }}
+      panelClassName="ns-surface"
+      panelStyle={{ width: "100%", maxWidth: 760, borderRadius: "var(--ns-r-lg)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)" }}
+    >
         {/* Header */}
         <div className="flex items-center justify-between" style={{ padding: "16px 22px", borderBottom: "1px solid var(--ns-border)" }}>
           <div>
@@ -257,8 +266,7 @@ export function ManualPriceImportWizard({ open, onClose, assetId, assetLabel, cu
             </Button>
           )}
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
