@@ -154,11 +154,47 @@ jobs:
             | Linux (通用) | `northstar_*_amd64.AppImage` |
 
             **macOS 首次開啟提示**：若出現「無法驗證開發者」，請右鍵點擊 app → 選擇「開啟」即可。
-          releaseDraft: false
+          # Draft until EVERY platform has uploaded. tauri-action publishes
+          # latest.json incrementally per platform job; with draft=false that
+          # meant `releases/latest` could serve a latest.json containing only
+          # the first-finished platform for hours (free macOS runners queue
+          # long), and every mac user checking updates hit "None of the
+          # fallback platforms darwin-aarch64 were found" (v0.1.0-alpha.54,
+          # 2026-07-11). While the draft builds, `releases/latest` keeps
+          # resolving to the PREVIOUS release, so updaters just say
+          # "up to date". The `publish` job below flips the draft live once
+          # the whole matrix succeeds.
+          releaseDraft: true
           # The repo is public, so release assets download anonymously and the
           # in-app updater can fetch them directly from this repo. tauri-action
-          # generates latest.json with same-repo URLs; with releaseDraft + this
-          # flag both false, GitHub marks the published release `latest`, so the
-          # updater's `releases/latest/download/latest.json` resolves correctly.
+          # generates latest.json with same-repo URLs; once the publish job
+          # marks the release published (and not prerelease), GitHub points
+          # `releases/latest/download/latest.json` at it.
           prerelease: false
           args: ${{ matrix.args }}
+
+  # Flip the draft release live only after ALL platform builds uploaded their
+  # artifacts + updater entries — this is what guarantees existing installs
+  # never see a partial latest.json.
+  publish:
+    needs: publish-tauri
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the completed draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          release_id=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+            --jq ".[] | select(.tag_name == \"$TAG\" and .draft == true) | .id" | head -1)
+          if [ -z "$release_id" ]; then
+            echo "No draft release found for $TAG — nothing to publish (already live?)"
+            exit 0
+          fi
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/$release_id" \
+            -F draft=false -F make_latest=true >/dev/null
+          echo "Published release $TAG (id $release_id)"
