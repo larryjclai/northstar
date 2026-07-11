@@ -3,6 +3,7 @@ import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
 import { Skeleton } from "../components/coss/skeleton";
+import { ModalShell } from "../components/ModalShell";
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -424,15 +425,14 @@ function PayCardModal({
   // A real transfer needs a paying account; a 0-pay / 0-credit confirm just suppresses the reminder.
   const canConfirm = !pending && (pay === 0 || (!noAccounts && payAccountId !== ""));
   return (
-    <div
-      onClick={onCancel}
-      className="ns-modal-scrim"
+    <ModalShell
+      variant="center"
+      title="信用卡繳款"
+      onClose={onCancel}
+      style={{ zIndex: 1000 }}
+      panelClassName="p-5"
+      panelStyle={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)" }}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="p-5"
-        style={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)" }}
-      >
         <div className="text-[15px] font-semibold mb-1">信用卡繳款</div>
         <div className="text-xs mb-4" style={{ color: "var(--ns-fg-muted)", lineHeight: 1.6 }}>
           未繳總額 NT${formatNumber(owed)} · 從帳戶轉帳繳款，可選填帳單折抵 / 回饋。
@@ -486,8 +486,7 @@ function PayCardModal({
             <CurrencyCircleDollar size={14} weight="fill" />確認繳款
           </Button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -505,15 +504,14 @@ function DeferPostingModal({
   const [date, setDate] = useState(row.postDate?.slice(0, 10) ?? row.date.slice(0, 10));
   const hasDefer = row.postDate != null;
   return (
-    <div
-      onClick={onCancel}
-      className="ns-modal-scrim"
+    <ModalShell
+      variant="center"
+      title="延後入帳"
+      onClose={onCancel}
+      style={{ zIndex: 1000 }}
+      panelClassName="p-5"
+      panelStyle={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)" }}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="p-5"
-        style={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)" }}
-      >
         <div className="text-[15px] font-semibold mb-1">延後入帳</div>
         <div className="text-xs mb-4" style={{ color: "var(--ns-fg-muted)", lineHeight: 1.6 }}>
           選擇入帳日；這筆消費會歸到該日所屬的帳單週期。仍會立即計為負債，餘額不變。
@@ -539,7 +537,6 @@ function DeferPostingModal({
             <CalendarPlus size={14} weight="fill" />確認延後
           </Button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
