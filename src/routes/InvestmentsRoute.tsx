@@ -14,6 +14,7 @@ import { Skeleton } from "../components/coss/skeleton";
 import { EmptyState } from "../components/EmptyState";
 import { Field, TextInput } from "../components/Field";
 import { HoldingForm } from "../components/HoldingForm";
+import { ModalShell } from "../components/ModalShell";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { StatusText } from "../components/StatusText";
 import { FilterPill } from "../components/FilterPill";
@@ -1572,12 +1573,13 @@ function HoldingsTab({
         </div>
       </Card>
       {editingAsset && editForm ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" style={{ background: "var(--ns-scrim)" }} onClick={() => setEditingAsset(null)}>
-          <div
-            className="w-full max-w-2xl rounded-lg border shadow-xl"
-            style={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}
-            onClick={(event) => event.stopPropagation()}
-          >
+        <ModalShell
+          variant="center"
+          title="編輯持倉"
+          onClose={() => setEditingAsset(null)}
+          panelClassName="w-full max-w-2xl rounded-lg border shadow-xl"
+          panelStyle={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}
+        >
             <header className="flex items-center justify-between border-b px-5 py-3" style={{ borderColor: "var(--ns-border)" }}>
               <h2 className="text-lg font-semibold">編輯持倉</h2>
               <button
@@ -1690,8 +1692,7 @@ function HoldingsTab({
                 </div>
               ) : null}
             </div>
-          </div>
-        </div>
+        </ModalShell>
       ) : null}
     </>
   );
