@@ -2,6 +2,12 @@
 
 # Northstar
 
+[![Release](https://img.shields.io/github/v/release/larryjclai/northstar?include_prereleases&label=release)](https://github.com/larryjclai/northstar/releases/latest)
+[![CI](https://github.com/larryjclai/northstar/actions/workflows/ci.yml/badge.svg)](https://github.com/larryjclai/northstar/actions/workflows/ci.yml)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/larryjclai/northstar/total)](https://github.com/larryjclai/northstar/releases)
+![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
+
 > **Alpha preview** · The UI and data structures may still change. Before the general release, the database schema is **not** guaranteed to be backward-compatible.
 > For the latest version, see the **[Releases page](https://github.com/larryjclai/northstar/releases)**.
 
@@ -13,6 +19,16 @@ What Northstar aims to help you achieve:
 - **Understand your savings rate** — track day-to-day, and know exactly how much you actually save each month.
 - **Compare your investment performance against the market** — record investment transactions and compare against a benchmark you choose (e.g. 0050). If you can't beat the market over the long run, then join it!
 - **See how far you are from your goal** — set goals and use the FIRE calculator; as your net worth is recalculated, it tells you how far you still are from your target.
+
+## Screenshots
+
+Captured from the built-in **Demo Mode** (loads sample data without touching your real data). The UI is Traditional Chinese-first; English is partially available.
+
+![Dashboard — net-worth trend, portfolio vs benchmark, budget & upcoming bills](docs/screenshots/dashboard.png)
+
+| Portfolio | Performance analysis | Cash flow |
+|---|---|---|
+| ![Holdings & allocation](docs/screenshots/investments.png) | ![Cumulative return vs 0050.TW](docs/screenshots/analytics.png) | ![Cash flow & category spend](docs/screenshots/cash-flow.png) |
 
 ## Feature overview
 
@@ -49,8 +65,9 @@ What Northstar aims to help you achieve:
 
 Go to the **[Releases page](https://github.com/larryjclai/northstar/releases)** to download the latest installer:
 
-- **macOS**: download the `.dmg`, open it, and drag to "Applications". For first launch, see the note below.
-- **Windows**: coming soon (`.exe` / `.msi`).
+- **macOS** (Apple Silicon / Intel): download the `.dmg`, open it, and drag to "Applications". For first launch, see the note below.
+- **Windows**: download the `x64-setup.exe` installer. SmartScreen may show an "unknown publisher" warning on first run — click "More info → Run anyway".
+- **Linux**: download the `.deb` (Debian / Ubuntu family).
 
 The app has built-in auto-update and will prompt you when a new version is available.
 

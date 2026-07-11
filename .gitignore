@@ -85,3 +85,11 @@ xcuserdata/
 # ─── Installed Claude skills (impeccable) — local tooling, not app code ──
 .claude/skills/
 .github/skills/
+
+# Local AI-agent tooling & private design history (kept locally, not published)
+Design System/
+.agents/
+.impeccable/
+.impeccable.md
+skills-lock.json
+.codex/
