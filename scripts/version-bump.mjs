@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * Bumps the version in all three version files atomically:
- *   package.json · src-tauri/tauri.conf.json · src-tauri/Cargo.toml
+ * Bumps the version in all four version files atomically:
+ *   package.json · src-tauri/tauri.conf.json · src-tauri/Cargo.toml ·
+ *   src-tauri/Cargo.lock (the northstar package entry)
  *
  * Usage:
  *   npm run version 0.1.0-alpha.7
@@ -41,11 +42,29 @@ function bumpCargo(relPath) {
   console.log(`  ${relPath}: ${prev} → ${next}`);
 }
 
+// Cargo.lock's own `[[package]] name = "northstar"` entry must track Cargo.toml,
+// or the lockfile drifts (it silently sat 2 versions behind through alpha.5x
+// because only Cargo.toml was bumped). Update just that block, not the first
+// `version =` line (which belongs to some dependency).
+function bumpCargoLock(relPath) {
+  const abs = resolve(root, relPath);
+  const src = readFileSync(abs, "utf8");
+  const re = /(name = "northstar"\nversion = ")[^"]+(")/;
+  if (!re.test(src)) {
+    console.warn(`  ${relPath}: no northstar package entry found — skipped (run cargo check to regenerate)`);
+    return;
+  }
+  const prev = src.match(/name = "northstar"\nversion = "([^"]+)"/)?.[1] ?? "?";
+  writeFileSync(abs, src.replace(re, `$1${next}$2`));
+  console.log(`  ${relPath} (northstar): ${prev} → ${next}`);
+}
+
 console.log(`\nBumping version to ${next}…`);
 bumpJson("package.json");
 bumpJson("src-tauri/tauri.conf.json");
 bumpCargo("src-tauri/Cargo.toml");
+bumpCargoLock("src-tauri/Cargo.lock");
 console.log(`\nDone. Next steps:`);
-console.log(`  git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml`);
+console.log(`  git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock`);
 console.log(`  git commit -m "chore: bump version to ${next}"`);
 console.log(`  git tag v${next} && git push && git push --tags`);
