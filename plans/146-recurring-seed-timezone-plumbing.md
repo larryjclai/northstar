@@ -18,7 +18,10 @@
 - **Risk**: LOW
 - **Depends on**: 120 (MERGED — `firstFutureRunDate` now accepts an injectable `today`)
 - **Category**: bug
-- **Planned at**: commit `ae0c9ce1`, 2026-07-09
+- **Planned at**: commit `ae0c9ce1`, 2026-07-09 — **drift-refreshed 2026-07-11
+  against `2f3ac9fc`**: `repositories.ts` has since absorbed plans 125/147/154
+  (large diffs), but every excerpt below was re-verified verbatim; only line
+  numbers moved. Use `2f3ac9fc` for the drift check.
 
 ## Why this matters
 
@@ -44,8 +47,8 @@ already-added parameter.
   ): string { ... }
   ```
 - `src/data/repositories.ts` — the two callers (grep `firstFutureRunDate(`;
-  ~lines 5105 and 5123) still call it WITHOUT a `today` arg (so they use the
-  UTC default):
+  ~lines 5214 and 5232 as of `2f3ac9fc` — trust the grep, not the numbers)
+  still call it WITHOUT a `today` arg (so they use the UTC default):
   ```ts
   nextRunDate: firstFutureRunDate(input.nextRunDate, frequency, input.dayOfMonth),
   ```
