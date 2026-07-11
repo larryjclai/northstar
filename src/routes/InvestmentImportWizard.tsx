@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, CheckCircle, FileCsv, UploadSimple, Warning, X, 
 import { Button } from "../components/coss/button";
 import { AccountFilter } from "../components/AccountFilter";
 import { AppSelect } from "../components/AppSelect";
+import { ModalShell } from "../components/ModalShell";
 import { useToast } from "../components/Toast";
 import { detectDelimiter, parseCsvTable } from "../data/csv";
 import type { InvestmentDraft, LedgerDraft } from "../data/repositories";
@@ -191,8 +192,17 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
   ];
 
   return (
-    <div className="flex justify-center" style={{ position: "fixed", inset: 0, zIndex: 200, background: "var(--ns-scrim)", alignItems: "flex-start", overflowY: "auto", padding: "32px 16px" }}>
-      <div className="ns-surface" style={{ width: "100%", maxWidth: 980, borderRadius: "var(--ns-r-lg)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)" }}>
+    <ModalShell
+      variant="sheet"
+      title="匯入證券交易"
+      onClose={onClose}
+      disableScrimClose
+      disableEscape
+      className="flex justify-center"
+      style={{ zIndex: 200, alignItems: "flex-start", overflowY: "auto", padding: "32px 16px" }}
+      panelClassName="ns-surface"
+      panelStyle={{ width: "100%", maxWidth: 980, borderRadius: "var(--ns-r-lg)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)" }}
+    >
         {/* Header */}
         <div className="flex items-center justify-between" style={{ padding: "16px 22px", borderBottom: "1px solid var(--ns-border)" }}>
           <div className="text-lg font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>匯入證券交易</div>
@@ -436,8 +446,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
             </Button>
           )}
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
