@@ -37,6 +37,7 @@ import { Card } from "../components/coss/card";
 import { Skeleton } from "../components/coss/skeleton";
 import { Glyph } from "../lib/icons";
 import { readableTextColor } from "../lib/color";
+import { lockViewportScroll } from "../lib/scrollLock";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -1857,11 +1858,10 @@ function EntryDrawer({
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") onClose();
     }
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const releaseScrollLock = lockViewportScroll();
     window.addEventListener("keydown", onKeyDown);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      releaseScrollLock();
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [open, onClose]);
