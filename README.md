@@ -2,6 +2,12 @@
 
 **繁體中文** · [English](README.en.md)
 
+[![Release](https://img.shields.io/github/v/release/larryjclai/northstar?include_prereleases&label=release)](https://github.com/larryjclai/northstar/releases/latest)
+[![CI](https://github.com/larryjclai/northstar/actions/workflows/ci.yml/badge.svg)](https://github.com/larryjclai/northstar/actions/workflows/ci.yml)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/larryjclai/northstar/total)](https://github.com/larryjclai/northstar/releases)
+![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
+
 > **Alpha 試用版** · 介面與資料結構仍可能變動，正式發行前資料庫 schema 不保證向後相容。
 > 最新版本請見 **[Releases 頁面](https://github.com/larryjclai/northstar/releases)**。
 
@@ -13,6 +19,16 @@ Northstar 想要讓達成的目標：
 - **了解自己的儲蓄率** — 日常記帳，知道每個月實際存下多少。
 - **跟大盤比較你的投資績效**  — 記錄投資交易、與你選的 Benchmark（如 0050）比較。如果長期贏不了大盤，那就加入大盤吧！
 - **看清離目標還有多遠** — 設定目標與 FIRE 計算機，跟著你的淨值重算，告訴你距離你的目標還有多遠。
+
+## 畫面預覽
+
+以下為內建**示範模式**（載入示範資料，不影響你的真實資料）的畫面：
+
+![總覽 Dashboard — 淨值趨勢、投資 vs Benchmark、預算與近期帳單](docs/screenshots/dashboard.png)
+
+| 投資組合 | 績效分析 | 收支記帳 |
+|---|---|---|
+| ![投資持倉與配置](docs/screenshots/investments.png) | ![累積報酬 vs 0050.TW](docs/screenshots/analytics.png) | ![現金流與分類支出](docs/screenshots/cash-flow.png) |
 
 ## 功能總覽
 
@@ -49,8 +65,9 @@ Northstar 想要讓達成的目標：
 
 前往 **[Releases 頁面](https://github.com/larryjclai/northstar/releases)** 下載最新安裝檔：
 
-- **macOS**：下載 `.dmg`，開啟後拖曳至「應用程式」。首次開啟請見下方說明。
-- **Windows**：即將支援（`.exe` / `.msi`）。
+- **macOS**（Apple Silicon / Intel）：下載 `.dmg`，開啟後拖曳至「應用程式」。首次開啟請見下方說明。
+- **Windows**：下載 `x64-setup.exe` 安裝程式。首次執行 SmartScreen 可能顯示「未知發行者」，點「其他資訊 → 仍要執行」即可。
+- **Linux**：下載 `.deb`（Debian / Ubuntu 系）。
 
 App 內建自動更新，有新版會主動提示。
 
