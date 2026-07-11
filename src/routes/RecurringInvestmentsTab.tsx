@@ -102,7 +102,7 @@ export function RecurringInvestmentsTab() {
     if (draft.mode === "fixedShares" && !(draft.quantity > 0)) { toast.error("請輸入每期股數"); return; }
     try {
       if (editingId) await updateRule.mutateAsync({ ...draft, id: editingId });
-      else await createRule.mutateAsync(draft);
+      else await createRule.mutateAsync({ ...draft, seedToday: todayInTimezone(timezone) });
       toast.success(editingId ? "已儲存變更" : "已建立定期定額");
       close();
     } catch (e) {
