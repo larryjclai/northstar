@@ -4834,17 +4834,23 @@ function uniqueClean(input: unknown, _fallback: string[]) {
   return [...new Set(values)];
 }
 
+// Whitelists CategoryGroup (src/domain/types.ts) fields for persistence and
+// sanitizes sync-delivered junk. Any new CategoryGroup field must be added
+// here or it will be silently dropped on every settings save.
 function normalizeCategoryGroups(input: unknown) {
   const source = Array.isArray(input) ? input : [];
   return source.map((item) => {
     if (typeof item === "string") return { name: item, children: [] };
-    const group = item as { name?: unknown; children?: unknown; icon?: unknown; iconName?: unknown; color?: unknown; budget?: unknown };
+    const group = item as { name?: unknown; children?: unknown; icon?: unknown; iconName?: unknown; color?: unknown; budget?: unknown; rollover?: unknown; rolloverStart?: unknown; kind?: unknown };
     return {
       name: String(group.name ?? "").trim(),
       children: uniqueClean(group.children, []),
       iconName: group.iconName ? String(group.iconName) : group.icon ? String(group.icon) : undefined,
       color: group.color ? String(group.color) : undefined,
       budget: typeof group.budget === "number" ? group.budget : group.budget ? Number(group.budget) : undefined,
+      rollover: group.rollover === true ? true : undefined,
+      rolloverStart: typeof group.rolloverStart === "string" && group.rolloverStart.trim() ? group.rolloverStart.trim() : undefined,
+      kind: (group.kind === "income" || group.kind === "expense" || group.kind === "both" ? group.kind : undefined) as "income" | "expense" | "both" | undefined,
     };
   }).filter((item) => item.name);
 }

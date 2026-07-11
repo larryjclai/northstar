@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "./coss/button";
 import { Card } from "./coss/card";
 import { X, Plus, Trash, PencilSimple, CaretRight, CaretDown, Tag, Check } from "@phosphor-icons/react";
@@ -31,6 +31,15 @@ export function CategoryManagementDrawer({
   // Two-click delete confirm — window.confirm is a no-op in the Tauri webview.
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [draftRename, setDraftRename] = useState("");
+
+  // Re-seed the editable copy from props each time the drawer transitions
+  // closed → open, so reopening doesn't show a stale snapshot from mount.
+  // Do not resync while open — that would clobber in-progress edits.
+  const wasOpen = useRef(open);
+  useEffect(() => {
+    if (open && !wasOpen.current) setLocal(categories);
+    wasOpen.current = open;
+  }, [open, categories]);
 
   if (!open) return null;
 
