@@ -43,16 +43,24 @@ path seeds from UTC anymore.**
 **🔨 Executable now:** 142 (DCA spike), 143 (household spike). That's the
 whole remaining backlog.
 
-**🚧 In flight (separate session, do not touch its worktree
-`blissful-swartz-6d8d07`):** branch `fix/ai-sitca-fund-symbol-collision`
-(`33b9add2`, includes the `/api/market-data` proxy fix `db31a02a`). It found
-that **SITCA 基金代號 are NOT unique across 投信** — ~3,600 of ~4,400 funds
-were silently clobbering each other in the `byCode` map — and re-keys fund
-symbols by 受益憑證代號. This invalidates the "基金代號 is the canonical key"
-assumption plans 066/091/151 were built on. When it lands: re-run the
-market-data test folder, check the 151 rows' tests were updated coherently,
-and re-do the browser end-to-end search check (`T1605Y` / `台積電`) that the
-proxy 502 blocked this session.
+**✅ LANDED (2026-07-11 night):** `fix/ai-sitca-fund-symbol-collision`
+(`33b9add2` + proxy fix `db31a02a`, from the operator's side session) was
+reviewed, gate-verified on its tip (tsc 0 / 1015 tests), and **merged to main**
+(post-merge: tsc 0 / **1017 tests** / lint 0). It found that **SITCA 基金代號
+are NOT unique across 投信** (advisor-verified on the live CSV: 4,394 rows,
+only 762 distinct codes — `DIO63` repeats ×24) — the old `byCode` map silently
+clobbered ~3,600 funds. Canonical fund ticker is now `SITCA:<受益憑證代號>`
+(unique file-wide); legacy `SITCA:<基金代號>` still prices only when
+unambiguous (wrong price > missing price avoided by design); decision doc
+corrected in docs/taiwan-fund-nav-plan.md. **Browser end-to-end verified after
+the merge** (proxy now returns real data): `台積電` → `2330.TW`;
+`兆豐美元` → `SITCA:T0123A/T0123B` (new cert-code symbols live). `T1605Y`
+couldn't be live-tested only because SITCA's server was serving a truncated
+~37-row file at that hour (direct curl confirmed upstream truncation; the full
+file has 4,394 rows) — cert-code matching is unit-tested with the real row.
+**Follow-up chip filed:** guard the 1-hour fund cache against truncated
+upstream CSVs (row-count sanity floor) so a bad fetch doesn't pin near-empty
+search/prices for an hour.
 
 **🔒 Still deferred:** 132's vault-key rotation spike — note PR #15 also landed
 `ade8e99d` "additive ECDH pairing helpers for vault-key exchange", which is
