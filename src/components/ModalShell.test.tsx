@@ -5,6 +5,7 @@ import { ModalShell } from "./ModalShell";
 
 afterEach(() => {
   // Guard against a leaked scroll-lock between tests.
+  document.documentElement.style.overflow = "";
   document.body.style.overflow = "";
 });
 
@@ -127,16 +128,16 @@ describe("ModalShell", () => {
     expect(document.activeElement).toBe(last);
   });
 
-  it("locks body scroll while open and restores it on unmount", () => {
-    document.body.style.overflow = "auto";
+  it("locks viewport scroll while open and restores it on unmount", () => {
+    document.documentElement.style.overflow = "auto";
     const { unmount } = render(
       <ModalShell title="t" onClose={() => {}}>
         <button>ok</button>
       </ModalShell>,
     );
-    expect(document.body.style.overflow).toBe("hidden");
+    expect(document.documentElement.style.overflow).toBe("hidden");
     unmount();
-    expect(document.body.style.overflow).toBe("auto");
+    expect(document.documentElement.style.overflow).toBe("auto");
   });
 
   it("leaves a portalled popover's own keyboard handling alone (trap ignores document.body focusables)", () => {

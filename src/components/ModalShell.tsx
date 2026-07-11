@@ -1,5 +1,7 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 
+import { lockViewportScroll } from "../lib/scrollLock";
+
 export type ModalShellVariant = "center" | "sheet" | "drawer";
 
 export interface ModalShellProps {
@@ -85,8 +87,7 @@ export function ModalShell({
     const autofocusEl = panel.querySelector<HTMLElement>("[data-autofocus]") ?? panel;
     autofocusEl.focus();
 
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const releaseScrollLock = lockViewportScroll();
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -120,7 +121,7 @@ export function ModalShell({
     panel.addEventListener("keydown", onKeyDown);
     return () => {
       panel.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previousOverflow;
+      releaseScrollLock();
       previouslyFocused?.focus?.();
     };
   }, []);
