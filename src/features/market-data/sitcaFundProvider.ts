@@ -22,9 +22,13 @@ const COL_FUND_CODE = "基金代號";
 const COL_FUND_NAME = "基金名稱";
 const COL_NAV = "基金淨值";
 const COL_CURRENCY = "幣別";
+const COL_CERT_CODE = "受益憑證代號";
 
 interface SitcaFund {
   code: string;
+  // Customer-facing certificate code (what bank/fund-platform statements
+  // show, e.g. `T1605Y`) — distinct from the internal 基金代號 (e.g. `DIO04`).
+  certCode: string;
   nav: number;
   currency: string;
   name: string;
@@ -74,8 +78,10 @@ export class SitcaFundProvider {
 }
 
 /**
- * Pure filter: match funds by code or name against a query string.
- * Returns up to `max` SymbolSearchResult items. No I/O — testable standalone.
+ * Pure filter: match funds by 基金代號, name, or 受益憑證代號 (the customer-facing
+ * certificate code shown on bank statements, e.g. `T1605Y`) against a query
+ * string. Returns up to `max` SymbolSearchResult items. No I/O — testable
+ * standalone.
  */
 export function filterFunds(
   byCode: Map<string, SitcaFund>,
@@ -88,7 +94,8 @@ export function filterFunds(
   for (const fund of byCode.values()) {
     const codeMatch = fund.code.toLowerCase().includes(q);
     const nameMatch = (fund.name ?? "").toLowerCase().includes(q);
-    if (!codeMatch && !nameMatch) continue;
+    const certMatch = (fund.certCode ?? "").toLowerCase().includes(q);
+    if (!codeMatch && !nameMatch && !certMatch) continue;
     out.push({
       symbol: `${SITCA_TICKER_PREFIX}${fund.code}`,
       name: fund.name || `${SITCA_TICKER_PREFIX}${fund.code}`,
@@ -121,6 +128,7 @@ export function parseSitcaNavCsv(csv: string): Map<string, SitcaFund> {
     if (!code || !Number.isFinite(nav)) continue;
     byCode.set(code, {
       code,
+      certCode: clean(row[COL_CERT_CODE]),
       nav,
       currency: clean(row[COL_CURRENCY]) || "TWD",
       name: clean(row[COL_FUND_NAME]),
