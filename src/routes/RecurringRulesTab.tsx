@@ -15,9 +15,10 @@ import { useState } from "react";
 import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { RecurringDraft } from "../data/repositories";
-import { formatNumber, recurringFrequencyLabels } from "../domain";
+import { formatNumber, recurringFrequencyLabels, todayInTimezone } from "../domain";
 import { useNumericField } from "../hooks/useNumericField";
 import type { RecurringTransaction } from "../domain";
+import { useUiPreferences } from "../state/uiPreferences";
 
 type FreqFilter = "all" | "monthly" | "yearly" | "weekly" | "biweekly" | "paused";
 
@@ -38,6 +39,7 @@ function monthlyEquivalent(rule: RecurringTransaction): number {
 export function RecurringRulesTab() {
   const { recurring, accounts } = useFinanceData();
   const toast = useToast();
+  const timezone = useUiPreferences((s) => s.timezone);
   const [filter, setFilter] = useState<FreqFilter>("all");
   const [editingRule, setEditingRule] = useState<RecurringTransaction | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -274,7 +276,7 @@ export function RecurringRulesTab() {
                 await updateRecurring.mutateAsync({ ...draft, id });
                 toast.success("已更新週期規則");
               } else {
-                await createRecurring.mutateAsync(draft);
+                await createRecurring.mutateAsync({ ...draft, seedToday: todayInTimezone(timezone) });
                 toast.success("已建立週期規則");
               }
               setSheetOpen(false);

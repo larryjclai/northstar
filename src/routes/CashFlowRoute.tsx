@@ -558,7 +558,8 @@ export function CashFlowRoute() {
              settlementStatus: payload.settlementStatus,
              note: payload.note,
              nextRunDate: nextRecurringDate(payload.date.slice(0, 10), frequency, dayOfMonth),
-             isActive: true
+             isActive: true,
+             seedToday: todayInTimezone(timezone),
           });
           toast.success("已建立週期規則");
         }
@@ -585,7 +586,8 @@ export function CashFlowRoute() {
              settlementStatus: payload.settlementStatus,
              note: payload.note,
              nextRunDate: nextRecurringDate(payload.date.slice(0, 10), frequency, dayOfMonth),
-             isActive: true
+             isActive: true,
+             seedToday: todayInTimezone(timezone),
           });
         }
       }

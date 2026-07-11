@@ -206,7 +206,41 @@ describeEachRepo("recurring", (makeRepo, repoLabel) => {
     expect(ledger.length).toBeGreaterThan(0);
     expect(ledger.every((row) => row.counterAccountId === "acct_pay")).toBe(true);
   });
-});
+  });
+
+  describe("createRecurringTransaction seedToday", () => {
+    // System clock is faked to 2026-06-05T00:00:00Z (see top-level beforeEach).
+    // Without `seedToday`, firstFutureRunDate falls back to that UTC "today".
+    it("seeds the first run from seedToday, not the UTC default clock", async () => {
+      const repo = await makeRepo({ accounts: [account] });
+      const draft = {
+        accountId: "acct_cash",
+        amount: -100,
+        currency: "TWD",
+        category: "訂閱",
+        subcategory: "串流媒體",
+        merchant: "測試",
+        entryType: "expense" as const,
+        settlementStatus: "settled" as const,
+        note: "",
+        frequency: "monthly" as const,
+        dayOfMonth: 1,
+        nextRunDate: "2026-06-01",
+        isActive: true,
+      };
+
+      // No seedToday → UTC default "today" is 2026-06-05, past 06-01 → advances to 07-01.
+      await repo.createRecurringTransaction(draft);
+      const [withoutSeed] = await repo.listRecurringTransactions();
+      expect(withoutSeed.nextRunDate).toBe("2026-07-01");
+
+      // seedToday pinned to the same day as nextRunDate → not yet past "today", stays put.
+      await repo.createRecurringTransaction({ ...draft, seedToday: "2026-06-01" });
+      const rules = await repo.listRecurringTransactions();
+      const withSeed = rules.find((r) => r.id !== withoutSeed.id)!;
+      expect(withSeed.nextRunDate).toBe("2026-06-01");
+    });
+  });
 
 describe("applyRecurringScopeEdit", () => {
   async function setup() {

@@ -94,6 +94,8 @@ export interface RecurringDraft {
   dayOfMonth: number;
   nextRunDate: string;
   isActive: boolean;
+  /** App-timezone "today" for seeding the first run; omitted → UTC fallback. */
+  seedToday?: string;
 }
 
 /** Scope for editing a recurring-rule-generated ledger occurrence. */
@@ -114,6 +116,8 @@ export interface RecurringInvestmentDraft {
   nextRunDate: string;
   isActive: boolean;
   note: string;
+  /** App-timezone "today" for seeding the first run; omitted → UTC fallback. */
+  seedToday?: string;
 }
 
 export interface TransferDraft {
@@ -5211,7 +5215,7 @@ function createRecurringRow(input: RecurringDraft): RecurringTransaction {
     ...input,
     counterAccountId: input.counterAccountId ?? null,
     frequency,
-    nextRunDate: firstFutureRunDate(input.nextRunDate, frequency, input.dayOfMonth),
+    nextRunDate: firstFutureRunDate(input.nextRunDate, frequency, input.dayOfMonth, input.seedToday),
   };
 }
 
@@ -5229,7 +5233,7 @@ function createRecurringInvestmentRow(input: RecurringInvestmentDraft): Recurrin
     ticker: input.ticker.trim().toUpperCase(),
     currency: input.currency.trim().toUpperCase(),
     frequency,
-    nextRunDate: firstFutureRunDate(input.nextRunDate, frequency, input.dayOfMonth),
+    nextRunDate: firstFutureRunDate(input.nextRunDate, frequency, input.dayOfMonth, input.seedToday),
   };
 }
 
