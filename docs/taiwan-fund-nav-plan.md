@@ -37,9 +37,28 @@ assumed a BIG5 government feed; that is wrong for this dataset. Consequences:
 | 基金淨值 | 7 | quote `price` (NAV) |
 | 幣別 | 11 | quote `currency` (native) |
 
+### Correction (2026-07-11) — 基金代號 is NOT unique; symbol moved to 受益憑證代號
+
+Decision 1 below assumed 基金代號 identifies a fund. The live file disproves this:
+4,394 data rows contain **521 duplicated 基金代號** across fund companies (19 rows share
+`DIO04` alone — 群益 vs 路博邁 etc.). A code-keyed map silently collapsed ~4,400 funds to
+~725, dropping e.g. 「T1605Y 群益新興金鑽基金-新臺幣」 from search, and a `SITCA:<基金代號>`
+ticker can price off the *wrong company's* NAV.
+
+Revised convention (implemented in `sitcaFundProvider.ts`):
+
+- **Canonical ticker: `SITCA:<受益憑證代號>`** (e.g. `SITCA:T1605Y`). In the live file the
+  cert code is non-empty and unique on every row, and it is the customer-facing code bank
+  statements show. Falls back to `SITCA:<基金代號>` only if a row ever lacks a cert code.
+- **Legacy tickers keep working when safe.** `SITCA:<基金代號>` holdings still price iff the
+  code maps to exactly one fund; ambiguous codes return **no quote** (fail soft) instead of
+  an arbitrary fund's NAV — wrong valuations are worse than missing ones.
+- Parsing keeps **every** row (list, not code-keyed map); search returns cert-code symbols.
+
 ## Operator-signed-off decisions
 
-1. **Symbol convention.** A fund's `ticker` is `SITCA:<基金代號>` (e.g. `SITCA:DIE02`);
+1. **Symbol convention.** ~~A fund's `ticker` is `SITCA:<基金代號>` (e.g. `SITCA:DIE02`)~~ —
+   superseded by the 2026-07-11 correction above: `SITCA:<受益憑證代號>`.
    `assetType: "mutual_fund"`. The `SITCA:` prefix namespaces fund codes so they never
    collide with listed tickers (`0050.TW`, US symbols) and lets refresh routing recognise
    funds by prefix.
@@ -55,8 +74,9 @@ assumed a BIG5 government feed; that is wrong for this dataset. Consequences:
 ## How it wires into the existing pipeline (no valuation change)
 
 - `sitcaFundProvider.ts` fetches the CSV once via `invoke("fetch_market_data", …)` (Tauri)
-  or the `/api/market-data` dev proxy (browser), strips the BOM, parses with `parseCsvTable`,
-  and builds `基金代號 → { nav, currency, name, date }`. For each requested `SITCA:<code>`
+  or the `/api/market-data` dev proxy (browser), strips the BOM, parses with `parseCsvTable`
+  into a fund list, and indexes it by ticker suffix (受益憑證代號, plus unambiguous 基金代號
+  for legacy tickers — see the 2026-07-11 correction). For each requested `SITCA:<code>`
   symbol it returns a `MarketQuote` whose `symbol` equals the requested ticker, `price` is the
   NAV, `currency` is col 11, `nameZh` is 基金名稱, and `marketTime` is the NAV date.
   `sourceName = "SITCA"`.
