@@ -93,3 +93,6 @@ Design System/
 .impeccable.md
 skills-lock.json
 .codex/
+
+# Claude Code per-machine local settings (permission allowlist) — never publish
+.claude/settings.local.json
