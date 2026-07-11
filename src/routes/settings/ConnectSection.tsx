@@ -22,6 +22,7 @@ import { getOrCreateDeviceIdentity } from "../../state/deviceIdentity";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { IconPicker } from "../../components/IconPicker";
+import { ModalShell } from "../../components/ModalShell";
 import { Glyph } from "../../lib/icons";
 import { Popover, PopoverTrigger, PopoverContent } from "../../components/ui/popover";
 import QRCode from "react-qr-code";
@@ -1112,10 +1113,12 @@ function AddDeviceDialog({
   const secs = String(secondsLeft % 60).padStart(2, "0");
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center" style={{
-      zIndex: 200,
-      background: "var(--ns-scrim)",
-    }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <ModalShell
+      variant="center"
+      title={mode === "show" ? "加入現有裝置" : "新增裝置"}
+      onClose={onClose}
+      style={{ zIndex: 200 }}
+    >
       <Card style={{ width: 480, padding: 0, overflow: "hidden" }}>
         {/* Header */}
         <div className="flex items-center justify-between" style={{ padding: "18px 22px 0" }}>
@@ -1260,7 +1263,7 @@ function AddDeviceDialog({
           )}
         </div>
       </Card>
-    </div>
+    </ModalShell>
   );
 }
 
