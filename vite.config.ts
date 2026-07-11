@@ -25,7 +25,9 @@ export default defineConfig({
   server: {
     host: tauriDevHost || "127.0.0.1",
     strictPort: true,
-    port: 5173,
+    // PORT override lets a second dev server (e.g. another worktree) coexist
+    // with the default 5173 that Tauri expects.
+    port: Number(process.env.PORT) || 5173,
     hmr: tauriDevHost
       ? { protocol: "ws", host: tauriDevHost, port: 5174 }
       : undefined,
@@ -88,7 +90,9 @@ function marketDataProxy(): Plugin {
 
       server.middlewares.use("/api/market-data", async (request, response) => {
         try {
-          const params = new URLSearchParams(request.url?.replace(/^\?/, "") ?? "");
+          // Connect strips the mount path, leaving request.url = "/?url=...";
+          // parse via URL so the leading slash doesn't corrupt the first key.
+          const params = new URL(request.url ?? "/", "http://localhost").searchParams;
           const rawUrl = params.get("url") ?? "";
           const target = new URL(rawUrl);
           if (!isAllowedMarketDataUrl(target)) {

@@ -15,7 +15,8 @@ import { YahooFinanceProvider } from "./yahooFinanceProvider";
 // bail while the demo flag is set; call sites show DEMO_MARKET_MESSAGE.
 export const DEMO_MARKET_MESSAGE = "示範模式使用內建行情，已略過線上更新。";
 
-// Taiwan domestic mutual funds carry a `SITCA:<基金代號>` ticker and price off
+// Taiwan domestic mutual funds carry a `SITCA:<受益憑證代號>` ticker (legacy
+// `SITCA:<基金代號>` still resolves when unambiguous) and price off
 // the SITCA NAV CSV, not Yahoo. Everything else (stocks/ETFs incl. .TW/.TWO/US)
 // stays on Yahoo. This split keeps each provider on the symbols it can answer.
 function isSitcaFundSymbol(symbol: string): boolean {

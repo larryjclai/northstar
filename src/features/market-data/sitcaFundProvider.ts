@@ -10,8 +10,13 @@ import type { MarketQuote, SymbolSearchResult } from "./provider";
 // docs/taiwan-fund-nav-plan.md. Key facts mirrored here:
 //   - The file is UTF-8 WITH A BOM (EF BB BF), NOT BIG5 — strip the leading BOM
 //     so the first column header (日期) is not corrupted; no charset conversion.
-//   - A fund's ticker is `SITCA:<基金代號>`; NAV is stored in its native currency
-//     (col 幣別) and the existing FX layer handles display.
+//   - 基金代號 is NOT unique across fund companies (hundreds of codes repeat;
+//     19 rows share `DIO04` alone), so the canonical ticker is
+//     `SITCA:<受益憑證代號>` — unique file-wide and what bank statements show.
+//     Legacy `SITCA:<基金代號>` tickers still price when the code maps to
+//     exactly one fund; ambiguous codes are skipped rather than priced wrong.
+//   - NAV is stored in its native currency (col 幣別) and the existing FX
+//     layer handles display.
 export const SITCA_NAV_URL = "https://www.sitca.org.tw/MemberK0000/F/03/nav.csv";
 export const SITCA_TICKER_PREFIX = "SITCA:";
 
@@ -36,7 +41,7 @@ interface SitcaFund {
 }
 
 const cacheMaxAgeMs = 60 * 60 * 1000;
-let fundCache: { updatedAt: number; byCode: Map<string, SitcaFund> } | null = null;
+let fundCache: { updatedAt: number; funds: SitcaFund[]; bySuffix: Map<string, SitcaFund> } | null = null;
 
 export class SitcaFundProvider {
   readonly sourceName = "SITCA";
@@ -44,8 +49,8 @@ export class SitcaFundProvider {
   async searchFunds(query: string, max = 20): Promise<SymbolSearchResult[]> {
     if (query.trim().length < 2) return [];
     try {
-      const byCode = await fetchFunds();
-      return filterFunds(byCode, query, max);
+      const { funds } = await fetchFunds();
+      return filterFunds(funds, query, max);
     } catch {
       return [];
     }
@@ -55,11 +60,11 @@ export class SitcaFundProvider {
     const wanted = [...new Set(symbols.map(normalizeSymbol).filter(isFundSymbol))];
     if (wanted.length === 0) return {};
 
-    const byCode = await fetchFunds();
+    const { bySuffix } = await fetchFunds();
     const result: Record<string, MarketQuote> = {};
     for (const symbol of wanted) {
-      const code = symbol.slice(SITCA_TICKER_PREFIX.length);
-      const fund = byCode.get(code);
+      const suffix = symbol.slice(SITCA_TICKER_PREFIX.length);
+      const fund = bySuffix.get(suffix);
       if (!fund) continue;
       result[symbol] = {
         symbol,
@@ -77,6 +82,11 @@ export class SitcaFundProvider {
   }
 }
 
+/** Canonical ticker for a fund: 受益憑證代號 when present, 基金代號 as fallback. */
+export function fundSymbol(fund: Pick<SitcaFund, "code" | "certCode">): string {
+  return `${SITCA_TICKER_PREFIX}${(fund.certCode || fund.code).toUpperCase()}`;
+}
+
 /**
  * Pure filter: match funds by 基金代號, name, or 受益憑證代號 (the customer-facing
  * certificate code shown on bank statements, e.g. `T1605Y`) against a query
@@ -84,21 +94,21 @@ export class SitcaFundProvider {
  * standalone.
  */
 export function filterFunds(
-  byCode: Map<string, SitcaFund>,
+  funds: SitcaFund[],
   query: string,
   max = 20,
 ): SymbolSearchResult[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
   const out: SymbolSearchResult[] = [];
-  for (const fund of byCode.values()) {
+  for (const fund of funds) {
     const codeMatch = fund.code.toLowerCase().includes(q);
     const nameMatch = (fund.name ?? "").toLowerCase().includes(q);
     const certMatch = (fund.certCode ?? "").toLowerCase().includes(q);
     if (!codeMatch && !nameMatch && !certMatch) continue;
     out.push({
-      symbol: `${SITCA_TICKER_PREFIX}${fund.code}`,
-      name: fund.name || `${SITCA_TICKER_PREFIX}${fund.code}`,
+      symbol: fundSymbol(fund),
+      name: fund.name || fundSymbol(fund),
       exchange: "SITCA",
     });
     if (out.length >= max) break;
@@ -106,27 +116,29 @@ export function filterFunds(
   return out;
 }
 
-async function fetchFunds(): Promise<Map<string, SitcaFund>> {
-  if (fundCache && Date.now() - fundCache.updatedAt < cacheMaxAgeMs) return fundCache.byCode;
+async function fetchFunds(): Promise<{ funds: SitcaFund[]; bySuffix: Map<string, SitcaFund> }> {
+  if (fundCache && Date.now() - fundCache.updatedAt < cacheMaxAgeMs) return fundCache;
   const csv = await fetchMarketData(SITCA_NAV_URL);
-  const byCode = parseSitcaNavCsv(csv);
-  fundCache = { updatedAt: Date.now(), byCode };
-  return byCode;
+  const funds = parseSitcaNavCsv(csv);
+  fundCache = { updatedAt: Date.now(), funds, bySuffix: buildFundSymbolIndex(funds) };
+  return fundCache;
 }
 
 /**
- * Parse the SITCA NAV CSV into a `基金代號 → fund` map. Pure (no I/O) so the
- * parse test can feed a captured sample. Strips the UTF-8 BOM before parsing so
- * the first column header is intact.
+ * Parse the SITCA NAV CSV into a fund list. Keeps every valid row — 基金代號
+ * repeats across fund companies, so rows must NOT be collapsed by code (a
+ * code-keyed map silently dropped ~3,600 of ~4,400 funds). Pure (no I/O) so
+ * the parse test can feed a captured sample. Strips the UTF-8 BOM before
+ * parsing so the first column header is intact.
  */
-export function parseSitcaNavCsv(csv: string): Map<string, SitcaFund> {
+export function parseSitcaNavCsv(csv: string): SitcaFund[] {
   const table = parseCsvTable(stripBom(csv));
-  const byCode = new Map<string, SitcaFund>();
+  const funds: SitcaFund[] = [];
   for (const row of table.rows) {
     const code = clean(row[COL_FUND_CODE]);
     const nav = Number(clean(row[COL_NAV]));
     if (!code || !Number.isFinite(nav)) continue;
-    byCode.set(code, {
+    funds.push({
       code,
       certCode: clean(row[COL_CERT_CODE]),
       nav,
@@ -135,7 +147,30 @@ export function parseSitcaNavCsv(csv: string): Map<string, SitcaFund> {
       date: clean(row[COL_DATE]),
     });
   }
-  return byCode;
+  return funds;
+}
+
+/**
+ * Index funds by ticker suffix (the part after `SITCA:`), uppercase.
+ * 受益憑證代號 is the canonical key; legacy 基金代號 keys are kept only when the
+ * code maps to exactly one fund — an ambiguous code must not price a holding
+ * off an arbitrary fund's NAV. Cert entries win key conflicts.
+ */
+export function buildFundSymbolIndex(funds: SitcaFund[]): Map<string, SitcaFund> {
+  const codeCounts = new Map<string, number>();
+  for (const fund of funds) {
+    const key = fund.code.toUpperCase();
+    codeCounts.set(key, (codeCounts.get(key) ?? 0) + 1);
+  }
+  const bySuffix = new Map<string, SitcaFund>();
+  for (const fund of funds) {
+    const key = fund.code.toUpperCase();
+    if (codeCounts.get(key) === 1) bySuffix.set(key, fund);
+  }
+  for (const fund of funds) {
+    if (fund.certCode) bySuffix.set(fund.certCode.toUpperCase(), fund);
+  }
+  return bySuffix;
 }
 
 /** Strip a single leading UTF-8 BOM (`﻿`) if present. */
