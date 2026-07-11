@@ -22,26 +22,37 @@ merged PRs #14–#21 and this session merged the 151–155 batch.
 - **138 tail (partial)** — PR #16 (`feat/ai-modalshell-tail-b`) migrated the
   accounts wizard drawer + goal-editor sheet to ModalShell.
 
-**⚠️ Executed-but-UNMERGED, now CONFLICTING:** `feat/ai-modalshell-tail`
-(10 commits, 10 overlay migrations: cashflow settle/recurring-scope/
-installment-delete, goals editor, investments entry drawer, both CSV wizards,
-recurring editors, reconcile credit-pay/defer, connect add-device,
-holding-edit). `-b` superseded 2 of its overlays and the 151–155 batch touched
-CashFlowRoute; `git merge-tree` now reports **CONFLICTS**. Decision needed:
-redo per-file against current main (fresh dispatches per the 138 row's
-follow-up list) or abandon the branch. Do NOT merge it as-is.
+**RESOLVED same day (2026-07-11 evening):** the "conflicting tail" alarm below
+was a false positive — closer inspection showed PR #16 (`feat/ai-modalshell-tail-b`)
+contained **11 commits**, a complete redo of ALL the tail overlays, already on
+main; a repo-wide sweep found **zero** remaining raw (non-ModalShell) overlays.
+`feat/ai-modalshell-tail` (tip `969d11c0`) and `docs/ai-reconcile-reality`
+(tip `030c8fc8`) were both fully superseded and have been **deleted** (tips
+recoverable via reflog), along with their stale worktrees. **138 is now fully
+DONE, tail included.**
 
-**⏭️ Superseded branch:** `docs/ai-reconcile-reality` — its content shipped via
-`docs/ai-reconcile-reality-2` (139, merged). Safe to delete.
+**✅ 146 MERGED** (same evening): merge commit on main after `2f3ac9fc`;
+`seedToday?: string` on both recurring drafts, both `firstFutureRunDate`
+callers pass it, 4 create sites set `seedToday: todayInTimezone(timezone)`
+(RecurringRulesTab, RecurringInvestmentsTab, CashFlowRoute ×2); demoData/seed
+correctly left on the UTC default; belt-and-braces test proves seed-vs-UTC
+divergence under both repos (1009→1011 tests). No UI-store import in
+`src/data/` (grep 0). **Closes plan 120's last deferred item — no recurring
+path seeds from UTC anymore.**
 
-**🔨 Executable now:** 142 (DCA spike), 143 (household spike), 146 (timezone
-plumbing — drift-refreshed to `2f3ac9fc`, call sites now repositories.ts:5214/
-5232, finding still live), 138 tail redo (per-file).
+**🔨 Executable now:** 142 (DCA spike), 143 (household spike). That's the
+whole remaining backlog.
 
-**🚧 In flight (separate session):** `fix/ai-vite-market-data-proxy`
-(`db31a02a`) — the dev-shell `/api/market-data` 502 fix (Connect mount-path
-parsing), committed on its branch, session still running. When it lands, re-run
-the 151/152 browser end-to-end check (search `T1605Y` / `台積電` in dev).
+**🚧 In flight (separate session, do not touch its worktree
+`blissful-swartz-6d8d07`):** branch `fix/ai-sitca-fund-symbol-collision`
+(`33b9add2`, includes the `/api/market-data` proxy fix `db31a02a`). It found
+that **SITCA 基金代號 are NOT unique across 投信** — ~3,600 of ~4,400 funds
+were silently clobbering each other in the `byCode` map — and re-keys fund
+symbols by 受益憑證代號. This invalidates the "基金代號 is the canonical key"
+assumption plans 066/091/151 were built on. When it lands: re-run the
+market-data test folder, check the 151 rows' tests were updated coherently,
+and re-do the browser end-to-end search check (`T1605Y` / `台積電`) that the
+proxy 502 blocked this session.
 
 **🔒 Still deferred:** 132's vault-key rotation spike — note PR #15 also landed
 `ade8e99d` "additive ECDH pairing helpers for vault-key exchange", which is
@@ -249,7 +260,7 @@ everything else parallel-friendly.
 | 119 | Repo parity: recurring nextRunDate advance + browser sync occurrence dedup | P1 | M | — | ✅ MERGED on main (fast-forward `5f5c3aa6`, 2026-07-09; commits `86b5fe6a`+`5f5c3aa6`). Bug1: browser advances `nextRunDate` on `advanced.size>0` (recompute still gated on `posted>0`). Bug2: browser `applySyncChanges` applies the SQLite winner rule (`sort()[0]`, loser tombstoned with `bump()`). +3 tests (fail-first). Recurring-investments path checked — no bug1 pattern (single-rule post). Post-merge main: tsc 0 / 846 tests / lint 0. Removes 2 divergences plan 126 would flag. |
 | 120 | Timezone-aware "today/current month" sweep (4 high-impact sites) | P2 | S | — | ✅ MERGED (partial) on main (fast-forward `ae0c9ce1`, 2026-07-09; commit `ae0c9ce1`). 3 user-facing sites fixed (Dashboard month KPI, budget currentMonth, CashFlow UpcomingPayments) + `firstFutureRunDate` made injectable + 6 tests. **Repo-caller site legitimately STOPPED** (data layer has no timezone — validated) → deferred to plan 146. Post-merge main: tsc 0 / 852 tests / lint 0. |
 | 145 | CashFlow per-row FX uses the daily-rate index (plan-123 follow-up) | P2 | S | 123 (merged) | ✅ MERGED on main (fast-forward `1330280e`, 2026-07-09; commit `1330280e`). Both per-row daily `convertCurrency` calls now pass `dailyRateIndex: fxIndex` (memoized on `fxHistory`); grep→0; bit-identical per 123's proof. Post-merge main: tsc 0 / 852 tests / lint 0. |
-| 146 | Recurring-seed timezone plumbing (finishes 120's deferred repo-caller piece) | P3 | S | 120 (merged) | TODO — thread `seedToday: todayInTimezone(tz)` through the draft to the two `firstFutureRunDate` callers. |
+| 146 | Recurring-seed timezone plumbing (finishes 120's deferred repo-caller piece) | P3 | S | 120 (merged) | ✅ MERGED on main (2026-07-11 evening; commit `e943963b`). `seedToday?` on both drafts, both callers pass it, 4 UI create sites set it, demoData left on UTC default; +2 tests (seed-vs-UTC divergence, both repos; 1011 total). Reviewer re-ran tsc/tests/greps in the worktree; post-merge main tsc 0 / 1011 tests / lint 0. Closes 120's last deferred item. |
 | 121 | FX missing-rate visibility (toPrimaryOrNull + annual-report warning) | P2 | M | — | ✅ MERGED on main (fast-forward `fb738b2c`, 2026-07-09). Additive `toPrimaryOrNull` (toPrimary byte-identical); dividendAnalysis/annualReport/valuation now exclude+count unpriced legs (`fxMisses`/`fxMissCount`); AnnualReportRoute shows 「有 N 筆配息因缺少匯率未計入」 (`--ns-warn`). +5 tests. tsc 0 / 957 tests / lint 0. (Deferred: Dashboard/Investments hero miss-signal.) |
 | 122 | Small-fix basket: CSV error path / update-listener StrictMode / scope-edit tx / oversell clamp | P2 | M | — | ✅ MERGED on main (merge `f79ec930`, 2026-07-09). **A** CSV import wrapped in try/catch → zh-TW error toast. **B** update-check focus listener registers unconditionally (survives StrictMode; `checkForUpdate` self-throttles 6h). **C** SQLite `applyRecurringScopeEdit` override wraps the「全部」edit in one `withTransaction` (re-entrant via txDepth) → atomic, no half-apply; sqlite-gated fail-first test. **D** moving-avg oversell uses `soldQty` for proceeds+decrement (was inflating XIRR); fail-first test (realized 190 not 1090). tsc 0 / 960 tests / lint 0. |
 | 123 | FX converter useMemo + per-pair rate index + CashFlow aggregate memo | P1 | S | coordinate w/ 121 | ✅ MERGED on main (merge `bd2292c2`, 2026-07-09; commits `0aebf545`+`9c00fdb0`). Per-pair binary-search index proven bit-identical (tie-break walk-back + 50×20 property test); 4 route sites memoized, 5th correctly excluded (plain helper already inside a useMemo); CashFlow aggregates memoized off searchQuery. Post-merge main: tsc 0 / 843 tests / lint 0. |
