@@ -58,9 +58,12 @@ the merge** (proxy now returns real data): `台積電` → `2330.TW`;
 couldn't be live-tested only because SITCA's server was serving a truncated
 ~37-row file at that hour (direct curl confirmed upstream truncation; the full
 file has 4,394 rows) — cert-code matching is unit-tested with the real row.
-**Follow-up chip filed:** guard the 1-hour fund cache against truncated
-upstream CSVs (row-count sanity floor) so a bad fetch doesn't pin near-empty
-search/prices for an hour.
+**Follow-up chip DONE (same night):** `fix/ai-sitca-truncated-csv-guard`
+(`87d6635b`, operator side-session) merged — `MIN_EXPECTED_FUND_COUNT = 1000`
+sanity floor; a truncated download keeps serving the previous full cache (even
+past the 1 h TTL) and a first-ever truncated fetch is served un-cached so the
+next call retries; +3 tests (fake clock + fetch stub, incl. recovery path).
+Post-merge main: tsc 0 / **1020 tests** / lint 0.
 
 **🔒 Still deferred:** 132's vault-key rotation spike — note PR #15 also landed
 `ade8e99d` "additive ECDH pairing helpers for vault-key exchange", which is
