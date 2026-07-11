@@ -1,5 +1,14 @@
-import { describe, expect, it } from "vitest";
-import { buildFundSymbolIndex, filterFunds, fundSymbol, parseSitcaNavCsv } from "./sitcaFundProvider";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  MIN_EXPECTED_FUND_COUNT,
+  SitcaFundProvider,
+  buildFundSymbolIndex,
+  filterFunds,
+  fundSymbol,
+  isPlausibleFundList,
+  parseSitcaNavCsv,
+  resetSitcaFundCacheForTests,
+} from "./sitcaFundProvider";
 
 // Captured SITCA NAV CSV shape, prefixed with the UTF-8 BOM (﻿) exactly as
 // the live file (first bytes EF BB BF). Columns:
@@ -158,5 +167,86 @@ describe("fundSymbol", () => {
   it("prefers the cert code and upper-cases it", () => {
     expect(fundSymbol({ code: "dio04", certCode: "t1605y" })).toBe("SITCA:T1605Y");
     expect(fundSymbol({ code: "dio04", certCode: "" })).toBe("SITCA:DIO04");
+  });
+});
+
+// Generate a syntactically valid SITCA CSV with `count` fund rows — the full
+// live file has ~4,400 rows, the truncated failure mode ~37.
+function makeCsv(count: number): string {
+  const lines = [
+    "﻿日期,會員代號,公司名稱,基金統編,基金代號,基金名稱,基金淨值,漲跌,漲跌幅,類型代號,幣別,受益憑證代號",
+  ];
+  for (let i = 0; i < count; i++) {
+    const n = String(i).padStart(4, "0");
+    lines.push(`20260711,A0001,某投信,12345678,F${n},測試基金${n},10.5000,0,0,B,TWD,T${n}Y`);
+  }
+  return lines.join("\n") + "\n";
+}
+
+// Stub the non-Tauri fetch path (`/api/market-data?...`) so each call serves
+// the next CSV in `bodies` (the last one repeats). Returns the mock so tests
+// can count refetch attempts.
+function stubMarketDataFetch(bodies: string[]) {
+  let call = 0;
+  const mock = vi.fn(async () => {
+    const body = bodies[Math.min(call, bodies.length - 1)];
+    call += 1;
+    return { ok: true, text: async () => body };
+  });
+  vi.stubGlobal("fetch", mock);
+  return mock;
+}
+
+describe("isPlausibleFundList", () => {
+  it("rejects a tiny parse (the truncated-file failure mode) and accepts the full universe", () => {
+    expect(isPlausibleFundList(parseSitcaNavCsv(makeCsv(37)))).toBe(false);
+    expect(isPlausibleFundList(parseSitcaNavCsv(makeCsv(MIN_EXPECTED_FUND_COUNT)))).toBe(true);
+  });
+});
+
+describe("truncated-CSV cache guard", () => {
+  afterEach(() => {
+    resetSitcaFundCacheForTests();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("keeps serving the previous full cache when a refetch comes back truncated, even past the 1 h TTL", async () => {
+    resetSitcaFundCacheForTests();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const t0 = new Date("2026-07-11T08:00:00Z");
+    vi.setSystemTime(t0);
+    const mock = stubMarketDataFetch([makeCsv(MIN_EXPECTED_FUND_COUNT), makeCsv(37)]);
+    const provider = new SitcaFundProvider();
+
+    // First fetch: full universe, cached. T0999Y only exists in the full file.
+    const before = await provider.fetchQuotes(["SITCA:T0999Y"]);
+    expect(before["SITCA:T0999Y"]?.price).toBe(10.5);
+
+    // 2 h later the cache is expired and the server serves the truncated file.
+    vi.setSystemTime(new Date(t0.getTime() + 2 * 60 * 60 * 1000));
+    const after = await provider.fetchQuotes(["SITCA:T0999Y"]);
+    expect(mock).toHaveBeenCalledTimes(2); // the refetch was attempted…
+    expect(after["SITCA:T0999Y"]?.price).toBe(10.5); // …but the stale full cache still prices the fund
+  });
+
+  it("serves a first-ever truncated fetch but does not pin it — the next call retries", async () => {
+    resetSitcaFundCacheForTests();
+    const mock = stubMarketDataFetch([makeCsv(37), makeCsv(37), makeCsv(MIN_EXPECTED_FUND_COUNT)]);
+    const provider = new SitcaFundProvider();
+
+    // No previous cache: the sliver is still served (fail-soft)…
+    const sliver = await provider.fetchQuotes(["SITCA:T0001Y"]);
+    expect(sliver["SITCA:T0001Y"]?.price).toBe(10.5);
+
+    // …but not cached, so every call refetches until a full file arrives.
+    await provider.fetchQuotes(["SITCA:T0001Y"]);
+    expect(mock).toHaveBeenCalledTimes(2);
+
+    // Third fetch returns the full universe — that one is cached again.
+    const full = await provider.fetchQuotes(["SITCA:T0999Y"]);
+    expect(full["SITCA:T0999Y"]?.price).toBe(10.5);
+    await provider.fetchQuotes(["SITCA:T0999Y"]);
+    expect(mock).toHaveBeenCalledTimes(3);
   });
 });
