@@ -3,6 +3,7 @@ import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
 import { AppSelect } from "../components/AppSelect";
+import { ModalShell } from "../components/ModalShell";
 import { useMemo, useState } from "react";
 import { useToast } from "../components/Toast";
 import { TickerSearchField } from "../components/TickerSearchField";
@@ -221,13 +222,14 @@ function RecurringInvestmentSheet({
 }) {
   const cash = perPeriodCash(draft);
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={onClose}>
-      <div style={{ position: "absolute", inset: 0, background: "var(--ns-scrim)" }} />
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="flex flex-col"
-        style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "min(480px, 100%)", background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)", boxShadow: "var(--ns-shadow-2)" }}
-      >
+    <ModalShell
+      variant="drawer"
+      title={editing ? "編輯定期定額" : "新增定期定額"}
+      onClose={onClose}
+      style={{ zIndex: 50 }}
+      panelClassName="flex flex-col"
+      panelStyle={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "min(480px, 100%)", background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)", boxShadow: "var(--ns-shadow-2)" }}
+    >
         <div className="flex items-center justify-between" style={{ padding: "18px 22px", borderBottom: "1px solid var(--ns-border)" }}>
           <h2 className="text-lg m-0 font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>{editing ? "編輯定期定額" : "新增定期定額"}</h2>
           <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="關閉"><X size={16} /></Button>
@@ -330,8 +332,7 @@ function RecurringInvestmentSheet({
           <Button variant="ghost" style={{ flex: "0 0 90px", justifyContent: "center" }} onClick={onClose}>取消</Button>
           <Button className="flex-1" style={{ justifyContent: "center" }} onClick={onSubmit} disabled={pending}>{pending ? "儲存中…" : editing ? "儲存變更" : "建立"}</Button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
