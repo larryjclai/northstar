@@ -29,6 +29,7 @@ import { DateScopeControl } from "../components/DateScopeControl";
 import { AccountFilter } from "../components/AccountFilter";
 import { AppSelect } from "../components/AppSelect";
 import { CategoryFilter } from "../components/CategoryFilter";
+import { ModalShell } from "../components/ModalShell";
 import { NumberField } from "../components/NumberField";
 import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
@@ -1395,14 +1396,13 @@ function SettleModal({
   const [accountId, setAccountId] = useState(row.accountId || "");
   const amountLabel = `${currencySymbol(row.currency)}${formatNumber(Math.abs(row.amount))}`;
   return (
-    <div
-      onClick={onCancel}
-      className="ns-modal-scrim"
+    <ModalShell
+      variant="center"
+      title={isReceivable ? "收款結清" : "付款結清"}
+      onClose={onCancel}
+      style={{ zIndex: 1000 }}
+      panelClassName="ns-modal-panel"
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="ns-modal-panel"
-      >
         <div className="text-[15px] font-semibold mb-1">{isReceivable ? "收款結清" : "付款結清"}</div>
         <div className="text-xs muted mb-4" style={{ lineHeight: 1.6 }}>
           {row.merchant || row.name || (isReceivable ? "應收款項" : "應付款項")} · {amountLabel}
@@ -1426,8 +1426,7 @@ function SettleModal({
             <Check size={14} weight="bold" />結清
           </Button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -1448,14 +1447,13 @@ function RecurringScopeModal({
     { scope: "all", label: "全部紀錄（過去＋現在＋未來）", desc: "更新規則與所有已產生的紀錄（保留各自日期）。" },
   ];
   return (
-    <div
-      onClick={onCancel}
-      className="ns-modal-scrim"
+    <ModalShell
+      variant="center"
+      title="套用變更範圍"
+      onClose={onCancel}
+      style={{ zIndex: 1000 }}
+      panelClassName="ns-modal-panel"
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="ns-modal-panel"
-      >
         <div className="text-[15px] font-semibold mb-1">套用變更範圍</div>
         <div className="text-xs muted mb-4">這是由週期規則產生的紀錄，請選擇要套用的範圍。</div>
         <div className="flex flex-col gap-2">
@@ -1478,8 +1476,7 @@ function RecurringScopeModal({
         <div className="flex justify-end mt-4">
           <Button variant="outline" onClick={onCancel} disabled={pending}>取消</Button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -1503,14 +1500,13 @@ function InstallmentDeleteModal({
     { mode: "all", label: "整組分期", desc: "刪除這筆購物的全部分期紀錄（共 " + (row.installmentTotal ?? "?") + " 期）。" },
   ];
   return (
-    <div
-      onClick={onCancel}
-      className="ns-modal-scrim"
+    <ModalShell
+      variant="center"
+      title="刪除分期紀錄"
+      onClose={onCancel}
+      style={{ zIndex: 1000 }}
+      panelClassName="ns-modal-panel"
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="ns-modal-panel"
-      >
         <div className="text-[15px] font-semibold mb-1">刪除分期紀錄</div>
         <div className="text-xs muted mb-4">
           {label ? `這是第 ${row.installmentIndex}/${row.installmentTotal} 期的分期紀錄，請選擇刪除範圍。` : "請選擇刪除範圍。"}
@@ -1535,8 +1531,7 @@ function InstallmentDeleteModal({
         <div className="flex justify-end mt-4">
           <Button variant="outline" onClick={onCancel} disabled={pending}>取消</Button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
