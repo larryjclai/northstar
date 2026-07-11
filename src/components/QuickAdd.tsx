@@ -34,6 +34,8 @@ function toConfirm(parsed: QuickAddParsed, fallbackText: string, nowDatetimeLoca
 export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void }) {
   const toast = useToast();
   const timezone = useUiPreferences((state) => state.timezone);
+  const sidebarCollapsed = useUiPreferences((state) => state.sidebarCollapsed);
+  const overlayLeft = sidebarCollapsed ? 64 : 240;
   const { accounts, ledger, settings } = useFinanceData();
   const accountRows = accounts.data ?? [];
   const ledgerRows = ledger.data ?? [];
@@ -227,7 +229,8 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
   }
 
   return (
-    <div className="flex" style={{ position: "fixed", inset: 0, zIndex: 80, alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+    <div className="ns-quickadd-overlay flex" style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: overlayLeft, zIndex: 80, alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+      <style>{`@media (max-width:1023.98px){.ns-quickadd-overlay{left:0 !important;}}`}</style>
       <div style={{ position: "absolute", inset: 0, background: "var(--ns-scrim)" }} />
       <div
         onClick={(e) => e.stopPropagation()}
