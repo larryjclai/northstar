@@ -581,6 +581,16 @@ html[data-native-glass][data-theme="dark"] .ns-sidebar {
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
+
+  /* The universal selector doesn't match view-transition pseudo-elements, so
+     zero them explicitly — otherwise a page/route View Transition would still
+     animate for reduce-motion users (161 finding). */
+  ::view-transition-group(*),
+  ::view-transition-image-pair(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }
 /* If the View Transitions API ever engages, don't cross-fade sibling views
    (its default has a transparent mid-gap that reads as a flicker). */
