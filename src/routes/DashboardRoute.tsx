@@ -118,6 +118,36 @@ const CHART_COLORS = [
   "var(--ns-chart-7)",
 ];
 
+/**
+ * 待辦 row (plan 164): a single date-sorted merge of upcoming bills,
+ * credit-card payments due, and outstanding AR/AP — no new financial math,
+ * just re-tagging the three existing sources for one combined card.
+ */
+type TodoRow = {
+  key: string;
+  type: "bill" | "card" | "recv" | "pay" | "income";
+  name: string;
+  sub: string;
+  /** "MM-DD" for display. */
+  date: string;
+  /** Full ISO date used for sorting. */
+  iso: string;
+  /** Signed, primary-currency amount; negative = 待付. */
+  amt: number;
+  /** Present for "card" rows — links to the account's reconcile route. */
+  linkAccountId?: string;
+  /** Present for "recv"/"pay" rows — links to the cash-flow ledger entry. */
+  linkTxId?: string;
+};
+
+const TODO_META: Record<TodoRow["type"], { label: string; color: string }> = {
+  bill: { label: "帳單", color: "var(--ns-chart-3)" },
+  card: { label: "信用卡", color: "var(--ns-chart-5)" },
+  recv: { label: "應收", color: "var(--ns-chart-2)" },
+  pay: { label: "應付", color: "var(--ns-chart-5)" },
+  income: { label: "入帳", color: "var(--ns-pos)" },
+};
+
 export function DashboardRoute() {
   const { accounts, ledger, assets, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots, recurring, financialGoals, investments, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
@@ -624,7 +654,6 @@ export function DashboardRoute() {
       .sort((a, b) => a.nextRunDate.localeCompare(b.nextRunDate))
       .slice(0, 5);
   }, [recurringRows, timezone]);
-  const upcomingTotal = upcoming.reduce((sum, r) => sum + toPrimary(Math.abs(r.amount), r.currency, r.nextRunDate), 0);
 
   // Credit-card payments coming due (within ~45 days), soonest first.
   const creditReminders = useMemo(
@@ -647,7 +676,54 @@ export function DashboardRoute() {
   const netSettlement = settlements.receivableTotal - settlements.payableTotal;
   const adjustedNetWorth = netWorth + netSettlement;
 
-  // FX rates (latest + previous per pair) for the Market card.
+  // 待辦 (plan 164): merge upcoming bills, credit-card payments, and
+  // outstanding AR/AP into a single date-sorted list. Reuses the three
+  // already-computed sources above — no new financial math.
+  const todoRows = useMemo<TodoRow[]>(() => {
+    const rows: TodoRow[] = [];
+    for (const b of upcoming) {
+      const isIncome = b.entryType === "income";
+      rows.push({
+        key: `bill-${b.id}`,
+        type: isIncome ? "income" : "bill",
+        name: b.merchant || b.category,
+        sub: accountMap.get(b.accountId)?.name ?? "",
+        date: b.nextRunDate.slice(5),
+        iso: b.nextRunDate,
+        amt: isIncome ? Math.abs(b.amount) : -Math.abs(b.amount),
+      });
+    }
+    for (const r of creditReminders) {
+      rows.push({
+        key: `card-${r.accountId}`,
+        type: "card",
+        name: r.name,
+        sub: `繳款日 ${r.dueDate.slice(5)} · 還有 ${r.daysUntilDue} 天`,
+        date: r.dueDate.slice(5),
+        iso: r.dueDate,
+        amt: -r.outstanding,
+        linkAccountId: r.accountId,
+      });
+    }
+    for (const item of settlements.items.slice(0, 5)) {
+      const isRecv = item.kind === "receivable";
+      const amount = toPrimary(item.amount, item.currency) ?? item.amount;
+      rows.push({
+        key: `settle-${item.id}`,
+        type: isRecv ? "recv" : "pay",
+        name: item.counterparty || item.name,
+        sub: "",
+        date: item.date.slice(5, 10),
+        iso: item.date.slice(0, 10),
+        amt: isRecv ? amount : -amount,
+        linkTxId: item.id,
+      });
+    }
+    return rows.sort((a, b) => a.iso.localeCompare(b.iso)).slice(0, 6);
+  }, [upcoming, creditReminders, settlements, accountMap, toPrimary]);
+  const todoTotalDue = todoRows.reduce((sum, r) => sum + (r.amt < 0 ? r.amt : 0), 0);
+
+  // FX rates (latest + previous per pair) for the header FX one-liner.
   const fxRates = useMemo(() => {
     const byPair = new Map<string, DailyFxRate[]>();
     for (const row of fxHistory) {
@@ -1020,9 +1096,15 @@ export function DashboardRoute() {
         </div>
       </div>
 
-      {/* Row 2 · Budget + Upcoming */}
+      {/* Row 2 · 待辦 (bills + credit cards + AR/AP merged) + 今日漲跌 */}
+      <div className={(cardVisible("todos") && cardVisible("topMovers") && heldAssetCount > 0 ? "ns-dash-activity-grid" : "") + " mb-4"}>
+        {cardVisible("todos") ? <TodoCard rows={todoRows} totalDue={todoTotalDue} /> : null}
+        {cardVisible("topMovers") && heldAssetCount > 0 ? <TopMoversCard gainers={movers.gainers} losers={movers.losers} /> : null}
+      </div>
+
+      {/* Row 3a · Budget */}
+      {cardVisible("budget") ? (
       <div className="ns-dash-row2">
-        {cardVisible("budget") ? (
         <Card style={{ padding: "var(--ns-pad-card)" }}>
           <SectionHead eyebrow={`Budget · ${todayLabel.slice(0, todayLabel.indexOf("月") + 1) || "本月"}`} title="預算進度" action={<Button variant="ghost" size="xs" render={<Link to="/cash-flow/categories" />}>管理分類 →</Button>} />
           {budgetCats.length === 0 ? (
@@ -1054,97 +1136,48 @@ export function DashboardRoute() {
             </div>
           )}
         </Card>
-        ) : null}
-
-        {cardVisible("upcoming") ? (
-        <Card>
-          <div className="flex items-center justify-between pt-4 px-5 pb-3" style={{ borderBottom: "1px solid var(--ns-border)" }}>
-            <div>
-              <div className="text-xs mb-1 muted font-medium">Upcoming</div>
-              <h3 className="text-base m-0 font-medium" style={{ fontFamily: "var(--ns-font-display)" }}>近期帳單 · 30 天</h3>
-            </div>
-            {upcoming.length ? <Badge variant="error" className="rounded-full px-2">NT${formatNumber(upcomingTotal)}</Badge> : null}
-          </div>
-          {upcoming.length === 0 ? (
-            <div className="muted text-body" style={{ padding: "18px 20px" }}>近期沒有排定的週期收支。</div>
-          ) : (
-            upcoming.map((b, i) => (
-              <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none" }}>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13.5px] font-medium truncate">{b.merchant || b.category}</div>
-                  <div className="muted text-caption" >{accountMap.get(b.accountId)?.name ?? ""}</div>
-                </div>
-                <div className="text-right">
-                  <div className="num text-[13.5px]" style={{ color: b.entryType === "income" ? "var(--ns-pos)" : "var(--ns-neg)" }}>
-                    {b.entryType === "income" ? "+" : "−"}NT${formatNumber(Math.abs(b.amount))}
-                  </div>
-                  <div className="mono dim text-caption">{b.nextRunDate.slice(5)}</div>
-                </div>
-              </div>
-            ))
-          )}
-        </Card>
-        ) : null}
       </div>
+      ) : null}
 
-      {/* Credit-card payment reminders */}
-      {cardVisible("creditCards") && creditReminders.length > 0 ? (
-        <Card className="mb-4">
-          <div className="flex items-center justify-between pt-4 px-5 pb-3" style={{ borderBottom: "1px solid var(--ns-border)" }}>
-            <div>
-              <div className="text-xs mb-1 muted font-medium">Credit cards</div>
-              <h3 className="text-base m-0 font-medium" style={{ fontFamily: "var(--ns-font-display)" }}>信用卡繳款提醒</h3>
+      {/* Row 3b · 淨值趨勢 (demoted; default-hidden, re-enableable from 版面) */}
+      {cardVisible("netWorthTrend") ? (
+        <Card className="mb-4" style={{ padding: 22 }}>
+          <SectionHead eyebrow="Net worth trend" title="淨值趨勢" />
+          {reconciledTrend.length > 1 ? (
+            <div style={{ height: 280, position: "relative" }}>
+              <div style={{ position: "absolute", inset: 0 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={visibleTrend}>
+                    <defs>
+                      <linearGradient id="netWorthTrendFull" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="5%" stopColor="var(--ns-accent)" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="var(--ns-accent)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="date" stroke="var(--ns-fg-muted)" fontSize={11} minTickGap={24} />
+                    <YAxis hide domain={["dataMin - 20000", "dataMax + 20000"]} />
+                    <Tooltip formatter={(value) => formatMoney(Number(value), primaryCurrency)} contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }} itemStyle={{ color: "var(--ns-fg)" }} labelStyle={{ color: "var(--ns-fg)" }} />
+                    <Area type="monotone" dataKey="value" stroke="var(--ns-accent)" fill="url(#netWorthTrendFull)" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             </div>
-            <Badge variant="error" className="rounded-full px-2">NT${formatNumber(creditReminders.reduce((s, r) => s + r.outstanding, 0))}</Badge>
+          ) : (
+            <div className="muted text-body">累積幾筆資料後會顯示淨值趨勢。</div>
+          )}
+          {analyticsPositions.length > 0 ? (
+            <PortfolioStrip period={stripPeriod} data={stripData} benchmarkTicker={benchmarkTicker} />
+          ) : null}
+          <div className="ns-dash-kpi-stack mt-4">
+            <KpiCard label="投資" value={formatMoney(marketValue, primaryCurrency)} color="var(--ns-chart-1)" />
+            <KpiCard label="現金 / 存款" value={formatMoney(availableCash, primaryCurrency)} color="var(--ns-chart-2)" />
+            {alternativeAssets > 0 ? <KpiCard label="其他資產" value={formatMoney(alternativeAssets, primaryCurrency)} color="var(--ns-chart-4)" /> : null}
+            <KpiCard label="負債" value={formatMoney(liabilities, primaryCurrency)} color="var(--ns-chart-5)" tone={liabilities > 0 ? "neg" : undefined} />
           </div>
-          {creditReminders.map((r, i) => {
-            const soon = r.daysUntilDue <= 7;
-            return (
-              <Link key={r.accountId} to="/cash-flow/reconcile/$accountId" params={{ accountId: r.accountId }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none", textDecoration: "none", color: "inherit" }}>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13.5px] font-medium truncate">{r.name}</div>
-                  <div className="muted text-caption">繳款日 {r.dueDate.slice(5)} · {r.daysUntilDue === 0 ? "今天到期" : `還有 ${r.daysUntilDue} 天`}</div>
-                </div>
-                <div className="text-right">
-                  <div className="num text-[13.5px] neg">−NT${formatNumber(r.outstanding)}</div>
-                  <div className="mono text-caption" style={{ color: soon ? "var(--ns-neg)" : "var(--ns-fg-dim)" }}>{soon ? "即將到期" : "對帳 →"}</div>
-                </div>
-              </Link>
-            );
-          })}
         </Card>
       ) : null}
 
-      {/* Outstanding receivables / payables */}
-      {cardVisible("settlements") && settlements.items.length > 0 ? (
-        <Card className="mb-4">
-          <div className="flex items-center justify-between pt-4 px-5 pb-3" style={{ borderBottom: "1px solid var(--ns-border)" }}>
-            <div>
-              <div className="text-xs mb-1 muted font-medium">Receivables &amp; payables</div>
-              <h3 className="text-base m-0 font-medium" style={{ fontFamily: "var(--ns-font-display)" }}>應收 / 應付未結清</h3>
-            </div>
-            <div className="flex gap-2">
-              {settlements.receivableTotal > 0 ? <Badge variant="outline" className="rounded-full px-2" style={{ color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收 NT${formatNumber(settlements.receivableTotal)}</Badge> : null}
-              {settlements.payableTotal > 0 ? <Badge variant="outline" className="rounded-full px-2" style={{ color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}>應付 NT${formatNumber(settlements.payableTotal)}</Badge> : null}
-            </div>
-          </div>
-          {settlements.items.slice(0, 5).map((item, i) => (
-            <Link key={item.id} to="/cash-flow" search={{ tx: item.id }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none", textDecoration: "none", color: "inherit" }}>
-              <Badge variant="outline" className="rounded-full" style={{ color: item.kind === "receivable" ? "var(--ns-chart-3)" : "var(--ns-chart-5)", borderColor: item.kind === "receivable" ? "var(--ns-chart-3)" : "var(--ns-chart-5)" }}>{item.kind === "receivable" ? "應收" : "應付"}</Badge>
-              <div className="flex-1 min-w-0">
-                <div className="text-[13.5px] font-medium truncate">{item.counterparty || item.name}</div>
-                <div className="muted text-caption">{item.date.slice(0, 10)}</div>
-              </div>
-              <div className="num text-[13.5px]" style={{ color: item.kind === "receivable" ? "var(--ns-pos)" : "var(--ns-neg)" }}>
-                {item.kind === "receivable" ? "+" : "−"}NT${formatNumber(toPrimary(item.amount, item.currency) ?? item.amount)}
-              </div>
-            </Link>
-          ))}
-        </Card>
-      ) : null}
-
-      {/* Recurring investments due — top up the 交割款 */}
-      {/* Row 3 · Allocation + Goals + Market */}
+      {/* Row 4 · Allocation + Goals */}
       <div className="ns-dash-row3">
         {/* Allocation */}
         {cardVisible("allocation") ? (
@@ -1213,10 +1246,9 @@ export function DashboardRoute() {
         ) : null}
       </div>
 
-      {/* Row 4 · Recent activity + Top Movers (shared row so neither is cramped) */}
-      <div className={(cardVisible("topMovers") && heldAssetCount > 0 ? "ns-dash-activity-grid" : "") + " mb-4"}>
+      {/* Row 5 · Recent activity (demoted; default-hidden, re-enableable from 版面) */}
       {cardVisible("recentActivity") ? (
-      <Card className="ns-dash-activity-card">
+      <Card className="mb-4">
         <div className="flex items-baseline justify-between" style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)" }}>
           <div>
             <div className="text-xs mb-1 muted font-medium">Recent activity</div>
@@ -1243,10 +1275,8 @@ export function DashboardRoute() {
         )}
       </Card>
       ) : null}
-        {cardVisible("topMovers") && heldAssetCount > 0 ? <TopMoversCard gainers={movers.gainers} losers={movers.losers} /> : null}
-      </div>
 
-      {/* Row 5 · 30-year net-worth projection */}
+      {/* Row 6 · 30-year net-worth projection */}
       {cardVisible("projection") ? (
         <NetWorthProjectionCard
           netWorth={netWorth}
@@ -1469,6 +1499,63 @@ function MoverColumn({ label, tone, movers }: { label: string; tone: "pos" | "ne
         movers.map((m) => <MoverRow key={m.ticker} mover={m} />)
       )}
     </div>
+  );
+}
+
+/** Merged 待辦 card: bills + credit cards + AR/AP, one date-sorted list (plan 164). */
+function TodoCard({ rows, totalDue }: { rows: TodoRow[]; totalDue: number }) {
+  return (
+    <Card className="ns-dash-activity-card p-0">
+      <div className="flex items-center justify-between pt-4 px-5 pb-3" style={{ borderBottom: "1px solid var(--ns-border)" }}>
+        <div>
+          <div className="text-xs mb-1 muted font-medium">To-do</div>
+          <h3 className="text-base m-0 font-medium" style={{ fontFamily: "var(--ns-font-display)" }}>待辦 · 30 天</h3>
+        </div>
+        {totalDue < 0 ? <Badge variant="error" className="rounded-full px-2">NT${formatNumber(Math.abs(totalDue))}</Badge> : null}
+      </div>
+      {rows.length === 0 ? (
+        <div className="muted text-body" style={{ padding: "18px 20px" }}>近期沒有待辦事項。</div>
+      ) : (
+        rows.map((row, i) => {
+          const meta = TODO_META[row.type];
+          const inner = (
+            <>
+              <span style={{ width: 6, height: 6, borderRadius: 99, background: meta.color, flexShrink: 0 }} title={meta.label} />
+              <div className="flex-1 min-w-0">
+                <div className="text-[13.5px] font-medium truncate">{row.name}</div>
+                {row.sub ? <div className="muted text-caption truncate">{row.sub}</div> : null}
+              </div>
+              <div className="text-right">
+                <div className="num text-[13.5px]" style={{ color: row.amt >= 0 ? "var(--ns-pos)" : "var(--ns-neg)" }}>
+                  {row.amt >= 0 ? "+" : "−"}NT${formatNumber(Math.abs(row.amt))}
+                </div>
+                <div className="mono dim text-caption">{row.date}</div>
+              </div>
+            </>
+          );
+          const rowStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none" };
+          if (row.type === "card" && row.linkAccountId) {
+            return (
+              <Link key={row.key} to="/cash-flow/reconcile/$accountId" params={{ accountId: row.linkAccountId }} style={{ ...rowStyle, textDecoration: "none", color: "inherit" }}>
+                {inner}
+              </Link>
+            );
+          }
+          if ((row.type === "recv" || row.type === "pay") && row.linkTxId) {
+            return (
+              <Link key={row.key} to="/cash-flow" search={{ tx: row.linkTxId }} style={{ ...rowStyle, textDecoration: "none", color: "inherit" }}>
+                {inner}
+              </Link>
+            );
+          }
+          return (
+            <div key={row.key} style={rowStyle}>
+              {inner}
+            </div>
+          );
+        })
+      )}
+    </Card>
   );
 }
 
