@@ -1205,6 +1205,10 @@ textarea:focus-visible {
 }
 .ns-page-tabs {
   overflow-x: auto;
+  /* Setting overflow-x alone makes the UA compute overflow-y:auto, which then
+     shows a spurious vertical scrollbar from a 1px sub-pixel overflow (the
+     active tab's -1px underline overlap). Pin it hidden. */
+  overflow-y: hidden;
 }
 .ns-page-tabs button {
   flex: 0 0 auto;
@@ -1215,12 +1219,16 @@ textarea:focus-visible {
 .ns-holdings-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 16px 24px;
 }
 .ns-holdings-summary-col {
-  padding: 0 20px;
+  padding: 0 22px;
 }
 .ns-holdings-summary-col:first-child {
   padding-left: 0;
+}
+.ns-holdings-summary-col:last-child {
+  padding-right: 0;
 }
 .ns-holdings-summary-col + .ns-holdings-summary-col {
   border-left: 1px solid var(--ns-border);
@@ -1273,32 +1281,53 @@ textarea:focus-visible {
 .ns-holdings-expansion + .ns-holdings-row {
   border-top: 1px solid var(--ns-border);
 }
+/* Expansion panel matches the design template: an elevated inner card laid out
+   as [ sparkline | stats grid | actions ] (plan 165 + redesign feedback). */
 .ns-holdings-expansion {
-  padding: 16px 0 20px;
+  padding: 4px 22px 18px;
   background: var(--ns-bg-hover);
 }
 .ns-holdings-expansion-body {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 220px 1fr auto;
+  gap: 26px;
+  align-items: center;
+  background: var(--ns-bg-elev);
+  border: 1px solid var(--ns-border);
+  border-radius: var(--ns-r-md);
+  padding: 16px 20px;
 }
 .ns-holdings-expansion-spark {
-  width: 180px;
-  height: 64px;
-  flex: 0 0 auto;
+  width: 200px;
+  max-width: 100%;
+  height: 52px;
 }
 .ns-holdings-expansion-grid {
-  flex: 1 1 320px;
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-  gap: 12px 16px;
+  grid-template-columns: repeat(4, auto);
+  gap: 12px 32px;
+  justify-content: start;
 }
 .ns-holdings-expansion-actions {
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 16px;
+}
+/* Stack the three columns on narrow viewports so nothing gets crushed. */
+@media (max-width: 860px) {
+  .ns-holdings-expansion-body {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    align-items: stretch;
+  }
+  .ns-holdings-expansion-grid {
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  }
+  .ns-holdings-expansion-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
 }
 .ns-invest-panel {
   overflow: hidden;

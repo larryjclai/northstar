@@ -5,6 +5,7 @@ import {
   annualizedVolatilityPct,
   buildBenchmarkSeries,
   buildPortfolioValueSeries,
+  buildReturnAttribution,
   cumulativeReturnPct,
   dailyReturns,
   hasEnoughReturns,
@@ -300,6 +301,43 @@ describe("buildPortfolioValueSeries", () => {
       positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-01", end: "2024-01-01",
     });
     expect(series).toEqual([]);
+  });
+});
+
+describe("buildReturnAttribution", () => {
+  it("attributes each holding's price contribution over the window, sorted by magnitude", () => {
+    const positions = [
+      pos({ assetId: "a", ticker: "AAA", quantity: 10 }),
+      pos({ assetId: "b", ticker: "BBB", quantity: 5 }),
+    ];
+    const dailyPrices = [
+      price("AAA", "2024-01-01", 10), price("AAA", "2024-01-03", 13), // (13−10)×10 = +30
+      price("BBB", "2024-01-01", 20), price("BBB", "2024-01-03", 18), // (18−20)×5  = −10
+    ];
+    const { items, total, excludedTickers } = buildReturnAttribution({
+      positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-01", end: "2024-01-03",
+    });
+    expect(excludedTickers).toEqual([]);
+    expect(total).toBeCloseTo(20); // +30 − 10
+    // Sorted by absolute contribution: AAA (30) before BBB (10).
+    expect(items.map((i) => i.ticker)).toEqual(["AAA", "BBB"]);
+    expect(items[0].contribution).toBeCloseTo(30);
+    expect(items[1].contribution).toBeCloseTo(-10);
+    expect(items[0].pct).toBeCloseTo(150); // 30 / 20
+    expect(items[1].pct).toBeCloseTo(-50); // −10 / 20
+  });
+
+  it("follows the selected window — a later start captures only the recent move", () => {
+    const positions = [pos({ assetId: "a", ticker: "AAA", quantity: 10 })];
+    const dailyPrices = [
+      price("AAA", "2024-01-01", 10),
+      price("AAA", "2024-01-02", 12),
+      price("AAA", "2024-01-03", 15),
+    ];
+    const full = buildReturnAttribution({ positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-01", end: "2024-01-03" });
+    const recent = buildReturnAttribution({ positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-02", end: "2024-01-03" });
+    expect(full.items[0].contribution).toBeCloseTo(50);   // (15−10)×10
+    expect(recent.items[0].contribution).toBeCloseTo(30); // (15−12)×10
   });
 });
 

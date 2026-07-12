@@ -1034,6 +1034,7 @@ function HoldingsAllocation({ positions, assetsById, nameLocale, toPrimary, prim
 // into the row expansion by default and only reappear as flattened columns
 // when the user opts in via 「欄位」.
 const HOLDINGS_COLUMN_OPTIONS: { key: HoldingsColumnKey; label: string }[] = [
+  { key: "dayPnl", label: "當日損益" },
   { key: "account", label: "券商" },
   { key: "averageCost", label: "均價" },
   { key: "assetType", label: "類型" },
@@ -1334,13 +1335,17 @@ function HoldingsTab({
   // Default 5-column grid (代號/名稱, 今日, 現價, 市值, 未實現損益) + a 40px chevron
   // column; optional 「欄位」 columns append between 未實現損益 and the chevron.
   const optionalColumnsVisible = HOLDINGS_COLUMN_OPTIONS.filter((opt) => visibleCol(opt.key));
+  // Optional columns are sized to their content (`auto`) rather than an equal
+  // `1fr` share: a left-aligned 券商 next to a right-aligned 均價 in wide `1fr`
+  // tracks left a large empty gap between them. The five base columns keep the
+  // fr units and absorb the remaining width.
   const gridTemplateColumns = [
     "2.2fr",
     "1fr",
     "1fr",
     "1.2fr",
     "1.3fr",
-    ...optionalColumnsVisible.map(() => "1fr"),
+    ...optionalColumnsVisible.map(() => "auto"),
     "40px",
   ].join(" ");
 
@@ -1507,6 +1512,7 @@ function HoldingsTab({
               <SortableHeader label="現價" sortKey="marketPrice" sort={sort} onToggle={toggleSort} align="right" />
               <SortableHeader label="市值" sortKey="marketValue" sort={sort} onToggle={toggleSort} align="right" />
               <SortableHeader label="未實現損益" sortKey="unrealizedGain" sort={sort} onToggle={toggleSort} align="right" />
+              {visibleCol("dayPnl") ? <StaticHeader label="當日損益" align="right" /> : null}
               {visibleCol("account") ? <SortableHeader label="券商" sortKey="account" sort={sort} onToggle={toggleSort} /> : null}
               {visibleCol("averageCost") ? <SortableHeader label="均價" sortKey="averageCost" sort={sort} onToggle={toggleSort} align="right" /> : null}
               {visibleCol("assetType") ? <StaticHeader label="類型" /> : null}
@@ -1587,6 +1593,15 @@ function HoldingsTab({
                         ({position.unrealizedGainPercent >= 0 ? "+" : ""}{position.unrealizedGainPercent.toFixed(2)}%)
                       </span>
                     </div>
+                    {visibleCol("dayPnl") ? (
+                      <div
+                        className="py-3 text-right tabular whitespace-nowrap"
+                        style={{ color: todayImpactPrimary == null ? "var(--ns-muted)" : todayImpactPrimary >= 0 ? "var(--ns-gain)" : "var(--ns-loss)" }}
+                        title={todayImpactLabel}
+                      >
+                        {todayImpactPrimary == null ? "—" : `${todayImpactPrimary >= 0 ? "+" : "−"}${formatCompactNumber(Math.abs(todayImpactPrimary))}`}
+                      </div>
+                    ) : null}
                     {visibleCol("account") ? (
                       <div className="max-w-[11rem] py-3" title={account ? account.name : "未指定"}>
                         <span className="block truncate">{account ? account.name : "未指定"}</span>
@@ -1820,25 +1835,32 @@ function HoldingExpansion({
   return (
     <div className="ns-holdings-expansion">
       <div className="ns-holdings-expansion-body">
-        <div className="ns-holdings-expansion-spark">
+        <div className="min-w-0">
+          <div className="ns-holdings-expansion-spark">
+            {sparkline.length > 1 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={sparkline}>
+                  <defs>
+                    <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="5%" stopColor="var(--ns-accent)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="var(--ns-accent)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <YAxis hide domain={["dataMin", "dataMax"]} />
+                  <Area type="monotone" dataKey="close" stroke="var(--ns-accent)" fill={`url(#${gradientId})`} strokeWidth={1.5} />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center text-xs" style={{ color: "var(--ns-muted)" }}>
+                尚無足夠股價歷史
+              </div>
+            )}
+          </div>
           {sparkline.length > 1 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={sparkline}>
-                <defs>
-                  <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="5%" stopColor="var(--ns-accent)" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="var(--ns-accent)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <YAxis hide domain={["dataMin", "dataMax"]} />
-                <Area type="monotone" dataKey="close" stroke="var(--ns-accent)" fill={`url(#${gradientId})`} strokeWidth={1.5} />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex h-full items-center justify-center text-xs" style={{ color: "var(--ns-muted)" }}>
-              尚無足夠股價歷史
+            <div className="mono mt-1" style={{ fontSize: 10, color: "var(--ns-fg-dim)" }}>
+              近 3 個月 · {position.marketPrice !== null ? formatPrice(position.marketPrice) : "—"} {position.currency}
             </div>
-          )}
+          ) : null}
         </div>
         <div className="ns-holdings-expansion-grid">
           <ExpansionStat label="股數" value={formatQuantity(position.quantity)} />
@@ -1849,21 +1871,21 @@ function HoldingExpansion({
           <ExpansionStat label="股利 YTD" value={dividendsYtd > 0 ? `${formatCompactNumber(dividendsYtd)} ${position.currency}` : "—"} />
           <ExpansionStat label="持倉天數" value={holdingDays !== null ? `${formatNumber(holdingDays)} 天` : "—"} />
         </div>
-      </div>
-      <div className="ns-holdings-expansion-actions">
-        {onEdit ? (
-          <Button variant="outline" size="sm" onClick={onEdit}>
-            <PencilSimple size={14} />{editLabel}
+        <div className="ns-holdings-expansion-actions">
+          {onAddTransaction ? (
+            <Button size="sm" onClick={onAddTransaction}>
+              <Plus size={14} weight="bold" />新增交易
+            </Button>
+          ) : null}
+          <Button variant="outline" size="sm" onClick={onViewDetail}>
+            查看詳情<CaretRight size={12} />
           </Button>
-        ) : null}
-        {onAddTransaction ? (
-          <Button size="sm" onClick={onAddTransaction}>
-            <Plus size={14} weight="bold" />新增交易
-          </Button>
-        ) : null}
-        <Button variant="ghost" size="sm" onClick={onViewDetail}>
-          查看詳情<CaretRight size={12} />
-        </Button>
+          {onEdit ? (
+            <Button variant="ghost" size="sm" onClick={onEdit}>
+              <PencilSimple size={14} />{editLabel}
+            </Button>
+          ) : null}
+        </div>
       </div>
     </div>
   );

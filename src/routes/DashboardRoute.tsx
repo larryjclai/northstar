@@ -8,7 +8,6 @@ import { getFinanceRepository, type StoredMarketQuote } from "../data/repositori
 import { enterDemoMode } from "../data/demoData";
 import { useDemoMode } from "../state/demoMode";
 import { useToast } from "../components/Toast";
-import { AccountFilter } from "../components/AccountFilter";
 import { NotificationCenter } from "../components/NotificationCenter";
 import { openOnboarding } from "../components/OnboardingOverlay";
 import { Badge } from "../components/coss/badge";
@@ -178,7 +177,10 @@ export function DashboardRoute() {
   // Current month for the cash-flow KPI and budget card. Recomputed each
   // render; there is intentionally no month switcher on the dashboard.
   const monthKey = todayInTimezone(timezone).slice(0, 7);
-  const [selectedAccount, setSelectedAccount] = useState<string>("all");
+  // Overview always aggregates every account; the per-account filter UI was
+  // removed (redesign feedback). `selectedAccount` stays "all" so the existing
+  // account-scoped memos below keep working unchanged.
+  const [selectedAccount] = useState<string>("all");
   const [demoLoading, setDemoLoading] = useState(false);
 
   async function loadDemo() {
@@ -944,12 +946,11 @@ export function DashboardRoute() {
             />
           ) : null}
         </div>
-        {/* Account filter + 更新. The single time-range control lives on the net
-            worth card (the period segmented control), matching the prototype. */}
+        {/* 匯率 one-liner sits inline with 更新行情 + 版面. The single time-range
+            control lives on the net-worth card (the period segmented control). */}
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-          <FxInline rates={fxRates} />
-          <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} style={{ maxWidth: "none" }} />
-          <div className="flex w-full gap-2 sm:contents">
+          <div className="flex w-full items-center gap-2 sm:contents">
+            <FxInline rates={fxRates} />
             <Button variant="outline" className="h-9 flex-1 sm:flex-none shrink-0 sm:h-9" onClick={refreshMarket} loading={refreshingMarket} disabled={refreshingMarket || (assetRows.length === 0 && (appSettings?.exchangeRates?.length ?? 0) === 0)} title="更新持倉報價、匯率與每日歷史股價">
               <ArrowsClockwise size={14} />{refreshingMarket ? "更新中" : "更新行情"}
             </Button>

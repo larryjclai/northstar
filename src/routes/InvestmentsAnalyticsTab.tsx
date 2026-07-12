@@ -23,7 +23,7 @@ import { useUiPreferences, type NameLocalePreference } from "../state/uiPreferen
 import {
   annualizedVolatilityPct,
   buildBenchmarkSeries,
-  buildCostBasisAttribution,
+  buildReturnAttribution,
   buildPortfolioTwr,
   buildPortfolioValueSeries,
   buildCurrencyExposure,
@@ -353,9 +353,12 @@ export function InvestmentsAnalyticsTab({
     return { xirr, gated: false, spanDays: span };
   }, [records, end, fullSeriesResult]);
 
+  // 貢獻 now follows the global period (redesign feedback): per-holding price
+  // contribution over [activeStart, end] on the same fixed-basket valuation as
+  // the rest of the engine, so "上漲/下跌最多" reflects the selected window.
   const attribution = useMemo(() => {
-    return buildCostBasisAttribution({ positions, records, dailyPrices, manualSnapshots, toPrimary, end });
-  }, [positions, records, dailyPrices, manualSnapshots, toPrimary, end]);
+    return buildReturnAttribution({ positions, dailyPrices, manualSnapshots, toPrimary, start: activeStart, end });
+  }, [positions, dailyPrices, manualSnapshots, toPrimary, activeStart, end]);
 
   const perf = useMemo(() => {
     const series = core.series;
@@ -812,24 +815,19 @@ export function InvestmentsAnalyticsTab({
       </section>
 
       {/* ═══ 02 · 貢獻 CONTRIBUTION ══════════════════════════════════════════ */}
-      {/* Deviation from the plan's literal tag ("跟隨期間"): buildCostBasisAttribution
-          takes no `start` — it was never period-scoped, even before this reorder
-          (its memo deps never included `period`). It answers "up/down vs. my
-          running cost basis as of today", not "within the selected period".
-          Changing that would mean adding a start param to portfolioAnalytics.ts,
-          which is out of scope. Tagging it "跟隨期間" here would be false per the
-          plan's own truthfulness requirement, so it's tagged as a cost-basis
-          snapshot instead. */}
+      {/* Period-scoped: buildReturnAttribution computes each holding's price
+          contribution over [activeStart, end] on the fixed-basket valuation, so
+          "上漲/下跌最多" follows the global period control. */}
       {attribution.items.length > 0 && (
         <section id="an-contrib" className="grid gap-5 scroll-mt-16">
-        <SectionHeader no="02" title="貢獻" question="報酬主要從哪裡來？" tag={<ScopeTag label="不隨期間 · 成本基準" />} />
+        <SectionHeader no="02" title="貢獻" question="報酬主要從哪裡來？" tag={<ScopeTag follow label="跟隨期間" />} />
         <CossCard style={{ padding: 34 }}>
           <NSAnHead
-            kicker="未實現損益"
+            kicker="期間貢獻"
             title="上漲最多與下跌最多"
             right={
               <span className="muted whitespace-nowrap" style={{ fontSize: 12, fontFamily: "var(--ns-font-mono)" }}>
-                成本基準 · {end}
+                {periodLabel}
               </span>
             }
           />
