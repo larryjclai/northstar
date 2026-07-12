@@ -95,15 +95,13 @@ const LONG_VIEW_WINDOW = 30;
 /** Dashboard cards the user can hide via 編輯版面 (net-worth hero + KPI stay). */
 const DASHBOARD_CARDS: Array<{ key: string; label: string }> = [
   { key: "budget", label: "預算進度" },
-  { key: "upcoming", label: "近期帳單" },
-  { key: "creditCards", label: "信用卡繳款提醒" },
-  { key: "settlements", label: "應收 / 應付" },
+  { key: "todos", label: "待辦" },
   // 定期定額提醒 hidden until the DCA workflow is finalised (see InvestmentsRoute).
   { key: "allocation", label: "資產配置" },
   { key: "goals", label: "目標" },
-  { key: "market", label: "匯率" },
   { key: "recentActivity", label: "最近交易" },
   { key: "topMovers", label: "今日漲跌" },
+  { key: "netWorthTrend", label: "淨值趨勢" },
   { key: "projection", label: "30 年淨值預測" },
   // 本月摘要 (AI) moved inline under the greeting header (2026-07 · plan 116);
   // no longer a layout-toggle card — shows whenever FM is available and there's data.
@@ -792,6 +790,7 @@ export function DashboardRoute() {
         {/* Account filter + 更新. The single time-range control lives on the net
             worth card (the period segmented control), matching the prototype. */}
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          <FxInline rates={fxRates} />
           <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} style={{ maxWidth: "none" }} />
           <div className="flex w-full gap-2 sm:contents">
             <Button variant="outline" className="h-9 flex-1 sm:flex-none shrink-0 sm:h-9" onClick={refreshMarket} loading={refreshingMarket} disabled={refreshingMarket || (assetRows.length === 0 && (appSettings?.exchangeRates?.length ?? 0) === 0)} title="更新持倉報價、匯率與每日歷史股價">
@@ -1212,31 +1211,6 @@ export function DashboardRoute() {
           )}
         </Card>
         ) : null}
-
-        {/* Market FX */}
-        {cardVisible("market") ? (
-        <Card>
-          <div style={{ padding: "14px 18px 10px", borderBottom: "1px solid var(--ns-border)" }}>
-            <div className="text-xs mb-1 muted font-medium">Market</div>
-            <h3 className="text-base m-0 font-medium" style={{ fontFamily: "var(--ns-font-display)" }}>匯率</h3>
-          </div>
-          {fxRates.length === 0 ? (
-            <div className="muted text-body" style={{ padding: "16px 18px" }}>尚無匯率資料。</div>
-          ) : (
-            fxRates.map((fx) => (
-              <div key={fx.pair} style={{ padding: "10px 18px", display: "flex", alignItems: "center", gap: 8, borderTop: "1px solid var(--ns-border)" }}>
-                <span className="mono text-xs" style={{ flex: 1 }}>{fx.pair}</span>
-                <span className="num text-[13.5px] font-medium">{fx.rate.toFixed(4)}</span>
-                {fx.changePct != null && Math.abs(fx.changePct) >= 0.005 ? (
-                  <span className="num text-xs" style={{ color: fx.changePct >= 0 ? "var(--ns-pos)" : "var(--ns-neg)", minWidth: 58, textAlign: "right" }}>
-                    {fx.changePct >= 0 ? "▲" : "▼"} {Math.abs(fx.changePct).toFixed(2)}%
-                  </span>
-                ) : null}
-              </div>
-            ))
-          )}
-        </Card>
-        ) : null}
       </div>
 
       {/* Row 4 · Recent activity + Top Movers (shared row so neither is cramped) */}
@@ -1378,6 +1352,26 @@ function MonthlySummaryInline({
         </Button>
       ) : null}
     </div>
+  );
+}
+
+/** Header one-liner: top FX pairs, replacing the standalone 匯率 card (plan 164). */
+function FxInline({ rates }: { rates: Array<{ pair: string; rate: number; changePct: number | null }> }) {
+  if (rates.length === 0) return null;
+  return (
+    <span className="mono" style={{ display: "inline-flex", gap: 14, alignItems: "center", fontSize: 11.5, color: "var(--ns-fg-dim)" }}>
+      {rates.slice(0, 2).map((fx) => (
+        <span key={fx.pair} style={{ display: "inline-flex", gap: 5, alignItems: "baseline" }}>
+          <span>{fx.pair}</span>
+          <span style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{fx.rate.toFixed(2)}</span>
+          {fx.changePct != null ? (
+            <span style={{ color: fx.changePct >= 0 ? "var(--ns-pos)" : "var(--ns-neg)", fontSize: 10.5 }}>
+              {fx.changePct >= 0 ? "▲" : "▼"}{Math.abs(fx.changePct).toFixed(2)}%
+            </span>
+          ) : null}
+        </span>
+      ))}
+    </span>
   );
 }
 
