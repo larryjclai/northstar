@@ -44,13 +44,16 @@ test("first-run trust and entry surfaces stay usable", async ({ page }) => {
   await page.goto("/cash-flow");
   await expect(page.getByRole("button", { name: "上一個月" })).toBeVisible();
   await expect(page.getByRole("button", { name: "下一個月" })).toBeVisible();
-  // The cash-flow route migrated its native <select> account/category filters to
-  // COSS combobox triggers (AccountFilter / CategoryFilter). They render as button
-  // triggers whose label reflects the current selection; on first run both default
-  // to "all". Asserting both triggers are present and show their default-all label
-  // fails if either filter is dropped from the toolbar.
+  // The account/category filters were folded into a 篩選 popover (plan 168): they
+  // no longer sit directly in the toolbar. Assert the 篩選 trigger is present, then
+  // open it and confirm both filters (AccountFilter / CategoryFilter, defaulting to
+  // "all") are reachable inside — this fails if either filter is dropped entirely.
+  const cashFlowFilter = page.getByRole("button", { name: "篩選" });
+  await expect(cashFlowFilter).toBeVisible();
+  await cashFlowFilter.click();
   await expect(page.getByRole("button", { name: "所有帳戶" })).toBeVisible();
   await expect(page.getByRole("button", { name: "所有分類" })).toBeVisible();
+  await page.keyboard.press("Escape"); // close the popover before the quick-add step
 
   await page.keyboard.press("Control+N");
   const quickInput = page.getByPlaceholder("記帳 · 試試「午餐 @添飯 120 信用卡」或「+ 接案 5000 富邦」");
