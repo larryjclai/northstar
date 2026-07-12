@@ -9,7 +9,7 @@ spec + its own Status block; this index keeps only **live, actionable state**.
 > re-reads it. All removed detail is preserved in each plan file and in this
 > file's git history (`git log -p plans/README.md`). Nothing was lost.
 
-## Current state — 2026-07-12 (`main` @ `37ccb332`, v0.1.0-alpha.55)
+## Current state — 2026-07-12 (`main` @ `4ac63576`, v0.1.0-alpha.58)
 
 - **001–155: all DONE and merged to `main`.** Per-plan detail is in each
   `NNN-*.md` and git history. Grouped record below. Only two in that range were
@@ -19,6 +19,34 @@ spec + its own Status block; this index keeps only **live, actionable state**.
   but **UNMERGED** (a stacked branch chain). Your merge decision — see next section.
 - **164–167: 總覽 + 投資 redesign** — MERGED + released in `v0.1.0-alpha.57`.
 - **168–169: 記帳 (Cash Flow) redesign** — MERGED + released in `v0.1.0-alpha.58` (with the 8-item UI fix batch).
+- **170–178: direction batch (`/improve next`, 2026-07-12)** — all TODO; see next section.
+
+## 170–178 — direction batch (`/improve next` @ `4ac63576`, 2026-07-12)
+
+Direction audit (roadmap/product intent vs code). **Headline recon finding:
+Phase 6 is mostly SHIPPED** (6.1 northstarMetrics hero, 6.2 coverageRatioPct,
+6.3 runwayMonths, 6.4 projection, 6.5 longViewMode/milestones) and roadmap 5.2
+restore preview shipped for local backups (plan 047) — ROADMAP.md is stale;
+plan 178 fixes it. Operator selected all six audit findings plus two write-ins
+(iOS App 上架, 快速記帳再強化). All nine are independent — no ordering
+dependency; numbered by rough leverage. 172/176 are **design spikes** (doc +
+PoC, no UI ships); 177 Phase B is operator-only.
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 170 | Restore preview (counts diff + typed confirm) for the two remaining paths: JSON import + sync-backup restore | P2 | M | — | TODO |
+| 171 | Debounced auto-push ~30s after local edits (roadmap 5.3①) via new pushScheduler + useAutoSync handler | P2 | M | — | TODO |
+| 172 | Index-Nudge design spike (roadmap 6.6, last unbuilt Phase-6 item) — return-series honesty (fixed-basket vs TWR), detection PoC in domain, variant A/B/C decision doc | P2 | M | — | TODO — SPIKE; operator decision gates the build |
+| 173 | 年度報表列印/匯出 — print-CSS + 列印按鈕 on /reports/annual (Tauri-print feasibility gate first; PDF lib only via escape hatch) | P2 | M | — | TODO |
+| 174 | Recurring rules structured category picker (kills free-text at RecurringRulesTab:467) + suggest-and-confirm bulk categorization of uncategorized txns | P3 | M | — | TODO |
+| 175 | 快速記帳再強化 — inventory quick-add-nlp-plan §6/§11 vs code, ship ≤3 offline gaps (§6.4/6.5/6.7), Tier 2 cloud spec-only (operator decision) | P3 | M | — | TODO |
+| 176 | Split-legs data-model spike — one schema decision serving 分帳 + 多類別 (repo already has 3 bespoke linked-record-group mechanisms) | P3 | M | — | TODO — SPIKE, doc-only |
+| 177 | iOS App Store readiness — submission dossier, privacy label w/ grep evidence, export compliance, icons, Phase-B operator runbook ($99 enrollment NOT executor's) | P3 | M | — | TODO |
+| 178 | Roadmap reality-sync — mark 6.1/6.2/6.3/6.5 + 5.2(local) shipped, retire stale analytics follow-up | P3 | S | coordinate wording w/ 170 | TODO |
+
+Direction findings NOT re-planned: household sharing → existing TODO spike
+**143**; DCA rework → existing TODO spike **142**; iOS $99 enrollment /
+signing / App Store Connect = operator-only (177 Phase B).
 
 ## 168–169 — 記帳 (Cash Flow) redesign (from Claude Design, 2026-07-12)
 
