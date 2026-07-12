@@ -697,8 +697,8 @@ textarea:focus-visible {
   .ns-settings-content { overflow: visible; padding: 20px 16px 100px; }
   .ns-settings-category-head, .ns-settings-category-row { grid-template-columns: minmax(0, 1fr) 72px 64px !important; padding-left: 14px !important; padding-right: 12px !important; gap: 6px; }
   .ns-settings-category-budget, .ns-settings-category-usage { display: none !important; }
-  .ns-holdings-kpis { display: flex !important; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
-  .ns-holdings-kpis > * { flex: 0 0 min(78vw, 280px); scroll-snap-align: start; }
+  .ns-holdings-summary { display: flex !important; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
+  .ns-holdings-summary-col { flex: 0 0 min(60vw, 220px); scroll-snap-align: start; }
   .ns-date-scope {
     width: 100%;
     justify-content: flex-start;
@@ -1203,11 +1203,6 @@ textarea:focus-visible {
   max-width: 100%;
   margin-left: auto;
 }
-.ns-invest-kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
-  gap: 16px;
-}
 .ns-page-tabs {
   overflow-x: auto;
 }
@@ -1215,24 +1210,37 @@ textarea:focus-visible {
   flex: 0 0 auto;
   white-space: nowrap;
 }
+/* One-strip KPI summary (plan 165) — 4 columns divided by a hairline instead
+   of 4 separate cards. */
+.ns-holdings-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.ns-holdings-summary-col {
+  padding: 0 20px;
+}
+.ns-holdings-summary-col:first-child {
+  padding-left: 0;
+}
+.ns-holdings-summary-col + .ns-holdings-summary-col {
+  border-left: 1px solid var(--ns-border);
+}
 .ns-holdings-allocation {
   min-width: 0;
   overflow: hidden;
 }
-.ns-holdings-allocation-body {
+/* Thin stacked distribution bar (plan 165) — replaces the allocation donut. */
+.ns-holdings-alloc-bar {
   display: flex;
-  gap: 24px;
-  align-items: center;
-  flex-wrap: wrap;
-  min-width: 0;
+  gap: 2px;
+  height: 10px;
+  border-radius: 99px;
+  overflow: hidden;
 }
-.ns-holdings-allocation-chart {
-  width: 168px;
-  height: 168px;
-  flex: 0 0 auto;
+.ns-holdings-alloc-bar > * {
+  min-width: 2px;
 }
 .ns-holdings-allocation-list {
-  flex: 1 1 280px;
   min-width: 0;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
@@ -1246,6 +1254,51 @@ textarea:focus-visible {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 16px;
+}
+/* Slim holdings table with expandable rows (plan 165). Each row is its own
+   grid (shared gridTemplateColumns from InvestmentsRoute) so the expansion
+   panel can sit between rows as a plain full-width block — no colSpan
+   trickery needed. */
+.ns-holdings-table {
+  display: flex;
+  flex-direction: column;
+}
+.ns-holdings-row {
+  display: grid;
+  align-items: center;
+  column-gap: 12px;
+}
+.ns-holdings-row + .ns-holdings-row,
+.ns-holdings-row + .ns-holdings-expansion,
+.ns-holdings-expansion + .ns-holdings-row {
+  border-top: 1px solid var(--ns-border);
+}
+.ns-holdings-expansion {
+  padding: 16px 0 20px;
+  background: var(--ns-bg-hover);
+}
+.ns-holdings-expansion-body {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.ns-holdings-expansion-spark {
+  width: 180px;
+  height: 64px;
+  flex: 0 0 auto;
+}
+.ns-holdings-expansion-grid {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px 16px;
+}
+.ns-holdings-expansion-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
 }
 .ns-invest-panel {
   overflow: hidden;
@@ -1477,13 +1530,6 @@ textarea:focus-visible {
     flex-wrap: wrap;
     justify-content: flex-start;
     margin-left: 0;
-  }
-  .ns-holdings-allocation-body {
-    align-items: flex-start;
-  }
-  .ns-holdings-allocation-chart {
-    width: 140px;
-    height: 140px;
   }
   .ns-detail-page {
     padding: 18px 16px 110px;
