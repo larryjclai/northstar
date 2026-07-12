@@ -17,6 +17,34 @@ spec + its own Status block; this index keeps only **live, actionable state**.
   design spike — both P3, client-only, dispatch when wanted.
 - **156–163: motion / native-feel batch** — executed, reviewed, **ALL APPROVED**,
   but **UNMERGED** (a stacked branch chain). Your merge decision — see next section.
+- **164–167: 總覽 + 投資 redesign** — MERGED + released in `v0.1.0-alpha.57`.
+- **168–169: 記帳 (Cash Flow) redesign** — TODO, written this session; see below.
+
+## 168–169 — 記帳 (Cash Flow) redesign (from Claude Design, 2026-07-12)
+
+Imported from `記帳交易 Redesign.html` (project `a2b50679…`,
+`northstar-ledger-redesign.jsx`) via DesignSync. Operator chose **toolbar B + B-2**
+and **bottom A + D** (of toolbar A/B/B-2 and bottom A/B/C/D). Both are
+layout/interaction only — no finance math or filter-semantics change. Independent
+(both preserve/read the existing `dateScope` state); execute in either order.
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 168 | Toolbar — single period control (B-2 stepper+popover) + 篩選 popover with count badge & active-filter chips (B); account/category leave the header | P2 | L | — | DONE — reviewed+APPROVED, branch `feat/ai-cashflow-toolbar` @ `9af7fe70` (unmerged; new `LedgerDateControl` + `activeFilterChips`+5 tests; DateScopeControl untouched) |
+| 169 | 近期動態 + 固定收支 — right-column upgrade (30-day recurring + 未結清 moved in, sticky) + load-more/recent-3-days (A), and month-collapse for >3-month ranges (D) | P2 | L | — | DONE — reviewed+APPROVED, branch `feat/ai-cashflow-recent-recurring` @ `fc394c70` (unmerged; extracts `cashFlowGrouping`+6 tests; executor caught+fixed a visibleCount load race) |
+
+**⚠ Both 168 & 169 edit `CashFlowRoute.tsx`** (168 the header ~906–1015; 169 the
+bottom ~1178+, `UpcomingPayments`, and it extracted `groupByDay`→`cashFlowGrouping.ts`).
+Regions are mostly disjoint, but the **import block overlaps** — merging both will
+likely need a small manual conflict resolution there (and possibly `globals.css`,
+though the new classes are distinct). Merge one, then merge/rebase the other and
+resolve the imports.
+
+Planned at `bdfa0c09`. Key constraint (both): reuse `dateScope`/`resolveDateScope`,
+the `selectedAccount`/`selectedCategory` filter state (sentinel `"all"`), and the
+`groupByDay`/`settlements`/`recurringRows` data — the same rows must match and the
+same amounts must net. 168 must NOT regress `DateScopeControl`'s other callers
+(Dashboard/Investments) — prefer a new `LedgerDateControl`.
 
 ## 156–163 — unmerged motion batch (your merge decision)
 
