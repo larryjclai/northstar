@@ -586,6 +586,32 @@ html[data-native-glass][data-theme="dark"] .ns-sidebar {
    (its default has a transparent mid-gap that reads as a flicker). */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 
+/* SPIKE (Plan 161, Part A) — throwaway PoC, remove before/instead of merging.
+   Scopes a push/pop transition to `.ns-app-main` only (not `root`), so the
+   sidebar/dock chrome outside it never enters the animated snapshot and the
+   `root` guard above is untouched. `data-vt` is set/cleared by router.tsx for
+   exactly one nav pair (investments list <-> /holdings/$ticker). See
+   docs/motion-ga-spike.md Part A for the full verdict + open questions. */
+html[data-vt] .ns-app-main {
+  view-transition-name: ns-route-content;
+}
+html[data-vt="push"]::view-transition-old(ns-route-content) {
+  animation: ns-vt-push-out 260ms var(--ns-ease-out-strong);
+}
+html[data-vt="push"]::view-transition-new(ns-route-content) {
+  animation: ns-vt-push-in 260ms var(--ns-ease-out-strong);
+}
+html[data-vt="pop"]::view-transition-old(ns-route-content) {
+  animation: ns-vt-pop-out 260ms var(--ns-ease-out-strong);
+}
+html[data-vt="pop"]::view-transition-new(ns-route-content) {
+  animation: ns-vt-pop-in 260ms var(--ns-ease-out-strong);
+}
+@keyframes ns-vt-push-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes ns-vt-push-out { from { transform: translateX(0); } to { transform: translateX(-30%); } }
+@keyframes ns-vt-pop-in { from { transform: translateX(-30%); } to { transform: translateX(0); } }
+@keyframes ns-vt-pop-out { from { transform: translateX(0); } to { transform: translateX(100%); } }
+
 /* Native cursor model: the hand/pointer is a web affordance. Native apps keep
    the arrow on buttons, rows and links; only editable text shows an I-beam.
    !important is safe here — the app uses no resize/grab/move cursors, only the

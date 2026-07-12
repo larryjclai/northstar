@@ -145,7 +145,50 @@ const routeTree = rootRoute.addChildren([
   settingsRoute,
 ]);
 
-export const router = createRouter({ routeTree, defaultErrorComponent: RouteError });
+// --- SPIKE (Plan 161, Part A) -----------------------------------------------
+// Throwaway PoC: scope a View Transition to exactly one navigation pair
+// (investments list <-> /holdings/$ticker) via the router's `types` resolver,
+// which can return `false` to skip `document.startViewTransition` entirely for
+// every other navigation. That keeps the blanket
+// `::view-transition-old(root), ::view-transition-new(root) { animation: none }`
+// guard in globals.css fully in effect for all non-opt-in routes — this PoC
+// never disables or bypasses it. `data-vt` is a bare side channel so the CSS
+// in globals.css can pick "push" vs "pop" keyframes; it self-clears after the
+// animation window. Remove this whole block (and the matching CSS) before any
+// real implementation — see docs/motion-ga-spike.md Part A for the verdict.
+function setSpikeViewTransitionAttr(value: "push" | "pop") {
+  if (typeof document === "undefined") return;
+  document.documentElement.dataset.vt = value;
+  window.setTimeout(() => {
+    if (document.documentElement.dataset.vt === value) {
+      delete document.documentElement.dataset.vt;
+    }
+  }, 400);
+}
+
+export const router = createRouter({
+  routeTree,
+  defaultErrorComponent: RouteError,
+  defaultViewTransition: {
+    types: ({ fromLocation, toLocation }) => {
+      const from = fromLocation?.pathname;
+      const to = toLocation.pathname;
+      if (from === "/investments" && to.startsWith("/holdings/")) {
+        setSpikeViewTransitionAttr("push");
+        return ["push"];
+      }
+      if (from?.startsWith("/holdings/") && to === "/investments") {
+        setSpikeViewTransitionAttr("pop");
+        return ["pop"];
+      }
+      // Every other navigation: no transition types resolved => the router
+      // calls `fn()` directly instead of `document.startViewTransition(...)`
+      // (see @tanstack/router-core router.js `startViewTransition`), so the
+      // guard in globals.css never even gets a chance to matter there.
+      return false;
+    },
+  },
+});
 
 declare module "@tanstack/react-router" {
   interface Register {
