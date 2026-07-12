@@ -146,7 +146,7 @@ export function RecurringRulesTab() {
                 border: filter === o.key ? "none" : "1px solid var(--ns-border)",
                 background: filter === o.key ? "var(--ns-accent)" : "var(--ns-bg-card)",
                 color: filter === o.key ? "var(--ns-accent-fg)" : "var(--ns-fg-dim)",
-                fontFamily: "inherit", transition: "all 0.15s",
+                fontFamily: "inherit", transition: "background 150ms var(--ns-ease), color 150ms var(--ns-ease), border-color 150ms var(--ns-ease)",
               }}
             >
               {o.label}
@@ -364,7 +364,7 @@ function RuleEditSheet({
           position: "absolute", top: 0, right: 0, bottom: 0, width: "min(460px, 100%)",
           background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
           boxShadow: "var(--ns-shadow-2)",
-          animation: "slideInRight 0.2s ease",
+          animation: "ns-slide-in-right 200ms var(--ns-ease)",
         }}
       >
         {/* Header */}
@@ -391,7 +391,7 @@ function RuleEditSheet({
                     border: form.entryType === t ? "none" : "1px solid var(--ns-border)",
                     background: form.entryType === t ? (t === "expense" ? "var(--ns-neg)" : "var(--ns-pos)") : "var(--ns-bg-card)",
                     color: form.entryType === t ? "#fff" : "var(--ns-fg-dim)",
-                    transition: "all 0.15s",
+                    transition: "background 150ms var(--ns-ease), color 150ms var(--ns-ease), border-color 150ms var(--ns-ease)",
                   }}
                 >
                   {t === "expense" ? "支出" : "收入"}
@@ -490,7 +490,7 @@ function RuleEditSheet({
               style={{
                 display: "inline-flex", alignItems: "center", gap: 8,
                 padding: "6px 16px", borderRadius: 999, fontWeight: 500,
-                cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
+                cursor: "pointer", fontFamily: "inherit", transition: "background 150ms var(--ns-ease), color 150ms var(--ns-ease), border-color 150ms var(--ns-ease)",
                 border: "none",
                 background: form.isActive ? "var(--ns-pos-soft)" : "var(--ns-border)",
                 color: form.isActive ? "var(--ns-pos)" : "var(--ns-fg-muted)",
@@ -549,13 +549,6 @@ function RuleEditSheet({
           </Button>
         </div>
       </ModalShell>
-
-      <style>{`
-        @keyframes slideInRight {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-      `}</style>
     </>
   );
 }

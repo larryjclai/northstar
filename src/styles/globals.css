@@ -350,6 +350,11 @@
   to   { transform: translateX(0);    opacity: 1; }
 }
 
+@keyframes ns-slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
 html, body, #root { min-height: 100%; }
 
 /* Stop any single over-wide element from stretching the whole page past the
@@ -571,7 +576,22 @@ textarea:focus-visible {
 
 /* Account name is a link into the filtered ledger — underline on hover. */
 .ns-acct-name { transition: color 0.12s; }
-.ns-acct-row:hover .ns-acct-name { color: var(--ns-accent); text-decoration: underline; text-underline-offset: 2px; }
+
+@media (hover: hover) {
+  .ns-acct-row:hover .ns-acct-name { color: var(--ns-accent); text-decoration: underline; text-underline-offset: 2px; }
+  .ns-nav-link:hover:not(.active) { background: var(--ns-bg-hover); color: var(--ns-fg); }
+  .ns-detail-table tbody tr:hover { background: var(--ns-bg-hover); }
+}
+
+/* Touch press feedback: hover doesn't exist on touch — a row must highlight
+   the instant a finger lands on it (iOS cell-highlight convention). */
+@media (hover: none) {
+  a.ns-compact-row:active,
+  .ns-mobile-transaction-row:active,
+  .ns-invest-mobile-row:active { background: var(--ns-bg-hover); }
+  .ns-mobile-dock a:active,
+  .ns-mobile-dock button:active { opacity: 0.55; }
+}
 
 .ns-settings-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); height: 100%; overflow: hidden; }
 .ns-settings-sidebar { border-right: 1px solid var(--ns-border); padding: 22px 12px; overflow-y: auto; background: var(--ns-surface); }
@@ -641,7 +661,6 @@ textarea:focus-visible {
   color: var(--ns-fg);
   box-shadow: inset 0 0 0 1px var(--ns-border);
 }
-.ns-nav-link:hover:not(.active) { background: var(--ns-bg-hover); color: var(--ns-fg); }
 
 /* Number display sizes */
 .ns-num-xl  { font-family: var(--ns-font-num); font-variant-numeric: tabular-nums lining-nums; font-size: 56px; letter-spacing: -0.025em; font-weight: 600; }
@@ -1036,9 +1055,6 @@ textarea:focus-visible {
 }
 .ns-detail-table tbody tr {
   transition: background 140ms var(--ns-ease);
-}
-.ns-detail-table tbody tr:hover {
-  background: var(--ns-bg-hover);
 }
 .ns-detail-table tfoot td {
   color: var(--ns-fg-muted);

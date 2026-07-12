@@ -105,7 +105,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
         background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
         zIndex: 999, display: "flex", flexDirection: "column",
         boxShadow: "var(--ns-shadow-2)",
-        animation: "slideInRight 0.2s ease",
+        animation: "ns-slide-in-right 200ms var(--ns-ease)",
       }}
     >
         {/* Header */}
@@ -325,13 +325,6 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
             <PencilSimple size={14} />編輯交易
           </Button>
         </div>
-
-      <style>{`
-        @keyframes slideInRight {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-      `}</style>
     </ModalShell>
   );
 }

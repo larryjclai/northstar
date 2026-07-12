@@ -389,7 +389,7 @@ export function AppShell() {
         // `flex` lives in className (not inline style) so the responsive
         // `lg:hidden` can actually win on desktop — an inline `display:flex`
         // would override it and leak the FAB onto the desktop layout.
-        className="fixed right-4 bottom-20 flex items-center justify-center lg:hidden"
+        className="fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] flex items-center justify-center lg:hidden"
         style={{ zIndex: 40, width: 52, height: 52, borderRadius: 999, background: "var(--ns-accent)", color: "var(--ns-accent-fg)", border: "none", boxShadow: "var(--ns-shadow-xl)" }}
       >
         <Plus size={24} weight="bold" />

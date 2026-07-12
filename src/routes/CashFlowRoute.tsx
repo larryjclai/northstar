@@ -1959,7 +1959,7 @@ function EntryDrawer({
                     border: active ? "none" : "1px solid var(--ns-border)",
                     background: active ? m.color : "var(--ns-bg-card)",
                     color: active ? "#fff" : "var(--ns-fg-dim)",
-                    fontFamily: "inherit", transition: "all 0.15s",
+                    fontFamily: "inherit", transition: "background 150ms var(--ns-ease), color 150ms var(--ns-ease), border-color 150ms var(--ns-ease)",
                   }}
                 >
                   {m.label}
@@ -2181,7 +2181,7 @@ function EntryDrawer({
                           // the label; faint border gives light chips edge definition (B14).
                           color: active ? readableTextColor(color) : "var(--ns-fg)",
                           border: active ? "1px solid rgba(0,0,0,0.12)" : "1px solid var(--ns-border)",
-                          fontFamily: "inherit", transition: "all 0.12s",
+                          fontFamily: "inherit", transition: "background 120ms var(--ns-ease), color 120ms var(--ns-ease), border-color 120ms var(--ns-ease)",
                           display: "flex", alignItems: "center", gap: 4,
                         }}
                       >

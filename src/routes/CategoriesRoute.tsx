@@ -290,7 +290,7 @@ export function CategoriesRoute() {
                       cursor: "pointer", padding: "4px 6px", borderRadius: "var(--ns-r-xs)",
                       background: selectedCategory === cat.name ? "var(--ns-bg-hover)" : "transparent",
                       opacity: !selectedCategory || selectedCategory === cat.name ? 1 : 0.45,
-                      transition: "all 0.15s ease",
+                      transition: "background 150ms var(--ns-ease), opacity 150ms var(--ns-ease)",
                     }}
                   >
                     <Glyph name={cat.emoji} size={16} />
