@@ -384,6 +384,17 @@
   transition-duration: 140ms;
 }
 
+/* ── Toast motion (plan 158) ── */
+.ns-toast {
+  transition: transform var(--ns-dur) var(--ns-ease), opacity var(--ns-dur) var(--ns-ease);
+  @starting-style { transform: translateY(12px); opacity: 0; }
+}
+.ns-toast[data-leaving] { transform: translateY(8px); opacity: 0; transition-duration: 140ms; }
+.ns-toast[data-swiped] { transition-duration: 160ms; }
+/* While a swipe drag is in progress the item tracks the pointer 1:1 via
+   inline transform/opacity — no transition, or the drag would lag. */
+.ns-toast[data-dragging] { transition: none; }
+
 html, body, #root { min-height: 100%; }
 
 /* Stop any single over-wide element from stretching the whole page past the
