@@ -45,6 +45,7 @@ import { refreshLatestMarketData } from "../features/market-data/useMarketRefres
 import { runDailyBackupIfDue } from "../features/local-backup/localBackup";
 import { isCrossDeviceLinkUpdateError, UPDATE_RESTART_RETRY_MESSAGE } from "../features/updater/errors";
 import { buildPaymentReminders, syncScheduledReminders } from "../features/notifications/scheduler";
+import { haptic } from "../lib/haptics";
 
 const appIconUrl = new URL("../../src-tauri/icons/icon.png", import.meta.url).href;
 
@@ -104,6 +105,7 @@ export function AppShell() {
   const handleTogglePrivacy = useCallback(() => {
     privacyScrollRef.current = window.scrollY;
     hasToggledPrivacyRef.current = true;
+    void haptic("selection");
     togglePrivacy();
   }, [togglePrivacy]);
   usePrivacyShortcut(handleTogglePrivacy);

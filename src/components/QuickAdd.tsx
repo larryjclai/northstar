@@ -7,6 +7,7 @@ import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { buildLedgerSuggestions, buildMerchantCategoryMap, buildUserLexicon, categoryPickerOptions, formatMoney, formatNumber, formatPrice, loadCorrections, nowAsDatetimeLocal, parseQuickAdd, saveCorrection, type CorrectionStore, type QuickAddParsed } from "../domain";
 import { orchestrate, type ParseSource } from "../domain/nlParser";
 import { createOnDeviceParser } from "../lib/foundationModels";
+import { haptic } from "../lib/haptics";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useToast } from "./Toast";
 import { AccountFilter } from "./AccountFilter";
@@ -160,6 +161,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
           note: "",
         });
         toast.success("已記一筆");
+        void haptic("success");
 
         // Persist corrections: if the user changed account or category from
         // what the parser guessed, remember the mapping for next time.
@@ -204,6 +206,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
           note: "",
         });
         toast.success(confirm.action === "buy" ? "已記錄買入" : "已記錄賣出");
+        void haptic("success");
       }
       onClose();
     } catch (e) {

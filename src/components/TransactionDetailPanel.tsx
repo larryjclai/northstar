@@ -6,6 +6,7 @@ import { arApAccountRoles } from "./arApAccountRoles";
 import { ModalShell } from "./ModalShell";
 import type { LedgerTransaction, RecurringTransaction } from "../domain";
 import { formatNumber, installmentLabel, recurringFrequencyLabels, todayInTimezone } from "../domain";
+import { haptic } from "../lib/haptics";
 
 interface TransactionDetailPanelProps {
   row: LedgerTransaction | null;
@@ -299,7 +300,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
               <Button variant="outline"
                 className="flex-1 justify-center"
                 style={{ color: "var(--ns-neg)" }}
-                onClick={() => onDelete(row)}
+                onClick={() => { void haptic("medium"); onDelete(row); }}
               >
                 <Trash size={14} />確定刪除
               </Button>

@@ -284,6 +284,11 @@ pub fn run() {
             }
         });
 
+    // Mobile-only: haptic feedback (impact/notification/selection) — see
+    // src/lib/haptics.ts for the JS wrapper, which silently no-ops on desktop.
+    #[cfg(mobile)]
+    let builder = builder.plugin(tauri_plugin_haptics::init());
+
     builder
         .setup(|app| {
             let salt_path = app

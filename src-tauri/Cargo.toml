@@ -41,6 +41,12 @@ tauri-plugin-updater = "2"
 # Restores the window's last size/position on launch (desktop only).
 tauri-plugin-window-state = "2"
 
+# Mobile-only: haptic feedback (impact/notification/selection), compiled out on
+# desktop (see lib.rs cfg(mobile) gate and capabilities/mobile.json). The JS
+# wrapper (src/lib/haptics.ts) is the sole entry point and no-ops on desktop.
+[target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
+tauri-plugin-haptics = "2"
+
 # Pin tauri-plugin-sql to a vendored copy that forces the SQLite pool to a
 # single connection (vendor/tauri-plugin-sql/src/wrapper.rs). Upstream uses a
 # 10-connection pool, which splits multi-statement transactions across
