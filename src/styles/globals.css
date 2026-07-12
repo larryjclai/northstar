@@ -1757,6 +1757,34 @@ textarea:focus-visible {
 }
 .ns-hscroll--nofade { mask-image: none; -webkit-mask-image: none; }
 
+/* ── CashFlowRoute 近期動態 list (plan 169) ──
+   Row actions (edit/duplicate/delete/settle) show only on hover/focus so the
+   ~50px row stays uncluttered; `:focus-within` keeps them reachable via
+   keyboard tab, since opacity:0 doesn't remove them from the tab order. */
+.ns-cf-actions { opacity: 0; transition: opacity 0.12s; }
+.ns-cf-row:hover .ns-cf-actions,
+.ns-cf-row:focus-within .ns-cf-actions { opacity: 1; }
+
+/* Day-group header sticks to the top of the scrolling page while its rows
+   scroll past (short-range list, and each expanded month in the long-range
+   month-collapsed view). */
+.ns-cf-day-header { position: sticky; top: 0; z-index: 2; }
+
+/* Month-collapse header row (long ranges — variant D): a full-width reset
+   button so it's keyboard-activatable like the day header, styled to match. */
+.ns-cf-month-header {
+  padding: 14px 22px;
+  border: none;
+  border-bottom: 1px solid var(--ns-border);
+  background: var(--ns-bg-elev);
+  font-family: inherit;
+  color: inherit;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.ns-cf-month-header:hover { background: var(--ns-bg-hover); }
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
