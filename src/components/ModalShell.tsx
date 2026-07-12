@@ -1,8 +1,18 @@
-import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 
 import { lockViewportScroll } from "../lib/scrollLock";
 
 export type ModalShellVariant = "center" | "sheet" | "drawer";
+export type ModalShellMotion = "drawer" | "center" | "none";
 
 export interface ModalShellProps {
   /** Called when the user dismisses (scrim click, Escape). */
@@ -13,6 +23,8 @@ export interface ModalShellProps {
   labelledById?: string;
   /** Scrim layout preset. `center` centres a panel; `sheet`/`drawer` let the panel position itself. */
   variant?: ModalShellVariant;
+  /** Overlay enter/exit motion. Defaults by variant: `center` → "center", `sheet`/`drawer` → "drawer". */
+  motion?: ModalShellMotion;
   /** Don't close on Escape. */
   disableEscape?: boolean;
   /** Don't close on scrim click. */
@@ -33,6 +45,25 @@ const VARIANT_SCRIM_CLASS: Record<ModalShellVariant, string> = {
   sheet: "fixed inset-0",
   drawer: "fixed inset-0",
 };
+
+const VARIANT_DEFAULT_MOTION: Record<ModalShellVariant, ModalShellMotion> = {
+  center: "center",
+  sheet: "drawer",
+  drawer: "drawer",
+};
+
+const EXIT_FALLBACK_MS = 320;
+
+const ModalDismissContext = createContext<(() => void) | null>(null);
+
+/**
+ * Returns the animated dismiss handler for the nearest ModalShell ancestor,
+ * so a close button plays the exit animation instead of unmounting instantly.
+ * Falls back to the given callback when rendered outside a ModalShell.
+ */
+export function useModalDismiss(fallback: () => void): () => void {
+  return useContext(ModalDismissContext) ?? fallback;
+}
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -64,6 +95,7 @@ export function ModalShell({
   title,
   labelledById,
   variant = "center",
+  motion,
   disableEscape = false,
   disableScrimClose = false,
   className,
@@ -73,11 +105,55 @@ export function ModalShell({
   children,
 }: ModalShellProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const [closing, setClosing] = useState(false);
+  const closingRef = useRef(false);
   // Keep the latest close/flags reachable from the mount-only listener without re-binding.
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   const disableEscapeRef = useRef(disableEscape);
   disableEscapeRef.current = disableEscape;
+
+  const resolvedMotion: ModalShellMotion = motion ?? VARIANT_DEFAULT_MOTION[variant];
+
+  const requestClose = useCallback(() => {
+    if (closingRef.current) return; // double-dismiss guard
+    const panel = panelRef.current;
+    // jsdom / legacy engines: computed transition-duration is empty or 0s →
+    // close synchronously (keeps ModalShell.test.tsx passing).
+    const dur = panel ? parseFloat(getComputedStyle(panel).transitionDuration || "0") : 0;
+    if (!panel || !dur) {
+      closingRef.current = true; // guard against a second synchronous dismiss too
+      closeRef.current();
+      return;
+    }
+    closingRef.current = true;
+    setClosing(true);
+  }, []);
+
+  useEffect(() => {
+    if (!closing) return;
+    const panel = panelRef.current;
+    if (!panel) {
+      closeRef.current();
+      return;
+    }
+    let done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      closeRef.current();
+    }
+    function onTransitionEnd(event: TransitionEvent) {
+      if (event.target !== panel) return;
+      finish();
+    }
+    panel.addEventListener("transitionend", onTransitionEnd);
+    const timeout = window.setTimeout(finish, EXIT_FALLBACK_MS);
+    return () => {
+      panel.removeEventListener("transitionend", onTransitionEnd);
+      window.clearTimeout(timeout);
+    };
+  }, [closing]);
 
   useEffect(() => {
     const panel = panelRef.current;
@@ -93,7 +169,7 @@ export function ModalShell({
       if (event.key === "Escape") {
         if (!disableEscapeRef.current) {
           event.stopPropagation();
-          closeRef.current();
+          requestClose();
         }
         return;
       }
@@ -124,13 +200,20 @@ export function ModalShell({
       releaseScrollLock();
       previouslyFocused?.focus?.();
     };
-  }, []);
+  }, [requestClose]);
 
   return (
     <div
-      className={[VARIANT_SCRIM_CLASS[variant], className].filter(Boolean).join(" ")}
-      style={{ background: "var(--ns-scrim)", ...style }}
-      onClick={disableScrimClose ? undefined : onClose}
+      className={[VARIANT_SCRIM_CLASS[variant], "ns-overlay-scrim", className]
+        .filter(Boolean)
+        .join(" ")}
+      style={{
+        background: "var(--ns-scrim)",
+        ...(closing ? { pointerEvents: "none" } : null),
+        ...style,
+      }}
+      data-closing={closing || undefined}
+      onClick={disableScrimClose ? undefined : requestClose}
     >
       <div
         ref={panelRef}
@@ -139,11 +222,13 @@ export function ModalShell({
         aria-label={labelledById ? undefined : title}
         aria-labelledby={labelledById}
         tabIndex={-1}
-        className={panelClassName}
+        className={[panelClassName, "ns-overlay-panel"].filter(Boolean).join(" ")}
         style={{ outline: "none", ...panelStyle }}
+        data-motion={resolvedMotion === "none" ? undefined : resolvedMotion}
+        data-closing={closing || undefined}
         onClick={(event) => event.stopPropagation()}
       >
-        {children}
+        <ModalDismissContext.Provider value={requestClose}>{children}</ModalDismissContext.Provider>
       </div>
     </div>
   );

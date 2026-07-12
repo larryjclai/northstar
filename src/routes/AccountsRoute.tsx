@@ -10,7 +10,7 @@ import { Skeleton } from "../components/coss/skeleton";
 import { AppSelect } from "../components/AppSelect";
 import { FilterPill } from "../components/FilterPill";
 import { IconPicker } from "../components/IconPicker";
-import { ModalShell } from "../components/ModalShell";
+import { ModalShell, useModalDismiss } from "../components/ModalShell";
 import { Glyph, DEFAULT_ACCOUNT_ICON } from "../lib/icons";
 import { BankLogo } from "../components/BankLogo";
 import { openOnboarding } from "../components/OnboardingOverlay";
@@ -227,6 +227,7 @@ export function AccountsRoute() {
     }
   }
   const adjustingAccount = adjustingAccountId ? rows.find((r) => r.id === adjustingAccountId) : null;
+  const dismissAdjust = useModalDismiss(() => setAdjustingAccountId(null));
 
   async function recalculate() {
     setRecalculating(true);
@@ -520,7 +521,7 @@ export function AccountsRoute() {
               {adjustMessage ? <div className="text-body" style={{ color: "var(--ns-neg)" }}>{adjustMessage}</div> : null}
               <div className="flex gap-2">
                 <Button className="flex-1 justify-center" onClick={submitAdjust} loading={adjustBalance.isPending}>{adjustBalance.isPending ? "調整中…" : "確認調整"}</Button>
-                <Button variant="outline" onClick={() => setAdjustingAccountId(null)}>取消</Button>
+                <Button variant="outline" onClick={dismissAdjust}>取消</Button>
               </div>
             </div>
           </Card>
@@ -548,6 +549,7 @@ function AccountDrawer({
   const [step, setStep] = useState(0);
   const [importMethod, setImportMethod] = useState('skip');
   const [csvDropped, setCsvDropped] = useState(false);
+  const dismiss = useModalDismiss(onClose);
 
   const openingBalanceField = useNumericField(form.openingBalance, (v) => setForm({ ...form, openingBalance: v }));
 
@@ -589,7 +591,7 @@ function AccountDrawer({
       title={isEditing ? "編輯帳戶" : "新增帳戶"}
       onClose={onClose}
       style={{ zIndex: 50 }}
-      panelClassName="animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)] flex flex-col"
+      panelClassName="flex flex-col"
       panelStyle={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "min(520px, 100%)", background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)", boxShadow: "var(--ns-shadow-2)" }}
     >
         <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--ns-border)" }}>
@@ -602,7 +604,7 @@ function AccountDrawer({
                 {isEditing ? "編輯帳戶" : "新增帳戶"}
               </h2>
             </div>
-            <Button variant="ghost" size="icon" onClick={onClose} aria-label="關閉"><X size={16} /></Button>
+            <Button variant="ghost" size="icon" onClick={dismiss} aria-label="關閉"><X size={16} /></Button>
           </div>
           {!isEditing && (
             <div className="flex items-center">

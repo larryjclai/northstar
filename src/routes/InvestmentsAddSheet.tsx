@@ -6,7 +6,7 @@ import { Card } from "../components/coss/card";
 import { AccountFilter } from "../components/AccountFilter";
 import { ToggleGroup, ToggleGroupItem } from "../components/coss/toggle-group";
 import { HoldingForm, makeEmptyHoldingDraft } from "../components/HoldingForm";
-import { ModalShell } from "../components/ModalShell";
+import { ModalShell, useModalDismiss } from "../components/ModalShell";
 import { NumberField } from "../components/NumberField";
 import { StatusText } from "../components/StatusText";
 import { TickerSearchField } from "../components/TickerSearchField";
@@ -276,6 +276,8 @@ export function InvestmentEntryDrawer({
       .slice(0, 6);
   }, [portfolioAssets]);
 
+  const dismiss = useModalDismiss(onClose);
+
   if (!open) return null;
 
   const side = sideFromAction(transactionForm.action);
@@ -461,7 +463,6 @@ export function InvestmentEntryDrawer({
       title={mode === "snapshot" ? "建立目前部位" : title}
       onClose={onClose}
       style={{ zIndex: 50 }}
-      panelClassName="animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)]"
       panelStyle={{
         position: "absolute", right: 0, top: 0, bottom: 0, width: "min(520px, 100%)",
         background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
@@ -488,7 +489,7 @@ export function InvestmentEntryDrawer({
               {mode === "snapshot" ? "改記一筆交易" : "建立持倉／自訂資產"}
             </Button>
           ) : null}
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="關閉"><X size={16} /></Button>
+          <Button variant="ghost" size="icon" onClick={dismiss} aria-label="關閉"><X size={16} /></Button>
         </div>
 
         {eligibleAccounts.length === 0 ? (
@@ -870,7 +871,7 @@ export function InvestmentEntryDrawer({
 
             {/* Footer */}
             <div className="flex gap-2.5" style={{ padding: "16px 24px", borderTop: "1px solid var(--ns-border)" }}>
-              <Button variant="outline" className="flex-1" onClick={onClose}>取消</Button>
+              <Button variant="outline" className="flex-1" onClick={dismiss}>取消</Button>
               <Button
                 className="flex-[2]"
                 onClick={submitTransaction}

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Button } from "./coss/button";
 import { Badge } from "./coss/badge";
 import { arApAccountRoles } from "./arApAccountRoles";
-import { ModalShell } from "./ModalShell";
+import { ModalShell, useModalDismiss } from "./ModalShell";
 import type { LedgerTransaction, RecurringTransaction } from "../domain";
 import { formatNumber, installmentLabel, recurringFrequencyLabels, todayInTimezone } from "../domain";
 
@@ -40,6 +40,8 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
     setRefundError("");
     setRefundSubmitting(false);
   }, [row?.id]);
+
+  const dismiss = useModalDismiss(onClose);
 
   if (!row) return null;
 
@@ -105,7 +107,6 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
         background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
         zIndex: 999, display: "flex", flexDirection: "column",
         boxShadow: "var(--ns-shadow-2)",
-        animation: "ns-slide-in-right 200ms var(--ns-ease)",
       }}
     >
         {/* Header */}
@@ -114,7 +115,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
             <Receipt size={16} />
             交易詳情
           </div>
-          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={onClose} className="p-1.5">
+          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={dismiss} className="p-1.5">
             <X size={16} />
           </Button>
         </div>

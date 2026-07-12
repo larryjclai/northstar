@@ -10,7 +10,7 @@ import {
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
 import { AppSelect } from "../components/AppSelect";
-import { ModalShell } from "../components/ModalShell";
+import { ModalShell, useModalDismiss } from "../components/ModalShell";
 import { useState } from "react";
 import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -342,6 +342,7 @@ function RuleEditSheet({
   const [message, setMessage] = useState("");
 
   const amountField = useNumericField(form.amount, (v) => setForm({ ...form, amount: v }));
+  const dismiss = useModalDismiss(onClose);
 
   const signedAmount = form.entryType === "expense" ? -Math.abs(form.amount) : Math.abs(form.amount);
 
@@ -364,7 +365,6 @@ function RuleEditSheet({
           position: "absolute", top: 0, right: 0, bottom: 0, width: "min(460px, 100%)",
           background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
           boxShadow: "var(--ns-shadow-2)",
-          animation: "ns-slide-in-right 200ms var(--ns-ease)",
         }}
       >
         {/* Header */}
@@ -372,7 +372,7 @@ function RuleEditSheet({
           <ArrowsClockwise size={16} style={{ color: "var(--ns-accent)" }} />
           <span className="text-[15px] font-semibold">{isCreating ? "新增週期規則" : "編輯週期規則"}</span>
           <div className="flex-1" />
-          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={onClose}><X size={16} /></Button>
+          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={dismiss}><X size={16} /></Button>
         </div>
 
         {/* Body */}
@@ -537,7 +537,7 @@ function RuleEditSheet({
 
         {/* Footer */}
         <div className="flex gap-2" style={{ padding: "14px 24px", borderTop: "1px solid var(--ns-border)" }}>
-          <Button variant="ghost" style={{ flex: "0 0 80px", justifyContent: "center" }} onClick={onClose}>取消</Button>
+          <Button variant="ghost" style={{ flex: "0 0 80px", justifyContent: "center" }} onClick={dismiss}>取消</Button>
           <Button
             className="flex-1"
             style={{ justifyContent: "center" }}

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ModalShell } from "./ModalShell";
+import { ModalShell, useModalDismiss } from "./ModalShell";
 
 afterEach(() => {
   // Guard against a leaked scroll-lock between tests.
@@ -163,5 +163,43 @@ describe("ModalShell", () => {
     expect(onClose).not.toHaveBeenCalled();
 
     portalled.remove();
+  });
+
+  it("useModalDismiss triggers onClose on click (jsdom sync path)", () => {
+    const onClose = vi.fn();
+    function DismissButton() {
+      const dismiss = useModalDismiss(onClose);
+      return <button onClick={dismiss}>dismiss</button>;
+    }
+    render(
+      <ModalShell title="t" onClose={onClose}>
+        <DismissButton />
+      </ModalShell>,
+    );
+    fireEvent.click(screen.getByText("dismiss"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("double-dismiss guard: two rapid Escape presses call onClose exactly once", () => {
+    const onClose = vi.fn();
+    render(
+      <ModalShell title="t" onClose={onClose}>
+        <button>ok</button>
+      </ModalShell>,
+    );
+    const dialog = screen.getByRole("dialog");
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('motion="none" renders no data-motion attribute', () => {
+    render(
+      <ModalShell title="t" onClose={() => {}} motion="none">
+        <button>ok</button>
+      </ModalShell>,
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).not.toHaveAttribute("data-motion");
   });
 });

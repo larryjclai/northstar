@@ -47,6 +47,7 @@
   --ns-ease: cubic-bezier(.2, .7, .2, 1);
   --ns-dur-fast: 120ms;
   --ns-dur: 200ms;
+  --ns-ease-out-strong: cubic-bezier(0.22, 1, 0.36, 1);
   /* ── COSS UI / shadcn semantic-token bridge (Phase 0) ──
      Maps the semantic tokens COSS UI + shadcn components consume onto
      Northstar's ns-* tokens. The ns-* color values are redefined per theme
@@ -353,6 +354,34 @@
 @keyframes ns-slide-in-right {
   from { transform: translateX(100%); opacity: 0; }
   to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* ── Overlay motion (plan 157): owned by ModalShell ──
+   Enter uses @starting-style (modern WKWebView; older engines skip the enter
+   animation). Exit is driven by [data-closing], which ModalShell sets, then
+   waits for transitionend before unmounting. */
+.ns-overlay-scrim {
+  transition: opacity 160ms var(--ns-ease);
+  @starting-style { opacity: 0; }
+}
+.ns-overlay-scrim[data-closing] { opacity: 0; pointer-events: none; }
+
+.ns-overlay-panel[data-motion="drawer"] {
+  transition: transform 220ms var(--ns-ease-out-strong), opacity 220ms var(--ns-ease-out-strong);
+  @starting-style { transform: translateX(28px); opacity: 0; }
+}
+.ns-overlay-panel[data-motion="drawer"][data-closing] {
+  transform: translateX(28px); opacity: 0;
+  transition-duration: 160ms;
+}
+
+.ns-overlay-panel[data-motion="center"] {
+  transition: transform 180ms var(--ns-ease-out-strong), opacity 180ms var(--ns-ease-out-strong);
+  @starting-style { transform: scale(0.97); opacity: 0; }
+}
+.ns-overlay-panel[data-motion="center"][data-closing] {
+  transform: scale(0.97); opacity: 0;
+  transition-duration: 140ms;
 }
 
 html, body, #root { min-height: 100%; }

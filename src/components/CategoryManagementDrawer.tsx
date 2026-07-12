@@ -5,7 +5,7 @@ import { X, Plus, Trash, PencilSimple, CaretRight, CaretDown, Tag, Check } from 
 import { IconPicker } from "./IconPicker";
 import { Glyph } from "../lib/icons";
 import { Popover, PopoverTrigger, PopoverContent } from "./ui/popover";
-import { ModalShell } from "./ModalShell";
+import { ModalShell, useModalDismiss } from "./ModalShell";
 import { CategoryGroup } from "../domain";
 
 export function CategoryManagementDrawer({
@@ -40,6 +40,8 @@ export function CategoryManagementDrawer({
     if (open && !wasOpen.current) setLocal(categories);
     wasOpen.current = open;
   }, [open, categories]);
+
+  const dismiss = useModalDismiss(onClose);
 
   if (!open) return null;
 
@@ -117,7 +119,6 @@ export function CategoryManagementDrawer({
       onClose={onClose}
       disableEscape
       style={{ zIndex: 100 }}
-      panelClassName="animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)]"
       panelStyle={{
         position: "absolute", right: 0, top: 0, bottom: 0, width: "100%", maxWidth: 400,
         background: "var(--ns-bg)", borderLeft: "1px solid var(--ns-border)",
@@ -126,7 +127,7 @@ export function CategoryManagementDrawer({
     >
         <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <h2 className="text-base" style={{ fontWeight: 600 }}>分類管理</h2>
-          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={onClose}><X size={18} /></Button>
+          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={dismiss}><X size={18} /></Button>
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
@@ -268,7 +269,7 @@ export function CategoryManagementDrawer({
         </div>
 
         <div style={{ padding: "16px 24px", borderTop: "1px solid var(--ns-border)", display: "flex", gap: 12 }}>
-          <Button variant="outline" style={{ flex: 1, justifyContent: "center" }} onClick={onClose}>取消</Button>
+          <Button variant="outline" style={{ flex: 1, justifyContent: "center" }} onClick={dismiss}>取消</Button>
           <Button style={{ flex: 1, justifyContent: "center" }} onClick={async () => { await onSave(local); onClose(); }}>儲存變更</Button>
         </div>
     </ModalShell>
