@@ -16,6 +16,13 @@ export type RadiusMode = "sharp" | "default" | "round";
 /** Default investment benchmark when the user hasn't picked one. */
 export const DEFAULT_BENCHMARK_TICKER = "0050.TW";
 
+/**
+ * Overview redesign Direction A (plan 164): cards hidden by default so the
+ * first screen collapses to hero + pulse strip + 待辦 + 今日漲跌. Still fully
+ * re-enableable per-card from 版面 — this only changes the *default*.
+ */
+export const DIRECTION_A_HIDDEN_CARDS: string[] = ["allocation", "goals", "recentActivity", "projection"];
+
 export interface UiPreferences {
   privacyMode: boolean;
   nameLocale: NameLocalePreference;
@@ -28,6 +35,12 @@ export interface UiPreferences {
   holdingsColumns: HoldingsColumnKey[];
   /** Dashboard card keys the user has hidden via 編輯版面. */
   dashboardHiddenCards: string[];
+  /**
+   * Internal migration marker (plan 164): true once the Direction A
+   * default-hidden set has been seeded (or didn't need seeding). Prevents
+   * re-seeding every time dashboardHiddenCards is toggled back to [].
+   */
+  dashboardDefaultsSeeded: boolean;
   /** Ticker used as the benchmark in investment analytics (e.g. 0050.TW). */
   benchmarkTicker: string;
   gainLossPalette: GainLossPalette;
@@ -100,6 +113,7 @@ interface PersistedShape {
   radius: RadiusMode;
   showTradeMarkers: boolean;
   dashboardHiddenCards: string[];
+  dashboardDefaultsSeeded: boolean;
   onboardingDismissed: boolean;
   sidebarCollapsed: boolean;
   northstarMetric: string;
@@ -127,7 +141,8 @@ function loadPersisted(): PersistedShape {
     density: "default",
     radius: "default",
     showTradeMarkers: true,
-    dashboardHiddenCards: [],
+    dashboardHiddenCards: DIRECTION_A_HIDDEN_CARDS,
+    dashboardDefaultsSeeded: true,
     onboardingDismissed: false,
     sidebarCollapsed: false,
     northstarMetric: "netWorth",
@@ -175,9 +190,19 @@ function loadPersisted(): PersistedShape {
           : "default",
       radius: parsed.radius === "sharp" || parsed.radius === "round" ? parsed.radius : "default",
       showTradeMarkers: typeof parsed.showTradeMarkers === "boolean" ? parsed.showTradeMarkers : true,
-      dashboardHiddenCards: Array.isArray(parsed.dashboardHiddenCards)
-        ? parsed.dashboardHiddenCards.filter((k): k is string => typeof k === "string")
-        : [],
+      // Plan 164 one-time migration: existing installs persisted `[]` (nothing
+      // hidden) under the old default. On their first load after this update,
+      // if hidden cards is still exactly [] and we haven't seeded before, seed
+      // the Direction A default-hidden set once; the seeded flag then persists
+      // so later un-hiding everything (a deliberate []) never re-seeds.
+      dashboardHiddenCards: (() => {
+        const persistedHidden = Array.isArray(parsed.dashboardHiddenCards)
+          ? parsed.dashboardHiddenCards.filter((k): k is string => typeof k === "string")
+          : [];
+        const alreadySeeded = typeof parsed.dashboardDefaultsSeeded === "boolean" ? parsed.dashboardDefaultsSeeded : false;
+        return persistedHidden.length === 0 && !alreadySeeded ? DIRECTION_A_HIDDEN_CARDS : persistedHidden;
+      })(),
+      dashboardDefaultsSeeded: true,
       onboardingDismissed:
         typeof parsed.onboardingDismissed === "boolean" ? parsed.onboardingDismissed : legacyDismissed,
       sidebarCollapsed: typeof parsed.sidebarCollapsed === "boolean" ? parsed.sidebarCollapsed : false,
@@ -254,6 +279,7 @@ function snapshot(state: UiPreferences): PersistedShape {
     radius: state.radius,
     showTradeMarkers: state.showTradeMarkers,
     dashboardHiddenCards: state.dashboardHiddenCards,
+    dashboardDefaultsSeeded: state.dashboardDefaultsSeeded,
     onboardingDismissed: state.onboardingDismissed,
     sidebarCollapsed: state.sidebarCollapsed,
     northstarMetric: state.northstarMetric,
@@ -278,6 +304,7 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   radius: initial.radius,
   showTradeMarkers: initial.showTradeMarkers,
   dashboardHiddenCards: initial.dashboardHiddenCards,
+  dashboardDefaultsSeeded: initial.dashboardDefaultsSeeded,
   onboardingDismissed: initial.onboardingDismissed,
   sidebarCollapsed: initial.sidebarCollapsed,
   northstarMetric: initial.northstarMetric,
