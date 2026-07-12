@@ -630,6 +630,50 @@ export function DashboardRoute() {
     return { gainers, losers, count: all.length };
   }, [dailyPriceRows, quoteRows, assetRows, nameLocale]);
 
+  // 投資今日 pulse cell (plan 164): signed day-over-day impact of every held
+  // position, summed in the primary currency. Mirrors dayChangeMovers' current
+  // vs. reference resolution exactly (live quote vs. prior session's close from
+  // daily_prices; never a live quote's previousClose) but computed locally
+  // instead of promoting dayChangeMovers to also return raw prices, per the
+  // plan's escape hatch — this stays a pure read of already-fetched data with
+  // no changes to domain/portfolioAnalytics.ts.
+  const portfolioDayChange = useMemo(() => {
+    const held = filteredAssets.filter((a) => a.deletedAt === null && a.totalQuantity > 0);
+    let amount = 0;
+    let matched = false;
+    for (const asset of held) {
+      let closes: DailyPrice[] = [];
+      for (const key of quoteLookupKeys(asset.ticker)) {
+        const bucket = dailyPriceLookup.get(key);
+        if (bucket?.length) { closes = bucket; break; }
+      }
+      const lastClose = closes.length ? closes[closes.length - 1] : null;
+      const prevClose = closes.length >= 2 ? closes[closes.length - 2] : null;
+      const quote = quoteFor(asset.ticker);
+
+      let current: number | null = null;
+      let reference: number | null = null;
+      let currency = asset.currency;
+      if (quote && lastClose) {
+        current = quote.price;
+        currency = quote.currency || lastClose.currency || asset.currency;
+        const quoteDate = quote.marketTime ? quote.marketTime.slice(0, 10) : null;
+        reference = quoteDate && quoteDate > lastClose.date ? lastClose.close : prevClose?.close ?? null;
+      } else if (lastClose && prevClose) {
+        current = lastClose.close;
+        reference = prevClose.close;
+        currency = lastClose.currency || asset.currency;
+      }
+      if (current == null || reference == null || reference <= 0) continue;
+      amount += toPrimary(asset.totalQuantity * (current - reference), currency, todayIso);
+      matched = true;
+    }
+    if (!matched) return { amount: null as number | null, pct: null as number | null };
+    const priorMarketValue = marketValue - amount;
+    const pct = priorMarketValue !== 0 ? (amount / priorMarketValue) * 100 : null;
+    return { amount, pct };
+  }, [filteredAssets, quoteRows, dailyPriceLookup, marketValue, toPrimary, todayIso]);
+
   // Goals — approximate progress = net worth / target (dashboard glance only).
   const goals = useMemo(() => {
     return goalRows
@@ -754,6 +798,43 @@ export function DashboardRoute() {
   const greeting = greetingForHour(new Date().getHours());
   const todayLabel = new Date().toLocaleDateString("zh-TW", { month: "long", day: "numeric" });
   const monthLabel = monthKey.replace("-", " / ");
+
+  // Pulse strip (plan 164): 4-cell 一眼脈搏 summary — investment day change,
+  // this month's cash flow, budget status, and the merged to-do list. budgetCats
+  // is already sorted by spend/limit ratio (see its useMemo), so [0] is the
+  // category nearest its limit.
+  const topBudgetCat = budgetCats[0];
+  const budgetSub = overBudget.length > 0
+    ? `${overBudget.length} 個超支`
+    : topBudgetCat && topBudgetCat.budget
+      ? `${topBudgetCat.name} ${Math.round((topBudgetCat.spent / topBudgetCat.budget) * 100)}%`
+      : "無超支";
+  const soonestTodo = todoRows[0];
+  const pulseCells: Array<{ label: string; value: string; sub: string; color?: string }> = [
+    {
+      label: "投資今日",
+      value: portfolioDayChange.amount == null ? "—" : `${portfolioDayChange.amount >= 0 ? "+" : "−"}${formatNumber(Math.abs(portfolioDayChange.amount))}`,
+      sub: portfolioDayChange.pct == null ? "" : `${portfolioDayChange.pct >= 0 ? "+" : "−"}${Math.abs(portfolioDayChange.pct).toFixed(2)}%`,
+      color: portfolioDayChange.amount == null ? undefined : portfolioDayChange.amount >= 0 ? "var(--ns-gain)" : "var(--ns-loss)",
+    },
+    {
+      label: "本月現金流",
+      value: `${monthNet >= 0 ? "+" : "−"}${formatNumber(Math.abs(monthNet))}`,
+      sub: monthIncome > 0 ? `儲蓄率 ${savingsRate.toFixed(0)}%` : "",
+      color: monthNet >= 0 ? "var(--ns-pos)" : "var(--ns-neg)",
+    },
+    {
+      label: "預算",
+      value: budgetCats.length === 0 ? "尚無預算" : `${budgetCats.length} 分類`,
+      sub: budgetCats.length === 0 ? "" : budgetSub,
+      color: overBudget.length > 0 ? "var(--ns-neg)" : undefined,
+    },
+    {
+      label: "待辦",
+      value: `${todoRows.length} 件 · 30 天`,
+      sub: soonestTodo ? `${soonestTodo.name} · ${soonestTodo.date}` : "目前沒有待辦",
+    },
+  ];
 
   if (isInitialLoading) {
     return (
@@ -895,11 +976,11 @@ export function DashboardRoute() {
         </div>
       </div>
 
-      {/* Row 1 · Northstar hero + KPI stack */}
+      {/* Row 1 · Northstar hero + pulse strip (Direction A, plan 164) */}
       <div className="ns-dash-row1">
         <Card className="flex flex-col min-w-0" style={{ padding: 22 }}>
           {/* ── Hero header: eyebrow + value + MoM badge (netWorth only) ── */}
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20, marginBottom: 14, flexWrap: "wrap" }}>
             <div className="min-w-0 flex-1">
               {/* Eyebrow: metric label + currency for money metrics */}
               <div className="flex items-center gap-2" style={{ marginBottom: 5 }}>
@@ -992,108 +1073,73 @@ export function DashboardRoute() {
               ) : null}
             </div>
 
-            {/* Period control + long-view toggle — only for netWorth (drives the trend chart) */}
+            {/* Period control + long-view toggle above a small sparkline — only
+                for netWorth (drives the trend chart, still used by the demoted
+                淨值趨勢 card too). */}
             {activeMetric.key === "netWorth" && reconciledTrend.length > 1 ? (
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="ns-hscroll" style={{ maxWidth: "100%" }}>
-                  <SegmentedControl
-                    value={stripPeriod}
-                    onChange={setStripPeriod}
-                    options={STRIP_PERIODS.map((v) => ({ value: v, label: v }))}
-                  />
+              <div className="flex flex-col items-end gap-2" style={{ flexShrink: 0 }}>
+                <div className="flex items-center gap-2 flex-wrap justify-end">
+                  <div className="ns-hscroll" style={{ maxWidth: "100%" }}>
+                    <SegmentedControl
+                      value={stripPeriod}
+                      onChange={setStripPeriod}
+                      options={STRIP_PERIODS.map((v) => ({ value: v, label: v }))}
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    variant={longViewMode ? "default" : "outline"}
+                    onClick={toggleLongViewMode}
+                    aria-pressed={longViewMode}
+                    title="長期視角：以移動平均淡化每日波動"
+                  >
+                    長期視角
+                  </Button>
                 </div>
-                <Button
-                  size="sm"
-                  variant={longViewMode ? "default" : "outline"}
-                  onClick={toggleLongViewMode}
-                  aria-pressed={longViewMode}
-                  title="長期視角：以移動平均淡化每日波動"
-                >
-                  長期視角
-                </Button>
-              </div>
-            ) : null}
-          </div>
-
-          {/* Trend chart — only for netWorth */}
-          {activeMetric.key === "netWorth" ? (
-            reconciledTrend.length > 1 ? (
-              // position:relative + absolute inner so ResponsiveContainer gets a
-              // definite height inside the flex column (otherwise it measures 0
-              // and the area never draws).
-              <div style={{ flex: 1, minHeight: 160, position: "relative" }}>
-                <div style={{ position: "absolute", inset: 0 }}>
+                <div style={{ width: 300, maxWidth: "100%", height: 64 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={visibleTrend}>
                       <defs>
-                        <linearGradient id="netWorth" x1="0" x2="0" y1="0" y2="1">
+                        <linearGradient id="netWorthMini" x1="0" x2="0" y1="0" y2="1">
                           <stop offset="5%" stopColor="var(--ns-accent)" stopOpacity={0.35} />
                           <stop offset="95%" stopColor="var(--ns-accent)" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <XAxis dataKey="date" stroke="var(--ns-fg-muted)" fontSize={11} minTickGap={24} />
                       <YAxis hide domain={["dataMin - 20000", "dataMax + 20000"]} />
-                      <Tooltip formatter={(value) => formatMoney(Number(value), primaryCurrency)} contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }} itemStyle={{ color: "var(--ns-fg)" }} labelStyle={{ color: "var(--ns-fg)" }} />
-                      <Area type="monotone" dataKey="value" stroke="var(--ns-accent)" fill="url(#netWorth)" strokeWidth={2} />
+                      <Area type="monotone" dataKey="value" stroke="var(--ns-accent)" fill="url(#netWorthMini)" strokeWidth={2} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
               </div>
-            ) : (
-              // No meaningful trend yet → collapse to a slim hint instead of a tall
-              // empty void, so the hero doesn't dominate the page.
-              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", paddingTop: 4 }}>
-                <span className="muted text-body">
-                  {hasAnyData ? "累積幾筆資料後會顯示淨值趨勢。" : "先建立第一個帳戶，Northstar 會開始計算總覽。"}
-                </span>
-                <span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                  <Button size="sm" render={<Link to={hasAnyData ? "/cash-flow" : "/accounts"} />}>{hasAnyData ? "去記帳" : "建立帳戶"}</Button>
-                  {!hasAnyData ? (
-                    <Button size="sm" variant="outline" onClick={loadDemo} loading={demoLoading}>
-                      {demoLoading ? "載入中…" : "載入示範資料"}
-                    </Button>
-                  ) : null}
-                  {!hasAnyData ? (
-                    <Button size="sm" variant="outline" onClick={openOnboarding}>
-                      新手導覽
-                    </Button>
-                  ) : null}
-                </span>
-              </div>
-            )
+            ) : null}
+          </div>
+
+          {/* No meaningful trend yet → a slim hint instead of the sparkline. */}
+          {activeMetric.key === "netWorth" && reconciledTrend.length <= 1 ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <span className="muted text-body">
+                {hasAnyData ? "累積幾筆資料後會顯示淨值趨勢。" : "先建立第一個帳戶，Northstar 會開始計算總覽。"}
+              </span>
+              <span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <Button size="sm" render={<Link to={hasAnyData ? "/cash-flow" : "/accounts"} />}>{hasAnyData ? "去記帳" : "建立帳戶"}</Button>
+                {!hasAnyData ? (
+                  <Button size="sm" variant="outline" onClick={loadDemo} loading={demoLoading}>
+                    {demoLoading ? "載入中…" : "載入示範資料"}
+                  </Button>
+                ) : null}
+                {!hasAnyData ? (
+                  <Button size="sm" variant="outline" onClick={openOnboarding}>
+                    新手導覽
+                  </Button>
+                ) : null}
+              </span>
+            </div>
           ) : null}
 
-          {analyticsPositions.length > 0 ? (
-            <PortfolioStrip period={stripPeriod} data={stripData} benchmarkTicker={benchmarkTicker} />
-          ) : null}
+          {/* Pulse strip: 投資今日 / 本月現金流 / 預算 / 待辦 — only once there's
+              data to summarize. */}
+          {hasAnyData ? <PulseStrip cells={pulseCells} /> : null}
         </Card>
-
-        {/* KPI stack */}
-        <div className="ns-dash-kpi-stack">
-          <KpiCard label="投資" value={formatMoney(marketValue, primaryCurrency)} color="var(--ns-chart-1)" />
-          <KpiCard label="現金 / 存款" value={formatMoney(availableCash, primaryCurrency)} color="var(--ns-chart-2)" />
-          {alternativeAssets > 0 ? <KpiCard label="其他資產" value={formatMoney(alternativeAssets, primaryCurrency)} color="var(--ns-chart-4)" /> : null}
-          <KpiCard label="負債" value={formatMoney(liabilities, primaryCurrency)} color="var(--ns-chart-5)" tone={liabilities > 0 ? "neg" : undefined} />
-          <Card className="flex flex-row items-center gap-2.5 min-w-0" style={{ padding: "13px 16px" }}>
-            <div style={{ width: 4, height: 32, borderRadius: 99, background: "var(--ns-chart-3)", flexShrink: 0 }} />
-            <div className="flex-1 min-w-0">
-              <div className="text-xs muted font-medium" style={{ fontSize: 10 }}>本月現金流</div>
-              <div className={"font-medium " + (monthNet >= 0 ? "pos" : "neg")} style={{
-                fontSize: "clamp(13px, 1.4vw, 18px)",
-                fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums",
-                marginTop: 1,
-                whiteSpace: "nowrap", overflow: "hidden",
-              }}>
-                {monthNet >= 0 ? "+" : "−"}{formatNumber(Math.abs(monthNet))}
-              </div>
-            </div>
-            <div className="text-caption text-right shrink-0">
-              <div className="muted">收 {formatNumber(monthIncome)}</div>
-              <div className="muted">支 {formatNumber(monthExpense)}</div>
-              {monthIncome > 0 ? <div className="pos mono text-caption">儲蓄率 {savingsRate.toFixed(0)}%</div> : null}
-            </div>
-          </Card>
-        </div>
       </div>
 
       {/* Row 2 · 待辦 (bills + credit cards + AR/AP merged) + 今日漲跌 */}
@@ -1402,6 +1448,21 @@ function FxInline({ rates }: { rates: Array<{ pair: string; rate: number; change
         </span>
       ))}
     </span>
+  );
+}
+
+/** 4-cell 一眼脈搏 strip under the net-worth hero (plan 164, Direction A). */
+function PulseStrip({ cells }: { cells: Array<{ label: string; value: string; sub: string; color?: string }> }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))", borderTop: "1px solid var(--ns-border)", marginTop: 16, paddingTop: 14 }}>
+      {cells.map((c, i) => (
+        <div key={c.label} style={{ paddingLeft: i ? 14 : 0, paddingRight: 14, borderLeft: i ? "1px solid var(--ns-border)" : "none", minWidth: 0 }}>
+          <div className="text-xs muted font-medium truncate" style={{ fontSize: 10, marginBottom: 4 }}>{c.label}</div>
+          <div className="num truncate" style={{ fontSize: 15, fontWeight: 600, fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums", color: c.color ?? "var(--ns-fg)" }}>{c.value}</div>
+          {c.sub ? <div className="muted text-caption truncate mt-0.5">{c.sub}</div> : null}
+        </div>
+      ))}
+    </div>
   );
 }
 
