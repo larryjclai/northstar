@@ -135,14 +135,14 @@ function BenchmarkPicker({ current }: { current: string }) {
   );
 }
 
-// Global page period. Design's preset list is 1W/1M/3M/6M/1Y/All (adds 1W,
-// drops YTD/5Y vs. the old in-hero control) — nothing else in the app depends
-// on this local type, so the presets are pared down to match rather than kept
-// unused behind the scenes.
-type AnalyticsPeriod = "1W" | "1M" | "3M" | "6M" | "1Y" | "All";
-const PERIODS: AnalyticsPeriod[] = ["1W", "1M", "3M", "6M", "1Y", "All"];
+// Global page period. Design's core preset list is 1W/1M/3M/6M/1Y/All; YTD and
+// 5Y are also offered (operator request) for the finer-grained look-backs the
+// old in-hero control had.
+type AnalyticsPeriod = "1W" | "1M" | "3M" | "6M" | "YTD" | "1Y" | "5Y" | "All";
+const PERIODS: AnalyticsPeriod[] = ["1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "All"];
 const PERIOD_LABELS: Record<AnalyticsPeriod, string> = {
-  "1W": "近 1 週", "1M": "近 1 個月", "3M": "近 3 個月", "6M": "近 6 個月", "1Y": "近 1 年", All: "全部期間",
+  "1W": "近 1 週", "1M": "近 1 個月", "3M": "近 3 個月", "6M": "近 6 個月",
+  YTD: "今年以來", "1Y": "近 1 年", "5Y": "近 5 年", All: "全部期間",
 };
 
 /** Page-global period control also supports a "Custom" selection, which is a
@@ -168,8 +168,9 @@ function daysBetween(start: string, end: string): number {
 
 function periodStart(period: AnalyticsPeriod, end: string): string {
   if (period === "All") return "1900-01-01";
-  const days: Record<Exclude<AnalyticsPeriod, "All">, number> = {
-    "1W": 7, "1M": 30, "3M": 92, "6M": 183, "1Y": 365,
+  if (period === "YTD") return `${end.slice(0, 4)}-01-01`;
+  const days: Record<Exclude<AnalyticsPeriod, "All" | "YTD">, number> = {
+    "1W": 7, "1M": 30, "3M": 92, "6M": 183, "1Y": 365, "5Y": 1825,
   };
   return daysAgo(days[period], end);
 }
