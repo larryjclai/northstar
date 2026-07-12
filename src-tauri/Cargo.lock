@@ -2920,7 +2920,7 @@ dependencies = [
 
 [[package]]
 name = "northstar"
-version = "0.1.0-alpha.58"
+version = "0.1.0-alpha.59"
 dependencies = [
  "libc",
  "reqwest 0.12.28",
