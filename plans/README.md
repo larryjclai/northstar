@@ -67,16 +67,16 @@ plans — no ordering dependency; execute in any order (or parallel branches).
 | 166 | Holding Detail — collapsible「今日」band (3 cells + impact; **no OHLC in data layer** so 開盤/區間 omitted, not faked) | P2 | M | — | DONE — reviewed+APPROVED, branch `feat/ai-holding-detail-today-band` @ `1fb247fc` (unmerged; adds pure helper `src/routes/holdingDetailToday.ts` + 7 tests) |
 | 167 | 分析 tab — one global period control (+Custom), reorder to 01 報酬 / 02 貢獻 / 03 風險 / 04 股利 / 05 集中度 with scope tags, delete 365D calendar heatmap | P2 | L | — | DONE — reviewed+APPROVED, branch `feat/ai-analytics-global-period-reorder` @ `4063b049` (unmerged; incl. operator tweak: YTD+5Y presets restored; 02 貢獻 tag = 不隨期間·成本基準) |
 
-### 164–167 merge state (your decision) — reconciled 2026-07-12
+### 164–167 — MERGED & RELEASED in `v0.1.0-alpha.57` (2026-07-12)
 
 All four executed via `/improve execute`, reviewed, **APPROVED**, operator tweaks
-applied and re-verified. **Unmerged**, each on its own branch off `main` @
-`9441c152`. Unlike the 156–163 stacked chain, these are **independent** branches
-touching disjoint files (only 165 touches `globals.css`; no overlap) — merge in
-**any order**, no rebasing needed. Every branch tip: `tsc --noEmit` 0, `npm test`
-green (1033; 166 adds 7 → 1040), `npm run lint` 0 errors. No financial math
-changed on any branch (analytics/domain untouched; day-change reuses
-`dayChangeMovers`). Merging is yours — the advisor does not merge/push.
+applied, then **merged to `main`** (four `--no-ff` merges off `9441c152`) and
+released as **`v0.1.0-alpha.57`** (`cc66b467`, tag pushed). Combined-`main`
+verification before tagging: `tsc --noEmit` 0, `npm test` **1040/1040** (100
+files), `npm run lint` 0 errors. No financial math changed (analytics/domain
+untouched; day-change reuses `dayChangeMovers`). **Binary publish still pending** —
+`./scripts/release-local.sh v0.1.0-alpha.57` (local signed macOS build) is the
+operator's step; the source + tag are pushed but no release workflow auto-fires.
 
 | Plan | Branch @ tip | Files |
 |---|---|---|
