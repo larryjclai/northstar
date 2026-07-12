@@ -100,9 +100,48 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
   const [restoreDiffLoading, setRestoreDiffLoading] = useState(false);
   const [restoreConfirmInput, setRestoreConfirmInput] = useState("");
 
+  // JSON-import restore preview: same counts-diff + typed-phrase gate as the
+  // local-backup flow, computed from the STAGED file (never from a re-read
+  // after confirm) so what the user sees is what gets imported.
+  const [importDiff, setImportDiff] = useState<BackupDiff | null>(null);
+  const [importDiffLoading, setImportDiffLoading] = useState(false);
+  const [importDiffError, setImportDiffError] = useState<string | null>(null);
+  const [importConfirmInput, setImportConfirmInput] = useState("");
+
   useEffect(() => {
     listLocalBackups().then(setLocalBackups).catch(() => setLocalBackups([]));
   }, []);
+
+  // Build the import preview whenever a file is staged, without touching the DB.
+  useEffect(() => {
+    if (!pendingImportFile) {
+      setImportDiff(null);
+      setImportDiffError(null);
+      setImportConfirmInput("");
+      return;
+    }
+    let cancelled = false;
+    setImportDiff(null);
+    setImportDiffError(null);
+    setImportConfirmInput("");
+    setImportDiffLoading(true);
+    (async () => {
+      try {
+        const text = await pendingImportFile.text();
+        const parsed = JSON.parse(text) as RepositorySnapshot;
+        if (!parsed || !Array.isArray(parsed.accounts)) throw new Error("無效的備份檔（缺少 accounts 欄位）");
+        const repository = await getFinanceRepository();
+        const current = await repository.exportSnapshot();
+        if (cancelled) return;
+        setImportDiff(buildBackupDiff(current, parsed));
+      } catch (e) {
+        if (!cancelled) setImportDiffError(e instanceof Error ? e.message : "無法讀取備份檔");
+      } finally {
+        if (!cancelled) setImportDiffLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [pendingImportFile]);
 
   async function refreshLocalBackups() {
     try { setLocalBackups(await listLocalBackups()); } catch { /* ignore */ }
@@ -469,8 +508,57 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
                 即將以 <span className="mono font-medium">{pendingImportFile.name}</span> 覆蓋目前<strong>所有</strong>資料，此動作無法復原。建議先按上方「{t('settings.exportJson')}」備份。
               </div>
             </div>
+            <p className="text-xs muted mb-2">
+              匯入會以此備份「覆蓋」目前所有資料。請先確認筆數，紅字表示匯入後會減少。
+            </p>
+            {importDiffLoading ? (
+              <p className="text-xs muted mb-3">讀取備份內容中…</p>
+            ) : importDiffError ? (
+              <p className="text-xs mb-3" style={{ color: "var(--ns-neg)" }}>無法讀取此備份檔：{importDiffError}</p>
+            ) : importDiff ? (
+              <>
+                <p className="text-xs muted mb-2">
+                  {/* 備份時間點日期顯示，非金額展示 — 不經 currency helpers */}
+                  {/* eslint-disable-next-line no-restricted-syntax */}
+                  備份時間點：{new Date(importDiff.exportedAt).toLocaleString("zh-Hant")}
+                </p>
+                <div className="space-y-1 mb-3">
+                  {importDiff.rows.map((r) => (
+                    <div key={r.label} className="flex items-center justify-between gap-3 text-xs">
+                      <span className="muted">{r.label}</span>
+                      <span style={r.delta < 0 ? { color: "var(--ns-neg)" } : undefined}>
+                        {r.current} → {r.backup}
+                        {r.delta !== 0 && (
+                          <span className="ml-1">（{r.delta > 0 ? `+${r.delta}` : r.delta}）</span>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {importDiff.hasDecrease && (
+                  <p className="text-xs mb-3" style={{ color: "var(--ns-neg)" }}>
+                    注意：此備份部分項目的筆數比目前少，匯入後將遺失較新的資料。
+                  </p>
+                )}
+                <label className="text-xs muted block mb-1">
+                  請輸入「{RESTORE_CONFIRM_PHRASE}」以確認覆蓋：
+                </label>
+                <input
+                  className="ns-input w-full mb-2"
+                  value={importConfirmInput}
+                  onChange={(e) => setImportConfirmInput(e.target.value)}
+                  placeholder={RESTORE_CONFIRM_PHRASE}
+                  aria-label={`輸入 ${RESTORE_CONFIRM_PHRASE} 以確認匯入`}
+                />
+              </>
+            ) : null}
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} disabled={importing} onClick={() => importBackup(pendingImportFile)}>
+              <Button
+                variant="outline"
+                style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }}
+                disabled={importing || !importDiff || importConfirmInput.trim() !== RESTORE_CONFIRM_PHRASE}
+                onClick={() => importBackup(pendingImportFile)}
+              >
                 <UploadSimple size={14} />{importing ? "匯入中…" : "確定匯入（覆蓋現有資料）"}
               </Button>
               <Button variant="ghost" disabled={importing} onClick={() => setPendingImportFile(null)}>取消</Button>

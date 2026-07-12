@@ -46,7 +46,8 @@ import {
 import { runSync, forceFullResync, forceFullRepush } from "../../features/connect/sync/sync-manager";
 import { clearLocalSyncState, unlinkSync } from "../../features/connect/sync/reset";
 import { summarizeConflict } from "../../features/connect/sync/conflictSummary";
-import { listBackups, restoreBackup, type BackupEntry } from "../../features/connect/sync/backup";
+import { listBackups, restoreBackup, readBackupSnapshot, type BackupEntry } from "../../features/connect/sync/backup";
+import { buildBackupDiff, type BackupDiff } from "../../features/local-backup/backupDiff";
 import { updateFailureMessage } from "../../features/updater/errors";
 import { useSyncStatus } from "../../state/syncStatus";
 import {
@@ -569,12 +570,46 @@ export function ConnectStatus() {
   }
 
   // ── Restore backup ──
-  // Two-click confirm via confirmRestoreTs — window.confirm is a no-op in
-  // the Tauri webview, so the old guard silently blocked every restore.
+  // Confirm via confirmRestoreTs — window.confirm is a no-op in the Tauri
+  // webview, so the old guard silently blocked every restore. Same counts-diff
+  // preview + typed-phrase gate as the local-backup / JSON-import restore flows.
+  const RESTORE_CONFIRM_PHRASE = "還原";
   const [confirmRestoreTs, setConfirmRestoreTs] = useState<string | null>(null);
+  const [restoreDiff, setRestoreDiff] = useState<BackupDiff | null>(null);
+  const [restoreDiffLoading, setRestoreDiffLoading] = useState(false);
+  const [restoreConfirmInput, setRestoreConfirmInput] = useState("");
+
+  // Open the restore preview: load a counts diff (backup vs current) WITHOUT
+  // touching the database, so the user can spot a wrong/too-old backup first.
+  async function beginRestore(timestamp: string) {
+    setConfirmRestoreTs(timestamp);
+    setRestoreConfirmInput("");
+    setRestoreDiff(null);
+    setRestoreDiffLoading(true);
+    try {
+      const repo = await getFinanceRepository();
+      const [backup, current] = await Promise.all([
+        readBackupSnapshot(timestamp),
+        repo.exportSnapshot(),
+      ]);
+      setRestoreDiff(backup ? buildBackupDiff(current, backup) : null);
+    } catch {
+      setRestoreDiff(null);
+    } finally {
+      setRestoreDiffLoading(false);
+    }
+  }
+
+  function cancelRestore() {
+    setConfirmRestoreTs(null);
+    setRestoreDiff(null);
+    setRestoreConfirmInput("");
+  }
 
   async function handleRestore(timestamp: string) {
     setConfirmRestoreTs(null);
+    setRestoreDiff(null);
+    setRestoreConfirmInput("");
     try {
       const repo = await getFinanceRepository();
       await restoreBackup(timestamp, repo);
@@ -1012,24 +1047,78 @@ export function ConnectStatus() {
             {backups.length === 0
               ? <div className="muted text-xs">尚無快照（執行一次同步後會自動建立）</div>
               : backups.map((b) => (
-                <div key={b.timestamp} className="flex items-center justify-between" style={{
+                <div key={b.timestamp} style={{
                   padding: "9px 12px", borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)",
                 }}>
-                  <div>
-                    <div className="text-xs font-medium">{b.label}</div>
-                    <div className="mono muted text-micro">{b.timestamp.slice(0, 19).replace("T", " ")}</div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-medium">{b.label}</div>
+                      <div className="mono muted text-micro">{b.timestamp.slice(0, 19).replace("T", " ")}</div>
+                    </div>
+                    {confirmRestoreTs === b.timestamp ? (
+                      <Button variant="ghost" className="text-caption" onClick={cancelRestore}>取消</Button>
+                    ) : (
+                      <Button variant="ghost" className="text-caption" style={{ color: "var(--ns-warn, #b45309)" }}
+                        onClick={() => beginRestore(b.timestamp)}>
+                        還原
+                      </Button>
+                    )}
                   </div>
-                  {confirmRestoreTs === b.timestamp ? (
-                    <span className="flex items-center gap-1">
-                      <span className="muted text-caption">目前資料將被覆蓋</span>
-                      <Button variant="ghost" className="text-caption" style={{ color: "var(--ns-neg)" }} onClick={() => handleRestore(b.timestamp)}>確定還原</Button>
-                      <Button variant="ghost" className="text-caption" onClick={() => setConfirmRestoreTs(null)}>取消</Button>
-                    </span>
-                  ) : (
-                    <Button variant="ghost" className="text-caption" style={{ color: "var(--ns-warn, #b45309)" }}
-                      onClick={() => setConfirmRestoreTs(b.timestamp)}>
-                      還原
-                    </Button>
+                  {confirmRestoreTs === b.timestamp && (
+                    <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--ns-border)" }}>
+                      <p className="text-xs muted mb-2">
+                        還原會以此備份「覆蓋」目前所有資料。請先確認筆數，紅字表示還原後會減少。
+                      </p>
+                      {restoreDiffLoading ? (
+                        <p className="text-xs muted">讀取備份內容中…</p>
+                      ) : !restoreDiff ? (
+                        <p className="text-xs" style={{ color: "var(--ns-neg)" }}>無法讀取此備份內容，可能已損毀。</p>
+                      ) : (
+                        <>
+                          <p className="text-xs muted mb-2">
+                            {/* 備份時間點日期顯示，非金額展示 — 不經 currency helpers */}
+                            {/* eslint-disable-next-line no-restricted-syntax */}
+                            備份時間點：{new Date(restoreDiff.exportedAt).toLocaleString("zh-Hant")}
+                          </p>
+                          <div className="space-y-1 mb-3">
+                            {restoreDiff.rows.map((r) => (
+                              <div key={r.label} className="flex items-center justify-between gap-3 text-xs">
+                                <span className="muted">{r.label}</span>
+                                <span style={r.delta < 0 ? { color: "var(--ns-neg)" } : undefined}>
+                                  {r.current} → {r.backup}
+                                  {r.delta !== 0 && (
+                                    <span className="ml-1">（{r.delta > 0 ? `+${r.delta}` : r.delta}）</span>
+                                  )}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                          {restoreDiff.hasDecrease && (
+                            <p className="text-xs mb-3" style={{ color: "var(--ns-neg)" }}>
+                              注意：此備份部分項目的筆數比目前少，還原後將遺失較新的資料。
+                            </p>
+                          )}
+                          <label className="text-xs muted block mb-1">
+                            請輸入「{RESTORE_CONFIRM_PHRASE}」以確認覆蓋：
+                          </label>
+                          <input
+                            className="ns-input w-full mb-2"
+                            value={restoreConfirmInput}
+                            onChange={(e) => setRestoreConfirmInput(e.target.value)}
+                            placeholder={RESTORE_CONFIRM_PHRASE}
+                            aria-label={`輸入 ${RESTORE_CONFIRM_PHRASE} 以確認還原`}
+                          />
+                          <Button
+                            variant="outline"
+                            style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }}
+                            disabled={restoreConfirmInput.trim() !== RESTORE_CONFIRM_PHRASE}
+                            onClick={() => handleRestore(b.timestamp)}
+                          >
+                            確定還原（覆蓋現有）
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
               ))
