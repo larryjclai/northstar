@@ -52,6 +52,50 @@ banner + analytics in-page nav only — no sticky table headers exist); **C**
 Dynamic Type = **DEFER past GA** (two independent fixed-px type systems;
 `-webkit-text-size-adjust:100%` already disables inflation → rem alone insufficient).
 
+## 164–167 — 總覽 + 投資 redesign (from Claude Design, 2026-07-12)
+
+Imported from claude.ai/design project `a2b50679-620a-465b-80c5-ef0ca5574bce`
+(`Overview + Invest Redesign.html`) via DesignSync. Four independent, siblable
+plans — no ordering dependency; execute in any order (or parallel branches).
+**All are layout/IA only; none change financial math.** Operator chose Overview
+**Direction A「一眼脈搏」** (of three variants A/B/C in the design).
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 164 | Overview redesign — Direction A minimal pulse (FX→header, merge bills/cards/AR-AP into 待辦, default-hide allocation/goals/recent/projection+trend, demote trend behind 版面) | P2 | L | — | DONE — reviewed+APPROVED, branch `feat/ai-overview-variant-a` @ `aa6979d8` (unmerged; incl. operator tweak: 淨值趨勢 now default-hidden too) |
+| 165 | 持倉 tab — slim 5-col table + expandable rows, KPI cards→one strip, donut→thin distribution bar, 回補分類→⋯ | P2 | L | — | DONE — reviewed+APPROVED, branch `feat/ai-holdings-slim-table` @ `ab7fe66f` (unmerged) |
+| 166 | Holding Detail — collapsible「今日」band (3 cells + impact; **no OHLC in data layer** so 開盤/區間 omitted, not faked) | P2 | M | — | DONE — reviewed+APPROVED, branch `feat/ai-holding-detail-today-band` @ `1fb247fc` (unmerged; adds pure helper `src/routes/holdingDetailToday.ts` + 7 tests) |
+| 167 | 分析 tab — one global period control (+Custom), reorder to 01 報酬 / 02 貢獻 / 03 風險 / 04 股利 / 05 集中度 with scope tags, delete 365D calendar heatmap | P2 | L | — | DONE — reviewed+APPROVED, branch `feat/ai-analytics-global-period-reorder` @ `4063b049` (unmerged; incl. operator tweak: YTD+5Y presets restored; 02 貢獻 tag = 不隨期間·成本基準) |
+
+### 164–167 merge state (your decision) — reconciled 2026-07-12
+
+All four executed via `/improve execute`, reviewed, **APPROVED**, operator tweaks
+applied and re-verified. **Unmerged**, each on its own branch off `main` @
+`9441c152`. Unlike the 156–163 stacked chain, these are **independent** branches
+touching disjoint files (only 165 touches `globals.css`; no overlap) — merge in
+**any order**, no rebasing needed. Every branch tip: `tsc --noEmit` 0, `npm test`
+green (1033; 166 adds 7 → 1040), `npm run lint` 0 errors. No financial math
+changed on any branch (analytics/domain untouched; day-change reuses
+`dayChangeMovers`). Merging is yours — the advisor does not merge/push.
+
+| Plan | Branch @ tip | Files |
+|---|---|---|
+| 164 | `feat/ai-overview-variant-a` @ `aa6979d8` (5 commits) | `DashboardRoute.tsx`, `uiPreferences.ts` |
+| 165 | `feat/ai-holdings-slim-table` @ `ab7fe66f` (1) | `InvestmentsRoute.tsx`, `globals.css` |
+| 166 | `feat/ai-holding-detail-today-band` @ `1fb247fc` (1) | `HoldingDetailRoute.tsx`, `holdingDetailToday.ts`(+test) |
+| 167 | `feat/ai-analytics-global-period-reorder` @ `4063b049` (2) | `InvestmentsAnalyticsTab.tsx` |
+
+Note: `package-lock.json` shows an uncommitted version-field sync (alpha.55→.56)
+in each worktree from `npm install` — a stale-lock catch-up, not a dependency
+change; ignore or commit at merge.
+
+**Key cross-cutting constraint (all four):** the app stores only daily `close`
+per `DailyPrice` and `{symbol,price,currency}` per quote — **no open/high/low/
+previousClose**. Day-change % and impact are derivable (reuse `dayChangeMovers`
+in `domain/portfolioAnalytics.ts`); OHLC-dependent design cells are omitted, not
+invented. Per-holding day-change may need `dayChangeMovers` to expose raw prices
+— each plan flags that as a STOP/escape-hatch rather than duplicating valuation.
+
 ## Grouped record — 001–155 (all merged to `main`)
 
 - **001–004** initial UI fixes. **072–078** licensing / RN-feasibility / decision docs.
