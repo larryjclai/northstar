@@ -88,6 +88,7 @@ export interface UiPreferences {
 
 /** Toggleable holdings-table columns (the rest are always shown). */
 export type HoldingsColumnKey =
+  | "dayPnl"
   | "account"
   | "averageCost"
   | "marketPrice"
@@ -95,7 +96,7 @@ export type HoldingsColumnKey =
   | "costBasis";
 
 export const HOLDINGS_COLUMN_DEFAULTS: HoldingsColumnKey[] = ["account", "averageCost", "marketPrice"];
-const HOLDINGS_COLUMN_ALL: HoldingsColumnKey[] = ["account", "averageCost", "marketPrice", "assetType", "costBasis"];
+const HOLDINGS_COLUMN_ALL: HoldingsColumnKey[] = ["dayPnl", "account", "averageCost", "marketPrice", "assetType", "costBasis"];
 
 const STORAGE_KEY = "northstar.uiPreferences.v1";
 
