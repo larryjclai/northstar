@@ -395,6 +395,17 @@
    inline transform/opacity — no transition, or the drag would lag. */
 .ns-toast[data-dragging] { transition: none; }
 
+/* ── SegmentedControl sliding thumb (plan 160 pt.3) ── */
+.ns-seg-thumb {
+  position: absolute; top: 4px; bottom: 4px; left: 0;
+  border-radius: calc(var(--ns-r-md) - 4px);
+  background: var(--ns-surface-elevated);
+  border: 1px solid var(--ns-border);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  transition: transform var(--ns-dur) var(--ns-ease), width var(--ns-dur) var(--ns-ease);
+  will-change: transform;
+}
+
 html, body, #root { min-height: 100%; }
 
 /* Stop any single over-wide element from stretching the whole page past the
