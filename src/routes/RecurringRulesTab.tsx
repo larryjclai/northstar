@@ -356,6 +356,7 @@ function RuleEditSheet({
     <>
       <ModalShell
         variant="drawer"
+        mobilePresentation="bottom-sheet"
         title={isCreating ? "新增週期規則" : "編輯週期規則"}
         onClose={onClose}
         style={{ zIndex: 998 }}

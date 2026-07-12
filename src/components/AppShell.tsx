@@ -29,6 +29,7 @@ import { todayInTimezone } from "../domain";
 import { buildCreditCardReminders } from "../domain/dashboardSummary";
 import { buildReminderNotifications, unacknowledgedReminders } from "../domain/reminderNotifications";
 import { GlobalSearch } from "./GlobalSearch";
+import { ModalShell } from "./ModalShell";
 import { QuickAdd } from "./QuickAdd";
 import { useToast } from "./Toast";
 import { OnboardingOverlay, openOnboarding } from "./OnboardingOverlay";
@@ -414,36 +415,40 @@ export function AppShell() {
 
       {/* ── Mobile "更多" overflow sheet ── */}
       {moreOpen ? (
-        <div className="fixed inset-0 z-50 lg:hidden" onClick={() => setMoreOpen(false)}>
-          <div className="absolute inset-0" style={{ background: "color-mix(in srgb, var(--ns-bg) 55%, transparent)" }} />
-          <div
-            className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t"
-            style={{ background: "var(--ns-bg-elev)", borderColor: "var(--ns-border)", boxShadow: "var(--ns-shadow-xl)", paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-4 pt-3 pb-1">
-              <span className="text-xs muted font-medium">更多</span>
-              <button type="button" aria-label="關閉" onClick={() => setMoreOpen(false)} className="muted" style={{ background: "none", border: "none", cursor: "pointer" }}>
-                <X size={18} />
-              </button>
-            </div>
-            <nav className="flex flex-col p-2">
-              {mobileMoreNav.map((item) => (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  onClick={() => setMoreOpen(false)}
-                  className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm outline-none"
-                  activeProps={{ style: { color: "var(--ns-accent)", background: "var(--ns-accent-soft)" } }}
-                  inactiveProps={{ style: { color: "var(--ns-fg)" } }}
-                >
-                  <item.icon size={20} weight="duotone" />
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-        </div>
+        <ModalShell
+          variant="sheet"
+          mobilePresentation="bottom-sheet"
+          title="更多"
+          onClose={() => setMoreOpen(false)}
+          className="lg:hidden"
+          style={{ zIndex: 50 }}
+        >
+          {(dismiss) => (
+            <>
+              <div className="flex items-center justify-between px-4 pt-3 pb-1">
+                <span className="text-xs muted font-medium">更多</span>
+                <button type="button" aria-label="關閉" onClick={dismiss} className="muted" style={{ background: "none", border: "none", cursor: "pointer" }}>
+                  <X size={18} />
+                </button>
+              </div>
+              <nav className="flex flex-col p-2">
+                {mobileMoreNav.map((item) => (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    onClick={() => setMoreOpen(false)}
+                    className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm outline-none"
+                    activeProps={{ style: { color: "var(--ns-accent)", background: "var(--ns-accent-soft)" } }}
+                    inactiveProps={{ style: { color: "var(--ns-fg)" } }}
+                  >
+                    <item.icon size={20} weight="duotone" />
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+            </>
+          )}
+        </ModalShell>
       ) : null}
 
       {/* ── Mobile bottom nav ── */}

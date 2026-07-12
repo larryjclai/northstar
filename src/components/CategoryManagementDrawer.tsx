@@ -113,6 +113,7 @@ export function CategoryManagementDrawer({
     // 取消 / X buttons and scrim click.
     <ModalShell
       variant="drawer"
+      mobilePresentation="bottom-sheet"
       title="分類管理"
       onClose={onClose}
       disableEscape

@@ -588,6 +588,7 @@ function AccountDrawer({
   return (
     <ModalShell
       variant="drawer"
+      mobilePresentation="bottom-sheet"
       title={isEditing ? "編輯帳戶" : "新增帳戶"}
       onClose={onClose}
       style={{ zIndex: 50 }}

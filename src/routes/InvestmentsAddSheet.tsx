@@ -458,6 +458,7 @@ export function InvestmentEntryDrawer({
   return (
     <ModalShell
       variant="drawer"
+      mobilePresentation="bottom-sheet"
       title={mode === "snapshot" ? "建立目前部位" : title}
       onClose={onClose}
       style={{ zIndex: 50 }}

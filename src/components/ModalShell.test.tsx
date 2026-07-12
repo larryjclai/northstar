@@ -7,7 +7,26 @@ afterEach(() => {
   // Guard against a leaked scroll-lock between tests.
   document.documentElement.style.overflow = "";
   document.body.style.overflow = "";
+  vi.unstubAllGlobals();
 });
+
+// jsdom has no `matchMedia` implementation — stub it per-test (repo convention,
+// see AGENTS.md "vitest jsdom has no localStorage; stub per-test with vi.stubGlobal").
+function stubMatchMedia(matches: boolean) {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
+}
 
 describe("ModalShell", () => {
   it("renders a labelled dialog (role + aria-modal + aria-label)", () => {
@@ -197,5 +216,63 @@ describe("ModalShell", () => {
     );
     const dialog = screen.getByRole("dialog");
     expect(dialog).not.toHaveAttribute("data-motion");
+  });
+
+  describe("mobilePresentation (plan 159)", () => {
+    it('renders ns-sheet-bottom + data-motion="sheet-bottom" + the grab handle on a coarse pointer', () => {
+      stubMatchMedia(true);
+      render(
+        <ModalShell
+          title="t"
+          onClose={() => {}}
+          variant="drawer"
+          mobilePresentation="bottom-sheet"
+          panelStyle={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 420 }}
+        >
+          <button>ok</button>
+        </ModalShell>,
+      );
+      const dialog = screen.getByRole("dialog");
+      expect(dialog).toHaveClass("ns-sheet-bottom");
+      expect(dialog).toHaveAttribute("data-motion", "sheet-bottom");
+      expect(dialog.querySelector(".ns-sheet-grab")).not.toBeNull();
+      expect(dialog.querySelector(".ns-sheet-handle")).not.toBeNull();
+      // Positional panelStyle keys are overridden, not merged onto the panel.
+      expect(dialog.style.position).not.toBe("absolute");
+      expect(dialog.style.width).toBe("");
+    });
+
+    it("leaves panelStyle positioning untouched on a fine pointer even when opted in", () => {
+      stubMatchMedia(false);
+      render(
+        <ModalShell
+          title="t"
+          onClose={() => {}}
+          variant="drawer"
+          mobilePresentation="bottom-sheet"
+          panelStyle={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 420 }}
+        >
+          <button>ok</button>
+        </ModalShell>,
+      );
+      const dialog = screen.getByRole("dialog");
+      expect(dialog).not.toHaveClass("ns-sheet-bottom");
+      expect(dialog).toHaveAttribute("data-motion", "drawer");
+      expect(dialog.style.position).toBe("absolute");
+      expect(dialog.style.width).toBe("420px");
+      expect(dialog.querySelector(".ns-sheet-grab")).toBeNull();
+    });
+
+    it("does not render the grab handle when mobilePresentation is unset (default)", () => {
+      stubMatchMedia(true); // coarse pointer, but call site never opted in
+      render(
+        <ModalShell title="t" onClose={() => {}} variant="drawer">
+          <button>ok</button>
+        </ModalShell>,
+      );
+      const dialog = screen.getByRole("dialog");
+      expect(dialog).not.toHaveClass("ns-sheet-bottom");
+      expect(dialog.querySelector(".ns-sheet-grab")).toBeNull();
+    });
   });
 });
