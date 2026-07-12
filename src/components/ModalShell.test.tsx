@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ModalShell, useModalDismiss } from "./ModalShell";
+import { ModalShell } from "./ModalShell";
 
 afterEach(() => {
   // Guard against a leaked scroll-lock between tests.
@@ -165,18 +165,14 @@ describe("ModalShell", () => {
     portalled.remove();
   });
 
-  it("useModalDismiss triggers onClose on click (jsdom sync path)", () => {
+  it("render-prop dismiss triggers onClose on click (jsdom sync path)", () => {
     const onClose = vi.fn();
-    function DismissButton() {
-      const dismiss = useModalDismiss(onClose);
-      return <button onClick={dismiss}>dismiss</button>;
-    }
     render(
       <ModalShell title="t" onClose={onClose}>
-        <DismissButton />
+        {(dismiss) => <button onClick={dismiss}>x</button>}
       </ModalShell>,
     );
-    fireEvent.click(screen.getByText("dismiss"));
+    fireEvent.click(screen.getByText("x"));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

@@ -10,7 +10,7 @@ import {
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
 import { AppSelect } from "../components/AppSelect";
-import { ModalShell, useModalDismiss } from "../components/ModalShell";
+import { ModalShell } from "../components/ModalShell";
 import { useState } from "react";
 import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -342,7 +342,6 @@ function RuleEditSheet({
   const [message, setMessage] = useState("");
 
   const amountField = useNumericField(form.amount, (v) => setForm({ ...form, amount: v }));
-  const dismiss = useModalDismiss(onClose);
 
   const signedAmount = form.entryType === "expense" ? -Math.abs(form.amount) : Math.abs(form.amount);
 
@@ -367,6 +366,7 @@ function RuleEditSheet({
           boxShadow: "var(--ns-shadow-2)",
         }}
       >
+        {(dismiss) => (<>
         {/* Header */}
         <div className="flex items-center gap-2.5" style={{ padding: "18px 24px", borderBottom: "1px solid var(--ns-border)" }}>
           <ArrowsClockwise size={16} style={{ color: "var(--ns-accent)" }} />
@@ -548,6 +548,7 @@ function RuleEditSheet({
             {saving ? "儲存中…" : isCreating ? "建立規則" : "儲存變更"}
           </Button>
         </div>
+        </>)}
       </ModalShell>
     </>
   );

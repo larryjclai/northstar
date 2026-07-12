@@ -6,7 +6,7 @@ import { Card } from "../components/coss/card";
 import { AccountFilter } from "../components/AccountFilter";
 import { ToggleGroup, ToggleGroupItem } from "../components/coss/toggle-group";
 import { HoldingForm, makeEmptyHoldingDraft } from "../components/HoldingForm";
-import { ModalShell, useModalDismiss } from "../components/ModalShell";
+import { ModalShell } from "../components/ModalShell";
 import { NumberField } from "../components/NumberField";
 import { StatusText } from "../components/StatusText";
 import { TickerSearchField } from "../components/TickerSearchField";
@@ -276,8 +276,6 @@ export function InvestmentEntryDrawer({
       .slice(0, 6);
   }, [portfolioAssets]);
 
-  const dismiss = useModalDismiss(onClose);
-
   if (!open) return null;
 
   const side = sideFromAction(transactionForm.action);
@@ -469,6 +467,7 @@ export function InvestmentEntryDrawer({
         display: "flex", flexDirection: "column", boxShadow: "var(--ns-shadow-2)",
       }}
     >
+      {(dismiss) => (<>
         {/* Header */}
         <div className="flex items-center gap-3" style={{ padding: "20px 24px", borderBottom: "1px solid var(--ns-border)" }}>
           <h2 className="text-xl" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 600, letterSpacing: -0.02 }}>
@@ -882,6 +881,7 @@ export function InvestmentEntryDrawer({
             </div>
           </>
         )}
+      </>)}
     </ModalShell>
   );
 }

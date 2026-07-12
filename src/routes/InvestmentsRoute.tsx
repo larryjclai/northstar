@@ -1580,11 +1580,12 @@ function HoldingsTab({
           panelClassName="w-full max-w-2xl rounded-lg border shadow-xl"
           panelStyle={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}
         >
+          {(dismiss) => (<>
             <header className="flex items-center justify-between border-b px-5 py-3" style={{ borderColor: "var(--ns-border)" }}>
               <h2 className="text-lg font-semibold">編輯持倉</h2>
               <button
                 type="button"
-                onClick={() => setEditingAsset(null)}
+                onClick={dismiss}
                 className="grid size-8 place-items-center rounded-md outline-none transition hover:opacity-70"
                 aria-label="關閉"
               >
@@ -1692,6 +1693,7 @@ function HoldingsTab({
                 </div>
               ) : null}
             </div>
+          </>)}
         </ModalShell>
       ) : null}
     </>

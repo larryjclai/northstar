@@ -1119,13 +1119,14 @@ function AddDeviceDialog({
       onClose={onClose}
       style={{ zIndex: 200 }}
     >
+      {(dismiss) => (
       <Card style={{ width: 480, padding: 0, overflow: "hidden" }}>
         {/* Header */}
         <div className="flex items-center justify-between" style={{ padding: "18px 22px 0" }}>
           <h3 className="text-lg font-semibold" style={{ fontFamily: "var(--ns-font-display)", margin: 0 }}>
             {mode === "show" ? "加入現有裝置" : "新增裝置"}
           </h3>
-          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={onClose}><X size={16} /></Button>
+          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={dismiss}><X size={16} /></Button>
         </div>
 
         <div style={{ padding: "24px 22px 22px" }}>
@@ -1263,6 +1264,7 @@ function AddDeviceDialog({
           )}
         </div>
       </Card>
+      )}
     </ModalShell>
   );
 }

@@ -10,7 +10,7 @@ import { Skeleton } from "../components/coss/skeleton";
 import { AppSelect } from "../components/AppSelect";
 import { FilterPill } from "../components/FilterPill";
 import { IconPicker } from "../components/IconPicker";
-import { ModalShell, useModalDismiss } from "../components/ModalShell";
+import { ModalShell } from "../components/ModalShell";
 import { Glyph, DEFAULT_ACCOUNT_ICON } from "../lib/icons";
 import { BankLogo } from "../components/BankLogo";
 import { openOnboarding } from "../components/OnboardingOverlay";
@@ -227,7 +227,6 @@ export function AccountsRoute() {
     }
   }
   const adjustingAccount = adjustingAccountId ? rows.find((r) => r.id === adjustingAccountId) : null;
-  const dismissAdjust = useModalDismiss(() => setAdjustingAccountId(null));
 
   async function recalculate() {
     setRecalculating(true);
@@ -503,6 +502,7 @@ export function AccountsRoute() {
           panelClassName="w-full"
           panelStyle={{ maxWidth: 420 }}
         >
+          {(dismiss) => (
           <Card className="w-full p-0">
             <div className="py-4 px-5" style={{ borderBottom: "1px solid var(--ns-border)" }}>
               <h2 className="text-base font-semibold" style={{ margin: 0 }}>調整餘額 · {adjustingAccount.name}</h2>
@@ -521,10 +521,11 @@ export function AccountsRoute() {
               {adjustMessage ? <div className="text-body" style={{ color: "var(--ns-neg)" }}>{adjustMessage}</div> : null}
               <div className="flex gap-2">
                 <Button className="flex-1 justify-center" onClick={submitAdjust} loading={adjustBalance.isPending}>{adjustBalance.isPending ? "調整中…" : "確認調整"}</Button>
-                <Button variant="outline" onClick={dismissAdjust}>取消</Button>
+                <Button variant="outline" onClick={dismiss}>取消</Button>
               </div>
             </div>
           </Card>
+          )}
         </ModalShell>
       ) : null}
     </div>
@@ -549,7 +550,6 @@ function AccountDrawer({
   const [step, setStep] = useState(0);
   const [importMethod, setImportMethod] = useState('skip');
   const [csvDropped, setCsvDropped] = useState(false);
-  const dismiss = useModalDismiss(onClose);
 
   const openingBalanceField = useNumericField(form.openingBalance, (v) => setForm({ ...form, openingBalance: v }));
 
@@ -594,6 +594,7 @@ function AccountDrawer({
       panelClassName="flex flex-col"
       panelStyle={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "min(520px, 100%)", background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)", boxShadow: "var(--ns-shadow-2)" }}
     >
+      {(dismiss) => (<>
         <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--ns-border)" }}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2.5">
@@ -858,6 +859,7 @@ function AccountDrawer({
             </>
           )}
         </div>
+      </>)}
     </ModalShell>
   );
 }

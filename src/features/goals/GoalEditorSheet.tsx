@@ -2,7 +2,7 @@ import { X } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../components/coss/button";
 import { Field, SelectInput, TextInput } from "../../components/Field";
-import { ModalShell, useModalDismiss } from "../../components/ModalShell";
+import { ModalShell } from "../../components/ModalShell";
 import { NumberField } from "../../components/NumberField";
 import { useToast } from "../../components/Toast";
 import { useRepositoryMutation } from "../../data/hooks";
@@ -34,7 +34,6 @@ export function GoalEditorSheet({
   onClose: () => void;
 }) {
   const toast = useToast();
-  const dismiss = useModalDismiss(onClose);
 
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState(primaryCurrency);
@@ -140,6 +139,7 @@ export function GoalEditorSheet({
       panelClassName="w-full max-w-lg rounded-lg border shadow-xl"
       panelStyle={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}
     >
+      {(dismiss) => (<>
         <header className="flex items-center justify-between border-b px-5 py-3" style={{ borderColor: "var(--ns-border)" }}>
           <h2 className="text-lg font-semibold">{goal ? "編輯目標" : "新目標"}</h2>
           <button
@@ -246,6 +246,7 @@ export function GoalEditorSheet({
             {save.isPending ? "儲存中…" : goal ? "儲存變更" : "建立目標"}
           </Button>
         </footer>
+      </>)}
     </ModalShell>
   );
 }

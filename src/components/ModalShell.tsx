@@ -1,7 +1,5 @@
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useRef,
   useState,
@@ -37,7 +35,12 @@ export interface ModalShellProps {
   panelClassName?: string;
   /** Style for the dialog panel — pass the modal's existing panel style for pixel identity. */
   panelStyle?: CSSProperties;
-  children: ReactNode;
+  /**
+   * Panel content. Pass a function to receive the animated `dismiss` callback —
+   * wire it to sole-purpose close buttons (×/取消) so they play the exit
+   * animation instead of unmounting instantly.
+   */
+  children: ReactNode | ((dismiss: () => void) => ReactNode);
 }
 
 const VARIANT_SCRIM_CLASS: Record<ModalShellVariant, string> = {
@@ -53,17 +56,6 @@ const VARIANT_DEFAULT_MOTION: Record<ModalShellVariant, ModalShellMotion> = {
 };
 
 const EXIT_FALLBACK_MS = 320;
-
-const ModalDismissContext = createContext<(() => void) | null>(null);
-
-/**
- * Returns the animated dismiss handler for the nearest ModalShell ancestor,
- * so a close button plays the exit animation instead of unmounting instantly.
- * Falls back to the given callback when rendered outside a ModalShell.
- */
-export function useModalDismiss(fallback: () => void): () => void {
-  return useContext(ModalDismissContext) ?? fallback;
-}
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -228,7 +220,7 @@ export function ModalShell({
         data-closing={closing || undefined}
         onClick={(event) => event.stopPropagation()}
       >
-        <ModalDismissContext.Provider value={requestClose}>{children}</ModalDismissContext.Provider>
+        {typeof children === "function" ? children(requestClose) : children}
       </div>
     </div>
   );

@@ -108,13 +108,14 @@ export function ManualPriceImportWizard({ open, onClose, assetId, assetLabel, cu
       panelClassName="ns-surface"
       panelStyle={{ width: "100%", maxWidth: 760, borderRadius: "var(--ns-r-lg)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)" }}
     >
+      {(dismiss) => (<>
         {/* Header */}
         <div className="flex items-center justify-between" style={{ padding: "16px 22px", borderBottom: "1px solid var(--ns-border)" }}>
           <div>
             <div className="text-lg font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>匯入手動價格</div>
             <div className="muted text-xs" style={{ marginTop: 2 }}>{assetLabel}</div>
           </div>
-          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={onClose}><X size={16} /></Button>
+          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={dismiss}><X size={16} /></Button>
         </div>
 
         {/* Stepper */}
@@ -266,6 +267,7 @@ export function ManualPriceImportWizard({ open, onClose, assetId, assetLabel, cu
             </Button>
           )}
         </div>
+      </>)}
     </ModalShell>
   );
 }

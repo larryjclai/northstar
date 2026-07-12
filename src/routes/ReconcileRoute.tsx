@@ -433,6 +433,7 @@ function PayCardModal({
       panelClassName="p-5"
       panelStyle={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)" }}
     >
+      {(dismiss) => (<>
         <div className="text-[15px] font-semibold mb-1">信用卡繳款</div>
         <div className="text-xs mb-4" style={{ color: "var(--ns-fg-muted)", lineHeight: 1.6 }}>
           未繳總額 NT${formatNumber(owed)} · 從帳戶轉帳繳款，可選填帳單折抵 / 回饋。
@@ -481,11 +482,12 @@ function PayCardModal({
         </div>
 
         <div className="flex justify-end gap-2" style={{ marginTop: 18 }}>
-          <Button variant="outline" onClick={onCancel} disabled={pending}>取消</Button>
+          <Button variant="outline" onClick={dismiss} disabled={pending}>取消</Button>
           <Button onClick={() => onConfirm(payAccountId, pay, credit)} disabled={!canConfirm}>
             <CurrencyCircleDollar size={14} weight="fill" />確認繳款
           </Button>
         </div>
+      </>)}
     </ModalShell>
   );
 }
@@ -512,6 +514,7 @@ function DeferPostingModal({
       panelClassName="p-5"
       panelStyle={{ width: "min(420px, 96vw)", background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-lg)", boxShadow: "var(--ns-shadow-xl)" }}
     >
+      {(dismiss) => (<>
         <div className="text-[15px] font-semibold mb-1">延後入帳</div>
         <div className="text-xs mb-4" style={{ color: "var(--ns-fg-muted)", lineHeight: 1.6 }}>
           選擇入帳日；這筆消費會歸到該日所屬的帳單週期。仍會立即計為負債，餘額不變。
@@ -529,7 +532,7 @@ function DeferPostingModal({
         </div>
 
         <div className="flex justify-end gap-2 flex-wrap" style={{ marginTop: 18 }}>
-          <Button variant="outline" onClick={onCancel} disabled={pending}>取消</Button>
+          <Button variant="outline" onClick={dismiss} disabled={pending}>取消</Button>
           {hasDefer ? (
             <Button variant="outline" onClick={() => onConfirm(null)} disabled={pending}>改回當下入帳</Button>
           ) : null}
@@ -537,6 +540,7 @@ function DeferPostingModal({
             <CalendarPlus size={14} weight="fill" />確認延後
           </Button>
         </div>
+      </>)}
     </ModalShell>
   );
 }

@@ -203,10 +203,11 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
       panelClassName="ns-surface"
       panelStyle={{ width: "100%", maxWidth: 980, borderRadius: "var(--ns-r-lg)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)" }}
     >
+      {(dismiss) => (<>
         {/* Header */}
         <div className="flex items-center justify-between" style={{ padding: "16px 22px", borderBottom: "1px solid var(--ns-border)" }}>
           <div className="text-lg font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>匯入證券交易</div>
-          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={onClose}><X size={16} /></Button>
+          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={dismiss}><X size={16} /></Button>
         </div>
 
         {/* Stepper */}
@@ -446,6 +447,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
             </Button>
           )}
         </div>
+      </>)}
     </ModalShell>
   );
 }

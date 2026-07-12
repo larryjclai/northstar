@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Button } from "./coss/button";
 import { Badge } from "./coss/badge";
 import { arApAccountRoles } from "./arApAccountRoles";
-import { ModalShell, useModalDismiss } from "./ModalShell";
+import { ModalShell } from "./ModalShell";
 import type { LedgerTransaction, RecurringTransaction } from "../domain";
 import { formatNumber, installmentLabel, recurringFrequencyLabels, todayInTimezone } from "../domain";
 
@@ -40,8 +40,6 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
     setRefundError("");
     setRefundSubmitting(false);
   }, [row?.id]);
-
-  const dismiss = useModalDismiss(onClose);
 
   if (!row) return null;
 
@@ -109,6 +107,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
         boxShadow: "var(--ns-shadow-2)",
       }}
     >
+      {(dismiss) => (<>
         {/* Header */}
         <div className="flex items-center justify-between" style={{ padding: "18px 24px", borderBottom: "1px solid var(--ns-border)" }}>
           <div className="text-body flex items-center gap-2 font-semibold">
@@ -326,6 +325,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
             <PencilSimple size={14} />編輯交易
           </Button>
         </div>
+      </>)}
     </ModalShell>
   );
 }
