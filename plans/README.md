@@ -18,7 +18,7 @@ spec + its own Status block; this index keeps only **live, actionable state**.
 - **156–163: motion / native-feel batch** — executed, reviewed, **ALL APPROVED**,
   but **UNMERGED** (a stacked branch chain). Your merge decision — see next section.
 - **164–167: 總覽 + 投資 redesign** — MERGED + released in `v0.1.0-alpha.57`.
-- **168–169: 記帳 (Cash Flow) redesign** — TODO, written this session; see below.
+- **168–169: 記帳 (Cash Flow) redesign** — MERGED + released in `v0.1.0-alpha.58` (with the 8-item UI fix batch).
 
 ## 168–169 — 記帳 (Cash Flow) redesign (from Claude Design, 2026-07-12)
 
