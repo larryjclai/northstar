@@ -25,7 +25,7 @@ import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 import { CategoriesTab } from "./CategoriesTab";
 import { MerchantsTab } from "./MerchantsTab";
 import { RecurringRulesTab } from "./RecurringRulesTab";
-import { DateScopeControl } from "../components/DateScopeControl";
+import { LedgerDateControl } from "../components/LedgerDateControl";
 import { AccountFilter } from "../components/AccountFilter";
 import { AppSelect } from "../components/AppSelect";
 import { CategoryFilter } from "../components/CategoryFilter";
@@ -42,8 +42,10 @@ import { SegmentedControl } from "../components/SegmentedControl";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { DatePicker } from "../components/ui/date-picker";
+import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { useToast } from "../components/Toast";
+import { activeFilterChips } from "./activeFilterChips";
 import type { LedgerDraft, TransferDraft } from "../data/repositories";
 import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, evaluateAmountExpression, filterCategoriesByType, formatNumber, installmentLabel, isNeutralLedgerRow, isWithinDateScope, makeDefaultDateScope, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, resolveDateScope, todayInTimezone } from "../domain";
 import { convertCurrency, buildDailyRateIndex, formatCompactNumber } from "../domain/currency";
@@ -156,6 +158,7 @@ export function CashFlowRoute() {
   const { account: accountParam, tx: txParam } = useSearch({ strict: false }) as { account?: string; tx?: string };
   const [selectedAccount, setSelectedAccount] = useState(accountParam ?? "all");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "categories" | "merchants" | "recurring">("overview");
   // Cashflow chart bucketing granularity (日/週/月/年).
@@ -863,6 +866,24 @@ export function CashFlowRoute() {
 
   const periodLabel = dateRange.label;
 
+  // 篩選 popover (plan 168): account/category filters moved out of the
+  // header into one popover, mirrored as removable chips under the tab bar.
+  // `filterChips` is the single source for the chip list and the count
+  // badge, so they can never disagree.
+  const filterChips = useMemo(
+    () => activeFilterChips({ selectedAccount, selectedCategory, accountName }),
+    [selectedAccount, selectedCategory, accountRows],
+  );
+  const activeFilterCount = filterChips.length;
+  function clearAllFilters() {
+    setSelectedAccount("all");
+    setSelectedCategory("all");
+  }
+  function clearFilterChip(key: "account" | "category") {
+    if (key === "account") setSelectedAccount("all");
+    else setSelectedCategory("all");
+  }
+
   // Unsettled receivables / payables (respecting the account filter).
   const settlements = useMemo(
     () => buildOutstandingSettlements(
@@ -913,11 +934,43 @@ export function CashFlowRoute() {
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
           <input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsv} />
-          <DateScopeControl value={dateScope} onChange={setDateScope} />
+          <LedgerDateControl value={dateScope} onChange={setDateScope} />
 
-          <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} className="text-body" style={{ minWidth: 116 }} />
-
-          <CategoryFilter categories={allCategories} value={selectedCategory} onChange={setSelectedCategory} />
+          <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
+            <PopoverTrigger
+              render={
+                <Button variant="outline" className="h-9 sm:h-9 whitespace-nowrap">
+                  <Funnel size={14} />篩選
+                  {activeFilterCount > 0 ? (
+                    <span
+                      className="inline-flex items-center justify-center rounded-full text-white text-[10px] font-semibold leading-none"
+                      style={{ background: "var(--ns-accent)", minWidth: 16, height: 16, padding: "0 4px" }}
+                    >
+                      {activeFilterCount}
+                    </span>
+                  ) : null}
+                </Button>
+              }
+            />
+            <PopoverContent align="end" className="p-3" style={{ width: 260 }}>
+              <div className="flex flex-col gap-3">
+                <div>
+                  <div className="text-xs ns-field-label mb-1.5">帳戶</div>
+                  <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} className="text-body" style={{ minWidth: "100%", maxWidth: "none" }} />
+                </div>
+                <div>
+                  <div className="text-xs ns-field-label mb-1.5">分類</div>
+                  <CategoryFilter categories={allCategories} value={selectedCategory} onChange={setSelectedCategory} style={{ minWidth: "100%", maxWidth: "none" }} />
+                </div>
+                <div className="flex items-center justify-between pt-2" style={{ borderTop: "1px solid var(--ns-border)" }}>
+                  <button type="button" className="text-xs muted cursor-pointer" onClick={clearAllFilters} disabled={activeFilterCount === 0}>
+                    清除全部
+                  </button>
+                  <Button size="sm" onClick={() => setFilterPopoverOpen(false)}>完成</Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
 
           <Button className="h-9 sm:h-9 whitespace-nowrap" onClick={() => openCreate("expense")}>
             <Plus size={14} weight="bold" />記一筆
@@ -941,6 +994,33 @@ export function CashFlowRoute() {
           }}>{t.label}</button>
         ))}
       </div>
+
+      {activeFilterCount > 0 ? (
+        <div className="flex items-center gap-2 flex-wrap mb-4">
+          {filterChips.map((chip) => (
+            <span
+              key={chip.key}
+              className="inline-flex items-center gap-1.5 text-xs rounded-full px-2.5 py-1"
+              style={{ background: "var(--ns-surface-strong)", border: "1px solid var(--ns-border)", color: "var(--ns-fg)" }}
+            >
+              {chip.label}
+              <button
+                type="button"
+                aria-label={`移除${chip.label}篩選`}
+                onClick={() => clearFilterChip(chip.key)}
+                className="inline-flex items-center justify-center cursor-pointer"
+                style={{ color: "var(--ns-fg-muted)" }}
+              >
+                <X size={11} weight="bold" />
+              </button>
+            </span>
+          ))}
+          <button type="button" className="text-xs cursor-pointer muted" onClick={clearAllFilters}>
+            清除全部
+          </button>
+          <div className="ml-auto text-xs muted whitespace-nowrap">符合 {displayRows.length} 筆</div>
+        </div>
+      ) : null}
 
       {activeTab === "overview" && (
         <>

@@ -1182,6 +1182,56 @@ textarea:focus-visible {
   min-height: 36px;
 }
 
+/* Cash flow (記帳) toolbar period control (B-2): ‹ prev › center-trigger ›
+   next pill, single bordered unit with 1px separators between the three
+   buttons. */
+.ns-ledger-date-ctl {
+  display: inline-flex;
+  align-items: stretch;
+  height: 36px;
+  border: 1px solid var(--ns-border);
+  border-radius: var(--ns-r-sm);
+  overflow: hidden;
+  background: var(--ns-bg-elev);
+}
+.ns-ledger-date-ctl__step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  border: none;
+  background: transparent;
+  color: var(--ns-fg-muted);
+  cursor: pointer;
+  transition: background var(--ns-dur-fast) var(--ns-ease), color var(--ns-dur-fast) var(--ns-ease);
+}
+.ns-ledger-date-ctl__step:hover:not(:disabled) {
+  background: var(--ns-bg-hover);
+  color: var(--ns-fg);
+}
+.ns-ledger-date-ctl__step:disabled {
+  color: var(--ns-fg-dim);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.ns-ledger-date-ctl__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: none;
+  border-left: 1px solid var(--ns-border);
+  border-right: 1px solid var(--ns-border);
+  background: transparent;
+  color: var(--ns-fg);
+  font-size: var(--ns-t-ui);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ns-ledger-date-ctl__trigger:hover {
+  background: var(--ns-bg-hover);
+}
+
 /* ── Investment transactions ── */
 .ns-invest-page {
   min-width: 0;
