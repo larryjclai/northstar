@@ -406,6 +406,13 @@
   will-change: transform;
 }
 
+/* ── Privacy toggle blur crossfade (plan 160 pt.4) ── */
+@keyframes ns-privacy-in {
+  from { filter: blur(6px); opacity: .6; }
+  to   { filter: blur(0);   opacity: 1; }
+}
+main[data-privacy-anim] { animation: ns-privacy-in 160ms var(--ns-ease); }
+
 html, body, #root { min-height: 100%; }
 
 /* Stop any single over-wide element from stretching the whole page past the

@@ -18,7 +18,7 @@ import {
 import { Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { Button } from "./coss/button";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePrivacySync, useUiPreferences } from "../state/uiPreferences";
 import { useQuickAdd } from "../state/quickAdd";
@@ -84,7 +84,6 @@ export function AppShell() {
   ];
   useBlockBrowserBackOnBackspace();
   usePrivacySync();
-  usePrivacyShortcut();
   useMenuSettingsShortcut();
   useAutoSync();
   useAutoMarketRefresh();
@@ -96,6 +95,21 @@ export function AppShell() {
   usePostDueRecurring(todayInTimezone(timezone));
   const privacyMode = useUiPreferences((state) => state.privacyMode);
   const togglePrivacy = useUiPreferences((state) => state.togglePrivacyMode);
+  // Toggling privacy remounts <main> (formatters read a module-global synced
+  // by usePrivacySync — see uiPreferences.ts). Preserve scroll position across
+  // that remount, and blur the content in on every toggle AFTER the first one
+  // (never on initial app launch).
+  const privacyScrollRef = useRef(0);
+  const hasToggledPrivacyRef = useRef(false);
+  const handleTogglePrivacy = useCallback(() => {
+    privacyScrollRef.current = window.scrollY;
+    hasToggledPrivacyRef.current = true;
+    togglePrivacy();
+  }, [togglePrivacy]);
+  usePrivacyShortcut(handleTogglePrivacy);
+  useLayoutEffect(() => {
+    window.scrollTo(0, privacyScrollRef.current);
+  }, [privacyMode]);
   const [searchOpen, setSearchOpen] = useState(false);
   const quickAddOpen = useQuickAdd((state) => state.open);
   const setQuickAddOpen = useQuickAdd((state) => state.setOpen);
@@ -311,7 +325,7 @@ export function AppShell() {
 
           <button
             type="button"
-            onClick={togglePrivacy}
+            onClick={handleTogglePrivacy}
             title={privacyMode ? "顯示金額 (⌘⇧H)" : "隱藏金額 (⌘⇧H)"}
             aria-label={privacyMode ? "顯示金額" : "隱藏金額"}
             aria-pressed={privacyMode}
@@ -356,6 +370,7 @@ export function AppShell() {
           it's a no-op there). Each route keeps its own top padding on top of it. */}
       <main
         key={privacyMode ? "privacy-on" : "privacy-off"}
+        data-privacy-anim={hasToggledPrivacyRef.current ? "" : undefined}
         className="ns-app-main pb-20 lg:pb-0 min-w-0"
         // overflowX clip is a second line of defense (besides html/body): it
         // contains any route-level horizontal overflow here so a single wide
@@ -691,8 +706,7 @@ function useBlockBrowserBackOnBackspace() {
   }, []);
 }
 
-function usePrivacyShortcut() {
-  const toggle = useUiPreferences((state) => state.togglePrivacyMode);
+function usePrivacyShortcut(toggle: () => void) {
   useEffect(() => {
     function handler(event: KeyboardEvent) {
       const isToggle =
