@@ -1,7 +1,7 @@
-import { ArrowDown, ArrowsClockwise, ArrowsDownUp, ArrowUp, Bank, ChartLineUp, ListChecks, PencilSimple, Plus, Sliders, X, CaretLeft, CaretRight, MagnifyingGlass } from "@phosphor-icons/react";
+import { ArrowDown, ArrowsClockwise, ArrowsDownUp, ArrowUp, Bank, ChartLineUp, DotsThree, ListChecks, PencilSimple, Plus, Sliders, X, CaretLeft, CaretRight, MagnifyingGlass } from "@phosphor-icons/react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ActionButton } from "../components/ActionButton";
 import { AccountFilter } from "../components/AccountFilter";
 import { AssetLogo } from "../components/AssetLogo";
@@ -25,6 +25,7 @@ import {
   buildHoldingPositionsByAccount,
   buildManualPriceLookup,
   createFxConverter,
+  dayChangeMovers,
   formatMoney,
   formatNumber,
   formatCompactNumber,
@@ -40,6 +41,7 @@ import {
   type LoadedFeed,
   type Account,
   type DailyPrice,
+  type DayChangeQuote,
   type HoldingPosition,
   type InvestmentRecord,
   type ManualPriceSnapshot,
@@ -410,12 +412,26 @@ export function InvestmentsRoute() {
         </div>
         <div className="ns-invest-header-actions flex gap-2">
           {/* Entry point restored — it was lost in the holdings→portfolio tab
-              rename, leaving backfillClassifications unreachable. */}
+              rename, leaving backfillClassifications unreachable. Demoted into
+              a ⋯ overflow menu (plan 165) since it's an infrequent action. */}
           {tab === "portfolio" ? (
-            <Button variant="outline" onClick={backfillClassifications} loading={backfillAssetProfiles.isPending}
-              style={backfillArmed ? { borderColor: "var(--ns-warn)", color: "var(--ns-warn)" } : undefined}>
-              <ArrowsClockwise size={14} />{backfillAssetProfiles.isPending ? "回補中" : backfillArmed ? "再按一次確認" : "回補分類"}
-            </Button>
+            <Popover>
+              <PopoverTrigger render={<Button variant="outline" size="icon" />} aria-label="更多操作" title="更多操作">
+                <DotsThree size={18} weight="bold" />
+              </PopoverTrigger>
+              <PopoverContent align="end" style={{ width: 200 }}>
+                <button
+                  type="button"
+                  onClick={backfillClassifications}
+                  disabled={backfillAssetProfiles.isPending}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none transition hover:bg-black/5 dark:hover:bg-white/5"
+                  style={backfillArmed ? { color: "var(--ns-warn)" } : undefined}
+                >
+                  <ArrowsClockwise size={14} />
+                  {backfillAssetProfiles.isPending ? "回補中" : backfillArmed ? "再按一次確認" : "回補分類"}
+                </button>
+              </PopoverContent>
+            </Popover>
           ) : null}
           <Button variant="outline" onClick={refreshLatestQuotes} loading={refreshQuotes.isPending}>
             <ArrowsClockwise size={14} />{refreshQuotes.isPending ? "更新中" : "更新報價"}
@@ -450,11 +466,9 @@ export function InvestmentsRoute() {
 
       {tab === "portfolio" ? (
         <>
-          {/* Top KPIs */}
-          {/* 6 KPI tiles only split into 6 columns at 2xl (≥1536px); at 13"
-              (~1280px) stay at 3 columns so compact values like "NT$2.43萬"
-              never clip. */}
-          <div className="ns-holdings-kpis ns-invest-kpi-grid mb-5">
+          {/* Top KPIs — one strip, 4 columns divided by a hairline, instead of
+              4 separate cards (saves vertical space; plan 165). */}
+          <CossCard className="ns-holdings-summary mb-5">
             {([
               // [label, compact display, exact value (tooltip), pct, positive]
               ['目前市值', `NT$${formatCompactNumber(totalValue)}`, `NT$${formatNumber(totalValue)}`, '', true],
@@ -462,16 +476,16 @@ export function InvestmentsRoute() {
               ['今年已實現', `NT$${formatCompactNumber(Math.abs(realizedYTD))}`, `NT$${formatNumber(Math.abs(realizedYTD))}`, realizedYTD >= 0 ? '' : '虧損', realizedYTD >= 0],
               ['今年股利', `NT$${formatCompactNumber(dividendsYTD)}`, `NT$${formatNumber(dividendsYTD)}`, '', true],
             ] as const).map(([label, val, exact, pct, pos], i) => (
-              <CossCard key={i} className="p-4 sm:p-5 min-w-0">
+              <div key={i} className="ns-holdings-summary-col min-w-0">
                 <div className="text-xs mb-2 shrink-0 font-medium" style={{ color: "var(--ns-fg-muted)" }}>{label}</div>
-                {/* Value takes the full card width (compact 萬/億 keeps it short);
-                    the % change sits on its own line so it never squeezes the
-                    number into an ellipsis. */}
+                {/* Value takes the full column width (compact 萬/億 keeps it
+                    short); the % change sits on its own line so it never
+                    squeezes the number into an ellipsis. */}
                 <div className="num" style={{ fontSize: "clamp(14px, 1.7vw, 22px)", fontWeight: 500, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={exact}>{val}</div>
                 {pct ? <div className="num text-xs" style={{ marginTop: 2, color: pos ? 'var(--ns-gain)' : 'var(--ns-loss)' }}>{pct}</div> : null}
-              </CossCard>
+              </div>
             ))}
-          </div>
+          </CossCard>
 
           <HoldingsAllocation
             positions={positions}
@@ -489,10 +503,15 @@ export function InvestmentsRoute() {
             assetsById={new Map(assetRows.map((asset) => [asset.id, asset]))}
             manualPriceSnapshots={manualSnapshotRows}
             toPrimary={toPrimary}
+            primaryCurrency={primaryCurrency}
+            dailyPrices={dailyPriceRows}
+            quotes={quoteRows}
+            records={recordRows}
             initialSector={searchSector ?? "all"}
             onSectorChange={(sector) => {
               void navigate({ to: "/investments", search: (prev) => ({ ...prev, tab: "portfolio", sector: sector === "all" ? undefined : sector }) });
             }}
+            onAddTransaction={() => setAddOpen(true)}
           />
         </>
       ) : null}
@@ -982,45 +1001,41 @@ function HoldingsAllocation({ positions, assetsById, nameLocale, toPrimary, prim
 
   if (data.length === 0) return null;
 
+  // Thin stacked bar instead of a donut (plan 165) — same top-6 + 其他 data,
+  // ~360px shorter than the old chart+legend card.
   return (
     <CossCard className="ns-holdings-allocation p-5 mb-5">
       <div className="text-xs mb-3.5 font-medium" style={{ color: "var(--ns-fg-muted)" }}>持倉配置</div>
-      <div className="ns-holdings-allocation-body">
-        <div className="ns-holdings-allocation-chart">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={data} dataKey="value" nameKey="name" innerRadius={50} outerRadius={82} paddingAngle={2} stroke="none">
-                {data.map((_, i) => <Cell key={i} fill={ALLOCATION_COLORS[i % ALLOCATION_COLORS.length]} />)}
-              </Pie>
-              <Tooltip
-                formatter={(value) => formatMoney(Number(value), primaryCurrency)}
-                contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)", fontSize: 12 }}
-                itemStyle={{ color: "var(--ns-fg)" }}
-                labelStyle={{ color: "var(--ns-fg)" }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="ns-holdings-allocation-list">
-          {data.map((d, i) => (
-            <div key={i} className="text-xs flex items-center gap-2 min-w-0">
-              <span style={{ width: 9, height: 9, borderRadius: 2, background: ALLOCATION_COLORS[i % ALLOCATION_COLORS.length], flexShrink: 0 }} />
-              <span className="flex-1 min-w-0 truncate" title={d.name}>{d.name}</span>
-              <span className="mono dim shrink-0">{d.pct.toFixed(1)}%</span>
-            </div>
-          ))}
-        </div>
+      <div className="ns-holdings-alloc-bar" title={data.map((d) => `${d.name} ${d.pct.toFixed(1)}%`).join(" · ")}>
+        {data.map((d, i) => (
+          <div
+            key={i}
+            title={`${d.name} · ${formatMoney(d.value, primaryCurrency)} (${d.pct.toFixed(1)}%)`}
+            style={{ width: `${d.pct}%`, background: ALLOCATION_COLORS[i % ALLOCATION_COLORS.length] }}
+          />
+        ))}
+      </div>
+      <div className="ns-holdings-allocation-list mt-3.5">
+        {data.map((d, i) => (
+          <div key={i} className="text-xs flex items-center gap-2 min-w-0">
+            <span style={{ width: 9, height: 9, borderRadius: 2, background: ALLOCATION_COLORS[i % ALLOCATION_COLORS.length], flexShrink: 0 }} />
+            <span className="flex-1 min-w-0 truncate" title={d.name}>{d.name}</span>
+            <span className="mono dim shrink-0">{d.pct.toFixed(1)}%</span>
+          </div>
+        ))}
       </div>
     </CossCard>
   );
 }
 
-// Optional, user-toggleable holdings columns (B21). Ticker / 名稱 / 股數 / 市值 /
-// 損益 / 報酬率 / 操作 are always shown.
+// Optional, user-toggleable holdings columns (B21; slimmed for plan 165).
+// 代號/名稱, 今日, 現價, 市值, 未實現損益 are the always-shown default 5 columns —
+// 現價 moved out of this list since it's no longer optional. The rest push
+// into the row expansion by default and only reappear as flattened columns
+// when the user opts in via 「欄位」.
 const HOLDINGS_COLUMN_OPTIONS: { key: HoldingsColumnKey; label: string }[] = [
   { key: "account", label: "券商" },
   { key: "averageCost", label: "均價" },
-  { key: "marketPrice", label: "現價" },
   { key: "assetType", label: "類型" },
   { key: "costBasis", label: "成本基礎" },
 ];
@@ -1033,8 +1048,13 @@ function HoldingsTab({
   assetsById,
   manualPriceSnapshots,
   toPrimary,
+  primaryCurrency,
+  dailyPrices,
+  quotes,
+  records,
   initialSector,
   onSectorChange,
+  onAddTransaction,
 }: {
   positions: HoldingPosition[];
   accountMap: Map<string, Account>;
@@ -1043,8 +1063,16 @@ function HoldingsTab({
   assetsById: Map<string, PortfolioAsset>;
   manualPriceSnapshots: ManualPriceSnapshot[];
   toPrimary: (value: number, currency: string, asOfDate?: string) => number;
+  primaryCurrency: string;
+  /** Daily closes + live quotes, for the row 「今日」 % and expansion sparkline. */
+  dailyPrices: DailyPrice[];
+  quotes: DayChangeQuote[];
+  /** Investment records, for the expansion's 股利 YTD. */
+  records: InvestmentRecord[];
   initialSector?: string;
   onSectorChange?: (sector: string) => void;
+  /** Opens the shared 新增交易 drawer from the row expansion's quick-add button. */
+  onAddTransaction?: () => void;
 }) {
   const navigate = useNavigate();
   const timezone = useUiPreferences((state) => state.timezone);
@@ -1119,6 +1147,34 @@ function HoldingsTab({
   // sector — if everything is 未知/空, the dropdown can't actually filter
   // anything and just adds noise, so hide it entirely.
   const hasKnownSectors = useMemo(() => sectorOptions.some((s) => s && s !== "未知"), [sectorOptions]);
+
+  // Per-ticker day-change % for the 「今日」 column and 「今日影響」 in the row
+  // expansion. Reuses dayChangeMovers (dashboard's mover logic) rather than
+  // hand-rolling the quote-vs-close reference rule — see plan 165 Step 3.
+  const dayChangeByTicker = useMemo(() => {
+    const heldTickers = [...new Set(positions.map((p) => p.ticker.toUpperCase()))];
+    if (heldTickers.length === 0) return new Map<string, number>();
+    const movers = dayChangeMovers({ dailyPrices, quotes, heldTickers, limit: heldTickers.length });
+    return new Map(movers.map((m) => [m.ticker, m.changePercent]));
+  }, [positions, dailyPrices, quotes]);
+
+  // Per-asset YTD cash dividends (net of fee), for the row expansion. Same
+  // gross/net rule as the page-level 今年股利 KPI, scoped to one asset.
+  const dividendsYtdByAsset = useMemo(() => {
+    const map = new Map<string, number>();
+    const currentYearStr = new Date().getFullYear().toString();
+    for (const record of records) {
+      if (record.deletedAt !== null) continue;
+      if (record.action !== "cashDividend") continue;
+      if (!record.date.startsWith(currentYearStr)) continue;
+      const gross = record.quantity > 0 ? record.price * record.quantity : record.price;
+      map.set(record.assetId, (map.get(record.assetId) ?? 0) + (gross - record.fee));
+    }
+    return map;
+  }, [records]);
+
+  // Which row's detail panel is open — ticker+account key, one at a time.
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   useEffect(() => setPage(1), [filterAccount, filterSector, searchTerm]);
 
@@ -1275,6 +1331,19 @@ function HoldingsTab({
     lineHeight: 1.2,
   };
 
+  // Default 5-column grid (代號/名稱, 今日, 現價, 市值, 未實現損益) + a 40px chevron
+  // column; optional 「欄位」 columns append between 未實現損益 and the chevron.
+  const optionalColumnsVisible = HOLDINGS_COLUMN_OPTIONS.filter((opt) => visibleCol(opt.key));
+  const gridTemplateColumns = [
+    "2.2fr",
+    "1fr",
+    "1fr",
+    "1.2fr",
+    "1.3fr",
+    ...optionalColumnsVisible.map(() => "1fr"),
+    "40px",
+  ].join(" ");
+
   return (
     <>
       <Card>
@@ -1425,132 +1494,141 @@ function HoldingsTab({
           })}
         </div>
 
+        {/* Desktop: slim 5-column grid (代號/名稱, 今日, 現價, 市值, 未實現損益) with
+            a chevron column; clicking a row expands the pushed-down detail
+            (股數, 均價, 成本基礎, 券商, 今日影響, 股利 YTD, 持倉天數) inline instead
+            of spreading everything across the table (plan 165). The 「欄位」
+            toggle still appends flattened optional columns for power users. */}
         <div className="hidden overflow-x-auto sm:block">
-          <table className="w-full table-auto text-sm [&_td]:px-3 [&_th]:px-3 [&_td:first-child]:pl-0 [&_th:first-child]:pl-0 [&_td:last-child]:pr-0 [&_th:last-child]:pr-0">
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
-                <SortableHeader label="代號" sortKey="ticker" sort={sort} onToggle={toggleSort} />
-                <SortableHeader label="名稱" sortKey="name" sort={sort} onToggle={toggleSort} />
-                {visibleCol("account") ? <SortableHeader label="券商" sortKey="account" sort={sort} onToggle={toggleSort} /> : null}
-                <SortableHeader label="股數" sortKey="quantity" sort={sort} onToggle={toggleSort} align="right" />
-                {visibleCol("averageCost") ? (
-                  <th className="py-2 text-right">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort("averageCost")}
-                      className="inline-flex items-center gap-1 select-none text-xs uppercase tracking-wide outline-none transition hover:opacity-80"
-                      style={{ color: sort.key === "averageCost" ? "var(--ns-accent)" : "var(--ns-muted)" }}
-                    >
-                      <span>均價</span>
-                      {sort.key === "averageCost"
-                        ? (sort.direction === "asc" ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />)
-                        : <ArrowsDownUp size={11} weight="bold" />}
-                    </button>
-                  </th>
-                ) : null}
-                {visibleCol("marketPrice") ? (
-                  <th className="py-2 text-right">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort("marketPrice")}
-                      className="inline-flex items-center gap-1 select-none text-xs uppercase tracking-wide outline-none transition hover:opacity-80"
-                      style={{ color: sort.key === "marketPrice" ? "var(--ns-accent)" : "var(--ns-muted)" }}
-                    >
-                      <span>現價</span>
-                      {sort.key === "marketPrice"
-                        ? (sort.direction === "asc" ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />)
-                        : <ArrowsDownUp size={11} weight="bold" />}
-                    </button>
-                  </th>
-                ) : null}
-                {visibleCol("assetType") ? <th className="py-2 text-left">類型</th> : null}
-                {visibleCol("costBasis") ? <th className="py-2 text-right">成本基礎</th> : null}
-                <SortableHeader label="市值" sortKey="marketValue" sort={sort} onToggle={toggleSort} align="right" />
-                <SortableHeader label="損益" sortKey="unrealizedGain" sort={sort} onToggle={toggleSort} align="right" />
-                <SortableHeader label="報酬率" sortKey="unrealizedGainPercent" sort={sort} onToggle={toggleSort} align="right" />
-                <th className="py-2 text-right">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginated.map((position) => {
-                const account = position.accountId ? accountMap.get(position.accountId) : null;
-                const asset = assetsById.get(position.assetId) ?? null;
-                const displayName = asset
-                  ? resolveAssetName(asset, nameLocale)
-                  : position.name;
-                const pnlTone = position.unrealizedGain >= 0 ? "positive" : "negative";
-                return (
-                  <tr 
-                    key={`${position.assetId}-${position.accountId ?? "none"}`} 
-                    className="border-t cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors" 
-                    style={{ borderColor: "var(--ns-border)" }}
-                    onClick={() => navigate({ to: '/holdings/$ticker', params: { ticker: position.ticker } })}
+          <div className="ns-holdings-table text-sm">
+            <div className="ns-holdings-row ns-holdings-row-head" style={{ gridTemplateColumns }}>
+              <SortableHeader label="代號/名稱" sortKey="ticker" sort={sort} onToggle={toggleSort} />
+              <StaticHeader label="今日" align="right" />
+              <SortableHeader label="現價" sortKey="marketPrice" sort={sort} onToggle={toggleSort} align="right" />
+              <SortableHeader label="市值" sortKey="marketValue" sort={sort} onToggle={toggleSort} align="right" />
+              <SortableHeader label="未實現損益" sortKey="unrealizedGain" sort={sort} onToggle={toggleSort} align="right" />
+              {visibleCol("account") ? <SortableHeader label="券商" sortKey="account" sort={sort} onToggle={toggleSort} /> : null}
+              {visibleCol("averageCost") ? <SortableHeader label="均價" sortKey="averageCost" sort={sort} onToggle={toggleSort} align="right" /> : null}
+              {visibleCol("assetType") ? <StaticHeader label="類型" /> : null}
+              {visibleCol("costBasis") ? <StaticHeader label="成本基礎" align="right" /> : null}
+              <div aria-hidden="true" />
+            </div>
+            {paginated.map((position) => {
+              const rowKey = `${position.assetId}-${position.accountId ?? "none"}`;
+              const account = position.accountId ? accountMap.get(position.accountId) : null;
+              const asset = assetsById.get(position.assetId) ?? null;
+              const displayName = asset ? resolveAssetName(asset, nameLocale) : position.name;
+              const pnlTone = position.unrealizedGain >= 0 ? "positive" : "negative";
+              const pnlColor = pnlTone === "positive" ? "var(--ns-gain)" : "var(--ns-loss)";
+              const changePercent = dayChangeByTicker.get(position.ticker.toUpperCase()) ?? null;
+              // 今日影響 = qty × (current − priorClose) × fx, derived algebraically
+              // from marketPrice (current) and changePercent (from the same
+              // dayChangeMovers source as the 「今日」 column) — see Step 3.
+              const todayImpactPrimary = changePercent !== null && position.marketPrice !== null && changePercent > -100
+                ? toPrimary((position.quantity * position.marketPrice * changePercent) / (100 + changePercent), position.currency)
+                : null;
+              const todayImpactLabel = todayImpactPrimary !== null
+                ? `${todayImpactPrimary >= 0 ? "+" : ""}${formatMoney(todayImpactPrimary, primaryCurrency)}`
+                : "—";
+              const dividendsYtd = dividendsYtdByAsset.get(position.assetId) ?? 0;
+              const holdingDays = asset?.acquisitionDate
+                ? Math.max(0, Math.round((Date.parse(todayIso) - Date.parse(asset.acquisitionDate)) / 86_400_000))
+                : null;
+              const isExpanded = expandedKey === rowKey;
+              return (
+                <Fragment key={rowKey}>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={isExpanded}
+                    className="ns-holdings-row cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                    style={{ gridTemplateColumns }}
+                    onClick={() => setExpandedKey(isExpanded ? null : rowKey)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setExpandedKey(isExpanded ? null : rowKey);
+                      }
+                    }}
                   >
-                    <td className="py-3 font-semibold whitespace-nowrap">
-                      <span className="inline-flex items-center gap-2">
+                    <div className="py-3 font-semibold min-w-0">
+                      <span className="inline-flex items-center gap-2 min-w-0">
                         <AssetLogo ticker={position.ticker} name={position.name} size={26} />
-                        {position.ticker}
+                        <span className="min-w-0">
+                          <span className="flex items-center gap-1.5">
+                            <span className="whitespace-nowrap">{position.ticker}</span>
+                            {customPriceBadge(asset)}
+                          </span>
+                          <span className="block truncate text-xs font-normal" style={{ color: "var(--ns-muted)" }} title={displayName}>
+                            {displayName}
+                          </span>
+                        </span>
                       </span>
-                    </td>
-                    <td className="max-w-[14rem] py-3" title={displayName}>
-                      <span className="flex items-center gap-1.5">
-                        <span className="truncate">{displayName}</span>
-                        {customPriceBadge(asset)}
-                      </span>
-                    </td>
-                    {visibleCol("account") ? (
-                      <td className="max-w-[11rem] py-3" title={account ? account.name : "未指定"}>
-                        <span className="block truncate">{account ? account.name : "未指定"}</span>
-                      </td>
-                    ) : null}
-                    <td className="py-3 text-right tabular whitespace-nowrap">{formatQuantity(position.quantity)}</td>
-                    {visibleCol("averageCost") ? <td className="py-3 text-right tabular whitespace-nowrap">{formatPrice(position.averageCost)}</td> : null}
-                    {visibleCol("marketPrice") ? (
-                      <td className="py-3 text-right tabular whitespace-nowrap">
-                        {position.marketPrice !== null ? formatPrice(position.marketPrice) : "—"}
-                      </td>
-                    ) : null}
-                    {visibleCol("assetType") ? (
-                      <td className="py-3 whitespace-nowrap" style={{ color: "var(--ns-muted)" }}>
-                        {asset?.assetType ? assetTypeLabels[asset.assetType] : "—"}
-                      </td>
-                    ) : null}
-                    {visibleCol("costBasis") ? (
-                      <td className="py-3 text-right tabular whitespace-nowrap" title={`${formatNumber(position.costBasis)} ${position.currency}`}>
-                        {formatCompactNumber(position.costBasis)} <span style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
-                      </td>
-                    ) : null}
-                    <td className="py-3 text-right tabular whitespace-nowrap" title={`${formatNumber(position.marketValue)} ${position.currency}`}>
-                      {formatCompactNumber(position.marketValue)} <span style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
-                    </td>
-                    <td
+                    </div>
+                    <div
                       className="py-3 text-right tabular whitespace-nowrap"
-                      style={{ color: pnlTone === "positive" ? "var(--ns-gain)" : "var(--ns-loss)" }}
+                      style={{ color: changePercent === null ? "var(--ns-muted)" : changePercent >= 0 ? "var(--ns-gain)" : "var(--ns-loss)" }}
+                    >
+                      {changePercent === null ? "—" : `${changePercent >= 0 ? "+" : ""}${changePercent.toFixed(2)}%`}
+                    </div>
+                    <div className="py-3 text-right tabular whitespace-nowrap">
+                      {position.marketPrice !== null ? formatPrice(position.marketPrice) : "—"}
+                    </div>
+                    <div className="py-3 text-right tabular whitespace-nowrap" title={`${formatNumber(position.marketValue)} ${position.currency}`}>
+                      {formatCompactNumber(position.marketValue)} <span style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
+                    </div>
+                    <div
+                      className="py-3 text-right tabular whitespace-nowrap"
+                      style={{ color: pnlColor }}
                       title={`${position.unrealizedGain >= 0 ? "+" : ""}${formatNumber(position.unrealizedGain)} ${position.currency}`}
                     >
                       {position.unrealizedGain >= 0 ? "+" : ""}{formatCompactNumber(position.unrealizedGain)}
-                    </td>
-                    <td
-                      className="py-3 text-right tabular whitespace-nowrap"
-                      style={{ color: pnlTone === "positive" ? "var(--ns-gain)" : "var(--ns-loss)" }}
-                    >
-                      {position.unrealizedGainPercent >= 0 ? "+" : ""}{position.unrealizedGainPercent.toFixed(2)}%
-                    </td>
-                    <td className="py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      <ActionButton
-                        variant="ghost"
-                        onClick={(e) => { e.stopPropagation(); if (asset) startEdit(asset); }}
-                        disabled={!asset}
-                        title={asset?.holdingSource === "transactions" ? "編輯分類資料" : "編輯持倉"}
-                      >
-                        <PencilSimple size={16} />編輯
-                      </ActionButton>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      <span className="ml-1 text-xs opacity-80">
+                        ({position.unrealizedGainPercent >= 0 ? "+" : ""}{position.unrealizedGainPercent.toFixed(2)}%)
+                      </span>
+                    </div>
+                    {visibleCol("account") ? (
+                      <div className="max-w-[11rem] py-3" title={account ? account.name : "未指定"}>
+                        <span className="block truncate">{account ? account.name : "未指定"}</span>
+                      </div>
+                    ) : null}
+                    {visibleCol("averageCost") ? <div className="py-3 text-right tabular whitespace-nowrap">{formatPrice(position.averageCost)}</div> : null}
+                    {visibleCol("assetType") ? (
+                      <div className="py-3 whitespace-nowrap" style={{ color: "var(--ns-muted)" }}>
+                        {asset?.assetType ? assetTypeLabels[asset.assetType] : "—"}
+                      </div>
+                    ) : null}
+                    {visibleCol("costBasis") ? (
+                      <div className="py-3 text-right tabular whitespace-nowrap" title={`${formatNumber(position.costBasis)} ${position.currency}`}>
+                        {formatCompactNumber(position.costBasis)} <span style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
+                      </div>
+                    ) : null}
+                    <div className="py-3 flex items-center justify-center">
+                      <CaretRight
+                        size={14}
+                        aria-hidden="true"
+                        style={{ transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }}
+                      />
+                    </div>
+                  </div>
+                  {isExpanded ? (
+                    <HoldingExpansion
+                      position={position}
+                      accountName={account ? account.name : "未指定"}
+                      dailyPrices={dailyPrices}
+                      todayImpactLabel={todayImpactLabel}
+                      dividendsYtd={dividendsYtd}
+                      holdingDays={holdingDays}
+                      onEdit={asset ? () => startEdit(asset) : undefined}
+                      editLabel={asset?.holdingSource === "transactions" ? "編輯分類資料" : "編輯持倉"}
+                      onAddTransaction={onAddTransaction}
+                      onViewDetail={() => navigate({ to: '/holdings/$ticker', params: { ticker: position.ticker } })}
+                    />
+                  ) : null}
+                </Fragment>
+              );
+            })}
+          </div>
         </div>
         {filteredPositions.length === 0 && (
           <div className="muted text-body py-6 text-center">找不到符合的持倉</div>
@@ -1700,6 +1778,106 @@ function HoldingsTab({
   );
 }
 
+/**
+ * Row expansion panel (plan 165) — the detail pushed down off the slim 5-column
+ * table: a mini price sparkline plus 股數/均價/成本基礎/券商/今日影響/股利 YTD/持倉天數,
+ * and the row's actions (編輯/新增交易/查看詳情). Purely a read-out of data the
+ * page already loaded — no new queries, no valuation changes.
+ */
+function HoldingExpansion({
+  position,
+  accountName,
+  dailyPrices,
+  todayImpactLabel,
+  dividendsYtd,
+  holdingDays,
+  onEdit,
+  editLabel,
+  onAddTransaction,
+  onViewDetail,
+}: {
+  position: HoldingPosition;
+  accountName: string;
+  dailyPrices: DailyPrice[];
+  todayImpactLabel: string;
+  dividendsYtd: number;
+  holdingDays: number | null;
+  onEdit?: () => void;
+  editLabel: string;
+  onAddTransaction?: () => void;
+  onViewDetail: () => void;
+}) {
+  const sparkline = useMemo(() => {
+    const upperTicker = position.ticker.toUpperCase();
+    return dailyPrices
+      .filter((p) => p.ticker.toUpperCase() === upperTicker)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-30)
+      .map((p) => ({ date: p.date, close: p.close }));
+  }, [dailyPrices, position.ticker]);
+  const gradientId = `ns-holdings-spark-${position.assetId}-${position.accountId ?? "none"}`;
+
+  return (
+    <div className="ns-holdings-expansion">
+      <div className="ns-holdings-expansion-body">
+        <div className="ns-holdings-expansion-spark">
+          {sparkline.length > 1 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={sparkline}>
+                <defs>
+                  <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="5%" stopColor="var(--ns-accent)" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="var(--ns-accent)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <YAxis hide domain={["dataMin", "dataMax"]} />
+                <Area type="monotone" dataKey="close" stroke="var(--ns-accent)" fill={`url(#${gradientId})`} strokeWidth={1.5} />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-full items-center justify-center text-xs" style={{ color: "var(--ns-muted)" }}>
+              尚無足夠股價歷史
+            </div>
+          )}
+        </div>
+        <div className="ns-holdings-expansion-grid">
+          <ExpansionStat label="股數" value={formatQuantity(position.quantity)} />
+          <ExpansionStat label="均價" value={formatPrice(position.averageCost)} />
+          <ExpansionStat label="成本基礎" value={`${formatCompactNumber(position.costBasis)} ${position.currency}`} />
+          <ExpansionStat label="券商" value={accountName} />
+          <ExpansionStat label="今日影響" value={todayImpactLabel} />
+          <ExpansionStat label="股利 YTD" value={dividendsYtd > 0 ? `${formatCompactNumber(dividendsYtd)} ${position.currency}` : "—"} />
+          <ExpansionStat label="持倉天數" value={holdingDays !== null ? `${formatNumber(holdingDays)} 天` : "—"} />
+        </div>
+      </div>
+      <div className="ns-holdings-expansion-actions">
+        {onEdit ? (
+          <Button variant="outline" size="sm" onClick={onEdit}>
+            <PencilSimple size={14} />{editLabel}
+          </Button>
+        ) : null}
+        {onAddTransaction ? (
+          <Button size="sm" onClick={onAddTransaction}>
+            <Plus size={14} weight="bold" />新增交易
+          </Button>
+        ) : null}
+        <Button variant="ghost" size="sm" onClick={onViewDetail}>
+          查看詳情<CaretRight size={12} />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ExpansionStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-xs" style={{ color: "var(--ns-muted)" }}>{label}</div>
+      <div className="num text-sm font-medium truncate" title={value}>{value}</div>
+    </div>
+  );
+}
+
 function SortableHeader({
   label,
   sortKey,
@@ -1720,19 +1898,35 @@ function SortableHeader({
       : <ArrowDown size={11} weight="bold" />
     : <ArrowsDownUp size={11} weight="bold" />;
   return (
-    <th className={`py-2 ${align === "right" ? "text-right" : ""}`}>
+    <div
+      role="columnheader"
+      aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
+      className={`py-2 ${align === "right" ? "text-right" : ""}`}
+    >
       <button
         type="button"
         onClick={() => onToggle(sortKey)}
         className="inline-flex items-center gap-1 select-none text-xs uppercase tracking-wide outline-none transition hover:opacity-80"
         style={{ color: active ? "var(--ns-accent)" : "var(--ns-muted)" }}
-        aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
       >
         {align === "right" ? <span>{icon}</span> : null}
         <span>{label}</span>
         {align !== "right" ? <span>{icon}</span> : null}
       </button>
-    </th>
+    </div>
+  );
+}
+
+/** Non-sortable grid header cell (plain label, e.g. 今日 / 類型). */
+function StaticHeader({ label, align = "left" }: { label: string; align?: "left" | "right" }) {
+  return (
+    <div
+      role="columnheader"
+      className={`py-2 text-xs uppercase tracking-wide ${align === "right" ? "text-right" : ""}`}
+      style={{ color: "var(--ns-muted)" }}
+    >
+      {label}
+    </div>
   );
 }
 
