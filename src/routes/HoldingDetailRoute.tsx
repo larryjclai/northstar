@@ -16,6 +16,7 @@ import { ToggleGroup, ToggleGroupItem } from "../components/coss/toggle-group";
 import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
 import { HoldingEditModal } from "./HoldingEditModal";
 import { ManualPriceImportWizard } from "./ManualPriceImportWizard";
+import { computeDayChange } from "./holdingDetailToday";
 import { ChartLineUp, PencilSimple, UploadSimple } from "@phosphor-icons/react";
 
 export function HoldingDetailRoute() {
@@ -259,6 +260,18 @@ export function HoldingDetailRoute() {
     ? "var(--ns-chart-1)"
     : asset?.assetType === "crypto" ? "var(--ns-chart-3)" : "var(--ns-chart-2)";
 
+  // Today's move — full (unfiltered) daily-close history, not the
+  // range-filtered `series`, so a short chart range can't accidentally drop
+  // the prior session's close. See computeDayChange for the reference rule.
+  const tickerCloses = dailyPriceRows
+    .filter((p) => p.ticker.toUpperCase() === upperTicker)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const dayChange = computeDayChange(tickerCloses, quote, asset.totalQuantity);
+  const dayPos = dayChange !== null && dayChange.changeAbs >= 0;
+  const dayChangeAsOfLabel = dayChange?.asOf
+    ? (dayChange.asOf.length > 10 ? new Date(dayChange.asOf).toLocaleTimeString() : dayChange.asOf)
+    : null;
+
   return (
     <div className="h-full overflow-auto" style={{ padding: "24px 32px 100px" }}>
       {/* Breadcrumb */}
@@ -376,6 +389,61 @@ export function HoldingDetailRoute() {
               </div>
             </div>
           ) : null}
+        </Card>
+      ) : null}
+
+      {/* 今日 band — collapses entirely when a day change can't be computed
+          (e.g. custom assets with no daily closes). Only three data cells
+          (今日%/▲, 現價, 昨收): the app stores just daily `close` + a live
+          quote `price`, so 開盤 (open) and 今日區間 (high–low) are not
+          derivable and are intentionally omitted — see plans/166. */}
+      {dayChange ? (
+        <Card
+          className="mb-5"
+          style={{
+            padding: 0,
+            overflow: "hidden",
+            borderColor: `color-mix(in srgb, var(--ns-${dayPos ? "gain" : "loss"}) 32%, var(--ns-border))`,
+          }}
+        >
+          <div className="grid grid-cols-3">
+            <div
+              style={{
+                padding: "16px 20px",
+                borderRight: "1px solid var(--ns-border)",
+                background: `color-mix(in srgb, var(--ns-${dayPos ? "gain" : "loss"}) 8%, transparent)`,
+              }}
+            >
+              <div className="ns-eyebrow mb-1">
+                今日{dayChangeAsOfLabel ? ` · ${dayChangeAsOfLabel} 更新` : ""}
+              </div>
+              <div className={"num " + (dayPos ? "gain" : "loss")} style={{ fontFamily: "var(--ns-font-display)", fontSize: 22, fontWeight: 600 }}>
+                {dayPos ? "+" : ""}{dayChange.changePercent.toFixed(2)}%
+              </div>
+              <div className={"num text-sm mt-0.5 " + (dayPos ? "gain" : "loss")}>
+                {dayPos ? "▲" : "▼"} {formatPrice(Math.abs(dayChange.changeAbs))}
+              </div>
+            </div>
+            <div style={{ padding: "16px 20px", borderRight: "1px solid var(--ns-border)" }}>
+              <div className="muted text-caption mb-1">現價</div>
+              <div className="num text-base font-medium">
+                {formatPrice(marketPrice)} <span className="dim mono text-xs">{asset.currency}</span>
+              </div>
+            </div>
+            <div style={{ padding: "16px 20px" }}>
+              <div className="muted text-caption mb-1">昨收</div>
+              <div className="num text-base font-medium">{formatPrice(dayChange.refClose)}</div>
+            </div>
+          </div>
+          <div className="text-sm" style={{ padding: "10px 20px", borderTop: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }}>
+            今天為你的部位帶來{" "}
+            <span className={"num font-medium " + (dayPos ? "gain" : "loss")}>
+              {dayPos ? "+" : ""}{formatNumber(dayChange.impact)} {asset.currency}
+            </span>
+            <span className="muted">
+              {" "}（{formatQuantity(asset.totalQuantity)} 股 × {dayPos ? "+" : ""}{formatPrice(dayChange.changeAbs)}）
+            </span>
+          </div>
         </Card>
       ) : null}
 
