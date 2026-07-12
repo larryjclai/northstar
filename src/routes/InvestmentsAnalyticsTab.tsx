@@ -135,8 +135,20 @@ function BenchmarkPicker({ current }: { current: string }) {
   );
 }
 
-type AnalyticsPeriod = "1M" | "3M" | "6M" | "YTD" | "1Y" | "5Y" | "All";
-const PERIODS: AnalyticsPeriod[] = ["1M", "3M", "6M", "YTD", "1Y", "5Y", "All"];
+// Global page period. Design's core preset list is 1W/1M/3M/6M/1Y/All; YTD and
+// 5Y are also offered (operator request) for the finer-grained look-backs the
+// old in-hero control had.
+type AnalyticsPeriod = "1W" | "1M" | "3M" | "6M" | "YTD" | "1Y" | "5Y" | "All";
+const PERIODS: AnalyticsPeriod[] = ["1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "All"];
+const PERIOD_LABELS: Record<AnalyticsPeriod, string> = {
+  "1W": "近 1 週", "1M": "近 1 個月", "3M": "近 3 個月", "6M": "近 6 個月",
+  YTD: "今年以來", "1Y": "近 1 年", "5Y": "近 5 年", All: "全部期間",
+};
+
+/** Page-global period control also supports a "Custom" selection, which is a
+ *  UI-only state (see `customRange`) layered on top of the math-facing
+ *  `AnalyticsPeriod` — the underlying memos only ever see a resolved start date. */
+type PeriodSelection = AnalyticsPeriod | "Custom";
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -148,11 +160,17 @@ function daysAgo(n: number, end: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+function daysBetween(start: string, end: string): number {
+  const a = new Date(`${start}T00:00:00Z`).getTime();
+  const b = new Date(`${end}T00:00:00Z`).getTime();
+  return Math.round((b - a) / 86_400_000);
+}
+
 function periodStart(period: AnalyticsPeriod, end: string): string {
   if (period === "All") return "1900-01-01";
   if (period === "YTD") return `${end.slice(0, 4)}-01-01`;
   const days: Record<Exclude<AnalyticsPeriod, "All" | "YTD">, number> = {
-    "1M": 30, "3M": 92, "6M": 183, "1Y": 365, "5Y": 1825,
+    "1W": 7, "1M": 30, "3M": 92, "6M": 183, "1Y": 365, "5Y": 1825,
   };
   return daysAgo(days[period], end);
 }
@@ -231,9 +249,32 @@ export function InvestmentsAnalyticsTab({
   onSectorClick,
 }: Props) {
   const [period, setPeriod] = useState<AnalyticsPeriod>("1Y");
+  // UI-only custom-range override for the page-global period control. When set,
+  // it supplies the section *start* date only — `end` stays "today" everywhere
+  // in this tab, so we're not faking a two-sided range the math doesn't honour.
+  const [customRange, setCustomRange] = useState<{ start: string; end: string } | null>(null);
   const [showAllSectors, setShowAllSectors] = useState(false);
   const end = todayStr();
   const nameLocale = useUiPreferences((s) => (s.nameLocale === "auto" ? "zh-Hant" : s.nameLocale) as NameLocalePreference);
+
+  // Single derived start date every period-scoped memo below reads from — the
+  // one thing Custom actually changes. `period` itself is untouched so preset
+  // math (and the backfill-size heuristic) keeps working when Custom is cleared.
+  const activeStart = useMemo(
+    () => customRange?.start ?? periodStart(period, end),
+    [customRange, period, end],
+  );
+  const selection: PeriodSelection = customRange ? "Custom" : period;
+  const periodLabel = customRange ? `${customRange.start} → ${customRange.end}` : PERIOD_LABELS[period];
+
+  function handleSelectionChange(next: PeriodSelection) {
+    if (next === "Custom") {
+      setCustomRange((prev) => prev ?? { start: periodStart(period, end), end });
+    } else {
+      setCustomRange(null);
+      setPeriod(next);
+    }
+  }
 
   const attempted = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -250,13 +291,12 @@ export function InvestmentsAnalyticsTab({
   }, [positions, dailyPrices, manualSnapshots, toPrimary, end]);
 
   const core = useMemo(() => {
-    const start = periodStart(period, end);
-    const startIndex = fullSeriesResult.series.findIndex(p => p.date >= start);
+    const startIndex = fullSeriesResult.series.findIndex(p => p.date >= activeStart);
     const series = startIndex >= 0 ? fullSeriesResult.series.slice(startIndex) : [];
     const values = series.map((p) => p.value);
     const returns = dailyReturns(values);
     return { series, values, returns, excludedTickers: fullSeriesResult.excludedTickers };
-  }, [fullSeriesResult, period, end]);
+  }, [fullSeriesResult, activeStart]);
 
   const enough = hasEnoughReturns(core.returns);
 
@@ -288,9 +328,8 @@ export function InvestmentsAnalyticsTab({
   }, [core, enough]);
 
   const twrResult = useMemo(() => {
-    const start = periodStart(period, end);
-    return buildPortfolioTwr({ positions, records, dailyPrices, toPrimary, start, end });
-  }, [positions, records, dailyPrices, toPrimary, period, end]);
+    return buildPortfolioTwr({ positions, records, dailyPrices, toPrimary, start: activeStart, end });
+  }, [positions, records, dailyPrices, toPrimary, activeStart, end]);
 
   const xirrResult = useMemo(() => {
     const byAsset = new Map<string, InvestmentRecord[]>();
@@ -319,9 +358,8 @@ export function InvestmentsAnalyticsTab({
   }, [positions, records, dailyPrices, manualSnapshots, toPrimary, end]);
 
   const perf = useMemo(() => {
-    const start = periodStart(period, end);
     const series = core.series;
-    const bench = buildBenchmarkSeries(dailyPrices, benchmarkTicker, start, end);
+    const bench = buildBenchmarkSeries(dailyPrices, benchmarkTicker, activeStart, end);
     const aligned = bench.length >= 2 ? alignByDate(series, bench) : { a: series, b: [] as typeof bench };
     const portCum = toCumulativeReturnSeries(aligned.a);
     const benchCum = aligned.b.length >= 2 ? toCumulativeReturnSeries(aligned.b) : [];
@@ -331,7 +369,7 @@ export function InvestmentsAnalyticsTab({
     const benchFinal = benchCum.length ? benchCum[benchCum.length - 1].pct : null;
     const alpha = portFinal != null && benchFinal != null ? portFinal - benchFinal : null;
     return { data, portFinal, benchFinal, alpha, hasBenchmark: benchCum.length >= 2 };
-  }, [core.series, dailyPrices, benchmarkTicker, period, end]);
+  }, [core.series, dailyPrices, benchmarkTicker, activeStart, end]);
 
   const rolling = useMemo(() => {
     const start = daysAgo(365, end);
@@ -412,11 +450,6 @@ export function InvestmentsAnalyticsTab({
     [positions, dailyPrices, manualSnapshots, toPrimary, end],
   );
 
-  const calendarData = useMemo(
-    () => buildCalendarData(positions, dailyPrices, manualSnapshots, toPrimary, end),
-    [positions, dailyPrices, manualSnapshots, toPrimary, end],
-  );
-
   const currencyExposure = useMemo(() => {
     const entries = positions.map((p) => ({
       currency: p.currency,
@@ -440,10 +473,11 @@ export function InvestmentsAnalyticsTab({
   const sections = useMemo(() => {
     const list = [
       { id: "an-returns", label: "報酬" },
+      { id: "an-contrib", label: "貢獻" },
       { id: "an-risk", label: "風險" },
-      { id: "an-allocation", label: "配置" },
     ];
     if (dividends.total > 0) list.push({ id: "an-income", label: "股利" });
+    list.push({ id: "an-concentration", label: "集中度" });
     return list;
   }, [dividends.total]);
   const [activeSection, setActiveSection] = useState("an-returns");
@@ -489,7 +523,14 @@ export function InvestmentsAnalyticsTab({
     );
   }
 
-  const periodOptions = PERIODS.map((p) => ({ value: p, label: p }));
+  const periodOptions: Array<{ value: PeriodSelection; label: string }> = [
+    ...PERIODS.map((p) => ({ value: p as PeriodSelection, label: p })),
+    { value: "Custom", label: "自訂" },
+  ];
+  // Backfill sizing follows the active window regardless of preset vs. custom —
+  // a >1y custom range should still offer the 5y fetch, not silently truncate.
+  const backfillYears: "1y" | "5y" =
+    period === "All" || daysBetween(activeStart, end) > 366 ? "5y" : "1y";
   // Distance from the period high — the one piece of drawdown info not already
   // carried by the max-drawdown KPI card below.
   const ddGap = (() => {
@@ -532,6 +573,33 @@ export function InvestmentsAnalyticsTab({
         })}
       </nav>
 
+      {/* ── Page-global period control — drives 01 報酬, 02 貢獻, and 03 風險
+            (unless the window is too short, in which case 03 labels itself and
+            falls back to its own near-1Y rolling view) ─────────────────────── */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <SegmentedControl value={selection} onChange={handleSelectionChange} options={periodOptions} />
+          {customRange && (
+            <div className="flex items-center gap-1.5">
+              <input
+                className="ns-input"
+                type="date"
+                value={customRange.start}
+                onChange={(e) => setCustomRange({ start: e.target.value, end: customRange.end })}
+              />
+              <span className="muted">→</span>
+              <input
+                className="ns-input"
+                type="date"
+                value={customRange.end}
+                onChange={(e) => setCustomRange({ start: customRange.start, end: e.target.value })}
+              />
+            </div>
+          )}
+        </div>
+        <span className="mono muted text-xs whitespace-nowrap">期間：{periodLabel}</span>
+      </div>
+
       {/* ── Methodology caveat: fixed-weight historical look-back, not true TWR ── */}
       <div
         className="text-caption muted flex items-center gap-1.5 mt-0.5"
@@ -540,14 +608,15 @@ export function InvestmentsAnalyticsTab({
         <MetricHelp text="所有報酬、Alpha 與風險指標（波動、Sharpe、Sortino、最大回撤）皆以「目前持股數 × 歷史收盤價」回看計算，屬固定權重近似。若你在期間內買賣過該標的，實際時間加權報酬可能與此不同。" />
       </div>
 
-      {/* ═══ 報酬 RETURNS ════════════════════════════════════════════════════ */}
+      {/* ═══ 01 · 報酬 RETURNS ═══════════════════════════════════════════════ */}
       <section id="an-returns" className="grid gap-5 scroll-mt-16">
+      <SectionHeader no="01" title="報酬" question="我有沒有贏過大盤？" tag={<ScopeTag follow label="跟隨期間" />} />
 
-      {/* ── Hero: period selector + two return measures (curve lives in vs-benchmark) ── */}
+      {/* ── Hero: two return measures (curve lives in vs-benchmark) ─────────── */}
       <CossCard style={{ padding: 34 }}>
         <div className="flex items-start justify-between flex-wrap gap-5 mb-6">
           <div>
-            <div className="text-xs mb-2.5 muted" style={{ fontWeight: 500 }}>期間報酬 · {period}</div>
+            <div className="text-xs mb-2.5 muted" style={{ fontWeight: 500 }}>期間報酬 · {periodLabel}</div>
             <div className="flex items-baseline gap-3">
               <span
                 className="num"
@@ -588,15 +657,14 @@ export function InvestmentsAnalyticsTab({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onBackfillHoldings(period === "5Y" || period === "All" ? "5y" : "1y")}
+                onClick={() => onBackfillHoldings(backfillYears)}
                 loading={backfilling}
                 disabled={backfilling}
-                title={`抓取所有持倉${period === "5Y" || period === "All" ? "近 5 年" : "近 1 年"}的每日歷史股價`}
+                title={`抓取所有持倉${backfillYears === "5y" ? "近 5 年" : "近 1 年"}的每日歷史股價`}
               >
                 <ArrowsClockwise size={13} />
-                {backfilling ? "回補中…" : (period === "5Y" || period === "All" ? "回補 5Y 股價" : "回補歷史股價")}
+                {backfilling ? "回補中…" : (backfillYears === "5y" ? "回補 5Y 股價" : "回補歷史股價")}
               </Button>
-              <SegmentedControl value={period} onChange={setPeriod} options={periodOptions} />
             </div>
             <div className="flex gap-7">
               {[
@@ -741,8 +809,20 @@ export function InvestmentsAnalyticsTab({
         )}
       </CossCard>
 
-      {/* ── Cost-basis attribution: winners / losers ────────────────────────── */}
-      {attribution.items.length > 0 ? (
+      </section>
+
+      {/* ═══ 02 · 貢獻 CONTRIBUTION ══════════════════════════════════════════ */}
+      {/* Deviation from the plan's literal tag ("跟隨期間"): buildCostBasisAttribution
+          takes no `start` — it was never period-scoped, even before this reorder
+          (its memo deps never included `period`). It answers "up/down vs. my
+          running cost basis as of today", not "within the selected period".
+          Changing that would mean adding a start param to portfolioAnalytics.ts,
+          which is out of scope. Tagging it "跟隨期間" here would be false per the
+          plan's own truthfulness requirement, so it's tagged as a cost-basis
+          snapshot instead. */}
+      {attribution.items.length > 0 && (
+        <section id="an-contrib" className="grid gap-5 scroll-mt-16">
+        <SectionHeader no="02" title="貢獻" question="報酬主要從哪裡來？" tag={<ScopeTag label="不隨期間 · 成本基準" />} />
         <CossCard style={{ padding: 34 }}>
           <NSAnHead
             kicker="未實現損益"
@@ -811,18 +891,27 @@ export function InvestmentsAnalyticsTab({
             </div>
           )}
         </CossCard>
-      ) : null}
+        </section>
+      )}
 
-      </section>
-
-      {/* ═══ 風險 RISK ═══════════════════════════════════════════════════════ */}
+      {/* ═══ 03 · 風險 RISK ══════════════════════════════════════════════════ */}
       <section id="an-risk" className="grid gap-5 scroll-mt-16">
+      <SectionHeader
+        no="03"
+        title="風險"
+        question="波動與回撤在可接受範圍嗎？"
+        tag={
+          enough
+            ? <ScopeTag follow label="跟隨期間" />
+            : <ScopeTag label="期間太短 → 以近 1 年估算" />
+        }
+      />
 
       {/* ── Risk KPIs (volatility / Sortino / Sharpe / max drawdown) ─────────── */}
       <CossCard style={{ padding: 34 }}>
         <NSAnHead kicker="風險 · RISK" title="波動、下跌與報酬品質" />
         <div className="text-caption muted -mt-1 mb-3.5">
-          風險指標基於固定權重日報酬序列估算，需足夠歷史天數方有參考意義。
+          風險指標基於固定權重日報酬序列估算，需足夠歷史天數方有參考意義。回撤區間已標示在下方「最大回撤」卡片中，不需要再從日曆格子裡找。
         </div>
         {kpis ? (
           <>
@@ -881,28 +970,121 @@ export function InvestmentsAnalyticsTab({
             already carries the trend) ───────────────────────────────────────── */}
       <RollingVolatilityCard rolling={rolling} />
 
-      {/* ── Calendar heatmap ──────────────────────────────────────────────────── */}
-      <CossCard style={{ padding: 34 }}>
-        <NSAnHead
-          kicker="報酬節奏 · DAILY RETURNS"
-          title="一整年的賺賠日曆"
-          right={<span className="mono dim" style={{ fontSize: 12 }}>每格＝單日報酬</span>}
-        />
-        {calendarData.daily.some((v) => v != null) ? (
-          <NSCalendarHeatmap daily={calendarData.daily} startDate={calendarData.startDate} />
-        ) : (
-          <div className="h-25 flex items-center justify-center" style={{ color: "var(--ns-fg-dim)", fontSize: 13 }}>
-            資料不足，無法顯示日曆
-          </div>
-        )}
-      </CossCard>
-
       </section>
 
-      {/* ═══ 配置 ALLOCATION ═════════════════════════════════════════════════ */}
-      <section id="an-allocation" className="grid gap-5 scroll-mt-16">
+      {/* ═══ 04 · 股利 INCOME ════════════════════════════════════════════════ */}
+      {dividends.total > 0 && (
+        <section id="an-income" className="grid gap-5 scroll-mt-16">
+          <SectionHeader no="04" title="股利" question="被動現金流累積得如何？" tag={<ScopeTag label="固定 TTM · 不隨期間" />} />
+          <CossCard style={{ padding: 34 }}>
+            <NSAnHead
+              kicker="股利所得 · DIVIDENDS"
+              title="逐年配息成長"
+              right={
+                dividends.byYear.length >= 2 ? (
+                  <span
+                    className="inline-flex rounded-full"
+                    style={{
+                      padding: "4px 11px",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      background: "var(--ns-pos-soft)",
+                      color: "var(--ns-pos)",
+                    }}
+                  >
+                    {dividends.byYear.length} 年紀錄
+                  </span>
+                ) : null
+              }
+            />
+            <div className="flex gap-7 flex-wrap mb-5.5">
+              {[
+                { l: "近一年股利 (TTM)", v: formatMoney(dividends.ttmTotal, primaryCurrency), help: "近 365 天收到的現金股利合計。" },
+                { l: "近一年殖利率", v: dividends.yieldPct == null ? "—" : `${dividends.yieldPct.toFixed(2)}%`, help: "近一年股利 ÷ 目前持倉市值。" },
+                { l: "累計股利", v: formatMoney(dividends.total, primaryCurrency), help: "有紀錄以來的現金股利合計（淨額）。" },
+              ].map((s) => (
+                <div key={s.l}>
+                  <div className="text-xs ns-field-label flex items-center gap-1" style={{ fontSize: 10 }}>
+                    {s.l}<MetricHelp text={s.help} />
+                  </div>
+                  <div className="num" style={{ fontSize: 24, fontWeight: 600, color: "var(--ns-gain)", fontVariantNumeric: "tabular-nums" }}>{s.v}</div>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              <div>
+                <div className="text-xs mb-2.5 muted" style={{ fontWeight: 500 }}>年度股利</div>
+                {(() => {
+                  const max = Math.max(...dividends.byYear.map((y) => y.total), 1);
+                  return (
+                    <div className="flex flex-col gap-2.25">
+                      {dividends.byYear.map((y) => (
+                        <div key={y.year} className="grid items-center gap-2.5" style={{ gridTemplateColumns: "48px 1fr 110px" }}>
+                          <span className="mono muted text-xs">{y.year}</span>
+                          <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--ns-bg-hover)" }}>
+                            <div className="h-full rounded-full" style={{ width: `${(y.total / max) * 100}%`, background: "var(--ns-gain)" }} />
+                          </div>
+                          <span className="num text-xs text-right">{formatMoney(y.total, primaryCurrency)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+              <div>
+                <div className="text-xs mb-2.5 muted" style={{ fontWeight: 500 }}>個股股利貢獻</div>
+                {(() => {
+                  const max = Math.max(...dividends.byHolding.map((h) => h.total), 1);
+                  return (
+                    <div className="flex flex-col gap-2.25">
+                      {dividends.byHolding.slice(0, 6).map((h) => (
+                        <div key={h.assetId} className="grid items-center gap-2.5" style={{ gridTemplateColumns: "96px 1fr 110px" }}>
+                          <span className="mono text-xs whitespace-nowrap overflow-hidden text-ellipsis">{h.ticker}</span>
+                          <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--ns-bg-hover)" }}>
+                            <div className="h-full rounded-full" style={{ width: `${(h.total / max) * 100}%`, background: "var(--ns-chart-3)" }} />
+                          </div>
+                          <span className="num text-xs text-right">{formatMoney(h.total, primaryCurrency)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </CossCard>
+        </section>
+      )}
 
-      {/* ── Holdings heatmap ────────────────────────────────────────────────── */}
+      {/* ═══ 05 · 集中度 CONCENTRATION ═══════════════════════════════════════ */}
+      <section id="an-concentration" className="grid gap-5 scroll-mt-16">
+      <SectionHeader no="05" title="集中度" question="配置是否失衡？" tag={<ScopeTag label="即時快照 · 不隨期間" />} />
+
+      {/* ── Concentration snapshot, promoted to the top of its own section ──── */}
+      <CossCard style={{ padding: 34 }}>
+        <NSAnHead kicker="集中度 · CONCENTRATION" title="最大持倉佔比" />
+        <div className="flex gap-7">
+          <div>
+            <div className="text-xs mb-2 muted" style={{ fontSize: 10, fontWeight: 500 }}>最大產業</div>
+            <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>{allocationSummary.largestClass?.label ?? "—"}</div>
+            <div className="mono muted mt-0.5" style={{ fontSize: 12 }}>
+              {allocationSummary.largestClass ? `${allocationSummary.largestClass.pct.toFixed(1)}%` : "—"}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs mb-2 muted" style={{ fontSize: 10, fontWeight: 500 }}>最大單一持倉</div>
+            <div className="mono" style={{ fontSize: 22, fontWeight: 600 }}>{allocationSummary.largestHolding?.label ?? "—"}</div>
+            <div className="mono muted mt-0.5" style={{ fontSize: 12 }}>
+              {allocationSummary.topHoldingPct == null ? "—" : `${allocationSummary.topHoldingPct.toFixed(1)}%`}
+            </div>
+          </div>
+        </div>
+        <div className="muted text-caption mt-3.5">
+          可計價市值 {formatMoney(allocationSummary.total, primaryCurrency)}
+        </div>
+      </CossCard>
+
+      {/* ── Holdings heatmap — folded into 集中度 rather than dropped, it's the
+            visual complement to the concentration stat above ──────────────── */}
       <NSAnBand deep>
         <NSAnHead
           kicker="持倉熱度 · HOLDINGS HEATMAP"
@@ -1000,115 +1182,11 @@ export function InvestmentsAnalyticsTab({
                 </div>
               </div>
             )}
-            <div>
-              <NSAnHead kicker="集中度 · CONCENTRATION" title="最大持倉佔比" />
-              <div className="flex gap-7">
-                <div>
-                  <div className="text-xs mb-2 muted" style={{ fontSize: 10, fontWeight: 500 }}>最大產業</div>
-                  <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>{allocationSummary.largestClass?.label ?? "—"}</div>
-                  <div className="mono muted mt-0.5" style={{ fontSize: 12 }}>
-                    {allocationSummary.largestClass ? `${allocationSummary.largestClass.pct.toFixed(1)}%` : "—"}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs mb-2 muted" style={{ fontSize: 10, fontWeight: 500 }}>最大單一持倉</div>
-                  <div className="mono" style={{ fontSize: 22, fontWeight: 600 }}>{allocationSummary.largestHolding?.label ?? "—"}</div>
-                  <div className="mono muted mt-0.5" style={{ fontSize: 12 }}>
-                    {allocationSummary.topHoldingPct == null ? "—" : `${allocationSummary.topHoldingPct.toFixed(1)}%`}
-                  </div>
-                </div>
-              </div>
-              <div className="muted text-caption mt-3.5">
-                可計價市值 {formatMoney(allocationSummary.total, primaryCurrency)}
-              </div>
-            </div>
           </div>
         </div>
       </NSAnBand>
 
       </section>
-
-      {/* ═══ 股利 INCOME ═════════════════════════════════════════════════════ */}
-      {dividends.total > 0 && (
-        <section id="an-income" className="grid gap-5 scroll-mt-16">
-          <CossCard style={{ padding: 34 }}>
-            <NSAnHead
-              kicker="股利所得 · DIVIDENDS"
-              title="逐年配息成長"
-              right={
-                dividends.byYear.length >= 2 ? (
-                  <span
-                    className="inline-flex rounded-full"
-                    style={{
-                      padding: "4px 11px",
-                      fontSize: 11,
-                      fontWeight: 600,
-                      background: "var(--ns-pos-soft)",
-                      color: "var(--ns-pos)",
-                    }}
-                  >
-                    {dividends.byYear.length} 年紀錄
-                  </span>
-                ) : null
-              }
-            />
-            <div className="flex gap-7 flex-wrap mb-5.5">
-              {[
-                { l: "近一年股利 (TTM)", v: formatMoney(dividends.ttmTotal, primaryCurrency), help: "近 365 天收到的現金股利合計。" },
-                { l: "近一年殖利率", v: dividends.yieldPct == null ? "—" : `${dividends.yieldPct.toFixed(2)}%`, help: "近一年股利 ÷ 目前持倉市值。" },
-                { l: "累計股利", v: formatMoney(dividends.total, primaryCurrency), help: "有紀錄以來的現金股利合計（淨額）。" },
-              ].map((s) => (
-                <div key={s.l}>
-                  <div className="text-xs ns-field-label flex items-center gap-1" style={{ fontSize: 10 }}>
-                    {s.l}<MetricHelp text={s.help} />
-                  </div>
-                  <div className="num" style={{ fontSize: 24, fontWeight: 600, color: "var(--ns-gain)", fontVariantNumeric: "tabular-nums" }}>{s.v}</div>
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-              <div>
-                <div className="text-xs mb-2.5 muted" style={{ fontWeight: 500 }}>年度股利</div>
-                {(() => {
-                  const max = Math.max(...dividends.byYear.map((y) => y.total), 1);
-                  return (
-                    <div className="flex flex-col gap-2.25">
-                      {dividends.byYear.map((y) => (
-                        <div key={y.year} className="grid items-center gap-2.5" style={{ gridTemplateColumns: "48px 1fr 110px" }}>
-                          <span className="mono muted text-xs">{y.year}</span>
-                          <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--ns-bg-hover)" }}>
-                            <div className="h-full rounded-full" style={{ width: `${(y.total / max) * 100}%`, background: "var(--ns-gain)" }} />
-                          </div>
-                          <span className="num text-xs text-right">{formatMoney(y.total, primaryCurrency)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-              </div>
-              <div>
-                <div className="text-xs mb-2.5 muted" style={{ fontWeight: 500 }}>個股股利貢獻</div>
-                {(() => {
-                  const max = Math.max(...dividends.byHolding.map((h) => h.total), 1);
-                  return (
-                    <div className="flex flex-col gap-2.25">
-                      {dividends.byHolding.slice(0, 6).map((h) => (
-                        <div key={h.assetId} className="grid items-center gap-2.5" style={{ gridTemplateColumns: "96px 1fr 110px" }}>
-                          <span className="mono text-xs whitespace-nowrap overflow-hidden text-ellipsis">{h.ticker}</span>
-                          <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--ns-bg-hover)" }}>
-                            <div className="h-full rounded-full" style={{ width: `${(h.total / max) * 100}%`, background: "var(--ns-chart-3)" }} />
-                          </div>
-                          <span className="num text-xs text-right">{formatMoney(h.total, primaryCurrency)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-          </CossCard>
-        </section>
-      )}
     </div>
   );
 }
@@ -1276,6 +1354,45 @@ function RollingVolatilityCard({ rolling }: {
 }
 
 // ── Direction A Editorial layout components ───────────────────────────────────
+
+/** Small pill disclosing a section's time basis relative to the global period
+ *  control — `follow` (accent-colored) means it moves with the top selector;
+ *  anything else (fixed TTM, point-in-time snapshot, short-period fallback)
+ *  renders dimmed so it visually reads as "not the same clock". */
+function ScopeTag({ follow, label }: { follow?: boolean; label: string }) {
+  const c = follow ? "var(--ns-accent)" : "var(--ns-fg-dim)";
+  return (
+    <span
+      className="mono"
+      style={{
+        marginLeft: "auto",
+        fontSize: 10,
+        letterSpacing: "0.06em",
+        color: c,
+        border: `1px solid color-mix(in srgb, ${c} 45%, transparent)`,
+        borderRadius: 999,
+        padding: "2px 9px",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+/** Numbered section head for the five 01–05 analytics sections: number in
+ *  accent, title in the display font, a one-line question in muted text, and
+ *  a right-aligned {@link ScopeTag}. */
+function SectionHeader({ no, title, question, tag }: { no: string; title: string; question: string; tag: ReactNode }) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 14 }}>
+      <span className="mono" style={{ fontSize: 11, color: "var(--ns-accent)", letterSpacing: "0.1em" }}>{no}</span>
+      <span style={{ fontFamily: "var(--ns-font-display)", fontSize: 18, fontWeight: 600 }}>{title}</span>
+      <span className="dim" style={{ fontSize: 12 }}>{question}</span>
+      {tag}
+    </div>
+  );
+}
 
 /** Editorial section header: lime eyebrow + large title + optional right slot. */
 function NSAnHead({ kicker, title, right, accent }: {
@@ -1622,165 +1739,6 @@ function NSTreemap({
                 </span>
               )}
             </div>
-          </div>
-        );
-      })()}
-    </div>
-  );
-}
-
-// ── Calendar heatmap helpers ──────────────────────────────────────────────────
-
-/** Build day-by-day return array (null = weekend / no data) starting from the
- *  Monday of the week where portfolio history begins, up to `end`. */
-function buildCalendarData(
-  positions: AnalyticsPosition[],
-  dailyPrices: DailyPrice[],
-  manualSnapshots: ManualPriceSnapshot[],
-  toPrimary: (value: number, currency: string, asOf?: string) => number,
-  end: string,
-): { daily: Array<number | null>; startDate: Date } {
-  const start = daysAgo(370, end);
-  const { series } = buildPortfolioValueSeries({ positions, dailyPrices, manualSnapshots, toPrimary, start, end });
-
-  const retMap = new Map<string, number>();
-  for (let i = 1; i < series.length; i++) {
-    const prev = series[i - 1].value;
-    if (prev > 0) retMap.set(series[i].date.slice(0, 10), (series[i].value / prev - 1) * 100);
-  }
-
-  // Snap back to the Monday of the first coverage week
-  const coverageStart = series.length > 0 ? series[0].date.slice(0, 10) : start;
-  const startDt = new Date(`${coverageStart}T00:00:00Z`);
-  const wd0 = startDt.getUTCDay(); // 0=Sun … 6=Sat
-  startDt.setUTCDate(startDt.getUTCDate() + (wd0 === 0 ? -6 : -(wd0 - 1)));
-
-  const endDt = new Date(`${end}T00:00:00Z`);
-  const daily: Array<number | null> = [];
-  const cur = new Date(startDt);
-  while (cur <= endDt) {
-    const wd = cur.getUTCDay();
-    daily.push(
-      wd === 0 || wd === 6
-        ? null
-        : (retMap.get(cur.toISOString().slice(0, 10)) ?? null),
-    );
-    cur.setUTCDate(cur.getUTCDate() + 1);
-  }
-
-  return { daily, startDate: startDt };
-}
-
-// ── NSCalendarHeatmap component ───────────────────────────────────────────────
-
-/** GitHub-style daily return heatmap. Mon–Fri cells colored by nsHeat; weekends blank. */
-function NSCalendarHeatmap({
-  daily,
-  startDate,
-  scale = 2.6,
-  cell = 13,
-  gap = 3,
-}: {
-  daily: Array<number | null>;
-  startDate: Date;
-  scale?: number;
-  cell?: number;
-  gap?: number;
-}) {
-  const [hover, setHover] = useState<number | null>(null);
-
-  const weeks = Math.ceil(daily.length / 7);
-  const W = weeks * (cell + gap);
-  const H = 7 * (cell + gap);
-
-  const dateOf = (i: number): Date => {
-    const d = new Date(startDate);
-    d.setUTCDate(d.getUTCDate() + i);
-    return d;
-  };
-
-  // One month label per new month, placed at the week where it first appears
-  const monthMarks: Array<{ wk: number; m: number }> = [];
-  let lastMonth = -1;
-  for (let wk = 0; wk < weeks; wk++) {
-    const d = dateOf(wk * 7);
-    const m = d.getUTCMonth();
-    if (m !== lastMonth) { monthMarks.push({ wk, m: m + 1 }); lastMonth = m; }
-  }
-
-  return (
-    <div style={{ position: "relative" }}>
-      <svg viewBox={`0 0 ${W} ${H + 18}`} width="100%" style={{ display: "block", overflow: "visible" }}>
-        {/* Month labels */}
-        {monthMarks.map((mk) => (
-          <text
-            key={mk.wk}
-            x={mk.wk * (cell + gap)}
-            y={10}
-            fontSize="10.5"
-            fill="var(--ns-fg-dim)"
-            fontFamily="var(--ns-font-mono)"
-          >
-            {mk.m}月
-          </text>
-        ))}
-        {/* Day cells */}
-        {daily.map((v, i) => {
-          const wk = Math.floor(i / 7);
-          const wd = i % 7;
-          return (
-            <rect
-              key={i}
-              x={wk * (cell + gap)}
-              y={18 + wd * (cell + gap)}
-              width={cell}
-              height={cell}
-              rx="2.5"
-              fill={nsHeat(v, scale)}
-              stroke={hover === i ? "var(--ns-fg)" : "transparent"}
-              strokeWidth="1.2"
-              onMouseEnter={() => setHover(i)}
-              onMouseLeave={() => setHover(null)}
-              style={{ cursor: v == null ? "default" : "pointer" }}
-            />
-          );
-        })}
-      </svg>
-
-      {/* Legend */}
-      <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 10, fontSize: 11 }}>
-        <span className="mono muted">跌</span>
-        {([-2.4, -1.2, 0, 1.2, 2.4] as const).map((v, i) => (
-          <span key={i} style={{ width: 12, height: 12, borderRadius: 2.5, background: nsHeat(v, scale), display: "inline-block" }} />
-        ))}
-        <span className="mono muted">漲</span>
-      </div>
-
-      {/* Hover tooltip */}
-      {hover != null && daily[hover] != null && (() => {
-        const d = dateOf(hover);
-        const wk = Math.floor(hover / 7);
-        const v = daily[hover]!;
-        return (
-          <div style={{
-            position: "absolute",
-            left: `${(wk / weeks) * 100}%`,
-            top: 0,
-            transform: "translate(-50%, -100%)",
-            pointerEvents: "none",
-            background: "var(--ns-bg-card)",
-            border: "1px solid var(--ns-border-strong)",
-            borderRadius: "var(--ns-r-sm)",
-            padding: "6px 9px",
-            whiteSpace: "nowrap",
-            boxShadow: "var(--ns-shadow-2)",
-            fontFamily: "var(--ns-font-mono)",
-            fontSize: 11.5,
-          }}>
-            <span className="muted">{d.getUTCMonth() + 1}/{d.getUTCDate()} </span>
-            <span style={{ color: v >= 0 ? "var(--ns-gain)" : "var(--ns-loss)", fontWeight: 600 }}>
-              {v >= 0 ? "+" : "−"}{Math.abs(v).toFixed(2)}%
-            </span>
           </div>
         );
       })()}
