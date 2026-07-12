@@ -1861,10 +1861,63 @@ function EntryDrawer({
     (v) => setLedgerForm({ ...ledgerForm, feeAmount: v }),
   );
 
+  // Two-phase close (mirrors ModalShell's requestClose): let the exit
+  // transition on the panel play before telling the parent to unmount us.
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [closing, setClosing] = useState(false);
+  const closingRef = useRef(false);
+  const requestClose = useCallback(() => {
+    if (closingRef.current) return;
+    const panel = panelRef.current;
+    // jsdom / legacy engines: computed transition-duration is empty or 0s →
+    // close synchronously.
+    const dur = panel ? parseFloat(getComputedStyle(panel).transitionDuration || "0") : 0;
+    if (!panel || !dur) {
+      closingRef.current = true;
+      onClose();
+      return;
+    }
+    closingRef.current = true;
+    setClosing(true);
+  }, [onClose]);
+
+  // Reopening the drawer must clear any stale closing state from a previous close.
+  useEffect(() => {
+    if (open) {
+      closingRef.current = false;
+      setClosing(false);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!closing) return;
+    const panel = panelRef.current;
+    if (!panel) {
+      onClose();
+      return;
+    }
+    let done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      onClose();
+    }
+    function onTransitionEnd(event: TransitionEvent) {
+      if (event.target !== panel) return;
+      finish();
+    }
+    panel.addEventListener("transitionend", onTransitionEnd);
+    const timeout = window.setTimeout(finish, 300);
+    return () => {
+      panel.removeEventListener("transitionend", onTransitionEnd);
+      window.clearTimeout(timeout);
+    };
+  }, [closing, onClose]);
+
   useEffect(() => {
     if (!open) return;
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") requestClose();
     }
     const releaseScrollLock = lockViewportScroll();
     window.addEventListener("keydown", onKeyDown);
@@ -1872,7 +1925,7 @@ function EntryDrawer({
       releaseScrollLock();
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [open, onClose]);
+  }, [open, requestClose]);
 
   if (!open) return null;
 
@@ -1915,17 +1968,21 @@ function EntryDrawer({
     : [];
 
   return (
-    <div className="fixed inset-0 z-50" onClick={onClose}>
+    <div className="fixed inset-0 z-50" onClick={requestClose}>
       {/* Scrim covers only the content area, leaving the native-vibrancy
           sidebar untouched on desktop; full-width below the lg breakpoint. */}
       <style>{`@media (max-width:1023.98px){.ns-entry-scrim{left:0 !important;}}`}</style>
       <div
-        className="ns-entry-scrim absolute top-0 right-0 bottom-0"
+        className="ns-entry-scrim ns-overlay-scrim absolute top-0 right-0 bottom-0"
         style={{ left: scrimLeft, background: "var(--ns-scrim)" }}
+        data-closing={closing || undefined}
       />
       <div
+        ref={panelRef}
         onClick={(event) => event.stopPropagation()}
-        className="animate-[ns-drawer-in_220ms_cubic-bezier(0.22,1,0.36,1)] absolute right-0 top-0 bottom-0 flex flex-col"
+        className="ns-overlay-panel absolute right-0 top-0 bottom-0 flex flex-col"
+        data-motion="drawer"
+        data-closing={closing || undefined}
         style={{
           width: "min(500px, 100%)",
           background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
@@ -1946,7 +2003,7 @@ function EntryDrawer({
               <UploadSimple size={14} style={{ marginRight: 6 }} />匯入 CSV
             </Button>
           )}
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="關閉"><X size={16} /></Button>
+          <Button variant="ghost" size="icon" onClick={requestClose} aria-label="關閉"><X size={16} /></Button>
         </div>
 
         {/* Type tabs */}
@@ -2477,7 +2534,7 @@ function EntryDrawer({
 
         {/* Footer */}
         <div className="flex gap-2" style={{ padding: "14px 24px", borderTop: "1px solid var(--ns-border)" }}>
-          <Button variant="outline" className="shrink-0 grow-0 basis-20 justify-center" onClick={onClose}>取消</Button>
+          <Button variant="outline" className="shrink-0 grow-0 basis-20 justify-center" onClick={requestClose}>取消</Button>
           <Button
             className="flex-1 justify-center"
             style={{ background: meta.color, borderColor: meta.color, color: "#fff" }}
