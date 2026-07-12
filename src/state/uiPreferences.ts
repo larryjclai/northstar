@@ -21,7 +21,7 @@ export const DEFAULT_BENCHMARK_TICKER = "0050.TW";
  * first screen collapses to hero + pulse strip + 待辦 + 今日漲跌. Still fully
  * re-enableable per-card from 版面 — this only changes the *default*.
  */
-export const DIRECTION_A_HIDDEN_CARDS: string[] = ["allocation", "goals", "recentActivity", "projection"];
+export const DIRECTION_A_HIDDEN_CARDS: string[] = ["allocation", "goals", "recentActivity", "projection", "netWorthTrend"];
 
 export interface UiPreferences {
   privacyMode: boolean;
