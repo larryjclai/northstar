@@ -865,7 +865,7 @@ export function InvestmentsAnalyticsTab({
                     <div className="text-xs mb-3" style={{ fontSize: 10, color: "var(--ns-gain)", fontWeight: 500 }}>上漲 TOP {winners.length}</div>
                     <div className="flex flex-col gap-2.5">
                       {winners.map((r) => (
-                        <AttributionRow key={r.ticker} label={r.ticker} contribution={r.contribution} pct={r.pct} color="var(--ns-gain)" />
+                        <AttributionRow key={r.ticker} label={r.ticker} contribution={r.contribution} pct={r.returnPct} color="var(--ns-gain)" />
                       ))}
                     </div>
                   </div>
@@ -875,7 +875,7 @@ export function InvestmentsAnalyticsTab({
                     <div className="text-xs mb-3" style={{ fontSize: 10, color: "var(--ns-loss)", fontWeight: 500 }}>下跌 TOP {losers.length}</div>
                     <div className="flex flex-col gap-2.5">
                       {losers.map((r) => (
-                        <AttributionRow key={r.ticker} label={r.ticker} contribution={r.contribution} pct={r.pct} color="var(--ns-loss)" />
+                        <AttributionRow key={r.ticker} label={r.ticker} contribution={r.contribution} pct={r.returnPct} color="var(--ns-loss)" />
                       ))}
                     </div>
                   </div>
@@ -883,6 +883,9 @@ export function InvestmentsAnalyticsTab({
               </div>
             );
           })()}
+          <p className="muted" style={{ fontSize: 11.5, margin: "16px 0 0", lineHeight: 1.6 }}>
+            金額為該標的在此期間對投組的損益貢獻（TWD）；百分比為該標的自身的期間價格報酬，與金額同號。
+          </p>
           {attribution.excludedTickers.length > 0 && (
             <div className="muted text-caption mt-2">
               部分標的歷史股價不足，未納入貢獻分析：{attribution.excludedTickers.join("、")}。

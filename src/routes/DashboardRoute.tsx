@@ -929,9 +929,10 @@ export function DashboardRoute() {
         </div>
       ) : null}
 
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18, gap: 16, flexWrap: "wrap" }}>
-        <div>
+      {/* Header — greeting/summary shrinks (min-w-0) so a long AI summary wraps
+          in place; the FX one-liner + 更新行情 + 版面 + 通知 stay pinned top-right. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between" style={{ marginBottom: 18 }}>
+        <div className="min-w-0">
           <div className="text-xs ns-field-label">Overview · {monthLabel}</div>
           <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>{greeting}</h1>
           {hasAnyData ? (
@@ -948,8 +949,7 @@ export function DashboardRoute() {
         </div>
         {/* 匯率 one-liner sits inline with 更新行情 + 版面. The single time-range
             control lives on the net-worth card (the period segmented control). */}
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-          <div className="flex w-full items-center gap-2 sm:contents">
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:shrink-0">
             <FxInline rates={fxRates} />
             <Button variant="outline" className="h-9 flex-1 sm:flex-none shrink-0 sm:h-9" onClick={refreshMarket} loading={refreshingMarket} disabled={refreshingMarket || (assetRows.length === 0 && (appSettings?.exchangeRates?.length ?? 0) === 0)} title="更新持倉報價、匯率與每日歷史股價">
               <ArrowsClockwise size={14} />{refreshingMarket ? "更新中" : "更新行情"}
@@ -973,7 +973,6 @@ export function DashboardRoute() {
               </Popover>
             ) : null}
             <NotificationCenter />
-          </div>
         </div>
       </div>
 
@@ -1635,9 +1634,9 @@ function TopMoversCard({ gainers, losers }: { gainers: Mover[]; losers: Mover[] 
       {empty ? (
         <div className="muted text-body" style={{ padding: "16px 18px" }}>回補歷史股價後顯示當日漲跌幅。</div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, padding: "12px 18px 16px" }}>
-          <MoverColumn label="上漲" tone="pos" movers={gainers} />
-          <MoverColumn label="下跌" tone="neg" movers={losers} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "10px 18px 16px" }}>
+          {gainers.length > 0 ? <MoverColumn label="上漲" tone="pos" movers={gainers} /> : null}
+          {losers.length > 0 ? <MoverColumn label="下跌" tone="neg" movers={losers} /> : null}
         </div>
       )}
     </Card>

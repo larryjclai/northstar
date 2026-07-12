@@ -325,6 +325,33 @@ describe("buildReturnAttribution", () => {
     expect(items[1].contribution).toBeCloseTo(-10);
     expect(items[0].pct).toBeCloseTo(150); // 30 / 20
     expect(items[1].pct).toBeCloseTo(-50); // −10 / 20
+    // returnPct = the holding's own period price return (matches contribution sign).
+    expect(items[0].returnPct).toBeCloseTo(30); // AAA 10→13 = +30%
+    expect(items[1].returnPct).toBeCloseTo(-10); // BBB 20→18 = −10%
+  });
+
+  it("returnPct keeps each holding's own sign even when the portfolio's total move is negative", () => {
+    const positions = [
+      pos({ assetId: "a", ticker: "UP", quantity: 10 }),
+      pos({ assetId: "b", ticker: "DOWN", quantity: 10 }),
+    ];
+    const dailyPrices = [
+      price("UP", "2024-01-01", 100), price("UP", "2024-01-03", 105), // +5×10 = +50, +5%
+      price("DOWN", "2024-01-01", 100), price("DOWN", "2024-01-03", 80), // −20×10 = −200, −20%
+    ];
+    const { items, total } = buildReturnAttribution({
+      positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-01", end: "2024-01-03",
+    });
+    expect(total).toBeCloseTo(-150); // portfolio down overall this window
+    const up = items.find((i) => i.ticker === "UP")!;
+    const down = items.find((i) => i.ticker === "DOWN")!;
+    // returnPct reads intuitively — up holding positive, down holding negative…
+    expect(up.returnPct).toBeCloseTo(5);
+    expect(down.returnPct).toBeCloseTo(-20);
+    // …whereas `pct` (share of a NEGATIVE total) inverts the signs (the old
+    // confusing display this fix replaced).
+    expect(up.pct).toBeLessThan(0); // +50 / −150 ≈ −33%
+    expect(down.pct).toBeGreaterThan(0); // −200 / −150 ≈ +133%
   });
 
   it("follows the selected window — a later start captures only the recent move", () => {

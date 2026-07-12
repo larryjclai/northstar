@@ -1372,7 +1372,12 @@ function HoldingsTab({
               justifyContent: "flex-end",
               gap: 8,
               flexWrap: "wrap",
-              flex: "0 1 520px",
+              // Grow to use the width between the 持倉 title and the right edge so
+              // search / 券商 / 產業 / 欄位 sit on one row on normal screens; they
+              // only wrap when the viewport is genuinely narrow (each keeps a
+              // ~148px min-width and flex-wrap kicks in).
+              flex: "1 1 auto",
+              minWidth: 0,
               maxWidth: "100%",
             }}
           >

@@ -653,6 +653,14 @@ export interface AttributionItem {
   contribution: number;
   /** Share of the total period gain (%). Signed; sums to ~100 when total ≠ 0. */
   pct: number;
+  /**
+   * This holding's own price return over the period (%):
+   * (value_end − value_start) / value_start. Always shares the sign of
+   * `contribution` (up holdings positive, down holdings negative), so it reads
+   * intuitively next to the TWD figure — unlike `pct`, whose sign flips when the
+   * portfolio's total period move is negative.
+   */
+  returnPct: number;
 }
 
 export interface ReturnAttribution {
@@ -707,9 +715,11 @@ export function buildReturnAttribution(opts: {
   if (lastIdx >= 1) {
     basket.positions.forEach((pos, i) => {
       const row = basket.positionValues[i];
-      const contribution = row[lastIdx] - row[0];
+      const startValue = row[0];
+      const contribution = row[lastIdx] - startValue;
+      const returnPct = Math.abs(startValue) > EPS ? (contribution / startValue) * 100 : 0;
       total += contribution;
-      items.push({ assetId: pos.assetId, ticker: pos.ticker, contribution, pct: 0 });
+      items.push({ assetId: pos.assetId, ticker: pos.ticker, contribution, pct: 0, returnPct });
     });
   }
   for (const item of items) item.pct = Math.abs(total) > EPS ? (item.contribution / total) * 100 : 0;
