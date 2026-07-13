@@ -1033,12 +1033,12 @@ function HoldingsAllocation({ positions, assetsById, nameLocale, toPrimary, prim
 // 現價 moved out of this list since it's no longer optional. The rest push
 // into the row expansion by default and only reappear as flattened columns
 // when the user opts in via 「欄位」.
-const HOLDINGS_COLUMN_OPTIONS: { key: HoldingsColumnKey; label: string }[] = [
-  { key: "dayPnl", label: "當日損益" },
-  { key: "account", label: "券商" },
-  { key: "averageCost", label: "均價" },
-  { key: "assetType", label: "類型" },
-  { key: "costBasis", label: "成本基礎" },
+const HOLDINGS_COLUMN_OPTIONS: { key: HoldingsColumnKey; label: string; width: string }[] = [
+  { key: "dayPnl", label: "當日損益", width: "96px" },
+  { key: "account", label: "券商", width: "128px" },
+  { key: "averageCost", label: "均價", width: "88px" },
+  { key: "assetType", label: "類型", width: "72px" },
+  { key: "costBasis", label: "成本基礎", width: "112px" },
 ];
 
 function HoldingsTab({
@@ -1335,17 +1335,23 @@ function HoldingsTab({
   // Default 5-column grid (代號/名稱, 今日, 現價, 市值, 未實現損益) + a 40px chevron
   // column; optional 「欄位」 columns append between 未實現損益 and the chevron.
   const optionalColumnsVisible = HOLDINGS_COLUMN_OPTIONS.filter((opt) => visibleCol(opt.key));
-  // Optional columns are sized to their content (`auto`) rather than an equal
-  // `1fr` share: a left-aligned 券商 next to a right-aligned 均價 in wide `1fr`
-  // tracks left a large empty gap between them. The five base columns keep the
-  // fr units and absorb the remaining width.
+  // Optional columns use a fixed pixel track per column key (plan 187) rather
+  // than `auto`: `auto` sizes to *that row's own* content, so a row whose
+  // optional-column value happens to be wider/narrower than its siblings'
+  // (e.g. 台積電's 均價 `1,019.46`) resolves a different track width than
+  // every other row — since each row is its own independent `display: grid`
+  // (`.ns-holdings-row`), that shifted the whole row's column boundaries out
+  // of alignment with the rest of the table. A fixed track is identical for
+  // every row regardless of content, so all rows (and the header) resolve
+  // the same column edges. The five base columns keep the fr units and
+  // absorb the remaining width.
   const gridTemplateColumns = [
     "2.2fr",
     "1fr",
     "1fr",
     "1.2fr",
     "1.3fr",
-    ...optionalColumnsVisible.map(() => "auto"),
+    ...optionalColumnsVisible.map((opt) => opt.width),
     "40px",
   ].join(" ");
 
