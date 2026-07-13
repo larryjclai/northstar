@@ -1875,3 +1875,93 @@ textarea:focus-visible {
     @apply font-sans;
   }
 }
+
+/* ─── Print / PDF export (plan 173) ───────────────────────────────────────
+   The annual report (/reports/annual) is the only surface currently meant to
+   leave the app. window.print() opens the native print dialog (macOS Tauri
+   webview + browser dev shell); its "Save as PDF" destination is the export.
+   These rules strip the app chrome, force light ink so the DS dark theme never
+   prints white-on-black, and keep a year's rows together across page breaks. */
+
+/* Print-only elements are invisible on screen; the @media print block reveals
+   the ones inside a printed page. Toolbar buttons carry ns-print-hide. */
+.ns-print-only { display: none; }
+
+@media print {
+  /* Force light-theme ink regardless of the active DS theme. Re-declare the
+     tokens the report uses so cards/borders/amounts render dark-on-white.
+     print-color-adjust:exact keeps the +/- gain colours and borders. */
+  :root {
+    color-scheme: light !important;
+    --ns-bg:            #ffffff;
+    --ns-bg-elev:       #ffffff;
+    --ns-bg-card:       #ffffff;
+    --ns-bg-hover:      #f4f5f7;
+    --ns-bg-subtle:     #f4f5f7;
+    --ns-border:        #d5d9df;
+    --ns-border-strong: #b4bac2;
+    --ns-fg:            #1c2530;
+    --ns-fg-muted:      #55606d;
+    --ns-fg-dim:        #7b8590;
+    --ns-pos:           #0f7a40;
+    --ns-neg:           #c62a1d;
+    --ns-warn:          #8a6300;
+    --ns-accent:        #3a6b12;
+    --ns-surface:       #ffffff;
+    --ns-muted:         #55606d;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Collapse the shell grid and drop every piece of app chrome. */
+  .ns-app-shell { display: block !important; }
+  .ns-sidebar,
+  .ns-mobile-dock,
+  .ns-titlebar-drag,
+  .ns-sidebar-drag-cap,
+  .ns-app-shell > button,   /* mobile Quick-Add FAB */
+  .ns-print-hide {
+    display: none !important;
+  }
+
+  /* Let the report use the full page width. */
+  .ns-app-main {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+  .ns-annual-report {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Reveal the print-only report header and give it some presence. */
+  .ns-print-only { display: block !important; }
+  .ns-annual-print-head {
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--ns-border);
+  }
+  .ns-annual-print-brand {
+    font-family: var(--ns-font-display, sans-serif);
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--ns-fg);
+  }
+  .ns-annual-print-meta {
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--ns-fg-muted);
+  }
+  .ns-annual-print-meta span + span { margin-left: 10px; }
+
+  /* Keep a year's row (and its expanded detail) from splitting across pages. */
+  .ns-annual-report tr { break-inside: avoid; }
+
+  /* Sensible paper margins. */
+  @page { margin: 14mm; }
+}
