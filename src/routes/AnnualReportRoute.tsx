@@ -1,4 +1,4 @@
-import { CaretDown, CaretRight, DownloadSimple, Info } from "@phosphor-icons/react";
+import { CaretDown, CaretRight, DownloadSimple, Info, Printer } from "@phosphor-icons/react";
 import { Fragment, useMemo, useState } from "react";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
@@ -19,6 +19,7 @@ import {
   type InvestmentRecord,
 } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
+import { annualPrintButtonState, buildAnnualPrintHeaderMeta } from "./annualReportPrint";
 
 export function AnnualReportRoute() {
   const { assets, investments, settings, dailyFxRates, isInitialLoading, isError, error, refetchAll } = useFinanceData();
@@ -33,6 +34,7 @@ export function AnnualReportRoute() {
 
   const timezone = useUiPreferences((state) => state.timezone);
   const today = todayInTimezone(timezone);
+  const privacyMode = useUiPreferences((state) => state.privacyMode);
 
   const allAssetMeta = useMemo(
     () => new Map(assetRows.map((a) => [a.id, { ticker: a.ticker, currency: a.currency }])),
@@ -71,6 +73,18 @@ export function AnnualReportRoute() {
   // Descending so the most recent (most relevant for 報稅) year is first.
   const rows = useMemo(() => [...report].reverse(), [report]);
 
+  // Print/export (plan 173). window.print() opens the native macOS print
+  // dialog inside the Tauri WKWebview (Tauri fixed window.print() on macOS —
+  // see @tauri-apps/api CHANGELOG) and the browser dev shell alike, and its
+  // "Save as PDF" destination is the export path — no PDF dependency needed.
+  // The button is inert while the privacy mask is on (a printout of blurred
+  // amounts is useless) or when there's nothing to print.
+  const printButton = annualPrintButtonState({ privacyMode, hasRows: rows.length > 0 });
+  const printMeta = useMemo(
+    () => buildAnnualPrintHeaderMeta(rows.map((r) => r.year), today),
+    [rows, today],
+  );
+
   const [expandedYear, setExpandedYear] = useState<string | null>(null);
 
   if (isInitialLoading) {
@@ -98,7 +112,18 @@ export function AnnualReportRoute() {
   }
 
   return (
-    <div style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
+    <div className="ns-annual-report" style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
+      {/* Print-only report header — hidden on screen (ns-print-only), shown on
+          the printed page so the PDF/paper carries the app name, the year span
+          it covers, and when it was generated. */}
+      <div className="ns-print-only ns-annual-print-head" aria-hidden="true">
+        <div className="ns-annual-print-brand">Northstar · 年度報表</div>
+        <div className="ns-annual-print-meta">
+          {printMeta.rangeLabel ? <span>{printMeta.rangeLabel}</span> : null}
+          <span>{printMeta.generatedLabel}</span>
+        </div>
+      </div>
+
       {/* Header — English eyebrow + Chinese h1 (DESIGN.md §3.5). */}
       <div className="flex justify-between" style={{ marginBottom: 22, alignItems: "flex-start", gap: 16 }}>
         <div>
@@ -110,14 +135,25 @@ export function AnnualReportRoute() {
             依處分日年度彙總證券交易所得（已實現損益）與股利所得，供報稅參考。已實現損益採移動平均成本計算。
           </p>
         </div>
-        <Button
-          variant="outline"
-          disabled={rows.length === 0}
-          title={rows.length === 0 ? "尚無資料可匯出" : "匯出逐檔年度報稅明細"}
-          onClick={() => downloadCsv("annual-tax.csv", exportAnnualTaxCsv(rows, primaryCurrency))}
-        >
-          <DownloadSimple size={14} />匯出 CSV
-        </Button>
+        {/* Toolbar buttons never print (ns-print-hide). */}
+        <div className="ns-print-hide flex" style={{ gap: 8, alignItems: "flex-start" }}>
+          <Button
+            variant="outline"
+            disabled={printButton.disabled}
+            title={printButton.title}
+            onClick={() => window.print()}
+          >
+            <Printer size={14} />列印 / 匯出 PDF
+          </Button>
+          <Button
+            variant="outline"
+            disabled={rows.length === 0}
+            title={rows.length === 0 ? "尚無資料可匯出" : "匯出逐檔年度報稅明細"}
+            onClick={() => downloadCsv("annual-tax.csv", exportAnnualTaxCsv(rows, primaryCurrency))}
+          >
+            <DownloadSimple size={14} />匯出 CSV
+          </Button>
+        </div>
       </div>
 
       <Card style={{ padding: 0, overflow: "hidden" }}>
