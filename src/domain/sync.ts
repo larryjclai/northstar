@@ -23,6 +23,7 @@ export type SyncEntity =
   | "recurring"
   | "recurringInvestment"
   | "goal"
+  | "book"
   | "settings";
 
 export interface PendingChange {
