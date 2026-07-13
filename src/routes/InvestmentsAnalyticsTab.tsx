@@ -56,6 +56,7 @@ import {
   resolveHoldingCountry,
   resolveCountryLabel,
 } from "../domain";
+import { buildIndexNudgeWindows, evaluateIndexNudge } from "../domain/indexNudge";
 
 const CHART_COLORS = [
   "var(--ns-chart-1)",
@@ -360,9 +361,68 @@ export function InvestmentsAnalyticsTab({
     return buildReturnAttribution({ positions, dailyPrices, manualSnapshots, toPrimary, start: activeStart, end });
   }, [positions, dailyPrices, manualSnapshots, toPrimary, activeStart, end]);
 
+  // vs-benchmark comparison (plan 179): the portfolio side prefers the true
+  // time-weighted series (buildPortfolioTwr) so the Alpha claim is honest once
+  // the user has traded; only when TWR is unavailable (insufficient
+  // observations) does it fall back to the fixed-basket approximation —
+  // `basis` discloses which 口徑 produced the numbers.
   const perf = useMemo(() => {
-    const series = core.series;
     const bench = buildBenchmarkSeries(dailyPrices, benchmarkTicker, activeStart, end);
+    type CumPoint = { date: string; pct: number };
+    const twrBranch = (():
+      | {
+          data: Array<{ date: string; port: number; bench: number | null }>;
+          portFinal: number | null;
+          benchFinal: number | null;
+          alpha: number | null;
+          hasBenchmark: boolean;
+          basis: "twr";
+          nudgeInput: { portfolioCum: CumPoint[]; benchmarkCum: CumPoint[] } | null;
+        }
+      | null => {
+      if (twrResult.twrPct == null || twrResult.series.length < 2) return null;
+      // twrResult.series is ALREADY a cumulative-return (%) index — never run
+      // toCumulativeReturnSeries over it. Align with the benchmark on shared
+      // dates and geometrically rebase BOTH to the first common date so the
+      // two curves start from the same baseline.
+      if (bench.length >= 2) {
+        const benchByDate = new Map(bench.map((p) => [p.date, p.value]));
+        const alignedTwr = twrResult.series.filter((p) => benchByDate.has(p.date));
+        if (alignedTwr.length < 2) return null; // no usable date overlap → fixed-basket fallback
+        const twrBase = 1 + alignedTwr[0].pct / 100;
+        const benchBase = benchByDate.get(alignedTwr[0].date)!;
+        if (twrBase <= 0 || benchBase <= 0) return null; // degenerate base → fallback
+        const portCum = alignedTwr.map((p) => ({ date: p.date, pct: ((1 + p.pct / 100) / twrBase - 1) * 100 }));
+        const benchCum = alignedTwr.map((p) => ({ date: p.date, pct: (benchByDate.get(p.date)! / benchBase - 1) * 100 }));
+        const data = portCum.map((p, i) => ({ date: p.date, port: p.pct, bench: benchCum[i].pct as number | null }));
+        const portFinal = portCum[portCum.length - 1].pct;
+        const benchFinal = benchCum[benchCum.length - 1].pct;
+        return {
+          data,
+          portFinal,
+          benchFinal,
+          alpha: portFinal - benchFinal,
+          hasBenchmark: true,
+          basis: "twr",
+          nudgeInput: { portfolioCum: portCum, benchmarkCum: benchCum },
+        };
+      }
+      // TWR is available but the benchmark has no usable history: still honour
+      // the TWR 口徑 for the portfolio curve (mirrors the old no-benchmark path).
+      const data = twrResult.series.map((p) => ({ date: p.date, port: p.pct, bench: null as number | null }));
+      return {
+        data,
+        portFinal: twrResult.series[twrResult.series.length - 1].pct,
+        benchFinal: null,
+        alpha: null,
+        hasBenchmark: false,
+        basis: "twr",
+        nudgeInput: null,
+      };
+    })();
+    if (twrBranch) return twrBranch;
+    // Fixed-basket fallback — unchanged from the pre-repoint behaviour.
+    const series = core.series;
     const aligned = bench.length >= 2 ? alignByDate(series, bench) : { a: series, b: [] as typeof bench };
     const portCum = toCumulativeReturnSeries(aligned.a);
     const benchCum = aligned.b.length >= 2 ? toCumulativeReturnSeries(aligned.b) : [];
@@ -371,8 +431,33 @@ export function InvestmentsAnalyticsTab({
     const portFinal = portCum.length ? portCum[portCum.length - 1].pct : null;
     const benchFinal = benchCum.length ? benchCum[benchCum.length - 1].pct : null;
     const alpha = portFinal != null && benchFinal != null ? portFinal - benchFinal : null;
-    return { data, portFinal, benchFinal, alpha, hasBenchmark: benchCum.length >= 2 };
-  }, [core.series, dailyPrices, benchmarkTicker, activeStart, end]);
+    return {
+      data,
+      portFinal,
+      benchFinal,
+      alpha,
+      hasBenchmark: benchCum.length >= 2,
+      basis: "fixed" as const,
+      nudgeInput: null,
+    };
+  }, [twrResult, core.series, dailyPrices, benchmarkTicker, activeStart, end]);
+
+  // Index nudge (roadmap 6.6, plan 179 variant A): rolling-quarter windows over
+  // the TWR-vs-benchmark series → evaluateIndexNudge. Honesty contract: only
+  // ever evaluated on TWR-basis numbers (nudgeInput is null otherwise), so the
+  // banner can never fire off the fixed-basket approximation. Parameters are
+  // the operator-decided defaults (minWindows 8 rolling quarters, 5pp gap
+  // floor) — deliberately not user-configurable.
+  const nudgeVerdict = useMemo(() => {
+    if (perf.basis !== "twr" || !perf.nudgeInput) return null;
+    const { portfolioReturns, benchmarkReturns } = buildIndexNudgeWindows(perf.nudgeInput);
+    return evaluateIndexNudge({ portfolioReturns, benchmarkReturns, minWindows: 8 });
+  }, [perf]);
+  const [nudgeDismissed, setNudgeDismissed] = useState(false); // 知道了 — this session only
+  const indexNudgeMuted = useUiPreferences((s) => s.indexNudgeMuted);
+  const toggleIndexNudgeMuted = useUiPreferences((s) => s.toggleIndexNudgeMuted);
+  const showNudge =
+    perf.basis === "twr" && nudgeVerdict?.triggered === true && !indexNudgeMuted && !nudgeDismissed;
 
   const rolling = useMemo(() => {
     const start = daysAgo(365, end);
@@ -603,12 +688,25 @@ export function InvestmentsAnalyticsTab({
         <span className="mono muted text-xs whitespace-nowrap">期間：{periodLabel}</span>
       </div>
 
-      {/* ── Methodology caveat: fixed-weight historical look-back, not true TWR ── */}
+      {/* ── Methodology caveat, split by 口徑 (plan 179): risk metrics stay a
+            fixed-weight look-back approximation; the vs-benchmark comparison
+            (Alpha) uses true TWR whenever it is computable, and only inherits
+            the fixed-basket wording when TWR falls back. ─────────────────── */}
       <div
         className="text-caption muted flex items-center gap-1.5 mt-0.5"
       >
-        分析採固定持股權重的歷史回看近似（以目前持股 × 歷史價計算），非嚴格時間加權報酬；期間內加碼/減碼會影響解讀。
-        <MetricHelp text="所有報酬、Alpha 與風險指標（波動、Sharpe、Sortino、最大回撤）皆以「目前持股數 × 歷史收盤價」回看計算，屬固定權重近似。若你在期間內買賣過該標的，實際時間加權報酬可能與此不同。" />
+        {perf.basis === "twr" ? (
+          <>期間報酬與風險指標採固定持股權重的歷史回看近似（以目前持股 × 歷史價計算）；與 {benchmarkTicker} 的比較（超額報酬）採時間加權報酬（TWR）口徑。</>
+        ) : (
+          <>分析採固定持股權重的歷史回看近似（以目前持股 × 歷史價計算），非嚴格時間加權報酬；期間內加碼/減碼會影響解讀。</>
+        )}
+        <MetricHelp
+          text={
+            perf.basis === "twr"
+              ? `期間報酬與風險指標（波動、Sharpe、Sortino、最大回撤）以「目前持股數 × 歷史收盤價」回看計算，屬固定權重近似；vs ${benchmarkTicker} 的累積報酬與超額報酬（Alpha）則以時間加權報酬（TWR）計算，已剔除你加碼/減碼時點的影響。`
+              : "所有報酬、Alpha 與風險指標（波動、Sharpe、Sortino、最大回撤）皆以「目前持股數 × 歷史收盤價」回看計算，屬固定權重近似。若你在期間內買賣過該標的，實際時間加權報酬可能與此不同。"
+          }
+        />
       </div>
 
       {/* ═══ 01 · 報酬 RETURNS ═══════════════════════════════════════════════ */}
@@ -740,6 +838,34 @@ export function InvestmentsAnalyticsTab({
         )}
       </CossCard>
 
+      {/* ── Index nudge (roadmap 6.6): suggestive, dismissible, TWR-basis only ── */}
+      {showNudge && nudgeVerdict && (
+        <CossCard style={{ padding: 22 }}>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="min-w-0">
+              <div className="text-xs mb-1.5" style={{ color: "var(--ns-accent)", fontWeight: 500 }}>
+                加入大盤引導 · INDEX NUDGE
+              </div>
+              <p className="m-0 text-body" style={{ lineHeight: 1.6 }}>
+                你近 {nudgeVerdict.consecutiveLagging} 季的報酬落後 {benchmarkTicker}，累積約{" "}
+                {(nudgeVerdict.cumulativeGapPct ?? 0).toFixed(1)}%。長期贏不了大盤就加入大盤——考慮把新資金投入 {benchmarkTicker}？
+              </p>
+              <div className="muted text-caption mt-1.5">
+                口徑：時間加權報酬（TWR）× 滾動季視窗。純屬資訊提示，非投資建議。
+              </div>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Button variant="outline" size="sm" onClick={() => setNudgeDismissed(true)}>
+                知道了
+              </Button>
+              <Button variant="ghost" size="sm" onClick={toggleIndexNudgeMuted}>
+                不再顯示
+              </Button>
+            </div>
+          </div>
+        </CossCard>
+      )}
+
       {/* ── Portfolio vs Benchmark — the primary cumulative-return curve ─────── */}
       <CossCard style={{ padding: 34 }}>
         <NSAnHead
@@ -750,9 +876,23 @@ export function InvestmentsAnalyticsTab({
 
         <div className="grid overflow-hidden mb-4" style={{ gridTemplateColumns: "repeat(3, 1fr)", border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-md)" }}>
           {[
-            { label: "投資組合", val: perf.portFinal, color: perf.portFinal != null && perf.portFinal >= 0 ? "var(--ns-gain)" : "var(--ns-loss)", help: undefined },
+            {
+              label: "投資組合",
+              val: perf.portFinal,
+              color: perf.portFinal != null && perf.portFinal >= 0 ? "var(--ns-gain)" : "var(--ns-loss)",
+              help: perf.basis === "twr"
+                ? "投資組合的期間累積報酬，以時間加權報酬（TWR）計算，不受加碼/減碼時點影響。"
+                : "投資組合的期間累積報酬，以固定權重近似（目前持股 × 歷史價）計算。",
+            },
             { label: `${benchmarkTicker} 指標`, val: perf.benchFinal, color: "var(--ns-fg-muted)", help: undefined },
-            { label: "超額報酬", val: perf.alpha, color: perf.alpha != null && perf.alpha >= 0 ? "var(--ns-accent)" : "var(--ns-loss)", help: "投資組合報酬減掉指標報酬。正數代表本期間跑贏指標，負數代表落後。" },
+            {
+              label: "超額報酬",
+              val: perf.alpha,
+              color: perf.alpha != null && perf.alpha >= 0 ? "var(--ns-accent)" : "var(--ns-loss)",
+              help: perf.basis === "twr"
+                ? "投資組合報酬減掉指標報酬。正數代表本期間跑贏指標，負數代表落後。以時間加權報酬（TWR）口徑計算，已剔除加碼/減碼時點的影響。"
+                : "投資組合報酬減掉指標報酬。正數代表本期間跑贏指標，負數代表落後。本期間 TWR 樣本不足，此數字為固定權重近似口徑。",
+            },
           ].map((s, i) => (
             <div key={s.label} className="py-3 px-4 min-w-0" style={{ borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)" }}>
               <div className="text-xs whitespace-nowrap overflow-hidden text-ellipsis flex items-center gap-1 mb-1 muted" style={{ fontSize: 10, fontWeight: 500 }}>
@@ -796,7 +936,7 @@ export function InvestmentsAnalyticsTab({
         <div className="text-caption flex gap-4 mt-2.5 flex-wrap">
           <span className="flex items-center gap-1.5">
             <span style={{ width: 14, height: 2, background: "var(--ns-accent)" }} />
-            <span className="muted">投資組合（累積報酬）</span>
+            <span className="muted">{perf.basis === "twr" ? "投資組合（TWR 累積報酬）" : "投資組合（累積報酬・固定權重近似）"}</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span style={{ width: 14, height: 0, borderTop: "1px dashed var(--ns-fg-dim)" }} />

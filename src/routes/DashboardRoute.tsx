@@ -22,6 +22,7 @@ import {
   buildCreditCardReminders,
   buildOutstandingSettlements,
   buildPortfolioValueSeries,
+  buildPortfolioTwr,
   buildBenchmarkSeries,
   buildDailyPriceLookup,
   buildManualPriceLookup,
@@ -566,14 +567,52 @@ export function DashboardRoute() {
       }));
   }, [assetRows, selectedAccount]);
 
-  // Portfolio Strip: cumulative price return of the current basket vs the
-  // benchmark over the selected period. Fixed-basket (see portfolioAnalytics) so
-  // it reflects price moves, not contributions; Alpha is computed on the dates
-  // both series share so the three figures stay internally consistent. Returns
-  // null fields when there isn't enough daily history (gated, like XIRR).
+  // Portfolio Strip: cumulative return of the current basket vs the benchmark
+  // over the selected period. Prefers the true time-weighted series
+  // (buildPortfolioTwr, plan 179) so the vs-benchmark gap matches the analytics
+  // tab's honest 口徑; falls back to the unchanged fixed-basket calc when TWR is
+  // unavailable (insufficient observations). `basis` discloses which was used.
+  // Returns null fields when there isn't enough daily history (gated, like XIRR).
   const stripData = useMemo(() => {
     const end = todayInTimezone(timezone);
     const start = stripStartDate(stripPeriod, end);
+    const twr = buildPortfolioTwr({
+      positions: analyticsPositions,
+      records: investmentRows,
+      dailyPrices: dailyPriceRows,
+      toPrimary,
+      start,
+      end,
+    });
+    if (twr.twrPct != null && twr.series.length >= 2) {
+      // twr.series is ALREADY a cumulative-return (%) index — align with the
+      // benchmark's shared dates and geometrically rebase both to the first
+      // common date, mirroring the analytics tab's perf memo.
+      const bench = buildBenchmarkSeries(dailyPriceRows, benchmarkTicker, start, end);
+      if (bench.length >= 2) {
+        const benchByDate = new Map(bench.map((p) => [p.date, p.value]));
+        const alignedTwr = twr.series.filter((p) => benchByDate.has(p.date));
+        if (alignedTwr.length >= 2) {
+          const twrBase = 1 + alignedTwr[0].pct / 100;
+          const benchBase = benchByDate.get(alignedTwr[0].date)!;
+          if (twrBase > 0 && benchBase > 0) {
+            const last = alignedTwr[alignedTwr.length - 1];
+            const portfolio = ((1 + last.pct / 100) / twrBase - 1) * 100;
+            const benchmark = (benchByDate.get(last.date)! / benchBase - 1) * 100;
+            return { portfolio, benchmark, alpha: portfolio - benchmark, basis: "twr" as const };
+          }
+        }
+      } else {
+        // TWR usable but no benchmark history: TWR 口徑 for the portfolio figure.
+        return {
+          portfolio: twr.series[twr.series.length - 1].pct,
+          benchmark: null as number | null,
+          alpha: null as number | null,
+          basis: "twr" as const,
+        };
+      }
+    }
+    // Fixed-basket fallback — unchanged from the pre-repoint behaviour.
     const { series } = buildPortfolioValueSeries({
       positions: analyticsPositions,
       dailyPrices: dailyPriceRows,
@@ -582,7 +621,7 @@ export function DashboardRoute() {
       start,
       end,
     });
-    if (series.length < 2) return { portfolio: null as number | null, benchmark: null as number | null, alpha: null as number | null };
+    if (series.length < 2) return { portfolio: null as number | null, benchmark: null as number | null, alpha: null as number | null, basis: "fixed" as const };
     let portfolio = cumulativeReturnPct(series.map((p) => p.value));
     let benchmark: number | null = null;
     let alpha: number | null = null;
@@ -595,8 +634,8 @@ export function DashboardRoute() {
         alpha = portfolio - benchmark;
       }
     }
-    return { portfolio, benchmark, alpha };
-  }, [analyticsPositions, dailyPriceRows, manualSnapshotRows, toPrimary, stripPeriod, benchmarkTicker, timezone]);
+    return { portfolio, benchmark, alpha, basis: "fixed" as const };
+  }, [analyticsPositions, investmentRows, dailyPriceRows, manualSnapshotRows, toPrimary, stripPeriod, benchmarkTicker, timezone]);
 
   // Build the complete metric list now that stripData.alpha is available.
   const allMetrics = [
@@ -606,7 +645,7 @@ export function DashboardRoute() {
       label: `vs ${benchmarkTicker} 累積差距`,
       value: stripData.alpha,
       display: stripData.alpha != null ? `${stripData.alpha >= 0 ? "+" : ""}${stripData.alpha.toFixed(1)}%` : "—",
-      sub: `投組相對 ${benchmarkTicker} 的期間累積報酬差距`,
+      sub: `投組相對 ${benchmarkTicker} 的期間累積報酬差距（${stripData.basis === "twr" ? "時間加權 TWR 口徑" : "固定權重近似"}）`,
     },
   ];
   const activeMetric = allMetrics.find((m) => m.key === northstarMetric) ?? allMetrics[0];
@@ -1489,7 +1528,7 @@ function fmtPctSigned(v: number | null): string {
 
 function PortfolioStrip({ period, data, benchmarkTicker }: {
   period: StripPeriod;
-  data: { portfolio: number | null; benchmark: number | null; alpha: number | null };
+  data: { portfolio: number | null; benchmark: number | null; alpha: number | null; basis: "twr" | "fixed" };
   benchmarkTicker: string;
 }) {
   const cells = [
@@ -1499,7 +1538,9 @@ function PortfolioStrip({ period, data, benchmarkTicker }: {
   ];
   return (
     <div className="mt-3.5">
-      <div className="text-xs mb-2 muted font-medium">投資組合 vs Benchmark · {period}</div>
+      <div className="text-xs mb-2 muted font-medium">
+        投資組合 vs Benchmark · {period} · {data.basis === "twr" ? "TWR 口徑" : "固定權重近似"}
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", overflow: "hidden" }}>
         {cells.map((c, i) => (
           <div key={c.label} style={{ padding: "10px 14px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)", minWidth: 0 }}>
