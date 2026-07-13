@@ -56,6 +56,8 @@ export interface UiPreferences {
   northstarMetric: string;
   /** Long-view mode: dampen daily net-worth volatility (display-only). Off by default. */
   longViewMode: boolean;
+  /** 不再顯示 the analytics index-nudge banner (roadmap 6.6). Off by default. */
+  indexNudgeMuted: boolean;
   /** Highest net-worth milestone tier already celebrated (high-water mark, primary currency). */
   milestoneReached: number;
   /** Opt-in: schedule OS notifications for upcoming due payments. Off by default. */
@@ -80,6 +82,7 @@ export interface UiPreferences {
   toggleSidebarCollapsed: () => void;
   setNorthstarMetric: (value: string) => void;
   toggleLongViewMode: () => void;
+  toggleIndexNudgeMuted: () => void;
   setMilestoneReached: (value: number) => void;
   setRemindersEnabled: (value: boolean) => void;
   acknowledgeReminder: (id: string) => void;
@@ -119,6 +122,7 @@ interface PersistedShape {
   sidebarCollapsed: boolean;
   northstarMetric: string;
   longViewMode: boolean;
+  indexNudgeMuted: boolean;
   milestoneReached: number;
   remindersEnabled: boolean;
   acknowledgedReminders: string[];
@@ -148,6 +152,7 @@ function loadPersisted(): PersistedShape {
     sidebarCollapsed: false,
     northstarMetric: "netWorth",
     longViewMode: false,
+    indexNudgeMuted: false,
     milestoneReached: 0,
     remindersEnabled: false,
     acknowledgedReminders: [],
@@ -212,6 +217,7 @@ function loadPersisted(): PersistedShape {
           ? parsed.northstarMetric.trim()
           : "netWorth",
       longViewMode: typeof parsed.longViewMode === "boolean" ? parsed.longViewMode : false,
+      indexNudgeMuted: typeof parsed.indexNudgeMuted === "boolean" ? parsed.indexNudgeMuted : false,
       milestoneReached:
         typeof parsed.milestoneReached === "number" && Number.isFinite(parsed.milestoneReached)
           ? parsed.milestoneReached
@@ -285,6 +291,7 @@ function snapshot(state: UiPreferences): PersistedShape {
     sidebarCollapsed: state.sidebarCollapsed,
     northstarMetric: state.northstarMetric,
     longViewMode: state.longViewMode,
+    indexNudgeMuted: state.indexNudgeMuted,
     milestoneReached: state.milestoneReached,
     remindersEnabled: state.remindersEnabled,
     acknowledgedReminders: state.acknowledgedReminders,
@@ -310,6 +317,7 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   sidebarCollapsed: initial.sidebarCollapsed,
   northstarMetric: initial.northstarMetric,
   longViewMode: initial.longViewMode,
+  indexNudgeMuted: initial.indexNudgeMuted,
   milestoneReached: initial.milestoneReached,
   remindersEnabled: initial.remindersEnabled,
   acknowledgedReminders: initial.acknowledgedReminders,
@@ -395,6 +403,10 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   },
   toggleLongViewMode() {
     set({ longViewMode: !get().longViewMode });
+    persist(snapshot(get()));
+  },
+  toggleIndexNudgeMuted() {
+    set({ indexNudgeMuted: !get().indexNudgeMuted });
     persist(snapshot(get()));
   },
   setMilestoneReached(value) {

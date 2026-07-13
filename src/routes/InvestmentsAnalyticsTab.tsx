@@ -56,6 +56,7 @@ import {
   resolveHoldingCountry,
   resolveCountryLabel,
 } from "../domain";
+import { buildIndexNudgeWindows, evaluateIndexNudge } from "../domain/indexNudge";
 
 const CHART_COLORS = [
   "var(--ns-chart-1)",
@@ -441,6 +442,23 @@ export function InvestmentsAnalyticsTab({
     };
   }, [twrResult, core.series, dailyPrices, benchmarkTicker, activeStart, end]);
 
+  // Index nudge (roadmap 6.6, plan 179 variant A): rolling-quarter windows over
+  // the TWR-vs-benchmark series → evaluateIndexNudge. Honesty contract: only
+  // ever evaluated on TWR-basis numbers (nudgeInput is null otherwise), so the
+  // banner can never fire off the fixed-basket approximation. Parameters are
+  // the operator-decided defaults (minWindows 8 rolling quarters, 5pp gap
+  // floor) — deliberately not user-configurable.
+  const nudgeVerdict = useMemo(() => {
+    if (perf.basis !== "twr" || !perf.nudgeInput) return null;
+    const { portfolioReturns, benchmarkReturns } = buildIndexNudgeWindows(perf.nudgeInput);
+    return evaluateIndexNudge({ portfolioReturns, benchmarkReturns, minWindows: 8 });
+  }, [perf]);
+  const [nudgeDismissed, setNudgeDismissed] = useState(false); // 知道了 — this session only
+  const indexNudgeMuted = useUiPreferences((s) => s.indexNudgeMuted);
+  const toggleIndexNudgeMuted = useUiPreferences((s) => s.toggleIndexNudgeMuted);
+  const showNudge =
+    perf.basis === "twr" && nudgeVerdict?.triggered === true && !indexNudgeMuted && !nudgeDismissed;
+
   const rolling = useMemo(() => {
     const start = daysAgo(365, end);
     const startIndex = fullSeriesResult.series.findIndex(p => p.date >= start);
@@ -819,6 +837,34 @@ export function InvestmentsAnalyticsTab({
           </div>
         )}
       </CossCard>
+
+      {/* ── Index nudge (roadmap 6.6): suggestive, dismissible, TWR-basis only ── */}
+      {showNudge && nudgeVerdict && (
+        <CossCard style={{ padding: 22 }}>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="min-w-0">
+              <div className="text-xs mb-1.5" style={{ color: "var(--ns-accent)", fontWeight: 500 }}>
+                加入大盤引導 · INDEX NUDGE
+              </div>
+              <p className="m-0 text-body" style={{ lineHeight: 1.6 }}>
+                你近 {nudgeVerdict.consecutiveLagging} 季的報酬落後 {benchmarkTicker}，累積約{" "}
+                {(nudgeVerdict.cumulativeGapPct ?? 0).toFixed(1)}%。長期贏不了大盤就加入大盤——考慮把新資金投入 {benchmarkTicker}？
+              </p>
+              <div className="muted text-caption mt-1.5">
+                口徑：時間加權報酬（TWR）× 滾動季視窗。純屬資訊提示，非投資建議。
+              </div>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Button variant="outline" size="sm" onClick={() => setNudgeDismissed(true)}>
+                知道了
+              </Button>
+              <Button variant="ghost" size="sm" onClick={toggleIndexNudgeMuted}>
+                不再顯示
+              </Button>
+            </div>
+          </div>
+        </CossCard>
+      )}
 
       {/* ── Portfolio vs Benchmark — the primary cumulative-return curve ─────── */}
       <CossCard style={{ padding: 34 }}>
