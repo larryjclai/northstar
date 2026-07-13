@@ -63,15 +63,19 @@ Operator reviewed the 172/175/176 decision points:
 - **175 Tier 2 → effectively deferred**; operator instead reported two real
   Quick Add pain points (no merchant autocomplete; merchant/name duplication
   without `@`) → build plan **180**. Tier 2 §12 draft stays parked in the spec.
-- **176 → presentation under discussion**: operator wants MOZE-style display
-  (one collapsed row in the list, expandable to legs) — compatible with the
-  spike's sibling-legs model; the **entry flow** (拆分 in-drawer vs 事後拆分)
-  is still being decided with mockups. No build plan yet.
+- **176 → DECIDED (2026-07-13, MOZE screenshots as reference)**: sibling-legs
+  model approved. Entry = MOZE-style: category area gains「+」, multi-select
+  categories EACH with their own amount, form total = derived sum (not
+  fixed-total allocation). List = one collapsed row +「拆分 N 筆」badge,
+  expandable to legs. Edit re-enters the same form. 分帳 = phase 2.
+  → build plans **181** (foundation) + **182** (UI).
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
 | 179 | Index Nudge variant A + repoint analytics Alpha card & Dashboard benchmarkGap to TWR (fixed-basket fallback + 口徑 labels; suggestive copy; params 8 windows / 5pp hardcoded) | P2 | L | 172 (done) | TODO |
 | 180 | Quick Add 商家 autocomplete dropdown + known-merchant extraction (stop name/merchant duplication without `@`) — sanctioned quickAdd.test.ts merchant/name assertion updates, category VALUES must not change | P2 | M | — | TODO |
+| 181 | 多類別拆分 foundation — `legKind` column, `buildSplitLegs`, `createSplit`/`updateSplit` (both repos, dual-harness tests), `incompleteSplitGroupIds` guard | P2 | M | — | TODO |
+| 182 | 多類別拆分 UI — MOZE-style multi-category EntryDrawer (+分類, per-leg amounts, derived total), list collapse+expand mirroring the transfer precedent | P2 | L | 181 | TODO |
 
 ## 168–169 — 記帳 (Cash Flow) redesign (from Claude Design, 2026-07-12)
 
@@ -216,7 +220,7 @@ invented. Per-holding day-change may need `dayChangeMovers` to expose raw prices
 - **Quick Add §6 remaining UX items** (from plan 175 inventory, 2026-07-13): §6.2 輸入框 token 高亮 (NOT shipped — needs an input overlay, bigger UI effort) and §6.3 低信心即時預覽補救 (PARTIAL — confirm-card chips exist, no preview-stage remediation). Both offline; a follow-up plan when Quick Add next gets attention. §6.6 語音輸入 stays with the iOS wave.
 - **Quick Add Tier 2 (cloud parse) — awaiting operator decision** (plan 175 §12 draft in `docs/quick-add-nlp-plan.md`): default Claude Haiku 4.5, Stronghold key, 進階設定 default-OFF + disclosure, strict payload whitelist. Do NOT build until the operator approves — it crosses the local-first invariant.
 - **Index-Nudge (6.6) variant decision — awaiting operator** (plan 172, `docs/index-nudge-spike.md`): pick variant A/B/C + params before any build; recommended A on TWR-vs-benchmark. Related: the app's existing vs-benchmark surfaces (Alpha card, Dashboard `benchmarkGap`) are on the fixed-basket approx — consider repointing to TWR regardless.
-- **Split-legs (分帳/多類別) model decision — awaiting operator** (plan 176, `docs/split-legs-plan.md`): approve/reject the sibling parent+legs model before any 分帳/多類別 build.
+- **分帳 (counterparty shares) — phase 2** (2026-07-13): 多類別 approved and planned (181/182); 分帳 deliberately deferred until 多類別 ships — adds a `"share"` legKind + counterparty per leg, reusing 代墊/AR-AP. Plan it after 182 lands.
 - **DRIP / fee-leg / installments lack partial-sync-arrival guard** (surfaced by plan 176 spike, 2026-07-13). Sync is per-record LWW with no group-atomic apply; only **transfers** detect a half-arrived group (`incompleteTransferGroupIds`, `ledgerTrust.ts:151-165`). A device that pulls one leg of a DRIP pair before its sibling transiently shows wrong cost-basis/XIRR until the other arrives. Fee-leg/installments are more benign (each row self-consistent). Fix = generalize the transfer guard to `incompleteGroupIds` covering `dripGroupId`; small, worth a plan when sync/DRIP next gets attention. Not a live-data-corruption bug (self-heals on next pull), so P3.
 - **Vite dev-proxy 502** — `/api/market-data` middleware 502s (Connect leaves
   `request.url = "/?url=…"`; `replace(/^\?/,"")` misses `"/?"` → `new URL("")`
