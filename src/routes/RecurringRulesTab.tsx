@@ -2,7 +2,6 @@ import {
   ArrowsClockwise,
   CalendarBlank,
   Check,
-  PencilSimple,
   Plus,
   Trash,
   X,
@@ -15,9 +14,10 @@ import { useState } from "react";
 import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { RecurringDraft } from "../data/repositories";
-import { formatNumber, recurringFrequencyLabels, todayInTimezone } from "../domain";
+import { categoryPickerOptions, formatNumber, recurringFrequencyLabels, todayInTimezone } from "../domain";
 import { useNumericField } from "../hooks/useNumericField";
-import type { RecurringTransaction } from "../domain";
+import type { CategoryGroup, RecurringTransaction } from "../domain";
+import { readableTextColor } from "../lib/color";
 import { useUiPreferences } from "../state/uiPreferences";
 
 type FreqFilter = "all" | "monthly" | "yearly" | "weekly" | "biweekly" | "paused";
@@ -37,7 +37,8 @@ function monthlyEquivalent(rule: RecurringTransaction): number {
 }
 
 export function RecurringRulesTab() {
-  const { recurring, accounts } = useFinanceData();
+  const { recurring, accounts, settings } = useFinanceData();
+  const categoryGroups = settings.data?.categories ?? [];
   const toast = useToast();
   const timezone = useUiPreferences((s) => s.timezone);
   const [filter, setFilter] = useState<FreqFilter>("all");
@@ -269,6 +270,7 @@ export function RecurringRulesTab() {
           rule={editingRule}
           isCreating={isCreating}
           accountRows={accounts.data ?? []}
+          categoryGroups={categoryGroups}
           onClose={() => setSheetOpen(false)}
           onSave={async (draft, id) => {
             try {
@@ -307,6 +309,7 @@ function RuleEditSheet({
   rule,
   isCreating,
   accountRows,
+  categoryGroups,
   onClose,
   onSave,
   onDelete,
@@ -315,6 +318,7 @@ function RuleEditSheet({
   rule: RecurringTransaction | null;
   isCreating: boolean;
   accountRows: Array<{ id: string; name: string; currency: string }>;
+  categoryGroups: CategoryGroup[];
   onClose: () => void;
   onSave: (draft: RecurringDraft, id: string | null) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -463,13 +467,16 @@ function RuleEditSheet({
             />
           </RuleField>
 
-          {/* Category */}
+          {/* Category — structured picker over settings.categories, matching the
+              cash-flow entry drawer. Stores category + subcategory as two fields,
+              identical to how CashFlowRoute writes a transaction. */}
           <RuleField label="分類">
-            <input
-              className="ns-input"
-              value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value })}
-              placeholder="選填"
+            <CategoryChips
+              categoryGroups={categoryGroups}
+              entryType={form.entryType}
+              category={form.category}
+              subcategory={form.subcategory}
+              onChange={(category, subcategory) => setForm({ ...form, category, subcategory })}
             />
           </RuleField>
 
@@ -552,6 +559,100 @@ function RuleEditSheet({
         </>)}
       </ModalShell>
     </>
+  );
+}
+
+/* ─── Category chip picker ─── */
+function CategoryChips({
+  categoryGroups,
+  entryType,
+  category,
+  subcategory,
+  onChange,
+}: {
+  categoryGroups: CategoryGroup[];
+  entryType: RecurringDraft["entryType"];
+  category: string;
+  subcategory: string;
+  onChange: (category: string, subcategory: string) => void;
+}) {
+  // Filter by 收入/支出 kind (keeps the currently-selected category visible even
+  // when its kind doesn't match) so category-kind tagging stays correct.
+  const options = categoryPickerOptions(categoryGroups, entryType, category);
+  // Legacy free-text rules may hold a value that matches no configured category.
+  // Surface it as a 自訂 chip so editing an old rule never silently drops it.
+  const hasStored = !category || options.some((c) => c.name === category);
+  const children = options.find((c) => c.name === category)?.children ?? [];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: children.length ? 10 : 0 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {options.map((c) => {
+          const active = category === c.name;
+          const color = c.color || "var(--ns-accent)";
+          return (
+            <button
+              key={c.name}
+              type="button"
+              className="text-xs"
+              // Toggle off when the active chip is clicked — keeps「選填」(no
+              // category) reachable.
+              onClick={() => (active ? onChange("", "") : onChange(c.name, ""))}
+              style={{
+                padding: "5px 11px", borderRadius: 999, cursor: "pointer",
+                background: active ? color : "var(--ns-bg-card)",
+                color: active ? readableTextColor(color) : "var(--ns-fg)",
+                border: active ? "1px solid rgba(0,0,0,0.12)" : "1px solid var(--ns-border)",
+                fontFamily: "inherit", transition: "background 120ms var(--ns-ease), color 120ms var(--ns-ease), border-color 120ms var(--ns-ease)",
+              }}
+            >
+              {c.name}
+            </button>
+          );
+        })}
+        {!hasStored && (
+          <button
+            type="button"
+            className="text-xs"
+            onClick={() => onChange("", "")}
+            style={{
+              padding: "5px 11px", borderRadius: 999, cursor: "pointer",
+              background: "var(--ns-accent)", color: "var(--ns-accent-fg)",
+              border: "1px solid rgba(0,0,0,0.12)", fontFamily: "inherit",
+            }}
+          >
+            {category}（自訂）
+          </button>
+        )}
+        {options.length === 0 && hasStored && (
+          <span className="muted text-xs">尚未建立分類，可於設定新增。</span>
+        )}
+      </div>
+      {children.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, paddingLeft: 10, borderLeft: "2px solid var(--ns-border)" }}>
+          {children.map((s) => {
+            const active = subcategory === s;
+            return (
+              <button
+                key={s}
+                type="button"
+                className="text-xs"
+                onClick={() => onChange(category, active ? "" : s)}
+                style={{
+                  padding: "4px 10px", borderRadius: 999, cursor: "pointer",
+                  background: active ? "var(--ns-accent)" : "var(--ns-bg-hover)",
+                  color: active ? "var(--ns-accent-fg)" : "var(--ns-fg-muted)",
+                  border: active ? "none" : "1px solid var(--ns-border)",
+                  fontFamily: "inherit",
+                }}
+              >
+                {s}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
