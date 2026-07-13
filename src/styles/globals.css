@@ -1836,13 +1836,34 @@ textarea:focus-visible {
 }
 .ns-hscroll--nofade { mask-image: none; -webkit-mask-image: none; }
 
-/* ── CashFlowRoute 近期動態 list (plan 169) ──
-   Row actions (edit/duplicate/delete/settle) show only on hover/focus so the
-   ~50px row stays uncluttered; `:focus-within` keeps them reachable via
-   keyboard tab, since opacity:0 doesn't remove them from the tab order. */
-.ns-cf-actions { opacity: 0; transition: opacity 0.12s; }
-.ns-cf-row:hover .ns-cf-actions,
-.ns-cf-row:focus-within .ns-cf-actions { opacity: 1; }
+/* ── CashFlowRoute 近期動態 list (plan 169, overlay actions: plan 183) ──
+   Row actions (edit/duplicate/delete/settle) overlay the row's right side on
+   hover/focus (Gmail-style) so the amount column keeps one right edge
+   regardless of button count (transfers: 2, normal: 3, receivable/payable:
+   4). On touch (no hover) the cluster is removed entirely — the row tap
+   opens TransactionDetailPanel, which carries the same actions. */
+.ns-cf-row { position: relative; }
+.ns-cf-actions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 2px;
+  background: var(--ns-bg-elev);
+  border: 1px solid var(--ns-border);
+  border-radius: var(--ns-r-sm);
+  box-shadow: var(--ns-shadow-1);
+}
+@media (hover: hover) {
+  .ns-cf-row:hover .ns-cf-actions,
+  .ns-cf-row:focus-within .ns-cf-actions { opacity: 1; pointer-events: auto; }
+}
+@media (hover: none) {
+  .ns-cf-actions { display: none; }
+}
 
 /* Day-group header sticks to the top of the scrolling page while its rows
    scroll past (short-range list, and each expanded month in the long-range
