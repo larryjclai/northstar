@@ -34,7 +34,7 @@ PoC, no UI ships); 177 Phase B is operator-only.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 170 | Restore preview (counts diff + typed confirm) for the two remaining paths: JSON import + sync-backup restore | P2 | M | — | TODO |
+| 170 | Restore preview (counts diff + typed confirm) for the two remaining paths: JSON import + sync-backup restore | P2 | M | — | DONE — reviewed+APPROVED, branch `fix/ai-restore-preview-gaps` @ `284ae0a7` (MERGED to main; adds `readBackupSnapshot`+`getBackupEntry` refactor, JSON-import + sync-backup previews mirror plan-047, new `backup.test.ts` 4 tests w/ in-memory IDB fake; tsc 0 / lint 0 / 1058 tests) |
 | 171 | Debounced auto-push ~30s after local edits (roadmap 5.3①) via new pushScheduler + useAutoSync handler | P2 | M | — | TODO |
 | 172 | Index-Nudge design spike (roadmap 6.6, last unbuilt Phase-6 item) — return-series honesty (fixed-basket vs TWR), detection PoC in domain, variant A/B/C decision doc | P2 | M | — | TODO — SPIKE; operator decision gates the build |
 | 173 | 年度報表列印/匯出 — print-CSS + 列印按鈕 on /reports/annual (Tauri-print feasibility gate first; PDF lib only via escape hatch) | P2 | M | — | TODO |
@@ -42,7 +42,7 @@ PoC, no UI ships); 177 Phase B is operator-only.
 | 175 | 快速記帳再強化 — inventory quick-add-nlp-plan §6/§11 vs code, ship ≤3 offline gaps (§6.4/6.5/6.7), Tier 2 cloud spec-only (operator decision) | P3 | M | — | TODO |
 | 176 | Split-legs data-model spike — one schema decision serving 分帳 + 多類別 (repo already has 3 bespoke linked-record-group mechanisms) | P3 | M | — | TODO — SPIKE, doc-only |
 | 177 | iOS App Store readiness — submission dossier, privacy label w/ grep evidence, export compliance, icons, Phase-B operator runbook ($99 enrollment NOT executor's) | P3 | M | — | TODO |
-| 178 | Roadmap reality-sync — mark 6.1/6.2/6.3/6.5 + 5.2(local) shipped, retire stale analytics follow-up | P3 | S | coordinate wording w/ 170 | TODO |
+| 178 | Roadmap reality-sync — mark 6.1/6.2/6.3/6.5 + 5.2(local) shipped, retire stale analytics follow-up | P3 | S | coordinate wording w/ 170 | DONE — reviewed+APPROVED, branch `fix/ai-roadmap-reality-sync` @ `09b40afd` (MERGED to main; ROADMAP.md only — executor scoped to it, reviewer applied the plans/README.md Step 2 below) |
 
 Direction findings NOT re-planned: household sharing → existing TODO spike
 **143**; DCA rework → existing TODO spike **142**; iOS $99 enrollment /
@@ -187,9 +187,6 @@ invented. Per-holding day-change may need `dayChangeMovers` to expose raw prices
 - **RecurringRulesTab category is free-text** (~`RecurringRulesTab.tsx:460`) while
   every other entry surface uses a structured picker — small plan when recurring
   rules get attention; also bypasses category-kind tagging.
-- **Analytics usefulness review** — product-direction critique of AnalyticsTab /
-  dashboard charts; needs `/improve next` or a live `/impeccable` session, not a
-  specifiable fix.
 - **Vite dev-proxy 502** — `/api/market-data` middleware 502s (Connect leaves
   `request.url = "/?url=…"`; `replace(/^\?/,"")` misses `"/?"` → `new URL("")`
   throws). Browser dev shell only; the Tauri app's Rust `fetch_market_data` is
@@ -218,6 +215,7 @@ invented. Per-holding day-change may need `dayChangeMovers` to expose raw prices
 
 *(This ledger is the anti-re-audit record — kept verbatim.)*
 
+- **Analytics usefulness review** — addressed by plan 167 (global period control + 5-section reorder, merged in v0.1.0-alpha.57) and the 2026-07-12 direction audit found no further analytics-direction gap worth planning; retired (was an Open follow-up).
 - (P3) Dashboard card-heaviness: flattening cards needs a significant visual redesign across DashboardRoute. A dedicated design sprint, not an incremental plan.
 - Sidebar width transition in AppShell.tsx: intentional structural animation, not a data-driven bar. Not a layout-thrashing issue.
 - `InvestmentsRoute.tsx:1339`/`1448` `hover:bg-black/5 dark:hover:bg-white/5`: impeccable 偵測器 flag 為 pure-black background — 誤報，是合法的列 hover 微調，非 scrim。107 明確排除，勿再掃出。
