@@ -100,18 +100,33 @@ export async function listBackups(): Promise<BackupEntry[]> {
   });
 }
 
-/** Restore a specific backup into the repository. */
-export async function restoreBackup(
-  timestamp: string,
-  repo: import("../../../data/repositories").FinanceRepository,
-): Promise<void> {
+/** Look up a single backup entry by timestamp (the single lookup path). */
+async function getBackupEntry(timestamp: string): Promise<BackupEntry | undefined> {
   const db = await openDB();
-  const entry = await new Promise<BackupEntry | undefined>((resolve, reject) => {
+  return new Promise<BackupEntry | undefined>((resolve, reject) => {
     const tx = db.transaction(STORE, "readonly");
     const req = tx.objectStore(STORE).get(timestamp);
     req.onsuccess = () => resolve(req.result as BackupEntry | undefined);
     req.onerror = () => reject(req.error);
   });
+}
+
+/**
+ * Read a stored backup snapshot WITHOUT applying it — used by the restore
+ * preview (counts diff) so the user can inspect a backup before overwriting.
+ * Returns null when no backup exists for the given timestamp.
+ */
+export async function readBackupSnapshot(timestamp: string): Promise<RepositorySnapshot | null> {
+  const entry = await getBackupEntry(timestamp);
+  return entry ? entry.snapshot : null;
+}
+
+/** Restore a specific backup into the repository. */
+export async function restoreBackup(
+  timestamp: string,
+  repo: import("../../../data/repositories").FinanceRepository,
+): Promise<void> {
+  const entry = await getBackupEntry(timestamp);
   if (!entry) throw new Error("備份不存在");
   await repo.importSnapshot(entry.snapshot);
 }
