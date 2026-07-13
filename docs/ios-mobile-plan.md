@@ -120,3 +120,18 @@ PATH 由 `~/.zshenv` 的 `. "$HOME/.cargo/env"` 提供；新開終端機即生�
 
 桌面用 updater；iOS 因 7 天重簽本來就會重佈署，暫不需 in-app 更新。
 未來若要正式上架再評估 TestFlight / 付費帳號。
+
+## 上架（App Store 送審）
+
+正式上架的準備工作已整理成獨立的送審 dossier：
+**[docs/app-store-submission.md](app-store-submission.md)**。
+
+該文件把工作拆成兩階段：
+
+- **Phase A（可先備妥，已完成）**：App Store metadata / ASO 文案（zh-TW 主 + en 次）、
+  App Privacy「營養標籤」答案（含無追蹤 SDK 的 grep 佐證）、出口加密合規宣告
+  （`ITSAppUsesNonExemptEncryption`）、capability / plugin 稽核（確認 updater 已於 iOS 排除）、
+  審查備註（示範模式、release build 不索取本地網路權限）。
+- **Phase B（需付費帳號，操作者專屬）**：$99 註冊 → 協議/稅務/銀行 → 建立 app 紀錄
+  （bundle id `app.northstar.finance`）→ 從 Personal Team 切換簽署 → TestFlight → 截圖 → 送審。
+  同一付費帳號也解鎖 macOS 公證。詳見 dossier 末的 Phase B runbook。
