@@ -1586,7 +1586,8 @@ function HoldingsTab({
                       {position.marketPrice !== null ? formatPrice(position.marketPrice) : "—"}
                     </div>
                     <div className="py-3 text-right tabular whitespace-nowrap" title={`${formatNumber(position.marketValue)} ${position.currency}`}>
-                      {formatCompactNumber(position.marketValue)} <span style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
+                      {formatCompactNumber(position.marketValue)}
+                      <span className="inline-block w-9 text-left ml-1" style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
                     </div>
                     <div
                       className="py-3 text-right tabular whitespace-nowrap"
@@ -1594,8 +1595,8 @@ function HoldingsTab({
                       title={`${position.unrealizedGain >= 0 ? "+" : ""}${formatNumber(position.unrealizedGain)} ${position.currency}`}
                     >
                       {position.unrealizedGain >= 0 ? "+" : ""}{formatCompactNumber(position.unrealizedGain)}
-                      <span className="ml-1 text-xs opacity-80">
-                        ({position.unrealizedGainPercent >= 0 ? "+" : ""}{position.unrealizedGainPercent.toFixed(2)}%)
+                      <span className="block text-xs opacity-80">
+                        {position.unrealizedGainPercent >= 0 ? "+" : ""}{position.unrealizedGainPercent.toFixed(2)}%
                       </span>
                     </div>
                     {visibleCol("dayPnl") ? (
@@ -1620,7 +1621,8 @@ function HoldingsTab({
                     ) : null}
                     {visibleCol("costBasis") ? (
                       <div className="py-3 text-right tabular whitespace-nowrap" title={`${formatNumber(position.costBasis)} ${position.currency}`}>
-                        {formatCompactNumber(position.costBasis)} <span style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
+                        {formatCompactNumber(position.costBasis)}
+                        <span className="inline-block w-9 text-left ml-1" style={{ color: "var(--ns-muted)" }}>{position.currency}</span>
                       </div>
                     ) : null}
                     <div className="py-3 flex items-center justify-center">
