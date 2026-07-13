@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { evaluateIndexNudge, DEFAULT_GAP_FLOOR_PCT } from "./indexNudge";
+import {
+  evaluateIndexNudge,
+  buildIndexNudgeWindows,
+  DEFAULT_GAP_FLOOR_PCT,
+  DEFAULT_NUDGE_WINDOW_DAYS,
+  type NudgeWindowSeries,
+} from "./indexNudge";
 
 // Helpers -------------------------------------------------------------------
 /** Build a benchmark series that beats the portfolio by `gap` pp every window. */
@@ -115,5 +121,138 @@ describe("evaluateIndexNudge", () => {
     const v = evaluateIndexNudge({ portfolioReturns: port, benchmarkReturns: bench, minWindows: 8 });
     expect(v.consecutiveLagging).toBe(8);
     expect(v.triggered).toBe(true);
+  });
+});
+
+// ─── buildIndexNudgeWindows ──────────────────────────────────────────────────
+
+/** ISO date `days` calendar days after `date` (UTC, mirrors the implementation). */
+function isoAddDays(date: string, days: number): string {
+  return new Date(new Date(`${date}T00:00:00Z`).getTime() + days * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+}
+
+/** Cumulative-return series with points exactly at the k·91-day boundaries,
+ *  compounding at `quarterlyPct` % per window. */
+function quarterlySeries(start: string, quarters: number, quarterlyPct: number): NudgeWindowSeries[] {
+  return Array.from({ length: quarters + 1 }, (_, k) => ({
+    date: isoAddDays(start, k * DEFAULT_NUDGE_WINDOW_DAYS),
+    pct: (Math.pow(1 + quarterlyPct / 100, k) - 1) * 100,
+  }));
+}
+
+describe("buildIndexNudgeWindows", () => {
+  // Hand-computed fixture: 3 quarters, boundaries at +91/+182/+273 days.
+  // Portfolio compounds 10%/quarter (cum 0, 10, 21, 33.1), benchmark
+  // 5%/quarter (cum 0, 5, 10.25, 15.7625).
+  const port3q = quarterlySeries("2025-01-01", 3, 10);
+  const bench3q = quarterlySeries("2025-01-01", 3, 5);
+
+  it("slices ~3 quarters of aligned series into 3 windows with correct per-window returns", () => {
+    // Sanity-check the fixture's hand-computed dates and cum levels.
+    expect(port3q.map((p) => p.date)).toEqual(["2025-01-01", "2025-04-02", "2025-07-02", "2025-10-01"]);
+    expect(port3q[3].pct).toBeCloseTo(33.1, 6);
+    expect(bench3q[3].pct).toBeCloseTo(15.7625, 6);
+
+    const { portfolioReturns, benchmarkReturns } = buildIndexNudgeWindows({
+      portfolioCum: port3q,
+      benchmarkCum: bench3q,
+    });
+    expect(portfolioReturns).toHaveLength(3);
+    expect(benchmarkReturns).toHaveLength(3);
+    for (const r of portfolioReturns) expect(r).toBeCloseTo(10, 6);
+    for (const r of benchmarkReturns) expect(r).toBeCloseTo(5, 6);
+  });
+
+  it("uses only intersecting dates when the series are misaligned", () => {
+    // Portfolio has two extra dates the benchmark lacks (and vice versa); the
+    // intersection is exactly the 4 boundary points, so windows match the
+    // aligned fixture above.
+    const portExtra = [
+      port3q[0],
+      { date: "2025-02-15", pct: 99 }, // no benchmark point that day → ignored
+      ...port3q.slice(1),
+    ];
+    const benchExtra = [
+      bench3q[0],
+      { date: "2025-03-20", pct: -50 }, // no portfolio point that day → ignored
+      ...bench3q.slice(1),
+    ];
+    const { portfolioReturns, benchmarkReturns } = buildIndexNudgeWindows({
+      portfolioCum: portExtra,
+      benchmarkCum: benchExtra,
+    });
+    expect(portfolioReturns).toHaveLength(3);
+    for (const r of portfolioReturns) expect(r).toBeCloseTo(10, 6);
+    for (const r of benchmarkReturns) expect(r).toBeCloseTo(5, 6);
+  });
+
+  it("returns empty arrays when fewer than 2 aligned points exist", () => {
+    // Disjoint dates → 0 aligned points.
+    const disjoint = buildIndexNudgeWindows({
+      portfolioCum: [{ date: "2025-01-01", pct: 0 }, { date: "2025-01-02", pct: 1 }],
+      benchmarkCum: [{ date: "2025-06-01", pct: 0 }, { date: "2025-06-02", pct: 1 }],
+    });
+    expect(disjoint).toEqual({ portfolioReturns: [], benchmarkReturns: [] });
+
+    // Exactly 1 common date → still insufficient.
+    const single = buildIndexNudgeWindows({
+      portfolioCum: [{ date: "2025-01-01", pct: 0 }, { date: "2025-01-02", pct: 1 }],
+      benchmarkCum: [{ date: "2025-01-01", pct: 0 }, { date: "2025-03-01", pct: 1 }],
+    });
+    expect(single).toEqual({ portfolioReturns: [], benchmarkReturns: [] });
+  });
+
+  it("drops a trailing partial window shorter than half the window size", () => {
+    // 30 days past the +273 boundary (< 45.5) with a wild cum jump — the tail
+    // must be dropped, leaving the 3 full windows untouched.
+    const tailDate = isoAddDays("2025-10-01", 30);
+    const { portfolioReturns, benchmarkReturns } = buildIndexNudgeWindows({
+      portfolioCum: [...port3q, { date: tailDate, pct: 300 }],
+      benchmarkCum: [...bench3q, { date: tailDate, pct: -60 }],
+    });
+    expect(portfolioReturns).toHaveLength(3);
+    for (const r of portfolioReturns) expect(r).toBeCloseTo(10, 6);
+    for (const r of benchmarkReturns) expect(r).toBeCloseTo(5, 6);
+  });
+
+  it("keeps a trailing partial window covering at least half the window size", () => {
+    // 46 days past the +273 boundary (≥ 45.5) → a 4th (partial) window.
+    const tailDate = isoAddDays("2025-10-01", 46);
+    const { portfolioReturns, benchmarkReturns } = buildIndexNudgeWindows({
+      portfolioCum: [...port3q, { date: tailDate, pct: (Math.pow(1.1, 3) * 1.05 - 1) * 100 }],
+      benchmarkCum: [...bench3q, { date: tailDate, pct: (Math.pow(1.05, 3) * 1.02 - 1) * 100 }],
+    });
+    expect(portfolioReturns).toHaveLength(4);
+    expect(portfolioReturns[3]).toBeCloseTo(5, 6);
+    expect(benchmarkReturns[3]).toBeCloseTo(2, 6);
+  });
+
+  it("round-trips into evaluateIndexNudge: persistent lag triggers, leading does not", () => {
+    // 8 quarters: portfolio 1%/q vs benchmark 3%/q → 8 consecutive lagging
+    // windows, 2pp gap each → 16pp cumulative ≥ 5pp floor → triggered.
+    const laggingPort = quarterlySeries("2023-01-01", 8, 1);
+    const laggingBench = quarterlySeries("2023-01-01", 8, 3);
+    const lag = buildIndexNudgeWindows({ portfolioCum: laggingPort, benchmarkCum: laggingBench });
+    const lagVerdict = evaluateIndexNudge({
+      portfolioReturns: lag.portfolioReturns,
+      benchmarkReturns: lag.benchmarkReturns,
+      minWindows: 8,
+    });
+    expect(lagVerdict.triggered).toBe(true);
+    expect(lagVerdict.reason).toBe("persistent-lag");
+    expect(lagVerdict.consecutiveLagging).toBe(8);
+    expect(lagVerdict.cumulativeGapPct).toBeCloseTo(16, 6);
+
+    // Same construction with the sides swapped → leading, never triggers.
+    const lead = buildIndexNudgeWindows({ portfolioCum: laggingBench, benchmarkCum: laggingPort });
+    const leadVerdict = evaluateIndexNudge({
+      portfolioReturns: lead.portfolioReturns,
+      benchmarkReturns: lead.benchmarkReturns,
+      minWindows: 8,
+    });
+    expect(leadVerdict.triggered).toBe(false);
+    expect(leadVerdict.reason).toBe("leading");
   });
 });

@@ -7,11 +7,12 @@
  * windows, it decides whether the portfolio has lagged the benchmark *persistently
  * enough* that surfacing an "index" decision to the user is warranted.
  *
- * This module is deliberately consumed by NO UI. It is the decision prototype the
- * spike (docs/index-nudge-spike.md) recommends a build plan wire up later. It does
- * not fetch, compute, or transform any price/return series — the caller supplies
- * already-computed window returns, so this stays trivially testable and never
- * couples to the analytics engine's internals.
+ * Consumed by the 分析 tab's nudge banner (plan 179, variant A): the tab feeds
+ * {@link buildIndexNudgeWindows} the TWR-vs-benchmark cumulative series it
+ * already computes, then gates the banner on {@link evaluateIndexNudge}. The
+ * detection rule itself does not fetch, compute, or transform any price/return
+ * series — the caller supplies already-computed window returns, so this stays
+ * trivially testable and never couples to the analytics engine's internals.
  *
  * ── Honesty contract (see docs/index-nudge-spike.md §Q1) ──────────────────────
  * The window returns fed in MUST be an apples-to-apples, cash-flow-neutral
@@ -79,6 +80,111 @@ export interface IndexNudgeVerdict {
 
 /** Default cumulative-gap floor (pp). Tunable; justified in the spike doc. */
 export const DEFAULT_GAP_FLOOR_PCT = 5;
+
+/** Default rolling-window size in calendar days (one rolling quarter). */
+export const DEFAULT_NUDGE_WINDOW_DAYS = 91;
+
+/** One point of a cumulative-return series: `pct` is the cumulative return (%)
+ *  since the series' own base date (e.g. `buildPortfolioTwr().series`). */
+export interface NudgeWindowSeries {
+  date: string;
+  pct: number;
+}
+
+function dayMs(date: string): number {
+  return new Date(`${date.slice(0, 10)}T00:00:00Z`).getTime();
+}
+
+function daysBetween(a: string, b: string): number {
+  return Math.round((dayMs(b) - dayMs(a)) / 86_400_000);
+}
+
+function addDays(date: string, days: number): string {
+  return new Date(dayMs(date) + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Per-window return (%) from two cumulative-return index levels:
+ * `r = (1 + cumEnd/100) / (1 + cumStart/100) − 1`, expressed in %.
+ * A wiped-out start (cumulative ≤ −100%, i.e. denominator ≤ 0) has no
+ * meaningful ratio; the window return is reported as 0 (never triggers lag).
+ */
+function windowReturnPct(cumStart: number, cumEnd: number): number {
+  const denom = 1 + cumStart / 100;
+  if (denom <= 0) return 0;
+  return ((1 + cumEnd / 100) / denom - 1) * 100;
+}
+
+/**
+ * Slice two aligned cumulative-return series into rolling-quarter window
+ * returns, ready to feed {@link evaluateIndexNudge}.
+ *
+ * Rules (all deliberate, in evaluation order):
+ * 1. **Alignment** — only dates present in BOTH series are used, in ascending
+ *    date order. Neither series is interpolated; a date missing from either
+ *    side simply doesn't exist for windowing purposes.
+ * 2. **Insufficient data** — fewer than 2 aligned points returns empty arrays
+ *    (the caller's `evaluateIndexNudge` will then report "insufficient-data").
+ * 3. **Window boundaries** — stepped every `windowDays` CALENDAR days from the
+ *    first aligned date `d0`: boundaries at `d0 + k·windowDays`. Window `k`
+ *    (k ≥ 1) runs from the previous window's endpoint to the last aligned
+ *    point on or before boundary `k` — so windows are anchored to trading
+ *    dates, never interpolated to exact calendar boundaries.
+ * 4. **Per-window return** — converts the cumulative index difference into a
+ *    per-window return: `r = (1 + cumEnd/100) / (1 + cumStart/100) − 1`, in %.
+ *    Both series are windowed over the SAME dates, so the returns stay
+ *    apples-to-apples. A window containing no new aligned points yields 0%
+ *    for both sides (a tie — ends any lagging streak, conservatively).
+ * 5. **Trailing partial window** — the span past the last full boundary is
+ *    kept as a final window only when it covers at least half `windowDays`
+ *    calendar days; a shorter tail is dropped (too noisy to count as a
+ *    quarter). Boundary is inclusive: exactly half is kept.
+ *
+ * Returns oldest-first arrays, index-aligned, one entry per window — exactly
+ * the shape {@link evaluateIndexNudge} consumes. The honesty contract at the
+ * top of this file applies: `portfolioCum` MUST be TWR-derived.
+ */
+export function buildIndexNudgeWindows(opts: {
+  /** Portfolio cumulative-return series, e.g. `buildPortfolioTwr().series`. */
+  portfolioCum: NudgeWindowSeries[];
+  /** Benchmark cumulative-return series over (a superset of) the same dates. */
+  benchmarkCum: NudgeWindowSeries[];
+  /** Window size in calendar days. Default {@link DEFAULT_NUDGE_WINDOW_DAYS}. */
+  windowDays?: number;
+}): { portfolioReturns: number[]; benchmarkReturns: number[] } {
+  const windowDays = opts.windowDays ?? DEFAULT_NUDGE_WINDOW_DAYS;
+  const benchByDate = new Map(opts.benchmarkCum.map((p) => [p.date, p.pct]));
+  const aligned = opts.portfolioCum
+    .filter((p) => benchByDate.has(p.date))
+    .map((p) => ({ date: p.date, port: p.pct, bench: benchByDate.get(p.date)! }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  if (aligned.length < 2 || windowDays <= 0) {
+    return { portfolioReturns: [], benchmarkReturns: [] };
+  }
+
+  const d0 = aligned[0].date;
+  const lastDate = aligned[aligned.length - 1].date;
+  const totalDays = daysBetween(d0, lastDate);
+  const fullWindows = Math.floor(totalDays / windowDays);
+  const remainderDays = totalDays - fullWindows * windowDays;
+  const keepPartial = remainderDays > 0 && remainderDays >= windowDays / 2;
+  const windowCount = fullWindows + (keepPartial ? 1 : 0);
+
+  const portfolioReturns: number[] = [];
+  const benchmarkReturns: number[] = [];
+  let prev = aligned[0];
+  let cursor = 0;
+  for (let k = 1; k <= windowCount; k += 1) {
+    const boundary = k <= fullWindows ? addDays(d0, k * windowDays) : lastDate;
+    while (cursor + 1 < aligned.length && aligned[cursor + 1].date <= boundary) cursor += 1;
+    const endPoint = aligned[cursor];
+    portfolioReturns.push(windowReturnPct(prev.port, endPoint.port));
+    benchmarkReturns.push(windowReturnPct(prev.bench, endPoint.bench));
+    prev = endPoint;
+  }
+  return { portfolioReturns, benchmarkReturns };
+}
 
 /**
  * Evaluate the index-nudge rule over pre-computed window returns.
