@@ -17,6 +17,14 @@ spec + its own Status block; this index keeps only **live, actionable state**.
   Combined-main gates green: `tsc --noEmit` 0, `lint` 0 errors, **1155 tests**.
   Not pushed to remote (local merges only). Outstanding: operator live pass on
   the 182 split flows + 179 nudge visuals; old spikes 142/143 remain TODO.
+- **Reconciled 2026-07-13** (`/improve reconcile` @ `607d0c41`): all 170–182
+  done-criteria re-verified by grep at HEAD ✓; **156–163 motion batch found
+  MERGED** (index said unmerged — corrected; 161 spike correctly unmerged);
+  **Vite dev-proxy 502 found FIXED** independently → retired; RecurringRulesTab
+  free-text retired (174); 088 Feature A downgraded to largely-addressed
+  (lexicon + 174); Tier-2 marked PARKED; 分帳 phase-2 now plan-able. 142 (DCA
+  spike) + 143 (household spike) drift-checked and still valid TODO (DCA still
+  hidden, `isSharedToHousehold` still test-only).
 
 ## Earlier state — 2026-07-12 (`main` @ `4ac63576`, v0.1.0-alpha.58)
 
@@ -104,11 +112,14 @@ the `selectedAccount`/`selectedCategory` filter state (sentinel `"all"`), and th
 same amounts must net. 168 must NOT regress `DateScopeControl`'s other callers
 (Dashboard/Investments) — prefer a new `LedgerDateControl`.
 
-## 156–163 — unmerged motion batch (your merge decision)
+## 156–163 — motion batch — ✅ MERGED (reconciled 2026-07-13)
 
-Executed + reviewed this session via `/improve execute`. Delivered as a **linear
-stacked chain** (each branch contains all prior). All gates green at every tip;
-test count 1020 → 1033.
+Executed + reviewed via `/improve execute`, delivered as a linear stacked chain.
+**Reconcile verification (2026-07-13): all seven implementation tips
+(44039cc7…e4a85cca) are ancestors of `main`** — the chain was merged before the
+alpha.56 release. The 161 spike branch (`46b00892`) is correctly NOT merged.
+The pre-merge device eyeball list below is therefore now a POST-merge live-QA
+list (still outstanding; folded into the manual-verification section).
 
 | Plan | What | Branch @ tip |
 |---|---|---|
@@ -214,44 +225,71 @@ invented. Per-holding day-change may need `dayChangeMovers` to expose raw prices
   revoked device that already captured ciphertext can still decrypt THAT (future
   data is cut off by per-device auth). Needs 131's `/keys` machinery; 131's
   `ade8e99d` ECDH helpers are groundwork, so it's cheaper now than when deferred.
-- **RecurringRulesTab category is free-text** (~`RecurringRulesTab.tsx:460`) while
-  every other entry surface uses a structured picker — small plan when recurring
-  rules get attention; also bypasses category-kind tagging.
+- **EntryDrawer 商家 autocomplete** (from plan 180, 2026-07-13): the merchant
+  autocomplete shipped on QuickAdd only; the CashFlow EntryDrawer 商家 field is
+  still a plain input. Small plan — extract/reuse QuickAdd's dropdown.
 - **Annual-report print — deferred polish** (from plan 173, 2026-07-13): (a) the visual print-preview check was never eyeballed (headless executor) — operator should print `/reports/annual` once (dark theme + a long multi-year report) to confirm no chrome bleed / no year-row page splits; (b) the 列印 button is not gated off on iOS (`window.print()` works in iOS WKWebView but is unpolished) — gate to desktop if the report becomes a mobile surface. Small.
 - **Quick Add §6 remaining UX items** (from plan 175 inventory, 2026-07-13): §6.2 輸入框 token 高亮 (NOT shipped — needs an input overlay, bigger UI effort) and §6.3 低信心即時預覽補救 (PARTIAL — confirm-card chips exist, no preview-stage remediation). Both offline; a follow-up plan when Quick Add next gets attention. §6.6 語音輸入 stays with the iOS wave.
-- **Quick Add Tier 2 (cloud parse) — awaiting operator decision** (plan 175 §12 draft in `docs/quick-add-nlp-plan.md`): default Claude Haiku 4.5, Stronghold key, 進階設定 default-OFF + disclosure, strict payload whitelist. Do NOT build until the operator approves — it crosses the local-first invariant.
-- **Index-Nudge (6.6) variant decision — awaiting operator** (plan 172, `docs/index-nudge-spike.md`): pick variant A/B/C + params before any build; recommended A on TWR-vs-benchmark. Related: the app's existing vs-benchmark surfaces (Alpha card, Dashboard `benchmarkGap`) are on the fixed-basket approx — consider repointing to TWR regardless.
-- **分帳 (counterparty shares) — phase 2** (2026-07-13): 多類別 approved and planned (181/182); 分帳 deliberately deferred until 多類別 ships — adds a `"share"` legKind + counterparty per leg, reusing 代墊/AR-AP. Plan it after 182 lands.
+- **Quick Add Tier 2 (cloud parse) — PARKED by operator** (2026-07-13): the §12
+  decision draft stays in `docs/quick-add-nlp-plan.md`; operator chose not to
+  build for now (Tier 0+1 suffice). Do NOT build unless explicitly re-approved
+  — it crosses the local-first invariant.
+- **Index-Nudge — full-history evaluation** (from plan 179, 2026-07-13): the
+  shipped nudge evaluates over the SELECTED analytics period, so it can only
+  fire on 5Y/All/long ranges (needs ≥8 rolling quarters in-window). If the
+  operator wants it to fire regardless of the viewed period, a small follow-up
+  computes the windows from an always-full-history TWR series. (The A/B/C
+  variant decision itself is CLOSED — operator chose A+TWR, shipped in 179.)
+- **分帳 (counterparty shares) — phase 2, now plan-able** (updated 2026-07-13):
+  多類別 shipped (181/182 merged). 分帳 adds a `"share"` legKind + counterparty
+  per leg, reusing 代墊/AR-AP. Plan it once the operator's live pass on the 182
+  split flows is done.
 - **DRIP / fee-leg / installments lack partial-sync-arrival guard** (surfaced by plan 176 spike, 2026-07-13). Sync is per-record LWW with no group-atomic apply; only **transfers** detect a half-arrived group (`incompleteTransferGroupIds`, `ledgerTrust.ts:151-165`). A device that pulls one leg of a DRIP pair before its sibling transiently shows wrong cost-basis/XIRR until the other arrives. Fee-leg/installments are more benign (each row self-consistent). Fix = generalize the transfer guard to `incompleteGroupIds` covering `dripGroupId`; small, worth a plan when sync/DRIP next gets attention. Not a live-data-corruption bug (self-heals on next pull), so P3.
-- **Vite dev-proxy 502** — `/api/market-data` middleware 502s (Connect leaves
-  `request.url = "/?url=…"`; `replace(/^\?/,"")` misses `"/?"` → `new URL("")`
-  throws). Browser dev shell only; the Tauri app's Rust `fetch_market_data` is
-  unaffected. One-line fix in `vite.config.ts`. Flagged as a background chip 2026-07-11.
 
 ## Deferred by design (decide-then-build)
 
 - **085 / 086 / 087** — SwiftUI Widget + App Intents; design pinned in 085, awaiting
   your simulator-vs-$99 decision + the Tauri-regeneration spike.
 - **088 Phase 7.2** — on-device AI features; Feature B (monthly summary) shipped as
-  089, Feature A (transaction auto-categorization) still TODO. Product-gated.
+  089. Feature A (transaction auto-categorization) is now **largely addressed**
+  (reconciled 2026-07-13): entry-time categorization = lexicon + Tier-1 FM in
+  QuickAdd; retroactive = plan 174's suggest-and-confirm bulk tool. Residual
+  delta = FM-model-powered categorization for merchants the lexicon has never
+  seen — keep product-gated, likely not worth building separately.
 - **077 small gaps** — Phase 3.2 iOS lifecycle sync listeners
   (`visibilitychange`/`tauri://resumed`, touches AppShell, GUI-verify); Phase 7.4
   Writing-Tools check (trivial verify). Both small.
 
 ## Manual / operator-only verification outstanding (code already shipped)
 
+- **182 split flows live pass** (2026-07-13): add 2-leg + 3-leg split, edit
+  (re-save twice — tombstone+recreate round-trip), remove to 1 leg → plain-form
+  exit, delete group, list expand/collapse, 收支 totals + 分類 chart match legs,
+  credit-card split with 延後入帳.
+- **180 Quick Add live pass**: merchant autocomplete dropdown (keyboard nav,
+  Escape closes dropdown not QuickAdd), 「晚餐 50嵐 120」 merchant/name split.
+- **179 nudge visuals**: 口徑 labels on the Alpha card + Dashboard strip; the
+  banner needs 5Y/All + real lagging data to appear.
+- **173 print preview**: `/reports/annual` 列印 — dark theme prints
+  dark-on-white, no chrome bleed, no year-row page splits.
+- **156–163 motion device QA** (chain now merged): overlay enter/exit, toast
+  swipe/pause, ⌘K instant, segmented slide, privacy scroll+blur, bottom-sheet
+  drag, EntryDrawer exit, real haptics on an iOS build.
 - 2-device **pairing + revocation** (131/132) — worker deployed + 25 tests; needs 2 real phones.
 - **macOS GUI eyeball** — title bar / app menu / Dock badge / window restore (079).
 - **Live per-route 390px QA pass** — the static RWD audit missed the nav + date-strip
   bugs found live (084); other routes may have similar live-only issues.
-- **Tauri spot-check of 151/152** ticker search (the dev-proxy 502 above blocks the
-  browser dev shell; the Tauri path works).
+- **Tauri spot-check of 151/152** ticker search (historic dev-proxy 502 blocker
+  is now FIXED in vite.config.ts, so the browser dev shell works too).
 
 ## Findings considered and rejected (do NOT re-flag)
 
 *(This ledger is the anti-re-audit record — kept verbatim.)*
 
 - **Analytics usefulness review** — addressed by plan 167 (global period control + 5-section reorder, merged in v0.1.0-alpha.57) and the 2026-07-12 direction audit found no further analytics-direction gap worth planning; retired (was an Open follow-up).
+- **RecurringRulesTab free-text category** — ADDRESSED by plan 174 (structured chip picker, merged 2026-07-13); retired from Open follow-ups at reconcile.
+- **Vite dev-proxy 502** — FIXED independently (vite.config.ts:93-95 now parses `request.url` with a base URL; verified at reconcile 2026-07-13); retired from Open follow-ups. Browser dev shell market-data proxy works again.
+- **Index-Nudge variant decision** — CLOSED: operator chose A + repoint-to-TWR (2026-07-13), shipped as plan 179. Only the full-history-evaluation follow-up remains open.
 - (P3) Dashboard card-heaviness: flattening cards needs a significant visual redesign across DashboardRoute. A dedicated design sprint, not an incremental plan.
 - Sidebar width transition in AppShell.tsx: intentional structural animation, not a data-driven bar. Not a layout-thrashing issue.
 - `InvestmentsRoute.tsx:1339`/`1448` `hover:bg-black/5 dark:hover:bg-white/5`: impeccable 偵測器 flag 為 pure-black background — 誤報，是合法的列 hover 微調，非 scrim。107 明確排除，勿再掃出。
