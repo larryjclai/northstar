@@ -86,6 +86,26 @@ Operator reviewed the 172/175/176 decision points:
 | 181 | 多類別拆分 foundation — `legKind` column, `buildSplitLegs`, `createSplit`/`updateSplit` (both repos, dual-harness tests), `incompleteSplitGroupIds` guard | P2 | M | — | DONE — reviewed+APPROVED+MERGED, branch `feat/ai-split-legs-foundation` @ `c6c619a5` (updateSplit = tombstone-all+recreate SAME groupId w/ revision bumps in one SQLite transaction; signs: expense −/income +, builder applies; +6 splitLegs +10×2 dual-repo +4 ledgerTrust tests; consumers untouched; tsc 0 / lint 0). Signatures for 182: `createSplit(shared, legs)` / `updateSplit(groupId, shared, legs)` / `SplitLegInput={amount>0, category, subcategory}` / errors zh-TW (拆分至少需要 2 筆明細。 etc.). |
 | 182 | 多類別拆分 UI — MOZE-style multi-category EntryDrawer (+分類, per-leg amounts, derived total), list collapse+expand mirroring the transfer precedent | P2 | L | 181 | DONE — reviewed+APPROVED+MERGED, branch `feat/ai-split-legs-entry-ui` (「＋ 分類」split mode w/ per-leg amount + derived「多類別 · 共 $X」, save via create/updateSplit, edit hydrates all legs, fee-leg pairs excluded via legKind gate; list collapse in `mergeTransferRows` + 拆分 N 筆 badge + inline expand; `splitEntryState.ts` +17 tests; aggregation audit: all money sums use RAW rows, no double count; tsc 0 / lint 0 / 1146). Scope notes: plain→split conversion while editing not offered; split affordance hidden for 外幣/installment; needs operator live pass (add/edit/delete/expand + totals). |
 
+## 183–186 — operator UX batch + 帳本 spike (2026-07-13, planned at `bb051f59`)
+
+Operator-reported items (`/improve` with screenshots). One item needed no
+plan: **多類別記帳的桌面版入口已存在** — EntryDrawer 支出/收入表單選好分類後,
+分類列尾端出現虛線「＋ 分類」按鈕即進入拆分模式（182 的 scope notes:
+編輯既有單筆不能轉拆分、外幣/分期不提供拆分）— answered, nothing to build.
+183/184/185 are independent S-effort UI fixes; 186 is a design spike
+(doc-only, no code) for the 公司/個人 books requirement.
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 183 | 記帳列表金額置右對齊 — `ns-cf-actions` hover 鈕改 absolute overlay（Gmail-style）+ touch 裝置整組隱藏（detail panel 已有同功能）+ day-header Net 對齊 20px 右緣 | P2 | S | — | DONE — reviewed+APPROVED, branch `fix/ai-cashflow-amount-alignment` @ `f13c3fd0` (CSS overlay w/ pointer-events gate + `--ns-shadow-1` per plan's allowance; executor live-verified computed styles on a worktree Vite; tsc 0 / lint 0 / 1155 tests). MERGED to main @ `eb5f30d8` (operator-instructed, 2026-07-13). Plan's Step-3 grep expected 1 match, got 2 — pre-existing unrelated `"14px 20px"` literal at :1533, verified predates plan. |
+| 184 | 持倉表數字對齊 — 未實現損益 % 移至副行（block sub-line）、市值/成本基礎貨幣字尾定寬 `w-9`，數字右緣一致 | P2 | S | — | DONE — reviewed+APPROVED, branch `fix/ai-holdings-numeric-alignment` @ `5179adec` (exactly the 3 in-scope cells; tsc 0 / lint 0 / 1155 tests; greps 1+2 as specced). MERGED to main @ `7814304e` (operator-instructed, 2026-07-13). Executor NOTE: briefly created its branch in the shared checkout by mistake, self-reverted cleanly (verified by reviewer: main @ bb051f59 clean). |
+| 185 | 總覽預算進度只列有設定預算的分類 — 移除「無上限」假進度條分支，空狀態改指引設定預算 | P2 | S | — | DONE — reviewed+APPROVED, branch `fix/ai-dashboard-budget-budgeted-only` @ `4935afcb` (type-predicate filter, 無上限/0.5-bar branches removed, new empty-state copy; tsc 0 / lint 0 / 1155 tests; 無上限 grep = 0). MERGED to main @ `f923875f` (operator-instructed, 2026-07-13). |
+| 186 | 帳本 (Books) design spike — 公司/個人/總帳 scoping model（已決策：bookId on Account）、發票+銷項營業稅 v1 slice（Model A 傾向、B 為 v2 路徑；客戶主檔+帳齡+DSO 入列）、共同記帳終極目標雙向共寫、per-book 淨值/FIRE toggle → `docs/ledger-books-plan.md` | P3 | M | read 176 doc + plan 143 | DONE — reviewed+APPROVED (1 revision round), branch `feat/ai-ledger-books-spike` @ `a03cf86e` (`docs/ledger-books-plan.md` 424 lines, doc-only; 12-surface scoping table, option (a) bookId-on-Account fully specified w/ per-book+總帳 reconciliation identities, Model A tax v1 + Model B/`legKind:"tax"` v2 path w/ A→B migration, dedicated `invoices`+`clients` tables, 5 open questions w/ recommendations). REVISE fixed: DSO must read an explicit `invoices.settledAt` stamped at settle — NOT the ledger row's `updatedAt` (bumped by any later edit). MERGED to main @ `f892a1d6` (operator-instructed, 2026-07-13); Phase 1 build plans cut from `docs/ledger-books-plan.md` after operator reviews its 5 open questions. |
+
+Dependency notes: none between 183–185 (different files: globals.css+CashFlowRoute /
+InvestmentsRoute / DashboardRoute). 186 is paper-only and gates any books build;
+its Phase 3 (shared books) stays blocked on spike 143.
+
 ## 168–169 — 記帳 (Cash Flow) redesign (from Claude Design, 2026-07-12)
 
 Imported from `記帳交易 Redesign.html` (project `a2b50679…`,
