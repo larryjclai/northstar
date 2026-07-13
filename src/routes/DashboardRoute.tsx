@@ -518,10 +518,11 @@ export function DashboardRoute() {
       color: c.color || CHART_COLORS[i % CHART_COLORS.length],
       spent: spendByCat.get(c.name) ?? 0,
     }));
-    // Surface categories that have a budget or some spend; sort by usage.
+    // Only categories with a configured budget — spend-only categories carry no
+    // budget signal here (full spend ranking lives in 記帳 → 分類).
     return cats
-      .filter((c) => c.budget || c.spent > 0)
-      .sort((a, b) => (b.spent / (b.budget || b.spent || 1)) - (a.spent / (a.budget || a.spent || 1)))
+      .filter((c): c is typeof c & { budget: number } => c.budget !== null && c.budget > 0)
+      .sort((a, b) => b.spent / b.budget - a.spent / a.budget)
       .slice(0, 5);
   }, [monthRows, appSettings, toPrimary]);
   const totalBudget = budgetCats.reduce((sum, c) => sum + (c.budget ?? 0), 0);
@@ -1193,20 +1194,20 @@ export function DashboardRoute() {
         <Card style={{ padding: "var(--ns-pad-card)" }}>
           <SectionHead eyebrow={`Budget · ${todayLabel.slice(0, todayLabel.indexOf("月") + 1) || "本月"}`} title="預算進度" action={<Button variant="ghost" size="xs" render={<Link to="/cash-flow/categories" />}>管理分類 →</Button>} />
           {budgetCats.length === 0 ? (
-            <div className="muted text-body">本月尚無支出或預算資料。</div>
+            <div className="muted text-body">尚未設定分類預算 — 到「管理分類」為分類設定每月預算後，這裡會顯示進度。</div>
           ) : (
             <div className="flex flex-col" style={{ gap: 9 }}>
               {budgetCats.map((c) => {
-                const pct = c.budget ? Math.min(c.spent / c.budget, 1) : 0;
-                const over = c.budget ? c.spent > c.budget : false;
+                const pct = Math.min(c.spent / c.budget, 1);
+                const over = c.spent > c.budget;
                 return (
                   <div key={c.name} style={{ display: "grid", gridTemplateColumns: "84px 1fr 132px", gap: 10, alignItems: "center" }}>
                     <span className="text-body truncate">{c.name}</span>
                     <div style={{ height: 7, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
-                      <div style={{ width: `${(c.budget ? pct : 0.5) * 100}%`, height: "100%", background: over ? "var(--ns-neg)" : c.color, borderRadius: 99 }} />
+                      <div style={{ width: `${pct * 100}%`, height: "100%", background: over ? "var(--ns-neg)" : c.color, borderRadius: 99 }} />
                     </div>
                     <div className="text-xs text-right flex justify-end gap-1">
-                      {c.budget ? <span className={"num " + (over ? "neg" : "muted")}>{(pct * 100).toFixed(0)}%</span> : <span className="dim">無上限</span>}
+                      <span className={"num " + (over ? "neg" : "muted")}>{(pct * 100).toFixed(0)}%</span>
                       <span className="dim">·</span>
                       <span className={"num " + (over ? "neg" : "")}>NT${formatNumber(c.spent)}</span>
                     </div>
