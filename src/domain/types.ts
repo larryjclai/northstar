@@ -123,6 +123,14 @@ export interface LedgerTransaction extends SyncFields {
   linkedInvestmentRecordId: string | null;
   groupId: string | null;
   /**
+   * 多類別拆分 leg discriminator: "category" marks a user-created split leg
+   * (one purchase → N sibling rows sharing a `groupId`, each with its own
+   * category + amount). Null/absent = 一般列或系統腿（手續費/轉帳/分期）— those
+   * also share `groupId`s but are not user splits. Optional so pre-split rows
+   * and fixtures stay valid. Phase 2 (分帳) will extend the union with "share".
+   */
+  legKind?: "category" | null;
+  /**
    * Installment plan id shared by every period of one 分期 purchase. Unlike
    * `groupId` (fee/transfer legs that cascade-delete together), installment
    * rows can be deleted individually or scoped to "this and later periods"
@@ -381,6 +389,8 @@ export interface RecalculationReport {
   orphanLedgerIds: string[];
   orphanInvestmentIds: string[];
   incompleteTransferGroupIds: string[];
+  /** 多類別拆分 groups left with exactly 1 active "category" leg (half-arrived sync / half-deleted split). */
+  incompleteSplitGroupIds: string[];
   missingFxPairs: string[];
   changedAccounts: number;
   changedAssets: number;
