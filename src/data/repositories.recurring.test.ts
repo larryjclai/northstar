@@ -33,6 +33,7 @@ const account: Account = {
   type: "cash",
   creditLimit: null,
   creditLimitGroup: "",
+  bookId: "book_test_default",
   isSharedToHousehold: false,
   loanStartDate: null,
   annualInterestRate: null,

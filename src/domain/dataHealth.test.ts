@@ -27,6 +27,7 @@ function makeAccount(overrides: Partial<Account> = {}): Account {
     openingBalance: 0,
     balance: 1000,
     type: "cash",
+    bookId: "book_test_default",
     creditLimit: null,
     creditLimitGroup: "",
     isSharedToHousehold: false,

@@ -16,6 +16,7 @@ function account(overrides: Partial<Account> & Pick<Account, "id" | "name">): Ac
     type: "cash",
     creditLimit: null,
     creditLimitGroup: "",
+    bookId: "book_test_default",
     isSharedToHousehold: false,
     loanStartDate: null,
     annualInterestRate: null,

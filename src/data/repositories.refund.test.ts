@@ -17,6 +17,7 @@ const card: Account = {
   type: "credit",
   creditLimit: 100_000,
   creditLimitGroup: "",
+  bookId: "book_test_default",
   isSharedToHousehold: false,
   loanStartDate: null,
   annualInterestRate: null,

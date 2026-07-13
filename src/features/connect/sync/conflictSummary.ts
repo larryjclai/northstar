@@ -13,6 +13,7 @@ const ENTITY_LABELS: Record<SyncEntity, string> = {
   recurring: "定期項目",
   recurringInvestment: "定期定額",
   goal: "目標",
+  book: "帳本",
   settings: "設定",
 };
 

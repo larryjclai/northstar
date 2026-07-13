@@ -91,13 +91,16 @@ describe("pushPendingChanges", () => {
 
     const result = await pushPendingChanges(repo, account);
 
-    // Two accounts + the always-present app_settings row.
-    expect(result.pushed).toBe(3);
+    // Two accounts + the always-present app_settings row + the default 個人帳
+    // book (every repo now guarantees one, and books sync per-record — plan 188).
+    expect(result.pushed).toBe(4);
     expect(mockedPushEnvelopes).toHaveBeenCalledTimes(1);
     const [authToken, envelopes] = mockedPushEnvelopes.mock.calls[0];
     // No device credential provisioned → legacy account secret is the auth token.
     expect(authToken).toBe(account.apiSecret);
-    expect(envelopes).toHaveLength(3);
+    expect(envelopes).toHaveLength(4);
+    // Exactly one book envelope (the default 個人帳).
+    expect(envelopes.filter((e) => e.entity === "book")).toHaveLength(1);
     expect(envelopes.every((e) => e.deviceId === "device_a")).toBe(true);
 
     // Every envelope carries the full serialised record (the encryption boundary

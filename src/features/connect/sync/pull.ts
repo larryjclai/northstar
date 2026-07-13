@@ -191,7 +191,7 @@ function canonical(entity: SyncEntity, obj: Record<string, unknown>): string {
   return JSON.stringify(sorted);
 }
 
-const VALID_ENTITIES = new Set<SyncEntity>(["account", "ledger", "asset", "investment", "recurring", "recurringInvestment", "goal", "settings"]);
+const VALID_ENTITIES = new Set<SyncEntity>(["account", "ledger", "asset", "investment", "recurring", "recurringInvestment", "goal", "book", "settings"]);
 
 function isValidPayload(envelope: EnvelopeRecord, payload: SyncFields & Record<string, unknown>): boolean {
   return (

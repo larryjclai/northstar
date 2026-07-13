@@ -21,6 +21,7 @@ const accountRows: Account[] = ([
   { id: "a_fubon", name: "富邦證券", type: "investment", currency: "TWD" },
 ] as const).map((a) => ({
   ...a,
+  bookId: "book_test_default",
   openingBalance: 0, balance: 0, creditLimit: null, creditLimitGroup: "",
   statementDay: null, paymentDueDay: null, creditPaymentPaidUntil: null,
   isSharedToHousehold: false, loanStartDate: null, annualInterestRate: null,
