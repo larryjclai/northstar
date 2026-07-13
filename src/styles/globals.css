@@ -1864,6 +1864,33 @@ textarea:focus-visible {
 }
 .ns-cf-month-header:hover { background: var(--ns-bg-hover); }
 
+/* ── 多類別拆分 (plan 182) ──
+   Drawer leg-editor card: one bordered row per category leg. Kept flex-based
+   inside (not a rigid grid) so 分帳 phase 2 can add a counterparty field. */
+.ns-split-leg {
+  border: 1px solid var(--ns-border);
+  border-radius: var(--ns-r-sm);
+  padding: 10px 12px;
+  background: var(--ns-bg-card);
+}
+
+/* Activity list: expanded per-leg lines under a collapsed 拆分 row —
+   indented with a left border like the month-expanded day list. */
+.ns-split-expansion {
+  border-bottom: 1px solid var(--ns-border);
+  background: var(--ns-bg-elev);
+  padding: 4px 0;
+}
+.ns-split-leg-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-left: 35px;
+  border-left: 2px solid var(--ns-border);
+  padding: 4px 20px 4px 14px;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
