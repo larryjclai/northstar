@@ -37,7 +37,9 @@ const ctx: QuickAddContext = {
 };
 
 describe("parseQuickAdd", () => {
-  it("parses an expense with merchant, amount, and matched account", () => {
+  it("parses an expense with a known merchant, amount, and matched account", () => {
+    // 拿鐵 is in ctx.merchantCategory → known merchant → also kept as name
+    // (the merchant was the only leftover text, so it doubles as display name).
     const r = parseQuickAdd("拿鐵 120 信用卡", ctx);
     expect(r).toEqual({
       kind: "ledger",
@@ -45,18 +47,19 @@ describe("parseQuickAdd", () => {
       amount: 120,
       accountId: "a_card",
       merchant: "拿鐵",
+      name: "拿鐵",
       category: "餐飲",
       subcategory: "咖啡",
     });
   });
 
-  it("parses an expense without an account", () => {
+  it("parses an expense without an account (unknown merchant → name only)", () => {
     const r = parseQuickAdd("便當 90", ctx);
-    expect(r).toMatchObject({ kind: "ledger", entryType: "expense", amount: 90, accountId: null, merchant: "便當" });
+    expect(r).toMatchObject({ kind: "ledger", entryType: "expense", amount: 90, accountId: null, merchant: "", name: "便當" });
   });
 
   it("treats a leading + or 收入 as income", () => {
-    expect(parseQuickAdd("+ 接案 5000 錢包", ctx)).toMatchObject({ kind: "ledger", entryType: "income", amount: 5000, accountId: "a_cash", merchant: "接案" });
+    expect(parseQuickAdd("+ 接案 5000 錢包", ctx)).toMatchObject({ kind: "ledger", entryType: "income", amount: 5000, accountId: "a_cash", merchant: "", name: "接案" });
     expect(parseQuickAdd("收入 利息 30", ctx)).toMatchObject({ kind: "ledger", entryType: "income", amount: 30 });
   });
 
@@ -100,9 +103,10 @@ describe("parseQuickAdd – bilingual fixture table", () => {
 
   // ── Known §1 failure cases ──
 
-  it("7-11 50 → merchant 7-11, amount 50 (no longer 7)", () => {
+  it("7-11 50 → name 7-11, amount 50 (no longer 7)", () => {
+    // 7-11 is not a known merchant in this ctx → it stays in the name.
     const r = parseQuickAdd("7-11 50", ctx);
-    expect(r).toMatchObject({ kind: "ledger", amount: 50, merchant: "7-11" });
+    expect(r).toMatchObject({ kind: "ledger", amount: 50, merchant: "", name: "7-11" });
   });
 
   it("富邦 買 2330 5股 → account 富邦證券 via alias", () => {
@@ -110,14 +114,16 @@ describe("parseQuickAdd – bilingual fixture table", () => {
     expect(r).toMatchObject({ kind: "investment", accountId: "a_fubon" });
   });
 
-  it("計程車 250 → 交通/計程車 from seed (cold start)", () => {
+  it("計程車 250 → 交通/計程車 from seed via the name path (cold start)", () => {
+    // 計程車 is not a known merchant → lands in name; category still resolves
+    // to the same 交通 value through the name-token seed lookup.
     const r = parseQuickAdd("計程車 250", ctx);
-    expect(r).toMatchObject({ kind: "ledger", amount: 250, merchant: "計程車", category: "交通" });
+    expect(r).toMatchObject({ kind: "ledger", amount: 250, merchant: "", name: "計程車", category: "交通" });
   });
 
   it("咖啡 一百二 → amount 120 from Chinese numeral", () => {
     const r = parseQuickAdd("咖啡 一百二", ctx);
-    expect(r).toMatchObject({ kind: "ledger", amount: 120, merchant: "咖啡" });
+    expect(r).toMatchObject({ kind: "ledger", amount: 120, merchant: "", name: "咖啡" });
   });
 
   it("5萬 → 50000", () => {
@@ -132,30 +138,30 @@ describe("parseQuickAdd – bilingual fixture table", () => {
 
   // ── English path: preposition cleaning ──
 
-  it("lunch 90 at 信用卡 → merchant 'lunch', preposition stripped", () => {
+  it("lunch 90 at 信用卡 → name 'lunch', preposition stripped", () => {
     const r = parseQuickAdd("lunch 90 at 信用卡", ctx);
     expect(r).toMatchObject({ kind: "ledger", amount: 90, accountId: "a_card" });
-    if (r.kind === "ledger") expect(r.merchant).not.toMatch(/\bat\b/i);
+    if (r.kind === "ledger") expect(r.name).not.toMatch(/\bat\b/i);
   });
 
   it("coffee $4.50 paid with 錢包 → amount 4.5, account cash", () => {
     const r = parseQuickAdd("coffee $4.50 paid with 錢包", ctx);
     expect(r).toMatchObject({ kind: "ledger", amount: 4.5, accountId: "a_cash" });
     if (r.kind === "ledger") {
-      expect(r.merchant).not.toMatch(/\b(paid|with)\b/i);
+      expect(r.name).not.toMatch(/\b(paid|with)\b/i);
     }
   });
 
-  it("dinner from mcdonald's 150 信用卡 → prepositions stripped from merchant", () => {
+  it("dinner from mcdonald's 150 信用卡 → prepositions stripped from name", () => {
     const r = parseQuickAdd("dinner from mcdonald's 150 信用卡", ctx);
     expect(r).toMatchObject({ kind: "ledger", amount: 150, accountId: "a_card" });
-    if (r.kind === "ledger") expect(r.merchant).not.toMatch(/\bfrom\b/i);
+    if (r.kind === "ledger") expect(r.name).not.toMatch(/\bfrom\b/i);
   });
 
   it("groceries using 錢包 200 → amount 200, cash account", () => {
     const r = parseQuickAdd("groceries using 錢包 200", ctx);
     expect(r).toMatchObject({ kind: "ledger", amount: 200, accountId: "a_cash" });
-    if (r.kind === "ledger") expect(r.merchant).not.toMatch(/\busing\b/i);
+    if (r.kind === "ledger") expect(r.name).not.toMatch(/\busing\b/i);
   });
 
   // ── English path: seed category ──
@@ -180,9 +186,9 @@ describe("parseQuickAdd – bilingual fixture table", () => {
     }
   });
 
-  it("3/15 咖啡 80 → date is March 15, merchant is 咖啡", () => {
+  it("3/15 咖啡 80 → date is March 15, name is 咖啡", () => {
     const r = parseQuickAdd("3/15 咖啡 80", { ...ctx, nowDatetimeLocal: TODAY });
-    expect(r).toMatchObject({ kind: "ledger", amount: 80, merchant: "咖啡" });
+    expect(r).toMatchObject({ kind: "ledger", amount: 80, merchant: "", name: "咖啡" });
     if (r.kind === "ledger") expect(r.date).toBe("2026-03-15T00:00");
   });
 
@@ -195,10 +201,10 @@ describe("parseQuickAdd – bilingual fixture table", () => {
 
   // ── No preposition stripping on Chinese text ──
 
-  it("Chinese merchant with 'on'-like substring is not stripped", () => {
+  it("Chinese name with 'on'-like substring is not stripped", () => {
     // "信用卡" doesn't contain ASCII 'on' as a word boundary token
     const r = parseQuickAdd("晚餐 500 信用卡", ctx);
-    expect(r).toMatchObject({ kind: "ledger", amount: 500, merchant: "晚餐", accountId: "a_card" });
+    expect(r).toMatchObject({ kind: "ledger", amount: 500, merchant: "", name: "晚餐", accountId: "a_card" });
   });
 
   // ── Seed alias: cash / card ──
@@ -240,11 +246,11 @@ describe("parseQuickAdd – bilingual fixture table", () => {
     expect(r.category).toBe("餐飲");
   });
 
-  it("without @ syntax, no name field is set", () => {
+  it("without @ syntax, a known merchant doubles as the name when it is the only text", () => {
     const r = parseQuickAdd("拿鐵 120", ctx);
     if (r.kind !== "ledger") throw new Error("expected ledger");
     expect(r.merchant).toBe("拿鐵");
-    expect(r.name).toBeUndefined();
+    expect(r.name).toBe("拿鐵");
   });
 
   it("@price in investment does not collide with @merchant in ledger", () => {
@@ -263,5 +269,73 @@ describe("parseQuickAdd – bilingual fixture table", () => {
     expect(r.merchant).toBe("全聯");
     expect(r.name).toBe("買菜");
     expect(r.amount).toBe(350);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Known-merchant extraction (no-@ path): a merchant the user has recorded
+// before is pulled out of the free text; everything else stays in the name.
+// ---------------------------------------------------------------------------
+describe("parseQuickAdd – known-merchant extraction", () => {
+  const knownCtx: QuickAddContext = {
+    accounts: accountRows,
+    merchantCategory: new Map([
+      ["50嵐", { category: "餐飲", subcategory: "飲料" }],
+      ["麥當勞", { category: "餐飲", subcategory: "外食" }],
+      ["摩斯漢堡", { category: "餐飲", subcategory: "外食" }],
+    ]),
+    lexicon,
+  };
+
+  it("晚餐 50嵐 120 → merchant 50嵐 (exact token), name 晚餐, learned category", () => {
+    const r = parseQuickAdd("晚餐 50嵐 120", knownCtx);
+    if (r.kind !== "ledger") throw new Error("expected ledger");
+    expect(r.amount).toBe(120); // 50嵐's digits must not be read as the amount
+    expect(r.merchant).toBe("50嵐");
+    expect(r.name).toBe("晚餐");
+    expect(r.category).toBe("餐飲");
+    expect(r.subcategory).toBe("飲料");
+  });
+
+  it("花了 50 元在 50嵐吃晚餐 → merchant 50嵐 via substring split, amount 50", () => {
+    const r = parseQuickAdd("花了 50 元在 50嵐吃晚餐", knownCtx);
+    if (r.kind !== "ledger") throw new Error("expected ledger");
+    expect(r.amount).toBe(50);
+    expect(r.merchant).toBe("50嵐");
+    expect(r.name).toContain("晚餐");
+    expect(r.name).not.toContain("50嵐");
+  });
+
+  it("拿鐵 120 with no known merchants → merchant empty, category via name seed path", () => {
+    const emptyCtx: QuickAddContext = { accounts: accountRows, lexicon };
+    const r = parseQuickAdd("拿鐵 120", emptyCtx);
+    if (r.kind !== "ledger") throw new Error("expected ledger");
+    expect(r.merchant).toBe("");
+    expect(r.name).toBe("拿鐵");
+    expect(r.category).toBe("餐飲"); // seed keyword resolved through the name
+  });
+
+  it("@ syntax regression: 午餐 @添飯 120 unchanged even with known merchants present", () => {
+    const r = parseQuickAdd("午餐 @添飯 120", knownCtx);
+    if (r.kind !== "ledger") throw new Error("expected ledger");
+    expect(r.merchant).toBe("添飯");
+    expect(r.name).toBe("午餐");
+    expect(r.amount).toBe(120);
+  });
+
+  it("two known merchants both matching exactly → the longest token wins", () => {
+    const r = parseQuickAdd("麥當勞 摩斯漢堡 100", knownCtx);
+    if (r.kind !== "ledger") throw new Error("expected ledger");
+    expect(r.amount).toBe(100);
+    expect(r.merchant).toBe("摩斯漢堡");
+    expect(r.name).toBe("麥當勞");
+  });
+
+  it("known merchant as the only leftover text → it doubles as the name", () => {
+    const r = parseQuickAdd("50嵐 60", knownCtx);
+    if (r.kind !== "ledger") throw new Error("expected ledger");
+    expect(r.amount).toBe(60);
+    expect(r.merchant).toBe("50嵐");
+    expect(r.name).toBe("50嵐");
   });
 });

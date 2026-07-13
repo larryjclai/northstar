@@ -1,17 +1,23 @@
 // Natural-language Quick Add parser. Turns a single line like
-//   "拿鐵 120 信用卡"           → expense  (merchant 拿鐵, 120, matched account)
+//   "晚餐 50嵐 120"             → expense  (name 晚餐, merchant 50嵐ᵃ, 120)
+//   "拿鐵 120 信用卡"           → expense  (name 拿鐵, 120, matched account)
 //   "午餐 @添飯 120 信用卡"     → name 午餐, merchant 添飯, 120, matched account
 //   "+ 接案 5000 富邦"          → income   (note: 富邦 matches 富邦證券 via alias)
 //   "買 2330.TW 5股 @1042"      → investment buy
-//   "7-11 50"                  → expense  (merchant 7-11, amount 50, not 7)
+//   "7-11 50"                  → expense  (name 7-11, amount 50, not 7)
 //   "一百二 拿鐵"               → expense  (amount 120 from Chinese numeral)
 // into a structured draft. Anything it can't confidently read comes back as
 // `unknown` so the UI can open a prefilled form for the user to finish.
 //
-// @ disambiguation:
-//   Use "@商家名" to pin the store name explicitly. The remaining text becomes
-//   the transaction description (name). Without @, the entire remainder is
-//   treated as merchant (same as before, fully backward-compatible).
+// merchant vs name (description):
+//   1. "@商家名" pins the store explicitly; the remaining text becomes the
+//      description (name).
+//   2. Without @, the leftover text is scanned for a KNOWN merchant — one the
+//      user has recorded before (ctx.merchantCategory / ctx.lexicon.merchants).
+//      ᵃ A hit becomes the merchant (even inside a token: 「50嵐吃晚餐」→
+//      merchant 50嵐, the rest stays in the name); everything else is the name.
+//   3. No known merchant found → merchant stays empty and the whole remainder
+//      is the name, so free text never pollutes merchant statistics.
 //
 // Pass a UserLexicon (built by buildUserLexicon) in ctx.lexicon to enable
 // self-learning aliases, fuzzy account matching, and category inference.
@@ -66,8 +72,9 @@ export type QuickAddParsed =
       entryType: "expense" | "income";
       amount: number;
       accountId: string | null;
+      /** Store/payee. Set from @ syntax or a known-merchant hit; "" otherwise. */
       merchant: string;
-      /** Explicit description/name, distinct from merchant. Only set when @ syntax used.
+      /** Description, distinct from merchant.
        *  e.g. "午餐 @添飯 120" → name="午餐", merchant="添飯" */
       name?: string;
       category: string;
@@ -185,6 +192,112 @@ function resolveCategory(
 }
 
 // ---------------------------------------------------------------------------
+// Known-merchant extraction (no-@ path)
+// ---------------------------------------------------------------------------
+
+/**
+ * Collect every merchant the user has recorded before, from the history-derived
+ * category map and the lexicon (which already includes settings.merchants).
+ * Keyed by lowercased name → canonical spelling. Names shorter than 2 chars are
+ * dropped — they'd split ordinary text far too aggressively.
+ */
+function collectKnownMerchants(ctx: QuickAddContext): Map<string, string> {
+  const known = new Map<string, string>();
+  const add = (raw: string) => {
+    const t = raw.trim();
+    if (t.length < 2) return;
+    const key = t.toLowerCase();
+    if (!known.has(key)) known.set(key, t);
+  };
+  if (ctx.merchantCategory) for (const m of ctx.merchantCategory.keys()) add(m);
+  if (ctx.lexicon) for (const m of ctx.lexicon.merchants) add(m.name);
+  return known;
+}
+
+/**
+ * Mask digit-carrying known merchants (e.g. 50嵐, 85度C) with NUL characters so
+ * the amount scanner doesn't read their digits as the amount —「晚餐 50嵐 120」
+ * must parse 120, not 50. Length-preserving, so amount spans still index into
+ * the original string. Pure-numeric names are left alone (an all-digit token is
+ * more plausibly an amount than a merchant).
+ */
+function maskKnownMerchants(body: string, known: Map<string, string>): string {
+  let masked = body;
+  for (const key of known.keys()) {
+    if (!/\d/.test(key) || !/\D/.test(key)) continue;
+    let lower = masked.toLowerCase();
+    if (lower.length !== masked.length) return masked; // exotic case-folding; bail out
+    let idx = lower.indexOf(key);
+    while (idx >= 0) {
+      masked = masked.slice(0, idx) + " ".repeat(key.length) + masked.slice(idx + key.length);
+      lower = masked.toLowerCase();
+      idx = lower.indexOf(key, idx + key.length);
+    }
+  }
+  return masked;
+}
+
+/**
+ * Find a known merchant inside the leftover free text.
+ * Pass 1 — exact token match (case-insensitive); the longest matching token
+ *          wins when several tokens each match a known merchant.
+ * Pass 2 — known merchant as a substring of a token; the token is split and
+ *          the non-merchant part rejoins the name (「50嵐吃晚餐」→ merchant
+ *          50嵐, 吃晚餐 stays in the name). Longest merchant name wins.
+ */
+function extractKnownMerchant(
+  remainingText: string,
+  known: Map<string, string>,
+): { merchant: string; name: string } | null {
+  if (!remainingText || known.size === 0) return null;
+  const tokens = remainingText.split(/[\s　]+/).filter(Boolean);
+
+  let exactIdx = -1;
+  let exactCanonical = "";
+  tokens.forEach((tok, i) => {
+    const hit = known.get(tok.toLowerCase());
+    if (hit && (exactIdx < 0 || tok.length > tokens[exactIdx].length)) {
+      exactIdx = i;
+      exactCanonical = hit;
+    }
+  });
+  if (exactIdx >= 0) {
+    const name = tokens.filter((_, i) => i !== exactIdx).join(" ").trim();
+    return { merchant: exactCanonical, name };
+  }
+
+  let subIdx = -1;
+  let subCanonical = "";
+  let subStart = -1;
+  let subLen = 0;
+  tokens.forEach((tok, i) => {
+    const lower = tok.toLowerCase();
+    if (lower.length !== tok.length) return; // exotic case-folding; skip token
+    for (const [key, canonical] of known) {
+      const at = lower.indexOf(key);
+      if (at >= 0 && key.length > subLen) {
+        subIdx = i;
+        subCanonical = canonical;
+        subStart = at;
+        subLen = key.length;
+      }
+    }
+  });
+  if (subIdx >= 0) {
+    const tok = tokens[subIdx];
+    const leftover = (tok.slice(0, subStart) + " " + tok.slice(subStart + subLen)).trim();
+    const name = tokens
+      .map((t, i) => (i === subIdx ? leftover : t))
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return { merchant: subCanonical, name };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Main parser
 // ---------------------------------------------------------------------------
 
@@ -257,7 +370,10 @@ export function parseQuickAdd(raw: string, ctx: QuickAddContext): QuickAddParsed
   }
 
   // Use improved amount parser (handles 7-11 bug, Chinese numerals, units, etc.)
-  const amountHit = parseAmount(body);
+  // Scan a masked copy so digit-carrying known merchants (50嵐) aren't read as
+  // amounts; spans from the masked copy index into `body` unchanged.
+  const knownMerchants = collectKnownMerchants(ctx);
+  const amountHit = parseAmount(maskKnownMerchants(body, knownMerchants));
   if (!amountHit) return { kind: "unknown", text };
   const amount = amountHit.value;
 
@@ -271,14 +387,31 @@ export function parseQuickAdd(raw: string, ctx: QuickAddContext): QuickAddParsed
   remainingText = remainingText.replace(/\b(?:at|from|on|for|paid|with|via|using)\b/gi, " ")
     .replace(/\s+/g, " ").trim();
 
-  // When @ syntax is used: merchant = @value, name (description) = remainingText.
-  // Without @: merchant = remainingText (backward-compatible).
-  const merchant = explicitMerchant ?? remainingText;
-  const name = explicitMerchant ? remainingText : undefined;
+  // merchant / name split:
+  //   1. @ syntax → merchant = @value, name (description) = remainingText.
+  //   2. Known merchant found in the remainder → merchant = it, rest = name.
+  //   3. Otherwise merchant stays empty and the whole remainder is the name.
+  let merchant: string;
+  let name: string;
+  if (explicitMerchant) {
+    merchant = explicitMerchant;
+    name = remainingText;
+  } else {
+    const hit = extractKnownMerchant(remainingText, knownMerchants);
+    if (hit) {
+      merchant = hit.merchant;
+      // Keep a display name even when the merchant was the only leftover text.
+      name = hit.name || hit.merchant;
+    } else {
+      merchant = "";
+      name = remainingText;
+    }
+  }
 
-  // Resolve category from merchant; if not found and name differs, try name too.
+  // Resolve category from merchant; when that yields nothing (or merchant is
+  // empty), fall back to the name tokens.
   let { category, subcategory } = resolveCategory(merchant, ctx);
-  if (!category && name) {
+  if (!category && name && name !== merchant) {
     const nameCat = resolveCategory(name, ctx);
     if (nameCat.category) ({ category, subcategory } = nameCat);
   }
@@ -289,7 +422,7 @@ export function parseQuickAdd(raw: string, ctx: QuickAddContext): QuickAddParsed
     amount,
     accountId: account?.id ?? null,
     merchant,
-    ...(name !== undefined ? { name } : {}),
+    name,
     category,
     subcategory,
     ...(parsedDate ? { date: parsedDate } : {}),
