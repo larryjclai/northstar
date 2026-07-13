@@ -29,6 +29,7 @@ import { RecurringRulesTab } from "./RecurringRulesTab";
 import { LedgerDateControl } from "../components/LedgerDateControl";
 import { AccountFilter } from "../components/AccountFilter";
 import { AppSelect } from "../components/AppSelect";
+import { BulkCategorizeCard } from "./BulkCategorizeCard";
 import { CategoryFilter } from "../components/CategoryFilter";
 import { ModalShell } from "../components/ModalShell";
 import { NumberField } from "../components/NumberField";
@@ -1156,6 +1157,8 @@ export function CashFlowRoute() {
               總額不完整：缺少匯率 {missingFx.join("、")}。請至設定更新匯率；原幣交易仍會保留。
             </Card>
           ) : null}
+          {/* Suggest-and-confirm bulk categorization for uncategorized rows (plan 174). */}
+          <BulkCategorizeCard ledgerRows={ledgerRows} accounts={accountRows} settings={appSettings} />
           {/* 未結清 (應收/應付) moved into the right column — see NSLgBottomA. */}
           <div className="mb-5">
         {/* Cashflow Chart */}
