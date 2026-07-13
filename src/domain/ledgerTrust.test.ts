@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { accountBalanceDelta, assertLedgerInvariants, assertTransferInvariants, deriveAccountBalances, findMissingFxPairs } from "./ledgerTrust";
+import { accountBalanceDelta, assertLedgerInvariants, assertTransferInvariants, deriveAccountBalances, findMissingFxPairs, incompleteSplitGroupIds } from "./ledgerTrust";
 import type { Account, LedgerTransaction } from "./types";
 
 const account: Account = {
@@ -85,5 +85,38 @@ describe("ledger trust rules", () => {
     expect(findMissingFxPairs([{ ...account, currency: "USD" }], [], [], {
       primaryCurrency: "TWD", categories: [], merchants: [], exchangeRates: [],
     }, [])).toEqual(["USD/TWD"]);
+  });
+});
+
+describe("incompleteSplitGroupIds", () => {
+  it("reports a lone active category leg's groupId", () => {
+    const lone = ledger("leg1", -100, "settled", { groupId: "group_a", legKind: "category" });
+    expect(incompleteSplitGroupIds([lone])).toEqual(["group_a"]);
+  });
+
+  it("does not report a complete split (≥ 2 active category legs)", () => {
+    const rows = [
+      ledger("leg1", -100, "settled", { groupId: "group_b", legKind: "category" }),
+      ledger("leg2", -50, "settled", { groupId: "group_b", legKind: "category" }),
+    ];
+    expect(incompleteSplitGroupIds(rows)).toEqual([]);
+  });
+
+  it("treats a split whose sibling leg was tombstoned as incomplete", () => {
+    const rows = [
+      ledger("leg1", -100, "settled", { groupId: "group_c", legKind: "category" }),
+      ledger("leg2", -50, "settled", { groupId: "group_c", legKind: "category", deletedAt: "2026-07-01T00:00:00.000Z" }),
+    ];
+    expect(incompleteSplitGroupIds(rows)).toEqual(["group_c"]);
+  });
+
+  it("never reports fee-leg pairs or other system legs (legKind null)", () => {
+    const rows = [
+      ledger("main", -1000, "settled", { groupId: "group_fee" }),
+      ledger("fee", -15, "settled", { groupId: "group_fee" }),
+      // Even a lone system leg sharing a groupId is not a split concern.
+      ledger("lone", -20, "settled", { groupId: "group_lone" }),
+    ];
+    expect(incompleteSplitGroupIds(rows)).toEqual([]);
   });
 });

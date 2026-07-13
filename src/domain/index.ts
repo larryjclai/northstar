@@ -30,6 +30,7 @@ export * from "./quickAdd";
 export * from "./quickAddCorrections";
 export * from "./userLexicon";
 export * from "./recurringDates";
+export * from "./splitLegs";
 export * from "./sync";
 export * from "./investmentCash";
 export * from "./ledgerTrust";

@@ -26,6 +26,7 @@ import { calculateInvestmentAccountQuantity, calculateInvestmentCashDelta, calcu
 import { buildPositionMetrics } from "../domain/portfolioMetrics";
 import { firstFutureRunDate, nextRecurringDate } from "../domain/recurringDates";
 import { buildInstallmentSchedule } from "../domain/installments";
+import { buildSplitLegs, type SplitLegInput, type SplitSharedFields } from "../domain/splitLegs";
 import { toCanonicalSector } from "../domain/canonicalSector";
 import { accountBalanceDelta, assertLedgerInvariants, assertTransferInvariants, buildRecalculationReport, deriveAccountBalances, findMissingFxPairs } from "../domain/ledgerTrust";
 import {
@@ -66,6 +67,8 @@ export interface LedgerDraft {
   settlementStatus: "settled" | "receivable" | "payable";
   note: string;
   groupId?: string | null;
+  /** 多類別拆分 leg discriminator. See LedgerTransaction.legKind. */
+  legKind?: "category" | null;
   feeAmount?: number;
   installmentGroupId?: string | null;
   installmentIndex?: number | null;
@@ -264,6 +267,21 @@ export interface FinanceRepository {
    * later ones go (提前清償/部分取消); without it the whole plan goes.
    */
   deleteInstallmentPlan(installmentGroupId: string, opts?: { fromIndex?: number }): Promise<void>;
+  /**
+   * 多類別拆分: create N sibling rows (`legKind: "category"`) sharing one fresh
+   * groupId, atomically. Legs come from `buildSplitLegs` (total = leg sum by
+   * construction; per-leg positive amounts get the entryType's sign). Deleting
+   * any leg later tombstones the whole group (existing groupId cascade).
+   */
+  createSplit(shared: SplitSharedFields, legs: SplitLegInput[]): Promise<void>;
+  /**
+   * Replace the legs of an existing split group in place. The groupId is
+   * PRESERVED (list grouping and sync identity depend on it). Strategy:
+   * tombstone-all + recreate with the same groupId — every prior row's
+   * revision bumps (so sync LWW propagates the deletes) and fresh rows carry
+   * the new legs. Throws when the group has no active rows.
+   */
+  updateSplit(groupId: string, shared: SplitSharedFields, legs: SplitLegInput[]): Promise<void>;
   updateLedgerTransaction(id: string, input: LedgerDraft): Promise<void>;
   setLedgerReviewed(id: string, reviewed: boolean): Promise<void>;
   setLedgerPostDate(id: string, postDate: string | null): Promise<void>;
@@ -834,6 +852,30 @@ class BrowserFinanceRepository implements FinanceRepository {
         ? bump({ ...row, deletedAt: nowIso() })
         : row,
     );
+    this.recompute();
+    await this.persist();
+  }
+
+  async createSplit(shared: SplitSharedFields, legs: SplitLegInput[]) {
+    const drafts = buildSplitLegs(shared, legs, createId("group"));
+    for (const draft of drafts) assertLedgerInvariants(draft, this.data.accounts);
+    this.data.ledgerTransactions.push(...drafts.map((draft) => createLedgerRow(draft)));
+    this.recompute();
+    await this.persist();
+  }
+
+  async updateSplit(groupId: string, shared: SplitSharedFields, legs: SplitLegInput[]) {
+    // Tombstone-all + recreate with the SAME groupId (simpler than diffing
+    // legs; see FinanceRepository.updateSplit). bump() raises each tombstoned
+    // row's revision so sync LWW propagates the deletes alongside the new rows.
+    const drafts = buildSplitLegs(shared, legs, groupId);
+    for (const draft of drafts) assertLedgerInvariants(draft, this.data.accounts);
+    const hasGroup = this.data.ledgerTransactions.some((row) => row.groupId === groupId && row.deletedAt === null);
+    if (!hasGroup) throw new Error("找不到拆分群組。");
+    this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
+      row.groupId === groupId && row.deletedAt === null ? bump({ ...row, deletedAt: nowIso() }) : row,
+    );
+    this.data.ledgerTransactions.push(...drafts.map((draft) => createLedgerRow(draft)));
     this.recompute();
     await this.persist();
   }
@@ -2192,6 +2234,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("ledger_transactions", "installment_total", "integer");
     await this.ensureSqliteColumn("ledger_transactions", "refund_of_ledger_id", "text");
     await this.ensureSqliteColumn("ledger_transactions", "post_date", "text");
+    await this.ensureSqliteColumn("ledger_transactions", "leg_kind", "text");
     await this.ensureSqliteColumn("recurring_transactions", "counter_account_id", "text");
     await this.db.execute(`create unique index if not exists idx_ledger_recurring_occurrence on ledger_transactions (recurring_occurrence_key) where recurring_occurrence_key is not null and deleted_at is null`);
     await this.ensureSyncInfrastructure();
@@ -2274,7 +2317,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       account_id as accountId, counter_account_id as counterAccountId, date, name, amount, currency, original_amount as originalAmount, original_currency as originalCurrency,
       category, subcategory, merchant, entry_type as entryType, settlement_status as settlementStatus, note,
-      linked_investment_record_id as linkedInvestmentRecordId, group_id as groupId,
+      linked_investment_record_id as linkedInvestmentRecordId, group_id as groupId, leg_kind as legKind,
       installment_group_id as installmentGroupId, installment_index as installmentIndex, installment_total as installmentTotal,
       refund_of_ledger_id as refundOfLedgerId,
       is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId, recurring_rule_id as recurringRuleId,
@@ -2392,6 +2435,38 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       );
     }
     await this.recomputeSqliteAccounts();
+  }
+
+  override async createSplit(shared: SplitSharedFields, legs: SplitLegInput[]) {
+    const drafts = buildSplitLegs(shared, legs, createId("group"));
+    const accounts = await this.listAccounts();
+    for (const draft of drafts) assertLedgerInvariants(draft, accounts);
+    await this.withTransaction(async () => {
+      for (const draft of drafts) await this.insertLedgerRow(createLedgerRow(draft));
+      await this.recomputeSqliteAccounts();
+    });
+  }
+
+  override async updateSplit(groupId: string, shared: SplitSharedFields, legs: SplitLegInput[]) {
+    // Tombstone-all + recreate with the SAME groupId, atomically (a mid-way
+    // failure rolls back both the tombstones and the new legs). Revision bumps
+    // on the tombstoned rows keep sync LWW propagating the deletes.
+    const drafts = buildSplitLegs(shared, legs, groupId);
+    const accounts = await this.listAccounts();
+    for (const draft of drafts) assertLedgerInvariants(draft, accounts);
+    await this.withTransaction(async () => {
+      const existing = await this.db.select<Array<{ count: number }>>(
+        `select count(*) as count from ledger_transactions where group_id = $1 and deleted_at is null`,
+        [groupId],
+      );
+      if ((existing[0]?.count ?? 0) === 0) throw new Error("找不到拆分群組。");
+      await this.db.execute(
+        `update ledger_transactions set deleted_at = $1, updated_at = $1, revision = revision + 1 where group_id = $2 and deleted_at is null`,
+        [nowIso(), groupId],
+      );
+      for (const draft of drafts) await this.insertLedgerRow(createLedgerRow(draft));
+      await this.recomputeSqliteAccounts();
+    });
   }
 
   override async createTransfer(input: TransferDraft) {
@@ -3995,8 +4070,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   private async insertLedgerRow(row: LedgerTransaction) {
     const now = nowIso();
     await this.db.execute(
-      `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, counter_account_id, date, name, amount, currency, original_amount, original_currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id, recurring_rule_id, recurring_occurrence_key, installment_group_id, installment_index, installment_total, refund_of_ledger_id, post_date)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)`,
+      `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, counter_account_id, date, name, amount, currency, original_amount, original_currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id, recurring_rule_id, recurring_occurrence_key, installment_group_id, installment_index, installment_total, refund_of_ledger_id, post_date, leg_kind)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32)`,
       [
         row.id,
         row.spaceId ?? personalSpace,
@@ -4029,6 +4104,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         row.installmentTotal ?? null,
         row.refundOfLedgerId ?? null,
         row.postDate ?? null,
+        row.legKind ?? null,
       ],
     );
   }
@@ -5129,6 +5205,7 @@ function createLedgerRow(input: LedgerDraft & { recurringRuleId?: string | null 
     note: input.note,
     linkedInvestmentRecordId: null,
     groupId: input.groupId ?? null,
+    legKind: input.legKind ?? null,
     installmentGroupId: input.installmentGroupId ?? null,
     installmentIndex: input.installmentIndex ?? null,
     installmentTotal: input.installmentTotal ?? null,

@@ -163,10 +163,27 @@ export function buildRecalculationReport(
     incompleteTransferGroupIds: [...transferGroups.entries()]
       .filter(([, rows]) => rows.filter((row) => row.entryType === "transfer").length !== 2)
       .map(([groupId]) => groupId),
+    incompleteSplitGroupIds: incompleteSplitGroupIds(ledger),
     missingFxPairs,
     changedAccounts: accountDifferences.length,
     changedAssets: assetDifferences.length,
   };
+}
+
+/**
+ * 多類別拆分 partial-group guard (mirrors incompleteTransferGroupIds): a split
+ * needs ≥ 2 active `legKind === "category"` legs, so a groupId whose active
+ * category-leg count is exactly 1 signals a half-arrived sync or half-deleted
+ * split. System legs (手續費/轉帳 — legKind null) are never counted, so fee
+ * pairs and transfers can never be reported here.
+ */
+export function incompleteSplitGroupIds(ledger: LedgerTransaction[]): string[] {
+  const counts = new Map<string, number>();
+  for (const row of ledger) {
+    if (row.deletedAt !== null || row.legKind !== "category" || !row.groupId) continue;
+    counts.set(row.groupId, (counts.get(row.groupId) ?? 0) + 1);
+  }
+  return [...counts.entries()].filter(([, count]) => count === 1).map(([groupId]) => groupId);
 }
 
 export function findMissingFxPairs(
