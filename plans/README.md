@@ -9,13 +9,14 @@ spec + its own Status block; this index keeps only **live, actionable state**.
 > re-reads it. All removed detail is preserved in each plan file and in this
 > file's git history (`git log -p plans/README.md`). Nothing was lost.
 
-## Current state — 2026-07-13 (`main` @ `7d883f7a`, v0.1.0-alpha.59)
+## Current state — 2026-07-13 (`main` @ `48a74719`, v0.1.0-alpha.59)
 
-- **170–178 (`/improve next` direction batch): ALL executed, reviewed+APPROVED, and MERGED to `main`.**
-  Combined-main gates green: `tsc --noEmit` 0, `lint` 0 errors, **1093 tests**. Spikes
-  172 (index-nudge) / 176 (split-legs) and the Tier-2 (175) draft await **operator
-  decisions** before any follow-on build — see the per-row ⚠ notes and Open follow-ups.
-  Not pushed to remote (local merges only).
+- **170–182: ALL executed, reviewed+APPROVED, and MERGED to `main`.** The
+  operator decided all three spike outcomes (172→A+TWR, 176→MOZE-style splits,
+  175→Tier 2 parked; pain points → 180) and the decision builds 179–182 are in.
+  Combined-main gates green: `tsc --noEmit` 0, `lint` 0 errors, **1155 tests**.
+  Not pushed to remote (local merges only). Outstanding: operator live pass on
+  the 182 split flows + 179 nudge visuals; old spikes 142/143 remain TODO.
 
 ## Earlier state — 2026-07-12 (`main` @ `4ac63576`, v0.1.0-alpha.58)
 
