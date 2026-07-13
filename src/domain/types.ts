@@ -61,12 +61,35 @@ export interface SyncFields {
   deletedAt: string | null;
 }
 
+export type BookKind = "personal" | "company";
+
+/**
+ * 帳本 (Book) — a partition of accounts, e.g. 個人帳 vs 公司帳. `Account.bookId`
+ * is the only join point (plan 188 / docs/ledger-books-plan.md §2a);
+ * `LedgerTransaction` carries no book field of its own — it inherits its book
+ * transitively through `accountId`. Every space always has at least one book
+ * (the default 「個人帳」, kind "personal") — repositories guarantee this via
+ * an idempotent backfill, so `Account.bookId` is never null at rest.
+ */
+export interface Book extends SyncFields {
+  name: string;
+  kind: BookKind;
+  /** Whether this book's accounts count toward the 總覽 (personal) net-worth KPIs. */
+  includeInPersonalNetWorth: boolean;
+  /** Whether this book's accounts feed the FIRE / runway projections. */
+  includeInFireMetrics: boolean;
+  color: string | null;
+}
+
 export interface Account extends SyncFields {
   name: string;
   currency: CurrencyCode;
   openingBalance: number;
   balance: number;
   type: AccountType;
+  /** 帳本 (Book) this account belongs to. See `Book`. Backfilled to the
+   *  default 個人帳 for any pre-books account — never null at rest. */
+  bookId: string;
   creditLimit: number | null;
   creditLimitGroup: string;
   /** Credit cards: statement closing day of month (1-31). Null for non-credit. */

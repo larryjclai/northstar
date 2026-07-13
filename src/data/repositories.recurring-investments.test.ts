@@ -16,6 +16,7 @@ const cash: Account = {
   type: "investment",
   creditLimit: null,
   creditLimitGroup: "",
+  bookId: "book_test_default",
   isSharedToHousehold: false,
   loanStartDate: null,
   annualInterestRate: null,

@@ -5,6 +5,7 @@ import type { RepositoryData } from "./repositories";
 /** Minimal RepositoryData for the market-data store context. */
 function makeData(overrides: Partial<RepositoryData> = {}): RepositoryData {
   return {
+    books: [],
     accounts: [],
     ledgerTransactions: [],
     portfolioAssets: [],

@@ -4,6 +4,8 @@ import type {
   Account,
   AppSettings,
   AssetType,
+  Book,
+  BookKind,
   DailyFxRate,
   DailyPrice,
   FinancialGoal,
@@ -80,7 +82,12 @@ export interface LedgerDraft {
 
 export type AccountDraft = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "creditPaymentPaidUntil" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color" | "bankBrandDomain"> & {
   customGroup?: string;
+  /** 帳本 the account belongs to. Omitted → repositories assign the default 個人帳. */
+  bookId?: string;
 };
+
+/** Fields a caller supplies to create/update a 帳本 (Book). */
+export type BookDraft = Pick<Book, "name" | "kind" | "includeInPersonalNetWorth" | "includeInFireMetrics" | "color">;
 
 export interface RecurringDraft {
   accountId: string;
@@ -250,6 +257,11 @@ export interface FinancialGoalDraft {
 
 export interface FinanceRepository {
   initialize(): Promise<void>;
+  /** 帳本 (Books). There is always at least the default 個人帳. No delete yet
+   *  (soft-delete needs account-reassignment UX — deferred to a later phase). */
+  listBooks(): Promise<Book[]>;
+  createBook(input: BookDraft): Promise<void>;
+  updateBook(id: string, input: BookDraft): Promise<void>;
   listAccounts(): Promise<Account[]>;
   createAccount(input: AccountDraft): Promise<void>;
   updateAccount(id: string, input: AccountDraft): Promise<void>;
@@ -379,6 +391,8 @@ export interface FinanceRepository {
 export interface RepositorySnapshot {
   version: number;
   exportedAt: string;
+  /** 帳本 (Books). Optional so pre-books backups round-trip cleanly. */
+  books?: Book[];
   accounts: Account[];
   ledgerTransactions: LedgerTransaction[];
   portfolioAssets: PortfolioAsset[];
@@ -415,6 +429,7 @@ const defaultSettings: AppSettings = {
 };
 
 export interface RepositoryData {
+  books: Book[];
   accounts: Account[];
   ledgerTransactions: LedgerTransaction[];
   portfolioAssets: PortfolioAsset[];
@@ -616,14 +631,48 @@ class BrowserFinanceRepository implements FinanceRepository {
   loadDataForTests(data: Partial<RepositoryData>) {
     this.skipPersist = true;
     this.data = normalizeStoredData({ ...createInitialData(), ...data });
+    this.ensureDefaultBookInMemory();
   }
 
   async initialize() {
     const stored = await loadBrowserRepositoryData(this.storageKey);
     this.data = stored ? normalizeStoredData(stored) : createInitialData();
+    this.ensureDefaultBookInMemory();
     this.backfillUnassignedAccountInMemory();
     this.recompute();
     await this.persist();
+  }
+
+  /**
+   * Guarantee a default 帳本 (個人帳) exists and that every account belongs to a
+   * book — the browser mirror of `ensureSqliteDefaultBook`. Idempotent: once a
+   * personal book exists and no account has an empty bookId, it's a no-op.
+   * Returns the default book id so createAccount can assign it.
+   */
+  protected ensureDefaultBookInMemory(): string {
+    let defaultBook = this.data.books.find((book) => book.deletedAt === null && book.kind === "personal");
+    if (!defaultBook) {
+      const timestamp = nowIso();
+      defaultBook = {
+        id: createId("book"),
+        spaceId: personalSpace,
+        revision: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        deletedAt: null,
+        name: "個人帳",
+        kind: "personal",
+        includeInPersonalNetWorth: true,
+        includeInFireMetrics: true,
+        color: null,
+      };
+      this.data.books.push(defaultBook);
+    }
+    const defaultId = defaultBook.id;
+    this.data.accounts = this.data.accounts.map((account) =>
+      account.bookId ? account : bump({ ...account, bookId: defaultId }),
+    );
+    return defaultId;
   }
 
   /**
@@ -657,6 +706,7 @@ class BrowserFinanceRepository implements FinanceRepository {
         openingBalance: 0,
         balance: 0,
         type: "investment",
+        bookId: this.ensureDefaultBookInMemory(),
         creditLimit: null,
         creditLimitGroup: "",
         isSharedToHousehold: false,
@@ -689,6 +739,42 @@ class BrowserFinanceRepository implements FinanceRepository {
     }
   }
 
+  async listBooks() {
+    return active(this.data.books).map((row) => ({ ...row, color: row.color ?? null }));
+  }
+
+  async createBook(input: BookDraft) {
+    const timestamp = nowIso();
+    this.data.books.push({
+      id: createId("book"),
+      spaceId: personalSpace,
+      revision: 1,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      deletedAt: null,
+      name: input.name,
+      kind: input.kind,
+      includeInPersonalNetWorth: input.includeInPersonalNetWorth,
+      includeInFireMetrics: input.includeInFireMetrics,
+      color: input.color ?? null,
+    });
+    await this.persist();
+  }
+
+  async updateBook(id: string, input: BookDraft) {
+    this.data.books = this.data.books.map((book) =>
+      book.id === id ? bump({
+        ...book,
+        name: input.name,
+        kind: input.kind,
+        includeInPersonalNetWorth: input.includeInPersonalNetWorth,
+        includeInFireMetrics: input.includeInFireMetrics,
+        color: input.color ?? null,
+      }) : book,
+    );
+    await this.persist();
+  }
+
   async listAccounts() {
     return active(this.data.accounts).map((row) => ({
       ...row,
@@ -705,6 +791,7 @@ class BrowserFinanceRepository implements FinanceRepository {
 
   async createAccount(input: AccountDraft) {
     const timestamp = nowIso();
+    const bookId = input.bookId || this.ensureDefaultBookInMemory();
     this.data.accounts.push({
       id: createId("acct"),
       spaceId: personalSpace,
@@ -714,6 +801,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       deletedAt: null,
       balance: input.openingBalance,
       ...input,
+      bookId,
       creditLimit: input.type === "credit" ? input.creditLimit : null,
       creditLimitGroup: input.type === "credit" ? input.creditLimitGroup : "",
       statementDay: input.type === "credit" ? (input.statementDay ?? null) : null,
@@ -731,6 +819,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       account.id === id ? bump({
         ...account,
         ...input,
+        bookId: input.bookId ?? account.bookId,
         creditLimit: input.type === "credit" ? input.creditLimit : null,
         creditLimitGroup: input.type === "credit" ? input.creditLimitGroup : "",
         loanStartDate: input.type === "loan" ? (input.loanStartDate ?? null) : null,
@@ -1538,6 +1627,7 @@ class BrowserFinanceRepository implements FinanceRepository {
     return {
       version: 1,
       exportedAt: nowIso(),
+      books: this.data.books,
       accounts: this.data.accounts,
       ledgerTransactions: this.data.ledgerTransactions,
       portfolioAssets: this.data.portfolioAssets,
@@ -1560,6 +1650,7 @@ class BrowserFinanceRepository implements FinanceRepository {
   // deleted_at filter that the public list* methods apply.
   protected async allSyncRecords(): Promise<SyncSource> {
     return {
+      books: this.data.books,
       accounts: this.data.accounts,
       ledgerTransactions: this.data.ledgerTransactions,
       portfolioAssets: this.data.portfolioAssets,
@@ -1635,6 +1726,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       recurring: this.data.recurringTransactions,
       recurringInvestment: this.data.recurringInvestments,
       goal: this.data.financialGoals,
+      book: this.data.books,
     };
     return (rowsByEntity[entity].find((row) => row.id === entityId) as unknown as Record<string, unknown> | undefined) ?? null;
   }
@@ -1652,6 +1744,7 @@ class BrowserFinanceRepository implements FinanceRepository {
 
   async importSnapshot(snapshot: RepositorySnapshot) {
     this.data = normalizeStoredData({
+      books: snapshot.books,
       accounts: snapshot.accounts,
       ledgerTransactions: snapshot.ledgerTransactions,
       portfolioAssets: snapshot.portfolioAssets,
@@ -1667,6 +1760,9 @@ class BrowserFinanceRepository implements FinanceRepository {
       financialGoals: snapshot.financialGoals,
       manualPriceSnapshots: snapshot.manualPriceSnapshots,
     });
+    // A pre-books snapshot carries no books; guarantee the default 個人帳 and
+    // that every imported account belongs to a book before deriving anything.
+    this.ensureDefaultBookInMemory();
     // Recompute balances from the merged ledger/investment data so two devices
     // that each had different transactions converge to the same balance after sync,
     // instead of keeping whichever device's stale stored balance "won" the merge.
@@ -1691,6 +1787,7 @@ class BrowserFinanceRepository implements FinanceRepository {
         recurring: "recurringTransactions",
         recurringInvestment: "recurringInvestments",
         goal: "financialGoals",
+        book: "books",
       } as const;
       // Recurring-occurrence de-dup: when two devices each post the same
       // occurrence, both rows arrive via sync under one recurringOccurrenceKey.
@@ -2126,6 +2223,10 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("accounts", "credit_payment_paid_until", "text");
     await this.ensureSqliteColumn("accounts", "payment_due_day", "integer");
     await this.ensureSqliteColumn("accounts", "custom_group", "text not null default ''");
+    // 帳本 (Books, plan 188): the `books` table is created via migration 5; the
+    // join column is additive on `accounts`. Empty string is the "unassigned"
+    // sentinel that ensureSqliteDefaultBook() replaces with the default 個人帳.
+    await this.ensureSqliteColumn("accounts", "book_id", "text not null default ''");
     await this.ensureSqliteColumn("portfolio_assets", "holding_source", "text not null default 'transactions'");
     await this.ensureSqliteColumn("portfolio_assets", "acquisition_date", "text");
     await this.ensureSqliteColumn("portfolio_assets", "name_zh", "text");
@@ -2238,6 +2339,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("recurring_transactions", "counter_account_id", "text");
     await this.db.execute(`create unique index if not exists idx_ledger_recurring_occurrence on ledger_transactions (recurring_occurrence_key) where recurring_occurrence_key is not null and deleted_at is null`);
     await this.ensureSyncInfrastructure();
+    await this.ensureSqliteDefaultBook();
     await this.backfillUnassignedAccount();
     await this.ensureDefaultSettings();
     const rows = await this.db.select<Array<{ count: number }>>("select count(*) as count from accounts");
@@ -2258,12 +2360,70 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     return value === 1 || value === true;
   }
 
+  /**
+   * Guarantee a default 帳本 (個人帳) row and assign every book-less account to
+   * it. SQLite mirror of `ensureDefaultBookInMemory`. Idempotent: the insert is
+   * skipped once a personal book exists, and the update only touches accounts
+   * whose book_id is still the empty sentinel.
+   */
+  private async ensureSqliteDefaultBook(): Promise<string> {
+    const existing = await this.db.select<Array<{ id: string }>>(
+      `select id from books where kind = 'personal' and deleted_at is null order by created_at, id limit 1`,
+    );
+    let defaultId = existing[0]?.id;
+    if (!defaultId) {
+      defaultId = createId("book");
+      const timestamp = nowIso();
+      await this.db.execute(
+        `insert into books (id, space_id, revision, created_at, updated_at, deleted_at, name, kind, include_in_personal_net_worth, include_in_fire_metrics, color)
+         values ($1,$2,1,$3,$3,null,$4,'personal',1,1,null)`,
+        [defaultId, personalSpace, timestamp, "個人帳"],
+      );
+    }
+    // Backfill orphan accounts. Bump revision so the assignment propagates over
+    // sync (a device that synced these accounts pre-books needs the higher
+    // revision to accept book_id under last-write-wins).
+    await this.db.execute(
+      `update accounts set book_id = $1, updated_at = $2, revision = revision + 1 where book_id = '' or book_id is null`,
+      [defaultId, nowIso()],
+    );
+    return defaultId;
+  }
+
+  override async listBooks() {
+    return (await this.db.select<Book[]>(`select
+      id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
+      name, kind, include_in_personal_net_worth as includeInPersonalNetWorth, include_in_fire_metrics as includeInFireMetrics, color
+      from books where deleted_at is null order by created_at, id`)).map((row) => ({
+        ...row,
+        includeInPersonalNetWorth: this.toBool(row.includeInPersonalNetWorth),
+        includeInFireMetrics: this.toBool(row.includeInFireMetrics),
+        color: row.color ?? null,
+      }));
+  }
+
+  override async createBook(input: BookDraft) {
+    const timestamp = nowIso();
+    await this.db.execute(
+      `insert into books (id, space_id, revision, created_at, updated_at, deleted_at, name, kind, include_in_personal_net_worth, include_in_fire_metrics, color)
+       values ($1,$2,1,$3,$3,null,$4,$5,$6,$7,$8)`,
+      [createId("book"), personalSpace, timestamp, input.name, input.kind, Number(input.includeInPersonalNetWorth), Number(input.includeInFireMetrics), input.color ?? null],
+    );
+  }
+
+  override async updateBook(id: string, input: BookDraft) {
+    await this.db.execute(
+      `update books set revision = revision + 1, updated_at = $1, name = $2, kind = $3, include_in_personal_net_worth = $4, include_in_fire_metrics = $5, color = $6 where id = $7`,
+      [nowIso(), input.name, input.kind, Number(input.includeInPersonalNetWorth), Number(input.includeInFireMetrics), input.color ?? null, id],
+    );
+  }
+
   override async listAccounts() {
     return (await this.db.select<Account[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
       name, currency, opening_balance as openingBalance, balance, type, credit_limit as creditLimit, credit_limit_group as creditLimitGroup, is_shared_to_household as isSharedToHousehold,
       loan_start_date as loanStartDate, annual_interest_rate as annualInterestRate, loan_term as loanTerm, icon_name as iconName, color, bank_brand_domain as bankBrandDomain, statement_day as statementDay, payment_due_day as paymentDueDay,
-      credit_payment_paid_until as creditPaymentPaidUntil, custom_group as customGroup
+      credit_payment_paid_until as creditPaymentPaidUntil, custom_group as customGroup, book_id as bookId
       from accounts where deleted_at is null order by name`)).map((row) => ({
         ...row,
         creditLimit: row.creditLimit ?? null,
@@ -2279,22 +2439,26 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         paymentDueDay: row.paymentDueDay ?? null,
         creditPaymentPaidUntil: (row as any).creditPaymentPaidUntil ?? null,
         customGroup: row.customGroup ?? "",
+        bookId: row.bookId ?? "",
       }));
   }
 
   override async createAccount(input: AccountDraft) {
     const timestamp = nowIso();
+    const bookId = input.bookId || (await this.ensureSqliteDefaultBook());
     await this.db.execute(
-      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, bank_brand_domain, statement_day, payment_due_day, credit_payment_paid_until, custom_group)
-       values ($1,$2,1,$3,$3,null,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
-      [createId("acct"), personalSpace, timestamp, input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.bankBrandDomain ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, null, input.customGroup?.trim() ?? ""],
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, bank_brand_domain, statement_day, payment_due_day, credit_payment_paid_until, custom_group, book_id)
+       values ($1,$2,1,$3,$3,null,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+      [createId("acct"), personalSpace, timestamp, input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.bankBrandDomain ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, null, input.customGroup?.trim() ?? "", bookId],
     );
   }
 
   override async updateAccount(id: string, input: AccountDraft) {
+    // Only overwrite book_id when the caller supplies one, otherwise preserve
+    // the account's current book (coalesce keeps the existing value).
     await this.db.execute(
-      `update accounts set revision = revision + 1, updated_at = $1, name = $2, currency = $3, opening_balance = $4, type = $5, credit_limit = $6, credit_limit_group = $7, is_shared_to_household = $8, loan_start_date = $9, annual_interest_rate = $10, loan_term = $11, icon_name = $12, color = $13, bank_brand_domain = $14, statement_day = $15, payment_due_day = $16, credit_payment_paid_until = $17, custom_group = $18 where id = $19`,
-      [nowIso(), input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.bankBrandDomain ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, input.creditPaymentPaidUntil ?? null, input.customGroup?.trim() ?? "", id],
+      `update accounts set revision = revision + 1, updated_at = $1, name = $2, currency = $3, opening_balance = $4, type = $5, credit_limit = $6, credit_limit_group = $7, is_shared_to_household = $8, loan_start_date = $9, annual_interest_rate = $10, loan_term = $11, icon_name = $12, color = $13, bank_brand_domain = $14, statement_day = $15, payment_due_day = $16, credit_payment_paid_until = $17, custom_group = $18, book_id = coalesce($19, book_id) where id = $20`,
+      [nowIso(), input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.bankBrandDomain ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, input.creditPaymentPaidUntil ?? null, input.customGroup?.trim() ?? "", input.bookId ?? null, id],
     );
     await this.recomputeSqliteAccounts();
   }
@@ -3609,7 +3773,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       this.db.select<Array<{ id: string; revision: number; updatedAt: string; deletedAt: string | null }>>(
         `select id, revision, updated_at as updatedAt, deleted_at as deletedAt from ${table}`,
       );
-    const [accounts, ledger, assets, investments, recurring, recurringInvestments, goals] = await Promise.all([
+    const [accounts, ledger, assets, investments, recurring, recurringInvestments, goals, books] = await Promise.all([
       q("accounts"),
       q("ledger_transactions"),
       q("portfolio_assets"),
@@ -3617,6 +3781,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       q("recurring_transactions"),
       q("recurring_investments"),
       q("financial_goals"),
+      q("books"),
     ]);
     const metaRows = await this.db.select<Array<{ value: string }>>(`select value from app_settings where key = '__settingsMeta'`);
     const meta = metaRows[0] ? JSON.parse(metaRows[0].value) : { revision: 1, updatedAt: nowIso() };
@@ -3628,6 +3793,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       recurringTransactions: recurring,
       recurringInvestments,
       financialGoals: goals,
+      books,
       appSettings: [{ id: "app_settings", revision: meta.revision ?? 1, updatedAt: meta.updatedAt ?? nowIso(), deletedAt: null }],
     };
   }
@@ -3719,6 +3885,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         recurring: "recurring_transactions",
         recurringInvestment: "recurring_investments",
         goal: "financial_goals",
+        book: "books",
       };
       await this.db.execute(
         `update ${tableByEntity[conflict.entity]} set revision = revision + 1, updated_at = $1 where id = $2`,
@@ -3748,6 +3915,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       recurring: "recurring_transactions",
       recurringInvestment: "recurring_investments",
       goal: "financial_goals",
+      book: "books",
     };
     const rows = await this.db.select<Array<Record<string, unknown>>>(
       `select * from ${tableByEntity[entity]} where id = $1 limit 1`,
@@ -3778,6 +3946,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       recurring: "recurring_transactions",
       recurringInvestment: "recurring_investments",
       goal: "financial_goals",
+      book: "books",
     };
     const table = tableByEntity[entity];
 
@@ -3853,7 +4022,11 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       await this.db.execute("delete from accounts");
       await this.db.execute("delete from app_settings");
       await this.db.execute("delete from financial_goals");
+      await this.db.execute("delete from books");
       console.debug("[import] cleared existing tables");
+
+      for (const book of snapshot.books ?? []) await this.insertBookRow(book);
+      console.debug(`[import] inserted ${(snapshot.books ?? []).length} books`);
 
       for (const account of snapshot.accounts) await this.insertAccountRow(account);
       console.debug(`[import] inserted ${snapshot.accounts.length} accounts`);
@@ -3963,6 +4136,10 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         updatedAt: snapshot.settingsUpdatedAt ?? nowIso(),
       }));
       });
+      // A pre-books snapshot carries no books; guarantee the default 個人帳 and
+      // assign any book-less imported account to it. (Outside the transaction —
+      // withTransaction has already committed.)
+      await this.ensureSqliteDefaultBook();
       // Recompute account balances from the just-imported ledger transactions
       // so two devices that had different transactions converge after sync.
       // (Outside the transaction — withTransaction has already committed.)
@@ -3999,11 +4176,32 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   // createdAt, updatedAt. Boolean-as-integer columns: Number(x ?? false)
   // guards against Number(undefined) = NaN.
 
+  private async insertBookRow(row: Book) {
+    const now = nowIso();
+    await this.db.execute(
+      `insert into books (id, space_id, revision, created_at, updated_at, deleted_at, name, kind, include_in_personal_net_worth, include_in_fire_metrics, color)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [
+        row.id,
+        row.spaceId ?? personalSpace,
+        row.revision ?? 1,
+        row.createdAt ?? now,
+        row.updatedAt ?? now,
+        row.deletedAt ?? null,
+        row.name ?? "",
+        (row.kind ?? "personal") as BookKind,
+        Number(row.includeInPersonalNetWorth ?? true),
+        Number(row.includeInFireMetrics ?? true),
+        row.color ?? null,
+      ],
+    );
+  }
+
   private async insertAccountRow(row: Account) {
     const now = nowIso();
     await this.db.execute(
-      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, bank_brand_domain, statement_day, payment_due_day, credit_payment_paid_until, custom_group)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, bank_brand_domain, statement_day, payment_due_day, credit_payment_paid_until, custom_group, book_id)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
       [
         row.id,
         row.spaceId ?? personalSpace,
@@ -4029,6 +4227,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         row.paymentDueDay ?? null,
         row.creditPaymentPaidUntil ?? null,
         row.customGroup ?? "",
+        // Empty sentinel when a pre-books account arrives via import/sync;
+        // ensureSqliteDefaultBook() (run after import) assigns the default book.
+        row.bookId ?? "",
       ],
     );
   }
@@ -4369,6 +4570,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       ["recurring_transactions", "recurring"],
       ["recurring_investments", "recurringInvestment"],
       ["financial_goals", "goal"],
+      ["books", "book"],
     ];
     for (const [table, entity] of tables) {
       await this.db.execute(`create trigger if not exists sync_outbox_${entity}_insert
@@ -4436,6 +4638,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       ["recurring_transactions", "recurring"],
       ["recurring_investments", "recurringInvestment"],
       ["financial_goals", "goal"],
+      ["books", "book"],
     ];
     for (const [table, entity] of tables) {
       await this.db.execute(
@@ -4475,6 +4678,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       recurring: "recurring_transactions",
       recurringInvestment: "recurring_investments",
       goal: "financial_goals",
+      book: "books",
     };
     await this.db.execute(`delete from ${tableByEntity[change.entity]} where id = $1`, [String(payload.id)]);
     switch (change.entity) {
@@ -4510,6 +4714,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       case "recurring": await this.insertRecurringRow(payload as unknown as RecurringTransaction); break;
       case "recurringInvestment": await this.insertRecurringInvestmentRow(payload as unknown as RecurringInvestment); break;
       case "goal": await this.insertGoalRow(payload as unknown as FinancialGoal); break;
+      case "book": await this.insertBookRow(payload as unknown as Book); break;
     }
   }
 
@@ -4566,10 +4771,14 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
     const id = createId("acct");
     const timestamp = nowIso();
+    // ensureSqliteDefaultBook() runs before this in initialize(), so assign the
+    // default book directly rather than leaving the '' sentinel (which nothing
+    // downstream would re-resolve for a fresh Unassigned account).
+    const bookId = await this.ensureSqliteDefaultBook();
     await this.db.execute(
-      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household)
-       values ($1,$2,1,$3,$3,null,$4,$5,0,0,$6,null,'',0)`,
-      [id, personalSpace, timestamp, unassignedAccountName, "TWD", "investment"],
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, book_id)
+       values ($1,$2,1,$3,$3,null,$4,$5,0,0,$6,null,'',0,$7)`,
+      [id, personalSpace, timestamp, unassignedAccountName, "TWD", "investment", bookId],
     );
     return id;
   }
@@ -4649,6 +4858,10 @@ function normalizeSqliteSyncPayload(entity: SyncEntity, row: Record<string, unkn
   }
   if (entity === "recurring") payload.isActive = Boolean(payload.isActive);
   if (entity === "recurringInvestment") payload.isActive = Boolean(payload.isActive);
+  if (entity === "book") {
+    payload.includeInPersonalNetWorth = Boolean(payload.includeInPersonalNetWorth);
+    payload.includeInFireMetrics = Boolean(payload.includeInFireMetrics);
+  }
   if (entity === "goal") {
     payload.spendingItems = parseJsonValue(payload.spendingItems, []);
     payload.incomeItems = parseJsonValue(payload.incomeItems, []);
@@ -4669,6 +4882,7 @@ function parseJsonValue<T>(value: unknown, fallback: T): T {
 function createInitialData(): RepositoryData {
   const now = nowIso();
   return {
+    books: [],
     accounts: [...seedAccounts],
     ledgerTransactions: [...seedLedgerTransactions],
     portfolioAssets: [...seedAssets],
@@ -4807,8 +5021,12 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
   const materializedRecords = materializeOpeningRecords(portfolioAssets, reconciled.records);
   const repaired = repairCashlessLedgerLegs(data.ledgerTransactions ?? [], materializedRecords);
   return {
+    books: (data.books ?? []).map((book) => ({ ...book, color: book.color ?? null })),
     accounts: (data.accounts ?? []).map((account) => ({
       ...account,
+      // Empty string is the "unassigned" sentinel; ensureDefaultBook*() replaces
+      // it with the default 個人帳 id. Never leave bookId undefined at rest.
+      bookId: account.bookId ?? "",
       creditLimit: account.creditLimit ?? null,
       creditLimitGroup: account.creditLimitGroup ?? "",
       bankBrandDomain: account.bankBrandDomain ?? null,
