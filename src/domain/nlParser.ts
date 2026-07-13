@@ -40,18 +40,26 @@ export interface OrchestratedResult {
 /**
  * Returns true when Tier 0's result is unusable OR looks messy enough that the
  * on-device model is likely to do better. Clean single-token results (e.g.
- * "拿鐵 120 信用卡" → merchant "拿鐵") stay on Tier 0 so they remain instant;
+ * "拿鐵 120 信用卡" → name "拿鐵") stay on Tier 0 so they remain instant;
  * natural-language sentences ("我在 全家便利商店 午餐 300") escalate to Tier 1.
+ *
+ * Tier 0 splits merchant (@ syntax or a known-merchant hit) from name (the
+ * leftover description), so BOTH fields are inspected: the sentence blob lands
+ * in `name` when no merchant is recognised, and messy filler can remain in
+ * `name` even when a known merchant was extracted (「花了 50 元在 50嵐吃晚餐」
+ * → merchant 50嵐, name still carries the 花了/元在 filler).
  */
 function tier0Insufficient(r: QuickAddParsed): boolean {
   if (r.kind === "unknown") return true;
   if (r.kind === "ledger") {
-    const m = r.merchant.trim();
-    // Leftover merchant still has internal whitespace → rules couldn't segment
-    // the description from the store; let the model split it.
-    if (/\s/.test(m)) return true;
-    // Sentence-style filler words that indicate free-form natural language.
-    if (/(我在|花了|付了|買了|吃了|喝了|剛剛|剛才|我去|去了)/.test(m)) return true;
+    for (const field of [r.merchant, r.name ?? ""]) {
+      const t = field.trim();
+      // Internal whitespace → rules couldn't segment the text; let the model
+      // split it.
+      if (/\s/.test(t)) return true;
+      // Sentence-style filler words that indicate free-form natural language.
+      if (/(我在|花了|付了|買了|吃了|喝了|剛剛|剛才|我去|去了)/.test(t)) return true;
+    }
     return false;
   }
   return false; // investment: trust Tier 0's structured extraction

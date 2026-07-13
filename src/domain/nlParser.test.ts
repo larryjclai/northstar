@@ -55,6 +55,42 @@ describe("orchestrate – Tier 0 sufficient", () => {
     const { source } = await orchestrate("拿鐵 120 信用卡", ctx, parser);
     expect(source).toBe("rules");
   });
+
+  it("clean single-token input (name only, merchant empty) does NOT escalate", async () => {
+    const parser = makeParser();
+    // "拿鐵 120" → merchant "", name "拿鐵" — clean, stays on Tier 0.
+    const { result, source } = await orchestrate("拿鐵 120", ctx, parser);
+    expect(source).toBe("rules");
+    expect(result.kind).toBe("ledger");
+    expect(parser.available).not.toHaveBeenCalled();
+    expect(parser.parse).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tier 0 messy name — sentence blobs now live in `name` (merchant only holds
+// @/known-merchant hits), so escalation gating must inspect both fields.
+// ---------------------------------------------------------------------------
+describe("orchestrate – messy name escalates to on-device parser", () => {
+  it("unknown-merchant sentence: multi-token blob in name → escalates", async () => {
+    const parser = makeParser();
+    // Tier 0 → merchant "", name "我在 全家便利商店 午餐" (whitespace + filler).
+    const { source } = await orchestrate("我在 全家便利商店 午餐 300", ctx, parser);
+    expect(parser.parse).toHaveBeenCalledOnce();
+    expect(source).toBe("on-device");
+  });
+
+  it("known-merchant hit with messy leftover name → still escalates", async () => {
+    const parser = makeParser();
+    const knownCtx: QuickAddContext = {
+      ...ctx,
+      merchantCategory: new Map([["50嵐", { category: "餐飲", subcategory: "飲料" }]]),
+    };
+    // Tier 0 → merchant "50嵐" (clean), name "花了 元在 吃晚餐" (messy filler).
+    const { source } = await orchestrate("花了 50 元在 50嵐吃晚餐", knownCtx, parser);
+    expect(parser.parse).toHaveBeenCalledOnce();
+    expect(source).toBe("on-device");
+  });
 });
 
 // ---------------------------------------------------------------------------
