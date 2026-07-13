@@ -56,6 +56,23 @@ Direction findings NOT re-planned: household sharing → existing TODO spike
 **143**; DCA rework → existing TODO spike **142**; iOS $99 enrollment /
 signing / App Store Connect = operator-only (177 Phase B).
 
+## 179–180 — operator decisions on the spikes (2026-07-13, planned at `f8473bef`)
+
+Operator reviewed the 172/175/176 decision points:
+- **172 → decided: variant A + 全面改接 TWR** → build plan **179**.
+- **175 Tier 2 → effectively deferred**; operator instead reported two real
+  Quick Add pain points (no merchant autocomplete; merchant/name duplication
+  without `@`) → build plan **180**. Tier 2 §12 draft stays parked in the spec.
+- **176 → presentation under discussion**: operator wants MOZE-style display
+  (one collapsed row in the list, expandable to legs) — compatible with the
+  spike's sibling-legs model; the **entry flow** (拆分 in-drawer vs 事後拆分)
+  is still being decided with mockups. No build plan yet.
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 179 | Index Nudge variant A + repoint analytics Alpha card & Dashboard benchmarkGap to TWR (fixed-basket fallback + 口徑 labels; suggestive copy; params 8 windows / 5pp hardcoded) | P2 | L | 172 (done) | TODO |
+| 180 | Quick Add 商家 autocomplete dropdown + known-merchant extraction (stop name/merchant duplication without `@`) — sanctioned quickAdd.test.ts merchant/name assertion updates, category VALUES must not change | P2 | M | — | TODO |
+
 ## 168–169 — 記帳 (Cash Flow) redesign (from Claude Design, 2026-07-12)
 
 Imported from `記帳交易 Redesign.html` (project `a2b50679…`,
