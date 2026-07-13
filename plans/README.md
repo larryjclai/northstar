@@ -9,7 +9,15 @@ spec + its own Status block; this index keeps only **live, actionable state**.
 > re-reads it. All removed detail is preserved in each plan file and in this
 > file's git history (`git log -p plans/README.md`). Nothing was lost.
 
-## Current state — 2026-07-12 (`main` @ `4ac63576`, v0.1.0-alpha.58)
+## Current state — 2026-07-13 (`main` @ `7d883f7a`, v0.1.0-alpha.59)
+
+- **170–178 (`/improve next` direction batch): ALL executed, reviewed+APPROVED, and MERGED to `main`.**
+  Combined-main gates green: `tsc --noEmit` 0, `lint` 0 errors, **1093 tests**. Spikes
+  172 (index-nudge) / 176 (split-legs) and the Tier-2 (175) draft await **operator
+  decisions** before any follow-on build — see the per-row ⚠ notes and Open follow-ups.
+  Not pushed to remote (local merges only).
+
+## Earlier state — 2026-07-12 (`main` @ `4ac63576`, v0.1.0-alpha.58)
 
 - **001–155: all DONE and merged to `main`.** Per-plan detail is in each
   `NNN-*.md` and git history. Grouped record below. Only two in that range were
