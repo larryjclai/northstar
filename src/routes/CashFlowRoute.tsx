@@ -1152,7 +1152,7 @@ export function CashFlowRoute() {
       <div
         className="ns-cf-day-header flex items-center justify-between"
         style={{
-          padding: indented ? "10px 20px" : "14px 22px",
+          padding: indented ? "10px 20px" : "14px 20px",
           borderBottom: "1px solid var(--ns-border)",
           background: "var(--ns-bg-elev)",
         }}
