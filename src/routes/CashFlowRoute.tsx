@@ -49,7 +49,20 @@ import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer
 import { useToast } from "../components/Toast";
 import { activeFilterChips } from "./activeFilterChips";
 import type { LedgerDraft, TransferDraft } from "../data/repositories";
-import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, evaluateAmountExpression, filterCategoriesByType, formatNumber, installmentLabel, isNeutralLedgerRow, isWithinDateScope, makeDefaultDateScope, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, resolveDateScope, todayInTimezone } from "../domain";
+import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, classifyLedgerGroup, evaluateAmountExpression, filterCategoriesByType, formatNumber, installmentLabel, isNeutralLedgerRow, isWithinDateScope, makeDefaultDateScope, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, resolveDateScope, todayInTimezone } from "../domain";
+import type { SplitLegInput, SplitSharedFields } from "../domain/splitLegs";
+import {
+  addSplitLeg,
+  derivedSplitTotal,
+  enterSplitMode,
+  makeEmptySplitLeg,
+  removeSplitLeg,
+  shouldExitSplitMode,
+  splitLegsError,
+  toSplitLegInputs,
+  updateSplitLeg,
+  type SplitLegDraftState,
+} from "./splitEntryState";
 import { convertCurrency, buildDailyRateIndex, formatCompactNumber } from "../domain/currency";
 import type { Account, DateScopeValue, LedgerTransaction, RecurringFrequency, RecurringTransaction, ResolvedDateScope } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
@@ -180,6 +193,13 @@ export function CashFlowRoute() {
   const [installmentDeletePrompt, setInstallmentDeletePrompt] = useState<LedgerTransaction | null>(null);
 
   const [ledgerForm, setLedgerForm] = useState<LedgerDraft>(emptyLedger);
+  // 多類別拆分 (plan 182): non-null = the drawer is in MOZE-style split mode,
+  // one row per category leg. `editingSplitGroupId` is set while editing an
+  // existing split group (save goes through updateSplit with this groupId).
+  const [splitLegs, setSplitLegs] = useState<SplitLegDraftState[] | null>(null);
+  const [editingSplitGroupId, setEditingSplitGroupId] = useState<string | null>(null);
+  // Expanded 拆分 groups in the activity list (collapsed by default).
+  const [expandedSplits, setExpandedSplits] = useState<Set<string>>(new Set());
   const [amountExpression, setAmountExpression] = useState(String(Math.abs(emptyLedger.amount)));
   const [entryDisplayCurrency, setEntryDisplayCurrency] = useState(emptyLedger.currency);
   const [transferForm, setTransferForm] = useState<TransferDraft>(emptyTransfer);
@@ -245,7 +265,6 @@ export function CashFlowRoute() {
       ? filterCategoriesByType(allCategories, drawerType)
       : allCategories;
   const categoryNames = categories.map((category) => category.name);
-  const subcategories = categories.find((category) => category.name === ledgerForm.category)?.children ?? [];
   const dateRange = useMemo(() => resolveDateScope(dateScope, timezone), [dateScope, timezone]);
 
   const merchants = appSettings?.merchants ?? [];
@@ -311,6 +330,16 @@ export function CashFlowRoute() {
     (repository, input: LedgerDraft[]) => repository.importLedgerTransactions(input),
     ["ledger", "accounts"],
   );
+  const createSplitMutation = useRepositoryMutation(
+    (repository, input: { shared: SplitSharedFields; legs: SplitLegInput[] }) =>
+      repository.createSplit(input.shared, input.legs),
+    ["ledger", "accounts"],
+  );
+  const updateSplitMutation = useRepositoryMutation(
+    (repository, input: { groupId: string; shared: SplitSharedFields; legs: SplitLegInput[] }) =>
+      repository.updateSplit(input.groupId, input.shared, input.legs),
+    ["ledger", "accounts"],
+  );
   const createInstallmentPlan = useRepositoryMutation(
     (repository, input: { draft: LedgerDraft; periods: number }) =>
       repository.createInstallmentPlan(input.draft, input.periods),
@@ -367,11 +396,29 @@ export function CashFlowRoute() {
     });
   }
 
+  /**
+   * The active user-split legs of `row`'s group, or null when the row is not
+   * part of a 多類別拆分. Requires EVERY leg to carry `legKind: "category"` —
+   * a fee-leg pair (legKind null) also classifies as "split" (same account,
+   * shared groupId) but must keep today's single-row edit behavior, never
+   * open the split editor.
+   */
+  function splitGroupRowsFor(row: LedgerTransaction): LedgerTransaction[] | null {
+    if (!row.groupId) return null;
+    const rows = ledgerRows.filter((r) => r.groupId === row.groupId && r.deletedAt === null);
+    if (rows.length < 2) return null;
+    if (classifyLedgerGroup(rows) !== "split") return null;
+    if (!rows.every((r) => r.legKind === "category")) return null;
+    return rows;
+  }
+
   function openCreate(type: CashType) {
     setDrawerType(type);
     setDrawerOpen(true);
     setEditingId(null);
     setEditingRecurringRuleId(null);
+    setSplitLegs(null);
+    setEditingSplitGroupId(null);
     // Always default a fresh entry to a one-off transaction. The control is
     // component-level state, so without this reset it would "stick" to whatever
     // recurrence the previous entry used.
@@ -404,12 +451,23 @@ export function CashFlowRoute() {
     setDrawerOpen(false);
     setEditingId(null);
     setEditingRecurringRuleId(null);
+    setSplitLegs(null);
+    setEditingSplitGroupId(null);
     setInstallmentPeriods(0);
     setMessage("");
   }
 
   function changeType(next: CashType) {
+    // Editing an existing 拆分 group must stay expense/income — switching to
+    // transfer/ar/ap would drop the legs and then save a single row over one
+    // leg of the group. Ignore those taps while a split edit is open.
+    if (editingSplitGroupId && next !== "expense" && next !== "income") return;
     setDrawerType(next);
+    // Split mode only exists for expense/income; leaving them drops the legs.
+    if (next !== "expense" && next !== "income") {
+      setSplitLegs(null);
+      setEditingSplitGroupId(null);
+    }
     if (next === "transfer") {
       setTransferForm({ ...emptyTransfer, date: nowAsDatetimeLocal(timezone) });
     } else {
@@ -438,9 +496,60 @@ export function CashFlowRoute() {
           : "expense";
   }
 
+  /**
+   * Hydrate the drawer's split mode from an existing 拆分 group: shared
+   * fields come from the first leg, one editable leg row per group leg.
+   * `duplicate` opens the same form in create mode (a fresh group on save).
+   * Note: leg row ids change on every updateSplit (tombstone + recreate), so
+   * nothing here caches leg ids — only the stable groupId.
+   */
+  function startSplitEdit(groupRows: LedgerTransaction[], duplicate = false) {
+    const first = groupRows[0];
+    setDrawerType(first.entryType === "income" ? "income" : "expense");
+    setEditingId(duplicate ? null : first.id);
+    setEditingSplitGroupId(duplicate ? null : first.groupId);
+    setEditingRecurringRuleId(null);
+    setCounterparty("");
+    setDueDate("");
+    setLedgerForm({
+      accountId: first.accountId,
+      counterAccountId: null,
+      date: first.date,
+      name: first.name,
+      amount: first.amount,
+      currency: first.currency,
+      category: first.category,
+      subcategory: first.subcategory,
+      merchant: first.merchant,
+      entryType: first.entryType,
+      settlementStatus: "settled",
+      note: first.note,
+      postDate: first.postDate ?? null,
+    });
+    setEntryDisplayCurrency(first.currency);
+    const total = groupRows.reduce((sum, r) => sum + Math.abs(r.amount), 0);
+    setAmountExpression(String(total));
+    setSplitLegs(groupRows.map((r) => ({
+      amount: String(Math.abs(r.amount)),
+      category: r.category,
+      subcategory: r.subcategory,
+    })));
+    setDrawerRecurringFreq("none");
+    setInstallmentPeriods(0);
+    setMessage("");
+    setDrawerOpen(true);
+  }
+
   function startEdit(row: LedgerTransaction) {
+    const splitRows = splitGroupRowsFor(row);
+    if (splitRows) {
+      startSplitEdit(splitRows);
+      return;
+    }
     const type = cashTypeFromRow(row);
     setDrawerType(type);
+    setSplitLegs(null);
+    setEditingSplitGroupId(null);
     setEditingId(row.id);
     setCounterparty(row.settlementStatus === "settled" ? "" : row.merchant);
     setDueDate("");
@@ -471,8 +580,15 @@ export function CashFlowRoute() {
   }
 
   function startDuplicate(row: LedgerTransaction, transferPair?: { source: LedgerTransaction; dest: LedgerTransaction }) {
+    const splitRows = splitGroupRowsFor(row);
+    if (splitRows) {
+      startSplitEdit(splitRows, true);
+      return;
+    }
     const type = cashTypeFromRow(row);
     setDrawerType(type);
+    setSplitLegs(null);
+    setEditingSplitGroupId(null);
     setEditingId(null);
     setEditingRecurringRuleId(null);
     setDrawerRecurringFreq("none");
@@ -522,6 +638,39 @@ export function CashFlowRoute() {
   async function submitLedger() {
     setMessage("");
     try {
+      // 多類別拆分: split mode saves through createSplit/updateSplit and never
+      // touches the single-row path below (which stays byte-identical).
+      if (splitLegs && (drawerType === "expense" || drawerType === "income")) {
+        const legsError = splitLegsError(splitLegs);
+        if (legsError) throw new Error(legsError);
+        if (!ledgerForm.accountId) throw new Error("請選擇帳戶。");
+        const splitEntryType = entryTypeFor(drawerType) as "expense" | "income";
+        const isCreditSplit = splitEntryType === "expense"
+          && accountRows.find((a) => a.id === ledgerForm.accountId)?.type === "credit";
+        const shared: SplitSharedFields = {
+          accountId: ledgerForm.accountId,
+          date: ledgerForm.date,
+          name: ledgerForm.name.trim(),
+          merchant: ledgerForm.merchant.trim(),
+          currency: ledgerForm.currency,
+          entryType: splitEntryType,
+          settlementStatus: "settled",
+          note: ledgerForm.note,
+          postDate: isCreditSplit ? (ledgerForm.postDate || null) : null,
+        };
+        const legs = toSplitLegInputs(splitLegs);
+        if (editingId && editingSplitGroupId) {
+          await updateSplitMutation.mutateAsync({ groupId: editingSplitGroupId, shared, legs });
+          toast.success("已更新拆分交易");
+        } else {
+          await createSplitMutation.mutateAsync({ shared, legs });
+          toast.success(`已新增拆分交易（${legs.length} 筆分類）`);
+        }
+        await rememberCategories.mutateAsync(legs.map((leg) => ({ category: leg.category, subcategory: leg.subcategory })));
+        rememberMerchantNames([shared.merchant]);
+        closeDrawer();
+        return;
+      }
       const rawAmount = Math.abs(evaluateAmountExpression(amountExpression));
       const entryType = entryTypeFor(drawerType);
       const isForeignCurrency = entryDisplayCurrency !== ledgerForm.currency;
@@ -668,10 +817,10 @@ export function CashFlowRoute() {
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: string, successMessage = "已刪除交易") {
     try {
       await deleteLedger.mutateAsync(id);
-      toast.success("已刪除交易");
+      toast.success(successMessage);
     } catch (e) {
       toast.error("刪除失敗");
     }
@@ -680,6 +829,10 @@ export function CashFlowRoute() {
   function requestDelete(row: LedgerTransaction) {
     if (row.installmentGroupId) {
       setInstallmentDeletePrompt(row);
+    } else if (splitGroupRowsFor(row)) {
+      // Deleting any leg of a 拆分 cascades to the whole group (repo-level
+      // groupId cascade) — say so instead of pretending it was one row.
+      void handleDelete(row.id, "已整組刪除拆分交易");
     } else {
       void handleDelete(row.id);
     }
@@ -948,6 +1101,16 @@ export function CashFlowRoute() {
       return next;
     });
   };
+  // Row tap on a collapsed 拆分 group toggles its inline per-leg expansion
+  // (mirrors toggleMonth; the detail panel is not used for split groups).
+  const toggleSplit = (groupId: string) => {
+    setExpandedSplits((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
 
   const periodLabel = dateRange.label;
 
@@ -1008,6 +1171,9 @@ export function CashFlowRoute() {
             key={r.id}
             row={r}
             transferPair={r.transferPair}
+            splitLegs={r.splitLegs}
+            splitExpanded={Boolean(r.splitLegs && r.groupId && expandedSplits.has(r.groupId))}
+            onToggleSplit={() => { if (r.groupId) toggleSplit(r.groupId); }}
             accountName={accountName}
             categoryIcon={catGroup?.iconName || undefined}
             onEdit={() => setDetailRow(r)}
@@ -1528,7 +1694,6 @@ export function CashFlowRoute() {
         dueDate={dueDate}
         setDueDate={setDueDate}
         categories={categories}
-        subcategories={subcategories}
         merchantSuggestions={merchantSuggestions}
         categorySuggestions={categorySuggestions}
         categoryForMerchant={categoryForMerchant}
@@ -1542,6 +1707,8 @@ export function CashFlowRoute() {
         recurringRows={recurringRows}
         installmentPeriods={installmentPeriods}
         setInstallmentPeriods={setInstallmentPeriods}
+        splitLegs={splitLegs}
+        setSplitLegs={setSplitLegs}
         onOpenImport={() => csvInputRef.current?.click()}
       />
       <CategoryManagementDrawer
@@ -1784,6 +1951,9 @@ function InstallmentDeleteModal({
 function LedgerRow({
   row,
   transferPair,
+  splitLegs,
+  splitExpanded,
+  onToggleSplit,
   accountName,
   categoryIcon,
   onEdit,
@@ -1795,6 +1965,11 @@ function LedgerRow({
   row: LedgerTransaction;
   /** When set, this row is a collapsed transfer (both legs) — render 來源 → 目標. */
   transferPair?: { source: LedgerTransaction; dest: LedgerTransaction };
+  /** When set, this row is a collapsed 多類別拆分 (all legs, `amount` = total). */
+  splitLegs?: LedgerTransaction[];
+  splitExpanded?: boolean;
+  /** Row click on a split → toggle the inline per-leg expansion. */
+  onToggleSplit?: () => void;
   accountName: (id: string) => string;
   categoryIcon?: string;
   /** Row click → open the detail panel. */
@@ -1806,6 +1981,64 @@ function LedgerRow({
   onSettle: () => void;
 }) {
   const isTransfer = row.entryType === "transfer";
+
+  // Collapsed 拆分 group: one row (merchant + derived total +「拆分 N 筆」),
+  // tap to expand into its per-category legs. Edit/delete act on the group.
+  if (splitLegs && splitLegs.length > 0) {
+    const positive = row.amount >= 0;
+    const color = positive ? "var(--ns-pos)" : "var(--ns-neg)";
+    const sign = positive ? "+" : "−";
+    const subtitle = [row.merchant || null, row.accountId ? accountName(row.accountId) : null]
+      .filter(Boolean)
+      .join(" · ");
+    return (
+      <>
+        <div
+          className="ns-cf-row flex items-center gap-3 cursor-pointer"
+          onClick={onToggleSplit}
+          style={{ padding: "9px 20px", borderBottom: "1px solid var(--ns-border)" }}
+        >
+          <div className="w-[30px] h-[30px] shrink-0 flex items-center justify-center" style={{ borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)" }}>
+            <Receipt size={14} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium whitespace-nowrap overflow-hidden text-ellipsis">
+                {row.name || row.merchant || "多類別"}
+              </span>
+              <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-accent)", borderColor: "var(--ns-accent)" }}>
+                拆分 {splitLegs.length} 筆
+              </Badge>
+              {splitExpanded ? <CaretDown size={11} style={{ color: "var(--ns-fg-muted)", flexShrink: 0 }} /> : <CaretRight size={11} style={{ color: "var(--ns-fg-muted)", flexShrink: 0 }} />}
+            </div>
+            <div className="muted text-caption truncate">{subtitle}</div>
+          </div>
+          <div className="text-right">
+            <div className="num text-[14.5px]" style={{ color }}>{sign}{currencySymbol(row.currency)}{formatNumber(Math.abs(row.amount))}</div>
+          </div>
+          <div className="ns-cf-actions flex gap-1" onClick={(e) => e.stopPropagation()}>
+            <Button variant="ghost" size="icon-sm" title="編輯拆分" onClick={onOpenEdit}><PencilSimple size={13} /></Button>
+            <Button variant="ghost" size="icon-sm" title="複製" onClick={onDuplicate}><CopySimple size={13} /></Button>
+            <Button variant="ghost" size="icon-sm" title="刪除（整組刪除）" onClick={onDelete} style={{ color: "var(--ns-neg)" }}><Trash size={13} /></Button>
+          </div>
+        </div>
+        {splitExpanded ? (
+          <div className="ns-split-expansion">
+            {splitLegs.map((leg) => (
+              <div key={leg.id} className="ns-split-leg-line">
+                <span className="muted text-caption truncate">
+                  {leg.category || "未分類"}{leg.subcategory ? ` / ${leg.subcategory}` : ""}
+                </span>
+                <span className="muted text-caption" style={{ fontFamily: "var(--ns-font-mono)", whiteSpace: "nowrap" }}>
+                  {leg.amount >= 0 ? "+" : "−"}{currencySymbol(leg.currency)}{formatNumber(Math.abs(leg.amount))}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </>
+    );
+  }
 
   // Collapsed transfer: one row, 來源帳戶 → 目標帳戶, source outflow as the
   // headline figure plus the destination amount (and rate when cross-currency).
@@ -2069,7 +2302,6 @@ function EntryDrawer({
   dueDate,
   setDueDate,
   categories,
-  subcategories,
   merchantSuggestions,
   categorySuggestions,
   categoryForMerchant,
@@ -2083,6 +2315,8 @@ function EntryDrawer({
   recurringRows,
   installmentPeriods,
   setInstallmentPeriods,
+  splitLegs,
+  setSplitLegs,
   onOpenImport,
 }: {
   open: boolean;
@@ -2104,7 +2338,6 @@ function EntryDrawer({
   dueDate: string;
   setDueDate: (value: string) => void;
   categories: Array<{ name: string; children: string[]; color?: string; iconName?: string }>;
-  subcategories: string[];
   merchantSuggestions: string[];
   categorySuggestions: { merchants: string[]; accountIds: string[] };
   categoryForMerchant: (merchant: string) => { category: string; subcategory: string } | null;
@@ -2118,6 +2351,9 @@ function EntryDrawer({
   recurringRows: import("../domain").RecurringTransaction[];
   installmentPeriods: number;
   setInstallmentPeriods: (v: number) => void;
+  /** 多類別拆分 legs — null = plain single-category form (plan 182). */
+  splitLegs: SplitLegDraftState[] | null;
+  setSplitLegs: (legs: SplitLegDraftState[] | null) => void;
   onOpenImport?: () => void;
 }) {
   const [amountFocused, setAmountFocused] = useState(false);
@@ -2252,14 +2488,53 @@ function EntryDrawer({
     return { converted, rate };
   })();
 
+  // 多類別拆分 (plan 182): non-null legs put the expense/income form in MOZE-
+  // style split mode — per-leg category+amount rows, the main amount field
+  // becomes the derived Σ legs (read-only), save goes through create/updateSplit.
+  const splitMode = isAcct && splitLegs !== null;
+  const splitTotal = splitMode && splitLegs ? derivedSplitTotal(splitLegs) : 0;
+  const splitError = splitMode && splitLegs ? splitLegsError(splitLegs) : null;
+  // The「＋ 分類」affordance: only once a category is picked, only for plain
+  // (non-editing, non-installment) expense/income drafts, and not while the
+  // amount is being entered in a foreign currency (splits store one account-
+  // currency amount per leg; no originalAmount support on legs).
+  const canEnterSplit =
+    isAcct && !splitMode && !editing && !activeInstallment && !isForeignEntry && Boolean(ledgerForm.category.trim());
+
+  function enterSplit() {
+    // Legs are amounts in the ACCOUNT currency; pin the display currency so a
+    // later currency-selector change can't desync the derived total's unit.
+    setEntryDisplayCurrency(ledgerForm.currency);
+    setSplitLegs(enterSplitMode({
+      category: ledgerForm.category,
+      subcategory: ledgerForm.subcategory,
+      amountExpression,
+    }));
+  }
+
+  function removeLegAt(index: number) {
+    if (!splitLegs) return;
+    const next = removeSplitLeg(splitLegs, index);
+    if (shouldExitSplitMode(next)) {
+      // Down to 1 leg → back to the plain form carrying that leg's values.
+      const remaining = next[0] ?? makeEmptySplitLeg();
+      setLedgerForm({ ...ledgerForm, category: remaining.category, subcategory: remaining.subcategory });
+      setAmountExpression(remaining.amount || "0");
+      setSplitLegs(null);
+    } else {
+      setSplitLegs(next);
+    }
+  }
+
   // History-driven suggestions for the chosen category, shown as one-tap chips.
   // Only surfaced while the relevant field is still empty so we never override
-  // a value the user already entered.
+  // a value the user already entered. Split mode hides them: `ledgerForm.category`
+  // is stale there (legs own the categories).
   const hasCategory = Boolean(ledgerForm.category.trim());
-  const merchantChips = hasCategory && !ledgerForm.merchant.trim()
+  const merchantChips = !splitMode && hasCategory && !ledgerForm.merchant.trim()
     ? categorySuggestions.merchants.filter((m) => m && m !== ledgerForm.merchant)
     : [];
-  const accountChips = hasCategory && !ledgerForm.accountId
+  const accountChips = !splitMode && hasCategory && !ledgerForm.accountId
     ? categorySuggestions.accountIds
         .map((id) => accountRows.find((a) => a.id === id))
         .filter((a): a is (typeof accountRows)[number] => Boolean(a))
@@ -2344,8 +2619,14 @@ function EntryDrawer({
               </span>
             </div>
           )}
-          {/* Amount */}
-          <DrawerField label={`${meta.eyebrow} · ${type === "transfer" ? transferForm.sourceCurrency : entryDisplayCurrency}`} required>
+          {/* Amount — in split mode this is the READ-ONLY derived Σ of the
+              leg amounts (MOZE:「多類別 $180」), never directly editable. */}
+          <DrawerField
+            label={splitMode
+              ? `多類別 · 共 ${ledgerForm.currency} ${formatNumber(splitTotal)}`
+              : `${meta.eyebrow} · ${type === "transfer" ? transferForm.sourceCurrency : entryDisplayCurrency}`}
+            required
+          >
             <div style={{
               display: "flex", alignItems: "center",
               background: "var(--ns-bg-elev)",
@@ -2354,7 +2635,7 @@ function EntryDrawer({
               borderRadius: "var(--ns-r-sm)", height: 52, overflow: "hidden",
               transition: "border-color 0.12s, box-shadow 0.12s",
             }}>
-              {isAcct && entryCurrencies.length > 1 ? (
+              {isAcct && entryCurrencies.length > 1 && !splitMode ? (
                 <AppSelect
                   value={entryDisplayCurrency}
                   onChange={setEntryDisplayCurrency}
@@ -2376,10 +2657,23 @@ function EntryDrawer({
                   height: "100%", display: "flex", alignItems: "center",
                   userSelect: "none",
                 }}>
-                  {type === "transfer" ? transferForm.sourceCurrency : entryDisplayCurrency}
+                  {type === "transfer" ? transferForm.sourceCurrency : splitMode ? ledgerForm.currency : entryDisplayCurrency}
                 </span>
               )}
-              {type === "transfer" ? (
+              {splitMode ? (
+                <div
+                  className="text-stat"
+                  aria-label="多類別總金額（各明細加總）"
+                  style={{
+                    flex: 1, padding: "0 14px", fontFamily: "var(--ns-font-mono)",
+                    color: meta.color, textAlign: "right", height: "100%",
+                    minWidth: 0, display: "flex", alignItems: "center", justifyContent: "flex-end",
+                    fontVariantNumeric: "tabular-nums lining-nums",
+                  }}
+                >
+                  {formatNumber(splitTotal)}
+                </div>
+              ) : type === "transfer" ? (
                 <NumberField
                   className="text-stat"
                   style={{
@@ -2418,6 +2712,11 @@ function EntryDrawer({
                 />
               )}
             </div>
+            {splitMode && (
+              <div className="muted text-caption" style={{ marginTop: 5 }}>
+                總金額為下方各分類明細金額的加總。
+              </div>
+            )}
             {convertedHint && (
               <div className="muted text-caption" style={{ marginTop: 5 }}>
                 ≈ {ledgerForm.currency} {formatNumber(convertedHint.converted)}（1 {entryDisplayCurrency} ≈ {convertedHint.rate} {ledgerForm.currency}）
@@ -2524,59 +2823,96 @@ function EntryDrawer({
           {/* Expense / income — progressive flow: 分類 → 帳戶 → 名稱/商家 → 更多選項 */}
           {isAcct && (
             <>
-              {/* 1 · Category drives the merchant & account suggestions below */}
-              <DrawerField label="分類" required>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: subcategories.length ? 10 : 0 }}>
-                  {categories.map((c) => {
-                    const active = ledgerForm.category === c.name;
-                    const color = c.color || "var(--ns-accent)";
-                    return (
+              {/* 1 · Category drives the merchant & account suggestions below.
+                  Split mode replaces the single picker with one leg row per
+                  category, each carrying its own amount (MOZE-style). */}
+              {splitMode && splitLegs ? (
+                <DrawerField label="多類別明細" required>
+                  <div className="flex flex-col gap-2.5">
+                    {splitLegs.map((legState, index) => (
+                      <div key={index} className="ns-split-leg">
+                        <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+                          <span className="muted text-caption" style={{ fontFamily: "var(--ns-font-mono)" }}>#{index + 1}</span>
+                          <span className="text-xs font-medium flex-1 truncate">
+                            {legState.category
+                              ? `${legState.category}${legState.subcategory ? ` / ${legState.subcategory}` : ""}`
+                              : "未選擇分類"}
+                          </span>
+                          <input
+                            className="ns-input text-right"
+                            style={{ width: 110, height: 32, fontFamily: "var(--ns-font-mono)" }}
+                            value={legState.amount}
+                            onChange={(e) => setSplitLegs(updateSplitLeg(splitLegs, index, { amount: e.target.value }))}
+                            placeholder="0"
+                            inputMode="decimal"
+                            aria-label={`第 ${index + 1} 筆明細金額`}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`移除第 ${index + 1} 筆明細`}
+                            title="移除此明細"
+                            onClick={() => removeLegAt(index)}
+                          >
+                            <X size={13} />
+                          </Button>
+                        </div>
+                        <CategoryChipPicker
+                          categories={categories}
+                          category={legState.category}
+                          subcategory={legState.subcategory}
+                          onPick={(name) => setSplitLegs(updateSplitLeg(splitLegs, index, { category: name, subcategory: "" }))}
+                          onPickSub={(s) => setSplitLegs(updateSplitLeg(splitLegs, index, { subcategory: s }))}
+                        />
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
                       <button
-                        key={c.name}
+                        type="button"
                         className="text-xs"
-                        onClick={() => setLedgerForm({ ...ledgerForm, category: c.name, subcategory: "" })}
+                        onClick={() => setSplitLegs(addSplitLeg(splitLegs))}
                         style={{
-                          padding: "5px 11px", borderRadius: 999, cursor: "pointer",
-                          background: active ? color : "var(--ns-bg-card)",
-                          // Contrast-aware text so light category colors don't swallow
-                          // the label; faint border gives light chips edge definition (B14).
-                          color: active ? readableTextColor(color) : "var(--ns-fg)",
-                          border: active ? "1px solid rgba(0,0,0,0.12)" : "1px solid var(--ns-border)",
-                          fontFamily: "inherit", transition: "background 120ms var(--ns-ease), color 120ms var(--ns-ease), border-color 120ms var(--ns-ease)",
+                          padding: "5px 12px", borderRadius: 999, cursor: "pointer",
+                          background: "transparent", color: "var(--ns-accent)",
+                          border: "1px dashed var(--ns-accent)", fontFamily: "inherit",
                           display: "flex", alignItems: "center", gap: 4,
                         }}
                       >
-                        {c.iconName && <Glyph name={c.iconName} size={14} />}
-                        {c.name}
+                        <Plus size={12} weight="bold" />新增分類
                       </button>
-                    );
-                  })}
-                  {categories.length === 0 ? <span className="muted text-xs">尚未建立分類，可於設定新增。</span> : null}
-                </div>
-                {subcategories.length ? (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5, paddingLeft: 10, borderLeft: "2px solid var(--ns-border)" }}>
-                    {subcategories.map((s) => {
-                      const active = ledgerForm.subcategory === s;
-                      return (
-                        <button
-                          key={s}
-                          className="text-xs"
-                          onClick={() => setLedgerForm({ ...ledgerForm, subcategory: s })}
-                          style={{
-                            padding: "4px 10px", borderRadius: 999, cursor: "pointer",
-                            background: active ? "var(--ns-accent)" : "var(--ns-bg-hover)",
-                            color: active ? "var(--ns-accent-fg)" : "var(--ns-fg-muted)",
-                            border: active ? "none" : "1px solid var(--ns-border)",
-                            fontFamily: "inherit",
-                          }}
-                        >
-                          {s}
-                        </button>
-                      );
-                    })}
+                      {splitError ? (
+                        <span className="text-caption" style={{ color: "var(--ns-neg)" }}>{splitError}</span>
+                      ) : null}
+                    </div>
                   </div>
-                ) : null}
-              </DrawerField>
+                </DrawerField>
+              ) : (
+                <DrawerField label="分類" required>
+                  <CategoryChipPicker
+                    categories={categories}
+                    category={ledgerForm.category}
+                    subcategory={ledgerForm.subcategory}
+                    onPick={(name) => setLedgerForm({ ...ledgerForm, category: name, subcategory: "" })}
+                    onPickSub={(s) => setLedgerForm({ ...ledgerForm, subcategory: s })}
+                    trailing={canEnterSplit ? (
+                      <button
+                        type="button"
+                        className="text-xs"
+                        onClick={enterSplit}
+                        title="拆分為多個分類，各自填金額"
+                        style={{
+                          padding: "5px 11px", borderRadius: 999, cursor: "pointer",
+                          background: "transparent", color: "var(--ns-accent)",
+                          border: "1px dashed var(--ns-accent)", fontFamily: "inherit",
+                          display: "flex", alignItems: "center", gap: 4,
+                        }}
+                      >
+                        <Plus size={12} weight="bold" />分類
+                      </button>
+                    ) : undefined}
+                  />
+                </DrawerField>
+              )}
 
               {/* 2 · Account + date, with a suggested account from history */}
               <div>
@@ -2637,8 +2973,9 @@ function EntryDrawer({
               </div>
 
               {/* Installment — surfaced in the main body (not buried in 更多選項)
-                  so picking a credit card immediately reveals the option. */}
-              {canInstallment && (
+                  so picking a credit card immediately reveals the option.
+                  Hidden in split mode (a split can't also be an installment). */}
+              {canInstallment && !splitMode && (
                 <DrawerField label="分期付款（信用卡）">
                   <input
                     className="ns-input"
@@ -2713,7 +3050,7 @@ function EntryDrawer({
               </div>
               {showAdvanced && (
                 <>
-                  {(type === "expense" || type === "income") && !editing && !activeInstallment && (
+                  {(type === "expense" || type === "income") && !editing && !activeInstallment && !splitMode && (
                     <DrawerField label={`外加手續費（選填） · ${ledgerForm.currency}`}>
                       <input
                         className="ns-input"
@@ -2728,7 +3065,7 @@ function EntryDrawer({
                       </div>
                     </DrawerField>
                   )}
-                  {!activeInstallment && (
+                  {!activeInstallment && !splitMode && (
                     <DrawerField label="週期交易">
                       <AppSelect
                         value={drawerRecurringFreq}
@@ -2837,6 +3174,7 @@ function EntryDrawer({
             className="flex-1 justify-center"
             style={{ background: meta.color, borderColor: meta.color, color: "#fff" }}
             onClick={type === "transfer" ? onSubmitTransfer : onSubmitLedger}
+            disabled={splitMode && Boolean(splitError)}
           >
             <Check size={14} weight="bold" />
             {editing ? "儲存變更" : type === "ar" ? "記錄應收" : type === "ap" ? "記錄應付" : type === "transfer" ? "建立轉帳" : "儲存交易"}
@@ -2844,6 +3182,86 @@ function EntryDrawer({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Parent-category chips + child-subcategory chips, shared by the plain 分類
+ * field and by every 多類別拆分 leg row (plan 182) so the two pickers can
+ * never drift visually. `trailing` renders after the parent chips (the plain
+ * form's「＋ 分類」split affordance).
+ */
+function CategoryChipPicker({
+  categories,
+  category,
+  subcategory,
+  onPick,
+  onPickSub,
+  trailing,
+}: {
+  categories: Array<{ name: string; children: string[]; color?: string; iconName?: string }>;
+  category: string;
+  subcategory: string;
+  /** Parent chip tap — callers reset the subcategory themselves. */
+  onPick: (category: string) => void;
+  onPickSub: (subcategory: string) => void;
+  trailing?: ReactNode;
+}) {
+  const subcategories = categories.find((c) => c.name === category)?.children ?? [];
+  return (
+    <>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: subcategories.length ? 10 : 0 }}>
+        {categories.map((c) => {
+          const active = category === c.name;
+          const color = c.color || "var(--ns-accent)";
+          return (
+            <button
+              key={c.name}
+              className="text-xs"
+              onClick={() => onPick(c.name)}
+              style={{
+                padding: "5px 11px", borderRadius: 999, cursor: "pointer",
+                background: active ? color : "var(--ns-bg-card)",
+                // Contrast-aware text so light category colors don't swallow
+                // the label; faint border gives light chips edge definition (B14).
+                color: active ? readableTextColor(color) : "var(--ns-fg)",
+                border: active ? "1px solid rgba(0,0,0,0.12)" : "1px solid var(--ns-border)",
+                fontFamily: "inherit", transition: "background 120ms var(--ns-ease), color 120ms var(--ns-ease), border-color 120ms var(--ns-ease)",
+                display: "flex", alignItems: "center", gap: 4,
+              }}
+            >
+              {c.iconName && <Glyph name={c.iconName} size={14} />}
+              {c.name}
+            </button>
+          );
+        })}
+        {categories.length === 0 ? <span className="muted text-xs">尚未建立分類，可於設定新增。</span> : null}
+        {trailing}
+      </div>
+      {subcategories.length ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, paddingLeft: 10, borderLeft: "2px solid var(--ns-border)" }}>
+          {subcategories.map((s) => {
+            const active = subcategory === s;
+            return (
+              <button
+                key={s}
+                className="text-xs"
+                onClick={() => onPickSub(s)}
+                style={{
+                  padding: "4px 10px", borderRadius: 999, cursor: "pointer",
+                  background: active ? "var(--ns-accent)" : "var(--ns-bg-hover)",
+                  color: active ? "var(--ns-accent-fg)" : "var(--ns-fg-muted)",
+                  border: active ? "none" : "1px solid var(--ns-border)",
+                  fontFamily: "inherit",
+                }}
+              >
+                {s}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -2862,8 +3280,16 @@ function DrawerField({ label, required, children }: { label: string; required?: 
 /* ─────────────── helpers ─────────────── */
 
 /** A transfer's two legs (same groupId) collapse into one display row so the
- * activity list shows "來源 → 目標" once instead of a 轉出/轉入 pair. */
-type DisplayRow = LedgerTransaction & { transferPair?: { source: LedgerTransaction; dest: LedgerTransaction } };
+ * activity list shows "來源 → 目標" once instead of a 轉出/轉入 pair. A 多類別
+ * 拆分's legs (same groupId, `legKind: "category"`) collapse the same way into
+ * one row carrying the group total plus `splitLegs` for the inline expansion.
+ * Money aggregations must keep summing RAW rows — a display row's `amount` is
+ * the whole group's total, so summing display rows would be fine for nets but
+ * loses per-leg category detail (and transfers are dropped to one leg). */
+type DisplayRow = LedgerTransaction & {
+  transferPair?: { source: LedgerTransaction; dest: LedgerTransaction };
+  splitLegs?: LedgerTransaction[];
+};
 
 function mergeTransferRows(rows: LedgerTransaction[], allRows: LedgerTransaction[]): DisplayRow[] {
   const seen = new Set<string>();
@@ -2878,6 +3304,16 @@ function mergeTransferRows(rows: LedgerTransaction[], allRows: LedgerTransaction
       const source = legs.find((l) => l.amount < 0) ?? row;
       const dest = legs.find((l) => l.id !== source.id) ?? row;
       out.push({ ...source, transferPair: { source, dest } });
+    } else if (row.groupId && row.legKind === "category") {
+      if (seen.has(row.groupId)) continue;
+      seen.add(row.groupId);
+      // Same lookup-from-full-ledger rule as transfers: a category/search
+      // filter that matched only one leg still shows the complete split.
+      const legs = allRows.filter((r) => r.groupId === row.groupId && r.legKind === "category" && r.deletedAt === null);
+      const first = legs[0] ?? row;
+      // Signed sum: all legs share the entryType's sign, so the total keeps it.
+      const total = legs.reduce((sum, leg) => sum + leg.amount, 0);
+      out.push({ ...first, amount: total, splitLegs: legs });
     } else {
       out.push(row);
     }
