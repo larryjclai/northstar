@@ -4,7 +4,7 @@ import { Button } from "./coss/button";
 import { Card } from "./coss/card";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { buildLedgerSuggestions, buildMerchantCategoryMap, buildUserLexicon, categoryPickerOptions, formatMoney, formatNumber, formatPrice, loadCorrections, nowAsDatetimeLocal, parseQuickAdd, saveCorrection, type CorrectionStore, type QuickAddParsed } from "../domain";
+import { buildLedgerSuggestions, buildMerchantCategoryMap, buildUserLexicon, categoryPickerOptions, defaultAccountForCategory, formatMoney, formatNumber, formatPrice, loadCorrections, nowAsDatetimeLocal, parseQuickAdd, saveCorrection, type CorrectionStore, type QuickAddParsed } from "../domain";
 import { orchestrate, type ParseSource } from "../domain/nlParser";
 import { createOnDeviceParser } from "../lib/foundationModels";
 import { haptic } from "../lib/haptics";
@@ -13,6 +13,13 @@ import { useToast } from "./Toast";
 import { AccountFilter } from "./AccountFilter";
 import { Glyph } from "../lib/icons";
 import { readableTextColor } from "../lib/color";
+
+// §6.4 example chips shown on empty input — one 投資 example, the rest 記帳.
+const QUICK_ADD_EXAMPLES: { text: string; mode: "ledger" | "investment" }[] = [
+  { text: "午餐 120 信用卡", mode: "ledger" },
+  { text: "計程車 250", mode: "ledger" },
+  { text: "2330.TW 5股 @1042", mode: "investment" },
+];
 
 type LedgerConfirm = { kind: "ledger"; entryType: "expense" | "income"; amount: string; accountId: string; name: string; merchant: string; category: string; subcategory: string; date: string };
 type InvestmentConfirm = { kind: "investment"; action: "buy" | "sell"; ticker: string; quantity: string; price: string; accountId: string; date: string };
@@ -129,6 +136,15 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
     const ctx = { accounts: accountRows, merchantCategory: merchantCat, lexicon, mode, nowDatetimeLocal: now, categories: categoryGroups.map((g) => g.name) };
     const { result: parsed, source } = await orchestrate(text, ctx, onDeviceParser);
     const c = toConfirm(parsed, text, now);
+    // §6.5 記住每分類的常用帳戶: when the parser resolved a category but no
+    // account, default to the account most used for that category (derived from
+    // ledger history). This sets a *default*, not a parse — the confirm card
+    // stays fully editable, and because originalGuess captures it too, keeping
+    // the default is not recorded as a user correction.
+    if (c.kind === "ledger" && !c.accountId && c.category) {
+      const usual = defaultAccountForCategory(ledgerRows, c.category);
+      if (usual) c.accountId = usual;
+    }
     setConfirm(c);
     setOriginalGuess(c);
     setParseSource(source);
@@ -438,6 +454,30 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
         {/* Real-time preview chips (P5) — shown while typing, hidden once confirm card opens */}
         {!confirm && preview ? (
           <PreviewChips parsed={preview} accounts={accountRows} />
+        ) : null}
+
+        {/* Example chips (§6.4) — on empty input, offer 2–3 tappable examples
+            (記帳 / 投資) that fill the input box so first-time users see the
+            expected shape. Hidden once the user types or a confirm card opens. */}
+        {!confirm && !text.trim() ? (
+          <div className="flex" style={{ flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
+            {QUICK_ADD_EXAMPLES.map((ex) => (
+              <button
+                key={ex.text}
+                type="button"
+                onClick={() => { setMode(ex.mode); setText(ex.text); setTimeout(() => inputRef.current?.focus(), 0); }}
+                className="text-micro"
+                title="填入範例"
+                style={{
+                  padding: "4px 12px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit",
+                  background: "var(--ns-bg-card)", color: "var(--ns-fg-muted)",
+                  border: "1px dashed var(--ns-border)",
+                }}
+              >
+                {ex.text}
+              </button>
+            ))}
+          </div>
         ) : null}
 
         {/* Input bar */}

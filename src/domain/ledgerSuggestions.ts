@@ -33,3 +33,21 @@ function rankedKeys(counts: Map<string, number>) {
     .sort(([leftKey, leftCount], [rightKey, rightCount]) => rightCount - leftCount || leftKey.localeCompare(rightKey))
     .map(([key]) => key);
 }
+
+/**
+ * The account most frequently used for settled expenses in `category` (§6.5).
+ * Powers Quick Add's "remember the usual account per category" default: when the
+ * parser resolves a category but no account, the confirm card prefills this so
+ * the user rarely has to pick an account by hand.
+ *
+ * Pure and derived from ledger history — no schema/settings change. Returns null
+ * when the category has no settled-expense history to learn from.
+ */
+export function defaultAccountForCategory(
+  rows: LedgerTransaction[],
+  category: string,
+): string | null {
+  const trimmed = category.trim();
+  if (!trimmed) return null;
+  return buildLedgerSuggestions(rows, { category: trimmed }).accountIds[0] ?? null;
+}

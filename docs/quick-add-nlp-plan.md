@@ -262,12 +262,19 @@ export function buildUserLexicon(
 1. **即時預覽（debounce 150ms）。** 邊打邊在輸入框下方用 chip 顯示已辨識欄位：
    `金額 $120 · 信用卡 · 餐飲/飲料 · 今天`。低信心欄位用虛線框 + 點一下展開選擇。
    → 大幅減少「解析 → 確認卡」的來回。
+   > 狀態 2026-07：**已實作。** debounce 150ms 預覽於 `QuickAdd.tsx:107-115`，`PreviewChips` 元件於 `QuickAdd.tsx:478-522`。（低信心欄位的虛線框展開尚未做，見第 3 項。）
 2. **輸入框 token 高亮。** 用 `span` 把金額/帳戶/日期上色，使用者一眼看出系統理解了什麼。
+   > 狀態 2026-07：**未實作。** `ParsedField.span` 型別已存在（`quickAdd.ts:97`），但 `parseQuickAdd` 回傳的 `QuickAddParsed` union 不吐 span，輸入框為純 `<input>`（`QuickAdd.tsx:446-454`）無 overlay 上色。以預覽 chip（第 1 項）替代呈現。
 3. **低信心即時補救。** 帳戶沒 match → 直接在預覽列出帳戶 chips；分類靠猜 → 標「建議」可一鍵改。
+   > 狀態 2026-07：**部分。** 確認卡有「依過往紀錄建議」的帳戶/商家 chips（`QuickAdd.tsx:355-366`，`buildLedgerSuggestions`），但屬確認卡階段、非即時預覽階段的補救；預覽列尚無 chips、分類亦無「建議」標記。
 4. **範例 chips。** 空輸入時，placeholder 之外再放 2–3 個可點的範例（記帳 / 投資各一），點了帶入輸入框。
+   > 狀態 2026-07：**Plan 175 實作**（先前無：`grep 範例/example QuickAdd.tsx` 無命中）。空輸入時顯示可點範例 chips，填入輸入框。
 5. **記住每分類的常用帳戶。** `餐飲` 預設帶上次用的帳戶，減少手動選擇。
+   > 狀態 2026-07：**Plan 175 實作**（先前無：`buildUserLexicon` 未計算 category→帳戶；全庫無 `defaultAccount/accountForCategory` 命中）。新增純函式 `defaultAccountForCategory`（`ledgerSuggestions.ts`）從記帳歷史推得該分類最常用帳戶，並在解析結果無帳戶但有分類時填入確認卡預設。改的是**預設值、非解析行為**。
 6. **語音輸入（mobile，後續）。** iOS 用系統聽寫 → 文字進同一 pipeline；與 NL 解析天然互補。
+   > 狀態 2026-07：**未實作（範圍外）。** 行動端相依，隨 iOS wave 處理，本計畫僅盤點。
 7. **解析來源標示。** 若由 Tier 1/2 解析，確認卡角落標一個小 icon（透明度，使用者知道資料是模型推得）。
+   > 狀態 2026-07：**已實作。** 確認卡於 `parseSource === "on-device"` 時顯示半透明「AI」標記（`QuickAdd.tsx:249-251`）；另有輸入階段的裝置端 AI 可用性提示（`QuickAdd.tsx:420-436`）。
 
 ---
 
@@ -364,8 +371,94 @@ P0–P5 為核心離線改善，可獨立交付並涵蓋 ~90% 情境；**P6（Ap
 ## 11. 待決問題
 
 1. 帳戶自訂別名要做成正式 schema 欄位，還是只靠自動衍生 + 修正回饋？（建議先靠衍生+回饋，schema 後補）
+   > 狀態 2026-07：**採「衍生+回饋」路線，未加 schema。** 別名自動衍生於 `userLexicon.ts:48-66`（`accountAliasesFor` / `setAlias`）＋ 修正回饋 `quickAddCorrections.ts`；`Account` 型別無 `aliases` 欄位。維持後補。
 2. 修正回饋（§5.0 corrections）存哪：localStorage 還是 app_settings 一個 key？要不要跟著 sync（[[project_sync_sqlite]]）跨裝置？
+   > 狀態 2026-07：**現為 localStorage、未 sync**（`quickAddCorrections.ts:18` key `ns_quick_add_corrections`）。§12 決定稿建議改 app_settings 一個 key 並跟隨 sync（見下）。
 3. 種子分類字典要不要納入 i18n copy catalog（[copy.csv](../copy.csv)）一起維護？
+   > 狀態 2026-07：**未整合、仍開放。** 種子字典為獨立硬編模組（`categoryKeywords.ts` `SEED_KEYWORDS`），與 copy.csv 分開；尚無決議。
 4. Tier 1：plugin 要不要也吃 lexicon/修正回饋當 context，還是只給 settings 清單？（建議至少給帳戶/分類清單）
+   > 狀態 2026-07：**只給帳戶/分類清單。** `buildOnDeviceCtx`（`foundationModels.ts:22-33`）只送 accounts + categories + today/mode，不送 lexicon/corrections。
 5. Tier 2 預設 provider 與 key 儲存位置（沿用現有 secret 機制？）。
+   > 狀態 2026-07：**開放 → 由本計畫 §12「Tier 2 實作決定稿」處理。**
 6. 即時預覽 + 每次重算 lexicon 是否在大量歷史/低階機型造成輸入延遲（debounce 值與 lexicon 快取需實測）。
+   > 狀態 2026-07：**部分緩解、未實測。** debounce 150ms（`QuickAdd.tsx:110`）+ `useMemo` 快取 lexicon（`QuickAdd.tsx:46-49`）；尚無大量歷史/低階機型的延遲量測。
+
+---
+
+## 12. Tier 2 實作決定稿（待 operator 逐條核可 — 尚未實作）
+
+> 本節把 §8「雲端 opt-in」從概念變成可決策的規格。Tier 2 會把使用者輸入的一行文字外送到雲端 provider，
+> **跨越 Northstar「本地優先／不外傳理財資料」不可變原則**（AGENTS.md 不可變原則 #2），因此需要 operator 明確決定，
+> executor 不得自行實作。以下每一條都指出它回應的 §（§8 / §11 的哪一題），供逐行核可。
+> **核可前，`src/` 不得新增任何從解析路徑外送網路的程式碼。**
+
+### 12.1 Provider 與模型預設（回應 §8、§11.5）
+
+- **預設 provider／model：** Anthropic Claude Haiku 4.5，model id `claude-haiku-4-5`（§8 建議 Claude Haiku：便宜、快、中英雙語強；200K context 對本用途綽綽有餘）。
+- **每次呼叫成本估算：** 定價 US$1.00 / 1M input tokens、US$5.00 / 1M output tokens（截至 2026-07；以官方 Models/Pricing 為準，屬可替換設定不寫死）。
+  單次 payload 極小（一行輸入 + 帳戶/分類名稱清單，約 300–600 input tokens；結構化輸出約 100–200 output tokens）
+  → **約 US$0.001–0.002／次（≈ NT$0.03–0.06／次）**。僅在 Tier 0/1 都失敗時才觸發，日常成本趨近於零。
+- **可替換性（呼應 AGENTS.md 不可變原則 #3）：** provider 走 §7 `NlParser` 介面注入（`available()` / `parse()`），
+  model id 與 endpoint 皆為設定值；Haiku 只是預設，operator 可換任何相容 provider。
+
+### 12.2 API key 儲存（回應 §11.5）
+
+- **儲存位置：** 既有 Stronghold secret store（`USE_STRONGHOLD=true`，見 [secret-storage-plan.md](./secret-storage-plan.md)），
+  **絕不寫 localStorage / app_settings / 明文檔**。與 §5.0 corrections（低敏感、可同步）分開：API key 為高敏感、**不進 sync**。
+- **輸入流程：** 進階設定一個「智慧解析 API 金鑰」欄位 → 寫入 Stronghold；讀取時只在主行程（Rust/Tauri command）內取用組請求，
+  TS 端不長駐明文 key。
+
+### 12.3 設定位置、預設與揭露文案（回應 §8）
+
+- **位置：** 設定 →「進階設定」新增「雲端智慧解析」開關。
+- **預設：`關閉`（OFF）。** 未開啟時 Tier 2 完全不存在於解析路徑（等同今天）。
+- **揭露文案（§8 逐字要求「輸入文字會送往 <provider>」）：** 開關說明採
+  「開啟後，當裝置無法解析時，**你輸入的該行文字會送往 <provider>（預設 Anthropic Claude）** 協助解析；
+  僅送出該行文字與帳戶／分類名稱清單，不送金額、歷史或其他交易。」`<provider>` 依 12.1 設定動態帶入。
+- **首次開啟需二次確認**（一次性 dialog，非 `window.confirm`——Tauri 不支援，見 MEMORY sync gotchas），確認後才寫入啟用旗標。
+
+### 12.4 送出 payload 與「絕不外送」清單（回應 §8 隱私要求）
+
+- **只送出：**
+  1. 使用者輸入的**該一行文字**；
+  2. 帳戶**名稱**清單（不含 id、餘額、幣別）；
+  3. 分類**名稱**清單；
+  4. 今天日期（供相對日期解析）與目前模式（ledger/investment）。
+  （即 §7 `buildOnDeviceCtx` 的同構子集，`foundationModels.ts:22-33`——重用其形狀，避免另立資料模型。）
+- **絕不外送（明列）：** 金額、任何歷史交易、商家清單、note、帳戶餘額／幣別／id、`UserLexicon`、corrections、
+  裝置識別、使用者 email 或任何 PII。
+- **輸出：** 要求 provider 回傳對應 §4 `QuickAddParseResult` 的結構化 JSON（structured outputs / tool schema），
+  `source` 標為 `"cloud"`，經與 Tier 1 相同的 `resolveAccountId`（`nlParser.ts:66`）驗證回真實 accountId 才採用。
+
+### 12.5 失敗／逾時鏈，重用 Tier 1 orchestrator 接縫（回應 §7、§8）
+
+- **觸發點：** 沿用 `orchestrate()`（`nlParser.ts:130`）現有降級鏈，於 **Tier 0 不足 → Tier 1 不可用/失敗** 之後，
+  才輪到 Tier 2（且僅在開關開啟時）。介面同樣是 `NlParser`，作為第二個可注入 parser，orchestrator 幾乎不用改結構。
+- **逾時：** §8 指定 **1.2s** 逾時（比 Tier 1 的 4s 更短，因雲端不可讓使用者久候）；逾時或任何錯誤 → 靜默退回 Tier 0 部分結果，
+  絕不阻塞或報錯打斷記帳。沿用 `Promise.race` timeout 樣式（`nlParser.ts:144-159`）。
+- **可觀測性：** 僅記錄「是否觸發、是否逾時、source」等非內容遙測，**不記錄輸入文字**。
+
+### 12.6 corrections 儲存與 sync（回應 §11.2）— 與 Tier 2 綁定的獨立決定
+
+- **提議：** 將 §5.0 corrections 從現行 localStorage（`quickAddCorrections.ts:18` key `ns_quick_add_corrections`）
+  **改存 `app_settings` 一個 key，並納入 E2E sync 跨裝置**。
+- **理由：** corrections 是使用者個人化字典的核心，跨裝置一致能顯著提升解析準確度；內容為「token → 帳戶/分類」對應，
+  低敏感且本就在本地資料庫內，符合本地優先與 E2E sync 原則（不同於 12.2 的 API key——key 不同步）。
+- **遷移：** 首次讀取時把既有 localStorage 內容一次性搬進 app_settings 後清除；`loadCorrections/saveCorrection` 介面不變，
+  只換底層儲存，QuickAdd 呼叫端零改動。
+- **注意：** 此項**不需** Tier 2 也可獨立實作，但與 Tier 2 同屬「個人化 + 隱私」批次，故一併決定。
+
+### 12.7 Build-plan 草圖（核可後即可一步開工）
+
+| 檔案 | 變更 | 測試 |
+|---|---|---|
+| `src/domain/nlParser.ts` | orchestrator 接受第二個 `cloudParser?: NlParser`；Tier 1 之後、開關開啟才 await（1.2s timeout） | orchestrator 分支測試：Tier 0/1 命中不呼叫雲端／都失敗才呼叫／逾時退回（mock `NlParser`，同 §10 策略） |
+| `src/lib/cloudParser.ts`（新） | 實作 `NlParser`：組 12.4 payload、呼叫 provider、結構化輸出解析、錯誤→null | payload 白名單測試：斷言**只**含 12.4 四項、絕不含金額/歷史（防止外送破口回歸） |
+| `src-tauri/`（Rust command） | 從 Stronghold 取 key、代發請求（TS 端不持明文 key）；桌面/行動皆走此路 | Rust 端單元測試（key 缺失→錯誤；逾時處理） |
+| 進階設定 UI（`src/components/settings/…`） | 開關（預設 OFF）＋揭露文案（12.3）＋首次二次確認＋key 輸入欄 | 元件測試：預設 OFF、揭露文案存在、關閉時 orchestrator 不含雲端路徑 |
+| `quickAddCorrections.ts` + sync | 12.6：改 app_settings + sync + 一次性遷移 | 遷移測試（localStorage→app_settings）、sync round-trip |
+
+- **回歸護欄：** `src/domain/quickAdd.test.ts` 全程保持不變並通過（§10）；`grep -rn "fetch\|invoke" src/domain/nlParser.ts` 在雲端路徑落地**於 `src-tauri` / `cloudParser.ts`** 而非 `nlParser.ts` 內，維持 domain 純度。
+- **驗收：** 開關 OFF 時行為與今天完全一致；ON 時只在長尾疑難句觸發，且 payload 白名單測試綠燈。
+
+> **決定權在 operator。** 在本節被明確核可前，任何 PR 都不得實作 Tier 2；executor 只交付本規格。
