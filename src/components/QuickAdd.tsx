@@ -23,10 +23,10 @@ function toConfirm(parsed: QuickAddParsed, fallbackText: string, nowDatetimeLoca
     return { kind: "investment", action: parsed.action, ticker: parsed.ticker, quantity: parsed.quantity ? String(parsed.quantity) : "", price: parsed.price ? String(parsed.price) : "", accountId: parsed.accountId ?? "", date: parsed.date ?? nowDatetimeLocal };
   }
   if (parsed.kind === "ledger") {
-    // The parser yields one token; seed it into the name (the description) and
-    // leave merchant for the user to confirm/fill — they are separate records.
-    // When @ syntax used: name = description, merchant = store. Otherwise both are the same token.
-    return { kind: "ledger", entryType: parsed.entryType, amount: String(parsed.amount), accountId: parsed.accountId ?? "", name: parsed.name ?? parsed.merchant, merchant: parsed.merchant, category: parsed.category, subcategory: parsed.subcategory, date: parsed.date ?? nowDatetimeLocal };
+    // name (description) and merchant (store) are separate records: the parser
+    // fills merchant only from @ syntax or a known-merchant hit, so free text
+    // no longer gets duplicated into both fields.
+    return { kind: "ledger", entryType: parsed.entryType, amount: String(parsed.amount), accountId: parsed.accountId ?? "", name: parsed.name ?? "", merchant: parsed.merchant, category: parsed.category, subcategory: parsed.subcategory, date: parsed.date ?? nowDatetimeLocal };
   }
   // unknown → prefill an expense with the raw text as the name for manual completion
   return { kind: "ledger", entryType: "expense", amount: "", accountId: "", name: fallbackText.trim(), merchant: "", category: "", subcategory: "", date: nowDatetimeLocal };
@@ -119,6 +119,14 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
       ? buildLedgerSuggestions(ledgerRows, { category: confirm.category || undefined, merchant: confirm.merchant || undefined })
       : { merchants: [], accountIds: [] },
     [confirm, ledgerRows],
+  );
+
+  // All known merchants ranked by history frequency, for the 商家 autocomplete.
+  // lexicon.merchants already merges ledger history with settings.merchants,
+  // deduped; fall back to the history-derived map before settings load.
+  const merchantOptions = useMemo(
+    () => (lexicon ? lexicon.merchants.map((m) => m.name) : [...merchantCat.keys()]),
+    [lexicon, merchantCat],
   );
 
   if (!open) return null;
@@ -327,9 +335,11 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                   <input className="ns-input" value={confirm.name} onChange={(e) => setConfirm({ ...confirm, name: e.target.value })} placeholder="交易名稱" />
                 </Field>
                 <Field label="商家">
-                  {/* Plain input + app-styled suggestion chips below (the OS-native
-                      datalist popup didn't match the app) (B11). */}
-                  <input className="ns-input" value={confirm.merchant} onChange={(e) => chooseMerchant(e.target.value)} placeholder="選填" />
+                  {/* Autocomplete input: filtered dropdown of known merchants,
+                      ranked by history frequency; free text stays allowed.
+                      Selecting reuses chooseMerchant so the merchant's learned
+                      category auto-applies (plan 180). */}
+                  <MerchantAutocomplete value={confirm.merchant} merchants={merchantOptions} onChange={chooseMerchant} />
                 </Field>
                 <Field label="帳戶">
                   <AccountFilter
@@ -471,6 +481,106 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+// ── 商家 autocomplete (plan 180) ─────────────────────────────────────────────
+// Free-text input with a lightweight filtered dropdown of known merchants.
+// Deliberately not the Popover+Command combobox (AccountFilter): that pattern
+// wraps a button trigger, but this field must stay a plain text input.
+
+function MerchantAutocomplete({ value, merchants, onChange }: {
+  value: string;
+  /** Known merchant names, ranked by history frequency. */
+  merchants: string[];
+  /** Called for both typing and selecting an entry. */
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [highlight, setHighlight] = useState(0);
+
+  const matches = useMemo(() => {
+    const q = value.trim().toLowerCase();
+    // Substring filter (case-insensitive; CJK needs no tokenization). Hide the
+    // exact current value — the dropdown would only repeat what's typed.
+    const pool = q ? merchants.filter((m) => m.toLowerCase().includes(q) && m.toLowerCase() !== q) : merchants;
+    return pool.slice(0, 8);
+  }, [value, merchants]);
+
+  const visible = open && matches.length > 0;
+
+  function select(merchant: string) {
+    onChange(merchant);
+    setOpen(false);
+  }
+
+  return (
+    <div style={{ position: "relative" }}>
+      <input
+        className="ns-input"
+        value={value}
+        placeholder="選填"
+        role="combobox"
+        aria-expanded={visible}
+        aria-autocomplete="list"
+        onChange={(e) => { onChange(e.target.value); setOpen(true); setHighlight(0); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => {
+          if (!visible) return;
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setHighlight((h) => (h + 1) % matches.length);
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setHighlight((h) => (h - 1 + matches.length) % matches.length);
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            select(matches[Math.min(highlight, matches.length - 1)]);
+          } else if (e.key === "Escape") {
+            // Close only the dropdown — QuickAdd's overlay listens for Escape
+            // on window, so keep the event from reaching it.
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen(false);
+          }
+        }}
+      />
+      {visible ? (
+        <div
+          role="listbox"
+          aria-label="商家建議"
+          style={{
+            position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 90,
+            maxHeight: 224, overflowY: "auto", padding: 4,
+            background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)",
+            borderRadius: "var(--ns-r-sm)", boxShadow: "var(--ns-shadow-strong)",
+          }}
+        >
+          {matches.map((merchant, i) => (
+            <button
+              key={merchant}
+              type="button"
+              role="option"
+              aria-selected={i === highlight}
+              className="text-xs"
+              // onMouseDown (not onClick) so the input's blur doesn't close the
+              // dropdown before the selection lands.
+              onMouseDown={(e) => { e.preventDefault(); select(merchant); }}
+              onMouseEnter={() => setHighlight(i)}
+              style={{
+                display: "block", width: "100%", textAlign: "left", cursor: "pointer",
+                padding: "6px 8px", borderRadius: "var(--ns-r-xs)", border: "none", fontFamily: "inherit",
+                background: i === highlight ? "var(--ns-bg-hover)" : "transparent",
+                color: "var(--ns-fg)",
+              }}
+            >
+              {merchant}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 // ── P5: Real-time preview chip bar ──────────────────────────────────────────
 
 interface PreviewChip { label: string; value: string; color: string }
@@ -486,13 +596,16 @@ function PreviewChips({ parsed, accounts }: { parsed: QuickAddParsed; accounts: 
     }
     if (parsed.category) chips.push({ label: "分類", value: parsed.category + (parsed.subcategory ? ` / ${parsed.subcategory}` : ""), color: "var(--ns-info)" });
     if (parsed.date) chips.push({ label: "日期", value: parsed.date.slice(0, 10), color: "var(--ns-warn)" });
-    // When @ syntax is used, show name and merchant as separate chips.
-    // Otherwise they're the same string — show only one chip labelled "商家".
+    // Show name and merchant as separate chips when they differ; when they're
+    // the same string (merchant-only leftover) show a single 商家 chip, and
+    // when no merchant was recognised show a single 名稱 chip.
     if (parsed.name && parsed.merchant && parsed.name !== parsed.merchant) {
       chips.push({ label: "名稱", value: parsed.name, color: "var(--ns-fg-muted)" });
       chips.push({ label: "商家", value: parsed.merchant, color: "var(--ns-fg-muted)" });
     } else if (parsed.merchant) {
       chips.push({ label: "商家", value: parsed.merchant, color: "var(--ns-fg-muted)" });
+    } else if (parsed.name) {
+      chips.push({ label: "名稱", value: parsed.name, color: "var(--ns-fg-muted)" });
     }
     if (parsed.entryType === "income") chips.push({ label: "類型", value: "收入", color: "var(--ns-pos)" });
   }
