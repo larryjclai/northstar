@@ -40,6 +40,7 @@ import { loadSyncAccount } from "../features/connect/sync/account";
 import { loadVaultKey } from "../features/connect/crypto/vault";
 import { isRecoveryKitConfirmed } from "../features/connect/crypto/recovery-kit";
 import { runSync, isSyncRunning, isTauriRuntime } from "../features/connect/sync/sync-manager";
+import { setPushFlushHandler } from "../features/connect/sync/pushScheduler";
 import { useSyncStatus } from "../state/syncStatus";
 import { queryKeys } from "../data/hooks";
 import { refreshLatestMarketData } from "../features/market-data/useMarketRefresh";
@@ -808,6 +809,16 @@ function useAutoSync() {
     let unlistenFn: (() => void) | null = null;
     void triggerSync();
 
+    // Debounced auto-push (roadmap 5.3①): local mutations call noteLocalChange()
+    // and, after a quiet period, the scheduler invokes triggerSync here.
+    // triggerSync keeps its MIN_SYNC_INTERVAL_MS cooldown, so a debounce that
+    // fires inside the cooldown is simply skipped (acceptable for v1).
+    // Loop-safety invariant: remote-applied changes must NOT re-arm this timer.
+    // They don't — pulls write through the repository directly, never through
+    // useRepositoryMutation — so noteLocalChange() is only ever called for
+    // genuine LOCAL writes.
+    setPushFlushHandler(() => { void triggerSync(); });
+
     import("@tauri-apps/api/event").then(({ listen }) => {
       listen("tauri://focus", () => {
         void triggerSync();
@@ -816,7 +827,10 @@ function useAutoSync() {
       });
     });
 
-    return () => { unlistenFn?.(); };
+    return () => {
+      unlistenFn?.();
+      setPushFlushHandler(null);
+    };
   }, [triggerSync]);
 }
 

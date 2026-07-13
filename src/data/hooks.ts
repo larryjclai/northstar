@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { getFinanceRepository, type FinanceRepository } from "./repositories";
+import { noteLocalChange } from "../features/connect/sync/pushScheduler";
 
 const keys = {
   repository: ["repository"] as const,
@@ -155,6 +156,10 @@ export function usePostDueRecurring(today: string) {
             queryClient.invalidateQueries({ queryKey: keys.accounts }),
             queryClient.invalidateQueries({ queryKey: keys.recurring }),
           ]);
+          // Newly-posted recurring transactions are local writes — schedule a
+          // debounced auto-push so the other device sees them without waiting
+          // for a focus/manual sync.
+          noteLocalChange();
         }
       } catch (error) {
         console.error("Failed to post due recurring transactions", error);
@@ -176,6 +181,9 @@ export function useRepositoryMutation<TInput>(
     },
     onSuccess: async () => {
       await Promise.all(invalidate.map((key) => queryClient.invalidateQueries({ queryKey: keys[key] })));
+      // A local finance write just landed — restart the debounced auto-push
+      // timer so the change syncs after a quiet period.
+      noteLocalChange();
     },
   });
 }
