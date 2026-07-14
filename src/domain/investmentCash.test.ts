@@ -33,6 +33,10 @@ describe("investment cash helpers", () => {
     expect(calculateInvestmentCashDelta({ action: "stockSplit", price: 0, quantity: 2, fee: 0 })).toBe(0);
   });
 
+  it("buy net cash includes fee (應收付金額)", () => {
+    expect(calculateInvestmentCashDelta({ action: "buy", price: 5065, quantity: 2, fee: 8 })).toBe(-10138);
+  });
+
   it("computes available inventory for the selected asset and account", () => {
     const records: InvestmentRecord[] = [
       baseRecord,

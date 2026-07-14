@@ -4,7 +4,8 @@ import { useParams, useNavigate } from "@tanstack/react-router";
 import { Area, AreaChart, ReferenceDot, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { ManualPriceSnapshotDraft } from "../data/repositories";
-import { buildPositionMetrics, buildDailyPriceLookup, buildManualPriceLookup, priceAssetOnDate, calculateFifo, calculateXirr, formatNumber, formatPrice, formatQuantity, resolveAssetName, resolveSectorLabel, XIRR_MIN_DAYS } from "../domain";
+import { buildPositionMetrics, buildDailyPriceLookup, buildManualPriceLookup, priceAssetOnDate, calculateFifo, calculateInvestmentCashDelta, calculateXirr, formatNumber, formatPrice, formatQuantity, resolveAssetName, resolveSectorLabel, XIRR_MIN_DAYS } from "../domain";
+import { isImportOpeningLot } from "./transactionsTxLabel";
 import { useUiPreferences } from "../state/uiPreferences";
 import { AssetLogo } from "../components/AssetLogo";
 import { Badge } from "../components/coss/badge";
@@ -639,30 +640,36 @@ export function HoldingDetailRoute() {
           </Button>
         </div>
         {txns.length > 0 ? (
-          txns.map((tx, i) => (
-            <div
-              key={tx.id}
-              style={{
-                display: "grid", gridTemplateColumns: "100px 80px 0.7fr 0.9fr 0.9fr 1fr 1fr",
-                gap: 0, padding: "13px 22px", borderTop: i ? "1px solid var(--ns-border)" : "none",
-                alignItems: "center",
-              }}
-            >
-              <span className="mono muted text-xs">{tx.date}</span>
-              <Badge variant={tx.action === "buy" ? "success" : tx.action === "sell" ? "error" : "secondary"} className="rounded-full uppercase" style={{ justifySelf: "start" }}>
-                {tx.action}
-              </Badge>
-              <span className="num text-body text-right">{formatQuantity(tx.quantity)}</span>
-              <span className="num text-body text-right">{formatPrice(tx.price)}</span>
-              <span className="num muted text-xs text-right">fee {tx.fee || "–"}</span>
-              <span className={"num text-sm text-right font-medium " + (tx.action === "sell" ? "pos" : tx.action === "buy" ? "" : "pos")}>
-                {tx.action === "sell" ? "+" : tx.action === "cashDividend" ? "+" : "−"}{formatNumber(tx.quantity * tx.price)}
-              </span>
-              <span className="muted text-xs text-right">
-                {accountRows.find(a => a.id === tx.linkedAccountId)?.name || "–"}
-              </span>
-            </div>
-          ))
+          txns.map((tx, i) => {
+            const opening = isImportOpeningLot(tx);
+            const net = opening
+              ? 0
+              : calculateInvestmentCashDelta({ action: tx.action, price: tx.price, quantity: tx.quantity, fee: tx.fee });
+            return (
+              <div
+                key={tx.id}
+                style={{
+                  display: "grid", gridTemplateColumns: "100px 80px 0.7fr 0.9fr 0.9fr 1fr 1fr",
+                  gap: 0, padding: "13px 22px", borderTop: i ? "1px solid var(--ns-border)" : "none",
+                  alignItems: "center",
+                }}
+              >
+                <span className="mono muted text-xs">{tx.date}</span>
+                <Badge variant={tx.action === "buy" ? "success" : tx.action === "sell" ? "error" : "secondary"} className="rounded-full uppercase" style={{ justifySelf: "start" }}>
+                  {tx.action}
+                </Badge>
+                <span className="num text-body text-right">{formatQuantity(tx.quantity)}</span>
+                <span className="num text-body text-right">{formatPrice(tx.price)}</span>
+                <span className="num muted text-xs text-right">fee {tx.fee || "–"}</span>
+                <span className={"num text-sm text-right font-medium " + (net > 0 ? "pos" : net < 0 ? "" : "muted")}>
+                  {opening ? "—" : `${net >= 0 ? "+" : "−"}${formatNumber(Math.abs(net))}`}
+                </span>
+                <span className="muted text-xs text-right">
+                  {accountRows.find(a => a.id === tx.linkedAccountId)?.name || "–"}
+                </span>
+              </div>
+            );
+          })
         ) : (
           <div className="muted text-body text-center" style={{ padding: "28px 22px" }}>尚無交易紀錄</div>
         )}

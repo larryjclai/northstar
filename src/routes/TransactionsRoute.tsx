@@ -16,7 +16,7 @@ import { downloadCsv, exportInvestmentCsv } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { InvestmentActivityImportDraft } from "../data/repositories";
 import { InvestmentImportWizard, type InvestmentActivityImportPlan } from "./InvestmentImportWizard";
-import { createFxConverter, formatMoney, formatNumber, formatPrice, formatQuantity, isWithinDateScope, makeDefaultDateScope, resolveDateScope } from "../domain";
+import { calculateInvestmentCashDelta, createFxConverter, formatMoney, formatNumber, formatPrice, formatQuantity, isWithinDateScope, makeDefaultDateScope, resolveDateScope } from "../domain";
 import type { InvestmentAction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { InvestmentEntryDrawer, type TransactionPreset } from "./InvestmentsAddSheet";
@@ -132,9 +132,18 @@ export function TransactionsRoute() {
       const asset = assetFor(record.assetId);
       const account = record.linkedAccountId ? accountMap.get(record.linkedAccountId) : null;
       const openingLot = isImportOpeningLot(record);
-      const gross = record.action === "cashDividend" ? record.price : record.price * record.quantity;
-      // The opening lot has no cash leg, so its total is neutral (shown as 「—」).
-      const signed = openingLot ? 0 : record.action === "buy" ? -gross : gross;
+      // Net cash flow (應收付金額) — identical to the ledger cash leg, so the on-screen
+      // total ties out to the account movement (brokerage fee, and the securities-
+      // transaction tax folded into `fee` on sells, are included). Opening lots are
+      // cashless import baselines, so their total stays neutral (shown as 「—」).
+      const signed = openingLot
+        ? 0
+        : calculateInvestmentCashDelta({
+            action: record.action,
+            price: record.price,
+            quantity: record.quantity,
+            fee: record.fee,
+          });
       return {
         id: record.id,
         kind: "investment",
