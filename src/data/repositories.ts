@@ -439,6 +439,9 @@ export interface RepositorySnapshot {
   dailyPrices: DailyPrice[];
   financialGoals?: FinancialGoal[];
   manualPriceSnapshots?: ManualPriceSnapshot[];
+  /** 發票/客戶 (Invoices/Clients). Optional so pre-190 backups round-trip cleanly. */
+  invoices?: Invoice[];
+  clients?: Client[];
 }
 
 const personalSpace = "space_personal_default";
@@ -1774,6 +1777,8 @@ class BrowserFinanceRepository implements FinanceRepository {
       dailyPrices: this.data.dailyPrices,
       financialGoals: this.data.financialGoals,
       manualPriceSnapshots: this.data.manualPriceSnapshots,
+      invoices: this.data.invoices,
+      clients: this.data.clients,
     };
   }
 
@@ -1895,6 +1900,8 @@ class BrowserFinanceRepository implements FinanceRepository {
       dailyPrices: snapshot.dailyPrices,
       financialGoals: snapshot.financialGoals,
       manualPriceSnapshots: snapshot.manualPriceSnapshots,
+      invoices: snapshot.invoices,
+      clients: snapshot.clients,
     });
     // A pre-books snapshot carries no books; guarantee the default 個人帳 and
     // that every imported account belongs to a book before deriving anything.
@@ -3967,7 +3974,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async exportSnapshot(): Promise<RepositorySnapshot> {
-    const [accounts, ledger, assetsList, investments, recurring, recurringInvestments, quotes, settings, fx, prices, goals, manualSnapshots] = await Promise.all([
+    const [books, accounts, ledger, assetsList, investments, recurring, recurringInvestments, quotes, settings, fx, prices, goals, manualSnapshots, invoices, clients] = await Promise.all([
+      this.listBooks(),
       this.listAccounts(),
       this.listLedgerTransactions(),
       this.listPortfolioAssets(),
@@ -3980,12 +3988,15 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       this.listDailyPrices(),
       this.listFinancialGoals(),
       this.listManualPriceSnapshots(),
+      this.listInvoices(),
+      this.listClients(),
     ]);
     const metaRows = await this.db.select<Array<{ value: string }>>(`select value from app_settings where key = '__settingsMeta'`);
     const meta = metaRows[0] ? JSON.parse(metaRows[0].value) : { revision: 1, updatedAt: nowIso() };
     return {
       version: 1,
       exportedAt: nowIso(),
+      books,
       accounts,
       ledgerTransactions: ledger,
       portfolioAssets: assetsList,
@@ -4000,6 +4011,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       dailyPrices: prices,
       financialGoals: goals,
       manualPriceSnapshots: manualSnapshots,
+      invoices,
+      clients,
     };
   }
 
@@ -4267,11 +4280,19 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       await this.db.execute("delete from accounts");
       await this.db.execute("delete from app_settings");
       await this.db.execute("delete from financial_goals");
+      await this.db.execute("delete from invoices");
+      await this.db.execute("delete from clients");
       await this.db.execute("delete from books");
       console.debug("[import] cleared existing tables");
 
       for (const book of snapshot.books ?? []) await this.insertBookRow(book);
       console.debug(`[import] inserted ${(snapshot.books ?? []).length} books`);
+
+      for (const client of snapshot.clients ?? []) await this.insertClientRow(client);
+      console.debug(`[import] inserted ${(snapshot.clients ?? []).length} clients`);
+
+      for (const invoice of snapshot.invoices ?? []) await this.insertInvoiceRow(invoice);
+      console.debug(`[import] inserted ${(snapshot.invoices ?? []).length} invoices`);
 
       for (const account of snapshot.accounts) await this.insertAccountRow(account);
       console.debug(`[import] inserted ${snapshot.accounts.length} accounts`);
