@@ -14,7 +14,7 @@
 - **Risk**: LOW (additive to snapshot; guarded by a new round-trip test)
 - **Depends on**: plan 190 MERGED (introduces Invoice/Client + insertInvoiceRow/insertClientRow that this uses). If 190 not merged, STOP.
 - **Category**: bug
-- **Planned at**: commit `<fill at dispatch: main SHA after 190 merges>`, 2026-07-13
+- **Planned at**: commit `e1e3c3b0`, 2026-07-13
 
 ## Why this matters
 
