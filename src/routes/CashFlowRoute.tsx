@@ -65,7 +65,7 @@ import {
 } from "./splitEntryState";
 import { convertCurrency, buildDailyRateIndex, formatCompactNumber } from "../domain/currency";
 import type { Account, DateScopeValue, LedgerTransaction, RecurringFrequency, RecurringTransaction, ResolvedDateScope } from "../domain";
-import { bookAccountIdSet, scopeRows } from "../domain/bookScope";
+import { ALL_BOOKS, bookAccountIdSet, scopeRows } from "../domain/bookScope";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useNumericField } from "../hooks/useNumericField";
 
@@ -2354,7 +2354,7 @@ function EntryDrawer({
   merchantSuggestions: string[];
   categorySuggestions: { merchants: string[]; accountIds: string[] };
   categoryForMerchant: (merchant: string) => { category: string; subcategory: string } | null;
-  accountRows: Array<Pick<Account, "id" | "name" | "currency" | "type" | "iconName" | "color">>;
+  accountRows: Array<Pick<Account, "id" | "name" | "currency" | "type" | "iconName" | "color" | "bankBrandDomain" | "bookId">>;
   onSubmitLedger: () => void;
   onSubmitTransfer: () => void;
   message: string;
@@ -2371,7 +2371,18 @@ function EntryDrawer({
 }) {
   const [amountFocused, setAmountFocused] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  useEffect(() => { if (open) setShowAdvanced(false); }, [open]);
+  // 帳本 entry default (plan 189 §5): the single-account 支出/收入 picker defaults
+  // to the active book's accounts with a 顯示全部 escape. 總帳 shows all. NOTE:
+  // transfer source/dest and the AR/AP 代墊 counter-account pickers deliberately
+  // stay full-list — cross-book transfers (股東代墊/owner's draw) are an explicit
+  // supported flow and must be able to reach the other book's accounts.
+  const activeBookId = useUiPreferences((state) => state.activeBookId);
+  const isAllBooksEntry = activeBookId === ALL_BOOKS;
+  const [showAllEntryAccounts, setShowAllEntryAccounts] = useState(false);
+  useEffect(() => { if (open) { setShowAdvanced(false); setShowAllEntryAccounts(false); } }, [open]);
+  const entryPickerAccounts = isAllBooksEntry || showAllEntryAccounts
+    ? accountRows
+    : accountRows.filter((a) => a.bookId === activeBookId);
 
   // Scrim must dim only the content area, never the native-vibrancy sidebar
   // (otherwise it flattens into a grey block — plan 052). The desktop sidebar
@@ -2932,7 +2943,7 @@ function EntryDrawer({
                 <div className="grid grid-cols-2 gap-3.5">
                   <DrawerField label={type === "expense" ? "支出帳戶" : "收入帳戶"} required>
                     <AccountFilter
-                      accounts={accountRows}
+                      accounts={entryPickerAccounts}
                       value={ledgerForm.accountId}
                       onChange={(id) => {
                         const account = accountRows.find((a) => a.id === id);
@@ -2942,6 +2953,16 @@ function EntryDrawer({
                       placeholder="選擇帳戶"
                       style={{ width: "100%", maxWidth: "none", minWidth: 0 }}
                     />
+                    {!isAllBooksEntry && !showAllEntryAccounts ? (
+                      <button
+                        type="button"
+                        className="muted text-xs"
+                        style={{ marginTop: 4, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                        onClick={() => setShowAllEntryAccounts(true)}
+                      >
+                        顯示全部帳戶
+                      </button>
+                    ) : null}
                   </DrawerField>
                   <DrawerField label="日期">
                     <input className="ns-input" type="datetime-local" value={ledgerForm.date} onChange={(e) => setLedgerForm({ ...ledgerForm, date: e.target.value })} />

@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { buildLedgerSuggestions, buildMerchantCategoryMap, buildUserLexicon, categoryPickerOptions, defaultAccountForCategory, formatMoney, formatNumber, formatPrice, loadCorrections, nowAsDatetimeLocal, parseQuickAdd, saveCorrection, type CorrectionStore, type QuickAddParsed } from "../domain";
 import { orchestrate, type ParseSource } from "../domain/nlParser";
+import { ALL_BOOKS, bookAccountIdSet, scopeRows } from "../domain/bookScope";
 import { createOnDeviceParser } from "../lib/foundationModels";
 import { haptic } from "../lib/haptics";
 import { useUiPreferences } from "../state/uiPreferences";
@@ -43,10 +44,22 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
   const toast = useToast();
   const timezone = useUiPreferences((state) => state.timezone);
   const sidebarCollapsed = useUiPreferences((state) => state.sidebarCollapsed);
+  const activeBookId = useUiPreferences((state) => state.activeBookId);
   const overlayLeft = sidebarCollapsed ? 64 : 240;
   const { accounts, ledger, settings } = useFinanceData();
   const accountRows = accounts.data ?? [];
   const ledgerRows = ledger.data ?? [];
+
+  // 帳本 entry defaults (plan 189 §5): the account picker defaults to the active
+  // book's accounts (with a 顯示全部 escape); 總帳 shows all. Parsing still reads
+  // every account so typing another book's account name resolves. `switcher
+  // Ledger` scopes the §6.5 default-account-for-category lookup to the book so it
+  // composes with plan 175's logic (book filter first, then the usual account).
+  const isAllBooks = activeBookId === ALL_BOOKS;
+  const [showAllAccounts, setShowAllAccounts] = useState(false);
+  const switcherAccountIds = useMemo(() => bookAccountIdSet(accountRows, activeBookId), [accountRows, activeBookId]);
+  const bookAccounts = useMemo(() => accountRows.filter((a) => switcherAccountIds.has(a.id)), [accountRows, switcherAccountIds]);
+  const pickerAccounts = isAllBooks || showAllAccounts ? accountRows : bookAccounts;
   const primaryCurrency = settings.data?.primaryCurrency ?? "TWD";
   const merchantCat = useMemo(() => buildMerchantCategoryMap(ledgerRows), [ledgerRows]);
   const [corrections, setCorrections] = useState<CorrectionStore>(() => loadCorrections());
@@ -150,7 +163,9 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
     // stays fully editable, and because originalGuess captures it too, keeping
     // the default is not recorded as a user correction.
     if (c.kind === "ledger" && !c.accountId && c.category) {
-      const usual = defaultAccountForCategory(ledgerRows, c.category);
+      // Compose with plan 189: in a specific book, prefer the usual account
+      // *within that book* (scope the history first, then 175's default).
+      const usual = defaultAccountForCategory(isAllBooks ? ledgerRows : scopeRows(ledgerRows, switcherAccountIds), c.category);
       if (usual) c.accountId = usual;
     }
     setConfirm(c);
@@ -359,7 +374,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                 </Field>
                 <Field label="帳戶">
                   <AccountFilter
-                    accounts={accountRows}
+                    accounts={pickerAccounts}
                     value={confirm.accountId}
                     onChange={(id) => setConfirm({ ...confirm, accountId: id })}
                     allowAll={false}
@@ -367,6 +382,18 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                     style={{ width: "100%", maxWidth: "none", minWidth: 0 }}
                     positionerClassName="z-[90]"
                   />
+                  {/* 帳本 escape (plan 189 §5): reveal accounts outside the active
+                      book without leaving 快速記帳. Hidden in 總帳 (all shown). */}
+                  {!isAllBooks && !showAllAccounts ? (
+                    <button
+                      type="button"
+                      className="muted text-xs"
+                      style={{ marginTop: 4, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                      onClick={() => setShowAllAccounts(true)}
+                    >
+                      顯示全部帳戶
+                    </button>
+                  ) : null}
                 </Field>
                 <div style={{ gridColumn: "1 / -1" }}>
                   <Field label="日期">
