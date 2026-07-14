@@ -81,6 +81,54 @@ export interface Book extends SyncFields {
   color: string | null;
 }
 
+/**
+ * 客戶主檔 (Client master) — plan 190 §"客戶主檔". First-class record, one per
+ * business counterparty a company book issues invoices to. Auto-filled via
+ * the existing merchant-autocomplete pattern (see `chooseMerchant` /
+ * `MerchantAutocomplete` in `QuickAdd.tsx`) — plan 191's UI concern, not this
+ * plan's.
+ */
+export interface Client extends SyncFields {
+  bookId: string;
+  name: string;
+  /** 統一編號 (統編). Empty string when the client has none on file. */
+  taxId: string;
+  /** Default payment terms in days, or null if not set. */
+  defaultPaymentTerms: number | null;
+}
+
+/**
+ * 發票 (Invoice) — plan 190 §"Invoice metadata storage". Additive metadata
+ * that points AT its receivable ledger row via `linkedLedgerTransactionId`
+ * (same foreign-key shape as `linkedInvestmentRecordId` for DRIP) rather than
+ * the ledger row pointing "up". `LedgerTransaction` gains no new field for
+ * this (locked decision — see plan 190) — the linked row's own `amount` is
+ * the 含稅 total, which must match this row's `amount`.
+ *
+ * `taxExclusiveAmount`/`taxAmount` are Model A (plan 190 §"Tax model"): the
+ * ledger row itself carries no tax split, only this row does.
+ *
+ * `settledAt` is stamped explicitly by the settle flow (`stampInvoiceSettled`)
+ * — never derived from the linked row's `updatedAt`, which a later unrelated
+ * edit would bump and silently corrupt any settled-date-based metric.
+ */
+export interface Invoice extends SyncFields {
+  bookId: string;
+  clientId: string | null;
+  invoiceNumber: string;
+  issueDate: string;
+  dueDate: string | null;
+  /** 含稅 total — matches the linked receivable ledger row's `amount`. */
+  amount: number;
+  /** 未稅額. */
+  taxExclusiveAmount: number;
+  /** 稅額. */
+  taxAmount: number;
+  /** Stamped when the linked ledger row settles; cleared if reverted. */
+  settledAt: string | null;
+  linkedLedgerTransactionId: string | null;
+}
+
 export interface Account extends SyncFields {
   name: string;
   currency: CurrencyCode;
