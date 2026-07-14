@@ -1512,6 +1512,21 @@ textarea:focus-visible {
   border-top: 1px solid var(--ns-border);
   white-space: nowrap;
 }
+.ns-invest-subtotal td {
+  border-top: 1px solid var(--ns-border);
+  background: color-mix(in srgb, var(--ns-bg-hover) 40%, transparent);
+  font-size: 12px;
+  padding: 10px 18px;
+}
+.ns-invest-mobile-subtotal {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 4px 2px;
+  border-top: 1px solid var(--ns-border);
+  font-size: 12px;
+}
 .ns-invest-asset-cell {
   display: flex;
   align-items: center;

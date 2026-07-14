@@ -22,6 +22,7 @@ import { useUiPreferences } from "../state/uiPreferences";
 import { InvestmentEntryDrawer, type TransactionPreset } from "./InvestmentsAddSheet";
 import { isImportOpeningLot, txTypeLabel } from "./transactionsTxLabel";
 import { summarizeTransactions } from "./transactionsSummary";
+import { groupByDayWithSubtotals, type DailySettlementGroup } from "./investmentDailySettlement";
 
 const actionLabels: Record<InvestmentAction, string> = {
   buy: "買進",
@@ -43,17 +44,13 @@ const allActionLabels: Record<string, string> = { ...actionLabels, [DEPOSIT]: de
 
 type TxKind = "investment" | "cash";
 
-// Paginate the flat transaction list first (pageSize rows/page), then group the
-// current page's rows by month for the sub-headers — mirroring the ledger
-// (CashFlowRoute), which paginates flat rows then groups within the page. This
-// keeps the page size a count of transactions, not of month-groups.
-function paginateAndGroupByMonth<T extends { date: string }>(
-  rows: T[],
-  page: number,
-  pageSize: number,
-): { groups: Array<{ date: string; rows: T[] }>; totalPages: number } {
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
-  const pageRows = rows.slice((page - 1) * pageSize, page * pageSize);
+// Group an already-paginated page of rows by month for the sub-headers —
+// mirroring the ledger (CashFlowRoute), which paginates flat rows then groups
+// within the page. Slicing/pagination happens once in the component so both the
+// 月分組 and 日結 views share the same page slice; this only does the grouping.
+function groupRowsByMonth<T extends { date: string }>(
+  pageRows: T[],
+): Array<{ date: string; rows: T[] }> {
   const groups: Array<{ date: string; rows: T[] }> = [];
   let currentMonth = "";
   for (const row of pageRows) {
@@ -65,7 +62,7 @@ function paginateAndGroupByMonth<T extends { date: string }>(
       groups[groups.length - 1].rows.push(row);
     }
   }
-  return { groups, totalPages };
+  return groups;
 }
 
 interface UnifiedTx {
@@ -107,6 +104,7 @@ export function TransactionsRoute() {
   const [assetTypeFilter, setAssetTypeFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set());
   const [brokerFilter, setBrokerFilter] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<"month" | "day">("month");
   const [dateScope, setDateScope] = useState(() => makeDefaultDateScope(timezone, "all"));
   const dateRange = useMemo(() => resolveDateScope(dateScope, timezone), [dateScope, timezone]);
 
@@ -250,10 +248,22 @@ export function TransactionsRoute() {
     setPage(1);
   }, [searchQuery, dateRange, assetTypeFilter, typeFilter, brokerFilter]);
 
-  const { groups: paginatedGroups, totalPages } = useMemo(
-    () => paginateAndGroupByMonth(filteredTx, page, pageSize),
-    [filteredTx, page],
+  const pageSlice = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredTx.length / pageSize));
+    const pageRows = filteredTx.slice((page - 1) * pageSize, page * pageSize);
+    return { pageRows, totalPages };
+  }, [filteredTx, page]);
+  const { pageRows, totalPages } = pageSlice;
+
+  const monthGroups = useMemo(
+    () => (viewMode === "month" ? groupRowsByMonth(pageRows) : []),
+    [viewMode, pageRows],
   );
+  const dayGroups = useMemo(
+    () => (viewMode === "day" ? groupByDayWithSubtotals(pageRows) : []),
+    [viewMode, pageRows],
+  );
+  const hasGroups = viewMode === "month" ? monthGroups.length > 0 : dayGroups.length > 0;
   const hasActiveFilters = typeFilter.size > 0 || brokerFilter.size > 0 || assetTypeFilter !== "all" || Boolean(searchQuery) || dateScope.preset !== "all";
 
   // Filter dropdown options. Broker list includes an "unspecified" bucket when
@@ -381,6 +391,15 @@ export function TransactionsRoute() {
             presets={["month", "ytd", "last12m", "all", "custom"]}
           />
 
+          <SegmentedControl
+            value={viewMode}
+            onChange={setViewMode}
+            options={[
+              { value: "month", label: "月分組" },
+              { value: "day", label: "日結" },
+            ]}
+          />
+
           {hasActiveFilters && (
             <Button variant="ghost" size="xs" className="text-[var(--ns-neg)]" onClick={clearFilters}>
               Clear filters
@@ -395,7 +414,7 @@ export function TransactionsRoute() {
           onImport={(input: InvestmentActivityImportPlan) => importRecords.mutateAsync(input)}
         />
 
-        {paginatedGroups.length === 0 ? (
+        {!hasGroups ? (
           allTx.length === 0 ? (
             <EmptyState
               icon={<PlusCircle size={24} weight="duotone" />}
@@ -415,22 +434,39 @@ export function TransactionsRoute() {
         ) : (
           <>
             <div className="ns-invest-months">
-              {paginatedGroups.map((group) => (
-                <InvestmentMonthGroup
-                  key={group.date}
-                  group={group}
-                  onEdit={openEdit}
-                  onDuplicate={openDuplicate}
-                  onDelete={async (recordId) => {
-                    try {
-                      await deleteRecord.mutateAsync(recordId);
-                      if (editingRecordId === recordId) setEditingRecordId(null);
-                    } catch (error) {
-                      setMessage(error instanceof Error ? error.message : "刪除失敗。");
-                    }
-                  }}
-                />
-              ))}
+              {viewMode === "month"
+                ? monthGroups.map((group) => (
+                    <InvestmentMonthGroup
+                      key={group.date}
+                      group={group}
+                      onEdit={openEdit}
+                      onDuplicate={openDuplicate}
+                      onDelete={async (recordId) => {
+                        try {
+                          await deleteRecord.mutateAsync(recordId);
+                          if (editingRecordId === recordId) setEditingRecordId(null);
+                        } catch (error) {
+                          setMessage(error instanceof Error ? error.message : "刪除失敗。");
+                        }
+                      }}
+                    />
+                  ))
+                : dayGroups.map((group) => (
+                    <InvestmentDayGroup
+                      key={group.date}
+                      group={group}
+                      onEdit={openEdit}
+                      onDuplicate={openDuplicate}
+                      onDelete={async (recordId) => {
+                        try {
+                          await deleteRecord.mutateAsync(recordId);
+                          if (editingRecordId === recordId) setEditingRecordId(null);
+                        } catch (error) {
+                          setMessage(error instanceof Error ? error.message : "刪除失敗。");
+                        }
+                      }}
+                    />
+                  ))}
             </div>
             {totalPages > 1 && (
               <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 24, marginBottom: 24 }}>
@@ -512,6 +548,81 @@ function InvestmentMonthGroup({
       <div className="ns-invest-mobile-list">
         {group.rows.map((tx) => (
           <InvestmentTransactionMobile key={tx.id} tx={tx} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// 日結: same rows as the month view, grouped by calendar day, each day closing
+// with a per-currency 小計 (成交金額 / 手續費 / 應收付) so it ties out against the
+// broker's daily 成交回報 email.
+function InvestmentDayGroup({
+  group,
+  onEdit,
+  onDuplicate,
+  onDelete,
+}: {
+  group: DailySettlementGroup<UnifiedTx>;
+  onEdit: (recordId: string) => void;
+  onDuplicate: (recordId: string) => void;
+  onDelete: (recordId: string) => Promise<void>;
+}) {
+  return (
+    <section className="ns-invest-month">
+      <div className="ns-invest-month-head">
+        <h3>{group.date}</h3>
+        <span>{group.rows.length} 筆</span>
+      </div>
+
+      <div className="ns-invest-table-wrap">
+        <table className="ns-invest-table">
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>標的</th>
+              <th>類型</th>
+              <th className="text-right">股數</th>
+              <th className="text-right">價格</th>
+              <th className="text-right">手續費</th>
+              <th className="text-right">總額</th>
+              <th>帳戶</th>
+              <th className="text-right">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {group.rows.map((tx) => (
+              <InvestmentTransactionRow key={tx.id} tx={tx} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} />
+            ))}
+          </tbody>
+          <tfoot>
+            {group.subtotals.map((s) => (
+              <tr key={s.currency} className="ns-invest-subtotal">
+                <td colSpan={5} className="text-right muted">
+                  小計 · 成交金額 {formatMoney(s.gross, s.currency)}
+                </td>
+                <td className="num text-right muted">{formatNumber(s.fee)}</td>
+                <td className={`num text-right ${s.net >= 0 ? "pos" : "neg"}`}>
+                  {s.net >= 0 ? "+" : "−"}{formatMoney(Math.abs(s.net), s.currency)}
+                </td>
+                <td colSpan={2} />
+              </tr>
+            ))}
+          </tfoot>
+        </table>
+      </div>
+
+      <div className="ns-invest-mobile-list">
+        {group.rows.map((tx) => (
+          <InvestmentTransactionMobile key={tx.id} tx={tx} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} />
+        ))}
+        {group.subtotals.map((s) => (
+          <div key={s.currency} className="ns-invest-mobile-subtotal">
+            <span className="muted">小計 · 成交 {formatMoney(s.gross, s.currency)} · 費 {formatNumber(s.fee)}</span>
+            <strong className={s.net >= 0 ? "pos" : "neg"}>
+              {s.net >= 0 ? "+" : "−"}{formatMoney(Math.abs(s.net), s.currency)}
+            </strong>
+          </div>
         ))}
       </div>
     </section>
