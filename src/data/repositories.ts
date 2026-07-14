@@ -6,12 +6,14 @@ import type {
   AssetType,
   Book,
   BookKind,
+  Client,
   DailyFxRate,
   DailyPrice,
   FinancialGoal,
   GoalDisplayMode,
   GoalKind,
   IncomeItem,
+  Invoice,
   InvestmentAction,
   InvestmentRecord,
   LedgerTransaction,
@@ -88,6 +90,19 @@ export type AccountDraft = Pick<Account, "name" | "currency" | "openingBalance" 
 
 /** Fields a caller supplies to create/update a 帳本 (Book). */
 export type BookDraft = Pick<Book, "name" | "kind" | "includeInPersonalNetWorth" | "includeInFireMetrics" | "color">;
+
+/**
+ * Fields a caller supplies to create/update an 發票 (Invoice). No `settledAt`
+ * — a new invoice always starts unsettled; `stampInvoiceSettled` is the only
+ * way to set or clear it.
+ */
+export type InvoiceDraft = Pick<
+  Invoice,
+  "bookId" | "clientId" | "invoiceNumber" | "issueDate" | "dueDate" | "amount" | "taxExclusiveAmount" | "taxAmount" | "linkedLedgerTransactionId"
+>;
+
+/** Fields a caller supplies to create/update a 客戶 (Client). */
+export type ClientDraft = Pick<Client, "bookId" | "name" | "taxId" | "defaultPaymentTerms">;
 
 export interface RecurringDraft {
   accountId: string;
@@ -262,6 +277,23 @@ export interface FinanceRepository {
   listBooks(): Promise<Book[]>;
   createBook(input: BookDraft): Promise<void>;
   updateBook(id: string, input: BookDraft): Promise<void>;
+  /** 發票 (Invoices) — plan 190. Additive metadata; see `Invoice`. */
+  listInvoices(): Promise<Invoice[]>;
+  createInvoice(input: InvoiceDraft): Promise<void>;
+  updateInvoice(id: string, input: InvoiceDraft): Promise<void>;
+  /** 客戶主檔 (Clients) — plan 190. See `Client`. */
+  listClients(): Promise<Client[]>;
+  createClient(input: ClientDraft): Promise<void>;
+  updateClient(id: string, input: ClientDraft): Promise<void>;
+  /**
+   * Stamp (or clear, when `settledAt` is null) the `settledAt` field on the
+   * invoice whose `linkedLedgerTransactionId` matches `linkedLedgerTransactionId`.
+   * A no-op if no invoice links to that ledger row. Plan 191 wires this into
+   * the settle flow (`confirmSettle`) — this plan only provides the method.
+   */
+  stampInvoiceSettled(linkedLedgerTransactionId: string, settledAt: string | null): Promise<void>;
+  /** Find the invoice (if any) linked to a given ledger transaction id. */
+  findInvoiceByLedgerId(ledgerId: string): Promise<Invoice | null>;
   listAccounts(): Promise<Account[]>;
   createAccount(input: AccountDraft): Promise<void>;
   updateAccount(id: string, input: AccountDraft): Promise<void>;
@@ -430,6 +462,8 @@ const defaultSettings: AppSettings = {
 
 export interface RepositoryData {
   books: Book[];
+  invoices: Invoice[];
+  clients: Client[];
   accounts: Account[];
   ledgerTransactions: LedgerTransaction[];
   portfolioAssets: PortfolioAsset[];
@@ -773,6 +807,104 @@ class BrowserFinanceRepository implements FinanceRepository {
       }) : book,
     );
     await this.persist();
+  }
+
+  async listInvoices() {
+    return active(this.data.invoices);
+  }
+
+  async createInvoice(input: InvoiceDraft) {
+    const timestamp = nowIso();
+    this.data.invoices.push({
+      id: createId("invoice"),
+      spaceId: personalSpace,
+      revision: 1,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      deletedAt: null,
+      bookId: input.bookId,
+      clientId: input.clientId ?? null,
+      invoiceNumber: input.invoiceNumber,
+      issueDate: input.issueDate,
+      dueDate: input.dueDate ?? null,
+      amount: input.amount,
+      taxExclusiveAmount: input.taxExclusiveAmount,
+      taxAmount: input.taxAmount,
+      settledAt: null,
+      linkedLedgerTransactionId: input.linkedLedgerTransactionId ?? null,
+    });
+    await this.persist();
+  }
+
+  async updateInvoice(id: string, input: InvoiceDraft) {
+    this.data.invoices = this.data.invoices.map((invoice) =>
+      invoice.id === id ? bump({
+        ...invoice,
+        bookId: input.bookId,
+        clientId: input.clientId ?? null,
+        invoiceNumber: input.invoiceNumber,
+        issueDate: input.issueDate,
+        dueDate: input.dueDate ?? null,
+        amount: input.amount,
+        taxExclusiveAmount: input.taxExclusiveAmount,
+        taxAmount: input.taxAmount,
+        linkedLedgerTransactionId: input.linkedLedgerTransactionId ?? null,
+      }) : invoice,
+    );
+    await this.persist();
+  }
+
+  async listClients() {
+    return active(this.data.clients);
+  }
+
+  async createClient(input: ClientDraft) {
+    const timestamp = nowIso();
+    this.data.clients.push({
+      id: createId("client"),
+      spaceId: personalSpace,
+      revision: 1,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      deletedAt: null,
+      bookId: input.bookId,
+      name: input.name,
+      taxId: input.taxId ?? "",
+      defaultPaymentTerms: input.defaultPaymentTerms ?? null,
+    });
+    await this.persist();
+  }
+
+  async updateClient(id: string, input: ClientDraft) {
+    this.data.clients = this.data.clients.map((client) =>
+      client.id === id ? bump({
+        ...client,
+        bookId: input.bookId,
+        name: input.name,
+        taxId: input.taxId ?? "",
+        defaultPaymentTerms: input.defaultPaymentTerms ?? null,
+      }) : client,
+    );
+    await this.persist();
+  }
+
+  async stampInvoiceSettled(linkedLedgerTransactionId: string, settledAt: string | null) {
+    const match = this.data.invoices.find(
+      (invoice) => invoice.linkedLedgerTransactionId === linkedLedgerTransactionId && invoice.deletedAt === null,
+    );
+    if (!match) return;
+    this.data.invoices = this.data.invoices.map((invoice) =>
+      invoice.id === match.id ? bump({ ...invoice, settledAt }) : invoice,
+    );
+    await this.persist();
+  }
+
+  async findInvoiceByLedgerId(ledgerId: string): Promise<Invoice | null> {
+    return (
+      this.data.invoices.find(
+        (invoice) => invoice.linkedLedgerTransactionId === ledgerId && invoice.deletedAt === null,
+      ) ?? null
+    );
   }
 
   async listAccounts() {
@@ -1651,6 +1783,8 @@ class BrowserFinanceRepository implements FinanceRepository {
   protected async allSyncRecords(): Promise<SyncSource> {
     return {
       books: this.data.books,
+      invoices: this.data.invoices,
+      clients: this.data.clients,
       accounts: this.data.accounts,
       ledgerTransactions: this.data.ledgerTransactions,
       portfolioAssets: this.data.portfolioAssets,
@@ -1727,6 +1861,8 @@ class BrowserFinanceRepository implements FinanceRepository {
       recurringInvestment: this.data.recurringInvestments,
       goal: this.data.financialGoals,
       book: this.data.books,
+      invoice: this.data.invoices,
+      client: this.data.clients,
     };
     return (rowsByEntity[entity].find((row) => row.id === entityId) as unknown as Record<string, unknown> | undefined) ?? null;
   }
@@ -1788,6 +1924,8 @@ class BrowserFinanceRepository implements FinanceRepository {
         recurringInvestment: "recurringInvestments",
         goal: "financialGoals",
         book: "books",
+        invoice: "invoices",
+        client: "clients",
       } as const;
       // Recurring-occurrence de-dup: when two devices each post the same
       // occurrence, both rows arrive via sync under one recurringOccurrenceKey.
@@ -2416,6 +2554,103 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       `update books set revision = revision + 1, updated_at = $1, name = $2, kind = $3, include_in_personal_net_worth = $4, include_in_fire_metrics = $5, color = $6 where id = $7`,
       [nowIso(), input.name, input.kind, Number(input.includeInPersonalNetWorth), Number(input.includeInFireMetrics), input.color ?? null, id],
     );
+  }
+
+  override async listInvoices() {
+    return (await this.db.select<Invoice[]>(`select
+      id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
+      book_id as bookId, client_id as clientId, invoice_number as invoiceNumber, issue_date as issueDate, due_date as dueDate,
+      amount, tax_exclusive_amount as taxExclusiveAmount, tax_amount as taxAmount, settled_at as settledAt, linked_ledger_transaction_id as linkedLedgerTransactionId
+      from invoices where deleted_at is null order by issue_date, id`)).map((row) => ({
+        ...row,
+        clientId: row.clientId ?? null,
+        dueDate: row.dueDate ?? null,
+        settledAt: row.settledAt ?? null,
+        linkedLedgerTransactionId: row.linkedLedgerTransactionId ?? null,
+      }));
+  }
+
+  override async createInvoice(input: InvoiceDraft) {
+    const timestamp = nowIso();
+    await this.db.execute(
+      `insert into invoices (id, space_id, revision, created_at, updated_at, deleted_at, book_id, client_id, invoice_number, issue_date, due_date, amount, tax_exclusive_amount, tax_amount, settled_at, linked_ledger_transaction_id)
+       values ($1,$2,1,$3,$3,null,$4,$5,$6,$7,$8,$9,$10,$11,null,$12)`,
+      [
+        createId("invoice"),
+        personalSpace,
+        timestamp,
+        input.bookId,
+        input.clientId ?? null,
+        input.invoiceNumber,
+        input.issueDate,
+        input.dueDate ?? null,
+        input.amount,
+        input.taxExclusiveAmount,
+        input.taxAmount,
+        input.linkedLedgerTransactionId ?? null,
+      ],
+    );
+  }
+
+  override async updateInvoice(id: string, input: InvoiceDraft) {
+    await this.db.execute(
+      `update invoices set revision = revision + 1, updated_at = $1, book_id = $2, client_id = $3, invoice_number = $4, issue_date = $5, due_date = $6, amount = $7, tax_exclusive_amount = $8, tax_amount = $9, linked_ledger_transaction_id = $10 where id = $11`,
+      [nowIso(), input.bookId, input.clientId ?? null, input.invoiceNumber, input.issueDate, input.dueDate ?? null, input.amount, input.taxExclusiveAmount, input.taxAmount, input.linkedLedgerTransactionId ?? null, id],
+    );
+  }
+
+  override async listClients() {
+    return (await this.db.select<Client[]>(`select
+      id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
+      book_id as bookId, name, tax_id as taxId, default_payment_terms as defaultPaymentTerms
+      from clients where deleted_at is null order by name, id`)).map((row) => ({
+        ...row,
+        taxId: row.taxId ?? "",
+        defaultPaymentTerms: row.defaultPaymentTerms ?? null,
+      }));
+  }
+
+  override async createClient(input: ClientDraft) {
+    const timestamp = nowIso();
+    await this.db.execute(
+      `insert into clients (id, space_id, revision, created_at, updated_at, deleted_at, book_id, name, tax_id, default_payment_terms)
+       values ($1,$2,1,$3,$3,null,$4,$5,$6,$7)`,
+      [createId("client"), personalSpace, timestamp, input.bookId, input.name, input.taxId ?? "", input.defaultPaymentTerms ?? null],
+    );
+  }
+
+  override async updateClient(id: string, input: ClientDraft) {
+    await this.db.execute(
+      `update clients set revision = revision + 1, updated_at = $1, book_id = $2, name = $3, tax_id = $4, default_payment_terms = $5 where id = $6`,
+      [nowIso(), input.bookId, input.name, input.taxId ?? "", input.defaultPaymentTerms ?? null, id],
+    );
+  }
+
+  override async stampInvoiceSettled(linkedLedgerTransactionId: string, settledAt: string | null) {
+    await this.db.execute(
+      `update invoices set revision = revision + 1, updated_at = $1, settled_at = $2 where linked_ledger_transaction_id = $3 and deleted_at is null`,
+      [nowIso(), settledAt, linkedLedgerTransactionId],
+    );
+  }
+
+  override async findInvoiceByLedgerId(ledgerId: string): Promise<Invoice | null> {
+    const rows = await this.db.select<Invoice[]>(
+      `select
+       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
+       book_id as bookId, client_id as clientId, invoice_number as invoiceNumber, issue_date as issueDate, due_date as dueDate,
+       amount, tax_exclusive_amount as taxExclusiveAmount, tax_amount as taxAmount, settled_at as settledAt, linked_ledger_transaction_id as linkedLedgerTransactionId
+       from invoices where linked_ledger_transaction_id = $1 and deleted_at is null limit 1`,
+      [ledgerId],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      ...row,
+      clientId: row.clientId ?? null,
+      dueDate: row.dueDate ?? null,
+      settledAt: row.settledAt ?? null,
+      linkedLedgerTransactionId: row.linkedLedgerTransactionId ?? null,
+    };
   }
 
   override async listAccounts() {
@@ -3773,7 +4008,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       this.db.select<Array<{ id: string; revision: number; updatedAt: string; deletedAt: string | null }>>(
         `select id, revision, updated_at as updatedAt, deleted_at as deletedAt from ${table}`,
       );
-    const [accounts, ledger, assets, investments, recurring, recurringInvestments, goals, books] = await Promise.all([
+    const [accounts, ledger, assets, investments, recurring, recurringInvestments, goals, books, invoices, clients] = await Promise.all([
       q("accounts"),
       q("ledger_transactions"),
       q("portfolio_assets"),
@@ -3782,6 +4017,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       q("recurring_investments"),
       q("financial_goals"),
       q("books"),
+      q("invoices"),
+      q("clients"),
     ]);
     const metaRows = await this.db.select<Array<{ value: string }>>(`select value from app_settings where key = '__settingsMeta'`);
     const meta = metaRows[0] ? JSON.parse(metaRows[0].value) : { revision: 1, updatedAt: nowIso() };
@@ -3794,6 +4031,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       recurringInvestments,
       financialGoals: goals,
       books,
+      invoices,
+      clients,
       appSettings: [{ id: "app_settings", revision: meta.revision ?? 1, updatedAt: meta.updatedAt ?? nowIso(), deletedAt: null }],
     };
   }
@@ -3886,6 +4125,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         recurringInvestment: "recurring_investments",
         goal: "financial_goals",
         book: "books",
+        invoice: "invoices",
+        client: "clients",
       };
       await this.db.execute(
         `update ${tableByEntity[conflict.entity]} set revision = revision + 1, updated_at = $1 where id = $2`,
@@ -3916,6 +4157,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       recurringInvestment: "recurring_investments",
       goal: "financial_goals",
       book: "books",
+      invoice: "invoices",
+      client: "clients",
     };
     const rows = await this.db.select<Array<Record<string, unknown>>>(
       `select * from ${tableByEntity[entity]} where id = $1 limit 1`,
@@ -3947,6 +4190,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       recurringInvestment: "recurring_investments",
       goal: "financial_goals",
       book: "books",
+      invoice: "invoices",
+      client: "clients",
     };
     const table = tableByEntity[entity];
 
@@ -4193,6 +4438,52 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         Number(row.includeInPersonalNetWorth ?? true),
         Number(row.includeInFireMetrics ?? true),
         row.color ?? null,
+      ],
+    );
+  }
+
+  private async insertInvoiceRow(row: Invoice) {
+    const now = nowIso();
+    await this.db.execute(
+      `insert into invoices (id, space_id, revision, created_at, updated_at, deleted_at, book_id, client_id, invoice_number, issue_date, due_date, amount, tax_exclusive_amount, tax_amount, settled_at, linked_ledger_transaction_id)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      [
+        row.id,
+        row.spaceId ?? personalSpace,
+        row.revision ?? 1,
+        row.createdAt ?? now,
+        row.updatedAt ?? now,
+        row.deletedAt ?? null,
+        row.bookId ?? "",
+        row.clientId ?? null,
+        row.invoiceNumber ?? "",
+        row.issueDate ?? now,
+        row.dueDate ?? null,
+        row.amount ?? 0,
+        row.taxExclusiveAmount ?? 0,
+        row.taxAmount ?? 0,
+        row.settledAt ?? null,
+        row.linkedLedgerTransactionId ?? null,
+      ],
+    );
+  }
+
+  private async insertClientRow(row: Client) {
+    const now = nowIso();
+    await this.db.execute(
+      `insert into clients (id, space_id, revision, created_at, updated_at, deleted_at, book_id, name, tax_id, default_payment_terms)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [
+        row.id,
+        row.spaceId ?? personalSpace,
+        row.revision ?? 1,
+        row.createdAt ?? now,
+        row.updatedAt ?? now,
+        row.deletedAt ?? null,
+        row.bookId ?? "",
+        row.name ?? "",
+        row.taxId ?? "",
+        row.defaultPaymentTerms ?? null,
       ],
     );
   }
@@ -4571,6 +4862,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       ["recurring_investments", "recurringInvestment"],
       ["financial_goals", "goal"],
       ["books", "book"],
+      ["invoices", "invoice"],
+      ["clients", "client"],
     ];
     for (const [table, entity] of tables) {
       await this.db.execute(`create trigger if not exists sync_outbox_${entity}_insert
@@ -4639,6 +4932,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       ["recurring_investments", "recurringInvestment"],
       ["financial_goals", "goal"],
       ["books", "book"],
+      ["invoices", "invoice"],
+      ["clients", "client"],
     ];
     for (const [table, entity] of tables) {
       await this.db.execute(
@@ -4679,6 +4974,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       recurringInvestment: "recurring_investments",
       goal: "financial_goals",
       book: "books",
+      invoice: "invoices",
+      client: "clients",
     };
     await this.db.execute(`delete from ${tableByEntity[change.entity]} where id = $1`, [String(payload.id)]);
     switch (change.entity) {
@@ -4715,6 +5012,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       case "recurringInvestment": await this.insertRecurringInvestmentRow(payload as unknown as RecurringInvestment); break;
       case "goal": await this.insertGoalRow(payload as unknown as FinancialGoal); break;
       case "book": await this.insertBookRow(payload as unknown as Book); break;
+      case "invoice": await this.insertInvoiceRow(payload as unknown as Invoice); break;
+      case "client": await this.insertClientRow(payload as unknown as Client); break;
     }
   }
 
@@ -4883,6 +5182,8 @@ function createInitialData(): RepositoryData {
   const now = nowIso();
   return {
     books: [],
+    invoices: [],
+    clients: [],
     accounts: [...seedAccounts],
     ledgerTransactions: [...seedLedgerTransactions],
     portfolioAssets: [...seedAssets],
@@ -5022,6 +5323,18 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
   const repaired = repairCashlessLedgerLegs(data.ledgerTransactions ?? [], materializedRecords);
   return {
     books: (data.books ?? []).map((book) => ({ ...book, color: book.color ?? null })),
+    invoices: (data.invoices ?? []).map((invoice) => ({
+      ...invoice,
+      clientId: invoice.clientId ?? null,
+      dueDate: invoice.dueDate ?? null,
+      settledAt: invoice.settledAt ?? null,
+      linkedLedgerTransactionId: invoice.linkedLedgerTransactionId ?? null,
+    })),
+    clients: (data.clients ?? []).map((client) => ({
+      ...client,
+      taxId: client.taxId ?? "",
+      defaultPaymentTerms: client.defaultPaymentTerms ?? null,
+    })),
     accounts: (data.accounts ?? []).map((account) => ({
       ...account,
       // Empty string is the "unassigned" sentinel; ensureDefaultBook*() replaces
