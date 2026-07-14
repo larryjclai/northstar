@@ -6,6 +6,8 @@ import type { RepositoryData } from "./repositories";
 function makeData(overrides: Partial<RepositoryData> = {}): RepositoryData {
   return {
     books: [],
+    invoices: [],
+    clients: [],
     accounts: [],
     ledgerTransactions: [],
     portfolioAssets: [],

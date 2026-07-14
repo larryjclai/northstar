@@ -252,6 +252,48 @@ export const migrations: Migration[] = [
       );
     `,
   },
+  {
+    id: 6,
+    description: "發票 (Invoices) — 開發票 metadata linking to a receivable ledger row (plan 190)",
+    sql: `
+      create table if not exists invoices (
+        id text primary key,
+        space_id text not null,
+        revision integer not null,
+        created_at text not null,
+        updated_at text not null,
+        deleted_at text,
+        book_id text not null default '',
+        client_id text,
+        invoice_number text not null default '',
+        issue_date text not null,
+        due_date text,
+        amount real not null default 0,
+        tax_exclusive_amount real not null default 0,
+        tax_amount real not null default 0,
+        settled_at text,
+        linked_ledger_transaction_id text
+      );
+    `,
+  },
+  {
+    id: 7,
+    description: "客戶主檔 (Clients) — invoice counterparties (plan 190)",
+    sql: `
+      create table if not exists clients (
+        id text primary key,
+        space_id text not null,
+        revision integer not null,
+        created_at text not null,
+        updated_at text not null,
+        deleted_at text,
+        book_id text not null default '',
+        name text not null default '',
+        tax_id text not null default '',
+        default_payment_terms real
+      );
+    `,
+  },
   // NOTE: extension columns for `financial_goals` (retirement projection
   // inputs) are added via `ensureSqliteColumn` calls inside the SQLite
   // initialize() routine, not via a sql migration. SQLite's bare

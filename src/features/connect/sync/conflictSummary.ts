@@ -14,6 +14,8 @@ const ENTITY_LABELS: Record<SyncEntity, string> = {
   recurringInvestment: "定期定額",
   goal: "目標",
   book: "帳本",
+  invoice: "發票",
+  client: "客戶",
   settings: "設定",
 };
 
