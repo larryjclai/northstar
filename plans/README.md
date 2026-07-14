@@ -106,6 +106,28 @@ Dependency notes: none between 183–185 (different files: globals.css+CashFlowR
 InvestmentsRoute / DashboardRoute). 186 is paper-only and gates any books build;
 its Phase 3 (shared books) stays blocked on spike 143.
 
+**186 open questions — OPERATOR ANSWERED (2026-07-13), bake into the Phase 1/2 build plans:**
+1. Budgets/goals = personal books only (per recommendation).
+2. Cross-book 股東代墊 shows in 未結清 from BOTH books (per recommendation).
+3. Invoice numbering = BOTH free-text AND auto-sequencing, user-toggleable; must support
+   台灣統一發票 字軌 input (2-letter track prefix + 8 digits, tax-authority-issued blocks);
+   UI must present this as the Taiwan 統一發票 feature — or design the field generically.
+   **CONFIRMED design (operator approved advisor's recommendation)**: generic
+   prefix(字軌)+sequence invoice-number structure; a「統一發票 (TW)」preset supplies 字軌
+   validation (2 letters + 8 digits) and auto-sequencing; other locales get plain
+   prefix+sequence. EXPANDS Phase 2 scope beyond the doc's free-text-only recommendation.
+4. 401 summary = live query for v1 (per recommendation).
+5. Shared books = convert-in-place upgrade of an existing book (per recommendation).
+   Note: nothing to migrate TODAY (books don't exist yet) — this decision means Phase 1's
+   schema must keep per-book envelope namespacing from day one so the later upgrade is
+   "invite a member", not a data migration. Already the doc's design; now operator-locked.
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 187 | 持倉表跨列對齊 root-cause fix — per-row independent grids + `auto` optional tracks → fixed px tracks per column key (advisor measured live DOM: 台積電 row shifted 4–12px; header on a 3rd offset) | P2 | S | 184 (merged) | DONE — reviewed+APPROVED+MERGED to main @ `7c08b45c` (operator-instructed), branch `fix/ai-holdings-grid-fixed-tracks` @ `103e0651`. Reviewer re-measured live DOM post-merge: all 5 rows + header resolve IDENTICAL column edges [489,589,688,805,931,1071,1171,1223] (pre-fix: rows differed 4–12px, header a 3rd offset). Executor self-corrected a stale worktree base by branching from main. tsc 0 / lint 0 / 1155 tests. |
+| 188 | 帳本 Phase 1a foundation — `Book` entity + `accounts.book_id` + migration/自癒 backfill(個人帳)+ sync 接線(8 個 tableByEntity sites, compiler-guided)+ 純分割特徵測試先行 + dual-harness books tests | P2 | M | 186 doc (merged) | DONE — reviewed+APPROVED+MERGED to main @ `fd724031` (operator-instructed), branch `feat/ai-books-foundation` @ `7e9891ee`. `Book` entity + `Account.bookId` + migration id 5 + idempotent 個人帳 backfill w/ revision-bump; sync接線全補(4 tableByEntity + browser keyByEntity + 2 outbox trigger arrays + pull VALID_ENTITIES + conflictSummary label + normalize boolean hydration + insertBookRow); +booksPartition characterization (byte-frozen, asserts netWorth/cash/liabilities incl. 對帳恆等式) + 12 dual-harness tests incl. SQLite outbox-tracking guard. **TWO executor STOPs, both correct** (pull.ts VALID_ENTITIES + conflictSummary.ts — literal/Record entity lists tsc-or-silently-missable; now the verified-complete set of 4 non-test SyncEntity consumers). push.test 3→4 = legit behavior change (default book syncs). tsc 0 / lint 0 / 1171 tests. |
+| 189 | 帳本 Phase 1b UI — 側欄切換器(Search 與 QuickAdd 之間)、`bookScope.ts` 語意先寫成測試(總帳 identity / 過濾 / FIRE toggles / 跨帳本轉帳中性)、§1 12 surfaces 逐 cluster 範圍化、帳戶歸屬+帳本管理、QuickAdd/EntryDrawer 預設帳本 | P2 | L | 188 MERGED | DONE — reviewed+APPROVED (1 STOP for operator hero-KPI decision), branch `feat/ai-books-switcher` @ `59866d9c` (9 commits, off `fd724031`). NOT merged — awaiting operator. `bookScope.ts` (4 helpers, 7 tests) + sidebar 帳本 switcher + 12 §1 surfaces scoped per two-axis rule (general=switcher, FIRE-family=fireMetricAccountIdSet switcher-independent) + AccountsRoute 帳本 select + 帳本管理 modal + QuickAdd/EntryDrawer book-default. **Hero-KPI: operator decided netWorth follows switcher; firstGoalPct/FIRE recomputed from personalNetWorthAccountIdSet so they DON`T move with switcher.** Zero repo/sync/migration change. tsc 0 / lint 0 / 1178 tests; 188 booksPartition byte-unchanged+green. **Reviewer LIVE browser pass (worktree vite): switcher renders between Search/QuickAdd + lists 總帳/個人帳/公司帳; 帳本管理 modal creates books; 個人帳 toggles ON / 公司帳 toggles OFF (188 semantic verified in UI); 0 console errors.** Executor judgment calls (all sound): milestone toast bound to personalNetWorth; cross-book transfer/代墊 pickers full-list; asset book-membership by owning-or-linked account. |
+
 ## 168–169 — 記帳 (Cash Flow) redesign (from Claude Design, 2026-07-12)
 
 Imported from `記帳交易 Redesign.html` (project `a2b50679…`,
