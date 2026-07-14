@@ -17,6 +17,7 @@ import {
   Gear,
   MagnifyingGlass,
   Sparkle,
+  Users,
 } from "@phosphor-icons/react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ChangeEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -42,15 +43,21 @@ import { readableTextColor } from "../lib/color";
 import { lockViewportScroll } from "../lib/scrollLock";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
-import { useFinanceData, useRepositoryMutation } from "../data/hooks";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useFinanceData, useRepository, useRepositoryMutation } from "../data/hooks";
 import { DatePicker } from "../components/ui/date-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
+import { ClientAutocomplete } from "../components/ClientAutocomplete";
+import { ClientManager } from "../components/ClientManager";
 import { useToast } from "../components/Toast";
 import { activeFilterChips } from "./activeFilterChips";
-import type { LedgerDraft, TransferDraft } from "../data/repositories";
+import type { ClientDraft, InvoiceDraft, LedgerDraft, TransferDraft } from "../data/repositories";
 import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, classifyLedgerGroup, evaluateAmountExpression, filterCategoriesByType, formatNumber, installmentLabel, isNeutralLedgerRow, isWithinDateScope, makeDefaultDateScope, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, resolveDateScope, todayInTimezone } from "../domain";
 import type { SplitLegInput, SplitSharedFields } from "../domain/splitLegs";
+import { buildInvoiceDrafts, defaultInvoiceDueDate } from "../domain/invoiceEntry";
+import { computeSalesTax } from "../domain/salesTax";
+import { nextInvoiceNumber, validateInvoiceNumber, type InvoiceNumberPreset } from "../domain/invoiceNumbering";
 import {
   addSplitLeg,
   derivedSplitTotal,
@@ -64,7 +71,7 @@ import {
   type SplitLegDraftState,
 } from "./splitEntryState";
 import { convertCurrency, buildDailyRateIndex, formatCompactNumber } from "../domain/currency";
-import type { Account, DateScopeValue, LedgerTransaction, RecurringFrequency, RecurringTransaction, ResolvedDateScope } from "../domain";
+import type { Account, Client, DateScopeValue, LedgerTransaction, RecurringFrequency, RecurringTransaction, ResolvedDateScope } from "../domain";
 import { ALL_BOOKS, bookAccountIdSet, scopeRows } from "../domain/bookScope";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useNumericField } from "../hooks/useNumericField";
@@ -115,6 +122,13 @@ function settlementFor(type: CashType): LedgerDraft["settlementStatus"] {
   if (type === "ap") return "payable";
   return "settled";
 }
+
+/**
+ * Thrown by the 開發票 mutation when the receivable ledger row was created
+ * successfully but the linked invoice metadata failed — see
+ * `createInvoiceEntry`'s orphan note (plan 191 step 3).
+ */
+class InvoiceMetadataError extends Error {}
 
 function makeEmptyLedger(timezone: string): LedgerDraft {
   return {
@@ -178,6 +192,23 @@ export function CashFlowRoute() {
   const emptyLedger = useMemo(() => makeEmptyLedger(timezone), [timezone]);
   const emptyTransfer = useMemo(() => makeEmptyTransfer(timezone), [timezone]);
 
+  // 開發票 / 客戶主檔 (plan 191): kept local to this route (not added to
+  // useFinanceData/hooks.ts, which is out of this plan's file scope) — plain
+  // useQuery calls against the shared repository instance, same data as
+  // listInvoices()/listClients() would return via the shared hook.
+  const repository = useRepository();
+  const queryClient = useQueryClient();
+  const invoicesQuery = useQuery({
+    queryKey: ["invoices"],
+    queryFn: () => repository.data!.listInvoices(),
+    enabled: Boolean(repository.data),
+  });
+  const clientsQuery = useQuery({
+    queryKey: ["clients"],
+    queryFn: () => repository.data!.listClients(),
+    enabled: Boolean(repository.data),
+  });
+
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerType, setDrawerType] = useState<CashType>("expense");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -207,6 +238,16 @@ export function CashFlowRoute() {
   const [transferForm, setTransferForm] = useState<TransferDraft>(emptyTransfer);
   const [counterparty, setCounterparty] = useState("");
   const [dueDate, setDueDate] = useState("");
+  // 開發票 (plan 191): an 應收帳款 entry can optionally be an invoice. Toggled on
+  // either via the dedicated 開發票 toolbar button or an in-drawer toggle;
+  // `ar` stays the underlying CashType so the settle rails are untouched.
+  const [isInvoiceEntry, setIsInvoiceEntry] = useState(false);
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [invoiceNumberPreset, setInvoiceNumberPreset] = useState<InvoiceNumberPreset>("TW_UNIFORM");
+  // Null when the counterparty typed a free-text name instead of picking an
+  // existing 客戶 record — createInvoice tolerates a null clientId.
+  const [invoiceClientId, setInvoiceClientId] = useState<string | null>(null);
+  const [clientManagerOpen, setClientManagerOpen] = useState(false);
 
   const [preview, setPreview] = useState<ImportPreview<LedgerDraft> | null>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
@@ -242,6 +283,21 @@ export function CashFlowRoute() {
   const ledgerRows = ledger.data ?? [];
   const bookRows = books.data ?? [];
   const recurringRows = recurring.data ?? [];
+  const invoiceRows = invoicesQuery.data ?? [];
+  const clientRows = clientsQuery.data ?? [];
+
+  // 開發票 (plan 191): gated to a specific 公司帳 (not 總帳, not a personal book)
+  // — docs/ledger-books-plan.md §3 scopes invoices to the company book only.
+  const activeBookRecord = useMemo(() => bookRows.find((b) => b.id === activeBookId) ?? null, [bookRows, activeBookId]);
+  const isActiveCompanyBook = activeBookRecord?.kind === "company";
+  const bookClients = useMemo(() => clientRows.filter((c) => c.bookId === activeBookId), [clientRows, activeBookId]);
+  const bookInvoices = useMemo(() => invoiceRows.filter((i) => i.bookId === activeBookId), [invoiceRows, activeBookId]);
+  // Suggests the next number off the most recently issued invoice in this book.
+  const lastInvoiceNumber = useMemo(() => {
+    if (bookInvoices.length === 0) return null;
+    const sorted = [...bookInvoices].sort((a, b) => b.issueDate.localeCompare(a.issueDate) || b.createdAt.localeCompare(a.createdAt));
+    return sorted[0].invoiceNumber;
+  }, [bookInvoices]);
 
   // 帳本 (Books) switcher scope (plan 189, docs/ledger-books-plan.md §1 #3/#4/#5/#12):
   // cash-flow is a general view → scoped by the active book / 總帳. Accounts
@@ -364,6 +420,52 @@ export function CashFlowRoute() {
     ["ledger", "accounts"],
   );
 
+  // 開發票 (plan 191 step 3): create the receivable ledger row FIRST, then the
+  // invoice metadata pointing at it. `createLedgerTransaction` doesn't return
+  // the new row's id, so the created row is found by diffing the ledger list
+  // before/after (ids are always unique — no repository API change needed).
+  // Orphan note: if `createInvoice` fails after the ledger row already landed,
+  // that row is still a valid plain receivable (recoverable) — this throws a
+  // distinguishable `InvoiceMetadataError` so the caller can tell the operator
+  // and close the drawer instead of inviting a duplicate resubmit.
+  const createInvoiceEntry = useRepositoryMutation(
+    async (repository, input: { ledger: LedgerDraft; invoice: Omit<InvoiceDraft, "linkedLedgerTransactionId"> }) => {
+      const before = new Set((await repository.listLedgerTransactions()).map((row) => row.id));
+      await repository.createLedgerTransaction(input.ledger);
+      const after = await repository.listLedgerTransactions();
+      const created = after.find((row) => !before.has(row.id));
+      if (!created) {
+        throw new Error("應收帳款已建立，但找不到新交易以建立發票，請至交易列表手動確認。");
+      }
+      try {
+        await repository.createInvoice({ ...input.invoice, linkedLedgerTransactionId: created.id });
+      } catch (e) {
+        const reason = e instanceof Error ? e.message : String(e);
+        throw new InvoiceMetadataError(`應收帳款已建立，但發票資料建立失敗（${reason}）。請至客戶管理重新確認後手動補登。`);
+      }
+    },
+    // "invoices" isn't a key `useRepositoryMutation` knows about (it's a local
+    // useQuery here, not part of useFinanceData/hooks.ts) — invalidated
+    // manually via `queryClient` right after this mutation settles.
+    ["ledger", "accounts"],
+  );
+  const createClientMutation = useRepositoryMutation(
+    (repository, input: ClientDraft) => repository.createClient(input),
+    [],
+  );
+  const updateClientMutation = useRepositoryMutation(
+    (repository, input: { id: string; draft: ClientDraft }) => repository.updateClient(input.id, input.draft),
+    [],
+  );
+  // 開發票 (plan 191 step 4): stamps/clears the linked invoice's settledAt —
+  // a no-op when no invoice links to the ledger row (190's contract), so a
+  // plain 應收/應付 settle calling this is harmless.
+  const stampInvoiceSettledMutation = useRepositoryMutation(
+    (repository, input: { linkedLedgerTransactionId: string; settledAt: string | null }) =>
+      repository.stampInvoiceSettled(input.linkedLedgerTransactionId, input.settledAt),
+    [],
+  );
+
   const rememberMerchants = useRepositoryMutation(async (repository, input: string[]) => {
     const nextNames = uniqueClean(input);
     if (nextNames.length === 0) return;
@@ -440,6 +542,10 @@ export function CashFlowRoute() {
     setMessage("");
     setCounterparty("");
     setDueDate("");
+    setIsInvoiceEntry(false);
+    setInvoiceNumber("");
+    setInvoiceNumberPreset("TW_UNIFORM");
+    setInvoiceClientId(null);
     if (type === "transfer") {
       setTransferForm({ ...emptyTransfer, date: nowAsDatetimeLocal(timezone) });
     } else {
@@ -460,6 +566,13 @@ export function CashFlowRoute() {
     }
   }
 
+  /** 開發票 toolbar shortcut: opens straight into an ar entry with the invoice
+   *  toggle already on (company-book gated by the caller). */
+  function openInvoiceCreate() {
+    openCreate("ar");
+    setIsInvoiceEntry(true);
+  }
+
   function closeDrawer() {
     setDrawerOpen(false);
     setEditingId(null);
@@ -476,6 +589,12 @@ export function CashFlowRoute() {
     // leg of the group. Ignore those taps while a split edit is open.
     if (editingSplitGroupId && next !== "expense" && next !== "income") return;
     setDrawerType(next);
+    // 開發票 fields only make sense for ar; leaving it drops the invoice toggle.
+    if (next !== "ar") {
+      setIsInvoiceEntry(false);
+      setInvoiceNumber("");
+      setInvoiceClientId(null);
+    }
     // Split mode only exists for expense/income; leaving them drops the legs.
     if (next !== "expense" && next !== "income") {
       setSplitLegs(null);
@@ -566,6 +685,13 @@ export function CashFlowRoute() {
     setEditingId(row.id);
     setCounterparty(row.settlementStatus === "settled" ? "" : row.merchant);
     setDueDate("");
+    // Editing never re-opens the invoice fields (plan 191 scope: no editing an
+    // existing invoice's number after creation) — the ar row itself is still
+    // editable exactly as before; its linked invoice metadata, if any, is
+    // untouched by this edit.
+    setIsInvoiceEntry(false);
+    setInvoiceNumber("");
+    setInvoiceClientId(null);
     setLedgerForm({
       accountId: row.accountId,
       counterAccountId: row.counterAccountId ?? null,
@@ -607,6 +733,9 @@ export function CashFlowRoute() {
     setDrawerRecurringFreq("none");
     setCounterparty(row.settlementStatus === "settled" ? "" : row.merchant);
     setDueDate("");
+    setIsInvoiceEntry(false);
+    setInvoiceNumber("");
+    setInvoiceClientId(null);
     setMessage("");
 
     if (type === "transfer") {
@@ -681,6 +810,53 @@ export function CashFlowRoute() {
         }
         await rememberCategories.mutateAsync(legs.map((leg) => ({ category: leg.category, subcategory: leg.subcategory })));
         rememberMerchantNames([shared.merchant]);
+        closeDrawer();
+        return;
+      }
+      // 開發票 (plan 191 step 3): create-only — editing an existing invoice's
+      // number/split isn't supported (out of scope), so this branch only runs
+      // for a fresh ar entry with the toggle on. Falls through to the plain ar
+      // path below for every other case, which stays byte-identical.
+      if (drawerType === "ar" && isInvoiceEntry && !editingId) {
+        if (!isActiveCompanyBook) throw new Error("開發票僅限公司帳；請先切換至公司帳本。");
+        if (!counterparty.trim()) throw new Error("請填寫客戶。");
+        const invoiceTotal = Math.abs(evaluateAmountExpression(amountExpression));
+        const { ledger: invoiceLedgerDraft, invoice: invoiceMetaDraft } = buildInvoiceDrafts({
+          bookId: activeBookId,
+          clientId: invoiceClientId,
+          clientName: counterparty,
+          invoiceNumber,
+          invoiceNumberPreset,
+          issueDate: ledgerForm.date,
+          dueDate: dueDate || null,
+          taxInclusiveTotal: invoiceTotal,
+          currency: ledgerForm.currency,
+          category: ledgerForm.category.trim(),
+          subcategory: ledgerForm.subcategory.trim(),
+          note: ledgerForm.note,
+          counterAccountId: ledgerForm.counterAccountId ?? null,
+        });
+        try {
+          await createInvoiceEntry.mutateAsync({ ledger: invoiceLedgerDraft, invoice: invoiceMetaDraft });
+          await queryClient.invalidateQueries({ queryKey: ["invoices"] });
+        } catch (mutationError) {
+          // The ledger row (if it landed) is already invalidated via
+          // createInvoiceEntry's own ["ledger","accounts"] list — but an
+          // InvoiceMetadataError means the invoice row itself may or may not
+          // exist, so refresh the local invoices query either way.
+          await queryClient.invalidateQueries({ queryKey: ["invoices"] });
+          if (mutationError instanceof InvoiceMetadataError) {
+            // The receivable already landed — closing avoids a duplicate
+            // resubmit; the toast tells the operator what still needs fixing.
+            toast.error(mutationError.message);
+            closeDrawer();
+            return;
+          }
+          throw mutationError;
+        }
+        toast.success(`已建立發票並記錄應收帳款（${invoiceMetaDraft.invoiceNumber}）`);
+        await rememberCategories.mutateAsync([{ category: invoiceLedgerDraft.category, subcategory: invoiceLedgerDraft.subcategory }]);
+        rememberMerchantNames([invoiceLedgerDraft.merchant]);
         closeDrawer();
         return;
       }
@@ -899,6 +1075,16 @@ export function CashFlowRoute() {
         settlementStatus: "settled",
         note: row.note,
       });
+      // 開發票 (plan 191 step 4): stamp the linked invoice's settledAt, if any.
+      // Runs after the settle itself succeeds and never blocks the settle's
+      // own success toast on a stamping failure — the ledger row is already
+      // settled either way.
+      try {
+        await stampInvoiceSettledMutation.mutateAsync({ linkedLedgerTransactionId: row.id, settledAt: new Date().toISOString() });
+        await queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      } catch (stampError) {
+        console.error("Failed to stamp invoice settledAt", stampError);
+      }
       toast.success(row.settlementStatus === "receivable" ? "已收款結清" : "已付款結清");
       setSettlePrompt(null);
     } catch (error) {
@@ -1278,6 +1464,19 @@ export function CashFlowRoute() {
               </div>
             </PopoverContent>
           </Popover>
+
+          {/* 開發票 / 客戶管理 (plan 191): only surfaced while viewing a 公司帳
+              (docs/ledger-books-plan.md §3) — hidden in 總帳 and personal books. */}
+          {isActiveCompanyBook && (
+            <>
+              <Button variant="outline" className="h-9 sm:h-9 whitespace-nowrap" onClick={() => setClientManagerOpen(true)}>
+                <Users size={14} weight="bold" />客戶
+              </Button>
+              <Button variant="outline" className="h-9 sm:h-9 whitespace-nowrap" onClick={openInvoiceCreate}>
+                <Receipt size={14} weight="bold" />開發票
+              </Button>
+            </>
+          )}
 
           <Button className="h-9 sm:h-9 whitespace-nowrap" onClick={() => openCreate("expense")}>
             <Plus size={14} weight="bold" />記一筆
@@ -1723,7 +1922,35 @@ export function CashFlowRoute() {
         splitLegs={splitLegs}
         setSplitLegs={setSplitLegs}
         onOpenImport={() => csvInputRef.current?.click()}
+        isActiveCompanyBook={isActiveCompanyBook}
+        isInvoiceEntry={isInvoiceEntry}
+        setIsInvoiceEntry={setIsInvoiceEntry}
+        invoiceNumber={invoiceNumber}
+        setInvoiceNumber={setInvoiceNumber}
+        invoiceNumberPreset={invoiceNumberPreset}
+        setInvoiceNumberPreset={setInvoiceNumberPreset}
+        invoiceClientId={invoiceClientId}
+        setInvoiceClientId={setInvoiceClientId}
+        bookClients={bookClients}
+        lastInvoiceNumber={lastInvoiceNumber}
+        onOpenClientManager={() => setClientManagerOpen(true)}
       />
+      {clientManagerOpen && (
+        <ClientManager
+          bookId={activeBookId}
+          clients={bookClients}
+          onCreate={async (draft) => {
+            await createClientMutation.mutateAsync(draft);
+            await queryClient.invalidateQueries({ queryKey: ["clients"] });
+          }}
+          onUpdate={async (id, draft) => {
+            await updateClientMutation.mutateAsync({ id, draft });
+            await queryClient.invalidateQueries({ queryKey: ["clients"] });
+          }}
+          saving={createClientMutation.isPending || updateClientMutation.isPending}
+          onClose={() => setClientManagerOpen(false)}
+        />
+      )}
       <CategoryManagementDrawer
         open={categoryDrawerOpen}
         onClose={() => setCategoryDrawerOpen(false)}
@@ -2331,6 +2558,18 @@ function EntryDrawer({
   splitLegs,
   setSplitLegs,
   onOpenImport,
+  isActiveCompanyBook,
+  isInvoiceEntry,
+  setIsInvoiceEntry,
+  invoiceNumber,
+  setInvoiceNumber,
+  invoiceNumberPreset,
+  setInvoiceNumberPreset,
+  invoiceClientId,
+  setInvoiceClientId,
+  bookClients,
+  lastInvoiceNumber,
+  onOpenClientManager,
 }: {
   open: boolean;
   type: CashType;
@@ -2368,6 +2607,20 @@ function EntryDrawer({
   splitLegs: SplitLegDraftState[] | null;
   setSplitLegs: (legs: SplitLegDraftState[] | null) => void;
   onOpenImport?: () => void;
+  /** 開發票 (plan 191) — the ar drawer's invoice toggle + fields only render
+   *  when the active book is a 公司帳. */
+  isActiveCompanyBook: boolean;
+  isInvoiceEntry: boolean;
+  setIsInvoiceEntry: (value: boolean) => void;
+  invoiceNumber: string;
+  setInvoiceNumber: (value: string) => void;
+  invoiceNumberPreset: InvoiceNumberPreset;
+  setInvoiceNumberPreset: (value: InvoiceNumberPreset) => void;
+  invoiceClientId: string | null;
+  setInvoiceClientId: (value: string | null) => void;
+  bookClients: Client[];
+  lastInvoiceNumber: string | null;
+  onOpenClientManager: () => void;
 }) {
   const [amountFocused, setAmountFocused] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -3125,8 +3378,98 @@ function EntryDrawer({
                   ? "應收帳款：對方欠你的錢。若你已先用某帳戶代墊，選下方「付款帳戶」會在建立時立即扣款，對方還款時點 ✓ 結清會入「收款帳戶」，整筆代墊不計收支；留空則結清後才計入收入。"
                   : "應付帳款：你欠對方的錢。若你已先收到款項，選下方「收款帳戶」會在建立時立即入帳，付款時點 ✓ 結清會由「付款帳戶」扣款，整筆代墊不計收支；留空則結清後才計入支出。"}
               </div>
-              <DrawerField label={type === "ar" ? "對象（欠款方）" : "對象（收款方）"} required>
-                <input className="ns-input" value={counterparty} onChange={(e) => setCounterparty(e.target.value)} placeholder={type === "ar" ? "例：小明、ABC 公司" : "例：房東、供應商"} />
+
+              {/* 開發票 toggle (plan 191 step 2) — only offered for ar in a 公司帳. */}
+              {type === "ar" && isActiveCompanyBook && (
+                <label className="flex items-center gap-2 text-body" style={{ cursor: "pointer" }}>
+                  <input type="checkbox" checked={isInvoiceEntry} onChange={(e) => setIsInvoiceEntry(e.target.checked)} />
+                  <span>設為發票（自動計算 5% 銷項營業稅）</span>
+                </label>
+              )}
+
+              <DrawerField label={type === "ar" ? (isInvoiceEntry ? "客戶" : "對象（欠款方）") : "對象（收款方）"} required>
+                {type === "ar" && isInvoiceEntry ? (
+                  <>
+                    <ClientAutocomplete
+                      value={counterparty}
+                      clients={bookClients}
+                      onChange={(name, client) => {
+                        setCounterparty(name);
+                        setInvoiceClientId(client?.id ?? null);
+                        if (client && !dueDate) {
+                          const suggested = defaultInvoiceDueDate(ledgerForm.date, client.defaultPaymentTerms);
+                          if (suggested) setDueDate(suggested);
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="text-micro muted"
+                      style={{ marginTop: 5, cursor: "pointer", background: "none", border: "none", padding: 0, textDecoration: "underline" }}
+                      onClick={onOpenClientManager}
+                    >
+                      管理客戶
+                    </button>
+                  </>
+                ) : (
+                  <input className="ns-input" value={counterparty} onChange={(e) => setCounterparty(e.target.value)} placeholder={type === "ar" ? "例：小明、ABC 公司" : "例：房東、供應商"} />
+                )}
+              </DrawerField>
+
+              {/* 發票號碼 + 稅額預覽 (plan 191 step 2) */}
+              {type === "ar" && isInvoiceEntry && (
+                <>
+                  <DrawerField label="發票號碼" required>
+                    <div className="flex gap-2">
+                      <AppSelect
+                        value={invoiceNumberPreset}
+                        onChange={(v) => setInvoiceNumberPreset(v as InvoiceNumberPreset)}
+                        options={[{ value: "TW_UNIFORM", label: "統一發票" }, { value: "FREE_TEXT", label: "自由格式" }]}
+                        style={{ width: 120, flexShrink: 0, height: 40 }}
+                      />
+                      <input
+                        className="ns-input"
+                        value={invoiceNumber}
+                        onChange={(e) => setInvoiceNumber(e.target.value.toUpperCase())}
+                        placeholder={invoiceNumberPreset === "TW_UNIFORM" ? "AB12345678" : "自訂發票號碼"}
+                        style={{ fontFamily: "var(--ns-font-mono)", flex: 1 }}
+                      />
+                    </div>
+                    {lastInvoiceNumber && (
+                      <button
+                        type="button"
+                        className="text-micro muted"
+                        style={{ marginTop: 5, cursor: "pointer", background: "none", border: "none", padding: 0, textDecoration: "underline" }}
+                        onClick={() => {
+                          const result = nextInvoiceNumber(lastInvoiceNumber, invoiceNumberPreset);
+                          if (result.ok) setInvoiceNumber(result.value);
+                        }}
+                      >
+                        建議號碼：延續上一張（{lastInvoiceNumber}）
+                      </button>
+                    )}
+                    {invoiceNumber.trim() && !validateInvoiceNumber(invoiceNumber.trim(), invoiceNumberPreset) && (
+                      <div className="text-micro" style={{ marginTop: 5, color: "var(--ns-neg)" }}>
+                        {invoiceNumberPreset === "TW_UNIFORM" ? "格式需為 2 碼英文字軌 + 8 碼數字（例：AB12345678）。" : "請輸入發票號碼。"}
+                      </div>
+                    )}
+                  </DrawerField>
+                  <DrawerField label="稅額試算（5% 內含）">
+                    {(() => {
+                      const total = Math.abs(evaluateAmountExpression(amountExpression)) || 0;
+                      const { taxExclusive, tax } = computeSalesTax(total);
+                      return (
+                        <div className="text-body muted">
+                          未稅 {formatNumber(taxExclusive)} ＋ 稅額 {formatNumber(tax)} ＝ 含稅 {formatNumber(total)}
+                        </div>
+                      );
+                    })()}
+                  </DrawerField>
+                </>
+              )}
+
+              <DrawerField label={type === "ar" ? (isInvoiceEntry ? "到期日（選填）" : "預計收款日（選填）") : "付款截止日（選填）"}>
+                <input className="ns-input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={{ fontFamily: "var(--ns-font-mono)" }} />
               </DrawerField>
               <DrawerField label={type === "ar" ? "付款帳戶（我先墊付，建立時扣款，選填）" : "收款帳戶（我先收到，建立時入帳，選填）"}>
                 <AccountFilter
@@ -3138,9 +3481,6 @@ function EntryDrawer({
                   placeholder="選擇帳戶"
                   style={{ width: "100%", maxWidth: "none", minWidth: 0 }}
                 />
-              </DrawerField>
-              <DrawerField label={type === "ar" ? "預計收款日（選填）" : "付款截止日（選填）"}>
-                <input className="ns-input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={{ fontFamily: "var(--ns-font-mono)" }} />
               </DrawerField>
               <DrawerField label="分類">
                 <div className="flex flex-wrap gap-1.5">
@@ -3208,10 +3548,18 @@ function EntryDrawer({
             className="flex-1 justify-center"
             style={{ background: meta.color, borderColor: meta.color, color: "#fff" }}
             onClick={type === "transfer" ? onSubmitTransfer : onSubmitLedger}
-            disabled={splitMode && Boolean(splitError)}
+            disabled={
+              (splitMode && Boolean(splitError))
+              || (type === "ar" && isInvoiceEntry && !editing
+                && (!counterparty.trim() || !invoiceNumber.trim() || !validateInvoiceNumber(invoiceNumber.trim(), invoiceNumberPreset)))
+            }
           >
             <Check size={14} weight="bold" />
-            {editing ? "儲存變更" : type === "ar" ? "記錄應收" : type === "ap" ? "記錄應付" : type === "transfer" ? "建立轉帳" : "儲存交易"}
+            {editing
+              ? "儲存變更"
+              : type === "ar" && isInvoiceEntry
+                ? "開立發票"
+                : type === "ar" ? "記錄應收" : type === "ap" ? "記錄應付" : type === "transfer" ? "建立轉帳" : "儲存交易"}
           </Button>
         </div>
       </div>
