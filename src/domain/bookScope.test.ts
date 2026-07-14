@@ -17,7 +17,10 @@ import type { Account, Book, LedgerTransaction } from "./types";
 
 type MinimalAccount = Pick<Account, "id" | "bookId">;
 type MinimalBook = Pick<Book, "id" | "includeInFireMetrics" | "includeInPersonalNetWorth">;
-type MinimalLedgerRow = Pick<LedgerTransaction, "id" | "accountId" | "entryType" | "counterAccountId">;
+type MinimalLedgerRow = Pick<
+  LedgerTransaction,
+  "id" | "accountId" | "entryType" | "counterAccountId" | "settlementStatus"
+>;
 
 function account(overrides: MinimalAccount): Account {
   return overrides as unknown as Account;
@@ -31,6 +34,7 @@ function ledgerRow(overrides: Partial<MinimalLedgerRow> & Pick<MinimalLedgerRow,
   const row: MinimalLedgerRow = {
     entryType: "expense",
     counterAccountId: null,
+    settlementStatus: "settled",
     ...overrides,
   };
   return row as unknown as LedgerTransaction;
@@ -74,6 +78,37 @@ describe("bookScope (plan 189 Step 1 semantics)", () => {
     const personalSet = bookAccountIdSet(accounts, "book_personal");
     const scoped = scopeRows(rows, personalSet);
     expect(scoped.map((r) => r.id)).toEqual(["l1", "l2"]);
+  });
+
+  // (e) Plan 194 regression: an unsettled 應收/應付 row has accountId === "" —
+  // the receiving/paying account is only chosen at settle time — so it must
+  // never be scoped out, in 總帳 OR in any specific book. Dropping it hid the
+  // 未結清 settlements card's rows even in 總帳 (bookAccountIdSet(accounts,
+  // "all") never contains "" as a member, so the old `!= null` check alone
+  // wasn't enough to keep it).
+  it("scopeRows keeps an unassigned (accountId '') unsettled receivable row in both 總帳 and a specific book", () => {
+    const unsettledAr = ledgerRow({
+      id: "l_ar_unassigned",
+      accountId: "",
+      settlementStatus: "receivable",
+    });
+    const rows: LedgerTransaction[] = [
+      unsettledAr,
+      ledgerRow({ id: "l1", accountId: "acct_personal_cash" }),
+      ledgerRow({ id: "l3", accountId: "acct_company_checking" }),
+    ];
+
+    // 總帳: the unassigned row must be included alongside every normal row.
+    const allSet = bookAccountIdSet(accounts, ALL_BOOKS);
+    const allScoped = scopeRows(rows, allSet);
+    expect(allScoped.map((r) => r.id)).toEqual(["l_ar_unassigned", "l1", "l3"]);
+
+    // A specific book (book_personal): the unassigned row is still included
+    // (shown everywhere until it settles — per the scope decision), while the
+    // company account's row is still correctly excluded.
+    const personalSet = bookAccountIdSet(accounts, "book_personal");
+    const personalScoped = scopeRows(rows, personalSet);
+    expect(personalScoped.map((r) => r.id)).toEqual(["l_ar_unassigned", "l1"]);
   });
 
   // (c) fireMetricAccountIdSet / personalNetWorthAccountIdSet include ONLY
