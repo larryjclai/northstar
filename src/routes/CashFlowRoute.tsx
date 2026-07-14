@@ -57,6 +57,7 @@ import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettl
 import type { SplitLegInput, SplitSharedFields } from "../domain/splitLegs";
 import { buildInvoiceDrafts, defaultInvoiceDueDate } from "../domain/invoiceEntry";
 import { computeSalesTax } from "../domain/salesTax";
+import { agingBuckets, bimonthly401Summary, daysSalesOutstanding, outstandingSalesTax } from "../domain/invoiceReporting";
 import { nextInvoiceNumber, validateInvoiceNumber, type InvoiceNumberPreset } from "../domain/invoiceNumbering";
 import {
   addSplitLeg,
@@ -94,6 +95,17 @@ const TYPE_META: Record<CashType, { label: string; color: string; sign: string; 
 };
 
 const TYPE_ORDER: CashType[] = ["expense", "income", "ar", "ap", "transfer"];
+
+// 帳齡 card labels (plan 193) — all five buckets are populated and shown;
+// notDue (未到期) is deliberately distinct from d1_30 (逾期 1–30 天) so the
+// most-watched overdue line is never hidden behind a "not overdue" label.
+const AGING_BUCKET_LABELS: Record<string, string> = {
+  notDue: "未到期",
+  d1_30: "逾期 1–30 天",
+  d31_60: "逾期 31–60 天",
+  d61_90: "逾期 61–90 天",
+  over90: "逾期 90 天以上",
+};
 const RECURRING_OPTIONS = [
   { value: "none", label: "單次交易（不重複）" },
   { value: "weekly", label: "每週" },
@@ -1344,6 +1356,20 @@ export function CashFlowRoute() {
     [bookLedgerRows, selectedAccount, settlementConvert],
   );
 
+  // 帳齡/DSO + 本期應繳營業稅 + 401 雙月彙總 (plan 193) — company-book-only invoice
+  // reporting, all derived from the already-fetched `bookInvoices`. Kept as
+  // plain memos (not a shared hook) mirroring the invoicesQuery/clientsQuery
+  // pattern above: local to this route, not in scope for this plan.
+  const todayIso = useMemo(() => todayInTimezone(timezone), [timezone]);
+  const invoiceAging = useMemo(() => agingBuckets(bookInvoices, todayIso), [bookInvoices, todayIso]);
+  const invoiceDso = useMemo(() => daysSalesOutstanding(bookInvoices, { todayIso }), [bookInvoices, todayIso]);
+  const currentPeriodSalesTax = useMemo(() => outstandingSalesTax(bookInvoices, todayIso), [bookInvoices, todayIso]);
+  const currentFilingYear = useMemo(() => Number(todayIso.slice(0, 4)), [todayIso]);
+  const invoice401Summary = useMemo(
+    () => bimonthly401Summary(bookInvoices, currentFilingYear),
+    [bookInvoices, currentFilingYear],
+  );
+
   // Render one day-group (header + its rows) — shared by the flat short-range
   // list and by each expanded month in the long-range (variant D) view.
   const renderDayGroup = (g: { date: string; rows: DisplayRow[]; net: number }, indented = false) => (
@@ -1863,6 +1889,72 @@ export function CashFlowRoute() {
               </div>
             </Card>
           ) : null}
+
+          {/* 發票報表 (plan 193): 帳齡/DSO、本期應繳營業稅、401 雙月彙總 — company
+              book only (docs/ledger-books-plan.md §3), and only once there's
+              at least one invoice to report on. */}
+          {isActiveCompanyBook && bookInvoices.length > 0 && (
+            <Card style={{ padding: "var(--ns-pad-card)" }}>
+              <div className="text-sm font-semibold mb-2.5">本期應繳營業稅</div>
+              <div className="num text-lg" style={{ color: "var(--ns-neg)" }}>{primaryCurrency} {formatNumber(currentPeriodSalesTax)}</div>
+              <div className="muted text-caption mt-1.5">
+                依開立日計算，含尚未收款的發票 — 銷項稅額於開立當期即應繳納，非收款當期。
+              </div>
+            </Card>
+          )}
+
+          {isActiveCompanyBook && bookInvoices.length > 0 && (
+            <Card style={{ padding: "var(--ns-pad-card)" }}>
+              <div className="text-sm font-semibold mb-2.5">帳齡 · 收款週期</div>
+              <div className="flex flex-col gap-1.5 mb-2.5">
+                {invoiceAging.map((b) => (
+                  <div key={b.bucket} className="text-body flex items-center justify-between gap-2">
+                    <span className="muted">{AGING_BUCKET_LABELS[b.bucket]}</span>
+                    <span className="num whitespace-nowrap">
+                      {b.count} 筆 · {primaryCurrency} {formatNumber(b.total)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="muted text-caption">
+                平均收款週期 (DSO)：{invoiceDso === null ? "—" : `${invoiceDso.toFixed(1)} 天`}
+              </div>
+            </Card>
+          )}
+
+          {isActiveCompanyBook && bookInvoices.length > 0 && (
+            <Card style={{ padding: "var(--ns-pad-card)" }}>
+              <div className="text-sm font-semibold mb-2.5">{currentFilingYear} 年度 401 雙月彙總</div>
+              <div className="ns-detail-table-wrap">
+                <table className="ns-detail-table">
+                  <thead>
+                    <tr>
+                      <th>期間</th>
+                      <th className="text-right">未稅銷售額</th>
+                      <th className="text-right">銷項稅額</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invoice401Summary.map((row) => (
+                      <tr key={row.period}>
+                        <td>{row.period}</td>
+                        <td className="num text-right">{formatNumber(row.taxableSales)}</td>
+                        <td className="num text-right">{formatNumber(row.salesTax)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td>合計</td>
+                      <td className="num text-right">{formatNumber(invoice401Summary.reduce((sum, r) => sum + r.taxableSales, 0))}</td>
+                      <td className="num text-right">{formatNumber(invoice401Summary.reduce((sum, r) => sum + r.salesTax, 0))}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <div className="muted text-caption mt-1.5">供 401 申報參考。</div>
+            </Card>
+          )}
         </div>
       </div>
       </>
