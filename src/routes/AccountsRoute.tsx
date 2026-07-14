@@ -1,4 +1,4 @@
-import { ArrowsClockwise, CaretDown, CaretRight, Check, DownloadSimple, ListChecks, PencilSimple, Percent, Plus, Scales, Trash, X, MagnifyingGlass } from "@phosphor-icons/react";
+import { ArrowsClockwise, BookOpen, CaretDown, CaretRight, Check, DownloadSimple, ListChecks, PencilSimple, Percent, Plus, Scales, Trash, X, MagnifyingGlass } from "@phosphor-icons/react";
 import { ReactNode, useMemo, useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -17,14 +17,16 @@ import { openOnboarding } from "../components/OnboardingOverlay";
 import { downloadCsv, exportAccountsCsv } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { getFinanceRepository } from "../data/repositories";
-import type { Account, AccountType, AppSettings } from "../domain";
+import type { Account, AccountType, AppSettings, Book, BookKind } from "../domain";
 import { convertCurrency, formatNumber, nowAsDatetimeLocal } from "../domain";
 import { creditBalanceLabel } from "../domain/dashboardSummary";
 import { BANK_BRANDS, resolveBankBrand } from "../domain/bankBrands";
+import type { BookDraft } from "../data/repositories";
+import { ALL_BOOKS } from "../domain/bookScope";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useNumericField } from "../hooks/useNumericField";
 
-type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "creditPaymentPaidUntil" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color" | "bankBrandDomain"> & { customGroup: string };
+type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "creditPaymentPaidUntil" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color" | "bankBrandDomain"> & { customGroup: string; bookId: string };
 
 const emptyAccount: AccountFormState = {
   name: "",
@@ -44,6 +46,9 @@ const emptyAccount: AccountFormState = {
   color: null,
   bankBrandDomain: null,
   customGroup: "",
+  // "" → repositories assign the default 個人帳 (188). openCreate overrides
+  // this with the active book so a new account lands in the book you're viewing.
+  bookId: "",
 };
 
 const accountTypes: AccountType[] = ["depository", "cash", "credit", "loan", "investment", "alternative", "other"];
@@ -80,10 +85,12 @@ const GROUP_ORDER: { key: string; label: string; types: AccountType[] }[] = [
 const MARK_COLORS = ["var(--ns-chart-1)", "var(--ns-chart-2)", "var(--ns-chart-3)", "var(--ns-chart-4)", "var(--ns-chart-5)"];
 
 export function AccountsRoute() {
-  const { accounts, settings, isInitialLoading, isError, error, refetchAll } = useFinanceData();
+  const { accounts, settings, books, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const timezone = useUiPreferences((state) => state.timezone);
+  const activeBookId = useUiPreferences((state) => state.activeBookId);
+  const [bookManagerOpen, setBookManagerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [typeStep, setTypeStep] = useState<AccountType | null>(null);
@@ -107,9 +114,19 @@ export function AccountsRoute() {
       repository.adjustAccountBalance(input.accountId, input.targetBalance, input.date, input.note),
     ["accounts", "ledger"],
   );
+  const createBook = useRepositoryMutation((repository, input: BookDraft) => repository.createBook(input), ["books"]);
+  const updateBook = useRepositoryMutation((repository, input: BookDraft & { id: string }) => repository.updateBook(input.id, input), ["books"]);
 
   const rows = accounts.data ?? [];
+  const bookRows = books.data ?? [];
   const appSettings = settings.data;
+  // Default book for a NEW account: the active book when a real one is selected,
+  // else the first personal book, else the first book (188 guarantees ≥1).
+  const defaultCreateBookId = useMemo(() => {
+    if (activeBookId !== ALL_BOOKS && bookRows.some((b) => b.id === activeBookId)) return activeBookId;
+    return (bookRows.find((b) => b.kind === "personal") ?? bookRows[0])?.id ?? "";
+  }, [activeBookId, bookRows]);
+  const bookNameById = useMemo(() => new Map(bookRows.map((b) => [b.id, b.name])), [bookRows]);
   const primaryCurrency = appSettings?.primaryCurrency ?? "TWD";
   const currencyOptions = useMemo(() => buildConfiguredCurrencyOptions(appSettings), [appSettings]);
   const selectedCurrency = currencyOptions.includes(form.currency) ? form.currency : currencyOptions[0];
@@ -167,7 +184,7 @@ export function AccountsRoute() {
   function openCreate() {
     setEditingId(null);
     setTypeStep(null);
-    setForm(emptyAccount);
+    setForm({ ...emptyAccount, bookId: defaultCreateBookId });
     setMessage("");
     setDrawerOpen(true);
   }
@@ -183,6 +200,7 @@ export function AccountsRoute() {
       statementDay: account.statementDay ?? null, paymentDueDay: account.paymentDueDay ?? null,
       creditPaymentPaidUntil: account.creditPaymentPaidUntil ?? null,
       customGroup: account.customGroup ?? "",
+      bookId: account.bookId,
     });
     setMessage("");
     setDrawerOpen(true);
@@ -280,6 +298,7 @@ export function AccountsRoute() {
           <h1 className="text-[28px] font-semibold" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02 }}>帳戶</h1>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setBookManagerOpen(true)}><BookOpen size={14} />帳本</Button>
           <Button variant="outline" onClick={recalculate} loading={recalculating}><ArrowsClockwise size={14} />{recalculating ? "計算中…" : "重新計算"}</Button>
           <Button variant="outline" onClick={() => downloadCsv("northstar-accounts.csv", exportAccountsCsv(rows))}><DownloadSimple size={14} />匯出</Button>
           <Button onClick={openCreate}><Plus size={14} weight="bold" />新增帳戶</Button>
@@ -481,9 +500,10 @@ export function AccountsRoute() {
         <AccountDrawer
           isEditing={isEditing}
           typeStep={typeStep}
-          setTypeStep={(t) => { setTypeStep(t); setForm({ ...emptyAccount, type: t }); setMessage(""); }}
+          setTypeStep={(t) => { setTypeStep(t); setForm({ ...emptyAccount, type: t, bookId: form.bookId || defaultCreateBookId }); setMessage(""); }}
           form={form}
           setForm={setForm}
+          books={bookRows}
           selectedCurrency={selectedCurrency}
           currencyOptions={currencyOptions}
           message={message}
@@ -528,18 +548,155 @@ export function AccountsRoute() {
           )}
         </ModalShell>
       ) : null}
+
+      {/* 帳本管理 (plan 189) — create books + edit per-book 計入淨值/計入FIRE toggles */}
+      {bookManagerOpen ? (
+        <BookManager
+          books={bookRows}
+          accounts={rows}
+          onCreate={(draft) => createBook.mutateAsync(draft)}
+          onUpdate={(id, draft) => updateBook.mutateAsync({ ...draft, id })}
+          creating={createBook.isPending}
+          onClose={() => setBookManagerOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
 
+/**
+ * 帳本管理 modal (plan 189): list existing books with their account counts,
+ * create a new book (name/kind/color; company defaults both toggles OFF per
+ * 188/§5), and edit each book's 計入淨值 / 計入FIRE toggles. No delete (out of
+ * scope per plan 189). Repository layer (188) owns persistence; this only
+ * drives BookDraft in/out.
+ */
+function BookManager({
+  books, accounts, onCreate, onUpdate, creating, onClose,
+}: {
+  books: Book[];
+  accounts: Account[];
+  onCreate: (draft: BookDraft) => Promise<unknown>;
+  onUpdate: (id: string, draft: BookDraft) => Promise<unknown>;
+  creating: boolean;
+  onClose: () => void;
+}) {
+  const [newName, setNewName] = useState("");
+  const [newKind, setNewKind] = useState<BookKind>("company");
+  const [newColor, setNewColor] = useState("");
+  const [error, setError] = useState("");
+
+  const accountCountByBook = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const a of accounts) map.set(a.bookId, (map.get(a.bookId) ?? 0) + 1);
+    return map;
+  }, [accounts]);
+
+  const toDraft = (b: Book): BookDraft => ({
+    name: b.name, kind: b.kind, color: b.color,
+    includeInPersonalNetWorth: b.includeInPersonalNetWorth,
+    includeInFireMetrics: b.includeInFireMetrics,
+  });
+
+  async function submitCreate() {
+    setError("");
+    if (!newName.trim()) { setError("請輸入帳本名稱。"); return; }
+    try {
+      // Company books default both toggles OFF (a legally separate entity's
+      // money isn't the user's personal net worth); personal books default ON.
+      const isPersonal = newKind === "personal";
+      await onCreate({
+        name: newName.trim(),
+        kind: newKind,
+        color: newColor.trim() || null,
+        includeInPersonalNetWorth: isPersonal,
+        includeInFireMetrics: isPersonal,
+      });
+      setNewName("");
+      setNewColor("");
+      setNewKind("company");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "建立帳本失敗。");
+    }
+  }
+
+  return (
+    <ModalShell variant="center" title="帳本管理" onClose={onClose} panelClassName="w-full" panelStyle={{ maxWidth: 520 }}>
+      {(dismiss) => (
+        <Card className="w-full p-0">
+          <div className="py-4 px-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--ns-border)" }}>
+            <h2 className="text-base font-semibold" style={{ margin: 0 }}>帳本管理</h2>
+            <Button variant="ghost" size="icon" onClick={dismiss} aria-label="關閉"><X size={16} /></Button>
+          </div>
+          <div className="py-4 px-5 flex flex-col gap-4" style={{ maxHeight: "70vh", overflowY: "auto" }}>
+            {/* Existing books */}
+            <div className="flex flex-col gap-3">
+              {books.map((b) => (
+                <div key={b.id} style={{ border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-md)", padding: "12px 14px" }}>
+                  <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+                    <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: "50%", background: b.color || "var(--ns-fg-dim)", flexShrink: 0 }} />
+                    <span className="font-medium">{b.name}</span>
+                    <Badge variant="secondary">{b.kind === "company" ? "公司帳" : "個人帳"}</Badge>
+                    <span className="muted text-xs" style={{ marginLeft: "auto" }}>{accountCountByBook.get(b.id) ?? 0} 個帳戶</span>
+                  </div>
+                  <label className="flex items-center justify-between text-body" style={{ padding: "4px 0", cursor: "pointer" }}>
+                    <span>計入個人淨值</span>
+                    <input
+                      type="checkbox"
+                      checked={b.includeInPersonalNetWorth}
+                      onChange={(e) => void onUpdate(b.id, { ...toDraft(b), includeInPersonalNetWorth: e.target.checked })}
+                    />
+                  </label>
+                  <label className="flex items-center justify-between text-body" style={{ padding: "4px 0", cursor: "pointer" }}>
+                    <span>計入 FIRE 指標</span>
+                    <input
+                      type="checkbox"
+                      checked={b.includeInFireMetrics}
+                      onChange={(e) => void onUpdate(b.id, { ...toDraft(b), includeInFireMetrics: e.target.checked })}
+                    />
+                  </label>
+                </div>
+              ))}
+            </div>
+
+            {/* Create new book */}
+            <div style={{ borderTop: "1px solid var(--ns-border)", paddingTop: 14 }} className="flex flex-col gap-3">
+              <div className="text-xs ns-field-label">新增帳本</div>
+              <DrawerField label="名稱">
+                <input className="ns-input" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="例：我的公司、家庭共用" />
+              </DrawerField>
+              <DrawerField label="類型">
+                <AppSelect
+                  value={newKind}
+                  onChange={(v) => setNewKind(v as BookKind)}
+                  options={[{ value: "company", label: "公司帳" }, { value: "personal", label: "個人帳" }]}
+                  style={{ width: "100%", height: 40 }}
+                />
+              </DrawerField>
+              <DrawerField label="顏色（選填，hex）">
+                <input className="ns-input" value={newColor} onChange={(e) => setNewColor(e.target.value)} placeholder="#5b8def" />
+              </DrawerField>
+              {error ? <div className="text-body" style={{ color: "var(--ns-neg)" }}>{error}</div> : null}
+              <Button className="justify-center" onClick={submitCreate} loading={creating}>
+                <Plus size={14} weight="bold" />建立帳本
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+    </ModalShell>
+  );
+}
+
 function AccountDrawer({
-  isEditing, typeStep, setTypeStep, form, setForm, selectedCurrency, currencyOptions, message, pending, onSubmit, onClose,
+  isEditing, typeStep, setTypeStep, form, setForm, books, selectedCurrency, currencyOptions, message, pending, onSubmit, onClose,
 }: {
   isEditing: boolean;
   typeStep: AccountType | null;
   setTypeStep: (t: AccountType) => void;
   form: AccountFormState;
   setForm: (v: AccountFormState) => void;
+  books: Book[];
   selectedCurrency: string;
   currencyOptions: string[];
   message: string;
@@ -689,6 +846,19 @@ function AccountDrawer({
                     style={{ width: "100%", height: 40 }}
                   />
                 </DrawerField>
+                {/* 帳本 assignment (plan 189) — shown once a second book exists;
+                    a single-book user has nothing to choose. */}
+                {books.length > 1 ? (
+                  <DrawerField label="帳本">
+                    <AppSelect
+                      value={form.bookId || (books[0]?.id ?? "")}
+                      onChange={(bookId) => setForm({ ...form, bookId })}
+                      options={books.map((b) => ({ value: b.id, label: b.name, description: b.kind === "company" ? "公司帳" : "個人帳" }))}
+                      searchPlaceholder="搜尋帳本…"
+                      style={{ width: "100%", height: 40 }}
+                    />
+                  </DrawerField>
+                ) : null}
                 <DrawerField label="自訂群組（選填）">
                   <input className="ns-input" value={form.customGroup} onChange={(e) => setForm({ ...form, customGroup: e.target.value })} placeholder="例：台灣、海外、家庭" />
                 </DrawerField>

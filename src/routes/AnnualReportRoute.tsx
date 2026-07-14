@@ -19,14 +19,42 @@ import {
   type InvestmentRecord,
 } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
+import { ALL_BOOKS, bookAccountIdSet } from "../domain/bookScope";
 import { annualPrintButtonState, buildAnnualPrintHeaderMeta } from "./annualReportPrint";
 
 export function AnnualReportRoute() {
-  const { assets, investments, settings, dailyFxRates, isInitialLoading, isError, error, refetchAll } = useFinanceData();
+  const { accounts, assets, investments, settings, dailyFxRates, books, isInitialLoading, isError, error, refetchAll } = useFinanceData();
 
-  const assetRows = assets.data ?? [];
-  const recordRows = investments.data ?? [];
+  const accountRows = accounts.data ?? [];
+  const allAssetRows = assets.data ?? [];
+  const allRecordRows = investments.data ?? [];
+  const bookRows = books.data ?? [];
   const appSettings = settings.data;
+
+  // 帳本 selector (plan 189 §1 #8): the annual report has its OWN book selector
+  // at the top (the company book's 年度報表 is the shareholder-facing summary,
+  // personal stays personal), defaulting to the global active book. Scopes the
+  // report's investment assets/records to the selected book; 總帳 unions all.
+  const activeBookId = useUiPreferences((state) => state.activeBookId);
+  const [reportBookId, setReportBookId] = useState<string>(activeBookId);
+  const reportIsAllBooks = reportBookId === ALL_BOOKS;
+  const reportAccountIds = useMemo(() => bookAccountIdSet(accountRows, reportBookId), [accountRows, reportBookId]);
+  const recordRows = useMemo(
+    () => (reportIsAllBooks ? allRecordRows : allRecordRows.filter((r) => r.linkedAccountId != null && reportAccountIds.has(r.linkedAccountId))),
+    [allRecordRows, reportIsAllBooks, reportAccountIds],
+  );
+  const scopedAssetIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const a of allAssetRows) {
+      if (a.accountId != null && reportAccountIds.has(a.accountId)) ids.add(a.id);
+    }
+    for (const r of recordRows) ids.add(r.assetId);
+    return ids;
+  }, [allAssetRows, recordRows, reportAccountIds]);
+  const assetRows = useMemo(
+    () => (reportIsAllBooks ? allAssetRows : allAssetRows.filter((a) => scopedAssetIds.has(a.id))),
+    [allAssetRows, scopedAssetIds, reportIsAllBooks],
+  );
   const { primaryCurrency, toPrimaryOrNull } = useMemo(
     () => createFxConverter(appSettings, dailyFxRates.data ?? []),
     [appSettings, dailyFxRates.data],
@@ -137,6 +165,23 @@ export function AnnualReportRoute() {
         </div>
         {/* Toolbar buttons never print (ns-print-hide). */}
         <div className="ns-print-hide flex" style={{ gap: 8, alignItems: "flex-start" }}>
+          {/* 帳本 selector (plan 189 §1 #8) — shown only once a second book
+              exists; a single-book user has nothing to choose. */}
+          {bookRows.length > 1 ? (
+            <select
+              value={reportBookId}
+              onChange={(e) => setReportBookId(e.target.value)}
+              className="px-2.5 py-2"
+              style={{ borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)", color: "var(--ns-fg)" }}
+              aria-label="選擇帳本"
+              title="選擇帳本"
+            >
+              <option value={ALL_BOOKS}>總帳</option>
+              {bookRows.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          ) : null}
           <Button
             variant="outline"
             disabled={printButton.disabled}

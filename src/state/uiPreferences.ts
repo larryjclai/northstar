@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { setPrivacyMaskOn } from "../domain/currency";
 import type { NameLocalePreference } from "../domain/assetName";
 import { isValidTimezone, resolveSystemTimezone } from "../domain/datetime";
+import { ALL_BOOKS } from "../domain/bookScope";
 
 export type { NameLocalePreference };
 export type ThemeMode = "system" | "dark" | "light";
@@ -64,6 +65,14 @@ export interface UiPreferences {
   remindersEnabled: boolean;
   /** Reminder notification ids the user has acknowledged (persisted; new occurrence = new id). */
   acknowledgedReminders: string[];
+  /**
+   * 帳本 (Books) switcher state (plan 189): the active book id, or the
+   * literal `"all"` for 總帳 (consolidated). Cold default is `"all"` — the
+   * store never resolves "the default personal book id" at init (no repo
+   * access at store-construction time; jsdom-safe), so a fresh install shows
+   * 總帳 until the user picks a book.
+   */
+  activeBookId: string;
   setPrivacyMode: (value: boolean) => void;
   togglePrivacyMode: () => void;
   setNameLocale: (value: NameLocalePreference) => void;
@@ -87,6 +96,7 @@ export interface UiPreferences {
   setRemindersEnabled: (value: boolean) => void;
   acknowledgeReminder: (id: string) => void;
   clearAcknowledgedReminders: () => void;
+  setActiveBookId: (value: string) => void;
 }
 
 /** Toggleable holdings-table columns (the rest are always shown). */
@@ -126,6 +136,7 @@ interface PersistedShape {
   milestoneReached: number;
   remindersEnabled: boolean;
   acknowledgedReminders: string[];
+  activeBookId: string;
 }
 
 export type ClockMode = "24h" | "12h";
@@ -156,6 +167,7 @@ function loadPersisted(): PersistedShape {
     milestoneReached: 0,
     remindersEnabled: false,
     acknowledgedReminders: [],
+    activeBookId: ALL_BOOKS,
   };
   if (typeof window === "undefined") return fallback;
   // Back-compat: honour the legacy onboarding dismiss key for existing installs.
@@ -226,6 +238,10 @@ function loadPersisted(): PersistedShape {
       acknowledgedReminders: Array.isArray(parsed.acknowledgedReminders)
         ? parsed.acknowledgedReminders.filter((k): k is string => typeof k === "string")
         : [],
+      activeBookId:
+        typeof parsed.activeBookId === "string" && parsed.activeBookId.trim()
+          ? parsed.activeBookId.trim()
+          : ALL_BOOKS,
     };
   } catch {
     return { ...fallback, onboardingDismissed: legacyDismissed };
@@ -295,6 +311,7 @@ function snapshot(state: UiPreferences): PersistedShape {
     milestoneReached: state.milestoneReached,
     remindersEnabled: state.remindersEnabled,
     acknowledgedReminders: state.acknowledgedReminders,
+    activeBookId: state.activeBookId,
   };
 }
 
@@ -321,6 +338,7 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   milestoneReached: initial.milestoneReached,
   remindersEnabled: initial.remindersEnabled,
   acknowledgedReminders: initial.acknowledgedReminders,
+  activeBookId: initial.activeBookId,
   setPrivacyMode(value) {
     setPrivacyMaskOn(value);
     set({ privacyMode: value });
@@ -423,6 +441,11 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   },
   clearAcknowledgedReminders() {
     set({ acknowledgedReminders: [] });
+    persist(snapshot(get()));
+  },
+  setActiveBookId(value) {
+    const next = value.trim() || ALL_BOOKS;
+    set({ activeBookId: next });
     persist(snapshot(get()));
   },
 }));

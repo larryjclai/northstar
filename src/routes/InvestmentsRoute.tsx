@@ -59,6 +59,7 @@ import { TransactionsRoute } from "./TransactionsRoute";
 import { InvestmentImportWizard, type InvestmentActivityImportPlan } from "./InvestmentImportWizard";
 import { quoteLookupKeys } from "../domain/marketSymbols";
 import { customPriceStaleness } from "../domain/dataHealth";
+import { ALL_BOOKS, bookAccountIdSet } from "../domain/bookScope";
 
 export function InvestmentsRoute() {
   const navigate = useNavigate();
@@ -91,6 +92,7 @@ export function InvestmentsRoute() {
   // than whatever the OS/browser locale happens to be.
   const nameLocale = useUiPreferences((state) => (state.nameLocale === "auto" ? "zh-Hant" : state.nameLocale));
   const benchmarkTicker = useUiPreferences((state) => state.benchmarkTicker);
+  const activeBookId = useUiPreferences((state) => state.activeBookId);
   const toast = useToast();
 
   const accountRows = accounts.data ?? [];
@@ -103,6 +105,32 @@ export function InvestmentsRoute() {
   const { primaryCurrency, toPrimary } = useMemo(
     () => createFxConverter(appSettings, dailyFxRates.data ?? []),
     [appSettings, dailyFxRates.data],
+  );
+
+  // 帳本 (Books) switcher scope (plan 189 §1 #9): a company brokerage's
+  // holdings must not blend into the personal portfolio / TWR. Investments are
+  // owned via accounts (manual asset.accountId; transaction records'
+  // linkedAccountId), so we scope holdings/records to the active book. In 總帳
+  // (activeBookId "all") nothing is filtered → identical to pre-books; market-
+  // data refresh keeps reading the full asset set (quotes are shared, not
+  // book-scoped).
+  const isAllBooks = activeBookId === ALL_BOOKS;
+  const switcherAccountIds = useMemo(() => bookAccountIdSet(accountRows, activeBookId), [accountRows, activeBookId]);
+  const bookRecordRows = useMemo(
+    () => (isAllBooks ? recordRows : recordRows.filter((r) => r.linkedAccountId != null && switcherAccountIds.has(r.linkedAccountId))),
+    [recordRows, isAllBooks, switcherAccountIds],
+  );
+  const bookAssetIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const a of assetRows) {
+      if (a.accountId != null && switcherAccountIds.has(a.accountId)) ids.add(a.id);
+    }
+    for (const r of bookRecordRows) ids.add(r.assetId);
+    return ids;
+  }, [assetRows, bookRecordRows, switcherAccountIds]);
+  const bookAssetRows = useMemo(
+    () => (isAllBooks ? assetRows : assetRows.filter((a) => bookAssetIds.has(a.id))),
+    [assetRows, bookAssetIds, isAllBooks],
   );
 
   const quoteMap = useMemo(() => {
@@ -136,8 +164,14 @@ export function InvestmentsRoute() {
   const manualPriceLookup = useMemo(() => buildManualPriceLookup(manualSnapshotRows), [manualSnapshotRows]);
 
   const positions = useMemo(
-    () => buildHoldingPositionsByAccount(assetRows, recordRows, quoteMap, { dailyPrices: dailyPriceRows, asOf: valuationToday, manualPriceLookup }),
-    [assetRows, recordRows, quoteMap, dailyPriceRows, valuationToday, manualPriceLookup],
+    () => {
+      const all = buildHoldingPositionsByAccount(assetRows, recordRows, quoteMap, { dailyPrices: dailyPriceRows, asOf: valuationToday, manualPriceLookup });
+      // Switcher-scoped by owning account (plan 189). Positions carry accountId,
+      // so a ticker held in both books shows only the active book's lot. 總帳
+      // shows everything (incl. null-account legacy positions) unchanged.
+      return isAllBooks ? all : all.filter((p) => p.accountId != null && switcherAccountIds.has(p.accountId));
+    },
+    [assetRows, recordRows, quoteMap, dailyPriceRows, valuationToday, manualPriceLookup, isAllBooks, switcherAccountIds],
   );
 
   // ETF sector feed (plan 071): bundled snapshot + on-demand public pull. Loaded
@@ -161,7 +195,7 @@ export function InvestmentsRoute() {
 
   // Current holdings in the shape the analytics engine consumes (fixed-basket).
   const analyticsPositions = useMemo<AnalyticsPosition[]>(
-    () => assetRows
+    () => bookAssetRows
       .filter((a) => a.deletedAt === null && a.totalQuantity > 0)
       .map((a) => ({
         assetId: a.id,
@@ -181,12 +215,12 @@ export function InvestmentsRoute() {
         // weights are trustworthy; a miss/empty → the 068 bucket.
         sectorWeights: etfFeed ? sectorWeightsFor(etfFeed, a.ticker) : null,
       })),
-    [assetRows, etfFeed],
+    [bookAssetRows, etfFeed],
   );
 
   const allAssetMeta = useMemo(
-    () => new Map(assetRows.map((a) => [a.id, { ticker: a.ticker, currency: a.currency }])),
-    [assetRows],
+    () => new Map(bookAssetRows.map((a) => [a.id, { ticker: a.ticker, currency: a.currency }])),
+    [bookAssetRows],
   );
 
   // Best-effort: pull the benchmark's 1Y daily history so the analytics tab can
@@ -319,7 +353,7 @@ export function InvestmentsRoute() {
     let dYTD = 0;
 
     const buckets = new Map<string, { quantity: number; cost: number }>();
-    const sortedRecords = [...recordRows].sort((a, b) => a.date.localeCompare(b.date));
+    const sortedRecords = [...bookRecordRows].sort((a, b) => a.date.localeCompare(b.date));
 
     for (const record of sortedRecords) {
       if (record.deletedAt !== null) continue;
@@ -371,7 +405,7 @@ export function InvestmentsRoute() {
       buckets.set(key, bucket);
     }
     return { realizedYTD: rYTD, dividendsYTD: dYTD };
-  }, [recordRows, assetRows, toPrimary]);
+  }, [bookRecordRows, assetRows, toPrimary]);
 
   if (isInitialLoading) {
     return (
@@ -506,7 +540,7 @@ export function InvestmentsRoute() {
             primaryCurrency={primaryCurrency}
             dailyPrices={dailyPriceRows}
             quotes={quoteRows}
-            records={recordRows}
+            records={bookRecordRows}
             initialSector={searchSector ?? "all"}
             onSectorChange={(sector) => {
               void navigate({ to: "/investments", search: (prev) => ({ ...prev, tab: "portfolio", sector: sector === "all" ? undefined : sector }) });
@@ -523,7 +557,7 @@ export function InvestmentsRoute() {
       {tab === "analytics" ? (
         <InvestmentsAnalyticsTab
           positions={analyticsPositions}
-          records={recordRows}
+          records={bookRecordRows}
           dailyPrices={dailyPriceRows}
           manualSnapshots={manualSnapshotRows}
           toPrimary={toPrimary}

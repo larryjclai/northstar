@@ -65,6 +65,7 @@ import {
 } from "./splitEntryState";
 import { convertCurrency, buildDailyRateIndex, formatCompactNumber } from "../domain/currency";
 import type { Account, DateScopeValue, LedgerTransaction, RecurringFrequency, RecurringTransaction, ResolvedDateScope } from "../domain";
+import { ALL_BOOKS, bookAccountIdSet, scopeRows } from "../domain/bookScope";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useNumericField } from "../hooks/useNumericField";
 
@@ -171,8 +172,9 @@ function formatMonthLabel(month: string): string {
 }
 
 export function CashFlowRoute() {
-  const { accounts, ledger, recurring, settings, dailyFxRates, isInitialLoading, isError, error, refetchAll } = useFinanceData();
+  const { accounts, ledger, recurring, settings, dailyFxRates, books, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   const timezone = useUiPreferences((state) => state.timezone);
+  const activeBookId = useUiPreferences((state) => state.activeBookId);
   const emptyLedger = useMemo(() => makeEmptyLedger(timezone), [timezone]);
   const emptyTransfer = useMemo(() => makeEmptyTransfer(timezone), [timezone]);
 
@@ -238,7 +240,18 @@ export function CashFlowRoute() {
   const appSettings = settings.data;
   const accountRows = accounts.data ?? [];
   const ledgerRows = ledger.data ?? [];
+  const bookRows = books.data ?? [];
   const recurringRows = recurring.data ?? [];
+
+  // 帳本 (Books) switcher scope (plan 189, docs/ledger-books-plan.md §1 #3/#4/#5/#12):
+  // cash-flow is a general view → scoped by the active book / 總帳. Accounts
+  // belong to exactly one book, so the existing per-account filter composes on
+  // top of this. In 總帳 (activeBookId "all") every id is included → identical
+  // to pre-books. The transfer-sibling lookup + suggestion pools keep reading
+  // the full ledger so cross-book transfers still render.
+  const switcherAccountIds = useMemo(() => bookAccountIdSet(accountRows, activeBookId), [accountRows, activeBookId]);
+  const bookAccounts = useMemo(() => accountRows.filter((a) => switcherAccountIds.has(a.id)), [accountRows, switcherAccountIds]);
+  const bookLedgerRows = useMemo(() => scopeRows(ledgerRows, switcherAccountIds), [ledgerRows, switcherAccountIds]);
   const fxHistory = dailyFxRates.data ?? [];
   const fxIndex = useMemo(() => buildDailyRateIndex(fxHistory), [fxHistory]);
   const primaryCurrency = appSettings?.primaryCurrency ?? "TWD";
@@ -906,12 +919,12 @@ export function CashFlowRoute() {
     }
   }
 
-  const scopedRows = useMemo(() => ledgerRows.filter((row) => {
+  const scopedRows = useMemo(() => bookLedgerRows.filter((row) => {
     if (!isWithinDateScope(row.date, dateRange)) return false;
     if (selectedAccount !== "all" && row.accountId !== selectedAccount) return false;
     if (selectedCategory !== "all" && row.category !== selectedCategory) return false;
     return true;
-  }), [ledgerRows, dateRange, selectedAccount, selectedCategory]);
+  }), [bookLedgerRows, dateRange, selectedAccount, selectedCategory]);
   const activityRows = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase();
     if (!query) return scopedRows;
@@ -953,7 +966,7 @@ export function CashFlowRoute() {
   const allCategorySpend = useMemo(() => {
     const map = new Map<string, number>();
     // Use unfiltered-by-category rows for the donut so it always shows all categories
-    const baseRows = ledgerRows.filter((row) => {
+    const baseRows = bookLedgerRows.filter((row) => {
       if (!isWithinDateScope(row.date, dateRange)) return false;
       if (selectedAccount !== "all" && row.accountId !== selectedAccount) return false;
       return true;
@@ -974,7 +987,7 @@ export function CashFlowRoute() {
         return { name, amount, color: catSetting?.color || defaultColors[idx % defaultColors.length], icon: catSetting?.iconName || 'Tag' };
       })
       .sort((a, b) => b.amount - a.amount);
-  }, [ledgerRows, dateRange, selectedAccount, appSettings, toPrimary]);
+  }, [bookLedgerRows, dateRange, selectedAccount, appSettings, toPrimary]);
 
   const totalCategorySpend = allCategorySpend.reduce((s, c) => s + c.amount, 0);
 
@@ -1003,7 +1016,7 @@ export function CashFlowRoute() {
   // window, anchored to the selected month. Respects the account/category
   // filters; transfers and pass-through rows are excluded (neutral movements).
   const cashflowBars = useMemo(() => {
-    const rows = ledgerRows.filter((row) => {
+    const rows = bookLedgerRows.filter((row) => {
       if (selectedAccount !== "all" && row.accountId !== selectedAccount) return false;
       if (selectedCategory !== "all" && row.category !== selectedCategory) return false;
       if (row.settlementStatus !== "settled") return false;
@@ -1033,7 +1046,7 @@ export function CashFlowRoute() {
       s.cumulativeNet = running;
     }
     return slots;
-  }, [ledgerRows, selectedAccount, selectedCategory, chartGranularity, dateRange, toPrimary]);
+  }, [bookLedgerRows, selectedAccount, selectedCategory, chartGranularity, dateRange, toPrimary]);
 
 
   const sortedRows = useMemo(
@@ -1139,10 +1152,10 @@ export function CashFlowRoute() {
   );
   const settlements = useMemo(
     () => buildOutstandingSettlements(
-      selectedAccount === "all" ? ledgerRows : ledgerRows.filter((r) => r.accountId === selectedAccount),
+      selectedAccount === "all" ? bookLedgerRows : bookLedgerRows.filter((r) => r.accountId === selectedAccount),
       settlementConvert,
     ),
-    [ledgerRows, selectedAccount, settlementConvert],
+    [bookLedgerRows, selectedAccount, settlementConvert],
   );
 
   // Render one day-group (header + its rows) — shared by the flat short-range
@@ -1250,7 +1263,7 @@ export function CashFlowRoute() {
               <div className="flex flex-col gap-3">
                 <div>
                   <div className="text-xs ns-field-label mb-1.5">帳戶</div>
-                  <AccountFilter accounts={accountRows} value={selectedAccount} onChange={setSelectedAccount} className="text-body" style={{ minWidth: "100%", maxWidth: "none" }} />
+                  <AccountFilter accounts={bookAccounts} value={selectedAccount} onChange={setSelectedAccount} className="text-body" style={{ minWidth: "100%", maxWidth: "none" }} />
                 </div>
                 <div>
                   <div className="text-xs ns-field-label mb-1.5">分類</div>
@@ -1657,11 +1670,11 @@ export function CashFlowRoute() {
       )}
 
       {activeTab === "categories" && (
-        <CategoriesTab dateRange={dateRange} ledgerRows={ledgerRows} appSettings={appSettings} primaryCurrency={primaryCurrency} toPrimary={toPrimary} onSettingsClick={() => setCategoryDrawerOpen(true)} />
+        <CategoriesTab dateRange={dateRange} ledgerRows={bookLedgerRows} appSettings={appSettings} primaryCurrency={primaryCurrency} toPrimary={toPrimary} onSettingsClick={() => setCategoryDrawerOpen(true)} />
       )}
 
       {activeTab === "merchants" && (
-        <MerchantsTab dateRange={dateRange} ledgerRows={ledgerRows} primaryCurrency={primaryCurrency} toPrimary={toPrimary} />
+        <MerchantsTab dateRange={dateRange} ledgerRows={bookLedgerRows} primaryCurrency={primaryCurrency} toPrimary={toPrimary} />
       )}
 
       {activeTab === "recurring" && (
@@ -2341,7 +2354,7 @@ function EntryDrawer({
   merchantSuggestions: string[];
   categorySuggestions: { merchants: string[]; accountIds: string[] };
   categoryForMerchant: (merchant: string) => { category: string; subcategory: string } | null;
-  accountRows: Array<Pick<Account, "id" | "name" | "currency" | "type" | "iconName" | "color">>;
+  accountRows: Array<Pick<Account, "id" | "name" | "currency" | "type" | "iconName" | "color" | "bankBrandDomain" | "bookId">>;
   onSubmitLedger: () => void;
   onSubmitTransfer: () => void;
   message: string;
@@ -2358,7 +2371,18 @@ function EntryDrawer({
 }) {
   const [amountFocused, setAmountFocused] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  useEffect(() => { if (open) setShowAdvanced(false); }, [open]);
+  // 帳本 entry default (plan 189 §5): the single-account 支出/收入 picker defaults
+  // to the active book's accounts with a 顯示全部 escape. 總帳 shows all. NOTE:
+  // transfer source/dest and the AR/AP 代墊 counter-account pickers deliberately
+  // stay full-list — cross-book transfers (股東代墊/owner's draw) are an explicit
+  // supported flow and must be able to reach the other book's accounts.
+  const activeBookId = useUiPreferences((state) => state.activeBookId);
+  const isAllBooksEntry = activeBookId === ALL_BOOKS;
+  const [showAllEntryAccounts, setShowAllEntryAccounts] = useState(false);
+  useEffect(() => { if (open) { setShowAdvanced(false); setShowAllEntryAccounts(false); } }, [open]);
+  const entryPickerAccounts = isAllBooksEntry || showAllEntryAccounts
+    ? accountRows
+    : accountRows.filter((a) => a.bookId === activeBookId);
 
   // Scrim must dim only the content area, never the native-vibrancy sidebar
   // (otherwise it flattens into a grey block — plan 052). The desktop sidebar
@@ -2919,7 +2943,7 @@ function EntryDrawer({
                 <div className="grid grid-cols-2 gap-3.5">
                   <DrawerField label={type === "expense" ? "支出帳戶" : "收入帳戶"} required>
                     <AccountFilter
-                      accounts={accountRows}
+                      accounts={entryPickerAccounts}
                       value={ledgerForm.accountId}
                       onChange={(id) => {
                         const account = accountRows.find((a) => a.id === id);
@@ -2929,6 +2953,16 @@ function EntryDrawer({
                       placeholder="選擇帳戶"
                       style={{ width: "100%", maxWidth: "none", minWidth: 0 }}
                     />
+                    {!isAllBooksEntry && !showAllEntryAccounts ? (
+                      <button
+                        type="button"
+                        className="muted text-xs"
+                        style={{ marginTop: 4, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                        onClick={() => setShowAllEntryAccounts(true)}
+                      >
+                        顯示全部帳戶
+                      </button>
+                    ) : null}
                   </DrawerField>
                   <DrawerField label="日期">
                     <input className="ns-input" type="datetime-local" value={ledgerForm.date} onChange={(e) => setLedgerForm({ ...ledgerForm, date: e.target.value })} />

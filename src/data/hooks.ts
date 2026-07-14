@@ -17,6 +17,7 @@ const keys = {
   dailyPrices: ["dailyPrices"] as const,
   financialGoals: ["financialGoals"] as const,
   manualPriceSnapshots: ["manualPriceSnapshots"] as const,
+  books: ["books"] as const,
 };
 
 export function useRepository() {
@@ -90,6 +91,11 @@ export function useFinanceData() {
     queryFn: () => repository.data!.listManualPriceSnapshots(),
     enabled,
   });
+  const books = useQuery({
+    queryKey: keys.books,
+    queryFn: () => repository.data!.listBooks(),
+    enabled,
+  });
 
   const all = [
     repository,
@@ -105,6 +111,7 @@ export function useFinanceData() {
     dailyPrices,
     financialGoals,
     manualPriceSnapshots,
+    books,
   ];
   const isInitialLoading = all.some((q) => q.isLoading);
   const isError = all.some((q) => q.isError);
@@ -127,6 +134,7 @@ export function useFinanceData() {
     dailyPrices,
     financialGoals,
     manualPriceSnapshots,
+    books,
     isInitialLoading,
     isError,
     error,

@@ -28,6 +28,7 @@ import { usePostDueRecurring, useFinanceData } from "../data/hooks";
 import { todayInTimezone } from "../domain";
 import { buildCreditCardReminders } from "../domain/dashboardSummary";
 import { buildReminderNotifications, unacknowledgedReminders } from "../domain/reminderNotifications";
+import { BookSwitcher } from "./BookSwitcher";
 import { GlobalSearch } from "./GlobalSearch";
 import { ModalShell } from "./ModalShell";
 import { QuickAdd } from "./QuickAdd";
@@ -249,6 +250,11 @@ export function AppShell() {
               </kbd>
             </button>
           )}
+        </div>
+
+        {/* 帳本 (Books) switcher — between Search and Quick Add per docs/ledger-books-plan.md §5 */}
+        <div style={{ padding: collapsed ? "0 0 8px" : "0 8px 8px" }}>
+          <BookSwitcher collapsed={collapsed} />
         </div>
 
         {/* Quick Add trigger */}
