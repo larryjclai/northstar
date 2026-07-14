@@ -96,14 +96,14 @@ const TYPE_META: Record<CashType, { label: string; color: string; sign: string; 
 
 const TYPE_ORDER: CashType[] = ["expense", "income", "ar", "ap", "transfer"];
 
-// 帳齡 card labels (plan 193) — `d90` is intentionally omitted: per
-// invoiceReporting.ts's boundary scheme it never gets populated (60–90 lands
-// in `d60`, >90 lands in `over90`), so it's dropped from display rather than
-// shown as a permanently-empty row.
+// 帳齡 card labels (plan 193) — all five buckets are populated and shown;
+// notDue (未到期) is deliberately distinct from d1_30 (逾期 1–30 天) so the
+// most-watched overdue line is never hidden behind a "not overdue" label.
 const AGING_BUCKET_LABELS: Record<string, string> = {
-  current: "未逾期",
-  d30: "逾期 30–60 天",
-  d60: "逾期 60–90 天",
+  notDue: "未到期",
+  d1_30: "逾期 1–30 天",
+  d31_60: "逾期 31–60 天",
+  d61_90: "逾期 61–90 天",
   over90: "逾期 90 天以上",
 };
 const RECURRING_OPTIONS = [
@@ -1907,16 +1907,14 @@ export function CashFlowRoute() {
             <Card style={{ padding: "var(--ns-pad-card)" }}>
               <div className="text-sm font-semibold mb-2.5">帳齡 · 收款週期</div>
               <div className="flex flex-col gap-1.5 mb-2.5">
-                {invoiceAging
-                  .filter((b) => b.bucket !== "d90")
-                  .map((b) => (
-                    <div key={b.bucket} className="text-body flex items-center justify-between gap-2">
-                      <span className="muted">{AGING_BUCKET_LABELS[b.bucket]}</span>
-                      <span className="num whitespace-nowrap">
-                        {b.count} 筆 · {primaryCurrency} {formatNumber(b.total)}
-                      </span>
-                    </div>
-                  ))}
+                {invoiceAging.map((b) => (
+                  <div key={b.bucket} className="text-body flex items-center justify-between gap-2">
+                    <span className="muted">{AGING_BUCKET_LABELS[b.bucket]}</span>
+                    <span className="num whitespace-nowrap">
+                      {b.count} 筆 · {primaryCurrency} {formatNumber(b.total)}
+                    </span>
+                  </div>
+                ))}
               </div>
               <div className="muted text-caption">
                 平均收款週期 (DSO)：{invoiceDso === null ? "—" : `${invoiceDso.toFixed(1)} 天`}

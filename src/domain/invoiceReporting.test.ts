@@ -26,16 +26,26 @@ function invoice(overrides: Partial<Invoice> & Pick<Invoice, "id">): Invoice {
 }
 
 describe("agingBuckets", () => {
-  it("buckets an unpaid invoice 45 days past due into d30 (the 30–60 day range)", () => {
+  it("buckets an unpaid invoice 45 days past due into d31_60 (the 31–60 day range)", () => {
     // dueDate 45 days before TODAY.
     const rows = agingBuckets([invoice({ id: "i1", dueDate: "2026-05-30", amount: 12_000 })], TODAY);
-    const d30 = rows.find((r) => r.bucket === "d30")!;
-    expect(d30.count).toBe(1);
-    expect(d30.total).toBe(12_000);
+    const d31_60 = rows.find((r) => r.bucket === "d31_60")!;
+    expect(d31_60.count).toBe(1);
+    expect(d31_60.total).toBe(12_000);
     // Every other bucket stays empty.
     for (const r of rows) {
-      if (r.bucket !== "d30") expect(r.count).toBe(0);
+      if (r.bucket !== "d31_60") expect(r.count).toBe(0);
     }
+  });
+
+  it("buckets an invoice 15 days overdue into d1_30 — flagged as overdue, NOT notDue (the regression this scheme prevents)", () => {
+    // dueDate 15 days before TODAY (2026-06-29 → 2026-07-14 = 15 days).
+    const rows = agingBuckets([invoice({ id: "i1", dueDate: "2026-06-29", amount: 9_000 })], TODAY);
+    const d1_30 = rows.find((r) => r.bucket === "d1_30")!;
+    expect(d1_30.count).toBe(1);
+    expect(d1_30.total).toBe(9_000);
+    // A 15-day-overdue invoice must never land in notDue — the bug being fixed.
+    expect(rows.find((r) => r.bucket === "notDue")!.count).toBe(0);
   });
 
   it("excludes a settled invoice from aging entirely", () => {
@@ -46,28 +56,28 @@ describe("agingBuckets", () => {
     for (const r of rows) expect(r.count).toBe(0);
   });
 
-  it("buckets a not-yet-due invoice into current", () => {
+  it("buckets a not-yet-due invoice into notDue", () => {
     const rows = agingBuckets([invoice({ id: "i1", dueDate: "2026-08-01", amount: 5_000 })], TODAY);
-    const current = rows.find((r) => r.bucket === "current")!;
-    expect(current.count).toBe(1);
-    expect(current.total).toBe(5_000);
+    const notDue = rows.find((r) => r.bucket === "notDue")!;
+    expect(notDue.count).toBe(1);
+    expect(notDue.total).toBe(5_000);
   });
 
-  it("falls back invoices with no dueDate to current", () => {
+  it("falls back invoices with no dueDate to notDue", () => {
     const rows = agingBuckets([invoice({ id: "i1", dueDate: null, amount: 7_000 })], TODAY);
-    const current = rows.find((r) => r.bucket === "current")!;
-    expect(current.count).toBe(1);
-    expect(current.total).toBe(7_000);
+    const notDue = rows.find((r) => r.bucket === "notDue")!;
+    expect(notDue.count).toBe(1);
+    expect(notDue.total).toBe(7_000);
   });
 
   it("always returns all five bucket ids, even when empty", () => {
     const rows = agingBuckets([], TODAY);
-    expect(rows.map((r) => r.bucket).sort()).toEqual(["current", "d30", "d60", "d90", "over90"].sort());
+    expect(rows.map((r) => r.bucket).sort()).toEqual(["notDue", "d1_30", "d31_60", "d61_90", "over90"].sort());
   });
 
-  it("buckets a 75-day overdue invoice into d60 (60–90 range)", () => {
+  it("buckets a 75-day overdue invoice into d61_90 (61–90 range)", () => {
     const rows = agingBuckets([invoice({ id: "i1", dueDate: "2026-04-30" })], TODAY);
-    expect(rows.find((r) => r.bucket === "d60")!.count).toBe(1);
+    expect(rows.find((r) => r.bucket === "d61_90")!.count).toBe(1);
   });
 
   it("buckets a 120-day overdue invoice into over90", () => {

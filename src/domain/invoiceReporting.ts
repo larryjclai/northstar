@@ -9,7 +9,7 @@ import type { Invoice } from "./types";
 
 const BIMONTHLY_PERIOD_LABELS = ["1-2月", "3-4月", "5-6月", "7-8月", "9-10月", "11-12月"] as const;
 
-export type AgingBucketId = "current" | "d30" | "d60" | "d90" | "over90";
+export type AgingBucketId = "notDue" | "d1_30" | "d31_60" | "d61_90" | "over90";
 
 export interface AgingBucket {
   bucket: AgingBucketId;
@@ -71,25 +71,29 @@ function periodOf(iso: string): { year: number; period: string } {
  * "what's still outstanding, and how overdue" view, not a settlement-history
  * report.
  *
- * Boundary scheme follows docs/ledger-books-plan.md §3's four named overdue
- * ranges (<30 / 30–60 / 60–90 / >90 days) plus `current` for "not overdue
- * (yet)" — five bucket ids total, matching the type union below. `d90` is
- * reserved for a future finer-grained split; §3 only specifies the four
- * ranges above, so this boundary scheme never actually populates `d90`
- * (60–90 lands in `d60`, >90 lands in `over90`) — it is still always present
- * in the output (with count 0 when empty) so callers can render a stable,
- * fixed row order without special-casing a missing key.
+ * The whole point of an AR aging report is to flag OVERDUE receivables, so
+ * "not yet due" is a distinct bucket from "1–30 days overdue" (the latter is
+ * the most-watched line — collections start there). Boundary scheme, by
+ * `daysPastDue = today − dueDate`:
+ *   `<= 0`  → notDue    (due today or in the future; also the no-`dueDate` fallback)
+ *   `<= 30` → d1_30     (1–30 days overdue)
+ *   `<= 60` → d31_60    (31–60 days overdue)
+ *   `<= 90` → d61_90    (61–90 days overdue)
+ *   `> 90`  → over90    (90+ days overdue)
+ * All five buckets are always present in the output (count 0 when empty) so
+ * callers can render a stable, fixed row order without special-casing a
+ * missing key.
  *
- * Invoices with no `dueDate` fall back to `current`: the bucket type union
- * has no dedicated "no-due" case, and treating an invoice we can't date as
- * overdue would be a false alarm the operator can't act on.
+ * Invoices with no `dueDate` fall back to `notDue`: we can't compute how
+ * overdue an undated invoice is, and marking it overdue would be a false
+ * alarm the operator can't act on.
  */
 export function agingBuckets(invoices: Invoice[], todayIso: string): AgingBucket[] {
   const totals: Record<AgingBucketId, { count: number; total: number }> = {
-    current: { count: 0, total: 0 },
-    d30: { count: 0, total: 0 },
-    d60: { count: 0, total: 0 },
-    d90: { count: 0, total: 0 },
+    notDue: { count: 0, total: 0 },
+    d1_30: { count: 0, total: 0 },
+    d31_60: { count: 0, total: 0 },
+    d61_90: { count: 0, total: 0 },
     over90: { count: 0, total: 0 },
   };
 
@@ -104,11 +108,12 @@ export function agingBuckets(invoices: Invoice[], todayIso: string): AgingBucket
 }
 
 function bucketFor(dueDate: string | null, todayIso: string): AgingBucketId {
-  if (dueDate === null) return "current";
+  if (dueDate === null) return "notDue";
   const daysPastDue = daysBetween(dueDate, todayIso);
-  if (daysPastDue < 30) return "current";
-  if (daysPastDue < 60) return "d30";
-  if (daysPastDue < 90) return "d60";
+  if (daysPastDue <= 0) return "notDue";
+  if (daysPastDue <= 30) return "d1_30";
+  if (daysPastDue <= 60) return "d31_60";
+  if (daysPastDue <= 90) return "d61_90";
   return "over90";
 }
 
