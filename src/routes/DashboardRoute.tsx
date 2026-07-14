@@ -56,6 +56,7 @@ import {
   todayInTimezone,
 } from "../domain";
 import { calculateAvailableCash, changePctWithFloor } from "../domain/dashboardSummary";
+import { bookAccountIdSet, fireMetricAccountIdSet, personalNetWorthAccountIdSet, scopeRows } from "../domain/bookScope";
 import { stripStartDate, STRIP_PERIODS, type StripPeriod } from "../domain/dateScope";
 import { trailingMonthlyNet } from "../domain/northstarMetrics";
 import { smoothTrend } from "../domain/trendSmoothing";
@@ -149,7 +150,7 @@ const TODO_META: Record<TodoRow["type"], { label: string; color: string }> = {
 };
 
 export function DashboardRoute() {
-  const { accounts, ledger, assets, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots, recurring, financialGoals, investments, isInitialLoading, isError, error, refetchAll } = useFinanceData();
+  const { accounts, ledger, assets, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots, recurring, financialGoals, investments, books, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
   const refreshFxRates = useRefreshFxRates();
   const refreshDailyPrices = useRefreshDailyPrices();
@@ -164,6 +165,7 @@ export function DashboardRoute() {
   const toggleLongViewMode = useUiPreferences((state) => state.toggleLongViewMode);
   const milestoneReached = useUiPreferences((state) => state.milestoneReached);
   const setMilestoneReached = useUiPreferences((state) => state.setMilestoneReached);
+  const activeBookId = useUiPreferences((state) => state.activeBookId);
   const cardVisible = (key: string) => !dashboardHiddenCards.includes(key);
   const toggleCard = (key: string) => {
     setDashboardHiddenCards(
@@ -209,6 +211,24 @@ export function DashboardRoute() {
   const recurringRows = recurring.data ?? [];
   const investmentRows = investments.data ?? [];
   const goalRows = financialGoals.data ?? [];
+  const bookRows = books.data ?? [];
+
+  // 帳本 (Books) scoping — plan 189, docs/ledger-books-plan.md §5's two-axis rule:
+  //  • switcher scope → general views (net worth, cash-flow KPI, budgets, trend,
+  //    allocation, settlements). Follows the active book / 總帳.
+  //  • fireMetric scope → FIRE-family (trailing expense/net, coverage, runway,
+  //    projection). Switcher-INDEPENDENT: only books with includeInFireMetrics.
+  //  • personalNetWorth scope → the FI-progress figure (goals). Switcher-
+  //    INDEPENDENT: only books with includeInPersonalNetWorth.
+  const switcherAccountIds = useMemo(() => bookAccountIdSet(accountRows, activeBookId), [accountRows, activeBookId]);
+  const fireAccountIds = useMemo(() => fireMetricAccountIdSet(accountRows, bookRows), [accountRows, bookRows]);
+  const personalAccountIds = useMemo(() => personalNetWorthAccountIdSet(accountRows, bookRows), [accountRows, bookRows]);
+  const fireLedgerRows = useMemo(() => scopeRows(ledgerRows, fireAccountIds), [ledgerRows, fireAccountIds]);
+  const fireAccounts = useMemo(() => accountRows.filter((a) => fireAccountIds.has(a.id)), [accountRows, fireAccountIds]);
+  const fireInvestmentRows = useMemo(
+    () => investmentRows.filter((r) => r.linkedAccountId != null && fireAccountIds.has(r.linkedAccountId)),
+    [investmentRows, fireAccountIds],
+  );
 
   const { primaryCurrency, toPrimary } = useMemo(
     () => createFxConverter(appSettings, dailyFxRates.data ?? []),
@@ -255,11 +275,14 @@ export function DashboardRoute() {
       }),
     [accountRows, ledgerRows, assetRows, quoteRows, dailyPriceRows, fxHistory, manualSnapshotRows, appSettings, todayIso],
   );
-  const filteredAccounts = selectedAccount === "all" ? accountRows : accountRows.filter(a => a.id === selectedAccount);
+  // Switcher-scoped (plan 189): the general net-worth view honors the active
+  // book / 總帳. In 總帳 (activeBookId "all") switcherAccountIds is every id, so
+  // this is identical to pre-books behavior.
+  const filteredAccounts = accountRows.filter((a) => switcherAccountIds.has(a.id) && (selectedAccount === "all" || a.id === selectedAccount));
 
   const quoteLookup = useMemo(() => buildQuoteLookup(quoteRows), [quoteRows]);
   const quoteFor = (ticker: string) => findQuoteForTicker(quoteLookup, ticker);
-  const filteredAssets = selectedAccount === "all" ? assetRows : assetRows.filter(a => a.accountId === selectedAccount);
+  const filteredAssets = assetRows.filter((a) => a.accountId != null && switcherAccountIds.has(a.accountId) && (selectedAccount === "all" || a.accountId === selectedAccount));
 
   // Single valuation context shared by the KPI market value, the allocation
   // donut, and the net-worth trend endpoint so all three agree: live quote →
@@ -284,7 +307,29 @@ export function DashboardRoute() {
   const liabilities = breakdown.liabilities;
   const netWorth = breakdown.netWorth;
 
-  const monthRows = ledgerRows.filter((row) => row.date.startsWith(monthKey) && row.settlementStatus === "settled" && !isNeutralLedgerRow(row) && (selectedAccount === "all" || row.accountId === selectedAccount));
+  // Switcher-INDEPENDENT net worth for the FIRE / FI-progress surfaces (plan
+  // 189). Computed the same way as the hero (accounts + holdings market value),
+  // but over a fixed book set (personal or FIRE) so those metrics answer "the
+  // user's personal financial independence" regardless of which book is being
+  // viewed. For a single default 個人帳 (both toggles on) these equal `netWorth`.
+  const computeScopedNetWorth = useCallback(
+    (accountIds: Set<string>) => {
+      const scopedAccounts = accountRows.filter((a) => accountIds.has(a.id));
+      const scopedAssets = assetRows.filter((a) => a.accountId != null && accountIds.has(a.accountId));
+      const { total } = holdingsMarketValue(scopedAssets, todayIso, toPrimary, {
+        todayIso,
+        dailyPriceLookup,
+        quoteFor: (ticker: string) => findQuoteForTicker(quoteLookup, ticker),
+        manualPriceLookup,
+      });
+      return buildNetWorthBreakdown(scopedAccounts, total, toPrimary).netWorth;
+    },
+    [accountRows, assetRows, todayIso, toPrimary, dailyPriceLookup, manualPriceLookup, quoteLookup],
+  );
+  const personalNetWorth = useMemo(() => computeScopedNetWorth(personalAccountIds), [computeScopedNetWorth, personalAccountIds]);
+  const fireNetWorth = useMemo(() => computeScopedNetWorth(fireAccountIds), [computeScopedNetWorth, fireAccountIds]);
+
+  const monthRows = ledgerRows.filter((row) => row.date.startsWith(monthKey) && row.settlementStatus === "settled" && !isNeutralLedgerRow(row) && switcherAccountIds.has(row.accountId) && (selectedAccount === "all" || row.accountId === selectedAccount));
   const monthIncome = monthRows.filter((row) => row.entryType === "income").reduce((sum, row) => sum + toPrimary(Math.max(0, row.amount), row.currency, row.date), 0);
   // Signed (−amount): expense amounts are negative → positive spend; a refund
   // (positive-amount expense) nets back out instead of inflating spend.
@@ -300,57 +345,62 @@ export function DashboardRoute() {
       : 0;
 
   // Northstar bottom-line metrics —————————————————————————————————————————
-  // Trailing-3-month average monthly expense (settled, non-neutral, all-account).
-  // We use all ledgerRows (not filtered by selectedAccount) so the per-metric
-  // denominators are portfolio-wide and comparable across account switches.
+  // FIRE-family (plan 189): scoped by fireMetricAccountIdSet, switcher-
+  // INDEPENDENT — these answer the user's personal financial independence, one
+  // answer regardless of which book is being viewed. A 公司帳 with
+  // includeInFireMetrics off never feeds these even while viewing 總帳.
+  // Trailing-3-month average monthly expense (settled, non-neutral).
   const trailingMonthlyExp = useMemo(
-    () => trailingMonthlyExpense(ledgerRows, toPrimary, todayIso, 3),
-    [ledgerRows, toPrimary, todayIso],
+    () => trailingMonthlyExpense(fireLedgerRows, toPrimary, todayIso, 3),
+    [fireLedgerRows, toPrimary, todayIso],
   );
 
   // Trailing-3-month average monthly net (income − expense) for the projection
   // contribution input.  Uses the same settled/non-neutral/!deleted convention.
   const trailingMonthlyNetContrib = useMemo(
-    () => trailingMonthlyNet(ledgerRows, toPrimary, todayIso, 3),
-    [ledgerRows, toPrimary, todayIso],
+    () => trailingMonthlyNet(fireLedgerRows, toPrimary, todayIso, 3),
+    [fireLedgerRows, toPrimary, todayIso],
   );
 
-  // TTM passive income (dividends) for coverage ratio.
+  // TTM passive income (dividends) for coverage ratio — FIRE-scoped records so
+  // company-book holdings don't inflate personal passive income.
   const dividendAnalysis = useMemo(() => {
     const assetMeta = new Map(assetRows.map((a) => [a.id, { ticker: a.ticker, currency: a.currency }]));
     return buildDividendAnalysis({
-      records: investmentRows,
+      records: fireInvestmentRows,
       assetMeta,
       toPrimary,
       currentMarketValue: marketValue,
       asOf: todayIso,
     });
-  }, [investmentRows, assetRows, toPrimary, marketValue, todayIso]);
+  }, [fireInvestmentRows, assetRows, toPrimary, marketValue, todayIso]);
 
   const coveragePct = useMemo(
     () => coverageRatioPct(dividendAnalysis.ttmTotal, trailingMonthlyExp * 12),
     [dividendAnalysis.ttmTotal, trailingMonthlyExp],
   );
 
-  // Liquid cash for runway: portfolio-wide (all accounts), regardless of account filter.
-  // Runway is a safety metric so it should reflect total liquid cash, not a filtered subset.
-  const allAccountsLiquidCash = useMemo(
-    () => calculateAvailableCash(accountRows, toPrimary),
-    [accountRows, toPrimary],
+  // Liquid cash for runway: FIRE-scoped (switcher-independent). Runway is a
+  // personal safety metric so it reflects the FIRE-included books' liquid cash.
+  const fireLiquidCash = useMemo(
+    () => calculateAvailableCash(fireAccounts, toPrimary),
+    [fireAccounts, toPrimary],
   );
 
   const runwayMo = useMemo(
-    () => runwayMonths(allAccountsLiquidCash, trailingMonthlyExp),
-    [allAccountsLiquidCash, trailingMonthlyExp],
+    () => runwayMonths(fireLiquidCash, trailingMonthlyExp),
+    [fireLiquidCash, trailingMonthlyExp],
   );
 
   // FIRE progress: first active goal's percent (same as goals card logic).
+  // Uses personalNetWorth (switcher-INDEPENDENT, plan 189) not the switcher-
+  // scoped hero `netWorth`, so FI progress doesn't move when viewing 公司帳.
   const firstGoalPct = useMemo(() => {
     const activeGoal = goalRows.find((g) => g.deletedAt === null);
     if (!activeGoal) return null;
     const target = goalTarget(activeGoal);
-    return target > 0 ? Math.min((netWorth / target) * 100, 100) : null;
-  }, [goalRows, netWorth]);
+    return target > 0 ? Math.min((personalNetWorth / target) * 100, 100) : null;
+  }, [goalRows, personalNetWorth]);
 
   // Metric registry — all values computed above, just assembled here.
   const METRIC_REGISTRY: Array<{
@@ -403,15 +453,17 @@ export function DashboardRoute() {
 
   // ————————————————————————————————————————————————————————————————————————
 
+  // Switcher-scoped (plan 189): the net-worth trend follows the active book /
+  // 總帳 just like the hero. In 總帳 the sets are every id → identical to before.
   const trend = useMemo(
     () => buildNetWorthTrend(
-      selectedAccount === "all" ? accountRows : accountRows.filter(a => a.id === selectedAccount),
-      selectedAccount === "all" ? ledgerRows : ledgerRows.filter(r => r.accountId === selectedAccount),
-      selectedAccount === "all" ? assetRows : assetRows.filter(a => a.accountId === selectedAccount),
-      selectedAccount === "all" ? investmentRows : investmentRows.filter(r => r.linkedAccountId === selectedAccount),
+      accountRows.filter((a) => switcherAccountIds.has(a.id) && (selectedAccount === "all" || a.id === selectedAccount)),
+      ledgerRows.filter((r) => switcherAccountIds.has(r.accountId) && (selectedAccount === "all" || r.accountId === selectedAccount)),
+      assetRows.filter((a) => a.accountId != null && switcherAccountIds.has(a.accountId) && (selectedAccount === "all" || a.accountId === selectedAccount)),
+      investmentRows.filter((r) => r.linkedAccountId != null && switcherAccountIds.has(r.linkedAccountId) && (selectedAccount === "all" || r.linkedAccountId === selectedAccount)),
       quoteRows, dailyPriceRows, appSettings, fxHistory, manualSnapshotRows
     ),
-    [accountRows, ledgerRows, assetRows, investmentRows, quoteRows, dailyPriceRows, appSettings, fxHistory, manualSnapshotRows],
+    [accountRows, ledgerRows, assetRows, investmentRows, switcherAccountIds, selectedAccount, quoteRows, dailyPriceRows, appSettings, fxHistory, manualSnapshotRows],
   );
   // The headline net worth uses live quotes; the trend's "today" point uses daily
   // closes, so they can disagree by a small amount. Align ONLY the final (today)
@@ -493,7 +545,9 @@ export function DashboardRoute() {
     if (useDemoMode.getState().active) return;
     if (!hasAnyData) return; // wait until real data has loaded
     milestoneRanRef.current = true;
-    const crossed = MILESTONE_TIERS.filter((tier) => tier > milestoneReached && netWorth >= tier);
+    // Milestone celebrations track personalNetWorth (switcher-independent, plan
+    // 189) so switching to a 公司帳 view never trips a personal-wealth milestone.
+    const crossed = MILESTONE_TIERS.filter((tier) => tier > milestoneReached && personalNetWorth >= tier);
     if (crossed.length === 0) return;
     const highest = crossed[crossed.length - 1];
     const label = highest === MILESTONE_TIERS[0] ? "第一桶金" : formatMoney(highest, primaryCurrency);
@@ -502,7 +556,7 @@ export function DashboardRoute() {
       durationMs: 8_000,
     });
     setMilestoneReached(highest);
-  }, [hasAnyData, netWorth, milestoneReached, primaryCurrency, setMilestoneReached, toast]);
+  }, [hasAnyData, personalNetWorth, milestoneReached, primaryCurrency, setMilestoneReached, toast]);
 
   // Budget health — current-month expense per category vs configured budget.
   const budgetCats = useMemo(() => {
@@ -717,16 +771,18 @@ export function DashboardRoute() {
   }, [filteredAssets, quoteRows, dailyPriceLookup, marketValue, toPrimary, todayIso]);
 
   // Goals — approximate progress = net worth / target (dashboard glance only).
+  // personalNetWorth (switcher-independent, plan 189) so goal progress reflects
+  // the user's personal wealth, not whichever book is being viewed.
   const goals = useMemo(() => {
     return goalRows
       .filter((g) => g.deletedAt === null)
       .map((g) => {
         const target = goalTarget(g);
-        const pct = target > 0 ? Math.min((netWorth / target) * 100, 100) : 0;
+        const pct = target > 0 ? Math.min((personalNetWorth / target) * 100, 100) : 0;
         return { id: g.id, name: g.name, target, pct };
       })
       .slice(0, 4);
-  }, [goalRows, netWorth]);
+  }, [goalRows, personalNetWorth]);
 
   // Upcoming bills (recurring, next 30 days or overdue).
   const accountMap = useMemo(() => new Map(accountRows.map((a) => [a.id, a])), [accountRows]);
@@ -736,10 +792,10 @@ export function DashboardRoute() {
     const horizon = todayInTimezone(timezone, d);
     const today = todayInTimezone(timezone);
     return recurringRows
-      .filter((r) => r.isActive && r.nextRunDate >= today && r.nextRunDate <= horizon)
+      .filter((r) => r.isActive && r.nextRunDate >= today && r.nextRunDate <= horizon && switcherAccountIds.has(r.accountId))
       .sort((a, b) => a.nextRunDate.localeCompare(b.nextRunDate))
       .slice(0, 5);
-  }, [recurringRows, timezone]);
+  }, [recurringRows, timezone, switcherAccountIds]);
 
   // Credit-card payments coming due (within ~45 days), soonest first.
   const creditReminders = useMemo(
@@ -747,13 +803,14 @@ export function DashboardRoute() {
     [filteredAccounts, timezone],
   );
 
-  // Unsettled accounts receivable / payable.
+  // Unsettled accounts receivable / payable — switcher-scoped (plan 189 §1 #4):
+  // a company invoice receivable must not appear while viewing 個人帳.
   const settlements = useMemo(
     () => buildOutstandingSettlements(
-      selectedAccount === "all" ? ledgerRows : ledgerRows.filter((r) => r.accountId === selectedAccount),
+      ledgerRows.filter((r) => switcherAccountIds.has(r.accountId) && (selectedAccount === "all" || r.accountId === selectedAccount)),
       (amount, currency) => toPrimary(amount, currency),
     ),
-    [ledgerRows, selectedAccount, toPrimary],
+    [ledgerRows, switcherAccountIds, selectedAccount, toPrimary],
   );
 
   // Adjusted net worth (accrual view): headline net worth is cash-basis; this
@@ -1362,10 +1419,11 @@ export function DashboardRoute() {
       </Card>
       ) : null}
 
-      {/* Row 6 · 30-year net-worth projection */}
+      {/* Row 6 · 30-year net-worth projection — FIRE-family (plan 189):
+          fireNetWorth base + FIRE-scoped contribution, switcher-independent. */}
       {cardVisible("projection") ? (
         <NetWorthProjectionCard
-          netWorth={netWorth}
+          netWorth={fireNetWorth}
           annualContribution={Math.max(0, trailingMonthlyNetContrib * 12)}
           primaryCurrency={primaryCurrency}
         />
