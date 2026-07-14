@@ -11,14 +11,36 @@ import { computeLinkedAccountsValue, computeNetWorthInCurrency } from "../featur
 import { GoalEditorSheet } from "../features/goals/GoalEditorSheet";
 import { projectRetirement, resolveTargetAmount, formatNumber, formatCompactNumber, formatCompactMoney, type FinancialGoal } from "../domain";
 import { goalPace } from "../domain/goalPace";
+import { fireMetricAccountIdSet } from "../domain/bookScope";
 
 export function GoalsRoute() {
-  const { financialGoals, accounts, assets, quotes, settings, dailyFxRates, isInitialLoading, isError, error, refetchAll } = useFinanceData();
+  const { financialGoals, accounts, assets, investments, quotes, settings, dailyFxRates, books, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   const accountRows = accounts.data ?? [];
   const assetRows = assets.data ?? [];
+  const recordRows = investments.data ?? [];
   const quoteRows = quotes.data ?? [];
   const appSettings = settings.data;
   const fxHistory = dailyFxRates.data ?? [];
+  const bookRows = books.data ?? [];
+
+  // 帳本 scope (plan 189 §1 #6): goals are FIRE-family — the FIRE goal's
+  // "current net worth" is scoped by fireMetricAccountIdSet, switcher-
+  // INDEPENDENT (a 公司帳 with includeInFireMetrics off never inflates personal
+  // FIRE progress). Custom goals keep tracking their explicitly-bound accounts.
+  // For a single default 個人帳 (FIRE toggle on) this is every account/asset →
+  // identical to pre-books.
+  const fireAccountIds = useMemo(() => fireMetricAccountIdSet(accountRows, bookRows), [accountRows, bookRows]);
+  const fireAccounts = useMemo(() => accountRows.filter((a) => fireAccountIds.has(a.id)), [accountRows, fireAccountIds]);
+  const fireAssets = useMemo(() => {
+    const ids = new Set<string>();
+    for (const a of assetRows) {
+      if (a.accountId != null && fireAccountIds.has(a.accountId)) ids.add(a.id);
+    }
+    for (const r of recordRows) {
+      if (r.linkedAccountId != null && fireAccountIds.has(r.linkedAccountId)) ids.add(r.assetId);
+    }
+    return assetRows.filter((a) => ids.has(a.id));
+  }, [assetRows, recordRows, fireAccountIds]);
 
   const toast = useToast();
   const navigate = useNavigate();
@@ -62,11 +84,11 @@ export function GoalsRoute() {
     const map: Record<string, number> = {};
     for (const g of goals) {
       map[g.id] = g.kind === "fire"
-        ? computeNetWorthInCurrency(g.currency, accountRows, assetRows, quoteRows, appSettings, fxHistory)
+        ? computeNetWorthInCurrency(g.currency, fireAccounts, fireAssets, quoteRows, appSettings, fxHistory)
         : computeLinkedAccountsValue(g.currency, g.accountShareMap, accountRows, appSettings, fxHistory);
     }
     return map;
-  }, [goals, accountRows, assetRows, quoteRows, appSettings, fxHistory]);
+  }, [goals, accountRows, fireAccounts, fireAssets, quoteRows, appSettings, fxHistory]);
 
   const currentValue = selectedGoal ? goalCurrentValues[selectedGoal.id] ?? 0 : 0;
 
