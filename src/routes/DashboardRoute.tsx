@@ -260,6 +260,10 @@ export function DashboardRoute() {
   // Declared here (before the useMemos that depend on it) so references are safe.
   const todayIso = todayInTimezone(timezone);
 
+  // Data-health report (plan 189 §1 #11): INTENTIONALLY stays 總帳 (unscoped) —
+  // a data-integrity report must never hide a company book's stale prices or
+  // incomplete groups from an operator who happens to be viewing 個人帳. Uses
+  // the full accountRows/ledgerRows/assetRows, not the switcher-scoped sets.
   const dataHealthReport = useMemo(
     () =>
       buildDataHealthReport({
