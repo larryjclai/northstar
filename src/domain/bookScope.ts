@@ -53,7 +53,11 @@ export function scopeRows<T extends { accountId: string | null }>(
   rows: T[],
   accountIdSet: Set<string>,
 ): T[] {
-  return rows.filter((row) => row.accountId != null && accountIdSet.has(row.accountId));
+  // An unassigned row (accountId "" or null) belongs to no account yet —
+  // typically an unsettled 應收/應付 whose receiving account is chosen at
+  // settle time. It must not be scoped out (that hid it from 未結清 even in
+  // 總帳 — plan 194). Rows WITH an account filter by book membership.
+  return rows.filter((row) => !row.accountId || accountIdSet.has(row.accountId));
 }
 
 /**
