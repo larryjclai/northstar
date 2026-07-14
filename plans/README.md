@@ -352,3 +352,17 @@ invented. Per-holding day-change may need `dayChangeMovers` to expose raw prices
 - NotificationCenter/FilterPill/SegmentedControl small `rgba(0,0,0,…)` shadows and CashFlow/QuickAdd active-chip `rgba(0,0,0,0.12)` borders — subtle elevation/edges, not scrims; excluded from plan 136.
 - `InvestmentsRoute.createSnapshot/deleteSnapshot` invalidating only `["manualPriceSnapshots"]` (narrower than HoldingEditModal's siblings) — investigated during plan-124 execution: NOT a gap. Custom-asset valuation re-derives at render from the invalidated `manualPriceSnapshots` query; the extra sibling keys are defensive redundancy, not required. Do not "fix".
 - Session-finding leave-alones (motion batch): QuickAdd `overlayLeft` 64/240 hardcode (plan 153, deliberate); charts `isAnimationActive={false}` + un-animated KPI numbers (correct for finance data); global `:active{translateY(1px)}` press nudge (deliberate macOS choice); `windowEffects:["mica","sidebar"]` mica-on-macOS (harmless until a Windows build); JS `onMouseEnter` hover on touch in 6 files (deferred, per-site judgment on chart tooltips — noted in 156).
+
+## 190–191 — 帳本 Phase 2 (發票/營業稅, planned at `41d44e04`, 2026-07-13)
+
+Phase 2 from docs/ledger-books-plan.md §3, split foundation+UI like Phase 1
+(188/189). Operator decisions baked: Model A tax (tax fields on `invoices`
+table ONLY, not LedgerTransaction), generic 字軌+序號 numbering w/ TW 統一發票
+preset, 客戶主檔 + 帳齡 + DSO in scope, 401 = live query. Sync wiring now a
+known playbook (188's 4 files + 2 outbox arrays).
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 190 | Phase 2a foundation — `Invoice`+`Client` entities, `salesTax.ts` (round(含稅×5/105)) + `invoiceNumbering.ts` (TW 統一發票 preset) pure modules, full sync wiring (mirror 188's book playbook), `stampInvoiceSettled`, dual-harness + characterization. Zero UI, no LedgerTransaction change. | P2 | L | 188+189 (merged) | DONE — reviewed+APPROVED, branch `feat/ai-invoices-foundation` @ `a35e4ff3` (5 commits, off `41d44e04`). NOT merged — awaiting operator. `Invoice`+`Client` entities; `salesTax.ts` (round(105000×5/105)=5000 ✓) + `invoiceNumbering.ts` (TW 字軌 `^[A-Z]{2}\\d{8}$` + 8-digit increment + overflow guard) pure modules; sync wiring EXACT parity w/ book (invoices=8/clients=8/books=8 grep); `stampInvoiceSettled`/`findInvoiceByLedgerId`; +36 tests (1214 total); characterization byte-frozen; **LedgerTransaction unchanged (verified)**. Reviewer-confirmed design: tax fields on `invoices` table ONLY. ⚠ SURFACED: snapshot round-trip gap → plan 192 (188 SQLite-export-drops-books regression + invoices/clients not in backup). |
+| 192 | Snapshot round-trip fix (P1 data-integrity) — SQLite `exportSnapshot` omits `books` (188 shipped regression: desktop backup/restore silently drops books) + add invoices/clients to `RepositorySnapshot` + all 4 export/import paths; round-trip test first | P1 | S | 190 MERGED | TODO — recommend BEFORE 191 ships invoices to users |
+| 191 | Phase 2b UI — 開發票 flow (receivable row + invoice link + auto tax), 客戶主檔 + autocomplete (chooseMerchant precedent), 帳齡 30/60/90 + DSO, 本期應繳營業稅 reminder card, bimonthly 401 summary, wire `stampInvoiceSettled` into `confirmSettle` | P2 | L | 190 MERGED | TODO — flesh out + fill Planned-at SHA after 190 lands |
