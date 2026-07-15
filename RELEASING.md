@@ -46,26 +46,33 @@ NORTHSTAR_PRIVATE_ASSETS_DIR="private-assets"
 
 ### 1. 確認版本號
 
-三個檔案必須始終保持一致，否則 updater 行為不可預測：
+五個檔案必須始終保持一致，否則 updater 行為不可預測，或 lockfile 會在下次
+install 時產生多餘 diff：
 
-| 檔案 | 欄位 |
-|------|------|
-| `package.json` | `"version"` |
-| `src-tauri/tauri.conf.json` | `"version"` |
-| `src-tauri/Cargo.toml` | `version = "..."` |
+| 檔案 | 欄位 | 說明 |
+|------|------|------|
+| `package.json` | `"version"` | 來源真值 |
+| `package-lock.json` | `"version"` 與 `packages[""].version` | 兩處都要跟著 `package.json`，否則 CI／worktree 的 `npm install` 會把它改回來 |
+| `src-tauri/tauri.conf.json` | `"version"` | updater feed 版本 |
+| `src-tauri/Cargo.toml` | `version = "..."` | |
+| `src-tauri/Cargo.lock` | `name = "northstar"` 的 `version` | 必須跟著 `Cargo.toml` |
 
-### 2. 更新版本號（三檔同步）
+### 2. 更新版本號（五檔同步）
 
 ```bash
 npm run version 0.1.0-alpha.7
 ```
 
-腳本會同時更新三個檔案並印出下一步指令。
+腳本（`scripts/version-bump.mjs`）會同時更新五個檔案並印出下一步指令。
+
+> **不要改用 `npm version`。** 本 repo 的 `package.json` 把 `"version"` 註冊成 npm script，
+> `npm version` 會在更新完 lockfile 後以「無參數」呼叫這支腳本而失敗中止，而且它還會自行
+> 產生 commit 與 tag，與下面手動的 commit／tag 流程衝突。
 
 ### 3. Commit + Tag + Push
 
 ```bash
-git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
+git add package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
 git commit -m "chore: bump version to 0.1.0-alpha.7"
 git tag v0.1.0-alpha.7
 git push && git push --tags

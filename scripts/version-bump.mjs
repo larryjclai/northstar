@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Bumps the version in all four version files atomically:
- *   package.json · src-tauri/tauri.conf.json · src-tauri/Cargo.toml ·
- *   src-tauri/Cargo.lock (the northstar package entry)
+ * Bumps the version in all five version files atomically:
+ *   package.json · package-lock.json · src-tauri/tauri.conf.json ·
+ *   src-tauri/Cargo.toml · src-tauri/Cargo.lock (the northstar package entry)
  *
  * Usage:
  *   npm run version 0.1.0-alpha.7
@@ -42,6 +42,26 @@ function bumpCargo(relPath) {
   console.log(`  ${relPath}: ${prev} → ${next}`);
 }
 
+// package-lock.json repeats package.json's version in two places: the top-level
+// `version` and the root package entry `packages[""].version`. Both must track
+// package.json, or the next `npm install` (in CI or a fresh worktree) rewrites
+// them and produces a spurious diff. Edit the fields in place rather than
+// shelling out to `npm install --package-lock-only`, which re-resolves
+// dependency ranges and can churn unrelated entries into the bump commit.
+function bumpPackageLock(relPath) {
+  const abs = resolve(root, relPath);
+  const obj = JSON.parse(readFileSync(abs, "utf8"));
+  const prev = obj.version;
+  obj.version = next;
+  if (obj.packages?.[""]) {
+    obj.packages[""].version = next;
+  } else {
+    console.warn(`  ${relPath}: no root package entry — only top-level version bumped`);
+  }
+  writeFileSync(abs, JSON.stringify(obj, null, 2) + "\n");
+  console.log(`  ${relPath}: ${prev} → ${next}`);
+}
+
 // Cargo.lock's own `[[package]] name = "northstar"` entry must track Cargo.toml,
 // or the lockfile drifts (it silently sat 2 versions behind through alpha.5x
 // because only Cargo.toml was bumped). Update just that block, not the first
@@ -61,10 +81,11 @@ function bumpCargoLock(relPath) {
 
 console.log(`\nBumping version to ${next}…`);
 bumpJson("package.json");
+bumpPackageLock("package-lock.json");
 bumpJson("src-tauri/tauri.conf.json");
 bumpCargo("src-tauri/Cargo.toml");
 bumpCargoLock("src-tauri/Cargo.lock");
 console.log(`\nDone. Next steps:`);
-console.log(`  git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock`);
+console.log(`  git add package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock`);
 console.log(`  git commit -m "chore: bump version to ${next}"`);
 console.log(`  git tag v${next} && git push && git push --tags`);
