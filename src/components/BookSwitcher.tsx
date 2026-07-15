@@ -77,7 +77,16 @@ export function BookSwitcher({ collapsed }: { collapsed: boolean }) {
           )
         }
       />
-      <PopoverContent align="start" className="w-64 p-1" style={{ width: 220 }}>
+      {/* The sidebar <aside> sits at z-index 1100 (AppShell.tsx — deliberate, so
+          full-viewport scrims don't grey out the vibrancy sidebar). This popover
+          portals to document.body and would default to z-50, i.e. *behind* the
+          sidebar. Raise the positioner above it. */}
+      <PopoverContent
+        align="start"
+        className="w-64 p-1"
+        positionerClassName="z-[1101]"
+        style={{ width: 220 }}
+      >
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <button
             type="button"
