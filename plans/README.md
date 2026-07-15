@@ -9,6 +9,255 @@ spec + its own Status block; this index keeps only **live, actionable state**.
 > re-reads it. All removed detail is preserved in each plan file and in this
 > file's git history (`git log -p plans/README.md`). Nothing was lost.
 
+## 208–210 — operator UX batch #2 (`/improve plan` @ `087a9b2e`, 2026-07-15)
+
+Three operator-reported items with screenshots. All planned directly (no audit).
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 208 | 淨值變動 badge onto the gain/loss axis — under 紅漲綠跌 the hero badge (green, `success/error`) contradicts 投資今日 (red, gain/loss) for the *same day's* movement; §2.4 never classified 淨值變動 at all. Badge `gain`/`loss` variants already exist. Fix = variant swap + §2.4 amendment | P1 | S | coordinate w/ 209 (same file, different region) | TODO |
+| 209 | 總覽 banners dismissable with **state fingerprints** — dismiss = "seen this occurrence", reappear on identity change (health: sorted issue kinds; overspend: month+category names, **amount deliberately excluded** or dismissal is useless). Overrides the recorded "stays discoverable" one-liner tradeoff with the operator's explicit request; new `dismissedBanners` in uiPreferences (per-device, not synced) | P2 | M | coordinate w/ 208 | TODO |
+| 210 | 帳戶 summary adopts 投資's visual language — 3 side-bar cards → one `ns-holdings-summary` strip (`data-cols="3"` param, 1-line CSS); N per-currency progress cards → one 幣別配置 alloc bar + legend. **Zero `InvestmentsRoute` changes** (pure class reuse → no 201 conflict). Full digits kept (reconciliation identity must stay visibly checkable — deliberate divergence from 投資's compact format) | P2 | M | **after 206 lands** (same file) | TODO |
+
+Key decisions encoded: **208 does NOT unify all colors** — full uniformity was
+tried 2026-06-10 and rolled back (toasts turned red, expenses green); the fix
+closes the classification gap (net-worth delta = market number), and the
+remaining 投資-red vs 現金流-green split in TW mode is the decided semantics.
+**209's fingerprint granularity is the whole design** — too fine (amounts) makes
+dismissal useless, too coarse suppresses a NEW category's overspend alert.
+**210 must wait for 206** (both edit `AccountsRoute.tsx`; 206's executor was live
+at planning time).
+
+## 206–207 — 帳本 (Books) data bugs, operator-reported live (`/improve plan` @ `087a9b2e`, 2026-07-15)
+
+Operator hit two real bugs while using the app. **These outrank the 201–205
+button/icon batch — data integrity before button looks.**
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 206 | `deleteBook` — soft-delete a 帳本, guarded on accounts / invoices / clients / last-personal-book. The escape hatch: operator has a duplicate 個人帳 they cannot remove | P0 | M | — | TODO |
+| 207 | **SPIKE** — how should the default 帳本 converge across devices? Doc-only (+ optional pure-domain PoC) | P1 | M | — | TODO |
+
+### Confirmed root cause (duplicate 個人帳)
+
+`initialize()` → `ensureSqliteDefaultBook()` (`repositories.ts:2487`) runs on
+**every app start and BEFORE any sync pull**. It mints a book with
+`createId("book")` = `` `${prefix}_${crypto.randomUUID()}` `` — a **random UUID**
+(`repositories.ts:554`). Device A mints `book_<uuidA>` 「個人帳」; device B, on its
+first run, has not pulled yet so it finds nothing and mints `book_<uuidB>`
+「個人帳」. `books` is a synced entity (outbox trigger `repositories.ts:4885`; pull
+allowlist `pull.ts:194`) → both devices show both. The `kind='personal'` guard only
+blocks a second **local** insert, never a **foreign** one. **Operator's live report
+— both devices show two 個人帳 — is this mechanism's fingerprint.** A third device
+mints a third.
+
+Why 207 is a spike, not a build plan: the obvious fix (deterministic id) doesn't
+work alone (existing installs hold random ids → a fresh device still ends up with
+two), and the migration that would make it work re-points account ownership across
+devices under last-write-wins — in a finance app, with a **version-skew mode that
+can turn one duplicate into three**. Advisor's prior is deterministic merge-on-pull;
+the spike must verify or destroy it.
+
+### `deleteBook` never existed — by documented deferral, not oversight
+
+`repositories.ts:275-276`: *"No delete yet (soft-delete needs account-reassignment
+UX — deferred to a later phase)."* 206 is that phase. Design follows the repo's own
+precedent — `deleteAccount` (`repositories.ts:970`) **blocks** with a zh-TW throw
+(`"已有交易的帳戶不能刪除。"`) rather than cascading. Blocking is not a dead end: the
+account editor already has a book picker (`AccountsRoute.tsx:854`). Note `invoices`
+and `clients` **also** carry `book_id` (`migrations.ts:266,290`) — not just accounts.
+
+### ⚠ Third bug — UNRESOLVED, deliberately NOT planned
+
+The operator's 公司帳 book row does not reach device B, while the **account's**
+`bookId` does (B shows the account with a blank book → it holds `book_company` but
+has no such row). **The advisor audited every link end-to-end and found no code
+defect**: outbox trigger has `["books","book"]`; `collectPendingChanges` doesn't
+filter record_type; `push.ts` is generic; the worker relay stores **opaque
+ciphertext** and cannot filter by entity; `pull.ts`'s `VALID_ENTITIES` includes
+`"book"` and `isValidPayload` is generic; `applySqliteSyncChange` maps
+`book: "books"`; `normalizeSqliteSyncPayload` does generic snake→camel;
+`createBook` uses the same `personalSpace`; and `createBook` + the trigger shipped
+in the **same commit** (`c8830b32`) so there is no version window.
+`repositories.books.test.ts` even has a regression test asserting a created book
+lands in the outbox.
+
+**No fix is planned because no defect was located** — writing one would be guessing.
+Believed to be runtime state (a lost/acked envelope, or a pull cursor). Pending
+operator test: **rename the 公司帳 on device A** → `updateBook` does
+`revision = revision + 1` → new outbox id `book:<id>:2` → forces a re-push. Outbox
+ids are `entity:id:revision` and `pushed_at` is set on ack, so **a lost push at a
+given revision is never retried** — that durability gap is real and confirmed, and
+is the next planning candidate if the rename test succeeds.
+
+### ⚠ Observed data-loss mode — warn before touching book assignments
+
+The operator watched a **stale device overwrite a correct assignment**: device B
+still had account X in its own 個人帳 (never received the 公司帳), pushed, and
+last-write-wins **overwrote device A's correct 公司帳 assignment**. Any work in this
+area must not make that class of event more likely. Until 公司帳 reaches B, book
+assignments on B must not be touched.
+
+## 201–205 — button/icon design critique batch (`$impeccable critique` @ `36d25f50`, 2026-07-15)
+
+Operator asked for a broader review than 200's mechanical scope: "不單是大小問題,
+還有其他的一致性、位置". Ran `$impeccable critique src/routes` dual-agent (A design
+review · B detector + live browser measurement). **Score: 22/40 (Acceptable)** —
+snapshot at `.impeccable/critique/2026-07-15T08-28-57Z__src-routes.md`.
+
+**Headline: the icon layer is fine; the button layer isn't.** Glyph→concept
+mapping is near-airtight (`PencilSimple`=edit 38×, `Trash`=delete 37×,
+`ArrowsClockwise`=refresh 33× — **zero collisions app-wide**). The operator's
+actual worry was the healthy part. The disease is in buttons: six close-button
+treatments, `variant="destructive"` defined-but-used-**zero** times across 227
+`<Button>` call sites, `title` vs `aria-label` decided per-file.
+
+**Operator decisions (2026-07-15), which these plans encode:**
+1. **Duplicate modal first** (not ModalCloseButton) — stop the bleeding before abstracting.
+2. ~~**The ghost/outline monoculture is NOT intentional** — accent reaches only 2
+   buttons app-wide. Worth adding primary at high-value moments (→ 205).~~
+   ⚠ **VOID — the premise was false. See the correction below.**
+3. **Icon-size contradiction resolves in the COMPONENT's favour** — DESIGN.md §7's
+   13–16 band is wrong about Button/Badge internals; rewrite §7 and **delete the
+   inert props** (→ 203).
+
+⚠ **Decision 3 supersedes ~1/3 of plan 200's Phase B.** 200 raised 31 icon props
+to 14; **10 of them are inert** (inside Button/Badge) and decision 3 deletes them.
+No revert needed — merge 200, then 203 deletes those 10. Net result identical;
+the churn is the cost of my plan-200 blind spot, not executor error.
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 201 | Delete the duplicated 編輯持倉 modal in InvestmentsRoute; use shared `HoldingEditModal` — **already-drifted: B16 Yahoo price view is in the component, absent from the copy (16 vs 0 grep hits), so the same button gives different capabilities per entry point** | P0 | M | — | TODO |
+| 202 | Extract `<ModalCloseButton />`, replace **14** sites (six treatments: 3 hit sizes / 3 icon sizes / 3 hover languages; the 3 raw `<button>`s forfeit the 44pt `pointer-coarse` expansion). Advisor's own census corrected the critique: **14 sites not 13**, and the raw ones carry `X size={18}` not 16. Also: **17 `aria-label="關閉"`, ZERO `title` — no close button anywhere has a tooltip** | P0 | M | 201 (**soft** — plan says don't wait; expect 13 if 201 landed) | TODO |
+| 203 | Rewrite DESIGN.md §7 (component wins) + delete the 10 inert `size` props inside Button/Badge | P1 | S | **plan 200 must be merged first** | TODO |
+| 204 | Adopt `variant="destructive"` / `destructive-outline` (**0 uses today**, both defined); collapse the hand-rolled red inline objects; one token (`--ns-neg`); one string (「確定刪除」 7× vs 「確認刪除」 3×). Advisor's census found **5 dead hex fallbacks** — `var(--ns-danger, #d33)` / `#c0392b` never fire (`--ns-danger` IS defined at `globals.css:157`) and **all three hexes disagree with the real `#c62a1d`** | P1 | M | 201, 202 (**both soft**) | TODO |
+| 205 | ~~Primary/accent at high-value moments~~ | — | — | — | **NOT WRITTEN — premise falsified, see below** |
+
+### ⚠ Correction to the critique (advisor, 2026-07-15): "accent reaches only 2 buttons" is FALSE
+
+While writing 205 I verified the claim and it does not hold. **Assessment A grepped
+inline `var(--ns-accent)`** — which finds only `AppShell.tsx:268` (Quick Add) and
+`:418` (FAB) — **and missed the real chain**:
+
+`globals.css:63` → `--primary: var(--ns-accent)`; COSS Button's `default` variant is
+`bg-primary`; **every `<Button>` omitting `variant` renders accent green. There are
+62** (e.g. `AccountsRoute.tsx:304` 新增帳戶). Assessment B missed it too — it only
+sampled `variant="outline"` toolbar buttons. **The advisor's synthesis verified
+`destructive` = 0 but did not verify `primary` = 2. That was the gap.**
+
+A red herring ruled out on the way: `globals.css:1812` has a *second*
+`--primary: oklch(0.922 0 0)`, but it sits inside a `.dark {}` block and **nothing in
+this app ever adds a `dark` class** (theme is `data-theme`, via
+`uiPreferences.ts:269-275`). So `:63` is the only live definition.
+
+**Consequence: accent is not scarce, it is *unconsidered*.** 62 buttons became primary
+because nobody typed a prop. The critique's own question 3 — "primary is encoded as
+the *absence* of a prop; a reviewer cannot catch a missing prop" — was more right than
+it knew. The real question is whether `variant` should become **required** (~227 call
+sites of blast radius), not whether to add more accent. **Operator decision 2 is void
+and must be re-asked.**
+
+### NEW finding while verifying the above: dead `.dark {}` shadcn palette (landmine)
+
+`globals.css:1806-1838` — a complete 33-line shadcn default palette (`--background`,
+`--foreground`, `--card`, `--popover`, `--primary`, `--secondary`…) inside `.dark {}`.
+Dead today. **Anyone who copy-pastes a shadcn component or follows shadcn docs and adds
+`className="dark"` silently hijacks the entire theme.** Not yet planned.
+
+**Verified by the advisor personally** (not taken from subagent reports):
+`variant="destructive"` = **0** call sites, `destructive-outline` = **0**, both
+defined in `coss/button.tsx`; `* { cursor: default !important; }` at
+`globals.css:603` makes 84 inline `cursor:"pointer"` **dead code**; the
+`:focus-visible` rule at `globals.css:616-623` is **unlayered** so it outranks
+~20 `outline-none` classes — focus is genuinely safe app-wide (A predicted a
+finding and verified there wasn't one; B independently tabbed the chrome and
+agreed).
+
+**A/B contradiction, resolved**: B measured every icon-only button at 24–32px and
+called the 44pt touch-target failure "systemic." **False positive for COSS
+Buttons** — `coss/button.tsx:12` has `pointer-coarse:after:min-h-11 min-w-11`,
+which only applies under `@media (pointer: coarse)`; B measured at desktop with a
+fine pointer, where 24–32px is correct. The finding survives **only** for controls
+bypassing COSS Button: `HoldingEditModal.tsx:175`, `InvestmentsRoute.tsx:1729`,
+`AppShell.tsx:437`, sidebar collapse toggle. → folded into 202.
+
+**Audit-only, NOT planned** (recorded so nobody re-audits): 84 dead inline
+`cursor:"pointer"`; 27 redundant `fontFamily:"inherit"`; 7 `ns-*` classes
+referenced but never defined (incl. `ns-btn-icon` — the ghost of the exact
+abstraction 202 builds); `QuickAdd.tsx`'s 4 hand-rolled pills with 4 paddings
+while `SegmentedControl`/`FilterPill` already exist; two `Button` implementations
+with divergent physics (`coss` ring-2/opacity-64/solid-destructive vs `ui`
+ring-3/opacity-50/soft-destructive — every date picker renders the `ui` one);
+`weight="bold"` ~50/50 on-rule; `weight="duotone"` 41 uses undocumented but
+coherent (docs fix); `AppShell.tsx:177` layout-transition (detector's only hit,
+low impact — note `:154` double-animates the same collapse via
+`grid-template-columns`); `AccountsRoute` inline banners instead of `toast`
+(§12.5 violation, whole route is the exception); `AccountsRoute.tsx:485` deletes
+an account with no confirm (§12.2 — blast radius limited, `repositories.ts:970`
+rejects accounts with transactions).
+
+## 198–200 — operator UI batch (`/improve plan` @ `36d25f50`, 2026-07-15)
+
+Three operator-reported items, planned directly (no audit). All independent —
+no ordering dependency; numbered by leverage. **199 and 200 both touch
+`DashboardRoute.tsx:1529`** (an out-of-band `size={12}` icon): whichever lands
+first makes the other's edit a no-op. Don't run them concurrently.
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 198 | 帳本 switcher popover renders behind the sidebar — `positionerClassName="z-[1101]"` on `BookSwitcher`'s `PopoverContent` (sidebar aside is z-1100 by design; portaled popover defaults to z-50) | P1 | S | — | **DONE — reviewed+APPROVED+MERGED** to `main` via `d92c7fae` (`--no-ff`, revertable). Branch `fix/ai-bookswitcher-popover-z` @ `72179b7b`. tsc 0 / lint 0 errors / 1252 tests. **Operator visually confirmed the sidebar menu now appears.** Executor correctly skipped the optional test (BookSwitcher needs `useFinanceData`+zustand mocking beyond the named exemplar's) |
+| 199 | 總覽 AI 本月摘要 gets its own full-width row under the header — out of the `justify-between` left column, drop `max-w-xl`, refresh button to the row's right edge via `justify-between` + `icon-xs` | P2 | S | — | **DONE — reviewed+APPROVED+MERGED** to `main` via `087a9b2e` (`--no-ff`). Branch `fix/ai-dashboard-summary-layout` @ `6bad8e38`. tsc 0 / lint 0 / 1252; privacy guards + generation logic byte-unchanged. **Operator visually confirmed.** ⚠ One REVISE round was **the advisor's fault, not the executor's** — the dispatch prompt truncated Step 1d, then the executor was wrongly accused of skipping it. Lesson applied to 200: pass the plan's absolute path instead of hand-inlining |
+| 200 | Button/icon consistency audit → `docs/button-icon-audit.md` (Phase A, gated) + mechanical fixes only (Phase B): sub-13 icons → 14, 6 hand-rolled `h-9` → `size="lg"` | P3 | M | coordinate w/ 199 | **DONE — reviewed+APPROVED, NOT merged** (operator's call). Branch `fix/ai-button-icon-consistency` @ `1f171585`, stacked on 198+199, **3 independently-takeable commits**: `1e603f19` audit doc + DESIGN.md, `42955c15` 14 src files (33+/33−), `1f171585` the CSS-override finding. tsc 0 / lint 0 / 1252 / build 0. **Executor corrected the advisor's census twice**: Button-only variants are `outline` 63 (not 84) and `secondary` 0 (not 5) — raw grep conflated `<Badge>`; and it verified the CSS override in the **compiled** CSS, not just source. ⚠ **~1/3 of Phase B is superseded by operator decision 3** → plan 203 deletes the 10 inert props |
+
+**198 is a real functional bug, not polish**: the 帳本 feature's primary entry
+point (188–194, shipped alpha.61) is unreachable — the dropdown paints behind
+the sidebar. One prop.
+
+**Census behind 200** (at `36d25f50`, reproducible — commands in the plan):
+icons appear at 8 distinct sizes vs `DESIGN.md` §7's two sanctioned bands
+(13–16 general, 18–26 list/card); 29 instances fall below the band (12×18,
+11×12, 10×3). `DESIGN.md`:256 is also **stale** — it documents a Button `xl`
+size and `destructive-outline` variant that `ui/button.tsx` never implemented.
+200 Phase A fixes the doc; Phase B fixes only what `DESIGN.md` already decided.
+
+**Deliberately NOT in 200** (audit-only, needs operator taste — see the plan's
+open questions): the ~22 raw `<button>` in `CashFlowRoute.tsx` + others
+(bespoke-by-design vs drifted needs design judgment); the ghost(93)/outline(84)
+affordance split; whether §7 should narrow from a 13–16 band to a single
+default of 14 (if yes, an ESLint rule on the Phosphor `size` prop is the real
+fix — a sweep deletes drift, a lint rule prevents it); the 13 `size={18}`
+icons; in-band 13/15 normalization.
+
+## Reconciled 2026-07-14 (`main` @ `db007657`, v0.1.0-alpha.61)
+
+- **帳本 Phase 1+2 (188–194) ALL MERGED and SHIPPED in alpha.61.** Verified by
+  artifact at `db007657`: `bookScope.ts`, `salesTax.ts`, `invoiceNumbering.ts`,
+  `invoiceReporting.ts`, `invoiceEntry.ts` present; snapshot-roundtrip fix
+  `f20ea5dc` in history; merge commits `da6c993c` (193), `51cf90ed` (191),
+  `844b7c17` (194) on main. **Corrected four index rows** (189/190/192/193)
+  that still read "NOT merged — awaiting operator" — they are merged.
+- **196–197 (投資對帳) executed this session** (`/improve execute`, 2026-07-14):
+  both reviewed+APPROVED on stacked branches `fix/ai-investment-total-fee`
+  (`b64b90fe`) → `feat/ai-daily-settlement` (`b0adf8e5`), off `db007657`. tsc 0
+  / lint 0 / 1252 tests. NOT merged — awaiting operator's merge decision.
+- **142 (DCA spike) drift-checked — still valid TODO.** `DashboardRoute.tsx:100`
+  still hides 定期定額 reminders "until the DCA workflow is finalised";
+  `RecurringInvestmentsTab.tsx` still present-but-gated. Finding intact.
+- **143 SUPERSEDED by 195** (terminal). **195 (共享帳本 spike): all 6 open
+  questions answered by operator 2026-07-14** — Phase 3/4 build plans can be cut
+  from `docs/shared-books-plan.md` whenever the operator starts Phase 3.
+- **Executable right now**: merge decision on 196/197 (operator's call). No
+  advisor-side plan is blocked. Next planning frontier is 帳本 Phase 3 (from 195).
+- **macOS window-drag fix — DONE (operator-confirmed 2026-07-14).** Not a tracked
+  `plans/` item, recorded here for completeness. The fix is live in `main` via
+  `4a78b09c` (transparent title bar + drag region) + `b5f3172d`
+  (`core:window:allow-start-dragging` grant) + `52c75771` (sidebar header
+  draggable); verified at `db007657`: `data-tauri-drag-region` / `ns-titlebar-drag`
+  in `AppShell.tsx` and `titleBarStyle: "Overlay"` in `tauri.conf.json`. The stale
+  local branch `fix/ai-macos-window-drag` (`734c80e8`) was a superseded earlier
+  take (not an ancestor of `main`) — safe to delete.
+
 ## Current state — 2026-07-13 (`main` @ `48a74719`, v0.1.0-alpha.59)
 
 - **170–182: ALL executed, reviewed+APPROVED, and MERGED to `main`.** The
@@ -126,7 +375,7 @@ its Phase 3 (shared books) stays blocked on spike 143.
 |------|-------|----------|--------|------------|--------|
 | 187 | 持倉表跨列對齊 root-cause fix — per-row independent grids + `auto` optional tracks → fixed px tracks per column key (advisor measured live DOM: 台積電 row shifted 4–12px; header on a 3rd offset) | P2 | S | 184 (merged) | DONE — reviewed+APPROVED+MERGED to main @ `7c08b45c` (operator-instructed), branch `fix/ai-holdings-grid-fixed-tracks` @ `103e0651`. Reviewer re-measured live DOM post-merge: all 5 rows + header resolve IDENTICAL column edges [489,589,688,805,931,1071,1171,1223] (pre-fix: rows differed 4–12px, header a 3rd offset). Executor self-corrected a stale worktree base by branching from main. tsc 0 / lint 0 / 1155 tests. |
 | 188 | 帳本 Phase 1a foundation — `Book` entity + `accounts.book_id` + migration/自癒 backfill(個人帳)+ sync 接線(8 個 tableByEntity sites, compiler-guided)+ 純分割特徵測試先行 + dual-harness books tests | P2 | M | 186 doc (merged) | DONE — reviewed+APPROVED+MERGED to main @ `fd724031` (operator-instructed), branch `feat/ai-books-foundation` @ `7e9891ee`. `Book` entity + `Account.bookId` + migration id 5 + idempotent 個人帳 backfill w/ revision-bump; sync接線全補(4 tableByEntity + browser keyByEntity + 2 outbox trigger arrays + pull VALID_ENTITIES + conflictSummary label + normalize boolean hydration + insertBookRow); +booksPartition characterization (byte-frozen, asserts netWorth/cash/liabilities incl. 對帳恆等式) + 12 dual-harness tests incl. SQLite outbox-tracking guard. **TWO executor STOPs, both correct** (pull.ts VALID_ENTITIES + conflictSummary.ts — literal/Record entity lists tsc-or-silently-missable; now the verified-complete set of 4 non-test SyncEntity consumers). push.test 3→4 = legit behavior change (default book syncs). tsc 0 / lint 0 / 1171 tests. |
-| 189 | 帳本 Phase 1b UI — 側欄切換器(Search 與 QuickAdd 之間)、`bookScope.ts` 語意先寫成測試(總帳 identity / 過濾 / FIRE toggles / 跨帳本轉帳中性)、§1 12 surfaces 逐 cluster 範圍化、帳戶歸屬+帳本管理、QuickAdd/EntryDrawer 預設帳本 | P2 | L | 188 MERGED | DONE — reviewed+APPROVED (1 STOP for operator hero-KPI decision), branch `feat/ai-books-switcher` @ `59866d9c` (9 commits, off `fd724031`). NOT merged — awaiting operator. `bookScope.ts` (4 helpers, 7 tests) + sidebar 帳本 switcher + 12 §1 surfaces scoped per two-axis rule (general=switcher, FIRE-family=fireMetricAccountIdSet switcher-independent) + AccountsRoute 帳本 select + 帳本管理 modal + QuickAdd/EntryDrawer book-default. **Hero-KPI: operator decided netWorth follows switcher; firstGoalPct/FIRE recomputed from personalNetWorthAccountIdSet so they DON`T move with switcher.** Zero repo/sync/migration change. tsc 0 / lint 0 / 1178 tests; 188 booksPartition byte-unchanged+green. **Reviewer LIVE browser pass (worktree vite): switcher renders between Search/QuickAdd + lists 總帳/個人帳/公司帳; 帳本管理 modal creates books; 個人帳 toggles ON / 公司帳 toggles OFF (188 semantic verified in UI); 0 console errors.** Executor judgment calls (all sound): milestone toast bound to personalNetWorth; cross-book transfer/代墊 pickers full-list; asset book-membership by owning-or-linked account. |
+| 189 | 帳本 Phase 1b UI — 側欄切換器(Search 與 QuickAdd 之間)、`bookScope.ts` 語意先寫成測試(總帳 identity / 過濾 / FIRE toggles / 跨帳本轉帳中性)、§1 12 surfaces 逐 cluster 範圍化、帳戶歸屬+帳本管理、QuickAdd/EntryDrawer 預設帳本 | P2 | L | 188 MERGED | DONE — reviewed+APPROVED (1 STOP for operator hero-KPI decision), branch `feat/ai-books-switcher` @ `59866d9c` (9 commits, off `fd724031`). MERGED to main (帳本 Phase 1, shipped alpha.61). `bookScope.ts` (4 helpers, 7 tests) + sidebar 帳本 switcher + 12 §1 surfaces scoped per two-axis rule (general=switcher, FIRE-family=fireMetricAccountIdSet switcher-independent) + AccountsRoute 帳本 select + 帳本管理 modal + QuickAdd/EntryDrawer book-default. **Hero-KPI: operator decided netWorth follows switcher; firstGoalPct/FIRE recomputed from personalNetWorthAccountIdSet so they DON`T move with switcher.** Zero repo/sync/migration change. tsc 0 / lint 0 / 1178 tests; 188 booksPartition byte-unchanged+green. **Reviewer LIVE browser pass (worktree vite): switcher renders between Search/QuickAdd + lists 總帳/個人帳/公司帳; 帳本管理 modal creates books; 個人帳 toggles ON / 公司帳 toggles OFF (188 semantic verified in UI); 0 console errors.** Executor judgment calls (all sound): milestone toast bound to personalNetWorth; cross-book transfer/代墊 pickers full-list; asset book-membership by owning-or-linked account. |
 
 ## 168–169 — 記帳 (Cash Flow) redesign (from Claude Design, 2026-07-12)
 
@@ -363,11 +612,30 @@ known playbook (188's 4 files + 2 outbox arrays).
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 190 | Phase 2a foundation — `Invoice`+`Client` entities, `salesTax.ts` (round(含稅×5/105)) + `invoiceNumbering.ts` (TW 統一發票 preset) pure modules, full sync wiring (mirror 188's book playbook), `stampInvoiceSettled`, dual-harness + characterization. Zero UI, no LedgerTransaction change. | P2 | L | 188+189 (merged) | DONE — reviewed+APPROVED, branch `feat/ai-invoices-foundation` @ `a35e4ff3` (5 commits, off `41d44e04`). NOT merged — awaiting operator. `Invoice`+`Client` entities; `salesTax.ts` (round(105000×5/105)=5000 ✓) + `invoiceNumbering.ts` (TW 字軌 `^[A-Z]{2}\\d{8}$` + 8-digit increment + overflow guard) pure modules; sync wiring EXACT parity w/ book (invoices=8/clients=8/books=8 grep); `stampInvoiceSettled`/`findInvoiceByLedgerId`; +36 tests (1214 total); characterization byte-frozen; **LedgerTransaction unchanged (verified)**. Reviewer-confirmed design: tax fields on `invoices` table ONLY. ⚠ SURFACED: snapshot round-trip gap → plan 192 (188 SQLite-export-drops-books regression + invoices/clients not in backup). |
-| 192 | Snapshot round-trip fix (P1 data-integrity) — SQLite `exportSnapshot` omits `books` (188 shipped regression: desktop backup/restore silently drops books) + add invoices/clients to `RepositorySnapshot` + all 4 export/import paths; round-trip test first | P1 | S | 190 MERGED | DONE — reviewed+APPROVED, branch `fix/ai-snapshot-roundtrip` @ `f20ea5dc` (off `e1e3c3b0`). NOT merged — awaiting operator. Round-trip test FAILED pre-fix (SQLite lost company book, browser lost client — both gaps proven), passes post-fix; asserts book id/kind/toggles/color + client 統編 + invoice 號碼/稅額. Fix: SQLite exportSnapshot += books (188 regression) + invoices/clients through all 4 export/import paths + `RepositorySnapshot` type; `?? []` guards (normalizeStoredData 5346-5354) keep pre-190 snapshots importable. Only repositories.ts + new test touched; no entity shape/UI change. tsc 0 / lint 0 / 1216 tests. |
+| 190 | Phase 2a foundation — `Invoice`+`Client` entities, `salesTax.ts` (round(含稅×5/105)) + `invoiceNumbering.ts` (TW 統一發票 preset) pure modules, full sync wiring (mirror 188's book playbook), `stampInvoiceSettled`, dual-harness + characterization. Zero UI, no LedgerTransaction change. | P2 | L | 188+189 (merged) | DONE — reviewed+APPROVED, branch `feat/ai-invoices-foundation` @ `a35e4ff3` (5 commits, off `41d44e04`). MERGED to main (帳本 Phase 2a, shipped alpha.61; entities/`salesTax.ts`/`invoiceNumbering.ts` present at `db007657`). `Invoice`+`Client` entities; `salesTax.ts` (round(105000×5/105)=5000 ✓) + `invoiceNumbering.ts` (TW 字軌 `^[A-Z]{2}\\d{8}$` + 8-digit increment + overflow guard) pure modules; sync wiring EXACT parity w/ book (invoices=8/clients=8/books=8 grep); `stampInvoiceSettled`/`findInvoiceByLedgerId`; +36 tests (1214 total); characterization byte-frozen; **LedgerTransaction unchanged (verified)**. Reviewer-confirmed design: tax fields on `invoices` table ONLY. ⚠ SURFACED: snapshot round-trip gap → plan 192 (188 SQLite-export-drops-books regression + invoices/clients not in backup). |
+| 192 | Snapshot round-trip fix (P1 data-integrity) — SQLite `exportSnapshot` omits `books` (188 shipped regression: desktop backup/restore silently drops books) + add invoices/clients to `RepositorySnapshot` + all 4 export/import paths; round-trip test first | P1 | S | 190 MERGED | DONE — reviewed+APPROVED, branch `fix/ai-snapshot-roundtrip` @ `f20ea5dc` (off `e1e3c3b0`). MERGED to main (fix `f20ea5dc` in history at `db007657`; shipped alpha.61). Round-trip test FAILED pre-fix (SQLite lost company book, browser lost client — both gaps proven), passes post-fix; asserts book id/kind/toggles/color + client 統編 + invoice 號碼/稅額. Fix: SQLite exportSnapshot += books (188 regression) + invoices/clients through all 4 export/import paths + `RepositorySnapshot` type; `?? []` guards (normalizeStoredData 5346-5354) keep pre-190 snapshots importable. Only repositories.ts + new test touched; no entity shape/UI change. tsc 0 / lint 0 / 1216 tests. |
 | 191 | Phase 2b-1 UI — 開發票流程 (extends `ar`, auto tax via computeSalesTax, TW 字軌 preset), 客戶主檔 + ClientAutocomplete, wire `stampInvoiceSettled` into `confirmSettle`, `invoiceEntry.ts` pure helper. Company-book-gated. | P2 | L | 190+192 (merged) | DONE — reviewed+APPROVED + LIVE-VERIFIED (integrated w/ 194), branch `feat/ai-invoice-entry` @ `14d82459` (off `50419301`). 開發票 toggle on `ar` (company-book-gated), `invoiceEntry.ts` pure helper (105000→未稅100000/稅5000 ✓), ClientAutocomplete+ClientManager, create-ledger-then-invoice w/ orphan-safe ordering + `InvoiceMetadataError` toast, `stampInvoiceSettled` in confirmSettle (verified no-op for plain 應收). tsc 0 / lint 0 / 1227 tests. Combined steps 2-5 into 1 commit (documented, sound). Live-verified (ar drawer + company-gate). MERGED to main @ `51cf90ed`. |
 | 194 | Fix 189 regression — `bookScope.scopeRows` drops unsettled 應收/應付 (`accountId:""`) from 未結清 in EVERY book view incl. 總帳 (found by 191 executor). One-line filter widen + test. | P1 | S | — | DONE — reviewed+APPROVED, branch `fix/ai-bookscope-unsettled` @ `d2a20c41`. One-line `scopeRows` widen (`!row.accountId || …`) + test (fails pre-fix `l_ar_unassigned` missing, passes post). tsc 0 / lint 0. LIVE-VERIFIED (未結清 shows the accountId="" row). MERGED to main @ `51cf90ed`. |
-| 193 | Phase 2b-2 reporting — `invoiceReporting.ts` pure math (agingBuckets/DSO/outstandingSalesTax/bimonthly401Summary) + 3 company-book-gated CashFlow cards (帳齡+DSO, 本期應繳營業稅, 401 雙月彙總). Completes Phase 2. | P2 | M | 190+191+194 (merged) | DONE — reviewed+APPROVED (1 revision: aging buckets) + LIVE-VERIFIED, branch `feat/ai-invoice-reporting` @ `f4b7aac8`. `invoiceReporting.ts` (agingBuckets 5 real buckets 未到期/1-30/31-60/61-90/90+, DSO, outstandingSalesTax, bimonthly401Summary) +17 tests; 3 company-gated cards. **REVISE fixed finance-correctness bug: a 15-day-overdue invoice was labeled 未逾期 — now correct 逾期1-30.** MERGED to main @ `da6c993c`. tsc 0 / lint 0 / 1245 tests. **LIVE (reviewer): company book → 開發票 (105000 含稅 → 未稅100000/稅5000, TW字軌 AB12345678) → 帳齡「未到期 1筆 105,000」+ 應繳營業稅卡 + 401表 all render; 開發票/客戶 buttons company-gated.** NOT merged — awaiting operator. Completes 帳本 Phase 2. |
+| 193 | Phase 2b-2 reporting — `invoiceReporting.ts` pure math (agingBuckets/DSO/outstandingSalesTax/bimonthly401Summary) + 3 company-book-gated CashFlow cards (帳齡+DSO, 本期應繳營業稅, 401 雙月彙總). Completes Phase 2. | P2 | M | 190+191+194 (merged) | DONE — reviewed+APPROVED (1 revision: aging buckets) + LIVE-VERIFIED, branch `feat/ai-invoice-reporting` @ `f4b7aac8`. `invoiceReporting.ts` (agingBuckets 5 real buckets 未到期/1-30/31-60/61-90/90+, DSO, outstandingSalesTax, bimonthly401Summary) +17 tests; 3 company-gated cards. **REVISE fixed finance-correctness bug: a 15-day-overdue invoice was labeled 未逾期 — now correct 逾期1-30.** MERGED to main @ `da6c993c`. tsc 0 / lint 0 / 1245 tests. **LIVE (reviewer): company book → 開發票 (105000 含稅 → 未稅100000/稅5000, TW字軌 AB12345678) → 帳齡「未到期 1筆 105,000」+ 應繳營業稅卡 + 401表 all render; 開發票/客戶 buttons company-gated.** MERGED to main @ `da6c993c`. Completes 帳本 Phase 2 (188–194 all merged, shipped alpha.61). |
+
+## 196–197 — 投資對帳 (operator ask, `/improve plan` 2026-07-14 @ `db007657`)
+
+Two operator requests on the 投資 交易紀錄 surface: (1) a 總額 bug — the on-screen
+total drops the 手續費 (台光電 2×5065 shows −10,130, should be −10,138); (2) a 日結
+view for reconciling against the broker's daily 成交回報 email. Diagnosis: the
+**ledger cash leg is already correct** (`calculateInvestmentCashDelta` includes
+fee); only the two display sites compute gross. 196 rewires the display to the
+ledger's own cash-delta fn; 197 adds a 日結 grouping toggle with per-day 小計.
+Operator decisions for 197: grouping-mode toggle (not a new route); 小計 columns
+成交金額/手續費/應收付, combined fee (no 交易稅 split).
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 196 | 投資 總額 shows real net cash (incl. fee/tax) — rewire `TransactionsRoute` + `HoldingDetailRoute` display to reuse `calculateInvestmentCashDelta` (the ledger's own fn); opening lots stay 「—」. Display-only; balances already correct. | P1 | S | — | DONE — reviewed+APPROVED, branch `fix/ai-investment-total-fee` @ `b64b90fe` (off `db007657`). Both display sites rewired to `calculateInvestmentCashDelta`; opening lots stay 「—」. +1 test (5065×2+8 → −10138). tsc 0 / lint 0 / 1246 tests. NOT merged — awaiting operator. |
+| 197 | 日結 grouping mode in 交易紀錄 — `SegmentedControl` 月分組↔日結, pure `investmentDailySettlement.ts` (group-by-day + per-currency 成交金額/手續費/應收付 小計), `InvestmentDayGroup` reusing existing row components. | P2 | M | 196 | DONE — reviewed+APPROVED, branch `feat/ai-daily-settlement` @ `b0adf8e5` (stacked on 196's `b64b90fe`). `groupByDayWithSubtotals` pure helper +6 tests (incl. 5065×2 fee8 → net −10138); month path refactored to shared `groupRowsByMonth` page-slice (untouched behavior); `InvestmentDayGroup` reuses existing row/mobile components, tfoot 小計 balanced to 9 cols; per-currency subtotals, opening lots excluded. tsc 0 / lint 0 errors / 1252 tests. NOT merged — awaiting operator. Live browser check skipped (data-dependent; math carried by tests). |
+
+**Dependency**: 197 requires 196 — its 應收付 小計 sums each row's `signed`, which
+only includes fee after 196 lands.
 
 ## 195 — 共享帳本 spike (Phase 3 gate, operator chose "spike now" 2026-07-13)
 
