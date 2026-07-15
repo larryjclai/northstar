@@ -1030,23 +1030,13 @@ export function DashboardRoute() {
         </div>
       ) : null}
 
-      {/* Header — greeting/summary shrinks (min-w-0) so a long AI summary wraps
-          in place; the FX one-liner + 更新行情 + 版面 + 通知 stay pinned top-right. */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between" style={{ marginBottom: 18 }}>
+      {/* Header — greeting left, FX one-liner + 更新行情 + 版面 + 通知 pinned
+          top-right. The AI summary is NOT in this row (see below): as prose it
+          needs the full width, not the leftovers of a justify-between split. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between" style={{ marginBottom: 10 }}>
         <div className="min-w-0">
           <div className="text-xs ns-field-label">Overview · {monthLabel}</div>
           <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>{greeting}</h1>
-          {hasAnyData ? (
-            <MonthlySummaryInline
-              monthKey={monthKey}
-              income={monthIncome}
-              expense={monthExpense}
-              savingsRatePct={savingsRate}
-              netWorthChange={momChange}
-              currency={primaryCurrency}
-              budgetCats={budgetCats}
-            />
-          ) : null}
         </div>
         {/* 匯率 one-liner sits inline with 更新行情 + 版面. The single time-range
             control lives on the net-worth card (the period segmented control). */}
@@ -1076,6 +1066,22 @@ export function DashboardRoute() {
             <NotificationCenter />
         </div>
       </div>
+
+      {/* AI 本月摘要 — its own full-width row: it's prose, so it wraps at the
+          page's width rather than fighting the header toolbar for space. Renders
+          null when Foundation Models is unavailable or there's no month data, so
+          no gap is reserved. */}
+      {hasAnyData ? (
+        <MonthlySummaryInline
+          monthKey={monthKey}
+          income={monthIncome}
+          expense={monthExpense}
+          savingsRatePct={savingsRate}
+          netWorthChange={momChange}
+          currency={primaryCurrency}
+          budgetCats={budgetCats}
+        />
+      ) : null}
 
       {/* Row 1 · Northstar hero + pulse strip (Direction A, plan 164) */}
       <div className="ns-dash-row1">
@@ -1511,7 +1517,7 @@ function MonthlySummaryInline({
   if (!loading && !summaryText) return null;
 
   return (
-    <div className="mt-2 flex max-w-xl items-start gap-2">
+    <div className="mb-4 flex w-full items-baseline justify-between gap-3">
       {loading ? (
         <Skeleton className="h-5 w-full" />
       ) : (
@@ -1520,13 +1526,13 @@ function MonthlySummaryInline({
       {!loading && summaryText ? (
         <Button
           variant="ghost"
-          size="xs"
-          className="shrink-0"
+          size="icon-xs"
+          className="shrink-0 self-start"
           onClick={generate}
           title="由裝置端 AI 產生，不會上傳任何資料 · 重新產生"
           aria-label="重新產生本月摘要"
         >
-          <ArrowsClockwise size={12} />
+          <ArrowsClockwise size={14} />
         </Button>
       ) : null}
     </div>
