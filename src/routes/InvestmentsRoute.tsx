@@ -1,8 +1,7 @@
-import { ArrowDown, ArrowsClockwise, ArrowsDownUp, ArrowUp, Bank, ChartLineUp, DotsThree, ListChecks, PencilSimple, Plus, Sliders, X, CaretLeft, CaretRight, MagnifyingGlass } from "@phosphor-icons/react";
+import { ArrowDown, ArrowsClockwise, ArrowsDownUp, ArrowUp, Bank, ChartLineUp, DotsThree, ListChecks, PencilSimple, Plus, Sliders, CaretLeft, CaretRight, MagnifyingGlass } from "@phosphor-icons/react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ActionButton } from "../components/ActionButton";
 import { AccountFilter } from "../components/AccountFilter";
 import { AssetLogo } from "../components/AssetLogo";
 import { PageHeader } from "../components/AppShell";
@@ -13,14 +12,11 @@ import { Card as CossCard } from "../components/coss/card";
 import { Skeleton } from "../components/coss/skeleton";
 import { EmptyState } from "../components/EmptyState";
 import { Field, TextInput } from "../components/Field";
-import { HoldingForm } from "../components/HoldingForm";
-import { ModalShell } from "../components/ModalShell";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { StatusText } from "../components/StatusText";
 import { FilterPill } from "../components/FilterPill";
 import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import type { PortfolioAssetDraft } from "../data/repositories";
 import {
   buildHoldingPositionsByAccount,
   buildManualPriceLookup,
@@ -52,6 +48,7 @@ import { useBackfillAssetProfiles, useRefreshDailyPrices, useRefreshQuotes, DEMO
 import { useDemoMode } from "../state/demoMode";
 import { useUiPreferences, type NameLocalePreference, type HoldingsColumnKey } from "../state/uiPreferences";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
+import { HoldingEditModal } from "./HoldingEditModal";
 import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
 import { InvestmentsAnalyticsTab } from "./InvestmentsAnalyticsTab";
 import { RecurringInvestmentsTab } from "./RecurringInvestmentsTab";
@@ -1117,12 +1114,6 @@ function HoldingsTab({
   const toggleCol = (key: HoldingsColumnKey) =>
     setHoldingsColumns(holdingsColumns.includes(key) ? holdingsColumns.filter((k) => k !== key) : [...holdingsColumns, key]);
   const [editingAsset, setEditingAsset] = useState<PortfolioAsset | null>(null);
-  const [editForm, setEditForm] = useState<PortfolioAssetDraft | null>(null);
-  const [message, setMessage] = useState("");
-  const [snapshotDate, setSnapshotDate] = useState(() => todayDate());
-  const [snapshotPrice, setSnapshotPrice] = useState(0);
-  const [snapshotNote, setSnapshotNote] = useState("");
-  const [snapshotMessage, setSnapshotMessage] = useState("");
   const [filterAccount, setFilterAccount] = useState<string>("all");
   const [filterSector, setFilterSectorState] = useState<string>(initialSector ?? "all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -1216,44 +1207,6 @@ function HoldingsTab({
   // Default to descending market value — matches user expectation that the
   // biggest positions sit at the top until they explicitly sort otherwise.
   const [sort, setSort] = useState<HoldingsSortState>({ key: "marketValue", direction: "desc" });
-  const updateHolding = useRepositoryMutation(
-    (repository, input: PortfolioAssetDraft & { id: string }) => repository.updateManualHolding(input.id, input),
-    ["assets"],
-  );
-  const updateClassification = useRepositoryMutation(
-    (repository, input: Pick<PortfolioAssetDraft, "assetType" | "sector" | "industry"> & { id: string }) =>
-      // User-driven edit: lock the classification so 回補分類 won't overwrite it.
-      repository.updateAssetClassification(input.id, { ...input, lockClassification: true }),
-    ["assets"],
-  );
-  const createSnapshot = useRepositoryMutation(
-    (repository, input: { assetId: string; date: string; price: number; note: string }) =>
-      repository.createManualPriceSnapshot(input),
-    ["manualPriceSnapshots"],
-  );
-  const deleteSnapshot = useRepositoryMutation(
-    (repository, id: string) => repository.deleteManualPriceSnapshot(id),
-    ["manualPriceSnapshots"],
-  );
-  const deleteHolding = useRepositoryMutation(
-    (repository, id: string) => repository.deleteManualHolding(id),
-    ["assets"],
-  );
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
-  async function submitDelete() {
-    if (!editingAsset) return;
-    setMessage("");
-    try {
-      await deleteHolding.mutateAsync(editingAsset.id);
-      setConfirmDelete(false);
-      setEditingAsset(null);
-      setEditForm(null);
-    } catch (error) {
-      setConfirmDelete(false);
-      setMessage(error instanceof Error ? error.message : "持倉刪除失敗。");
-    }
-  }
 
   function toggleSort(key: HoldingsSortKey) {
     setSort((current) => {
@@ -1277,58 +1230,6 @@ function HoldingsTab({
 
   function startEdit(asset: PortfolioAsset) {
     setEditingAsset(asset);
-    setEditForm({
-      ticker: asset.ticker,
-      name: asset.name,
-      currency: asset.currency,
-      totalQuantity: asset.totalQuantity,
-      averageCost: asset.averageCost,
-      acquisitionDate: asset.acquisitionDate ?? todayInTimezone(timezone),
-      accountId: asset.accountId,
-      assetType: asset.assetType,
-      sector: asset.sector,
-      industry: asset.industry,
-    });
-    setMessage("");
-    setSnapshotDate(todayDate());
-    setSnapshotPrice(0);
-    setSnapshotNote("");
-    setSnapshotMessage("");
-    setConfirmDelete(false);
-  }
-
-  async function submitSnapshot() {
-    if (!editingAsset) return;
-    setSnapshotMessage("");
-    if (!snapshotDate) { setSnapshotMessage("請選擇日期。"); return; }
-    if (snapshotPrice <= 0) { setSnapshotMessage("請輸入有效的價格。"); return; }
-    try {
-      await createSnapshot.mutateAsync({ assetId: editingAsset.id, date: snapshotDate, price: snapshotPrice, note: snapshotNote });
-      setSnapshotDate(todayDate());
-      setSnapshotPrice(0);
-      setSnapshotNote("");
-    } catch (error) {
-      setSnapshotMessage(error instanceof Error ? error.message : "快照儲存失敗。");
-    }
-  }
-
-  async function submitEdit() {
-    if (!editingAsset || !editForm) return;
-    setMessage("");
-    try {
-      if (editingAsset.holdingSource !== "manual") {
-        await updateClassification.mutateAsync({ id: editingAsset.id, ...editForm });
-        setEditingAsset(null);
-        setEditForm(null);
-        return;
-      }
-      if (!editForm.accountId) throw new Error("請選擇券商 / 帳戶。");
-      await updateHolding.mutateAsync({ ...editForm, id: editingAsset.id });
-      setEditingAsset(null);
-      setEditForm(null);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "持倉儲存失敗。");
-    }
   }
 
   if (positions.length === 0) {
@@ -1712,130 +1613,11 @@ function HoldingsTab({
           <Link to="/transactions">查看交易明細</Link>
         </div>
       </Card>
-      {editingAsset && editForm ? (
-        <ModalShell
-          variant="center"
-          title="編輯持倉"
-          onClose={() => setEditingAsset(null)}
-          panelClassName="w-full max-w-2xl rounded-lg border shadow-xl"
-          panelStyle={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}
-        >
-          {(dismiss) => (<>
-            <header className="flex items-center justify-between border-b px-5 py-3" style={{ borderColor: "var(--ns-border)" }}>
-              <h2 className="text-lg font-semibold">編輯持倉</h2>
-              <button
-                type="button"
-                onClick={dismiss}
-                className="grid size-8 place-items-center rounded-md outline-none transition hover:opacity-70"
-                aria-label="關閉"
-              >
-                <X size={18} />
-              </button>
-            </header>
-            <div className="max-h-[70vh] overflow-y-auto px-5 pb-5 pt-4">
-              <HoldingForm
-                value={editForm}
-                onChange={setEditForm}
-                onSubmit={submitEdit}
-                submitLabel={updateHolding.isPending || updateClassification.isPending ? "儲存中…" : editingAsset.holdingSource === "manual" ? "儲存持倉" : "儲存分類"}
-                accounts={accounts}
-                classificationOnly={editingAsset.holdingSource !== "manual"}
-              />
-              {message ? <div className="mt-3"><StatusText>{message}</StatusText></div> : null}
-
-              {editingAsset.holdingSource === "manual" ? (
-                <div className="mt-4 flex items-center gap-3">
-                  {confirmDelete ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => void submitDelete()}
-                        disabled={deleteHolding.isPending}
-                        className="rounded-md px-3 py-2 text-sm font-semibold text-white outline-none transition hover:opacity-90 disabled:opacity-60"
-                        style={{ background: "var(--ns-neg)" }}
-                      >
-                        {deleteHolding.isPending ? "刪除中…" : "確認刪除"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDelete(false)}
-                        disabled={deleteHolding.isPending}
-                        className="text-sm outline-none transition hover:opacity-70"
-                        style={{ color: "var(--ns-muted)" }}
-                      >
-                        取消
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDelete(true)}
-                      className="rounded-md px-3 py-2 text-sm font-semibold outline-none transition hover:opacity-80"
-                      style={{ color: "var(--ns-neg)", border: "1px solid var(--ns-neg)" }}
-                    >
-                      刪除持倉
-                    </button>
-                  )}
-                </div>
-              ) : null}
-
-              {editingAsset.holdingSource === "manual" ? (
-                <div className="mt-6 border-t pt-5" style={{ borderColor: "var(--ns-border)" }}>
-                  <h3 className="mb-3 text-sm font-semibold">價格快照紀錄</h3>
-                  {(() => {
-                    const snapshots = manualPriceSnapshots
-                      .filter((s) => s.assetId === editingAsset.id)
-                      .sort((a, b) => b.date.localeCompare(a.date));
-                    return snapshots.length === 0 ? (
-                      <p className="mb-3 text-xs" style={{ color: "var(--ns-muted)" }}>尚無快照，新增第一筆後就能在績效圖中看到趨勢。</p>
-                    ) : (
-                      <div className="mb-4 space-y-1.5">
-                        {snapshots.map((snap) => (
-                          <div key={snap.id} className="flex items-center justify-between rounded-md px-3 py-2 text-sm" style={{ background: "var(--ns-surface-strong)" }}>
-                            <div>
-                              <span className="tabular font-semibold">{snap.date}</span>
-                              <span className="ml-3 tabular">{formatPrice(snap.price)}</span>
-                              {snap.note ? <span className="ml-2 text-xs" style={{ color: "var(--ns-muted)" }}>{snap.note}</span> : null}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => void deleteSnapshot.mutateAsync(snap.id)}
-                              disabled={deleteSnapshot.isPending}
-                              className="ml-3 grid size-6 place-items-center rounded outline-none transition hover:opacity-70"
-                              aria-label="刪除快照"
-                            >
-                              <X size={14} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                    <Field label="日期">
-                      <TextInput type="date" value={snapshotDate} onChange={(e) => setSnapshotDate(e.target.value)} />
-                    </Field>
-                    <Field label="淨值 / 價格">
-                      <TextInput type="number" value={snapshotPrice} onChange={(e) => setSnapshotPrice(Number(e.target.value))} />
-                    </Field>
-                    <div className="flex items-end">
-                      <ActionButton onClick={() => void submitSnapshot()} disabled={createSnapshot.isPending}>
-                        {createSnapshot.isPending ? "儲存中…" : "新增快照"}
-                      </ActionButton>
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    <Field label="備註（選填）">
-                      <TextInput value={snapshotNote} onChange={(e) => setSnapshotNote(e.target.value)} placeholder="基金公告淨值 2026-05-26" />
-                    </Field>
-                  </div>
-                  {snapshotMessage ? <div className="mt-2"><StatusText>{snapshotMessage}</StatusText></div> : null}
-                </div>
-              ) : null}
-            </div>
-          </>)}
-        </ModalShell>
-      ) : null}
+      <HoldingEditModal
+        editingAsset={editingAsset}
+        onClose={() => setEditingAsset(null)}
+        accounts={accounts}
+      />
     </>
   );
 }
