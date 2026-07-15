@@ -3,6 +3,15 @@
 > Companion to `plans/200-button-icon-consistency-audit.md`. This doc is the
 > artifact that matters — the census commands below are re-runnable in one
 > paste, so future drift shows up as a number, not a feeling.
+>
+> **⚠ Read §8 before trusting §2–§7.** Those sections count the Phosphor
+> `size={N}` **prop**. Inside `<Button>` and `<Badge>` that prop is **inert** —
+> component CSS (`[&_svg:not([class*='size-'])]:size-*`) governs the rendered
+> size instead. §8 proves this from the Phosphor source and the compiled CSS,
+> and quantifies it: of the 31 icons Phase B raised, **21 changed real
+> rendered pixels and 10 were source-only**. The prop census is still the
+> right lens for *source consistency*; it is not a reliable proxy for what
+> the user sees.
 
 ## 1. Method + commit
 
@@ -340,6 +349,35 @@ trade-off; the operator decides.
    ESLint rule is a different shape of work than this plan's mechanical
    fixes.
 
+7. **Should the two icon-sizing systems (§8) be reconciled — and which one
+   wins?** The repo sizes icons two ways: the Phosphor `size` prop
+   (`DESIGN.md` §7) and `button.tsx`/`badge.tsx`'s
+   `[&_svg:not([class*='size-'])]:size-*` CSS, which silently overrides the
+   prop for every icon inside a `Button` or `Badge` (10 of the 31 icons this
+   plan touched). Three options:
+   - **(a) CSS wins — drop the inert props.** Delete `size={N}` from Phosphor
+     icons inside `Button`/`Badge` and let the component's `size` variant be
+     the single control. *Recommendation: this one.* It matches how the COSS
+     components are designed to work, it makes the source honest, and it's
+     the option where icon size can't drift out of step with button size —
+     they're derived from one variant. Trade-off: a large mechanical diff
+     touching many call sites, and it removes the escape hatch for a
+     genuinely one-off icon size (though the `[class*='size-']` opt-out
+     already exists for that: passing `className="size-5"` beats the rule).
+   - **(b) Prop wins — remove the components' svg CSS rules.** Trade-off:
+     this is a **behavior change across the whole app**, not a cleanup —
+     every icon currently relying on the CSS default silently resizes.
+     Strongly recommend against without a full visual pass.
+   - **(c) Keep both, document the split.** Cheapest; §8 plus the amended
+     §7 line already does most of it. Trade-off: leaves the trap armed for
+     the next person, and leaves `DESIGN.md` §7's 13px floor contradicted by
+     the design system's own `Badge`/`Button xs` (12px).
+
+   Whichever is chosen, **the ESLint rule in question 6 should be scoped
+   accordingly** — under (a) it should flag `size` props on Phosphor icons
+   *inside* Button/Badge as useless, which is a different rule than "enforce
+   the 13–16 band". Do not act on this without an operator decision.
+
 ## 7. 已修正 (Phase B)
 
 **What changed**: all 31 below-band Phosphor icon `size=` props (across the
@@ -398,3 +436,142 @@ returns no matches.
 raised 10px/11px/12px icons read as intentional rather than merely bigger in
 their original tight rows. This executor did not run the dev server or take
 screenshots; the plan explicitly assigns this verification to the operator.
+
+## 8. 重要更正：`size` prop 在 `Button` / `Badge` 內是無效的
+
+**This section invalidates the census methodology's core premise for a subset
+of the icons above.** Everything in §1–§7 counts the `size={N}` **prop** and
+treats it as governing rendered icon size. **Inside `<Button>` and `<Badge>`,
+it does not.** The prop is inert there; component CSS governs. Verified from
+first principles below — this was not in the plan and the plan's author
+missed it too.
+
+### The evidence
+
+1. **Phosphor renders `size` as a presentation attribute, not a class.**
+   `node_modules/@phosphor-icons/react/dist/lib/IconBase.es.js` is a
+   `forwardRef` that does exactly:
+
+   ```js
+   createElement("svg", {
+     ref: a, xmlns: "http://www.w3.org/2000/svg",
+     width: t != null ? t : l,      // t = size prop, l = context size
+     height: t != null ? t : l,
+     fill: r != null ? r : d,
+     viewBox: "0 0 256 256", ...
+   })
+   ```
+
+   So `<Check size={14} />` emits `<svg width="14" height="14" ...>`. No
+   class is added.
+
+2. **Presentation attributes lose to any CSS declaration.** Per CSS spec they
+   are author-origin rules of specificity zero — any real selector beats them.
+
+3. **`src/components/ui/button.tsx` sets svg dimensions in CSS.** Base cva
+   (line 7) carries `[&_svg:not([class*='size-'])]:size-4`; per-size
+   overrides are `size-3` (`xs`, `icon-xs`, lines 25/30) and `size-3.5`
+   (`sm`, line 26). `default`, `lg`, `icon`, `icon-sm`, `icon-lg` define **no**
+   svg rule, so they inherit the base `size-4`.
+
+4. **`src/components/coss/badge.tsx` does the same** (line 10):
+   `[&_svg:not([class*='size-'])]:size-3.5 sm:[&_svg:not([class*='size-'])]:size-3`.
+
+5. **Confirmed in the compiled output**, not just the source. `dist/assets/
+   index-*.css` contains, verbatim:
+
+   ```css
+   .[&_svg:not([class*='size-'])]:size-4 svg:not([class*=size-]){
+     width:calc(var(--spacing) * 4); height:calc(var(--spacing) * 4)
+   }
+   ```
+
+   with `--spacing:.25rem`. A Phosphor svg carries no `size-` class, so
+   `:not([class*=size-])` matches, and this class-selector rule overrides the
+   `width`/`height` attributes.
+
+Resolved pixel values (`--spacing` = .25rem = 4px):
+
+| context | CSS rule | rendered icon size |
+|---|---|---|
+| `Button` `default` / `lg` / `icon` / `icon-sm` / `icon-lg` | base `size-4` | **16px** |
+| `Button size="sm"` | `size-3.5` | **14px** |
+| `Button size="xs"` / `size="icon-xs"` | `size-3` | **12px** |
+| `Badge` (any variant/size) | `size-3.5`, `sm:size-3` | **14px** below 640px, **12px** at ≥640px |
+| anywhere else (raw `<button>`, `<div>`, `<span>`) | none | the `size` prop |
+
+The reviewer's worked example checks out: `<Button variant="ghost"
+size="icon-sm"><PencilSimple size={12} /></Button>` in
+`CategoryManagementDrawer.tsx` rendered at **16px** before this plan and
+renders at **16px** after it. The prop never mattered.
+
+### What Phase B actually bought — exact count
+
+Of the **31** icon instances raised in Phase B, classified by whether an
+ancestor `<Button>`/`<Badge>` governs them. (Note the cva rule is a
+*descendant* selector — `[&_svg]` matches at any depth — so ancestors were
+checked, not just immediate parents. Where a `<Button>`/`<Badge>` appeared
+near a free-standing icon it was confirmed to be a closed sibling, not an
+open ancestor.)
+
+| | count | effect of the Phase B change |
+|---|---|---|
+| **Free-standing** (raw `<button>`, `<div>`, `<span>`, `PopoverTrigger render={<button/>}`) | **21** | **Real.** Icon visibly grew to 14px. |
+| **Inside `<Button>`/`<Badge>`** | **10** | **Inert.** Source-only; rendered pixels unchanged. |
+
+Per-file breakdown:
+
+| file | free-standing (real) | in Button/Badge (inert) | total |
+|---|---|---|---|
+| `src/routes/CashFlowRoute.tsx` | 8 | 1 (`:1688` `X`, Button `xs`) | 9 |
+| `src/routes/InvestmentsRoute.tsx` | 3 (`:1966-68` sort carets) | 1 (`:1928` `CaretRight`, Button `sm`) | 4 |
+| `src/routes/DashboardRoute.tsx` | 1 (`:1112` `ChartBar`) | 2 (`:1155` MoM Badge arrows) | 3 |
+| `src/routes/RecurringRulesTab.tsx` | 1 (`:249`) | 2 (`:134`, `:539`) | 3 |
+| `src/routes/GoalsRoute.tsx` | 2 (`:218`) | 0 | 2 |
+| `src/components/CategoryManagementDrawer.tsx` | 0 | 2 (`:238`, `:240`, Button `icon-sm`) | 2 |
+| `src/routes/AccountsRoute.tsx` | 1 (`:779`) | 0 | 1 |
+| `src/routes/CategoriesRoute.tsx` | 0 | 1 (`:280` `X`, Button default) | 1 |
+| `src/routes/HoldingDetailRoute.tsx` | 0 | 1 (`:463` `ArrowUp`, Badge) | 1 |
+| `src/routes/RecurringInvestmentsTab.tsx` | 1 (`:177`) | 0 | 1 |
+| `src/components/BookSwitcher.tsx` | 1 (`:75` `CaretUpDown`) | 0 | 1 |
+| `src/components/LedgerDateControl.tsx` | 1 (`:111`) | 0 | 1 |
+| `src/components/TransactionDetailPanel.tsx` | 1 (`:180`) | 0 | 1 |
+| `src/components/Toast.tsx` | 1 (`:451`) | 0 | 1 |
+| **總計** | **21** | **10** | **31** |
+
+A nuance worth recording for the 10 inert sites: raising the prop to 14
+sometimes made the source *agree* with rendered reality and sometimes made it
+disagree in a new way. `InvestmentsRoute.tsx:1928` (Button `sm` → CSS 14px)
+now tells the truth. `CategoriesRoute.tsx:280` (Button default → CSS 16px)
+and `CashFlowRoute.tsx:1688` (Button `xs` → CSS 12px) still don't — they just
+misstate a different number than before. In no case did rendered pixels move.
+
+### The real finding: two unreconciled icon-sizing systems
+
+The repo has **two** icon-sizing systems that do not know about each other:
+
+1. **`DESIGN.md` §7's prop convention** — `size={13–16}` for UI icons,
+   `size={18–26}` for list/card icons, expressed as a Phosphor `size` prop.
+2. **The components' CSS rules** — `button.tsx` and `badge.tsx` pin every
+   descendant svg to `size-4`/`size-3.5`/`size-3` (16/14/12px) via
+   `[&_svg:not([class*='size-'])]`, keyed off the *component's* `size`
+   variant, silently overriding system 1.
+
+**`DESIGN.md` §7 documents only system 1** and does not mention system 2
+exists. That is why this drift was invisible: a reader following §7 writes
+`size={14}` inside a `<Button size="icon-sm">`, believes they complied, and
+ships a 16px icon. Both this plan's census and the plan's author read the
+props and concluded things about pixels that were not true for ~a third of
+the instances.
+
+Note the two systems are not in conflict everywhere — `Button size="sm"`'s
+14px and the §7 default of 14 happen to agree. They collide at
+`Button` `default`/`lg`/`icon*` (16px, above §7's stated default) and at
+`Badge`/`Button xs` (12px, *below* §7's 13px floor — i.e. **the design
+system's own components render icons at a size `DESIGN.md` §7 declares to be
+drift**). Reconciling them is §6 open question 7.
+
+**No code was changed in response to this finding.** Phase B's diff stands as
+committed: 21 real fixes, 10 source-consistency-only changes, zero
+regressions. The corrective action is documentation plus an operator
+decision.
