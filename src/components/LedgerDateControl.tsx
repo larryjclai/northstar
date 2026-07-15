@@ -108,7 +108,7 @@ export function LedgerDateControl({
         <PopoverTrigger className="ns-ledger-date-ctl__trigger" render={<button type="button" />}>
           <CalendarBlank size={15} />
           <span>{label}</span>
-          <CaretDown size={12} />
+          <CaretDown size={14} />
         </PopoverTrigger>
         <PopoverContent align="center" className={cn("p-3", value.preset === "custom" ? "w-auto" : "w-72")}>
           <div className="mb-3">

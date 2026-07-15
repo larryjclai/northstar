@@ -215,7 +215,7 @@ export function GoalsRoute() {
                             color: active ? "var(--ns-fg)" : "var(--ns-fg-muted)",
                           }}
                         >
-                          {g.kind === "fire" ? <Star size={12} weight="fill" color="var(--ns-pos)" /> : <Target size={12} color="var(--ns-accent)" />}
+                          {g.kind === "fire" ? <Star size={14} weight="fill" color="var(--ns-pos)" /> : <Target size={14} color="var(--ns-accent)" />}
                           {g.name}
                         </button>
                       );

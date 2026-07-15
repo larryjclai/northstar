@@ -1042,12 +1042,12 @@ export function DashboardRoute() {
             control lives on the net-worth card (the period segmented control). */}
         <div className="flex flex-wrap items-center justify-end gap-2 sm:shrink-0">
             <FxInline rates={fxRates} />
-            <Button variant="outline" className="h-9 flex-1 sm:flex-none shrink-0 sm:h-9" onClick={refreshMarket} loading={refreshingMarket} disabled={refreshingMarket || (assetRows.length === 0 && (appSettings?.exchangeRates?.length ?? 0) === 0)} title="更新持倉報價、匯率與每日歷史股價">
+            <Button variant="outline" size="lg" className="flex-1 sm:flex-none shrink-0" onClick={refreshMarket} loading={refreshingMarket} disabled={refreshingMarket || (assetRows.length === 0 && (appSettings?.exchangeRates?.length ?? 0) === 0)} title="更新持倉報價、匯率與每日歷史股價">
               <ArrowsClockwise size={14} />{refreshingMarket ? "更新中" : "更新行情"}
             </Button>
             {hasAnyData ? (
               <Popover>
-                <PopoverTrigger render={<Button variant="outline" className="h-9 flex-1 sm:flex-none shrink-0 sm:h-9" />}>
+                <PopoverTrigger render={<Button variant="outline" size="lg" className="flex-1 sm:flex-none shrink-0" />}>
                   <SquaresFour size={14} />版面
                 </PopoverTrigger>
                 <PopoverContent align="end" className="p-2" style={{ width: 220 }}>
@@ -1109,7 +1109,7 @@ export function DashboardRoute() {
                     }}
                     title="選擇主要指標"
                   />}>
-                    <ChartBar size={11} />北極星指標
+                    <ChartBar size={14} />北極星指標
                   </PopoverTrigger>
                   <PopoverContent align="start" className="p-2" style={{ width: 200 }}>
                     <div className="text-xs muted font-medium pt-1.5 px-2 pb-2">選擇主要指標</div>
@@ -1152,7 +1152,7 @@ export function DashboardRoute() {
                 {activeMetric.key === "netWorth" && reconciledTrend.length >= 2 ? (
                   <>
                     <Badge variant={momChange >= 0 ? "success" : "error"} className="gap-1 rounded-full px-2">
-                      {momChange >= 0 ? <ArrowUp size={11} weight="bold" /> : <ArrowDown size={11} weight="bold" />}
+                      {momChange >= 0 ? <ArrowUp size={14} weight="bold" /> : <ArrowDown size={14} weight="bold" />}
                       <span className="num">
                         {momChange >= 0 ? "+" : "−"}{formatNumber(Math.abs(momChange))}
                         {momPct != null ? <> · {Math.abs(momPct).toFixed(2)}%</> : null}

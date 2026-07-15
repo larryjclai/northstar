@@ -174,7 +174,7 @@ export function RecurringInvestmentsTab() {
                     {due ? <Badge variant="outline" className="rounded-full text-micro" style={{ padding: "2px 7px", color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }}>待投入</Badge> : null}
                   </div>
                   <div className="muted text-xs flex items-center gap-1.5" style={{ marginTop: 2 }}>
-                    <CalendarBlank size={12} /> {freqLabel(rule)} · {accountName(rule.accountId)} · 下次 {rule.nextRunDate.slice(5)}
+                    <CalendarBlank size={14} /> {freqLabel(rule)} · {accountName(rule.accountId)} · 下次 {rule.nextRunDate.slice(5)}
                   </div>
                 </div>
                 <div className="text-right">

@@ -448,7 +448,7 @@ function ToastItem({ toast, leaving, onDismiss, onRemove, onPauseAll, onResumeAl
                 className="inline-flex items-center gap-1 text-xs font-medium"
                 style={{ color: palette.muted }}
               >
-                <Copy size={12} />{copied ? "已複製" : "複製詳細"}
+                <Copy size={14} />{copied ? "已複製" : "複製詳細"}
               </button>
             ) : null}
           </div>

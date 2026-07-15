@@ -1925,7 +1925,7 @@ function HoldingExpansion({
             </Button>
           ) : null}
           <Button variant="outline" size="sm" onClick={onViewDetail}>
-            查看詳情<CaretRight size={12} />
+            查看詳情<CaretRight size={14} />
           </Button>
           {onEdit ? (
             <Button variant="ghost" size="sm" onClick={onEdit}>
@@ -1963,9 +1963,9 @@ function SortableHeader({
   const active = sort.key === sortKey;
   const icon = active
     ? sort.direction === "asc"
-      ? <ArrowUp size={11} weight="bold" />
-      : <ArrowDown size={11} weight="bold" />
-    : <ArrowsDownUp size={11} weight="bold" />;
+      ? <ArrowUp size={14} weight="bold" />
+      : <ArrowDown size={14} weight="bold" />
+    : <ArrowsDownUp size={14} weight="bold" />;
   return (
     <div
       role="columnheader"

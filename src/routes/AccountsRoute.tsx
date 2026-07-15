@@ -776,7 +776,7 @@ function AccountDrawer({
                       color: i < step ? 'var(--ns-accent-fg)' : i === step ? 'var(--ns-bg)' : 'var(--ns-fg-dim)',
                       fontFamily: 'var(--ns-font-mono)', fontWeight: 700,
                     }}>
-                      {i < step ? <Check size={12} weight="bold" /> : i + 1}
+                      {i < step ? <Check size={14} weight="bold" /> : i + 1}
                     </div>
                     <span className="text-caption" style={{
                       whiteSpace: 'nowrap',
