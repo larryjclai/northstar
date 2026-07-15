@@ -116,6 +116,7 @@ export function AccountsRoute() {
   );
   const createBook = useRepositoryMutation((repository, input: BookDraft) => repository.createBook(input), ["books"]);
   const updateBook = useRepositoryMutation((repository, input: BookDraft & { id: string }) => repository.updateBook(input.id, input), ["books"]);
+  const deleteBook = useRepositoryMutation((repository, id: string) => repository.deleteBook(id), ["books"]);
 
   const rows = accounts.data ?? [];
   const bookRows = books.data ?? [];
@@ -556,6 +557,7 @@ export function AccountsRoute() {
           accounts={rows}
           onCreate={(draft) => createBook.mutateAsync(draft)}
           onUpdate={(id, draft) => updateBook.mutateAsync({ ...draft, id })}
+          onDelete={(id) => deleteBook.mutateAsync(id)}
           creating={createBook.isPending}
           onClose={() => setBookManagerOpen(false)}
         />
@@ -572,12 +574,13 @@ export function AccountsRoute() {
  * drives BookDraft in/out.
  */
 function BookManager({
-  books, accounts, onCreate, onUpdate, creating, onClose,
+  books, accounts, onCreate, onUpdate, onDelete, creating, onClose,
 }: {
   books: Book[];
   accounts: Account[];
   onCreate: (draft: BookDraft) => Promise<unknown>;
   onUpdate: (id: string, draft: BookDraft) => Promise<unknown>;
+  onDelete: (id: string) => Promise<unknown>;
   creating: boolean;
   onClose: () => void;
 }) {
@@ -585,6 +588,8 @@ function BookManager({
   const [newKind, setNewKind] = useState<BookKind>("company");
   const [newColor, setNewColor] = useState("");
   const [error, setError] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const accountCountByBook = useMemo(() => {
     const map = new Map<string, number>();
@@ -620,6 +625,19 @@ function BookManager({
     }
   }
 
+  async function submitDelete(id: string) {
+    setError("");
+    setDeletingId(id);
+    try {
+      await onDelete(id);
+      setConfirmDeleteId(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "刪除帳本失敗。");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <ModalShell variant="center" title="帳本管理" onClose={onClose} panelClassName="w-full" panelStyle={{ maxWidth: 520 }}>
       {(dismiss) => (
@@ -638,6 +656,33 @@ function BookManager({
                     <span className="font-medium">{b.name}</span>
                     <Badge variant="secondary">{b.kind === "company" ? "公司帳" : "個人帳"}</Badge>
                     <span className="muted text-xs" style={{ marginLeft: "auto" }}>{accountCountByBook.get(b.id) ?? 0} 個帳戶</span>
+                    {confirmDeleteId === b.id ? (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="destructive-outline"
+                          size="sm"
+                          onClick={() => void submitDelete(b.id)}
+                          disabled={deletingId === b.id}
+                          loading={deletingId === b.id}
+                        >
+                          確定刪除
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)} disabled={deletingId === b.id}>
+                          取消
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="刪除帳本"
+                        title="刪除帳本"
+                        style={{ color: "var(--ns-neg)" }}
+                        onClick={() => setConfirmDeleteId(b.id)}
+                      >
+                        <Trash size={14} />
+                      </Button>
+                    )}
                   </div>
                   <label className="flex items-center justify-between text-body" style={{ padding: "4px 0", cursor: "pointer" }}>
                     <span>計入個人淨值</span>
@@ -658,6 +703,7 @@ function BookManager({
                 </div>
               ))}
             </div>
+            {error ? <div className="text-body" style={{ color: "var(--ns-neg)" }}>{error}</div> : null}
 
             {/* Create new book */}
             <div style={{ borderTop: "1px solid var(--ns-border)", paddingTop: 14 }} className="flex flex-col gap-3">
@@ -676,7 +722,6 @@ function BookManager({
               <DrawerField label="顏色（選填，hex）">
                 <input className="ns-input" value={newColor} onChange={(e) => setNewColor(e.target.value)} placeholder="#5b8def" />
               </DrawerField>
-              {error ? <div className="text-body" style={{ color: "var(--ns-neg)" }}>{error}</div> : null}
               <Button className="justify-center" onClick={submitCreate} loading={creating}>
                 <Plus size={14} weight="bold" />建立帳本
               </Button>
