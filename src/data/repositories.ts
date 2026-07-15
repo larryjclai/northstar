@@ -272,11 +272,15 @@ export interface FinancialGoalDraft {
 
 export interface FinanceRepository {
   initialize(): Promise<void>;
-  /** 帳本 (Books). There is always at least the default 個人帳. No delete yet
-   *  (soft-delete needs account-reassignment UX — deferred to a later phase). */
+  /** 帳本 (Books). There is always at least the default 個人帳 —
+   *  `deleteBook` refuses to remove the last personal book. Delete is a
+   *  soft-delete (deletedAt + revision bump) so the tombstone syncs. */
   listBooks(): Promise<Book[]>;
   createBook(input: BookDraft): Promise<void>;
   updateBook(id: string, input: BookDraft): Promise<void>;
+  /** Soft-delete a 帳本. Throws (zh-TW) if the book still has accounts,
+   *  invoices, or clients, or if it is the last personal book. Never cascades. */
+  deleteBook(id: string): Promise<void>;
   /** 發票 (Invoices) — plan 190. Additive metadata; see `Invoice`. */
   listInvoices(): Promise<Invoice[]>;
   createInvoice(input: InvoiceDraft): Promise<void>;
@@ -808,6 +812,26 @@ class BrowserFinanceRepository implements FinanceRepository {
         includeInFireMetrics: input.includeInFireMetrics,
         color: input.color ?? null,
       }) : book,
+    );
+    await this.persist();
+  }
+
+  async deleteBook(id: string) {
+    const book = this.data.books.find((row) => row.id === id && row.deletedAt === null);
+    if (!book) return;
+    const accountCount = this.data.accounts.filter((row) => row.bookId === id && row.deletedAt === null).length;
+    if (accountCount > 0) throw new Error(`此帳本還有 ${accountCount} 個帳戶，請先將它們移到其他帳本。`);
+    const hasInvoicesOrClients = this.data.invoices.some((row) => row.bookId === id && row.deletedAt === null)
+      || this.data.clients.some((row) => row.bookId === id && row.deletedAt === null);
+    if (hasInvoicesOrClients) throw new Error("此帳本還有發票或客戶資料，不能刪除。");
+    if (book.kind === "personal") {
+      const otherPersonalBooks = this.data.books.filter((row) =>
+        row.id !== id && row.kind === "personal" && row.deletedAt === null,
+      ).length;
+      if (otherPersonalBooks === 0) throw new Error("這是最後一個個人帳本，不能刪除。");
+    }
+    this.data.books = this.data.books.map((row) =>
+      row.id === id ? bump({ ...row, deletedAt: nowIso() }) : row,
     );
     await this.persist();
   }
@@ -2561,6 +2585,33 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       `update books set revision = revision + 1, updated_at = $1, name = $2, kind = $3, include_in_personal_net_worth = $4, include_in_fire_metrics = $5, color = $6 where id = $7`,
       [nowIso(), input.name, input.kind, Number(input.includeInPersonalNetWorth), Number(input.includeInFireMetrics), input.color ?? null, id],
     );
+  }
+
+  override async deleteBook(id: string) {
+    const books = await this.db.select<Array<{ kind: string }>>(
+      `select kind from books where id = $1 and deleted_at is null`, [id],
+    );
+    const book = books[0];
+    if (!book) return;
+    const accounts = await this.db.select<Array<{ count: number }>>(
+      `select count(*) as count from accounts where book_id = $1 and deleted_at is null`, [id],
+    );
+    const accountCount = accounts[0]?.count ?? 0;
+    if (accountCount > 0) throw new Error(`此帳本還有 ${accountCount} 個帳戶，請先將它們移到其他帳本。`);
+    const invoices = await this.db.select<Array<{ count: number }>>(
+      `select count(*) as count from invoices where book_id = $1 and deleted_at is null`, [id],
+    );
+    const clients = await this.db.select<Array<{ count: number }>>(
+      `select count(*) as count from clients where book_id = $1 and deleted_at is null`, [id],
+    );
+    if ((invoices[0]?.count ?? 0) > 0 || (clients[0]?.count ?? 0) > 0) throw new Error("此帳本還有發票或客戶資料，不能刪除。");
+    if (book.kind === "personal") {
+      const otherPersonalBooks = await this.db.select<Array<{ count: number }>>(
+        `select count(*) as count from books where id <> $1 and kind = 'personal' and deleted_at is null`, [id],
+      );
+      if ((otherPersonalBooks[0]?.count ?? 0) === 0) throw new Error("這是最後一個個人帳本，不能刪除。");
+    }
+    await this.db.execute(`update books set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`, [nowIso(), id]);
   }
 
   override async listInvoices() {
