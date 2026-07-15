@@ -51,6 +51,14 @@ export interface UiPreferences {
   showTradeMarkers: boolean;
   /** True once the user has dismissed or completed onboarding; hides the sidebar link. */
   onboardingDismissed: boolean;
+  /**
+   * Dashboard banner dismissals (plan 209), keyed by banner id. Each value is
+   * the fingerprint of the state that was dismissed (see `domain/bannerFingerprint`) —
+   * the banner reappears only when the live fingerprint differs from what's
+   * stored here, i.e. when the underlying situation actually changes, not on
+   * a timer and not forever.
+   */
+  dismissedBanners: { dataHealth?: string; overBudget?: string };
   /** Desktop sidebar collapsed to icon-only mode. */
   sidebarCollapsed: boolean;
   /** Key of the metric to feature as the Dashboard hero. Default "netWorth". */
@@ -88,6 +96,7 @@ export interface UiPreferences {
   setShowTradeMarkers: (value: boolean) => void;
   setDashboardHiddenCards: (value: string[]) => void;
   setOnboardingDismissed: (value: boolean) => void;
+  setDismissedBanner: (key: keyof UiPreferences["dismissedBanners"], fingerprint: string) => void;
   toggleSidebarCollapsed: () => void;
   setNorthstarMetric: (value: string) => void;
   toggleLongViewMode: () => void;
@@ -129,6 +138,7 @@ interface PersistedShape {
   dashboardHiddenCards: string[];
   dashboardDefaultsSeeded: boolean;
   onboardingDismissed: boolean;
+  dismissedBanners: { dataHealth?: string; overBudget?: string };
   sidebarCollapsed: boolean;
   northstarMetric: string;
   longViewMode: boolean;
@@ -160,6 +170,7 @@ function loadPersisted(): PersistedShape {
     dashboardHiddenCards: DIRECTION_A_HIDDEN_CARDS,
     dashboardDefaultsSeeded: true,
     onboardingDismissed: false,
+    dismissedBanners: {},
     sidebarCollapsed: false,
     northstarMetric: "netWorth",
     longViewMode: false,
@@ -223,6 +234,17 @@ function loadPersisted(): PersistedShape {
       dashboardDefaultsSeeded: true,
       onboardingDismissed:
         typeof parsed.onboardingDismissed === "boolean" ? parsed.onboardingDismissed : legacyDismissed,
+      dismissedBanners:
+        parsed.dismissedBanners && typeof parsed.dismissedBanners === "object"
+          ? {
+              ...(typeof parsed.dismissedBanners.dataHealth === "string"
+                ? { dataHealth: parsed.dismissedBanners.dataHealth }
+                : {}),
+              ...(typeof parsed.dismissedBanners.overBudget === "string"
+                ? { overBudget: parsed.dismissedBanners.overBudget }
+                : {}),
+            }
+          : {},
       sidebarCollapsed: typeof parsed.sidebarCollapsed === "boolean" ? parsed.sidebarCollapsed : false,
       northstarMetric:
         typeof parsed.northstarMetric === "string" && parsed.northstarMetric.trim()
@@ -304,6 +326,7 @@ function snapshot(state: UiPreferences): PersistedShape {
     dashboardHiddenCards: state.dashboardHiddenCards,
     dashboardDefaultsSeeded: state.dashboardDefaultsSeeded,
     onboardingDismissed: state.onboardingDismissed,
+    dismissedBanners: state.dismissedBanners,
     sidebarCollapsed: state.sidebarCollapsed,
     northstarMetric: state.northstarMetric,
     longViewMode: state.longViewMode,
@@ -331,6 +354,7 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   dashboardHiddenCards: initial.dashboardHiddenCards,
   dashboardDefaultsSeeded: initial.dashboardDefaultsSeeded,
   onboardingDismissed: initial.onboardingDismissed,
+  dismissedBanners: initial.dismissedBanners,
   sidebarCollapsed: initial.sidebarCollapsed,
   northstarMetric: initial.northstarMetric,
   longViewMode: initial.longViewMode,
@@ -408,6 +432,10 @@ export const useUiPreferences = create<UiPreferences>((set, get) => ({
   },
   setOnboardingDismissed(value) {
     set({ onboardingDismissed: value });
+    persist(snapshot(get()));
+  },
+  setDismissedBanner(key, fingerprint) {
+    set({ dismissedBanners: { ...get().dismissedBanners, [key]: fingerprint } });
     persist(snapshot(get()));
   },
   toggleSidebarCollapsed() {
