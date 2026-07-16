@@ -56,12 +56,72 @@ export interface BookMergePlan {
  * Deterministic and order-independent: the same input SET (regardless of
  * array order) always yields the same survivor, which is what lets two
  * unsynchronized devices agree on the outcome without talking to each other.
+ *
+ * NOTE: this general-purpose function operates over ALL active personal
+ * books and is kept for its existing test coverage / as a documented PoC of
+ * the tiebreak rule. Plan 211 (the build) does NOT call this for the
+ * production auto-merge — it calls the narrower `planMintMerge` below, whose
+ * domain is restricted to untouched system mints per operator decision 2.
  */
 export function planBookMerge(books: Book[]): BookMergePlan | null {
   const personal = books.filter((book) => book.kind === "personal" && book.deletedAt === null);
   if (personal.length < 2) return null;
 
-  const sorted = [...personal].sort((a, b) => {
+  return planForSet(personal);
+}
+
+/**
+ * Plan 211 — narrows the merge domain per operator decision 2 (verbatim,
+ * `plans/211-default-book-merge-build.md`): 「如果是使用者自己新增的不用自動
+ * 合併，但這次是因為系統突然幫我新增了一個 0 帳戶的帳本」 → only
+ * system-minted, never-edited duplicates are auto-merged. User-created or
+ * user-edited books are NEVER auto-merged, even if they look duplicated.
+ *
+ * A book is an **untouched system mint** iff it exactly matches what
+ * `ensureSqliteDefaultBook` / `ensureDefaultBookInMemory` write on the INSERT
+ * path (src/data/repositories.ts) and has never been touched since:
+ * `revision === 1` alone should suffice — `updateBook` and `deleteBook`'s
+ * tombstone are the only two places a book's revision is ever bumped
+ * (src/data/repositories.ts), so revision 1 means "never edited, on any
+ * device" (revision is itself a synced field). The remaining field checks are
+ * belt-and-suspenders, matching the literal INSERT values verbatim.
+ *
+ * The bias is deliberate and load-bearing: false negatives just leave cosmetic
+ * clutter behind (the user can still `deleteBook` it manually); false
+ * positives would auto-discard a book the user customized. Under-merge,
+ * never over-merge — do not widen this predicate without an operator
+ * decision (see the plan's "Maintenance notes").
+ */
+export function isUntouchedMint(book: Book): boolean {
+  return (
+    book.kind === "personal" &&
+    book.deletedAt === null &&
+    book.revision === 1 &&
+    book.name === "個人帳" &&
+    book.color === null &&
+    book.includeInPersonalNetWorth === true &&
+    book.includeInFireMetrics === true
+  );
+}
+
+/**
+ * The production auto-merge rule (plan 211). Domain = untouched mints ONLY
+ * (see `isUntouchedMint`). A customized personal book or a company book is
+ * never a candidate — it can never become a survivor-by-force and never
+ * appears in `loserIds`, regardless of its `createdAt`/`id`. Returns `null`
+ * unless at least 2 untouched mints exist (one mint + one customized book is
+ * a user choice, not the bug — no merge).
+ */
+export function planMintMerge(books: Book[]): BookMergePlan | null {
+  const mints = books.filter(isUntouchedMint);
+  if (mints.length < 2) return null;
+
+  return planForSet(mints);
+}
+
+/** Shared deterministic tiebreak: oldest (createdAt, then id) survives. */
+function planForSet(candidates: Book[]): BookMergePlan {
+  const sorted = [...candidates].sort((a, b) => {
     if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1;
     if (a.id !== b.id) return a.id < b.id ? -1 : 1;
     return 0;

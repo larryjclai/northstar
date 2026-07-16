@@ -90,6 +90,7 @@ export function AppShell() {
   usePrivacySync();
   useMenuSettingsShortcut();
   useAutoSync();
+  useBookMergeAnnounce();
   useAutoMarketRefresh();
   useAutoUpdateCheck();
   useDailyLocalBackup();
@@ -768,6 +769,7 @@ const MIN_SYNC_INTERVAL_MS = 60_000;
 function useAutoSync() {
   const { setPhase, setSyncDone, setError } = useSyncStatus();
   const autoSyncQueryClient = useQueryClient();
+  const toast = useToast();
   const lastSyncRef = useRef<number>(0);
 
   const triggerSync = useCallback(async () => {
@@ -798,6 +800,10 @@ function useAutoSync() {
       // the React Query cache keeps serving stale data until the next manual
       // refresh or route change.
       if (result.applied > 0) await autoSyncQueryClient.invalidateQueries();
+      // Plan 211 decision 1 — a sync pull may itself have just converged a
+      // duplicate 個人帳 (repositories.ts applySyncChanges' post-apply hook).
+      // Check right after every sync run, not just once at app start.
+      await announceBookMergeIfAny(toast);
     } catch (e) {
       // Silently skip "already running" — user already sees status from manual sync
       const msg = e instanceof Error ? e.message
@@ -807,7 +813,7 @@ function useAutoSync() {
       console.error("[sync] auto-sync failed:", e);
       setError(msg);
     }
-  }, [setPhase, setSyncDone, setError, autoSyncQueryClient]);
+  }, [setPhase, setSyncDone, setError, autoSyncQueryClient, toast]);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -838,6 +844,36 @@ function useAutoSync() {
       setPushFlushHandler(null);
     };
   }, [triggerSync]);
+}
+
+// ── Plan 211 decision 1 — announce a local default-帳本 merge ────────────────
+// repositories.ts has no UI access, so `mergeAndHealBooks(InMemory)` only
+// returns/accumulates a count (`consumeBookMergeAnnouncement`); this is the
+// one thin UI/sync-layer caller that turns it into a toast. Only a merge THIS
+// device computed itself increments that counter — a tombstone merely
+// received via sync (another device already ran the merge) never does, so
+// this never fires for that case. See repositories.ts for the full contract.
+
+async function announceBookMergeIfAny(toast: ReturnType<typeof useToast>) {
+  const repo = await getFinanceRepository();
+  const mergedCount = await repo.consumeBookMergeAnnouncement();
+  if (mergedCount > 0) toast.info(`已自動合併 ${mergedCount} 個重複的個人帳本。`);
+}
+
+/**
+ * Checked once at app start (in addition to useAutoSync's post-sync check
+ * above) so existing installs that already carry duplicate 個人帳 from before
+ * this fix shipped — the operator's actual reported case — get announced on
+ * the very first launch after upgrading, the merge having run inside
+ * `initialize()` regardless of whether sync is even configured on this
+ * device.
+ */
+function useBookMergeAnnounce() {
+  const toast = useToast();
+  useEffect(() => {
+    void announceBookMergeIfAny(toast);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per mount; toast identity is stable
+  }, []);
 }
 
 export function PageHeader({
