@@ -23,6 +23,7 @@ import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ChangeEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bar, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
+import { MerchantAutocomplete } from "../components/MerchantAutocomplete";
 import { groupByDay, groupByMonth } from "./cashFlowGrouping";
 import { CategoriesTab } from "./CategoriesTab";
 import { MerchantsTab } from "./MerchantsTab";
@@ -353,10 +354,6 @@ export function CashFlowRoute() {
   const merchantPool = useMemo(
     () => uniqueClean([...merchants, ...ledgerRows.map((row) => row.merchant)]),
     [merchants, ledgerRows],
-  );
-  const merchantSuggestions = useMemo(
-    () => buildMerchantSuggestions(merchantPool, ledgerForm.merchant),
-    [merchantPool, ledgerForm.merchant],
   );
   // Each merchant's most-used (category, subcategory) from expense history, so
   // picking a merchant can auto-fill its usual category.
@@ -1999,7 +1996,7 @@ export function CashFlowRoute() {
         dueDate={dueDate}
         setDueDate={setDueDate}
         categories={categories}
-        merchantSuggestions={merchantSuggestions}
+        merchantPool={merchantPool}
         categorySuggestions={categorySuggestions}
         categoryForMerchant={categoryForMerchant}
         accountRows={accountRows}
@@ -2635,7 +2632,7 @@ function EntryDrawer({
   dueDate,
   setDueDate,
   categories,
-  merchantSuggestions,
+  merchantPool,
   categorySuggestions,
   categoryForMerchant,
   accountRows,
@@ -2683,7 +2680,7 @@ function EntryDrawer({
   dueDate: string;
   setDueDate: (value: string) => void;
   categories: Array<{ name: string; children: string[]; color?: string; iconName?: string }>;
-  merchantSuggestions: string[];
+  merchantPool: string[];
   categorySuggestions: { merchants: string[]; accountIds: string[] };
   categoryForMerchant: (merchant: string) => { category: string; subcategory: string } | null;
   accountRows: Array<Pick<Account, "id" | "name" | "currency" | "type" | "iconName" | "color" | "bankBrandDomain" | "bookId">>;
@@ -3332,7 +3329,7 @@ function EntryDrawer({
                     <input className="ns-input" value={ledgerForm.name} onChange={(e) => setLedgerForm({ ...ledgerForm, name: e.target.value })} placeholder={type === "expense" ? "計程車" : "月薪"} />
                   </DrawerField>
                   <DrawerField label="商家 / 來源">
-                    <MerchantAutocomplete value={ledgerForm.merchant} suggestions={merchantSuggestions} onChange={(next) => {
+                    <MerchantAutocomplete value={ledgerForm.merchant} merchants={merchantPool} onChange={(next) => {
                       const patch = { ...ledgerForm, merchant: next };
                       // Reverse path: typing a merchant auto-fills its usual category,
                       // but only when no category has been chosen yet.
@@ -3919,52 +3916,6 @@ function SuggestionRow({
   );
 }
 
-function MerchantAutocomplete({
-  value,
-  suggestions,
-  onChange,
-  placeholder,
-}: {
-  value: string;
-  suggestions: string[];
-  onChange: (value: string) => void;
-  placeholder?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const showPanel = open && suggestions.length > 0;
-  return (
-    <div className="relative">
-      <input
-        className="ns-input"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onFocus={() => setOpen(true)}
-        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
-        placeholder={placeholder}
-      />
-      {showPanel ? (
-        <div className="absolute left-0 right-0 z-20 mt-1 overflow-hidden" style={{ borderRadius: "var(--ns-r-sm)", border: "1px solid var(--ns-border)", background: "var(--ns-bg-card)", boxShadow: "var(--ns-shadow-2)" }}>
-          {suggestions.slice(0, 8).map((suggestion) => (
-            <button
-              key={suggestion}
-              type="button"
-              onMouseDown={(event) => {
-                event.preventDefault();
-                onChange(suggestion);
-                setOpen(false);
-              }}
-              className="text-body block w-full text-left cursor-pointer"
-              style={{ padding: "8px 12px", background: "transparent", border: "none", color: "var(--ns-fg)" }}
-            >
-              {suggestion}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 const CURRENCY_SYMBOLS: Record<string, string> = {
   TWD: "NT$", USD: "$", JPY: "¥", EUR: "€", GBP: "£", CNY: "¥", HKD: "HK$", AUD: "A$", CAD: "C$", SGD: "S$",
 };
@@ -3992,10 +3943,3 @@ function resolveColor(color: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || color;
 }
 
-function buildMerchantSuggestions(merchants: string[], query: string) {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) return merchants.slice(0, 12);
-  return merchants
-    .filter((merchant) => merchant.toLowerCase().includes(normalizedQuery))
-    .slice(0, 12);
-}
