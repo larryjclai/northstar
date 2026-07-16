@@ -253,7 +253,7 @@ Base UI + Tailwind v4 的受控元件，透過 §2.7 的 bridge tokens 自動跟
 
 | 元件 | 重點 API |
 |---|---|
-| `Button` | variant: `default` / `outline` / `ghost` / `secondary` / `link` / `destructive` / `destructive-outline`；size: `xs` / `sm` / `default` / `lg` / `xl` / `icon-*`；`render={<Link …/>}` 可變身路由連結 |
+| `Button` | variant: `default` / `outline` / `secondary` / `ghost` / `destructive` / `link`；size: `xs` / `sm` / `default` / `lg` / `icon` / `icon-xs` / `icon-sm` / `icon-lg`；`render={<Link …/>}` 可變身路由連結 |
 | `Card` | 卡片容器 |
 | `Badge` | 圓角 pill 標籤，搭配 soft 底色 |
 | `Input` / `Field` / `Label` / `Checkbox` / `Select` / `Separator` / `Spinner` / `Toggle` / `ToggleGroup` | 表單與基礎元件 |
@@ -343,6 +343,12 @@ import { Star, Target, Trash, PencilSimple } from "@phosphor-icons/react";
 
 慣例：
 - 一般 UI 圖示 `size={13–16}`、列表/卡片圖示 `size={18–26}`
+- 預設用 `size={14}`（全庫最常用）；13/15/16 保留給既有的緊湊或強調情境。
+  低於 13 不符合本節規範——`size={10–12}` 一律視為 drift（見 `docs/button-icon-audit.md`）。
+- **例外：`Button` / `Badge` 內的圖示不吃 `size` prop。** 兩者的 CSS
+  （`[&_svg:not([class*='size-'])]:size-*`）會蓋掉 Phosphor 的 width/height，實際大小由元件的
+  `size` variant 決定（Button 預設/`lg`/`icon*` = 16px、`sm` = 14px、`xs` = 12px；Badge = 14px，
+  ≥640px 為 12px）。要調整請改元件的 `size`，不是圖示的 `size`（見 `docs/button-icon-audit.md` §8）。
 - `weight="fill"` 用於強調狀態（達成、警告）、`weight="bold"` 用於按鈕內的 + 號
 - 顏色一律用 ns token，不寫死色碼
 

@@ -460,7 +460,7 @@ export function HoldingDetailRoute() {
               </div>
               <div className="flex items-center gap-2.5 mt-1">
                 <Badge variant={pos ? "gain" : "loss"} className="gap-1 rounded-full px-2">
-                  {pos && <ArrowUp size={11} strokeWidth={2} />}
+                  {pos && <ArrowUp size={14} strokeWidth={2} />}
                   <span className="num">{pos ? "+" : ""}{formatNumber(unrealizedGain)}</span>
                 </Badge>
                 <Badge variant={pos ? "gain" : "loss"} className="rounded-full px-2">

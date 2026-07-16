@@ -1458,7 +1458,7 @@ export function CashFlowRoute() {
           <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
             <PopoverTrigger
               render={
-                <Button variant="outline" className="h-9 sm:h-9 whitespace-nowrap">
+                <Button variant="outline" size="lg" className="whitespace-nowrap">
                   <Funnel size={14} />篩選
                   {activeFilterCount > 0 ? (
                     <span
@@ -1495,16 +1495,16 @@ export function CashFlowRoute() {
               (docs/ledger-books-plan.md §3) — hidden in 總帳 and personal books. */}
           {isActiveCompanyBook && (
             <>
-              <Button variant="outline" className="h-9 sm:h-9 whitespace-nowrap" onClick={() => setClientManagerOpen(true)}>
+              <Button variant="outline" size="lg" className="whitespace-nowrap" onClick={() => setClientManagerOpen(true)}>
                 <Users size={14} weight="bold" />客戶
               </Button>
-              <Button variant="outline" className="h-9 sm:h-9 whitespace-nowrap" onClick={openInvoiceCreate}>
+              <Button variant="outline" size="lg" className="whitespace-nowrap" onClick={openInvoiceCreate}>
                 <Receipt size={14} weight="bold" />開發票
               </Button>
             </>
           )}
 
-          <Button className="h-9 sm:h-9 whitespace-nowrap" onClick={() => openCreate("expense")}>
+          <Button size="lg" className="whitespace-nowrap" onClick={() => openCreate("expense")}>
             <Plus size={14} weight="bold" />記一筆
           </Button>
         </div>
@@ -1543,7 +1543,7 @@ export function CashFlowRoute() {
                 className="inline-flex items-center justify-center cursor-pointer"
                 style={{ color: "var(--ns-fg-muted)" }}
               >
-                <X size={11} weight="bold" />
+                <X size={14} weight="bold" />
               </button>
             </span>
           ))}
@@ -1685,7 +1685,7 @@ export function CashFlowRoute() {
             <div className="text-xs muted font-medium">分類支出 · {periodLabel}</div>
             {selectedCategory !== "all" && (
               <Button variant="ghost" size="xs" onClick={() => setSelectedCategory("all")}>
-                <X size={10} weight="bold" />清除篩選
+                <X size={14} weight="bold" />清除篩選
               </Button>
             )}
           </div>
@@ -1805,7 +1805,7 @@ export function CashFlowRoute() {
                       onClick={() => toggleMonth(m.month)}
                     >
                       <span className="flex items-center gap-2 min-w-0">
-                        {expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
+                        {expanded ? <CaretDown size={14} /> : <CaretRight size={14} />}
                         <span className="text-sm font-medium whitespace-nowrap">{formatMonthLabel(m.month)}</span>
                         <span className="muted text-xs whitespace-nowrap">{m.count} 筆</span>
                       </span>
@@ -2341,7 +2341,7 @@ function LedgerRow({
               <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-accent)", borderColor: "var(--ns-accent)" }}>
                 拆分 {splitLegs.length} 筆
               </Badge>
-              {splitExpanded ? <CaretDown size={11} style={{ color: "var(--ns-fg-muted)", flexShrink: 0 }} /> : <CaretRight size={11} style={{ color: "var(--ns-fg-muted)", flexShrink: 0 }} />}
+              {splitExpanded ? <CaretDown size={14} style={{ color: "var(--ns-fg-muted)", flexShrink: 0 }} /> : <CaretRight size={14} style={{ color: "var(--ns-fg-muted)", flexShrink: 0 }} />}
             </div>
             <div className="muted text-caption truncate">{subtitle}</div>
           </div>
@@ -3247,7 +3247,7 @@ function EntryDrawer({
                           display: "flex", alignItems: "center", gap: 4,
                         }}
                       >
-                        <Plus size={12} weight="bold" />新增分類
+                        <Plus size={14} weight="bold" />新增分類
                       </button>
                       {splitError ? (
                         <span className="text-caption" style={{ color: "var(--ns-neg)" }}>{splitError}</span>
@@ -3276,7 +3276,7 @@ function EntryDrawer({
                           display: "flex", alignItems: "center", gap: 4,
                         }}
                       >
-                        <Plus size={12} weight="bold" />分類
+                        <Plus size={14} weight="bold" />分類
                       </button>
                     ) : undefined}
                   />
@@ -3895,7 +3895,7 @@ function SuggestionRow({
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5">
       <span className="muted text-caption inline-flex items-center gap-1">
-        <Sparkle size={12} weight="fill" style={{ color: "var(--ns-accent)" }} />
+        <Sparkle size={14} weight="fill" style={{ color: "var(--ns-accent)" }} />
         依過往紀錄建議
       </span>
       {chips.map((chip) => (

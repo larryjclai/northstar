@@ -131,7 +131,7 @@ export function RecurringRulesTab() {
           <span className="text-sm font-semibold">週期規則</span>
           <div className="flex-1" />
           <Button className="text-xs" style={{ padding: "5px 12px", minHeight: "auto" }} onClick={openCreate}>
-            <Plus size={12} weight="bold" />新增規則
+            <Plus size={14} weight="bold" />新增規則
           </Button>
         </div>
 
@@ -246,7 +246,7 @@ export function RecurringRulesTab() {
                 {accountName(rule.accountId)}
               </span>
               <span className="text-xs" style={{ color: "var(--ns-fg-dim)", alignSelf: "center" }}>
-                <CalendarBlank size={12} className="mr-1" style={{ verticalAlign: "middle" }} />
+                <CalendarBlank size={14} className="mr-1" style={{ verticalAlign: "middle" }} />
                 {rule.nextRunDate}
               </span>
               <span style={{ alignSelf: "center" }}>
@@ -536,7 +536,7 @@ function RuleEditSheet({
                   style={{ padding: "4px 12px", minHeight: "auto", color: "var(--ns-neg)" }}
                   onClick={() => setConfirmDelete(true)}
                 >
-                  <Trash size={12} />刪除此規則
+                  <Trash size={14} />刪除此規則
                 </Button>
               )}
             </div>

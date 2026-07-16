@@ -72,7 +72,7 @@ export function BookSwitcher({ collapsed }: { collapsed: boolean }) {
               <span className="flex-1 text-left" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {label}
               </span>
-              <CaretUpDown size={11} style={{ flexShrink: 0, opacity: 0.6 }} />
+              <CaretUpDown size={14} style={{ flexShrink: 0, opacity: 0.6 }} />
             </button>
           )
         }

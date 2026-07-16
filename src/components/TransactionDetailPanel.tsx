@@ -177,7 +177,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
                     background: "var(--ns-accent-soft)", color: "var(--ns-accent)",
                   }}
                 >
-                  <ArrowsClockwise size={10} weight="bold" />
+                  <ArrowsClockwise size={14} weight="bold" />
                   週期交易{linkedRule ? ` · ${recurringFrequencyLabels[linkedRule.frequency]}` : ""}
                 </span>
               ) : (
