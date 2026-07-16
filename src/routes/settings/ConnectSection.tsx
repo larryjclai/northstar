@@ -1,7 +1,8 @@
-import { ArrowsClockwise, CheckCircle, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, PencilSimple, Plus, Sparkle, Storefront, Tag, Trash, UploadSimple, UsersThree, X, CaretDown, CaretRight, Backspace, Gear, Bank, Target, DeviceMobile, Desktop, Spinner, WifiHigh, CopySimple, QrCode, Warning } from "@phosphor-icons/react";
+import { ArrowsClockwise, CheckCircle, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, PencilSimple, Plus, Sparkle, Storefront, Tag, Trash, UploadSimple, UsersThree, CaretDown, CaretRight, Backspace, Gear, Bank, Target, DeviceMobile, Desktop, Spinner, WifiHigh, CopySimple, QrCode, Warning } from "@phosphor-icons/react";
 import { Badge } from "../../components/coss/badge";
 import { Button } from "../../components/coss/button";
 import { Card } from "../../components/coss/card";
+import { ModalCloseButton } from "../../components/ModalCloseButton";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ActionButton } from "../../components/ActionButton";
@@ -1215,7 +1216,7 @@ function AddDeviceDialog({
           <h3 className="text-lg font-semibold" style={{ fontFamily: "var(--ns-font-display)", margin: 0 }}>
             {mode === "show" ? "加入現有裝置" : "新增裝置"}
           </h3>
-          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={dismiss}><X size={16} /></Button>
+          <ModalCloseButton onClick={dismiss} />
         </div>
 
         <div style={{ padding: "24px 22px 22px" }}>
