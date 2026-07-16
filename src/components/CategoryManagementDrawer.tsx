@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "./coss/button";
 import { Card } from "./coss/card";
-import { Plus, Trash, PencilSimple, CaretRight, CaretDown, Tag, Check } from "@phosphor-icons/react";
+import { Plus, Trash, PencilSimple, CaretRight, Tag, Check } from "@phosphor-icons/react";
 import { IconPicker } from "./IconPicker";
 import { Glyph } from "../lib/icons";
 import { Popover, PopoverTrigger, PopoverContent } from "./ui/popover";
@@ -161,7 +161,7 @@ export function CategoryManagementDrawer({
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
                       <div style={{ cursor: "pointer", display: "flex", alignItems: "center" }} onClick={() => toggle(group.name)}>
-                        {isExp ? <CaretDown size={14} weight="bold" /> : <CaretRight size={14} weight="bold" />}
+                        <CaretRight size={14} weight="bold" className="ns-caret-rotate" style={{ transform: isExp ? "rotate(90deg)" : "none" }} />
                       </div>
                       <Popover>
                         <PopoverTrigger className="ns-btn-icon text-base">
