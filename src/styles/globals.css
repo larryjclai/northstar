@@ -697,7 +697,7 @@ textarea:focus-visible {
   .ns-settings-content { overflow: visible; padding: 20px 16px 100px; }
   .ns-settings-category-head, .ns-settings-category-row { grid-template-columns: minmax(0, 1fr) 72px 64px !important; padding-left: 14px !important; padding-right: 12px !important; gap: 6px; }
   .ns-settings-category-budget, .ns-settings-category-usage { display: none !important; }
-  .ns-holdings-summary { display: flex !important; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
+  .ns-holdings-summary { display: flex !important; flex-direction: row; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
   .ns-holdings-summary-col { flex: 0 0 min(60vw, 220px); scroll-snap-align: start; }
   .ns-date-scope {
     width: 100%;
