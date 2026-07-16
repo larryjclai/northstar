@@ -423,3 +423,16 @@ Stop and report if:
   devices must be measured against that, not just against "does it dedupe".
 - Whoever builds the chosen option should re-read this doc's §4 first — version
   skew is the part that turns a clean fix into a support incident.
+
+> ## OPERATOR DECISIONS (2026-07-15) — all four gates answered
+>
+> 1. **告知** — merge announces via toast, never silent.
+> 2. **只合系統鑄的** — user-created/edited books are NEVER auto-merged
+>    (「使用者自己新增的不用自動合併」). This narrows the merge domain to
+>    untouched mints (revision===1 + mint-default fields) and largely defuses
+>    review Gap 1: losers can only carry default metadata.
+> 3. **Survivor-wins metadata** — accepted.
+> 4. **Kind-aware self-heal** — accepted: dead company book → resurrect;
+>    dead personal book / unknown id → re-home to default.
+>
+> **→ Build plan: `plans/211-default-book-merge-build.md`.**
