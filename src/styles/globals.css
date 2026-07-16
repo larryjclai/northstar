@@ -418,6 +418,19 @@
    inline transform/opacity — no transition, or the drag would lag. */
 .ns-toast[data-dragging] { transition: none; }
 
+/* ── Notification panel (plan 214) ── */
+.ns-notif-panel {
+  transform-origin: top right;
+  transition: transform 160ms var(--ns-ease-out-strong), opacity 160ms var(--ns-ease-out-strong);
+  @starting-style { transform: translateY(-4px) scale(0.97); opacity: 0; }
+}
+.ns-notif-panel[data-closing] {
+  transform: translateY(-4px) scale(0.97);
+  opacity: 0;
+  pointer-events: none;
+  transition-duration: 120ms;
+}
+
 /* ── SegmentedControl sliding thumb (plan 160 pt.3) ── */
 .ns-seg-thumb {
   position: absolute; top: 4px; bottom: 4px; left: 0;
