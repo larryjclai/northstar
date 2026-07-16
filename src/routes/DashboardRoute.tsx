@@ -1204,7 +1204,7 @@ export function DashboardRoute() {
                     {/* 淨值變動 is a market-performance number (§2.4 gain/loss axis):
                         it must agree with 投資今日/今日漲跌 under 紅漲綠跌, not with toasts. */}
                     <Badge variant={momChange >= 0 ? "gain" : "loss"} className="gap-1 rounded-full px-2">
-                      {momChange >= 0 ? <ArrowUp size={14} weight="bold" /> : <ArrowDown size={14} weight="bold" />}
+                      {momChange >= 0 ? <ArrowUp weight="bold" /> : <ArrowDown weight="bold" />}
                       <span className="num">
                         {momChange >= 0 ? "+" : "−"}{formatNumber(Math.abs(momChange))}
                         {momPct != null ? <> · {Math.abs(momPct).toFixed(2)}%</> : null}

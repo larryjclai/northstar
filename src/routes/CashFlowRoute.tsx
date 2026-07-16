@@ -1685,7 +1685,7 @@ export function CashFlowRoute() {
             <div className="text-xs muted font-medium">分類支出 · {periodLabel}</div>
             {selectedCategory !== "all" && (
               <Button variant="ghost" size="xs" onClick={() => setSelectedCategory("all")}>
-                <X size={14} weight="bold" />清除篩選
+                <X weight="bold" />清除篩選
               </Button>
             )}
           </div>

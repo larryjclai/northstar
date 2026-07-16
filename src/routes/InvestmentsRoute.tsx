@@ -1707,7 +1707,7 @@ function HoldingExpansion({
             </Button>
           ) : null}
           <Button variant="outline" size="sm" onClick={onViewDetail}>
-            查看詳情<CaretRight size={14} />
+            查看詳情<CaretRight />
           </Button>
           {onEdit ? (
             <Button variant="ghost" size="sm" onClick={onEdit}>

@@ -235,9 +235,9 @@ export function CategoryManagementDrawer({
                             )}
                             <div style={{ display: "flex", gap: 4 }}>
                               {!isRenamingThis && (
-                                <Button variant="ghost" size="icon-sm" aria-label="重新命名" onClick={() => { setRenamingSub({ main: group.name, sub: child }); setDraftRename(child); }}><PencilSimple size={14} /></Button>
+                                <Button variant="ghost" size="icon-sm" aria-label="重新命名" onClick={() => { setRenamingSub({ main: group.name, sub: child }); setDraftRename(child); }}><PencilSimple /></Button>
                               )}
-                              <Button variant="ghost" size="icon-sm" aria-label="刪除" style={{ color: "var(--ns-danger)" }} onClick={() => removeSubCategory(group.name, child)}><Trash size={14} /></Button>
+                              <Button variant="ghost" size="icon-sm" aria-label="刪除" style={{ color: "var(--ns-danger)" }} onClick={() => removeSubCategory(group.name, child)}><Trash /></Button>
                             </div>
                           </div>
                         );

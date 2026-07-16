@@ -277,7 +277,7 @@ export function CategoriesRoute() {
               {/* Legend Grid */}
               {selectedCategory && (
                 <Button variant="ghost" className="text-caption mb-2" style={{ alignSelf: 'center' }} onClick={() => setSelectedCategory(null)}>
-                  <X size={14} weight="bold" />清除篩選: {selectedCategory}
+                  <X weight="bold" />清除篩選: {selectedCategory}
                 </Button>
               )}
               <div className="w-full" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 24px" }}>

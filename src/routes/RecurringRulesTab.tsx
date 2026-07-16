@@ -131,7 +131,7 @@ export function RecurringRulesTab() {
           <span className="text-sm font-semibold">週期規則</span>
           <div className="flex-1" />
           <Button className="text-xs" style={{ padding: "5px 12px", minHeight: "auto" }} onClick={openCreate}>
-            <Plus size={14} weight="bold" />新增規則
+            <Plus weight="bold" />新增規則
           </Button>
         </div>
 
@@ -536,7 +536,7 @@ function RuleEditSheet({
                   style={{ padding: "4px 12px", minHeight: "auto", color: "var(--ns-neg)" }}
                   onClick={() => setConfirmDelete(true)}
                 >
-                  <Trash size={14} />刪除此規則
+                  <Trash />刪除此規則
                 </Button>
               )}
             </div>
