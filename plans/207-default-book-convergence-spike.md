@@ -1,5 +1,62 @@
 # Plan 207: Spike — how should the default 帳本 converge across devices?
 
+> ## ⚠ REVIEW ADDENDUM (advisor, 2026-07-15) — read before cutting the build plan
+>
+> **Status: spike EXECUTED and APPROVED** — deliverable at
+> `docs/default-book-convergence-spike.md` (merged @ `76b879ed`), PoC at
+> `src/domain/bookMerge.ts` + 7 tests. The spike's recommendation stands:
+> **(c) deterministic merge-on-pull + straggler self-heal, shipped as one unit.**
+> Its §3(c) straggler finding was verified by the advisor against
+> `bookScope.ts:68-81` and is real — a naive merge WOULD introduce a numeric
+> bug (silent exclusion from FIRE/personal-net-worth) worse than the cosmetic
+> bug it fixes.
+>
+> **The advisor's post-hoc review found two gaps the build plan MUST close.
+> Neither invalidates the recommendation; both are unspecified behavior that
+> becomes user-visible only in edge cases — which is exactly where finance
+> apps get burned:**
+>
+> **Gap 1 — the merge does not specify metadata/flag reconciliation, and flags
+> feed KPIs.** `planBookMerge` picks a survivor by `(created_at, id)` and says
+> nothing about `name` / `color` / `includeInPersonalNetWorth` /
+> `includeInFireMetrics`. The implied semantics is "survivor's metadata wins,
+> loser's is discarded with its tombstone." If the duplicates' flags diverged —
+> user toggled 計入 FIRE off on one device's copy — and the toggled copy loses,
+> **the user's setting silently reverts, and since these flags gate
+> `fireMetricAccountIdSet` / `personalNetWorthAccountIdSet`, the revert moves
+> KPI numbers.** In the operator's live case both copies carry default flags,
+> so no harm today — but the build plan must state the policy explicitly.
+> Survivor-wins is the only deterministic-safe choice (any "prefer the
+> customized one" heuristic breaks cross-device determinism, since devices see
+> different sync states); the mitigation for the divergent-flags case is §6-Q1's
+> announcement, not a cleverer merge. **Also note the survivor identity in the
+> operator's own case: their screenshot order (= `listBooks`'s
+> `created_at, id`) shows the EMPTY 個人帳 as oldest → it survives and absorbs
+> the 25 accounts, not the other way around.** Functionally equivalent, worth
+> knowing when verifying.
+>
+> **Gap 2 — the straggler self-heal is book-kind-blind.** The proposed
+> generalized backfill (`book_id not in (select id from books where deleted_at
+> is null)` → reassign to the personal default) re-homes ANY dead-book account,
+> including one whose dead book was a **company** book (race: device A
+> `deleteBook`s an empty 公司帳 while device B has an offline-created account
+> in it that hasn't synced yet — 206's guard checked A's local view only).
+> Re-homing a company account into 個人帳 flips its KPI scoping
+> (company books are typically excluded from personal net worth / FIRE) —
+> a numeric change. Rare, but the build plan must pick a policy:
+> (i) re-home to personal default regardless (simplest, matches the existing
+> sentinel behavior, accept the edge), (ii) resurrect the dead company book
+> (un-tombstone — revives clutter but never moves numbers), or
+> (iii) re-home + surface a notice. The advisor leans (ii) for company books /
+> (i) for personal books — resurrection can't move a KPI, and a resurrected
+> empty duplicate is exactly what the merge routine already knows how to
+> clean up next cycle. Operator call.
+>
+> **§6's four open questions remain with the operator** and now carry a fifth
+> (Gap 1's policy) and sixth (Gap 2's policy). The build plan is gated on
+> answers to at least Q1 (silent vs announced), Q2 (auto-merge when both
+> populated), and the two gaps above.
+
 > **Executor instructions**: This is a **design spike**. Its deliverable is a
 > decision document, **not code** (one optional pure-domain PoC + tests is
 > allowed — see Scope). Do not change any UI, repository method, or sync path.
