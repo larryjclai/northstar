@@ -431,6 +431,21 @@
   transition-duration: 120ms;
 }
 
+/* ── Dashboard banner dismiss collapse (plan 215) ── */
+.ns-banner-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 200ms var(--ns-ease), opacity 160ms var(--ns-ease), margin-bottom 200ms var(--ns-ease);
+  margin-bottom: 14px;
+}
+.ns-banner-collapse > * { min-height: 0; overflow: hidden; }
+.ns-banner-collapse[data-dismissed] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  margin-bottom: 0;
+  pointer-events: none;
+}
+
 /* ── SegmentedControl sliding thumb (plan 160 pt.3) ── */
 .ns-seg-thumb {
   position: absolute; top: 4px; bottom: 4px; left: 0;

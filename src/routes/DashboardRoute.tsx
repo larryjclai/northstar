@@ -64,6 +64,7 @@ import { smoothTrend } from "../domain/trendSmoothing";
 import { NetWorthProjectionCard } from "../components/NetWorthProjectionCard";
 import { useRefreshQuotes, useRefreshFxRates, useRefreshDailyPrices } from "../features/market-data/useMarketRefresh";
 import { useState } from "react";
+import type React from "react";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { useUiPreferences } from "../state/uiPreferences";
 import { buildQuoteLookup, findQuoteForTicker, quoteLookupKeys } from "../domain/marketSymbols";
@@ -178,6 +179,16 @@ export function DashboardRoute() {
     );
   };
   const [stripPeriod, setStripPeriod] = useState<StripPeriod>("1M");
+  const [dismissingBanner, setDismissingBanner] = useState<"dataHealth" | "overBudget" | null>(null);
+  function dismissBannerAnimated(key: "dataHealth" | "overBudget", fingerprint: string, e: React.MouseEvent) {
+    const wrapper = (e.currentTarget as HTMLElement).closest(".ns-banner-collapse");
+    if (!wrapper) { setDismissedBanner(key, fingerprint); return; }
+    setDismissingBanner(key);
+    let done = false;
+    const finish = () => { if (done) return; done = true; setDismissedBanner(key, fingerprint); setDismissingBanner(null); };
+    wrapper.addEventListener("transitionend", (ev) => { if (ev.target === wrapper) finish(); }, { once: true });
+    window.setTimeout(finish, 300); // reduced-motion / missed-event fallback
+  }
   const queryClient = useQueryClient();
   const toast = useToast();
   // Current month for the cash-flow KPI and budget card. Recomputed each
@@ -983,7 +994,8 @@ export function DashboardRoute() {
   return (
     <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]" style={{ maxWidth: 1180, margin: "0 auto" }}>
       {dataHealthFingerprint !== dismissedBanners.dataHealth ? (
-        !dataHealthReport.healthy ? (
+        <div className="ns-banner-collapse" data-dismissed={dismissingBanner === "dataHealth" || undefined}>
+        {!dataHealthReport.healthy ? (
           <div
             className="text-body"
             style={{
@@ -991,7 +1003,6 @@ export function DashboardRoute() {
               borderRadius: "var(--ns-r-md)",
               background: dataHealthReport.errorCount > 0 ? "var(--ns-neg-soft)" : "var(--ns-warn-soft)",
               border: "1px solid var(--ns-border)",
-              marginBottom: 14,
             }}
           >
             <div
@@ -1013,7 +1024,7 @@ export function DashboardRoute() {
                   title="關閉提示"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setDismissedBanner("dataHealth", dataHealthFingerprint);
+                    dismissBannerAnimated("dataHealth", dataHealthFingerprint, e);
                   }}
                 >
                   <X />
@@ -1044,7 +1055,7 @@ export function DashboardRoute() {
           // dismisses it. Dismissal is remembered against the "ok" fingerprint,
           // so it stays hidden while healthy and returns the moment any issue
           // appears (a different fingerprint), per plan 209.
-          <div className="text-xs" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-pos-soft, var(--ns-bg-hover))", border: "1px solid var(--ns-border)", marginBottom: 14, color: "var(--ns-fg-muted)" }}>
+          <div className="text-xs" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-pos-soft, var(--ns-bg-hover))", border: "1px solid var(--ns-border)", color: "var(--ns-fg-muted)" }}>
             <span style={{ width: 7, height: 7, borderRadius: 99, background: "var(--ns-pos)", flexShrink: 0 }} />
             資料健康：報價、匯率與帳戶餘額都正常。
             <Button
@@ -1053,16 +1064,18 @@ export function DashboardRoute() {
               className="ml-auto"
               aria-label="關閉提示"
               title="關閉提示"
-              onClick={() => setDismissedBanner("dataHealth", dataHealthFingerprint)}
+              onClick={(e) => dismissBannerAnimated("dataHealth", dataHealthFingerprint, e)}
             >
               <X />
             </Button>
           </div>
-        ) : null
+        ) : null}
+        </div>
       ) : null}
       {/* Over-budget alert */}
       {overBudget.length > 0 && overBudgetFp !== dismissedBanners.overBudget ? (
-        <div className="text-body" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-neg-soft)", border: "1px solid color-mix(in srgb, var(--ns-neg) 40%, transparent)", marginBottom: 14 }}>
+        <div className="ns-banner-collapse" data-dismissed={dismissingBanner === "overBudget" || undefined}>
+        <div className="text-body" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-neg-soft)", border: "1px solid color-mix(in srgb, var(--ns-neg) 40%, transparent)" }}>
           <span>
             <strong>{overBudget.map((c) => c.name).join("、")}</strong> 本月已超支
             &nbsp;·&nbsp; 超出 {formatMoney(overBudget.reduce((s, c) => s + (c.spent - (c.budget ?? 0)), 0), primaryCurrency)}
@@ -1073,10 +1086,11 @@ export function DashboardRoute() {
             size="icon-xs"
             aria-label="關閉提示"
             title="關閉提示"
-            onClick={() => setDismissedBanner("overBudget", overBudgetFp)}
+            onClick={(e) => dismissBannerAnimated("overBudget", overBudgetFp, e)}
           >
             <X />
           </Button>
+        </div>
         </div>
       ) : null}
 
