@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowsClockwise, ArrowUp, ChartBar } from "@phosphor-icons/react";
+import { ArrowDown, ArrowsClockwise, ArrowUp, ChartBar, X } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -58,6 +58,7 @@ import {
 import { calculateAvailableCash, changePctWithFloor } from "../domain/dashboardSummary";
 import { bookAccountIdSet, fireMetricAccountIdSet, personalNetWorthAccountIdSet, scopeRows } from "../domain/bookScope";
 import { stripStartDate, STRIP_PERIODS, type StripPeriod } from "../domain/dateScope";
+import { healthFingerprint, overBudgetFingerprint } from "../domain/bannerFingerprint";
 import { trailingMonthlyNet } from "../domain/northstarMetrics";
 import { smoothTrend } from "../domain/trendSmoothing";
 import { NetWorthProjectionCard } from "../components/NetWorthProjectionCard";
@@ -166,6 +167,8 @@ export function DashboardRoute() {
   const milestoneReached = useUiPreferences((state) => state.milestoneReached);
   const setMilestoneReached = useUiPreferences((state) => state.setMilestoneReached);
   const activeBookId = useUiPreferences((state) => state.activeBookId);
+  const dismissedBanners = useUiPreferences((state) => state.dismissedBanners);
+  const setDismissedBanner = useUiPreferences((state) => state.setDismissedBanner);
   const cardVisible = (key: string) => !dashboardHiddenCards.includes(key);
   const toggleCard = (key: string) => {
     setDashboardHiddenCards(
@@ -279,6 +282,9 @@ export function DashboardRoute() {
       }),
     [accountRows, ledgerRows, assetRows, quoteRows, dailyPriceRows, fxHistory, manualSnapshotRows, appSettings, todayIso],
   );
+  // Identity of the current data-health state (plan 209) — dismissal is stored
+  // against this string; the banner returns only when it changes.
+  const dataHealthFingerprint = useMemo(() => healthFingerprint(dataHealthReport.issues), [dataHealthReport.issues]);
   // Switcher-scoped (plan 189): the general net-worth view honors the active
   // book / 總帳. In 總帳 (activeBookId "all") switcherAccountIds is every id, so
   // this is identical to pre-books behavior.
@@ -585,6 +591,12 @@ export function DashboardRoute() {
   }, [monthRows, appSettings, toPrimary]);
   const totalBudget = budgetCats.reduce((sum, c) => sum + (c.budget ?? 0), 0);
   const overBudget = budgetCats.filter((c) => c.budget && c.spent > c.budget);
+  // Identity of the current overspend occurrence (plan 209): month + WHICH
+  // categories, no amount — see domain/bannerFingerprint for why.
+  const overBudgetFp = useMemo(
+    () => overBudgetFingerprint(monthKey, overBudget.map((c) => c.name)),
+    [monthKey, overBudget],
+  );
 
   // Allocation by asset class (+ cash slice).
   const allocation = useMemo(() => {
@@ -970,63 +982,101 @@ export function DashboardRoute() {
 
   return (
     <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]" style={{ maxWidth: 1180, margin: "0 auto" }}>
-      {!dataHealthReport.healthy ? (
-        <div
-          className="text-body"
-          style={{
-            padding: "10px 14px",
-            borderRadius: "var(--ns-r-md)",
-            background: dataHealthReport.errorCount > 0 ? "var(--ns-neg-soft)" : "var(--ns-warn-soft)",
-            border: "1px solid var(--ns-border)",
-            marginBottom: 14,
-          }}
-        >
+      {dataHealthFingerprint !== dismissedBanners.dataHealth ? (
+        !dataHealthReport.healthy ? (
           <div
-            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, cursor: "pointer", userSelect: "none" }}
-            onClick={() => setHealthExpanded((v) => !v)}
+            className="text-body"
+            style={{
+              padding: "10px 14px",
+              borderRadius: "var(--ns-r-md)",
+              background: dataHealthReport.errorCount > 0 ? "var(--ns-neg-soft)" : "var(--ns-warn-soft)",
+              border: "1px solid var(--ns-border)",
+              marginBottom: 14,
+            }}
           >
-            <span>
-              <strong>資料健康：{dataHealthReport.issues.length} 項提醒</strong>
-              {!healthExpanded && dataHealthReport.issues.length > 0 ? (
-                <span className="ml-2 muted">{dataHealthReport.issues[0].message}</span>
-              ) : null}
-            </span>
-            <span className="text-caption muted shrink-0">{healthExpanded ? "收合 ▲" : "展開 ▼"}</span>
-          </div>
-          {healthExpanded ? (
-            <div className="mt-2 flex flex-col gap-1">
-              {dataHealthReport.issues.map((issue) => (
-                <div key={issue.id} className="text-xs" style={{ color: issue.severity === "error" ? "var(--ns-neg)" : "var(--ns-fg-muted)" }}>
-                  {issue.severity === "error" ? "⚠ " : "· "}{issue.message}
-                </div>
-              ))}
-              <div className="mt-1.5 flex gap-4 flex-wrap">
-                {dataHealthReport.issues.some((i) => i.kind === "missing-fx" || i.kind === "stale-fx") ? (
-                  <Link to="/settings" className="text-xs">前往更新匯率</Link>
+            <div
+              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, cursor: "pointer", userSelect: "none" }}
+              onClick={() => setHealthExpanded((v) => !v)}
+            >
+              <span>
+                <strong>資料健康：{dataHealthReport.issues.length} 項提醒</strong>
+                {!healthExpanded && dataHealthReport.issues.length > 0 ? (
+                  <span className="ml-2 muted">{dataHealthReport.issues[0].message}</span>
                 ) : null}
-                {dataHealthReport.issues.some((i) => i.kind === "missing-price-history" || i.kind === "stale-quote" || i.kind === "stale-manual-price") ? (
-                  <Link to="/investments" className="text-xs">前往投資回補</Link>
-                ) : null}
-              </div>
+              </span>
+              <span className="flex items-center gap-2 shrink-0">
+                <span className="text-caption muted">{healthExpanded ? "收合 ▲" : "展開 ▼"}</span>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="關閉提示"
+                  title="關閉提示"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDismissedBanner("dataHealth", dataHealthFingerprint);
+                  }}
+                >
+                  <X />
+                </Button>
+              </span>
             </div>
-          ) : null}
-        </div>
-      ) : hasAnyData ? (
-        // All green → collapse to one quiet line so the feature stays
-        // discoverable instead of vanishing entirely.
-        <div className="text-xs" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-pos-soft, var(--ns-bg-hover))", border: "1px solid var(--ns-border)", marginBottom: 14, color: "var(--ns-fg-muted)" }}>
-          <span style={{ width: 7, height: 7, borderRadius: 99, background: "var(--ns-pos)", flexShrink: 0 }} />
-          資料健康：報價、匯率與帳戶餘額都正常。
-        </div>
+            {healthExpanded ? (
+              <div className="mt-2 flex flex-col gap-1">
+                {dataHealthReport.issues.map((issue) => (
+                  <div key={issue.id} className="text-xs" style={{ color: issue.severity === "error" ? "var(--ns-neg)" : "var(--ns-fg-muted)" }}>
+                    {issue.severity === "error" ? "⚠ " : "· "}{issue.message}
+                  </div>
+                ))}
+                <div className="mt-1.5 flex gap-4 flex-wrap">
+                  {dataHealthReport.issues.some((i) => i.kind === "missing-fx" || i.kind === "stale-fx") ? (
+                    <Link to="/settings" className="text-xs">前往更新匯率</Link>
+                  ) : null}
+                  {dataHealthReport.issues.some((i) => i.kind === "missing-price-history" || i.kind === "stale-quote" || i.kind === "stale-manual-price") ? (
+                    <Link to="/investments" className="text-xs">前往投資回補</Link>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : hasAnyData ? (
+          // All green → collapse to one quiet line so the feature stays
+          // discoverable instead of vanishing entirely — until the user
+          // dismisses it. Dismissal is remembered against the "ok" fingerprint,
+          // so it stays hidden while healthy and returns the moment any issue
+          // appears (a different fingerprint), per plan 209.
+          <div className="text-xs" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-pos-soft, var(--ns-bg-hover))", border: "1px solid var(--ns-border)", marginBottom: 14, color: "var(--ns-fg-muted)" }}>
+            <span style={{ width: 7, height: 7, borderRadius: 99, background: "var(--ns-pos)", flexShrink: 0 }} />
+            資料健康：報價、匯率與帳戶餘額都正常。
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="ml-auto"
+              aria-label="關閉提示"
+              title="關閉提示"
+              onClick={() => setDismissedBanner("dataHealth", dataHealthFingerprint)}
+            >
+              <X />
+            </Button>
+          </div>
+        ) : null
       ) : null}
       {/* Over-budget alert */}
-      {overBudget.length > 0 ? (
+      {overBudget.length > 0 && overBudgetFp !== dismissedBanners.overBudget ? (
         <div className="text-body" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-neg-soft)", border: "1px solid color-mix(in srgb, var(--ns-neg) 40%, transparent)", marginBottom: 14 }}>
           <span>
             <strong>{overBudget.map((c) => c.name).join("、")}</strong> 本月已超支
             &nbsp;·&nbsp; 超出 {formatMoney(overBudget.reduce((s, c) => s + (c.spent - (c.budget ?? 0)), 0), primaryCurrency)}
           </span>
           <Button variant="ghost" size="xs" className="ml-auto" render={<Link to="/cash-flow/categories" />}>查看分類 →</Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="關閉提示"
+            title="關閉提示"
+            onClick={() => setDismissedBanner("overBudget", overBudgetFp)}
+          >
+            <X />
+          </Button>
         </div>
       ) : null}
 
