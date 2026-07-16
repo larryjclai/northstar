@@ -1,5 +1,25 @@
 # Implementation Plans
 
+## 219–221 — follow-up batch (operator-selected from Open follow-ups, 2026-07-17 @ `55c636ac`)
+
+Operator picked #1 (worktree/Tailwind — **done directly**, `55c636ac`: gitignore
+`.claude/worktrees/` + `git worktree remove busy-mestorf`), #2, #5, #8 from the
+Open follow-ups list. 分帳 (#8) follows the 181→182 precedent: 221 = data-layer
+foundation now; **222 (分帳 UI) is cut only after 221 lands**, against its real
+signatures. ⚠ 182's operator live pass (Manual-verification section) is still
+outstanding — do it before or with 222, not later.
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 219 | Shared `MerchantAutocomplete` — extract QuickAdd's (kb-nav + aria, plan 180) into `components/`, adopt in EntryDrawer, delete the weak local copy + `buildMerchantSuggestions`. **Corrects the stale follow-up**: the drawer was never a plain input (own autocomplete since `60ac6277`); the real gap is keyboard nav/a11y/dedupe | P3 | S | — | TODO |
+| 220 | Index Nudge full-history evaluation — nudge verdict from `"1900-01-01"` TWR+benchmark (period-independent), alignment extracted to `domain/indexNudge.ts` + 4 tests, banner 口徑 line updated; view's Alpha card untouched; params/copy operator-locked | P3 | S–M | — | TODO |
+| 221 | 分帳 foundation — `legKind: "share"` legs on the split model: builder `shares` param (對象→`name`, required `counterAccountId` = 代墊 pass-through, expense-only), repo `createSplit/updateSplit(shares?)` + counter-account guard, `incompleteSplitGroupIds` counts category+share, **reconciliation test** (bank −1000 / 應收 +600 / expense 400). Zero UI | P2 | M | — | TODO |
+
+Key semantics locked in 221 (from the 176 spike + reconciliation identity): a
+share IS a receivable (`counterAccountId` pass-through, neutral to spend); a
+請客 portion is not a share leg, it stays in the payer's own category legs —
+so bank moves by the full paid amount, expense only by the payer's share.
+
 ## Reconciled 2026-07-17 (`main` @ `cb1d5004`)
 
 - **214–218 done-criteria re-verified by grep at HEAD** ✓ (`ns-notif-panel` in css+component;
