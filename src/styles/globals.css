@@ -453,6 +453,21 @@
 }
 .ns-caret-rotate { transition: transform 150ms var(--ns-ease); }
 
+/* ── Onboarding entrance (plan 218) ── */
+.ns-onboarding-scrim {
+  transition: opacity 200ms var(--ns-ease);
+  @starting-style { opacity: 0; }
+}
+.ns-onboarding-card {
+  transition: transform 240ms var(--ns-ease-out-strong), opacity 240ms var(--ns-ease-out-strong);
+  @starting-style { transform: scale(0.97) translateY(8px); opacity: 0; }
+}
+/* Step content enter (remounted via key={step}) */
+.ns-onboarding-step {
+  transition: opacity 180ms var(--ns-ease-out-strong), transform 180ms var(--ns-ease-out-strong);
+  @starting-style { opacity: 0; transform: translateY(6px); }
+}
+
 /* ── SegmentedControl sliding thumb (plan 160 pt.3) ── */
 .ns-seg-thumb {
   position: absolute; top: 4px; bottom: 4px; left: 0;
