@@ -1,5 +1,32 @@
 # Implementation Plans
 
+## Reconciled 2026-07-17 (`main` @ `cb1d5004`)
+
+- **214–218 done-criteria re-verified by grep at HEAD** ✓ (`ns-notif-panel` in css+component;
+  `ns-banner-collapse` css+Dashboard; `ns-expand-in`/`ns-caret-rotate` present, 0 caret swaps
+  left in the 3 converted files; 0 `cubic-bezier` in tsx, 0 `transition: "left"`;
+  `ns-onboarding-*` css+component). Also re-verified: 213 (0 raw close buttons), 212
+  (fix intact — **drifted to `globals.css:750`**, the motion batch inserted ~50 lines above).
+- **Corrected four stale "NOT merged" claims** (verified `git merge-base --is-ancestor`):
+  **200** (`1f171585`), **196** (`b64b90fe`), **197** (`b0adf8e5`), **195** (`378c0e0f`)
+  are ALL ancestors of `main`. The 2026-07-15/16 sections already said so; their own
+  section rows still contradicted them — now fixed. 202's stale TODO row likewise.
+- **161 spike still correctly NOT merged** (`46b00892` not an ancestor); reminder:
+  `docs/motion-ga-spike.md` exists ONLY on that branch.
+- **142 (DCA spike) drift-checked — still valid TODO**: DashboardRoute still hides
+  定期定額提醒 ("until the DCA workflow is finalised" comment intact),
+  `RecurringInvestmentsTab.tsx` still present-but-gated.
+- **⚠ Dead executor worktree found, with a build side-effect**: `.claude/worktrees/
+  busy-mestorf-dd21b7` (detached @ `9374ee9f`, clean, fully merged — zero unique work).
+  Plan 217's executor proved it leaks into builds: **Tailwind v4 auto-source scanning
+  respects .gitignore, and `.claude/worktrees/` is NOT gitignored** (`.claude/skills/` is),
+  so stale worktree files emit dead utility classes into compiled CSS. Operator remedy
+  (advisor can't mutate): `git worktree remove .claude/worktrees/busy-mestorf-dd21b7`
+  and add `.claude/worktrees/` to `.gitignore`.
+- **Executable right now**: nothing BLOCKED; TODO backlog = 142 spike + Open follow-ups
+  below. `main` is ~13 commits ahead of `origin/main` (the 214–218 batch) — push pending,
+  operator's call.
+
 ## 214–218 — motion audit round 2 (`/improve-animations` @ `ae708c1b`, 2026-07-17)
 
 Second pass after the 156–163 motion batch. Round-1 hygiene held up: zero `ease-in`,
@@ -296,7 +323,7 @@ the churn is the cost of my plan-200 blind spot, not executor error.
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
 | 201 | Delete the duplicated 編輯持倉 modal in InvestmentsRoute; use shared `HoldingEditModal` — **already-drifted: B16 Yahoo price view is in the component, absent from the copy (16 vs 0 grep hits), so the same button gives different capabilities per entry point** | P0 | M | — | **DONE — MERGED** @ `e697ac93`. −218 行；B16 Yahoo 價格檢視補回投資列表入口（兩份已實際分岔）。 |
-| 202 | Extract `<ModalCloseButton />`, replace **14** sites (six treatments: 3 hit sizes / 3 icon sizes / 3 hover languages; the 3 raw `<button>`s forfeit the 44pt `pointer-coarse` expansion). Advisor's own census corrected the critique: **14 sites not 13**, and the raw ones carry `X size={18}` not 16. Also: **17 `aria-label="關閉"`, ZERO `title` — no close button anywhere has a tooltip** | P0 | M | 201 (**soft** — plan says don't wait; expect 13 if 201 landed) | TODO |
+| 202 | Extract `<ModalCloseButton />`, replace **14** sites (six treatments: 3 hit sizes / 3 icon sizes / 3 hover languages; the 3 raw `<button>`s forfeit the 44pt `pointer-coarse` expansion). Advisor's own census corrected the critique: **14 sites not 13**, and the raw ones carry `X size={18}` not 16. Also: **17 `aria-label="關閉"`, ZERO `title` — no close button anywhere has a tooltip** | P0 | M | 201 (**soft** — plan says don't wait; expect 13 if 201 landed) | **DONE — see the 202/213 section at top** (this row was stale; corrected at reconcile 2026-07-17) |
 | 203 | Rewrite DESIGN.md §7 (component wins) + delete the 10 inert `size` props inside Button/Badge | P1 | S | **plan 200 must be merged first** | **DONE — MERGED** @ `72d9ff40`. §7 改雙 scope + 刪 10 個無效 prop；第 3 commit 更正貫穿 200/203 的 wrong-file 錯誤（真元件是 `coss/button.tsx`）。 |
 | 204 | Adopt `variant="destructive"` / `destructive-outline` (**0 uses today**, both defined); collapse the hand-rolled red inline objects; one token (`--ns-neg`); one string (「確定刪除」 7× vs 「確認刪除」 3×). Advisor's census found **5 dead hex fallbacks** — `var(--ns-danger, #d33)` / `#c0392b` never fire (`--ns-danger` IS defined at `globals.css:157`) and **all three hexes disagree with the real `#c62a1d`** | P1 | M | 201, 202 (**both soft**) | **DONE — MERGED** @ `1f56a812`. 23 個 destructive 呼叫點；記帳頁刪除鈕首次與編輯有視覺區隔；`--ns-loss` 零使用（台股配色下結構性保紅）。 |
 | 205 | ~~Primary/accent at high-value moments~~ | — | — | — | **NOT WRITTEN — premise falsified, see below** |
@@ -375,7 +402,7 @@ first makes the other's edit a no-op. Don't run them concurrently.
 |------|-------|----------|--------|------------|--------|
 | 198 | 帳本 switcher popover renders behind the sidebar — `positionerClassName="z-[1101]"` on `BookSwitcher`'s `PopoverContent` (sidebar aside is z-1100 by design; portaled popover defaults to z-50) | P1 | S | — | **DONE — reviewed+APPROVED+MERGED** to `main` via `d92c7fae` (`--no-ff`, revertable). Branch `fix/ai-bookswitcher-popover-z` @ `72179b7b`. tsc 0 / lint 0 errors / 1252 tests. **Operator visually confirmed the sidebar menu now appears.** Executor correctly skipped the optional test (BookSwitcher needs `useFinanceData`+zustand mocking beyond the named exemplar's) |
 | 199 | 總覽 AI 本月摘要 gets its own full-width row under the header — out of the `justify-between` left column, drop `max-w-xl`, refresh button to the row's right edge via `justify-between` + `icon-xs` | P2 | S | — | **DONE — reviewed+APPROVED+MERGED** to `main` via `087a9b2e` (`--no-ff`). Branch `fix/ai-dashboard-summary-layout` @ `6bad8e38`. tsc 0 / lint 0 / 1252; privacy guards + generation logic byte-unchanged. **Operator visually confirmed.** ⚠ One REVISE round was **the advisor's fault, not the executor's** — the dispatch prompt truncated Step 1d, then the executor was wrongly accused of skipping it. Lesson applied to 200: pass the plan's absolute path instead of hand-inlining |
-| 200 | Button/icon consistency audit → `docs/button-icon-audit.md` (Phase A, gated) + mechanical fixes only (Phase B): sub-13 icons → 14, 6 hand-rolled `h-9` → `size="lg"` | P3 | M | coordinate w/ 199 | **DONE — reviewed+APPROVED, NOT merged** (operator's call). Branch `fix/ai-button-icon-consistency` @ `1f171585`, stacked on 198+199, **3 independently-takeable commits**: `1e603f19` audit doc + DESIGN.md, `42955c15` 14 src files (33+/33−), `1f171585` the CSS-override finding. tsc 0 / lint 0 / 1252 / build 0. **Executor corrected the advisor's census twice**: Button-only variants are `outline` 63 (not 84) and `secondary` 0 (not 5) — raw grep conflated `<Badge>`; and it verified the CSS override in the **compiled** CSS, not just source. ⚠ **~1/3 of Phase B is superseded by operator decision 3** → plan 203 deletes the 10 inert props |
+| 200 | Button/icon consistency audit → `docs/button-icon-audit.md` (Phase A, gated) + mechanical fixes only (Phase B): sub-13 icons → 14, 6 hand-rolled `h-9` → `size="lg"` | P3 | M | coordinate w/ 199 | **DONE — reviewed+APPROVED, NOT merged** (operator's call). Branch `fix/ai-button-icon-consistency` @ `1f171585`, stacked on 198+199, **3 independently-takeable commits**: `1e603f19` audit doc + DESIGN.md, `42955c15` 14 src files (33+/33−), `1f171585` the CSS-override finding. tsc 0 / lint 0 / 1252 / build 0. **Executor corrected the advisor's census twice**: Button-only variants are `outline` 63 (not 84) and `secondary` 0 (not 5) — raw grep conflated `<Badge>`; and it verified the CSS override in the **compiled** CSS, not just source. ⚠ **~1/3 of Phase B is superseded by operator decision 3** → plan 203 deletes the 10 inert props. **MERGED since** (`1f171585` verified ancestor of main at reconcile 2026-07-17; the "NOT merged" here was stale — the 2026-07-16 session-close merged it) |
 
 **198 is a real functional bug, not polish**: the 帳本 feature's primary entry
 point (188–194, shipped alpha.61) is unreachable — the dropdown paints behind
@@ -671,6 +698,12 @@ invented. Per-holding day-change may need `dayChangeMovers` to expose raw prices
 
 ## Open follow-ups (surfaced, not yet planned)
 
+- **`.claude/worktrees/` pollutes Tailwind builds** (reconcile 2026-07-17, proven by
+  plan 217's executor): Tailwind v4 auto-source scanning respects `.gitignore`, and
+  `.claude/worktrees/` isn't in it — stale worktree file copies emit dead utility
+  classes into compiled CSS. One-line fix: gitignore `.claude/worktrees/`; also
+  `git worktree remove .claude/worktrees/busy-mestorf-dd21b7` (verified clean + fully
+  merged, zero unique work). Operator/next-session task — too small for a plan.
 - **138 tail — RE-INVENTORY before planning.** The old list of ~10 overlays to
   migrate to ModalShell is now **stale**: 157 (render-prop ModalShell across 14
   call sites), 159 (bottom-sheet + 更多 sheet), and 162 (EntryDrawer) migrated most
@@ -798,8 +831,8 @@ Operator decisions for 197: grouping-mode toggle (not a new route); 小計 colum
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 196 | 投資 總額 shows real net cash (incl. fee/tax) — rewire `TransactionsRoute` + `HoldingDetailRoute` display to reuse `calculateInvestmentCashDelta` (the ledger's own fn); opening lots stay 「—」. Display-only; balances already correct. | P1 | S | — | DONE — reviewed+APPROVED, branch `fix/ai-investment-total-fee` @ `b64b90fe` (off `db007657`). Both display sites rewired to `calculateInvestmentCashDelta`; opening lots stay 「—」. +1 test (5065×2+8 → −10138). tsc 0 / lint 0 / 1246 tests. NOT merged — awaiting operator. |
-| 197 | 日結 grouping mode in 交易紀錄 — `SegmentedControl` 月分組↔日結, pure `investmentDailySettlement.ts` (group-by-day + per-currency 成交金額/手續費/應收付 小計), `InvestmentDayGroup` reusing existing row components. | P2 | M | 196 | DONE — reviewed+APPROVED, branch `feat/ai-daily-settlement` @ `b0adf8e5` (stacked on 196's `b64b90fe`). `groupByDayWithSubtotals` pure helper +6 tests (incl. 5065×2 fee8 → net −10138); month path refactored to shared `groupRowsByMonth` page-slice (untouched behavior); `InvestmentDayGroup` reuses existing row/mobile components, tfoot 小計 balanced to 9 cols; per-currency subtotals, opening lots excluded. tsc 0 / lint 0 errors / 1252 tests. NOT merged — awaiting operator. Live browser check skipped (data-dependent; math carried by tests). |
+| 196 | 投資 總額 shows real net cash (incl. fee/tax) — rewire `TransactionsRoute` + `HoldingDetailRoute` display to reuse `calculateInvestmentCashDelta` (the ledger's own fn); opening lots stay 「—」. Display-only; balances already correct. | P1 | S | — | DONE — reviewed+APPROVED, branch `fix/ai-investment-total-fee` @ `b64b90fe` (off `db007657`). Both display sites rewired to `calculateInvestmentCashDelta`; opening lots stay 「—」. +1 test (5065×2+8 → −10138). tsc 0 / lint 0 / 1246 tests. **MERGED** (verified ancestor 2026-07-17; row previously stale — see Reconciled 2026-07-15). |
+| 197 | 日結 grouping mode in 交易紀錄 — `SegmentedControl` 月分組↔日結, pure `investmentDailySettlement.ts` (group-by-day + per-currency 成交金額/手續費/應收付 小計), `InvestmentDayGroup` reusing existing row components. | P2 | M | 196 | DONE — reviewed+APPROVED, branch `feat/ai-daily-settlement` @ `b0adf8e5` (stacked on 196's `b64b90fe`). `groupByDayWithSubtotals` pure helper +6 tests (incl. 5065×2 fee8 → net −10138); month path refactored to shared `groupRowsByMonth` page-slice (untouched behavior); `InvestmentDayGroup` reuses existing row/mobile components, tfoot 小計 balanced to 9 cols; per-currency subtotals, opening lots excluded. tsc 0 / lint 0 errors / 1252 tests. **MERGED** (verified ancestor 2026-07-17; row previously stale). Live browser check skipped (data-dependent; math carried by tests). |
 
 **Dependency**: 197 requires 196 — its 應收付 小計 sums each row's `signed`, which
 only includes fee after 196 lands.
@@ -815,4 +848,4 @@ then-unbuilt 130–132 crypto foundation, which has since SHIPPED).
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
 | 143 | Household sharing spike (pre-books, account-level) | P3 | M | — | SUPERSEDED by 195 (books-aware rewrite; 143 designed against account-`isSharedToHousehold` + unbuilt 130–132; obsolete) |
-| 195 | 共享帳本 key/membership spike — book-key wrapping (builds on SHIPPED pairing/secretStore/vault + worker ECDH), membership/revocation, worker namespace delta, 雙向共寫 conflict UX, phased Phase 3/4 outline → `docs/shared-books-plan.md`. Doc-only. | P3 | M | 186 §4 (merged) | DONE — reviewed+APPROVED (doc-only), branch `feat/ai-shared-books-spike` @ `378c0e0f` (`docs/shared-books-plan.md` 663 lines, 7 sections; re-verified vs SHIPPED pairing/secretStore/vault + worker 0001-0007). **Recommends: Book Space Key** (per-book AES-GCM-256 wrapped to member devices via existing ECDH, zero new crypto primitives) + **mandatory rotation on member removal**; removed member keeps pre-removal data (locked honest answer); worker `0008` +3 additive tables, per-book relay_sequence. Found dead household/devices stubs (README-only). Phase 3 read-only=M, Phase 4 雙向共寫=XL. **6 open questions gate any Phase 3 build. Operator answers (2026-07-14):** Q1 removed-member-keeps-past-data = ACCEPT; Q2 convert-in-place confirmed NOT a server-resource concern (relay stores opaque blobs, one-time small upload; cost is client-side re-encrypt only); **Q3 NEW DECISION: member display names/nicknames are LOCAL-ONLY, never uploaded — relay stores only opaque device/member ids.** Q3 recovery-kit = NONE (use re-invite); Q4 push-gate = trust client for v1 (no relay enforcement until Phase 4); Q6 private-notes = NO per-row privacy tier (whole row shared). **ALL 6 open questions now answered — Phase 3/4 build plans can be cut from the spike whenever the operator starts Phase 3.** NOT merged — awaiting operator. |
+| 195 | 共享帳本 key/membership spike — book-key wrapping (builds on SHIPPED pairing/secretStore/vault + worker ECDH), membership/revocation, worker namespace delta, 雙向共寫 conflict UX, phased Phase 3/4 outline → `docs/shared-books-plan.md`. Doc-only. | P3 | M | 186 §4 (merged) | DONE — reviewed+APPROVED (doc-only), branch `feat/ai-shared-books-spike` @ `378c0e0f` (`docs/shared-books-plan.md` 663 lines, 7 sections; re-verified vs SHIPPED pairing/secretStore/vault + worker 0001-0007). **Recommends: Book Space Key** (per-book AES-GCM-256 wrapped to member devices via existing ECDH, zero new crypto primitives) + **mandatory rotation on member removal**; removed member keeps pre-removal data (locked honest answer); worker `0008` +3 additive tables, per-book relay_sequence. Found dead household/devices stubs (README-only). Phase 3 read-only=M, Phase 4 雙向共寫=XL. **6 open questions gate any Phase 3 build. Operator answers (2026-07-14):** Q1 removed-member-keeps-past-data = ACCEPT; Q2 convert-in-place confirmed NOT a server-resource concern (relay stores opaque blobs, one-time small upload; cost is client-side re-encrypt only); **Q3 NEW DECISION: member display names/nicknames are LOCAL-ONLY, never uploaded — relay stores only opaque device/member ids.** Q3 recovery-kit = NONE (use re-invite); Q4 push-gate = trust client for v1 (no relay enforcement until Phase 4); Q6 private-notes = NO per-row privacy tier (whole row shared). **ALL 6 open questions now answered — Phase 3/4 build plans can be cut from the spike whenever the operator starts Phase 3.** **MERGED** (`378c0e0f` verified ancestor 2026-07-17; `docs/shared-books-plan.md` present at HEAD — row previously stale). |
