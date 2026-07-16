@@ -20,8 +20,15 @@ export function NotificationCenter() {
 
   const [open, setOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const [closing, setClosing] = useState(false);
+  const closeTimerRef = useRef<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+
+  function requestClose() {
+    if (closing) return;
+    setClosing(true);
+  }
 
   // Capture the trigger button's viewport position when opening, so the
   // panel (position: fixed) can be placed against the viewport instead of
@@ -43,7 +50,7 @@ export function NotificationCenter() {
         buttonRef.current &&
         !buttonRef.current.contains(e.target as Node)
       ) {
-        setOpen(false);
+        requestClose();
       }
     }
     document.addEventListener("mousedown", handler);
@@ -56,10 +63,36 @@ export function NotificationCenter() {
     if (!open) return;
     function handleResize() {
       setOpen(false);
+      setClosing(false);
     }
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, [open]);
+
+  // Exit motion: wait for the panel's transitionend before unmounting, with a
+  // timeout fallback in case the event never fires (e.g. reduced-motion zeroes
+  // the transition duration) so the panel can never strand mounted-but-invisible.
+  useEffect(() => {
+    if (!closing) return;
+    function finishClose() {
+      setOpen(false);
+      setClosing(false);
+    }
+    function handleTransitionEnd(e: TransitionEvent) {
+      if (e.target !== panelRef.current) return;
+      finishClose();
+    }
+    const panel = panelRef.current;
+    panel?.addEventListener("transitionend", handleTransitionEnd);
+    closeTimerRef.current = window.setTimeout(finishClose, 200);
+    return () => {
+      panel?.removeEventListener("transitionend", handleTransitionEnd);
+      if (closeTimerRef.current !== null) {
+        window.clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
+    };
+  }, [closing]);
 
   function handleAcknowledgeAll() {
     for (const n of unacked) {
@@ -73,7 +106,7 @@ export function NotificationCenter() {
         ref={buttonRef}
         type="button"
         variant="outline"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => (open ? requestClose() : setOpen(true))}
         title="通知中心"
         aria-label="通知中心"
         aria-expanded={open}
@@ -113,6 +146,8 @@ export function NotificationCenter() {
           ref={panelRef}
           role="dialog"
           aria-label="通知中心面板"
+          className="ns-notif-panel"
+          data-closing={closing || undefined}
           style={{
             position: "fixed",
             top: anchorRect.bottom + 8,
