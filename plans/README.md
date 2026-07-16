@@ -1,5 +1,44 @@
 # Implementation Plans
 
+## Session close 2026-07-16 (`main` @ `1f56a812`) — 198–211 ALL DONE
+
+**Every plan from this session's backlog is executed, reviewed, and merged**:
+198, 199, 200, 201, 203, 204, 206, 207 (spike), 208, 209, 210, 211. Plus 195's
+doc merge, the lockfile PR, and the origin-divergence resolution. Final gates on
+merged `main`: tsc 0 / lint **0 errors** / **1318 tests** / build 0.
+205 was never written (premise falsified — see the 201–205 section). 202
+(`ModalCloseButton`) remains the only unexecuted written plan.
+
+Late-session highlights the rows below don't capture:
+- **203 caught a wrong-file error that survived three reviews**: the audit's
+  Button pixel tables cited the quarantined `ui/button.tsx`; the real component
+  is `coss/button.tsx` (responsive svg sizes, HAS `xl`+`destructive-outline` —
+  meaning DESIGN.md:256's original row was right and 200's A4 "correction" was
+  inverted; now re-corrected). Rule recorded: **`coss/` is the component source
+  of truth; never cite `ui/` for app behavior.** Side-finding, accepted not
+  reverted: 200's `h-9`→`lg` swap made 6 toolbar buttons h-10 below 640px
+  (aligns with coss's mobile sizing; 200's "zero visual change" claim was false
+  on mobile).
+- **211 (highest-risk plan) landed clean**: merge-on-pull for untouched system
+  mints only (`revision===1` + mint fingerprint; user-edited books never
+  auto-merged), seam verified OUTSIDE `withOutboxSuppressed`, kind-aware
+  straggler heal (dead company book → resurrect; dead personal/unknown →
+  re-home), announce-on-local-merge-only via drainable counter (repositories
+  never imports Toast). +33 tests incl. outbox-propagation and idempotence;
+  live-verified with a fabricated duplicate (merged, toast fired, net worth
+  unchanged, second reload byte-identical).
+- **204 residuals** (executor lost to a session limit during verification;
+  advisor completed the review directly): (1) BookManager's 確定刪除 confirm
+  stays `destructive-outline` (pattern says solid `destructive`) — caused by
+  the reviewer's own "leave the worked example untouched" instruction; one-line
+  follow-up. (2) Operator visual pass on the new destructive styling pending —
+  structurally palette-safe (`--ns-loss` used zero times).
+- **Worktree hazards, systemic** (for future dispatches): the shared preview
+  server serves the MAIN checkout (burned 4 executors; `lsof`-verify cwd), and
+  `preview_start` reuses it even under a distinct config name. One executor
+  briefly ran git commands in the main checkout itself — restored cleanly, but
+  dispatches should name the worktree path explicitly.
+
 ## Reconciled 2026-07-15 (`main` @ post-merge, v0.1.0-alpha.62)
 
 **Merged this session** (all reviewed+APPROVED by the advisor, gates re-run personally
