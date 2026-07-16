@@ -341,14 +341,17 @@ import { Star, Target, Trash, PencilSimple } from "@phosphor-icons/react";
 <Star size={14} weight="fill" color="var(--ns-pos)" />
 ```
 
-慣例：
-- 一般 UI 圖示 `size={13–16}`、列表/卡片圖示 `size={18–26}`
-- 預設用 `size={14}`（全庫最常用）；13/15/16 保留給既有的緊湊或強調情境。
-  低於 13 不符合本節規範——`size={10–12}` 一律視為 drift（見 `docs/button-icon-audit.md`）。
-- **例外：`Button` / `Badge` 內的圖示不吃 `size` prop。** 兩者的 CSS
+慣例——圖示尺寸依情境分兩種 scope，各自的事實來源不同：
+
+- **Free-standing 圖示**（raw `<button>`、純 JSX、清單/卡片，不在 `Button`/`Badge` 內）：
+  `size` prop 說了算。一般 UI `size={14}`（預設，全庫最常用），13/15/16 保留給既有的緊湊或
+  強調情境；列表/卡片圖示 `size={18–26}`。
+- **`Button` / `Badge` 內的圖示**：`size` prop **無效**——兩者的 CSS
   （`[&_svg:not([class*='size-'])]:size-*`）會蓋掉 Phosphor 的 width/height，實際大小由元件的
-  `size` variant 決定（Button 預設/`lg`/`icon*` = 16px、`sm` = 14px、`xs` = 12px；Badge = 14px，
-  ≥640px 為 12px）。要調整請改元件的 `size`，不是圖示的 `size`（見 `docs/button-icon-audit.md` §8）。
+  `size` variant 決定（Button 預設/`lg`/`icon*` = 16px、`sm` = 14px、`xs`/`icon-xs` = 12px；
+  Badge = 14px，≥640px 為 12px）。**不要在這裡寫 `size` prop**——要調整尺寸請改元件的 `size`
+  variant，不是圖示的 `size`。逃生門：給 svg 任何 `size-*` class，CSS 的 `:not()` 就不再命中。
+- 機制與驗證見 `docs/button-icon-audit.md` §8。
 - `weight="fill"` 用於強調狀態（達成、警告）、`weight="bold"` 用於按鈕內的 + 號
 - 顏色一律用 ns token，不寫死色碼
 

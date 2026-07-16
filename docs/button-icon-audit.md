@@ -575,3 +575,43 @@ drift**). Reconciling them is §6 open question 7.
 committed: 21 real fixes, 10 source-consistency-only changes, zero
 regressions. The corrective action is documentation plus an operator
 decision.
+
+## 9. §6 open question 7 — answered
+
+**Operator decision, 2026-07-15: option (a), CSS wins.** ("改文件：承認元件是對的" —
+see `plans/203-icon-size-source-of-truth.md`.) The component's `size` variant
+is the single source of truth for icon size inside `Button`/`Badge`; the
+Phosphor `size` prop there is decoration, not control.
+
+**What changed as a result** (plan 203):
+
+- `DESIGN.md` §7 was restructured from "a rule plus a caveat" into two
+  explicit scopes — free-standing icons (`size` prop governs) vs. icons
+  inside `Button`/`Badge` (component `size` variant governs, prop is inert).
+  The now-false "低於 13 一律視為 drift" floor line was deleted — it
+  contradicted `Button xs`/`icon-xs` and `Badge`, which legitimately render
+  12px.
+- The 10 inert `size={N}` props this section (§8) identified were deleted
+  from the 6 files listed in §8's per-file breakdown table
+  (`CashFlowRoute.tsx`, `InvestmentsRoute.tsx`, `DashboardRoute.tsx`,
+  `RecurringRulesTab.tsx`, `CategoryManagementDrawer.tsx`,
+  `CategoriesRoute.tsx`, `HoldingDetailRoute.tsx`). Rendered pixels: zero
+  change, by construction — the prop never controlled them.
+- `button.tsx` / `badge.tsx`'s `[&_svg]:size-*` CSS rules were **not**
+  touched — that is option (b), which the operator explicitly rejected as an
+  app-wide visual change requiring full visual verification, not a cleanup.
+- `BookSwitcher.tsx`'s `<BookDot size={11} />` was **not** touched — it is a
+  local coloured `<span>`, not a Phosphor icon, and was never in scope.
+
+**Still open / deferred**: the ESLint rule from §6 question 6 (forbid `size`
+on `@phosphor-icons/react` icons whose ancestor is `Button`/`Badge`) and the
+full app-wide sweep of every *other* inert `size` prop this plan did not
+touch (plan 203 deleted only the 10 props Phase B itself introduced). Both
+remain future work — see plan 203's Maintenance notes.
+
+**The §1 forward-reference above (§8 invalidating §2–§7's premise) still
+holds as written**: it describes the census methodology's blind spot at the
+time of the audit, which remains historically accurate. It does not need
+correction — the 10 sites it refers to no longer carry a `size` prop at all
+after this section's fix, so the "inert prop" finding is now moot for those
+sites rather than wrong.
