@@ -1,5 +1,52 @@
 # Implementation Plans
 
+## Reconciled 2026-07-15 (`main` @ post-merge, v0.1.0-alpha.62)
+
+**Merged this session** (all reviewed+APPROVED by the advisor, gates re-run personally
+on merged `main`: tsc 0 / lint **0 errors** / **1278 tests** / build 0):
+198, 199, 200, 201, 206, 208, 209, plus `origin/main`'s lockfile PR and the
+doc-only 195 shared-books spike.
+
+**Branch reconcile — the headline: 18 of 20 `ai-*` branches were ALREADY merged.**
+The "十幾條陳年 branch" were stale local refs, not unfinished work. Safe to delete:
+`chore/ai-repo-polish`, `docs/ai-changelog-alpha50`, `docs/ai-reconcile-reality-2`,
+`perf/ai-cashflow-fx-index`, `perf/ai-sqlite-recompute-scope`, `refactor/ai-scrim-tokens`,
+`refactor/ai-style-rule-and-label`, `refactor/ai-token-compliance`, plus this session's
+merged branches.
+
+**Only 2 were genuinely unmerged, and they are NOT equivalent:**
+- `feat/ai-shared-books-spike` (`378c0e0f`) — **doc-only, 663 lines. MERGED this session.**
+  Its 6 open questions were answered by the operator 2026-07-14; the doc is the record.
+- `feat/ai-ga-motion-spike` (`46b00892`) — **NOT merged, deliberately.** Unlike the other
+  spike it carries **code** (`router.tsx` +45, `globals.css` +26), self-labelled
+  "Throwaway PoC" for plan 161 Part A (View Transitions). This index already recorded it
+  as "correctly NOT merged". ⚠ **Its doc `docs/motion-ga-spike.md` (336 lines) lives only
+  on that branch** — deleting the branch loses the findings. Keep the branch, or
+  cherry-pick the doc alone.
+
+**Corrected stale index claims** (they said "NOT merged — awaiting operator"):
+**196 (`b64b90fe`) and 197 (`b0adf8e5`) have been in `main` since before `36d25f50`**
+(the alpha.62 bump) — merged, shipped, and their artifacts verified intact at HEAD
+(`TransactionsRoute.tsx`, `HoldingDetailRoute.tsx`, `investmentDailySettlement.ts`;
+note they never touched `InvestmentsRoute.tsx`, so plan 201's −225-line deletion there
+did not endanger them). No review was needed.
+
+**Merge-conflict resolution, recorded** — 200 × 208 collided on the net-worth MoM badge
+(`DashboardRoute.tsx`): 208 changed the `Badge variant` (fixed → market axis), 200 changed
+the arrow `size={11}` → `size={14}`. Orthogonal edits; resolution took **both**. Note the
+arrows sit inside a `<Badge>`, so that `size` prop is **inert** (component CSS governs) —
+**plan 203 will delete it** per operator decision 3. The resolution preserves 200's intent
+without pretending the prop does anything.
+
+**Systemic hazard found — worktree verification is unreliable here.** Two independent
+executors hit it: the preview/dev server's cwd resolved to the operator's **main checkout**,
+not their worktree, so their first visual check silently validated the **old, unfixed code**
+and returned a plausible-looking wrong answer. Both caught it only by cross-checking
+resolved CSS against the main repo's file contents. Future plans that ask for live
+verification in a worktree must warn about this explicitly.
+
+
+
 Backlog index for the `improve` skill. Each `plans/NNN-*.md` holds a plan's full
 spec + its own Status block; this index keeps only **live, actionable state**.
 
