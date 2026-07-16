@@ -32,6 +32,7 @@ import { firstFutureRunDate, nextRecurringDate } from "../domain/recurringDates"
 import { buildInstallmentSchedule } from "../domain/installments";
 import { buildSplitLegs, type SplitLegInput, type SplitSharedFields } from "../domain/splitLegs";
 import { toCanonicalSector } from "../domain/canonicalSector";
+import { planMintMerge } from "../domain/bookMerge";
 import { accountBalanceDelta, assertLedgerInvariants, assertTransferInvariants, buildRecalculationReport, deriveAccountBalances, findMissingFxPairs } from "../domain/ledgerTrust";
 import {
   buildPendingChanges,
@@ -281,6 +282,18 @@ export interface FinanceRepository {
   /** Soft-delete a 帳本. Throws (zh-TW) if the book still has accounts,
    *  invoices, or clients, or if it is the last personal book. Never cascades. */
   deleteBook(id: string): Promise<void>;
+  /**
+   * Plan 211 — drains (returns and resets to 0) the count of books THIS
+   * device's own merge routine (`planMintMerge`) has tombstoned since the
+   * last drain. A book this device only ever RECEIVED as an already-
+   * tombstoned row via sync (another device computed the merge) never
+   * increments this counter — only a merge this device itself computed does.
+   * The UI/sync-layer announce hook (plan 211 decision 1) calls this after
+   * every point it might have triggered a merge (app init, a sync pull) and
+   * raises a toast when the result is > 0. Safe to call repeatedly — returns
+   * 0 when there is nothing new to announce.
+   */
+  consumeBookMergeAnnouncement(): Promise<number>;
   /** 發票 (Invoices) — plan 190. Additive metadata; see `Invoice`. */
   listInvoices(): Promise<Invoice[]>;
   createInvoice(input: InvoiceDraft): Promise<void>;
@@ -648,6 +661,14 @@ class BrowserFinanceRepository implements FinanceRepository {
   private data: RepositoryData = createInitialData();
   private skipPersist = false;
   /**
+   * Plan 211 announce signal — accumulates the count of books this device's
+   * own `mergeAndHealBooks(InMemory)` has tombstoned since the last drain.
+   * Shared by both repo implementations (SQLite subclasses this one), since
+   * it's a plain instance counter, not tied to `this.data`. See
+   * `consumeBookMergeAnnouncement` on the FinanceRepository interface.
+   */
+  protected bookMergeAnnounceCount = 0;
+  /**
    * Market-data sub-store, lazily created on first access so it always sees the
    * most recent `this.data` reference (which is reassigned during initialize /
    * loadDataForTests). The context getter/setter pair keeps the store in sync
@@ -679,9 +700,17 @@ class BrowserFinanceRepository implements FinanceRepository {
     const stored = await loadBrowserRepositoryData(this.storageKey);
     this.data = stored ? normalizeStoredData(stored) : createInitialData();
     this.ensureDefaultBookInMemory();
+    this.mergeAndHealBooksInMemory();
     this.backfillUnassignedAccountInMemory();
     this.recompute();
     await this.persist();
+  }
+
+  /** Plan 211 — see FinanceRepository.consumeBookMergeAnnouncement. */
+  async consumeBookMergeAnnouncement(): Promise<number> {
+    const count = this.bookMergeAnnounceCount;
+    this.bookMergeAnnounceCount = 0;
+    return count;
   }
 
   /**
@@ -714,6 +743,92 @@ class BrowserFinanceRepository implements FinanceRepository {
       account.bookId ? account : bump({ ...account, bookId: defaultId }),
     );
     return defaultId;
+  }
+
+  /**
+   * Plan 211 — merge untouched system-minted duplicate 個人帳 (decision 2's
+   * narrowed domain, `planMintMerge`) then run the kind-aware straggler heal
+   * (decision 4). In-memory mirror of `mergeAndHealBooks` (SQLite). Called
+   * right after `ensureDefaultBookInMemory` at every wired call site
+   * (initialize, importSnapshot, applySyncChanges) — never from createBook/
+   * updateBook/deleteBook, so a book the user creates or edits is never a
+   * merge candidate (planMintMerge's domain already guarantees this too;
+   * not calling it from those paths is belt-and-suspenders).
+   */
+  protected mergeAndHealBooksInMemory(): { mergedCount: number } {
+    const plan = planMintMerge(active(this.data.books));
+    let mergedCount = 0;
+
+    if (plan) {
+      const loserIds = new Set(plan.loserIds);
+      const timestamp = nowIso();
+      this.data.books = this.data.books.map((book) =>
+        loserIds.has(book.id) ? bump({ ...book, deletedAt: timestamp }) : book,
+      );
+      this.data.accounts = this.data.accounts.map((account) =>
+        loserIds.has(account.bookId) ? bump({ ...account, bookId: plan.survivorId }) : account,
+      );
+      this.data.invoices = this.data.invoices.map((invoice) =>
+        loserIds.has(invoice.bookId) ? bump({ ...invoice, bookId: plan.survivorId }) : invoice,
+      );
+      this.data.clients = this.data.clients.map((client) =>
+        loserIds.has(client.bookId) ? bump({ ...client, bookId: plan.survivorId }) : client,
+      );
+      mergedCount = plan.loserIds.length;
+    }
+
+    this.healStragglerBooksInMemory();
+
+    // Only a merge THIS device computed (planMintMerge found ≥2 mints in its
+    // own local book set) increments the announce counter — a tombstone this
+    // device merely received via sync leaves only 1 active mint, so `plan`
+    // above is null and nothing is added here. See consumeBookMergeAnnouncement.
+    if (mergedCount > 0) this.bookMergeAnnounceCount += mergedCount;
+
+    return { mergedCount };
+  }
+
+  /**
+   * Plan 211 decision 4 — kind-aware straggler self-heal. Generalizes the
+   * ''/null sentinel backfill above to also catch accounts whose book_id
+   * references a book that is dead (tombstoned) or entirely unknown to this
+   * device. Dead COMPANY book → resurrect (can never move a KPI — the
+   * account's scoping returns to exactly what the user set, and a company
+   * book can never be an untouched mint so this can't loop with the merge
+   * above). Dead PERSONAL book, or an id this device has never seen → re-home
+   * to the current default (we cannot know an unknown id's kind; this also
+   * matches the existing ''-sentinel behavior).
+   */
+  protected healStragglerBooksInMemory(): void {
+    const activeBookIds = new Set(active(this.data.books).map((book) => book.id));
+    const strays = this.data.accounts.filter(
+      (account) => account.bookId !== "" && !activeBookIds.has(account.bookId),
+    );
+    if (strays.length === 0) return;
+
+    const bookById = new Map(this.data.books.map((book) => [book.id, book]));
+    const distinctDeadIds = [...new Set(strays.map((account) => account.bookId))];
+
+    const toResurrect = new Set(
+      distinctDeadIds.filter((id) => bookById.get(id)?.kind === "company"),
+    );
+    if (toResurrect.size > 0) {
+      this.data.books = this.data.books.map((book) =>
+        toResurrect.has(book.id) ? bump({ ...book, deletedAt: null }) : book,
+      );
+    }
+
+    const strayIdsToRehome = new Set(
+      strays
+        .filter((account) => bookById.get(account.bookId)?.kind !== "company")
+        .map((account) => account.id),
+    );
+    if (strayIdsToRehome.size > 0) {
+      const defaultId = this.ensureDefaultBookInMemory();
+      this.data.accounts = this.data.accounts.map((account) =>
+        strayIdsToRehome.has(account.id) ? bump({ ...account, bookId: defaultId }) : account,
+      );
+    }
   }
 
   /**
@@ -1930,6 +2045,10 @@ class BrowserFinanceRepository implements FinanceRepository {
     // A pre-books snapshot carries no books; guarantee the default 個人帳 and
     // that every imported account belongs to a book before deriving anything.
     this.ensureDefaultBookInMemory();
+    // Plan 211 — an imported snapshot (e.g. a restore, or a pre-books backup)
+    // can itself carry duplicate untouched mints; converge them the same way
+    // a sync pull would.
+    this.mergeAndHealBooksInMemory();
     // Recompute balances from the merged ledger/investment data so two devices
     // that each had different transactions converge to the same balance after sync,
     // instead of keeping whichever device's stale stored balance "won" the merge.
@@ -1995,6 +2114,12 @@ class BrowserFinanceRepository implements FinanceRepository {
       if (!this.data.syncConflicts.some((row) => row.id === conflict.id)) this.data.syncConflicts.push(conflict);
     }
     this.recompute();
+    // Plan 211 — the in-memory repo has no outbox-suppression concept (that's
+    // a SQLite-only mechanism, see the SQLite override), so there is no trap
+    // here: this call's tombstones/re-points are ordinary field writes that
+    // flow into the very next collectPendingChanges/getSyncPayload call like
+    // any other mutation.
+    this.mergeAndHealBooksInMemory();
     await this.persist();
   }
 
@@ -2509,6 +2634,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.db.execute(`create unique index if not exists idx_ledger_recurring_occurrence on ledger_transactions (recurring_occurrence_key) where recurring_occurrence_key is not null and deleted_at is null`);
     await this.ensureSyncInfrastructure();
     await this.ensureSqliteDefaultBook();
+    await this.mergeAndHealBooks();
     await this.backfillUnassignedAccount();
     await this.ensureDefaultSettings();
     const rows = await this.db.select<Array<{ count: number }>>("select count(*) as count from accounts");
@@ -2557,6 +2683,124 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       [defaultId, nowIso()],
     );
     return defaultId;
+  }
+
+  /**
+   * Plan 211 — merge untouched system-minted duplicate 個人帳 (decision 2's
+   * narrowed domain, `planMintMerge`), then run the kind-aware straggler heal
+   * (decision 4). SQLite mirror of `mergeAndHealBooksInMemory`. Called right
+   * after `ensureSqliteDefaultBook` at every wired call site (initialize,
+   * importSnapshot, applySyncChanges — the last one specifically OUTSIDE
+   * `withOutboxSuppressed`, see the call site for why). Never called from
+   * createBook/updateBook/deleteBook — a book the user creates or edits is
+   * never a merge candidate (planMintMerge's domain already guarantees this
+   * too; not calling it from those paths is belt-and-suspenders).
+   *
+   * Idempotent: once at most 1 untouched mint remains active, planMintMerge
+   * returns null and the loop below never runs; healStragglerBooks likewise
+   * finds zero stray accounts once every account points at an active book.
+   */
+  private async mergeAndHealBooks(): Promise<{ mergedCount: number }> {
+    const plan = planMintMerge(await this.listBooks());
+    let mergedCount = 0;
+
+    if (plan) {
+      const timestamp = nowIso();
+      for (const loserId of plan.loserIds) {
+        // Tombstone the loser. Revision bump is what makes the outbox trigger
+        // fire (it only fires `when new.revision <> old.revision`) — this is
+        // what propagates the merge to every other device.
+        await this.db.execute(
+          `update books set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`,
+          [timestamp, loserId],
+        );
+        // Re-point every account/invoice/client this device currently knows
+        // about from the loser to the survivor. Rows this device hasn't
+        // synced yet (a straggler on another device) are caught by
+        // healStragglerBooks below, here or on a later cycle.
+        await this.db.execute(
+          `update accounts set book_id = $1, updated_at = $2, revision = revision + 1 where book_id = $3`,
+          [plan.survivorId, timestamp, loserId],
+        );
+        await this.db.execute(
+          `update invoices set book_id = $1, updated_at = $2, revision = revision + 1 where book_id = $3`,
+          [plan.survivorId, timestamp, loserId],
+        );
+        await this.db.execute(
+          `update clients set book_id = $1, updated_at = $2, revision = revision + 1 where book_id = $3`,
+          [plan.survivorId, timestamp, loserId],
+        );
+        mergedCount += 1;
+      }
+    }
+
+    await this.healStragglerBooks();
+
+    // Only a merge THIS device computed (planMintMerge found ≥2 mints in its
+    // own local book set) increments the announce counter — a tombstone this
+    // device merely received via sync leaves only 1 active mint, so `plan`
+    // above is null and nothing is added here. See consumeBookMergeAnnouncement.
+    if (mergedCount > 0) this.bookMergeAnnounceCount += mergedCount;
+
+    return { mergedCount };
+  }
+
+  /**
+   * Plan 211 decision 4 — kind-aware straggler self-heal. Generalizes the
+   * ''/null sentinel backfill in `ensureSqliteDefaultBook` to also catch
+   * accounts whose book_id references a book that is dead (tombstoned) or
+   * entirely unknown to this device — the risk the 207 spike's §3(c) found:
+   * a naive merge alone can silently exclude such an account from
+   * FIRE/personal-net-worth (bookScope.ts builds includedBookIds from active
+   * books only).
+   *
+   * Dead COMPANY book → resurrect (deletedAt = null, revision bumped). This
+   * can never move a KPI — the account's scoping returns to exactly what the
+   * user set — and a company book can never be an untouched mint (kind
+   * mismatch), so resurrecting one can never feed back into the merge above.
+   * Dead PERSONAL book, or an id this device has never seen at all → re-home
+   * to the current default (we cannot know an unknown id's kind; this also
+   * matches the existing ''-sentinel behavior).
+   */
+  private async healStragglerBooks(): Promise<void> {
+    const strays = await this.db.select<Array<{ id: string; bookId: string }>>(
+      `select id, book_id as bookId from accounts
+       where book_id <> '' and book_id is not null
+         and book_id not in (select id from books where deleted_at is null)`,
+    );
+    if (strays.length === 0) return;
+
+    const timestamp = nowIso();
+    const distinctDeadIds = [...new Set(strays.map((row) => row.bookId))];
+    const deadBookKind = new Map<string, string | undefined>();
+    for (const deadId of distinctDeadIds) {
+      const rows = await this.db.select<Array<{ kind: string }>>(
+        `select kind from books where id = $1`, [deadId],
+      );
+      deadBookKind.set(deadId, rows[0]?.kind);
+    }
+
+    // Resurrect every dead COMPANY book referenced by a straggler, once each.
+    for (const deadId of distinctDeadIds) {
+      if (deadBookKind.get(deadId) === "company") {
+        await this.db.execute(
+          `update books set deleted_at = null, revision = revision + 1, updated_at = $1 where id = $2`,
+          [timestamp, deadId],
+        );
+      }
+    }
+
+    // Everything else (dead personal book, or an id unknown to this device) re-homes.
+    const toRehome = strays.filter((row) => deadBookKind.get(row.bookId) !== "company");
+    if (toRehome.length > 0) {
+      const defaultId = await this.ensureSqliteDefaultBook();
+      for (const stray of toRehome) {
+        await this.db.execute(
+          `update accounts set book_id = $1, updated_at = $2, revision = revision + 1 where id = $3`,
+          [defaultId, timestamp, stray.id],
+        );
+      }
+    }
   }
 
   override async listBooks() {
@@ -4300,6 +4544,17 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         }
       });
     });
+    // Plan 211 — THE TRAP: this call must sit here, after withOutboxSuppressed
+    // has already exited (its `finally` reset suppress_outbox back to '0'
+    // above), never inside it. mergeAndHealBooks tombstones books and
+    // re-points accounts/invoices/clients by writing ordinary UPDATEs; if
+    // those ran while suppression was still active, the outbox triggers
+    // (`sync_outbox_*_update`, gated on `suppress_outbox <> '1'`) would not
+    // fire, the tombstone/re-point would apply locally only, and the other
+    // device would never converge — silently. Placed here, suppression is
+    // already off, so these writes flow into sync_outbox exactly like any
+    // other local mutation and push out on the next sync.
+    await this.mergeAndHealBooks();
     await this.recomputeSqliteAccounts();
     await this.recomputeSqliteAssets();
   }
@@ -4457,6 +4712,10 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       // assign any book-less imported account to it. (Outside the transaction —
       // withTransaction has already committed.)
       await this.ensureSqliteDefaultBook();
+      // Plan 211 — an imported snapshot (restore, or a pre-books backup) can
+      // itself carry duplicate untouched mints; converge them the same way a
+      // sync pull would.
+      await this.mergeAndHealBooks();
       // Recompute account balances from the just-imported ledger transactions
       // so two devices that had different transactions converge after sync.
       // (Outside the transaction — withTransaction has already committed.)

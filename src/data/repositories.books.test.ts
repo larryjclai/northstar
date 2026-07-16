@@ -45,6 +45,36 @@ async function defaultBook(repo: FinanceRepository) {
   return personal;
 }
 
+// Plan 211 — trigger the merge+heal routine via the SAME call site under the
+// closest scrutiny (applySyncChanges, "outside withOutboxSuppressed" — the
+// plan's #1 trap). Re-applies an existing book's own current, unchanged sync
+// payload: a legitimate "a pull applied a change" simulation with zero actual
+// content change, purely to invoke the post-apply hook symmetrically on both
+// harnesses (the in-memory twin has no separate initialize()-reentry path that
+// wouldn't also blow away seeded test data — see loadDataForTests).
+async function triggerMergeCycle(repo: FinanceRepository) {
+  const [anyBook] = await repo.listBooks();
+  const payload = await repo.getSyncPayload("book", anyBook.id);
+  await repo.applySyncChanges([{ entity: "book", payload: payload! }]);
+}
+
+// Deterministic (createdAt, then id) order — the exact rule planMintMerge
+// uses. Tests use this only to know WHICH of two mints they created should
+// win, so assertions aren't tied to insertion order; the rule itself is
+// covered independently by bookMerge.test.ts's tiebreak tests.
+function byMergeOrder<T extends { createdAt: string; id: string }>(a: T, b: T): number {
+  if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1;
+  return a.id < b.id ? -1 : 1;
+}
+
+const mintDraft: BookDraft = {
+  name: "個人帳",
+  kind: "personal",
+  includeInPersonalNetWorth: true,
+  includeInFireMetrics: true,
+  color: null,
+};
+
 describeEachRepo("books (帳本)", (makeRepo) => {
   it("guarantees a default 個人帳 book with both toggles on", async () => {
     const repo = await makeRepo();
@@ -254,5 +284,202 @@ describeEachRepo("books (帳本)", (makeRepo) => {
     await repo.createClient(clientDraft);
 
     await expect(repo.deleteBook(company.id)).rejects.toThrow("此帳本還有發票或客戶資料，不能刪除。");
+  });
+
+  // Plan 211 — default-帳本 convergence: merge untouched system-minted
+  // duplicates on pull, announce, and the kind-aware straggler self-heal.
+  // See plans/211-default-book-merge-build.md and the design record it
+  // builds on (docs/default-book-convergence-spike.md, plans/207-*.md).
+  it("merges two untouched mints: the oldest survives, the loser is tombstoned with a bumped revision, and its account re-points to the survivor", async () => {
+    const repo = await makeRepo();
+    await repo.createBook(mintDraft);
+    const mints = (await repo.listBooks()).filter((book) => book.kind === "personal");
+    expect(mints.length).toBe(2);
+    const [survivor, loser] = [...mints].sort(byMergeOrder);
+
+    await repo.createAccount(accountDraft({ name: "帳戶A", bookId: loser.id }));
+
+    await triggerMergeCycle(repo);
+
+    const remaining = await repo.listBooks();
+    expect(remaining.some((book) => book.id === survivor.id)).toBe(true);
+    expect(remaining.some((book) => book.id === loser.id)).toBe(false);
+
+    const tombstoned = await repo.getSyncPayload("book", loser.id);
+    expect(tombstoned!.deletedAt).not.toBeNull();
+    expect(Number(tombstoned!.revision)).toBeGreaterThan(1);
+
+    const account = (await repo.listAccounts()).find((a) => a.name === "帳戶A")!;
+    expect(account.bookId).toBe(survivor.id);
+  });
+
+  // The load-bearing test: proves the merge's writes actually reach the
+  // outbox/pending-changes stream, not just the local tables. A regression
+  // that moved the merge call back inside withOutboxSuppressed (the plan's
+  // #1 trap) would pass every OTHER test in this file while failing only
+  // this one — the tombstone and re-point would apply locally but never
+  // propagate, and another device would never converge.
+  it("the merge's tombstone AND its re-pointed account both reach the outbox at their bumped revision (proves the merge runs outside withOutboxSuppressed)", async () => {
+    const repo = await makeRepo();
+    await repo.createBook(mintDraft);
+    const mints = (await repo.listBooks()).filter((book) => book.kind === "personal");
+    const [survivor, loser] = [...mints].sort(byMergeOrder);
+
+    await repo.createAccount(accountDraft({ name: "帳戶A", bookId: loser.id }));
+    const accountBefore = (await repo.listAccounts()).find((a) => a.name === "帳戶A")!;
+
+    await triggerMergeCycle(repo);
+
+    const accountAfter = (await repo.listAccounts()).find((a) => a.id === accountBefore.id)!;
+    expect(accountAfter.bookId).toBe(survivor.id);
+    expect(accountAfter.revision).toBeGreaterThan(accountBefore.revision);
+
+    const pending = await repo.collectPendingChanges(null);
+    const tombstoneChange = pending.changes.find(
+      (change) => change.entity === "book" && change.entityId === loser.id && change.deleted,
+    );
+    expect(tombstoneChange).toBeTruthy();
+    expect(tombstoneChange!.revision).toBeGreaterThan(1);
+
+    const accountChange = pending.changes.find(
+      (change) => change.entity === "account" && change.entityId === accountBefore.id && change.revision === accountAfter.revision,
+    );
+    expect(accountChange).toBeTruthy();
+  });
+
+  // Decision 2's core safety property: a book the user has ever edited
+  // (revision > 1) is NEVER an auto-merge candidate, even sitting right
+  // alongside an untouched mint. Under ANY input, a customized book must
+  // never appear in loserIds and must never be silently discarded.
+  it("a mint alongside a user-edited personal book (revision > 1) never merges — decision 2", async () => {
+    const repo = await makeRepo();
+    const original = await defaultBook(repo);
+    await repo.createBook(mintDraft);
+    const created = (await repo.listBooks()).find((book) => book.kind === "personal" && book.id !== original.id)!;
+    // Simulate a user edit — bumps revision to 2, taking it out of the mint domain.
+    await repo.updateBook(created.id, { ...mintDraft, name: "生活帳" });
+
+    await triggerMergeCycle(repo);
+
+    const after = await repo.listBooks();
+    const personalBooks = after.filter((book) => book.kind === "personal");
+    expect(personalBooks.length).toBe(2); // still both — no merge happened
+    expect(personalBooks.some((book) => book.id === created.id)).toBe(true);
+    expect(personalBooks.some((book) => book.id === original.id)).toBe(true);
+  });
+
+  it("straggler heal (personal): an account pointing at a tombstoned personal book re-homes to the default, with a bumped revision", async () => {
+    const repo = await makeRepo();
+    await repo.createBook({ name: "生活帳", kind: "personal", includeInPersonalNetWorth: true, includeInFireMetrics: true, color: "#123456" });
+    const lifeBook = (await repo.listBooks()).find((book) => book.name === "生活帳")!;
+    await repo.createAccount(accountDraft({ name: "生活帳戶", bookId: lifeBook.id }));
+    const accountBefore = (await repo.listAccounts()).find((a) => a.name === "生活帳戶")!;
+
+    // Simulate the tombstone arriving (by any means — another device's
+    // deleteBook, or a race) while this device's account row still points at
+    // it — the exact straggler the 207 spike's §3(c) found.
+    const tombstonePayload = await repo.getSyncPayload("book", lifeBook.id);
+    await repo.applySyncChanges([{
+      entity: "book",
+      payload: { ...tombstonePayload, deletedAt: new Date().toISOString(), revision: Number(tombstonePayload!.revision) + 1 },
+    }]);
+
+    const defaultBookRow = await defaultBook(repo);
+    const healed = (await repo.listAccounts()).find((a) => a.id === accountBefore.id)!;
+    expect(healed.bookId).toBe(defaultBookRow.id);
+    expect(healed.revision).toBeGreaterThan(accountBefore.revision);
+
+    // Personal books never resurrect — the book stays dead.
+    const books = await repo.listBooks();
+    expect(books.some((book) => book.id === lifeBook.id)).toBe(false);
+  });
+
+  it("straggler heal (company): an account pointing at a tombstoned company book resurrects the book; the account itself is untouched", async () => {
+    const repo = await makeRepo();
+    await repo.createBook(companyDraft);
+    const company = (await repo.listBooks()).find((book) => book.name === "公司帳")!;
+    await repo.createAccount(accountDraft({ name: "公司現金", bookId: company.id }));
+    const accountBefore = (await repo.listAccounts()).find((a) => a.name === "公司現金")!;
+
+    const tombstonePayload = await repo.getSyncPayload("book", company.id);
+    const tombstoneRevision = Number(tombstonePayload!.revision) + 1;
+    await repo.applySyncChanges([{
+      entity: "book",
+      payload: { ...tombstonePayload, deletedAt: new Date().toISOString(), revision: tombstoneRevision },
+    }]);
+
+    const resurrected = (await repo.listBooks()).find((book) => book.id === company.id);
+    expect(resurrected).toBeTruthy();
+    expect(resurrected!.deletedAt).toBeNull();
+    expect(resurrected!.revision).toBeGreaterThan(tombstoneRevision);
+
+    // The account was never re-homed or touched — resurrection, not rehoming,
+    // is what keeps a company account's KPI scoping exactly as the user set.
+    const untouched = (await repo.listAccounts()).find((a) => a.id === accountBefore.id)!;
+    expect(untouched.bookId).toBe(company.id);
+    expect(untouched.revision).toBe(accountBefore.revision);
+  });
+
+  it("straggler heal (unknown id): an account pointing at a book id this device has never seen re-homes to the default", async () => {
+    const repo = await makeRepo();
+    await repo.createAccount(accountDraft({ name: "幽靈帳本帳戶", bookId: "book_ghost_never_synced" }));
+    const accountBefore = (await repo.listAccounts()).find((a) => a.name === "幽靈帳本帳戶")!;
+
+    await triggerMergeCycle(repo);
+
+    const defaultBookRow = await defaultBook(repo);
+    const healed = (await repo.listAccounts()).find((a) => a.id === accountBefore.id)!;
+    expect(healed.bookId).toBe(defaultBookRow.id);
+  });
+
+  it("running the merge+heal routine twice is idempotent — the second run changes nothing", async () => {
+    const repo = await makeRepo();
+    await repo.createBook(mintDraft);
+    await repo.createBook({ name: "生活帳", kind: "personal", includeInPersonalNetWorth: true, includeInFireMetrics: true, color: "#123456" });
+    const lifeBook = (await repo.listBooks()).find((book) => book.name === "生活帳")!;
+    await repo.createAccount(accountDraft({ name: "帳戶A", bookId: lifeBook.id })); // legit customized book, untouched
+    await repo.createAccount(accountDraft({ name: "幽靈", bookId: "book_ghost_idempotence" })); // unknown id, heals once
+
+    await triggerMergeCycle(repo); // first run: merges the 2 mints, heals the ghost account
+
+    const snapshot = async () => ({
+      books: (await repo.listBooks()).map((book) => ({ id: book.id, revision: book.revision })).sort((a, b) => a.id.localeCompare(b.id)),
+      accounts: (await repo.listAccounts()).map((a) => ({ id: a.id, bookId: a.bookId, revision: a.revision })).sort((a, b) => a.id.localeCompare(b.id)),
+    });
+    const afterFirst = await snapshot();
+
+    await triggerMergeCycle(repo); // second run: should find nothing left to do
+
+    const afterSecond = await snapshot();
+    expect(afterSecond).toEqual(afterFirst);
+  });
+
+  it("consumeBookMergeAnnouncement reports the merged count after a LOCAL merge, then drains back to 0", async () => {
+    const repo = await makeRepo();
+    await repo.createBook(mintDraft);
+    expect(await repo.consumeBookMergeAnnouncement()).toBe(0); // nothing merged yet
+
+    await triggerMergeCycle(repo);
+
+    expect(await repo.consumeBookMergeAnnouncement()).toBe(1); // one loser tombstoned
+    expect(await repo.consumeBookMergeAnnouncement()).toBe(0); // drained — nothing new
+  });
+
+  it("does not announce a tombstone this device only RECEIVED via sync (not a local merge)", async () => {
+    const repo = await makeRepo();
+    await repo.createBook(mintDraft);
+    const mints = (await repo.listBooks()).filter((book) => book.kind === "personal");
+    const loser = mints[1];
+
+    // This device never computes planMintMerge over a >=2-mint set locally —
+    // by the time the post-apply hook runs, only 1 active mint remains, so
+    // no local merge happens and the announce counter must stay at 0.
+    const payload = await repo.getSyncPayload("book", loser.id);
+    await repo.applySyncChanges([{
+      entity: "book",
+      payload: { ...payload, deletedAt: new Date().toISOString(), revision: Number(payload!.revision) + 1 },
+    }]);
+
+    expect(await repo.consumeBookMergeAnnouncement()).toBe(0);
   });
 });
