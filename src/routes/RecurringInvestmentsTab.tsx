@@ -1,9 +1,10 @@
-import { ArrowsClockwise, CalendarBlank, Check, PencilSimple, Plus, Trash, X } from "@phosphor-icons/react";
+import { ArrowsClockwise, CalendarBlank, Check, PencilSimple, Plus, Trash } from "@phosphor-icons/react";
 import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
 import { AppSelect } from "../components/AppSelect";
 import { ModalShell } from "../components/ModalShell";
+import { ModalCloseButton } from "../components/ModalCloseButton";
 import { useMemo, useState } from "react";
 import { useToast } from "../components/Toast";
 import { TickerSearchField } from "../components/TickerSearchField";
@@ -233,7 +234,7 @@ function RecurringInvestmentSheet({
       {(dismiss) => (<>
         <div className="flex items-center justify-between" style={{ padding: "18px 22px", borderBottom: "1px solid var(--ns-border)" }}>
           <h2 className="text-lg m-0 font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>{editing ? "編輯定期定額" : "新增定期定額"}</h2>
-          <Button variant="ghost" size="icon-sm" onClick={dismiss} aria-label="關閉"><X size={16} /></Button>
+          <ModalCloseButton onClick={dismiss} />
         </div>
 
         <div className="flex flex-1 flex-col gap-4" style={{ overflow: "auto", padding: 22 }}>

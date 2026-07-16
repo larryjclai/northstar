@@ -13,7 +13,6 @@ import {
   Receipt,
   Target,
   TrendUp,
-  X,
 } from "@phosphor-icons/react";
 import { Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { Button } from "./coss/button";
@@ -30,6 +29,7 @@ import { buildCreditCardReminders } from "../domain/dashboardSummary";
 import { buildReminderNotifications, unacknowledgedReminders } from "../domain/reminderNotifications";
 import { BookSwitcher } from "./BookSwitcher";
 import { GlobalSearch } from "./GlobalSearch";
+import { ModalCloseButton } from "./ModalCloseButton";
 import { ModalShell } from "./ModalShell";
 import { QuickAdd } from "./QuickAdd";
 import { useToast } from "./Toast";
@@ -435,9 +435,7 @@ export function AppShell() {
             <>
               <div className="flex items-center justify-between px-4 pt-3 pb-1">
                 <span className="text-xs muted font-medium">更多</span>
-                <button type="button" aria-label="關閉" onClick={dismiss} className="muted" style={{ background: "none", border: "none", cursor: "pointer" }}>
-                  <X size={18} />
-                </button>
+                <ModalCloseButton onClick={dismiss} />
               </div>
               <nav className="flex flex-col p-2">
                 {mobileMoreNav.map((item) => (

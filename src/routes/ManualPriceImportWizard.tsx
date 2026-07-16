@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, CheckCircle, FileCsv, UploadSimple, X } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, CheckCircle, FileCsv, UploadSimple } from "@phosphor-icons/react";
 import { Button } from "../components/coss/button";
 import { AppSelect } from "../components/AppSelect";
 import { ModalShell } from "../components/ModalShell";
+import { ModalCloseButton } from "../components/ModalCloseButton";
 import { useToast } from "../components/Toast";
 import { detectDelimiter, parseCsvTable } from "../data/csv";
 import type { ManualPriceSnapshotDraft } from "../data/repositories";
@@ -115,7 +116,7 @@ export function ManualPriceImportWizard({ open, onClose, assetId, assetLabel, cu
             <div className="text-lg font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>匯入手動價格</div>
             <div className="muted text-xs" style={{ marginTop: 2 }}>{assetLabel}</div>
           </div>
-          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={dismiss}><X size={16} /></Button>
+          <ModalCloseButton onClick={dismiss} />
         </div>
 
         {/* Stepper */}

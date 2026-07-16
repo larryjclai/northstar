@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "./coss/button";
 import { Card } from "./coss/card";
-import { X, Plus, Trash, PencilSimple, CaretRight, CaretDown, Tag, Check } from "@phosphor-icons/react";
+import { Plus, Trash, PencilSimple, CaretRight, CaretDown, Tag, Check } from "@phosphor-icons/react";
 import { IconPicker } from "./IconPicker";
 import { Glyph } from "../lib/icons";
 import { Popover, PopoverTrigger, PopoverContent } from "./ui/popover";
+import { ModalCloseButton } from "./ModalCloseButton";
 import { ModalShell } from "./ModalShell";
 import { CategoryGroup } from "../domain";
 
@@ -127,7 +128,7 @@ export function CategoryManagementDrawer({
       {(dismiss) => (<>
         <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <h2 className="text-base" style={{ fontWeight: 600 }}>分類管理</h2>
-          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={dismiss}><X size={18} /></Button>
+          <ModalCloseButton onClick={dismiss} />
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>

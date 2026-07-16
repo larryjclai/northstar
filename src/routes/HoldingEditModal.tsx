@@ -5,6 +5,7 @@ import { Button } from "../components/coss/button";
 import { DatePicker } from "../components/ui/date-picker";
 import { Field, TextInput } from "../components/Field";
 import { HoldingForm, makeEmptyHoldingDraft } from "../components/HoldingForm";
+import { ModalCloseButton } from "../components/ModalCloseButton";
 import { ModalShell } from "../components/ModalShell";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { StatusText } from "../components/StatusText";
@@ -170,14 +171,7 @@ export function HoldingEditModal({
       {(dismiss) => (<>
         <header className="flex items-center justify-between border-b px-5 py-3" style={{ borderColor: "var(--ns-border)" }}>
           <h2 className="text-lg font-semibold">編輯持倉</h2>
-          <button
-            type="button"
-            onClick={dismiss}
-            className="grid size-8 place-items-center rounded-md outline-none transition hover:opacity-70"
-            aria-label="關閉"
-          >
-            <X size={18} />
-          </button>
+          <ModalCloseButton onClick={dismiss} />
         </header>
         <div className="max-h-[70vh] overflow-y-auto px-5 pb-5 pt-4">
           <HoldingForm

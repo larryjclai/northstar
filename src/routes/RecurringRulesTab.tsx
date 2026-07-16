@@ -4,12 +4,12 @@ import {
   Check,
   Plus,
   Trash,
-  X,
 } from "@phosphor-icons/react";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
 import { AppSelect } from "../components/AppSelect";
 import { ModalShell } from "../components/ModalShell";
+import { ModalCloseButton } from "../components/ModalCloseButton";
 import { useState } from "react";
 import { useToast } from "../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
@@ -377,7 +377,7 @@ function RuleEditSheet({
           <ArrowsClockwise size={16} style={{ color: "var(--ns-accent)" }} />
           <span className="text-[15px] font-semibold">{isCreating ? "新增週期規則" : "編輯週期規則"}</span>
           <div className="flex-1" />
-          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={dismiss}><X size={16} /></Button>
+          <ModalCloseButton onClick={dismiss} />
         </div>
 
         {/* Body */}

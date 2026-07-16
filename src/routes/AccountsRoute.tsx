@@ -1,4 +1,4 @@
-import { ArrowsClockwise, BookOpen, CaretDown, CaretRight, Check, DownloadSimple, ListChecks, PencilSimple, Percent, Plus, Scales, Trash, X, MagnifyingGlass } from "@phosphor-icons/react";
+import { ArrowsClockwise, BookOpen, CaretDown, CaretRight, Check, DownloadSimple, ListChecks, PencilSimple, Percent, Plus, Scales, Trash, MagnifyingGlass } from "@phosphor-icons/react";
 import { ReactNode, useMemo, useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ import { AppSelect } from "../components/AppSelect";
 import { FilterPill } from "../components/FilterPill";
 import { IconPicker } from "../components/IconPicker";
 import { ModalShell } from "../components/ModalShell";
+import { ModalCloseButton } from "../components/ModalCloseButton";
 import { Glyph, DEFAULT_ACCOUNT_ICON } from "../lib/icons";
 import { BankLogo } from "../components/BankLogo";
 import { openOnboarding } from "../components/OnboardingOverlay";
@@ -660,7 +661,7 @@ function BookManager({
         <Card className="w-full p-0">
           <div className="py-4 px-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--ns-border)" }}>
             <h2 className="text-base font-semibold" style={{ margin: 0 }}>帳本管理</h2>
-            <Button variant="ghost" size="icon" onClick={dismiss} aria-label="關閉"><X size={16} /></Button>
+            <ModalCloseButton onClick={dismiss} />
           </div>
           <div className="py-4 px-5 flex flex-col gap-4" style={{ maxHeight: "70vh", overflowY: "auto" }}>
             {/* Existing books */}
@@ -823,7 +824,7 @@ function AccountDrawer({
                 {isEditing ? "編輯帳戶" : "新增帳戶"}
               </h2>
             </div>
-            <Button variant="ghost" size="icon" onClick={dismiss} aria-label="關閉"><X size={16} /></Button>
+            <ModalCloseButton onClick={dismiss} />
           </div>
           {!isEditing && (
             <div className="flex items-center">
