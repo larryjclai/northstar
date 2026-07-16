@@ -993,7 +993,9 @@ export function DashboardRoute() {
 
   return (
     <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]" style={{ maxWidth: 1180, margin: "0 auto" }}>
-      {dataHealthFingerprint !== dismissedBanners.dataHealth ? (
+      {/* Render the wrapper only when a banner will actually show — an empty
+          .ns-banner-collapse still carries its 14px margin (phantom gap). */}
+      {dataHealthFingerprint !== dismissedBanners.dataHealth && (!dataHealthReport.healthy || hasAnyData) ? (
         <div className="ns-banner-collapse" data-dismissed={dismissingBanner === "dataHealth" || undefined}>
         {!dataHealthReport.healthy ? (
           <div
