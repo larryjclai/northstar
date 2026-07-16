@@ -152,7 +152,7 @@ export function AppShell() {
   return (
     <div
       className="ns-app-shell min-h-screen lg:grid"
-      style={{ gridTemplateColumns: collapsed ? "64px 1fr" : "240px 1fr", transition: "grid-template-columns 0.2s ease" }}
+      style={{ gridTemplateColumns: collapsed ? "64px 1fr" : "240px 1fr", transition: "grid-template-columns var(--ns-dur) var(--ns-ease)" }}
     >
       {/* macOS overlay title bar: full-width draggable strip; hidden on non-macOS via CSS. */}
       <div data-tauri-drag-region className="ns-titlebar-drag" aria-hidden="true" />
@@ -175,7 +175,7 @@ export function AppShell() {
           // Clicks that land on the sidebar simply won't dismiss the overlay,
           // which is acceptable — outside-click still works on the content area.
           zIndex: 1100,
-          transition: "width 0.2s ease, min-width 0.2s ease, padding 0.2s ease",
+          transition: "width var(--ns-dur) var(--ns-ease), min-width var(--ns-dur) var(--ns-ease), padding var(--ns-dur) var(--ns-ease)",
         }}
       >
         {/* macOS: drag cap for the sidebar's top whitespace — .ns-titlebar-drag

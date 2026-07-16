@@ -73,12 +73,13 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
           <div style={{
             width: 36, height: 20, borderRadius: 10, flexShrink: 0,
             background: draft.enabled ? "var(--ns-accent)" : "var(--ns-border)",
-            position: "relative", transition: "background 0.15s",
+            position: "relative", transition: "background var(--ns-dur) var(--ns-ease)",
           }}>
             <div style={{
-              position: "absolute", top: 2, left: draft.enabled ? 18 : 2,
+              position: "absolute", top: 2, left: 2,
               width: 16, height: 16, borderRadius: "50%", background: "var(--ns-bg-elev)",
-              transition: "left 0.15s",
+              transition: "transform var(--ns-dur) var(--ns-ease)",
+              transform: draft.enabled ? "translateX(16px)" : "translateX(0)",
             }} />
           </div>
           <div>
