@@ -96,3 +96,7 @@ skills-lock.json
 
 # Claude Code per-machine local settings (permission allowlist) — never publish
 .claude/settings.local.json
+
+# Executor worktrees — Tailwind v4 auto-source scanning respects .gitignore;
+# unlisted, stale worktree copies leak dead utility classes into compiled CSS
+.claude/worktrees/
