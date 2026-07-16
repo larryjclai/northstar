@@ -3,10 +3,14 @@ import { Button } from "./coss/button";
 
 /**
  * The one modal/sheet/drawer close button. Before this existed the app had six
- * treatments across 14 sites (3 hit sizes, 3 icon sizes, 3 hover languages) —
+ * treatments across 15 sites (3 hit sizes, 3 icon sizes, 3 hover languages) —
  * three of them raw <button>s that bypassed COSS Button's `pointer-coarse`
  * 44pt hit-area expansion, making them the only close buttons genuinely hard
  * to tap on iOS. Use this everywhere; do not hand-build another.
+ *
+ * The one deliberate exception is `ui/dialog.tsx`'s vendored base-ui Dialog
+ * primitive close button — it lives in the quarantined `ui/` layer (app code
+ * may not import it) and is out of this component's remit.
  */
 export function ModalCloseButton({ onClick }: { onClick: () => void }) {
   return (
