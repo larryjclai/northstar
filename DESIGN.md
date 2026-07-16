@@ -81,7 +81,7 @@ Wordmark 在 `AppShell.tsx` sidebar：app icon 圖檔 + "Northstar" 文字。
 **兩組分離的語意 token，不可混用：**
 
 - `--ns-pos` / `--ns-neg`（+soft）— **固定**綠/紅。用於：成功/錯誤提示（toast、badge）、現金流收支正負、金額符號（+收入/−支出、轉入/轉出）、預算超標、到期警示。永不受配色切換影響。
-- `--ns-gain` / `--ns-loss`（+soft）— **行情**漲跌。用於：投資損益、報酬率、漲跌幅、個股 movers、Portfolio/Alpha 指標。預設等於 pos/neg，透過 `[data-gainloss]` 切換（設定 → 「盈虧配色」，持久化於 uiPreferences）。
+- `--ns-gain` / `--ns-loss`（+soft）— **行情**漲跌。用於：投資損益、淨值變動（總覽 hero badge 的日/月增減）、報酬率、漲跌幅、個股 movers、Portfolio/Alpha 指標。預設等於 pos/neg，透過 `[data-gainloss]` 切換（設定 → 「盈虧配色」，持久化於 uiPreferences）。
 - 文字輔助 class 對應：`.pos`/`.neg`（固定）、`.gain`/`.loss`（行情）。
 
 | 組合 | `--ns-gain` dark / light | `--ns-loss` dark / light |
