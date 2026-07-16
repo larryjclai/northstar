@@ -1,5 +1,34 @@
 # Implementation Plans
 
+## 214–218 — motion audit round 2 (`/improve-animations` @ `ae708c1b`, 2026-07-17)
+
+Second pass after the 156–163 motion batch. Round-1 hygiene held up: zero `ease-in`,
+zero `scale(0)`, zero hot-path `transition: all`, overlays/toasts all interruptible
+transitions. Round 2 is feedback gaps + cohesion.
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 214 | NotificationCenter panel enter/exit motion — the last teleporting anchored surface; `@starting-style` enter (origin top-right, scale 0.97) + `data-closing`/`transitionend` exit, mirroring ModalShell | P2 | S | — | TODO |
+| 215 | Dashboard banner dismiss collapse (`1fr→0fr` grid-rows + opacity) — kills the 50px content jump on the most-visited page; entrances stay instant | P2 | S | — | TODO |
+| 216 | Expand/collapse cohesion — rotating caret standardized across 5 sites (3 hard-swap `CaretRight↔CaretDown` today) + `.ns-expand-in` content enter on holdings rows & reconcile periods; NO height animation | P2 | S | 214 lands its globals.css block first (adjacent edits, trivial conflict) | TODO |
+| 217 | Motion hygiene batch — RecurringRules toggle `left`→`translateX(14px)`, QuickAdd hardcoded bezier → `var(--ns-ease-out-strong)`, legacy `ui/button` `transition-all` → property list (transform excluded: instant press nudge is a settled decision), AppShell sidebar `0.2s ease` → tokens | P3 | S | — | TODO |
+| 218 | Onboarding entrance + step-transition motion (first-run delight budget; enter-only, `key={step}` remount + `@starting-style`) | P3 | S | — | TODO |
+
+**Recommended order**: 217 (mechanical, zero risk) → 214 → 215 → 216 → 218. All are
+Sonnet-executable; 214 has the most moving parts (exit-state machine).
+
+**Vetted non-findings this round (do not re-flag)**: COSS Select popup opens with no
+animation — correct, it mimics macOS native menus (`alignItemWithTrigger`, instant);
+⌘K/GlobalSearch `duration-0 animate-none` deliberate (plan 160); KPI numbers + charts
+un-animated deliberate (finance data); global instant `:active` 1px press nudge settled;
+segmented-thumb `width` transition left alone (tiny element, `will-change`, plan 160).
+**Noted, not planned**: sidebar collapse animates whole-app grid layout (inherent to
+push-sidebar; only revisit if device QA shows jank — see plan 217 §D note); global
+reduced-motion rule zeroes ALL transitions incl. opacity feedback (Emil's bar says keep
+opacity fades — defensible simplification, revisit only if a11y feedback asks);
+scattered magic durations (`.12s/.15s`) in route inline styles — too diffuse to batch,
+fix opportunistically when touching those files.
+
 ## 202 / 213 — modal close button unification (2026-07-16)
 
 | Plan | Title | Priority | Effort | Depends on | Status |
