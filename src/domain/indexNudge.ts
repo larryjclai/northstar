@@ -144,6 +144,33 @@ function windowReturnPct(cumStart: number, cumEnd: number): number {
  * the shape {@link evaluateIndexNudge} consumes. The honesty contract at the
  * top of this file applies: `portfolioCum` MUST be TWR-derived.
  */
+export interface AlignedCumSeries {
+  portfolioCum: Array<{ date: string; pct: number }>;
+  benchmarkCum: Array<{ date: string; pct: number }>;
+}
+
+/**
+ * Align a cumulative-return TWR series (pct, e.g. from buildPortfolioTwr —
+ * NEVER re-cumulated) with a benchmark price series on shared dates, and
+ * geometrically rebase BOTH to the first common date. Returns null when
+ * fewer than 2 dates overlap or a base is degenerate (≤ 0) — the caller
+ * must treat null as "no verdict", never fall back to another basis.
+ */
+export function alignTwrWithBenchmark(
+  twrSeries: Array<{ date: string; pct: number }>,
+  bench: Array<{ date: string; value: number }>,
+): AlignedCumSeries | null {
+  const benchByDate = new Map(bench.map((p) => [p.date, p.value]));
+  const alignedTwr = twrSeries.filter((p) => benchByDate.has(p.date));
+  if (alignedTwr.length < 2) return null; // no usable date overlap → fixed-basket fallback
+  const twrBase = 1 + alignedTwr[0].pct / 100;
+  const benchBase = benchByDate.get(alignedTwr[0].date)!;
+  if (twrBase <= 0 || benchBase <= 0) return null; // degenerate base → fallback
+  const portfolioCum = alignedTwr.map((p) => ({ date: p.date, pct: ((1 + p.pct / 100) / twrBase - 1) * 100 }));
+  const benchmarkCum = alignedTwr.map((p) => ({ date: p.date, pct: (benchByDate.get(p.date)! / benchBase - 1) * 100 }));
+  return { portfolioCum, benchmarkCum };
+}
+
 export function buildIndexNudgeWindows(opts: {
   /** Portfolio cumulative-return series, e.g. `buildPortfolioTwr().series`. */
   portfolioCum: NudgeWindowSeries[];
