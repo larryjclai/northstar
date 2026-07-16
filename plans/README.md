@@ -1,5 +1,33 @@
 # Implementation Plans
 
+## 202 / 213 — modal close button unification (2026-07-16)
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 202 | Extract `<ModalCloseButton />`, replace the hand-built close buttons (six treatments: 3 hit sizes / 3 icon sizes / 3 hover languages) | P0 | M | — | **DONE — reviewed+APPROVED+MERGED** @ `cfd08051`. 13 sites converted; 2 raw `<button>`s gained COSS Button's 44pt `pointer-coarse` hit area; every close button now has BOTH `aria-label` and `title` (0 had a tooltip before). 1318 tests. |
+| 213 | Finish 202 — the 2 sites its census missed | P2 | S | 202 | **DONE — reviewed+APPROVED+MERGED**. `GoalEditorSheet.tsx` (the app's LAST raw close button — the exact iOS tap defect 202 existed to kill) + `ConnectSection.tsx`. `grep -rln "grid size-8 place-items-center" src/` → **empty**. `ModalCloseButton` now used in 15 files. |
+
+⚠ **Advisor census error, recorded as a rule**: plan 202's census used
+**non-recursive globs** (`src/routes/*.tsx`, `src/components/*.tsx`) which never
+reach `src/features/goals/` or `src/routes/settings/` — it silently missed 2
+genuine close buttons, one of them the last raw one. **Any repo-wide census must
+use `grep -rn … src/` (recursive), never per-directory globs.** This is the
+SECOND census-methodology error of this batch (the first: reading the quarantined
+`ui/button.tsx` instead of the real `coss/button.tsx`), and **both were caught by
+executors measuring reality rather than trusting the plan**. 202's executor found
+these, correctly refused to expand scope unilaterally, and flagged them — the
+right call; extending scope is the reviewer's job.
+
+**Deliberately NOT unified**: `src/components/ui/dialog.tsx:67` — the vendored
+base-ui Dialog primitive's own internal close affordance, inside the quarantined
+`ui/` layer (app code may not import it per `ui/README.md`). Not a hand-built app
+close button; not ours to unify. `ModalCloseButton`'s docstring records this.
+
+**Still deferred** (202's own follow-up): wire `ModalCloseButton` into
+`ModalShell` behind a `showClose` prop so new modals get it free. Every modal
+hand-rolls its own `<header>`, so hoisting the button means hoisting the header —
+worth doing once those headers are uniform.
+
 ## 212 — stat-strip mobile scroll-snap (`/improve plan` @ `3a205f7c`, 2026-07-16)
 
 | Plan | Title | Priority | Effort | Depends on | Status |
