@@ -276,7 +276,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
       <div style={{ position: "absolute", inset: 0, background: "var(--ns-scrim)" }} />
       <div
         onClick={(e) => e.stopPropagation()}
-        className="animate-[ns-drawer-in_140ms_cubic-bezier(0.22,1,0.36,1)] flex flex-col gap-2.5"
+        className="animate-[ns-drawer-in_140ms_var(--ns-ease-out-strong)] flex flex-col gap-2.5"
         style={{ position: "relative", width: "min(620px, 94vw)", marginBottom: 28 }}
       >
         {/* Confirm card (shown after parsing) */}

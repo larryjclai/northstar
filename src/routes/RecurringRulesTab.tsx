@@ -506,12 +506,12 @@ function RuleEditSheet({
             >
               <div style={{
                 width: 32, height: 18, borderRadius: 9, background: form.isActive ? "var(--ns-pos)" : "var(--ns-fg-dim)",
-                position: "relative", transition: "background 0.2s",
+                position: "relative", transition: "background var(--ns-dur) var(--ns-ease)",
               }}>
                 <div style={{
-                  position: "absolute", top: 2, width: 14, height: 14, borderRadius: 7,
-                  background: "var(--ns-bg-elev)", transition: "left 0.2s",
-                  left: form.isActive ? 16 : 2,
+                  position: "absolute", top: 2, left: 2, width: 14, height: 14, borderRadius: 7,
+                  background: "var(--ns-bg-elev)", transition: "transform var(--ns-dur) var(--ns-ease)",
+                  transform: form.isActive ? "translateX(14px)" : "translateX(0)",
                 }} />
               </div>
               {form.isActive ? "啟用中" : "已暫停"}
