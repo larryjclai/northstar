@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, CheckCircle, FileCsv, UploadSimple, Warning, X, Trash, FloppyDisk } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, CheckCircle, FileCsv, UploadSimple, Warning, Trash, FloppyDisk } from "@phosphor-icons/react";
 import { Button } from "../components/coss/button";
 import { AccountFilter } from "../components/AccountFilter";
 import { AppSelect } from "../components/AppSelect";
 import { ModalShell } from "../components/ModalShell";
+import { ModalCloseButton } from "../components/ModalCloseButton";
 import { useToast } from "../components/Toast";
 import { detectDelimiter, parseCsvTable } from "../data/csv";
 import type { InvestmentDraft, LedgerDraft } from "../data/repositories";
@@ -207,7 +208,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
         {/* Header */}
         <div className="flex items-center justify-between" style={{ padding: "16px 22px", borderBottom: "1px solid var(--ns-border)" }}>
           <div className="text-lg font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>匯入證券交易</div>
-          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={dismiss}><X size={16} /></Button>
+          <ModalCloseButton onClick={dismiss} />
         </div>
 
         {/* Stepper */}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { PencilSimple, Plus, X } from "@phosphor-icons/react";
+import { PencilSimple, Plus } from "@phosphor-icons/react";
+import { ModalCloseButton } from "./ModalCloseButton";
 import { ModalShell } from "./ModalShell";
 import { Badge } from "./coss/badge";
 import { Button } from "./coss/button";
@@ -84,7 +85,7 @@ export function ClientManager({
         <Card className="w-full p-0">
           <div className="py-4 px-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--ns-border)" }}>
             <h2 className="text-base font-semibold" style={{ margin: 0 }}>客戶管理</h2>
-            <Button variant="ghost" size="icon" onClick={dismiss} aria-label="關閉"><X size={16} /></Button>
+            <ModalCloseButton onClick={dismiss} />
           </div>
           <div className="py-4 px-5 flex flex-col gap-4" style={{ maxHeight: "70vh", overflowY: "auto" }}>
             {/* Existing clients */}

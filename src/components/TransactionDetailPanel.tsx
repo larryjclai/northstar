@@ -1,8 +1,9 @@
-import { ArrowsClockwise, CalendarBlank, Check, CopySimple, PencilSimple, Receipt, Storefront, Tag, Trash, Wallet, X } from "@phosphor-icons/react";
+import { ArrowsClockwise, CalendarBlank, Check, CopySimple, PencilSimple, Receipt, Storefront, Tag, Trash, Wallet } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { Button } from "./coss/button";
 import { Badge } from "./coss/badge";
 import { arApAccountRoles } from "./arApAccountRoles";
+import { ModalCloseButton } from "./ModalCloseButton";
 import { ModalShell } from "./ModalShell";
 import type { LedgerTransaction, RecurringTransaction } from "../domain";
 import { formatNumber, installmentLabel, recurringFrequencyLabels, todayInTimezone } from "../domain";
@@ -115,9 +116,7 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
             <Receipt size={16} />
             交易詳情
           </div>
-          <Button variant="ghost" size="icon-sm" aria-label="關閉" onClick={dismiss} className="p-1.5">
-            <X size={16} />
-          </Button>
+          <ModalCloseButton onClick={dismiss} />
         </div>
 
         {/* Content */}

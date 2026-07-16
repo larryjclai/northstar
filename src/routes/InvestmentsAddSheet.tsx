@@ -1,4 +1,4 @@
-import { X, Bank, UploadSimple } from "@phosphor-icons/react";
+import { Bank, UploadSimple } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../components/coss/button";
@@ -7,6 +7,7 @@ import { AccountFilter } from "../components/AccountFilter";
 import { ToggleGroup, ToggleGroupItem } from "../components/coss/toggle-group";
 import { HoldingForm, makeEmptyHoldingDraft } from "../components/HoldingForm";
 import { ModalShell } from "../components/ModalShell";
+import { ModalCloseButton } from "../components/ModalCloseButton";
 import { NumberField } from "../components/NumberField";
 import { StatusText } from "../components/StatusText";
 import { TickerSearchField } from "../components/TickerSearchField";
@@ -489,7 +490,7 @@ export function InvestmentEntryDrawer({
               {mode === "snapshot" ? "改記一筆交易" : "建立持倉／自訂資產"}
             </Button>
           ) : null}
-          <Button variant="ghost" size="icon" onClick={dismiss} aria-label="關閉"><X size={16} /></Button>
+          <ModalCloseButton onClick={dismiss} />
         </div>
 
         {eligibleAccounts.length === 0 ? (

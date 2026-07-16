@@ -33,6 +33,7 @@ import { AppSelect } from "../components/AppSelect";
 import { BulkCategorizeCard } from "./BulkCategorizeCard";
 import { CategoryFilter } from "../components/CategoryFilter";
 import { ModalShell } from "../components/ModalShell";
+import { ModalCloseButton } from "../components/ModalCloseButton";
 import { NumberField } from "../components/NumberField";
 import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
@@ -2945,7 +2946,7 @@ function EntryDrawer({
               <UploadSimple size={14} style={{ marginRight: 6 }} />匯入 CSV
             </Button>
           )}
-          <Button variant="ghost" size="icon" onClick={requestClose} aria-label="關閉"><X size={16} /></Button>
+          <ModalCloseButton onClick={requestClose} />
         </div>
 
         {/* Type tabs */}
