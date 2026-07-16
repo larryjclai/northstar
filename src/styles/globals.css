@@ -1271,6 +1271,9 @@ textarea:focus-visible {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   padding: 16px 24px;
 }
+.ns-holdings-summary[data-cols="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
 .ns-holdings-summary-col {
   padding: 0 22px;
 }

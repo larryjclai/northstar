@@ -306,42 +306,58 @@ export function AccountsRoute() {
         </div>
       </div>
 
-      {/* Balance-sheet summary — always a full 3-up so a single-currency user
-          doesn't see one lonely card in a 4-wide grid. */}
+      {/* Balance-sheet summary — one joined strip (shared vocabulary with
+          投資's ns-holdings-summary, plan 210) instead of 3 separate cards.
+          Full digits, NOT formatCompactNumber: the reconciliation identity
+          assets − liabilities = net worth must stay visibly checkable, and
+          NT$1,501.7萬-style rounding would make the three figures no longer
+          visibly sum. */}
       {rows.length > 0 ? (
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(150px,100%),1fr))] gap-3.5 mb-3.5">
+        <Card className="ns-holdings-summary mb-3.5" data-cols="3">
           {([
-            { label: "總資產", value: totals.assets, color: "var(--ns-chart-2)", tone: undefined },
-            { label: "總負債", value: totals.liabilities, color: "var(--ns-chart-5)", tone: "neg" as const },
-            { label: "淨值", value: totals.net, color: "var(--ns-chart-1)", tone: totals.net < 0 ? "neg" as const : undefined },
+            { label: "總資產", value: totals.assets, tone: undefined },
+            { label: "總負債", value: totals.liabilities, tone: "neg" as const },
+            { label: "淨值", value: totals.net, tone: totals.net < 0 ? "neg" as const : undefined },
           ]).map((c) => (
-            <Card key={c.label} className="p-4 flex flex-row items-center gap-3">
-              <div style={{ width: 4, height: 38, borderRadius: 99, background: c.color }} className="shrink-0" />
-              <div className="min-w-0">
-                <div className="text-xs ns-field-label">{c.label}</div>
-                <div className={`text-xl font-semibold${c.tone === "neg" ? " neg" : ""}`} style={{ fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums" }}>
-                  {c.tone === "neg" && c.value !== 0 ? "−" : ""}{formatNumber(Math.abs(c.value))}
-                </div>
+            <div key={c.label} className="ns-holdings-summary-col min-w-0">
+              <div className="text-xs mb-2 shrink-0 font-medium" style={{ color: "var(--ns-fg-muted)" }}>{c.label}</div>
+              <div
+                className={`num${c.tone === "neg" ? " neg" : ""}`}
+                style={{ fontSize: "clamp(14px, 1.7vw, 22px)", fontWeight: 500, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                title={`${c.tone === "neg" && c.value !== 0 ? "−" : ""}${formatNumber(Math.abs(c.value))}`}
+              >
+                {c.tone === "neg" && c.value !== 0 ? "−" : ""}{formatNumber(Math.abs(c.value))}
               </div>
-            </Card>
+            </div>
           ))}
-        </div>
+        </Card>
       ) : null}
 
-      {/* Currency split — only meaningful with more than one currency. */}
+      {/* Currency split — only meaningful with more than one currency. Thin
+          stacked bar + legend (shared vocabulary with 投資's 持倉配置,
+          plan 210) instead of a grid of per-currency progress-bar cards. */}
       {currencyBreakdown.length > 1 ? (
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(130px,100%),1fr))] gap-3.5 mb-5">
-          {currencyBreakdown.map((c) => (
-            <Card key={c.ccy} className="p-4">
-              <div className="text-xs mb-2" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{c.ccy}</div>
-              <div className="text-[19px]" style={{ fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums" }}>{formatNumber(c.base)}</div>
-              <div className="mt-2 overflow-hidden" style={{ height: 6, borderRadius: 99, background: "var(--ns-bg-hover)" }}>
-                <div style={{ width: `${c.pct}%`, height: "100%", background: c.color }} />
+        <Card className="p-5 mb-5">
+          <div className="text-xs mb-3.5 font-medium" style={{ color: "var(--ns-fg-muted)" }}>幣別配置</div>
+          <div className="ns-holdings-alloc-bar" title={currencyBreakdown.map((c) => `${c.ccy} ${c.pct.toFixed(1)}%`).join(" · ")}>
+            {currencyBreakdown.map((c) => (
+              <div
+                key={c.ccy}
+                title={`${c.ccy} · ${formatNumber(c.base)} (${c.pct.toFixed(1)}%)`}
+                style={{ width: `${c.pct}%`, background: c.color }}
+              />
+            ))}
+          </div>
+          <div className="ns-holdings-allocation-list mt-3.5">
+            {currencyBreakdown.map((c) => (
+              <div key={c.ccy} className="text-xs flex items-center gap-2 min-w-0">
+                <span style={{ width: 9, height: 9, borderRadius: 2, background: c.color, flexShrink: 0 }} />
+                <span className="flex-1 min-w-0 truncate" title={c.ccy}>{c.ccy}</span>
+                <span className="mono dim shrink-0">{formatNumber(c.base)} · {c.pct.toFixed(1)}%</span>
               </div>
-              <div className="mono dim text-caption mt-1">{c.pct.toFixed(1)}% of total</div>
-            </Card>
-          ))}
-        </div>
+            ))}
+          </div>
+        </Card>
       ) : <div className="mb-1.5" />}
 
       {/* Search + type filter — only shown when there are enough accounts */}
