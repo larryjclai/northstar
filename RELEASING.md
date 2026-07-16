@@ -5,7 +5,15 @@
 > 已移除。以下提到 private repo、`northstar-releases` mirror、`RELEASES_TOKEN` 的段落為
 > 過渡期歷史說明，待現有安裝完成遷移後再整併。
 
-Northstar 目前以**本地 macOS release** 為主要發版流程；GitHub Actions release workflow 保留為**手動 fallback**，不再因為 push `v*` tag 自動觸發。
+Northstar 以 **GitHub Actions release workflow** 為主要發版流程：push `v*` tag 就會自動建置並
+發布四個平台（macOS arm64／Intel、Linux、Windows）。
+
+> **沿革（2026-07-16）**：自動觸發是恢復、不是新增。source repo 還是 private 時 Actions 額度
+> 有限，因此改成手動 dispatch；2026-06 轉 public 後額度已免費，但沒有跟著改回來，導致每次
+> 發版都得手動 dispatch，而 Windows／Linux 產物只有這條路徑產得出來。現已恢復自動。
+
+`scripts/release-local.sh`（本地 macOS build）降為 **CI 不可用時的 fallback**，且**不可**與 CI
+同時對同一個 tag 執行——見第 4 步的警告。
 
 ## 為什麼有兩個 repo？（重要）
 
@@ -78,23 +86,31 @@ git tag v0.1.0-alpha.7
 git push && git push --tags
 ```
 
-推上 source commit 與 tag 後，版本對應的原始碼就固定下來了；**不會**自動觸發 GitHub Actions release。
+**推上 tag 就會自動觸發 Release workflow**（2026-07-16 起）。它會在 CI 上建置並簽署四個平台
+（macOS arm64／Intel、Linux、Windows），全部上傳完成後才把 draft release 翻成正式版。
+到這一步就沒事了，直接跳到第 5 步驗收。
 
-### 4. 執行本地 release 腳本
+> 建置期間 release 維持 draft，`releases/latest` 仍指向前一版，所以 updater 只會回報
+> 「已是最新」，不會拿到只有部分平台的 `latest.json`（v0.1.0-alpha.54 的教訓）。
+
+### 4.（僅在 CI 無法使用時）本地 release 腳本
+
+**一般情況不需要這一步，第 3 步的 CI 已經涵蓋。**
 
 ```bash
 ./scripts/release-local.sh v0.1.0-alpha.7
 ```
 
-此腳本會：
+⚠ **不要對 CI 正在建置的 tag 執行這支腳本。** 它會 `gh release edit --draft=false`，在
+Windows／Linux 還沒上傳完就把 release 發佈出去——正是第 3 步的 draft 設計要防的那個
+partial `latest.json` 問題。只有在 CI 不可用（Actions 掛掉、或只需 mac 的緊急修補）時才用它，
+且要確認沒有 CI run 正在跑同一個 tag。
 
-1. 在本機建置並簽署 universal macOS 版本
-2. 產生指向 public repo 的 `latest.json`
-3. 建立或更新 public `northstar-releases` 上對應 tag 的 GitHub Release
+此腳本只產出 macOS（universal），Windows／Linux 仍得靠 CI。
 
-### 5. 確認 public release
+### 5. 確認 release
 
-前往 [northstar-releases Releases](https://github.com/larryjclai/northstar-releases/releases)：
+前往 [northstar Releases](https://github.com/larryjclai/northstar/releases)：
 
 1. 確認該 tag 的 artifacts 都已上傳（`.dmg`、`.msi`、`.exe`、`.deb`、`.AppImage`、各 `.sig`、`latest.json`）
 2. 確認它被標為 **Latest**（updater 靠 `releases/latest` 解析）

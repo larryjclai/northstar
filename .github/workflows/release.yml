@@ -1,22 +1,41 @@
 name: Release
 
-# Manual (workflow_dispatch) only — a deliberate choice, not a cost concern. The
-# repo is public so GitHub Actions is free, but we don't want every tag push to
-# kick off a 4-platform build. The default path is the local macOS release
-# script (`scripts/release-local.sh`); use this workflow when you want CI to
-# build/publish a tagged release directly on this repo (notably the
-# Windows/Linux artifacts the mac-only local script can't produce).
+# Runs automatically on every `v*` tag push, building and publishing all four
+# platforms (macOS arm64 + x86_64, Linux, Windows). This repo is public, so
+# Actions minutes are free — the earlier manual-only design was a deliberate
+# "don't build 4 platforms on every tag" choice, which the operator revisited
+# (2026-07-16): the Windows/Linux artifacts are the point, and dispatching by
+# hand every time was the thing actually costing something.
+#
+# `workflow_dispatch` is kept for re-running a tag whose build failed, or for
+# releasing an old tag.
+#
+# ⚠ `scripts/release-local.sh` is now REDUNDANT for a normal release, and must
+# NOT be run for a tag this workflow is already building: it does
+# `gh release edit --draft=false`, which would publish the release before the
+# Windows/Linux jobs have uploaded — exactly the partial-`latest.json` failure
+# (v0.1.0-alpha.54) that the draft-until-all-platforms-finish design below
+# exists to prevent. Keep the script for the case CI can't cover (e.g. Actions
+# down, or a mac-only hotfix).
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       tag:
         description: 'Tag to release (e.g. v0.1.0-alpha.7)'
         required: true
 
-# Re-dispatching the same tag cancels the previous in-flight run so we don't
-# build the same release twice.
+# The tag being released is `inputs.tag || github.ref_name` throughout: on a tag
+# push `inputs` is empty so the fallback picks the pushed ref; on a manual
+# dispatch the input wins. The expression is repeated rather than hoisted into
+# workflow-level `env` because `concurrency` below can't read the `env` context.
+
+# Re-dispatching (or re-pushing) the same tag cancels the previous in-flight run
+# so we don't build the same release twice.
 concurrency:
-  group: release-${{ inputs.tag }}
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
@@ -31,10 +50,15 @@ jobs:
     outputs:
       body: ${{ steps.extract.outputs.body }}
     steps:
+      # Read CHANGELOG.md as it was AT THE TAG, not at the default branch —
+      # otherwise a manual dispatch of an old tag would splice in notes main has
+      # since edited.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
       - id: extract
         env:
-          TAG: ${{ inputs.tag }}
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           VERSION="${TAG#v}"
           {
@@ -78,8 +102,13 @@ jobs:
     runs-on: ${{ startsWith(matrix.platform, 'macos') && (vars.MACOS_RUNNER || 'macos-latest') || matrix.platform }}
 
     steps:
+      # Build the tag's source, not the default branch's. Without this the
+      # artifacts would be whatever main happens to hold while carrying the
+      # tag's name — silently shipping unreleased code under a released version.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -138,8 +167,8 @@ jobs:
           # leave this unset, which disables sync instead of hardcoding a relay.
           VITE_NORTHSTAR_SYNC_WORKER_URL: ${{ vars.NORTHSTAR_SYNC_WORKER_URL }}
         with:
-          tagName: ${{ inputs.tag }}
-          releaseName: Northstar ${{ inputs.tag }}
+          tagName: ${{ inputs.tag || github.ref_name }}
+          releaseName: Northstar ${{ inputs.tag || github.ref_name }}
           releaseBody: |
             ${{ needs.notes.outputs.body }}
 
@@ -186,7 +215,7 @@ jobs:
       - name: Publish the completed draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ inputs.tag }}
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
           release_id=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
