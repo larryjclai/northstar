@@ -678,7 +678,7 @@ function InvestmentTransactionRow({
             {!tx.isOpeningLot ? (
               <Button variant="ghost" size="icon-xs" aria-label="複製交易" onClick={() => onDuplicate(tx.recordId!)}><CopySimple size={13} /></Button>
             ) : null}
-            <Button variant="ghost" size="icon-xs" aria-label="刪除交易" onClick={() => void onDelete(tx.recordId!)}><Trash size={13} /></Button>
+            <Button variant="destructive-outline" size="icon-xs" aria-label="刪除交易" onClick={() => void onDelete(tx.recordId!)}><Trash size={13} /></Button>
           </div>
         ) : (
           <span className="muted text-xs">記帳</span>
@@ -732,7 +732,7 @@ function InvestmentTransactionMobile({
           {!tx.isOpeningLot ? (
             <Button variant="ghost" size="icon-xs" aria-label="複製交易" onClick={() => onDuplicate(tx.recordId!)}><CopySimple size={13} /></Button>
           ) : null}
-          <Button variant="ghost" size="icon-xs" aria-label="刪除交易" onClick={() => void onDelete(tx.recordId!)}><Trash size={13} /></Button>
+          <Button variant="destructive-outline" size="icon-xs" aria-label="刪除交易" onClick={() => void onDelete(tx.recordId!)}><Trash size={13} /></Button>
         </div>
       ) : null}
     </div>

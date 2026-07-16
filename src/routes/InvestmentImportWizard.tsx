@@ -369,7 +369,7 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
                     ? <Button variant="outline" onClick={() => saveTemplate(false)}><FloppyDisk size={14} />更新範本</Button>
                     : null}
                   <Button variant="outline" onClick={() => saveTemplate(true)}><FloppyDisk size={14} />儲存為新範本</Button>
-                  {templateId ? <Button variant="ghost" style={{ color: "var(--ns-neg)" }} onClick={removeTemplate}><Trash size={14} />刪除</Button> : null}
+                  {templateId ? <Button variant="destructive-outline" onClick={removeTemplate}><Trash size={14} />刪除</Button> : null}
                 </div>
               </div>
             </div>

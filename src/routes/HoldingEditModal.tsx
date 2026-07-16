@@ -1,6 +1,7 @@
 import { X } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import { ActionButton } from "../components/ActionButton";
+import { Button } from "../components/coss/button";
 import { DatePicker } from "../components/ui/date-picker";
 import { Field, TextInput } from "../components/Field";
 import { HoldingForm, makeEmptyHoldingDraft } from "../components/HoldingForm";
@@ -193,34 +194,28 @@ export function HoldingEditModal({
             <div className="mt-4 flex items-center gap-3">
               {confirmDelete ? (
                 <>
-                  <button
-                    type="button"
+                  <Button
+                    variant="destructive"
                     onClick={() => void submitDelete()}
                     disabled={deleteHolding.isPending}
-                    className="rounded-md px-3 py-2 text-sm font-semibold text-white outline-none transition hover:opacity-90 disabled:opacity-60"
-                    style={{ background: "var(--ns-neg)" }}
                   >
-                    {deleteHolding.isPending ? "刪除中…" : "確認刪除"}
-                  </button>
-                  <button
-                    type="button"
+                    {deleteHolding.isPending ? "刪除中…" : "確定刪除"}
+                  </Button>
+                  <Button
+                    variant="ghost"
                     onClick={() => setConfirmDelete(false)}
                     disabled={deleteHolding.isPending}
-                    className="text-sm outline-none transition hover:opacity-70"
-                    style={{ color: "var(--ns-muted)" }}
                   >
                     取消
-                  </button>
+                  </Button>
                 </>
               ) : (
-                <button
-                  type="button"
+                <Button
+                  variant="destructive-outline"
                   onClick={() => setConfirmDelete(true)}
-                  className="rounded-md px-3 py-2 text-sm font-semibold outline-none transition hover:opacity-80"
-                  style={{ color: "var(--ns-neg)", border: "1px solid var(--ns-neg)" }}
                 >
                   刪除持倉
-                </button>
+                </Button>
               )}
             </div>
           ) : null}

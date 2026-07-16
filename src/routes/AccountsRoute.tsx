@@ -499,7 +499,7 @@ export function AccountsRoute() {
                         ) : null}
                         <Button variant="ghost" size="icon-sm" title="編輯" onClick={() => startEdit(a)}><PencilSimple size={14} /></Button>
                         <Button variant="ghost" size="icon-sm" title="調整餘額" onClick={() => openAdjust(a)}><Scales size={14} /></Button>
-                        <Button variant="ghost" size="icon-sm" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={async () => { try { await deleteAccount.mutateAsync(a.id); } catch (e) { setMessage(e instanceof Error ? e.message : "刪除失敗。"); } }}><Trash size={14} /></Button>
+                        <Button variant="destructive-outline" size="icon-sm" title="刪除" onClick={async () => { try { await deleteAccount.mutateAsync(a.id); } catch (e) { setMessage(e instanceof Error ? e.message : "刪除失敗。"); } }}><Trash size={14} /></Button>
                       </div>
                     </div>
                   </div>
@@ -689,11 +689,10 @@ function BookManager({
                       </div>
                     ) : (
                       <Button
-                        variant="ghost"
+                        variant="destructive-outline"
                         size="icon-sm"
                         aria-label="刪除帳本"
                         title="刪除帳本"
-                        style={{ color: "var(--ns-neg)" }}
                         onClick={() => setConfirmDeleteId(b.id)}
                       >
                         <Trash size={14} />

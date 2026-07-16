@@ -379,11 +379,11 @@ export function HoldingDetailRoute() {
                     <span className="muted text-xs truncate" title={snap.note}>{snap.note || "—"}</span>
                     {confirmDeleteId === snap.id ? (
                       <span className="flex gap-1.5" style={{ justifySelf: "end" }}>
-                        <Button variant="ghost" size="sm" onClick={() => deleteManualSnapshot(snap.id)} disabled={deleteManualPrice.isPending} style={{ color: "var(--ns-danger, #d33)" }}>確認刪除</Button>
+                        <Button variant="destructive" size="sm" onClick={() => deleteManualSnapshot(snap.id)} disabled={deleteManualPrice.isPending}>確定刪除</Button>
                         <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>取消</Button>
                       </span>
                     ) : (
-                      <Button variant="ghost" size="sm" onClick={() => { setConfirmDeleteId(snap.id); setPriceMessage(""); }} style={{ justifySelf: "end" }}>刪除</Button>
+                      <Button variant="destructive-outline" size="sm" onClick={() => { setConfirmDeleteId(snap.id); setPriceMessage(""); }} style={{ justifySelf: "end" }}>刪除</Button>
                     )}
                   </div>
                 ))}

@@ -186,7 +186,7 @@ export function RecurringInvestmentsTab() {
                 <div className="flex gap-1">
                   <Button variant="ghost" size="icon-sm" title="記錄本期投入" onClick={() => post(rule)} disabled={postRule.isPending}><Check size={14} /></Button>
                   <Button variant="ghost" size="icon-sm" title="編輯" onClick={() => openEdit(rule)}><PencilSimple size={14} /></Button>
-                  <Button variant="ghost" size="icon-sm" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={() => remove(rule.id)}><Trash size={14} /></Button>
+                  <Button variant="destructive-outline" size="icon-sm" title="刪除" onClick={() => remove(rule.id)}><Trash size={14} /></Button>
                 </div>
               </div>
             );
