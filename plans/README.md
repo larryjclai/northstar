@@ -144,9 +144,9 @@ Three operator-reported items with screenshots. All planned directly (no audit).
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 208 | 淨值變動 badge onto the gain/loss axis — under 紅漲綠跌 the hero badge (green, `success/error`) contradicts 投資今日 (red, gain/loss) for the *same day's* movement; §2.4 never classified 淨值變動 at all. Badge `gain`/`loss` variants already exist. Fix = variant swap + §2.4 amendment | P1 | S | coordinate w/ 209 (same file, different region) | TODO |
-| 209 | 總覽 banners dismissable with **state fingerprints** — dismiss = "seen this occurrence", reappear on identity change (health: sorted issue kinds; overspend: month+category names, **amount deliberately excluded** or dismissal is useless). Overrides the recorded "stays discoverable" one-liner tradeoff with the operator's explicit request; new `dismissedBanners` in uiPreferences (per-device, not synced) | P2 | M | coordinate w/ 208 | TODO |
-| 210 | 帳戶 summary adopts 投資's visual language — 3 side-bar cards → one `ns-holdings-summary` strip (`data-cols="3"` param, 1-line CSS); N per-currency progress cards → one 幣別配置 alloc bar + legend. **Zero `InvestmentsRoute` changes** (pure class reuse → no 201 conflict). Full digits kept (reconciliation identity must stay visibly checkable — deliberate divergence from 投資's compact format) | P2 | M | **after 206 lands** (same file) | TODO |
+| 208 | 淨值變動 badge onto the gain/loss axis — under 紅漲綠跌 the hero badge (green, `success/error`) contradicts 投資今日 (red, gain/loss) for the *same day's* movement; §2.4 never classified 淨值變動 at all. Badge `gain`/`loss` variants already exist. Fix = variant swap + §2.4 amendment | P1 | S | coordinate w/ 209 (same file, different region) | **DONE — MERGED** @ `6612c77b`. 淨值變動改行情軸；與 200 在 badge 撞過一次，解衝突取兩邊。 |
+| 209 | 總覽 banners dismissable with **state fingerprints** — dismiss = "seen this occurrence", reappear on identity change (health: sorted issue kinds; overspend: month+category names, **amount deliberately excluded** or dismissal is useless). Overrides the recorded "stays discoverable" one-liner tradeoff with the operator's explicit request; new `dismissedBanners` in uiPreferences (per-device, not synced) | P2 | M | coordinate w/ 208 | **DONE — MERGED** @ `b9cf0d5f`. +12 測試；executor 找到 advisor 計畫的缺陷（`kind` 撞號→改 `kind:id`）。 |
+| 210 | 帳戶 summary adopts 投資's visual language — 3 side-bar cards → one `ns-holdings-summary` strip (`data-cols="3"` param, 1-line CSS); N per-currency progress cards → one 幣別配置 alloc bar + legend. **Zero `InvestmentsRoute` changes** (pure class reuse → no 201 conflict). Full digits kept (reconciliation identity must stay visibly checkable — deliberate divergence from 投資's compact format) | P2 | M | **after 206 lands** (same file) | **DONE — MERGED** @ `19d94ade`. 附帶發現既有 mobile scroll-snap bug → plan 212。 |
 
 Key decisions encoded: **208 does NOT unify all colors** — full uniformity was
 tried 2026-06-10 and rolled back (toasts turned red, expenses green); the fix
@@ -164,8 +164,9 @@ button/icon batch — data integrity before button looks.**
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 206 | `deleteBook` — soft-delete a 帳本, guarded on accounts / invoices / clients / last-personal-book. The escape hatch: operator has a duplicate 個人帳 they cannot remove | P0 | M | — | TODO |
-| 207 | **SPIKE** — how should the default 帳本 converge across devices? Doc-only (+ optional pure-domain PoC) | P1 | M | — | TODO |
+| 206 | `deleteBook` — soft-delete a 帳本, guarded on accounts / invoices / clients / last-personal-book. The escape hatch: operator has a duplicate 個人帳 they cannot remove | P0 | M | — | **DONE — MERGED** @ `2f98f054`. soft-delete + 4 道守衛 + 14 測試（含守墓碑的 outbox 回歸測試）。 |
+| 207 | **SPIKE** — how should the default 帳本 converge across devices? Doc-only (+ optional pure-domain PoC) | P1 | M | — | **DONE — MERGED** @ `76b879ed`. 推薦 (c) merge-on-pull + straggler self-heal；發現 naive merge 會製造 FIRE/淨值靜默排除的數字 bug。→ build plan 211。 |
+| 211 | 帳本收斂 build — merge-on-pull（只合 untouched system mints：`revision===1` + mint 指紋，**使用者建立/編輯過的帳本永不自動合併**）+ kind-aware straggler self-heal（死公司帳→復活、死個人帳/未知→搬回預設）+ 本機 merge 才告知 | P1 | M–L | 207, 206 | **DONE — MERGED** @ `971e0135`. +33 測試（含 outbox 傳播 + 冪等）；seam 驗證在 `withOutboxSuppressed` **外**（本計畫頭號陷阱：跑在裡面則墓碑永不進 outbox、跨裝置永不收斂）；live 驗證偽造重複本→合併→toast→淨值不變→二次重載 byte-identical。 |
 
 ### Confirmed root cause (duplicate 個人帳)
 
@@ -257,10 +258,10 @@ the churn is the cost of my plan-200 blind spot, not executor error.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 201 | Delete the duplicated 編輯持倉 modal in InvestmentsRoute; use shared `HoldingEditModal` — **already-drifted: B16 Yahoo price view is in the component, absent from the copy (16 vs 0 grep hits), so the same button gives different capabilities per entry point** | P0 | M | — | TODO |
+| 201 | Delete the duplicated 編輯持倉 modal in InvestmentsRoute; use shared `HoldingEditModal` — **already-drifted: B16 Yahoo price view is in the component, absent from the copy (16 vs 0 grep hits), so the same button gives different capabilities per entry point** | P0 | M | — | **DONE — MERGED** @ `e697ac93`. −218 行；B16 Yahoo 價格檢視補回投資列表入口（兩份已實際分岔）。 |
 | 202 | Extract `<ModalCloseButton />`, replace **14** sites (six treatments: 3 hit sizes / 3 icon sizes / 3 hover languages; the 3 raw `<button>`s forfeit the 44pt `pointer-coarse` expansion). Advisor's own census corrected the critique: **14 sites not 13**, and the raw ones carry `X size={18}` not 16. Also: **17 `aria-label="關閉"`, ZERO `title` — no close button anywhere has a tooltip** | P0 | M | 201 (**soft** — plan says don't wait; expect 13 if 201 landed) | TODO |
-| 203 | Rewrite DESIGN.md §7 (component wins) + delete the 10 inert `size` props inside Button/Badge | P1 | S | **plan 200 must be merged first** | TODO |
-| 204 | Adopt `variant="destructive"` / `destructive-outline` (**0 uses today**, both defined); collapse the hand-rolled red inline objects; one token (`--ns-neg`); one string (「確定刪除」 7× vs 「確認刪除」 3×). Advisor's census found **5 dead hex fallbacks** — `var(--ns-danger, #d33)` / `#c0392b` never fire (`--ns-danger` IS defined at `globals.css:157`) and **all three hexes disagree with the real `#c62a1d`** | P1 | M | 201, 202 (**both soft**) | TODO |
+| 203 | Rewrite DESIGN.md §7 (component wins) + delete the 10 inert `size` props inside Button/Badge | P1 | S | **plan 200 must be merged first** | **DONE — MERGED** @ `72d9ff40`. §7 改雙 scope + 刪 10 個無效 prop；第 3 commit 更正貫穿 200/203 的 wrong-file 錯誤（真元件是 `coss/button.tsx`）。 |
+| 204 | Adopt `variant="destructive"` / `destructive-outline` (**0 uses today**, both defined); collapse the hand-rolled red inline objects; one token (`--ns-neg`); one string (「確定刪除」 7× vs 「確認刪除」 3×). Advisor's census found **5 dead hex fallbacks** — `var(--ns-danger, #d33)` / `#c0392b` never fire (`--ns-danger` IS defined at `globals.css:157`) and **all three hexes disagree with the real `#c62a1d`** | P1 | M | 201, 202 (**both soft**) | **DONE — MERGED** @ `1f56a812`. 23 個 destructive 呼叫點；記帳頁刪除鈕首次與編輯有視覺區隔；`--ns-loss` 零使用（台股配色下結構性保紅）。 |
 | 205 | ~~Primary/accent at high-value moments~~ | — | — | — | **NOT WRITTEN — premise falsified, see below** |
 
 ### ⚠ Correction to the critique (advisor, 2026-07-15): "accent reaches only 2 buttons" is FALSE
