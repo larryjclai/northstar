@@ -1,5 +1,20 @@
 # Implementation Plans
 
+## 212 — stat-strip mobile scroll-snap (`/improve plan` @ `3a205f7c`, 2026-07-16)
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 212 | Fix mobile stat-strip scroll-snap — one-line CSS fix; repairs BOTH 帳戶 and 投資 | P3 | S | — | **DONE — reviewed+APPROVED+MERGED** @ `56623b90`. `flex-direction: row` (no `!important`, cascade prediction held) at `globals.css:700`; live-measured 375px both pages flexDirection=row + horizontal overflow, 1280px still grid; dev-server cwd lsof-verified. 1318 tests. |
+
+Discovered by 210's executor (verified by the advisor). Cascade root cause
+confirmed: globals.css's `.ns-holdings-*` are **unlayered**, Tailwind's
+`flex-col` is **layered** → unlayered wins, so a plain `flex-direction: row`
+(no `!important`) at :700 fixes it (the `display:flex !important` on that line
+needs `!important` only to beat the later-in-file `:1269 display:grid`, an
+intra-file source-order fight, not the utility). Fix is media-query-scoped to
+mobile; desktop grid untouched. Deferred out of scope: a pre-existing
+`padding-bottom` override quirk on the same line (cosmetic).
+
 ## Session close 2026-07-16 (`main` @ `1f56a812`) — 198–211 ALL DONE
 
 **Every plan from this session's backlog is executed, reviewed, and merged**:
