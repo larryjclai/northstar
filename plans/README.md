@@ -8,14 +8,22 @@ transitions. Round 2 is feedback gaps + cohesion.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 214 | NotificationCenter panel enter/exit motion — the last teleporting anchored surface; `@starting-style` enter (origin top-right, scale 0.97) + `data-closing`/`transitionend` exit, mirroring ModalShell | P2 | S | — | TODO |
-| 215 | Dashboard banner dismiss collapse (`1fr→0fr` grid-rows + opacity) — kills the 50px content jump on the most-visited page; entrances stay instant | P2 | S | — | TODO |
-| 216 | Expand/collapse cohesion — rotating caret standardized across 5 sites (3 hard-swap `CaretRight↔CaretDown` today) + `.ns-expand-in` content enter on holdings rows & reconcile periods; NO height animation | P2 | S | 214 lands its globals.css block first (adjacent edits, trivial conflict) | TODO |
-| 217 | Motion hygiene batch — RecurringRules toggle `left`→`translateX(14px)`, QuickAdd hardcoded bezier → `var(--ns-ease-out-strong)`, legacy `ui/button` `transition-all` → property list (transform excluded: instant press nudge is a settled decision), AppShell sidebar `0.2s ease` → tokens | P3 | S | — | TODO |
-| 218 | Onboarding entrance + step-transition motion (first-run delight budget; enter-only, `key={step}` remount + `@starting-style`) | P3 | S | — | TODO |
+| 214 | NotificationCenter panel enter/exit motion — the last teleporting anchored surface; `@starting-style` enter (origin top-right, scale 0.97) + `data-closing`/`transitionend` exit, mirroring ModalShell | P2 | S | — | **DONE — reviewed+MERGED** @ `c014144b`. Review fix: `requestClose` → `useCallback` + `closingRef` guard (executor's plain function added an exhaustive-deps warning; lint back to 762 baseline). Live-verified in browser: origin top-right, exit unmounts, spam-toggle never strands. |
+| 215 | Dashboard banner dismiss collapse (`1fr→0fr` grid-rows + opacity) — kills the 50px content jump on the most-visited page; entrances stay instant | P2 | S | — | **DONE — reviewed+MERGED** @ `0e9a09a9`. Review fix: executor's wrapper rendered EMPTY on fresh healthy profiles (`healthy && !hasAnyData`) → phantom 14px gap, live-confirmed then fixed by hoisting the condition. Live-verified dismiss: below-content moves exactly 56px (42 + 14 margin), persistence intact. Executor deviation accepted: wrapped the whole plan-209 ternary (both banner variants), correct read. |
+| 216 | Expand/collapse cohesion — rotating caret standardized across 5 sites (3 hard-swap `CaretRight↔CaretDown` today) + `.ns-expand-in` content enter on holdings rows & reconcile periods; NO height animation | P2 | S | 214 lands its globals.css block first (adjacent edits, trivial conflict) | **DONE — reviewed+MERGED** @ `9d26765e`. Live-verified: caret rotates 0→90 (150ms token), expansion enters via `@starting-style`, collapse instant. `CaretDown` imports pruned in all 3 converted files. |
+| 217 | Motion hygiene batch — RecurringRules toggle `left`→`translateX(14px)`, QuickAdd hardcoded bezier → `var(--ns-ease-out-strong)`, legacy `ui/button` `transition-all` → property list (transform excluded: instant press nudge is a settled decision), AppShell sidebar `0.2s ease` → tokens | P3 | S | — | **DONE — reviewed+MERGED** @ `c7d140b7`. +addendum: executor's done-when grep caught a 5th site my census missed — `TradingFeesSection.tsx` toggle had the identical `transition: left` pattern (fixed, 16px travel). `grep cubic-bezier src --include='*.tsx'` → empty. |
+| 218 | Onboarding entrance + step-transition motion (first-run delight budget; enter-only, `key={step}` remount + `@starting-style`) | P3 | S | — | **DONE — reviewed+MERGED** @ `24565c49`. Executor deviation accepted: the four `step===N` ternaries had NO shared container — it introduced the wrapper div (presentational only; verified no `useState` below the key, file-input value already self-clearing). Live-verified step 1→2: remount fires enter, layout intact. |
 
 **Recommended order**: 217 (mechanical, zero risk) → 214 → 215 → 216 → 218. All are
 Sonnet-executable; 214 has the most moving parts (exit-state machine).
+
+**Batch executed + merged 2026-07-17** in that exact order, one branch per plan
+(`fix/ai-motion-hygiene`, `feat/ai-notif-panel-motion`, `feat/ai-banner-dismiss-motion`,
+`feat/ai-expand-collapse-motion`, `feat/ai-onboarding-motion`), Sonnet executors +
+Fable review. Every plan: tsc clean / lint 0 errors 762 warnings (baseline) / 1318 tests.
+Browser feel-checks ran against the Vite dev server (demo mode); note for future sessions:
+the browser-pane tab throttles transition clocks, so mid-transition computed-style samples
+read as frozen — verify end-states + computed `transition` properties instead, or screenshot.
 
 **Vetted non-findings this round (do not re-flag)**: COSS Select popup opens with no
 animation — correct, it mimics macOS native menus (`alignItemWithTrigger`, instant);
