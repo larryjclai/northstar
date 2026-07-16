@@ -589,10 +589,12 @@ Phosphor `size` prop there is decoration, not control.
   explicit scopes — free-standing icons (`size` prop governs) vs. icons
   inside `Button`/`Badge` (component `size` variant governs, prop is inert).
   The now-false "低於 13 一律視為 drift" floor line was deleted — it
-  contradicted `Button xs`/`icon-xs` and `Badge`, which legitimately render
-  12px.
+  contradicted the design system's own `Badge`, which legitimately renders
+  12px at ≥640px. (This bullet originally also cited `Button xs`/`icon-xs`
+  as rendering 12px; that figure came from the wrong file — see §10. coss's
+  `xs` renders 14px desktop. The floor-line deletion stands on Badge alone.)
 - The 10 inert `size={N}` props this section (§8) identified were deleted
-  from the 6 files listed in §8's per-file breakdown table
+  from the 7 files listed in §8's per-file breakdown table
   (`CashFlowRoute.tsx`, `InvestmentsRoute.tsx`, `DashboardRoute.tsx`,
   `RecurringRulesTab.tsx`, `CategoryManagementDrawer.tsx`,
   `CategoriesRoute.tsx`, `HoldingDetailRoute.tsx`). Rendered pixels: zero
@@ -615,3 +617,72 @@ time of the audit, which remains historically accurate. It does not need
 correction — the 10 sites it refers to no longer carry a `size` prop at all
 after this section's fix, so the "inert prop" finding is now moot for those
 sites rather than wrong.
+
+## 10. 更正：§8 的 Button 尺寸表讀錯了檔案 — 真元件是 `coss/button.tsx`
+
+Discovered during plan 203's live-pixel verification (executor measured
+rendered svg sizes in a browser and they disagreed with §8's table), then
+independently confirmed by the reviewer. **§8's Button size→px mapping was
+read from `src/components/ui/button.tsx` — the quarantined shadcn legacy
+layer — not from the component the app actually renders.**
+
+### The wrong file vs. the right file
+
+Every route/component file in this audit's scope imports `Button` from
+**`src/components/coss/button.tsx`** (verified by grep: 32 files import from
+`coss/button`; only `ui/dialog.tsx`, `ui/input-group.tsx`, `ui/calendar.tsx`
+import `ui/button`). Per `src/components/ui/README.md`, `ui/button.tsx` is
+kept solely for calendar/command/dialog internals and app code is forbidden
+from importing it. **Future audits must treat `src/components/coss/` as the
+component source of truth.**
+
+### Corrected Button size→px table (from `coss/button.tsx`)
+
+coss's svg rules are **responsive** (mobile-first — icons are one step
+larger below the `sm:` 640px breakpoint):
+
+| Button `size` | CSS rule | desktop ≥640px | mobile <640px |
+|---|---|---|---|
+| `default` / `sm` / `lg` / `icon` / `icon-sm` / `icon-lg` | base `size-4.5 sm:size-4` (no per-size override) | **16px** | **18px** |
+| `xs` | `size-4 sm:size-3.5` | **14px** | **16px** |
+| `icon-xs` | `size-4 sm:size-3.5` (with an input-group carve-out: `not-in-data-[slot=input-group]:`) | **14px** | **16px** |
+| `xl` / `icon-xl` | `size-5 sm:size-4.5` | **18px** | **20px** |
+
+All values confirmed live in a browser at desktop width (plan 203's
+executor measured 16px for `default`/`sm`/`icon-sm` sites and 14px for the
+`xs` site — matching this table, not §8's).
+
+**§8's Badge numbers were already correct** — they cite `coss/badge.tsx`,
+which is the right file (14px below 640px, 12px at ≥640px; the responsive
+direction is the same mobile-first pattern).
+
+**§8's core finding is unaffected**: the Phosphor `size` prop is inert
+inside `Button`/`Badge` under *both* files' CSS — `ui/button.tsx` and
+`coss/button.tsx` each carry `[&_svg:not([class*='size-'])]` rules, and a
+class-selector rule beats a presentation attribute regardless of the pixel
+value it sets. Only the *numbers* in §8's resolved-pixel table were wrong
+for Button; the mechanism, the 21/10 free-standing/inert split, and the
+inertness classification of all 10 deleted sites all stand.
+
+### Knock-on correction 1: DESIGN.md:256 / §4 — A4's "stale-doc fix" was inverted
+
+`coss/button.tsx`'s actual API is: variants `default / outline / secondary /
+ghost / destructive / destructive-outline / link`; sizes `xs / sm / default /
+lg / xl / icon / icon-xs / icon-sm / icon-lg / icon-xl`. **It has `xl` and
+`destructive-outline`.** So DESIGN.md:256's *original* row (which listed
+them) was describing the real component correctly, and this audit's §4 —
+which called the doc stale and removed them to match `ui/button.tsx` — was
+the actual error. Plan 203's commit 3 re-corrected the row to coss's API.
+(§6 open question 5, which recommended treating `xl`/`destructive-outline`
+as a speculative backlog item, is therefore moot: they already exist.)
+
+### Knock-on correction 2: Phase B's `h-9`→`size="lg"` was NOT zero visual change on mobile
+
+§7 claims the 6 hand-rolled `h-9 sm:h-9` → `size="lg"` swaps were "net
+visual change: zero by construction". That derivation used `ui/button.tsx`'s
+`lg` (`h-9`). coss's `lg` is `h-10 sm:h-9` — identical at ≥640px, but
+**40px tall instead of 36px below 640px**. Reviewer decision (2026-07-16):
+**discovered and accepted, do not revert** — the taller mobile height aligns
+those 6 buttons with coss's systematic mobile sizing (every coss size is
+one step bigger below `sm:`; the hand-rolled `h-9 sm:h-9` was fighting that
+pattern).
