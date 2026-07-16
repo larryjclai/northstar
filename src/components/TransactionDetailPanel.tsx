@@ -297,9 +297,8 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
         <div className="flex py-4 px-6 gap-2.5" style={{ borderTop: "1px solid var(--ns-border)" }}>
           {confirmDelete ? (
             <>
-              <Button variant="outline"
+              <Button variant="destructive"
                 className="flex-1 justify-center"
-                style={{ color: "var(--ns-neg)" }}
                 onClick={() => { void haptic("medium"); onDelete(row); }}
               >
                 <Trash size={14} />確定刪除
@@ -309,9 +308,8 @@ export function TransactionDetailPanel({ row, onClose, onEdit, onDuplicate, onDe
               </Button>
             </>
           ) : (
-            <Button variant="outline"
+            <Button variant="destructive-outline"
               className="flex-1 justify-center"
-              style={{ color: "var(--ns-neg)" }}
               onClick={() => row.installmentGroupId ? onDelete(row) : setConfirmDelete(true)}
             >
               <Trash size={14} />刪除

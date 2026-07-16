@@ -2351,7 +2351,7 @@ function LedgerRow({
           <div className="ns-cf-actions flex gap-1" onClick={(e) => e.stopPropagation()}>
             <Button variant="ghost" size="icon-sm" title="編輯拆分" onClick={onOpenEdit}><PencilSimple size={13} /></Button>
             <Button variant="ghost" size="icon-sm" title="複製" onClick={onDuplicate}><CopySimple size={13} /></Button>
-            <Button variant="ghost" size="icon-sm" title="刪除（整組刪除）" onClick={onDelete} style={{ color: "var(--ns-neg)" }}><Trash size={13} /></Button>
+            <Button variant="destructive-outline" size="icon-sm" title="刪除（整組刪除）" onClick={onDelete}><Trash size={13} /></Button>
           </div>
         </div>
         {splitExpanded ? (
@@ -2408,7 +2408,7 @@ function LedgerRow({
         </div>
         <div className="ns-cf-actions flex gap-1" onClick={e => e.stopPropagation()}>
           <Button variant="ghost" size="icon-sm" title="複製" onClick={onDuplicate}><CopySimple size={13} /></Button>
-          <Button variant="ghost" size="icon-sm" title="刪除" onClick={onDelete} style={{ color: "var(--ns-neg)" }}><Trash size={13} /></Button>
+          <Button variant="destructive-outline" size="icon-sm" title="刪除" onClick={onDelete}><Trash size={13} /></Button>
         </div>
       </div>
     );
@@ -2465,7 +2465,7 @@ function LedgerRow({
           <Button variant="ghost" size="icon-sm" title="編輯" onClick={onOpenEdit}><PencilSimple size={13} /></Button>
         ) : null}
         <Button variant="ghost" size="icon-sm" title="複製" onClick={onDuplicate}><CopySimple size={13} /></Button>
-        <Button variant="ghost" size="icon-sm" title="刪除" onClick={onDelete} style={{ color: "var(--ns-neg)" }}><Trash size={13} /></Button>
+        <Button variant="destructive-outline" size="icon-sm" title="刪除" onClick={onDelete}><Trash size={13} /></Button>
       </div>
     </div>
   );

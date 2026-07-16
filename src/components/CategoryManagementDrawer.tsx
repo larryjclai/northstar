@@ -198,14 +198,14 @@ export function CategoryManagementDrawer({
                     <div style={{ display: "flex", gap: 4 }}>
                       {confirmRemove === group.name ? (
                         <>
-                          <Button variant="ghost" size="sm" className="text-xs" style={{ color: "var(--ns-danger)" }} onClick={() => removeMainCategory(group.name)}>確定刪除</Button>
+                          <Button variant="destructive" size="sm" className="text-xs" onClick={() => removeMainCategory(group.name)}>確定刪除</Button>
                           <Button variant="ghost" size="sm" className="text-xs" onClick={() => setConfirmRemove(null)}>取消</Button>
                         </>
                       ) : (
                         <>
                           <Button variant="ghost" size="icon-sm" aria-label="新增子分類" onClick={() => { setAddingSubFor(group.name); setDraftSub(""); setExpanded(prev => ({ ...prev, [group.name]: true })); }}><Plus size={14} /></Button>
                           <Button variant="ghost" size="icon-sm" aria-label="重新命名" onClick={() => { setRenamingMain(group.name); setDraftRename(group.name); }}><PencilSimple size={14} /></Button>
-                          <Button variant="ghost" size="icon-sm" aria-label="刪除" style={{ color: "var(--ns-danger)" }} onClick={() => setConfirmRemove(group.name)}><Trash size={14} /></Button>
+                          <Button variant="destructive-outline" size="icon-sm" aria-label="刪除" onClick={() => setConfirmRemove(group.name)}><Trash size={14} /></Button>
                         </>
                       )}
                     </div>
@@ -237,7 +237,7 @@ export function CategoryManagementDrawer({
                               {!isRenamingThis && (
                                 <Button variant="ghost" size="icon-sm" aria-label="重新命名" onClick={() => { setRenamingSub({ main: group.name, sub: child }); setDraftRename(child); }}><PencilSimple /></Button>
                               )}
-                              <Button variant="ghost" size="icon-sm" aria-label="刪除" style={{ color: "var(--ns-danger)" }} onClick={() => removeSubCategory(group.name, child)}><Trash /></Button>
+                              <Button variant="destructive-outline" size="icon-sm" aria-label="刪除" onClick={() => removeSubCategory(group.name, child)}><Trash /></Button>
                             </div>
                           </div>
                         );

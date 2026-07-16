@@ -527,13 +527,13 @@ function RuleEditSheet({
               {confirmDelete ? (
                 <div className="flex gap-2 items-center">
                   <span className="text-xs flex-1" style={{ color: "var(--ns-fg-muted)" }}>確定刪除？此操作無法復原。</span>
-                  <Button variant="outline" className="text-xs" style={{ padding: "4px 12px", minHeight: "auto", color: "var(--ns-neg)" }} onClick={() => onDelete(rule!.id)}>確定刪除</Button>
+                  <Button variant="destructive" className="text-xs" style={{ padding: "4px 12px", minHeight: "auto" }} onClick={() => onDelete(rule!.id)}>確定刪除</Button>
                   <Button variant="ghost" className="text-xs" style={{ padding: "4px 12px", minHeight: "auto" }} onClick={() => setConfirmDelete(false)}>取消</Button>
                 </div>
               ) : (
-                <Button variant="ghost"
+                <Button variant="destructive-outline"
                   className="text-xs"
-                  style={{ padding: "4px 12px", minHeight: "auto", color: "var(--ns-neg)" }}
+                  style={{ padding: "4px 12px", minHeight: "auto" }}
                   onClick={() => setConfirmDelete(true)}
                 >
                   <Trash />刪除此規則

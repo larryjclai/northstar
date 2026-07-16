@@ -416,7 +416,7 @@ export function GoalsRoute() {
                       <div className="flex gap-2 items-center">
                         {confirmDeleteId === goal.id ? (
                           <>
-                            <Button variant="outline" size="sm" className="text-xs" style={{ color: "var(--ns-neg)" }} onClick={() => handleDeleteGoal(goal.id)}>確定刪除</Button>
+                            <Button variant="destructive" size="sm" className="text-xs" onClick={() => handleDeleteGoal(goal.id)}>確定刪除</Button>
                             <Button variant="ghost" size="sm" className="text-xs" onClick={() => setConfirmDeleteId(null)}>取消</Button>
                           </>
                         ) : (
@@ -425,7 +425,7 @@ export function GoalsRoute() {
                               variant="ghost" size="icon-sm" title="編輯"
                               onClick={() => goal.kind === "fire" ? navigate({ to: "/goals/fire", search: { id: goal.id } }) : setEditor({ goal })}
                             ><PencilSimple size={14} /></Button>
-                            <Button variant="ghost" size="icon-sm" title="刪除" style={{ color: "var(--ns-neg)" }} onClick={() => setConfirmDeleteId(goal.id)}><Trash size={14} /></Button>
+                            <Button variant="destructive-outline" size="icon-sm" title="刪除" onClick={() => setConfirmDeleteId(goal.id)}><Trash size={14} /></Button>
                           </>
                         )}
                       </div>
