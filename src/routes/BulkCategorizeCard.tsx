@@ -109,7 +109,7 @@ export function BulkCategorizeCard({
           </span>
         )}
         <div className="flex-1" />
-        <CaretDown size={14} style={{ color: "var(--ns-fg-muted)", transform: open ? "rotate(180deg)" : "none", transition: "transform 150ms var(--ns-ease)" }} />
+        <CaretDown size={14} className="ns-caret-rotate" style={{ color: "var(--ns-fg-muted)", transform: open ? "rotate(180deg)" : "none" }} />
       </button>
 
       {open && (

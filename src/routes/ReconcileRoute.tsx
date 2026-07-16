@@ -1,4 +1,4 @@
-import { CaretRight, CaretDown, CheckCircle, Circle, CurrencyCircleDollar, PencilSimple, CalendarPlus } from "@phosphor-icons/react";
+import { CaretRight, CheckCircle, Circle, CurrencyCircleDollar, PencilSimple, CalendarPlus } from "@phosphor-icons/react";
 import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
@@ -291,7 +291,7 @@ export function ReconcileRoute() {
                   className="flex items-center gap-3"
                   style={{ padding: "14px 18px", cursor: "pointer", borderBottom: open ? "1px solid var(--ns-border)" : "none" }}
                 >
-                  {open ? <CaretDown size={14} /> : <CaretRight size={14} />}
+                  <CaretRight size={14} className="ns-caret-rotate" style={{ transform: open ? "rotate(90deg)" : "none" }} />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm flex items-center gap-2 font-medium">
                       {period.isCurrent ? <Badge variant="outline" className="rounded-full text-micro" style={{ padding: "2px 7px" }}>本期</Badge> : null}
@@ -324,13 +324,13 @@ export function ReconcileRoute() {
                 </div>
                 {open ? (
                   period.rows.length === 0 ? (
-                    <div className="muted text-body" style={{ padding: "16px 18px" }}>本期尚無交易。</div>
+                    <div className="muted text-body ns-expand-in" style={{ padding: "16px 18px" }}>本期尚無交易。</div>
                   ) : (
                     period.rows.map((row, i) => (
                       <div
                         key={row.id}
                         onClick={() => toggle(row.id, row.isReviewed)}
-                        className="flex items-center gap-3.5 px-5 py-3"
+                        className="flex items-center gap-3.5 px-5 py-3 ns-expand-in"
                         style={{ borderTop: i ? "1px solid var(--ns-border)" : "none", cursor: "pointer", opacity: row.isReviewed ? 0.6 : 1 }}
                       >
                         {row.isReviewed ? <CheckCircle size={20} weight="fill" className="shrink-0" style={{ color: "var(--ns-accent)" }} /> : <Circle size={20} className="shrink-0" style={{ color: "var(--ns-fg-dim)" }} />}

@@ -446,6 +446,13 @@
   pointer-events: none;
 }
 
+/* ── Expand/collapse content enter (plan 216) ── */
+.ns-expand-in {
+  transition: opacity 150ms var(--ns-ease-out-strong), transform 150ms var(--ns-ease-out-strong);
+  @starting-style { opacity: 0; transform: translateY(-4px); }
+}
+.ns-caret-rotate { transition: transform 150ms var(--ns-ease); }
+
 /* ── SegmentedControl sliding thumb (plan 160 pt.3) ── */
 .ns-seg-thumb {
   position: absolute; top: 4px; bottom: 4px; left: 0;

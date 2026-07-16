@@ -1,4 +1,4 @@
-import { CaretDown, CaretRight, DownloadSimple, Info, Printer } from "@phosphor-icons/react";
+import { CaretRight, DownloadSimple, Info, Printer } from "@phosphor-icons/react";
 import { Fragment, useMemo, useState } from "react";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
@@ -235,7 +235,7 @@ export function AnnualReportRoute() {
                         <Td align="left" style={{ fontWeight: 600 }}>
                           <span className="items-center" style={{ display: "inline-flex", gap: 6 }}>
                             {hasDetail ? (
-                              isOpen ? <CaretDown size={13} /> : <CaretRight size={13} />
+                              <CaretRight size={13} className="ns-caret-rotate" style={{ transform: isOpen ? "rotate(90deg)" : "none" }} />
                             ) : (
                               <span style={{ display: "inline-block", width: 13 }} />
                             )}

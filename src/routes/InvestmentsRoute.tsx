@@ -1570,7 +1570,8 @@ function HoldingsTab({
                       <CaretRight
                         size={14}
                         aria-hidden="true"
-                        style={{ transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }}
+                        className="ns-caret-rotate"
+                        style={{ transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)" }}
                       />
                     </div>
                   </div>
@@ -1662,7 +1663,7 @@ function HoldingExpansion({
   const gradientId = `ns-holdings-spark-${position.assetId}-${position.accountId ?? "none"}`;
 
   return (
-    <div className="ns-holdings-expansion">
+    <div className="ns-holdings-expansion ns-expand-in">
       <div className="ns-holdings-expansion-body">
         <div className="min-w-0">
           <div className="ns-holdings-expansion-spark">
