@@ -16,17 +16,25 @@
 - **Risk**: MED (changes what destructive controls LOOK like across the app — visible, intended)
 - **Depends on**: **plans/201** (soft), **plans/202** (soft) — see below
 - **Category**: bug
-- **Planned at**: commit `087a9b2e`, 2026-07-15
+- **Planned at**: commit `087a9b2e`, 2026-07-15. **Census refreshed at `96e3d12a`.**
 - **Source**: `$impeccable critique` of `src/routes` (2026-07-15, 22/40) — P1
 
-### Soft dependencies
+### Dependencies — one is HARD
 
-- **201** deletes the duplicated 編輯持倉 modal, which contains 3 hand-rolled delete
-  buttons (`InvestmentsRoute.tsx:1750-1777`). If 201 landed, they're gone — skip them.
-- **202** replaces close buttons. Different controls; no overlap. If both touch the
-  same file, expect a trivial merge.
-
-**Do not wait for either.** Report which case you found.
+- ⚠ **HARD: plan 203 must land first.** 203 deletes the inert Phosphor `size` props from
+  icons inside `Button`/`Badge`. It and this plan touch **the same lines** in 5 shared
+  files (`CashFlowRoute`, `InvestmentsRoute`, `CategoryManagementDrawer`,
+  `HoldingDetailRoute`, `RecurringRulesTab`) — e.g.
+  `<Button variant="ghost" style={{ color: "var(--ns-neg)" }}><Trash size={14} /></Button>`
+  where 203 removes `size={14}` and this plan rewrites the `variant` and drops the
+  `style`. Running them concurrently guarantees conflicts.
+  **Verify before starting**: `git log --oneline -20 | grep -c "icon-size-source-of-truth"`
+  or check that `grep -rn "PencilSimple size=" src/components/CategoryManagementDrawer.tsx`
+  returns nothing. If 203 has NOT landed, **STOP and report**.
+- **201 (merged)** deleted the duplicated 編輯持倉 modal and its 3 hand-rolled delete
+  buttons. They are already gone — do not look for them in `InvestmentsRoute.tsx`.
+- **206 (merged)** added the one existing `destructive-outline` call site. Leave it.
+- **202** replaces close buttons — different controls. Trivial merge if both touch a file.
 
 ## Why this matters
 
@@ -39,13 +47,19 @@ all** from edit. Same ghost variant, same size, same foreground. `Trash` and
 finding: a user deleting a transaction gets no visual warning that this button is
 different from the one beside it.
 
-Meanwhile the design system **already solved this and nobody used it**. Verified at
-`087a9b2e`:
+Meanwhile the design system **already solved this and almost nobody used it**.
 
-- `variant="destructive"` → **0 call sites**
-- `variant="destructive-outline"` → **0 call sites**
+⚠ **Census refreshed at `96e3d12a` — the original claim has drifted, in your favour:**
+
+- `variant="destructive"` → **0 call sites** (still true)
+- `variant="destructive-outline"` → **1 call site**: `src/routes/AccountsRoute.tsx`, the
+  帳本 delete button added by plan 206 (merged after this plan was written). It was 0 when
+  this plan was authored. **That call site is already correct — do not "fix" it**; treat it
+  as the worked example of what every other delete trigger should look like.
 - Both are **defined** in `src/components/coss/button.tsx`
 - `--destructive: var(--ns-neg)` is correctly wired in `globals.css`
+
+**Re-run the census yourself in Step 1 and use your numbers, not these.**
 
 Instead, red is hand-applied. The census found **three different tokens for one
 idea**, plus dead fallbacks that are also wrong:
