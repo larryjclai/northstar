@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   evaluateIndexNudge,
   buildIndexNudgeWindows,
+  alignTwrWithBenchmark,
   DEFAULT_GAP_FLOOR_PCT,
   DEFAULT_NUDGE_WINDOW_DAYS,
   type NudgeWindowSeries,
@@ -254,5 +255,73 @@ describe("buildIndexNudgeWindows", () => {
     });
     expect(leadVerdict.triggered).toBe(false);
     expect(leadVerdict.reason).toBe("leading");
+  });
+});
+
+// ─── alignTwrWithBenchmark ───────────────────────────────────────────────────
+
+describe("alignTwrWithBenchmark", () => {
+  it("rebases both series to 0% at the first common date on the happy path", () => {
+    const twrSeries = [
+      { date: "2025-01-01", pct: 0 },
+      { date: "2025-02-01", pct: 10 },
+      { date: "2025-03-01", pct: 21 },
+    ];
+    const bench = [
+      { date: "2025-01-01", value: 100 },
+      { date: "2025-02-01", value: 105 },
+      { date: "2025-03-01", value: 110 },
+    ];
+    const aligned = alignTwrWithBenchmark(twrSeries, bench);
+    expect(aligned).not.toBeNull();
+    expect(aligned!.portfolioCum[0].pct).toBeCloseTo(0, 6);
+    expect(aligned!.portfolioCum[1].pct).toBeCloseTo(10, 6);
+    expect(aligned!.portfolioCum[2].pct).toBeCloseTo(21, 6);
+    expect(aligned!.benchmarkCum[0].pct).toBeCloseTo(0, 6);
+    expect(aligned!.benchmarkCum[1].pct).toBeCloseTo(5, 6);
+    expect(aligned!.benchmarkCum[2].pct).toBeCloseTo(10, 6);
+  });
+
+  it("returns null when fewer than 2 dates overlap", () => {
+    const twrSeries = [
+      { date: "2025-01-01", pct: 0 },
+      { date: "2025-02-01", pct: 5 },
+    ];
+    const bench = [{ date: "2025-01-01", value: 100 }]; // only 1 shared date
+    expect(alignTwrWithBenchmark(twrSeries, bench)).toBeNull();
+
+    const noOverlap = [{ date: "2025-06-01", value: 100 }];
+    expect(alignTwrWithBenchmark(twrSeries, noOverlap)).toBeNull();
+  });
+
+  it("returns null when the TWR base is degenerate (pct = -100 → base 0)", () => {
+    const twrSeries = [
+      { date: "2025-01-01", pct: -100 },
+      { date: "2025-02-01", pct: 5 },
+    ];
+    const bench = [
+      { date: "2025-01-01", value: 100 },
+      { date: "2025-02-01", value: 105 },
+    ];
+    expect(alignTwrWithBenchmark(twrSeries, bench)).toBeNull();
+  });
+
+  it("drops non-overlapping leading benchmark dates and keeps only shared dates", () => {
+    const twrSeries = [
+      { date: "2025-01-01", pct: 0 },
+      { date: "2025-02-01", pct: 10 },
+    ];
+    const bench = [
+      { date: "2024-12-01", value: 90 }, // leads the TWR series, no match → dropped
+      { date: "2025-01-01", value: 100 },
+      { date: "2025-02-01", value: 105 },
+    ];
+    const aligned = alignTwrWithBenchmark(twrSeries, bench);
+    expect(aligned).not.toBeNull();
+    expect(aligned!.portfolioCum).toHaveLength(2);
+    expect(aligned!.benchmarkCum).toHaveLength(2);
+    expect(aligned!.portfolioCum.map((p) => p.date)).toEqual(["2025-01-01", "2025-02-01"]);
+    expect(aligned!.benchmarkCum[0].pct).toBeCloseTo(0, 6);
+    expect(aligned!.benchmarkCum[1].pct).toBeCloseTo(5, 6);
   });
 });

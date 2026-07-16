@@ -56,7 +56,7 @@ import {
   resolveHoldingCountry,
   resolveCountryLabel,
 } from "../domain";
-import { buildIndexNudgeWindows, evaluateIndexNudge } from "../domain/indexNudge";
+import { alignTwrWithBenchmark, buildIndexNudgeWindows, evaluateIndexNudge } from "../domain/indexNudge";
 
 const CHART_COLORS = [
   "var(--ns-chart-1)",
@@ -386,14 +386,9 @@ export function InvestmentsAnalyticsTab({
       // dates and geometrically rebase BOTH to the first common date so the
       // two curves start from the same baseline.
       if (bench.length >= 2) {
-        const benchByDate = new Map(bench.map((p) => [p.date, p.value]));
-        const alignedTwr = twrResult.series.filter((p) => benchByDate.has(p.date));
-        if (alignedTwr.length < 2) return null; // no usable date overlap → fixed-basket fallback
-        const twrBase = 1 + alignedTwr[0].pct / 100;
-        const benchBase = benchByDate.get(alignedTwr[0].date)!;
-        if (twrBase <= 0 || benchBase <= 0) return null; // degenerate base → fallback
-        const portCum = alignedTwr.map((p) => ({ date: p.date, pct: ((1 + p.pct / 100) / twrBase - 1) * 100 }));
-        const benchCum = alignedTwr.map((p) => ({ date: p.date, pct: (benchByDate.get(p.date)! / benchBase - 1) * 100 }));
+        const aligned = alignTwrWithBenchmark(twrResult.series, bench);
+        if (!aligned) return null; // no usable date overlap / degenerate base → fixed-basket fallback
+        const { portfolioCum: portCum, benchmarkCum: benchCum } = aligned;
         const data = portCum.map((p, i) => ({ date: p.date, port: p.pct, bench: benchCum[i].pct as number | null }));
         const portFinal = portCum[portCum.length - 1].pct;
         const benchFinal = benchCum[benchCum.length - 1].pct;
@@ -442,22 +437,25 @@ export function InvestmentsAnalyticsTab({
     };
   }, [twrResult, core.series, dailyPrices, benchmarkTicker, activeStart, end]);
 
-  // Index nudge (roadmap 6.6, plan 179 variant A): rolling-quarter windows over
-  // the TWR-vs-benchmark series → evaluateIndexNudge. Honesty contract: only
-  // ever evaluated on TWR-basis numbers (nudgeInput is null otherwise), so the
-  // banner can never fire off the fixed-basket approximation. Parameters are
-  // the operator-decided defaults (minWindows 8 rolling quarters, 5pp gap
-  // floor) — deliberately not user-configurable.
+  // Index nudge (plan 179 → 220): evaluated over FULL history ("1900-01-01"
+  // start, matching fullSeriesResult) so the verdict is independent of the
+  // selected analytics period. Honesty contract unchanged: TWR-only — when
+  // full-history TWR or benchmark alignment is unavailable, there is NO
+  // verdict (never the fixed-basket approximation).
   const nudgeVerdict = useMemo(() => {
-    if (perf.basis !== "twr" || !perf.nudgeInput) return null;
-    const { portfolioReturns, benchmarkReturns } = buildIndexNudgeWindows(perf.nudgeInput);
+    const twrFull = buildPortfolioTwr({ positions, records, dailyPrices, toPrimary, start: "1900-01-01", end });
+    if (twrFull.twrPct == null || twrFull.series.length < 2) return null;
+    const benchFull = buildBenchmarkSeries(dailyPrices, benchmarkTicker, "1900-01-01", end);
+    if (benchFull.length < 2) return null;
+    const aligned = alignTwrWithBenchmark(twrFull.series, benchFull);
+    if (!aligned) return null;
+    const { portfolioReturns, benchmarkReturns } = buildIndexNudgeWindows(aligned);
     return evaluateIndexNudge({ portfolioReturns, benchmarkReturns, minWindows: 8 });
-  }, [perf]);
+  }, [positions, records, dailyPrices, toPrimary, end, benchmarkTicker]);
   const [nudgeDismissed, setNudgeDismissed] = useState(false); // 知道了 — this session only
   const indexNudgeMuted = useUiPreferences((s) => s.indexNudgeMuted);
   const toggleIndexNudgeMuted = useUiPreferences((s) => s.toggleIndexNudgeMuted);
-  const showNudge =
-    perf.basis === "twr" && nudgeVerdict?.triggered === true && !indexNudgeMuted && !nudgeDismissed;
+  const showNudge = nudgeVerdict?.triggered === true && !indexNudgeMuted && !nudgeDismissed;
 
   const rolling = useMemo(() => {
     const start = daysAgo(365, end);
@@ -851,7 +849,7 @@ export function InvestmentsAnalyticsTab({
                 {(nudgeVerdict.cumulativeGapPct ?? 0).toFixed(1)}%。長期贏不了大盤就加入大盤——考慮把新資金投入 {benchmarkTicker}？
               </p>
               <div className="muted text-caption mt-1.5">
-                口徑：時間加權報酬（TWR）× 滾動季視窗。純屬資訊提示，非投資建議。
+                口徑：全歷史時間加權報酬（TWR）× 滾動季視窗，不隨上方期間選擇變動。純屬資訊提示，非投資建議。
               </div>
             </div>
             <div className="flex gap-2 shrink-0">
