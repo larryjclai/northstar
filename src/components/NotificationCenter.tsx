@@ -1,5 +1,5 @@
 import { Bell } from "@phosphor-icons/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useFinanceData } from "../data/hooks";
 import { todayInTimezone } from "../domain";
 import { buildReminderNotifications, unacknowledgedReminders } from "../domain/reminderNotifications";
@@ -21,14 +21,16 @@ export function NotificationCenter() {
   const [open, setOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const [closing, setClosing] = useState(false);
+  const closingRef = useRef(false); // double-dismiss guard (ModalShell pattern)
   const closeTimerRef = useRef<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  function requestClose() {
-    if (closing) return;
+  const requestClose = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
     setClosing(true);
-  }
+  }, []);
 
   // Capture the trigger button's viewport position when opening, so the
   // panel (position: fixed) can be placed against the viewport instead of
@@ -55,7 +57,7 @@ export function NotificationCenter() {
     }
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
+  }, [open, requestClose]);
 
   // A stale anchor rect would misposition the panel, so close it whenever
   // the viewport resizes.
@@ -64,6 +66,7 @@ export function NotificationCenter() {
     function handleResize() {
       setOpen(false);
       setClosing(false);
+      closingRef.current = false;
     }
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
@@ -77,6 +80,7 @@ export function NotificationCenter() {
     function finishClose() {
       setOpen(false);
       setClosing(false);
+      closingRef.current = false;
     }
     function handleTransitionEnd(e: TransitionEvent) {
       if (e.target !== panelRef.current) return;
