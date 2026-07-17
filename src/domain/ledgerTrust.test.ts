@@ -119,4 +119,19 @@ describe("incompleteSplitGroupIds", () => {
     ];
     expect(incompleteSplitGroupIds(rows)).toEqual([]);
   });
+
+  it("does not report a category leg + a share leg sharing a groupId (分帳)", () => {
+    const rows = [
+      ledger("leg1", -400, "settled", { groupId: "group_share", legKind: "category" }),
+      ledger("leg2", -600, "settled", { groupId: "group_share", legKind: "share", counterAccountId: "acct_ar" }),
+    ];
+    expect(incompleteSplitGroupIds(rows)).toEqual([]);
+  });
+
+  it("reports a lone share leg's groupId", () => {
+    const rows = [
+      ledger("leg1", -600, "settled", { groupId: "group_lone_share", legKind: "share", counterAccountId: "acct_ar" }),
+    ];
+    expect(incompleteSplitGroupIds(rows)).toEqual(["group_lone_share"]);
+  });
 });

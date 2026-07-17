@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSplitLegs, type SplitSharedFields } from "./splitLegs";
+import { buildSplitLegs, type SplitSharedFields, type SplitShareInput } from "./splitLegs";
 
 const shared: SplitSharedFields = {
   accountId: "acct_cash",
@@ -78,5 +78,81 @@ describe("buildSplitLegs", () => {
       .toThrow("拆分明細必須選擇類別。");
     expect(() => buildSplitLegs(shared, [other, { amount: 50, category: "  ", subcategory: "" }], "g"))
       .toThrow("拆分明細必須選擇類別。");
+  });
+
+  it("no-shares call is byte-identical to today (regression)", () => {
+    const legs = buildSplitLegs(shared, [
+      { amount: 300, category: "餐飲", subcategory: "菜錢" },
+      { amount: 120, category: "居住", subcategory: "日用品" },
+    ], "group_test");
+    expect(legs).toEqual([
+      {
+        accountId: "acct_cash", date: "2026-07-01", name: "全聯採買", merchant: "全聯",
+        currency: "TWD", entryType: "expense", settlementStatus: "settled", note: "週末補貨",
+        postDate: null, amount: -300, category: "餐飲", subcategory: "菜錢",
+        groupId: "group_test", legKind: "category",
+      },
+      {
+        accountId: "acct_cash", date: "2026-07-01", name: "全聯採買", merchant: "全聯",
+        currency: "TWD", entryType: "expense", settlementStatus: "settled", note: "週末補貨",
+        postDate: null, amount: -120, category: "居住", subcategory: "日用品",
+        groupId: "group_test", legKind: "category",
+      },
+    ]);
+  });
+
+  describe("分帳 shares", () => {
+    const share: SplitShareInput = { amount: 600, counterparty: "小明", counterAccountId: "acct_ar" };
+
+    it("mixed split: 1 category leg + 1 share → two drafts, share reuses 代墊 shape", () => {
+      const legsArg = [{ amount: 400, category: "餐飲", subcategory: "晚餐" }];
+      const drafts = buildSplitLegs(shared, legsArg, "group_mix", [share]);
+
+      expect(drafts).toHaveLength(2);
+      const [categoryDraft, shareDraft] = drafts;
+      expect(categoryDraft.legKind).toBe("category");
+      expect(categoryDraft.amount).toBe(-400);
+
+      expect(shareDraft.legKind).toBe("share");
+      expect(shareDraft.amount).toBe(-600);
+      expect(shareDraft.name).toBe("小明");
+      expect(shareDraft.category).toBe("");
+      expect(shareDraft.subcategory).toBe("");
+      expect(shareDraft.groupId).toBe("group_mix");
+      expect((shareDraft as { counterAccountId: string }).counterAccountId).toBe("acct_ar");
+    });
+
+    it("throws when shares are combined with income", () => {
+      expect(() =>
+        buildSplitLegs({ ...shared, entryType: "income" }, [{ amount: 400, category: "薪資", subcategory: "" }], "g", [share]),
+      ).toThrow("分帳僅支援支出。");
+    });
+
+    it("throws with zero category legs and 2 shares", () => {
+      expect(() =>
+        buildSplitLegs(shared, [], "g", [share, { amount: 100, counterparty: "小華", counterAccountId: "acct_ar" }]),
+      ).toThrow("分帳需要至少 1 筆自己的類別明細。");
+    });
+
+    it("1 category leg + 1 share passes the combined ≥2 rule (canonical 分帳 case)", () => {
+      const drafts = buildSplitLegs(shared, [{ amount: 400, category: "餐飲", subcategory: "" }], "g", [share]);
+      expect(drafts).toHaveLength(2);
+    });
+
+    it("throws on empty counterparty, empty counterAccountId, or non-positive share amount", () => {
+      const legsArg = [{ amount: 400, category: "餐飲", subcategory: "" }];
+      expect(() => buildSplitLegs(shared, legsArg, "g", [{ ...share, counterparty: "" }]))
+        .toThrow("分帳明細必須填寫對象。");
+      expect(() => buildSplitLegs(shared, legsArg, "g", [{ ...share, counterparty: "   " }]))
+        .toThrow("分帳明細必須填寫對象。");
+      expect(() => buildSplitLegs(shared, legsArg, "g", [{ ...share, counterAccountId: "" }]))
+        .toThrow("分帳明細必須選擇應收帳戶。");
+      expect(() => buildSplitLegs(shared, legsArg, "g", [{ ...share, amount: 0 }]))
+        .toThrow("分帳明細金額必須大於 0。");
+      expect(() => buildSplitLegs(shared, legsArg, "g", [{ ...share, amount: -5 }]))
+        .toThrow("分帳明細金額必須大於 0。");
+      expect(() => buildSplitLegs(shared, legsArg, "g", [{ ...share, amount: Number.NaN }]))
+        .toThrow("分帳明細金額必須大於 0。");
+    });
   });
 });

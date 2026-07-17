@@ -30,7 +30,7 @@ import { calculateInvestmentAccountQuantity, calculateInvestmentCashDelta, calcu
 import { buildPositionMetrics } from "../domain/portfolioMetrics";
 import { firstFutureRunDate, nextRecurringDate } from "../domain/recurringDates";
 import { buildInstallmentSchedule } from "../domain/installments";
-import { buildSplitLegs, type SplitLegInput, type SplitSharedFields } from "../domain/splitLegs";
+import { buildSplitLegs, type SplitLegInput, type SplitSharedFields, type SplitShareInput } from "../domain/splitLegs";
 import { toCanonicalSector } from "../domain/canonicalSector";
 import { planMintMerge } from "../domain/bookMerge";
 import { accountBalanceDelta, assertLedgerInvariants, assertTransferInvariants, buildRecalculationReport, deriveAccountBalances, findMissingFxPairs } from "../domain/ledgerTrust";
@@ -72,8 +72,8 @@ export interface LedgerDraft {
   settlementStatus: "settled" | "receivable" | "payable";
   note: string;
   groupId?: string | null;
-  /** 多類別拆分 leg discriminator. See LedgerTransaction.legKind. */
-  legKind?: "category" | null;
+  /** 多類別拆分/分帳 leg discriminator. See LedgerTransaction.legKind. */
+  legKind?: "category" | "share" | null;
   feeAmount?: number;
   installmentGroupId?: string | null;
   installmentIndex?: number | null;
@@ -334,7 +334,7 @@ export interface FinanceRepository {
    * construction; per-leg positive amounts get the entryType's sign). Deleting
    * any leg later tombstones the whole group (existing groupId cascade).
    */
-  createSplit(shared: SplitSharedFields, legs: SplitLegInput[]): Promise<void>;
+  createSplit(shared: SplitSharedFields, legs: SplitLegInput[], shares?: SplitShareInput[]): Promise<void>;
   /**
    * Replace the legs of an existing split group in place. The groupId is
    * PRESERVED (list grouping and sync identity depend on it). Strategy:
@@ -342,7 +342,7 @@ export interface FinanceRepository {
    * revision bumps (so sync LWW propagates the deletes) and fresh rows carry
    * the new legs. Throws when the group has no active rows.
    */
-  updateSplit(groupId: string, shared: SplitSharedFields, legs: SplitLegInput[]): Promise<void>;
+  updateSplit(groupId: string, shared: SplitSharedFields, legs: SplitLegInput[], shares?: SplitShareInput[]): Promise<void>;
   updateLedgerTransaction(id: string, input: LedgerDraft): Promise<void>;
   setLedgerReviewed(id: string, reviewed: boolean): Promise<void>;
   setLedgerPostDate(id: string, postDate: string | null): Promise<void>;
@@ -1219,20 +1219,30 @@ class BrowserFinanceRepository implements FinanceRepository {
     await this.persist();
   }
 
-  async createSplit(shared: SplitSharedFields, legs: SplitLegInput[]) {
-    const drafts = buildSplitLegs(shared, legs, createId("group"));
-    for (const draft of drafts) assertLedgerInvariants(draft, this.data.accounts);
+  async createSplit(shared: SplitSharedFields, legs: SplitLegInput[], shares: SplitShareInput[] = []) {
+    const drafts = buildSplitLegs(shared, legs, createId("group"), shares);
+    for (const draft of drafts) {
+      if ("counterAccountId" in draft && !this.data.accounts.some((a) => a.id === draft.counterAccountId && a.deletedAt === null)) {
+        throw new Error("找不到應收帳戶。");
+      }
+      assertLedgerInvariants(draft, this.data.accounts);
+    }
     this.data.ledgerTransactions.push(...drafts.map((draft) => createLedgerRow(draft)));
     this.recompute();
     await this.persist();
   }
 
-  async updateSplit(groupId: string, shared: SplitSharedFields, legs: SplitLegInput[]) {
+  async updateSplit(groupId: string, shared: SplitSharedFields, legs: SplitLegInput[], shares: SplitShareInput[] = []) {
     // Tombstone-all + recreate with the SAME groupId (simpler than diffing
     // legs; see FinanceRepository.updateSplit). bump() raises each tombstoned
     // row's revision so sync LWW propagates the deletes alongside the new rows.
-    const drafts = buildSplitLegs(shared, legs, groupId);
-    for (const draft of drafts) assertLedgerInvariants(draft, this.data.accounts);
+    const drafts = buildSplitLegs(shared, legs, groupId, shares);
+    for (const draft of drafts) {
+      if ("counterAccountId" in draft && !this.data.accounts.some((a) => a.id === draft.counterAccountId && a.deletedAt === null)) {
+        throw new Error("找不到應收帳戶。");
+      }
+      assertLedgerInvariants(draft, this.data.accounts);
+    }
     const hasGroup = this.data.ledgerTransactions.some((row) => row.groupId === groupId && row.deletedAt === null);
     if (!hasGroup) throw new Error("找不到拆分群組。");
     this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
@@ -3138,23 +3148,33 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.recomputeSqliteAccounts();
   }
 
-  override async createSplit(shared: SplitSharedFields, legs: SplitLegInput[]) {
-    const drafts = buildSplitLegs(shared, legs, createId("group"));
+  override async createSplit(shared: SplitSharedFields, legs: SplitLegInput[], shares: SplitShareInput[] = []) {
+    const drafts = buildSplitLegs(shared, legs, createId("group"), shares);
     const accounts = await this.listAccounts();
-    for (const draft of drafts) assertLedgerInvariants(draft, accounts);
+    for (const draft of drafts) {
+      if ("counterAccountId" in draft && !accounts.some((a) => a.id === draft.counterAccountId && a.deletedAt === null)) {
+        throw new Error("找不到應收帳戶。");
+      }
+      assertLedgerInvariants(draft, accounts);
+    }
     await this.withTransaction(async () => {
       for (const draft of drafts) await this.insertLedgerRow(createLedgerRow(draft));
       await this.recomputeSqliteAccounts();
     });
   }
 
-  override async updateSplit(groupId: string, shared: SplitSharedFields, legs: SplitLegInput[]) {
+  override async updateSplit(groupId: string, shared: SplitSharedFields, legs: SplitLegInput[], shares: SplitShareInput[] = []) {
     // Tombstone-all + recreate with the SAME groupId, atomically (a mid-way
     // failure rolls back both the tombstones and the new legs). Revision bumps
     // on the tombstoned rows keep sync LWW propagating the deletes.
-    const drafts = buildSplitLegs(shared, legs, groupId);
+    const drafts = buildSplitLegs(shared, legs, groupId, shares);
     const accounts = await this.listAccounts();
-    for (const draft of drafts) assertLedgerInvariants(draft, accounts);
+    for (const draft of drafts) {
+      if ("counterAccountId" in draft && !accounts.some((a) => a.id === draft.counterAccountId && a.deletedAt === null)) {
+        throw new Error("找不到應收帳戶。");
+      }
+      assertLedgerInvariants(draft, accounts);
+    }
     await this.withTransaction(async () => {
       const existing = await this.db.select<Array<{ count: number }>>(
         `select count(*) as count from ledger_transactions where group_id = $1 and deleted_at is null`,

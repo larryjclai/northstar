@@ -50,18 +50,45 @@ export interface SplitLegDraft extends SplitSharedFields {
   legKind: "category";
 }
 
+/** One 分帳 participant's portion: positive amount + 對象 + the 應收 account
+ *  the pass-through posts to. */
+export interface SplitShareInput {
+  amount: number;
+  /** 對象 display name — becomes the leg's `name`. */
+  counterparty: string;
+  /** 代墊/應收 counter account id. Required: a share IS a receivable;
+   *  a treated (請客) portion is just part of the payer's own category legs. */
+  counterAccountId: string;
+}
+
+export interface SplitShareDraft extends SplitSharedFields {
+  amount: number;
+  category: "";
+  subcategory: "";
+  groupId: string;
+  legKind: "share";
+  counterAccountId: string;
+}
+
 /**
- * N legs → N drafts sharing `groupId`, `legKind: "category"`, in input order.
- * Throws (zh-TW) on: fewer than 2 legs, any non-positive/non-finite leg
- * amount, any empty category.
+ * N legs → N drafts sharing `groupId`, `legKind: "category"`, in input order,
+ * plus (when `shares` is given) one `legKind: "share"` draft per 分帳
+ * participant reusing the 代墊 `counterAccountId` pass-through. Throws (zh-TW)
+ * on: fewer than 2 combined legs+shares, any non-positive/non-finite amount,
+ * any empty category, share validation errors, or shares on a non-expense
+ * entry.
  */
 export function buildSplitLegs(
   shared: SplitSharedFields,
   legs: SplitLegInput[],
   groupId: string,
-): SplitLegDraft[] {
-  if (legs.length < 2) throw new Error("拆分至少需要 2 筆明細。");
-  return legs.map((leg) => {
+  shares: SplitShareInput[] = [],
+): Array<SplitLegDraft | SplitShareDraft> {
+  if (shares.length > 0 && shared.entryType !== "expense") throw new Error("分帳僅支援支出。");
+  if (legs.length + shares.length < 2) throw new Error("拆分至少需要 2 筆明細。");
+  if (shares.length > 0 && legs.length < 1) throw new Error("分帳需要至少 1 筆自己的類別明細。");
+
+  const categoryDrafts: SplitLegDraft[] = legs.map((leg) => {
     if (!Number.isFinite(leg.amount) || leg.amount <= 0) throw new Error("拆分明細金額必須大於 0。");
     if (!leg.category.trim()) throw new Error("拆分明細必須選擇類別。");
     return {
@@ -81,4 +108,29 @@ export function buildSplitLegs(
       legKind: "category",
     };
   });
+
+  const shareDrafts: SplitShareDraft[] = shares.map((share) => {
+    if (!Number.isFinite(share.amount) || share.amount <= 0) throw new Error("分帳明細金額必須大於 0。");
+    if (!share.counterparty.trim()) throw new Error("分帳明細必須填寫對象。");
+    if (!share.counterAccountId) throw new Error("分帳明細必須選擇應收帳戶。");
+    return {
+      accountId: shared.accountId,
+      date: shared.date,
+      name: share.counterparty,
+      merchant: shared.merchant,
+      currency: shared.currency,
+      entryType: shared.entryType,
+      settlementStatus: shared.settlementStatus,
+      note: shared.note,
+      postDate: shared.postDate ?? null,
+      amount: -share.amount,
+      category: "",
+      subcategory: "",
+      groupId,
+      legKind: "share",
+      counterAccountId: share.counterAccountId,
+    };
+  });
+
+  return [...categoryDrafts, ...shareDrafts];
 }
