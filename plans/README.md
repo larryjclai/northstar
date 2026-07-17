@@ -20,7 +20,7 @@ share IS a receivable (`counterAccountId` pass-through, neutral to spend); a
 請客 portion is not a share leg, it stays in the payer's own category legs —
 so bank moves by the full paid amount, expense only by the payer's share.
 
-## 223 — 待辦 查看全部 (operator-reported live, `/improve plan` @ `3b857c73`, 2026-07-17)
+## 223–226 — operator UX batch #3 (reported live, `/improve plan` @ `3b857c73` + `af28266e`, 2026-07-17)
 
 Operator went to do 信用卡對帳 and the bill was invisible. Root cause confirmed
 at `DashboardRoute.tsx:816-894`: plan 164's 待辦 merge stacked THREE silent
@@ -33,6 +33,9 @@ for 分帳 UI (cut after 221's live pass).
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
 | 223 | 待辦「查看全部」— merge logic → pure `domain/todoRows.ts` (uncapped, +4 tests incl. the pushed-out-card regression), card keeps 6-row pulse + footer 「查看全部 N 筆 →」 opening a ModalShell with ALL items (same row links); removes the per-source pre-caps (fairness fix) | P1 | M | — | TODO |
+| 224 | Ref-count `lockViewportScroll` — 對帳→編輯 round-trip strands `overflow:hidden`: ModalShell's exit-motion delay (plan 157) makes release non-LIFO, drawer captures "hidden" as its restore value. First-acquire locks / last-release restores / idempotent handles; +3 tests incl. the interleave regression. API unchanged, zero call-site edits | P1 | S | — | TODO |
+| 225 | 對帳→編輯交易 round-trip — `from: "reconcile"` search param (schema `router.tsx:62`), ReconcileRoute:366 passes it, CashFlow's panel-close/edit-save/delete paths call `returnIfFromReconcile()`; duplicate deliberately stays. Dashboard todo links unaffected (no `from`) | P1 | S–M | — (224 independent) | TODO |
+| 226 | 手續費 editable on edit — lifts the recorded deferral (`CashFlowRoute.tsx:913-916`): repo `updateLedgerTransaction` reconciles the linked fee leg (create/update/tombstone per Design table, groupId+手續費+legKind-null lookup, `bump()` discipline), UI drops `!editing` gate + hydrates from the leg. Transfers/installments/splits out of scope. ≥5 dual-harness tests | P2 | M | — | TODO |
 
 **Also recorded (2026-07-17)**: plan 142's Option A books-scoping question is
 **operator-DECIDED** — DCA rules follow their target account's book (公司帳 view
