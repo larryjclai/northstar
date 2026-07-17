@@ -363,7 +363,7 @@ export function ReconcileRoute() {
                           title="編輯交易"
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate({ to: "/cash-flow", search: { account: accountId, tx: row.id } });
+                            navigate({ to: "/cash-flow", search: { account: accountId, tx: row.id, from: "reconcile" } });
                           }}
                         >
                           <PencilSimple size={14} />
