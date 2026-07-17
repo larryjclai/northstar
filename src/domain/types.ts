@@ -196,11 +196,12 @@ export interface LedgerTransaction extends SyncFields {
   /**
    * 多類別拆分 leg discriminator: "category" marks a user-created split leg
    * (one purchase → N sibling rows sharing a `groupId`, each with its own
-   * category + amount). Null/absent = 一般列或系統腿（手續費/轉帳/分期）— those
-   * also share `groupId`s but are not user splits. Optional so pre-split rows
-   * and fixtures stay valid. Phase 2 (分帳) will extend the union with "share".
+   * category + amount). "share" marks a 分帳 participant's portion (reuses the
+   * 代墊 `counterAccountId` machinery to post an 應收/應付 balance). Null/absent
+   * = 一般列或系統腿（手續費/轉帳/分期）— those also share `groupId`s but are
+   * not user splits. Optional so pre-split rows and fixtures stay valid.
    */
-  legKind?: "category" | null;
+  legKind?: "category" | "share" | null;
   /**
    * Installment plan id shared by every period of one 分期 purchase. Unlike
    * `groupId` (fee/transfer legs that cascade-delete together), installment

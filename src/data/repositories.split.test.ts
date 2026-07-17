@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { describeEachRepo } from "./repositories.testHarness";
 import { classifyLedgerGroup } from "../domain/groupClassifier";
 import { categoryPeriodSpend } from "../domain/categorySpend";
-import type { SplitSharedFields } from "../domain/splitLegs";
+import type { SplitSharedFields, SplitShareInput } from "../domain/splitLegs";
 import type { Account, LedgerTransaction } from "../domain";
 
 const cash: Account = {
@@ -16,6 +16,32 @@ const cash: Account = {
   currency: "TWD",
   openingBalance: 10_000,
   balance: 10_000,
+  type: "cash",
+  creditLimit: null,
+  creditLimitGroup: "",
+  bookId: "book_test_default",
+  isSharedToHousehold: false,
+  loanStartDate: null,
+  annualInterestRate: null,
+  loanTerm: null,
+  iconName: null,
+  color: null,
+  statementDay: null,
+  paymentDueDay: null,
+  creditPaymentPaidUntil: null,
+};
+
+const ar: Account = {
+  id: "acct_ar",
+  spaceId: "space_test",
+  revision: 1,
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+  deletedAt: null,
+  name: "應收帳款",
+  currency: "TWD",
+  openingBalance: 0,
+  balance: 0,
   type: "cash",
   creditLimit: null,
   creditLimitGroup: "",
@@ -190,5 +216,78 @@ describeEachRepo("split legs (多類別拆分)", (makeRepo) => {
     expect(rows).toHaveLength(2);
     expect(rows.every((row) => row.legKind == null)).toBe(true);
     expect(new Set(rows.map((row) => row.groupId)).size).toBe(1);
+  });
+});
+
+describeEachRepo("split legs — 分帳 share legs (plan 221)", (makeRepo) => {
+  const dinnerLegs = [{ amount: 400, category: "餐飲", subcategory: "晚餐" }];
+  const share: SplitShareInput = { amount: 600, counterparty: "小明", counterAccountId: "acct_ar" };
+
+  it("reconciliation: bank drops by the FULL 1000, 應收 rises by 600, expense counts only 400", async () => {
+    const repo = await makeRepo({ accounts: [cash, ar] });
+    await repo.createSplit(shared, dinnerLegs, [share]);
+
+    const accounts = await repo.listAccounts();
+    const bankAfter = accounts.find((a) => a.id === "acct_cash")!;
+    const arAfter = accounts.find((a) => a.id === "acct_ar")!;
+    expect(bankAfter.balance - cash.balance).toBe(-1000);
+    expect(arAfter.balance - ar.balance).toBe(600);
+
+    const rows = await repo.listLedgerTransactions();
+    const spend = categoryPeriodSpend(
+      rows,
+      { preset: "custom", start: "2026-07-01", end: "2026-07-31", label: "7月" },
+      "TWD",
+      (row) => row.amount,
+    );
+    expect(spend.total).toBe(400);
+    expect(spend.categories).toEqual([{ name: "餐飲", amount: 400, count: 1 }]);
+  });
+
+  it("updateSplit keeps shares: 300/700 replaces 400/600, old rows tombstoned with bumped revisions", async () => {
+    const repo = await makeRepo({ accounts: [cash, ar] });
+    await repo.createSplit(shared, dinnerLegs, [share]);
+    const before = (await repo.listLedgerTransactions()).filter((row) => row.legKind === "category" || row.legKind === "share");
+    const groupId = before[0].groupId!;
+
+    await repo.updateSplit(
+      groupId,
+      shared,
+      [{ amount: 300, category: "餐飲", subcategory: "晚餐" }],
+      [{ ...share, amount: 700 }],
+    );
+
+    for (const old of before) {
+      const payload = await repo.getSyncPayload("ledger", old.id);
+      expect(payload).not.toBeNull();
+      expect(payload!.deletedAt).not.toBeNull();
+      expect(Number(payload!.revision)).toBe(old.revision + 1);
+    }
+
+    const after = (await repo.listLedgerTransactions()).filter(
+      (row) => row.groupId === groupId && row.deletedAt === null,
+    );
+    expect(after).toHaveLength(2);
+    const shareLeg = after.find((row) => row.legKind === "share")!;
+    expect(shareLeg.amount).toBe(-700);
+    expect(shareLeg.counterAccountId).toBe("acct_ar");
+    const categoryLeg = after.find((row) => row.legKind === "category")!;
+    expect(categoryLeg.amount).toBe(-300);
+  });
+
+  it("counter-account guard: a share pointing at a nonexistent account rejects and writes nothing", async () => {
+    const repo = await makeRepo({ accounts: [cash] }); // no "acct_ar" seeded
+    await expect(repo.createSplit(shared, dinnerLegs, [share])).rejects.toThrow("找不到應收帳戶。");
+    expect(await repo.listLedgerTransactions()).toHaveLength(0);
+  });
+
+  it("no-shares regression: createSplit behaves exactly as before when shares is omitted", async () => {
+    const repo = await makeRepo({ accounts: [cash] });
+    await repo.createSplit(shared, legs);
+    const rows = await activeGroupRows(repo);
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.legKind === "category")).toBe(true);
+    const [account] = await repo.listAccounts();
+    expect(account.balance).toBe(10_000 - 420);
   });
 });
