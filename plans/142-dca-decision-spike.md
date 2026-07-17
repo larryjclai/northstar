@@ -68,6 +68,12 @@ the decision needs so the operator can make it in one sitting.
 - New surface landed since planning that Option A must now consider: 帳本
   (books) scoping — accounts carry `bookId`; a re-enabled DCA tab must state
   how recurring investments scope under the book switcher (`bookScope.ts`).
+  **OPERATOR DECIDED (2026-07-17)**: DCA rules follow their target account's
+  book — switching to 公司帳 must NOT show 個人帳 rules. Precedent to cite in
+  the decision doc: `DashboardRoute.tsx`'s `upcoming` memo already filters
+  recurring CASH rules by `switcherAccountIds.has(r.accountId)`; recurring
+  INVESTMENT rules adopt the same rule. This question is closed — the doc
+  records it, doesn't re-ask.
 
 ## The deliverable — `docs/dca-decision.md` containing:
 

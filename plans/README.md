@@ -20,6 +20,26 @@ share IS a receivable (`counterAccountId` pass-through, neutral to spend); a
 請客 portion is not a share leg, it stays in the payer's own category legs —
 so bank moves by the full paid amount, expense only by the payer's share.
 
+## 223 — 待辦 查看全部 (operator-reported live, `/improve plan` @ `3b857c73`, 2026-07-17)
+
+Operator went to do 信用卡對帳 and the bill was invisible. Root cause confirmed
+at `DashboardRoute.tsx:816-894`: plan 164's 待辦 merge stacked THREE silent
+truncations (recurring `.slice(0,5)` + AR/AP `.slice(0,5)` + merged `.slice(0,6)`)
+with no 查看全部 — a card reminder dated beyond the 6 nearest items is
+unreachable, and with it the card's link to `/cash-flow/reconcile/$accountId`
+(the only other entry is AccountsRoute:496's small icon). 222 stays reserved
+for 分帳 UI (cut after 221's live pass).
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 223 | 待辦「查看全部」— merge logic → pure `domain/todoRows.ts` (uncapped, +4 tests incl. the pushed-out-card regression), card keeps 6-row pulse + footer 「查看全部 N 筆 →」 opening a ModalShell with ALL items (same row links); removes the per-source pre-caps (fairness fix) | P1 | M | — | TODO |
+
+**Also recorded (2026-07-17)**: plan 142's Option A books-scoping question is
+**operator-DECIDED** — DCA rules follow their target account's book (公司帳 view
+never shows 個人帳 rules; same rule as the dashboard `upcoming` memo's
+`switcherAccountIds` filter). Written into plan 142; the spike doc records it
+instead of re-asking.
+
 ## Reconciled 2026-07-17 (`main` @ `cb1d5004`)
 
 - **214–218 done-criteria re-verified by grep at HEAD** ✓ (`ns-notif-panel` in css+component;
