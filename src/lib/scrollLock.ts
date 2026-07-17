@@ -9,15 +9,30 @@
  * silently disables every `position: sticky` descendant — the app sidebar
  * scrolled away behind open drawers (plan 155).
  *
- * Re-entrant: nested overlays each get a release() that restores the value
- * saved at their own acquire time (same semantics the previous inline code
- * had). Returns the release function.
+ * Ref-counted: the first acquire saves the pre-existing inline value and
+ * locks; the last release restores it. Release handles are idempotent (each
+ * releases its own count at most once), and release order does not matter —
+ * unlike a naive save/restore-per-handle scheme, where an overlay opening
+ * while an outer overlay was still mid-exit-animation could capture that
+ * outer overlay's `"hidden"` as its own "previous" value, and later restore
+ * `"hidden"` instead of the original value, stranding the page unscrollable
+ * (the 對帳→編輯交易 regression). Returns the release function.
  */
+let lockCount = 0;
+let savedOverflow = "";
+
 export function lockViewportScroll(): () => void {
   const root = document.documentElement;
-  const previous = root.style.overflow;
-  root.style.overflow = "hidden";
+  if (lockCount === 0) {
+    savedOverflow = root.style.overflow; // whatever inline value predates ALL overlays
+    root.style.overflow = "hidden";
+  }
+  lockCount += 1;
+  let released = false; // each handle releases at most once
   return () => {
-    root.style.overflow = previous;
+    if (released) return;
+    released = true;
+    lockCount -= 1;
+    if (lockCount === 0) root.style.overflow = savedOverflow;
   };
 }
