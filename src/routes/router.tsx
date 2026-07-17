@@ -59,10 +59,13 @@ const cashFlowRoute = createRoute({
   component: CashFlowRoute,
   // Optional `?account=<id>` deep-link from the Accounts page: opens the ledger
   // pre-filtered to that account's transactions.
-  validateSearch: (search: Record<string, unknown>): { account?: string; tx?: string } => {
+  validateSearch: (search: Record<string, unknown>): { account?: string; tx?: string; from?: string } => {
     const account = typeof search.account === "string" ? search.account : undefined;
     const tx = typeof search.tx === "string" ? search.tx : undefined;
-    return { ...(account ? { account } : {}), ...(tx ? { tx } : {}) };
+    // 對帳 round-trip (plan 225): only the literal "reconcile" is accepted —
+    // anything else is dropped, same guard style as account/tx above.
+    const from = search.from === "reconcile" ? "reconcile" : undefined;
+    return { ...(account ? { account } : {}), ...(tx ? { tx } : {}), ...(from ? { from } : {}) };
   },
 });
 

@@ -269,7 +269,7 @@ export function CashFlowRoute() {
   const toast = useToast();
   const [dateScope, setDateScope] = useState(() => makeDefaultDateScope(timezone, "month"));
   // `?account=<id>` deep-link from the Accounts page pre-selects that account.
-  const { account: accountParam, tx: txParam } = useSearch({ strict: false }) as { account?: string; tx?: string };
+  const { account: accountParam, tx: txParam, from: fromParam } = useSearch({ strict: false }) as { account?: string; tx?: string; from?: string };
   const [selectedAccount, setSelectedAccount] = useState(accountParam ?? "all");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
@@ -336,6 +336,14 @@ export function CashFlowRoute() {
     const row = ledgerRows.find((r) => r.id === txParam);
     if (row) setDetailRow(row);
   }, [txParam, ledgerRows]);
+
+  // 對帳 round-trip (plan 225): arriving via 編輯交易 from the reconcile page
+  // returns there when the user finishes with the transaction.
+  const returnIfFromReconcile = useCallback(() => {
+    if (fromParam !== "reconcile" || !accountParam) return false;
+    navigate({ to: "/cash-flow/reconcile/$accountId", params: { accountId: accountParam } });
+    return true;
+  }, [fromParam, accountParam, navigate]);
 
   const allCategories = appSettings?.categories.length ? appSettings.categories : [];
   // The entry drawer only offers categories matching the active 收入/支出 type
@@ -821,6 +829,10 @@ export function CashFlowRoute() {
         await rememberCategories.mutateAsync(legs.map((leg) => ({ category: leg.category, subcategory: leg.subcategory })));
         rememberMerchantNames([shared.merchant]);
         closeDrawer();
+        // 對帳 round-trip (plan 225): only an edit (never a fresh split) bounces
+        // back — editingId is still the pre-close value here (closeDrawer's
+        // setEditingId(null) hasn't flushed within this synchronous scope).
+        if (editingId) returnIfFromReconcile();
         return;
       }
       // 開發票 (plan 191 step 3): create-only — editing an existing invoice's
@@ -982,6 +994,9 @@ export function CashFlowRoute() {
       await rememberCategories.mutateAsync([{ category: payload.category, subcategory: payload.subcategory }]);
       rememberMerchantNames([payload.merchant]);
       closeDrawer();
+      // 對帳 round-trip (plan 225): editingId gates out plain creates/installment
+      // plans — only a genuine edit bounces back.
+      if (editingId) returnIfFromReconcile();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "收支儲存失敗。");
     }
@@ -997,6 +1012,10 @@ export function CashFlowRoute() {
       rememberMerchantNames([draft.merchant]);
       setRecurringEditPrompt(null);
       closeDrawer();
+      // 對帳 round-trip (plan 225): the this/future/all scope prompt is itself
+      // the tail of an edit that started from the panel — the return waits for
+      // this resolution instead of firing when submitLedger opened the prompt.
+      returnIfFromReconcile();
     } catch (error) {
       setRecurringEditPrompt(null);
       setMessage(error instanceof Error ? error.message : "收支儲存失敗。");
@@ -1011,6 +1030,8 @@ export function CashFlowRoute() {
       await createTransfer.mutateAsync(transferForm);
       toast.success("已建立轉帳");
       closeDrawer();
+      // 對帳 round-trip (plan 225): editingId gates out plain creates.
+      if (editingId) returnIfFromReconcile();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "轉帳儲存失敗。");
     }
@@ -1020,6 +1041,9 @@ export function CashFlowRoute() {
     try {
       await deleteLedger.mutateAsync(id);
       toast.success(successMessage);
+      // 對帳 round-trip (plan 225): deleting also returns to reconcile — it's
+      // where the operator was working.
+      returnIfFromReconcile();
     } catch (e) {
       toast.error("刪除失敗");
     }
@@ -2053,7 +2077,7 @@ export function CashFlowRoute() {
       />
       <TransactionDetailPanel
         row={detailRow}
-        onClose={() => setDetailRow(null)}
+        onClose={() => { setDetailRow(null); returnIfFromReconcile(); }}
         onEdit={(row) => { setDetailRow(null); startEdit(row); }}
         onDuplicate={(row) => { setDetailRow(null); startDuplicate(row, (row as LedgerTransaction & { transferPair?: { source: LedgerTransaction; dest: LedgerTransaction } }).transferPair); }}
         onDelete={(row) => { setDetailRow(null); requestDelete(row); }}
