@@ -245,6 +245,10 @@ export function CashFlowRoute() {
   // existing split group (save goes through updateSplit with this groupId).
   const [splitLegs, setSplitLegs] = useState<SplitLegDraftState[] | null>(null);
   const [editingSplitGroupId, setEditingSplitGroupId] = useState<string | null>(null);
+  // 編輯轉帳 (plan 227): non-null while editing an existing transfer group (save
+  // goes through updateTransfer with this groupId instead of createTransfer).
+  // groupId is the stable handle — the display/detail row may be either leg.
+  const [editingTransferGroupId, setEditingTransferGroupId] = useState<string | null>(null);
   // Expanded 拆分 groups in the activity list (collapsed by default).
   const [expandedSplits, setExpandedSplits] = useState<Set<string>>(new Set());
   const [amountExpression, setAmountExpression] = useState(String(Math.abs(emptyLedger.amount)));
@@ -413,6 +417,11 @@ export function CashFlowRoute() {
     (repository, input: TransferDraft) => repository.createTransfer(input),
     ["ledger", "accounts"],
   );
+  const updateTransferMutation = useRepositoryMutation(
+    (repository, input: { groupId: string; input: TransferDraft }) =>
+      repository.updateTransfer(input.groupId, input.input),
+    ["ledger", "accounts"],
+  );
   const importLedger = useRepositoryMutation(
     (repository, input: LedgerDraft[]) => repository.importLedgerTransactions(input),
     ["ledger", "accounts"],
@@ -563,6 +572,7 @@ export function CashFlowRoute() {
     setEditingRecurringRuleId(null);
     setSplitLegs(null);
     setEditingSplitGroupId(null);
+    setEditingTransferGroupId(null);
     // Always default a fresh entry to a one-off transaction. The control is
     // component-level state, so without this reset it would "stick" to whatever
     // recurrence the previous entry used.
@@ -608,6 +618,7 @@ export function CashFlowRoute() {
     setEditingRecurringRuleId(null);
     setSplitLegs(null);
     setEditingSplitGroupId(null);
+    setEditingTransferGroupId(null);
     setInstallmentPeriods(0);
     setMessage("");
   }
@@ -617,6 +628,13 @@ export function CashFlowRoute() {
     // transfer/ar/ap would drop the legs and then save a single row over one
     // leg of the group. Ignore those taps while a split edit is open.
     if (editingSplitGroupId && next !== "expense" && next !== "income") return;
+    // 編輯轉帳 (plan 227): type is immutable while editing, in both directions.
+    // Leaving "transfer" while editingTransferGroupId would save a single row
+    // over one leg of the pair; entering "transfer" while editing a non-transfer
+    // row would create a NEW transfer and strand the row being edited (the
+    // reverse duplicate bug this plan fixes).
+    if (editingTransferGroupId && next !== "transfer") return;
+    if (editingId && !editingTransferGroupId && next === "transfer") return;
     setDrawerType(next);
     // 開發票 fields only make sense for ar; leaving it drops the invoice toggle.
     if (next !== "ar") {
@@ -701,6 +719,59 @@ export function CashFlowRoute() {
     setDrawerOpen(true);
   }
 
+  /**
+   * 編輯轉帳 (plan 227): hydrates `transferForm` from the group's legs looked
+   * up by `groupId` — NOT from `transferPair`, which the caller may not have
+   * (the reconcile deep-link and settlements list set `detailRow` straight
+   * from raw `ledgerRows`). Mirrors the `mergeTransferRows`/`startDuplicate`
+   * leg-role contract: source = negative transfer leg, dest = the other
+   * transfer leg, fee = category 手續費 on the same groupId.
+   */
+  function startTransferEdit(row: LedgerTransaction) {
+    if (!row.groupId) {
+      toast.error("此筆轉帳資料不完整，無法編輯");
+      return;
+    }
+    const legs = ledgerRows.filter(
+      (r) => r.groupId === row.groupId && r.entryType === "transfer" && r.deletedAt === null,
+    );
+    const source = legs.find((l) => l.amount < 0);
+    const dest = legs.find((l) => l.id !== source?.id);
+    if (!source || !dest) {
+      toast.error("此筆轉帳資料不完整，無法編輯");
+      return;
+    }
+    const feeLeg = ledgerRows.find(
+      (r) => r.groupId === row.groupId && r.category === "手續費" && r.deletedAt === null,
+    );
+    setDrawerType("transfer");
+    setSplitLegs(null);
+    setEditingSplitGroupId(null);
+    setEditingTransferGroupId(row.groupId);
+    setEditingId(row.id);
+    setCounterparty("");
+    setDueDate("");
+    setIsInvoiceEntry(false);
+    setInvoiceNumber("");
+    setInvoiceClientId(null);
+    setTransferForm({
+      date: source.date,
+      sourceAccountId: source.accountId,
+      destinationAccountId: dest.accountId,
+      sourceCurrency: source.currency,
+      destinationCurrency: dest.currency,
+      sourceAmount: Math.abs(source.amount),
+      destinationAmount: Math.abs(dest.amount),
+      note: source.note,
+      feeAmount: feeLeg ? Math.abs(feeLeg.amount) : 0,
+    });
+    setDrawerRecurringFreq("none");
+    setInstallmentPeriods(0);
+    setEditingRecurringRuleId(null);
+    setMessage("");
+    setDrawerOpen(true);
+  }
+
   function startEdit(row: LedgerTransaction) {
     const splitRows = splitGroupRowsFor(row);
     if (splitRows) {
@@ -708,9 +779,14 @@ export function CashFlowRoute() {
       return;
     }
     const type = cashTypeFromRow(row);
+    if (type === "transfer") {
+      startTransferEdit(row);
+      return;
+    }
     setDrawerType(type);
     setSplitLegs(null);
     setEditingSplitGroupId(null);
+    setEditingTransferGroupId(null);
     setEditingId(row.id);
     setCounterparty(row.settlementStatus === "settled" ? "" : row.merchant);
     setDueDate("");
@@ -760,6 +836,7 @@ export function CashFlowRoute() {
     setDrawerType(type);
     setSplitLegs(null);
     setEditingSplitGroupId(null);
+    setEditingTransferGroupId(null);
     setEditingId(null);
     setEditingRecurringRuleId(null);
     setDrawerRecurringFreq("none");
@@ -1041,8 +1118,15 @@ export function CashFlowRoute() {
     try {
       if (!transferForm.sourceAccountId || !transferForm.destinationAccountId)
         throw new Error("請選擇來源和目標帳戶。");
-      await createTransfer.mutateAsync(transferForm);
-      toast.success("已建立轉帳");
+      if (editingTransferGroupId) {
+        // 編輯轉帳 (plan 227): in-place leg update — NOT create, which would
+        // mint a duplicate pair while the original stays (the bug this fixes).
+        await updateTransferMutation.mutateAsync({ groupId: editingTransferGroupId, input: transferForm });
+        toast.success("已更新轉帳");
+      } else {
+        await createTransfer.mutateAsync(transferForm);
+        toast.success("已建立轉帳");
+      }
       closeDrawer();
       // 對帳 round-trip (plan 225): editingId gates out plain creates.
       if (editingId) returnIfFromReconcile();
