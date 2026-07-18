@@ -1,5 +1,22 @@
 # Implementation Plans
 
+## Reconciled 2026-07-18 (`main` @ `9119cb8e`)
+
+- **227 (編輯轉帳) is MERGED** — the background session merged `fix/ai-transfer-edit`
+  @ `9119cb8e` (row below was stale at "awaiting operator merge"; now corrected).
+- **Merged batch 223–227 re-verified on HEAD**: gates green — tsc 0 / lint **0 errors**
+  (761 warnings, the plan-225 baseline) / **1373 tests** / 125 files. Artifact greps
+  all present: `domain/todoRows.ts` (223), `lockCount` ref-count (224),
+  `from:"reconcile"` across router+Reconcile+CashFlow (225), `planFeeLegUpdate` (226),
+  `updateTransfer` + `editingTransferGroupId` + 6 `setEditingTransferGroupId` clears
+  incl. the openCreate/startDuplicate symmetry the review added (227).
+- **main is ~6 commits ahead of `origin/main`** (223–227 batch + this reconcile) —
+  push pending, operator's call.
+- **Stale branch safe to delete**: `fix/ai-transfer-edit` (merged at `9119cb8e`).
+- **No BLOCKED / IN-PROGRESS plans; no drifted TODOs.** Only open TODO is the 142
+  DCA spike (refreshed 2026-07-17, both-directions books decision recorded) + the
+  Open follow-ups list further down.
+
 ## 227 — 編輯轉帳 duplicate-pair bug (found by 225's executor, verified @ `93ee4103`; planned @ `9ece3bde`, 2026-07-18)
 
 Editing a transfer is silently destructive: the detail panel offers 編輯交易 on
@@ -11,7 +28,7 @@ the original stays**; balances double-move. Reverse direction broken too
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 227 | 編輯轉帳 — new repo `updateTransfer(groupId, TransferDraft)` (**in-place leg update**, NOT updateSplit's tombstone+recreate: leg ids + `isReviewed`/`postDate` must survive — reconcile stores state ON legs), fee-leg reconcile table (mirrors 226), UI hydrates `transferForm` by groupId lookup (deep-link rows carry no `transferPair`), `editingTransferGroupId` state, `changeType` guards both hazardous directions. ≥7 dual-harness tests incl. the no-duplicate regression + atomicity | P1 | M | — (226 touches the same files — coordinate merge order; disjoint regions) | **DONE — executed+reviewed, awaiting operator merge.** Branch `fix/ai-transfer-edit` @ HEAD. 16 dual-harness tests (8 情境 × 2 harness; 1341→1357), tsc 0 / lint 0 errors. Review fix folded in: executor omitted the `editingTransferGroupId` clears in `openCreate`/`startDuplicate` (the `editingSplitGroupId` symmetry) — stale state would have turned 複製轉帳 into an update. Live-verified in demo mode: edit hydrates, save 800 → ONE pair (27 筆 not 28), re-edit shows 800, fee 0→15→0 creates/hydrates/removes the 手續費 row, type tabs inert in BOTH directions. (Sonnet executor stalled at step-5 browser phase; advisor completed verification directly.) |
+| 227 | 編輯轉帳 — new repo `updateTransfer(groupId, TransferDraft)` (**in-place leg update**, NOT updateSplit's tombstone+recreate: leg ids + `isReviewed`/`postDate` must survive — reconcile stores state ON legs), fee-leg reconcile table (mirrors 226), UI hydrates `transferForm` by groupId lookup (deep-link rows carry no `transferPair`), `editingTransferGroupId` state, `changeType` guards both hazardous directions. ≥7 dual-harness tests incl. the no-duplicate regression + atomicity | P1 | M | — (226 touches the same files — coordinate merge order; disjoint regions) | **DONE — executed+reviewed, awaiting operator merge.** Branch `fix/ai-transfer-edit` @ HEAD. 16 dual-harness tests (8 情境 × 2 harness; 1341→1357), tsc 0 / lint 0 errors. Review fix folded in: executor omitted the `editingTransferGroupId` clears in `openCreate`/`startDuplicate` (the `editingSplitGroupId` symmetry) — stale state would have turned 複製轉帳 into an update. Live-verified in demo mode: edit hydrates, save 800 → ONE pair (27 筆 not 28), re-edit shows 800, fee 0→15→0 creates/hydrates/removes the 手續費 row, type tabs inert in BOTH directions. (Sonnet executor stalled at step-5 browser phase; advisor completed verification directly.) **MERGED @ `9119cb8e`** (background session, reconciled 2026-07-18; re-verified green at HEAD: 1373 tests). |
 
 Interim mitigation option (operator's call, not in the plan's steps): hide
 編輯交易 for `entryType === "transfer"` rows — 複製 (`startDuplicate` is
