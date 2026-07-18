@@ -10,6 +10,8 @@ import { useDemoMode } from "../state/demoMode";
 import { useToast } from "../components/Toast";
 import { NotificationCenter } from "../components/NotificationCenter";
 import { openOnboarding } from "../components/OnboardingOverlay";
+import { ModalShell } from "../components/ModalShell";
+import { ModalCloseButton } from "../components/ModalCloseButton";
 import { Badge } from "../components/coss/badge";
 import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
@@ -56,6 +58,7 @@ import {
   todayInTimezone,
 } from "../domain";
 import { calculateAvailableCash, changePctWithFloor } from "../domain/dashboardSummary";
+import { buildTodoRows, type TodoRow } from "../domain/todoRows";
 import { bookAccountIdSet, fireMetricAccountIdSet, personalNetWorthAccountIdSet, scopeRows } from "../domain/bookScope";
 import { stripStartDate, STRIP_PERIODS, type StripPeriod } from "../domain/dateScope";
 import { healthFingerprint, overBudgetFingerprint } from "../domain/bannerFingerprint";
@@ -121,28 +124,6 @@ const CHART_COLORS = [
   "var(--ns-chart-7)",
 ];
 
-/**
- * 待辦 row (plan 164): a single date-sorted merge of upcoming bills,
- * credit-card payments due, and outstanding AR/AP — no new financial math,
- * just re-tagging the three existing sources for one combined card.
- */
-type TodoRow = {
-  key: string;
-  type: "bill" | "card" | "recv" | "pay" | "income";
-  name: string;
-  sub: string;
-  /** "MM-DD" for display. */
-  date: string;
-  /** Full ISO date used for sorting. */
-  iso: string;
-  /** Signed, primary-currency amount; negative = 待付. */
-  amt: number;
-  /** Present for "card" rows — links to the account's reconcile route. */
-  linkAccountId?: string;
-  /** Present for "recv"/"pay" rows — links to the cash-flow ledger entry. */
-  linkTxId?: string;
-};
-
 const TODO_META: Record<TodoRow["type"], { label: string; color: string }> = {
   bill: { label: "帳單", color: "var(--ns-chart-3)" },
   card: { label: "信用卡", color: "var(--ns-chart-5)" },
@@ -199,6 +180,7 @@ export function DashboardRoute() {
   // account-scoped memos below keep working unchanged.
   const [selectedAccount] = useState<string>("all");
   const [demoLoading, setDemoLoading] = useState(false);
+  const [todoAllOpen, setTodoAllOpen] = useState(false);
 
   async function loadDemo() {
     setDemoLoading(true);
@@ -820,8 +802,7 @@ export function DashboardRoute() {
     const today = todayInTimezone(timezone);
     return recurringRows
       .filter((r) => r.isActive && r.nextRunDate >= today && r.nextRunDate <= horizon && switcherAccountIds.has(r.accountId))
-      .sort((a, b) => a.nextRunDate.localeCompare(b.nextRunDate))
-      .slice(0, 5);
+      .sort((a, b) => a.nextRunDate.localeCompare(b.nextRunDate));
   }, [recurringRows, timezone, switcherAccountIds]);
 
   // Credit-card payments coming due (within ~45 days), soonest first.
@@ -848,49 +829,18 @@ export function DashboardRoute() {
 
   // 待辦 (plan 164): merge upcoming bills, credit-card payments, and
   // outstanding AR/AP into a single date-sorted list. Reuses the three
-  // already-computed sources above — no new financial math.
-  const todoRows = useMemo<TodoRow[]>(() => {
-    const rows: TodoRow[] = [];
-    for (const b of upcoming) {
-      const isIncome = b.entryType === "income";
-      rows.push({
-        key: `bill-${b.id}`,
-        type: isIncome ? "income" : "bill",
-        name: b.merchant || b.category,
-        sub: accountMap.get(b.accountId)?.name ?? "",
-        date: b.nextRunDate.slice(5),
-        iso: b.nextRunDate,
-        amt: isIncome ? Math.abs(b.amount) : -Math.abs(b.amount),
-      });
-    }
-    for (const r of creditReminders) {
-      rows.push({
-        key: `card-${r.accountId}`,
-        type: "card",
-        name: r.name,
-        sub: `繳款日 ${r.dueDate.slice(5)} · 還有 ${r.daysUntilDue} 天`,
-        date: r.dueDate.slice(5),
-        iso: r.dueDate,
-        amt: -r.outstanding,
-        linkAccountId: r.accountId,
-      });
-    }
-    for (const item of settlements.items.slice(0, 5)) {
-      const isRecv = item.kind === "receivable";
-      const amount = toPrimary(item.amount, item.currency) ?? item.amount;
-      rows.push({
-        key: `settle-${item.id}`,
-        type: isRecv ? "recv" : "pay",
-        name: item.counterparty || item.name,
-        sub: "",
-        date: item.date.slice(5, 10),
-        iso: item.date.slice(0, 10),
-        amt: isRecv ? amount : -amount,
-        linkTxId: item.id,
-      });
-    }
-    return rows.sort((a, b) => a.iso.localeCompare(b.iso)).slice(0, 6);
-  }, [upcoming, creditReminders, settlements, accountMap, toPrimary]);
+  // already-computed sources above — no new financial math. The merge itself
+  // lives in `domain/todoRows.ts` (plan 223) so it can be reused uncapped for
+  // the 查看全部 modal; the card keeps its compact 6-row slice.
+  const todoRowsAll = useMemo(
+    () => buildTodoRows(
+      { bills: upcoming, cards: creditReminders, settleItems: settlements.items },
+      (id) => accountMap.get(id)?.name ?? "",
+      toPrimary,
+    ),
+    [upcoming, creditReminders, settlements, accountMap, toPrimary],
+  );
+  const todoRows = useMemo(() => todoRowsAll.slice(0, 6), [todoRowsAll]);
   const todoTotalDue = todoRows.reduce((sum, r) => sum + (r.amt < 0 ? r.amt : 0), 0);
 
   // FX rates (latest + previous per pair) for the header FX one-liner.
@@ -1319,9 +1269,11 @@ export function DashboardRoute() {
 
       {/* Row 2 · 待辦 (bills + credit cards + AR/AP merged) + 今日漲跌 */}
       <div className={(cardVisible("todos") && cardVisible("topMovers") && heldAssetCount > 0 ? "ns-dash-activity-grid" : "") + " mb-4"}>
-        {cardVisible("todos") ? <TodoCard rows={todoRows} totalDue={todoTotalDue} /> : null}
+        {cardVisible("todos") ? <TodoCard rows={todoRows} totalDue={todoTotalDue} totalCount={todoRowsAll.length} onViewAll={() => setTodoAllOpen(true)} /> : null}
         {cardVisible("topMovers") && heldAssetCount > 0 ? <TopMoversCard gainers={movers.gainers} losers={movers.losers} /> : null}
       </div>
+
+      {todoAllOpen ? <TodoAllModal rows={todoRowsAll} onClose={() => setTodoAllOpen(false)} /> : null}
 
       {/* Row 3a · Budget */}
       {cardVisible("budget") ? (
@@ -1742,7 +1694,52 @@ function MoverColumn({ label, tone, movers }: { label: string; tone: "pos" | "ne
 }
 
 /** Merged 待辦 card: bills + credit cards + AR/AP, one date-sorted list (plan 164). */
-function TodoCard({ rows, totalDue }: { rows: TodoRow[]; totalDue: number }) {
+/**
+ * A single 待辦 row's markup (dot + name/sub + signed amount/date), wrapped in
+ * the right `Link` for its type when it has a target. Shared verbatim (plan
+ * 223) between the compact `TodoCard` and the uncapped 查看全部 modal so the
+ * two never drift.
+ */
+function TodoRowItem({ row, first }: { row: TodoRow; first: boolean }) {
+  const meta = TODO_META[row.type];
+  const inner = (
+    <>
+      <span style={{ width: 6, height: 6, borderRadius: 99, background: meta.color, flexShrink: 0 }} title={meta.label} />
+      <div className="flex-1 min-w-0">
+        <div className="text-[13.5px] font-medium truncate">{row.name}</div>
+        {row.sub ? <div className="muted text-caption truncate">{row.sub}</div> : null}
+      </div>
+      <div className="text-right">
+        <div className="num text-[13.5px]" style={{ color: row.amt >= 0 ? "var(--ns-pos)" : "var(--ns-neg)" }}>
+          {row.amt >= 0 ? "+" : "−"}NT${formatNumber(Math.abs(row.amt))}
+        </div>
+        <div className="mono dim text-caption">{row.date}</div>
+      </div>
+    </>
+  );
+  const rowStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: first ? "none" : "1px solid var(--ns-border)" };
+  if (row.type === "card" && row.linkAccountId) {
+    return (
+      <Link to="/cash-flow/reconcile/$accountId" params={{ accountId: row.linkAccountId }} style={{ ...rowStyle, textDecoration: "none", color: "inherit" }}>
+        {inner}
+      </Link>
+    );
+  }
+  if ((row.type === "recv" || row.type === "pay") && row.linkTxId) {
+    return (
+      <Link to="/cash-flow" search={{ tx: row.linkTxId }} style={{ ...rowStyle, textDecoration: "none", color: "inherit" }}>
+        {inner}
+      </Link>
+    );
+  }
+  return (
+    <div style={rowStyle}>
+      {inner}
+    </div>
+  );
+}
+
+function TodoCard({ rows, totalDue, totalCount, onViewAll }: { rows: TodoRow[]; totalDue: number; totalCount: number; onViewAll: () => void }) {
   return (
     <Card className="ns-dash-activity-card p-0">
       <div className="flex items-center justify-between pt-4 px-5 pb-3" style={{ borderBottom: "1px solid var(--ns-border)" }}>
@@ -1755,46 +1752,50 @@ function TodoCard({ rows, totalDue }: { rows: TodoRow[]; totalDue: number }) {
       {rows.length === 0 ? (
         <div className="muted text-body" style={{ padding: "18px 20px" }}>近期沒有待辦事項。</div>
       ) : (
-        rows.map((row, i) => {
-          const meta = TODO_META[row.type];
-          const inner = (
-            <>
-              <span style={{ width: 6, height: 6, borderRadius: 99, background: meta.color, flexShrink: 0 }} title={meta.label} />
-              <div className="flex-1 min-w-0">
-                <div className="text-[13.5px] font-medium truncate">{row.name}</div>
-                {row.sub ? <div className="muted text-caption truncate">{row.sub}</div> : null}
-              </div>
-              <div className="text-right">
-                <div className="num text-[13.5px]" style={{ color: row.amt >= 0 ? "var(--ns-pos)" : "var(--ns-neg)" }}>
-                  {row.amt >= 0 ? "+" : "−"}NT${formatNumber(Math.abs(row.amt))}
-                </div>
-                <div className="mono dim text-caption">{row.date}</div>
-              </div>
-            </>
-          );
-          const rowStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: i ? "1px solid var(--ns-border)" : "none" };
-          if (row.type === "card" && row.linkAccountId) {
-            return (
-              <Link key={row.key} to="/cash-flow/reconcile/$accountId" params={{ accountId: row.linkAccountId }} style={{ ...rowStyle, textDecoration: "none", color: "inherit" }}>
-                {inner}
-              </Link>
-            );
-          }
-          if ((row.type === "recv" || row.type === "pay") && row.linkTxId) {
-            return (
-              <Link key={row.key} to="/cash-flow" search={{ tx: row.linkTxId }} style={{ ...rowStyle, textDecoration: "none", color: "inherit" }}>
-                {inner}
-              </Link>
-            );
-          }
-          return (
-            <div key={row.key} style={rowStyle}>
-              {inner}
-            </div>
-          );
-        })
+        rows.map((row, i) => <TodoRowItem key={row.key} row={row} first={i === 0} />)
       )}
+      {totalCount > rows.length ? (
+        <Button
+          variant="ghost"
+          onClick={onViewAll}
+          className="w-full rounded-none"
+          style={{ padding: "12px 20px", borderTop: "1px solid var(--ns-border)", justifyContent: "center" }}
+        >
+          查看全部 {totalCount} 筆 →
+        </Button>
+      ) : null}
     </Card>
+  );
+}
+
+/**
+ * 查看全部 (plan 223): the full, uncapped `todoRowsAll` list in a ModalShell —
+ * every todo reachable, including items the compact card's 6-row slice drops.
+ * Modeled after `ClientManager.tsx`'s centered list-modal call site (Card +
+ * ModalCloseButton inside a `variant="center"` ModalShell).
+ */
+function TodoAllModal({ rows, onClose }: { rows: TodoRow[]; onClose: () => void }) {
+  return (
+    <ModalShell variant="center" title={`全部待辦 · ${rows.length} 筆`} onClose={onClose} panelClassName="w-full" panelStyle={{ maxWidth: 480 }}>
+      {(dismiss) => (
+        <Card className="w-full p-0">
+          <div className="py-4 px-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--ns-border)" }}>
+            <div>
+              <h2 className="text-base font-semibold" style={{ margin: 0 }}>{`全部待辦 · ${rows.length} 筆`}</h2>
+              <div className="muted text-caption" style={{ marginTop: 2 }}>未來 30 天週期交易 · 45 天內信用卡繳款 · 全部未結清</div>
+            </div>
+            <ModalCloseButton onClick={dismiss} />
+          </div>
+          <div style={{ maxHeight: "70vh", overflowY: "auto" }}>
+            {rows.length === 0 ? (
+              <div className="muted text-body" style={{ padding: "18px 20px" }}>近期沒有待辦事項。</div>
+            ) : (
+              rows.map((row, i) => <TodoRowItem key={row.key} row={row} first={i === 0} />)
+            )}
+          </div>
+        </Card>
+      )}
+    </ModalShell>
   );
 }
 
