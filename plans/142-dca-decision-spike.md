@@ -1,5 +1,19 @@
 # Plan 142: DCA (定期定額/定股) — finish-or-retire decision document
 
+> **STATUS: DONE — executed, reviewed, MERGED @ merge of `06916764` into main
+> (2026-07-18).** Deliverable `docs/dca-decision.md` (335 lines, 6 sections).
+> Advisor spot-verified the doc's central claims against source: `postRecurringInvestment`
+> exists (manual post, `repositories.ts:1915`/`:3982`), `postDueRecurringInvestments`
+> does NOT exist (grep exit 1 — confirms reminder, not auto-post; contrast the
+> cash-flow auto-scheduler `postDueRecurringTransactions` at `hooks.ts:160`), both
+> `fixedAmount`/`fixedShares` modes in `types.ts:340`, type doc self-describes as
+> "surfaced as a reminder; posting is a manual one-tap". **Recommendation: Option A
+> (rework & re-enable)** — the one real gap is stale reference-price handling; two
+> flagged "open questions" were already correctly resolved in shipped code. STOP
+> condition did not fire (6b479416 = a pause, not a retire decision). 8-item S–M
+> worklist in §6 ready for a future `/improve plan`. **Operator's finish/retire call
+> is now unblocked — read `docs/dca-decision.md`.**
+
 > **Executor instructions**: This is a DESIGN/SPIKE plan — the deliverable is
 > a decision document, NOT code. Do not modify any source file. Write the
 > deliverable to `docs/dca-decision.md`. On a STOP condition, stop and

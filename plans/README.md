@@ -13,9 +13,23 @@
 - **main is ~6 commits ahead of `origin/main`** (223–227 batch + this reconcile) —
   push pending, operator's call.
 - **Stale branch safe to delete**: `fix/ai-transfer-edit` (merged at `9119cb8e`).
-- **No BLOCKED / IN-PROGRESS plans; no drifted TODOs.** Only open TODO is the 142
-  DCA spike (refreshed 2026-07-17, both-directions books decision recorded) + the
-  Open follow-ups list further down.
+- **No BLOCKED / IN-PROGRESS plans; no drifted TODOs.**
+
+## 142 — DCA spike DONE + branch cleanup (2026-07-18, `main` @ post-merge)
+
+- **142 (DCA finish-or-retire spike) executed + reviewed + MERGED** — doc-only,
+  `docs/dca-decision.md` (335 lines). Recommendation: **Option A (rework & re-enable)**;
+  the posting path is fully built+tested (reminder + manual one-tap post, NOT auto-post
+  — verified: no `postDueRecurringInvestments` scheduler exists), only stale reference-price
+  handling is a real gap. 8-item S–M worklist in the doc's §6. **Operator's finish/retire
+  call is now unblocked.**
+- **Branch cleanup**: pushed main to origin; deleted 12 fully-merged `feat/ai-*`/`fix/ai-*`
+  branches (motion 214–218, autocomplete/nudge/share-legs 219–221, UX 223–226) +
+  the DCA spike branch. `feat/ai-ga-motion-spike` deliberately kept (unmerged 161 spike;
+  its `docs/motion-ga-spike.md` lives only on that branch). `fix/ai-transfer-edit` was
+  never local (background session's worktree).
+- **Next open items**: the DCA Option-A worklist (if operator chooses to finish) + the
+  Open follow-ups list further down. No plan is blocked.
 
 ## 227 — 編輯轉帳 duplicate-pair bug (found by 225's executor, verified @ `93ee4103`; planned @ `9ece3bde`, 2026-07-18)
 
