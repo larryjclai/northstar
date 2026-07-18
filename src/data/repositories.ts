@@ -357,6 +357,14 @@ export interface FinanceRepository {
    */
   applyRecurringScopeEdit(id: string, scope: RecurringEditScope, input: LedgerDraft): Promise<void>;
   createTransfer(input: TransferDraft): Promise<void>;
+  /**
+   * In-place update of an existing transfer group's legs (source, dest, and
+   * optional fee) — NOT tombstone+recreate. Leg ids, `isReviewed`, and
+   * `postDate` survive the edit (reconcile state lives on the legs).
+   * Throws when the group doesn't resolve to exactly one source + one dest
+   * transfer leg (`"找不到轉帳交易。"`).
+   */
+  updateTransfer(groupId: string, input: TransferDraft): Promise<void>;
   importLedgerTransactions(rows: LedgerDraft[]): Promise<void>;
   listPortfolioAssets(): Promise<PortfolioAsset[]>;
   createManualHolding(input: PortfolioAssetDraft): Promise<void>;
@@ -1358,6 +1366,95 @@ class BrowserFinanceRepository implements FinanceRepository {
         groupId,
       }));
     }
+    this.recompute();
+    await this.persist();
+  }
+
+  async updateTransfer(groupId: string, input: TransferDraft) {
+    assertTransferInvariants(input, this.data.accounts);
+    const groupRows = this.data.ledgerTransactions.filter(
+      (row) => row.groupId === groupId && row.deletedAt === null,
+    );
+    const transferLegs = groupRows.filter((row) => row.entryType === "transfer");
+    const sourceLegs = transferLegs.filter((row) => row.amount < 0);
+    const destLegs = transferLegs.filter((row) => row.amount >= 0);
+    if (sourceLegs.length !== 1 || destLegs.length !== 1) throw new Error("找不到轉帳交易。");
+    const sourceLeg = sourceLegs[0];
+    const destLeg = destLegs[0];
+    const feeLeg = groupRows.find((row) => row.category === "手續費");
+
+    const sameCurrency = input.sourceCurrency === input.destinationCurrency;
+    const destAmount = sameCurrency
+      ? Math.abs(input.sourceAmount)
+      : Math.abs(input.destinationAmount ?? 0);
+    const transferName = sameCurrency ? { source: "轉出", dest: "轉入" } : { source: "外幣換出", dest: "外幣換入" };
+    const transferCategory = sameCurrency ? "轉帳" : "外幣兌換";
+    const transferSubcategory = sameCurrency ? "帳戶轉移" : "外幣兌換";
+
+    this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) => {
+      if (row.id === sourceLeg.id) {
+        return bump({
+          ...row,
+          accountId: input.sourceAccountId,
+          date: input.date,
+          name: transferName.source,
+          amount: -Math.abs(input.sourceAmount),
+          currency: input.sourceCurrency,
+          category: transferCategory,
+          subcategory: transferSubcategory,
+          note: input.note,
+        });
+      }
+      if (row.id === destLeg.id) {
+        return bump({
+          ...row,
+          accountId: input.destinationAccountId,
+          date: input.date,
+          name: transferName.dest,
+          amount: destAmount,
+          currency: input.destinationCurrency,
+          category: transferCategory,
+          subcategory: transferSubcategory,
+          note: input.note,
+        });
+      }
+      return row;
+    });
+
+    const wantsFee = Boolean(input.feeAmount && input.feeAmount > 0);
+    if (feeLeg && wantsFee) {
+      this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
+        row.id === feeLeg.id
+          ? bump({
+              ...row,
+              accountId: input.sourceAccountId,
+              date: input.date,
+              amount: -Math.abs(input.feeAmount ?? 0),
+              currency: input.sourceCurrency,
+            })
+          : row,
+      );
+    } else if (feeLeg && !wantsFee) {
+      this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
+        row.id === feeLeg.id ? bump({ ...row, deletedAt: nowIso() }) : row,
+      );
+    } else if (!feeLeg && wantsFee) {
+      this.data.ledgerTransactions.push(createLedgerRow({
+        accountId: input.sourceAccountId,
+        date: input.date,
+        name: "手續費",
+        amount: -Math.abs(input.feeAmount ?? 0),
+        currency: input.sourceCurrency,
+        category: "手續費",
+        subcategory: "轉帳手續費",
+        merchant: "",
+        entryType: "expense",
+        settlementStatus: "settled",
+        note: "由系統自動建立的轉帳手續費紀錄",
+        groupId,
+      }));
+    }
+
     this.recompute();
     await this.persist();
   }
@@ -3239,6 +3336,71 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         groupId,
         }));
       }
+      await this.recomputeSqliteAccounts();
+    });
+  }
+
+  override async updateTransfer(groupId: string, input: TransferDraft) {
+    assertTransferInvariants(input, await this.listAccounts());
+    await this.withTransaction(async () => {
+      const rows = await this.db.select<Array<{ id: string; entryType: string; amount: number; category: string }>>(
+        `select id, entry_type as entryType, amount, category from ledger_transactions where group_id = $1 and deleted_at is null`,
+        [groupId],
+      );
+      const transferLegs = rows.filter((row) => row.entryType === "transfer");
+      const sourceLegs = transferLegs.filter((row) => row.amount < 0);
+      const destLegs = transferLegs.filter((row) => row.amount >= 0);
+      if (sourceLegs.length !== 1 || destLegs.length !== 1) throw new Error("找不到轉帳交易。");
+      const sourceLeg = sourceLegs[0];
+      const destLeg = destLegs[0];
+      const feeLeg = rows.find((row) => row.category === "手續費");
+
+      const sameCurrency = input.sourceCurrency === input.destinationCurrency;
+      const destAmount = sameCurrency
+        ? Math.abs(input.sourceAmount)
+        : Math.abs(input.destinationAmount ?? 0);
+      const transferName = sameCurrency ? { source: "轉出", dest: "轉入" } : { source: "外幣換出", dest: "外幣換入" };
+      const transferCategory = sameCurrency ? "轉帳" : "外幣兌換";
+      const transferSubcategory = sameCurrency ? "帳戶轉移" : "外幣兌換";
+      const timestamp = nowIso();
+
+      await this.db.execute(
+        `update ledger_transactions set revision = revision + 1, updated_at = $1, account_id = $2, date = $3, name = $4, amount = $5, currency = $6, category = $7, subcategory = $8, note = $9 where id = $10`,
+        [timestamp, input.sourceAccountId, input.date, transferName.source, -Math.abs(input.sourceAmount), input.sourceCurrency, transferCategory, transferSubcategory, input.note, sourceLeg.id],
+      );
+      await this.db.execute(
+        `update ledger_transactions set revision = revision + 1, updated_at = $1, account_id = $2, date = $3, name = $4, amount = $5, currency = $6, category = $7, subcategory = $8, note = $9 where id = $10`,
+        [timestamp, input.destinationAccountId, input.date, transferName.dest, destAmount, input.destinationCurrency, transferCategory, transferSubcategory, input.note, destLeg.id],
+      );
+
+      const wantsFee = Boolean(input.feeAmount && input.feeAmount > 0);
+      if (feeLeg && wantsFee) {
+        await this.db.execute(
+          `update ledger_transactions set revision = revision + 1, updated_at = $1, account_id = $2, date = $3, amount = $4, currency = $5 where id = $6`,
+          [timestamp, input.sourceAccountId, input.date, -Math.abs(input.feeAmount ?? 0), input.sourceCurrency, feeLeg.id],
+        );
+      } else if (feeLeg && !wantsFee) {
+        await this.db.execute(
+          `update ledger_transactions set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`,
+          [timestamp, feeLeg.id],
+        );
+      } else if (!feeLeg && wantsFee) {
+        await this.insertLedgerRow(createLedgerRow({
+          accountId: input.sourceAccountId,
+          date: input.date,
+          name: "手續費",
+          amount: -Math.abs(input.feeAmount ?? 0),
+          currency: input.sourceCurrency,
+          category: "手續費",
+          subcategory: "轉帳手續費",
+          merchant: "",
+          entryType: "expense",
+          settlementStatus: "settled",
+          note: "由系統自動建立的轉帳手續費紀錄",
+          groupId,
+        }));
+      }
+
       await this.recomputeSqliteAccounts();
     });
   }
