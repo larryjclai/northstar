@@ -588,6 +588,59 @@ function active<T extends { deletedAt: string | null }>(rows: T[]) {
   return rows.filter((row) => row.deletedAt === null);
 }
 
+/**
+ * Fee-leg reconciliation for `updateLedgerTransaction` (plan 226 — 手續費
+ * editable on edit). See the Design table in
+ * plans/226-fee-editable-on-edit.md. Shared decision logic between the
+ * browser (in-memory array) and SQLite (raw SQL) repos, which each apply the
+ * resulting plan with their own persistence primitives.
+ *
+ * `feeAmount === undefined` means "no opinion, leave the leg alone" — this is
+ * what keeps fee edits scoped to the directly-edited occurrence instead of
+ * fanning out: `applyRecurringScopeEdit`'s "all"-scope sibling rewrite never
+ * sets `feeAmount` on its per-sibling drafts, so siblings always resolve to
+ * `{ kind: "none" }` here regardless of whether they already have a fee leg.
+ */
+type FeeLegPlan =
+  | { kind: "none" }
+  | { kind: "create" }
+  | { kind: "update"; legId: string }
+  | { kind: "tombstone"; legId: string };
+
+function planFeeLegUpdate(existingLegId: string | undefined, feeAmount: number | undefined): FeeLegPlan {
+  if (feeAmount === undefined) return { kind: "none" };
+  if (!existingLegId) return feeAmount > 0 ? { kind: "create" } : { kind: "none" };
+  return feeAmount > 0 ? { kind: "update", legId: existingLegId } : { kind: "tombstone", legId: existingLegId };
+}
+
+/** Same lookup contract as fee-leg creation (createLedgerTransaction): same
+ * groupId + category === "手續費" + legKind == null (system leg, not a user
+ * split/share leg) + active. */
+function findFeeLegId(rows: LedgerTransaction[], groupId: string | null): string | undefined {
+  if (!groupId) return undefined;
+  return rows.find((row) => row.groupId === groupId && row.category === "手續費" && row.legKind == null && row.deletedAt === null)?.id;
+}
+
+/** Draft for a linked fee leg, matching the shape createLedgerTransaction
+ * emits (same name/category/subcategory/note conventions). */
+function feeLegDraft(input: LedgerDraft, groupId: string): LedgerDraft {
+  return {
+    accountId: input.accountId,
+    date: input.date,
+    name: "手續費",
+    amount: -Math.abs(input.feeAmount ?? 0),
+    currency: input.currency,
+    category: "手續費",
+    // Income fees are bank/remittance charges, not FX surcharges.
+    subcategory: input.entryType === "income" ? "收入手續費" : "海外交易手續費",
+    merchant: input.merchant,
+    entryType: "expense",
+    settlementStatus: "settled",
+    note: "由系統自動建立的手續費紀錄",
+    groupId,
+  };
+}
+
 const recomputeAccounts = deriveAccountBalances;
 
 function recomputeAssets(assets: PortfolioAsset[], records: InvestmentRecord[]) {
@@ -1160,9 +1213,32 @@ class BrowserFinanceRepository implements FinanceRepository {
 
   async updateLedgerTransaction(id: string, input: LedgerDraft) {
     assertLedgerInvariants(input, this.data.accounts, { allowTransfer: input.entryType === "transfer" });
-    this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
-      row.id === id ? bump({ ...row, ...input, counterAccountId: input.counterAccountId ?? null, groupId: input.groupId ?? null }) : row,
-    );
+    const existingRow = this.data.ledgerTransactions.find((row) => row.id === id);
+    // Fee-leg reconciliation (plan 226) only applies to expense/income rows —
+    // transfers keep their separate createTransfer fee path.
+    const feeEligible = Boolean(existingRow) && (input.entryType === "expense" || input.entryType === "income");
+    const existingLegId = feeEligible ? findFeeLegId(this.data.ledgerTransactions, existingRow!.groupId) : undefined;
+    const plan: FeeLegPlan = feeEligible ? planFeeLegUpdate(existingLegId, input.feeAmount) : { kind: "none" };
+    // Preserve the row's own groupId across the edit (needed so a later edit
+    // can still find the linked fee leg via the lookup contract above); only
+    // mint a fresh one when we're about to create the first fee leg for a
+    // previously ungrouped row. Non-fee-eligible rows keep the legacy
+    // `input.groupId ?? null` behavior — the recurring "all"-scope sibling
+    // rewrite (applyRecurringScopeEdit) still passes groupId explicitly when
+    // it wants a specific value.
+    let groupId = feeEligible ? existingRow!.groupId : (input.groupId ?? null);
+    if (plan.kind === "create" && !groupId) groupId = createId("group");
+    this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) => {
+      if (row.id === id) return bump({ ...row, ...input, counterAccountId: input.counterAccountId ?? null, groupId });
+      if (plan.kind === "update" && row.id === plan.legId) {
+        return bump({ ...row, amount: -Math.abs(input.feeAmount!), date: input.date, merchant: input.merchant, accountId: input.accountId, currency: input.currency });
+      }
+      if (plan.kind === "tombstone" && row.id === plan.legId) return bump({ ...row, deletedAt: nowIso() });
+      return row;
+    });
+    if (plan.kind === "create") {
+      this.data.ledgerTransactions.push(createLedgerRow(feeLegDraft(input, groupId!)));
+    }
     this.recompute();
     await this.persist();
   }
@@ -3166,11 +3242,50 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
   override async updateLedgerTransaction(id: string, input: LedgerDraft) {
     assertLedgerInvariants(input, await this.listAccounts(), { allowTransfer: input.entryType === "transfer" });
-    await this.db.execute(
-      `update ledger_transactions set revision = revision + 1, updated_at = $1, account_id = $2, date = $3, name = $4, amount = $5, currency = $6, original_amount = $7, original_currency = $8, category = $9, subcategory = $10, merchant = $11, entry_type = $12, settlement_status = $13, note = $14, group_id = $15, counter_account_id = $17, post_date = $18 where id = $16`,
-      [nowIso(), input.accountId, input.date, input.name, input.amount, input.currency, input.originalAmount ?? null, input.originalCurrency ?? null, input.category, input.subcategory, input.merchant, input.entryType, input.settlementStatus, input.note, input.groupId ?? null, id, input.counterAccountId ?? null, input.postDate ?? null],
-    );
-    await this.recomputeSqliteAccounts();
+    await this.withTransaction(async () => {
+      const existingRows = await this.db.select<Array<{ groupId: string | null }>>(
+        `select group_id as groupId from ledger_transactions where id = $1`,
+        [id],
+      );
+      const existingRow = existingRows[0] as { groupId: string | null } | undefined;
+      // Fee-leg reconciliation (plan 226) only applies to expense/income rows —
+      // transfers keep their separate createTransfer fee path. See the
+      // sibling logic (and its comments) in BrowserFinanceRepository above —
+      // this override mirrors it 1:1 over SQL instead of the in-memory array.
+      const feeEligible = Boolean(existingRow) && (input.entryType === "expense" || input.entryType === "income");
+      let existingLegId: string | undefined;
+      if (feeEligible && existingRow!.groupId) {
+        const legs = await this.db.select<Array<{ id: string }>>(
+          `select id from ledger_transactions where group_id = $1 and category = $2 and leg_kind is null and deleted_at is null`,
+          [existingRow!.groupId, "手續費"],
+        );
+        existingLegId = legs[0]?.id;
+      }
+      const plan: FeeLegPlan = feeEligible ? planFeeLegUpdate(existingLegId, input.feeAmount) : { kind: "none" };
+      let groupId = feeEligible ? existingRow!.groupId : (input.groupId ?? null);
+      if (plan.kind === "create" && !groupId) groupId = createId("group");
+
+      await this.db.execute(
+        `update ledger_transactions set revision = revision + 1, updated_at = $1, account_id = $2, date = $3, name = $4, amount = $5, currency = $6, original_amount = $7, original_currency = $8, category = $9, subcategory = $10, merchant = $11, entry_type = $12, settlement_status = $13, note = $14, group_id = $15, counter_account_id = $17, post_date = $18 where id = $16`,
+        [nowIso(), input.accountId, input.date, input.name, input.amount, input.currency, input.originalAmount ?? null, input.originalCurrency ?? null, input.category, input.subcategory, input.merchant, input.entryType, input.settlementStatus, input.note, groupId, id, input.counterAccountId ?? null, input.postDate ?? null],
+      );
+
+      if (plan.kind === "create") {
+        await this.insertLedgerRow(createLedgerRow(feeLegDraft(input, groupId!)));
+      } else if (plan.kind === "update") {
+        await this.db.execute(
+          `update ledger_transactions set revision = revision + 1, updated_at = $1, amount = $2, date = $3, merchant = $4, account_id = $5, currency = $6 where id = $7`,
+          [nowIso(), -Math.abs(input.feeAmount!), input.date, input.merchant, input.accountId, input.currency, plan.legId],
+        );
+      } else if (plan.kind === "tombstone") {
+        await this.db.execute(
+          `update ledger_transactions set deleted_at = $1, updated_at = $1, revision = revision + 1 where id = $2`,
+          [nowIso(), plan.legId],
+        );
+      }
+
+      await this.recomputeSqliteAccounts();
+    });
   }
 
   override async applyRecurringScopeEdit(id: string, scope: RecurringEditScope, input: LedgerDraft) {

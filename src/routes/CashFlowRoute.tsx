@@ -554,6 +554,17 @@ export function CashFlowRoute() {
     return rows;
   }
 
+  /**
+   * The amount of `row`'s linked 手續費 leg (plan 226), or 0 when it has none.
+   * Same lookup contract as the repo: same groupId + category === "手續費" +
+   * legKind == null (system leg, not a user split/share leg) + active.
+   */
+  function linkedFeeAmountFor(row: LedgerTransaction): number {
+    if (!row.groupId) return 0;
+    const leg = ledgerRows.find((r) => r.groupId === row.groupId && r.category === "手續費" && r.legKind == null && r.deletedAt === null);
+    return leg ? Math.abs(leg.amount) : 0;
+  }
+
   function openCreate(type: CashType) {
     setDrawerType(type);
     setDrawerOpen(true);
@@ -801,6 +812,9 @@ export function CashFlowRoute() {
       entryType: row.entryType ?? (row.amount >= 0 ? "income" : "expense"),
       settlementStatus: row.settlementStatus ?? "settled",
       note: row.note,
+      // 手續費 editable on edit (plan 226): hydrate from the linked fee leg so
+      // 進階 shows the current fee (0 if none) instead of always starting blank.
+      feeAmount: linkedFeeAmountFor(row),
       postDate: row.postDate ?? null,
     });
     setEntryDisplayCurrency(row.originalCurrency ?? row.currency);
@@ -999,10 +1013,10 @@ export function CashFlowRoute() {
         subcategory: ledgerForm.subcategory.trim(),
         merchant: (isReceivablePayable ? counterparty : ledgerForm.merchant).trim(),
         note,
-        // Fees attach to newly-created income/expense rows; the repo emits a
-        // linked 手續費 expense leg. Edits never carry a fee (consistent with
-        // transfer behaviour: re-editing can't retroactively add fee legs).
-        feeAmount: !editingId && (entryType === "expense" || entryType === "income") ? (ledgerForm.feeAmount || 0) : 0,
+        // Fees attach to income/expense rows only — the repo emits/reconciles
+        // a linked 手續費 expense leg on both create AND edit (plan 226).
+        // Transfers keep their separate transferForm.feeAmount path.
+        feeAmount: (entryType === "expense" || entryType === "income") ? (ledgerForm.feeAmount || 0) : 0,
       };
       // Expense/income/transfer need an account up front; receivable/payable
       // defer the settle account to 結清 time (only the optional 代墊 account
@@ -3535,7 +3549,7 @@ function EntryDrawer({
               </div>
               {showAdvanced && (
                 <>
-                  {(type === "expense" || type === "income") && !editing && !activeInstallment && !splitMode && (
+                  {(type === "expense" || type === "income") && !activeInstallment && !splitMode && (
                     <DrawerField label={`外加手續費（選填） · ${ledgerForm.currency}`}>
                       <input
                         className="ns-input"
