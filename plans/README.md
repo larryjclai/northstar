@@ -1,5 +1,25 @@
 # Implementation Plans
 
+## Reconciled 2026-07-19 (`main` @ `54f7339b`, in sync with origin)
+
+- **228–231 (DCA batch) done-criteria re-verified by grep at HEAD** ✓ (tab entry ×2,
+  `switcherAccountIds` filter, ROADMAP 已暫時隱藏 = 0, `"dca"` todoRows source,
+  `upcomingDca`, `postConfirm`/`buildQuoteLookup` ×6, `isTaiwanListedTicker`
+  export+use). Full suite re-run: **1392 tests green**.
+- **DCA decision doc §6 worklist: all 8 items landed** (books-scope, tab, dashboard
+  reminder, stale-price, TW lot call, fee test, ROADMAP, demo seed) — the Option A
+  finishing pass is COMPLETE. Only deliberately-unbuilt remainder: auto-post
+  (flagged in the doc as a separate, un-approved M-effort feature).
+- **Open follow-ups pruned — 3 retired, 1 updated**: worktrees/Tailwind (fixed
+  `55c636ac`), EntryDrawer autocomplete (plan 219), Index-Nudge full-history
+  (plan 220) all retired; 分帳 phase-2 entry rewritten — foundation done (221),
+  **plan 222 (分帳 UI) is the remaining piece**, still gated on the operator's 182
+  live pass.
+- **No BLOCKED / IN-PROGRESS plans. Executable frontier**: plan 222 (cut it when
+  ready), the pruned Open follow-ups (132 vault-key rotation, DRIP partial-sync
+  guard, annual-report print polish, Quick Add §6, 138 re-inventory, 137-C), and
+  the deferred-by-design items (085-088, Tier 2 parked).
+
 ## Reconciled 2026-07-18 (`main` @ `9119cb8e`)
 
 - **227 (編輯轉帳) is MERGED** — the background session merged `fix/ai-transfer-edit`
@@ -832,12 +852,8 @@ invented. Per-holding day-change may need `dayChangeMovers` to expose raw prices
 
 ## Open follow-ups (surfaced, not yet planned)
 
-- **`.claude/worktrees/` pollutes Tailwind builds** (reconcile 2026-07-17, proven by
-  plan 217's executor): Tailwind v4 auto-source scanning respects `.gitignore`, and
-  `.claude/worktrees/` isn't in it — stale worktree file copies emit dead utility
-  classes into compiled CSS. One-line fix: gitignore `.claude/worktrees/`; also
-  `git worktree remove .claude/worktrees/busy-mestorf-dd21b7` (verified clean + fully
-  merged, zero unique work). Operator/next-session task — too small for a plan.
+- ~~`.claude/worktrees/` pollutes Tailwind builds~~ **RETIRED (reconcile 2026-07-19)**
+  — fixed directly 2026-07-17 @ `55c636ac` (gitignored + dead worktree removed).
 - **138 tail — RE-INVENTORY before planning.** The old list of ~10 overlays to
   migrate to ModalShell is now **stale**: 157 (render-prop ModalShell across 14
   call sites), 159 (bottom-sheet + 更多 sheet), and 162 (EntryDrawer) migrated most
@@ -850,25 +866,26 @@ invented. Per-holding day-change may need `dayChangeMovers` to expose raw prices
   revoked device that already captured ciphertext can still decrypt THAT (future
   data is cut off by per-device auth). Needs 131's `/keys` machinery; 131's
   `ade8e99d` ECDH helpers are groundwork, so it's cheaper now than when deferred.
-- **EntryDrawer 商家 autocomplete** (from plan 180, 2026-07-13): the merchant
-  autocomplete shipped on QuickAdd only; the CashFlow EntryDrawer 商家 field is
-  still a plain input. Small plan — extract/reuse QuickAdd's dropdown.
+- ~~EntryDrawer 商家 autocomplete~~ **RETIRED (reconcile 2026-07-19)** — shipped
+  as plan 219 (shared `MerchantAutocomplete`, kb-nav + a11y, merged 2026-07-17).
+  Note the original claim was wrong anyway: the drawer had its own weaker
+  autocomplete since `60ac6277`, never a plain input.
 - **Annual-report print — deferred polish** (from plan 173, 2026-07-13): (a) the visual print-preview check was never eyeballed (headless executor) — operator should print `/reports/annual` once (dark theme + a long multi-year report) to confirm no chrome bleed / no year-row page splits; (b) the 列印 button is not gated off on iOS (`window.print()` works in iOS WKWebView but is unpolished) — gate to desktop if the report becomes a mobile surface. Small.
 - **Quick Add §6 remaining UX items** (from plan 175 inventory, 2026-07-13): §6.2 輸入框 token 高亮 (NOT shipped — needs an input overlay, bigger UI effort) and §6.3 低信心即時預覽補救 (PARTIAL — confirm-card chips exist, no preview-stage remediation). Both offline; a follow-up plan when Quick Add next gets attention. §6.6 語音輸入 stays with the iOS wave.
 - **Quick Add Tier 2 (cloud parse) — PARKED by operator** (2026-07-13): the §12
   decision draft stays in `docs/quick-add-nlp-plan.md`; operator chose not to
   build for now (Tier 0+1 suffice). Do NOT build unless explicitly re-approved
   — it crosses the local-first invariant.
-- **Index-Nudge — full-history evaluation** (from plan 179, 2026-07-13): the
-  shipped nudge evaluates over the SELECTED analytics period, so it can only
-  fire on 5Y/All/long ranges (needs ≥8 rolling quarters in-window). If the
-  operator wants it to fire regardless of the viewed period, a small follow-up
-  computes the windows from an always-full-history TWR series. (The A/B/C
-  variant decision itself is CLOSED — operator chose A+TWR, shipped in 179.)
-- **分帳 (counterparty shares) — phase 2, now plan-able** (updated 2026-07-13):
-  多類別 shipped (181/182 merged). 分帳 adds a `"share"` legKind + counterparty
-  per leg, reusing 代墊/AR-AP. Plan it once the operator's live pass on the 182
-  split flows is done.
+- ~~Index-Nudge — full-history evaluation~~ **RETIRED (reconcile 2026-07-19)** —
+  shipped as plan 220 (period-independent `"1900-01-01"` TWR verdict, merged
+  2026-07-17).
+- **分帳 phase 2 — data layer DONE, UI (plan 222) remains** (updated at reconcile
+  2026-07-19): foundation shipped as plan 221 (`"share"` legKind, `counterAccountId`
+  pass-through, reconciliation-tested, merged 2026-07-17). Remaining: **plan 222
+  (分帳 UI)** — cut it against 221's real signatures (`SplitShareInput`,
+  `createSplit/updateSplit(shares?)`; see 221's index row + maintenance notes).
+  Still gated on the operator's live pass of the 182 split flows (Manual-verification
+  section) — do that pass before or with 222.
 - **DRIP / fee-leg / installments lack partial-sync-arrival guard** (surfaced by plan 176 spike, 2026-07-13). Sync is per-record LWW with no group-atomic apply; only **transfers** detect a half-arrived group (`incompleteTransferGroupIds`, `ledgerTrust.ts:151-165`). A device that pulls one leg of a DRIP pair before its sibling transiently shows wrong cost-basis/XIRR until the other arrives. Fee-leg/installments are more benign (each row self-consistent). Fix = generalize the transfer guard to `incompleteGroupIds` covering `dripGroupId`; small, worth a plan when sync/DRIP next gets attention. Not a live-data-corruption bug (self-heals on next pull), so P3.
 
 ## Deferred by design (decide-then-build)
