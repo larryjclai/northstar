@@ -13,6 +13,7 @@ import type { RecurringInvestmentDraft } from "../data/repositories";
 import { formatNumber, formatQuantity, recurringFrequencyLabels, recurringInvestmentModeLabels, todayInTimezone } from "../domain";
 import type { RecurringFrequency, RecurringInvestment, RecurringInvestmentMode } from "../domain";
 import { bookAccountIdSet } from "../domain/bookScope";
+import { buildQuoteLookup, findQuoteForTicker, isTaiwanListedTicker } from "../domain/marketSymbols";
 import { useUiPreferences } from "../state/uiPreferences";
 
 function freqLabel(rule: RecurringInvestment): string {
@@ -25,6 +26,22 @@ function freqLabel(rule: RecurringInvestment): string {
 function perPeriodCash(rule: Pick<RecurringInvestment, "mode" | "amount" | "quantity" | "price" | "fee">): number {
   const base = rule.mode === "fixedShares" ? (rule.quantity || 0) * (rule.price || 0) : (rule.amount || 0);
   return base + (rule.fee || 0);
+}
+
+/** Field-copy from a stored rule into an editable draft — same shape `openEdit` builds. */
+function ruleToDraft(rule: RecurringInvestment): RecurringInvestmentDraft {
+  return {
+    accountId: rule.accountId, ticker: rule.ticker, name: rule.name, currency: rule.currency,
+    mode: rule.mode, amount: rule.amount, quantity: rule.quantity, price: rule.price, fee: rule.fee,
+    frequency: rule.frequency, dayOfMonth: rule.dayOfMonth, nextRunDate: rule.nextRunDate, isActive: rule.isActive, note: rule.note,
+  };
+}
+
+/** Taiwan-listed fixedAmount rule: whole shares only — the actual debit/buy is the
+ *  amount rounded DOWN to a whole-share multiple of price (broker refunds the remainder). */
+function wholeShareInvested(amount: number, price: number): number | null {
+  if (!(price > 0)) return null;
+  return Math.floor(amount / price) * price;
 }
 
 const emptyDraft: RecurringInvestmentDraft = {
@@ -45,13 +62,16 @@ const emptyDraft: RecurringInvestmentDraft = {
 };
 
 export function RecurringInvestmentsTab() {
-  const { recurringInvestments, accounts } = useFinanceData();
+  const { recurringInvestments, accounts, quotes } = useFinanceData();
   const toast = useToast();
   const timezone = useUiPreferences((s) => s.timezone);
   const activeBookId = useUiPreferences((state) => state.activeBookId);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<RecurringInvestmentDraft>(emptyDraft);
+  const [postConfirm, setPostConfirm] = useState<RecurringInvestment | null>(null);
+
+  const quoteLookup = useMemo(() => buildQuoteLookup(quotes.data ?? []), [quotes.data]);
 
   const investmentAccounts = useMemo(
     () => (accounts.data ?? []).filter((a) => a.type === "investment"),
@@ -93,11 +113,7 @@ export function RecurringInvestmentsTab() {
   }
   function openEdit(rule: RecurringInvestment) {
     setEditingId(rule.id);
-    setDraft({
-      accountId: rule.accountId, ticker: rule.ticker, name: rule.name, currency: rule.currency,
-      mode: rule.mode, amount: rule.amount, quantity: rule.quantity, price: rule.price, fee: rule.fee,
-      frequency: rule.frequency, dayOfMonth: rule.dayOfMonth, nextRunDate: rule.nextRunDate, isActive: rule.isActive, note: rule.note,
-    });
+    setDraft(ruleToDraft(rule));
     setSheetOpen(true);
   }
   function close() {
@@ -120,10 +136,24 @@ export function RecurringInvestmentsTab() {
     }
   }
 
-  async function post(rule: RecurringInvestment) {
+  async function postWithStoredPrice(rule: RecurringInvestment) {
+    setPostConfirm(null);
     try {
       await postRule.mutateAsync(rule.id);
       toast.success(`已記錄 ${rule.ticker} 本期投入`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "記錄失敗");
+    }
+  }
+
+  async function postWithLatestPrice(rule: RecurringInvestment, latest: number) {
+    setPostConfirm(null);
+    try {
+      // Await ordering matters: the update must resolve before the post reads
+      // the stored price, or the record would still land at the stale price.
+      await updateRule.mutateAsync({ ...ruleToDraft(rule), id: rule.id, price: latest });
+      await postRule.mutateAsync(rule.id);
+      toast.success(`已更新報價並記錄 ${rule.ticker} 本期投入`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "記錄失敗");
     }
@@ -194,7 +224,7 @@ export function RecurringInvestmentsTab() {
                   <div className="muted mono text-caption">交割約 NT${formatNumber(Math.round(perPeriodCash(rule)))}</div>
                 </div>
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="icon-sm" title="記錄本期投入" onClick={() => post(rule)} disabled={postRule.isPending}><Check size={14} /></Button>
+                  <Button variant="ghost" size="icon-sm" title="記錄本期投入" onClick={() => setPostConfirm(rule)} disabled={postRule.isPending}><Check size={14} /></Button>
                   <Button variant="ghost" size="icon-sm" title="編輯" onClick={() => openEdit(rule)}><PencilSimple size={14} /></Button>
                   <Button variant="destructive-outline" size="icon-sm" title="刪除" onClick={() => remove(rule.id)}><Trash size={14} /></Button>
                 </div>
@@ -215,7 +245,93 @@ export function RecurringInvestmentsTab() {
           onClose={close}
         />
       ) : null}
+
+      {postConfirm ? (
+        <PostConfirmDialog
+          rule={postConfirm}
+          latest={findQuoteForTicker(quoteLookup, postConfirm.ticker)?.price ?? null}
+          pending={postRule.isPending || updateRule.isPending}
+          onClose={() => setPostConfirm(null)}
+          onPostStored={postWithStoredPrice}
+          onPostLatest={postWithLatestPrice}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function PostConfirmDialog({
+  rule, latest, pending, onClose, onPostStored, onPostLatest,
+}: {
+  rule: RecurringInvestment;
+  latest: number | null;
+  pending: boolean;
+  onClose: () => void;
+  onPostStored: (rule: RecurringInvestment) => void;
+  onPostLatest: (rule: RecurringInvestment, latest: number) => void;
+}) {
+  const differs = latest !== null && latest !== rule.price;
+  const taiwanFixedAmount = rule.mode === "fixedAmount" && isTaiwanListedTicker(rule.ticker);
+
+  function cashNote(price: number) {
+    return rule.mode === "fixedShares"
+      ? `交割款 NT$${formatNumber(perPeriodCash({ ...rule, price }))}（隨股數 × 價格變動）`
+      : `交割款 NT$${formatNumber(perPeriodCash({ ...rule, price }))}（固定金額，價格不影響交割款）`;
+  }
+
+  function wholeShareNote(price: number) {
+    if (!taiwanFixedAmount) return null;
+    const actual = wholeShareInvested(rule.amount, price);
+    if (actual === null) return null;
+    return `實際投入 NT$${formatNumber(actual)}（約定 NT$${formatNumber(rule.amount)}，差額不足 1 股）`;
+  }
+
+  return (
+    <ModalShell variant="center" title={`確認記錄本期投入 · ${rule.name || rule.ticker}`} onClose={onClose} panelClassName="w-full" panelStyle={{ maxWidth: 420 }}>
+      {(dismiss) => (
+        <Card className="w-full p-0">
+          <div className="py-4 px-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--ns-border)" }}>
+            <h2 className="text-base font-semibold" style={{ margin: 0 }}>確認記錄本期投入 · {rule.name || rule.ticker}</h2>
+            <ModalCloseButton onClick={dismiss} />
+          </div>
+          <div className="py-4 px-5 flex flex-col gap-3.5">
+            <div>
+              <div className="text-body font-medium">參考價 NT${formatNumber(rule.price, { maximumFractionDigits: 2 })}</div>
+              <div className="muted text-xs" style={{ marginTop: 2 }}>{cashNote(rule.price)}</div>
+              {wholeShareNote(rule.price) ? <div className="muted text-xs" style={{ marginTop: 2 }}>{wholeShareNote(rule.price)}</div> : null}
+            </div>
+            <div>
+              <div className="text-body font-medium">
+                最新報價 {latest !== null ? `NT$${formatNumber(latest, { maximumFractionDigits: 2 })}` : "無報價資料"}
+              </div>
+              {latest !== null ? (
+                <>
+                  <div className="muted text-xs" style={{ marginTop: 2 }}>{cashNote(latest)}</div>
+                  {wholeShareNote(latest) ? <div className="muted text-xs" style={{ marginTop: 2 }}>{wholeShareNote(latest)}</div> : null}
+                </>
+              ) : null}
+            </div>
+            <div className="flex flex-col gap-2">
+              {latest !== null && differs ? (
+                <>
+                  <Button className="w-full justify-center" onClick={() => onPostStored(rule)} disabled={pending} loading={pending}>
+                    用參考價記錄（NT${formatNumber(rule.price, { maximumFractionDigits: 2 })}）
+                  </Button>
+                  <Button variant="outline" className="w-full justify-center" onClick={() => onPostLatest(rule, latest)} disabled={pending} loading={pending}>
+                    更新為最新報價並記錄（NT${formatNumber(latest, { maximumFractionDigits: 2 })}）
+                  </Button>
+                </>
+              ) : (
+                <Button className="w-full justify-center" onClick={() => onPostStored(rule)} disabled={pending} loading={pending}>
+                  記錄本期投入
+                </Button>
+              )}
+              <Button variant="ghost" className="w-full justify-center" onClick={dismiss} disabled={pending}>取消</Button>
+            </div>
+          </div>
+        </Card>
+      )}
+    </ModalShell>
   );
 }
 
