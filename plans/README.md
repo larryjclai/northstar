@@ -1,5 +1,27 @@
 # Implementation Plans
 
+## 222 + 232–233 — 分帳 UI + follow-up burn-down (`/improve` @ `4f9356fa`, 2026-07-19)
+
+Operator: finish 分帳 (222) and keep burning the follow-ups list.
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 222 | 分帳 UI — share drafts in `splitEntryState` (amount/對象/應收帳戶, exit-rule gains shares), 分帳 section in the split editor (expense-only, 代墊 full-list account picker precedent), save passes `shares` to create/updateSplit, edit round-trip (`splitGroupRowsFor` + `startSplitEdit` + list collapse widen to legKind share, expanded rows show 分帳 · 對象). Foundation (221) frozen — UI calls, never re-implements | P2 | M–L | 221 (merged) | TODO |
+| 232 | DRIP partial-sync guard — `incompleteDripGroupIds` (pair `!== 2` rule, mirrors transfer guard) into the data-health report + consumer message rows; ≥4 tests | P3 | S | — | TODO |
+| 233 | 年度報表列印 gate off coarse-pointer devices (ModalShell media-query convention); CSV 匯出 stays | P3 | S | — | TODO |
+
+**138 tail — RETIRED at this session's inventory** (was "re-inventory before
+planning"): ModalShell adoption = 18 files; every remaining non-ModalShell
+overlay is deliberate — QuickAdd instant surface (plan 160), OnboardingOverlay
+custom full-screen (+218 motion), quarantined `ui/dialog` (⌘K only), EntryDrawer
+sidebar-offset scrim (plan 162 decision). The migration is effectively complete;
+no further plan.
+
+**Still open after this batch**: 137-C formatPercent (percent-scale variant +
+sign audit), Quick Add §6.2/6.3, **132 vault-key rotation (security — deserves
+a dedicated planning session, crypto+worker surface)**, plan-173's operator-only
+print eyeball, deferred-by-design 085-088 / Tier 2.
+
 ## Reconciled 2026-07-19 (`main` @ `54f7339b`, in sync with origin)
 
 - **228–231 (DCA batch) done-criteria re-verified by grep at HEAD** ✓ (tab entry ×2,
