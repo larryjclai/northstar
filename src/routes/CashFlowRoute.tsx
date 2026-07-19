@@ -56,22 +56,29 @@ import { useToast } from "../components/Toast";
 import { activeFilterChips } from "./activeFilterChips";
 import type { ClientDraft, InvoiceDraft, LedgerDraft, TransferDraft } from "../data/repositories";
 import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, classifyLedgerGroup, evaluateAmountExpression, filterCategoriesByType, formatNumber, installmentLabel, isNeutralLedgerRow, isWithinDateScope, makeDefaultDateScope, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, resolveDateScope, todayInTimezone } from "../domain";
-import type { SplitLegInput, SplitSharedFields } from "../domain/splitLegs";
+import type { SplitLegInput, SplitShareInput, SplitSharedFields } from "../domain/splitLegs";
 import { buildInvoiceDrafts, defaultInvoiceDueDate } from "../domain/invoiceEntry";
 import { computeSalesTax } from "../domain/salesTax";
 import { agingBuckets, bimonthly401Summary, daysSalesOutstanding, outstandingSalesTax } from "../domain/invoiceReporting";
 import { nextInvoiceNumber, validateInvoiceNumber, type InvoiceNumberPreset } from "../domain/invoiceNumbering";
 import {
+  addShareDraft,
   addSplitLeg,
+  combinedSplitError,
+  derivedShareTotal,
   derivedSplitTotal,
   enterSplitMode,
   makeEmptySplitLeg,
+  removeShareDraft,
   removeSplitLeg,
+  shareDraftsError,
   shouldExitSplitMode,
-  splitLegsError,
+  toShareInputs,
   toSplitLegInputs,
+  updateShareDraft,
   updateSplitLeg,
   type SplitLegDraftState,
+  type SplitShareDraftState,
 } from "./splitEntryState";
 import { convertCurrency, buildDailyRateIndex, formatCompactNumber } from "../domain/currency";
 import type { Account, Client, DateScopeValue, LedgerTransaction, RecurringFrequency, RecurringTransaction, ResolvedDateScope } from "../domain";
@@ -245,6 +252,10 @@ export function CashFlowRoute() {
   // existing split group (save goes through updateSplit with this groupId).
   const [splitLegs, setSplitLegs] = useState<SplitLegDraftState[] | null>(null);
   const [editingSplitGroupId, setEditingSplitGroupId] = useState<string | null>(null);
+  // 分帳 (plan 222): per-participant share drafts alongside splitLegs. Always
+  // an array (never null) — emptiness IS "no shares", split mode itself is
+  // still governed by splitLegs being non-null.
+  const [shareDrafts, setShareDrafts] = useState<SplitShareDraftState[]>([]);
   // 編輯轉帳 (plan 227): non-null while editing an existing transfer group (save
   // goes through updateTransfer with this groupId instead of createTransfer).
   // groupId is the stable handle — the display/detail row may be either leg.
@@ -427,13 +438,13 @@ export function CashFlowRoute() {
     ["ledger", "accounts"],
   );
   const createSplitMutation = useRepositoryMutation(
-    (repository, input: { shared: SplitSharedFields; legs: SplitLegInput[] }) =>
-      repository.createSplit(input.shared, input.legs),
+    (repository, input: { shared: SplitSharedFields; legs: SplitLegInput[]; shares: SplitShareInput[] }) =>
+      repository.createSplit(input.shared, input.legs, input.shares),
     ["ledger", "accounts"],
   );
   const updateSplitMutation = useRepositoryMutation(
-    (repository, input: { groupId: string; shared: SplitSharedFields; legs: SplitLegInput[] }) =>
-      repository.updateSplit(input.groupId, input.shared, input.legs),
+    (repository, input: { groupId: string; shared: SplitSharedFields; legs: SplitLegInput[]; shares: SplitShareInput[] }) =>
+      repository.updateSplit(input.groupId, input.shared, input.legs, input.shares),
     ["ledger", "accounts"],
   );
   const createInstallmentPlan = useRepositoryMutation(
@@ -540,17 +551,19 @@ export function CashFlowRoute() {
 
   /**
    * The active user-split legs of `row`'s group, or null when the row is not
-   * part of a 多類別拆分. Requires EVERY leg to carry `legKind: "category"` —
-   * a fee-leg pair (legKind null) also classifies as "split" (same account,
-   * shared groupId) but must keep today's single-row edit behavior, never
-   * open the split editor.
+   * part of a 多類別拆分. Requires EVERY leg to carry `legKind: "category"` or
+   * `"share"` (plan 222: 分帳 legs join the same group) — a fee-leg pair
+   * (legKind null) also classifies as "split" (same account, shared groupId)
+   * but must keep today's single-row edit behavior, never open the split
+   * editor. Never widen this to legKind null: plan 226's fee-edit lookup
+   * depends on fee legs staying excluded from the split editor.
    */
   function splitGroupRowsFor(row: LedgerTransaction): LedgerTransaction[] | null {
     if (!row.groupId) return null;
     const rows = ledgerRows.filter((r) => r.groupId === row.groupId && r.deletedAt === null);
     if (rows.length < 2) return null;
     if (classifyLedgerGroup(rows) !== "split") return null;
-    if (!rows.every((r) => r.legKind === "category")) return null;
+    if (!rows.every((r) => r.legKind === "category" || r.legKind === "share")) return null;
     return rows;
   }
 
@@ -571,6 +584,7 @@ export function CashFlowRoute() {
     setEditingId(null);
     setEditingRecurringRuleId(null);
     setSplitLegs(null);
+    setShareDrafts([]);
     setEditingSplitGroupId(null);
     setEditingTransferGroupId(null);
     // Always default a fresh entry to a one-off transaction. The control is
@@ -617,6 +631,7 @@ export function CashFlowRoute() {
     setEditingId(null);
     setEditingRecurringRuleId(null);
     setSplitLegs(null);
+    setShareDrafts([]);
     setEditingSplitGroupId(null);
     setEditingTransferGroupId(null);
     setInstallmentPeriods(0);
@@ -646,6 +661,13 @@ export function CashFlowRoute() {
     if (next !== "expense" && next !== "income") {
       setSplitLegs(null);
       setEditingSplitGroupId(null);
+      setShareDrafts([]);
+    }
+    // 分帳 (plan 222/221) only supports expense — switching a split to 收入
+    // must drop any shares so a save can never reach the builder's
+    // 分帳僅支援支出 throw.
+    if (next === "income" && shareDrafts.length > 0) {
+      setShareDrafts([]);
     }
     if (next === "transfer") {
       setTransferForm({ ...emptyTransfer, date: nowAsDatetimeLocal(timezone) });
@@ -677,13 +699,19 @@ export function CashFlowRoute() {
 
   /**
    * Hydrate the drawer's split mode from an existing 拆分 group: shared
-   * fields come from the first leg, one editable leg row per group leg.
-   * `duplicate` opens the same form in create mode (a fresh group on save).
-   * Note: leg row ids change on every updateSplit (tombstone + recreate), so
-   * nothing here caches leg ids — only the stable groupId.
+   * fields come from the first CATEGORY leg (a 分帳 group's share legs carry
+   * the counterparty's name and an empty category in `name`/`category` — see
+   * domain/splitLegs `buildSplitLegs` — so they're never representative of
+   * the shared fields), one editable leg row per category leg, one editable
+   * share row per share leg (plan 222). `duplicate` opens the same form in
+   * create mode (a fresh group on save). Note: leg row ids change on every
+   * updateSplit (tombstone + recreate), so nothing here caches leg ids — only
+   * the stable groupId.
    */
   function startSplitEdit(groupRows: LedgerTransaction[], duplicate = false) {
-    const first = groupRows[0];
+    const categoryRows = groupRows.filter((r) => r.legKind === "category");
+    const shareRows = groupRows.filter((r) => r.legKind === "share");
+    const first = categoryRows[0] ?? groupRows[0];
     setDrawerType(first.entryType === "income" ? "income" : "expense");
     setEditingId(duplicate ? null : first.id);
     setEditingSplitGroupId(duplicate ? null : first.groupId);
@@ -708,10 +736,15 @@ export function CashFlowRoute() {
     setEntryDisplayCurrency(first.currency);
     const total = groupRows.reduce((sum, r) => sum + Math.abs(r.amount), 0);
     setAmountExpression(String(total));
-    setSplitLegs(groupRows.map((r) => ({
+    setSplitLegs(categoryRows.map((r) => ({
       amount: String(Math.abs(r.amount)),
       category: r.category,
       subcategory: r.subcategory,
+    })));
+    setShareDrafts(shareRows.map((r) => ({
+      amount: String(Math.abs(r.amount)),
+      counterparty: r.name,
+      counterAccountId: r.counterAccountId ?? "",
     })));
     setDrawerRecurringFreq("none");
     setInstallmentPeriods(0);
@@ -746,6 +779,7 @@ export function CashFlowRoute() {
     );
     setDrawerType("transfer");
     setSplitLegs(null);
+    setShareDrafts([]);
     setEditingSplitGroupId(null);
     setEditingTransferGroupId(row.groupId);
     setEditingId(row.id);
@@ -785,6 +819,7 @@ export function CashFlowRoute() {
     }
     setDrawerType(type);
     setSplitLegs(null);
+    setShareDrafts([]);
     setEditingSplitGroupId(null);
     setEditingTransferGroupId(null);
     setEditingId(row.id);
@@ -835,6 +870,7 @@ export function CashFlowRoute() {
     const type = cashTypeFromRow(row);
     setDrawerType(type);
     setSplitLegs(null);
+    setShareDrafts([]);
     setEditingSplitGroupId(null);
     setEditingTransferGroupId(null);
     setEditingId(null);
@@ -892,8 +928,11 @@ export function CashFlowRoute() {
       // 多類別拆分: split mode saves through createSplit/updateSplit and never
       // touches the single-row path below (which stays byte-identical).
       if (splitLegs && (drawerType === "expense" || drawerType === "income")) {
-        const legsError = splitLegsError(splitLegs);
-        if (legsError) throw new Error(legsError);
+        // Combined check (plan 222): splitLegsError alone can't see shares,
+        // so it wrongly rejects a valid 1-leg + 1-share 分帳 — combinedSplitError
+        // mirrors the builder's combined-≥2 rule (see splitEntryState.ts).
+        const combinedError = combinedSplitError(splitLegs, shareDrafts);
+        if (combinedError) throw new Error(combinedError);
         if (!ledgerForm.accountId) throw new Error("請選擇帳戶。");
         const splitEntryType = entryTypeFor(drawerType) as "expense" | "income";
         const isCreditSplit = splitEntryType === "expense"
@@ -910,12 +949,15 @@ export function CashFlowRoute() {
           postDate: isCreditSplit ? (ledgerForm.postDate || null) : null,
         };
         const legs = toSplitLegInputs(splitLegs);
+        const shares = toShareInputs(shareDrafts);
         if (editingId && editingSplitGroupId) {
-          await updateSplitMutation.mutateAsync({ groupId: editingSplitGroupId, shared, legs });
+          await updateSplitMutation.mutateAsync({ groupId: editingSplitGroupId, shared, legs, shares });
           toast.success("已更新拆分交易");
         } else {
-          await createSplitMutation.mutateAsync({ shared, legs });
-          toast.success(`已新增拆分交易（${legs.length} 筆分類）`);
+          await createSplitMutation.mutateAsync({ shared, legs, shares });
+          toast.success(shares.length > 0
+            ? `已新增拆分交易（${legs.length} 筆分類、${shares.length} 筆分帳）`
+            : `已新增拆分交易（${legs.length} 筆分類）`);
         }
         await rememberCategories.mutateAsync(legs.map((leg) => ({ category: leg.category, subcategory: leg.subcategory })));
         rememberMerchantNames([shared.merchant]);
@@ -2133,6 +2175,8 @@ export function CashFlowRoute() {
         setInstallmentPeriods={setInstallmentPeriods}
         splitLegs={splitLegs}
         setSplitLegs={setSplitLegs}
+        shareDrafts={shareDrafts}
+        setShareDrafts={setShareDrafts}
         onOpenImport={() => csvInputRef.current?.click()}
         isActiveCompanyBook={isActiveCompanyBook}
         isInvoiceEntry={isInvoiceEntry}
@@ -2479,7 +2523,9 @@ function LedgerRow({
             {splitLegs.map((leg) => (
               <div key={leg.id} className="ns-split-leg-line">
                 <span className="muted text-caption truncate">
-                  {leg.category || "未分類"}{leg.subcategory ? ` / ${leg.subcategory}` : ""}
+                  {leg.legKind === "share"
+                    ? `分帳 · ${leg.name}`
+                    : `${leg.category || "未分類"}${leg.subcategory ? ` / ${leg.subcategory}` : ""}`}
                 </span>
                 <span className="muted text-caption" style={{ fontFamily: "var(--ns-font-mono)", whiteSpace: "nowrap" }}>
                   {leg.amount >= 0 ? "+" : "−"}{currencySymbol(leg.currency)}{formatNumber(Math.abs(leg.amount))}
@@ -2769,6 +2815,8 @@ function EntryDrawer({
   setInstallmentPeriods,
   splitLegs,
   setSplitLegs,
+  shareDrafts,
+  setShareDrafts,
   onOpenImport,
   isActiveCompanyBook,
   isInvoiceEntry,
@@ -2818,6 +2866,9 @@ function EntryDrawer({
   /** 多類別拆分 legs — null = plain single-category form (plan 182). */
   splitLegs: SplitLegDraftState[] | null;
   setSplitLegs: (legs: SplitLegDraftState[] | null) => void;
+  /** 分帳 participant shares (plan 222) — always an array; emptiness is "no shares". */
+  shareDrafts: SplitShareDraftState[];
+  setShareDrafts: (shares: SplitShareDraftState[]) => void;
   onOpenImport?: () => void;
   /** 開發票 (plan 191) — the ar drawer's invoice toggle + fields only render
    *  when the active book is a 公司帳. */
@@ -2981,8 +3032,19 @@ function EntryDrawer({
   // style split mode — per-leg category+amount rows, the main amount field
   // becomes the derived Σ legs (read-only), save goes through create/updateSplit.
   const splitMode = isAcct && splitLegs !== null;
-  const splitTotal = splitMode && splitLegs ? derivedSplitTotal(splitLegs) : 0;
-  const splitError = splitMode && splitLegs ? splitLegsError(splitLegs) : null;
+  // 分帳 (plan 222): the drawer's total is legs + shares combined; shares are
+  // expense-only (the builder throws 分帳僅支援支出 on income) so income splits
+  // never render the 分帳 section and shareDrafts is kept cleared for them.
+  const splitTotal = splitMode && splitLegs
+    ? derivedSplitTotal(splitLegs) + (type === "expense" ? derivedShareTotal(shareDrafts) : 0)
+    : 0;
+  // Combined check (plan 222): splitLegsError alone only knows about legs, so
+  // it wrongly demands >=2 legs even when a share makes the combined total
+  // valid (1 category leg + 1 share). combinedSplitError is the single
+  // source of truth gating the Save button below; shareDrafts is always []
+  // for income (changeType's guard), so this is a no-op there.
+  const splitError = splitMode && splitLegs ? combinedSplitError(splitLegs, shareDrafts) : null;
+  const shareError = splitMode && type === "expense" ? shareDraftsError(shareDrafts) : null;
   // The「＋ 分類」affordance: only once a category is picked, only for plain
   // (non-editing, non-installment) expense/income drafts, and not while the
   // amount is being entered in a foreign currency (splits store one account-
@@ -3004,12 +3066,14 @@ function EntryDrawer({
   function removeLegAt(index: number) {
     if (!splitLegs) return;
     const next = removeSplitLeg(splitLegs, index);
-    if (shouldExitSplitMode(next)) {
-      // Down to 1 leg → back to the plain form carrying that leg's values.
+    if (shouldExitSplitMode(next, shareDrafts)) {
+      // Down to 1 (or 0) legs with no shares present → back to the plain form
+      // carrying that leg's values.
       const remaining = next[0] ?? makeEmptySplitLeg();
       setLedgerForm({ ...ledgerForm, category: remaining.category, subcategory: remaining.subcategory });
       setAmountExpression(remaining.amount || "0");
       setSplitLegs(null);
+      setShareDrafts([]);
     } else {
       setSplitLegs(next);
     }
@@ -3203,7 +3267,7 @@ function EntryDrawer({
             </div>
             {splitMode && (
               <div className="muted text-caption" style={{ marginTop: 5 }}>
-                總金額為下方各分類明細金額的加總。
+                總金額為分類與分帳明細金額的加總。
               </div>
             )}
             {convertedHint && (
@@ -3400,6 +3464,79 @@ function EntryDrawer({
                       </button>
                     ) : undefined}
                   />
+                </DrawerField>
+              )}
+
+              {/* 分帳 (plan 222): someone else's portion of this purchase,
+                  posted as a 代墊 pass-through via the share's own 應收帳戶 —
+                  never counted in the payer's own spend. Expense-only (the
+                  foundation throws 分帳僅支援支出 on income); shareDrafts is
+                  kept cleared for income splits so this never renders there. */}
+              {splitMode && type === "expense" && (
+                <DrawerField label="分帳（選填）">
+                  <div className="flex flex-col gap-2.5">
+                    {shareDrafts.map((shareState, index) => (
+                      <div key={index} className="ns-split-leg">
+                        <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+                          <span className="muted text-caption" style={{ fontFamily: "var(--ns-font-mono)" }}>#{index + 1}</span>
+                          <input
+                            className="ns-input flex-1"
+                            style={{ height: 32 }}
+                            value={shareState.counterparty}
+                            onChange={(e) => setShareDrafts(updateShareDraft(shareDrafts, index, { counterparty: e.target.value }))}
+                            placeholder="小明"
+                            aria-label={`第 ${index + 1} 筆分帳對象`}
+                          />
+                          <input
+                            className="ns-input text-right"
+                            style={{ width: 110, height: 32, fontFamily: "var(--ns-font-mono)" }}
+                            value={shareState.amount}
+                            onChange={(e) => setShareDrafts(updateShareDraft(shareDrafts, index, { amount: e.target.value }))}
+                            placeholder="0"
+                            inputMode="decimal"
+                            aria-label={`第 ${index + 1} 筆分帳金額`}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`移除第 ${index + 1} 筆分帳`}
+                            title="移除此分帳"
+                            onClick={() => setShareDrafts(removeShareDraft(shareDrafts, index))}
+                          >
+                            <X size={13} />
+                          </Button>
+                        </div>
+                        <AppSelect
+                          value={shareState.counterAccountId}
+                          onChange={(id) => setShareDrafts(updateShareDraft(shareDrafts, index, { counterAccountId: id }))}
+                          options={accountRows.map((a) => ({ value: a.id, label: a.name }))}
+                          placeholder="選擇應收帳戶"
+                          style={{ width: "100%", height: 32 }}
+                        />
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        className="text-xs"
+                        onClick={() => setShareDrafts(addShareDraft(shareDrafts))}
+                        style={{
+                          padding: "5px 12px", borderRadius: 999, cursor: "pointer",
+                          background: "transparent", color: "var(--ns-accent)",
+                          border: "1px dashed var(--ns-accent)", fontFamily: "inherit",
+                          display: "flex", alignItems: "center", gap: 4,
+                        }}
+                      >
+                        <Plus size={14} weight="bold" />分帳
+                      </button>
+                      {shareError ? (
+                        <span className="text-caption" style={{ color: "var(--ns-neg)" }}>{shareError}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="muted text-caption" style={{ marginTop: 5 }}>
+                    分帳金額由「應收帳戶」暫記（代墊），對方還款時從該帳戶轉帳回來即可。不計入你的支出。
+                  </div>
                 </DrawerField>
               )}
 
@@ -3898,13 +4035,19 @@ function mergeTransferRows(rows: LedgerTransaction[], allRows: LedgerTransaction
       const source = legs.find((l) => l.amount < 0) ?? row;
       const dest = legs.find((l) => l.id !== source.id) ?? row;
       out.push({ ...source, transferPair: { source, dest } });
-    } else if (row.groupId && row.legKind === "category") {
+    } else if (row.groupId && (row.legKind === "category" || row.legKind === "share")) {
       if (seen.has(row.groupId)) continue;
       seen.add(row.groupId);
       // Same lookup-from-full-ledger rule as transfers: a category/search
       // filter that matched only one leg still shows the complete split.
-      const legs = allRows.filter((r) => r.groupId === row.groupId && r.legKind === "category" && r.deletedAt === null);
-      const first = legs[0] ?? row;
+      // Includes 分帳 share legs (plan 222) — the collapsed total then equals
+      // the FULL bank posting (matches what actually left the account); RAW
+      // rows (not this display row) still feed spend aggregations, unaffected.
+      const legs = allRows.filter((r) => r.groupId === row.groupId && (r.legKind === "category" || r.legKind === "share") && r.deletedAt === null);
+      // A share leg's `name`/`category` carry the counterparty/blank-category
+      // (see domain/splitLegs buildSplitLegs), never representative of the
+      // group — prefer the first category leg for the display row's identity.
+      const first = legs.find((r) => r.legKind === "category") ?? legs[0] ?? row;
       // Signed sum: all legs share the entryType's sign, so the total keeps it.
       const total = legs.reduce((sum, leg) => sum + leg.amount, 0);
       out.push({ ...first, amount: total, splitLegs: legs });
