@@ -10,6 +10,15 @@ export function stripTaiwanMarketSuffix(symbol: string) {
   return normalizeMarketSymbol(symbol).replace(/\.(TW|TWO)$/i, "");
 }
 
+/** Taiwan-listed ticker: explicit .TW/.TWO suffix, or a bare 4–6 digit code
+ *  (the same heuristic quoteLookupKeys has always used). */
+export function isTaiwanListedTicker(symbol: string): boolean {
+  const normalized = normalizeMarketSymbol(symbol);
+  if (!normalized) return false;
+  if (normalized !== stripTaiwanMarketSuffix(normalized)) return true; // had .TW/.TWO
+  return /^\d{4,6}$/.test(normalized);
+}
+
 export function quoteLookupKeys(symbol: string) {
   const normalized = normalizeMarketSymbol(symbol);
   if (!normalized) return [];

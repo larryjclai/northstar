@@ -32,6 +32,7 @@ import { firstFutureRunDate, nextRecurringDate } from "../domain/recurringDates"
 import { buildInstallmentSchedule } from "../domain/installments";
 import { buildSplitLegs, type SplitLegInput, type SplitSharedFields, type SplitShareInput } from "../domain/splitLegs";
 import { toCanonicalSector } from "../domain/canonicalSector";
+import { isTaiwanListedTicker } from "../domain/marketSymbols";
 import { planMintMerge } from "../domain/bookMerge";
 import { accountBalanceDelta, assertLedgerInvariants, assertTransferInvariants, buildRecalculationReport, deriveAccountBalances, findMissingFxPairs } from "../domain/ledgerTrust";
 import {
@@ -6478,11 +6479,25 @@ function createRecurringInvestmentRow(input: RecurringInvestmentDraft): Recurrin
 // reference price. The 交割款 (cash settlement) is drawn from `accountId`.
 function recurringInvestmentToDraft(rule: RecurringInvestment): InvestmentDraft {
   const price = Math.max(0, rule.price || 0);
-  const quantity = rule.mode === "fixedShares"
-    ? Math.max(0, rule.quantity || 0)
-    : price > 0 ? rule.amount / price : 0;
+  const taiwanListed = isTaiwanListedTicker(rule.ticker);
+  let quantity: number;
+  if (rule.mode === "fixedShares") {
+    quantity = Math.max(0, rule.quantity || 0);
+    if (taiwanListed && !Number.isInteger(quantity)) {
+      throw new Error("台股定期定股的股數必須是整數，請先編輯規則。");
+    }
+  } else {
+    const raw = price > 0 ? rule.amount / price : 0;
+    // 台股：整股向下取整（券商定期定額分配同款）；其他市場：向下取到小數 4 位
+    // （美股券商 dollar-based 慣例：3–4 位、無條件捨去）。
+    quantity = taiwanListed ? Math.floor(raw) : Math.floor(raw * 10_000) / 10_000;
+  }
   if (!(price > 0) || !(quantity > 0)) {
-    throw new Error("請先設定參考價格與金額／股數，才能記錄這期定期定額。");
+    throw new Error(
+      rule.mode === "fixedAmount" && price > 0
+        ? "金額不足以買進 1 股，本期不成立（實務上券商會整筆退還），未記錄任何交易。請提高金額或更新參考價格。"
+        : "請先設定參考價格與金額／股數，才能記錄這期定期定額。",
+    );
   }
   return {
     ticker: rule.ticker,
