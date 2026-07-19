@@ -255,7 +255,7 @@ export function AccountsRoute() {
       const repository = await getFinanceRepository();
       const report = await repository.recalculateDerivedData();
       await queryClient.invalidateQueries();
-      setMessage(`重新計算完成：修正 ${report.changedAccounts} 個帳戶、${report.changedAssets} 個持倉。${report.incompleteTransferGroupIds.length ? ` 發現 ${report.incompleteTransferGroupIds.length} 組不完整轉帳。` : ""}${report.incompleteDripGroupIds.length ? ` 發現 ${report.incompleteDripGroupIds.length} 筆股利再投入紀錄不完整（同步中，稍後會自動補齊）。` : ""}${report.missingFxPairs.length ? ` 缺少匯率：${report.missingFxPairs.join("、")}。` : ""}`);
+      setMessage(`重新計算完成：修正 ${report.changedAccounts} 個帳戶、${report.changedAssets} 個持倉。${report.incompleteTransferGroupIds.length ? ` 發現 ${report.incompleteTransferGroupIds.length} 組不完整轉帳。` : ""}${report.incompleteDripGroupIds.length ? ` 發現 ${report.incompleteDripGroupIds.length} 筆股利再投入紀錄不完整（同步中，稍後會自動補齊）。` : ""}${report.incompleteSplitGroupIds.length ? ` 發現 ${report.incompleteSplitGroupIds.length} 筆拆分交易不完整（同步中，稍後會自動補齊）。` : ""}${report.missingFxPairs.length ? ` 缺少匯率：${report.missingFxPairs.join("、")}。` : ""}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "重新計算失敗。");
     } finally {

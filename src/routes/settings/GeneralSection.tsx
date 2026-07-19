@@ -297,7 +297,7 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
       await queryClient.invalidateQueries();
       const correctedCount = report.changedAccounts + report.changedAssets;
       const orphanCount = report.orphanLedgerIds.length + report.orphanInvestmentIds.length;
-      const summary = `已修正 ${correctedCount} 筆衍生資料。孤兒關聯 ${orphanCount} 筆，不完整轉帳 ${report.incompleteTransferGroupIds.length} 組。${report.incompleteDripGroupIds.length ? ` 發現 ${report.incompleteDripGroupIds.length} 筆股利再投入紀錄不完整（同步中，稍後會自動補齊）。` : ""}${report.missingFxPairs.length ? ` 缺少匯率：${report.missingFxPairs.join("、")}。` : ""}`;
+      const summary = `已修正 ${correctedCount} 筆衍生資料。孤兒關聯 ${orphanCount} 筆，不完整轉帳 ${report.incompleteTransferGroupIds.length} 組。${report.incompleteDripGroupIds.length ? ` 發現 ${report.incompleteDripGroupIds.length} 筆股利再投入紀錄不完整（同步中，稍後會自動補齊）。` : ""}${report.incompleteSplitGroupIds.length ? ` 發現 ${report.incompleteSplitGroupIds.length} 筆拆分交易不完整（同步中，稍後會自動補齊）。` : ""}${report.missingFxPairs.length ? ` 缺少匯率：${report.missingFxPairs.join("、")}。` : ""}`;
       setRecalculationSummary(summary);
       toast.success(correctedCount ? `已修正 ${correctedCount} 筆資料` : "帳本衍生資料一致");
     } catch (error) {
