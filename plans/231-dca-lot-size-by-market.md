@@ -26,11 +26,19 @@ division — `quantity = amount / price` — regardless of market. That matches 
 real broker's behavior:
 
 - **台股**: the minimum tradeable unit is **1 share** (零股 1–999 股; there is
-  NO sub-1-share fraction on TWSE). Broker 定期定額 services buy whole shares
-  and allocate — the actual debit is **less than the pledged amount**
-  (分配不足), i.e. quantity is **floored to an integer**; and when the pledged
-  amount can't cover even 1 share at market price, **the order simply fails**
-  (「扣款金額低於約定個股當日一股的市價，該次定期定額視為圈存後下單不成功」).
+  NO sub-1-share fraction on TWSE). Broker 定期定額 flow (operator-confirmed
+  2026-07-18): the broker **debits the full pledged amount first, buys whole
+  shares, then refunds the remainder** — e.g. 扣款 15,000 → 成交 14,500 →
+  退還 500 (分配不足). When the pledged amount can't cover even 1 share at
+  market price, the **entire debit is refunded and the period simply doesn't
+  happen** (「圈存後下單不成功」— no trade, money untouched).
+  **Modeling note (load-bearing)**: the debit→refund round-trip nets out within
+  days; Northstar records the **NET result** — one buy record + one settlement
+  leg of `quantity × price + fee`. Do NOT fabricate a −15,000/+500 cash-flow
+  pair: account balance and cost basis are identical under netting, and fake
+  legs would pollute cash-flow statistics. Likewise the can't-afford case maps
+  to **refusing to post** (nothing happened at the broker → nothing in the
+  ledger).
 - **美股**: fractional shares are the norm for dollar-based DCA. Broker
   precision: Fidelity converts dollar orders to shares at **3 decimal places,
   rounded down**; E*TRADE 3 dp; Webull up to 1/100,000th. Common ground:
@@ -40,7 +48,7 @@ Decided semantics (operator delegated to convention, 2026-07-18):
 
 | Market | fixedAmount quantity | Can't afford the minimum | fixedShares |
 |---|---|---|---|
-| 台股 (`.TW`/`.TWO` or bare 4–6 digit code) | `Math.floor(amount / price)` — integer | `floor === 0` → throw zh-TW error (mirrors 券商圈存失敗) | must already be a whole number → non-integer throws |
+| 台股 (`.TW`/`.TWO` or bare 4–6 digit code) | `Math.floor(amount / price)` — integer | `floor === 0` → throw zh-TW error (本期不成立 — mirrors the broker's full refund: no trade, no ledger row) | must already be a whole number → non-integer throws |
 | everything else | `amount / price` rounded **down** to **4 decimal places** | quantity `=== 0` after rounding → throw same error | any positive number, unchanged |
 
 The posted record's cash impact is `quantity × price + fee` (existing
@@ -169,7 +177,7 @@ if (rule.mode === "fixedShares") {
 if (!(price > 0) || !(quantity > 0)) {
   throw new Error(
     rule.mode === "fixedAmount" && price > 0
-      ? "扣款金額不足以買進最小單位（台股 1 股），請提高金額或調整參考價格。"
+      ? "金額不足以買進 1 股，本期不成立（實務上券商會整筆退還），未記錄任何交易。請提高金額或更新參考價格。"
       : "請先設定參考價格與金額／股數，才能記錄這期定期定額。",
   );
 }
@@ -191,7 +199,8 @@ Extend `repositories.recurring-investments.test.ts` (existing patterns):
    `4 × 612 + fee` (assert via the account-balance delta the file's existing
    post test asserts).
 2. TW insufficient: amount 500, price 612 → post rejects with
-   「扣款金額不足以買進最小單位」; NO record created, balance unchanged.
+   「金額不足以買進 1 股，本期不成立」; NO record created, balance unchanged
+   (models the broker's full refund — the period never happened).
 3. US fixedAmount keeps fractions at 4dp: `VOO`, amount 500, price 411.3 →
    `quantity === 1.2156` (floor of 1.21565…), not 1.21565….
 4. TW fixedShares with integer quantity still posts (regression: existing

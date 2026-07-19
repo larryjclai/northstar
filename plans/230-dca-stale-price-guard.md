@@ -13,7 +13,10 @@
 - **Priority**: P3 (the one real semantic gap from Option A; not a blocker)
 - **Effort**: S–M
 - **Risk**: LOW-MED (UI-only confirm step; the posting math is unchanged)
-- **Depends on**: **plan 228** (the tab must be re-enabled to reach the post button)
+- **Depends on**: **plan 228** (the tab must be re-enabled to reach the post
+  button); **soft: plan 231** (its `isTaiwanListedTicker` powers the 分配不足
+  display line — skip that one line if 231 hasn't merged; everything else
+  proceeds)
 - **Category**: bug / UX (correctness of recorded cost basis)
 - **Planned at**: commit `fd4af91f`, 2026-07-18
 
@@ -128,6 +131,14 @@ In `RecurringInvestmentsTab.tsx`:
    - the derived per-period cash for both prices (reuse `perPeriodCash` at `:24`;
      for fixedAmount mode price doesn't change cash, for fixedShares it does —
      the dialog should make clear which number moves),
+   - **台股 fixedAmount 分配不足 line** (only when plan 231 is merged — check
+     that `isTaiwanListedTicker` is exported from `../domain/marketSymbols`;
+     if it is NOT, SKIP this line entirely and note it in your report): for a
+     Taiwan-listed fixedAmount rule, show the whole-share reality per price —
+     `實際投入 NT$<floor(amount/price) × price>（約定 NT$<amount>，差額不足 1 股）`
+     — mirroring the real broker flow (debit full → buy whole shares → refund
+     remainder), so the user isn't surprised when the posted record is below
+     the nominal amount,
    - two actions when a latest quote exists AND it differs from stored:
      「用參考價記錄（NT$X）」 and 「更新為最新報價並記錄（NT$Y）」;
    - one action 「記錄本期投入」 when there's no quote or they match.

@@ -27,7 +27,18 @@ already-resolved-in-code (no work) and 1 needs an operator decision (below).
 | 229 | Restore the dashboard DCA reminder as a **待辦 source** (not a separate card) — add `dca` type + `dcaRules` source to `domain/todoRows.ts` (plan 223's maintenance note explicitly anticipated this), books-scoped 30-day upcoming list in DashboardRoute, row links to `/investments?tab=recurring` | P3 | S | **228** (tab must exist to link to) | TODO |
 | 230 | DCA post-time **stale reference-price** guard — the one real semantic gap: posting uses a static 參考價 typed once, no staleness check. Post button → confirm dialog showing stored 參考價 vs latest loaded quote (`buildQuoteLookup`/`findQuoteForTicker`), offers 用參考價 or 更新為最新報價並記錄 (update-then-post). Posting math untouched | P3 | S–M | **228** (tab must be reachable) | TODO |
 
-**Recommended order**: 228 → (229 ∥ 230, both independent, both need 228 merged).
+**Recommended order**: 228 → 231 → 230 → 229 (231 is independent but its
+`isTaiwanListedTicker` powers 230's 分配不足 display line — soft dependency;
+229 last, pure polish).
+
+**Broker-flow refinement (operator, 2026-07-18)**: TW 定期定額 actually debits
+the FULL pledged amount, buys whole shares, then refunds the remainder (扣款
+15,000 → 成交 14,500 → 退 500); can't-afford-1-share → full refund, period
+doesn't happen. Encoded in 231: Northstar records the NET result (one buy +
+`quantity×price+fee` settlement — never a fake debit/refund cash-flow pair,
+which would pollute statistics while netting to the same balance), and the
+can't-afford case refuses to post (本期不成立 error). 230's dialog gained the
+分配不足 line (實際投入 vs 約定金額) so the below-nominal record isn't a surprise.
 
 **Worklist items NOT planned, and why** (from `docs/dca-decision.md` §3):
 - **Reminder-vs-auto-post** (§3.1) — ALREADY the shipped model (manual one-tap
