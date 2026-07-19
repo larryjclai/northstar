@@ -98,6 +98,68 @@ describeEachRepo("recurring investments", (makeRepo) => {
     expect(records[0].fee).toBe(15);
   });
 
+  it("TW fixedAmount floors to whole shares (no fractional TW lots)", async () => {
+    const repo = await makeRepo({
+      accounts: [cash],
+      recurringInvestments: [rule({ ticker: "2330.TW", amount: 3000, price: 612 })],
+    });
+    await repo.postRecurringInvestment("recinv_0050");
+
+    const records = await repo.listInvestmentRecords();
+    expect(records).toHaveLength(1);
+    expect(records[0].quantity).toBe(4); // floor(3000 / 612) = floor(4.901...) = 4
+
+    // settlement cash leg is quantity * price + fee, not the nominal amount.
+    const accounts = await repo.listAccounts();
+    expect(accounts[0].balance).toBe(100000 - 4 * 612);
+  });
+
+  it("TW fixedAmount insufficient to buy 1 share rejects with 本期不成立 and posts nothing", async () => {
+    const repo = await makeRepo({
+      accounts: [cash],
+      recurringInvestments: [rule({ ticker: "2330.TW", amount: 500, price: 612 })],
+    });
+    await expect(repo.postRecurringInvestment("recinv_0050")).rejects.toThrow(
+      "金額不足以買進 1 股，本期不成立（實務上券商會整筆退還），未記錄任何交易。請提高金額或更新參考價格。",
+    );
+
+    expect(await repo.listInvestmentRecords()).toHaveLength(0);
+    const accounts = await repo.listAccounts();
+    expect(accounts[0].balance).toBe(100000);
+  });
+
+  it("US fixedAmount keeps fractional shares floored to 4 decimal places", async () => {
+    const repo = await makeRepo({
+      accounts: [cash],
+      recurringInvestments: [rule({ ticker: "VOO", amount: 500, price: 411.3 })],
+    });
+    await repo.postRecurringInvestment("recinv_0050");
+
+    const records = await repo.listInvestmentRecords();
+    expect(records[0].quantity).toBe(1.2156); // floor(500 / 411.3 = 1.21565...) to 4dp
+  });
+
+  it("TW fixedShares with an integer quantity still posts (regression)", async () => {
+    const repo = await makeRepo({
+      accounts: [cash],
+      recurringInvestments: [rule({ ticker: "2330.TW", mode: "fixedShares", quantity: 10, amount: 0, price: 612 })],
+    });
+    await repo.postRecurringInvestment("recinv_0050");
+
+    const records = await repo.listInvestmentRecords();
+    expect(records[0].quantity).toBe(10);
+  });
+
+  it("TW fixedShares with a non-integer quantity rejects", async () => {
+    const repo = await makeRepo({
+      accounts: [cash],
+      recurringInvestments: [rule({ ticker: "2330.TW", mode: "fixedShares", quantity: 0.5, amount: 0, price: 612 })],
+    });
+    await expect(repo.postRecurringInvestment("recinv_0050")).rejects.toThrow(
+      "台股定期定股的股數必須是整數，請先編輯規則。",
+    );
+  });
+
   it("create / update / delete round-trips", async () => {
     const repo = await makeRepo({ accounts: [cash] });
     await repo.createRecurringInvestment({
