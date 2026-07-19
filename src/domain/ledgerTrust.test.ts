@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { accountBalanceDelta, assertLedgerInvariants, assertTransferInvariants, deriveAccountBalances, findMissingFxPairs, incompleteSplitGroupIds } from "./ledgerTrust";
-import type { Account, LedgerTransaction } from "./types";
+import { accountBalanceDelta, assertLedgerInvariants, assertTransferInvariants, deriveAccountBalances, findMissingFxPairs, incompleteDripGroupIds, incompleteSplitGroupIds } from "./ledgerTrust";
+import type { Account, InvestmentRecord, LedgerTransaction } from "./types";
 
 const account: Account = {
   id: "acct_twd", spaceId: "space", revision: 1, createdAt: "", updatedAt: "", deletedAt: null,
@@ -23,6 +23,16 @@ function ledger(
     entryType: amount > 0 ? "income" : "expense", settlementStatus, note: "",
     linkedInvestmentRecordId: null, groupId: null, isReviewed: true, receiptAttachmentId: null,
     recurringRuleId: null,
+    ...overrides,
+  };
+}
+
+function investment(id: string, overrides: Partial<InvestmentRecord> = {}): InvestmentRecord {
+  return {
+    id, spaceId: "space", revision: 1, createdAt: "", updatedAt: "", deletedAt: null,
+    assetId: "asset_1", linkedAccountId: account.id, date: "2026-06-01", action: "buy",
+    price: 100, quantity: 1, fee: 0, note: "", isReviewed: true,
+    linkedLedgerTransactionId: null, cashless: false, dripGroupId: null,
     ...overrides,
   };
 }
@@ -133,5 +143,45 @@ describe("incompleteSplitGroupIds", () => {
       ledger("leg1", -600, "settled", { groupId: "group_lone_share", legKind: "share", counterAccountId: "acct_ar" }),
     ];
     expect(incompleteSplitGroupIds(rows)).toEqual(["group_lone_share"]);
+  });
+});
+
+describe("incompleteDripGroupIds", () => {
+  it("does not report a complete DRIP pair (2 active legs)", () => {
+    const rows = [
+      investment("cash_leg", { action: "cashDividend", dripGroupId: "drip_a" }),
+      investment("buy_leg", { action: "buy", dripGroupId: "drip_a" }),
+    ];
+    expect(incompleteDripGroupIds(rows)).toEqual([]);
+  });
+
+  it("reports a lone active leg's dripGroupId", () => {
+    const rows = [investment("cash_leg", { action: "cashDividend", dripGroupId: "drip_b" })];
+    expect(incompleteDripGroupIds(rows)).toEqual(["drip_b"]);
+  });
+
+  it("reports a 3-leg group sharing a dripGroupId as malformed", () => {
+    const rows = [
+      investment("leg1", { action: "cashDividend", dripGroupId: "drip_c" }),
+      investment("leg2", { action: "buy", dripGroupId: "drip_c" }),
+      investment("leg3", { action: "buy", dripGroupId: "drip_c" }),
+    ];
+    expect(incompleteDripGroupIds(rows)).toEqual(["drip_c"]);
+  });
+
+  it("ignores rows with a null dripGroupId", () => {
+    const rows = [
+      investment("leg1", { action: "buy", dripGroupId: null }),
+      investment("leg2", { action: "sell", dripGroupId: null }),
+    ];
+    expect(incompleteDripGroupIds(rows)).toEqual([]);
+  });
+
+  it("treats a DRIP pair whose sibling leg was tombstoned as incomplete", () => {
+    const rows = [
+      investment("cash_leg", { action: "cashDividend", dripGroupId: "drip_d" }),
+      investment("buy_leg", { action: "buy", dripGroupId: "drip_d", deletedAt: "2026-07-01T00:00:00.000Z" }),
+    ];
+    expect(incompleteDripGroupIds(rows)).toEqual(["drip_d"]);
   });
 });
