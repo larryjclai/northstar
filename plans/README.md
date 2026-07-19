@@ -36,14 +36,16 @@ already-resolved-in-code (no work) and 1 needs an operator decision (below).
   market-closed/stale-price story) — a separate decision, not "finishing" DCA.*
 - **By-amount-vs-by-shares** (§3.2) — both modes already in the type + UI toggle
   (`RecurringInvestmentsTab.tsx:257`). No work.
-- **⚠ Fractional-share / lot-size rounding** (§3.4) — **NEEDS AN OPERATOR
-  DECISION before it can be planned.** `quantity = amount / price` (fixedAmount
-  mode) is unrounded; TW brokers commonly need whole/1000-share lots (零股 has
-  its own fee schedule). Question: should Northstar **round** `quantity` to a
-  lot, or **record the exact fractional share** (arguably more correct for
-  cost-basis even if the real order was rounded)? Recommendation: record
-  fractional (cost-basis fidelity), add an optional display note. Once decided,
-  it's an S plan touching `recurringInvestmentToDraft` (`repositories.ts:6482`).
+- ~~Fractional-share / lot-size rounding (§3.4) — needs an operator decision~~
+  **RESOLVED → plan 231** (operator delegated to market convention 2026-07-18,
+  investigated with sources): **台股 = 整股向下取整**（TWSE 最小單位 1 股、無
+  sub-1-share；券商定期定額整股分配、分配不足；扣款不足 1 股即下單失敗）,
+  **美股 = 小數股向下取到 4 位**（Fidelity/E*TRADE 3dp 捨去、Webull 1/100,000
+  — 4dp 取中）。TW 定股模式非整數股數 → throw。
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 231 | DCA 定額股數推導 market-aware — new `isTaiwanListedTicker` predicate in `domain/marketSymbols` (+first-ever test file for it), `recurringInvestmentToDraft` floors TW to integer / others to 4dp, insufficient-amount posts fail with honest zh-TW error (mirrors 券商圈存失敗), TW 定股 non-integer throws. ≥4 dual-harness cases; STOP if old suite asserted fractional TW quantity | P3 | S | — (independent of 228-230; merge any order) | TODO |
 
 ## 142 — DCA spike DONE + branch cleanup (2026-07-18, `main` @ post-merge)
 
