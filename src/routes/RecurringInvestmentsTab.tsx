@@ -12,6 +12,7 @@ import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { RecurringInvestmentDraft } from "../data/repositories";
 import { formatNumber, formatQuantity, recurringFrequencyLabels, recurringInvestmentModeLabels, todayInTimezone } from "../domain";
 import type { RecurringFrequency, RecurringInvestment, RecurringInvestmentMode } from "../domain";
+import { bookAccountIdSet } from "../domain/bookScope";
 import { useUiPreferences } from "../state/uiPreferences";
 
 function freqLabel(rule: RecurringInvestment): string {
@@ -47,6 +48,7 @@ export function RecurringInvestmentsTab() {
   const { recurringInvestments, accounts } = useFinanceData();
   const toast = useToast();
   const timezone = useUiPreferences((s) => s.timezone);
+  const activeBookId = useUiPreferences((state) => state.activeBookId);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<RecurringInvestmentDraft>(emptyDraft);
@@ -73,7 +75,14 @@ export function RecurringInvestmentsTab() {
     ["recurringInvestments", "investments", "assets", "accounts", "ledger"],
   );
 
-  const rules = recurringInvestments.data ?? [];
+  const switcherAccountIds = useMemo(
+    () => bookAccountIdSet(accounts.data ?? [], activeBookId),
+    [accounts.data, activeBookId],
+  );
+  const rules = useMemo(
+    () => (recurringInvestments.data ?? []).filter((r) => switcherAccountIds.has(r.accountId)),
+    [recurringInvestments.data, switcherAccountIds],
+  );
   const accountName = (id: string) => accounts.data?.find((a) => a.id === id)?.name ?? id;
   const today = todayInTimezone(timezone);
 

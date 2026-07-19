@@ -89,6 +89,15 @@ describeEachRepo("recurring investments", (makeRepo) => {
     await expect(repo.postRecurringInvestment("recinv_0050")).rejects.toThrow();
   });
 
+  it("posting preserves the rule's stored fee into the created investment record", async () => {
+    const repo = await makeRepo({ accounts: [cash], recurringInvestments: [rule({ fee: 15 })] });
+    await repo.postRecurringInvestment("recinv_0050");
+
+    const records = await repo.listInvestmentRecords();
+    expect(records).toHaveLength(1);
+    expect(records[0].fee).toBe(15);
+  });
+
   it("create / update / delete round-trips", async () => {
     const repo = await makeRepo({ accounts: [cash] });
     await repo.createRecurringInvestment({
