@@ -9,6 +9,7 @@ function sources(overrides: Partial<TodoRowSources> = {}): TodoRowSources {
     bills: [],
     cards: [],
     settleItems: [],
+    dcaRules: [],
     ...overrides,
   };
 }
@@ -79,6 +80,36 @@ describe("buildTodoRows", () => {
     expect(recv?.amt).toBe(5000);
     expect(pay?.linkTxId).toBe("s2");
     expect(pay?.amt).toBe(-8000);
+  });
+
+  it("interleaves a dca row by date, signs amt negative, and shows the account name", () => {
+    const rows = buildTodoRows(
+      sources({
+        bills: [{ id: "b1", entryType: "expense", merchant: "房租", category: "住房", accountId: "acc1", nextRunDate: "2026-07-20", amount: 20000 }],
+        dcaRules: [{ id: "d1", name: "0050 定期定額", ticker: "0050", accountId: "acc1", nextRunDate: "2026-07-10", perPeriodCash: 5000 }],
+      }),
+      accountName,
+      identity,
+    );
+    expect(rows.map((r) => r.key)).toEqual(["dca-d1", "bill-b1"]);
+    const dca = rows.find((r) => r.key === "dca-d1");
+    expect(dca?.type).toBe("dca");
+    expect(dca?.amt).toBe(-5000);
+    expect(dca?.sub).toBe("定期定額 · 薪轉戶");
+    expect(dca?.name).toBe("0050 定期定額");
+    expect(dca?.iso).toBe("2026-07-10");
+  });
+
+  it("dca row falls back to ticker as name when name is empty", () => {
+    const rows = buildTodoRows(
+      sources({
+        dcaRules: [{ id: "d1", name: "", ticker: "0050", accountId: "acc1", nextRunDate: "2026-07-10", perPeriodCash: -5000 }],
+      }),
+      accountName,
+      identity,
+    );
+    expect(rows[0].name).toBe("0050");
+    expect(rows[0].amt).toBe(-5000);
   });
 
   it("falls back to the raw amount when toPrimary returns null", () => {
