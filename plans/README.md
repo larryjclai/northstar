@@ -27,10 +27,24 @@ no further plan.
   Executor live-verified end-to-end incl. balance round-trip. No per-leg repaid
   flag — account-balance-based by design; documented double-tap = two transfers.
 
-**Still open**: 137-C formatPercent (percent-scale variant + sign audit),
-Quick Add §6.2/6.3, **132 vault-key rotation (security — DESERVES A DEDICATED
-PLANNING SESSION, crypto+worker surface; do not fold into a misc batch)**,
-plan-173's operator-only print eyeball, deferred-by-design 085-088 / Tier 2.
+## 236–238 — final burn-down (`/improve` @ `82839b85`, 2026-07-19)
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 236 | Quick Add §6.3 preview-stage remediation — account chips in preview when unmatched (pre-seeds the confirm card, no parallel channel), 建議 badge on guessed category. Parser FROZEN | P3 | S–M | — | TODO |
+| 237 | Retire 137-C — delete dead `formatPercent` (0 call sites; latent ratio-vs-percent unit-bug trap). 91-site migration verdict: won't-do (churn ≫ value, amounts already masked) | P3 | XS | — | TODO |
+| 238 | 132 vault-key rotation **design SPIKE** (doc-only → `docs/vault-key-rotation-plan.md`): threat model honestly bounded, key versioning, mailbox re-wrap protocol, lazy-vs-full-repush, skew failure modes, worker delta, phased build outline + operator questions. **BUILD stays a dedicated session** | P2 | M | 130-132 shipped | TODO |
+
+**Resolved without a plan (this session's audit)**: Quick Add **§6.2 token
+highlight = WON'T-DO-for-now** — the spec doc's `ParsedField.span` claim is
+STALE (no span type exists; parser emits none), so cost = tokenizer-wide span
+plumbing + transparent-input overlay + CJK/IME hazards, while §6.1's preview
+chips already show what the parser understood (the doc's own status note
+records the substitution). Revisit only on real user confusion reports.
+
+**Still open after 236-238**: plan-173's operator-only print eyeball (advisor
+will do a print-media emulation partial check), deferred-by-design 085-088 /
+Tier 2, and the 238-spike's build (dedicated session).
 
 ## Reconciled 2026-07-19 (`main` @ `54f7339b`, in sync with origin)
 
