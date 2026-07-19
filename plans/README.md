@@ -31,9 +31,17 @@ no further plan.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 236 | Quick Add §6.3 preview-stage remediation — account chips in preview when unmatched (pre-seeds the confirm card, no parallel channel), 建議 badge on guessed category. Parser FROZEN | P3 | S–M | — | TODO |
-| 237 | Retire 137-C — delete dead `formatPercent` (0 call sites; latent ratio-vs-percent unit-bug trap). 91-site migration verdict: won't-do (churn ≫ value, amounts already masked) | P3 | XS | — | TODO |
-| 238 | 132 vault-key rotation **design SPIKE** (doc-only → `docs/vault-key-rotation-plan.md`): threat model honestly bounded, key versioning, mailbox re-wrap protocol, lazy-vs-full-repush, skew failure modes, worker delta, phased build outline + operator questions. **BUILD stays a dedicated session** | P2 | M | 130-132 shipped | TODO |
+| 236 | Quick Add §6.3 preview-stage remediation — account chips in preview when unmatched (pre-seeds the confirm card, no parallel channel), 建議 badge on guessed category. Parser FROZEN | P3 | S–M | — | **DONE — reviewed+MERGED**. Rule derived from code: ALL preview-time categories are guesses (only source = `resolveCategory` lexicon); tap-建議 clears via `categoryGuessCleared`; account tap → `previewAccountOverride`, applied in `parse()` BEFORE §6.5's derived default. Live-verified 3 behaviors. Parser byte-unchanged (39/39). |
+| 237 | Retire 137-C — delete dead `formatPercent` (0 call sites; latent ratio-vs-percent unit-bug trap). 91-site migration verdict: won't-do (churn ≫ value, amounts already masked) | P3 | XS | — | **DONE — reviewed+MERGED**. `MASKED_PERCENT` (sole consumer) deleted too. 137-C CLOSED. |
+| 238 | 132 vault-key rotation **design SPIKE** (doc-only → `docs/vault-key-rotation-plan.md`): threat model honestly bounded, key versioning, mailbox re-wrap protocol, lazy-vs-full-repush, skew failure modes, worker delta, phased build outline + operator questions. **BUILD stays a dedicated session** | P2 | M | 130-132 shipped | **DONE — reviewed+MERGED** (514-line doc). **Spike's key discovery: `forceFullRepush` CANNOT replace stale-key ciphertext** — unchanged revisions hit the relay's `ON CONFLICT DO NOTHING` dedup (worker/src/index.ts:463) and silently no-op → recommendation = LAZY rotation (old envelopes stay old-key; deleting local old keys protects nothing). **5 operator questions in §7 gate the build** (auto-rotate: rec yes; retention: rec never-delete; relay version signal: rec accept). |
+
+**Plan-173 print eyeball — advisor partial check DONE (2026-07-19)**: static
+verification of the `@media print` block passed — chrome hidden (`.ns-sidebar`,
+`.ns-mobile-dock`), `color-scheme: light !important` (dark theme prints
+light-on-white), `print-color-adjust: exact` (gain/loss colors survive),
+`.ns-annual-report tr { break-inside: avoid }` (no year-row page splits) — all
+three eyeball concerns have CSS backing. **Remaining operator-only**: one real
+print dialog output check (margins/fonts on paper or PDF).
 
 **Resolved without a plan (this session's audit)**: Quick Add **§6.2 token
 highlight = WON'T-DO-for-now** — the spec doc's `ParsedField.span` claim is
