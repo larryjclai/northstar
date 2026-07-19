@@ -6,9 +6,9 @@ Operator: finish 分帳 (222) and keep burning the follow-ups list.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 222 | 分帳 UI — share drafts in `splitEntryState` (amount/對象/應收帳戶, exit-rule gains shares), 分帳 section in the split editor (expense-only, 代墊 full-list account picker precedent), save passes `shares` to create/updateSplit, edit round-trip (`splitGroupRowsFor` + `startSplitEdit` + list collapse widen to legKind share, expanded rows show 分帳 · 對象). Foundation (221) frozen — UI calls, never re-implements | P2 | M–L | 221 (merged) | TODO |
-| 232 | DRIP partial-sync guard — `incompleteDripGroupIds` (pair `!== 2` rule, mirrors transfer guard) into the data-health report + consumer message rows; ≥4 tests | P3 | S | — | TODO |
-| 233 | 年度報表列印 gate off coarse-pointer devices (ModalShell media-query convention); CSV 匯出 stays | P3 | S | — | TODO |
+| 222 | 分帳 UI — share drafts in `splitEntryState` (amount/對象/應收帳戶, exit-rule gains shares), 分帳 section in the split editor (expense-only, 代墊 full-list account picker precedent), save passes `shares` to create/updateSplit, edit round-trip (`splitGroupRowsFor` + `startSplitEdit` + list collapse widen to legKind share, expanded rows show 分帳 · 對象). Foundation (221) frozen — UI calls, never re-implements | P2 | M–L | 221 (merged) | **DONE — reviewed+MERGED**. Executor found+fixed a real plan gap: save gate still used `splitLegsError` alone → 1 category + 1 share (valid combined-≥2) had Save permanently disabled; added `combinedSplitError` mirroring the builder's rule order with a byte-parity regression test. Executor ran the FULL live pass itself (also closes the outstanding 182 live pass): −1000 bank / +600 應收 / 400 expense, 拆分 badge, edit round-trip no duplicate group. +17 tests (1409). |
+| 232 | DRIP partial-sync guard — `incompleteDripGroupIds` (pair `!== 2` rule, mirrors transfer guard) into the data-health report + consumer message rows; ≥4 tests | P3 | S | — | **DONE — reviewed+MERGED**. +5 tests (1414). Side-finding recorded: `incompleteSplitGroupIds` is computed but rendered NOWHERE (only transfer has consumer messages) — tiny follow-up below. |
+| 233 | 年度報表列印 gate off coarse-pointer devices (ModalShell media-query convention); CSV 匯出 stays | P3 | S | — | **DONE — reviewed+MERGED**. Gate at AnnualReportRoute:30, used :191; operator print eyeball still outstanding (Manual-verification). |
 
 **138 tail — RETIRED at this session's inventory** (was "re-inventory before
 planning"): ModalShell adoption = 18 files; every remaining non-ModalShell
@@ -20,7 +20,11 @@ no further plan.
 **Still open after this batch**: 137-C formatPercent (percent-scale variant +
 sign audit), Quick Add §6.2/6.3, **132 vault-key rotation (security — deserves
 a dedicated planning session, crypto+worker surface)**, plan-173's operator-only
-print eyeball, deferred-by-design 085-088 / Tier 2.
+print eyeball, deferred-by-design 085-088 / Tier 2. **New tiny follow-up (from
+232)**: `incompleteSplitGroupIds` has no consumer message anywhere — wire it
+into AccountsRoute/GeneralSection beside the transfer+DRIP rows (S, one line
+per file, copy the DRIP wiring 232 just added). **分帳 follow-up (from 222)**:
+one-tap 還款/settle from a share leg — natural next step, not planned.
 
 ## Reconciled 2026-07-19 (`main` @ `54f7339b`, in sync with origin)
 
