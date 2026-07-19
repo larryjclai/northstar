@@ -390,6 +390,27 @@ export async function loadDemoData(repo: FinanceRepository): Promise<void> {
     { accountId: idFor("玉山 Pi 拍錢包卡"), amount: -390, currency: "TWD", category: "娛樂", subcategory: "訂閱", merchant: "Netflix", entryType: "expense", settlementStatus: "settled", note: "", frequency: "monthly", dayOfMonth: 8, nextRunDate: dateOnly(8), isActive: true },
   ];
   for (const r of recurring) await repo.createRecurringTransaction(r);
+
+  // 7. Recurring investment (定期定額) — one plausible fixedAmount plan so the
+  //    re-enabled DCA tab isn't empty in demo mode (plan 228). Settles from
+  //    凱基證券 (brokerageId, TWD investment account).
+  const dcaNextRun = dateOnly(3);
+  await repo.createRecurringInvestment({
+    accountId: brokerageId,
+    ticker: "0050.TW",
+    name: "元大台灣50",
+    currency: "TWD",
+    mode: "fixedAmount",
+    amount: 10_000,
+    quantity: 0,
+    price: 189.5,
+    fee: 20,
+    frequency: "monthly",
+    dayOfMonth: Number(dcaNextRun.slice(8, 10)),
+    nextRunDate: dcaNextRun,
+    isActive: true,
+    note: "",
+  });
 }
 
 /** True if the repository currently holds the demo dataset (by account marker). */

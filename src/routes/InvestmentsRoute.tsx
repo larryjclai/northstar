@@ -475,14 +475,12 @@ export function InvestmentsRoute() {
 
       {statusMessage ? <div className="mt-4"><StatusText>{statusMessage}</StatusText></div> : null}
 
-      {/* Page-level tabs: 持倉 | 交易紀錄 | 分析.
-          定期定額 (recurring DCA) is hidden until the workflow is finalised; the
-          tab + dashboard reminder are removed while the underlying data and
-          RecurringInvestmentsTab component stay intact for re-enabling later. */}
+      {/* Page-level tabs: 持倉 | 交易紀錄 | 定期定額 | 分析. */}
       <div className="ns-page-tabs" style={{ display: 'flex', borderBottom: '1px solid var(--ns-border)', marginTop: 20, marginBottom: 22 }}>
         {[
           { id: 'portfolio', label: '持倉', active: tab === 'portfolio' },
           { id: 'transactions', label: '交易紀錄', active: tab === 'transactions' },
+          { id: 'recurring', label: '定期定額', active: tab === 'recurring' },
           { id: 'analytics', label: '分析', active: tab === 'analytics' },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id as any)} className="text-sm" style={{
