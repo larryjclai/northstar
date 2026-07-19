@@ -25,6 +25,12 @@ import { annualPrintButtonState, buildAnnualPrintHeaderMeta } from "./annualRepo
 export function AnnualReportRoute() {
   const { accounts, assets, investments, settings, dailyFxRates, books, isInitialLoading, isError, error, refetchAll } = useFinanceData();
 
+  // 列印 is desktop-only (plan 173 deferral → 233): iOS WKWebView's
+  // window.print() renders the desktop print CSS poorly — hide, don't degrade.
+  const coarsePointer =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(pointer: coarse), (max-width: 1023px)").matches;
+
   const accountRows = accounts.data ?? [];
   const allAssetRows = assets.data ?? [];
   const allRecordRows = investments.data ?? [];
@@ -182,14 +188,16 @@ export function AnnualReportRoute() {
               ))}
             </select>
           ) : null}
-          <Button
-            variant="outline"
-            disabled={printButton.disabled}
-            title={printButton.title}
-            onClick={() => window.print()}
-          >
-            <Printer size={14} />列印 / 匯出 PDF
-          </Button>
+          {!coarsePointer ? (
+            <Button
+              variant="outline"
+              disabled={printButton.disabled}
+              title={printButton.title}
+              onClick={() => window.print()}
+            >
+              <Printer size={14} />列印 / 匯出 PDF
+            </Button>
+          ) : null}
           <Button
             variant="outline"
             disabled={rows.length === 0}
