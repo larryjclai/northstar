@@ -10,7 +10,7 @@
  */
 export type TodoRow = {
   key: string;
-  type: "bill" | "card" | "recv" | "pay" | "income";
+  type: "bill" | "card" | "recv" | "pay" | "income" | "dca";
   name: string;
   sub: string;
   /** "MM-DD" for display. */
@@ -29,6 +29,7 @@ export interface TodoRowSources {
   bills: Array<{ id: string; entryType: string; merchant: string; category: string; accountId: string; nextRunDate: string; amount: number }>;
   cards: Array<{ accountId: string; name: string; dueDate: string; daysUntilDue: number; outstanding: number }>;
   settleItems: Array<{ id: string; kind: string; counterparty: string; name: string; date: string; amount: number; currency: string }>;
+  dcaRules: Array<{ id: string; name: string; ticker: string; accountId: string; nextRunDate: string; perPeriodCash: number }>;
 }
 
 /** Full date-sorted merge — NO caps. Callers slice for the compact card. */
@@ -74,6 +75,18 @@ export function buildTodoRows(
       iso: item.date.slice(0, 10),
       amt: isRecv ? amount : -amount,
       linkTxId: item.id,
+    });
+  }
+  for (const d of sources.dcaRules) {
+    rows.push({
+      key: `dca-${d.id}`,
+      type: "dca",
+      name: d.name || d.ticker,
+      sub: `定期定額 · ${accountName(d.accountId)}`,
+      date: d.nextRunDate.slice(5),
+      iso: d.nextRunDate,
+      amt: -Math.abs(d.perPeriodCash),
+      linkAccountId: d.accountId, // reused only for keying; the row links to the DCA tab in the UI
     });
   }
   return rows.sort((a, b) => a.iso.localeCompare(b.iso));

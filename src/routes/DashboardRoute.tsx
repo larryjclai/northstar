@@ -102,7 +102,8 @@ const LONG_VIEW_WINDOW = 30;
 const DASHBOARD_CARDS: Array<{ key: string; label: string }> = [
   { key: "budget", label: "預算進度" },
   { key: "todos", label: "待辦" },
-  // 定期定額提醒 hidden until the DCA workflow is finalised (see InvestmentsRoute).
+  // 定期定額提醒: DCA due rules feed into the 待辦 card as a source (plan 229) —
+  // no separate card, see `upcomingDca` + `TODO_META.dca` below.
   { key: "allocation", label: "資產配置" },
   { key: "goals", label: "目標" },
   { key: "recentActivity", label: "最近交易" },
@@ -130,10 +131,11 @@ const TODO_META: Record<TodoRow["type"], { label: string; color: string }> = {
   recv: { label: "應收", color: "var(--ns-chart-2)" },
   pay: { label: "應付", color: "var(--ns-chart-5)" },
   income: { label: "入帳", color: "var(--ns-pos)" },
+  dca: { label: "定期定額", color: "var(--ns-accent)" },
 };
 
 export function DashboardRoute() {
-  const { accounts, ledger, assets, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots, recurring, financialGoals, investments, books, isInitialLoading, isError, error, refetchAll } = useFinanceData();
+  const { accounts, ledger, assets, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots, recurring, recurringInvestments, financialGoals, investments, books, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
   const refreshFxRates = useRefreshFxRates();
   const refreshDailyPrices = useRefreshDailyPrices();
@@ -805,6 +807,22 @@ export function DashboardRoute() {
       .sort((a, b) => a.nextRunDate.localeCompare(b.nextRunDate));
   }, [recurringRows, timezone, switcherAccountIds]);
 
+  // DCA (定期定額) rules due within 30 days — books-scoped identically to the
+  // `upcoming` cash-bill memo above and to plan 228's tab filter (keep both in
+  // sync if either changes; see maintenance note in plan 229).
+  const upcomingDca = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    const horizon = todayInTimezone(timezone, d);
+    const today = todayInTimezone(timezone);
+    return (recurringInvestments.data ?? [])
+      .filter((r) => r.isActive && r.nextRunDate >= today && r.nextRunDate <= horizon && switcherAccountIds.has(r.accountId))
+      .map((r) => ({
+        id: r.id, name: r.name, ticker: r.ticker, accountId: r.accountId, nextRunDate: r.nextRunDate,
+        perPeriodCash: (r.mode === "fixedShares" ? (r.quantity || 0) * (r.price || 0) : (r.amount || 0)) + (r.fee || 0),
+      }));
+  }, [recurringInvestments.data, timezone, switcherAccountIds]);
+
   // Credit-card payments coming due (within ~45 days), soonest first.
   const creditReminders = useMemo(
     () => buildCreditCardReminders(filteredAccounts, todayInTimezone(timezone), (amount, currency) => toPrimary(amount, currency)).filter((r) => r.daysUntilDue <= 45),
@@ -834,11 +852,11 @@ export function DashboardRoute() {
   // the 查看全部 modal; the card keeps its compact 6-row slice.
   const todoRowsAll = useMemo(
     () => buildTodoRows(
-      { bills: upcoming, cards: creditReminders, settleItems: settlements.items },
+      { bills: upcoming, cards: creditReminders, settleItems: settlements.items, dcaRules: upcomingDca },
       (id) => accountMap.get(id)?.name ?? "",
       toPrimary,
     ),
-    [upcoming, creditReminders, settlements, accountMap, toPrimary],
+    [upcoming, creditReminders, settlements, upcomingDca, accountMap, toPrimary],
   );
   const todoRows = useMemo(() => todoRowsAll.slice(0, 6), [todoRowsAll]);
   const todoTotalDue = todoRows.reduce((sum, r) => sum + (r.amt < 0 ? r.amt : 0), 0);
@@ -1728,6 +1746,13 @@ function TodoRowItem({ row, first }: { row: TodoRow; first: boolean }) {
   if ((row.type === "recv" || row.type === "pay") && row.linkTxId) {
     return (
       <Link to="/cash-flow" search={{ tx: row.linkTxId }} style={{ ...rowStyle, textDecoration: "none", color: "inherit" }}>
+        {inner}
+      </Link>
+    );
+  }
+  if (row.type === "dca") {
+    return (
+      <Link to="/investments" search={{ tab: "recurring" }} style={{ ...rowStyle, textDecoration: "none", color: "inherit" }}>
         {inner}
       </Link>
     );
