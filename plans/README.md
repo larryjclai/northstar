@@ -17,14 +17,20 @@ custom full-screen (+218 motion), quarantined `ui/dialog` (⌘K only), EntryDraw
 sidebar-offset scrim (plan 162 decision). The migration is effectively complete;
 no further plan.
 
-**Still open after this batch**: 137-C formatPercent (percent-scale variant +
-sign audit), Quick Add §6.2/6.3, **132 vault-key rotation (security — deserves
-a dedicated planning session, crypto+worker surface)**, plan-173's operator-only
-print eyeball, deferred-by-design 085-088 / Tier 2. **New tiny follow-up (from
-232)**: `incompleteSplitGroupIds` has no consumer message anywhere — wire it
-into AccountsRoute/GeneralSection beside the transfer+DRIP rows (S, one line
-per file, copy the DRIP wiring 232 just added). **分帳 follow-up (from 222)**:
-one-tap 還款/settle from a share leg — natural next step, not planned.
+**234 + 235 — DONE, reviewed+MERGED (2026-07-19, same session)**:
+- 234 split-guard messages: `拆分交易不完整` rendered in both consumers beside
+  transfer+DRIP (grep = 2 hits). Three guards now wired identically — next new
+  guard should generalize the message row (three-strikes note in 234).
+- 235 分帳一鍵還款: `startShareRepayment` (CashFlowRoute:933) prefills a
+  transfer (應收帳戶 → original account, |amount|, note 「對象 分帳還款」) via
+  `openCreate("transfer")` reset; `HandCoins` 還款 button on share legs only.
+  Executor live-verified end-to-end incl. balance round-trip. No per-leg repaid
+  flag — account-balance-based by design; documented double-tap = two transfers.
+
+**Still open**: 137-C formatPercent (percent-scale variant + sign audit),
+Quick Add §6.2/6.3, **132 vault-key rotation (security — DESERVES A DEDICATED
+PLANNING SESSION, crypto+worker surface; do not fold into a misc batch)**,
+plan-173's operator-only print eyeball, deferred-by-design 085-088 / Tier 2.
 
 ## Reconciled 2026-07-19 (`main` @ `54f7339b`, in sync with origin)
 
