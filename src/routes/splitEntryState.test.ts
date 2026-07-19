@@ -1,20 +1,33 @@
 import { describe, expect, it } from "vitest";
 import {
+  addShareDraft,
   addSplitLeg,
+  combinedSplitError,
+  derivedShareTotal,
   derivedSplitTotal,
   enterSplitMode,
+  makeEmptyShareDraft,
   makeEmptySplitLeg,
   parseSplitLegAmount,
+  removeShareDraft,
   removeSplitLeg,
+  shareDraftsError,
   shouldExitSplitMode,
   splitLegsError,
+  toShareInputs,
   toSplitLegInputs,
+  updateShareDraft,
   updateSplitLeg,
   type SplitLegDraftState,
+  type SplitShareDraftState,
 } from "./splitEntryState";
 
 function leg(amount: string, category = "餐飲", subcategory = ""): SplitLegDraftState {
   return { amount, category, subcategory };
+}
+
+function share(amount: string, counterparty = "小明", counterAccountId = "acct-1"): SplitShareDraftState {
+  return { amount, counterparty, counterAccountId };
 }
 
 describe("enterSplitMode", () => {
@@ -58,10 +71,10 @@ describe("add / update / remove legs", () => {
     expect(removeSplitLeg(legs, 1)).toEqual([legs[0], legs[2]]);
   });
 
-  it("shouldExitSplitMode: true once fewer than 2 legs remain (exit-at-1-leg rule)", () => {
-    expect(shouldExitSplitMode([leg("90")])).toBe(true);
-    expect(shouldExitSplitMode([leg("90"), leg("45")])).toBe(false);
-    expect(shouldExitSplitMode(removeSplitLeg([leg("90"), leg("45")], 1))).toBe(true);
+  it("shouldExitSplitMode: true once fewer than 2 legs remain and there are no shares (exit-at-1-leg rule)", () => {
+    expect(shouldExitSplitMode([leg("90")], [])).toBe(true);
+    expect(shouldExitSplitMode([leg("90"), leg("45")], [])).toBe(false);
+    expect(shouldExitSplitMode(removeSplitLeg([leg("90"), leg("45")], 1), [])).toBe(true);
   });
 });
 
@@ -120,5 +133,108 @@ describe("toSplitLegInputs", () => {
       { amount: 90, category: "餐飲", subcategory: "午餐" },
       { amount: 50, category: "交通", subcategory: "" },
     ]);
+  });
+});
+
+describe("add / update / remove share drafts", () => {
+  it("addShareDraft appends a blank share without mutating the input", () => {
+    const shares = [share("600")];
+    const next = addShareDraft(shares);
+    expect(next).toHaveLength(2);
+    expect(next[1]).toEqual(makeEmptyShareDraft());
+    expect(shares).toHaveLength(1);
+  });
+
+  it("updateShareDraft patches only the targeted share", () => {
+    const shares = [share("600"), share("", "", "")];
+    const next = updateShareDraft(shares, 1, { counterparty: "小華", amount: "300" });
+    expect(next[0]).toEqual(shares[0]);
+    expect(next[1]).toEqual({ amount: "300", counterparty: "小華", counterAccountId: "" });
+  });
+
+  it("removeShareDraft drops the targeted share", () => {
+    const shares = [share("600", "小明"), share("300", "小華"), share("100", "小張")];
+    expect(removeShareDraft(shares, 1)).toEqual([shares[0], shares[2]]);
+  });
+});
+
+describe("derivedShareTotal", () => {
+  it("sums parseable share amounts, ignoring blank and invalid rows", () => {
+    expect(derivedShareTotal([share("600"), share("300"), share("abc")])).toBe(900);
+  });
+
+  it("rounds the sum to 2 decimals", () => {
+    expect(derivedShareTotal([share("0.1"), share("0.2")])).toBe(0.3);
+  });
+});
+
+describe("shareDraftsError", () => {
+  it("matches the builder's exact zh-TW messages (byte-identical contract)", () => {
+    expect(shareDraftsError([share("")])).toBe("分帳明細金額必須大於 0。");
+    expect(shareDraftsError([share("0")])).toBe("分帳明細金額必須大於 0。");
+    expect(shareDraftsError([share("600", "")])).toBe("分帳明細必須填寫對象。");
+    expect(shareDraftsError([share("600", "小明", "")])).toBe("分帳明細必須選擇應收帳戶。");
+  });
+
+  it("returns null for a saveable set of shares", () => {
+    expect(shareDraftsError([share("600")])).toBeNull();
+  });
+});
+
+describe("toShareInputs", () => {
+  it("maps editing state to positive-amount SplitShareInput rows, trimming the counterparty", () => {
+    expect(toShareInputs([share("600", " 小明 ", "acct-1")])).toEqual([
+      { amount: 600, counterparty: "小明", counterAccountId: "acct-1" },
+    ]);
+  });
+});
+
+describe("combinedSplitError", () => {
+  it("requires legs + shares to total at least 2", () => {
+    expect(combinedSplitError([leg("90")], [])).toBe("拆分至少需要 2 筆明細。");
+    expect(combinedSplitError([], [])).toBe("拆分至少需要 2 筆明細。");
+  });
+
+  it("allows 1 category leg + 1 share (valid 分帳: combined-≥2 rule)", () => {
+    expect(combinedSplitError([leg("400")], [share("600")])).toBeNull();
+  });
+
+  it("requires at least 1 category leg when shares are present", () => {
+    expect(combinedSplitError([], [share("600"), share("400", "小華")])).toBe("分帳需要至少 1 筆自己的類別明細。");
+  });
+
+  it("still validates each leg's own fields before shares", () => {
+    expect(combinedSplitError([leg("")], [share("600")])).toBe("拆分明細金額必須大於 0。");
+    expect(combinedSplitError([leg("400", "")], [share("600")])).toBe("拆分明細必須選擇類別。");
+  });
+
+  it("validates share fields once the count/leg checks pass", () => {
+    expect(combinedSplitError([leg("400")], [share("", "小明")])).toBe("分帳明細金額必須大於 0。");
+    expect(combinedSplitError([leg("400")], [share("600", "")])).toBe("分帳明細必須填寫對象。");
+    expect(combinedSplitError([leg("400")], [share("600", "小明", "")])).toBe("分帳明細必須選擇應收帳戶。");
+  });
+
+  it("matches splitLegsError exactly when there are no shares (regression safety)", () => {
+    expect(combinedSplitError([leg("90")], [])).toBe(splitLegsError([leg("90")]));
+    expect(combinedSplitError([leg("90"), leg("45")], [])).toBe(splitLegsError([leg("90"), leg("45")]));
+    expect(combinedSplitError([leg("90"), leg("45", "交通", "捷運")], [])).toBe(
+      splitLegsError([leg("90"), leg("45", "交通", "捷運")]),
+    );
+    expect(combinedSplitError([leg("90"), leg("45", "交通", "捷運")], [])).toBeNull();
+  });
+});
+
+describe("shouldExitSplitMode with shares present", () => {
+  it("does NOT exit at 1 leg when a share is present (valid 分帳: 1 category leg + share)", () => {
+    expect(shouldExitSplitMode([leg("90")], [share("600")])).toBe(false);
+  });
+
+  it("does NOT exit at 0 legs when a share is present", () => {
+    expect(shouldExitSplitMode([], [share("600")])).toBe(false);
+  });
+
+  it("still exits at 0/1 legs when there are no shares (unchanged behavior)", () => {
+    expect(shouldExitSplitMode([leg("90")], [])).toBe(true);
+    expect(shouldExitSplitMode([], [])).toBe(true);
   });
 });
