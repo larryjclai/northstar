@@ -18,6 +18,7 @@ import {
   MagnifyingGlass,
   Sparkle,
   Users,
+  HandCoins,
 } from "@phosphor-icons/react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ChangeEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -922,6 +923,31 @@ export function CashFlowRoute() {
     setDrawerOpen(true);
   }
 
+  /**
+   * 分帳一鍵還款 (plan 235): a 分帳 share leg parks the friend's portion on an
+   * 應收帳戶 (代墊, plan 221) — repayment is just a transfer 應收帳戶 →
+   * 收款帳戶. Reuses `openCreate`'s reset (split state, editing ids, recurring
+   * freq…) then overwrites the transfer form with the prefilled pair. No new
+   * "repaid" flag: 代墊 tracking stays account-balance-based.
+   */
+  function startShareRepayment(leg: LedgerTransaction) {
+    openCreate("transfer");
+    const sourceAccount = accountRows.find((a) => a.id === leg.counterAccountId);
+    const destAccount = accountRows.find((a) => a.id === leg.accountId);
+    const amount = Math.abs(leg.amount);
+    setTransferForm({
+      ...emptyTransfer,
+      date: nowAsDatetimeLocal(timezone),
+      sourceAccountId: leg.counterAccountId ?? "",
+      destinationAccountId: leg.accountId,
+      sourceCurrency: sourceAccount?.currency ?? "TWD",
+      destinationCurrency: destAccount?.currency ?? "TWD",
+      sourceAmount: amount,
+      destinationAmount: amount,
+      note: `${leg.name} 分帳還款`,
+    });
+  }
+
   async function submitLedger() {
     setMessage("");
     try {
@@ -1568,6 +1594,7 @@ export function CashFlowRoute() {
             onDuplicate={() => startDuplicate(r, r.transferPair)}
             onDelete={() => requestDelete(r)}
             onSettle={() => markSettled(r)}
+            onShareRepay={startShareRepayment}
           />
         );
       })}
@@ -2457,6 +2484,7 @@ function LedgerRow({
   onDuplicate,
   onDelete,
   onSettle,
+  onShareRepay,
 }: {
   row: LedgerTransaction;
   /** When set, this row is a collapsed transfer (both legs) — render 來源 → 目標. */
@@ -2475,6 +2503,8 @@ function LedgerRow({
   onDuplicate: () => void;
   onDelete: () => void;
   onSettle: () => void;
+  /** 分帳一鍵還款 (plan 235): tap 還款 on a share leg → prefilled transfer. */
+  onShareRepay: (leg: LedgerTransaction) => void;
 }) {
   const isTransfer = row.entryType === "transfer";
 
@@ -2527,9 +2557,22 @@ function LedgerRow({
                     ? `分帳 · ${leg.name}`
                     : `${leg.category || "未分類"}${leg.subcategory ? ` / ${leg.subcategory}` : ""}`}
                 </span>
-                <span className="muted text-caption" style={{ fontFamily: "var(--ns-font-mono)", whiteSpace: "nowrap" }}>
-                  {leg.amount >= 0 ? "+" : "−"}{currencySymbol(leg.currency)}{formatNumber(Math.abs(leg.amount))}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="muted text-caption" style={{ fontFamily: "var(--ns-font-mono)", whiteSpace: "nowrap" }}>
+                    {leg.amount >= 0 ? "+" : "−"}{currencySymbol(leg.currency)}{formatNumber(Math.abs(leg.amount))}
+                  </span>
+                  {leg.legKind === "share" && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      title="還款"
+                      aria-label="還款"
+                      onClick={(e) => { e.stopPropagation(); onShareRepay(leg); }}
+                    >
+                      <HandCoins size={13} />
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
