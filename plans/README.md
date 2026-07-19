@@ -15,6 +15,36 @@
 - **Stale branch safe to delete**: `fix/ai-transfer-edit` (merged at `9119cb8e`).
 - **No BLOCKED / IN-PROGRESS plans; no drifted TODOs.**
 
+## 228–230 — DCA Option A build batch (`/improve plan` @ `fd4af91f`, 2026-07-18)
+
+Operator chose **Option A (rework & re-enable)** from `docs/dca-decision.md`.
+The doc's §6 worklist (8 items) turns into these 3 plans — because 2 items were
+already-resolved-in-code (no work) and 1 needs an operator decision (below).
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 228 | Re-enable the DCA tab, **books-scoped** — add 定期定額 to InvestmentsRoute tabs array (union+render branch already wired), filter `RecurringInvestmentsTab`'s rules by `switcherAccountIds.has(r.accountId)` (the operator-decided 公司/個人 scoping, mirrors DashboardRoute:798-806), fee-preservation regression test, ROADMAP flip, 1 demo seed rule | P2 | M | — | TODO |
+| 229 | Restore the dashboard DCA reminder as a **待辦 source** (not a separate card) — add `dca` type + `dcaRules` source to `domain/todoRows.ts` (plan 223's maintenance note explicitly anticipated this), books-scoped 30-day upcoming list in DashboardRoute, row links to `/investments?tab=recurring` | P3 | S | **228** (tab must exist to link to) | TODO |
+| 230 | DCA post-time **stale reference-price** guard — the one real semantic gap: posting uses a static 參考價 typed once, no staleness check. Post button → confirm dialog showing stored 參考價 vs latest loaded quote (`buildQuoteLookup`/`findQuoteForTicker`), offers 用參考價 or 更新為最新報價並記錄 (update-then-post). Posting math untouched | P3 | S–M | **228** (tab must be reachable) | TODO |
+
+**Recommended order**: 228 → (229 ∥ 230, both independent, both need 228 merged).
+
+**Worklist items NOT planned, and why** (from `docs/dca-decision.md` §3):
+- **Reminder-vs-auto-post** (§3.1) — ALREADY the shipped model (manual one-tap
+  post; no auto-scheduler exists). No work. *If the operator ever wants full
+  auto-post like cash rules, that is a NEW M-effort feature (new code path +
+  market-closed/stale-price story) — a separate decision, not "finishing" DCA.*
+- **By-amount-vs-by-shares** (§3.2) — both modes already in the type + UI toggle
+  (`RecurringInvestmentsTab.tsx:257`). No work.
+- **⚠ Fractional-share / lot-size rounding** (§3.4) — **NEEDS AN OPERATOR
+  DECISION before it can be planned.** `quantity = amount / price` (fixedAmount
+  mode) is unrounded; TW brokers commonly need whole/1000-share lots (零股 has
+  its own fee schedule). Question: should Northstar **round** `quantity` to a
+  lot, or **record the exact fractional share** (arguably more correct for
+  cost-basis even if the real order was rounded)? Recommendation: record
+  fractional (cost-basis fidelity), add an optional display note. Once decided,
+  it's an S plan touching `recurringInvestmentToDraft` (`repositories.ts:6482`).
+
 ## 142 — DCA spike DONE + branch cleanup (2026-07-18, `main` @ post-merge)
 
 - **142 (DCA finish-or-retire spike) executed + reviewed + MERGED** — doc-only,
