@@ -463,6 +463,8 @@ export interface RecalculationReport {
   incompleteTransferGroupIds: string[];
   /** 多類別拆分 groups left with exactly 1 active "category" leg (half-arrived sync / half-deleted split). */
   incompleteSplitGroupIds: string[];
+  /** 股利再投入 (DRIP) groups without exactly 2 active legs (half-arrived sync). */
+  incompleteDripGroupIds: string[];
   missingFxPairs: string[];
   changedAccounts: number;
   changedAssets: number;

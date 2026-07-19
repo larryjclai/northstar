@@ -164,6 +164,7 @@ export function buildRecalculationReport(
       .filter(([, rows]) => rows.filter((row) => row.entryType === "transfer").length !== 2)
       .map(([groupId]) => groupId),
     incompleteSplitGroupIds: incompleteSplitGroupIds(ledger),
+    incompleteDripGroupIds: incompleteDripGroupIds(investments),
     missingFxPairs,
     changedAccounts: accountDifferences.length,
     changedAssets: assetDifferences.length,
@@ -184,6 +185,17 @@ export function incompleteSplitGroupIds(ledger: LedgerTransaction[]): string[] {
     counts.set(row.groupId, (counts.get(row.groupId) ?? 0) + 1);
   }
   return [...counts.entries()].filter(([, count]) => count === 1).map(([groupId]) => groupId);
+}
+
+/** DRIP partial-group guard: a DRIP posting is exactly 2 InvestmentRecords
+ *  sharing a dripGroupId; a lone active leg = half-arrived sync. */
+export function incompleteDripGroupIds(investments: InvestmentRecord[]): string[] {
+  const counts = new Map<string, number>();
+  for (const row of investments) {
+    if (row.deletedAt !== null || !row.dripGroupId) continue;
+    counts.set(row.dripGroupId, (counts.get(row.dripGroupId) ?? 0) + 1);
+  }
+  return [...counts.entries()].filter(([, count]) => count !== 2).map(([groupId]) => groupId);
 }
 
 export function findMissingFxPairs(
