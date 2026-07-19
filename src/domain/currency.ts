@@ -152,7 +152,6 @@ export function createFxConverter(
 // store to trigger re-renders; this flag is read at format time.
 let __privacyMaskOn = false;
 const MASKED_TEXT = "＊＊＊＊＊＊";
-const MASKED_PERCENT = "＊＊.＊＊%";
 
 // Typographic minus (U+2212) — same width as "+" in tabular figures, unlike
 // the ASCII hyphen-minus (DESIGN.md §9). Applied to *display* strings only;
@@ -225,11 +224,6 @@ export function formatSignedMoney(amount: number, currency: string) {
   if (__privacyMaskOn) return `${currency} ${MASKED_TEXT}`;
   const sign = amount < 0 ? MINUS : "+";
   return `${sign}${currency} ${Math.abs(amount).toLocaleString("zh-TW", { maximumFractionDigits: 0 })}`;
-}
-
-export function formatPercent(value: number, fractionDigits = 2) {
-  if (__privacyMaskOn) return MASKED_PERCENT;
-  return typographicMinus(`${(value * 100).toFixed(fractionDigits)}%`);
 }
 
 export function formatQuantity(amount: number) {

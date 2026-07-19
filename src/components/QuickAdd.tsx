@@ -4,7 +4,7 @@ import { Button } from "./coss/button";
 import { Card } from "./coss/card";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { buildLedgerSuggestions, buildMerchantCategoryMap, buildUserLexicon, categoryPickerOptions, defaultAccountForCategory, formatMoney, formatNumber, formatPrice, loadCorrections, nowAsDatetimeLocal, parseQuickAdd, saveCorrection, type CorrectionStore, type QuickAddParsed } from "../domain";
+import { buildLedgerSuggestions, buildMerchantCategoryMap, buildUserLexicon, categoryPickerOptions, defaultAccountForCategory, formatMoney, formatNumber, formatPrice, loadCorrections, nowAsDatetimeLocal, parseQuickAdd, saveCorrection, type CorrectionStore, type LedgerTransaction, type QuickAddParsed } from "../domain";
 import { orchestrate, type ParseSource } from "../domain/nlParser";
 import { ALL_BOOKS, bookAccountIdSet, scopeRows } from "../domain/bookScope";
 import { createOnDeviceParser } from "../lib/foundationModels";
@@ -80,6 +80,15 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
   const [amountFocused, setAmountFocused] = useState(false);
   // Real-time preview: updated every 150 ms as the user types (P5).
   const [preview, setPreview] = useState<QuickAddParsed | null>(null);
+  // §6.3 preview remediation: account chosen via a preview-stage account chip
+  // (shown when the parse has an amount but no account match) — carried into
+  // toConfirm()'s accountId when the user hits Enter/解析. Cleared per-session.
+  const [previewAccountOverride, setPreviewAccountOverride] = useState<string | null>(null);
+  // §6.3 preview remediation: true once the user taps the 建議 badge on a
+  // guessed category chip to dismiss it — suppresses that guess from flowing
+  // into the confirm card so its picker starts empty. Reset whenever the
+  // preview re-parses (new text = a fresh guess, if any).
+  const [categoryGuessCleared, setCategoryGuessCleared] = useState(false);
   // Track whether the last confirm result came from Tier 0 or Tier 1 (P6).
   const [parseSource, setParseSource] = useState<ParseSource>("rules");
   // Device-side AI availability — null while checking, then true/false.
@@ -105,6 +114,8 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
       setOriginalGuess(null);
       setError("");
       setParseSource("rules");
+      setPreviewAccountOverride(null);
+      setCategoryGuessCleared(false);
       setTimeout(() => inputRef.current?.focus(), 30);
       // Prewarm the on-device model so the first real parse call has minimal latency.
       onDeviceParser.prewarm?.();
@@ -127,6 +138,9 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
   // Cleared when the confirm card is open or the input is empty.
   useEffect(() => {
     if (confirm || !text.trim()) { setPreview(null); return; }
+    // A new parse cycle means fresh input — let a new guess (if any) show
+    // its 建議 badge again rather than staying suppressed from a prior edit.
+    setCategoryGuessCleared(false);
     const now = nowAsDatetimeLocal(timezone);
     const t = setTimeout(() => {
       const parsed = parseQuickAdd(text, { accounts: accountRows, merchantCategory: merchantCat, lexicon, mode, nowDatetimeLocal: now });
@@ -158,6 +172,19 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
     const ctx = { accounts: accountRows, merchantCategory: merchantCat, lexicon, mode, nowDatetimeLocal: now, categories: categoryGroups.map((g) => g.name) };
     const { result: parsed, source } = await orchestrate(text, ctx, onDeviceParser);
     const c = toConfirm(parsed, text, now);
+    // §6.3 preview remediation: an account chip tapped at the preview stage
+    // (before an account matched) takes priority over the §6.5 category-based
+    // default below — it's an explicit user choice, not a derived guess.
+    if (c.kind === "ledger" && !c.accountId && previewAccountOverride) {
+      c.accountId = previewAccountOverride;
+    }
+    // §6.3 preview remediation: the user dismissed the preview's guessed
+    // category — start the confirm card's picker empty instead of carrying
+    // the guess forward.
+    if (c.kind === "ledger" && categoryGuessCleared) {
+      c.category = "";
+      c.subcategory = "";
+    }
     // §6.5 記住每分類的常用帳戶: when the parser resolved a category but no
     // account, default to the account most used for that category (derived from
     // ledger history). This sets a *default*, not a parse — the confirm card
@@ -489,9 +516,19 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
           </div>
         ) : null}
 
-        {/* Real-time preview chips (P5) — shown while typing, hidden once confirm card opens */}
+        {/* Real-time preview chips (P5) — shown while typing, hidden once confirm card opens.
+            §6.3 remediation: also offers account chips when unmatched and badges
+            guessed categories, so gaps get fixed before Enter. */}
         {!confirm && preview ? (
-          <PreviewChips parsed={preview} accounts={accountRows} />
+          <PreviewChips
+            parsed={preview}
+            accounts={accountRows}
+            ledgerRows={ledgerRows}
+            accountOverride={previewAccountOverride}
+            onSelectAccount={setPreviewAccountOverride}
+            categoryGuessCleared={categoryGuessCleared}
+            onClearCategoryGuess={() => setCategoryGuessCleared(true)}
+          />
         ) : null}
 
         {/* Example chips (§6.4) — on empty input, offer 2–3 tappable examples
@@ -553,16 +590,44 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 interface PreviewChip { label: string; value: string; color: string }
 
-function PreviewChips({ parsed, accounts }: { parsed: QuickAddParsed; accounts: { id: string; name: string }[] }) {
+function PreviewChips({
+  parsed,
+  accounts,
+  ledgerRows,
+  accountOverride,
+  onSelectAccount,
+  categoryGuessCleared,
+  onClearCategoryGuess,
+}: {
+  parsed: QuickAddParsed;
+  accounts: { id: string; name: string }[];
+  ledgerRows: LedgerTransaction[];
+  accountOverride: string | null;
+  onSelectAccount: (accountId: string) => void;
+  categoryGuessCleared: boolean;
+  onClearCategoryGuess: () => void;
+}) {
   const chips: PreviewChip[] = [];
+  // §6.3: the category chip. `parseQuickAdd` has no syntax for a user to type
+  // a category by name — its only source is `resolveCategory()` (merchant map
+  // / lexicon inference, see src/domain/quickAdd.ts:172-192 and :413-417), so
+  // ANY non-empty preview-time category is a guess. Rendered separately (not
+  // pushed into `chips`) because it's interactive: tapping dismisses it.
+  let categoryChip: PreviewChip | null = null;
 
   if (parsed.kind === "ledger") {
     if (parsed.amount) chips.push({ label: "金額", value: formatNumber(parsed.amount), color: "var(--ns-pos)" });
     if (parsed.accountId) {
       const name = accounts.find((a) => a.id === parsed.accountId)?.name ?? parsed.accountId;
       chips.push({ label: "帳戶", value: name, color: "var(--ns-accent)" });
+    } else if (accountOverride) {
+      // User already picked one from the remediation chips below.
+      const name = accounts.find((a) => a.id === accountOverride)?.name ?? accountOverride;
+      chips.push({ label: "帳戶", value: name, color: "var(--ns-accent)" });
     }
-    if (parsed.category) chips.push({ label: "分類", value: parsed.category + (parsed.subcategory ? ` / ${parsed.subcategory}` : ""), color: "var(--ns-info)" });
+    if (parsed.category && !categoryGuessCleared) {
+      categoryChip = { label: "分類", value: parsed.category + (parsed.subcategory ? ` / ${parsed.subcategory}` : ""), color: "var(--ns-info)" };
+    }
     if (parsed.date) chips.push({ label: "日期", value: parsed.date.slice(0, 10), color: "var(--ns-warn)" });
     // Show name and merchant as separate chips when they differ; when they're
     // the same string (merchant-only leftover) show a single 商家 chip, and
@@ -588,7 +653,16 @@ function PreviewChips({ parsed, accounts }: { parsed: QuickAddParsed; accounts: 
     chips.push({ label: "操作", value: parsed.action === "buy" ? "買入" : "賣出", color: parsed.action === "buy" ? "var(--ns-pos)" : "var(--ns-neg)" });
   }
 
-  if (chips.length === 0) return null;
+  // §6.3: amount parsed but no account matched (and none picked yet at the
+  // preview stage) → offer up to 3 account chips, ranked by history the same
+  // way the confirm card's own remediation does (buildLedgerSuggestions),
+  // scoped to the guessed category when there is one.
+  const needsAccount = parsed.kind === "ledger" && parsed.amount > 0 && !parsed.accountId && !accountOverride;
+  const accountSuggestions = needsAccount
+    ? buildLedgerSuggestions(ledgerRows, { category: parsed.category || undefined }).accountIds.slice(0, 3)
+    : [];
+
+  if (chips.length === 0 && !categoryChip && accountSuggestions.length === 0) return null;
 
   return (
     <div className="flex items-center gap-1.5" style={{ flexWrap: "wrap", padding: "6px 14px", background: "var(--ns-bg-card)", borderRadius: 12, border: "1px solid var(--ns-border)", boxShadow: "var(--ns-shadow-sm)" }}>
@@ -598,6 +672,42 @@ function PreviewChips({ parsed, accounts }: { parsed: QuickAddParsed; accounts: 
           <span>{chip.value}</span>
         </span>
       ))}
+      {categoryChip ? (
+        <button
+          type="button"
+          onClick={() => onClearCategoryGuess()}
+          className="text-micro items-center"
+          title="分類為系統猜測，點擊清除後可在確認畫面自行選擇"
+          style={{
+            display: "inline-flex", gap: 3, padding: "2px 8px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit",
+            background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)", border: "1px dashed var(--ns-border)",
+          }}
+        >
+          <span className="font-semibold" style={{ color: categoryChip.color }}>{categoryChip.label}</span>
+          <span>{categoryChip.value}</span>
+          <span style={{ opacity: 0.7 }}>建議</span>
+        </button>
+      ) : null}
+      {accountSuggestions.map((accountId) => {
+        const account = accounts.find((a) => a.id === accountId);
+        if (!account) return null;
+        return (
+          <button
+            key={accountId}
+            type="button"
+            onClick={() => onSelectAccount(accountId)}
+            className="text-micro items-center"
+            title="選擇帳戶"
+            style={{
+              display: "inline-flex", gap: 3, padding: "2px 8px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit",
+              background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)", border: "1px dashed var(--ns-border)",
+            }}
+          >
+            <span className="font-semibold" style={{ color: "var(--ns-accent)" }}>帳戶</span>
+            <span>{account.name}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
