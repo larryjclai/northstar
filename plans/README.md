@@ -4,7 +4,7 @@
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 243 | 清掉 `northstar-releases` 鏡像的三個遺留物：`tauri.conf.json` 的死 fallback endpoint（指向停在 alpha.44 的封存 repo）、`RELEASING.md` 仍宣稱本 repo 是 private 且教人建立 `RELEASES_TOKEN` 的過期整節、以及閒置的 `RELEASES_TOKEN` PAT（**Step 4 為 operator-only**：撤銷憑證不由執行者代勞）。`pubkey` 絕對不動 | P3 | S | — | TODO |
+| 243 | 清掉 `northstar-releases` 鏡像的三個遺留物：`tauri.conf.json` 的死 fallback endpoint（指向停在 alpha.44 的封存 repo）、`RELEASING.md` 仍宣稱本 repo 是 private 且教人建立 `RELEASES_TOKEN` 的過期整節、以及閒置的 `RELEASES_TOKEN` PAT（**Step 4 為 operator-only**：撤銷憑證不由執行者代勞）。`pubkey` 絕對不動 | P3 | S | — | **DONE — reviewed+MERGED** @ `1793d44b`。advisor 逐行確認 `pubkey` 為 diff context（未動）、`release.yml` 零改動。執行者另修兩處計畫未列但屬 Step 3 判斷範圍的檔案：`docs/DEVELOPMENT.md`（**事實錯誤**——仍描述 private repo + 鏡像流程）、`docs/REPOSITORY_CLEANUP_AUDIT.md`（加淘汰標註，內容保留為歷史）。⚠ **Step 4 仍待 operator**：刪除 `RELEASES_TOKEN` secret 並撤銷該 PAT。 |
 
 **背景**：`d206e2cc`（2026-06-26）已刻意移除鏡像 job——repo 轉 PUBLIC 後，
 「private repo 無法匿名下載」的原始理由消失，release 直接發本 repo 即可。那次清理
