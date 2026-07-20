@@ -54,6 +54,7 @@ import {
   storeKeyEnvelope,
   fetchKeyEnvelopesWithToken,
   addDevice,
+  provisionDevicePublicKey,
 } from "./client";
 import { getOrCreateDeviceIdentity } from "../../../state/deviceIdentity";
 
@@ -190,6 +191,22 @@ export async function completeJoin(session: JoinSession): Promise<JoinResult | n
   // with its own token ("<deviceId>.<deviceSecret>") from the first sync.
   await saveDeviceSecret(session.deviceSecret);
 
+  // Belt-and-suspenders self-provision of this device's own public key into
+  // the durable directory (Plan 239, rotation phase A). Device A's addDevice
+  // call (approveJoiningDevice, below) already SHOULD have seeded this from
+  // the pairing bundle it received — this call only has any effect if that
+  // somehow didn't happen (e.g. Device A is on an older client build). The
+  // relay's set-once guard makes it a harmless no-op (409) otherwise. This is
+  // the earliest point THIS device (B) has authenticated relay credentials —
+  // startJoinSession, where the keypair was actually generated, ran before B
+  // had an account at all, so it could not have made this call itself.
+  try {
+    const myPublicKeyB64 = await exportPublicKey(pair.publicKey);
+    await provisionDevicePublicKey(acct.apiSecret, session.deviceId, myPublicKeyB64);
+  } catch {
+    // Already set (by A) or offline — non-fatal, never blocks join completion.
+  }
+
   // Device A already registered this device (addDevice) when it approved it.
   return { userId: acct.userId };
 }
@@ -238,13 +255,30 @@ export async function approveJoiningDevice(approval: PendingJoinApproval): Promi
   const vaultKey = await loadVaultKey();
   if (!vaultKey) throw new Error("Vault key not initialised. Complete sync setup first.");
   const account = await getOrCreateSyncAccount();
+  const self = getOrCreateDeviceIdentity();
 
   let pair = await loadDeviceKeyPair();
+  let isFreshKeyPair = false;
   if (!pair) {
     pair = await generateDeviceKeyPair();
     await saveDeviceKeyPair(pair);
+    isFreshKeyPair = true;
   }
   const myPublicKeyB64 = await exportPublicKey(pair.publicKey);
+
+  // A device approving its first joiner without ever having paired/approved
+  // before (the lazy-generation path above) has never uploaded its own public
+  // key either — do so now (Plan 239, rotation phase A). Best-effort: this
+  // must never block approving the joining device.
+  if (isFreshKeyPair) {
+    try {
+      await provisionDevicePublicKey(account.apiSecret, self.deviceId, myPublicKeyB64);
+    } catch {
+      // Offline or (shouldn't happen for a freshly-generated keypair) already
+      // set — non-fatal, this device's own directory entry is a bonus, not a
+      // requirement for THIS approval to succeed.
+    }
+  }
 
   const theirPublicKey = await importPublicKey(approval.publicKeyB64);
   const shared = await deriveSharedKeyExtended(pair.privateKey, theirPublicKey);
@@ -255,7 +289,6 @@ export async function approveJoiningDevice(approval: PendingJoinApproval): Promi
     apiSecret: account.apiSecret,
   });
 
-  const self = getOrCreateDeviceIdentity();
   await storeKeyEnvelope(account.apiSecret, approval.deviceId, {
     id: `${approval.deviceId}:${VAULT_KEY_TYPE}`,
     sourceDeviceId: self.deviceId,
@@ -271,11 +304,15 @@ export async function approveJoiningDevice(approval: PendingJoinApproval): Promi
     sourcePublicKeyB64: myPublicKeyB64,
   });
 
+  // Seed B's directory entry with the public key we already have from the
+  // pairing bundle (Plan 239) — B doesn't need to self-provision it later,
+  // since it has no relay credentials until completeJoin() finishes anyway.
   await addDevice(account.apiSecret, {
     id: approval.deviceId,
     name: approval.name,
     platform: approval.platform,
     secretHash: approval.secretHash,
+    publicKeyB64: approval.publicKeyB64,
   });
 }
 

@@ -224,6 +224,16 @@ export default {
           await handleProvisionDeviceCredential(request, env, userId, deviceCredential[1]),
         );
       }
+      // POST /devices/:id/public-key — self-provision this device's ECDH public
+      // key into the durable directory (Plan 239, rotation phase A). Mirrors the
+      // credential endpoint's set-once shape. Only succeeds if the device is
+      // owned by this account and has no public key on file yet.
+      const devicePublicKey = path.match(/^\/devices\/([^/]+)\/public-key$/);
+      if (method === "POST" && devicePublicKey) {
+        return withCors(
+          await handleProvisionDevicePublicKey(request, env, userId, devicePublicKey[1]),
+        );
+      }
       // DELETE /devices/:id — revoke a device
       const deviceRevoke = path.match(/^\/devices\/([^/]+)$/);
       if (method === "DELETE" && deviceRevoke) {
@@ -324,6 +334,12 @@ interface DeviceBody {
   // joining device (B) generates its secret locally and only the hash rides the
   // pairing bundle to the approving device (A), which forwards it here.
   secretHash?: string;
+  // publicKeyB64: the device's ECDH public key (Plan 239, rotation phase A).
+  // Optional so older clients that predate the directory keep working; the
+  // approver already knows the joining device's public key from the pairing
+  // bundle, so it can supply it here directly instead of requiring the
+  // joining device to self-provision separately.
+  publicKeyB64?: string;
 }
 
 async function handleAddDevice(
@@ -336,9 +352,9 @@ async function handleAddDevice(
 
   const now = new Date().toISOString();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO devices (id, user_id, name, platform, device_secret_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    "INSERT OR IGNORE INTO devices (id, user_id, name, platform, device_secret_hash, public_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
   )
-    .bind(body.id, userId, body.name, body.platform, body.secretHash ?? null, now)
+    .bind(body.id, userId, body.name, body.platform, body.secretHash ?? null, body.publicKeyB64 ?? null, now)
     .run();
 
   return json({ ok: true }, 201);
@@ -387,9 +403,51 @@ async function handleProvisionDeviceCredential(
   return json({ ok: true }, 201);
 }
 
+interface ProvisionPublicKeyBody {
+  publicKeyB64: string;
+}
+
+/**
+ * Self-provision this device's ECDH public key into the durable directory
+ * (Plan 239, rotation phase A). Migration path for a device that was paired
+ * before the directory shipped (its `devices.public_key` row is NULL) — it
+ * uploads its own key the first time it syncs post-upgrade (see
+ * ensureDevicePublicKeyUploaded in the client).
+ *
+ * Guarded by `public_key IS NULL`, exactly like
+ * handleProvisionDeviceCredential: a key can be set exactly once and never
+ * silently overwritten by this endpoint. This closes spike gap 1 — without a
+ * durable directory, a rotation initiator has no way to look up a remote
+ * device's public key months after their original pairing session.
+ */
+async function handleProvisionDevicePublicKey(
+  request: Request,
+  env: Env,
+  userId: string,
+  deviceId: string,
+): Promise<Response> {
+  const body = await request.json<ProvisionPublicKeyBody>();
+  if (!body.publicKeyB64) return err("Missing fields", 400);
+
+  const result = await env.DB.prepare(
+    "UPDATE devices SET public_key = ? WHERE id = ? AND user_id = ? AND public_key IS NULL",
+  )
+    .bind(body.publicKeyB64, deviceId, userId)
+    .run();
+
+  // meta.changes === 0 means the device is absent, not owned by this account, or
+  // already has a public key on file. Report a conflict without distinguishing
+  // which, mirroring handleProvisionDeviceCredential's same anti-probing shape.
+  if (!result.meta.changes) {
+    return err("Device public key already set or device not found", 409);
+  }
+
+  return json({ ok: true }, 201);
+}
+
 async function handleListDevices(env: Env, userId: string): Promise<Response> {
   const result = await env.DB.prepare(
-    "SELECT id, name, platform, trusted_at, created_at FROM devices WHERE user_id = ? ORDER BY created_at",
+    "SELECT id, name, platform, trusted_at, created_at, public_key as publicKeyB64 FROM devices WHERE user_id = ? ORDER BY created_at",
   )
     .bind(userId)
     .all();
@@ -506,6 +564,32 @@ interface KeyEnvelopeBody {
   sourcePublicKeyB64?: string;
 }
 
+/**
+ * Store (or overwrite) a wrapped key envelope for a target device, allocating
+ * `wrapped_key_version` server-side (Plan 239, rotation phase A — spike gap 2:
+ * the column existed since 0001_initial.sql but nothing read or wrote it).
+ *
+ * Allocation is NOT trusted from the client body (§4/§5 of
+ * docs/vault-key-rotation-plan.md: an attacker or buggy client must not be
+ * able to inject an arbitrary version number) — it is computed by this SAME
+ * statement via `SELECT MAX(wrapped_key_version)+1 ... WHERE user_id = ? AND
+ * key_type = ?`, scoped per-user exactly like 0006_per_user_relay_sequence.sql
+ * scoped the relay_sequence counter per-user.
+ *
+ * Unlike relay_sequence's fix (a separate SELECT MAX, then a separate INSERT —
+ * two round trips, still racy for two concurrent SAME-user writes, just no
+ * longer racy ACROSS users), this allocation reads and writes the max in ONE
+ * SQL statement. SQLite only allows one writer at a time; a second concurrent
+ * INSERT for the same user+key_type cannot begin evaluating its subquery until
+ * the first commits, so it necessarily observes the first's new row and is
+ * guaranteed a distinct, strictly greater version. See the "distinct versions
+ * under concurrent allocation" test in index.test.ts, which is what actually
+ * proves this holds (the STOP-worthy unknown plan 239 flagged).
+ *
+ * RETURNING hands the allocated version straight back to the caller so a
+ * rotation initiator (Phase C) can learn what version landed without a
+ * separate fetch.
+ */
 async function handleStoreKey(
   request: Request,
   env: Env,
@@ -518,15 +602,19 @@ async function handleStoreKey(
   }
 
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  const row = await env.DB.prepare(
     `INSERT INTO key_envelopes
-       (id, user_id, target_device_id, source_device_id, key_type, wrapped_key, source_public_key, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       (id, user_id, target_device_id, source_device_id, key_type, wrapped_key, wrapped_key_version, source_public_key, created_at)
+     VALUES (?, ?, ?, ?, ?, ?,
+       (SELECT COALESCE(MAX(wrapped_key_version), 0) + 1 FROM key_envelopes WHERE user_id = ? AND key_type = ?),
+       ?, ?)
      ON CONFLICT(user_id, target_device_id, key_type)
      DO UPDATE SET wrapped_key = excluded.wrapped_key,
                    source_device_id = excluded.source_device_id,
+                   wrapped_key_version = excluded.wrapped_key_version,
                    source_public_key = excluded.source_public_key,
-                   created_at = excluded.created_at`,
+                   created_at = excluded.created_at
+     RETURNING wrapped_key_version AS wrappedKeyVersion`,
   )
     .bind(
       body.id,
@@ -535,16 +623,19 @@ async function handleStoreKey(
       body.sourceDeviceId,
       body.keyType,
       body.wrappedKey,
+      userId,
+      body.keyType,
       body.sourcePublicKeyB64 ?? null,
       now,
     )
-    .run();
+    .first<{ wrappedKeyVersion: number }>();
 
-  return json({ ok: true }, 201);
+  return json({ ok: true, wrappedKeyVersion: row?.wrappedKeyVersion }, 201);
 }
 
 const KEY_ENVELOPE_SELECT = `SELECT id, source_device_id as sourceDeviceId, key_type as keyType,
             wrapped_key as wrappedKey, source_public_key as sourcePublicKeyB64,
+            wrapped_key_version as wrappedKeyVersion,
             created_at as createdAt
      FROM key_envelopes`;
 

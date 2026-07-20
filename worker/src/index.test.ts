@@ -361,6 +361,212 @@ describe("key envelopes store + fetch", () => {
   });
 });
 
+// ---- device public-key directory (Plan 239, rotation phase A) --------------
+
+describe("device public-key directory (Plan 239)", () => {
+  async function storeKey(acct: Account, target: string, keyType = "vault-v1") {
+    return call(`/keys/${target}`, {
+      method: "POST",
+      headers: bearer(acct.apiSecret),
+      body: JSON.stringify({ id: crypto.randomUUID(), sourceDeviceId: acct.deviceId, keyType, wrappedKey: "w" }),
+    });
+  }
+
+  it("POST /devices accepts an optional publicKeyB64 and GET /devices returns it", async () => {
+    const acct = await register();
+    const target = `dev_${crypto.randomUUID()}`;
+    const add = await call("/devices", {
+      method: "POST",
+      headers: bearer(acct.apiSecret),
+      body: JSON.stringify({ id: target, name: "iPhone", platform: "ios", publicKeyB64: "pubkey-b64" }),
+    });
+    expect(add.status).toBe(201);
+
+    const list = await call("/devices", { headers: bearer(acct.apiSecret) });
+    const devices = await list.json<Array<{ id: string; publicKeyB64: string | null }>>();
+    const found = devices.find((d) => d.id === target);
+    expect(found?.publicKeyB64).toBe("pubkey-b64");
+  });
+
+  it("GET /devices returns publicKeyB64: null for a device with no key on file", async () => {
+    const acct = await register(); // first device registered via POST /users, no key
+    const list = await call("/devices", { headers: bearer(acct.apiSecret) });
+    const devices = await list.json<Array<{ id: string; publicKeyB64: string | null }>>();
+    expect(devices[0].publicKeyB64).toBeNull();
+  });
+
+  it("self-provisions a public key on an owned, key-less device", async () => {
+    const acct = await register();
+    const res = await call(`/devices/${acct.deviceId}/public-key`, {
+      method: "POST",
+      headers: bearer(acct.apiSecret),
+      body: JSON.stringify({ publicKeyB64: "my-pub-key" }),
+    });
+    expect(res.status).toBe(201);
+
+    const list = await call("/devices", { headers: bearer(acct.apiSecret) });
+    const devices = await list.json<Array<{ id: string; publicKeyB64: string | null }>>();
+    expect(devices[0].publicKeyB64).toBe("my-pub-key");
+  });
+
+  it("refuses to overwrite an already-provisioned public key with 409", async () => {
+    const acct = await register();
+    const first = await call(`/devices/${acct.deviceId}/public-key`, {
+      method: "POST",
+      headers: bearer(acct.apiSecret),
+      body: JSON.stringify({ publicKeyB64: "first-key" }),
+    });
+    expect(first.status).toBe(201);
+
+    const second = await call(`/devices/${acct.deviceId}/public-key`, {
+      method: "POST",
+      headers: bearer(acct.apiSecret),
+      body: JSON.stringify({ publicKeyB64: "second-key" }),
+    });
+    expect(second.status).toBe(409);
+
+    const list = await call("/devices", { headers: bearer(acct.apiSecret) });
+    const devices = await list.json<Array<{ id: string; publicKeyB64: string | null }>>();
+    expect(devices[0].publicKeyB64).toBe("first-key"); // second write never took effect
+  });
+
+  it("returns 409 for a public-key self-provision on a device not owned by the caller", async () => {
+    const acct = await register();
+    const res = await call(`/devices/dev_not_mine/public-key`, {
+      method: "POST",
+      headers: bearer(acct.apiSecret),
+      body: JSON.stringify({ publicKeyB64: "x" }),
+    });
+    expect(res.status).toBe(409);
+  });
+
+  it("rejects a public-key provision request missing the field with 400", async () => {
+    const acct = await register();
+    const res = await call(`/devices/${acct.deviceId}/public-key`, {
+      method: "POST",
+      headers: bearer(acct.apiSecret),
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  // ---- wrapped_key_version relay-side allocation (spike gap 2 / §4, §5) ----
+
+  it("allocates wrapped_key_version starting at 1 and returns it in the store response", async () => {
+    const acct = await register();
+    const target = `dev_${crypto.randomUUID()}`;
+    const res = await storeKey(acct, target);
+    expect(res.status).toBe(201);
+    const body = await res.json<{ wrappedKeyVersion: number }>();
+    expect(body.wrappedKeyVersion).toBe(1);
+  });
+
+  it("ignores a client-supplied wrappedKeyVersion — the value is always relay-allocated", async () => {
+    const acct = await register();
+    const target = `dev_${crypto.randomUUID()}`;
+    const res = await call(`/keys/${target}`, {
+      method: "POST",
+      headers: bearer(acct.apiSecret),
+      body: JSON.stringify({
+        id: crypto.randomUUID(),
+        sourceDeviceId: acct.deviceId,
+        keyType: "vault-v1",
+        wrappedKey: "w",
+        wrappedKeyVersion: 9999,
+      }),
+    });
+    const body = await res.json<{ wrappedKeyVersion: number }>();
+    expect(body.wrappedKeyVersion).toBe(1);
+  });
+
+  it("increments monotonically across sequential deposits for the same user+keyType", async () => {
+    const acct = await register();
+    const versions: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const res = await storeKey(acct, `dev_${crypto.randomUUID()}`);
+      versions.push((await res.json<{ wrappedKeyVersion: number }>()).wrappedKeyVersion);
+    }
+    expect(versions).toEqual([1, 2, 3, 4]);
+  });
+
+  it("scopes allocation per (user, keyType) — a different keyType restarts at 1, a different user is independent", async () => {
+    const a = await register();
+    const b = await register();
+    const v1 = await (await storeKey(a, `dev_${crypto.randomUUID()}`, "vault-v1")).json<{ wrappedKeyVersion: number }>();
+    const v2 = await (await storeKey(a, `dev_${crypto.randomUUID()}`, "vault-v1")).json<{ wrappedKeyVersion: number }>();
+    const accountV1 = await (await storeKey(a, `dev_${crypto.randomUUID()}`, "account-v1")).json<{ wrappedKeyVersion: number }>();
+    const bVault = await (await storeKey(b, `dev_${crypto.randomUUID()}`, "vault-v1")).json<{ wrappedKeyVersion: number }>();
+    expect([v1.wrappedKeyVersion, v2.wrappedKeyVersion]).toEqual([1, 2]);
+    expect(accountV1.wrappedKeyVersion).toBe(1); // independent counter per keyType
+    expect(bVault.wrappedKeyVersion).toBe(1); // independent counter per user
+  });
+
+  it("re-storing to the SAME target device (UPSERT) also allocates a fresh version", async () => {
+    const acct = await register();
+    const target = `dev_${crypto.randomUUID()}`;
+    const first = await storeKey(acct, target);
+    const second = await storeKey(acct, target); // same (user, target, keyType) -> UPSERT path
+    expect((await first.json<{ wrappedKeyVersion: number }>()).wrappedKeyVersion).toBe(1);
+    expect((await second.json<{ wrappedKeyVersion: number }>()).wrappedKeyVersion).toBe(2);
+  });
+
+  it("GET /keys/:target returns wrappedKeyVersion on fetch", async () => {
+    const acct = await register();
+    const target = `dev_${crypto.randomUUID()}`;
+    await storeKey(acct, target);
+    const fetched = await call(`/keys/${target}`, { headers: bearer(acct.apiSecret) });
+    const rows = await fetched.json<Array<{ wrappedKeyVersion: number }>>();
+    expect(rows[0].wrappedKeyVersion).toBe(1);
+  });
+
+  // This is plan 239's flagged STOP-worthy unknown: does the per-user-scoped
+  // MAX()+1 allocation pattern actually hold under CONCURRENT allocation, the
+  // way 0006_per_user_relay_sequence.sql's analogous relay_sequence fix does?
+  // Unlike relay_sequence (a separate SELECT then a separate INSERT — still
+  // racy for two concurrent SAME-user writes), handleStoreKey computes the
+  // next version inside the SAME INSERT statement via a correlated subquery,
+  // relying on SQLite's single-writer guarantee to serialize the two
+  // statements rather than trusting an application-level read-then-write.
+  it("assigns DISTINCT, gapless versions under concurrent allocation for the same user+keyType", async () => {
+    const acct = await register();
+    const targets = Array.from({ length: 10 }, () => `dev_${crypto.randomUUID()}`);
+
+    const results = await Promise.all(targets.map((target) => storeKey(acct, target)));
+    for (const res of results) expect(res.status).toBe(201);
+    const versions = (
+      await Promise.all(results.map((res) => res.json<{ wrappedKeyVersion: number }>()))
+    ).map((b) => b.wrappedKeyVersion);
+
+    // No two concurrent allocations collided on the same version number...
+    expect(new Set(versions).size).toBe(targets.length);
+    // ...and the allocator did not skip or reuse any integer in the range.
+    expect([...versions].sort((x, y) => x - y)).toEqual(
+      Array.from({ length: targets.length }, (_, i) => i + 1),
+    );
+  });
+
+  it("concurrent allocation stays correctly scoped per user (two accounts racing don't cross-contaminate versions)", async () => {
+    const a = await register();
+    const b = await register();
+    const aTargets = Array.from({ length: 5 }, () => `dev_${crypto.randomUUID()}`);
+    const bTargets = Array.from({ length: 5 }, () => `dev_${crypto.randomUUID()}`);
+
+    const [aResults, bResults] = await Promise.all([
+      Promise.all(aTargets.map((t) => storeKey(a, t))),
+      Promise.all(bTargets.map((t) => storeKey(b, t))),
+    ]);
+    const aVersions = (
+      await Promise.all(aResults.map((r) => r.json<{ wrappedKeyVersion: number }>()))
+    ).map((r) => r.wrappedKeyVersion).sort((x, y) => x - y);
+    const bVersions = (
+      await Promise.all(bResults.map((r) => r.json<{ wrappedKeyVersion: number }>()))
+    ).map((r) => r.wrappedKeyVersion).sort((x, y) => x - y);
+
+    expect(aVersions).toEqual([1, 2, 3, 4, 5]);
+    expect(bVersions).toEqual([1, 2, 3, 4, 5]);
+  });
+});
+
 // ---- pairing: ECDH join + token TTL / single-use / device-scope ------------
 
 describe("pairing /join + token-scoped key fetch", () => {

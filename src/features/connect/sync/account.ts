@@ -3,7 +3,8 @@
 
 import { getSecretStore } from "../crypto/secretStore";
 import { getOrCreateDeviceIdentity } from "../../../state/deviceIdentity";
-import { provisionDeviceCredential } from "./client";
+import { provisionDeviceCredential, provisionDevicePublicKey } from "./client";
+import { loadDeviceKeyPair, exportPublicKey } from "../crypto/pairing";
 
 const STORAGE_KEY = "northstar.sync.account.v1";
 
@@ -131,5 +132,52 @@ export async function ensureDeviceCredential(account: SyncAccount): Promise<void
     return;
   }
   await saveDeviceSecret(secret);
+}
+
+// ---------- device public-key directory backfill (Plan 239) ----------
+
+// Purely a local "don't bother the relay again" marker — not a secret, but
+// stored through the same SecretStore as everything else here (Stronghold on
+// device, localStorage in the web shell/tests) so it survives restarts
+// exactly like the device secret above.
+const PUBLIC_KEY_UPLOADED_MARKER_KEY = "northstar.device.publicKeyUploaded.v1";
+
+/**
+ * One-time backfill for an existing install that PAIRED before the durable
+ * public-key directory shipped (Plan 239, rotation phase A — closes spike gap
+ * 1, docs/vault-key-rotation-plan.md's "Orphaned / missing primitives"). Going
+ * forward, startJoinSession/approveJoiningDevice upload the public key inline
+ * as part of pairing; this call only matters for a device that already holds
+ * a persisted ECDH keypair (from pairing before this shipped) but has never
+ * confirmed the relay has its public key on file.
+ *
+ * No-op for a device that has never paired/approved anyone at all — it has no
+ * persisted keypair yet, and per the spike's analysis that's fine (rotation
+ * only matters once ≥2 devices exist, and by then every plausible participant
+ * has generated a keypair via one of the two pairing-flow entry points).
+ *
+ * Idempotent via a local marker set once the relay confirms the key is on
+ * file — either a fresh 201, or a 409 meaning some OTHER path (most commonly:
+ * the approving device's addDevice call already seeded it) beat this device
+ * to it. Either outcome means "done"; only a genuine transient failure
+ * (offline, 5xx) leaves the marker unset so the next sync retries. Best
+ * effort: never blocks sync.
+ */
+export async function ensureDevicePublicKeyUploaded(account: SyncAccount): Promise<void> {
+  const store = await getSecretStore();
+  if (await store.get(PUBLIC_KEY_UPLOADED_MARKER_KEY)) return;
+
+  const pair = await loadDeviceKeyPair();
+  if (!pair) return; // never paired — no keypair to upload yet
+
+  const { deviceId } = getOrCreateDeviceIdentity();
+  try {
+    const publicKeyB64 = await exportPublicKey(pair.publicKey);
+    await provisionDevicePublicKey(account.apiSecret, deviceId, publicKeyB64);
+  } catch (e) {
+    const alreadySet = e instanceof Error && e.message.startsWith("Sync worker 409");
+    if (!alreadySet) return; // offline / unexpected error — retry next sync
+  }
+  await store.set(PUBLIC_KEY_UPLOADED_MARKER_KEY, "1");
 }
 

@@ -10,12 +10,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const relay = vi.hoisted(() => ({
   sessions: new Map<string, { encryptedBundle: string; deviceId: string; token: string; claimed: boolean }>(),
   keyEnvelopes: new Map<string, Array<{ id: string; sourceDeviceId: string; keyType: string; wrappedKey: string; sourcePublicKeyB64?: string; createdAt: string }>>(),
-  devices: [] as Array<{ id: string; name: string; platform: string; secretHash?: string }>,
+  devices: [] as Array<{ id: string; name: string; platform: string; secretHash?: string; publicKeyB64?: string }>,
+  // Mirrors the real worker's `devices.public_key` column (Plan 239) — a single
+  // slot per device id, settable via EITHER addDevice's optional field OR the
+  // self-provision endpoint, set-once either way (matching handleAddDevice's
+  // INSERT OR IGNORE + handleProvisionDevicePublicKey's `IS NULL` guard).
+  publicKeys: new Map<string, string>(),
   bundles: [] as string[],
   reset() {
     this.sessions.clear();
     this.keyEnvelopes.clear();
     this.devices.length = 0;
+    this.publicKeys.clear();
     this.bundles.length = 0;
   },
 }));
@@ -50,8 +56,23 @@ vi.mock("./client", () => ({
     if (!ok) throw new Error("Invalid pairing token");
     return relay.keyEnvelopes.get(target) ?? [];
   }),
-  addDevice: vi.fn(async (_apiSecret: string, device: { id: string; name: string; platform: string; secretHash?: string }) => {
+  addDevice: vi.fn(async (
+    _apiSecret: string,
+    device: { id: string; name: string; platform: string; secretHash?: string; publicKeyB64?: string },
+  ) => {
     relay.devices.push(device);
+    if (device.publicKeyB64 && !relay.publicKeys.has(device.id)) {
+      relay.publicKeys.set(device.id, device.publicKeyB64);
+    }
+  }),
+  // Plan 239: self-provision endpoint. Set-once, matching the real worker's
+  // `public_key IS NULL` guard — a device already seeded (by addDevice, or a
+  // prior self-provision call) gets a 409, regardless of which path set it.
+  provisionDevicePublicKey: vi.fn(async (_apiSecret: string, deviceId: string, publicKeyB64: string) => {
+    if (relay.publicKeys.has(deviceId)) {
+      throw new Error("Sync worker 409: already set");
+    }
+    relay.publicKeys.set(deviceId, publicKeyB64);
   }),
   // legacy — unused by the ECDH flow but imported by the module under test
   createPairingSession: vi.fn(),
@@ -68,6 +89,9 @@ import {
 import { generateVaultKey, saveVaultKey, loadVaultKey, exportVaultKey } from "../crypto/vault";
 import { getOrCreateSyncAccount, loadSyncAccount, loadDeviceSecret, getSyncAuthToken, sha256Hex } from "./account";
 import { resetSecretStoreForTests } from "../crypto/secretStore";
+import { provisionDevicePublicKey } from "./client";
+
+const mockedProvisionPublicKey = vi.mocked(provisionDevicePublicKey);
 
 function makeLocalStorage(): Storage {
   const m = new Map<string, string>();
@@ -150,6 +174,15 @@ describe("ECDH pairing end-to-end", () => {
     // The bundle A processed must carry only the HASH, never B's raw secret.
     expect(relay.bundles[0]).not.toContain(session.deviceSecret);
 
+    // Plan 239: A also seeded B's directory entry with B's public key straight
+    // from the pairing bundle (no separate self-provision call needed for B's
+    // INITIAL key), and A — approving its very first joiner, so its own
+    // keypair was freshly generated — self-provisioned ITS OWN public key too.
+    expect(registered.publicKeyB64).toBe(approval.publicKeyB64);
+    expect(relay.publicKeys.get(session.deviceId)).toBe(approval.publicKeyB64);
+    const aDeviceId = vaultEnv.sourceDeviceId;
+    expect(relay.publicKeys.get(aDeviceId)).toBe(vaultEnv.sourcePublicKeyB64);
+
     // ── Device B: polls again, completes the join ──
     activate(deviceB);
     const result = await completeJoin(session);
@@ -183,5 +216,36 @@ describe("ECDH pairing end-to-end", () => {
     await startJoinSession("Tablet", "android");
     activate(deviceA);
     await expect(inspectJoinRequest("ZZZZ-9999")).rejects.toThrow();
+  });
+
+  it("Plan 239: an approver with an ALREADY-persisted keypair does not self-provision again", async () => {
+    mockedProvisionPublicKey.mockClear(); // isolate the call count from earlier tests in this file
+    // ── Device A: already went through pairing once before (has a keypair AND
+    // a directory entry) — simulate that by joining+approving device X first. ──
+    activate(deviceA);
+    const aVaultKey = await generateVaultKey();
+    await saveVaultKey(aVaultKey);
+
+    activate(deviceB); // "device X" for this setup step, reusing the deviceB slot
+    const firstSession = await startJoinSession("Setup Device", "macos");
+    activate(deviceA);
+    const firstApproval = await inspectJoinRequest(firstSession.code);
+    await approveJoiningDevice(firstApproval);
+    expect(mockedProvisionPublicKey).toHaveBeenCalledTimes(1); // A's own key, first time
+
+    // ── Now A approves a SECOND joiner. A's keypair already exists, so the
+    // lazy-generation branch (and its self-provision call) must NOT re-fire. ──
+    const deviceC = makeLocalStorage();
+    activate(deviceC);
+    const secondSession = await startJoinSession("Second Device", "ios");
+    activate(deviceA);
+    const secondApproval = await inspectJoinRequest(secondSession.code);
+    await approveJoiningDevice(secondApproval);
+
+    // Still exactly 1 — A never calls provisionDevicePublicKey for itself again.
+    expect(mockedProvisionPublicKey).toHaveBeenCalledTimes(1);
+    // B's own directory entry (seeded via addDevice from the pairing bundle)
+    // is unaffected by A's keypair reuse — still correctly recorded.
+    expect(relay.publicKeys.get(secondSession.deviceId)).toBe(secondApproval.publicKeyB64);
   });
 });
