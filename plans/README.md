@@ -1,5 +1,20 @@
 # Implementation Plans
 
+## 243 — 鏡像遺留物清理（alpha.64 發布時發現，`/improve plan` @ `16d5ed7c`, 2026-07-20）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 243 | 清掉 `northstar-releases` 鏡像的三個遺留物：`tauri.conf.json` 的死 fallback endpoint（指向停在 alpha.44 的封存 repo）、`RELEASING.md` 仍宣稱本 repo 是 private 且教人建立 `RELEASES_TOKEN` 的過期整節、以及閒置的 `RELEASES_TOKEN` PAT（**Step 4 為 operator-only**：撤銷憑證不由執行者代勞）。`pubkey` 絕對不動 | P3 | S | — | TODO |
+
+**背景**：`d206e2cc`（2026-06-26）已刻意移除鏡像 job——repo 轉 PUBLIC 後，
+「private repo 無法匿名下載」的原始理由消失，release 直接發本 repo 即可。那次清理
+漏了上述三項。**死 endpoint 今天無立即危害**（Tauri 依序嘗試，第一個永遠成功；且
+只在 feed 版本較新時才更新，不會降版），屬誤導性死參照 + 憑證衛生問題。
+
+⚠ 計畫內含三條 STOP：`pubkey` 若有任何 diff 立刻停（換簽章金鑰會讓所有現有安裝
+無法驗證更新）；`release.yml` 若還有鏡像參照則前提錯誤；repo 若不是 PUBLIC 則那個
+「死」endpoint 其實是唯一可用的，絕對不能移除。
+
 ## 239–242 — vault-key rotation BUILD (operator answered 238's §7, 2026-07-19 @ `b4fbe894`)
 
 **Operator decisions (2026-07-19) — encoded in every phase, do NOT re-ask:**
