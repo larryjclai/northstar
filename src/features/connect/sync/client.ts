@@ -24,6 +24,13 @@ export interface DeviceRecord {
   platform: string;
   trusted_at: string | null;
   created_at: string;
+  /**
+   * This device's ECDH public key, if it has been uploaded to the durable
+   * directory (Plan 239, rotation phase A). Null for a device that hasn't
+   * self-provisioned yet (e.g. paired before this shipped) or a solo first
+   * device that has never paired/approved and so never generated a keypair.
+   */
+  publicKeyB64?: string | null;
 }
 
 export interface KeyEnvelopeRecord {
@@ -33,6 +40,18 @@ export interface KeyEnvelopeRecord {
   wrappedKey: string;
   /** ECDH pairing: the source device's public key, so the target can derive the shared secret. */
   sourcePublicKeyB64?: string;
+  /**
+   * Version of the (user, keyType) key this envelope wraps (Plan 239).
+   * REQUIRED on store — must come from allocateKeyVersion(), called ONCE per
+   * logical "key" and reused for every deposit that wraps the SAME key value
+   * (e.g. one rotation depositing to N remaining devices gets ONE shared
+   * version, not N different ones — see docs/vault-key-rotation-plan.md §2:
+   * versioning is "per vault key", not per envelope). The relay validates it
+   * against the allocated maximum and rejects anything higher or non-positive.
+   * Phase A only surfaces this value on the wire; Phase C's rotation protocol
+   * is what actually acts on it.
+   */
+  wrappedKeyVersion: number;
   createdAt: string;
 }
 
@@ -100,7 +119,10 @@ export async function addDevice(
   apiSecret: string,
   // secretHash: SHA-256 of the joining device's own credential (Plan 132); the
   // joining device generates the secret locally and only its hash travels here.
-  device: { id: string; name: string; platform: string; secretHash?: string },
+  // publicKeyB64 (Plan 239): the approver already knows the joining device's
+  // public key from the pairing bundle, so it can seed the directory here
+  // directly rather than requiring the joining device to self-provision later.
+  device: { id: string; name: string; platform: string; secretHash?: string; publicKeyB64?: string },
 ): Promise<void> {
   await request("/devices", { method: "POST", apiSecret, body: JSON.stringify(device) });
 }
@@ -124,6 +146,25 @@ export async function provisionDeviceCredential(
   });
 }
 
+/**
+ * Self-provision this device's ECDH public key into the durable directory
+ * (Plan 239, rotation phase A). Same set-once shape as
+ * provisionDeviceCredential: the worker only writes it if the device's
+ * `public_key` column is currently NULL. Throws on a 409 (already set / not
+ * owned) so the caller can treat it as a no-op and not retry pointlessly.
+ */
+export async function provisionDevicePublicKey(
+  apiSecret: string,
+  deviceId: string,
+  publicKeyB64: string,
+): Promise<void> {
+  await request(`/devices/${deviceId}/public-key`, {
+    method: "POST",
+    apiSecret,
+    body: JSON.stringify({ publicKeyB64 }),
+  });
+}
+
 /** List trusted devices for this account. */
 export async function listDevices(apiSecret: string): Promise<DeviceRecord[]> {
   return request<DeviceRecord[]>("/devices", { apiSecret });
@@ -132,6 +173,23 @@ export async function listDevices(apiSecret: string): Promise<DeviceRecord[]> {
 /** Revoke a device's access. */
 export async function revokeDevice(apiSecret: string, deviceId: string): Promise<void> {
   await request(`/devices/${deviceId}`, { method: "DELETE", apiSecret });
+}
+
+/**
+ * Allocate the NEXT version for a (user, keyType) pair (Plan 239, revise
+ * round 1). Call this EXACTLY ONCE for a given "key" and reuse the returned
+ * value across every storeKeyEnvelope() deposit that wraps that SAME key
+ * value (e.g. one rotation depositing to N remaining devices) — allocating
+ * separately per deposit is the bug this round fixed (N devices would each
+ * get a different version number for what is actually one identical key).
+ */
+export async function allocateKeyVersion(apiSecret: string, keyType: string): Promise<number> {
+  const { version } = await request<{ version: number }>("/keys/version", {
+    method: "POST",
+    apiSecret,
+    body: JSON.stringify({ keyType }),
+  });
+  return version;
 }
 
 /** Store a wrapped vault key envelope for a target device. */

@@ -1,0 +1,26 @@
+-- Rotation Phase A: durable per-device public-key directory (Plan 239).
+--
+-- Closes spike gap 1 (docs/vault-key-rotation-plan.md, "Orphaned / missing
+-- primitives"): a device's ECDH public key was previously only ever visible
+-- to the relay TRANSIENTLY — inside an in-flight pairing bundle, or as
+-- key_envelopes.source_public_key for a SPECIFIC envelope that device
+-- happened to author. There was no way for device C, months after C and D
+-- were both independently paired by device A, to look up D's public key in
+-- order to wrap a rotated vault key to it.
+--
+-- Nullable, additive: existing devices (paired before this ships) keep NULL
+-- until they self-provision via POST /devices/:id/public-key (mirrors the
+-- device_secret_hash migration path in 0005_device_credentials.sql) or a
+-- future addDevice()/POST /devices call supplies it.
+--
+-- No backfill needed — there is no way to retroactively recover a public key
+-- for an already-paired device from anything the relay stored; a NULL value
+-- is correctly "not yet known" until the device (or its approver) uploads it.
+--
+-- Scope note: this migration deliberately does NOT add sync_envelopes.key_version
+-- (also sketched in the spike's illustrative §5 migration) — that column
+-- belongs to Phase B (versioned local key storage), per plan 239's Scope
+-- section. key_envelopes.wrapped_key_version needs no migration at all; it
+-- already exists (0001_initial.sql) and only needs code to read/write it
+-- (see the paired handleStoreKey change in worker/src/index.ts).
+ALTER TABLE devices ADD COLUMN public_key TEXT;

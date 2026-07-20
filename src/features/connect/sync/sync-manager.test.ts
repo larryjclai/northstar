@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FinanceRepository } from "../../../data/repositories";
 import { runSync, forceFullRepush, isSyncRunning, RECOVERY_KIT_REQUIRED } from "./sync-manager";
-import { loadSyncAccount, ensureDeviceCredential } from "./account";
+import { loadSyncAccount, ensureDeviceCredential, ensureDevicePublicKeyUploaded } from "./account";
 import { loadVaultKey } from "../crypto/vault";
 import { isRecoveryKitConfirmed } from "../crypto/recovery-kit";
 import { pushPendingChanges } from "./push";
@@ -20,6 +20,7 @@ import {
 vi.mock("./account", () => ({
   loadSyncAccount: vi.fn(),
   ensureDeviceCredential: vi.fn(async () => {}),
+  ensureDevicePublicKeyUploaded: vi.fn(async () => {}),
 }));
 vi.mock("../crypto/vault", () => ({ loadVaultKey: vi.fn() }));
 vi.mock("../crypto/recovery-kit", () => ({ isRecoveryKitConfirmed: vi.fn() }));
@@ -35,6 +36,7 @@ vi.mock("../../../state/deviceIdentity", () => ({
 
 const mockedLoadAccount = vi.mocked(loadSyncAccount);
 const mockedEnsureCred = vi.mocked(ensureDeviceCredential);
+const mockedEnsurePublicKey = vi.mocked(ensureDevicePublicKeyUploaded);
 const mockedLoadVault = vi.mocked(loadVaultKey);
 const mockedRecoveryKit = vi.mocked(isRecoveryKitConfirmed);
 const mockedPush = vi.mocked(pushPendingChanges);
@@ -93,8 +95,9 @@ describe("runSync — happy path round trip", () => {
     const result = await runSync(repo);
 
     expect(result).toEqual({ pushed: 3, pulled: 3, applied: 3, skipped: 0 });
-    // Ordering: credential migration, then push, then pull.
+    // Ordering: credential migration, then public-key backfill, then push, then pull.
     expect(mockedEnsureCred).toHaveBeenCalledWith(account);
+    expect(mockedEnsurePublicKey).toHaveBeenCalledWith(account);
     expect(mockedPush).toHaveBeenCalledWith(repo, account);
     expect(mockedSaveBackup).toHaveBeenCalledTimes(1);
     // Cursor advanced exactly once (only when the page moved it forward).

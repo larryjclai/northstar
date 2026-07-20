@@ -12,7 +12,7 @@ import type { FinanceRepository } from "../../../data/repositories";
 import { getOrCreateDeviceIdentity, setRemotePullCursor, setLocalPushCursor, resetSyncCursors } from "../../../state/deviceIdentity";
 import { loadVaultKey } from "../crypto/vault";
 import { isRecoveryKitConfirmed } from "../crypto/recovery-kit";
-import { loadSyncAccount, ensureDeviceCredential } from "./account";
+import { loadSyncAccount, ensureDeviceCredential, ensureDevicePublicKeyUploaded } from "./account";
 
 /** Thrown by runSync when the Recovery Kit has not been confirmed yet. */
 export const RECOVERY_KIT_REQUIRED = "請先備份並確認 Recovery Kit 才能開始同步";
@@ -66,6 +66,11 @@ async function _doSync(repo: FinanceRepository): Promise<SyncResult> {
   // Migrate existing installs onto a per-device credential before we push/pull.
   // Best-effort: never blocks sync (falls back to the account secret on failure).
   await ensureDeviceCredential(account);
+
+  // Backfill this device's public key into the durable directory if it paired
+  // before that directory existed (Plan 239, rotation phase A). Best-effort,
+  // one-time, never blocks sync — see ensureDevicePublicKeyUploaded.
+  await ensureDevicePublicKeyUploaded(account);
 
   const device = getOrCreateDeviceIdentity();
 

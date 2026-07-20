@@ -459,7 +459,12 @@ protocol plumbing, not new cryptography.
 
 ## 7. Open questions for the operator
 
-1. **Auto-rotate on every revocation, or prompt first?** *Recommended: auto-rotate, no prompt* —
+> **DECIDED (2026-07-19)** — the operator confirmed all five recommendations
+> below as-is (plan 239's Status block records the same five answers verbatim
+> as the build's locked-in decisions; do not re-ask).
+
+1. **DECIDED (2026-07-19): auto-rotate on every revocation, no prompt.**
+   **Auto-rotate on every revocation, or prompt first?** *Recommended: auto-rotate, no prompt* —
    mirrors `docs/shared-books-plan.md:316–328`'s own conclusion for the structurally identical
    book-key case ("mandatory rotation... costs nothing extra... strictly safer than leaving it
    optional"). A prompt only adds a step a user will reflexively click through, and an optional
@@ -468,26 +473,35 @@ protocol plumbing, not new cryptography.
    them to be eventually online to pick it up — for a user with many rarely-synced devices this
    could feel like background churn. Recommend auto-rotate regardless, since §4 already shows
    pickup is safe and lazy for offline devices.
-2. **Old-key retention window: unbounded, or time-boxed?** *Recommended: unbounded (never delete
+2. **DECIDED (2026-07-19): unbounded — old key versions are retained locally forever, never
+   deleted.**
+   **Old-key retention window: unbounded, or time-boxed?** *Recommended: unbounded (never delete
    locally)* — §2's full rationale: deleting a local key copy buys no real security (the plaintext
    it protected is already resident wherever it was ever decrypted) and breaks `forceFullResync`
    for that device. If the operator wants a compliance-driven retention policy instead, that's a
    different, bigger feature (actual relay-side ciphertext deletion/compaction, deferred to
    Maintenance notes) — flag here only so the operator can confirm "unbounded" is acceptable as the
    v1 answer, not to re-open the mechanism.
-3. **Does a solo-device account (never paired a second device) need any of this?** *Recommended:
+3. **DECIDED (2026-07-19): solo-device accounts are a no-op — nothing to re-wrap to.**
+   **Does a solo-device account (never paired a second device) need any of this?** *Recommended:
    no-op* — rotation only has meaning when ≥1 device remains after a revocation to re-wrap to; a
    single-device account revoking its only OTHER device (down to itself) has nothing to re-wrap to
    and should simply skip the rotation protocol entirely (§3's step 3 enumerates zero remaining
    devices; the build should short-circuit rather than run a zero-target rotation).
-4. **Should rotation ALSO be user-triggerable outside of revocation** (a "I think my key may have
+4. **DECIDED (2026-07-19): yes — a manual "rotate now" button is wanted, as a thin follow-up after
+   phases A–D ship, not in v1.**
+   **Should rotation ALSO be user-triggerable outside of revocation** (a "I think my key may have
    leaked" panic button in Settings, independent of removing any device)? *Recommended: yes, as a
    thin follow-up once phases A–D ship* — the protocol in §3 doesn't care WHY a rotation started;
    exposing it as a standalone action in `ConnectSection.tsx` is a small UI addition once the
    mechanism exists, valuable for the "credential leaked independent of device compromise" case
    §1 names explicitly. Not required for v1, but cheap enough to flag now rather than rediscover
    later.
-5. **Server-side version-allocation trust**: is it acceptable that the RELAY (not the client)
+5. **DECIDED (2026-07-19): yes — relay-side allocation of `wrapped_key_version` is acceptable.**
+   Built in plan 239 (rotation phase A) via a per-user-and-keyType-scoped `MAX()+1` allocation
+   inside `handleStoreKey`, verified deterministic under concurrent allocation (see plan 239's
+   worker test suite) — the STOP-worthy unknown this question flagged did not trigger a STOP.
+   **Server-side version-allocation trust**: is it acceptable that the RELAY (not the client)
    allocates `wrapped_key_version` numbers (§4/§5), meaning the relay operator technically learns
    how many times an account has rotated its vault key (a small metadata signal, no more revealing
    than the account's existing envelope-count metadata it already sees)? *Recommended: yes* —

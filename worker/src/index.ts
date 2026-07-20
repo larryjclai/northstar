@@ -224,6 +224,16 @@ export default {
           await handleProvisionDeviceCredential(request, env, userId, deviceCredential[1]),
         );
       }
+      // POST /devices/:id/public-key — self-provision this device's ECDH public
+      // key into the durable directory (Plan 239, rotation phase A). Mirrors the
+      // credential endpoint's set-once shape. Only succeeds if the device is
+      // owned by this account and has no public key on file yet.
+      const devicePublicKey = path.match(/^\/devices\/([^/]+)\/public-key$/);
+      if (method === "POST" && devicePublicKey) {
+        return withCors(
+          await handleProvisionDevicePublicKey(request, env, userId, devicePublicKey[1]),
+        );
+      }
       // DELETE /devices/:id — revoke a device
       const deviceRevoke = path.match(/^\/devices\/([^/]+)$/);
       if (method === "DELETE" && deviceRevoke) {
@@ -237,6 +247,18 @@ export default {
       // GET /envelopes?cursor= — fetch changes since cursor
       if (method === "GET" && path === "/envelopes") {
         return withCors(await handlePullEnvelopes(url, env, userId));
+      }
+
+      // POST /keys/version — allocate the NEXT wrapped_key_version for a
+      // (user, keyType) (Plan 239 revise round 1). The rotation initiator
+      // calls this EXACTLY ONCE per rotation and reuses the returned value
+      // for every POST /keys/:targetDeviceId deposit in that same rotation —
+      // that is what keeps one rotation's fan-out to N remaining devices
+      // stamped with a single, shared version number instead of N different
+      // ones. Checked BEFORE the generic /keys/:targetDeviceId route below,
+      // since "version" would otherwise match that route's `[^/]+` segment.
+      if (method === "POST" && path === "/keys/version") {
+        return withCors(await handleAllocateKeyVersion(request, env, userId));
       }
 
       // POST /keys/:target_device_id — store wrapped key envelope
@@ -324,6 +346,12 @@ interface DeviceBody {
   // joining device (B) generates its secret locally and only the hash rides the
   // pairing bundle to the approving device (A), which forwards it here.
   secretHash?: string;
+  // publicKeyB64: the device's ECDH public key (Plan 239, rotation phase A).
+  // Optional so older clients that predate the directory keep working; the
+  // approver already knows the joining device's public key from the pairing
+  // bundle, so it can supply it here directly instead of requiring the
+  // joining device to self-provision separately.
+  publicKeyB64?: string;
 }
 
 async function handleAddDevice(
@@ -336,9 +364,9 @@ async function handleAddDevice(
 
   const now = new Date().toISOString();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO devices (id, user_id, name, platform, device_secret_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    "INSERT OR IGNORE INTO devices (id, user_id, name, platform, device_secret_hash, public_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
   )
-    .bind(body.id, userId, body.name, body.platform, body.secretHash ?? null, now)
+    .bind(body.id, userId, body.name, body.platform, body.secretHash ?? null, body.publicKeyB64 ?? null, now)
     .run();
 
   return json({ ok: true }, 201);
@@ -387,9 +415,51 @@ async function handleProvisionDeviceCredential(
   return json({ ok: true }, 201);
 }
 
+interface ProvisionPublicKeyBody {
+  publicKeyB64: string;
+}
+
+/**
+ * Self-provision this device's ECDH public key into the durable directory
+ * (Plan 239, rotation phase A). Migration path for a device that was paired
+ * before the directory shipped (its `devices.public_key` row is NULL) — it
+ * uploads its own key the first time it syncs post-upgrade (see
+ * ensureDevicePublicKeyUploaded in the client).
+ *
+ * Guarded by `public_key IS NULL`, exactly like
+ * handleProvisionDeviceCredential: a key can be set exactly once and never
+ * silently overwritten by this endpoint. This closes spike gap 1 — without a
+ * durable directory, a rotation initiator has no way to look up a remote
+ * device's public key months after their original pairing session.
+ */
+async function handleProvisionDevicePublicKey(
+  request: Request,
+  env: Env,
+  userId: string,
+  deviceId: string,
+): Promise<Response> {
+  const body = await request.json<ProvisionPublicKeyBody>();
+  if (!body.publicKeyB64) return err("Missing fields", 400);
+
+  const result = await env.DB.prepare(
+    "UPDATE devices SET public_key = ? WHERE id = ? AND user_id = ? AND public_key IS NULL",
+  )
+    .bind(body.publicKeyB64, deviceId, userId)
+    .run();
+
+  // meta.changes === 0 means the device is absent, not owned by this account, or
+  // already has a public key on file. Report a conflict without distinguishing
+  // which, mirroring handleProvisionDeviceCredential's same anti-probing shape.
+  if (!result.meta.changes) {
+    return err("Device public key already set or device not found", 409);
+  }
+
+  return json({ ok: true }, 201);
+}
+
 async function handleListDevices(env: Env, userId: string): Promise<Response> {
   const result = await env.DB.prepare(
-    "SELECT id, name, platform, trusted_at, created_at FROM devices WHERE user_id = ? ORDER BY created_at",
+    "SELECT id, name, platform, trusted_at, created_at, public_key as publicKeyB64 FROM devices WHERE user_id = ? ORDER BY created_at",
   )
     .bind(userId)
     .all();
@@ -497,6 +567,46 @@ async function handlePullEnvelopes(
   return json({ envelopes, nextCursor, count: envelopes.length });
 }
 
+interface AllocateKeyVersionBody {
+  keyType: string;
+}
+
+/**
+ * Allocate the NEXT `wrapped_key_version` for a (user, keyType) pair (Plan
+ * 239, revise round 1 — fixes a real defect in the initial cut: allocating a
+ * fresh version INSIDE every `POST /keys/:targetDeviceId` deposit meant a
+ * single rotation's fan-out to N remaining devices minted N DIFFERENT version
+ * numbers for what is the SAME actual vault key. Per
+ * docs/vault-key-rotation-plan.md §2, versioning is "per vault key", not per
+ * envelope — a rotation initiator must call this ONCE and reuse the returned
+ * value for every deposit in that same rotation.
+ *
+ * Race-safety is the same single-statement pattern `handleStoreKey` already
+ * proved deterministic under concurrent load: SQLite only allows one writer
+ * at a time, so a second concurrent allocation for the same (user, keyType)
+ * cannot begin evaluating this UPSERT until the first commits, and therefore
+ * necessarily observes the first's new counter value.
+ */
+async function handleAllocateKeyVersion(
+  request: Request,
+  env: Env,
+  userId: string,
+): Promise<Response> {
+  const body = await request.json<AllocateKeyVersionBody>();
+  if (!body.keyType) return err("Missing fields", 400);
+
+  const row = await env.DB.prepare(
+    `INSERT INTO key_version_counters (user_id, key_type, current_version)
+     VALUES (?, ?, 1)
+     ON CONFLICT(user_id, key_type) DO UPDATE SET current_version = current_version + 1
+     RETURNING current_version AS version`,
+  )
+    .bind(userId, body.keyType)
+    .first<{ version: number }>();
+
+  return json({ version: row?.version }, 201);
+}
+
 interface KeyEnvelopeBody {
   id: string;
   sourceDeviceId: string;
@@ -504,8 +614,29 @@ interface KeyEnvelopeBody {
   wrappedKey: string;
   // ECDH pairing: A's public key so B can derive the shared secret. Opaque here.
   sourcePublicKeyB64?: string;
+  // The version this envelope's wrapped_key represents (Plan 239, revise
+  // round 1). REQUIRED — must have been obtained from POST /keys/version
+  // first. Validated below against key_version_counters so a buggy or
+  // hostile client cannot inject an arbitrary, never-allocated version.
+  wrappedKeyVersion: number;
 }
 
+/**
+ * Store (or overwrite) a wrapped key envelope for a target device, stamping
+ * the CALLER-SUPPLIED `wrappedKeyVersion` verbatim (Plan 239, rotation phase
+ * A — spike gap 2: the column existed since 0001_initial.sql but nothing read
+ * or wrote it).
+ *
+ * The version itself is still relay-allocated, never client-minted (§4/§5 of
+ * docs/vault-key-rotation-plan.md) — it just isn't allocated HERE anymore.
+ * `handleAllocateKeyVersion` (POST /keys/version) is the only place a version
+ * number is minted; this handler only verifies the caller's claimed version
+ * was actually allocated (`<= key_version_counters.current_version` for this
+ * user+keyType) before accepting it. This is what lets ONE allocation be
+ * reused across MANY deposits (one per remaining device) in a single
+ * rotation, fixing round 1's "N devices, N different version numbers for one
+ * identical key" defect.
+ */
 async function handleStoreKey(
   request: Request,
   env: Env,
@@ -516,15 +647,29 @@ async function handleStoreKey(
   if (!body.id || !body.sourceDeviceId || !body.keyType || !body.wrappedKey) {
     return err("Missing fields", 400);
   }
+  if (!Number.isInteger(body.wrappedKeyVersion) || body.wrappedKeyVersion <= 0) {
+    return err("wrappedKeyVersion must be a positive integer allocated via POST /keys/version", 400);
+  }
+
+  const counter = await env.DB.prepare(
+    "SELECT current_version FROM key_version_counters WHERE user_id = ? AND key_type = ?",
+  )
+    .bind(userId, body.keyType)
+    .first<{ current_version: number }>();
+  const allocatedMax = counter?.current_version ?? 0;
+  if (body.wrappedKeyVersion > allocatedMax) {
+    return err("wrappedKeyVersion exceeds the allocated maximum for this key type", 400);
+  }
 
   const now = new Date().toISOString();
   await env.DB.prepare(
     `INSERT INTO key_envelopes
-       (id, user_id, target_device_id, source_device_id, key_type, wrapped_key, source_public_key, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       (id, user_id, target_device_id, source_device_id, key_type, wrapped_key, wrapped_key_version, source_public_key, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id, target_device_id, key_type)
      DO UPDATE SET wrapped_key = excluded.wrapped_key,
                    source_device_id = excluded.source_device_id,
+                   wrapped_key_version = excluded.wrapped_key_version,
                    source_public_key = excluded.source_public_key,
                    created_at = excluded.created_at`,
   )
@@ -535,16 +680,18 @@ async function handleStoreKey(
       body.sourceDeviceId,
       body.keyType,
       body.wrappedKey,
+      body.wrappedKeyVersion,
       body.sourcePublicKeyB64 ?? null,
       now,
     )
     .run();
 
-  return json({ ok: true }, 201);
+  return json({ ok: true, wrappedKeyVersion: body.wrappedKeyVersion }, 201);
 }
 
 const KEY_ENVELOPE_SELECT = `SELECT id, source_device_id as sourceDeviceId, key_type as keyType,
             wrapped_key as wrappedKey, source_public_key as sourcePublicKeyB64,
+            wrapped_key_version as wrappedKeyVersion,
             created_at as createdAt
      FROM key_envelopes`;
 
