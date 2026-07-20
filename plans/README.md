@@ -18,10 +18,44 @@
 
 | Plan | Phase | Title | Effort | Risk | Depends on | Status |
 |------|-------|-------|--------|------|------------|--------|
-| 239 | A | Per-device public-key **directory** (the single biggest missing piece — a device's ECDH public key is only transiently visible today) + `wrapped_key_version` allocation with the `0006` per-user-scoped-MAX race pattern; worker migration `0008`, `POST /devices/:id/public-key`, client upload + one-time backfill | S–M | MED | 130/131/132 + spike 238 | TODO |
-| 240 | B | **Versioned local key storage** — `northstar.vault.key.v{n}` family + current-version pointer, `sync_envelopes.key_version` stamped on push / selected on pull, differentiated unknown-version-vs-corrupt skip, Recovery-Kit staleness signal. **HIGHEST-RISK phase** (a mistake makes history undecryptable); never-delete is an invariant, not a preference | M | **HIGH** | 239 | TODO |
-| 241 | C | **`rotateVaultKey()` protocol** — enumerate remaining devices → wrap-and-deposit per device → flip pointer LAST (crash-safe); recipient pickup wires the orphaned `fetchKeyEnvelopes` (zero prod call sites today) into `runSync`; auto-fires from `revokeDevice`; **LAZY** relay strategy (never re-encrypt history — spike proved `forceFullRepush` silently no-ops on unchanged revisions); v1 partial-failure = safe manual re-run | M–L | MED-HIGH | 239, 240 | TODO |
-| 242 | D | **Hardening + honest UX** — post-rotation confirmation ping (zero deposits landed ⇒ FAILED, pointer must not advance), partial-failure UI naming unreached devices, Recovery-Kit regenerate prompt, and the §1 threat-model copy that does NOT overpromise (「移除裝置後它收不到新資料;先前已同步的資料仍留在該裝置上」) | S–M | LOW | 239, 240, 241 | TODO |
+**✅ ALL FOUR PHASES DONE — reviewed + MERGED 2026-07-19.** Final gates on merged
+`main`: tsc 0 / lint 0 errors (761) / **client 1454** / **worker 61**.
+Test growth across the build: client 1414→1454, worker 33→61.
+
+**Advisor REVISE round (phase A) — the catch that mattered**: the executor's
+first cut allocated `wrapped_key_version` **per deposit**, so one rotation
+fanning out to 3 devices minted 3 different versions for the SAME key → in
+phase B/C that becomes device A stamping envelopes v5 while device B holds the
+same key as v6, and each silently skipping the other's data forever
+(`unknown-key-version`). Spike §2 says per-KEY. Sent back; executor's fix was
+better than my suggested one — it added a dedicated `key_version_counters`
+table + `POST /keys/version` (allocate once per rotation), correctly noting
+that validating against `MAX(key_envelopes.wrapped_key_version)` would reject
+the first deposit of a freshly-minted version. Regression test added: one
+allocation + 3 deposits → all three rows carry the identical version.
+
+**Design properties verified by the advisor on merged code, not taken on trust**:
+- `forceFullResync` does NOT call reset.ts's wipe paths (recovery stays intact
+  under the never-delete invariant); reset.ts wiping ALL versions is correct —
+  that's the user-initiated "unlink / start over" path, a different thing.
+- Pre-upgrade install (only `northstar.vault.key.v1`, no pointer, no index)
+  syncs with zero user action — test seeds the raw slot bypassing every new API.
+- New key is saved to its own slot BEFORE the deposit loop, pointer flips LAST
+  (`rotation.ts:133` vs `:194`) → on partial failure the initiator still HOLDS
+  the new version and can read devices that did pick it up; a crash leaves it
+  safely on the old key and re-running converges.
+- Zero-deposit confirmation ping demotes to failure and the pointer never
+  advances (phase D's load-bearing test).
+- User-facing copy does not overpromise: 「移除裝置後,它收不到新的資料;但它先前
+  已同步的資料仍留在該裝置上。」 — no wording implying remote wipe.
+
+**Remaining (operator decision 4, deliberately deferred)**: the manual
+「立即輪替金鑰」 button in Settings — same `rotateVaultKey()` entry point, small.
+
+| 239 | A | Per-device public-key **directory** (the single biggest missing piece — a device's ECDH public key is only transiently visible today) + `wrapped_key_version` allocation with the `0006` per-user-scoped-MAX race pattern; worker migration `0008`, `POST /devices/:id/public-key`, client upload + one-time backfill | S–M | MED | 130/131/132 + spike 238 | **DONE — REVISE round (per-deposit→per-key version), merged** |
+| 240 | B | **Versioned local key storage** — `northstar.vault.key.v{n}` family + current-version pointer, `sync_envelopes.key_version` stamped on push / selected on pull, differentiated unknown-version-vs-corrupt skip, Recovery-Kit staleness signal. **HIGHEST-RISK phase** (a mistake makes history undecryptable); never-delete is an invariant, not a preference | M | **HIGH** | 239 | **DONE — merged; backward-compat + never-delete verified** |
+| 241 | C | **`rotateVaultKey()` protocol** — enumerate remaining devices → wrap-and-deposit per device → flip pointer LAST (crash-safe); recipient pickup wires the orphaned `fetchKeyEnvelopes` (zero prod call sites today) into `runSync`; auto-fires from `revokeDevice`; **LAZY** relay strategy (never re-encrypt history — spike proved `forceFullRepush` silently no-ops on unchanged revisions); v1 partial-failure = safe manual re-run | M–L | MED-HIGH | 239, 240 | **DONE — merged; pointer-flips-last verified** |
+| 242 | D | **Hardening + honest UX** — post-rotation confirmation ping (zero deposits landed ⇒ FAILED, pointer must not advance), partial-failure UI naming unreached devices, Recovery-Kit regenerate prompt, and the §1 threat-model copy that does NOT overpromise (「移除裝置後它收不到新資料;先前已同步的資料仍留在該裝置上」) | S–M | LOW | 239, 240, 241 | **DONE — merged; copy verified non-overpromising** |
 
 **Strictly sequential: A → B → C → D.** Each phase is independently verifiable;
 this is the app's highest-risk surface (crypto + sync + worker + multi-device
