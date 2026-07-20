@@ -1,9 +1,9 @@
 # Release Process
 
 > **注意（2026-06）**：repo 已轉為 **public（GPLv3）**，release 直接發布在
-> `larryjclai/northstar`，`release.yml` 的 `mirror-to-public` job 與 `RELEASES_TOKEN`
-> 已移除。以下提到 private repo、`northstar-releases` mirror、`RELEASES_TOKEN` 的段落為
-> 過渡期歷史說明，待現有安裝完成遷移後再整併。
+> `larryjclai/northstar`，`release.yml` 的 `mirror-to-public` job 已移除
+>（`243`，2026-07-20，已完成整併：`tauri.conf.json` 的 fallback endpoint 與本文件
+> 過期段落一併清掉）。
 
 Northstar 以 **GitHub Actions release workflow** 為主要發版流程：push `v*` tag 就會自動建置並
 發布四個平台（macOS arm64／Intel、Linux、Windows）。
@@ -15,19 +15,20 @@ Northstar 以 **GitHub Actions release workflow** 為主要發版流程：push `
 `scripts/release-local.sh`（本地 macOS build）降為 **CI 不可用時的 fallback**，且**不可**與 CI
 同時對同一個 tag 執行——見第 4 步的警告。
 
-## 為什麼有兩個 repo？（重要）
+## Updater endpoint 現況
 
-app 原始碼這個 repo 是 **private**，而 private repo 的 release assets **無法匿名下載**——
-in-app updater 在使用者電腦上沒有 GitHub 憑證，會拿到 404。
+本 repo（`larryjclai/northstar`）是 **public**，release assets 可匿名下載，
+in-app updater 直接讀本 repo 的 `releases/latest/download/latest.json`
+（見 `src-tauri/tauri.conf.json` 的 `endpoints`）。
 
-所以更新來源放在另一個 **public** repo：[`larryjclai/northstar-releases`](https://github.com/larryjclai/northstar-releases)。
-CI 建置後，`mirror-to-public` job 會把 binaries 與 `latest.json` 複製過去，並把
-`latest.json` 內的下載網址從 private repo 改寫成 public repo（簽章不變）。
+> **歷史**：早期原始碼 repo 是 private，private repo 的 release assets 無法匿名下載，
+> 因此當時需要另一個 public 鏡像 repo `northstar-releases`，由 `mirror-to-public` job
+> 把 binaries 與 `latest.json` 複製過去。`d206e2cc`（2026-06-26）在原始碼 repo 轉 public
+> 後移除了 mirror job，`243`（2026-07-20）移除了 `tauri.conf.json` 裡最後的 fallback
+> endpoint。`northstar-releases` 保留為歷史封存，**不再更新**，請勿再參照它。
 
-- App 的 updater endpoint（`src-tauri/tauri.conf.json`）指向 public repo 的
-  `releases/latest/download/latest.json`。
-- 因此 **endpoint 改動只對「之後建置」的版本生效**。現有安裝（仍指向舊 endpoint）
-  必須先**手動安裝一次**新 endpoint 的版本，之後才會開始自動更新。
+- **endpoint 改動只對「之後建置」的版本生效**。現有安裝（binary 內仍烘焙著舊 endpoint
+  列表）必須先**手動安裝一次**新 endpoint 的版本，之後才會開始自動更新。
 
 ## 版本號格式
 
@@ -116,19 +117,18 @@ partial `latest.json` 問題。只有在 CI 不可用（Actions 掛掉、或只�
 2. 確認它被標為 **Latest**（updater 靠 `releases/latest` 解析）
 3. 驗證 updater feed：
    ```bash
-   curl -sL https://github.com/larryjclai/northstar-releases/releases/latest/download/latest.json | jq .version
+   curl -sL https://github.com/larryjclai/northstar/releases/latest/download/latest.json | jq .version
    ```
    應印出剛發布的版本號。
 
 > in-app updater 不需要手動 Publish——release 一建立就生效。
 
-## 補位流程：手動 GitHub Actions release
+## 補位流程：手動重跑 GitHub Actions release
 
-若需要 **Windows / Linux artifacts**，或想改由 CI 重新建置某個既有 tag，可到 GitHub Actions 手動執行 `Release` workflow，輸入 tag（例如 `v0.1.0-alpha.7`）。
-
-- 這個 workflow 現在是 **manual-only**
-- 它仍會建 private repo release，並把產物 mirror 到 public `northstar-releases`
-- 建議只在真的需要跨平台 artifacts 或重跑既有 release 時使用
+`Release` workflow 在 push `v*` tag 時已自動涵蓋所有四個平台，正常情況不需要手動觸發。
+`workflow_dispatch` 保留下來只給兩種情況用：CI 建置失敗需要重跑，或想對已存在的舊 tag
+重新建置。到 GitHub Actions 手動執行 `Release` workflow，輸入 tag（例如
+`v0.1.0-alpha.7`）即可。
 
 ---
 
@@ -140,20 +140,11 @@ Repository → Settings → Secrets and variables → Actions：
 |-------------|------|
 | `TAURI_SIGNING_PRIVATE_KEY` | minisign 私鑰（`.key` 檔的完整內容） |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 建立私鑰時設定的密碼（若無則留空） |
-| `RELEASES_TOKEN` | 用來把 release 推到 public `northstar-releases` repo 的 token（見下） |
+| `RELEASES_TOKEN` | **已淘汰**——曾用來把 release 推到 public `northstar-releases` mirror repo，mirror job 移除後已無 workflow 使用，應予刪除（operator 待辦，見 `plans/243-retire-releases-mirror-leftovers.md` Step 4） |
 | `VITE_NORTHSTAR_SYNC_WORKER_URL` | 官方 release 使用的 Connect 同步 Worker endpoint；source build 可留空 |
 
-`GITHUB_TOKEN` 由 Actions 自動提供，只對 **目前這個 repo** 有寫入權限，
-無法跨 repo 發布，所以 mirror 需要額外的 `RELEASES_TOKEN`。
-
-### 如何建立 `RELEASES_TOKEN`
-
-1. GitHub → Settings → Developer settings → **Fine-grained personal access tokens** → Generate new token
-2. **Resource owner**：`larryjclai`；**Repository access**：Only select repositories → 勾選 `northstar-releases`
-3. **Permissions** → Repository permissions → **Contents: Read and write**
-4. 產生後複製 token，到 **本 repo** 的 Settings → Secrets and variables → Actions
-   新增 secret，名稱 `RELEASES_TOKEN`，貼上 token
-5. （fine-grained token 有有效期限，到期需重新產生並更新 secret）
+`GITHUB_TOKEN` 由 Actions 自動提供，對 **目前這個 repo** 有寫入權限，足以建立 release，
+不需要額外的跨 repo token。
 
 ### 如何設定私鑰
 

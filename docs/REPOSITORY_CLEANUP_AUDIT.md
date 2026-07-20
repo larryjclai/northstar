@@ -1,5 +1,9 @@
 # Repository Cleanup Audit
 
+> **已淘汰（2026-07-20，plan 243）**：本文件是公開 repo 前的規劃稿。文中的 Phase 1／Phase 2
+> 待辦與「結論」建議都已執行完畢——`larryjclai/northstar` 已轉 public、updater endpoint 已指回
+> 主 repo、`mirror-to-public` job 已移除。以下內容保留為歷史紀錄，現況請看 `RELEASING.md`。
+
 這份文件整理公開 repo 前，哪些資料夾/檔案可以保留、移除、忽略，並記錄 release repo 是否應改回主專案。
 
 ## 結論

@@ -102,7 +102,9 @@ git tag v0.1.0-alpha.29
 git push && git push --tags           # tag push 觸發 .github/workflows/release.yml
 ```
 
-`release.yml` 會在各平台 `tauri build`、建立私有 repo 的 Release，並把產物（含簽章與 `latest.json`）鏡像到公開的 `northstar-releases` repo 供 App 內自動更新抓取。
+`release.yml` 會在各平台 `tauri build`，直接在本 repo（public）建立 Release，產物（含簽章與
+`latest.json`）供 App 內自動更新抓取——不再鏡像到 `northstar-releases`（該 repo 已淘汰，見
+`RELEASING.md`）。
 
 ## 資料位置（清除測試資料）
 
