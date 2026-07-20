@@ -13,6 +13,7 @@ import { getOrCreateDeviceIdentity, setRemotePullCursor, setLocalPushCursor, res
 import { loadVaultKey } from "../crypto/vault";
 import { isRecoveryKitConfirmed } from "../crypto/recovery-kit";
 import { loadSyncAccount, ensureDeviceCredential, ensureDevicePublicKeyUploaded } from "./account";
+import { pickUpRotatedVaultKey } from "./rotation";
 
 /** Thrown by runSync when the Recovery Kit has not been confirmed yet. */
 export const RECOVERY_KIT_REQUIRED = "請先備份並確認 Recovery Kit 才能開始同步";
@@ -71,6 +72,14 @@ async function _doSync(repo: FinanceRepository): Promise<SyncResult> {
   // before that directory existed (Plan 239, rotation phase A). Best-effort,
   // one-time, never blocks sync — see ensureDevicePublicKeyUploaded.
   await ensureDevicePublicKeyUploaded(account);
+
+  // Recipient-side rotation pickup (Plan 241, rotation phase C — spike §3
+  // steps 6-7): check the key mailbox for a rotated vault key newer than
+  // what this device currently holds, and adopt it BEFORE pushing, so this
+  // device's own push below (if a rotation just landed) already stamps the
+  // new current version rather than one more push under the stale key.
+  // Best-effort and idempotent — see pickUpRotatedVaultKey's docstring.
+  await pickUpRotatedVaultKey(account);
 
   const device = getOrCreateDeviceIdentity();
 
