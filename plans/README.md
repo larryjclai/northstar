@@ -1,5 +1,35 @@
 # Implementation Plans
 
+## 239–242 — vault-key rotation BUILD (operator answered 238's §7, 2026-07-19 @ `b4fbe894`)
+
+**Operator decisions (2026-07-19) — encoded in every phase, do NOT re-ask:**
+1. **Auto-rotate on revocation, no prompt.**
+2. **Old key versions retained locally forever.** ⚠ Operator initially chose
+   "delete", advisor flagged the concrete consequence — deleting breaks
+   `forceFullResync` (which must decrypt EVERY envelope ever pushed, incl.
+   pre-rotation ones) while buying **zero** security (the threat is someone
+   else's leaked copy; your own copy's plaintext is already resident). Operator
+   re-decided: **retain**. If "make old data unreadable" is ever genuinely
+   wanted, that's relay-side ciphertext deletion — a different, bigger feature.
+3. **Solo-device account → rotation is a no-op.**
+4. **Manual "rotate now" button: yes, but as a thin follow-up AFTER phase D.**
+5. **Relay-side version allocation accepted** (rotation-count metadata < what
+   the relay already sees).
+
+| Plan | Phase | Title | Effort | Risk | Depends on | Status |
+|------|-------|-------|--------|------|------------|--------|
+| 239 | A | Per-device public-key **directory** (the single biggest missing piece — a device's ECDH public key is only transiently visible today) + `wrapped_key_version` allocation with the `0006` per-user-scoped-MAX race pattern; worker migration `0008`, `POST /devices/:id/public-key`, client upload + one-time backfill | S–M | MED | 130/131/132 + spike 238 | TODO |
+| 240 | B | **Versioned local key storage** — `northstar.vault.key.v{n}` family + current-version pointer, `sync_envelopes.key_version` stamped on push / selected on pull, differentiated unknown-version-vs-corrupt skip, Recovery-Kit staleness signal. **HIGHEST-RISK phase** (a mistake makes history undecryptable); never-delete is an invariant, not a preference | M | **HIGH** | 239 | TODO |
+| 241 | C | **`rotateVaultKey()` protocol** — enumerate remaining devices → wrap-and-deposit per device → flip pointer LAST (crash-safe); recipient pickup wires the orphaned `fetchKeyEnvelopes` (zero prod call sites today) into `runSync`; auto-fires from `revokeDevice`; **LAZY** relay strategy (never re-encrypt history — spike proved `forceFullRepush` silently no-ops on unchanged revisions); v1 partial-failure = safe manual re-run | M–L | MED-HIGH | 239, 240 | TODO |
+| 242 | D | **Hardening + honest UX** — post-rotation confirmation ping (zero deposits landed ⇒ FAILED, pointer must not advance), partial-failure UI naming unreached devices, Recovery-Kit regenerate prompt, and the §1 threat-model copy that does NOT overpromise (「移除裝置後它收不到新資料;先前已同步的資料仍留在該裝置上」) | S–M | LOW | 239, 240, 241 | TODO |
+
+**Strictly sequential: A → B → C → D.** Each phase is independently verifiable;
+this is the app's highest-risk surface (crypto + sync + worker + multi-device
+skew in a finance product), so the phases are deliberately NOT merged into
+fewer, larger plans. Total ≈ plan 131's effort + a Recovery-Kit UX slice — the
+spike confirmed **every crypto primitive is already shipped and tested**; the
+work is directory/versioning/protocol plumbing, not new cryptography.
+
 ## 222 + 232–233 — 分帳 UI + follow-up burn-down (`/improve` @ `4f9356fa`, 2026-07-19)
 
 Operator: finish 分帳 (222) and keep burning the follow-ups list.
