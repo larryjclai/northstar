@@ -18,7 +18,7 @@ import { pickUpRotatedVaultKey } from "./rotation";
 /** Thrown by runSync when the Recovery Kit has not been confirmed yet. */
 export const RECOVERY_KIT_REQUIRED = "請先備份並確認 Recovery Kit 才能開始同步";
 import { pushPendingChanges } from "./push";
-import { pullAndApply } from "./pull";
+import { pullAndApply, type SkippedEnvelope } from "./pull";
 import { saveBackup } from "./backup";
 
 export interface SyncResult {
@@ -27,6 +27,15 @@ export interface SyncResult {
   applied: number;
   /** Envelopes skipped because they failed to decrypt or validate. */
   skipped: number;
+  /**
+   * Per-envelope skip reasons (plan 242 step 5 — see pull.ts's SkipReason),
+   * aggregated across every page pulled this run. Undefined (not an empty
+   * array) when nothing was skipped, so callers/tests comparing SyncResult
+   * with toEqual don't need to account for it on the happy path. Lets the
+   * UI message "unknown-key-version" (benign, self-heals next sync)
+   * differently from a genuine decrypt/validation failure.
+   */
+  skippedDetails?: SkippedEnvelope[];
   /** Set by forceFullResync when applied === 0, to explain why. */
   reason?: "ok" | "empty-relay" | "nothing-applied";
 }
@@ -95,11 +104,15 @@ async function _doSync(repo: FinanceRepository): Promise<SyncResult> {
   let pulled = 0;
   let applied = 0;
   let skipped = 0;
+  let skippedDetails: SkippedEnvelope[] | undefined;
   for (;;) {
     const page = await pullAndApply(repo, account, cursor, device.deviceId);
     pulled += page.pulled;
     applied += page.applied;
     skipped += page.skipped;
+    if (page.skippedDetails?.length) {
+      skippedDetails = (skippedDetails ?? []).concat(page.skippedDetails);
+    }
     if (!page.nextCursor || page.nextCursor === cursor) break;
     cursor = page.nextCursor;
     setRemotePullCursor(cursor);
@@ -110,6 +123,7 @@ async function _doSync(repo: FinanceRepository): Promise<SyncResult> {
     pulled,
     applied,
     skipped,
+    skippedDetails,
   };
 }
 
@@ -153,6 +167,7 @@ export async function forceFullResync(repo: FinanceRepository): Promise<SyncResu
     let pulled = 0;
     let applied = 0;
     let skipped = 0;
+    let skippedDetails: SkippedEnvelope[] | undefined;
     // Drain the relay one page at a time. pullAndApply re-exports the (now
     // updated) local state on each call, so pages accumulate correctly.
     for (;;) {
@@ -160,6 +175,9 @@ export async function forceFullResync(repo: FinanceRepository): Promise<SyncResu
       pulled += page.pulled;
       applied += page.applied;
       skipped += page.skipped;
+      if (page.skippedDetails?.length) {
+        skippedDetails = (skippedDetails ?? []).concat(page.skippedDetails);
+      }
       if (!page.nextCursor || page.nextCursor === cursor) break;
       cursor = page.nextCursor;
     }
@@ -168,7 +186,7 @@ export async function forceFullResync(repo: FinanceRepository): Promise<SyncResu
 
     const reason: SyncResult["reason"] =
       applied > 0 ? "ok" : pulled === 0 ? "empty-relay" : "nothing-applied";
-    return { pushed: 0, pulled, applied, skipped, reason };
+    return { pushed: 0, pulled, applied, skipped, skippedDetails, reason };
   } finally {
     _syncRunning = false;
   }

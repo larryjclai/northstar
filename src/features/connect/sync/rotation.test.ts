@@ -106,11 +106,12 @@ import { generateDeviceKeyPair, exportPublicKey } from "../crypto/pairing";
 import { getOrCreateSyncAccount, type SyncAccount } from "./account";
 import { resetSecretStoreForTests } from "../crypto/secretStore";
 import { getOrCreateDeviceIdentity } from "../../../state/deviceIdentity";
-import { listDevices, allocateKeyVersion, storeKeyEnvelope } from "./client";
+import { listDevices, allocateKeyVersion, storeKeyEnvelope, fetchKeyEnvelopes } from "./client";
 
 const mockedListDevices = vi.mocked(listDevices);
 const mockedAllocateKeyVersion = vi.mocked(allocateKeyVersion);
 const mockedStoreKeyEnvelope = vi.mocked(storeKeyEnvelope);
+const mockedFetchKeyEnvelopes = vi.mocked(fetchKeyEnvelopes);
 
 function makeLocalStorage(): Storage {
   const m = new Map<string, string>();
@@ -281,6 +282,62 @@ describe("rotateVaultKey — initiator side", () => {
     expect(second.failed).toEqual([]);
     expect(second.newVersion).toBeGreaterThan(first.newVersion!);
     expect(await getCurrentVaultKeyVersion()).toBe(second.newVersion);
+  });
+
+  // Load-bearing test (plan 242 step 1 / spike §4's confirmation-ping
+  // mitigation): every deposit call in the loop reports success (no throw),
+  // but the confirmation ping re-fetches the target's mailbox and finds
+  // nothing actually landed there — e.g. a racing rotation clobbered it, or
+  // the write never persisted. This is "zero deposits actually landed" for
+  // a single-remaining-device account. Rotation must report FAILURE, not
+  // silently "done", and the local current-version pointer must NOT advance
+  // (a rotation that flips to a key nobody else can obtain is exactly the
+  // failure mode this check exists to prevent).
+  it("zero-deposit-failure: confirmation ping finds nothing landed on the relay — reports FAILURE, pointer does not advance", async () => {
+    activate(deviceA);
+    const aVaultKey = await generateVaultKey();
+    await saveVaultKey(aVaultKey);
+    const aAccount = await getOrCreateSyncAccount();
+    const bId = await pairDevice(deviceB, "B", "macos");
+
+    activate(deviceA);
+    const beforeVersion = await getCurrentVaultKeyVersion();
+
+    // storeKeyEnvelope() "succeeds" (the mock writes to `relay` as usual),
+    // but the confirmation ping's re-fetch is overridden to come back empty
+    // — as if the deposit never actually stuck.
+    mockedFetchKeyEnvelopes.mockResolvedValueOnce([]);
+
+    const result = await rotateVaultKey(aAccount);
+
+    expect(result.rotated).toBe(false);
+    expect(result.reason).toBe("partial-failure");
+    expect(result.succeeded).toEqual([]);
+    expect(result.failed).toHaveLength(1);
+    expect(result.failed[0].deviceId).toBe(bId);
+    expect(result.failed[0].reason).toContain("confirmation ping");
+
+    // Pointer must NOT have advanced — safe, exactly as if the process had
+    // crashed mid-loop.
+    expect(await getCurrentVaultKeyVersion()).toBe(beforeVersion);
+    expect(await exportVaultKey((await loadVaultKey())!)).toBe(await exportVaultKey(aVaultKey));
+  });
+
+  it("confirmation ping passes when the deposit genuinely landed — does not affect the success path", async () => {
+    activate(deviceA);
+    await saveVaultKey(await generateVaultKey());
+    const aAccount = await getOrCreateSyncAccount();
+    const bId = await pairDevice(deviceB, "B", "macos");
+
+    activate(deviceA);
+    const result = await rotateVaultKey(aAccount);
+
+    expect(result.rotated).toBe(true);
+    expect(result.reason).toBe("ok");
+    expect(result.succeeded).toEqual([bId]);
+    expect(result.failed).toEqual([]);
+    // The confirmation ping itself made exactly one extra read.
+    expect(mockedFetchKeyEnvelopes).toHaveBeenCalledWith(aAccount.apiSecret, bId);
   });
 });
 

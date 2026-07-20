@@ -11,12 +11,14 @@
 //     automatically, with no confirmation prompt, from ConnectSection.tsx's
 //     revokeDevice success path (operator decision, plan 241 — "auto-rotate
 //     on revocation, NO prompt"). Mints a new vault key, re-wraps it to
-//     every OTHER currently-trusted device via the /keys mailbox, and —
-//     only once every deposit succeeds — flips this device's own
-//     current-version pointer. A solo-device account (zero remaining
-//     targets once the revoked device is gone) is a deliberate NO-OP:
-//     nothing to re-wrap to, so no key is generated and no version is
-//     allocated (operator decision, plan 241).
+//     every OTHER currently-trusted device via the /keys mailbox, then
+//     re-fetches ONE target's mailbox as a post-deposit confirmation ping
+//     (plan 242 step 1, spike §4's race mitigation) — and only once every
+//     deposit succeeded AND that ping confirms it actually landed, flips
+//     this device's own current-version pointer. A solo-device account
+//     (zero remaining targets once the revoked device is gone) is a
+//     deliberate NO-OP: nothing to re-wrap to, so no key is generated and no
+//     version is allocated (operator decision, plan 241).
 //
 //   - pickUpRotatedVaultKey(): RECIPIENT side (spike §3 steps 6-8), wired
 //     into runSync's cycle (sync-manager.ts). Polls the authenticated
@@ -183,8 +185,48 @@ export async function rotateVaultKey(
     }
   }
 
+  // Post-rotation confirmation ping (plan 242 step 1, spike §4 "Two
+  // rotations race" mitigation). Every deposit call above returned WITHOUT
+  // throwing, but that only proves the request-level call succeeded — it
+  // does NOT prove the deposit actually stuck. A racing rotation initiator
+  // could have deposited its OWN (different) key-version-`newVersion`
+  // envelope to the same target immediately afterward and clobbered ours
+  // (key_envelopes UPSERTs per target — last write wins, no accumulation, no
+  // conflict error), or a write could have "succeeded" against a
+  // proxy/cache without actually landing. Re-fetch ONE target's mailbox
+  // (cheap, one extra read — spike §4's own recommendation) and verify the
+  // version we wrote is still the one live on the relay. If it isn't, this
+  // device must NOT believe rotation succeeded: flipping its own pointer to
+  // a key that (at least this one) other device does not actually hold
+  // would leave that device permanently unable to decrypt this device's
+  // future pushes. Demote that one target from succeeded to failed and let
+  // the existing partial-failure path below handle it — this is exactly
+  // what "zero deposits actually landed" collapses to when there is only
+  // one remaining target.
+  if (failed.length === 0 && succeeded.length > 0) {
+    const pingTargetId = succeeded[0];
+    try {
+      const liveEnvelopes = await fetchKeyEnvelopes(authToken, pingTargetId);
+      const live = liveEnvelopes.find((e) => e.keyType === VAULT_KEY_TYPE);
+      if (!live || live.wrappedKeyVersion !== newVersion) {
+        succeeded.shift();
+        failed.push({
+          deviceId: pingTargetId,
+          reason: "confirmation ping: deposited envelope not found on relay (lost a concurrent rotation race, or the write did not persist)",
+        });
+      }
+    } catch (e) {
+      succeeded.shift();
+      failed.push({
+        deviceId: pingTargetId,
+        reason: `confirmation ping failed: ${e instanceof Error ? e.message : String(e)}`,
+      });
+    }
+  }
+
   // Step 5 (spike §3): flip the current-version pointer LAST, and ONLY if
-  // every deposit succeeded — a crash or a partial failure both leave this
+  // every deposit succeeded AND the confirmation ping above found it live —
+  // a crash, a partial failure, or a failed confirmation all leave this
   // device consistently encrypting under the OLD key (safe; re-running
   // rotateVaultKey() is the documented recovery, see this module's
   // docstring — v1 has no automatic retry/resume state by design).
