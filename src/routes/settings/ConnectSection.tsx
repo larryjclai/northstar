@@ -44,6 +44,7 @@ import {
   startJoinSession, completeJoin, inspectJoinRequest, approveJoiningDevice,
   type JoinSession, type PendingJoinApproval,
 } from "../../features/connect/sync/pairing-flow";
+import { rotateVaultKey } from "../../features/connect/sync/rotation";
 import { runSync, forceFullResync, forceFullRepush } from "../../features/connect/sync/sync-manager";
 import { clearLocalSyncState, unlinkSync } from "../../features/connect/sync/reset";
 import { summarizeConflict } from "../../features/connect/sync/conflictSummary";
@@ -423,6 +424,24 @@ export function ConnectStatus() {
       const msg = e instanceof Error ? e.message : typeof e === "string" ? e : "移除失敗";
       console.error("[connect] revoke device failed:", e);
       toast.error("移除失敗：" + msg);
+      return;
+    }
+
+    // Auto-rotate the vault key after a successful revocation — no prompt
+    // (plan 241 operator decision 1). Rotation failure must NOT roll back or
+    // obscure the revocation that already succeeded above (it already cut
+    // the revoked device's relay access, plan 132); surface it separately.
+    // A solo-device account short-circuits to a silent no-op inside
+    // rotateVaultKey itself (decision 3) — nothing to report there.
+    try {
+      const result = await rotateVaultKey(account, deviceId);
+      if (result.reason === "partial-failure") {
+        console.error("[connect] vault key rotation partially failed:", result.failed);
+        toast.error("裝置已移除，但加密金鑰輪替未完全成功，請稍後重試（設定 → Connect）。");
+      }
+    } catch (e) {
+      console.error("[connect] vault key rotation failed:", e);
+      toast.error("裝置已移除，但加密金鑰輪替失敗，請稍後重試（設定 → Connect）。");
     }
   }
 

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FinanceRepository } from "../../../data/repositories";
 import { runSync, forceFullRepush, isSyncRunning, RECOVERY_KIT_REQUIRED } from "./sync-manager";
 import { loadSyncAccount, ensureDeviceCredential, ensureDevicePublicKeyUploaded } from "./account";
+import { pickUpRotatedVaultKey } from "./rotation";
 import { loadVaultKey } from "../crypto/vault";
 import { isRecoveryKitConfirmed } from "../crypto/recovery-kit";
 import { pushPendingChanges } from "./push";
@@ -13,15 +14,17 @@ import {
   setLocalPushCursor,
 } from "../../../state/deviceIdentity";
 
-// The orchestrator wires together account/vault/push/pull/backup/deviceIdentity.
-// We fake every collaborator so these tests exercise ONLY the coordinator logic:
-// the recovery-kit gate, the push→pull ordering, the pull loop + cursor advance,
-// the module-level mutex, and error propagation.
+// The orchestrator wires together account/vault/push/pull/backup/deviceIdentity/
+// rotation. We fake every collaborator so these tests exercise ONLY the
+// coordinator logic: the recovery-kit gate, the rotation-pickup→push→pull
+// ordering, the pull loop + cursor advance, the module-level mutex, and error
+// propagation.
 vi.mock("./account", () => ({
   loadSyncAccount: vi.fn(),
   ensureDeviceCredential: vi.fn(async () => {}),
   ensureDevicePublicKeyUploaded: vi.fn(async () => {}),
 }));
+vi.mock("./rotation", () => ({ pickUpRotatedVaultKey: vi.fn(async () => {}) }));
 vi.mock("../crypto/vault", () => ({ loadVaultKey: vi.fn() }));
 vi.mock("../crypto/recovery-kit", () => ({ isRecoveryKitConfirmed: vi.fn() }));
 vi.mock("./push", () => ({ pushPendingChanges: vi.fn() }));
@@ -37,6 +40,7 @@ vi.mock("../../../state/deviceIdentity", () => ({
 const mockedLoadAccount = vi.mocked(loadSyncAccount);
 const mockedEnsureCred = vi.mocked(ensureDeviceCredential);
 const mockedEnsurePublicKey = vi.mocked(ensureDevicePublicKeyUploaded);
+const mockedPickUpRotatedKey = vi.mocked(pickUpRotatedVaultKey);
 const mockedLoadVault = vi.mocked(loadVaultKey);
 const mockedRecoveryKit = vi.mocked(isRecoveryKitConfirmed);
 const mockedPush = vi.mocked(pushPendingChanges);
@@ -95,9 +99,11 @@ describe("runSync — happy path round trip", () => {
     const result = await runSync(repo);
 
     expect(result).toEqual({ pushed: 3, pulled: 3, applied: 3, skipped: 0 });
-    // Ordering: credential migration, then public-key backfill, then push, then pull.
+    // Ordering: credential migration, then public-key backfill, then rotation
+    // pickup, then push, then pull.
     expect(mockedEnsureCred).toHaveBeenCalledWith(account);
     expect(mockedEnsurePublicKey).toHaveBeenCalledWith(account);
+    expect(mockedPickUpRotatedKey).toHaveBeenCalledWith(account);
     expect(mockedPush).toHaveBeenCalledWith(repo, account);
     expect(mockedSaveBackup).toHaveBeenCalledTimes(1);
     // Cursor advanced exactly once (only when the page moved it forward).
@@ -135,6 +141,8 @@ describe("runSync — gates", () => {
     mockedRecoveryKit.mockReturnValue(false);
     await expect(runSync(fakeRepo())).rejects.toThrow(RECOVERY_KIT_REQUIRED);
     expect(mockedPush).not.toHaveBeenCalled();
+    // Rotation pickup must not fire before the gates pass.
+    expect(mockedPickUpRotatedKey).not.toHaveBeenCalled();
   });
 });
 
