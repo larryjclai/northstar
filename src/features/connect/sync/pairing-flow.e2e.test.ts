@@ -9,25 +9,37 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // ---- in-memory relay (shared with the ./client mock via vi.hoisted) ----
 const relay = vi.hoisted(() => ({
   sessions: new Map<string, { encryptedBundle: string; deviceId: string; token: string; claimed: boolean }>(),
-  keyEnvelopes: new Map<string, Array<{ id: string; sourceDeviceId: string; keyType: string; wrappedKey: string; sourcePublicKeyB64?: string; createdAt: string }>>(),
+  keyEnvelopes: new Map<string, Array<{ id: string; sourceDeviceId: string; keyType: string; wrappedKey: string; sourcePublicKeyB64?: string; wrappedKeyVersion: number; createdAt: string }>>(),
   devices: [] as Array<{ id: string; name: string; platform: string; secretHash?: string; publicKeyB64?: string }>,
   // Mirrors the real worker's `devices.public_key` column (Plan 239) — a single
   // slot per device id, settable via EITHER addDevice's optional field OR the
   // self-provision endpoint, set-once either way (matching handleAddDevice's
   // INSERT OR IGNORE + handleProvisionDevicePublicKey's `IS NULL` guard).
   publicKeys: new Map<string, string>(),
+  // Mirrors the real worker's key_version_counters table (Plan 239, revise
+  // round 1) — one counter per keyType (this fake only ever exercises a
+  // single account, so no per-user keying is needed here).
+  keyVersionCounters: new Map<string, number>(),
   bundles: [] as string[],
   reset() {
     this.sessions.clear();
     this.keyEnvelopes.clear();
     this.devices.length = 0;
     this.publicKeys.clear();
+    this.keyVersionCounters.clear();
     this.bundles.length = 0;
   },
 }));
 
 vi.mock("./client", () => ({
   isSyncWorkerConfigured: () => true,
+  // Plan 239 revise round 1: allocate ONCE per logical key, reused across
+  // every storeKeyEnvelope() deposit that wraps that same key value.
+  allocateKeyVersion: vi.fn(async (_apiSecret: string, keyType: string) => {
+    const next = (relay.keyVersionCounters.get(keyType) ?? 0) + 1;
+    relay.keyVersionCounters.set(keyType, next);
+    return next;
+  }),
   joinPairingSession: vi.fn(async (code: string, encryptedBundle: string, deviceId: string) => {
     const token = "tok_" + Math.random().toString(36).slice(2);
     relay.sessions.set(code, { encryptedBundle, deviceId, token, claimed: false });
@@ -44,7 +56,7 @@ vi.mock("./client", () => ({
   storeKeyEnvelope: vi.fn(async (
     _apiSecret: string,
     target: string,
-    env: { id: string; sourceDeviceId: string; keyType: string; wrappedKey: string; sourcePublicKeyB64?: string },
+    env: { id: string; sourceDeviceId: string; keyType: string; wrappedKey: string; sourcePublicKeyB64?: string; wrappedKeyVersion: number },
   ) => {
     const arr = relay.keyEnvelopes.get(target) ?? [];
     const next = arr.filter((e) => e.keyType !== env.keyType);
@@ -166,6 +178,13 @@ describe("ECDH pairing end-to-end", () => {
     expect(vaultEnv.wrappedKey).not.toContain(aVaultKeyB64);
     expect(acctEnv.wrappedKey).not.toContain(aAccount.apiSecret);
     expect(vaultEnv.sourcePublicKeyB64).toBeTruthy();
+
+    // Plan 239 (revise round 1): each key type got its OWN allocated version
+    // (independent counters — vault-v1 and account-v1 are different logical
+    // keys), and both are positive integers actually obtained from
+    // allocateKeyVersion(), not left undefined/unset.
+    expect(vaultEnv.wrappedKeyVersion).toBe(1);
+    expect(acctEnv.wrappedKeyVersion).toBe(1);
 
     // A registered B — with B's device-credential HASH (Plan 132), never a secret.
     const registered = relay.devices.find((d) => d.id === session.deviceId)!;

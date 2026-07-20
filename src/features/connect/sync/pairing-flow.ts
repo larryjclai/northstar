@@ -52,6 +52,7 @@ import {
   claimPairingSession,
   joinPairingSession,
   storeKeyEnvelope,
+  allocateKeyVersion,
   fetchKeyEnvelopesWithToken,
   addDevice,
   provisionDevicePublicKey,
@@ -289,12 +290,25 @@ export async function approveJoiningDevice(approval: PendingJoinApproval): Promi
     apiSecret: account.apiSecret,
   });
 
+  // Allocate a version for each key type before depositing (Plan 239, revise
+  // round 1 — the relay now REQUIRES a pre-allocated wrappedKeyVersion on
+  // every deposit). Each approval targets exactly ONE new device, so a fresh
+  // allocation per key type here is correct and does NOT reintroduce the
+  // "same key, N different version numbers" bug that motivated this fix —
+  // that only happens when the SAME key value is deposited to MULTIPLE
+  // devices at once, which is rotation's job (Phase C), not pairing's.
+  const [vaultVersion, accountVersion] = await Promise.all([
+    allocateKeyVersion(account.apiSecret, VAULT_KEY_TYPE),
+    allocateKeyVersion(account.apiSecret, ACCOUNT_KEY_TYPE),
+  ]);
+
   await storeKeyEnvelope(account.apiSecret, approval.deviceId, {
     id: `${approval.deviceId}:${VAULT_KEY_TYPE}`,
     sourceDeviceId: self.deviceId,
     keyType: VAULT_KEY_TYPE,
     wrappedKey: wrappedVaultKey,
     sourcePublicKeyB64: myPublicKeyB64,
+    wrappedKeyVersion: vaultVersion,
   });
   await storeKeyEnvelope(account.apiSecret, approval.deviceId, {
     id: `${approval.deviceId}:${ACCOUNT_KEY_TYPE}`,
@@ -302,6 +316,7 @@ export async function approveJoiningDevice(approval: PendingJoinApproval): Promi
     keyType: ACCOUNT_KEY_TYPE,
     wrappedKey: wrappedAccount,
     sourcePublicKeyB64: myPublicKeyB64,
+    wrappedKeyVersion: accountVersion,
   });
 
   // Seed B's directory entry with the public key we already have from the

@@ -41,12 +41,17 @@ export interface KeyEnvelopeRecord {
   /** ECDH pairing: the source device's public key, so the target can derive the shared secret. */
   sourcePublicKeyB64?: string;
   /**
-   * Relay-allocated version of the vault key this envelope wraps (Plan 239).
-   * Server-computed on store, per-user-and-keyType-scoped, never trusted from
-   * the client. Phase A only surfaces this value; Phase C's rotation protocol
+   * Version of the (user, keyType) key this envelope wraps (Plan 239).
+   * REQUIRED on store — must come from allocateKeyVersion(), called ONCE per
+   * logical "key" and reused for every deposit that wraps the SAME key value
+   * (e.g. one rotation depositing to N remaining devices gets ONE shared
+   * version, not N different ones — see docs/vault-key-rotation-plan.md §2:
+   * versioning is "per vault key", not per envelope). The relay validates it
+   * against the allocated maximum and rejects anything higher or non-positive.
+   * Phase A only surfaces this value on the wire; Phase C's rotation protocol
    * is what actually acts on it.
    */
-  wrappedKeyVersion?: number;
+  wrappedKeyVersion: number;
   createdAt: string;
 }
 
@@ -168,6 +173,23 @@ export async function listDevices(apiSecret: string): Promise<DeviceRecord[]> {
 /** Revoke a device's access. */
 export async function revokeDevice(apiSecret: string, deviceId: string): Promise<void> {
   await request(`/devices/${deviceId}`, { method: "DELETE", apiSecret });
+}
+
+/**
+ * Allocate the NEXT version for a (user, keyType) pair (Plan 239, revise
+ * round 1). Call this EXACTLY ONCE for a given "key" and reuse the returned
+ * value across every storeKeyEnvelope() deposit that wraps that SAME key
+ * value (e.g. one rotation depositing to N remaining devices) — allocating
+ * separately per deposit is the bug this round fixed (N devices would each
+ * get a different version number for what is actually one identical key).
+ */
+export async function allocateKeyVersion(apiSecret: string, keyType: string): Promise<number> {
+  const { version } = await request<{ version: number }>("/keys/version", {
+    method: "POST",
+    apiSecret,
+    body: JSON.stringify({ keyType }),
+  });
+  return version;
 }
 
 /** Store a wrapped vault key envelope for a target device. */

@@ -249,6 +249,18 @@ export default {
         return withCors(await handlePullEnvelopes(url, env, userId));
       }
 
+      // POST /keys/version — allocate the NEXT wrapped_key_version for a
+      // (user, keyType) (Plan 239 revise round 1). The rotation initiator
+      // calls this EXACTLY ONCE per rotation and reuses the returned value
+      // for every POST /keys/:targetDeviceId deposit in that same rotation —
+      // that is what keeps one rotation's fan-out to N remaining devices
+      // stamped with a single, shared version number instead of N different
+      // ones. Checked BEFORE the generic /keys/:targetDeviceId route below,
+      // since "version" would otherwise match that route's `[^/]+` segment.
+      if (method === "POST" && path === "/keys/version") {
+        return withCors(await handleAllocateKeyVersion(request, env, userId));
+      }
+
       // POST /keys/:target_device_id — store wrapped key envelope
       const keyPost = path.match(/^\/keys\/([^/]+)$/);
       if (method === "POST" && keyPost) {
@@ -555,6 +567,46 @@ async function handlePullEnvelopes(
   return json({ envelopes, nextCursor, count: envelopes.length });
 }
 
+interface AllocateKeyVersionBody {
+  keyType: string;
+}
+
+/**
+ * Allocate the NEXT `wrapped_key_version` for a (user, keyType) pair (Plan
+ * 239, revise round 1 — fixes a real defect in the initial cut: allocating a
+ * fresh version INSIDE every `POST /keys/:targetDeviceId` deposit meant a
+ * single rotation's fan-out to N remaining devices minted N DIFFERENT version
+ * numbers for what is the SAME actual vault key. Per
+ * docs/vault-key-rotation-plan.md §2, versioning is "per vault key", not per
+ * envelope — a rotation initiator must call this ONCE and reuse the returned
+ * value for every deposit in that same rotation.
+ *
+ * Race-safety is the same single-statement pattern `handleStoreKey` already
+ * proved deterministic under concurrent load: SQLite only allows one writer
+ * at a time, so a second concurrent allocation for the same (user, keyType)
+ * cannot begin evaluating this UPSERT until the first commits, and therefore
+ * necessarily observes the first's new counter value.
+ */
+async function handleAllocateKeyVersion(
+  request: Request,
+  env: Env,
+  userId: string,
+): Promise<Response> {
+  const body = await request.json<AllocateKeyVersionBody>();
+  if (!body.keyType) return err("Missing fields", 400);
+
+  const row = await env.DB.prepare(
+    `INSERT INTO key_version_counters (user_id, key_type, current_version)
+     VALUES (?, ?, 1)
+     ON CONFLICT(user_id, key_type) DO UPDATE SET current_version = current_version + 1
+     RETURNING current_version AS version`,
+  )
+    .bind(userId, body.keyType)
+    .first<{ version: number }>();
+
+  return json({ version: row?.version }, 201);
+}
+
 interface KeyEnvelopeBody {
   id: string;
   sourceDeviceId: string;
@@ -562,33 +614,28 @@ interface KeyEnvelopeBody {
   wrappedKey: string;
   // ECDH pairing: A's public key so B can derive the shared secret. Opaque here.
   sourcePublicKeyB64?: string;
+  // The version this envelope's wrapped_key represents (Plan 239, revise
+  // round 1). REQUIRED — must have been obtained from POST /keys/version
+  // first. Validated below against key_version_counters so a buggy or
+  // hostile client cannot inject an arbitrary, never-allocated version.
+  wrappedKeyVersion: number;
 }
 
 /**
- * Store (or overwrite) a wrapped key envelope for a target device, allocating
- * `wrapped_key_version` server-side (Plan 239, rotation phase A — spike gap 2:
- * the column existed since 0001_initial.sql but nothing read or wrote it).
+ * Store (or overwrite) a wrapped key envelope for a target device, stamping
+ * the CALLER-SUPPLIED `wrappedKeyVersion` verbatim (Plan 239, rotation phase
+ * A — spike gap 2: the column existed since 0001_initial.sql but nothing read
+ * or wrote it).
  *
- * Allocation is NOT trusted from the client body (§4/§5 of
- * docs/vault-key-rotation-plan.md: an attacker or buggy client must not be
- * able to inject an arbitrary version number) — it is computed by this SAME
- * statement via `SELECT MAX(wrapped_key_version)+1 ... WHERE user_id = ? AND
- * key_type = ?`, scoped per-user exactly like 0006_per_user_relay_sequence.sql
- * scoped the relay_sequence counter per-user.
- *
- * Unlike relay_sequence's fix (a separate SELECT MAX, then a separate INSERT —
- * two round trips, still racy for two concurrent SAME-user writes, just no
- * longer racy ACROSS users), this allocation reads and writes the max in ONE
- * SQL statement. SQLite only allows one writer at a time; a second concurrent
- * INSERT for the same user+key_type cannot begin evaluating its subquery until
- * the first commits, so it necessarily observes the first's new row and is
- * guaranteed a distinct, strictly greater version. See the "distinct versions
- * under concurrent allocation" test in index.test.ts, which is what actually
- * proves this holds (the STOP-worthy unknown plan 239 flagged).
- *
- * RETURNING hands the allocated version straight back to the caller so a
- * rotation initiator (Phase C) can learn what version landed without a
- * separate fetch.
+ * The version itself is still relay-allocated, never client-minted (§4/§5 of
+ * docs/vault-key-rotation-plan.md) — it just isn't allocated HERE anymore.
+ * `handleAllocateKeyVersion` (POST /keys/version) is the only place a version
+ * number is minted; this handler only verifies the caller's claimed version
+ * was actually allocated (`<= key_version_counters.current_version` for this
+ * user+keyType) before accepting it. This is what lets ONE allocation be
+ * reused across MANY deposits (one per remaining device) in a single
+ * rotation, fixing round 1's "N devices, N different version numbers for one
+ * identical key" defect.
  */
 async function handleStoreKey(
   request: Request,
@@ -600,21 +647,31 @@ async function handleStoreKey(
   if (!body.id || !body.sourceDeviceId || !body.keyType || !body.wrappedKey) {
     return err("Missing fields", 400);
   }
+  if (!Number.isInteger(body.wrappedKeyVersion) || body.wrappedKeyVersion <= 0) {
+    return err("wrappedKeyVersion must be a positive integer allocated via POST /keys/version", 400);
+  }
+
+  const counter = await env.DB.prepare(
+    "SELECT current_version FROM key_version_counters WHERE user_id = ? AND key_type = ?",
+  )
+    .bind(userId, body.keyType)
+    .first<{ current_version: number }>();
+  const allocatedMax = counter?.current_version ?? 0;
+  if (body.wrappedKeyVersion > allocatedMax) {
+    return err("wrappedKeyVersion exceeds the allocated maximum for this key type", 400);
+  }
 
   const now = new Date().toISOString();
-  const row = await env.DB.prepare(
+  await env.DB.prepare(
     `INSERT INTO key_envelopes
        (id, user_id, target_device_id, source_device_id, key_type, wrapped_key, wrapped_key_version, source_public_key, created_at)
-     VALUES (?, ?, ?, ?, ?, ?,
-       (SELECT COALESCE(MAX(wrapped_key_version), 0) + 1 FROM key_envelopes WHERE user_id = ? AND key_type = ?),
-       ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id, target_device_id, key_type)
      DO UPDATE SET wrapped_key = excluded.wrapped_key,
                    source_device_id = excluded.source_device_id,
                    wrapped_key_version = excluded.wrapped_key_version,
                    source_public_key = excluded.source_public_key,
-                   created_at = excluded.created_at
-     RETURNING wrapped_key_version AS wrappedKeyVersion`,
+                   created_at = excluded.created_at`,
   )
     .bind(
       body.id,
@@ -623,14 +680,13 @@ async function handleStoreKey(
       body.sourceDeviceId,
       body.keyType,
       body.wrappedKey,
-      userId,
-      body.keyType,
+      body.wrappedKeyVersion,
       body.sourcePublicKeyB64 ?? null,
       now,
     )
-    .first<{ wrappedKeyVersion: number }>();
+    .run();
 
-  return json({ ok: true, wrappedKeyVersion: row?.wrappedKeyVersion }, 201);
+  return json({ ok: true, wrappedKeyVersion: body.wrappedKeyVersion }, 201);
 }
 
 const KEY_ENVELOPE_SELECT = `SELECT id, source_device_id as sourceDeviceId, key_type as keyType,
