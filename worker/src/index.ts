@@ -486,6 +486,20 @@ interface Envelope {
   encryptedPayload: string;
   updatedAt: string;
   sequence?: number;
+  /**
+   * Which vault key version encrypted this envelope (Plan 240, rotation
+   * phase B — see docs/vault-key-rotation-plan.md §2). Optional on the
+   * request type only as defense-in-depth against a stale/misbehaving
+   * client; handlePushEnvelopes defaults a missing/invalid value to 1 (the
+   * column's own DB default, and the only version that has ever existed
+   * pre-rotation) rather than trusting the wire blindly.
+   */
+  keyVersion?: number;
+}
+
+/** Coerce to a positive integer key version, defaulting to 1 (matches the sync_envelopes.key_version DB default) for anything missing or invalid. */
+function normalizeKeyVersion(v: unknown): number {
+  return typeof v === "number" && Number.isInteger(v) && v >= 1 ? v : 1;
 }
 
 async function handlePushEnvelopes(
@@ -528,12 +542,12 @@ async function handlePushEnvelopes(
 
   const stmt = env.DB.prepare(
     `INSERT INTO sync_envelopes
-       (id, user_id, device_id, entity, entity_id, revision, encrypted_payload, updated_at, relay_sequence)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       (id, user_id, device_id, entity, entity_id, revision, encrypted_payload, updated_at, relay_sequence, key_version)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id, entity, entity_id, revision, device_id) DO NOTHING`,
   );
   const batch = envelopes.map((e) =>
-    stmt.bind(e.id, userId, effectiveDeviceId(e), e.entity, e.entityId, e.revision, e.encryptedPayload, e.updatedAt, nextSequence++),
+    stmt.bind(e.id, userId, effectiveDeviceId(e), e.entity, e.entityId, e.revision, e.encryptedPayload, e.updatedAt, nextSequence++, normalizeKeyVersion(e.keyVersion)),
   );
   await env.DB.batch(batch);
 
@@ -551,7 +565,7 @@ async function handlePullEnvelopes(
   const result = await env.DB.prepare(
     `SELECT id, device_id as deviceId, entity, entity_id as entityId,
             revision, encrypted_payload as encryptedPayload, updated_at as updatedAt,
-            relay_sequence as sequence
+            relay_sequence as sequence, key_version as keyVersion
      FROM sync_envelopes
      WHERE user_id = ? AND relay_sequence > ?
      ORDER BY relay_sequence ASC

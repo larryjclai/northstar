@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryFinanceRepositoryForTests } from "../../../data/repositories";
 import { resetSecretStoreForTests } from "../crypto/secretStore";
 import { pushEnvelopes } from "./client";
-import { encryptPayload } from "../crypto/vault";
+import { encryptPayload, getCurrentVaultKeyVersion } from "../crypto/vault";
 import { getOrCreateDeviceIdentity, setLocalPushCursor } from "../../../state/deviceIdentity";
 import { pushPendingChanges } from "./push";
 
@@ -18,6 +18,8 @@ vi.mock("../crypto/vault", () => ({
   // The encryption boundary: return the plaintext record so tests can assert
   // exactly what got serialised into each envelope.
   encryptPayload: vi.fn(async (_key: unknown, payload: unknown) => JSON.stringify(payload)),
+  // Plan 240: current vault key version, stamped onto every pushed envelope.
+  getCurrentVaultKeyVersion: vi.fn(async () => 1),
 }));
 vi.mock("../../../state/deviceIdentity", () => ({
   getOrCreateDeviceIdentity: vi.fn(),
@@ -28,6 +30,7 @@ const mockedPushEnvelopes = vi.mocked(pushEnvelopes);
 const mockedEncrypt = vi.mocked(encryptPayload);
 const mockedGetDevice = vi.mocked(getOrCreateDeviceIdentity);
 const mockedSetPushCursor = vi.mocked(setLocalPushCursor);
+const mockedGetCurrentVaultKeyVersion = vi.mocked(getCurrentVaultKeyVersion);
 
 const account = { userId: "u1", apiSecret: "acct-secret" };
 
@@ -65,6 +68,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockedPushEnvelopes.mockResolvedValue(undefined);
   mockedEncrypt.mockImplementation(async (_key, payload) => JSON.stringify(payload));
+  mockedGetCurrentVaultKeyVersion.mockResolvedValue(1);
   // getSyncAuthToken → loadDeviceSecret touches the SecretStore, which falls back
   // to localStorage off-device. jsdom has none, so stub it (empty → account secret).
   const mem = new Map<string, string>();
@@ -118,6 +122,19 @@ describe("pushPendingChanges", () => {
     // Cursor advanced to the newest updatedAt seen.
     expect(mockedSetPushCursor).toHaveBeenCalledTimes(1);
     expect(mockedSetPushCursor).toHaveBeenCalledWith(expect.any(String));
+  });
+
+  it("stamps the CURRENT vault key version onto every envelope (Plan 240)", async () => {
+    mockedGetDevice.mockReturnValue(device(null));
+    mockedGetCurrentVaultKeyVersion.mockResolvedValue(3);
+    const repo = createMemoryFinanceRepositoryForTests();
+    await createAccount(repo, "錢包");
+
+    await pushPendingChanges(repo, account);
+
+    const [, envelopes] = mockedPushEnvelopes.mock.calls[0];
+    expect(envelopes.length).toBeGreaterThan(0);
+    expect(envelopes.every((e) => e.keyVersion === 3)).toBe(true);
   });
 
   it("is a no-op when nothing has changed since the push cursor", async () => {

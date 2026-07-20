@@ -5,6 +5,15 @@ import {
   getSecretStore,
   resetSecretStoreForTests,
 } from "../crypto/secretStore";
+import {
+  generateVaultKey,
+  saveVaultKeyVersion,
+  setCurrentVaultKeyVersion,
+  loadVaultKeyVersion,
+  listVaultKeyVersions,
+  vaultKeySlot,
+} from "../crypto/vault";
+import type { FinanceRepository } from "../../../data/repositories";
 
 // Seed values for the localStorage stub: sync identity + recovery flag + every
 // SECRET_KEYS entry, so we can assert the reset clears both the SecretStore and
@@ -94,5 +103,78 @@ describe("unlinkSync", () => {
     for (const k of SECRET_KEYS) {
       expect(await secretStore.get(k)).toBeNull();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Plan 240 — a full local reset wipes EVERY vault key version, not just v1
+// (the one static SECRET_KEYS entry). This is the deliberate "start over as
+// a brand-new device" path — distinct from the "never delete a key version"
+// invariant that governs normal sync/rotation operation.
+// ---------------------------------------------------------------------------
+
+describe("clearLocalSyncState wipes every held vault key version (Plan 240)", () => {
+  let store: Map<string, string>;
+  beforeEach(() => {
+    store = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+      clear: () => store.clear(),
+    });
+    resetSecretStoreForTests();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetSecretStoreForTests();
+  });
+
+  it("removes v1, v2, v3 slots, the current-version pointer, and the version index", async () => {
+    // Seed a device that has lived through two rotations: three versions
+    // held locally, current pointer on the newest.
+    await saveVaultKeyVersion(1, await generateVaultKey());
+    await saveVaultKeyVersion(2, await generateVaultKey());
+    await saveVaultKeyVersion(3, await generateVaultKey());
+    await setCurrentVaultKeyVersion(3);
+    expect(await listVaultKeyVersions()).toEqual([1, 2, 3]);
+
+    const repo = {
+      getAppSettings: vi.fn().mockResolvedValue({}),
+      importSnapshot: vi.fn().mockResolvedValue(undefined),
+      clearSyncConflicts: vi.fn().mockResolvedValue(undefined),
+    } as unknown as FinanceRepository;
+
+    await clearLocalSyncState(repo);
+
+    // Every version slot is gone, not just v1.
+    expect(await loadVaultKeyVersion(1)).toBeNull();
+    expect(await loadVaultKeyVersion(2)).toBeNull();
+    expect(await loadVaultKeyVersion(3)).toBeNull();
+    // The bookkeeping keys are gone too.
+    expect(store.has("northstar.vault.key.current")).toBe(false);
+    expect(store.has("northstar.vault.key.versions")).toBe(false);
+    for (let v = 1; v <= 3; v++) expect(store.has(vaultKeySlot(v))).toBe(false);
+    // A fresh read of the index post-wipe reports no versions held.
+    expect(await listVaultKeyVersions()).toEqual([]);
+  });
+
+  it("unlinkSync also wipes every held vault key version", async () => {
+    await saveVaultKeyVersion(1, await generateVaultKey());
+    await saveVaultKeyVersion(2, await generateVaultKey());
+    await setCurrentVaultKeyVersion(2);
+
+    const repo = {
+      getAppSettings: vi.fn().mockResolvedValue({}),
+      importSnapshot: vi.fn().mockResolvedValue(undefined),
+      clearSyncConflicts: vi.fn().mockResolvedValue(undefined),
+      requeueAllPendingChanges: vi.fn().mockResolvedValue(undefined),
+    } as unknown as FinanceRepository;
+
+    await unlinkSync(repo);
+
+    expect(await loadVaultKeyVersion(1)).toBeNull();
+    expect(await loadVaultKeyVersion(2)).toBeNull();
+    expect(await listVaultKeyVersions()).toEqual([]);
   });
 });

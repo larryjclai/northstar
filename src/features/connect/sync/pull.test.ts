@@ -3,6 +3,7 @@ import { createMemoryFinanceRepositoryForTests } from "../../../data/repositorie
 import type { Account } from "../../../domain/types";
 import { pullAndApply } from "./pull";
 import { pullEnvelopes } from "./client";
+import { loadVaultKeyVersion } from "../crypto/vault";
 
 vi.mock("./client", () => ({
   pullEnvelopes: vi.fn(),
@@ -13,10 +14,16 @@ vi.mock("./client", () => ({
 
 vi.mock("../crypto/vault", () => ({
   loadVaultKey: vi.fn(async () => ({})),
+  // Plan 240: per-version key lookup. Defaults to returning a (fake, truthy)
+  // key for ANY version so pre-existing tests (which never set an explicit
+  // keyVersion, defaulting to 1) keep decrypting exactly as before; version-
+  // specific tests override this per-call with mockImplementation.
+  loadVaultKeyVersion: vi.fn(async () => ({})),
   decryptPayload: vi.fn(async (_key: unknown, payload: string) => JSON.parse(payload)),
 }));
 
 const mockedPullEnvelopes = vi.mocked(pullEnvelopes);
+const mockedLoadVaultKeyVersion = vi.mocked(loadVaultKeyVersion);
 
 async function createAccount(repo: ReturnType<typeof createMemoryFinanceRepositoryForTests>, name: string) {
   await repo.createAccount({
@@ -38,7 +45,7 @@ async function createAccount(repo: ReturnType<typeof createMemoryFinanceReposito
   });
 }
 
-function envelope(payload: Account, deviceId = "device_b") {
+function envelope(payload: Account, deviceId = "device_b", keyVersion = 1) {
   return {
     id: `env_${payload.id}_${payload.revision}`,
     deviceId,
@@ -47,12 +54,19 @@ function envelope(payload: Account, deviceId = "device_b") {
     revision: payload.revision,
     encryptedPayload: JSON.stringify(payload),
     updatedAt: payload.updatedAt,
+    keyVersion,
   };
 }
 
 describe("pullAndApply", () => {
   beforeEach(() => {
     mockedPullEnvelopes.mockReset();
+    mockedLoadVaultKeyVersion.mockReset();
+    // Default: every version resolves to a (fake, truthy) key, matching the
+    // pre-Plan-240 behaviour where every envelope always decrypted. Tests
+    // that need to simulate "this device doesn't hold version N" override
+    // this per-test.
+    mockedLoadVaultKeyVersion.mockImplementation(async () => ({}) as never);
     // getSyncAuthToken → loadDeviceSecret touches the SecretStore, which falls
     // back to localStorage off-device. jsdom has no localStorage, so stub it
     // (empty → no device secret → token falls back to the account secret).
@@ -175,5 +189,95 @@ describe("pullAndApply", () => {
     expect(result.applied).toBe(1);
     expect(await repo.listSyncConflicts()).toHaveLength(0);
     expect(await repo.getSyncPayload("account", account.id)).toMatchObject({ name: "遠端錢包" });
+  });
+
+  // ---------------------------------------------------------------------
+  // Plan 240 — key-version selection + differentiated skip reasons
+  // ---------------------------------------------------------------------
+
+  it("selects the matching locally-held key version per envelope before decrypting", async () => {
+    const repo = createMemoryFinanceRepositoryForTests();
+    await createAccount(repo, "錢包");
+    const [account] = await repo.listAccounts();
+    const incoming = { ...account, name: "v2 錢包", revision: account.revision + 1, updatedAt: "2099-01-02T00:00:00.000Z" };
+    // This device holds version 2 (not just the default version 1).
+    mockedLoadVaultKeyVersion.mockImplementation(async (v: number) => (v === 2 ? ({} as never) : null));
+    mockedPullEnvelopes.mockResolvedValue({ envelopes: [envelope(incoming, "device_b", 2)], nextCursor: "10", count: 1 });
+
+    const result = await pullAndApply(repo, { userId: "u", apiSecret: "s" }, "", "device_a");
+
+    expect(mockedLoadVaultKeyVersion).toHaveBeenCalledWith(2);
+    expect(result.applied).toBe(1);
+    expect(result.skipped).toBe(0);
+    expect(await repo.getSyncPayload("account", account.id)).toMatchObject({ name: "v2 錢包" });
+  });
+
+  it("an envelope stamped with a key version this device does not hold is skipped with reason unknown-key-version, distinct from a corrupt payload", async () => {
+    const repo = createMemoryFinanceRepositoryForTests();
+    await createAccount(repo, "錢包");
+    await createAccount(repo, "備用金");
+    const [first, second] = await repo.listAccounts();
+    // Envelope A: stamped version 5, which this device has never held (a
+    // rotation it hasn't picked up yet — NOT corruption).
+    mockedLoadVaultKeyVersion.mockImplementation(async (v: number) => (v === 1 ? ({} as never) : null));
+    const futureVersion = envelope({ ...first, revision: first.revision + 1, updatedAt: "2099-01-01T00:00:00.000Z" }, "device_b", 5);
+    // Envelope B: version 1 (a key this device DOES hold), but the ciphertext
+    // itself is malformed — genuine corruption.
+    const corrupt = { ...envelope(second, "device_b", 1), id: "env_corrupt", encryptedPayload: "{not-json" };
+    mockedPullEnvelopes.mockResolvedValue({ envelopes: [futureVersion, corrupt], nextCursor: "11", count: 2 });
+
+    const result = await pullAndApply(repo, { userId: "u", apiSecret: "s" }, "", "device_a");
+
+    expect(result.skipped).toBe(2);
+    expect(result.skippedDetails).toHaveLength(2);
+    const details = result.skippedDetails!;
+    const reasons = details.map((d) => d.reason).sort();
+    expect(reasons).toEqual(["decrypt-failed", "unknown-key-version"]);
+    // The two reasons must be genuinely distinguishable, not just labels —
+    // confirm which envelope got which.
+    const byEntityId = new Map(details.map((d) => [d.entityId, d.reason]));
+    expect(byEntityId.get(first.id)).toBe("unknown-key-version");
+    expect(byEntityId.get(second.id)).toBe("decrypt-failed");
+  });
+
+  it("loads each distinct key version referenced in a page only once, not once per envelope", async () => {
+    const repo = createMemoryFinanceRepositoryForTests();
+    await createAccount(repo, "A");
+    await createAccount(repo, "B");
+    await createAccount(repo, "C");
+    const [a, b, c] = await repo.listAccounts();
+    const bump = (acc: Account, name: string) => ({ ...acc, name, revision: acc.revision + 1, updatedAt: "2099-01-03T00:00:00.000Z" });
+    mockedPullEnvelopes.mockResolvedValue({
+      envelopes: [
+        envelope(bump(a, "A2"), "device_b", 1),
+        envelope(bump(b, "B2"), "device_b", 1),
+        envelope(bump(c, "C2"), "device_b", 1),
+      ],
+      nextCursor: "12",
+      count: 3,
+    });
+
+    const result = await pullAndApply(repo, { userId: "u", apiSecret: "s" }, "", "device_a");
+
+    expect(result.applied).toBe(3);
+    // Three envelopes, all version 1 → exactly one loadVaultKeyVersion(1) call.
+    expect(mockedLoadVaultKeyVersion).toHaveBeenCalledTimes(1);
+    expect(mockedLoadVaultKeyVersion).toHaveBeenCalledWith(1);
+  });
+
+  it("a pre-upgrade envelope with no keyVersion field at all defaults to version 1", async () => {
+    const repo = createMemoryFinanceRepositoryForTests();
+    await createAccount(repo, "錢包");
+    const [account] = await repo.listAccounts();
+    const incoming = { ...account, name: "舊格式", revision: account.revision + 1, updatedAt: "2099-01-04T00:00:00.000Z" };
+    const legacyEnvelope = envelope(incoming) as Record<string, unknown>;
+    delete legacyEnvelope.keyVersion; // simulate a relay row from before this column existed on the wire
+    mockedPullEnvelopes.mockResolvedValue({ envelopes: [legacyEnvelope as never], nextCursor: "13", count: 1 });
+
+    const result = await pullAndApply(repo, { userId: "u", apiSecret: "s" }, "", "device_a");
+
+    expect(mockedLoadVaultKeyVersion).toHaveBeenCalledWith(1);
+    expect(result.applied).toBe(1);
+    expect(result.skipped).toBe(0);
   });
 });

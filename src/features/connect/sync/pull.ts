@@ -11,17 +11,62 @@
 
 import type { SyncFields } from "../../../domain/types";
 import type { SyncApplyChange, SyncConflictRecord, SyncEntity } from "../../../domain/sync";
-import { loadVaultKey, decryptPayload } from "../crypto/vault";
+import { loadVaultKey, loadVaultKeyVersion, decryptPayload } from "../crypto/vault";
 import { pullEnvelopes, type EnvelopeRecord } from "./client";
 import { getSyncAuthToken, type SyncAccount } from "./account";
 import type { FinanceRepository } from "../../../data/repositories";
+
+/**
+ * Why an envelope was skipped (Plan 240 §4 — the spike's flagged unknown: the
+ * skip path used to be one undifferentiated bucket). Phase D's UI reads this
+ * to message the two cases differently — this phase only produces the
+ * signal, it does not render anything.
+ *
+ *  - "unknown-key-version": this device does not (yet) hold the vault key
+ *    version this envelope was encrypted under. NOT corruption — it means a
+ *    rotation happened that this device hasn't picked up yet (Phase C's
+ *    fetchKeyEnvelopes polling); it resolves itself once the device syncs
+ *    again after receiving that key, no action needed here.
+ *  - "decrypt-failed": this device DOES hold the matching key version, but
+ *    decryption still threw (bad IV, truncated ciphertext, wrong key somehow)
+ *    — genuinely malformed/corrupt, will not self-heal by waiting.
+ *  - "invalid-payload": decrypted successfully but the JSON shape failed
+ *    validation (bad entity, missing id/revision/updatedAt, id mismatch).
+ */
+export type SkipReason = "unknown-key-version" | "decrypt-failed" | "invalid-payload";
+
+export interface SkippedEnvelope {
+  entity: string;
+  entityId: string;
+  reason: SkipReason;
+}
 
 export interface SyncPullResult {
   pulled: number;
   applied: number;
   /** Envelopes skipped because they failed to decrypt or validate. */
   skipped: number;
+  /**
+   * Per-envelope skip reasons, same length as `skipped` — see SkipReason.
+   * Typed optional (rather than required) so out-of-scope call sites that
+   * construct a SyncPullResult-shaped mock without it (e.g.
+   * sync-manager.test.ts) keep compiling unchanged; pullAndApply itself
+   * always populates it.
+   */
+  skippedDetails?: SkippedEnvelope[];
   nextCursor: string;
+}
+
+/** Envelope.keyVersion, defensively normalised — never trust the wire fully even though the relay's column is NOT NULL DEFAULT 1. */
+function envelopeKeyVersion(e: EnvelopeRecord): number {
+  return Number.isInteger(e.keyVersion) && e.keyVersion >= 1 ? e.keyVersion : 1;
+}
+
+/** Thrown internally to distinguish "no matching key" from "decrypt threw" inside Promise.allSettled. */
+class UnknownKeyVersionError extends Error {
+  constructor(readonly version: number) {
+    super(`No locally-held vault key for version ${version}`);
+  }
 }
 
 /**
@@ -49,8 +94,23 @@ export async function pullAndApply(
     : result.envelopes.filter((e: EnvelopeRecord) => e.deviceId !== deviceId);
 
   if (foreign.length === 0) {
-    return { pulled: 0, applied: 0, skipped: 0, nextCursor: result.nextCursor };
+    return { pulled: 0, applied: 0, skipped: 0, skippedDetails: [], nextCursor: result.nextCursor };
   }
+
+  // Select the matching vault key VERSION per envelope before decrypting
+  // (Plan 240 §3: "pull reads it and selects the matching locally-held key
+  // before decryptPayload"). Load each distinct version referenced in this
+  // page once (not once per envelope) and cache it; a version this device
+  // doesn't hold resolves to null, which the loop below treats as the
+  // distinct "unknown-key-version" skip reason rather than attempting (and
+  // failing) a decrypt.
+  const versionsInPage = new Set(foreign.map(envelopeKeyVersion));
+  const keyByVersion = new Map<number, CryptoKey | null>();
+  await Promise.all(
+    Array.from(versionsInPage).map(async (v) => {
+      keyByVersion.set(v, await loadVaultKeyVersion(v));
+    }),
+  );
 
   // Decrypt all foreign envelopes in parallel.
   // Use allSettled so a single bad envelope doesn't abort the entire batch.
@@ -62,10 +122,27 @@ export async function pullAndApply(
   // relay_sequence and nothing after). We instead skip the bad envelope, count
   // it, and let the cursor move past it — a later revision of that same record
   // (pushed again) will heal it. See SyncPullResult.skipped.
+  // NOTE: the mapper below MUST be `async` even though it has no other
+  // `await` before the throw — a synchronous throw inside a plain (non-async)
+  // Array.map callback escapes immediately and aborts the WHOLE
+  // Promise.allSettled call (and thus the whole page), which is exactly the
+  // failure mode this function exists to prevent. Wrapping in `async` turns
+  // that throw into a per-element rejection that allSettled correctly
+  // isolates.
   const settled = await Promise.allSettled(
-    foreign.map((e) => decryptPayload(vaultKey, e.encryptedPayload)),
+    foreign.map(async (e) => {
+      const version = envelopeKeyVersion(e);
+      const key = keyByVersion.get(version) ?? null;
+      if (!key) throw new UnknownKeyVersionError(version);
+      return decryptPayload(key, e.encryptedPayload);
+    }),
   );
   const decrypted = settled.map((r) => (r.status === "rejected" ? null : r.value));
+  const decryptSkipReasons: (SkipReason | null)[] = settled.map((r) =>
+    r.status === "rejected"
+      ? (r.reason instanceof UnknownKeyVersionError ? "unknown-key-version" : "decrypt-failed")
+      : null,
+  );
 
   // Prefetch every local record this page might merge against, one batched query
   // per entity, instead of a getSyncPayload SELECT per envelope (an N+1 that made
@@ -88,6 +165,7 @@ export async function pullAndApply(
 
   const changes: SyncApplyChange[] = [];
   const conflicts: SyncConflictRecord[] = [];
+  const skippedDetails: SkippedEnvelope[] = [];
   let applied = 0;
   let skipped = 0;
   for (let i = 0; i < foreign.length; i++) {
@@ -95,14 +173,23 @@ export async function pullAndApply(
     const raw = decrypted[i];
     if (!raw) {
       skipped++;
-      console.warn(
-        `同步：略過無法解密的 envelope ${envelope.entity}/${envelope.entityId}（rev ${envelope.revision}），繼續同步其餘資料。`,
-      );
+      const reason = decryptSkipReasons[i] ?? "decrypt-failed";
+      skippedDetails.push({ entity: envelope.entity, entityId: envelope.entityId, reason });
+      if (reason === "unknown-key-version") {
+        console.warn(
+          `同步：略過 envelope ${envelope.entity}/${envelope.entityId}（rev ${envelope.revision}）— 尚未取得金鑰版本 ${envelopeKeyVersion(envelope)}，下次同步取得金鑰後將自動解決。`,
+        );
+      } else {
+        console.warn(
+          `同步：略過無法解密的 envelope ${envelope.entity}/${envelope.entityId}（rev ${envelope.revision}），繼續同步其餘資料。`,
+        );
+      }
       continue;
     }
     const payload = raw as SyncFields & Record<string, unknown>;
     if (!isValidPayload(envelope, payload)) {
       skipped++;
+      skippedDetails.push({ entity: envelope.entity, entityId: envelope.entityId, reason: "invalid-payload" });
       console.warn(
         `同步：略過格式不符的 envelope ${envelope.entity}/${envelope.entityId}（rev ${envelope.revision}），繼續同步其餘資料。`,
       );
@@ -146,7 +233,7 @@ export async function pullAndApply(
     await repo.applySyncChanges(changes, conflicts);
   }
 
-  return { pulled: foreign.length, applied, skipped, nextCursor: result.nextCursor };
+  return { pulled: foreign.length, applied, skipped, skippedDetails, nextCursor: result.nextCursor };
 }
 
 function shouldApply(existing: Record<string, unknown> | null, incoming: SyncFields) {

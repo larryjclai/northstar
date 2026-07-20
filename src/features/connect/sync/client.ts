@@ -16,6 +16,17 @@ export interface EnvelopeRecord {
   encryptedPayload: string;
   updatedAt: string;
   sequence?: number;
+  /**
+   * Which vault key version encrypted this envelope (Plan 240, rotation
+   * phase B — see docs/vault-key-rotation-plan.md §2). Stamped by push.ts on
+   * every push; read by pull.ts to select the matching locally-held key
+   * before decrypting. The relay column defaults to 1 (every envelope pushed
+   * before rotation shipped was, by construction, encrypted under the one
+   * key version that has ever existed), so this is always present on
+   * anything the relay returns — but pull.ts still treats a missing/invalid
+   * value defensively as version 1 rather than trusting the wire.
+   */
+  keyVersion: number;
 }
 
 export interface DeviceRecord {

@@ -4,8 +4,16 @@ import {
   parseKitCode,
   generateRecoveryKit,
   restoreFromRecoveryKit,
+  isRecoveryKitStale,
 } from "./recovery-kit";
-import { generateVaultKey, exportVaultKey, saveVaultKey, loadVaultKey } from "./vault";
+import {
+  generateVaultKey,
+  exportVaultKey,
+  saveVaultKey,
+  loadVaultKey,
+  saveVaultKeyVersion,
+  setCurrentVaultKeyVersion,
+} from "./vault";
 
 beforeAll(() => {
   if (typeof globalThis.localStorage === "undefined") {
@@ -70,5 +78,44 @@ describe("recovery kit crypto", () => {
     // 32 lowercase hex chars — right characters but wrong length (half of 64)
     const shortHex = "aabbccdd".repeat(4); // 32 chars
     await expect(restoreFromRecoveryKit(shortHex)).rejects.toThrow();
+  });
+
+  // -------------------------------------------------------------------
+  // Plan 240 — Recovery Kit staleness signal (spike §3 step 9)
+  // -------------------------------------------------------------------
+
+  it("isRecoveryKitStale is false when no kit has ever been generated (that's the separate confirm-first gate)", async () => {
+    expect(await isRecoveryKitStale()).toBe(false);
+  });
+
+  it("isRecoveryKitStale is false right after generating a kit at the current version", async () => {
+    await saveVaultKey(await generateVaultKey());
+    await generateRecoveryKit();
+    expect(await isRecoveryKitStale()).toBe(false);
+  });
+
+  it("isRecoveryKitStale becomes true once the current version advances past what the kit encodes", async () => {
+    await saveVaultKeyVersion(1, await generateVaultKey());
+    await generateRecoveryKit(); // encodes version 1
+    expect(await isRecoveryKitStale()).toBe(false);
+
+    // Simulate a rotation: a new version is saved and becomes current — the
+    // kit generated above still only encodes version 1.
+    await saveVaultKeyVersion(2, await generateVaultKey());
+    await setCurrentVaultKeyVersion(2);
+
+    expect(await isRecoveryKitStale()).toBe(true);
+  });
+
+  it("restoreFromRecoveryKit records the version restored to, so staleness is accurate immediately after recovery", async () => {
+    await saveVaultKeyVersion(1, await generateVaultKey());
+    const code = await generateRecoveryKit();
+    localStorage.clear(); // simulate all devices lost
+
+    await restoreFromRecoveryKit(code);
+
+    // Fresh device, current version defaults to 1, kit was just (re)confirmed
+    // at that same version → not stale.
+    expect(await isRecoveryKitStale()).toBe(false);
   });
 });
