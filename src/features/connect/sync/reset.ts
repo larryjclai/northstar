@@ -24,6 +24,12 @@ import type { FinanceRepository } from "../../../data/repositories";
 import { clearAllData } from "../../../data/demoData";
 import { SECRET_KEYS, getSecretStore } from "../crypto/secretStore";
 import { clearRecoveryKitStatus } from "../crypto/recovery-kit";
+import {
+  listVaultKeyVersions,
+  vaultKeySlot,
+  VAULT_KEY_CURRENT_VERSION_KEY,
+  VAULT_KEY_VERSIONS_INDEX_KEY,
+} from "../crypto/vault";
 
 const DEVICE_KEY = "northstar.device.v1";
 const ACCOUNT_KEY = "northstar.sync.account.v1";
@@ -33,11 +39,25 @@ async function clearSyncIdentity(repo: FinanceRepository): Promise<void> {
   // Local sync conflicts.
   await repo.clearSyncConflicts();
 
+  const store = await getSecretStore();
+
+  // Vault key: EVERY version this device has ever held (Plan 240), not just
+  // the single `v1` entry SECRET_KEYS lists. This is a deliberate "wipe this
+  // device and start over" action — distinct from (and not a violation of)
+  // the "never delete a key version" invariant rotation depends on, which is
+  // about NOT silently discarding history while a device remains an active
+  // participant in sync. Read the version list BEFORE removing anything.
+  const versions = await listVaultKeyVersions();
+  for (const version of versions) {
+    try { await store.remove(vaultKeySlot(version)); } catch { /* ignore backend errors */ }
+  }
+  try { await store.remove(VAULT_KEY_CURRENT_VERSION_KEY); } catch { /* ignore backend errors */ }
+  try { await store.remove(VAULT_KEY_VERSIONS_INDEX_KEY); } catch { /* ignore backend errors */ }
+
   // Secrets: wipe every SECRET_KEYS entry from the SecretStore (Stronghold on
   // device — the authoritative store — or the localStorage fallback in web/tests).
   // Iterate SECRET_KEYS so any key added later (e.g. the device credential) is
   // cleared automatically.
-  const store = await getSecretStore();
   for (const key of SECRET_KEYS) {
     try { await store.remove(key); } catch { /* ignore backend errors */ }
   }
@@ -45,8 +65,18 @@ async function clearSyncIdentity(repo: FinanceRepository): Promise<void> {
   // All sync-related localStorage keys (identity, cursors, account, secrets).
   // The SECRET_KEYS localStorage copies are cleared here too: harmless on device
   // (already gone from Stronghold above) and required for the pure-web backend
-  // plus the retained migration copies.
-  const keys = [DEVICE_KEY, ACCOUNT_KEY, ...SECRET_KEYS];
+  // plus the retained migration copies. Versioned vault-key slots are included
+  // too — in the pure-web backend they live directly in localStorage, not just
+  // Stronghold.
+  const versionSlotKeys = versions.map(vaultKeySlot);
+  const keys = [
+    DEVICE_KEY,
+    ACCOUNT_KEY,
+    VAULT_KEY_CURRENT_VERSION_KEY,
+    VAULT_KEY_VERSIONS_INDEX_KEY,
+    ...versionSlotKeys,
+    ...SECRET_KEYS,
+  ];
   for (const key of keys) {
     try { localStorage.removeItem(key); } catch { /* ignore quota/private mode */ }
   }

@@ -1,0 +1,22 @@
+-- Rotation Phase B: envelope key-version stamp (Plan 240).
+--
+-- Closes spike gap 4 (docs/vault-key-rotation-plan.md §2, "Orphaned / missing
+-- primitives" #4): an envelope's ciphertext previously carried no signal
+-- about which vault key version encrypted it. Without this, a post-rotation
+-- pull cannot tell "wrong key version, resolves after this device's next key
+-- pickup" apart from "genuinely corrupt" — see pull.ts's differentiated skip
+-- reasons (unknown-key-version vs decrypt-failed vs invalid-payload).
+--
+-- DEFAULT 1 is correct for every existing row without a backfill migration:
+-- every envelope ever pushed before this ships was, by construction,
+-- encrypted under version 1 -- the only vault key version that has ever
+-- existed (rotation Phase C, which mints version 2+, is not built yet).
+--
+-- Scope note: this migration deliberately does NOT touch devices.public_key
+-- or key_version_counters (Phase A, 0008/0009 already shipped those) — it
+-- only adds the one column plan 239's own scope section deferred to this
+-- phase.
+--
+-- Additive only, matching every migration in this directory to date (0001
+-- through 0009 have never altered or dropped a column).
+ALTER TABLE sync_envelopes ADD COLUMN key_version INTEGER NOT NULL DEFAULT 1;

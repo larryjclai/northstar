@@ -7,6 +7,10 @@ import type { SyncEntity } from "../../../domain/sync";
 vi.mock("./client", () => ({ pullEnvelopes: vi.fn(), provisionDeviceCredential: vi.fn() }));
 vi.mock("../crypto/vault", () => ({
   loadVaultKey: vi.fn(async () => ({})),
+  // Plan 240: per-version key lookup — envelopes in this file never set an
+  // explicit keyVersion, so they default to version 1; return a truthy fake
+  // key for any version so decryption proceeds exactly as before.
+  loadVaultKeyVersion: vi.fn(async () => ({})),
   decryptPayload: vi.fn(async (_k: unknown, p: string) => JSON.parse(p)),
 }));
 const mockedPull = vi.mocked(pullEnvelopes);

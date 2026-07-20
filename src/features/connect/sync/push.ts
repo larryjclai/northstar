@@ -4,7 +4,7 @@
 
 import type { FinanceRepository } from "../../../data/repositories";
 import { getOrCreateDeviceIdentity, setLocalPushCursor } from "../../../state/deviceIdentity";
-import { loadVaultKey, encryptPayload } from "../crypto/vault";
+import { loadVaultKey, encryptPayload, getCurrentVaultKeyVersion } from "../crypto/vault";
 import { pushEnvelopes, type EnvelopeRecord } from "./client";
 import { getSyncAuthToken, type SyncAccount } from "./account";
 
@@ -25,6 +25,11 @@ export async function pushPendingChanges(
 ): Promise<PushResult> {
   const vaultKey = await loadVaultKey();
   if (!vaultKey) throw new Error("Vault key not initialised. Complete sync setup first.");
+  // Stamp the CURRENT vault key version on every envelope pushed in this call
+  // (Plan 240 §2/§3: push always stamps the version it just used to encrypt —
+  // read once per call, since a single push batch is always encrypted under
+  // one consistent key).
+  const keyVersion = await getCurrentVaultKeyVersion();
 
   const device = getOrCreateDeviceIdentity();
   const changeSet = await repo.collectPendingChanges(device.localPushCursor);
@@ -60,6 +65,7 @@ export async function pushPendingChanges(
           revision: change.revision,
           encryptedPayload: await encryptPayload(vaultKey, payload),
           updatedAt: change.updatedAt,
+          keyVersion,
         };
       }),
     );

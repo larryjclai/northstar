@@ -46,7 +46,24 @@ export const SECRET_KEYS = [
   "northstar.device.secret.v1",
 ] as const;
 
-export type SecretKey = (typeof SECRET_KEYS)[number];
+// Widened from a closed literal union (Plan 240, rotation phase B — see
+// docs/vault-key-rotation-plan.md §2). Versioned vault-key slots
+// (`northstar.vault.key.v{n}` for n > 1, plus the "current version" pointer
+// and version index — see vault.ts) are dynamic key names that cannot be
+// enumerated as a closed set of string literals, so the TYPE widens to
+// `string` to admit them; the SecretStore interface below already accepted
+// arbitrary string keys, so this is a type-only change.
+//
+// SECRET_KEYS itself (the const array above) deliberately stays the
+// original, unchanged four entries: it backs ONLY migrateLocalStorageSecrets
+// below, the one-time pre-Stronghold localStorage→SecretStore cutover, which
+// can never encounter a versioned slot — vault-key versioning shipped long
+// after the Stronghold cutover, so no install's plaintext localStorage ever
+// held "northstar.vault.key.v2". Enumerating every version a device
+// currently holds (for the full-device wipe in sync/reset.ts) is handled
+// separately by vault.ts's listVaultKeyVersions(), since that set is
+// discovered at runtime, not known statically here.
+export type SecretKey = string;
 
 // ---------------------------------------------------------------------------
 // SecretStore interface

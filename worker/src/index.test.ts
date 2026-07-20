@@ -320,6 +320,66 @@ describe("envelopes push + cursor pull", () => {
   });
 });
 
+// ---- envelope key_version stamp (Plan 240, rotation phase B) --------------
+
+describe("envelope key_version stamp (Plan 240)", () => {
+  async function push(acct: Account, envelopes: unknown[]) {
+    return call("/envelopes", {
+      method: "POST",
+      headers: bearer(acct.apiSecret),
+      body: JSON.stringify({ envelopes }),
+    });
+  }
+  async function pull(acct: Account, cursor = 0) {
+    const res = await call(`/envelopes?cursor=${cursor}`, { headers: bearer(acct.apiSecret) });
+    return res.json<{ envelopes: Array<Record<string, unknown>>; nextCursor: string; count: number }>();
+  }
+
+  it("has the Plan 240 sync_envelopes.key_version column", async () => {
+    const info = await env.DB.prepare("PRAGMA table_info(sync_envelopes)").all<{ name: string }>();
+    expect(info.results.map((c: { name: string }) => c.name)).toContain("key_version");
+  });
+
+  it("persists a client-supplied keyVersion and returns it on pull", async () => {
+    const acct = await register();
+    await push(acct, [envelope({ entityId: "acc_v3", keyVersion: 3 })]);
+    const page = await pull(acct, 0);
+    expect(page.envelopes[0].keyVersion).toBe(3);
+  });
+
+  it("defaults keyVersion to 1 when the client omits it entirely", async () => {
+    const acct = await register();
+    const body = envelope({ entityId: "acc_noversion" });
+    delete (body as Record<string, unknown>).keyVersion; // envelope() never sets it, but be explicit
+    await push(acct, [body]);
+    const page = await pull(acct, 0);
+    expect(page.envelopes[0].keyVersion).toBe(1);
+  });
+
+  it("clamps an invalid keyVersion (zero/negative/non-integer) to 1 rather than trusting the wire", async () => {
+    const acct = await register();
+    await push(acct, [
+      envelope({ entityId: "acc_zero", keyVersion: 0 }),
+      envelope({ entityId: "acc_negative", keyVersion: -5 }),
+      envelope({ entityId: "acc_float", keyVersion: 1.5 }),
+    ]);
+    const page = await pull(acct, 0);
+    for (const e of page.envelopes) expect(e.keyVersion).toBe(1);
+  });
+
+  it("different envelopes in the same push batch keep independent keyVersion stamps", async () => {
+    const acct = await register();
+    await push(acct, [
+      envelope({ entityId: "acc_a", keyVersion: 1 }),
+      envelope({ entityId: "acc_b", keyVersion: 2 }),
+    ]);
+    const page = await pull(acct, 0);
+    const byEntity = new Map(page.envelopes.map((e) => [e.entityId, e.keyVersion]));
+    expect(byEntity.get("acc_a")).toBe(1);
+    expect(byEntity.get("acc_b")).toBe(2);
+  });
+});
+
 // ---- per-user relay sequence (Plan 133 item A) -----------------------------
 
 describe("per-user relay sequence (Plan 133 item A)", () => {

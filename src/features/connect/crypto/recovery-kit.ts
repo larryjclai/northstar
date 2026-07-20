@@ -8,13 +8,20 @@
 // If all trusted devices are lost, entering this code restores the vault key
 // and allows the user to pair a new device or decrypt local backups.
 
-import { exportVaultKey, importVaultKey, loadVaultKey, saveVaultKey } from "./vault";
+import { exportVaultKey, importVaultKey, loadVaultKey, saveVaultKey, getCurrentVaultKeyVersion } from "./vault";
 
 const STATUS_KEY = "northstar.recovery.status.v1";
 
 export interface LocalRecoveryKitStatus {
   createdAt: string;
   confirmedAt: string | null;
+  /**
+   * Vault key version this kit encodes (Plan 240, rotation phase B — see
+   * docs/vault-key-rotation-plan.md §3 step 9). Absent on a kit generated
+   * before this field existed — treated as version 1, the only version that
+   * has ever existed pre-rotation, which is exactly correct for those kits.
+   */
+  keyVersion?: number;
 }
 
 export function loadLocalRecoveryKitStatus(): LocalRecoveryKitStatus | null {
@@ -46,12 +53,32 @@ export function parseKitCode(input: string): string {
 export async function generateRecoveryKit(): Promise<string> {
   const vaultKey = await loadVaultKey();
   if (!vaultKey) throw new Error("Vault key not initialised.");
+  const keyVersion = await getCurrentVaultKeyVersion();
   const b64 = await exportVaultKey(vaultKey);
   const raw = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
   const hex = Array.from(raw).map((b) => b.toString(16).padStart(2, "0")).join("");
   const code = formatKitCode(hex);
-  saveLocalRecoveryKitStatus({ createdAt: new Date().toISOString(), confirmedAt: null });
+  saveLocalRecoveryKitStatus({ createdAt: new Date().toISOString(), confirmedAt: null, keyVersion });
   return code;
+}
+
+/**
+ * True once the currently active vault key version has moved past what the
+ * last-generated Recovery Kit encodes — i.e. a rotation happened since the
+ * kit was made, so restoring from it today would reinstate a STALE
+ * pre-rotation key and silently desync the recovering device from every
+ * post-rotation push (spike §3 step 9). Phase D renders the "regenerate your
+ * Recovery Kit" prompt off this signal; this phase only computes it.
+ *
+ * False when no kit has ever been generated — that is the separate "please
+ * confirm a Recovery Kit first" gate (isRecoveryKitConfirmed), not staleness.
+ */
+export async function isRecoveryKitStale(): Promise<boolean> {
+  const status = loadLocalRecoveryKitStatus();
+  if (!status) return false;
+  const kitVersion = status.keyVersion ?? 1;
+  const currentVersion = await getCurrentVaultKeyVersion();
+  return currentVersion > kitVersion;
 }
 
 /** Clear the local "recovery kit confirmed" flag (used by full device reset). */
@@ -90,7 +117,8 @@ export async function restoreFromRecoveryKit(input: string): Promise<void> {
   const b64 = btoa(String.fromCharCode(...raw));
   const key = await importVaultKey(b64);
   await saveVaultKey(key);
-  saveLocalRecoveryKitStatus({ createdAt: new Date().toISOString(), confirmedAt: new Date().toISOString() });
+  const keyVersion = await getCurrentVaultKeyVersion();
+  saveLocalRecoveryKitStatus({ createdAt: new Date().toISOString(), confirmedAt: new Date().toISOString(), keyVersion });
 }
 
 /** Download the Recovery Kit as a .txt file. */
