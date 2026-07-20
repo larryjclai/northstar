@@ -44,7 +44,7 @@ import {
   startJoinSession, completeJoin, inspectJoinRequest, approveJoiningDevice,
   type JoinSession, type PendingJoinApproval,
 } from "../../features/connect/sync/pairing-flow";
-import { rotateVaultKey } from "../../features/connect/sync/rotation";
+import { rotateVaultKey, type RotationFailure } from "../../features/connect/sync/rotation";
 import { runSync, forceFullResync, forceFullRepush } from "../../features/connect/sync/sync-manager";
 import { clearLocalSyncState, unlinkSync } from "../../features/connect/sync/reset";
 import { summarizeConflict } from "../../features/connect/sync/conflictSummary";
@@ -54,8 +54,9 @@ import { updateFailureMessage } from "../../features/updater/errors";
 import { useSyncStatus } from "../../state/syncStatus";
 import {
   generateRecoveryKit, confirmRecoveryKit, downloadRecoveryKit,
-  restoreFromRecoveryKit, loadLocalRecoveryKitStatus, type LocalRecoveryKitStatus,
+  restoreFromRecoveryKit, loadLocalRecoveryKitStatus, isRecoveryKitStale, type LocalRecoveryKitStatus,
 } from "../../features/connect/crypto/recovery-kit";
+import type { SkippedEnvelope } from "../../features/connect/sync/pull";
 
 function getDevicePlatform(): string {
   const ua = navigator.userAgent;
@@ -118,6 +119,13 @@ export function ConnectStatus() {
   const [kitStatus, setKitStatus] = useState<LocalRecoveryKitStatus | null>(() => loadLocalRecoveryKitStatus());
   const [kitCode, setKitCode] = useState<string | null>(null);
   const [kitLoading, setKitLoading] = useState(false);
+  // True once the vault key has been rotated past what the last-generated
+  // Recovery Kit encodes — restoring from a stale kit would reinstate the OLD
+  // key and desync the recovering device (Plan 242 step 3 — see
+  // isRecoveryKitStale's docstring). Recomputed whenever the kit status
+  // changes and after any rotation this device observes (auto-fire on
+  // revoke, manual retry, or picking up a rotation during an ordinary sync).
+  const [kitStale, setKitStale] = useState(false);
 
   // Recovery Kit restore (all-devices-lost path): enter the saved code to
   // bring the original vault key back onto this device.
@@ -253,6 +261,17 @@ export function ConnectStatus() {
     if (!account) return;
     listDevices(account.apiSecret).then(setDevices).catch(() => {});
   }, [account]);
+
+  // Recovery-Kit staleness (Plan 242 step 3): re-derive whenever the kit
+  // itself changes (generated/confirmed) — catches the version it was
+  // stamped with moving relative to whatever the vault key's current version
+  // is right now.
+  useEffect(() => {
+    if (!account) { setKitStale(false); return; }
+    let active = true;
+    isRecoveryKitStale().then((stale) => { if (active) setKitStale(stale); }).catch(() => {});
+    return () => { active = false; };
+  }, [account, kitStatus]);
 
   // Countdown timer for pairing session
   useEffect(() => {
@@ -412,6 +431,49 @@ export function ConnectStatus() {
     setJoinError(null);
   }
 
+  // Names an unreached device for the partial-failure toast, falling back to
+  // a truncated id if it's fallen out of the currently-loaded device list.
+  function describeDevice(deviceId: string): string {
+    return devices.find((d) => d.id === deviceId)?.name ?? deviceId.slice(0, 8) + "…";
+  }
+
+  // Plan 242 step 2: names which devices did NOT receive the rotated key and
+  // offers a re-run — rotateVaultKey() is idempotent/safe to retry (plan 241).
+  // Copy per docs/vault-key-rotation-plan.md §4's plain, non-alarming framing.
+  function showRotationPartialFailureToast(failed: RotationFailure[]) {
+    const names = failed.map((f) => describeDevice(f.deviceId));
+    toast.error(
+      `已更新金鑰,但有 ${failed.length} 台裝置尚未收到,它們下次同步前無法讀取新資料。可重新執行。`,
+      {
+        description: `尚未收到新金鑰的裝置：${names.join("、")}`,
+        action: { label: "重新執行輪替", onClick: () => void handleRetryRotation() },
+      },
+    );
+  }
+
+  // Re-run rotation after a partial failure or an outright error. Safe to
+  // call with no excludeDeviceId — the originally-revoked device is already
+  // gone from GET /devices by the time any retry can run (hard-delete on
+  // revoke), so there is nothing left to defensively exclude.
+  async function handleRetryRotation() {
+    if (!account) return;
+    try {
+      const result = await rotateVaultKey(account);
+      if (result.reason === "partial-failure") {
+        console.error("[connect] vault key rotation partially failed (retry):", result.failed);
+        showRotationPartialFailureToast(result.failed);
+      } else if (result.rotated) {
+        toast.success("加密金鑰輪替已完成。");
+        setKitStale(await isRecoveryKitStale());
+      }
+    } catch (e) {
+      console.error("[connect] vault key rotation retry failed:", e);
+      toast.error("加密金鑰輪替重試失敗，請稍後再試。", {
+        action: { label: "重新執行輪替", onClick: () => void handleRetryRotation() },
+      });
+    }
+  }
+
   // ── Revoke device ──
   async function handleRevoke(deviceId: string) {
     if (!account) return;
@@ -419,7 +481,15 @@ export function ConnectStatus() {
       await revokeDevice(account.apiSecret, deviceId);
       setDevices(d => d.filter(dev => dev.id !== deviceId));
       setConfirmRevokeId(null);
-      toast.success("裝置已移除");
+      // Honest threat-model framing (docs/vault-key-rotation-plan.md §1
+      // "Bottom line, stated plainly"), shown on every revocation regardless
+      // of rotation's technical outcome below: rotation is a going-forward
+      // containment measure, NOT data erasure or a remote wipe. Removing a
+      // device stops it receiving NEW data; it does not retroactively touch
+      // data that device already synced.
+      toast.success("裝置已移除", {
+        description: "移除裝置後,它收不到新的資料;但它先前已同步的資料仍留在該裝置上。",
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : typeof e === "string" ? e : "移除失敗";
       console.error("[connect] revoke device failed:", e);
@@ -437,11 +507,18 @@ export function ConnectStatus() {
       const result = await rotateVaultKey(account, deviceId);
       if (result.reason === "partial-failure") {
         console.error("[connect] vault key rotation partially failed:", result.failed);
-        toast.error("裝置已移除，但加密金鑰輪替未完全成功，請稍後重試（設定 → Connect）。");
+        showRotationPartialFailureToast(result.failed);
+      } else if (result.rotated) {
+        // Plan 242 step 3: the just-generated Recovery Kit now stales the
+        // moment rotation succeeds — refresh the signal so the prompt to
+        // regenerate appears without requiring the user to reopen the panel.
+        setKitStale(await isRecoveryKitStale());
       }
     } catch (e) {
       console.error("[connect] vault key rotation failed:", e);
-      toast.error("裝置已移除，但加密金鑰輪替失敗，請稍後重試（設定 → Connect）。");
+      toast.error("裝置已移除，但加密金鑰輪替失敗，請稍後重試。", {
+        action: { label: "重新執行輪替", onClick: () => void handleRetryRotation() },
+      });
     }
   }
 
@@ -472,6 +549,32 @@ export function ConnectStatus() {
     toast.success("備援碼已確認儲存");
   }
 
+  // Plan 242 step 5: message Phase B's differentiated skip reasons
+  // separately — "unknown-key-version" is NOT corruption (this device just
+  // hasn't picked up a rotated key yet; it self-heals on its next sync once
+  // pickUpRotatedVaultKey lands it, see pull.ts's SkipReason docstring) and
+  // must read calmer than a genuine "decrypt-failed"/"invalid-payload"
+  // warning, which will NOT self-heal by waiting.
+  function summarizeSkips(total: number, details: SkippedEnvelope[] | undefined) {
+    const unknownKeyVersion = (details ?? []).filter((d) => d.reason === "unknown-key-version").length;
+    const genuine = total - unknownKeyVersion;
+    return { unknownKeyVersion, genuine };
+  }
+
+  function showSkippedEnvelopesToast(total: number, details: SkippedEnvelope[] | undefined) {
+    const { unknownKeyVersion, genuine } = summarizeSkips(total, details);
+    if (genuine === 0) {
+      // Every skip is benign — a rotation this device hasn't picked up yet.
+      toast.info(`同步完成，${unknownKeyVersion} 筆資料因尚未取得新金鑰版本而略過（等下次同步取得新金鑰後即可讀取，無需處理）。`);
+      return;
+    }
+    const genuineNote = `有 ${genuine} 筆資料無法解密／格式不符而略過`;
+    const combinedNote = unknownKeyVersion > 0
+      ? `${genuineNote}；另有 ${unknownKeyVersion} 筆是尚未取得新金鑰版本而略過（等下次同步取得新金鑰後即可讀取，無需處理）`
+      : genuineNote;
+    toast.error(`同步完成，但${combinedNote}。若資料仍不完整，請試「完整重新下載」。`);
+  }
+
   // ── Manual sync ──
   async function handleManualSync() {
     if (syncStatus.phase === "pushing" || syncStatus.phase === "pulling") return;
@@ -490,8 +593,13 @@ export function ConnectStatus() {
       const result = await runSync(repo);
       syncStatus.setSyncDone(result.pushed, result.pulled, result.applied);
       await queryClient.invalidateQueries();
+      // A sync can also be how this device picks up a rotation another
+      // device initiated (pickUpRotatedVaultKey runs inside runSync) — the
+      // Recovery Kit staleness signal needs to catch that path too, not
+      // only rotations this device itself initiates via handleRevoke.
+      setKitStale(await isRecoveryKitStale());
       if (result.skipped > 0) {
-        toast.error(`同步完成，但有 ${result.skipped} 筆資料無法解密／格式不符而略過。若資料仍不完整，請試「完整重新下載」。`);
+        showSkippedEnvelopesToast(result.skipped, result.skippedDetails);
       }
     } catch (e) {
       // Tauri plugin errors can be plain strings, not Error instances
@@ -514,11 +622,18 @@ export function ConnectStatus() {
       const result = await forceFullResync(repo);
       syncStatus.setSyncDone(result.pushed, result.pulled, result.applied);
       await queryClient.invalidateQueries();
+      setKitStale(await isRecoveryKitStale());
       if (result.applied > 0) {
-        toast.success(
-          `已從伺服器完整重新下載，套用 ${result.applied} 筆` +
-            (result.skipped > 0 ? `（略過 ${result.skipped} 筆無法解密／格式不符）` : ""),
-        );
+        let skipNote = "";
+        if (result.skipped > 0) {
+          const { unknownKeyVersion, genuine } = summarizeSkips(result.skipped, result.skippedDetails);
+          const parts = [
+            genuine > 0 ? `${genuine} 筆無法解密／格式不符` : null,
+            unknownKeyVersion > 0 ? `${unknownKeyVersion} 筆尚未取得新金鑰版本（下次同步自動解決）` : null,
+          ].filter((p): p is string => p !== null);
+          skipNote = `（略過 ${result.skipped} 筆：${parts.join("、")}）`;
+        }
+        toast.success(`已從伺服器完整重新下載，套用 ${result.applied} 筆${skipNote}`);
       } else if (result.reason === "empty-relay") {
         toast.error("伺服器沒有可下載的資料。請確認這台裝置已配對到正確的同步帳號（設定 → 新增裝置 / 我有配對碼）。");
       } else {
@@ -1004,17 +1119,37 @@ export function ConnectStatus() {
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-2">
             <div className="text-body font-semibold">備援碼</div>
-            {kitStatus?.confirmedAt
-              ? <Badge variant="outline" className="rounded-full text-micro" style={{background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}>已儲存</Badge>
-              : <Badge variant="outline" className="rounded-full text-micro" style={{background: "var(--ns-warn-soft, #fef3c7)", color: "var(--ns-warn, #b45309)" }}>尚未設定</Badge>
+            {kitStale
+              ? <Badge variant="outline" className="rounded-full text-micro" style={{background: "var(--ns-warn-soft, #fef3c7)", color: "var(--ns-warn, #b45309)" }}>已過期</Badge>
+              : kitStatus?.confirmedAt
+                ? <Badge variant="outline" className="rounded-full text-micro" style={{background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}>已儲存</Badge>
+                : <Badge variant="outline" className="rounded-full text-micro" style={{background: "var(--ns-warn-soft, #fef3c7)", color: "var(--ns-warn, #b45309)" }}>尚未設定</Badge>
             }
           </div>
           {!kitCode && (
-            <Button variant="ghost" className="text-xs" onClick={handleGenerateKit} disabled={kitLoading}>
+            <Button
+              variant="ghost"
+              className="text-xs"
+              style={kitStale ? { color: "var(--ns-warn, #b45309)" } : undefined}
+              onClick={handleGenerateKit}
+              disabled={kitLoading}
+            >
               <Key size={13} />{kitStatus?.confirmedAt ? "重新產生" : "產生備援碼"}
             </Button>
           )}
         </div>
+        {/* Plan 242 step 3: a rotation happened since this kit was made — it
+            still restores successfully, but to the OLD (now stale) key.
+            Prompt regeneration; never auto-regenerate (the kit is a
+            user-held artifact, per docs/vault-key-rotation-plan.md §3
+            step 9). */}
+        {kitStale && !kitCode && (
+          <div className="text-xs flex items-start gap-2 mb-2.5" style={{ padding: "10px 12px", borderRadius: "var(--ns-r-sm)",
+            background: "var(--ns-warn-soft, var(--ns-bg-hover))", color: "var(--ns-warn, #b45309)" }}>
+            <Warning size={15} weight="fill" className="shrink-0" style={{ marginTop: 1 }} />
+            <span>加密金鑰已輪替，目前儲存的備援碼是輪替前的舊金鑰——用它還原會拿到舊金鑰而非目前使用中的金鑰。建議重新產生並儲存備援碼。</span>
+          </div>
+        )}
         <p className="text-sm muted" style={{ marginBottom: kitCode ? 14 : 0 }}>
           {kitStatus?.confirmedAt
             ? `已於 ${kitStatus.confirmedAt.slice(0, 10)} 儲存。如所有裝置遺失可用此碼還原。`
