@@ -1,5 +1,24 @@
 # Implementation Plans
 
+## 245 — 年度報表列印按鈕被 coarse 假訊號錯藏（`/improve plan` @ `d7818bde`, 2026-07-21）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 245 | `AnnualReportRoute.tsx` 用 `(pointer: coarse) OR (max-width:1023px)`(plan 233 引入)判斷「mobile」以隱藏「列印 / 匯出 PDF」按鈕。同 244 的 WKWebView-coarse 假訊號 → 桌面 Tauri app(窗永遠 ≥1024、列印排版正常)反而**看不到列印按鈕**。修法:改用寬度訊號 `(max-width:1023px)`(側欄隱藏 = mobile layout),桌面顯示、窄視窗隱藏。無現成同步 desktop-vs-iOS 判斷(`isTauri()` 兩者皆 true),故用寬度;精準 iOS 判斷需 async `plugin-os`(範圍外)。單檔改動,無新測試(component 無測試 + jsdom 無 matchMedia,同 233) | P3 | S | — | **TODO** |
+
+**與 244 關係**:同根因、不同檔、**無相依**。兩者都 inline 了 `matchMedia("(max-width: 1023px)")`;
+待兩者都合併後,可另開 cleanup 抽共用 `isMobileLayout()` 作單一「側欄已隱藏」判斷,避免 coarse 假訊號被 copy-paste 復活。
+
+## 244 — 小視窗下交易 Sheet 跑版（`/improve plan` @ `d7818bde`, 2026-07-21）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 244 | 桌面 app 縮到最小視窗時，「新增交易」抽屜左緣被側欄切掉。根因：`ModalShell` 用 `(pointer: coarse) OR (max-width:1023px)` 判斷是否走 bottom-sheet，但 (a) Tauri 桌面窗 `minWidth:1024` → 側欄永遠顯示、`max-width:1023` 永不觸發；(b) macOS/Tauri WKWebView 回報 `pointer: coarse=true`。於是 sheet 在側欄仍在畫面上時啟動，`.ns-sheet-bottom`（`position:fixed; left:0; right:0` 全寬）被 `z-index:1100` 的側欄蓋住左緣。修法：把 sheet 的啟用條件收斂成與側欄互斥的 `(max-width:1023px)`，桌面 fallback 回右靠 drawer（不碰側欄）。只改 `ModalShell.tsx` + 其 test | P2 | S | — | **DONE — reviewed + MERGED** @ merge `2431c321`（fix commit `9a81ba25`）。advisor 獨立複驗全部 done criteria、讀完整 diff、稽核新測試（負向測試確實鎖住「coarse 桌面不啟用 sheet」）。scope 乾淨（僅 2 檔）。`tsc` 0、`ModalShell.test.tsx` 19 passed（17+2）、full suite 1456 passed、lint 0 errors/761 warnings（基線相同）。⚠ 計畫 done-criteria 的 `grep "pointer: coarse" → no matches` 是**過度指定**：新註解文字裡有這串字，程式碼查詢已無此 query——執行者照抄計畫原文並回報，判斷正確，非缺陷（245 已修正此 grep 寫法）。⚠ **最終驗收需真 Tauri 桌面 build**（瀏覽器 fine-pointer 測不出）。 |
+
+**同源但另案**：`AnnualReportRoute.tsx:32` 有同一份 `(pointer: coarse), …` query（plan 233 引入），
+同樣的 WKWebView-coarse 假訊號會讓「列印」按鈕在桌面 Tauri 被錯誤隱藏——症狀不同、tradeoff 不同，
+不在 244 範圍內。若要修，建議抽一個共用 `isMobileLayout()`（單一「側欄已隱藏」判斷）給兩處共用。
+
 ## 243 — 鏡像遺留物清理（alpha.64 發布時發現，`/improve plan` @ `16d5ed7c`, 2026-07-20）
 
 | Plan | Title | Priority | Effort | Depends on | Status |
