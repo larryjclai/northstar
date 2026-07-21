@@ -1,5 +1,19 @@
 # Implementation Plans
 
+## 246–248 — 動畫審計新增機會（`/improve-animations` @ `92a96210`, 2026-07-21）
+
+| Plan | Title | Severity | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 246 | Dashboard 淨值 hero 數字滾動(count-up):新增可重用 `<AnimatedNumber>`(rAF tween 560ms ease-out、可中斷 retarget),hero 換用。snap 條件:首次 mount、resetKey(指標/帳本)切換、reduced-motion、隱私模式、null。registry 已有 `value: number` 只需補 `formatValue` | HIGH | M | — | **TODO** |
+| 247 | FIRE 達成瞬間一次性慶祝(操作者拍板:低調光暈掃過):進度條 accent 高光掃過 600ms + 百分比 scale-pop 1→1.06→1 320ms。只在 in-session false→true 跨越時播,mount 已達成不播,`animationName` 過濾收尾。無 confetti | MEDIUM | S | 建議先做 248 | **TODO** |
+| 248 | 進度條填充動畫統一 token:抽 `.ns-progress-fill`(scaleX + `var(--ns-dur) var(--ns-ease)`),四處換用 —— FireGoalCard(Tailwind 預設 timing drift)、GoalsRoute ×2(完全無動畫且用 width%)、AccountsRoute(hand-typed 0.3s) | LOW | S | — | **TODO** |
+
+**審計脈絡**:全專案 corrective 掃描結果乾淨 —— 零 `ease-in` / `transition: all` / `scale(0)`,
+toast/sheet 可中斷,reduced-motion 全域處理含 view-transition。以下為**刻意決定、勿再報**:
+recharts 全面 `isAnimationActive={false}`(防 hover/filter 重畫 jank,不要反轉);按鈕
+`:active` = `translateY(1px)`(刻意的 no-bounce 質感)。
+**建議執行順序**:248 → 247(shimmer 疊在 248 的結構上)/ 246 獨立可並行。
+
 ## 245 — 年度報表列印按鈕被 coarse 假訊號錯藏（`/improve plan` @ `d7818bde`, 2026-07-21）
 
 | Plan | Title | Priority | Effort | Depends on | Status |
