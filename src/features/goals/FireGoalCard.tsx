@@ -1,6 +1,6 @@
 import { ArrowRight, Confetti, Target } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../../components/Card";
 import { EmptyState } from "../../components/EmptyState";
 import { useFinanceData } from "../../data/hooks";
@@ -30,6 +30,19 @@ export function FireGoalCard() {
     () => goal ? projectRetirement({ goal, currentValue }) : null,
     [goal, currentValue],
   );
+
+  // One-shot celebration when FI is crossed while mounted (plan 247).
+  // Mount-time reachedFi does NOT celebrate — only a false→true transition.
+  // Hooks must stay above the early return below (rules-of-hooks). `null` =
+  // goal/projection not loaded yet: a null→true flip (data arriving for an
+  // already-reached goal) is NOT a crossing and must not celebrate.
+  const reachedFiNow = projection ? currentValue >= projection.targetAtRetirement : null;
+  const prevReachedRef = useRef(reachedFiNow);
+  const [celebrating, setCelebrating] = useState(false);
+  useEffect(() => {
+    if (reachedFiNow === true && prevReachedRef.current === false) setCelebrating(true);
+    prevReachedRef.current = reachedFiNow;
+  }, [reachedFiNow]);
 
   if (!goal || !projection) {
     return (
@@ -87,9 +100,22 @@ export function FireGoalCard() {
       <div className="mt-4">
         <div className="flex items-center justify-between text-xs" style={{ color: "var(--ns-muted)" }}>
           <span>進度</span>
-          <span className="tabular">{progressPct.toFixed(1)}%</span>
+          <span className="tabular ns-goal-pct" data-celebrate={celebrating || undefined}>
+            {progressPct.toFixed(1)}%
+          </span>
         </div>
-        <div className="mt-1 h-2 overflow-hidden rounded-full" style={{ background: "var(--ns-surface-strong)" }}>
+        <div
+          className="mt-1 h-2 overflow-hidden rounded-full ns-goal-track"
+          data-celebrate={celebrating || undefined}
+          onAnimationEnd={(e) => {
+            // Only the longest animation (shimmer, 600ms) ends the celebration.
+            // The pop's animationend (320ms) bubbles up here too — clearing state
+            // on it would unmatch the [data-celebrate] selector and cut the
+            // shimmer off mid-sweep.
+            if (e.animationName === "ns-goal-shimmer") setCelebrating(false);
+          }}
+          style={{ background: "var(--ns-surface-strong)" }}
+        >
           <div
             className="h-full transition-[transform]"
             style={{

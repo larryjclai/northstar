@@ -486,6 +486,37 @@
 }
 main[data-privacy-anim] { animation: ns-privacy-in 160ms var(--ns-ease); }
 
+/* ── FIRE reached celebration (plan 247) ── */
+/* One-shot shimmer sweep across the progress fill + a subtle pop on the
+   percentage. Driven by data-celebrate, removed onAnimationEnd. Decorative:
+   the global reduced-motion kill (see @media block) zeroes it out. */
+@keyframes ns-goal-shimmer {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+@keyframes ns-goal-pop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+.ns-goal-track { position: relative; }
+.ns-goal-track[data-celebrate]::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    color-mix(in srgb, var(--ns-accent-fg, #fff) 45%, transparent) 50%,
+    transparent 80%
+  );
+  animation: ns-goal-shimmer 600ms var(--ns-ease-out-strong) 1;
+  pointer-events: none;
+}
+.ns-goal-pct { display: inline-block; }
+.ns-goal-pct[data-celebrate] {
+  animation: ns-goal-pop 320ms var(--ns-ease-out-strong) 1;
+}
+
 html, body, #root { min-height: 100%; }
 
 /* Stop any single over-wide element from stretching the whole page past the
