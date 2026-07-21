@@ -4,9 +4,9 @@
 
 | Plan | Title | Severity | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 246 | Dashboard 淨值 hero 數字滾動(count-up):新增可重用 `<AnimatedNumber>`(rAF tween 560ms ease-out、可中斷 retarget),hero 換用。snap 條件:首次 mount、resetKey(指標/帳本)切換、reduced-motion、隱私模式、null。registry 已有 `value: number` 只需補 `formatValue` | HIGH | M | — | **TODO** |
-| 247 | FIRE 達成瞬間一次性慶祝(操作者拍板:低調光暈掃過):進度條 accent 高光掃過 600ms + 百分比 scale-pop 1→1.06→1 320ms。只在 in-session false→true 跨越時播,mount 已達成不播,`animationName` 過濾收尾。無 confetti | MEDIUM | S | 建議先做 248 | **TODO** |
-| 248 | 進度條填充動畫統一 token:抽 `.ns-progress-fill`(scaleX + `var(--ns-dur) var(--ns-ease)`),四處換用 —— FireGoalCard(Tailwind 預設 timing drift)、GoalsRoute ×2(完全無動畫且用 width%)、AccountsRoute(hand-typed 0.3s) | LOW | S | — | **TODO** |
+| 246 | Dashboard 淨值 hero 數字滾動(count-up):新增可重用 `<AnimatedNumber>`(rAF tween 560ms ease-out、可中斷 retarget),hero 換用。snap 條件:首次 mount、resetKey(指標/帳本)切換、reduced-motion、隱私模式、null。registry 已有 `value: number` 只需補 `formatValue` | HIGH | M | — | **DONE — reviewed, awaiting user merge** @ `e406997e`(branch `feat/ai-animated-number-hero`)。advisor 複驗:tsc 0、6/6 新測試、全套 1462、lint 0。兩個記錄應變合理(benchmarkGap 需顯式 `(n: number)`;eslint disable 按計劃條件移除)。⚠ 執行者 worktree 消失後曾在主 checkout 切分支工作(隔離違規,無實害,advisor 已復原 main)。feel check(滾動手感)待操作者 |
+| 247 | FIRE 達成瞬間一次性慶祝(操作者拍板:低調光暈掃過):進度條 accent 高光掃過 600ms + 百分比 scale-pop 1→1.06→1 320ms。只在 in-session false→true 跨越時播,mount 已達成不播,`animationName` 過濾收尾。無 confetti | MEDIUM | S | 建議先做 248 | **DONE — reviewed (1 REVISE round), awaiting user merge** @ `ee99c6d5`(branch `feat/ai-fire-celebration`)。執行者正確抓到**計劃自身的 Rules-of-Hooks bug**(指定位置在 early return 後),搬移時引入 `projection ? … : false` 假轉變 bug(已達成者每次開 Dashboard 誤播)→ advisor REVISE → null 三態修法落地。CSS 逐字吻合。feel check(光暈質感、mount 不重播)待操作者。⚠ 與 248 都動 FireGoalCard/globals.css,合併順序 248 → 247,見下 |
+| 248 | 進度條填充動畫統一 token:抽 `.ns-progress-fill`(scaleX + `var(--ns-dur) var(--ns-ease)`),四處換用 —— FireGoalCard(Tailwind 預設 timing drift)、GoalsRoute ×2(完全無動畫且用 width%)、AccountsRoute(hand-typed 0.3s) | LOW | S | — | **DONE — reviewed, awaiting user merge** @ `fa435518`(branch `fix/ai-progress-fill-tokens`)。advisor 複驗:diff 與計劃逐字吻合、tsc 0、全套 1454、grep 判準 1/2/1 精確。executor worktree 重建應變有記錄且同基底 |
 
 **審計脈絡**:全專案 corrective 掃描結果乾淨 —— 零 `ease-in` / `transition: all` / `scale(0)`,
 toast/sheet 可中斷,reduced-motion 全域處理含 view-transition。以下為**刻意決定、勿再報**:
