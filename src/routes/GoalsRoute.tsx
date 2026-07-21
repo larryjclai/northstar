@@ -238,7 +238,7 @@ export function GoalsRoute() {
                   )}
                 </div>
                 <div className="mb-3" style={{ height: 6, borderRadius: 3, background: "var(--ns-surface-strong)", overflow: "hidden" }}>
-                  <div style={{ width: `${stats.progress.toFixed(1)}%`, height: "100%", background: "linear-gradient(90deg, var(--ns-accent), var(--ns-pos))", borderRadius: 3 }} />
+                  <div className="ns-progress-fill" style={{ background: "linear-gradient(90deg, var(--ns-accent), var(--ns-pos))", transform: `scaleX(${Math.min(1, stats.progress / 100)})` }} />
                 </div>
                 <div className="text-body" style={{ color: "var(--ns-fg-dim)" }}>
                   {!isFire && Object.values(selectedGoal.accountShareMap ?? {}).filter((w) => w > 0).length === 0
@@ -403,7 +403,7 @@ export function GoalsRoute() {
                     </div>
                     <div className="flex items-center gap-3" style={{ flex: "1 1 180px" }}>
                       <div className="flex-1" style={{ height: 6, borderRadius: 3, background: "var(--ns-surface-strong)", overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${progress}%`, background: color, borderRadius: 3 }} />
+                        <div className="ns-progress-fill" style={{ background: color, transform: `scaleX(${Math.min(1, progress / 100)})` }} />
                       </div>
                       <div className="text-body text-right shrink-0" style={{ color: "var(--ns-fg-dim)", width: 48 }}>{progress.toFixed(1)}%</div>
                     </div>

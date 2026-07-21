@@ -461,7 +461,7 @@ export function AccountsRoute() {
                       {utilPct !== null ? (
                         <div style={{ marginTop: 5 }}>
                           <div className="overflow-hidden" style={{ height: 3, borderRadius: 99, background: "var(--ns-bg-hover)" }}>
-                              <div style={{ width: "100%", height: "100%", background: utilBarColor, transform: `scaleX(${(utilPct ?? 0) / 100})`, transformOrigin: "left", transition: "transform 0.3s var(--ns-ease)" }} />
+                              <div className="ns-progress-fill" style={{ background: utilBarColor, transform: `scaleX(${(utilPct ?? 0) / 100})` }} />
                           </div>
                         </div>
                       ) : null}

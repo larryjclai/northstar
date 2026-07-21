@@ -91,16 +91,14 @@ export function FireGoalCard() {
         </div>
         <div className="mt-1 h-2 overflow-hidden rounded-full" style={{ background: "var(--ns-surface-strong)" }}>
           <div
-            className="h-full transition-[transform]"
+            className="ns-progress-fill"
             style={{
-              width: "100%",
               background: reachedFi
                 ? "var(--ns-positive, var(--ns-accent))"
                 : projection.onTrack
                   ? "var(--ns-accent)"
                   : "var(--ns-danger, #c0392b)",
               transform: `scaleX(${(progressPct ?? 0) / 100})`,
-              transformOrigin: "left",
             }}
           />
         </div>
