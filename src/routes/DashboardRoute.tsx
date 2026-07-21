@@ -7,6 +7,7 @@ import { useFinanceData } from "../data/hooks";
 import { getFinanceRepository, type StoredMarketQuote } from "../data/repositories";
 import { enterDemoMode } from "../data/demoData";
 import { useDemoMode } from "../state/demoMode";
+import { AnimatedNumber } from "../components/AnimatedNumber";
 import { useToast } from "../components/Toast";
 import { NotificationCenter } from "../components/NotificationCenter";
 import { openOnboarding } from "../components/OnboardingOverlay";
@@ -413,6 +414,8 @@ export function DashboardRoute() {
     label: string;
     value: number | null;
     display: string;
+    /** Formats an interpolated frame of `value` — must mirror `display` (plan 246). */
+    formatValue: (n: number) => string;
     sub: string;
   }> = [
     {
@@ -420,6 +423,7 @@ export function DashboardRoute() {
       label: "淨值",
       value: netWorth,
       display: formatMoney(netWorth, primaryCurrency),
+      formatValue: (n) => formatMoney(n, primaryCurrency),
       sub: "",
     },
     {
@@ -427,6 +431,7 @@ export function DashboardRoute() {
       label: "儲蓄率",
       value: savingsRate,
       display: `${savingsRate.toFixed(1)}%`,
+      formatValue: (n) => `${n.toFixed(1)}%`,
       sub: monthIncome > 0 ? `本月收入 ${formatMoney(monthIncome, primaryCurrency)}` : "本月尚無收入",
     },
     {
@@ -434,6 +439,7 @@ export function DashboardRoute() {
       label: "被動收入覆蓋率",
       value: coveragePct,
       display: coveragePct !== null ? `${coveragePct.toFixed(1)}%` : "—",
+      formatValue: (n) => `${n.toFixed(1)}%`,
       sub: coveragePct !== null
         ? `被動收入已覆蓋 ${coveragePct.toFixed(1)}% 的年開支`
         : "尚無費用資料",
@@ -443,6 +449,7 @@ export function DashboardRoute() {
       label: "流動底氣",
       value: runwayMo,
       display: runwayMo !== null ? `${runwayMo.toFixed(1)} 個月` : "—",
+      formatValue: (n) => `${n.toFixed(1)} 個月`,
       sub: runwayMo !== null
         ? `流動資產可支撐約 ${Math.floor(runwayMo)} 個月`
         : "尚無費用資料",
@@ -452,6 +459,7 @@ export function DashboardRoute() {
       label: "FIRE 進度",
       value: firstGoalPct,
       display: firstGoalPct !== null ? `${firstGoalPct.toFixed(1)}%` : "—",
+      formatValue: (n) => `${n.toFixed(1)}%`,
       sub: firstGoalPct !== null ? "相對於第一個 FIRE 目標" : "尚未設定 FIRE 目標",
     },
   ];
@@ -711,6 +719,7 @@ export function DashboardRoute() {
       label: `vs ${benchmarkTicker} 累積差距`,
       value: stripData.alpha,
       display: stripData.alpha != null ? `${stripData.alpha >= 0 ? "+" : ""}${stripData.alpha.toFixed(1)}%` : "—",
+      formatValue: (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`,
       sub: `投組相對 ${benchmarkTicker} 的期間累積報酬差距（${stripData.basis === "twr" ? "時間加權 TWR 口徑" : "固定權重近似"}）`,
     },
   ];
@@ -1180,7 +1189,12 @@ export function DashboardRoute() {
                   fontSize: "clamp(28px, 4vw, 56px)", letterSpacing: "-0.025em", fontWeight: 600,
                   whiteSpace: "nowrap", flexShrink: 0,
                 }}>
-                  {activeMetric.display}
+                  <AnimatedNumber
+                    value={activeMetric.value}
+                    format={activeMetric.formatValue}
+                    fallback={activeMetric.display}
+                    resetKey={`${activeMetric.key}:${activeBookId}`}
+                  />
                 </span>
                 {/* MoM trend badge — only for netWorth (has a history series) */}
                 {activeMetric.key === "netWorth" && reconciledTrend.length >= 2 ? (
