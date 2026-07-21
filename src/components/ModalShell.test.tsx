@@ -28,6 +28,25 @@ function stubMatchMedia(matches: boolean) {
   );
 }
 
+// Query-aware variant: the fix (plan 244) keys off the exact media string
+// "(max-width: 1023px)", so a boolean-for-any-query stub can't distinguish a
+// coarse-pointer desktop from a narrow phone. Map specific queries to results.
+function stubMatchMediaByQuery(map: Record<string, boolean>) {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockImplementation((query: string) => ({
+      matches: map[query] ?? false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
+}
+
 describe("ModalShell", () => {
   it("renders a labelled dialog (role + aria-modal + aria-label)", () => {
     render(
@@ -219,7 +238,7 @@ describe("ModalShell", () => {
   });
 
   describe("mobilePresentation (plan 159)", () => {
-    it('renders ns-sheet-bottom + data-motion="sheet-bottom" + the grab handle on a coarse pointer', () => {
+    it('renders ns-sheet-bottom + data-motion="sheet-bottom" + the grab handle on a narrow (mobile) viewport', () => {
       stubMatchMedia(true);
       render(
         <ModalShell
@@ -242,7 +261,47 @@ describe("ModalShell", () => {
       expect(dialog.style.width).toBe("");
     });
 
-    it("leaves panelStyle positioning untouched on a fine pointer even when opted in", () => {
+    it("does NOT use the sheet on a coarse-pointer DESKTOP viewport — sidebar overlap guard (plan 244)", () => {
+      // Desktop Tauri: pointer is coarse but the window is >= 1024px (sidebar shown).
+      stubMatchMediaByQuery({ "(pointer: coarse)": true, "(max-width: 1023px)": false });
+      render(
+        <ModalShell
+          title="t"
+          onClose={() => {}}
+          variant="drawer"
+          mobilePresentation="bottom-sheet"
+          panelStyle={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 420 }}
+        >
+          <button>ok</button>
+        </ModalShell>,
+      );
+      const dialog = screen.getByRole("dialog");
+      expect(dialog).not.toHaveClass("ns-sheet-bottom");
+      expect(dialog).toHaveAttribute("data-motion", "drawer");
+      // The right-anchored drawer geometry is preserved (never underlaps the sidebar).
+      expect(dialog.style.position).toBe("absolute");
+      expect(dialog.style.width).toBe("420px");
+    });
+
+    it("uses the sheet on a narrow (mobile) viewport where the sidebar is hidden (plan 244)", () => {
+      stubMatchMediaByQuery({ "(max-width: 1023px)": true });
+      render(
+        <ModalShell
+          title="t"
+          onClose={() => {}}
+          variant="drawer"
+          mobilePresentation="bottom-sheet"
+          panelStyle={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 420 }}
+        >
+          <button>ok</button>
+        </ModalShell>,
+      );
+      const dialog = screen.getByRole("dialog");
+      expect(dialog).toHaveClass("ns-sheet-bottom");
+      expect(dialog).toHaveAttribute("data-motion", "sheet-bottom");
+    });
+
+    it("leaves panelStyle positioning untouched on a desktop (wide) viewport even when opted in", () => {
       stubMatchMedia(false);
       render(
         <ModalShell

@@ -43,10 +43,11 @@ export interface ModalShellProps {
   /** Overlay enter/exit motion. Defaults by variant: `center` → "center", `sheet`/`drawer` → "drawer". */
   motion?: ModalShellMotion;
   /**
-   * Opt in to native-style bottom-sheet presentation on coarse-pointer/narrow
-   * viewports (drag-to-dismiss with momentum). Default `"none"` — zero change
-   * for un-migrated call sites. When active, the call site's positional
-   * `panelStyle` keys (position/top/right/bottom/left/width) are ignored.
+   * Opt in to native-style bottom-sheet presentation on narrow (mobile-layout)
+   * viewports — width < 1024px, where the desktop sidebar is hidden — with
+   * drag-to-dismiss and momentum. Default `"none"` — zero change for un-migrated
+   * call sites. When active, the call site's positional `panelStyle` keys
+   * (position/top/right/bottom/left/width) are ignored.
    */
   mobilePresentation?: ModalShellMobilePresentation;
   /** Don't close on Escape. */
@@ -132,16 +133,23 @@ export function ModalShell({
   const disableEscapeRef = useRef(disableEscape);
   disableEscapeRef.current = disableEscape;
 
-  // Evaluated once per mount — coarse pointer or narrow (mobile-nav) viewport.
-  // Guard `matchMedia` presence: jsdom (most ModalShell.test.tsx cases) has no
-  // implementation at all, so un-mocked tests must fall through to `false`, not throw.
-  const [isCoarse] = useState(
+  // Bottom-sheet presentation is the MOBILE-layout affordance and must stay
+  // mutually exclusive with the desktop sidebar (AppShell `aside.ns-sidebar`,
+  // shown at `lg` = min-width:1024px, z-index 1100). `.ns-sheet-bottom` is a
+  // full-viewport `position:fixed; left:0; right:0` panel, so any time the
+  // sidebar is also painted it occludes the sheet's left edge (plan 244).
+  // Gate strictly on the viewport width that HIDES the sidebar. We must NOT use
+  // `(pointer: coarse)`: the macOS/Tauri WKWebView reports coarse on the desktop
+  // build (min window width 1024 → sidebar always shown), which is exactly the
+  // overlap we are fixing. Evaluated once per mount; guard `matchMedia` presence
+  // so jsdom (most ModalShell.test.tsx cases) falls through to `false`, not throws.
+  const [isMobileViewport] = useState(
     () =>
       typeof window !== "undefined" &&
       typeof window.matchMedia === "function" &&
-      window.matchMedia("(pointer: coarse), (max-width: 1023px)").matches,
+      window.matchMedia("(max-width: 1023px)").matches,
   );
-  const sheetActive = mobilePresentation === "bottom-sheet" && isCoarse;
+  const sheetActive = mobilePresentation === "bottom-sheet" && isMobileViewport;
 
   const resolvedMotion: ModalShellMotion = motion ?? VARIANT_DEFAULT_MOTION[variant];
 
