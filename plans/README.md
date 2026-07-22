@@ -4,7 +4,7 @@
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 249 | 官方 CI build 自 alpha.63 起缺銀行 logo + ETF feed:`release.yml` 沒有 `private-assets/`(1.1MB,僅存維護者本機)的注入。**方案 A 已選定並落地**:openssl 加密封存檔 + `PRIVATE_ASSETS_KEY` secret,CI 解密後 prebuild 照常;無 secret 的 source build 印 skip 訊息照常建置 | P2 | M | — | **DONE(程式面)— reviewed+MERGED** @ `36caa1ad`(fix commit `211e2f1d`)。pack/unpack 腳本 round-trip/錯 key/no-op 三測全過、YAML 驗證過、RELEASING.md 已載新流程。執行插曲:advisor 派發提示編號衝突使 release.yml 先被跳過(執行者判斷正確),補指示後完成;amend 被環境擋,以 `reset --soft` 非破壞收單 commit。**⚠ operator 待辦**:設 `PRIVATE_ASSETS_KEY` secret → `pack-private-assets.sh` → commit `.enc` → 下次發版驗收 logo |
+| 249 | 官方 CI build 自 alpha.63 起缺銀行 logo + ETF feed:`release.yml` 沒有 `private-assets/`(1.1MB,僅存維護者本機)的注入。**方案 A 已選定並落地**:openssl 加密封存檔 + `PRIVATE_ASSETS_KEY` secret,CI 解密後 prebuild 照常;無 secret 的 source build 印 skip 訊息照常建置 | P2 | M | — | **DONE(程式面)— reviewed+MERGED** @ `36caa1ad`(fix commit `211e2f1d`)。pack/unpack 腳本 round-trip/錯 key/no-op 三測全過、YAML 驗證過、RELEASING.md 已載新流程。執行插曲:advisor 派發提示編號衝突使 release.yml 先被跳過(執行者判斷正確),補指示後完成;amend 被環境擋,以 `reset --soft` 非破壞收單 commit。**operator 步驟已完成(2026-07-22)**:secret 已設、`.enc`(801K,`Salted__` 標頭驗證)已 commit @ `aa0264ac`。**唯一殘餘驗收**:下一次發版(alpha.67+)確認官方 build 銀行 logo 回來 |
 
 **事故脈絡(2026-07-22)**:使用者裝置出現「Sync worker endpoint is not configured」。
 根因:`release.yml:168` 讀 repository variable `NORTHSTAR_SYNC_WORKER_URL`,但它從未被建立;
