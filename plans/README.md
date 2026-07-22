@@ -1,5 +1,15 @@
 # Implementation Plans
 
+## 250 — 應付「借款入帳」可發現性（`/improve plan` @ `dea84016`, 2026-07-22）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 250 | 操作者以為「應付無法設定借款入哪個帳戶」——調查結論：**功能已存在**（AP 的「收款帳戶」`counterAccountId`，自 alpha.26 `1d956eab`），語意正確（建立時入帳、結清扣款、整筆不計收支）。缺陷是**可發現性**：文案只講「代墊」，全程沒出現「借」字，操作者本人沒認出來。修法＝純文案：AR/AP 提示點名「借錢給別人／跟別人借錢」、AP placeholder 加借款方示例、AP 欄位標籤加「借入」。三處字串無測試引用，S 工作量 | P3 | S | — | **DONE — executed+reviewed 2026-07-22**：executor (sonnet) 於 worktree 分支 `fix/ai-payable-borrow-copy`（commit `645cc1ab`）完成；reviewer 重跑全部 done criteria（tsc/lint 過、1462 tests 全過、三 grep 命中、舊 AP 標籤歸零、diff 僅 CashFlowRoute.tsx 4+/4−）。**待操作者 merge** |
+
+**已考慮而排除**（勿再報）：不新增「借款」交易類型（`counterAccountId` 已涵蓋，
+借入=AP+收款帳戶、借出=AR+付款帳戶）；不在 QuickAdd 加 AR/AP（QuickAdd 刻意限縮
+已結清收支，擴充屬產品決策）；銀行貸款另有帳戶層 loan 欄位，與個人間借款分工正確。
+
 ## 249 — CI release 私有資產注入（sync-endpoint 斷線事故的姊妹缺口, 2026-07-22）
 
 | Plan | Title | Priority | Effort | Depends on | Status |
