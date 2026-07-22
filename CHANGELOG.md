@@ -2,6 +2,14 @@
 
 All notable changes to Northstar will be documented in this file.
 
+## [0.1.0-alpha.66] - 2026-07-22
+
+### Fixed
+- **官方版本的多裝置同步修復**:alpha.63 起的官方下載版在建置時漏掉了同步伺服器位址,設定頁會顯示「Sync worker endpoint is not configured for this build」、資料推不出去(本機資料不受影響,一直安全地留在裝置上)。更新到本版後,先前累積的待同步項目會自動補推。
+
+### 已知問題
+- 官方下載版目前不含銀行 logo(修復中)。
+
 ## [0.1.0-alpha.65] - 2026-07-21
 
 ### Added
