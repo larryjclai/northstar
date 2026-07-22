@@ -42,6 +42,9 @@ Design System/uploads/
 private-assets/
 public/bank/
 public/etf-sector-feed.json
+# Intermediate archive produced by scripts/pack-private-assets.sh (plan 249).
+# The encrypted private-assets.tar.gz.enc IS committed; this plaintext tarball is not.
+private-assets.tar.gz
 
 # ─── Secrets ───────────────────────────────────────────
 .env

@@ -154,6 +154,17 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Unpack private assets (bank logos + etf feed)
+        shell: bash
+        env:
+          PRIVATE_ASSETS_KEY: ${{ secrets.PRIVATE_ASSETS_KEY }}
+        run: |
+          if [ -z "$PRIVATE_ASSETS_KEY" ]; then
+            echo "PRIVATE_ASSETS_KEY not set; skipping private assets (source build)"
+            exit 0
+          fi
+          ./scripts/unpack-private-assets.sh
+
       - name: Build and publish release
         uses: tauri-apps/tauri-action@v0
         env:
