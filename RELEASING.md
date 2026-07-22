@@ -65,11 +65,22 @@ in-app updater 直接讀本 repo 的 `releases/latest/download/latest.json`
   NORTHSTAR_PRIVATE_ASSETS_DIR="private-assets"
   ```
 
-**私有資產（銀行 logo、ETF feed）**:若 `NORTHSTAR_PRIVATE_ASSETS_DIR`（預設 `private-assets/`）內有 `bank/` 資料夾，`npm run build` 會先執行 `scripts/inject-private-assets.mjs`，把 private logos 複製到 `public/bank/` 後再打包。這些檔案被 `.gitignore` 排除，不應 commit。
+**私有資產（銀行 logo、ETF feed）**:若 `NORTHSTAR_PRIVATE_ASSETS_DIR`（預設 `private-assets/`）內有 `bank/` 資料夾，`npm run build` 會先執行 `scripts/inject-private-assets.mjs`，把 private logos 複製到 `public/bank/` 後再打包。`private-assets/` 本身被 `.gitignore` 排除，不應 commit。
 
-> ⚠ **已知缺口**:`release.yml` 目前**沒有**任何私有資產注入——CI 建置的官方版本
-> **不含銀行 logo 與 ETF sector feed**（只存在於維護者本機的 `private-assets/`）。
-> 修復方案見 `plans/249-private-assets-in-ci.md`。
+**CI 如何拿到私有資產(plan 249,2026-07-22)**:repo 內 commit 一份加密封存檔
+`private-assets.tar.gz.enc`(openssl aes-256-cbc),`release.yml` 在 build 前用
+secret `PRIVATE_ASSETS_KEY` 解密還原 `private-assets/`;沒有 secret 的
+source/fork build 會印一行 skip 訊息照常建置(只是不含 logo)。
+
+- **logo 或 ETF feed 更新後**,維護者必須重新打包並 commit:
+  ```bash
+  read -s PRIVATE_ASSETS_KEY && export PRIVATE_ASSETS_KEY
+  ./scripts/pack-private-assets.sh
+  unset PRIVATE_ASSETS_KEY
+  git add private-assets.tar.gz.enc && git commit -m "chore: refresh private assets archive"
+  ```
+  忘了重打包不會壞 build,只是 CI 繼續用舊資產。
+- 金鑰遺失不會遺失資產(本體在維護者本機),重新打包 + 更新 secret 即可。
 
 ### 1. 確認版本號
 
@@ -158,6 +169,7 @@ Repository → Settings → Secrets and variables → Actions：
 |-------------|------|
 | `TAURI_SIGNING_PRIVATE_KEY` | minisign 私鑰（`.key` 檔的完整內容） |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 建立私鑰時設定的密碼（若無則留空） |
+| `PRIVATE_ASSETS_KEY` | 解密 `private-assets.tar.gz.enc` 的通行片語（plan 249）；未設定時 CI 跳過私有資產、build 照常 |
 | `RELEASES_TOKEN` | **已淘汰**——曾用來把 release 推到 public `northstar-releases` mirror repo，mirror job 移除後已無 workflow 使用，應予刪除（operator 待辦，見 `plans/243-retire-releases-mirror-leftovers.md` Step 4） |
 
 > **同步 endpoint 不在 secrets 裡**:它是 repository **variable** `NORTHSTAR_SYNC_WORKER_URL`
