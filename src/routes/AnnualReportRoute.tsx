@@ -27,9 +27,14 @@ export function AnnualReportRoute() {
 
   // 列印 is desktop-only (plan 173 deferral → 233): iOS WKWebView's
   // window.print() renders the desktop print CSS poorly — hide, don't degrade.
-  const coarsePointer =
+  // Gate on viewport WIDTH (the mobile-layout / sidebar-hidden signal), NOT
+  // pointer type: the macOS/Tauri desktop WKWebView reports a coarse pointer, so
+  // the old `(pointer: coarse), (max-width: 1023px)` query wrongly hid this button
+  // on the desktop app (min window width 1024, where print works fine). Mirrors
+  // plan 244's ModalShell fix. See plan 245.
+  const isMobileViewport =
     typeof window.matchMedia === "function" &&
-    window.matchMedia("(pointer: coarse), (max-width: 1023px)").matches;
+    window.matchMedia("(max-width: 1023px)").matches;
 
   const accountRows = accounts.data ?? [];
   const allAssetRows = assets.data ?? [];
@@ -188,7 +193,7 @@ export function AnnualReportRoute() {
               ))}
             </select>
           ) : null}
-          {!coarsePointer ? (
+          {!isMobileViewport ? (
             <Button
               variant="outline"
               disabled={printButton.disabled}
