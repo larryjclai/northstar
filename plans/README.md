@@ -31,7 +31,7 @@ recharts 全面 `isAnimationActive={false}`(防 hover/filter 重畫 jank,不要�
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 245 | `AnnualReportRoute.tsx` 用 `(pointer: coarse) OR (max-width:1023px)`(plan 233 引入)判斷「mobile」以隱藏「列印 / 匯出 PDF」按鈕。同 244 的 WKWebView-coarse 假訊號 → 桌面 Tauri app(窗永遠 ≥1024、列印排版正常)反而**看不到列印按鈕**。修法:改用寬度訊號 `(max-width:1023px)`(側欄隱藏 = mobile layout),桌面顯示、窄視窗隱藏。無現成同步 desktop-vs-iOS 判斷(`isTauri()` 兩者皆 true),故用寬度;精準 iOS 判斷需 async `plugin-os`(範圍外)。單檔改動,無新測試(component 無測試 + jsdom 無 matchMedia,同 233) | P3 | S | — | **TODO** |
+| 245 | `AnnualReportRoute.tsx` 用 `(pointer: coarse) OR (max-width:1023px)`(plan 233 引入)判斷「mobile」以隱藏「列印 / 匯出 PDF」按鈕。同 244 的 WKWebView-coarse 假訊號 → 桌面 Tauri app(窗永遠 ≥1024、列印排版正常)反而**看不到列印按鈕**。修法:改用寬度訊號 `(max-width:1023px)`(側欄隱藏 = mobile layout),桌面顯示、窄視窗隱藏。無現成同步 desktop-vs-iOS 判斷(`isTauri()` 兩者皆 true),故用寬度;精準 iOS 判斷需 async `plugin-os`(範圍外)。單檔改動,無新測試(component 無測試 + jsdom 無 matchMedia,同 233) | P3 | S | — | **DONE — reviewed+MERGED** 2026-07-22。diff 與計劃逐字吻合,advisor 獨立複驗全部 grep 判準 + tsc 0 + 1462 tests + lint 0。桌面 Tauri 實機驗收(列印鈕重現)待操作者下次跑 app 時順手確認 |
 
 **與 244 關係**:同根因、不同檔、**無相依**。兩者都 inline 了 `matchMedia("(max-width: 1023px)")`;
 待兩者都合併後,可另開 cleanup 抽共用 `isMobileLayout()` 作單一「側欄已隱藏」判斷,避免 coarse 假訊號被 copy-paste 復活。
