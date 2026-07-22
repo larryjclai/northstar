@@ -3767,8 +3767,8 @@ function EntryDrawer({
             <>
               <div className="text-xs" style={{ padding: "12px 14px", borderRadius: "var(--ns-r-md)", background: `color-mix(in srgb, ${meta.color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${meta.color} 25%, transparent)`, color: "var(--ns-fg-muted)", lineHeight: 1.6 }}>
                 {type === "ar"
-                  ? "應收帳款：對方欠你的錢。若你已先用某帳戶代墊，選下方「付款帳戶」會在建立時立即扣款，對方還款時點 ✓ 結清會入「收款帳戶」，整筆代墊不計收支；留空則結清後才計入收入。"
-                  : "應付帳款：你欠對方的錢。若你已先收到款項，選下方「收款帳戶」會在建立時立即入帳，付款時點 ✓ 結清會由「付款帳戶」扣款，整筆代墊不計收支；留空則結清後才計入支出。"}
+                  ? "應收帳款：對方欠你的錢（代墊、借錢給別人都算）。選下方「付款帳戶」＝你先出錢的帳戶，建立時立即扣款；對方還款時點 ✓ 結清會入「收款帳戶」，整筆不計收支。留空則結清後才計入收入。"
+                  : "應付帳款：你欠對方的錢（代墊、跟別人借錢都算）。選下方「收款帳戶」＝錢先進來的帳戶，例如借現金就選現金，建立時立即入帳；還款時點 ✓ 結清會由「付款帳戶」扣款，整筆不計收支。留空則結清後才計入支出。"}
               </div>
 
               {/* 開發票 toggle (plan 191 step 2) — only offered for ar in a 公司帳. */}
@@ -3804,7 +3804,7 @@ function EntryDrawer({
                     </button>
                   </>
                 ) : (
-                  <input className="ns-input" value={counterparty} onChange={(e) => setCounterparty(e.target.value)} placeholder={type === "ar" ? "例：小明、ABC 公司" : "例：房東、供應商"} />
+                  <input className="ns-input" value={counterparty} onChange={(e) => setCounterparty(e.target.value)} placeholder={type === "ar" ? "例：小明、ABC 公司" : "例：借我錢的朋友、房東、供應商"} />
                 )}
               </DrawerField>
 
@@ -3863,7 +3863,7 @@ function EntryDrawer({
               <DrawerField label={type === "ar" ? (isInvoiceEntry ? "到期日（選填）" : "預計收款日（選填）") : "付款截止日（選填）"}>
                 <input className="ns-input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={{ fontFamily: "var(--ns-font-mono)" }} />
               </DrawerField>
-              <DrawerField label={type === "ar" ? "付款帳戶（我先墊付，建立時扣款，選填）" : "收款帳戶（我先收到，建立時入帳，選填）"}>
+              <DrawerField label={type === "ar" ? "付款帳戶（我先墊付，建立時扣款，選填）" : "收款帳戶（借入／先收到的錢，建立時入帳，選填）"}>
                 <AccountFilter
                   accounts={accountRows}
                   value={ledgerForm.counterAccountId ?? "all"}
