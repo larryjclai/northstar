@@ -2,6 +2,15 @@
 
 All notable changes to Northstar will be documented in this file.
 
+## [0.1.0-alpha.67] - 2026-07-22
+
+### Fixed
+- **銀行 logo 回來了**:官方下載版自 alpha.63 起缺少銀行/券商 logo(建置流程漏了私有資產),現已修復。
+- **年度報表的「列印 / 匯出 PDF」按鈕在桌面版重新出現**:先前桌面 app 被誤判為觸控裝置而把列印按鈕藏了起來(與 alpha.65 修正的交易視窗跑版是同一個誤判);現在依視窗寬度判斷,桌面顯示、手機維持隱藏。
+
+### Security
+- 相依性安全性更新(開發工具鏈,不影響 app 本體):修復 4 個 Dependabot 通報(3 高、1 中)。
+
 ## [0.1.0-alpha.66] - 2026-07-22
 
 ### Fixed
