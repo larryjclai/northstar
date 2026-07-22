@@ -44,14 +44,32 @@ in-app updater 直接讀本 repo 的 `releases/latest/download/latest.json`
 
 ### 0. 設定 release-only env / assets
 
-公開 source build 預設不帶官方同步 endpoint，也不帶銀行 / 券商 logo。官方 release 前請在本機 `.env` 或 GitHub Actions env 設定：
+公開 source build 預設不帶官方同步 endpoint，也不帶銀行 / 券商 logo。
 
-```bash
-VITE_NORTHSTAR_SYNC_WORKER_URL="https://northstar-sync.larrynote.workers.dev"
-NORTHSTAR_PRIVATE_ASSETS_DIR="private-assets"
-```
+**同步 endpoint — CI 與本地的來源不同,兩邊都要有:**
 
-若 `NORTHSTAR_PRIVATE_ASSETS_DIR` 內有 `bank/` 資料夾，`npm run build` 會先執行 `scripts/inject-private-assets.mjs`，把 private logos 複製到 `public/bank/` 後再打包。這些檔案被 `.gitignore` 排除，不應 commit。
+- **CI(正式流程)**:`release.yml` 從 repository **variable**（不是 secret）
+  `NORTHSTAR_SYNC_WORKER_URL` 注入。設定方式:
+  ```bash
+  gh variable set NORTHSTAR_SYNC_WORKER_URL --body "https://northstar-sync.larrynote.workers.dev"
+  ```
+  > ⚠ **歷史教訓（alpha.63–65）**:本文件過去把它誤寫成名為
+  > `VITE_NORTHSTAR_SYNC_WORKER_URL` 的 *secret*,而 workflow 實際讀的是上述
+  > variable——結果兩邊都沒設,2026-07-16 恢復 CI 自動發版後連續三版官方 build
+  > 的同步都是斷的（本地 build 一直正常,因為本機 `.env` 有值,掩蓋了缺口）。
+  > variable 已於 2026-07-22 補設;若未來換 relay,兩處(variable + 本機 `.env`)要一起改。
+
+- **本地 build / fallback 腳本**:在本機 `.env` 設定:
+  ```bash
+  VITE_NORTHSTAR_SYNC_WORKER_URL="https://northstar-sync.larrynote.workers.dev"
+  NORTHSTAR_PRIVATE_ASSETS_DIR="private-assets"
+  ```
+
+**私有資產（銀行 logo、ETF feed）**:若 `NORTHSTAR_PRIVATE_ASSETS_DIR`（預設 `private-assets/`）內有 `bank/` 資料夾，`npm run build` 會先執行 `scripts/inject-private-assets.mjs`，把 private logos 複製到 `public/bank/` 後再打包。這些檔案被 `.gitignore` 排除，不應 commit。
+
+> ⚠ **已知缺口**:`release.yml` 目前**沒有**任何私有資產注入——CI 建置的官方版本
+> **不含銀行 logo 與 ETF sector feed**（只存在於維護者本機的 `private-assets/`）。
+> 修復方案見 `plans/249-private-assets-in-ci.md`。
 
 ### 1. 確認版本號
 
@@ -141,7 +159,10 @@ Repository → Settings → Secrets and variables → Actions：
 | `TAURI_SIGNING_PRIVATE_KEY` | minisign 私鑰（`.key` 檔的完整內容） |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 建立私鑰時設定的密碼（若無則留空） |
 | `RELEASES_TOKEN` | **已淘汰**——曾用來把 release 推到 public `northstar-releases` mirror repo，mirror job 移除後已無 workflow 使用，應予刪除（operator 待辦，見 `plans/243-retire-releases-mirror-leftovers.md` Step 4） |
-| `VITE_NORTHSTAR_SYNC_WORKER_URL` | 官方 release 使用的 Connect 同步 Worker endpoint；source build 可留空 |
+
+> **同步 endpoint 不在 secrets 裡**:它是 repository **variable** `NORTHSTAR_SYNC_WORKER_URL`
+> （Settings → Secrets and variables → Actions → **Variables** 分頁),見第 0 步。
+> URL 本身是公開資訊,不需要當 secret。
 
 `GITHUB_TOKEN` 由 Actions 自動提供，對 **目前這個 repo** 有寫入權限，足以建立 release，
 不需要額外的跨 repo token。

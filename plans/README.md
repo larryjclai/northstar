@@ -1,5 +1,18 @@
 # Implementation Plans
 
+## 249 — CI release 私有資產注入（sync-endpoint 斷線事故的姊妹缺口, 2026-07-22）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 249 | 官方 CI build 自 alpha.63 起缺銀行 logo + ETF feed:`release.yml` 沒有 `private-assets/`(1.1MB,僅存維護者本機)的注入。方案 A(推薦):openssl 加密封存檔 commit 進 repo + `PRIVATE_ASSETS_KEY` secret,CI 解密後 prebuild 照常;方案 B:私有 repo + PAT(憑證負擔,不推)。**Step 0 operator 先選方案**。base64-in-secret 出局(64KB 上限) | P2 | M | operator 決策 | **TODO — 待 operator 選 A/B** |
+
+**事故脈絡(2026-07-22)**:使用者裝置出現「Sync worker endpoint is not configured」。
+根因:`release.yml:168` 讀 repository variable `NORTHSTAR_SYNC_WORKER_URL`,但它從未被建立;
+RELEASING.md 又誤載為 secret `VITE_NORTHSTAR_SYNC_WORKER_URL`(名字與類型雙錯)。2026-07-16
+恢復 CI 自動發版後 alpha.63–65 官方 build 同步全斷(本地 build 因 `.env` 有值而掩蓋)。
+**已修**:variable 已設(2026-07-22)、RELEASING.md 已更正、alpha.66 發版驗證。
+私有資產是同一類「CI 未按 §0 配置」的殘餘缺口 → 本計劃。
+
 ## 246–248 — 動畫審計新增機會（`/improve-animations` @ `92a96210`, 2026-07-21）
 
 | Plan | Title | Severity | Effort | Depends on | Status |
