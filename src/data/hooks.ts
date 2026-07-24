@@ -18,6 +18,7 @@ const keys = {
   financialGoals: ["financialGoals"] as const,
   manualPriceSnapshots: ["manualPriceSnapshots"] as const,
   books: ["books"] as const,
+  creditGroups: ["creditGroups"] as const,
 };
 
 export function useRepository() {
@@ -96,6 +97,11 @@ export function useFinanceData() {
     queryFn: () => repository.data!.listBooks(),
     enabled,
   });
+  const creditGroups = useQuery({
+    queryKey: keys.creditGroups,
+    queryFn: () => repository.data!.listCreditGroups(),
+    enabled,
+  });
 
   const all = [
     repository,
@@ -112,6 +118,7 @@ export function useFinanceData() {
     financialGoals,
     manualPriceSnapshots,
     books,
+    creditGroups,
   ];
   const isInitialLoading = all.some((q) => q.isLoading);
   const isError = all.some((q) => q.isError);
@@ -135,6 +142,7 @@ export function useFinanceData() {
     financialGoals,
     manualPriceSnapshots,
     books,
+    creditGroups,
     isInitialLoading,
     isError,
     error,

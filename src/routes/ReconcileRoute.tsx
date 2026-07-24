@@ -51,16 +51,9 @@ export function ReconcileRoute() {
   const groupAccounts = useMemo(() => {
     const all = accounts.data ?? [];
     if (!account) return [];
-    const g = account.creditLimitGroup?.trim();
-    if (!g || account.type !== "credit") return [account];
+    if (account.type !== "credit" || !account.creditGroupId) return [account];
     const siblings = all.filter(
-      (a) =>
-        a.deletedAt === null &&
-        a.type === "credit" &&
-        (a.creditLimitGroup?.trim() ?? "") === g &&
-        a.currency === account.currency &&
-        a.statementDay === account.statementDay &&
-        a.paymentDueDay === account.paymentDueDay,
+      (a) => a.deletedAt === null && a.type === "credit" && a.creditGroupId === account.creditGroupId,
     );
     return siblings.length >= 2 ? siblings : [account];
   }, [accounts.data, account]);

@@ -16,18 +16,18 @@ import { Glyph, DEFAULT_ACCOUNT_ICON } from "../lib/icons";
 import { BankLogo } from "../components/BankLogo";
 import { openOnboarding } from "../components/OnboardingOverlay";
 import { downloadCsv, exportAccountsCsv } from "../data/csv";
-import { useFinanceData, useRepositoryMutation } from "../data/hooks";
+import { useFinanceData, useRepositoryMutation, queryKeys } from "../data/hooks";
 import { getFinanceRepository } from "../data/repositories";
-import type { Account, AccountType, AppSettings, Book, BookKind } from "../domain";
+import type { Account, AccountType, AppSettings, Book, BookKind, CreditGroup } from "../domain";
 import { convertCurrency, formatNumber, nowAsDatetimeLocal } from "../domain";
 import { creditBalanceLabel } from "../domain/dashboardSummary";
 import { BANK_BRANDS, resolveBankBrand } from "../domain/bankBrands";
-import type { BookDraft } from "../data/repositories";
+import type { BookDraft, CreditGroupDraft } from "../data/repositories";
 import { ALL_BOOKS } from "../domain/bookScope";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useNumericField } from "../hooks/useNumericField";
 
-type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "statementDay" | "paymentDueDay" | "creditPaymentPaidUntil" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color" | "bankBrandDomain"> & { customGroup: string; bookId: string };
+type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "creditGroupId" | "statementDay" | "paymentDueDay" | "creditPaymentPaidUntil" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color" | "bankBrandDomain"> & { customGroup: string; bookId: string };
 
 const emptyAccount: AccountFormState = {
   name: "",
@@ -36,6 +36,7 @@ const emptyAccount: AccountFormState = {
   type: "depository",
   creditLimit: null,
   creditLimitGroup: "",
+  creditGroupId: null,
   statementDay: null,
   paymentDueDay: null,
   creditPaymentPaidUntil: null,
@@ -86,7 +87,7 @@ const GROUP_ORDER: { key: string; label: string; types: AccountType[] }[] = [
 const MARK_COLORS = ["var(--ns-chart-1)", "var(--ns-chart-2)", "var(--ns-chart-3)", "var(--ns-chart-4)", "var(--ns-chart-5)"];
 
 export function AccountsRoute() {
-  const { accounts, settings, books, isInitialLoading, isError, error, refetchAll } = useFinanceData();
+  const { accounts, settings, books, creditGroups, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const timezone = useUiPreferences((state) => state.timezone);
@@ -118,9 +119,13 @@ export function AccountsRoute() {
   const createBook = useRepositoryMutation((repository, input: BookDraft) => repository.createBook(input), ["books"]);
   const updateBook = useRepositoryMutation((repository, input: BookDraft & { id: string }) => repository.updateBook(input.id, input), ["books"]);
   const deleteBook = useRepositoryMutation((repository, id: string) => repository.deleteBook(id), ["books"]);
+  const createCreditGroup = useRepositoryMutation((repository, input: CreditGroupDraft) => repository.createCreditGroup(input), ["creditGroups"]);
+  const updateCreditGroup = useRepositoryMutation((repository, input: CreditGroupDraft & { id: string }) => repository.updateCreditGroup(input.id, input), ["creditGroups"]);
+  const deleteCreditGroup = useRepositoryMutation((repository, id: string) => repository.deleteCreditGroup(id), ["creditGroups", "accounts"]);
 
   const rows = accounts.data ?? [];
   const bookRows = books.data ?? [];
+  const creditGroupRows = creditGroups.data ?? [];
   const appSettings = settings.data;
   // Default book for a NEW account: the active book when a real one is selected,
   // else the first personal book, else the first book (188 guarantees ≥1).
@@ -195,7 +200,7 @@ export function AccountsRoute() {
     setTypeStep(account.type);
     setForm({
       name: account.name, currency: account.currency, openingBalance: account.openingBalance, type: account.type,
-      creditLimit: account.creditLimit, creditLimitGroup: account.creditLimitGroup, isSharedToHousehold: account.isSharedToHousehold,
+      creditLimit: account.creditLimit, creditLimitGroup: account.creditLimitGroup, creditGroupId: account.creditGroupId ?? null, isSharedToHousehold: account.isSharedToHousehold,
       loanStartDate: account.loanStartDate, annualInterestRate: account.annualInterestRate, loanTerm: account.loanTerm,
       iconName: account.iconName ?? null, color: account.color ?? null,
       bankBrandDomain: account.bankBrandDomain ?? null,
@@ -226,6 +231,43 @@ export function AccountsRoute() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "帳戶儲存失敗。");
     }
+  }
+
+  // 255's createCreditGroup returns void, so the new group's id is recovered
+  // by re-reading the (already-invalidated-and-refetched) creditGroups cache
+  // and matching on name — invalidateQueries awaits the refetch for active
+  // queries, and this query is mounted here, so the cache is fresh by the
+  // time mutateAsync resolves.
+  async function handleCreateCreditGroup(input: CreditGroupDraft): Promise<string | null> {
+    await createCreditGroup.mutateAsync(input);
+    const fresh = queryClient.getQueryData<CreditGroup[]>(queryKeys.creditGroups) ?? [];
+    const matches = fresh.filter((g) => g.name === input.name && g.currency === input.currency && !g.deletedAt);
+    const newest = matches.reduce<CreditGroup | null>((best, g) => (!best || g.createdAt > best.createdAt ? g : best), null);
+    return newest?.id ?? null;
+  }
+
+  // Deleting a group must not leave member accounts pointing at a tombstoned
+  // creditGroupId. Clear every member's link first (→ 255 leave-group
+  // snapshot freezes the group's current limit/statement/due onto each
+  // account) and only then soft-delete the group itself.
+  async function handleDeleteCreditGroup(groupId: string) {
+    const members = rows.filter((a) => a.creditGroupId === groupId);
+    for (const member of members) {
+      await updateAccount.mutateAsync({
+        id: member.id,
+        name: member.name, currency: member.currency, openingBalance: member.openingBalance, type: member.type,
+        creditLimit: member.creditLimit, creditLimitGroup: member.creditLimitGroup, creditGroupId: null,
+        isSharedToHousehold: member.isSharedToHousehold,
+        loanStartDate: member.loanStartDate, annualInterestRate: member.annualInterestRate, loanTerm: member.loanTerm,
+        iconName: member.iconName ?? null, color: member.color ?? null,
+        bankBrandDomain: member.bankBrandDomain ?? null,
+        statementDay: member.statementDay ?? null, paymentDueDay: member.paymentDueDay ?? null,
+        creditPaymentPaidUntil: member.creditPaymentPaidUntil ?? null,
+        customGroup: member.customGroup ?? "",
+        bookId: member.bookId,
+      });
+    }
+    await deleteCreditGroup.mutateAsync(groupId);
   }
 
   function openAdjust(account: Account) {
@@ -413,7 +455,7 @@ export function AccountsRoute() {
               </div>
               {!collapsedGroups.has(g.key) && g.rows.map((a, i) => {
                 const base = toBase(a.balance, a.currency);
-                const groupCredit = a.type === "credit" && a.creditLimitGroup ? calculateCreditGroup(a.creditLimitGroup, rows) : null;
+                const groupCredit = a.type === "credit" && a.creditGroupId ? calculateCreditGroup(a.creditGroupId, rows, creditGroupRows) : null;
                 const subgroup = a.customGroup || "未分組";
                 const showSubgroup = i === 0 || (g.rows[i - 1].customGroup || "未分組") !== subgroup;
 
@@ -528,6 +570,11 @@ export function AccountsRoute() {
           pending={createAccount.isPending || updateAccount.isPending}
           onSubmit={submit}
           onClose={closeDrawer}
+          creditGroups={creditGroupRows}
+          onCreateGroup={handleCreateCreditGroup}
+          onUpdateGroup={(input) => updateCreditGroup.mutateAsync(input)}
+          onDeleteGroup={handleDeleteCreditGroup}
+          groupMutationPending={createCreditGroup.isPending || updateCreditGroup.isPending || deleteCreditGroup.isPending || updateAccount.isPending}
         />
       ) : null}
 
@@ -751,6 +798,7 @@ function BookManager({
 
 function AccountDrawer({
   isEditing, typeStep, setTypeStep, form, setForm, books, selectedCurrency, currencyOptions, message, pending, onSubmit, onClose,
+  creditGroups, onCreateGroup, onUpdateGroup, onDeleteGroup, groupMutationPending,
 }: {
   isEditing: boolean;
   typeStep: AccountType | null;
@@ -764,10 +812,94 @@ function AccountDrawer({
   pending: boolean;
   onSubmit: () => Promise<void>;
   onClose: () => void;
+  creditGroups: CreditGroup[];
+  onCreateGroup: (input: CreditGroupDraft) => Promise<string | null>;
+  onUpdateGroup: (input: CreditGroupDraft & { id: string }) => Promise<unknown>;
+  onDeleteGroup: (id: string) => Promise<unknown>;
+  groupMutationPending: boolean;
 }) {
   const [step, setStep] = useState(0);
   const [importMethod, setImportMethod] = useState('skip');
   const [csvDropped, setCsvDropped] = useState(false);
+  const [groupModal, setGroupModal] = useState<null | {
+    mode: "create" | "edit";
+    name: string;
+    creditLimit: number | null;
+    statementDay: number | null;
+    paymentDueDay: number | null;
+  }>(null);
+  const [groupError, setGroupError] = useState("");
+  const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(false);
+
+  const creditGroupOptions = creditGroups.filter((g) => g.currency === selectedCurrency);
+  const selectedGroup = form.creditGroupId ? creditGroups.find((g) => g.id === form.creditGroupId) ?? null : null;
+
+  function openCreateGroupModal() {
+    setGroupModal({ mode: "create", name: "", creditLimit: null, statementDay: null, paymentDueDay: null });
+    setGroupError("");
+    setConfirmDeleteGroup(false);
+  }
+  function openEditGroupModal() {
+    if (!selectedGroup) return;
+    setGroupModal({
+      mode: "edit",
+      name: selectedGroup.name,
+      creditLimit: selectedGroup.creditLimit,
+      statementDay: selectedGroup.statementDay,
+      paymentDueDay: selectedGroup.paymentDueDay,
+    });
+    setGroupError("");
+    setConfirmDeleteGroup(false);
+  }
+  function closeGroupModal() {
+    setGroupModal(null);
+    setGroupError("");
+    setConfirmDeleteGroup(false);
+  }
+  async function submitGroupModal() {
+    if (!groupModal) return;
+    if (!groupModal.name.trim()) { setGroupError("請輸入群組名稱。"); return; }
+    setGroupError("");
+    try {
+      if (groupModal.mode === "create") {
+        const newId = await onCreateGroup({
+          name: groupModal.name.trim(),
+          currency: selectedCurrency,
+          creditLimit: groupModal.creditLimit,
+          statementDay: groupModal.statementDay,
+          paymentDueDay: groupModal.paymentDueDay,
+        });
+        if (newId) setForm({ ...form, creditGroupId: newId });
+      } else if (selectedGroup) {
+        await onUpdateGroup({
+          id: selectedGroup.id,
+          name: groupModal.name.trim(),
+          currency: selectedGroup.currency,
+          creditLimit: groupModal.creditLimit,
+          statementDay: groupModal.statementDay,
+          paymentDueDay: groupModal.paymentDueDay,
+        });
+      }
+      closeGroupModal();
+    } catch (error) {
+      setGroupError(error instanceof Error ? error.message : "群組儲存失敗。");
+    }
+  }
+  async function submitDeleteGroup() {
+    if (!selectedGroup) return;
+    setGroupError("");
+    try {
+      await onDeleteGroup(selectedGroup.id);
+      // The account's own row now carries the group's last values (255
+      // leave-group snapshot) but this open drawer's local form state is
+      // stale — close the drawer rather than risk showing/saving a mix of
+      // old and new values.
+      closeGroupModal();
+      onClose();
+    } catch (error) {
+      setGroupError(error instanceof Error ? error.message : "刪除群組失敗。");
+    }
+  }
 
   const openingBalanceField = useNumericField(form.openingBalance, (v) => setForm({ ...form, openingBalance: v }));
 
@@ -804,6 +936,7 @@ function AccountDrawer({
   const canAdvance = step === 0 ? !!typeStep : step === 1 ? !!form.name.trim() : true;
 
   return (
+    <>
     <ModalShell
       variant="drawer"
       mobilePresentation="bottom-sheet"
@@ -966,20 +1099,66 @@ function AccountDrawer({
 
                 {form.type === "credit" ? (
                   <>
-                    <div className="grid grid-cols-2 gap-3.5">
-                      <DrawerField label="信用額度">
-                        <input className="ns-input" type="number" value={form.creditLimit ?? ""} onChange={(e) => setForm({ ...form, creditLimit: e.target.value ? Number(e.target.value) : null })} placeholder="120000" />
-                      </DrawerField>
-                      <DrawerField label="共用額度群組">
-                        <input className="ns-input" value={form.creditLimitGroup} onChange={(e) => setForm({ ...form, creditLimitGroup: e.target.value })} placeholder="玉山信用卡" />
-                      </DrawerField>
-                    </div>
+                    <DrawerField label="信用卡群組">
+                      <div className="flex items-center gap-2">
+                        <select
+                          className="ns-input"
+                          style={{ flex: 1 }}
+                          value={form.creditGroupId ?? ""}
+                          onChange={(e) => setForm({ ...form, creditGroupId: e.target.value || null })}
+                        >
+                          <option value="">無（獨立卡）</option>
+                          {creditGroupOptions.map((g) => (
+                            <option key={g.id} value={g.id}>{g.name}</option>
+                          ))}
+                        </select>
+                        {selectedGroup ? (
+                          <Button type="button" variant="outline" size="sm" onClick={openEditGroupModal}>編輯</Button>
+                        ) : (
+                          <Button type="button" variant="outline" size="sm" onClick={openCreateGroupModal}>＋ 新增群組</Button>
+                        )}
+                      </div>
+                      {selectedGroup ? (
+                        <div className="muted text-xs" style={{ marginTop: 4 }}>此群組的額度／結帳日／繳款日套用到所有成員卡；在此編輯會同步更新。</div>
+                      ) : null}
+                    </DrawerField>
+                    <DrawerField label="信用額度">
+                      <input
+                        className="ns-input"
+                        type="number"
+                        value={selectedGroup ? (selectedGroup.creditLimit ?? "") : (form.creditLimit ?? "")}
+                        disabled={!!selectedGroup}
+                        onChange={(e) => setForm({ ...form, creditLimit: e.target.value ? Number(e.target.value) : null })}
+                        placeholder="120000"
+                      />
+                      {selectedGroup ? <div className="muted text-xs" style={{ marginTop: 4 }}>來自群組「{selectedGroup.name}」</div> : null}
+                    </DrawerField>
                     <div className="grid grid-cols-2 gap-3.5">
                       <DrawerField label="結帳日（每月）">
-                        <input className="ns-input" type="number" min={1} max={31} value={form.statementDay ?? ""} onChange={(e) => setForm({ ...form, statementDay: e.target.value ? Math.min(31, Math.max(1, Number(e.target.value))) : null })} placeholder="例：5" />
+                        <input
+                          className="ns-input"
+                          type="number"
+                          min={1}
+                          max={31}
+                          value={selectedGroup ? (selectedGroup.statementDay ?? "") : (form.statementDay ?? "")}
+                          disabled={!!selectedGroup}
+                          onChange={(e) => setForm({ ...form, statementDay: e.target.value ? Math.min(31, Math.max(1, Number(e.target.value))) : null })}
+                          placeholder="例：5"
+                        />
+                        {selectedGroup ? <div className="muted text-xs" style={{ marginTop: 4 }}>來自群組「{selectedGroup.name}」</div> : null}
                       </DrawerField>
                       <DrawerField label="繳款日（每月）">
-                        <input className="ns-input" type="number" min={1} max={31} value={form.paymentDueDay ?? ""} onChange={(e) => setForm({ ...form, paymentDueDay: e.target.value ? Math.min(31, Math.max(1, Number(e.target.value))) : null })} placeholder="例：22" />
+                        <input
+                          className="ns-input"
+                          type="number"
+                          min={1}
+                          max={31}
+                          value={selectedGroup ? (selectedGroup.paymentDueDay ?? "") : (form.paymentDueDay ?? "")}
+                          disabled={!!selectedGroup}
+                          onChange={(e) => setForm({ ...form, paymentDueDay: e.target.value ? Math.min(31, Math.max(1, Number(e.target.value))) : null })}
+                          placeholder="例：22"
+                        />
+                        {selectedGroup ? <div className="muted text-xs" style={{ marginTop: 4 }}>來自群組「{selectedGroup.name}」</div> : null}
                       </DrawerField>
                     </div>
                   </>
@@ -1093,6 +1272,69 @@ function AccountDrawer({
         </div>
       </>)}
     </ModalShell>
+    {groupModal ? (
+      <ModalShell
+        variant="center"
+        title={groupModal.mode === "create" ? "新增信用卡群組" : `編輯群組 · ${selectedGroup?.name ?? ""}`}
+        onClose={closeGroupModal}
+        style={{ zIndex: 1000 }}
+        panelClassName="w-full"
+        panelStyle={{ maxWidth: 420 }}
+      >
+        {(dismiss) => (
+          <Card className="w-full p-0">
+            <div className="py-4 px-5" style={{ borderBottom: "1px solid var(--ns-border)" }}>
+              <h2 className="text-base font-semibold" style={{ margin: 0 }}>
+                {groupModal.mode === "create" ? "新增信用卡群組" : "編輯信用卡群組"}
+              </h2>
+              <div className="muted text-xs" style={{ marginTop: 2 }}>群組的額度／結帳日／繳款日由所有成員卡共用；編輯會同步套用到每張卡。</div>
+            </div>
+            <div className="py-4 px-5 flex flex-col gap-3.5">
+              <DrawerField label="群組名稱">
+                <input className="ns-input" value={groupModal.name} onChange={(e) => setGroupModal({ ...groupModal, name: e.target.value })} placeholder="例：玉山信用卡" />
+              </DrawerField>
+              <DrawerField label={`幣別`}>
+                <input className="ns-input" value={selectedCurrency} disabled />
+              </DrawerField>
+              <DrawerField label="信用額度">
+                <input className="ns-input" type="number" value={groupModal.creditLimit ?? ""} onChange={(e) => setGroupModal({ ...groupModal, creditLimit: e.target.value ? Number(e.target.value) : null })} placeholder="120000" />
+              </DrawerField>
+              <div className="grid grid-cols-2 gap-3.5">
+                <DrawerField label="結帳日（每月）">
+                  <input className="ns-input" type="number" min={1} max={31} value={groupModal.statementDay ?? ""} onChange={(e) => setGroupModal({ ...groupModal, statementDay: e.target.value ? Math.min(31, Math.max(1, Number(e.target.value))) : null })} placeholder="例：5" />
+                </DrawerField>
+                <DrawerField label="繳款日（每月）">
+                  <input className="ns-input" type="number" min={1} max={31} value={groupModal.paymentDueDay ?? ""} onChange={(e) => setGroupModal({ ...groupModal, paymentDueDay: e.target.value ? Math.min(31, Math.max(1, Number(e.target.value))) : null })} placeholder="例：22" />
+                </DrawerField>
+              </div>
+              {groupError ? <div className="text-body" style={{ color: "var(--ns-neg)" }}>{groupError}</div> : null}
+              <div className="flex gap-2">
+                <Button className="flex-1 justify-center" onClick={submitGroupModal} loading={groupMutationPending}>
+                  {groupMutationPending ? "處理中…" : "儲存"}
+                </Button>
+                <Button variant="outline" onClick={dismiss}>取消</Button>
+              </div>
+              {groupModal.mode === "edit" ? (
+                <div style={{ borderTop: "1px solid var(--ns-border)", paddingTop: 14 }}>
+                  {confirmDeleteGroup ? (
+                    <div className="flex items-center gap-2">
+                      <div className="muted text-xs" style={{ flex: 1 }}>刪除群組後，所有成員卡改回獨立卡並保留目前的額度／結帳日／繳款日。</div>
+                      <Button variant="destructive-outline" size="sm" onClick={submitDeleteGroup} loading={groupMutationPending}>確定刪除</Button>
+                      <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteGroup(false)}>取消</Button>
+                    </div>
+                  ) : (
+                    <Button variant="destructive-outline" size="sm" onClick={() => setConfirmDeleteGroup(true)}>
+                      <Trash size={14} />刪除群組
+                    </Button>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </Card>
+        )}
+      </ModalShell>
+    ) : null}
+    </>
   );
 }
 
@@ -1105,10 +1347,12 @@ function DrawerField({ label, children }: { label: string; children: ReactNode }
   );
 }
 
-function calculateCreditGroup(name: string, accounts: Account[]) {
-  const groupRows = accounts.filter((account) => account.type === "credit" && account.creditLimitGroup === name);
+function calculateCreditGroup(groupId: string, accounts: Account[], groups: CreditGroup[]) {
+  const groupRows = accounts.filter((account) => account.type === "credit" && account.creditGroupId === groupId);
   const used = groupRows.reduce((sum, account) => sum + Math.max(0, -account.balance), 0);
-  const limit = Math.max(...groupRows.map((account) => account.creditLimit ?? 0), 0);
+  const group = groups.find((g) => g.id === groupId);
+  const limit = group?.creditLimit ?? Math.max(...groupRows.map((account) => account.creditLimit ?? 0), 0);
+  const name = group?.name ?? "";
   return { name, used, limit };
 }
 
