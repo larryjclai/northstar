@@ -47,12 +47,40 @@ export function ReconcileRoute() {
   const [payOpen, setPayOpen] = useState(false);
 
   const account = (accounts.data ?? []).find((a) => a.id === accountId);
+
+  const groupAccounts = useMemo(() => {
+    const all = accounts.data ?? [];
+    if (!account) return [];
+    const g = account.creditLimitGroup?.trim();
+    if (!g || account.type !== "credit") return [account];
+    const siblings = all.filter(
+      (a) =>
+        a.deletedAt === null &&
+        a.type === "credit" &&
+        (a.creditLimitGroup?.trim() ?? "") === g &&
+        a.currency === account.currency &&
+        a.statementDay === account.statementDay &&
+        a.paymentDueDay === account.paymentDueDay,
+    );
+    return siblings.length >= 2 ? siblings : [account];
+  }, [accounts.data, account]);
+
+  const isGrouped = groupAccounts.length >= 2;
+  const groupAccountIds = useMemo(() => new Set(groupAccounts.map((a) => a.id)), [groupAccounts]);
+  const accountNameById = useMemo(() => new Map(groupAccounts.map((a) => [a.id, a.name])), [groupAccounts]);
+
   const rows = useMemo(
     () => (ledger.data ?? [])
-      .filter((row) => row.accountId === accountId && row.deletedAt === null && row.entryType !== "transfer")
+      .filter((row) => groupAccountIds.has(row.accountId) && row.deletedAt === null && row.entryType !== "transfer")
       .sort((a, b) => b.date.localeCompare(a.date)),
-    [ledger.data, accountId],
+    [ledger.data, groupAccountIds],
   );
+
+  const groupPaidUntil = useMemo(() => {
+    const vals = groupAccounts.map((a) => a.creditPaymentPaidUntil);
+    if (vals.some((v) => !v)) return null;
+    return vals.reduce((min, v) => (v! < min! ? v : min), vals[0]);
+  }, [groupAccounts]);
 
   const today = todayInTimezone(timezone);
   const periods = useMemo(
@@ -60,11 +88,11 @@ export function ReconcileRoute() {
       ? buildStatementPeriods(rows, {
           statementDay: account.statementDay,
           paymentDueDay: account.paymentDueDay,
-          creditPaymentPaidUntil: account.creditPaymentPaidUntil,
+          creditPaymentPaidUntil: groupPaidUntil,
           today,
         })
       : [],
-    [rows, account, today],
+    [rows, account, groupPaidUntil, today],
   );
 
   const currentPeriod = periods.find((p) => p.isCurrent) ?? periods[0];
@@ -116,16 +144,18 @@ export function ReconcileRoute() {
   async function markPaid(dueDate: string) {
     if (!account?.paymentDueDay || !dueDate) return;
     try {
-      await updateAccount.mutateAsync({
-        id: account.id,
-        name: account.name, currency: account.currency, openingBalance: account.openingBalance,
-        type: account.type, creditLimit: account.creditLimit, creditLimitGroup: account.creditLimitGroup,
-        statementDay: account.statementDay, paymentDueDay: account.paymentDueDay,
-        creditPaymentPaidUntil: dueDate,
-        isSharedToHousehold: account.isSharedToHousehold,
-        loanStartDate: account.loanStartDate, annualInterestRate: account.annualInterestRate, loanTerm: account.loanTerm,
-        iconName: account.iconName, color: account.color,
-      });
+      for (const a of groupAccounts) {
+        await updateAccount.mutateAsync({
+          id: a.id,
+          name: a.name, currency: a.currency, openingBalance: a.openingBalance,
+          type: a.type, creditLimit: a.creditLimit, creditLimitGroup: a.creditLimitGroup,
+          statementDay: a.statementDay, paymentDueDay: a.paymentDueDay,
+          creditPaymentPaidUntil: dueDate,
+          isSharedToHousehold: a.isSharedToHousehold,
+          loanStartDate: a.loanStartDate, annualInterestRate: a.annualInterestRate, loanTerm: a.loanTerm,
+          iconName: a.iconName, color: a.color,
+        });
+      }
       toast.success(`已標記繳款，提醒將在 ${dueDate} 後再次顯示`);
     } catch {
       toast.error("更新失敗");
@@ -205,7 +235,8 @@ export function ReconcileRoute() {
     return <div style={{ padding: "24px 32px" }} className="muted">找不到帳戶。</div>;
   }
 
-  const owed = Math.max(0, -account.balance);
+  const title = isGrouped ? (account.creditLimitGroup?.trim() || account.name) : account.name;
+  const owed = groupAccounts.reduce((s, a) => s + Math.max(0, -a.balance), 0);
   const hasUnpaidClosed = payablePeriods.length > 0;
   const isPaid = account.creditPaymentPaidUntil != null && !hasUnpaidClosed;
   // Non-credit, non-loan accounts in the same currency can pay this card (v1: no FX).
@@ -226,13 +257,13 @@ export function ReconcileRoute() {
       <div className="text-body flex items-center gap-2" style={{ marginBottom: 18, color: "var(--ns-fg-muted)" }}>
         <span style={{ cursor: "pointer" }} onClick={() => navigate({ to: "/accounts" })}>帳戶</span>
         <CaretRight size={13} />
-        <span className="font-medium" style={{ color: "var(--ns-fg)" }}>{account.name} · 對帳</span>
+        <span className="font-medium" style={{ color: "var(--ns-fg)" }}>{title} · 對帳</span>
       </div>
 
       <div className="flex items-end justify-between flex-wrap gap-4 mb-5">
         <div>
           <div className="text-xs ns-field-label">Reconciliation · {account.currency}</div>
-          <h1 className="text-[26px] m-0 font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>{account.name} 對帳</h1>
+          <h1 className="text-[26px] m-0 font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>{title} 對帳</h1>
           <p className="muted text-body mt-1 mb-0">
             依結帳日將交易分期核對。
             {account.statementDay ? ` 結帳日每月 ${account.statementDay} 號。` : ""}
@@ -341,6 +372,11 @@ export function ReconcileRoute() {
                           <div className="muted text-caption">
                             {row.date.slice(0, 10)}{row.category ? ` · ${row.category}` : ""}
                             {row.postDate ? <Badge variant="outline" className="rounded-full text-micro ml-1.5" style={{ padding: "1px 6px", color: "var(--ns-accent)", borderColor: "var(--ns-accent)" }}>延後 {row.postDate.slice(5, 10)}</Badge> : null}
+                            {isGrouped ? (
+                              <Badge variant="outline" className="rounded-full text-micro ml-1.5" style={{ padding: "1px 6px" }}>
+                                {accountNameById.get(row.accountId) ?? "—"}
+                              </Badge>
+                            ) : null}
                           </div>
                         </div>
                         <div className="num text-sm" style={{ color: row.amount < 0 ? "var(--ns-neg)" : "var(--ns-pos)", whiteSpace: "nowrap" }}>
@@ -395,6 +431,7 @@ export function ReconcileRoute() {
           currency={account.currency}
           payingAccounts={payingAccounts}
           payablePeriods={payablePeriods}
+          groupCardCount={isGrouped ? groupAccounts.length : undefined}
           pending={createTransfer.isPending || createLedger.isPending || updateAccount.isPending}
           onCancel={() => setPayOpen(false)}
           onConfirm={handlePay}
@@ -409,6 +446,7 @@ function PayCardModal({
   currency,
   payingAccounts,
   payablePeriods,
+  groupCardCount,
   pending,
   onCancel,
   onConfirm,
@@ -417,6 +455,7 @@ function PayCardModal({
   currency: string;
   payingAccounts: Account[];
   payablePeriods: StatementPeriod<LedgerTransaction>[];
+  groupCardCount?: number;
   pending: boolean;
   onCancel: () => void;
   onConfirm: (payAccountId: string, payAmount: number, creditAmount: number, dueDate: string) => void;
@@ -444,6 +483,7 @@ function PayCardModal({
         <div className="text-[15px] font-semibold mb-1">信用卡繳款</div>
         <div className="text-xs mb-4" style={{ color: "var(--ns-fg-muted)", lineHeight: 1.6 }}>
           未繳總額 NT${formatNumber(owed)} · 從帳戶轉帳繳款，可選填帳單折抵 / 回饋。
+          {groupCardCount ? ` 此組共 ${groupCardCount} 張卡，繳款標記將套用整組；轉帳金額入本卡。` : ""}
         </div>
 
         <div className="mb-3.5">

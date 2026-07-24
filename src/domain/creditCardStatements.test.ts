@@ -135,4 +135,19 @@ describe("buildStatementPeriods", () => {
     expect(open.isPaid).toBe(false);
     expect(open.dueDate).toBe("2026-09-03");
   });
+
+  it("buckets rows from multiple accounts into shared cycles, preserving accountId (plan 253)", () => {
+    type MultiRow = StatementRow & { accountId: string };
+    const rows: MultiRow[] = [
+      { date: "2026-07-10T10:00", amount: -100, isReviewed: false, accountId: "unicard" },
+      { date: "2026-07-12T10:00", amount: -200, isReviewed: false, accountId: "ubear" },
+    ];
+    const periods = buildStatementPeriods(rows, {
+      statementDay: 15, paymentDueDay: 3, creditPaymentPaidUntil: null, today: "2026-07-24",
+    });
+    const cycle = periods.find((p) => p.end === "2026-07-15")!;
+    expect(cycle.rows).toHaveLength(2);
+    expect(cycle.spend).toBe(300);
+    expect(new Set(cycle.rows.map((r) => r.accountId))).toEqual(new Set(["unicard", "ubear"]));
+  });
 });
