@@ -41,6 +41,16 @@ export function nowAsDatetimeLocal(timezone: string, now: Date = new Date()): st
 }
 
 /**
+ * Coerce a stored date string into a value the `<input type="datetime-local">`
+ * element can render. A date-only string (`YYYY-MM-DD`, 10 chars) is invalid
+ * for datetime-local and the browser renders it as blank, so we append a
+ * midnight time. Full datetime-local strings and empty strings pass through.
+ */
+export function toDatetimeLocalValue(value: string): string {
+  return value.length === 10 ? `${value}T00:00` : value;
+}
+
+/**
  * Format a calendar date for display in the given timezone. Accepts either a
  * Date or an ISO string ("2026-05-24" or "2026-05-24T10:00:00Z"). When given a
  * date-only string we treat it as midnight in `timezone` (so "2026-05-24"

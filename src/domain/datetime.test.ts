@@ -6,6 +6,7 @@ import {
   isValidTimezone,
   nowAsDatetimeLocal,
   todayInTimezone,
+  toDatetimeLocalValue,
 } from "./datetime";
 
 describe("datetime helpers", () => {
@@ -59,5 +60,17 @@ describe("datetime helpers", () => {
     expect(isValidTimezone("America/Los_Angeles")).toBe(true);
     expect(isValidTimezone("Not/A_Real_Zone")).toBe(false);
     expect(isValidTimezone("")).toBe(false);
+  });
+});
+
+describe("toDatetimeLocalValue", () => {
+  it("appends midnight to a date-only string", () => {
+    expect(toDatetimeLocalValue("2026-07-24")).toBe("2026-07-24T00:00");
+  });
+  it("passes a full datetime-local string through", () => {
+    expect(toDatetimeLocalValue("2026-07-24T14:30")).toBe("2026-07-24T14:30");
+  });
+  it("passes an empty string through", () => {
+    expect(toDatetimeLocalValue("")).toBe("");
   });
 });

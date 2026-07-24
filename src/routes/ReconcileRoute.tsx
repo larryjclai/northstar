@@ -7,7 +7,7 @@ import { ModalShell } from "../components/ModalShell";
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { buildStatementPeriods, formatNumber, todayInTimezone } from "../domain";
+import { buildStatementPeriods, formatNumber, nowAsDatetimeLocal, todayInTimezone } from "../domain";
 import type { Account, LedgerTransaction, StatementPeriod } from "../domain";
 import { useToast } from "../components/Toast";
 import { useUiPreferences } from "../state/uiPreferences";
@@ -134,7 +134,7 @@ export function ReconcileRoute() {
 
   async function handlePay(payAccountId: string, payAmount: number, creditAmount: number, dueDate: string) {
     if (!account || account.type !== "credit") return;
-    const day = todayInTimezone(timezone);
+    const day = nowAsDatetimeLocal(timezone);
     try {
       if (payAmount > 0) {
         await createTransfer.mutateAsync({

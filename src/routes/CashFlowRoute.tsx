@@ -56,7 +56,7 @@ import { ClientManager } from "../components/ClientManager";
 import { useToast } from "../components/Toast";
 import { activeFilterChips } from "./activeFilterChips";
 import type { ClientDraft, InvoiceDraft, LedgerDraft, TransferDraft } from "../data/repositories";
-import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, classifyLedgerGroup, evaluateAmountExpression, filterCategoriesByType, formatNumber, installmentLabel, isNeutralLedgerRow, isWithinDateScope, makeDefaultDateScope, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, resolveDateScope, todayInTimezone } from "../domain";
+import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, classifyLedgerGroup, evaluateAmountExpression, filterCategoriesByType, formatNumber, installmentLabel, isNeutralLedgerRow, isWithinDateScope, makeDefaultDateScope, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, resolveDateScope, todayInTimezone, toDatetimeLocalValue } from "../domain";
 import type { SplitLegInput, SplitShareInput, SplitSharedFields } from "../domain/splitLegs";
 import { buildInvoiceDrafts, defaultInvoiceDueDate } from "../domain/invoiceEntry";
 import { computeSalesTax } from "../domain/salesTax";
@@ -3335,7 +3335,7 @@ function EntryDrawer({
                 <input
                   className="ns-input"
                   type="datetime-local"
-                  value={type === "transfer" ? transferForm.date : ledgerForm.date}
+                  value={toDatetimeLocalValue(type === "transfer" ? transferForm.date : ledgerForm.date)}
                   onChange={(e) =>
                     type === "transfer"
                       ? setTransferForm({ ...transferForm, date: e.target.value })
