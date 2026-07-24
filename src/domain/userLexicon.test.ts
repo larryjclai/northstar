@@ -27,6 +27,7 @@ function makeAccount(overrides: Partial<Account> & { id: string; name: string })
     bookId: "book_test_default",
     creditLimit: null,
     creditLimitGroup: "",
+    creditGroupId: null,
     statementDay: null,
     paymentDueDay: null,
     creditPaymentPaidUntil: null,

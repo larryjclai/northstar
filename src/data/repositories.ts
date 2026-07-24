@@ -7,6 +7,7 @@ import type {
   Book,
   BookKind,
   Client,
+  CreditGroup,
   DailyFxRate,
   DailyPrice,
   FinancialGoal,
@@ -88,6 +89,10 @@ export type AccountDraft = Pick<Account, "name" | "currency" | "openingBalance" 
   customGroup?: string;
   /** 帳本 the account belongs to. Omitted → repositories assign the default 個人帳. */
   bookId?: string;
+  /** 信用卡群組 (plan 254/255). Omitted → repositories keep the account's existing
+   *  linkage (update) or leave it ungrouped (create). Optional (not in the strict
+   *  Pick above) because UI callers predating plan 256 don't set it yet. */
+  creditGroupId?: string | null;
 };
 
 /** Fields a caller supplies to create/update a 帳本 (Book). */
@@ -105,6 +110,9 @@ export type InvoiceDraft = Pick<
 
 /** Fields a caller supplies to create/update a 客戶 (Client). */
 export type ClientDraft = Pick<Client, "bookId" | "name" | "taxId" | "defaultPaymentTerms">;
+
+/** Fields a caller supplies to create/update a 信用卡群組 (Credit group, plan 254/255). */
+export type CreditGroupDraft = Pick<CreditGroup, "name" | "currency" | "creditLimit" | "statementDay" | "paymentDueDay">;
 
 export interface RecurringDraft {
   accountId: string;
@@ -303,6 +311,11 @@ export interface FinanceRepository {
   listClients(): Promise<Client[]>;
   createClient(input: ClientDraft): Promise<void>;
   updateClient(id: string, input: ClientDraft): Promise<void>;
+  /** 信用卡群組 (Credit groups) — plan 254/255. See `CreditGroup`. */
+  listCreditGroups(): Promise<CreditGroup[]>;
+  createCreditGroup(input: CreditGroupDraft): Promise<void>;
+  updateCreditGroup(id: string, input: CreditGroupDraft): Promise<void>;
+  deleteCreditGroup(id: string): Promise<void>;
   /**
    * Stamp (or clear, when `settledAt` is null) the `settledAt` field on the
    * invoice whose `linkedLedgerTransactionId` matches `linkedLedgerTransactionId`.
@@ -468,6 +481,8 @@ export interface RepositorySnapshot {
   /** 發票/客戶 (Invoices/Clients). Optional so pre-190 backups round-trip cleanly. */
   invoices?: Invoice[];
   clients?: Client[];
+  /** 信用卡群組 (Credit groups) — plan 254/255. Optional so pre-255 backups round-trip cleanly. */
+  creditGroups?: CreditGroup[];
 }
 
 const personalSpace = "space_personal_default";
@@ -493,6 +508,7 @@ export interface RepositoryData {
   books: Book[];
   invoices: Invoice[];
   clients: Client[];
+  creditGroups: CreditGroup[];
   accounts: Account[];
   ledgerTransactions: LedgerTransaction[];
   portfolioAssets: PortfolioAsset[];
@@ -587,6 +603,134 @@ function bump<T extends { revision: number; updatedAt: string }>(record: T): T {
 
 function active<T extends { deletedAt: string | null }>(rows: T[]) {
   return rows.filter((row) => row.deletedAt === null);
+}
+
+/**
+ * Derive-on-read (plan 254/255): an account with `creditGroupId` set to a
+ * live (non-deleted) group reports that group's statementDay/paymentDueDay/
+ * creditLimit instead of its own stale columns. Shared by both repos so the
+ * override logic can't drift between the browser (in-memory) and SQLite
+ * implementations — accounts lists are small, so this runs in JS with no
+ * caching (per plan 255 Step 8 escape hatch).
+ */
+function applyCreditGroupDerivation(accounts: Account[], groups: CreditGroup[]): Account[] {
+  if (accounts.every((account) => !account.creditGroupId)) return accounts;
+  const groupById = new Map(groups.filter((g) => !g.deletedAt).map((g) => [g.id, g]));
+  return accounts.map((account) => {
+    if (!account.creditGroupId) return account;
+    const group = groupById.get(account.creditGroupId);
+    if (!group) return account;
+    return {
+      ...account,
+      statementDay: group.statementDay,
+      paymentDueDay: group.paymentDueDay,
+      creditLimit: group.creditLimit,
+    };
+  });
+}
+
+/** Minimal shape the backfill plan needs from an ungrouped credit account. */
+interface CreditGroupBackfillCandidate {
+  id: string;
+  currency: string;
+  creditLimitGroup: string;
+  statementDay: number | null;
+  paymentDueDay: number | null;
+  creditLimit: number | null;
+  updatedAt: string;
+}
+
+interface CreditGroupBackfillPlan {
+  /** Brand-new groups this device needs to create, keyed by creditLimitGroup name. */
+  groupsToCreate: Array<{
+    name: string;
+    currency: string;
+    statementDay: number | null;
+    paymentDueDay: number | null;
+    creditLimit: number | null;
+    memberIds: string[];
+  }>;
+  /** Existing (same-named) groups whose members just need creditGroupId set. */
+  groupsToReuse: Array<{ groupId: string; memberIds: string[] }>;
+  /** creditLimitGroup names skipped because members disagree on currency —
+   *  a shared bill can't span currencies, so backfill leaves these untouched. */
+  skipped: string[];
+}
+
+/** Among `members`, the value most commonly held for `selector`; ties broken
+ *  by the member with the latest `updatedAt` (plan 255 Step 9 Decision 4). */
+function mostCommonValue<T>(members: CreditGroupBackfillCandidate[], selector: (m: CreditGroupBackfillCandidate) => T): T {
+  const byKey = new Map<string, { value: T; count: number; latestUpdatedAt: string }>();
+  for (const member of members) {
+    const value = selector(member);
+    const key = JSON.stringify(value);
+    const entry = byKey.get(key);
+    if (entry) {
+      entry.count += 1;
+      if (member.updatedAt > entry.latestUpdatedAt) entry.latestUpdatedAt = member.updatedAt;
+    } else {
+      byKey.set(key, { value, count: 1, latestUpdatedAt: member.updatedAt });
+    }
+  }
+  let best: { value: T; count: number; latestUpdatedAt: string } | null = null;
+  for (const entry of byKey.values()) {
+    if (!best || entry.count > best.count || (entry.count === best.count && entry.latestUpdatedAt > best.latestUpdatedAt)) {
+      best = entry;
+    }
+  }
+  return best!.value;
+}
+
+/**
+ * Plan 254/255 Step 9 — non-destructive backfill of the legacy free-text
+ * `creditLimitGroup` into first-class `credit_groups` rows. Pure planning
+ * function shared by both repos (browser calls it against `this.data`
+ * in-memory; SQLite calls it against rows loaded via `listAccounts`/
+ * `listCreditGroups`) so the grouping/tie-break/currency-mismatch decisions
+ * can't drift between implementations, and so it's unit-testable without a
+ * database. Idempotent by construction: callers only pass candidates with
+ * `creditGroupId == null`, and an existing group with a matching name is
+ * reused rather than duplicated — re-running produces `groupsToCreate: []`.
+ */
+function planCreditGroupBackfill(
+  candidates: CreditGroupBackfillCandidate[],
+  existingGroups: Array<{ id: string; name: string }>,
+): CreditGroupBackfillPlan {
+  const byName = new Map<string, CreditGroupBackfillCandidate[]>();
+  for (const candidate of candidates) {
+    if (!candidate.creditLimitGroup) continue;
+    const list = byName.get(candidate.creditLimitGroup) ?? [];
+    list.push(candidate);
+    byName.set(candidate.creditLimitGroup, list);
+  }
+  const groupsToCreate: CreditGroupBackfillPlan["groupsToCreate"] = [];
+  const groupsToReuse: CreditGroupBackfillPlan["groupsToReuse"] = [];
+  const skipped: string[] = [];
+  for (const [name, members] of byName) {
+    // A "group" of one has nothing to share a bill with — leave it as plain
+    // free-text; nothing forces a lone card into a first-class group.
+    if (members.length < 2) continue;
+    const currencies = new Set(members.map((m) => m.currency));
+    if (currencies.size > 1) {
+      skipped.push(name);
+      continue;
+    }
+    const memberIds = members.map((m) => m.id);
+    const existing = existingGroups.find((g) => g.name === name);
+    if (existing) {
+      groupsToReuse.push({ groupId: existing.id, memberIds });
+      continue;
+    }
+    groupsToCreate.push({
+      name,
+      currency: members[0].currency,
+      statementDay: mostCommonValue(members, (m) => m.statementDay),
+      paymentDueDay: mostCommonValue(members, (m) => m.paymentDueDay),
+      creditLimit: mostCommonValue(members, (m) => m.creditLimit),
+      memberIds,
+    });
+  }
+  return { groupsToCreate, groupsToReuse, skipped };
 }
 
 /**
@@ -764,8 +908,62 @@ class BrowserFinanceRepository implements FinanceRepository {
     this.ensureDefaultBookInMemory();
     this.mergeAndHealBooksInMemory();
     this.backfillUnassignedAccountInMemory();
+    this.backfillCreditGroupsInMemory();
     this.recompute();
     await this.persist();
+  }
+
+  /**
+   * Plan 254/255 Step 9 — see `planCreditGroupBackfill`. Not suppressed from
+   * the sync feed (reviewer correction): the browser repo has no outbox to
+   * suppress, so the `bump()`ed accounts and newly-pushed `creditGroups` rows
+   * flow into the very next `collectPendingChanges` like any other mutation,
+   * which is required so the backfill propagates to other devices.
+   */
+  protected backfillCreditGroupsInMemory() {
+    const candidates: CreditGroupBackfillCandidate[] = this.data.accounts
+      .filter((account) => account.deletedAt === null && account.type === "credit" && account.creditLimitGroup && !account.creditGroupId)
+      .map((account) => ({
+        id: account.id,
+        currency: account.currency,
+        creditLimitGroup: account.creditLimitGroup,
+        statementDay: account.statementDay,
+        paymentDueDay: account.paymentDueDay,
+        creditLimit: account.creditLimit,
+        updatedAt: account.updatedAt,
+      }));
+    if (candidates.length === 0) return;
+    const existingGroups = active(this.data.creditGroups).map((g) => ({ id: g.id, name: g.name }));
+    const plan = planCreditGroupBackfill(candidates, existingGroups);
+    for (const name of plan.skipped) {
+      console.warn(`[backfillCreditGroups] skipped "${name}": members disagree on currency, a shared bill can't span currencies.`);
+    }
+    const memberIdToGroupId = new Map<string, string>();
+    for (const group of plan.groupsToCreate) {
+      const timestamp = nowIso();
+      const id = createId("creditGroup");
+      this.data.creditGroups.push({
+        id,
+        spaceId: personalSpace,
+        revision: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        deletedAt: null,
+        name: group.name,
+        currency: group.currency,
+        creditLimit: group.creditLimit,
+        statementDay: group.statementDay,
+        paymentDueDay: group.paymentDueDay,
+      });
+      for (const memberId of group.memberIds) memberIdToGroupId.set(memberId, id);
+    }
+    for (const group of plan.groupsToReuse) {
+      for (const memberId of group.memberIds) memberIdToGroupId.set(memberId, group.groupId);
+    }
+    if (memberIdToGroupId.size === 0) return;
+    this.data.accounts = this.data.accounts.map((account) =>
+      memberIdToGroupId.has(account.id) ? bump({ ...account, creditGroupId: memberIdToGroupId.get(account.id)! }) : account,
+    );
   }
 
   /** Plan 211 — see FinanceRepository.consumeBookMergeAnnouncement. */
@@ -927,6 +1125,7 @@ class BrowserFinanceRepository implements FinanceRepository {
         bookId: this.ensureDefaultBookInMemory(),
         creditLimit: null,
         creditLimitGroup: "",
+        creditGroupId: null,
         isSharedToHousehold: false,
         loanStartDate: null,
         annualInterestRate: null,
@@ -1092,6 +1291,49 @@ class BrowserFinanceRepository implements FinanceRepository {
     await this.persist();
   }
 
+  async listCreditGroups() {
+    return active(this.data.creditGroups);
+  }
+
+  async createCreditGroup(input: CreditGroupDraft) {
+    const timestamp = nowIso();
+    this.data.creditGroups.push({
+      id: createId("creditGroup"),
+      spaceId: personalSpace,
+      revision: 1,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      deletedAt: null,
+      name: input.name,
+      currency: input.currency,
+      creditLimit: input.creditLimit ?? null,
+      statementDay: input.statementDay ?? null,
+      paymentDueDay: input.paymentDueDay ?? null,
+    });
+    await this.persist();
+  }
+
+  async updateCreditGroup(id: string, input: CreditGroupDraft) {
+    this.data.creditGroups = this.data.creditGroups.map((group) =>
+      group.id === id ? bump({
+        ...group,
+        name: input.name,
+        currency: input.currency,
+        creditLimit: input.creditLimit ?? null,
+        statementDay: input.statementDay ?? null,
+        paymentDueDay: input.paymentDueDay ?? null,
+      }) : group,
+    );
+    await this.persist();
+  }
+
+  async deleteCreditGroup(id: string) {
+    this.data.creditGroups = this.data.creditGroups.map((group) =>
+      group.id === id ? bump({ ...group, deletedAt: nowIso() }) : group,
+    );
+    await this.persist();
+  }
+
   async stampInvoiceSettled(linkedLedgerTransactionId: string, settledAt: string | null) {
     const match = this.data.invoices.find(
       (invoice) => invoice.linkedLedgerTransactionId === linkedLedgerTransactionId && invoice.deletedAt === null,
@@ -1112,7 +1354,7 @@ class BrowserFinanceRepository implements FinanceRepository {
   }
 
   async listAccounts() {
-    return active(this.data.accounts).map((row) => ({
+    const rows = active(this.data.accounts).map((row) => ({
       ...row,
       loanStartDate: row.loanStartDate ?? null,
       annualInterestRate: row.annualInterestRate ?? null,
@@ -1122,7 +1364,9 @@ class BrowserFinanceRepository implements FinanceRepository {
       bankBrandDomain: row.bankBrandDomain ?? null,
       statementDay: row.statementDay ?? null,
       paymentDueDay: row.paymentDueDay ?? null,
+      creditGroupId: row.creditGroupId ?? null,
     }));
+    return applyCreditGroupDerivation(rows, this.data.creditGroups);
   }
 
   async createAccount(input: AccountDraft) {
@@ -1138,6 +1382,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       balance: input.openingBalance,
       ...input,
       bookId,
+      creditGroupId: input.creditGroupId ?? null,
       creditLimit: input.type === "credit" ? input.creditLimit : null,
       creditLimitGroup: input.type === "credit" ? input.creditLimitGroup : "",
       statementDay: input.type === "credit" ? (input.statementDay ?? null) : null,
@@ -1151,19 +1396,38 @@ class BrowserFinanceRepository implements FinanceRepository {
   }
 
   async updateAccount(id: string, input: AccountDraft) {
-    this.data.accounts = this.data.accounts.map((account) =>
-      account.id === id ? bump({
+    this.data.accounts = this.data.accounts.map((account) => {
+      if (account.id !== id) return account;
+      const priorCreditGroupId = account.creditGroupId;
+      const nextCreditGroupId = input.creditGroupId !== undefined ? input.creditGroupId : priorCreditGroupId;
+      // Leave-group snapshot (plan 254/255 Decision 2): if the caller clears the
+      // link, freeze the group's current values onto the account's own columns
+      // so it keeps its last billing cycle/limit after leaving the group.
+      let leaveGroupOverrides: Partial<Account> = {};
+      if (priorCreditGroupId && !nextCreditGroupId) {
+        const group = this.data.creditGroups.find((g) => g.id === priorCreditGroupId && !g.deletedAt);
+        if (group) {
+          leaveGroupOverrides = {
+            statementDay: group.statementDay,
+            paymentDueDay: group.paymentDueDay,
+            creditLimit: group.creditLimit,
+          };
+        }
+      }
+      return bump({
         ...account,
         ...input,
         bookId: input.bookId ?? account.bookId,
+        creditGroupId: nextCreditGroupId,
         creditLimit: input.type === "credit" ? input.creditLimit : null,
         creditLimitGroup: input.type === "credit" ? input.creditLimitGroup : "",
         loanStartDate: input.type === "loan" ? (input.loanStartDate ?? null) : null,
         annualInterestRate: input.type === "loan" ? (input.annualInterestRate ?? null) : null,
         loanTerm: input.type === "loan" ? (input.loanTerm ?? null) : null,
         bankBrandDomain: input.bankBrandDomain ?? null,
-      }) : account,
-    );
+        ...leaveGroupOverrides,
+      });
+    });
     this.recompute();
     await this.persist();
   }
@@ -2102,6 +2366,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       manualPriceSnapshots: this.data.manualPriceSnapshots,
       invoices: this.data.invoices,
       clients: this.data.clients,
+      creditGroups: this.data.creditGroups,
     };
   }
 
@@ -2113,6 +2378,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       books: this.data.books,
       invoices: this.data.invoices,
       clients: this.data.clients,
+      creditGroups: this.data.creditGroups,
       accounts: this.data.accounts,
       ledgerTransactions: this.data.ledgerTransactions,
       portfolioAssets: this.data.portfolioAssets,
@@ -2191,6 +2457,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       book: this.data.books,
       invoice: this.data.invoices,
       client: this.data.clients,
+      creditGroup: this.data.creditGroups,
     };
     return (rowsByEntity[entity].find((row) => row.id === entityId) as unknown as Record<string, unknown> | undefined) ?? null;
   }
@@ -2225,6 +2492,7 @@ class BrowserFinanceRepository implements FinanceRepository {
       manualPriceSnapshots: snapshot.manualPriceSnapshots,
       invoices: snapshot.invoices,
       clients: snapshot.clients,
+      creditGroups: snapshot.creditGroups,
     });
     // A pre-books snapshot carries no books; guarantee the default 個人帳 and
     // that every imported account belongs to a book before deriving anything.
@@ -2260,6 +2528,7 @@ class BrowserFinanceRepository implements FinanceRepository {
         book: "books",
         invoice: "invoices",
         client: "clients",
+        creditGroup: "creditGroups",
       } as const;
       // Recurring-occurrence de-dup: when two devices each post the same
       // occurrence, both rows arrive via sync under one recurringOccurrenceKey.
@@ -2705,6 +2974,10 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     // join column is additive on `accounts`. Empty string is the "unassigned"
     // sentinel that ensureSqliteDefaultBook() replaces with the default 個人帳.
     await this.ensureSqliteColumn("accounts", "book_id", "text not null default ''");
+    // 信用卡群組 (Credit groups, plan 254/255): additive join column on
+    // `accounts`. Null means ungrouped — statementDay/paymentDueDay/creditLimit
+    // stay on the account's own columns (derive-on-read only kicks in when set).
+    await this.ensureSqliteColumn("accounts", "credit_group_id", "text");
     await this.ensureSqliteColumn("portfolio_assets", "holding_source", "text not null default 'transactions'");
     await this.ensureSqliteColumn("portfolio_assets", "acquisition_date", "text");
     await this.ensureSqliteColumn("portfolio_assets", "name_zh", "text");
@@ -2820,6 +3093,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteDefaultBook();
     await this.mergeAndHealBooks();
     await this.backfillUnassignedAccount();
+    await this.backfillCreditGroups();
     await this.ensureDefaultSettings();
     const rows = await this.db.select<Array<{ count: number }>>("select count(*) as count from accounts");
     if ((rows[0]?.count ?? 0) === 0) {
@@ -3112,6 +3386,43 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     );
   }
 
+  override async listCreditGroups() {
+    return (await this.db.select<CreditGroup[]>(`select
+      id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
+      name, currency, credit_limit as creditLimit, statement_day as statementDay, payment_due_day as paymentDueDay
+      from credit_groups where deleted_at is null order by name, id`)).map((row) => ({
+        ...row,
+        name: row.name ?? "",
+        creditLimit: row.creditLimit ?? null,
+        statementDay: row.statementDay ?? null,
+        paymentDueDay: row.paymentDueDay ?? null,
+      }));
+  }
+
+  override async createCreditGroup(input: CreditGroupDraft) {
+    const timestamp = nowIso();
+    await this.db.execute(
+      `insert into credit_groups (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, credit_limit, statement_day, payment_due_day)
+       values ($1,$2,1,$3,$3,null,$4,$5,$6,$7,$8)`,
+      [createId("creditGroup"), personalSpace, timestamp, input.name, input.currency, input.creditLimit ?? null, input.statementDay ?? null, input.paymentDueDay ?? null],
+    );
+  }
+
+  override async updateCreditGroup(id: string, input: CreditGroupDraft) {
+    await this.db.execute(
+      `update credit_groups set revision = revision + 1, updated_at = $1, name = $2, currency = $3, credit_limit = $4, statement_day = $5, payment_due_day = $6 where id = $7`,
+      [nowIso(), input.name, input.currency, input.creditLimit ?? null, input.statementDay ?? null, input.paymentDueDay ?? null, id],
+    );
+  }
+
+  override async deleteCreditGroup(id: string) {
+    const timestamp = nowIso();
+    await this.db.execute(
+      `update credit_groups set revision = revision + 1, updated_at = $1, deleted_at = $1 where id = $2`,
+      [timestamp, id],
+    );
+  }
+
   override async stampInvoiceSettled(linkedLedgerTransactionId: string, settledAt: string | null) {
     await this.db.execute(
       `update invoices set revision = revision + 1, updated_at = $1, settled_at = $2 where linked_ledger_transaction_id = $3 and deleted_at is null`,
@@ -3140,15 +3451,16 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async listAccounts() {
-    return (await this.db.select<Account[]>(`select
+    const rows = (await this.db.select<Account[]>(`select
       id, space_id as spaceId, revision, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt,
-      name, currency, opening_balance as openingBalance, balance, type, credit_limit as creditLimit, credit_limit_group as creditLimitGroup, is_shared_to_household as isSharedToHousehold,
+      name, currency, opening_balance as openingBalance, balance, type, credit_limit as creditLimit, credit_limit_group as creditLimitGroup, credit_group_id as creditGroupId, is_shared_to_household as isSharedToHousehold,
       loan_start_date as loanStartDate, annual_interest_rate as annualInterestRate, loan_term as loanTerm, icon_name as iconName, color, bank_brand_domain as bankBrandDomain, statement_day as statementDay, payment_due_day as paymentDueDay,
       credit_payment_paid_until as creditPaymentPaidUntil, custom_group as customGroup, book_id as bookId
       from accounts where deleted_at is null order by name`)).map((row) => ({
         ...row,
         creditLimit: row.creditLimit ?? null,
         creditLimitGroup: row.creditLimitGroup ?? "",
+        creditGroupId: row.creditGroupId ?? null,
         isSharedToHousehold: Boolean(row.isSharedToHousehold),
         loanStartDate: row.loanStartDate ?? null,
         annualInterestRate: row.annualInterestRate ?? null,
@@ -3162,25 +3474,64 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         customGroup: row.customGroup ?? "",
         bookId: row.bookId ?? "",
       }));
+    const groups = await this.listCreditGroups();
+    return applyCreditGroupDerivation(rows, groups);
   }
 
   override async createAccount(input: AccountDraft) {
     const timestamp = nowIso();
     const bookId = input.bookId || (await this.ensureSqliteDefaultBook());
     await this.db.execute(
-      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, bank_brand_domain, statement_day, payment_due_day, credit_payment_paid_until, custom_group, book_id)
-       values ($1,$2,1,$3,$3,null,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
-      [createId("acct"), personalSpace, timestamp, input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.bankBrandDomain ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, null, input.customGroup?.trim() ?? "", bookId],
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, credit_group_id, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, bank_brand_domain, statement_day, payment_due_day, credit_payment_paid_until, custom_group, book_id)
+       values ($1,$2,1,$3,$3,null,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
+      [createId("acct"), personalSpace, timestamp, input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", input.creditGroupId ?? null, Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.bankBrandDomain ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, null, input.customGroup?.trim() ?? "", bookId],
     );
   }
 
   override async updateAccount(id: string, input: AccountDraft) {
+    // Leave-group snapshot (plan 254/255 Decision 2): if the caller explicitly
+    // clears creditGroupId (was set, now null), freeze the group's current
+    // statementDay/paymentDueDay/creditLimit onto the account's own columns
+    // before the link is cleared, mirroring the browser repo's updateAccount.
+    let leaveGroupOverrides: { statementDay: number | null; paymentDueDay: number | null; creditLimit: number | null } | null = null;
+    if (input.creditGroupId === null) {
+      const priorRows = await this.db.select<Array<{ creditGroupId: string | null }>>(
+        `select credit_group_id as creditGroupId from accounts where id = $1`, [id],
+      );
+      const priorCreditGroupId = priorRows[0]?.creditGroupId ?? null;
+      if (priorCreditGroupId) {
+        const groupRows = await this.db.select<Array<{ statementDay: number | null; paymentDueDay: number | null; creditLimit: number | null }>>(
+          `select statement_day as statementDay, payment_due_day as paymentDueDay, credit_limit as creditLimit from credit_groups where id = $1 and deleted_at is null`,
+          [priorCreditGroupId],
+        );
+        if (groupRows[0]) leaveGroupOverrides = groupRows[0];
+      }
+    }
     // Only overwrite book_id when the caller supplies one, otherwise preserve
     // the account's current book (coalesce keeps the existing value).
     await this.db.execute(
       `update accounts set revision = revision + 1, updated_at = $1, name = $2, currency = $3, opening_balance = $4, type = $5, credit_limit = $6, credit_limit_group = $7, is_shared_to_household = $8, loan_start_date = $9, annual_interest_rate = $10, loan_term = $11, icon_name = $12, color = $13, bank_brand_domain = $14, statement_day = $15, payment_due_day = $16, credit_payment_paid_until = $17, custom_group = $18, book_id = coalesce($19, book_id) where id = $20`,
-      [nowIso(), input.name, input.currency, input.openingBalance, input.type, input.type === "credit" ? input.creditLimit : null, input.type === "credit" ? input.creditLimitGroup : "", Number(input.isSharedToHousehold), input.type === "loan" ? (input.loanStartDate ?? null) : null, input.type === "loan" ? (input.annualInterestRate ?? null) : null, input.type === "loan" ? (input.loanTerm ?? null) : null, input.iconName ?? null, input.color ?? null, input.bankBrandDomain ?? null, input.type === "credit" ? (input.statementDay ?? null) : null, input.type === "credit" ? (input.paymentDueDay ?? null) : null, input.creditPaymentPaidUntil ?? null, input.customGroup?.trim() ?? "", input.bookId ?? null, id],
+      [
+        nowIso(), input.name, input.currency, input.openingBalance, input.type,
+        input.type === "credit" ? (leaveGroupOverrides?.creditLimit ?? input.creditLimit) : null,
+        input.type === "credit" ? input.creditLimitGroup : "",
+        Number(input.isSharedToHousehold),
+        input.type === "loan" ? (input.loanStartDate ?? null) : null,
+        input.type === "loan" ? (input.annualInterestRate ?? null) : null,
+        input.type === "loan" ? (input.loanTerm ?? null) : null,
+        input.iconName ?? null, input.color ?? null, input.bankBrandDomain ?? null,
+        input.type === "credit" ? (leaveGroupOverrides?.statementDay ?? input.statementDay ?? null) : null,
+        input.type === "credit" ? (leaveGroupOverrides?.paymentDueDay ?? input.paymentDueDay ?? null) : null,
+        input.creditPaymentPaidUntil ?? null, input.customGroup?.trim() ?? "", input.bookId ?? null, id,
+      ],
     );
+    // credit_group_id is written in a separate, narrower statement: `undefined`
+    // (caller didn't touch it) must preserve the existing link, while `null`
+    // (explicit leave-group) or a string (join/switch group) must overwrite it
+    // — the shared UPDATE above can't express "skip this column" conditionally.
+    if (input.creditGroupId !== undefined) {
+      await this.db.execute(`update accounts set credit_group_id = $1 where id = $2`, [input.creditGroupId, id]);
+    }
     await this.recomputeSqliteAccounts();
   }
 
@@ -4567,7 +4918,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async exportSnapshot(): Promise<RepositorySnapshot> {
-    const [books, accounts, ledger, assetsList, investments, recurring, recurringInvestments, quotes, settings, fx, prices, goals, manualSnapshots, invoices, clients] = await Promise.all([
+    const [books, accounts, ledger, assetsList, investments, recurring, recurringInvestments, quotes, settings, fx, prices, goals, manualSnapshots, invoices, clients, creditGroups] = await Promise.all([
       this.listBooks(),
       this.listAccounts(),
       this.listLedgerTransactions(),
@@ -4583,6 +4934,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       this.listManualPriceSnapshots(),
       this.listInvoices(),
       this.listClients(),
+      this.listCreditGroups(),
     ]);
     const metaRows = await this.db.select<Array<{ value: string }>>(`select value from app_settings where key = '__settingsMeta'`);
     const meta = metaRows[0] ? JSON.parse(metaRows[0].value) : { revision: 1, updatedAt: nowIso() };
@@ -4606,6 +4958,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       manualPriceSnapshots: manualSnapshots,
       invoices,
       clients,
+      creditGroups,
     };
   }
 
@@ -4614,7 +4967,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       this.db.select<Array<{ id: string; revision: number; updatedAt: string; deletedAt: string | null }>>(
         `select id, revision, updated_at as updatedAt, deleted_at as deletedAt from ${table}`,
       );
-    const [accounts, ledger, assets, investments, recurring, recurringInvestments, goals, books, invoices, clients] = await Promise.all([
+    const [accounts, ledger, assets, investments, recurring, recurringInvestments, goals, books, invoices, clients, creditGroups] = await Promise.all([
       q("accounts"),
       q("ledger_transactions"),
       q("portfolio_assets"),
@@ -4625,6 +4978,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       q("books"),
       q("invoices"),
       q("clients"),
+      q("credit_groups"),
     ]);
     const metaRows = await this.db.select<Array<{ value: string }>>(`select value from app_settings where key = '__settingsMeta'`);
     const meta = metaRows[0] ? JSON.parse(metaRows[0].value) : { revision: 1, updatedAt: nowIso() };
@@ -4639,6 +4993,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       books,
       invoices,
       clients,
+      creditGroups,
       appSettings: [{ id: "app_settings", revision: meta.revision ?? 1, updatedAt: meta.updatedAt ?? nowIso(), deletedAt: null }],
     };
   }
@@ -4733,6 +5088,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         book: "books",
         invoice: "invoices",
         client: "clients",
+        creditGroup: "credit_groups",
       };
       await this.db.execute(
         `update ${tableByEntity[conflict.entity]} set revision = revision + 1, updated_at = $1 where id = $2`,
@@ -4765,6 +5121,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       book: "books",
       invoice: "invoices",
       client: "clients",
+      creditGroup: "credit_groups",
     };
     const rows = await this.db.select<Array<Record<string, unknown>>>(
       `select * from ${tableByEntity[entity]} where id = $1 limit 1`,
@@ -4798,6 +5155,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       book: "books",
       invoice: "invoices",
       client: "clients",
+      creditGroup: "credit_groups",
     };
     const table = tableByEntity[entity];
 
@@ -4886,6 +5244,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       await this.db.execute("delete from financial_goals");
       await this.db.execute("delete from invoices");
       await this.db.execute("delete from clients");
+      await this.db.execute("delete from credit_groups");
       await this.db.execute("delete from books");
       console.debug("[import] cleared existing tables");
 
@@ -4894,6 +5253,9 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
 
       for (const client of snapshot.clients ?? []) await this.insertClientRow(client);
       console.debug(`[import] inserted ${(snapshot.clients ?? []).length} clients`);
+
+      for (const group of snapshot.creditGroups ?? []) await this.insertCreditGroupRow(group);
+      console.debug(`[import] inserted ${(snapshot.creditGroups ?? []).length} credit_groups`);
 
       for (const invoice of snapshot.invoices ?? []) await this.insertInvoiceRow(invoice);
       console.debug(`[import] inserted ${(snapshot.invoices ?? []).length} invoices`);
@@ -5120,8 +5482,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   private async insertAccountRow(row: Account) {
     const now = nowIso();
     await this.db.execute(
-      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, bank_brand_domain, statement_day, payment_due_day, credit_payment_paid_until, custom_group, book_id)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, credit_group_id, is_shared_to_household, loan_start_date, annual_interest_rate, loan_term, icon_name, color, bank_brand_domain, statement_day, payment_due_day, credit_payment_paid_until, custom_group, book_id)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
       [
         row.id,
         row.spaceId ?? personalSpace,
@@ -5136,6 +5498,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         row.type ?? "checking",
         row.creditLimit ?? null,
         row.creditLimitGroup ?? "",
+        row.creditGroupId ?? null,
         Number(row.isSharedToHousehold ?? false),
         row.loanStartDate ?? null,
         row.annualInterestRate ?? null,
@@ -5150,6 +5513,27 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         // Empty sentinel when a pre-books account arrives via import/sync;
         // ensureSqliteDefaultBook() (run after import) assigns the default book.
         row.bookId ?? "",
+      ],
+    );
+  }
+
+  private async insertCreditGroupRow(row: CreditGroup) {
+    const now = nowIso();
+    await this.db.execute(
+      `insert into credit_groups (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, credit_limit, statement_day, payment_due_day)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [
+        row.id,
+        row.spaceId ?? personalSpace,
+        row.revision ?? 1,
+        row.createdAt ?? now,
+        row.updatedAt ?? now,
+        row.deletedAt ?? null,
+        row.name ?? "",
+        row.currency ?? "",
+        row.creditLimit ?? null,
+        row.statementDay ?? null,
+        row.paymentDueDay ?? null,
       ],
     );
   }
@@ -5493,6 +5877,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       ["books", "book"],
       ["invoices", "invoice"],
       ["clients", "client"],
+      ["credit_groups", "creditGroup"],
     ];
     for (const [table, entity] of tables) {
       await this.db.execute(`create trigger if not exists sync_outbox_${entity}_insert
@@ -5563,6 +5948,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       ["books", "book"],
       ["invoices", "invoice"],
       ["clients", "client"],
+      ["credit_groups", "creditGroup"],
     ];
     for (const [table, entity] of tables) {
       await this.db.execute(
@@ -5605,6 +5991,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       book: "books",
       invoice: "invoices",
       client: "clients",
+      creditGroup: "credit_groups",
     };
     await this.db.execute(`delete from ${tableByEntity[change.entity]} where id = $1`, [String(payload.id)]);
     switch (change.entity) {
@@ -5643,6 +6030,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       case "book": await this.insertBookRow(payload as unknown as Book); break;
       case "invoice": await this.insertInvoiceRow(payload as unknown as Invoice); break;
       case "client": await this.insertClientRow(payload as unknown as Client); break;
+      case "creditGroup": await this.insertCreditGroupRow(payload as unknown as CreditGroup); break;
     }
   }
 
@@ -5650,6 +6038,56 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     const rows = await this.db.select<Array<{ name: string }>>(`pragma table_info(${table})`);
     if (rows.some((row) => row.name === column)) return;
     await this.db.execute(`alter table ${table} add column ${column} ${definition}`);
+  }
+
+  /**
+   * Plan 254/255 Step 9 — SQLite twin of `backfillCreditGroupsInMemory`. Runs
+   * ordinary INSERT/UPDATE statements (not wrapped in `withOutboxSuppressed`)
+   * so the sync_outbox triggers (already created by `ensureSyncInfrastructure`
+   * above) fire normally — the new credit_groups rows and the accounts'
+   * credit_group_id updates MUST propagate to other devices (reviewer
+   * correction; do not suppress). See `planCreditGroupBackfill` for the
+   * idempotent grouping/tie-break/currency-mismatch logic shared with the
+   * browser repo.
+   */
+  private async backfillCreditGroups() {
+    const candidates = await this.db.select<CreditGroupBackfillCandidate[]>(
+      `select id, currency, credit_limit_group as creditLimitGroup, statement_day as statementDay,
+         payment_due_day as paymentDueDay, credit_limit as creditLimit, updated_at as updatedAt
+       from accounts
+       where deleted_at is null and type = 'credit' and credit_group_id is null
+         and credit_limit_group is not null and credit_limit_group <> ''`,
+    );
+    if (candidates.length === 0) return;
+    const existingGroups = await this.db.select<Array<{ id: string; name: string }>>(
+      `select id, name from credit_groups where deleted_at is null`,
+    );
+    const plan = planCreditGroupBackfill(candidates, existingGroups);
+    for (const name of plan.skipped) {
+      console.warn(`[backfillCreditGroups] skipped "${name}": members disagree on currency, a shared bill can't span currencies.`);
+    }
+    const memberIdToGroupId = new Map<string, string>();
+    for (const group of plan.groupsToCreate) {
+      const timestamp = nowIso();
+      const id = createId("creditGroup");
+      await this.db.execute(
+        `insert into credit_groups (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, credit_limit, statement_day, payment_due_day)
+         values ($1,$2,1,$3,$3,null,$4,$5,$6,$7,$8)`,
+        [id, personalSpace, timestamp, group.name, group.currency, group.creditLimit, group.statementDay, group.paymentDueDay],
+      );
+      for (const memberId of group.memberIds) memberIdToGroupId.set(memberId, id);
+    }
+    for (const group of plan.groupsToReuse) {
+      for (const memberId of group.memberIds) memberIdToGroupId.set(memberId, group.groupId);
+    }
+    if (memberIdToGroupId.size === 0) return;
+    const timestamp = nowIso();
+    for (const [accountId, groupId] of memberIdToGroupId) {
+      await this.db.execute(
+        `update accounts set revision = revision + 1, updated_at = $1, credit_group_id = $2 where id = $3`,
+        [timestamp, groupId, accountId],
+      );
+    }
   }
 
   /**
@@ -5813,6 +6251,7 @@ function createInitialData(): RepositoryData {
     books: [],
     invoices: [],
     clients: [],
+    creditGroups: [],
     accounts: [...seedAccounts],
     ledgerTransactions: [...seedLedgerTransactions],
     portfolioAssets: [...seedAssets],
@@ -5964,6 +6403,13 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
       taxId: client.taxId ?? "",
       defaultPaymentTerms: client.defaultPaymentTerms ?? null,
     })),
+    creditGroups: (data.creditGroups ?? []).map((group) => ({
+      ...group,
+      currency: group.currency ?? "",
+      creditLimit: group.creditLimit ?? null,
+      statementDay: group.statementDay ?? null,
+      paymentDueDay: group.paymentDueDay ?? null,
+    })),
     accounts: (data.accounts ?? []).map((account) => ({
       ...account,
       // Empty string is the "unassigned" sentinel; ensureDefaultBook*() replaces
@@ -5971,6 +6417,7 @@ function normalizeStoredData(data: Partial<RepositoryData>): RepositoryData {
       bookId: account.bookId ?? "",
       creditLimit: account.creditLimit ?? null,
       creditLimitGroup: account.creditLimitGroup ?? "",
+      creditGroupId: account.creditGroupId ?? null,
       bankBrandDomain: account.bankBrandDomain ?? null,
       customGroup: account.customGroup ?? "",
     })),

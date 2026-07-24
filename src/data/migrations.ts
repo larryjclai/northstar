@@ -294,13 +294,33 @@ export const migrations: Migration[] = [
       );
     `,
   },
+  {
+    id: 8,
+    description: "信用卡群組 (Credit groups) — first-class shared billing cycle + limit (plan 254)",
+    sql: `
+      create table if not exists credit_groups (
+        id text primary key,
+        space_id text not null,
+        revision integer not null,
+        created_at text not null,
+        updated_at text not null,
+        deleted_at text,
+        name text not null default '',
+        currency text not null,
+        credit_limit real,
+        statement_day integer,
+        payment_due_day integer
+      );
+    `,
+  },
   // NOTE: extension columns for `financial_goals` (retirement projection
   // inputs) are added via `ensureSqliteColumn` calls inside the SQLite
   // initialize() routine, not via a sql migration. SQLite's bare
   // `ALTER TABLE ADD COLUMN` would fail when run a second time, and the
   // ensure-column helper inspects `pragma table_info` first to stay
   // idempotent across restarts and reseeds. `accounts.book_id` follows this
-  // same pattern (see initialize()), not a migration ALTER.
+  // same pattern (see initialize()), not a migration ALTER. `accounts.
+  // credit_group_id` (plan 254/255) follows the same ensure-column pattern.
 ];
 
 export function splitSqlStatements(sql: string): string[] {

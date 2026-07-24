@@ -8,6 +8,7 @@ function makeData(overrides: Partial<RepositoryData> = {}): RepositoryData {
     books: [],
     invoices: [],
     clients: [],
+    creditGroups: [],
     accounts: [],
     ledgerTransactions: [],
     portfolioAssets: [],

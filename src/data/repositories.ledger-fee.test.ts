@@ -17,6 +17,7 @@ const account: Account = {
   type: "depository",
   creditLimit: null,
   creditLimitGroup: "",
+  creditGroupId: null,
   bookId: "book_test_default",
   isSharedToHousehold: false,
   loanStartDate: null,

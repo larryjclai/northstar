@@ -16,6 +16,7 @@ const card: Account = {
   type: "credit",
   creditLimit: 100000,
   creditLimitGroup: "",
+  creditGroupId: null,
   bookId: "book_test_default",
   statementDay: 5,
   paymentDueDay: 22,
