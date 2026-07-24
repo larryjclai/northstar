@@ -5,7 +5,7 @@ import type { Account, InvestmentRecord, LedgerTransaction } from "./types";
 const account: Account = {
   id: "acct_twd", spaceId: "space", revision: 1, createdAt: "", updatedAt: "", deletedAt: null,
   name: "Wallet", currency: "TWD", openingBalance: 100, balance: 999, type: "cash", bookId: "book_test_default",
-  creditLimit: null, creditLimitGroup: "", statementDay: null, paymentDueDay: null,
+  creditLimit: null, creditLimitGroup: "", creditGroupId: null, statementDay: null, paymentDueDay: null,
   creditPaymentPaidUntil: null, isSharedToHousehold: false, loanStartDate: null,
   annualInterestRate: null, loanTerm: null, iconName: null, color: null,
 };

@@ -18,6 +18,7 @@ const account: Account = {
   type: "investment",
   creditLimit: null,
   creditLimitGroup: "",
+  creditGroupId: null,
   bookId: "book_test_default",
   isSharedToHousehold: false,
   loanStartDate: null,

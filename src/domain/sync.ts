@@ -26,6 +26,7 @@ export type SyncEntity =
   | "book"
   | "invoice"
   | "client"
+  | "creditGroup"
   | "settings";
 
 export interface PendingChange {
@@ -80,6 +81,7 @@ export interface SyncSource {
   books?: SyncSourceRecord[];
   invoices?: SyncSourceRecord[];
   clients?: SyncSourceRecord[];
+  creditGroups?: SyncSourceRecord[];
   appSettings?: SyncSourceRecord[];
 }
 
@@ -94,6 +96,7 @@ const ENTITY_BY_KEY: Record<keyof SyncSource, SyncEntity> = {
   books: "book",
   invoices: "invoice",
   clients: "client",
+  creditGroups: "creditGroup",
   appSettings: "settings",
 };
 

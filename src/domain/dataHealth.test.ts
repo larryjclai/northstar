@@ -30,6 +30,7 @@ function makeAccount(overrides: Partial<Account> = {}): Account {
     bookId: "book_test_default",
     creditLimit: null,
     creditLimitGroup: "",
+    creditGroupId: null,
     isSharedToHousehold: false,
     loanStartDate: null,
     annualInterestRate: null,

@@ -16,6 +16,7 @@ const ENTITY_LABELS: Record<SyncEntity, string> = {
   book: "帳本",
   invoice: "發票",
   client: "客戶",
+  creditGroup: "信用卡群組",
   settings: "設定",
 };
 

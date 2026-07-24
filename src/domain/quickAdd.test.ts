@@ -22,7 +22,7 @@ const accountRows: Account[] = ([
 ] as const).map((a) => ({
   ...a,
   bookId: "book_test_default",
-  openingBalance: 0, balance: 0, creditLimit: null, creditLimitGroup: "",
+  openingBalance: 0, balance: 0, creditLimit: null, creditLimitGroup: "", creditGroupId: null,
   statementDay: null, paymentDueDay: null, creditPaymentPaidUntil: null,
   isSharedToHousehold: false, loanStartDate: null, annualInterestRate: null,
   loanTerm: null, iconName: null, color: null, deletedAt: null,

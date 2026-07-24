@@ -129,6 +129,17 @@ export interface Invoice extends SyncFields {
   linkedLedgerTransactionId: string | null;
 }
 
+/** 信用卡群組 (Credit group, plan 254) — first-class owner of a shared billing
+ *  cycle + limit for same-bank cards. Cards with credit_group_id derive
+ *  statementDay/paymentDueDay/creditLimit from here (derive-on-read). */
+export interface CreditGroup extends SyncFields {
+  name: string;
+  currency: string;
+  creditLimit: number | null;
+  statementDay: number | null;
+  paymentDueDay: number | null;
+}
+
 export interface Account extends SyncFields {
   name: string;
   currency: CurrencyCode;
@@ -140,6 +151,10 @@ export interface Account extends SyncFields {
   bookId: string;
   creditLimit: number | null;
   creditLimitGroup: string;
+  /** 信用卡群組 (plan 254/255) — when set, statementDay/paymentDueDay/creditLimit
+   *  are derived from the group at read time. Null for ungrouped accounts.
+   *  `creditLimitGroup` (free-text) stays for backfill/fallback. */
+  creditGroupId: string | null;
   /** Credit cards: statement closing day of month (1-31). Null for non-credit. */
   statementDay: number | null;
   /** Credit cards: payment due day of month (1-31). Null for non-credit. */
