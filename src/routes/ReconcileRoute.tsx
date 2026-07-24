@@ -8,7 +8,7 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import { buildStatementPeriods, formatNumber, todayInTimezone } from "../domain";
-import type { Account, LedgerTransaction } from "../domain";
+import type { Account, LedgerTransaction, StatementPeriod } from "../domain";
 import { useToast } from "../components/Toast";
 import { useUiPreferences } from "../state/uiPreferences";
 import type { AccountDraft, TransferDraft, LedgerDraft } from "../data/repositories";
@@ -68,6 +68,12 @@ export function ReconcileRoute() {
   );
 
   const currentPeriod = periods.find((p) => p.isCurrent) ?? periods[0];
+  const payablePeriods = useMemo(
+    () => periods
+      .filter((p) => !p.isCurrent && !p.isPaid && p.dueDate)
+      .sort((a, b) => a.end.localeCompare(b.end)),
+    [periods],
+  );
   const defaultOpen = (key: string) => key === currentPeriod?.key;
   const isOpen = (key: string) => (key in expandOverride ? expandOverride[key] : defaultOpen(key));
 
@@ -107,13 +113,8 @@ export function ReconcileRoute() {
     }
   }
 
-  async function markPaid() {
-    if (!account?.paymentDueDay) return;
-    // Mark the most recently closed unpaid statement's due date as paid so the
-    // reminder for that cycle is suppressed.
-    const dueDate = currentPeriod?.dueDate
-      ?? periods.find((p) => p.dueDate && !p.isPaid)?.dueDate;
-    if (!dueDate) return;
+  async function markPaid(dueDate: string) {
+    if (!account?.paymentDueDay || !dueDate) return;
     try {
       await updateAccount.mutateAsync({
         id: account.id,
@@ -131,7 +132,7 @@ export function ReconcileRoute() {
     }
   }
 
-  async function handlePay(payAccountId: string, payAmount: number, creditAmount: number) {
+  async function handlePay(payAccountId: string, payAmount: number, creditAmount: number, dueDate: string) {
     if (!account || account.type !== "credit") return;
     const day = todayInTimezone(timezone);
     try {
@@ -164,7 +165,7 @@ export function ReconcileRoute() {
           note: "信用卡帳單折抵",
         });
       }
-      await markPaid();
+      await markPaid(dueDate);
       setPayOpen(false);
       toast.success("已記錄繳款");
     } catch {
@@ -205,7 +206,8 @@ export function ReconcileRoute() {
   }
 
   const owed = Math.max(0, -account.balance);
-  const isPaid = account.creditPaymentPaidUntil != null;
+  const hasUnpaidClosed = payablePeriods.length > 0;
+  const isPaid = account.creditPaymentPaidUntil != null && !hasUnpaidClosed;
   // Non-credit, non-loan accounts in the same currency can pay this card (v1: no FX).
   const payingAccounts = (accounts.data ?? []).filter(
     (a) => a.deletedAt === null && a.type !== "credit" && a.type !== "loan" && a.currency === account.currency,
@@ -392,6 +394,7 @@ export function ReconcileRoute() {
           owed={owed}
           currency={account.currency}
           payingAccounts={payingAccounts}
+          payablePeriods={payablePeriods}
           pending={createTransfer.isPending || createLedger.isPending || updateAccount.isPending}
           onCancel={() => setPayOpen(false)}
           onConfirm={handlePay}
@@ -405,6 +408,7 @@ function PayCardModal({
   owed,
   currency,
   payingAccounts,
+  payablePeriods,
   pending,
   onCancel,
   onConfirm,
@@ -412,18 +416,21 @@ function PayCardModal({
   owed: number;
   currency: string;
   payingAccounts: Account[];
+  payablePeriods: StatementPeriod<LedgerTransaction>[];
   pending: boolean;
   onCancel: () => void;
-  onConfirm: (payAccountId: string, payAmount: number, creditAmount: number) => void;
+  onConfirm: (payAccountId: string, payAmount: number, creditAmount: number, dueDate: string) => void;
 }) {
   const [payAccountId, setPayAccountId] = useState(payingAccounts[0]?.id ?? "");
-  const [payAmount, setPayAmount] = useState(String(owed));
+  const [periodKey, setPeriodKey] = useState(payablePeriods[0]?.key ?? "");
+  const selected = payablePeriods.find((p) => p.key === periodKey) ?? payablePeriods[0];
+  const [payAmount, setPayAmount] = useState(String(selected ? Math.max(0, -selected.total) : owed));
   const [creditAmount, setCreditAmount] = useState("0");
   const noAccounts = payingAccounts.length === 0;
   const pay = Math.max(0, Number(payAmount) || 0);
   const credit = Math.max(0, Number(creditAmount) || 0);
   // A real transfer needs a paying account; a 0-pay / 0-credit confirm just suppresses the reminder.
-  const canConfirm = !pending && (pay === 0 || (!noAccounts && payAccountId !== ""));
+  const canConfirm = !pending && selected != null && selected.dueDate != null && (pay === 0 || (!noAccounts && payAccountId !== ""));
   return (
     <ModalShell
       variant="center"
@@ -437,6 +444,24 @@ function PayCardModal({
         <div className="text-[15px] font-semibold mb-1">信用卡繳款</div>
         <div className="text-xs mb-4" style={{ color: "var(--ns-fg-muted)", lineHeight: 1.6 }}>
           未繳總額 NT${formatNumber(owed)} · 從帳戶轉帳繳款，可選填帳單折抵 / 回饋。
+        </div>
+
+        <div className="mb-3.5">
+          <div className="text-xs font-medium mb-1.5">繳款期別</div>
+          {payablePeriods.length === 0 ? (
+            <div className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>目前沒有已結帳、待繳的帳單。</div>
+          ) : (
+            <select
+              value={periodKey}
+              onChange={(e) => setPeriodKey(e.target.value)}
+              className="w-full px-2.5 py-2"
+              style={{ borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)", color: "var(--ns-fg)" }}
+            >
+              {payablePeriods.map((p) => (
+                <option key={p.key} value={p.key}>{p.label}（繳款日 {p.dueDate?.slice(5)}）</option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div className="mb-3.5">
@@ -483,7 +508,7 @@ function PayCardModal({
 
         <div className="flex justify-end gap-2" style={{ marginTop: 18 }}>
           <Button variant="outline" onClick={dismiss} disabled={pending}>取消</Button>
-          <Button onClick={() => onConfirm(payAccountId, pay, credit)} disabled={!canConfirm}>
+          <Button onClick={() => onConfirm(payAccountId, pay, credit, selected!.dueDate!)} disabled={!canConfirm}>
             <CurrencyCircleDollar size={14} weight="fill" />確認繳款
           </Button>
         </div>

@@ -121,4 +121,18 @@ describe("buildStatementPeriods", () => {
     expect(periods[0].key).toBe("all");
     expect(periods[0].rows).toHaveLength(2);
   });
+
+  it("paying a closed statement's due date does NOT mark the open cycle paid (plan 251)", () => {
+    const rows = [
+      row("2026-07-10T10:00", -1000),
+      row("2026-07-20T10:00", -1749),
+    ];
+    const opts = { statementDay: 15, paymentDueDay: 3, today: "2026-07-24" } as const;
+    const periods = buildStatementPeriods(rows, { ...opts, creditPaymentPaidUntil: "2026-08-03" });
+    const closed = periods.find((p) => p.end === "2026-07-15")!;
+    const open = periods.find((p) => p.isCurrent)!;
+    expect(closed.isPaid).toBe(true);
+    expect(open.isPaid).toBe(false);
+    expect(open.dueDate).toBe("2026-09-03");
+  });
 });
