@@ -493,7 +493,12 @@ function PayCardModal({
           ) : (
             <select
               value={periodKey}
-              onChange={(e) => setPeriodKey(e.target.value)}
+              onChange={(e) => {
+                const key = e.target.value;
+                setPeriodKey(key);
+                const p = payablePeriods.find((pp) => pp.key === key);
+                if (p) setPayAmount(String(Math.max(0, -p.total)));
+              }}
               className="w-full px-2.5 py-2"
               style={{ borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)", color: "var(--ns-fg)" }}
             >
