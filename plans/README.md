@@ -1,5 +1,82 @@
 # Implementation Plans
 
+## Reconciled 2026-07-25 @ `b22c566e`
+
+94 個表格列全部盤點：**沒有任何 TODO / BLOCKED / IN PROGRESS**。積壓的不是「待做」，
+而是**索引落後於現實** —— 10 列還寫著「待操作者 merge / awaiting merge / NOT merged」，
+但那些 commit 早就進 main 了。已逐列更正（見下方各列的 ✅）。
+
+**驗證方法**：對每列記錄的 commit SHA 跑 `git merge-base --is-ancestor <sha> main`，
+外加在現行 HEAD 上重跑各計畫的 grep 判準。
+
+| 計畫 | 記錄的 commit | 結果 |
+|---|---|---|
+| 200 | `1e603f19`/`42955c15`/`1f171585` | 皆為 main 祖先 → 已合併 |
+| 227 | （原本沒記 SHA，分支已刪）| 以產物驗證：`updateTransfer` 存在於 `repositories.ts` → 已合併 |
+| 246 / 247 / 248 | `e406997e` / `ee99c6d5` / `fa435518` | 全在 main |
+| 250 | `645cc1ab` | 在 main |
+| 251 / 252 / 253 | `8d2f4842`+`a3fc1418` / `0b628d58` / `f240f902` | 全在 main |
+| 256 | `e9a88d70` | 在 main；群組名 follow-up 亦由 `6f2a5fc3` 修掉 → **該 follow-up CLOSED** |
+
+**HEAD 上重跑的判準（全過）**：237 `formatPercent`/`MASKED_PERCENT` 0 命中；
+213 `grid size-8 place-items-center` 0 檔；217 `.tsx` 內 `cubic-bezier` 0 命中；
+202/213 `ModalCloseButton` 16 檔（≥15）；255 `credit_groups` 22 命中。
+
+**分支現況**：上述分支皆已刪除（合併後清理，正常）。`feat/ai-ga-motion-spike`
+(`46b00892`) 仍**刻意未合併** —— 其 `docs/motion-ga-spike.md` 只存在於該分支，刪掉會遺失文件。
+
+### 仍然開著的事（這次 reconcile 的重點）
+
+1. **249 的殘餘驗收已逾期 —— 最值得處理的一項。** 程式面已合併，且
+   `v0.1.0-alpha.67`、`v0.1.0-alpha.68` **都包含**修正（`211e2f1d`，已驗祖先）。
+   但原本的驗收條件是「下次發版掃 binary 確認銀行 logo 回來」，兩次發版過去了，
+   索引裡沒有任何完成紀錄。這件事重要是因為 `release.yml:162-165` 有一條靜默跳過路徑：
+   `PRIVATE_ASSETS_KEY` 沒設時會印一行訊息然後 `exit 0`，**build 照樣全綠但沒有 logo**。
+   所以 CI 綠燈不能當證據，必須實際掃 alpha.68 的 binary。
+2. **257 是唯一未合併的程式碼**：branch `fix/ai-fund-search-ranking` @ `c4187c28`
+   （4 commits，base = `b22c566e`），已 reviewed+APPROVED，等 operator 決定。
+3. **243 Step 4 仍待 operator**：刪除 `RELEASES_TOKEN` secret 並撤銷該 PAT（純帳號操作，無法從 repo 驗證）。
+4. **238 的 5 個 operator 問題**仍 gate 著 vault-key rotation 的實作（239–242 是已合併的前置）。
+5. 待操作者「手感 / 肉眼」驗收（非阻塞）：233 列印、245 桌面 Tauri 列印鈕、246 滾動手感、247 光暈質感。
+
+### 兩個舊 follow-up 的複驗結果（一個已關、一個成立）
+
+- **232 — CLOSED，我先前的判定是錯的。** `incompleteSplitGroupIds` **有**被渲染：
+  `AccountsRoute.tsx:300` 與 `settings/GeneralSection.tsx:300` 都有消費端訊息
+  （「發現 N 筆拆分交易不完整（同步中，稍後會自動補齊）」）。第一次複驗時我的
+  `grep … | head` 剛好在第 10 行截斷，被切掉的正是這兩個 `.tsx` 渲染點（全檔共 13 筆引用）。
+  **教訓：複驗 dead-code 類判定時，grep 不要接 `head`。** 232 的 follow-up 到此結案。
+- **220 — 成立。** `perf.nudgeInput` 確為 write-only：`InvestmentsAnalyticsTab.tsx`
+  380（型別）/402/415/436（三處賦值），`grep "\.nudgeInput"` 零讀取點，而 `perf` 其餘欄位
+  （`basis`/`data`/`alpha`/`portFinal`/`benchFinal`/`hasBenchmark`）都有讀取端。
+  成因：plan 220 把 nudge 改成 full-history 自行建序列後，這個舊的期間範圍輸入就沒人要了。
+  連帶 `CumPoint`（371 行）也只被 380 行引用，一起孤兒化。→ **已開 plan 258 清理。**
+
+## 258 — 清掉死掉的 `nudgeInput`（reconcile 2026-07-25 帶出）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 258 | 刪除 `InvestmentsAnalyticsTab.tsx` 的 `nudgeInput` 欄位（4 處，全為寫入零讀取）＋連帶孤兒化的 `CumPoint` 型別別名。plan 220 把 nudge 改 full-history 後遺留。純刪除 5 行、不新增測試、不動任何算式。 | P3 | S | — | DONE — reviewed+APPROVED，branch `fix/ai-dead-nudge-input` @ `394f1e30`（1 commit，base `b22c566e`）。**未合併，等 operator。** reviewer 複驗：diff 為 **5 deletions / 0 insertions**、五個 hunk 全是純刪行、無任何算式變動；`grep nudgeInput\|CumPoint` → 0；`nudgeVerdict` 仍在（5 refs，live nudge 未受影響）；tsc 0 / lint 0 errors / **1487 tests 全過**。⚠ **計畫寫錯的數字，執行者抓到**：plan 258 寫「1496 tests」，但那是我從 257 分支帶過來的數（1487 + 257 新增的 9 筆 = 1496）；main 基線本來就是 1487。執行者用 `git stash` 前後對照證明刪除未改變測試數，並明講落差而非硬套通過 —— 判斷正確。 |
+
+## 257 — 基金搜尋排序（`/improve plan` @ `b22c566e`, 2026-07-25）
+
+Operator 回報 https://www.capitalfund.com.tw/fund/detail/019
+「群益新興金鑽基金-新臺幣」在基金搜尋找不到。**資料層沒問題** — 該基金就在
+SITCA NAV CSV 第 1398 列（`DIO04` / 受益憑證 `T1605Y`，2026-07-25 實測），
+33b9add2（2026-07-11）修好的 基金代號 碰撞問題仍然有效。壞的是**搜尋層**：
+`filterFunds` 依 CSV 原始順序掃描並在第 20 筆 `break`，而「群益」共 259 檔命中、
+目標排第 **151**；「新興」386 檔命中、排第 **87** — 兩者都被無聲截斷。另外從
+基金公司官網貼上的名稱「群益新興金鑽基金 **- **新臺幣」（連字號兩側有空白）
+在 CSV 是無空白版本，直接 **0 筆命中**；臺/台 變體同理（767 檔用臺、874 檔用台）。
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 257 | 基金搜尋可達性 — `normalizeFundQuery`（NFKC/去空白標點/臺↔台/滙↔匯）、`filterFunds` 改為評分排序後才截斷（不再 file-order `break`）、解析並可搜尋 `公司名稱`、`countFundMatches` + 下拉「還有 N 檔」提示 + 可捲動面板（cap 20→50）、基金結果補上 `currency`/`assetType: "mutual_fund"`（選取後類型自動＝共同基金）。搜尋層 only，不動計價路徑。 | P1 | M | — | DONE — reviewed+APPROVED，branch `fix/ai-fund-search-ranking` @ `c4187c28`（4 commits，含 1 輪 REVISE，base 確認為 `b22c566e` = 現行 main）。**尚未合併，等 operator 決定。** tsc 0 / lint **761 warnings，與 main 完全同數（0 新增）** / 1496 tests（sitcaFundProvider 22→31，+9 新測試；其中 7 個在修復前確實會紅）。計價路徑 `fetchQuotes`/`buildFundSymbolIndex`/`fetchFunds`/`isPlausibleFundList` diff 完全為 0。**Reviewer 用線上 CSV（4,251 筆解析）實測**：`T1605Y` → 目標第一筆 ✓；`群益新興金鑽基金 - 新臺幣`（官網含空白版）→ 1 筆命中即目標 ✓（修復前 0 筆）；`群益新興金鑽基金-新台幣`（台）→ ✓；`滙豐` → 103 筆（原本靠公司名完全搜不到）；`群益` → 250 命中/顯示 50/溢出 200（＝執行者回報的「還有 200 檔」）。單次擊鍵成本實測 26–32ms，在 250ms debounce 內。**REVISE 輪（`c4187c28`）已修掉 plan 自身的 regex 瑕疵**：`normalizeFundQuery` 原本寫 `[\s　]`（字面全形空白）觸發 1 個新 `no-irregular-whitespace` warning，已改為 `/\s/g`（JS 的 `\s` 本就涵蓋 U+3000），並補一條用真 U+3000 的斷言把行為釘住（reviewer 已驗 codepoint 確為 `0x3000`，非普通空白）。檔案剩下的唯一 warning 在 `stripBom` docstring 的 BOM 字元，main 同樣有（main:199 = branch:272），故新增 warning 為 0。 |
+
+**境外基金仍不在範圍內**：SITCA CSV 僅涵蓋境內投信基金（~4,400 檔 / 36 家），
+`docs/taiwan-fund-nav-plan.md` decision 2 已明載。本次回報的基金屬境內，故不受影響；
+若日後要支援境外基金需另接資料源，是獨立且更大的工作。
+
 ## 254 — 信用卡「群組一等公民」架構決策 + 分階段地圖（`/improve plan` @ `8fed759d`, 2026-07-24）
 
 larry 選定：把信用卡分組升級成**一等公民實體**（群組持有額度/結帳日/繳款日，卡片歸屬並
@@ -11,7 +88,7 @@ larry 選定：把信用卡分組升級成**一等公民實體**（群組持有�
 |------|-------|----------|--------|------------|--------|
 | 254 | **架構 gate**：鎖定資料模型決策（群組=單一事實來源、卡片 derive-on-read、離開群組快照回寫、幣別硬約束、自由文字→群組實體的非破壞 migration）＋ synced 實體整合點地圖 A–L（SyncEntity/migration/ensureSqliteColumn/outbox triggers/tableByEntity×3/getSyncPayload/pull-apply/snapshot roundtrip/CRUD）。**參考實體 = client（plan 190）**。此計劃不改 `src/` | P2 | S | 253 | **DONE（決策 gate）2026-07-24**：larry 確認 **derive-on-read**（群組覆蓋、卡片即時跟隨）；Decision 4（statement_day 分歧取眾數/最新、不阻斷 migration）採為預設。255 已展開；256 待 255 落地後補 |
 | 255 | **Phase B（資料層）**：credit_groups 表 + 同步註冊 + 帳戶 credit_group_id + derive-on-read + 離開快照 + migration/backfill + 快照 roundtrip + CRUD + 型別。**無 UI**，253 暫用舊觸發（並存無害） | P2 | L | 254 | **DONE — executed+reviewed 2026-07-24**，branch `feat/ai-credit-group-data-layer`（commit `4de7167a`，基於 `8fed759d`）。**執行者正確 STOP 一次**：advisor 的觸點地圖漏了 6 個同步觸點，其中 2 個為非編譯強制的靜默地雷（`pull.ts` `VALID_ENTITIES` 會丟棄 pull 進來的群組；`SyncSource`/`allSyncRecords` 瀏覽器推送路徑）。advisor 窮舉補全清單後執行者續跑完成。複驗：build 0、**1482/1482 tests**、grep+oracle 全過、derive/leave-group/backfill 兩 repo 平行且測試以「刻意相異欄位」證明真的 derive、backfill 冪等/跨幣別 skip 有測。deviation（`AccountDraft.creditGroupId` optional 比照 `bookId`）已核准。**已 MERGED 進 main `ba5ef85a`**（乾淨 union merge，整合後 build 0 + 1487/1487 tests） |
-| 256 | **Phase C（UI + 收斂）**：AccountsRoute 群組管理（建立/編輯/刪除群組的額度/結帳日/繳款日）+ 帳戶表單「歸屬群組」下拉取代自由文字 + 成員欄位唯讀顯示「來自群組」；ReconcileRoute（253）分組觸發改用 `creditGroupId`；`calculateCreditGroup` 改讀群組實體 + `useFinanceData` 暴露 creditGroups；自由文字 `creditLimitGroup` 退出 UI（欄位保留） | P2 | M–L | 255 | **DONE — executed+reviewed 2026-07-24**，branch `feat/ai-credit-group-ui`（commit `e9a88d70`，直接疊在 `ba5ef85a` 上→乾淨 FF）。複驗：build 0、1487/1487 tests、grep 判準全過、ReconcileRoute 改用 `creditGroupId`、刪群組先清成員（觸發 leave-group 快照）不留孤兒、繼承欄位唯讀+「來自群組」提示。⚠ 執行者遇 worktree base 錯置（又是 `8fed759d`），以 `git reset --hard main`（自有 disposable 分支，安全）復正並透明記錄，advisor 已驗 ancestry 正確。⚠ 小追蹤：合併對帳頁 H1 title 仍 fallback `creditLimitGroup||name`，creditGroupId 分組的卡會顯示卡名而非群組名（Step 5「其餘不動」所接受，值得小 follow-up）。**待操作者決定 merge（clean FF）** |
+| 256 | **Phase C（UI + 收斂）**：AccountsRoute 群組管理（建立/編輯/刪除群組的額度/結帳日/繳款日）+ 帳戶表單「歸屬群組」下拉取代自由文字 + 成員欄位唯讀顯示「來自群組」；ReconcileRoute（253）分組觸發改用 `creditGroupId`；`calculateCreditGroup` 改讀群組實體 + `useFinanceData` 暴露 creditGroups；自由文字 `creditLimitGroup` 退出 UI（欄位保留） | P2 | M–L | 255 | **DONE — executed+reviewed 2026-07-24**，branch `feat/ai-credit-group-ui`（commit `e9a88d70`，直接疊在 `ba5ef85a` 上→乾淨 FF）。複驗：build 0、1487/1487 tests、grep 判準全過、ReconcileRoute 改用 `creditGroupId`、刪群組先清成員（觸發 leave-group 快照）不留孤兒、繼承欄位唯讀+「來自群組」提示。⚠ 執行者遇 worktree base 錯置（又是 `8fed759d`），以 `git reset --hard main`（自有 disposable 分支，安全）復正並透明記錄，advisor 已驗 ancestry 正確。⚠ 小追蹤：合併對帳頁 H1 title 仍 fallback `creditLimitGroup||name`，creditGroupId 分組的卡會顯示卡名而非群組名（Step 5「其餘不動」所接受，值得小 follow-up）。**MERGED** ✅（reconcile 2026-07-25 驗證 `e9a88d70` 已在 main；標題顯示群組名的 follow-up 也已由 `6f2a5fc3` 修掉） |
 
 ## 251–253 — 信用卡對帳/繳款三連修（`/improve plan` @ `8fed759d`, 2026-07-24）
 
@@ -21,9 +98,9 @@ larry 選定：把信用卡分組升級成**一等公民實體**（群組持有�
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 251 | **繳一期卻全標已繳款**（財務正確性 bug）。根因：`markPaid()` 把 watermark 設成 `currentPeriod?.dueDate`——那是**尚未結帳的開放當期**繳款日；經 `isPaid = paidUntil >= dueDate` 使所有繳款日 ≤ 該值的期別全翻已繳款。修法：`markPaid(dueDate)` 只用選定期別繳款日；`PayCardModal` 加「繳款期別」選擇（預設最舊未繳已結帳帳單）、金額預設該期淨額；header「已繳款」只在無待繳已結帳期別時顯示。保留 watermark 語意（不改 `creditCardStatements.ts`）。含 1 筆 domain regression 測試 | P1 | M | — | **DONE — executed+reviewed 2026-07-24**：executor (sonnet) 於 worktree 分支 `feat/ai-reconcile-251-253`（commit `8d2f4842`）完成；advisor 獨立複驗 build exit 0、`creditCardStatements`/`datetime` 共 17 tests 全過、lint 0 errors、grep 判準（`currentPeriod?.dueDate` 歸零、`繳款期別` 命中）、diff 忠於計劃。**待操作者 merge**。追加：切換「繳款期別」下拉自動帶入該期淨額（保留手動輸入、無 useEffect），commit `a3fc1418`，advisor 複驗 build/lint exit 0、僅動 ReconcileRoute.tsx |
-| 252 | **繳款紀錄日期改不動**（可編輯性 bug）。根因：`handlePay` 用 `todayInTimezone`（date-only `YYYY-MM-DD`）寫 ledger/transfer 日期，但編輯抽屜是 `<input type="datetime-local">`（需 `YYYY-MM-DDTHH:mm`），date-only 值被瀏覽器當空值→欄位空白。修法：(a) 治本—`handlePay` 改 `nowAsDatetimeLocal`；(b) 相容既有—新增純函式 `toDatetimeLocalValue`（date-only 補 `T00:00`）包住輸入 value。含 3 筆單元測試 | P1 | S | — | **DONE — executed+reviewed 2026-07-24**（同分支 commit `0b628d58`）：advisor 複驗 `datetime` 測試 9 passed（6+3）、build/lint 過、`toDatetimeLocalValue` 在 CashFlow 命中 2 處（import+使用）、`const today = todayInTimezone` 日曆日用法保留。治本＋顯示層 coercion 兩層都在。**待操作者 merge** |
-| 253 | **同組卡合併對帳**（使用者要求的功能）。玉山 UniCard+UBear 帳單合出，希望一起核對。重用既有 `creditLimitGroup` 為分組鍵（免 schema 變更）；偵測「同組、同結帳日/繳款日/幣別、≥2 卡」時切合併視圖：跨卡匯入同帳單週期、逐筆標卡片來源、合併統計、跨卡「全部對帳」、繳款對整組寫 watermark。`buildStatementPeriods` 無需改（`LedgerTransaction` 已帶 `accountId`、T 保留）。合併繳款金額拆分明確延後。含 1 筆 domain 測試 | P2 | L | 251 | **DONE — executed+reviewed 2026-07-24**（同分支 commit `f240f902`）：疊在 251 上，advisor 複驗 build 0、`creditCardStatements` 8 tests（含合併測試）全過、lint 0 errors、grep `groupAccountIds.has`/`for (const a of groupAccounts)` 命中、單卡無回歸（`groupAccounts=[account]`）。⚠ 已知（計劃已載）：markPaid 逐卡 await 中途失敗會部分寫入（watermark 冪等、重繳補齊）。需 `creditLimitGroup` 兩卡同值＋同結帳/繳款日才觸發合併——操作者驗收前先確認帳戶設定。**待操作者 merge** |
+| 251 | **繳一期卻全標已繳款**（財務正確性 bug）。根因：`markPaid()` 把 watermark 設成 `currentPeriod?.dueDate`——那是**尚未結帳的開放當期**繳款日；經 `isPaid = paidUntil >= dueDate` 使所有繳款日 ≤ 該值的期別全翻已繳款。修法：`markPaid(dueDate)` 只用選定期別繳款日；`PayCardModal` 加「繳款期別」選擇（預設最舊未繳已結帳帳單）、金額預設該期淨額；header「已繳款」只在無待繳已結帳期別時顯示。保留 watermark 語意（不改 `creditCardStatements.ts`）。含 1 筆 domain regression 測試 | P1 | M | — | **DONE — executed+reviewed 2026-07-24**：executor (sonnet) 於 worktree 分支 `feat/ai-reconcile-251-253`（commit `8d2f4842`）完成；advisor 獨立複驗 build exit 0、`creditCardStatements`/`datetime` 共 17 tests 全過、lint 0 errors、grep 判準（`currentPeriod?.dueDate` 歸零、`繳款期別` 命中）、diff 忠於計劃。**MERGED** ✅（reconcile 2026-07-25 以 `git merge-base --is-ancestor` 驗證 commit 已在 main）。追加：切換「繳款期別」下拉自動帶入該期淨額（保留手動輸入、無 useEffect），commit `a3fc1418`，advisor 複驗 build/lint exit 0、僅動 ReconcileRoute.tsx |
+| 252 | **繳款紀錄日期改不動**（可編輯性 bug）。根因：`handlePay` 用 `todayInTimezone`（date-only `YYYY-MM-DD`）寫 ledger/transfer 日期，但編輯抽屜是 `<input type="datetime-local">`（需 `YYYY-MM-DDTHH:mm`），date-only 值被瀏覽器當空值→欄位空白。修法：(a) 治本—`handlePay` 改 `nowAsDatetimeLocal`；(b) 相容既有—新增純函式 `toDatetimeLocalValue`（date-only 補 `T00:00`）包住輸入 value。含 3 筆單元測試 | P1 | S | — | **DONE — executed+reviewed 2026-07-24**（同分支 commit `0b628d58`）：advisor 複驗 `datetime` 測試 9 passed（6+3）、build/lint 過、`toDatetimeLocalValue` 在 CashFlow 命中 2 處（import+使用）、`const today = todayInTimezone` 日曆日用法保留。治本＋顯示層 coercion 兩層都在。**MERGED** ✅（reconcile 2026-07-25 以 `git merge-base --is-ancestor` 驗證 commit 已在 main） |
+| 253 | **同組卡合併對帳**（使用者要求的功能）。玉山 UniCard+UBear 帳單合出，希望一起核對。重用既有 `creditLimitGroup` 為分組鍵（免 schema 變更）；偵測「同組、同結帳日/繳款日/幣別、≥2 卡」時切合併視圖：跨卡匯入同帳單週期、逐筆標卡片來源、合併統計、跨卡「全部對帳」、繳款對整組寫 watermark。`buildStatementPeriods` 無需改（`LedgerTransaction` 已帶 `accountId`、T 保留）。合併繳款金額拆分明確延後。含 1 筆 domain 測試 | P2 | L | 251 | **DONE — executed+reviewed 2026-07-24**（同分支 commit `f240f902`）：疊在 251 上，advisor 複驗 build 0、`creditCardStatements` 8 tests（含合併測試）全過、lint 0 errors、grep `groupAccountIds.has`/`for (const a of groupAccounts)` 命中、單卡無回歸（`groupAccounts=[account]`）。⚠ 已知（計劃已載）：markPaid 逐卡 await 中途失敗會部分寫入（watermark 冪等、重繳補齊）。需 `creditLimitGroup` 兩卡同值＋同結帳/繳款日才觸發合併——操作者驗收前先確認帳戶設定。**MERGED** ✅（reconcile 2026-07-25 以 `git merge-base --is-ancestor` 驗證 commit 已在 main） |
 
 **執行順序**：251 → 252 → 253（三者皆動 `ReconcileRoute.tsx`；253 的繳款迴圈疊在 251 的
 `markPaid(dueDate)` 上，252 只改 `handlePay` 日期一行，彼此衝突面小）。
@@ -39,7 +116,7 @@ larry 選定：把信用卡分組升級成**一等公民實體**（群組持有�
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 250 | 操作者以為「應付無法設定借款入哪個帳戶」——調查結論：**功能已存在**（AP 的「收款帳戶」`counterAccountId`，自 alpha.26 `1d956eab`），語意正確（建立時入帳、結清扣款、整筆不計收支）。缺陷是**可發現性**：文案只講「代墊」，全程沒出現「借」字，操作者本人沒認出來。修法＝純文案：AR/AP 提示點名「借錢給別人／跟別人借錢」、AP placeholder 加借款方示例、AP 欄位標籤加「借入」。三處字串無測試引用，S 工作量 | P3 | S | — | **DONE — executed+reviewed 2026-07-22**：executor (sonnet) 於 worktree 分支 `fix/ai-payable-borrow-copy`（commit `645cc1ab`）完成；reviewer 重跑全部 done criteria（tsc/lint 過、1462 tests 全過、三 grep 命中、舊 AP 標籤歸零、diff 僅 CashFlowRoute.tsx 4+/4−）。**待操作者 merge** |
+| 250 | 操作者以為「應付無法設定借款入哪個帳戶」——調查結論：**功能已存在**（AP 的「收款帳戶」`counterAccountId`，自 alpha.26 `1d956eab`），語意正確（建立時入帳、結清扣款、整筆不計收支）。缺陷是**可發現性**：文案只講「代墊」，全程沒出現「借」字，操作者本人沒認出來。修法＝純文案：AR/AP 提示點名「借錢給別人／跟別人借錢」、AP placeholder 加借款方示例、AP 欄位標籤加「借入」。三處字串無測試引用，S 工作量 | P3 | S | — | **DONE — executed+reviewed 2026-07-22**：executor (sonnet) 於 worktree 分支 `fix/ai-payable-borrow-copy`（commit `645cc1ab`）完成；reviewer 重跑全部 done criteria（tsc/lint 過、1462 tests 全過、三 grep 命中、舊 AP 標籤歸零、diff 僅 CashFlowRoute.tsx 4+/4−）。**MERGED** ✅（reconcile 2026-07-25 以 `git merge-base --is-ancestor` 驗證 commit 已在 main） |
 
 **已考慮而排除**（勿再報）：不新增「借款」交易類型（`counterAccountId` 已涵蓋，
 借入=AP+收款帳戶、借出=AR+付款帳戶）；不在 QuickAdd 加 AR/AP（QuickAdd 刻意限縮
@@ -62,9 +139,9 @@ RELEASING.md 又誤載為 secret `VITE_NORTHSTAR_SYNC_WORKER_URL`(名字與類�
 
 | Plan | Title | Severity | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 246 | Dashboard 淨值 hero 數字滾動(count-up):新增可重用 `<AnimatedNumber>`(rAF tween 560ms ease-out、可中斷 retarget),hero 換用。snap 條件:首次 mount、resetKey(指標/帳本)切換、reduced-motion、隱私模式、null。registry 已有 `value: number` 只需補 `formatValue` | HIGH | M | — | **DONE — reviewed, awaiting user merge** @ `e406997e`(branch `feat/ai-animated-number-hero`)。advisor 複驗:tsc 0、6/6 新測試、全套 1462、lint 0。兩個記錄應變合理(benchmarkGap 需顯式 `(n: number)`;eslint disable 按計劃條件移除)。⚠ 執行者 worktree 消失後曾在主 checkout 切分支工作(隔離違規,無實害,advisor 已復原 main)。feel check(滾動手感)待操作者 |
-| 247 | FIRE 達成瞬間一次性慶祝(操作者拍板:低調光暈掃過):進度條 accent 高光掃過 600ms + 百分比 scale-pop 1→1.06→1 320ms。只在 in-session false→true 跨越時播,mount 已達成不播,`animationName` 過濾收尾。無 confetti | MEDIUM | S | 建議先做 248 | **DONE — reviewed (1 REVISE round), awaiting user merge** @ `ee99c6d5`(branch `feat/ai-fire-celebration`)。執行者正確抓到**計劃自身的 Rules-of-Hooks bug**(指定位置在 early return 後),搬移時引入 `projection ? … : false` 假轉變 bug(已達成者每次開 Dashboard 誤播)→ advisor REVISE → null 三態修法落地。CSS 逐字吻合。feel check(光暈質感、mount 不重播)待操作者。⚠ 與 248 都動 FireGoalCard/globals.css,合併順序 248 → 247,見下 |
-| 248 | 進度條填充動畫統一 token:抽 `.ns-progress-fill`(scaleX + `var(--ns-dur) var(--ns-ease)`),四處換用 —— FireGoalCard(Tailwind 預設 timing drift)、GoalsRoute ×2(完全無動畫且用 width%)、AccountsRoute(hand-typed 0.3s) | LOW | S | — | **DONE — reviewed, awaiting user merge** @ `fa435518`(branch `fix/ai-progress-fill-tokens`)。advisor 複驗:diff 與計劃逐字吻合、tsc 0、全套 1454、grep 判準 1/2/1 精確。executor worktree 重建應變有記錄且同基底 |
+| 246 | Dashboard 淨值 hero 數字滾動(count-up):新增可重用 `<AnimatedNumber>`(rAF tween 560ms ease-out、可中斷 retarget),hero 換用。snap 條件:首次 mount、resetKey(指標/帳本)切換、reduced-motion、隱私模式、null。registry 已有 `value: number` 只需補 `formatValue` | HIGH | M | — | **DONE — MERGED** ✅（reconcile 2026-07-25 驗證） @ `e406997e`(branch `feat/ai-animated-number-hero`)。advisor 複驗:tsc 0、6/6 新測試、全套 1462、lint 0。兩個記錄應變合理(benchmarkGap 需顯式 `(n: number)`;eslint disable 按計劃條件移除)。⚠ 執行者 worktree 消失後曾在主 checkout 切分支工作(隔離違規,無實害,advisor 已復原 main)。feel check(滾動手感)待操作者 |
+| 247 | FIRE 達成瞬間一次性慶祝(操作者拍板:低調光暈掃過):進度條 accent 高光掃過 600ms + 百分比 scale-pop 1→1.06→1 320ms。只在 in-session false→true 跨越時播,mount 已達成不播,`animationName` 過濾收尾。無 confetti | MEDIUM | S | 建議先做 248 | **DONE — MERGED** ✅（reconcile 2026-07-25 驗證；1 REVISE round） @ `ee99c6d5`(branch `feat/ai-fire-celebration`)。執行者正確抓到**計劃自身的 Rules-of-Hooks bug**(指定位置在 early return 後),搬移時引入 `projection ? … : false` 假轉變 bug(已達成者每次開 Dashboard 誤播)→ advisor REVISE → null 三態修法落地。CSS 逐字吻合。feel check(光暈質感、mount 不重播)待操作者。⚠ 與 248 都動 FireGoalCard/globals.css,合併順序 248 → 247,見下 |
+| 248 | 進度條填充動畫統一 token:抽 `.ns-progress-fill`(scaleX + `var(--ns-dur) var(--ns-ease)`),四處換用 —— FireGoalCard(Tailwind 預設 timing drift)、GoalsRoute ×2(完全無動畫且用 width%)、AccountsRoute(hand-typed 0.3s) | LOW | S | — | **DONE — MERGED** ✅（reconcile 2026-07-25 驗證） @ `fa435518`(branch `fix/ai-progress-fill-tokens`)。advisor 複驗:diff 與計劃逐字吻合、tsc 0、全套 1454、grep 判準 1/2/1 精確。executor worktree 重建應變有記錄且同基底 |
 
 **審計脈絡**:全專案 corrective 掃描結果乾淨 —— 零 `ease-in` / `transition: all` / `scale(0)`,
 toast/sheet 可中斷,reduced-motion 全域處理含 view-transition。以下為**刻意決定、勿再報**:
@@ -329,7 +406,7 @@ the original stays**; balances double-move. Reverse direction broken too
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 227 | 編輯轉帳 — new repo `updateTransfer(groupId, TransferDraft)` (**in-place leg update**, NOT updateSplit's tombstone+recreate: leg ids + `isReviewed`/`postDate` must survive — reconcile stores state ON legs), fee-leg reconcile table (mirrors 226), UI hydrates `transferForm` by groupId lookup (deep-link rows carry no `transferPair`), `editingTransferGroupId` state, `changeType` guards both hazardous directions. ≥7 dual-harness tests incl. the no-duplicate regression + atomicity | P1 | M | — (226 touches the same files — coordinate merge order; disjoint regions) | **DONE — executed+reviewed, awaiting operator merge.** Branch `fix/ai-transfer-edit` @ HEAD. 16 dual-harness tests (8 情境 × 2 harness; 1341→1357), tsc 0 / lint 0 errors. Review fix folded in: executor omitted the `editingTransferGroupId` clears in `openCreate`/`startDuplicate` (the `editingSplitGroupId` symmetry) — stale state would have turned 複製轉帳 into an update. Live-verified in demo mode: edit hydrates, save 800 → ONE pair (27 筆 not 28), re-edit shows 800, fee 0→15→0 creates/hydrates/removes the 手續費 row, type tabs inert in BOTH directions. (Sonnet executor stalled at step-5 browser phase; advisor completed verification directly.) **MERGED @ `9119cb8e`** (background session, reconciled 2026-07-18; re-verified green at HEAD: 1373 tests). |
+| 227 | 編輯轉帳 — new repo `updateTransfer(groupId, TransferDraft)` (**in-place leg update**, NOT updateSplit's tombstone+recreate: leg ids + `isReviewed`/`postDate` must survive — reconcile stores state ON legs), fee-leg reconcile table (mirrors 226), UI hydrates `transferForm` by groupId lookup (deep-link rows carry no `transferPair`), `editingTransferGroupId` state, `changeType` guards both hazardous directions. ≥7 dual-harness tests incl. the no-duplicate regression + atomicity | P1 | M | — (226 touches the same files — coordinate merge order; disjoint regions) | **DONE — MERGED** ✅（reconcile 2026-07-25 驗證：`updateTransfer` 在 repositories.ts 存在） Branch `fix/ai-transfer-edit` @ HEAD. 16 dual-harness tests (8 情境 × 2 harness; 1341→1357), tsc 0 / lint 0 errors. Review fix folded in: executor omitted the `editingTransferGroupId` clears in `openCreate`/`startDuplicate` (the `editingSplitGroupId` symmetry) — stale state would have turned 複製轉帳 into an update. Live-verified in demo mode: edit hydrates, save 800 → ONE pair (27 筆 not 28), re-edit shows 800, fee 0→15→0 creates/hydrates/removes the 手續費 row, type tabs inert in BOTH directions. (Sonnet executor stalled at step-5 browser phase; advisor completed verification directly.) **MERGED @ `9119cb8e`** (background session, reconciled 2026-07-18; re-verified green at HEAD: 1373 tests). |
 
 Interim mitigation option (operator's call, not in the plan's steps): hide
 編輯交易 for `entryType === "transfer"` rows — 複製 (`startDuplicate` is
@@ -780,7 +857,7 @@ first makes the other's edit a no-op. Don't run them concurrently.
 |------|-------|----------|--------|------------|--------|
 | 198 | 帳本 switcher popover renders behind the sidebar — `positionerClassName="z-[1101]"` on `BookSwitcher`'s `PopoverContent` (sidebar aside is z-1100 by design; portaled popover defaults to z-50) | P1 | S | — | **DONE — reviewed+APPROVED+MERGED** to `main` via `d92c7fae` (`--no-ff`, revertable). Branch `fix/ai-bookswitcher-popover-z` @ `72179b7b`. tsc 0 / lint 0 errors / 1252 tests. **Operator visually confirmed the sidebar menu now appears.** Executor correctly skipped the optional test (BookSwitcher needs `useFinanceData`+zustand mocking beyond the named exemplar's) |
 | 199 | 總覽 AI 本月摘要 gets its own full-width row under the header — out of the `justify-between` left column, drop `max-w-xl`, refresh button to the row's right edge via `justify-between` + `icon-xs` | P2 | S | — | **DONE — reviewed+APPROVED+MERGED** to `main` via `087a9b2e` (`--no-ff`). Branch `fix/ai-dashboard-summary-layout` @ `6bad8e38`. tsc 0 / lint 0 / 1252; privacy guards + generation logic byte-unchanged. **Operator visually confirmed.** ⚠ One REVISE round was **the advisor's fault, not the executor's** — the dispatch prompt truncated Step 1d, then the executor was wrongly accused of skipping it. Lesson applied to 200: pass the plan's absolute path instead of hand-inlining |
-| 200 | Button/icon consistency audit → `docs/button-icon-audit.md` (Phase A, gated) + mechanical fixes only (Phase B): sub-13 icons → 14, 6 hand-rolled `h-9` → `size="lg"` | P3 | M | coordinate w/ 199 | **DONE — reviewed+APPROVED, NOT merged** (operator's call). Branch `fix/ai-button-icon-consistency` @ `1f171585`, stacked on 198+199, **3 independently-takeable commits**: `1e603f19` audit doc + DESIGN.md, `42955c15` 14 src files (33+/33−), `1f171585` the CSS-override finding. tsc 0 / lint 0 / 1252 / build 0. **Executor corrected the advisor's census twice**: Button-only variants are `outline` 63 (not 84) and `secondary` 0 (not 5) — raw grep conflated `<Badge>`; and it verified the CSS override in the **compiled** CSS, not just source. ⚠ **~1/3 of Phase B is superseded by operator decision 3** → plan 203 deletes the 10 inert props. **MERGED since** (`1f171585` verified ancestor of main at reconcile 2026-07-17; the "NOT merged" here was stale — the 2026-07-16 session-close merged it) |
+| 200 | Button/icon consistency audit → `docs/button-icon-audit.md` (Phase A, gated) + mechanical fixes only (Phase B): sub-13 icons → 14, 6 hand-rolled `h-9` → `size="lg"` | P3 | M | coordinate w/ 199 | **DONE — MERGED** ✅（reconcile 2026-07-25 驗證：三個 commit `1e603f19`/`42955c15`/`1f171585` 皆為 main 祖先）. Branch `fix/ai-button-icon-consistency` @ `1f171585`, stacked on 198+199, **3 independently-takeable commits**: `1e603f19` audit doc + DESIGN.md, `42955c15` 14 src files (33+/33−), `1f171585` the CSS-override finding. tsc 0 / lint 0 / 1252 / build 0. **Executor corrected the advisor's census twice**: Button-only variants are `outline` 63 (not 84) and `secondary` 0 (not 5) — raw grep conflated `<Badge>`; and it verified the CSS override in the **compiled** CSS, not just source. ⚠ **~1/3 of Phase B is superseded by operator decision 3** → plan 203 deletes the 10 inert props. **MERGED since** (`1f171585` verified ancestor of main at reconcile 2026-07-17; the "NOT merged" here was stale — the 2026-07-16 session-close merged it) |
 
 **198 is a real functional bug, not polish**: the 帳本 feature's primary entry
 point (188–194, shipped alpha.61) is unreachable — the dropdown paints behind
