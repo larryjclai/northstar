@@ -47,6 +47,17 @@ tauri-plugin-window-state = "2"
 [target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
 tauri-plugin-haptics = "2"
 
+# Release profile (plan 262). The app ships through the auto-updater, so binary
+# size is paid by every user on every update. LTO + a single codegen unit let
+# the compiler drop cross-crate dead code; `strip` removes symbols that only
+# matter for local debugging. Slower to build, smaller and marginally faster to
+# run — the right trade for a distributed artifact.
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
 # Pin tauri-plugin-sql to a vendored copy that forces the SQLite pool to a
 # single connection (vendor/tauri-plugin-sql/src/wrapper.rs). Upstream uses a
 # 10-connection pool, which splits multi-statement transactions across
