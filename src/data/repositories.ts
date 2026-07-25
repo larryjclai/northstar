@@ -43,7 +43,14 @@ import {
   type SyncEntity,
   type SyncSource,
 } from "../domain/sync";
-import { ADDITIVE_COLUMNS, ADDITIVE_INDEXES, migrations, splitSqlStatements, SYNC_TRIGGER_ENTITIES } from "./migrations";
+import {
+  ADDITIVE_COLUMNS,
+  ADDITIVE_INDEXES,
+  migrations,
+  schemaFingerprint,
+  splitSqlStatements,
+  SYNC_TRIGGER_ENTITIES,
+} from "./migrations";
 import {
   seedAccounts,
   seedAssets,
@@ -3060,11 +3067,15 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async initialize() {
-    // Plan 268: structurally split from the mixed DDL+data block this used to
-    // be, but not yet gated — runSchemaDdl() still runs on every launch here.
-    // The skip-when-unchanged fingerprint gate lands in a follow-up commit so
-    // this purely-structural change can be reviewed and reverted on its own.
-    await this.runSchemaDdl();
+    // DDL is skipped when the schema definition is byte-identical to what this
+    // database was last stamped with. The fingerprint is derived from the DDL
+    // itself, so it invalidates automatically when the schema changes — there is
+    // no constant to forget to bump (plan 268).
+    const fingerprint = schemaFingerprint();
+    if ((await this.readSchemaFingerprint()) !== fingerprint) {
+      await this.runSchemaDdl();
+      await this.writeSchemaFingerprint(fingerprint);
+    }
 
     // Never gated. See runDataHealing()'s doc comment.
     await this.runDataHealing();
@@ -6011,6 +6022,23 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     if (columns.has(column)) return;
     await this.db.execute(`alter table ${table} add column ${column} ${definition}`);
     columns.add(column);
+  }
+
+  private async readSchemaFingerprint(): Promise<number> {
+    try {
+      const rows = await this.db.select<Array<{ user_version: number }>>("PRAGMA user_version;");
+      return Number(rows?.[0]?.user_version ?? 0) || 0;
+    } catch {
+      // Unreadable pragma → treat as "never stamped" and run the full DDL phase.
+      // Never skip on uncertainty.
+      return 0;
+    }
+  }
+
+  private async writeSchemaFingerprint(fingerprint: number): Promise<void> {
+    // PRAGMA does not accept bound parameters; the value is a locally-computed
+    // integer, never user input.
+    await this.db.execute(`PRAGMA user_version = ${Math.trunc(fingerprint)};`);
   }
 
   /**

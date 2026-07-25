@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { schemaFingerprint } from "./migrations";
 import { createSqliteFinanceRepositoryForTests } from "./repositories";
 import { makeSqliteShim } from "./repositories.testHarness";
 
@@ -357,5 +358,190 @@ describe("plan 259: secondary indexes", () => {
     const after = (await listIdxIndexNames(db)).sort();
 
     expect(after).toEqual(before);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Plan 268: initialize() splits into runSchemaDdl() (DDL only, skipped once
+// PRAGMA user_version matches schemaFingerprint()) and runDataHealing() (row
+// repairs/self-heals, always run). These are the regression tests for plan
+// 260's failure: 260 gated the whole startup block and broke the
+// credit-group self-heal because it isn't one-time schema work. Every case
+// here proves a self-heal still runs on a SECOND initialize(), after the DDL
+// phase has already been skipped.
+// ---------------------------------------------------------------------------
+
+describe("plan 268: schema DDL gate", () => {
+  it("fresh database gets the full schema and a user_version stamp", async () => {
+    const { db, shim } = makeRawDb();
+    await createSqliteFinanceRepositoryForTests(shim as never);
+
+    const versionRows = await db.select<Array<{ user_version: number }>>("PRAGMA user_version;");
+    expect(versionRows[0]?.user_version).toBe(schemaFingerprint());
+    expect(versionRows[0]?.user_version).not.toBe(0);
+
+    const ledgerColumns = await pragmaColumns(db, "ledger_transactions");
+    expect(ledgerColumns).toContain("post_date");
+    expect(ledgerColumns).toContain("leg_kind");
+  });
+
+  it("a second initialize() skips the DDL phase entirely", async () => {
+    const { shim } = makeRawDb();
+    const spyTarget = shim as unknown as { execute: (...args: unknown[]) => unknown; select: (...args: unknown[]) => unknown };
+    const executeSpy = vi.spyOn(spyTarget, "execute");
+    const selectSpy = vi.spyOn(spyTarget, "select");
+
+    // The factory's own construction call is the "first" initialize() — the
+    // one allowed to run DDL. Clear the spies before the second call so only
+    // that second call's statements are inspected.
+    const repo = await createSqliteFinanceRepositoryForTests(shim as never);
+    executeSpy.mockClear();
+    selectSpy.mockClear();
+
+    await repo.initialize();
+
+    const allSql = [...executeSpy.mock.calls, ...selectSpy.mock.calls].map((call) => String(call[0]));
+    expect(allSql.some((sql) => /pragma table_info/i.test(sql))).toBe(false);
+    expect(allSql.some((sql) => /create trigger/i.test(sql))).toBe(false);
+    expect(allSql.some((sql) => /alter table/i.test(sql))).toBe(false);
+  });
+
+  it("a changed fingerprint re-runs the DDL without touching row data", async () => {
+    const { db, shim } = makeRawDb();
+    const repo = await createSqliteFinanceRepositoryForTests(shim as never);
+
+    const countRow = async (table: string) => {
+      const rows = await db.select<Array<{ count: number }>>(`select count(*) as count from ${table}`);
+      return rows[0]?.count ?? 0;
+    };
+    const before = {
+      accounts: await countRow("accounts"),
+      ledger: await countRow("ledger_transactions"),
+      investment: await countRow("investment_records"),
+    };
+
+    await db.execute("PRAGMA user_version = 1;");
+    await expect(repo.initialize()).resolves.not.toThrow();
+
+    const versionRows = await db.select<Array<{ user_version: number }>>("PRAGMA user_version;");
+    expect(versionRows[0]?.user_version).toBe(schemaFingerprint());
+
+    expect(await countRow("accounts")).toBe(before.accounts);
+    expect(await countRow("ledger_transactions")).toBe(before.ledger);
+    expect(await countRow("investment_records")).toBe(before.investment);
+  });
+
+  it("a missing column is restored when the fingerprint is stale (upgrade path)", async () => {
+    const { db, shim } = makeRawDb();
+    await createSqliteFinanceRepositoryForTests(shim as never);
+
+    // Bundled node:sqlite (>= 3.35) supports DROP COLUMN, so this exercises the
+    // real upgrade path rather than only asserting the fingerprint round-trips
+    // (test above). If that ever stops being true, this assertion will fail
+    // loudly rather than silently pass on nothing.
+    await db.execute("alter table ledger_transactions drop column leg_kind");
+    expect(await pragmaColumns(db, "ledger_transactions")).not.toContain("leg_kind");
+    await db.execute("PRAGMA user_version = 0;");
+
+    // A fresh repository instance, not the one above: the table-columns cache
+    // (plan 268 Phase A) lives for the life of one repository instance and is
+    // only safe because nothing else alters tables at runtime — this test just
+    // did, from outside the repo, so reusing the same instance would read its
+    // now-stale cache instead of exercising the real upgrade path. A real
+    // launch always constructs a fresh instance, so this is the faithful case.
+    const upgraded = await createSqliteFinanceRepositoryForTests(shim as never);
+    await upgraded.initialize();
+
+    expect(await pragmaColumns(db, "ledger_transactions")).toContain("leg_kind");
+    const versionRows = await db.select<Array<{ user_version: number }>>("PRAGMA user_version;");
+    expect(versionRows[0]?.user_version).toBe(schemaFingerprint());
+  });
+
+  it("self-heal: an orphan investment record gets the sentinel account on a second initialize()", async () => {
+    const { db, shim } = makeRawDb();
+    const repo = await createSqliteFinanceRepositoryForTests(shim as never);
+
+    await db.execute(
+      `insert into portfolio_assets (id, space_id, revision, created_at, updated_at, deleted_at, ticker, name, currency, total_quantity, average_cost, holding_source, account_id)
+       values ('asset_orphan',$1,1,$2,$2,null,'0050.TW','元大台灣50','TWD',10,100,'manual',null)`,
+      [SPACE, TS],
+    );
+    await db.execute(
+      `insert into investment_records (id, space_id, revision, created_at, updated_at, deleted_at, asset_id, linked_account_id, date, action, price, quantity, fee, note, is_reviewed)
+       values ('rec_orphan',$1,1,$2,$2,null,'asset_orphan',null,'2026-06-01','buy',100,10,0,'',0)`,
+      [SPACE, TS],
+    );
+
+    // Second initialize(): the DDL phase is skipped (fingerprint unchanged),
+    // but backfillUnassignedAccount() — a data self-heal — must still run.
+    await repo.initialize();
+
+    const records = await repo.listInvestmentRecords();
+    const record = records.find((r) => r.id === "rec_orphan");
+    expect(record?.linkedAccountId).not.toBeNull();
+
+    const accounts = await repo.listAccounts();
+    const sentinel = accounts.find((a) => a.id === record?.linkedAccountId);
+    expect(sentinel?.name).toBe("未指定");
+  });
+
+  it("self-heal: an account with book_id = '' gets the default 個人帳 on a second initialize()", async () => {
+    const { db, shim } = makeRawDb();
+    const repo = await createSqliteFinanceRepositoryForTests(shim as never);
+
+    await db.execute(
+      `insert into accounts (id, space_id, revision, created_at, updated_at, deleted_at, name, currency, opening_balance, balance, type, credit_limit, credit_limit_group, is_shared_to_household, custom_group, book_id)
+       values ('acct_no_book',$1,1,$2,$2,null,'無帳本帳戶','TWD',0,0,'bank',null,'',0,'','')`,
+      [SPACE, TS],
+    );
+
+    // Second initialize(): the DDL phase is skipped, but ensureSqliteDefaultBook()
+    // — a data self-heal — must still backfill the empty-string sentinel.
+    await repo.initialize();
+
+    const accounts = await repo.listAccounts();
+    const account = accounts.find((a) => a.id === "acct_no_book");
+    expect(account?.bookId).toBeTruthy();
+    expect(account?.bookId).not.toBe("");
+
+    const books = await repo.listBooks();
+    const defaultBook = books.find((b) => b.id === account?.bookId);
+    expect(defaultBook?.name).toBe("個人帳");
+  });
+
+  it("trigger-ordering: DDL (including sync triggers) now precedes the data repairs, so repairs enqueue outbox rows", async () => {
+    const { db, shim } = makeRawDb();
+    await db.execute(ACCOUNTS_MIGRATION_1);
+    await db.execute(LEDGER_MIGRATION_1);
+    await db.execute(REPAIR_ERA_ASSETS);
+    await db.execute(REPAIR_ERA_RECORDS);
+    await seedCashLeak(db);
+
+    // Plan 268: runSchemaDdl() (including ensureSyncTriggers()) now runs
+    // before runDataHealing(), so the cash-leak repair's UPDATEs fire the
+    // outbox insert triggers and enqueue sync rows. Before this plan, the
+    // repairs ran first and the triggers did not exist yet, so nothing was
+    // enqueued for them. This is a deliberate, documented behavior change
+    // (plan 268's "One real behavior change"), not a regression — if this
+    // assertion ever shows a MISSING row instead, that would mean the repairs
+    // moved back ahead of the DDL and no longer propagate over sync.
+    await createSqliteFinanceRepositoryForTests(shim as never);
+
+    const outboxRows = await db.select<Array<{ record_type: string; record_id: string; revision: number }>>(
+      `select record_type, record_id, revision from sync_outbox order by record_type, record_id`,
+    );
+    const ledgerRow = outboxRows.find((r) => r.record_type === "ledger" && r.record_id === "led_bad");
+    const investmentRow = outboxRows.find(
+      (r) => r.record_type === "investment" && r.record_id === "inv_open_asset_x",
+    );
+
+    expect(ledgerRow?.revision).toBe(2);
+    expect(investmentRow?.revision).toBe(2);
+
+    // No duplicate (record_type, record_id, revision) rows — the unique index
+    // on sync_outbox enforces this, but assert it explicitly so a future
+    // change that silently swallows the constraint violation gets caught here.
+    const keys = outboxRows.map((r) => `${r.record_type}:${r.record_id}:${r.revision}`);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });
