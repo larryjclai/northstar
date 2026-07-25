@@ -6046,10 +6046,29 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     }
   }
 
-  private async ensureSqliteColumn(table: string, column: string, definition: string) {
+  /**
+   * Cache of `pragma table_info` results, keyed by table. The 64
+   * ensureSqliteColumn() calls in initialize() cover only 7 distinct tables, so
+   * probing per column cost 64 serialized IPC round trips where 7 suffice
+   * (plan 268). Populated lazily; invalidated for a table whenever we add a
+   * column to it, so the cache can never go stale within a run.
+   */
+  private tableColumnsCache = new Map<string, Set<string>>();
+
+  private async readTableColumns(table: string): Promise<Set<string>> {
+    const cached = this.tableColumnsCache.get(table);
+    if (cached) return cached;
     const rows = await this.db.select<Array<{ name: string }>>(`pragma table_info(${table})`);
-    if (rows.some((row) => row.name === column)) return;
+    const columns = new Set(rows.map((row) => row.name));
+    this.tableColumnsCache.set(table, columns);
+    return columns;
+  }
+
+  private async ensureSqliteColumn(table: string, column: string, definition: string) {
+    const columns = await this.readTableColumns(table);
+    if (columns.has(column)) return;
     await this.db.execute(`alter table ${table} add column ${column} ${definition}`);
+    columns.add(column);
   }
 
   /**
