@@ -41,18 +41,35 @@ export default defineConfig({
         // Split heavy third-party libraries out of the main entry so the
         // initial load isn't a single multi-MB chunk. Low-frequency routes
         // are additionally code-split via lazyRouteComponent (see router.tsx).
-        // Function form: the object form resolves package *roots* only, so
-        // subpath imports like react-dom/client never matched and react-dom
-        // stayed in the main chunk.
-        manualChunks(id) {
-          if (!id.includes("node_modules")) return undefined;
-          if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return "react";
-          if (id.includes("node_modules/recharts") || /node_modules\/(d3-|victory-)/.test(id)) return "charts";
-          if (id.includes("node_modules/@tanstack/")) return "tanstack";
-          if (id.includes("node_modules/@phosphor-icons/")) return "icons";
-          if (/node_modules\/(i18next|react-i18next)/.test(id)) return "i18n";
-          if (id.includes("node_modules/@base-ui/")) return "baseui";
-          return undefined;
+        //
+        // Plan 267: this used to be `manualChunks(id) => string`. In this project's
+        // bundler — Vite 8 is rolldown-vite, i.e. the actual bundler is `rolldown`,
+        // not classic Rollup — `manualChunks` is a deprecated Rollup-compat shim that
+        // gets internally rewritten into a single `codeSplitting.groups` entry with no
+        // `priority`. `codeSplitting.includeDependenciesRecursively` defaults to `true`,
+        // so a group also recursively captures its matched modules' *dependencies* —
+        // meaning `clsx` (a transitive dependency of recharts, in addition to backing
+        // our own `cn()` in src/lib/utils.ts) got swallowed into the `charts` group
+        // even though the (deprecated) manualChunks function explicitly returned a
+        // different name for it. Use the real `codeSplitting` API directly, with
+        // `priority`, so contested modules resolve deterministically instead of by
+        // "whichever group's recursive capture got there first".
+        codeSplitting: {
+          groups: [
+            // clsx / tailwind-merge / cva back `cn()` (src/lib/utils.ts), which every
+            // shared UI component calls. clsx is ALSO a recharts dependency, and
+            // codeSplitting captures each group's dependencies recursively — so
+            // without a higher priority here, the charts group swallows clsx and the
+            // eager UI chunk ends up statically importing all 388 kB of recharts
+            // (plan 267). Priority is what breaks that tie. Do not lower it.
+            { name: "classutils", test: /node_modules\/(clsx|tailwind-merge|class-variance-authority)\//, priority: 100 },
+            { name: "react", test: /node_modules\/(react|react-dom|scheduler)\//, priority: 50 },
+            { name: "tanstack", test: /node_modules\/@tanstack\//, priority: 50 },
+            { name: "icons", test: /node_modules\/@phosphor-icons\//, priority: 50 },
+            { name: "i18n", test: /node_modules\/(i18next|react-i18next)\//, priority: 50 },
+            { name: "baseui", test: /node_modules\/@base-ui\//, priority: 50 },
+            { name: "charts", test: /node_modules\/(recharts|d3-|victory-)/, priority: 10 },
+          ],
         },
       },
     },
