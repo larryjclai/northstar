@@ -373,6 +373,28 @@ export const migrations: Migration[] = [
   // credit_group_id` (plan 254/255) follows the same ensure-column pattern.
 ];
 
+/**
+ * 資料庫「世代」— the generation of the *whole* startup schema pipeline, not just
+ * the `migrations` array above.
+ *
+ * `TauriSqlFinanceRepository.initialize()` runs a long, strictly idempotent
+ * block: the migrations, ~64 `ensureSqliteColumn()` probes, the one-time data
+ * repairs, the sync triggers, and the 帳本 / 信用卡群組 / sync_outbox backfills.
+ * Re-running that block on a database that has already reached generation N
+ * cannot change it — so we stamp the file's `PRAGMA user_version` with this
+ * number and skip the block when it already matches. That removes ~150
+ * sequential IPC round trips and 11 full-table scans from every cold start
+ * (plan 260).
+ *
+ * ⚠️ BUMP THIS whenever you add ANYTHING to that gated block — a migration, an
+ * `ensureSqliteColumn()` call, a repair statement, a trigger, or a backfill.
+ * Forgetting to bump it means existing installs never receive your change and
+ * will fail at runtime with "no such column". There is a test that fails if the
+ * gated block runs on a stamped database, but nothing can detect a forgotten
+ * bump for you — treat it as part of writing the migration.
+ */
+export const SCHEMA_GENERATION = 10;
+
 export function splitSqlStatements(sql: string): string[] {
   return sql
     .split(/;\s*(?:\r?\n|$)/)

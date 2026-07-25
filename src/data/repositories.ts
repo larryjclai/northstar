@@ -43,7 +43,7 @@ import {
   type SyncEntity,
   type SyncSource,
 } from "../domain/sync";
-import { migrations, splitSqlStatements } from "./migrations";
+import { migrations, SCHEMA_GENERATION, splitSqlStatements } from "./migrations";
 import {
   seedAccounts,
   seedAssets,
@@ -2950,6 +2950,36 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   override async initialize() {
+    // The schema + repair block is idempotent by construction, so a file already
+    // stamped at the current generation cannot be changed by re-running it.
+    // Skipping it removes ~150 sequential IPC round trips and 11 full-table
+    // scans from every cold start (plan 260). A fresh file, or one written by a
+    // build before this gate existed, reads 0 and runs the full pipeline.
+    const generation = await this.readSchemaGeneration();
+    if (generation < SCHEMA_GENERATION) {
+      await this.runSchemaPipeline();
+      await this.writeSchemaGeneration(SCHEMA_GENERATION);
+    }
+
+    // Deliberately OUTSIDE the gate — cheap, and load-bearing on every launch:
+    // ensureDefaultSettings() guards first-run defaults, the accounts count
+    // seeds an empty file, and recalculateDerivedData() self-heals derived
+    // balances that a sync may have left stale (it skips unchanged rows).
+    await this.ensureDefaultSettings();
+    const rows = await this.db.select<Array<{ count: number }>>("select count(*) as count from accounts");
+    if ((rows[0]?.count ?? 0) === 0) {
+      await this.seedSqlite();
+    }
+    await this.recalculateDerivedData();
+  }
+
+  /**
+   * The strictly-idempotent schema + repair block. Every statement here is
+   * `if not exists` / `insert or ignore` / a repair whose predicate matches
+   * nothing once applied. Gated on SCHEMA_GENERATION by initialize() — see
+   * plan 260 and the ⚠️ note on that constant before adding anything here.
+   */
+  private async runSchemaPipeline() {
     for (const migration of migrations) {
       for (const statement of splitSqlStatements(migration.sql)) {
         await this.db.execute(statement);
@@ -3106,13 +3136,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.mergeAndHealBooks();
     await this.backfillUnassignedAccount();
     await this.backfillCreditGroups();
-    await this.ensureDefaultSettings();
-    const rows = await this.db.select<Array<{ count: number }>>("select count(*) as count from accounts");
-    if ((rows[0]?.count ?? 0) === 0) {
-      await this.seedSqlite();
-    }
     await this.backfillSyncOutbox();
-    await this.recalculateDerivedData();
   }
 
   /**
@@ -6050,6 +6074,29 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     const rows = await this.db.select<Array<{ name: string }>>(`pragma table_info(${table})`);
     if (rows.some((row) => row.name === column)) return;
     await this.db.execute(`alter table ${table} add column ${column} ${definition}`);
+  }
+
+  /**
+   * `PRAGMA user_version` is a plain integer in the SQLite file header — no
+   * table, no extra round trip beyond this one read. It is ours to use:
+   * tauri-plugin-sql is registered with no migrations (src-tauri/src/lib.rs) and
+   * never touches it. A fresh or pre-plan-260 file reads back 0.
+   */
+  private async readSchemaGeneration(): Promise<number> {
+    try {
+      const rows = await this.db.select<Array<{ user_version: number }>>("PRAGMA user_version;");
+      return Number(rows?.[0]?.user_version ?? 0) || 0;
+    } catch {
+      // Unreadable pragma → behave as if the file is brand new and run the full
+      // pipeline. Never skip on uncertainty.
+      return 0;
+    }
+  }
+
+  private async writeSchemaGeneration(generation: number): Promise<void> {
+    // PRAGMA user_version does not accept a bound parameter, so the value is
+    // interpolated — it is a module-level integer constant, never user input.
+    await this.db.execute(`PRAGMA user_version = ${Math.trunc(generation)};`);
   }
 
   /**
