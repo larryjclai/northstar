@@ -3,6 +3,7 @@ import {
   MIN_EXPECTED_FUND_COUNT,
   SitcaFundProvider,
   buildFundSymbolIndex,
+  countFundMatches,
   filterFunds,
   fundSymbol,
   isPlausibleFundList,
@@ -66,9 +67,9 @@ describe("parseSitcaNavCsv", () => {
 // Hand-built fund list for filterFunds tests.
 function makeFunds() {
   return [
-    { code: "AAA01", certCode: "T9901Y", nav: 10, currency: "TWD", name: "全球科技基金", date: "20260624" },
-    { code: "BBB02", certCode: "T9902Y", nav: 20, currency: "USD", name: "台灣債券基金", date: "20260624" },
-    { code: "CCC03", certCode: "T9903Y", nav: 30, currency: "TWD", name: "亞洲平衡基金", date: "20260624" },
+    { code: "AAA01", certCode: "T9901Y", nav: 10, currency: "TWD", name: "全球科技基金", company: "某投信", date: "20260624" },
+    { code: "BBB02", certCode: "T9902Y", nav: 20, currency: "USD", name: "台灣債券基金", company: "某投信", date: "20260624" },
+    { code: "CCC03", certCode: "T9903Y", nav: 30, currency: "TWD", name: "亞洲平衡基金", company: "某投信", date: "20260624" },
   ];
 }
 
@@ -127,7 +128,7 @@ describe("filterFunds", () => {
   });
 
   it("falls back to the 基金代號 symbol when a fund has no cert code", () => {
-    const funds = [{ code: "ZZZ09", certCode: "", nav: 1, currency: "TWD", name: "無憑證基金", date: "20260624" }];
+    const funds = [{ code: "ZZZ09", certCode: "", nav: 1, currency: "TWD", name: "無憑證基金", company: "某投信", date: "20260624" }];
     const results = filterFunds(funds, "ZZZ09");
     expect(results).toHaveLength(1);
     expect(results[0].symbol).toBe("SITCA:ZZZ09");
@@ -167,6 +168,101 @@ describe("fundSymbol", () => {
   it("prefers the cert code and upper-cases it", () => {
     expect(fundSymbol({ code: "dio04", certCode: "t1605y" })).toBe("SITCA:T1605Y");
     expect(fundSymbol({ code: "dio04", certCode: "" })).toBe("SITCA:DIO04");
+  });
+});
+
+// Reproduces the live failure (SITCA NAV CSV, 2026-07-25): 259 funds' names
+// begin 「群益」 and the reported 「群益新興金鑽基金-新臺幣」 is the 151st of
+// them in file order, so a file-ordered 20-result cap hid it entirely.
+function makeBrandedFunds(count: number, targetIndex: number) {
+  const funds = [];
+  for (let i = 0; i < count; i++) {
+    if (i === targetIndex) {
+      funds.push({
+        code: "DIO04",
+        certCode: "T1605Y",
+        nav: 14.16,
+        currency: "TWD",
+        name: "群益新興金鑽基金-新臺幣",
+        company: "群益投信",
+        date: "20260723",
+      });
+      continue;
+    }
+    const n = String(i).padStart(3, "0");
+    funds.push({
+      code: `DIO${n}`,
+      certCode: `T9${n}Y`,
+      nav: 10,
+      currency: "TWD",
+      name: `群益其他基金${n}`,
+      company: "群益投信",
+      date: "20260723",
+    });
+  }
+  return funds;
+}
+
+describe("fund search ranking", () => {
+  it("ranks an exact 受益憑證代號 match first", () => {
+    const results = filterFunds(makeBrandedFunds(259, 150), "T1605Y");
+    expect(results[0].symbol).toBe("SITCA:T1605Y");
+  });
+
+  it("surfaces the target fund for a full-name query even when it is 151st in file order", () => {
+    const results = filterFunds(makeBrandedFunds(259, 150), "群益新興金鑽基金-新臺幣");
+    expect(results[0].symbol).toBe("SITCA:T1605Y");
+  });
+
+  it("matches a name pasted from the fund company's site (spaces around the hyphen)", () => {
+    // This is the exact string in the page title of
+    // https://www.capitalfund.com.tw/fund/detail/019.
+    const results = filterFunds(makeBrandedFunds(259, 150), "群益新興金鑽基金 - 新臺幣");
+    expect(results).toHaveLength(1);
+    expect(results[0].symbol).toBe("SITCA:T1605Y");
+  });
+
+  it("folds 臺 and 台 so either spelling finds the fund", () => {
+    const results = filterFunds(makeBrandedFunds(259, 150), "群益新興金鑽基金-新台幣");
+    expect(results[0].symbol).toBe("SITCA:T1605Y");
+  });
+
+  it("prefers a prefix match over a mid-string match", () => {
+    const funds = [
+      { code: "AAA01", certCode: "T1111Y", nav: 10, currency: "TWD", name: "某某群益概念基金", company: "某投信", date: "20260723" },
+      { code: "DIO04", certCode: "T1605Y", nav: 14.16, currency: "TWD", name: "群益新興金鑽基金-新臺幣", company: "群益投信", date: "20260723" },
+    ];
+    const results = filterFunds(funds, "群益");
+    expect(results[0].symbol).toBe("SITCA:T1605Y");
+  });
+
+  it("counts every match even when the returned list is capped", () => {
+    const funds = makeBrandedFunds(259, 150);
+    expect(countFundMatches(funds, "群益")).toBe(259);
+    expect(filterFunds(funds, "群益", 20)).toHaveLength(20);
+  });
+
+  it("normalizes full-width characters and stray whitespace", () => {
+    const funds = makeBrandedFunds(259, 150);
+    expect(filterFunds(funds, "  T1605Y  ")[0].symbol).toBe("SITCA:T1605Y");
+    expect(filterFunds(funds, "Ｔ１６０５Ｙ")[0].symbol).toBe("SITCA:T1605Y");
+  });
+
+  it("matches by 公司名稱 even when the brand is spelled differently in the name", () => {
+    // 112 live rows have exactly this mismatch: company is 滙豐投信 but the
+    // fund name spells the brand 匯豐.
+    const funds = [
+      { code: "HSB01", certCode: "T2001Y", nav: 15, currency: "TWD", name: "匯豐中華平衡基金", company: "滙豐投信", date: "20260723" },
+    ];
+    const results = filterFunds(funds, "滙豐");
+    expect(results).toHaveLength(1);
+    expect(results[0].symbol).toBe("SITCA:T2001Y");
+  });
+
+  it("tags fund results as 共同基金", () => {
+    const results = filterFunds(makeFunds(), "科技");
+    expect(results[0].assetType).toBe("mutual_fund");
+    expect(results[0].currency).toBe("TWD");
   });
 });
 
