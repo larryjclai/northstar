@@ -368,7 +368,6 @@ export function InvestmentsAnalyticsTab({
   // `basis` discloses which 口徑 produced the numbers.
   const perf = useMemo(() => {
     const bench = buildBenchmarkSeries(dailyPrices, benchmarkTicker, activeStart, end);
-    type CumPoint = { date: string; pct: number };
     const twrBranch = (():
       | {
           data: Array<{ date: string; port: number; bench: number | null }>;
@@ -377,7 +376,6 @@ export function InvestmentsAnalyticsTab({
           alpha: number | null;
           hasBenchmark: boolean;
           basis: "twr";
-          nudgeInput: { portfolioCum: CumPoint[]; benchmarkCum: CumPoint[] } | null;
         }
       | null => {
       if (twrResult.twrPct == null || twrResult.series.length < 2) return null;
@@ -399,7 +397,6 @@ export function InvestmentsAnalyticsTab({
           alpha: portFinal - benchFinal,
           hasBenchmark: true,
           basis: "twr",
-          nudgeInput: { portfolioCum: portCum, benchmarkCum: benchCum },
         };
       }
       // TWR is available but the benchmark has no usable history: still honour
@@ -412,7 +409,6 @@ export function InvestmentsAnalyticsTab({
         alpha: null,
         hasBenchmark: false,
         basis: "twr",
-        nudgeInput: null,
       };
     })();
     if (twrBranch) return twrBranch;
@@ -433,7 +429,6 @@ export function InvestmentsAnalyticsTab({
       alpha,
       hasBenchmark: benchCum.length >= 2,
       basis: "fixed" as const,
-      nudgeInput: null,
     };
   }, [twrResult, core.series, dailyPrices, benchmarkTicker, activeStart, end]);
 
