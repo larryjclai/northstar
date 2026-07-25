@@ -27,15 +27,20 @@
 
 ### 仍然開著的事（這次 reconcile 的重點）
 
-1. **249 的殘餘驗收已逾期 —— 最值得處理的一項。** 程式面已合併，且
-   `v0.1.0-alpha.67`、`v0.1.0-alpha.68` **都包含**修正（`211e2f1d`，已驗祖先）。
-   但原本的驗收條件是「下次發版掃 binary 確認銀行 logo 回來」，兩次發版過去了，
-   索引裡沒有任何完成紀錄。這件事重要是因為 `release.yml:162-165` 有一條靜默跳過路徑：
-   `PRIVATE_ASSETS_KEY` 沒設時會印一行訊息然後 `exit 0`，**build 照樣全綠但沒有 logo**。
-   所以 CI 綠燈不能當證據，必須實際掃 alpha.68 的 binary。
-2. **257 是唯一未合併的程式碼**：branch `fix/ai-fund-search-ranking` @ `c4187c28`
-   （4 commits，base = `b22c566e`），已 reviewed+APPROVED，等 operator 決定。
-3. **243 Step 4 仍待 operator**：刪除 `RELEASES_TOKEN` secret 並撤銷該 PAT（純帳號操作，無法從 repo 驗證）。
+1. ~~**249 的殘餘驗收已逾期**~~ → **CLOSED 2026-07-25，實際掃過 binary。**
+   在 `v0.1.0-alpha.69` 發版後下載官方產物 `Northstar_aarch64.app.tar.gz`，
+   解開後掃 `Northstar.app/Contents/MacOS/northstar`（前端被 Tauri 編進二進位檔，
+   不是散落檔案，所以 `find` 找不到、必須 `strings` 掃）：
+   **13 個銀行 logo 全在**（`/bank/007_ileo.svg`…`/bank/kgi.svg`），與本機
+   `public/bank/` 的 13 個完全相符。同時確認 `PRIVATE_ASSETS_KEY` secret 已設
+   （2026-07-22）、該 run 的 unpack 步驟**沒有**走 `exit 0` 跳過路徑。
+   順帶驗到同步 endpoint（`https://northstar-sync.larrynote.workers.dev`）與
+   updater endpoint 都已烘焙進 binary —— alpha.63–65 那兩個歷史缺口都不存在。
+   註：`etf-sector-feed.json` 在本機與官方產物中皆不存在，但這是預期行為
+   （`private-assets/etf/` 本來就沒有，程式會 fall back 到 on-demand public feed）。
+2. ~~**257 是唯一未合併的程式碼**~~ → **已合併並隨 alpha.69 出貨**（見下）。
+3. **243 Step 4 仍待 operator**：刪除 `RELEASES_TOKEN` secret 並撤銷該 PAT。
+   2026-07-25 以 `gh secret list` 確認**該 secret 仍然存在**（建立於 2026-06-02）。
 4. **238 的 5 個 operator 問題**仍 gate 著 vault-key rotation 的實作（239–242 是已合併的前置）。
 5. 待操作者「手感 / 肉眼」驗收（非阻塞）：233 列印、245 桌面 Tauri 列印鈕、246 滾動手感、247 光暈質感。
 
@@ -56,7 +61,7 @@
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 258 | 刪除 `InvestmentsAnalyticsTab.tsx` 的 `nudgeInput` 欄位（4 處，全為寫入零讀取）＋連帶孤兒化的 `CumPoint` 型別別名。plan 220 把 nudge 改 full-history 後遺留。純刪除 5 行、不新增測試、不動任何算式。 | P3 | S | — | DONE — reviewed+APPROVED，branch `fix/ai-dead-nudge-input` @ `394f1e30`（1 commit，base `b22c566e`）。**未合併，等 operator。** reviewer 複驗：diff 為 **5 deletions / 0 insertions**、五個 hunk 全是純刪行、無任何算式變動；`grep nudgeInput\|CumPoint` → 0；`nudgeVerdict` 仍在（5 refs，live nudge 未受影響）；tsc 0 / lint 0 errors / **1487 tests 全過**。⚠ **計畫寫錯的數字，執行者抓到**：plan 258 寫「1496 tests」，但那是我從 257 分支帶過來的數（1487 + 257 新增的 9 筆 = 1496）；main 基線本來就是 1487。執行者用 `git stash` 前後對照證明刪除未改變測試數，並明講落差而非硬套通過 —— 判斷正確。 |
+| 258 | 刪除 `InvestmentsAnalyticsTab.tsx` 的 `nudgeInput` 欄位（4 處，全為寫入零讀取）＋連帶孤兒化的 `CumPoint` 型別別名。plan 220 把 nudge 改 full-history 後遺留。純刪除 5 行、不新增測試、不動任何算式。 | P3 | S | — | DONE — reviewed+APPROVED，branch `fix/ai-dead-nudge-input` @ `394f1e30`（1 commit，base `b22c566e`）。**MERGED** ✅ 隨 `v0.1.0-alpha.69` 出貨（merge `3a44d14d`）。reviewer 複驗：diff 為 **5 deletions / 0 insertions**、五個 hunk 全是純刪行、無任何算式變動；`grep nudgeInput\|CumPoint` → 0；`nudgeVerdict` 仍在（5 refs，live nudge 未受影響）；tsc 0 / lint 0 errors / **1487 tests 全過**。⚠ **計畫寫錯的數字，執行者抓到**：plan 258 寫「1496 tests」，但那是我從 257 分支帶過來的數（1487 + 257 新增的 9 筆 = 1496）；main 基線本來就是 1487。執行者用 `git stash` 前後對照證明刪除未改變測試數，並明講落差而非硬套通過 —— 判斷正確。 |
 
 ## 257 — 基金搜尋排序（`/improve plan` @ `b22c566e`, 2026-07-25）
 
@@ -71,7 +76,7 @@ SITCA NAV CSV 第 1398 列（`DIO04` / 受益憑證 `T1605Y`，2026-07-25 實測
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 257 | 基金搜尋可達性 — `normalizeFundQuery`（NFKC/去空白標點/臺↔台/滙↔匯）、`filterFunds` 改為評分排序後才截斷（不再 file-order `break`）、解析並可搜尋 `公司名稱`、`countFundMatches` + 下拉「還有 N 檔」提示 + 可捲動面板（cap 20→50）、基金結果補上 `currency`/`assetType: "mutual_fund"`（選取後類型自動＝共同基金）。搜尋層 only，不動計價路徑。 | P1 | M | — | DONE — reviewed+APPROVED，branch `fix/ai-fund-search-ranking` @ `c4187c28`（4 commits，含 1 輪 REVISE，base 確認為 `b22c566e` = 現行 main）。**尚未合併，等 operator 決定。** tsc 0 / lint **761 warnings，與 main 完全同數（0 新增）** / 1496 tests（sitcaFundProvider 22→31，+9 新測試；其中 7 個在修復前確實會紅）。計價路徑 `fetchQuotes`/`buildFundSymbolIndex`/`fetchFunds`/`isPlausibleFundList` diff 完全為 0。**Reviewer 用線上 CSV（4,251 筆解析）實測**：`T1605Y` → 目標第一筆 ✓；`群益新興金鑽基金 - 新臺幣`（官網含空白版）→ 1 筆命中即目標 ✓（修復前 0 筆）；`群益新興金鑽基金-新台幣`（台）→ ✓；`滙豐` → 103 筆（原本靠公司名完全搜不到）；`群益` → 250 命中/顯示 50/溢出 200（＝執行者回報的「還有 200 檔」）。單次擊鍵成本實測 26–32ms，在 250ms debounce 內。**REVISE 輪（`c4187c28`）已修掉 plan 自身的 regex 瑕疵**：`normalizeFundQuery` 原本寫 `[\s　]`（字面全形空白）觸發 1 個新 `no-irregular-whitespace` warning，已改為 `/\s/g`（JS 的 `\s` 本就涵蓋 U+3000），並補一條用真 U+3000 的斷言把行為釘住（reviewer 已驗 codepoint 確為 `0x3000`，非普通空白）。檔案剩下的唯一 warning 在 `stripBom` docstring 的 BOM 字元，main 同樣有（main:199 = branch:272），故新增 warning 為 0。 |
+| 257 | 基金搜尋可達性 — `normalizeFundQuery`（NFKC/去空白標點/臺↔台/滙↔匯）、`filterFunds` 改為評分排序後才截斷（不再 file-order `break`）、解析並可搜尋 `公司名稱`、`countFundMatches` + 下拉「還有 N 檔」提示 + 可捲動面板（cap 20→50）、基金結果補上 `currency`/`assetType: "mutual_fund"`（選取後類型自動＝共同基金）。搜尋層 only，不動計價路徑。 | P1 | M | — | DONE — reviewed+APPROVED，branch `fix/ai-fund-search-ranking` @ `c4187c28`（4 commits，含 1 輪 REVISE，base 確認為 `b22c566e` = 現行 main）。**MERGED** ✅ 隨 `v0.1.0-alpha.69` 出貨（merge `2b777fe4`）。tsc 0 / lint **761 warnings，與 main 完全同數（0 新增）** / 1496 tests（sitcaFundProvider 22→31，+9 新測試；其中 7 個在修復前確實會紅）。計價路徑 `fetchQuotes`/`buildFundSymbolIndex`/`fetchFunds`/`isPlausibleFundList` diff 完全為 0。**Reviewer 用線上 CSV（4,251 筆解析）實測**：`T1605Y` → 目標第一筆 ✓；`群益新興金鑽基金 - 新臺幣`（官網含空白版）→ 1 筆命中即目標 ✓（修復前 0 筆）；`群益新興金鑽基金-新台幣`（台）→ ✓；`滙豐` → 103 筆（原本靠公司名完全搜不到）；`群益` → 250 命中/顯示 50/溢出 200（＝執行者回報的「還有 200 檔」）。單次擊鍵成本實測 26–32ms，在 250ms debounce 內。**REVISE 輪（`c4187c28`）已修掉 plan 自身的 regex 瑕疵**：`normalizeFundQuery` 原本寫 `[\s　]`（字面全形空白）觸發 1 個新 `no-irregular-whitespace` warning，已改為 `/\s/g`（JS 的 `\s` 本就涵蓋 U+3000），並補一條用真 U+3000 的斷言把行為釘住（reviewer 已驗 codepoint 確為 `0x3000`，非普通空白）。檔案剩下的唯一 warning 在 `stripBom` docstring 的 BOM 字元，main 同樣有（main:199 = branch:272），故新增 warning 為 0。 |
 
 **境外基金仍不在範圍內**：SITCA CSV 僅涵蓋境內投信基金（~4,400 檔 / 36 家），
 `docs/taiwan-fund-nav-plan.md` decision 2 已明載。本次回報的基金屬境內，故不受影響；
