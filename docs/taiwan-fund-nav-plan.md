@@ -104,3 +104,28 @@ The existing add-holding form already supports this: in the 新增持倉 / Holdi
 types the ticker `SITCA:<code>` (e.g. `SITCA:DIE02`) and picks 類型 = 共同基金 (`mutual_fund`).
 Tickers are trimmed + upper-cased on save, which leaves `SITCA:DIE02` intact, so the daily
 refresh auto-prices it. No new screen is required.
+
+## Correction (2026-07-25) — search ranking, not the data, hid 群益新興金鑽基金
+
+The 2026-07-11 fix put every fund back in the parsed list, but the fund was
+still unfindable in the UI. `filterFunds` walked the list in raw CSV order and
+`break`ed at 20 results, so a 「群益」 query returned the first 20 of 259 matches
+and the target fund (151st) never appeared. Pasting the name off the fund
+company's own page（「群益新興金鑽基金 - 新臺幣」, spaces around the hyphen）matched
+nothing at all, because the CSV writes it without spaces.
+
+Implemented in `sitcaFundProvider.ts`:
+
+- `normalizeFundQuery` folds both sides before comparing: NFKC (full-width →
+  half-width), lowercase, drop whitespace and separator punctuation, 臺→台, 滙→匯.
+- `filterFunds` scores every match (exact code → code prefix → name exact →
+  name prefix → name substring → code substring → company-only) and sorts by
+  `(score, file order)` before capping, instead of `break`ing at the cap.
+- `公司名稱` is parsed and searchable (112 live 滙豐投信 rows name their funds 匯豐…).
+- `countFundMatches` reports the uncapped total; the dropdown shows 50 results
+  and a 「還有 N 檔基金符合」 hint so a broad query never silently truncates.
+- SITCA search results now carry `currency` and `assetType: "mutual_fund"`, so
+  picking a fund sets 類型 = 共同基金 instead of leaving the previous selection.
+
+Still out of scope, unchanged from decision 2: **境外基金（offshore funds）** are
+not in this CSV and are not searchable. Only 境內 investment-trust funds are.
