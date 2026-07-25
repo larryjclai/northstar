@@ -313,6 +313,56 @@ export const migrations: Migration[] = [
       );
     `,
   },
+  {
+    id: 9,
+    description: "Secondary indexes for the high-volume ledger/investment tables",
+    sql: `
+      -- Every one of these columns is queried on a hot path but was a full table
+      -- scan until now (see plan 259). All are additive: they change no query
+      -- result, only how SQLite reaches the rows.
+
+      -- Split/fee/transfer legs are grouped by group_id; every edit, delete and
+      -- reconcile of a grouped transaction fans out through it.
+      create index if not exists idx_ledger_group on ledger_transactions (group_id)
+        where group_id is not null and deleted_at is null;
+
+      -- Account balance derivation and the delete-guard both filter by
+      -- "account_id = ? or counter_account_id = ?". SQLite can only use an
+      -- index per side of an OR, so both sides need their own.
+      create index if not exists idx_ledger_account on ledger_transactions (account_id)
+        where deleted_at is null;
+      create index if not exists idx_ledger_counter_account on ledger_transactions (counter_account_id)
+        where counter_account_id is not null and deleted_at is null;
+
+      -- 分期 (installments): the whole schedule is rewritten by group.
+      create index if not exists idx_ledger_installment_group on ledger_transactions (installment_group_id)
+        where installment_group_id is not null and deleted_at is null;
+
+      -- The cashless-leak repair in initialize() joins ledger legs back to their
+      -- investment record through this column.
+      create index if not exists idx_ledger_linked_investment on ledger_transactions (linked_investment_record_id)
+        where linked_investment_record_id is not null;
+
+      -- recomputeSqliteAssets and the per-asset guards group records by asset.
+      create index if not exists idx_investment_asset on investment_records (asset_id)
+        where deleted_at is null;
+      create index if not exists idx_investment_linked_account on investment_records (linked_account_id)
+        where deleted_at is null;
+
+      -- Ticker lookups drive holding identity (manual vs transactions split).
+      create index if not exists idx_portfolio_assets_ticker on portfolio_assets (ticker)
+        where deleted_at is null;
+
+      -- 帳本 (books) membership counts, and invoice settlement by ledger leg.
+      create index if not exists idx_invoices_linked_ledger on invoices (linked_ledger_transaction_id)
+        where deleted_at is null;
+      create index if not exists idx_invoices_book on invoices (book_id) where deleted_at is null;
+      create index if not exists idx_clients_book on clients (book_id) where deleted_at is null;
+
+      -- NOTE: accounts.book_id is NOT indexed here — that column is added by
+      -- ensureSqliteColumn(), which runs after this migration. See below.
+    `,
+  },
   // NOTE: extension columns for `financial_goals` (retirement projection
   // inputs) are added via `ensureSqliteColumn` calls inside the SQLite
   // initialize() routine, not via a sql migration. SQLite's bare

@@ -3089,6 +3089,11 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     await this.ensureSqliteColumn("ledger_transactions", "leg_kind", "text");
     await this.ensureSqliteColumn("recurring_transactions", "counter_account_id", "text");
     await this.db.execute(`create unique index if not exists idx_ledger_recurring_occurrence on ledger_transactions (recurring_occurrence_key) where recurring_occurrence_key is not null and deleted_at is null`);
+    // These two columns are added by ensureSqliteColumn() above, not by a
+    // create-table migration, so their indexes cannot live in migration 9 —
+    // it runs before those columns exist (plan 259).
+    await this.db.execute(`create index if not exists idx_investment_drip_group on investment_records (drip_group_id) where drip_group_id is not null and deleted_at is null`);
+    await this.db.execute(`create index if not exists idx_accounts_book on accounts (book_id) where deleted_at is null`);
     await this.ensureSyncInfrastructure();
     await this.ensureSqliteDefaultBook();
     await this.mergeAndHealBooks();

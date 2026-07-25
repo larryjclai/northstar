@@ -309,3 +309,53 @@ describe("legacy-schema migration + repair chain", () => {
     expect(after).toBe(before);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Plan 259: secondary indexes for the high-volume ledger/investment tables.
+// ---------------------------------------------------------------------------
+
+const PLAN_259_INDEX_NAMES = [
+  "idx_ledger_group",
+  "idx_ledger_account",
+  "idx_ledger_counter_account",
+  "idx_ledger_installment_group",
+  "idx_ledger_linked_investment",
+  "idx_investment_asset",
+  "idx_investment_linked_account",
+  "idx_investment_drip_group",
+  "idx_portfolio_assets_ticker",
+  "idx_invoices_linked_ledger",
+  "idx_invoices_book",
+  "idx_clients_book",
+  "idx_accounts_book",
+];
+
+async function listIdxIndexNames(db: RawDb): Promise<string[]> {
+  const rows = await db.select<Array<{ name: string }>>(
+    `select name from sqlite_master where type = 'index' and name like 'idx_%'`,
+  );
+  return rows.map((r) => r.name);
+}
+
+describe("plan 259: secondary indexes", () => {
+  it("creates every new index on a fresh database", async () => {
+    const { db, shim } = makeRawDb();
+    await createSqliteFinanceRepositoryForTests(shim as never);
+
+    const names = await listIdxIndexNames(db);
+    for (const idx of PLAN_259_INDEX_NAMES) {
+      expect(names).toContain(idx);
+    }
+  });
+
+  it("is idempotent: a second initialize() does not change the index count", async () => {
+    const { db, shim } = makeRawDb();
+    const repo = await createSqliteFinanceRepositoryForTests(shim as never);
+
+    const before = (await listIdxIndexNames(db)).sort();
+    await expect(repo.initialize()).resolves.not.toThrow();
+    const after = (await listIdxIndexNames(db)).sort();
+
+    expect(after).toEqual(before);
+  });
+});
