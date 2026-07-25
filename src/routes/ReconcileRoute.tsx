@@ -18,7 +18,7 @@ export function ReconcileRoute() {
   const navigate = useNavigate();
   const toast = useToast();
   const timezone = useUiPreferences((s) => s.timezone);
-  const { accounts, ledger, isInitialLoading, isError, error, refetchAll } = useFinanceData();
+  const { accounts, ledger, creditGroups, isInitialLoading, isError, error, refetchAll } = useFinanceData();
   // Per-period open/closed override. Absent → falls back to the default (the
   // current period starts open, past periods start collapsed).
   const [expandOverride, setExpandOverride] = useState<Record<string, boolean>>({});
@@ -228,7 +228,8 @@ export function ReconcileRoute() {
     return <div style={{ padding: "24px 32px" }} className="muted">找不到帳戶。</div>;
   }
 
-  const title = isGrouped ? (account.creditLimitGroup?.trim() || account.name) : account.name;
+  const creditGroup = account?.creditGroupId ? (creditGroups.data ?? []).find((g) => g.id === account.creditGroupId) ?? null : null;
+  const title = isGrouped ? (creditGroup?.name || account.creditLimitGroup?.trim() || account.name) : account.name;
   const owed = groupAccounts.reduce((s, a) => s + Math.max(0, -a.balance), 0);
   const hasUnpaidClosed = payablePeriods.length > 0;
   const isPaid = account.creditPaymentPaidUntil != null && !hasUnpaidClosed;
