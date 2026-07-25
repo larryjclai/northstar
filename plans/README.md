@@ -1,5 +1,40 @@
 # Implementation Plans
 
+## 254 — 信用卡「群組一等公民」架構決策 + 分階段地圖（`/improve plan` @ `8fed759d`, 2026-07-24）
+
+larry 選定：把信用卡分組升級成**一等公民實體**（群組持有額度/結帳日/繳款日，卡片歸屬並
+繼承/自動貼齊），取代 253「欄位手動一致才合併」的脆弱觸發。此改動**觸及 E2E 同步子系統**
+（新增 synced 實體），屬 L+ 高風險，故比照金鑰輪替 spike（238→239–242）先鎖決策+整合點，
+再分階段建置。
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 254 | **架構 gate**：鎖定資料模型決策（群組=單一事實來源、卡片 derive-on-read、離開群組快照回寫、幣別硬約束、自由文字→群組實體的非破壞 migration）＋ synced 實體整合點地圖 A–L（SyncEntity/migration/ensureSqliteColumn/outbox triggers/tableByEntity×3/getSyncPayload/pull-apply/snapshot roundtrip/CRUD）。**參考實體 = client（plan 190）**。此計劃不改 `src/` | P2 | S | 253 | **DONE（決策 gate）2026-07-24**：larry 確認 **derive-on-read**（群組覆蓋、卡片即時跟隨）；Decision 4（statement_day 分歧取眾數/最新、不阻斷 migration）採為預設。255 已展開；256 待 255 落地後補 |
+| 255 | **Phase B（資料層）**：credit_groups 表 + 同步註冊 + 帳戶 credit_group_id + derive-on-read + 離開快照 + migration/backfill + 快照 roundtrip + CRUD + 型別。**無 UI**，253 暫用舊觸發（並存無害） | P2 | L | 254 | **DONE — executed+reviewed 2026-07-24**，branch `feat/ai-credit-group-data-layer`（commit `4de7167a`，基於 `8fed759d`）。**執行者正確 STOP 一次**：advisor 的觸點地圖漏了 6 個同步觸點，其中 2 個為非編譯強制的靜默地雷（`pull.ts` `VALID_ENTITIES` 會丟棄 pull 進來的群組；`SyncSource`/`allSyncRecords` 瀏覽器推送路徑）。advisor 窮舉補全清單後執行者續跑完成。複驗：build 0、**1482/1482 tests**、grep+oracle 全過、derive/leave-group/backfill 兩 repo 平行且測試以「刻意相異欄位」證明真的 derive、backfill 冪等/跨幣別 skip 有測。deviation（`AccountDraft.creditGroupId` optional 比照 `bookId`）已核准。**已 MERGED 進 main `ba5ef85a`**（乾淨 union merge，整合後 build 0 + 1487/1487 tests） |
+| 256 | **Phase C（UI + 收斂）**：AccountsRoute 群組管理（建立/編輯/刪除群組的額度/結帳日/繳款日）+ 帳戶表單「歸屬群組」下拉取代自由文字 + 成員欄位唯讀顯示「來自群組」；ReconcileRoute（253）分組觸發改用 `creditGroupId`；`calculateCreditGroup` 改讀群組實體 + `useFinanceData` 暴露 creditGroups；自由文字 `creditLimitGroup` 退出 UI（欄位保留） | P2 | M–L | 255 | **DONE — executed+reviewed 2026-07-24**，branch `feat/ai-credit-group-ui`（commit `e9a88d70`，直接疊在 `ba5ef85a` 上→乾淨 FF）。複驗：build 0、1487/1487 tests、grep 判準全過、ReconcileRoute 改用 `creditGroupId`、刪群組先清成員（觸發 leave-group 快照）不留孤兒、繼承欄位唯讀+「來自群組」提示。⚠ 執行者遇 worktree base 錯置（又是 `8fed759d`），以 `git reset --hard main`（自有 disposable 分支，安全）復正並透明記錄，advisor 已驗 ancestry 正確。⚠ 小追蹤：合併對帳頁 H1 title 仍 fallback `creditLimitGroup||name`，creditGroupId 分組的卡會顯示卡名而非群組名（Step 5「其餘不動」所接受，值得小 follow-up）。**待操作者決定 merge（clean FF）** |
+
+## 251–253 — 信用卡對帳/繳款三連修（`/improve plan` @ `8fed759d`, 2026-07-24）
+
+使用者回報三件事（皆圍繞對帳頁 `src/routes/ReconcileRoute.tsx`）：
+(1) 繳款無法選期別、且繳一期把後續各期都標成已繳款；(2) 同家銀行/同組卡希望一起對帳；
+(3) 繳款產生的記帳紀錄日期改不動。調查後根因與修法：
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 251 | **繳一期卻全標已繳款**（財務正確性 bug）。根因：`markPaid()` 把 watermark 設成 `currentPeriod?.dueDate`——那是**尚未結帳的開放當期**繳款日；經 `isPaid = paidUntil >= dueDate` 使所有繳款日 ≤ 該值的期別全翻已繳款。修法：`markPaid(dueDate)` 只用選定期別繳款日；`PayCardModal` 加「繳款期別」選擇（預設最舊未繳已結帳帳單）、金額預設該期淨額；header「已繳款」只在無待繳已結帳期別時顯示。保留 watermark 語意（不改 `creditCardStatements.ts`）。含 1 筆 domain regression 測試 | P1 | M | — | **DONE — executed+reviewed 2026-07-24**：executor (sonnet) 於 worktree 分支 `feat/ai-reconcile-251-253`（commit `8d2f4842`）完成；advisor 獨立複驗 build exit 0、`creditCardStatements`/`datetime` 共 17 tests 全過、lint 0 errors、grep 判準（`currentPeriod?.dueDate` 歸零、`繳款期別` 命中）、diff 忠於計劃。**待操作者 merge**。追加：切換「繳款期別」下拉自動帶入該期淨額（保留手動輸入、無 useEffect），commit `a3fc1418`，advisor 複驗 build/lint exit 0、僅動 ReconcileRoute.tsx |
+| 252 | **繳款紀錄日期改不動**（可編輯性 bug）。根因：`handlePay` 用 `todayInTimezone`（date-only `YYYY-MM-DD`）寫 ledger/transfer 日期，但編輯抽屜是 `<input type="datetime-local">`（需 `YYYY-MM-DDTHH:mm`），date-only 值被瀏覽器當空值→欄位空白。修法：(a) 治本—`handlePay` 改 `nowAsDatetimeLocal`；(b) 相容既有—新增純函式 `toDatetimeLocalValue`（date-only 補 `T00:00`）包住輸入 value。含 3 筆單元測試 | P1 | S | — | **DONE — executed+reviewed 2026-07-24**（同分支 commit `0b628d58`）：advisor 複驗 `datetime` 測試 9 passed（6+3）、build/lint 過、`toDatetimeLocalValue` 在 CashFlow 命中 2 處（import+使用）、`const today = todayInTimezone` 日曆日用法保留。治本＋顯示層 coercion 兩層都在。**待操作者 merge** |
+| 253 | **同組卡合併對帳**（使用者要求的功能）。玉山 UniCard+UBear 帳單合出，希望一起核對。重用既有 `creditLimitGroup` 為分組鍵（免 schema 變更）；偵測「同組、同結帳日/繳款日/幣別、≥2 卡」時切合併視圖：跨卡匯入同帳單週期、逐筆標卡片來源、合併統計、跨卡「全部對帳」、繳款對整組寫 watermark。`buildStatementPeriods` 無需改（`LedgerTransaction` 已帶 `accountId`、T 保留）。合併繳款金額拆分明確延後。含 1 筆 domain 測試 | P2 | L | 251 | **DONE — executed+reviewed 2026-07-24**（同分支 commit `f240f902`）：疊在 251 上，advisor 複驗 build 0、`creditCardStatements` 8 tests（含合併測試）全過、lint 0 errors、grep `groupAccountIds.has`/`for (const a of groupAccounts)` 命中、單卡無回歸（`groupAccounts=[account]`）。⚠ 已知（計劃已載）：markPaid 逐卡 await 中途失敗會部分寫入（watermark 冪等、重繳補齊）。需 `creditLimitGroup` 兩卡同值＋同結帳/繳款日才觸發合併——操作者驗收前先確認帳戶設定。**待操作者 merge** |
+
+**執行順序**：251 → 252 → 253（三者皆動 `ReconcileRoute.tsx`；253 的繳款迴圈疊在 251 的
+`markPaid(dueDate)` 上，252 只改 `handlePay` 日期一行，彼此衝突面小）。
+
+**調查結論／刻意不做（勿再報）**：
+- 不把 watermark 換成「每期一個已繳布林」——那是 schema migration；watermark（`paidUntil >= dueDate`）
+  語意正確且與 `dashboardSummary.ts:172` 提醒一致，251 只修「選錯期別」。
+- 253 不合併「同銀行但不同結帳日」的卡（帳單週期會錯）；不實作合併繳款的金額拆分（v1
+  轉帳入單一選定卡、watermark 對整組生效已滿足「一起對帳」訴求）。
+- 252 保留顯示層 coercion 不可拿掉（否則歷史 date-only 紀錄仍空白）。
+
 ## 250 — 應付「借款入帳」可發現性（`/improve plan` @ `dea84016`, 2026-07-22）
 
 | Plan | Title | Priority | Effort | Depends on | Status |
