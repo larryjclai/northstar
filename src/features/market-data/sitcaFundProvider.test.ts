@@ -246,6 +246,8 @@ describe("fund search ranking", () => {
     const funds = makeBrandedFunds(259, 150);
     expect(filterFunds(funds, "  T1605Y  ")[0].symbol).toBe("SITCA:T1605Y");
     expect(filterFunds(funds, "Ｔ１６０５Ｙ")[0].symbol).toBe("SITCA:T1605Y");
+    // `\s` already matches 全形空白 (U+3000), so ideographic spaces fold too.
+    expect(filterFunds(funds, "群益新興金鑽基金　-　新臺幣")[0].symbol).toBe("SITCA:T1605Y");
   });
 
   it("matches by 公司名稱 even when the brand is spelled differently in the name", () => {

@@ -115,13 +115,14 @@ export class SitcaFundProvider {
  *     「群益新興金鑽基金 - 新臺幣」 (spaces around the hyphen) → zero hits.
  *   - 767 live fund names use 臺 and 874 use 台; 滙豐投信's funds are named 匯豐….
  * Folding: NFKC (full-width → half-width), lowercase, drop whitespace and
- * separator punctuation, and unify the 臺/台 and 滙/匯 variants.
+ * separator punctuation, and unify the 臺/台 and 滙/匯 variants. `\s` already
+ * covers 全形空白 U+3000, so no literal ideographic space is needed in the class.
  */
 export function normalizeFundQuery(text: string): string {
   return (text ?? "")
     .normalize("NFKC")
     .toLowerCase()
-    .replace(/[\s　]/g, "")
+    .replace(/\s/g, "")
     .replace(/[-‐‑–—－ー_()（）[\]【】{}.,，、·・/／|｜]/g, "")
     .replace(/臺/g, "台")
     .replace(/滙/g, "匯");
