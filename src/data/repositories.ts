@@ -564,13 +564,20 @@ async function createFinanceRepository(): Promise<FinanceRepository> {
     try {
       await db.execute("PRAGMA journal_mode=WAL;");
       await db.execute("PRAGMA busy_timeout=15000;");
+      // WAL defaults to synchronous=FULL, which fsyncs on every commit — the
+      // dominant cost of a small write on iOS storage. NORMAL is SQLite's
+      // recommended setting under WAL: the WAL file stays crash-safe, and only
+      // a power loss at the moment of commit can cost the most recent
+      // transaction (never corruption). Set AFTER journal_mode so it applies to
+      // the WAL journal, not the rollback journal.
+      await db.execute("PRAGMA synchronous=NORMAL;");
       await db.execute("PRAGMA foreign_keys=ON;");
       const journal = await db.select<{ journal_mode: string }[]>("PRAGMA journal_mode;");
       const mode = journal?.[0]?.journal_mode ?? "unknown";
       if (mode.toLowerCase() !== "wal") {
         console.warn(`[db] journal_mode is '${mode}', expected 'wal' — lock contention is more likely on this platform`);
       } else {
-        console.info("[db] journal_mode=wal, busy_timeout=15000");
+        console.info("[db] journal_mode=wal, busy_timeout=15000, synchronous=normal");
       }
     } catch (e) {
       console.warn("[db] failed to set pragmas", e);
