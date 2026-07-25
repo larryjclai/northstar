@@ -57,7 +57,8 @@ visibility-change events, not polling.
 Every route must use `lazyRouteComponent` in `src/routes/router.tsx`. After a build
 change, run `ls dist/assets/*.js | wc -l` — the count should remain in the 45–60
 range. If it drops to ~1-2, per-route splitting has regressed; investigate
-`vite.config.ts` `manualChunks`.
+`vite.config.ts` `build.rollupOptions.output.codeSplitting` (see R5 — this is not
+`manualChunks`; that option is a deprecated shim in this project's bundler).
 
 ### R3 — Never prewarm Foundation Models at launch
 
@@ -70,6 +71,37 @@ model at app launch, adding seconds of CPU + memory overhead on every cold start
 Chart data arrays passed to Recharts components must be wrapped in `useMemo` (or
 equivalent stable reference). Unstable references cause full Recharts remount +
 re-animation on every render.
+
+### R5 — Watch the eager chunk graph, not just the chunk count
+
+This project's Vite 8 is **rolldown-vite**: the actual bundler is `rolldown`, not
+classic Rollup. `output.manualChunks` is a **deprecated Rollup-compat shim** here —
+it gets internally rewritten into a single `codeSplitting` group with no `priority`,
+and Rolldown's `codeSplitting.includeDependenciesRecursively` defaults to `true`, so
+each group also recursively pulls in its captured modules' *dependencies*. That
+combination once let the `charts` group's recursive capture swallow `clsx` (a
+transitive dependency of `recharts`, in addition to backing our own `cn()` in
+`src/lib/utils.ts`) even though a `manualChunks` id-matching function explicitly
+named a different chunk for it — the deprecated shim has no `priority` to break that
+tie, so recursive capture from the (larger, matched-first) `charts` group won.
+Net effect: all 388 kB of `recharts` became eager on every route, including
+chart-less ones (plan 267).
+
+`vite.config.ts` now uses the real `codeSplitting.groups` API directly, with an
+explicit `priority` on each group, so contested modules resolve deterministically
+instead of by which group's recursive capture reached them first. Do not reintroduce
+`output.manualChunks` — per Rolldown's own type docs, if both `manualChunks` and
+`codeSplitting` are specified, `manualChunks` is silently ignored.
+
+After any change to `vite.config.ts` or to a widely-imported utility, run:
+
+```bash
+npm run build && node scripts/check-eager-bundle.mjs
+```
+
+`charts-*.js` must **not** appear in the eager set, and the eager total must not grow
+materially. Heavy, route-specific vendors belong behind `lazyRouteComponent`, not in
+the entry graph.
 
 ---
 
