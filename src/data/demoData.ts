@@ -517,12 +517,12 @@ export async function enterDemoMode(repo: FinanceRepository): Promise<void> {
  */
 export async function exitDemoMode(repo: FinanceRepository): Promise<void> {
   let snapshot: RepositorySnapshot | null = null;
-  try { snapshot = await readStash(); } catch { snapshot = null; }
+  try { snapshot = await readStash(); } catch { /* no stash — keep null */ }
 
   // Backward-compat: older builds stashed the snapshot in localStorage.
   if (!snapshot) {
     let raw: string | null = null;
-    try { raw = localStorage.getItem(DEMO_BACKUP_KEY); } catch { raw = null; }
+    try { raw = localStorage.getItem(DEMO_BACKUP_KEY); } catch { /* no backup — keep null */ }
     if (raw) {
       try { snapshot = JSON.parse(raw) as RepositorySnapshot; } catch { snapshot = null; }
     }
