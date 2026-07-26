@@ -16,6 +16,35 @@
 
 **未收下的**：TypeScript 7 的 `tsc --noEmit` **10.877 s → 1.92 s（~5.7×）**——實測有效，但 `typescript-eslint@8.65.0` 的 peer 是 `typescript: ">=4.8.4 <6.1.0"`，硬擋。tsconfig 遷移已落地，等上游放寬只需改一行版本號（plan 263）。
 
+### 後續：274（266 的 40 條違規裡，只取值得修的 6 條）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 274 | 修 `react-hooks/refs`（5）+ `react-hooks/purity`（1）——四類四種修法 | P2 | M | 266 | **DONE** — reviewed+APPROVED，**已 merge @ `7947825f`**。refs/purity findings 歸零，`npm test` **1508 → 1512**（+4 新測試），lint 804 → 799 warnings。**Group C** 調查後判定為 render-prop API 本質：執行者逐一查了 **24+ 個呼叫點**，全部只是把 `dismiss` 接到之後的 `onClick`，沒有一個在 render 期間同步呼叫 → 依計畫允許的結果加行範圍豁免（非 `-next-line`，Prettier 不會孤立它）。**Group D 是使用者可見的財務數字修正**（見下）。 |
+
+**④ 不只是 lint 問題。** 同檔另有三處用 `new Date().toISOString()` 取「今天」——那是 **UTC**。
+UTC+8 的使用者在當地 00:00–08:00 之間會拿到**昨天**，讓 **持倉天數** 差一天、**配息 YTD** 在跨年邊界可能歸錯年度。
+repo 已有正確慣例（`todayInTimezone(timezone)`，DashboardRoute / InvestmentsRoute / CashFlowRoute 都在用），
+這個檔案沒跟上。計畫要求四處一起改並補測試，且**必須在報告裡明講這是使用者可見的行為修正**，不能當 lint 修正混過去。
+（同類前例：plan 042 的淨值視窗時區修正。）
+
+### 274 帶出的兩件事
+
+**1. 我的計畫把 line 269 說錯了。** 我寫「它在 event handler 裡，不是 render purity 問題」——
+實際上它在 `useMemo` 的 callback 裡，**就是 render 期間**。執行者查證後照樣修掉，並在報告裡指出我寫錯。
+最終 `HoldingDetailRoute` 有 **5 處** UTC 來源被改成 `todayInTimezone(timezone)`：手動價格表單預設日期、
+標準估值日、XIRR as-of 日、**持倉天數**、**配息 YTD** 的年度過濾。
+
+行為改變（已在 merge 前確認並記錄）：UTC 以西的使用者在當地早晨，**持倉天數會差一天**；
+跨年邊界時**配息 YTD 可能把股利歸到正確年度**。新測試用同一個時刻證明差異：
+`2026-05-24T18:42:00Z` 在 UTC 是 24 日（0 天）、在 Asia/Taipei 已是 25 日（1 天），兩個都斷言。
+
+**2. `vitest.config.ts` 缺少 `@` path alias（`vite.config.ts` 有）。**
+執行者要為 `HoldingDetailRoute` 寫測試時撞到：匯入該檔會拉進 `coss/*`／`ui/*` 元件，
+它們用 `@/lib/utils` 解析，在 vitest 下解不開；另外 `state/uiPreferences` 在 module scope 就讀 `localStorage`（jsdom 沒有）。
+它選擇用 `vi.mock` + `vi.stubGlobal` 繞過並寫進註解，**沒有為此擴大 scope 去改 `vitest.config.ts`**——判斷正確，
+但這是真正的測試基建缺口：**下一個想測路由元件的人會撞到同一堵牆**。真正的修法是把 `@` alias 加進 `vitest.config.ts`，值得單獨開一份小計畫。
+
 ### 這批的方法論教訓
 
 **13 次派工裡，執行者 7 次正確地 STOP，而其中 6 次錯在計畫（我），不在執行。**
