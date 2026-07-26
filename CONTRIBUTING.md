@@ -52,6 +52,16 @@ npm run copy:export   # translation.json -> copy.csv
 npm run copy:import   # copy.csv -> translation.json
 ```
 
+### Formatting
+
+`src/**/*.{ts,tsx}` is formatted with Prettier and enforced in CI via `npm run format:check`. Run `npm run format` before committing if it fails. The repo was normalised in one commit (plan 270); to keep `git blame` pointing at real authors instead of that commit, run once per clone:
+
+```bash
+git config blame.ignoreRevsFile .git-blame-ignore-revs
+```
+
+GitHub's web blame view honours `.git-blame-ignore-revs` automatically, with no local config needed.
+
 ## Development Setup
 
 See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for local setup, testing, and packaging notes.

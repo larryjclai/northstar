@@ -1,0 +1,3 @@
+# Repo-wide Prettier normalisation (plan 270). Formatting only — no behaviour
+# change. Ignored so `git blame` attributes lines to their real authors.
+53fdec18503be7d54fad057b1e82b437553a37dd
