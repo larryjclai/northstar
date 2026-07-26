@@ -688,6 +688,29 @@ export function InvestmentsAnalyticsTab({
     return () => observer.disconnect();
   }, [sections]);
 
+  // Scroll-edge effect (plan 278): unlike the demo banner, this nav sits well
+  // below the top of the page in its natural position, so `scrollY > 0` would
+  // light the border while the nav is still mid-page. Track "is the nav
+  // currently pinned" via a zero-height sentinel rendered just before it —
+  // sentinel out of view ⇒ nav has scrolled to the top and is stuck there.
+  const navSentinelRef = useRef<HTMLDivElement>(null);
+  const [navStuck, setNavStuck] = useState(false);
+  // The gating returns below (no positions / not enough history) render an
+  // EmptyState instead of the nav+sentinel, so this ref is null on the render
+  // that first mounts the component in that state. Re-running the effect once
+  // the gate opens (positions arrive, or backfill satisfies hasHistory) lets
+  // it find the sentinel on the render where it actually exists in the DOM.
+  const navCanRender = positions.length > 0 && hasHistory;
+  useEffect(() => {
+    const el = navSentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entry]) => setNavStuck(!entry.isIntersecting), {
+      threshold: 0,
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [navCanRender]);
+
   // ── Whole-tab gating ───────────────────────────────────────────────────────
   if (positions.length === 0) {
     return (
@@ -737,12 +760,28 @@ export function InvestmentsAnalyticsTab({
     <div className="grid gap-5">
       {/* ── Sticky in-page section nav (anchors, intentionally NOT styled like the
             page-level tabs so it doesn't read as a third tab layer) ──────────── */}
+      {/* Sentinel (plan 278): observed by IntersectionObserver above to detect
+          when the nav below has scrolled to the top and become pinned, vs.
+          sitting in its natural mid-page position.
+          `position: absolute` is load-bearing, not decoration: this parent is
+          `grid gap-5`, and an in-flow child — even a zero-height one — is a
+          grid item that creates its own row and so adds a full 20px gap,
+          pushing the nav down. Measured: in-flow sentinel = nav at +20px;
+          absolute = nav at 0, identical to having no sentinel at all. Taking
+          it out of flow also leaves the nav's `-mb-2` untouched. It keeps its
+          static position (the nav's natural top), which is exactly what must
+          be observed. Explicit 1px dimensions avoid a zero-area target. */}
+      <div
+        ref={navSentinelRef}
+        aria-hidden="true"
+        style={{ position: "absolute", width: 1, height: 1 }}
+      />
       <nav
-        className="sticky top-0 z-20 flex items-center gap-1 -mb-2 overflow-x-auto"
+        className="ns-scroll-edge sticky top-0 z-20 flex items-center gap-1 -mb-2 overflow-x-auto"
+        data-stuck={navStuck}
         style={{
           padding: "8px 0",
           background: "var(--ns-bg)",
-          borderBottom: "1px solid var(--ns-border)",
         }}
       >
         {sections.map((s) => {
