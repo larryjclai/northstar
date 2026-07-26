@@ -8,7 +8,8 @@
 [![Downloads](https://img.shields.io/github/downloads/larryjclai/northstar/total)](https://github.com/larryjclai/northstar/releases)
 ![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
-> **Alpha 試用版** · 介面與資料結構仍可能變動，正式發行前資料庫 schema 不保證向後相容。
+> **Beta 版** · 核心功能已可日常使用，介面與新功能仍會演進。
+> **你既有的本機資料一定開得起來**——自 Beta 起資料庫 migration 只增不減，升級不需重建資料。
 > 最新版本請見 **[Releases 頁面](https://github.com/larryjclai/northstar/releases)**。
 
 **讓你了解自己的開支，陪你一起累積資產。**
@@ -91,9 +92,10 @@ Northstar 尚未經過 Apple 公證（需付費的 Apple Developer 帳號），�
 
 > 💡 建議更新透過 App 內自動更新或從 Releases 頁面下載 `.dmg` 安裝，而非用 AirDrop 傳 `.app`——AirDrop 較容易觸發「已損毀」。
 
-## 目前是 Alpha，請注意
+## 目前是 Beta，請注意
 
-- 介面與資料庫結構仍在演進，版本更新時不保證自動 migration（必要時可能需重建資料，建議定期用內建的「匯出備份」）。
+- **資料相容性**：自 `0.2.0-beta.1` 起，資料庫 migration **只增不減**——只會新增欄位／資料表／索引，不會刪除或改寫既有欄位。升級版本不需重建資料。（仍建議定期用內建的「匯出備份」，這是通則，不是因為預期會壞。）
+- 介面與新功能仍在演進，設定與版面可能隨版本調整。
 - 匯率 / 報價透過 Yahoo Finance 公開 API，偶爾可能短暫被限流。
 - 尚未做應用程式簽章 / 公證：macOS 首次開啟需手動放行；Windows 會跳 SmartScreen「未知發行者」警告。
 - **主力測試平台為 macOS（Apple Silicon）**；Windows / Linux 為程式碼層級相容，尚未經過完整實機驗證。

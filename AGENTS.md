@@ -15,8 +15,10 @@ encrypted. UI is **繁體中文 (zh-TW) first**, English partial.
   (`src-tauri/`), `plugin-sql` over SQLite. Vite + Vitest + Playwright.
   *(Ignore any "SwiftUI / Apple-native" wording in `.impeccable.md` — that file is stale;
   the real stack is React/TS + Tauri.)*
-- **Repo:** https://github.com/larryjclai/northstar — status: **Alpha** (`0.1.0-alpha.x`),
-  schema not guaranteed backward-compatible before GA.
+- **Repo:** https://github.com/larryjclai/northstar — status: **Beta** (`0.2.0-beta.x`,
+  since 2026-07-26). **Migrations are additive-only**: add columns/tables/indexes,
+  never drop or rewrite existing ones. This is a shipped promise to users
+  (README + CHANGELOG), not a preference — a destructive migration is a STOP.
 
 ## Doc map — read these, don't duplicate them
 
