@@ -314,7 +314,7 @@ function bisectXirr(npv: (rate: number) => number): number | null {
   let lo = -0.9999;
   let hi = 10;
   let flo = npv(lo);
-  let fhi = npv(hi);
+  const fhi = npv(hi);
   if (!Number.isFinite(flo) || !Number.isFinite(fhi) || flo * fhi > 0) return null;
   for (let i = 0; i < 200; i += 1) {
     const mid = (lo + hi) / 2;
@@ -322,7 +322,6 @@ function bisectXirr(npv: (rate: number) => number): number | null {
     if (Math.abs(fm) < 1e-7) return mid;
     if (flo * fm < 0) {
       hi = mid;
-      fhi = fm;
     } else {
       lo = mid;
       flo = fm;

@@ -154,7 +154,7 @@ export async function orchestrate(
       new Promise<false>((resolve) => setTimeout(() => resolve(false), 500)),
     ]);
   } catch {
-    available = false;
+    /* availability check failed — treat as unavailable */
   }
   if (!available) return { result: tier0, source: "rules" };
 
@@ -166,7 +166,7 @@ export async function orchestrate(
       new Promise<null>((resolve) => setTimeout(() => resolve(null), TIER1_TIMEOUT_MS)),
     ]);
   } catch {
-    tier1 = null;
+    /* tier-1 parse failed — fall back to rules */
   }
 
   if (!tier1) return { result: tier0, source: "rules" };

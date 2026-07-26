@@ -63,7 +63,7 @@ export function calculateFireProjection(input: FireProjectionInput, now: Date = 
   }
 
   const monthlyRate = expectedAnnualReturn / 12;
-  let months: number | null = null;
+  let months: number | null;
 
   if (monthlyRate === 0) {
     // Linear case: PV + PMT * n >= target  =>  n >= (target - PV) / PMT.
