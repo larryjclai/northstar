@@ -43,7 +43,14 @@ import {
   type SyncEntity,
   type SyncSource,
 } from "../domain/sync";
-import { migrations, splitSqlStatements } from "./migrations";
+import {
+  ADDITIVE_COLUMNS,
+  ADDITIVE_INDEXES,
+  migrations,
+  schemaFingerprint,
+  splitSqlStatements,
+  SYNC_TRIGGER_ENTITIES,
+} from "./migrations";
 import {
   seedAccounts,
   seedAssets,
@@ -2949,53 +2956,41 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     });
   }
 
-  override async initialize() {
+  /**
+   * Schema DDL only. Every statement here is `create … if not exists` or an
+   * `alter table … add column` guarded by a probe — i.e. provably terminal: once
+   * applied to a database it can never need applying again.
+   *
+   * ⚠️ NOTHING THAT TOUCHES ROWS MAY GO IN THIS METHOD. It is skipped whenever
+   * the schema fingerprint is unchanged, so a data statement placed here would
+   * silently stop running. Data repairs and backfills belong in
+   * runDataHealing() — see plan 268 and the 260 post-mortem.
+   */
+  private async runSchemaDdl() {
     for (const migration of migrations) {
       for (const statement of splitSqlStatements(migration.sql)) {
         await this.db.execute(statement);
       }
     }
-    await this.ensureSqliteColumn("ledger_transactions", "merchant", "text not null default ''");
-    await this.ensureSqliteColumn("ledger_transactions", "name", "text not null default ''");
-    await this.ensureSqliteColumn("ledger_transactions", "entry_type", "text not null default 'expense'");
-    await this.ensureSqliteColumn("ledger_transactions", "subcategory", "text not null default ''");
-    await this.ensureSqliteColumn("ledger_transactions", "settlement_status", "text not null default 'settled'");
-    await this.ensureSqliteColumn("accounts", "credit_limit", "real");
-    await this.ensureSqliteColumn("accounts", "credit_limit_group", "text not null default ''");
-    await this.ensureSqliteColumn("recurring_transactions", "subcategory", "text not null default ''");
-    await this.ensureSqliteColumn("recurring_transactions", "merchant", "text not null default ''");
-    await this.ensureSqliteColumn("recurring_transactions", "entry_type", "text not null default 'expense'");
-    await this.ensureSqliteColumn("recurring_transactions", "settlement_status", "text not null default 'settled'");
-    await this.ensureSqliteColumn("recurring_transactions", "frequency", "text not null default 'monthly'");
-    await this.ensureSqliteColumn("accounts", "loan_start_date", "text");
-    await this.ensureSqliteColumn("accounts", "annual_interest_rate", "real");
-    await this.ensureSqliteColumn("accounts", "loan_term", "real");
-    await this.ensureSqliteColumn("accounts", "icon_name", "text");
-    await this.ensureSqliteColumn("accounts", "color", "text");
-    await this.ensureSqliteColumn("accounts", "bank_brand_domain", "text");
-    await this.ensureSqliteColumn("accounts", "statement_day", "integer");
-    await this.ensureSqliteColumn("accounts", "credit_payment_paid_until", "text");
-    await this.ensureSqliteColumn("accounts", "payment_due_day", "integer");
-    await this.ensureSqliteColumn("accounts", "custom_group", "text not null default ''");
-    // 帳本 (Books, plan 188): the `books` table is created via migration 5; the
-    // join column is additive on `accounts`. Empty string is the "unassigned"
-    // sentinel that ensureSqliteDefaultBook() replaces with the default 個人帳.
-    await this.ensureSqliteColumn("accounts", "book_id", "text not null default ''");
-    // 信用卡群組 (Credit groups, plan 254/255): additive join column on
-    // `accounts`. Null means ungrouped — statementDay/paymentDueDay/creditLimit
-    // stay on the account's own columns (derive-on-read only kicks in when set).
-    await this.ensureSqliteColumn("accounts", "credit_group_id", "text");
-    await this.ensureSqliteColumn("portfolio_assets", "holding_source", "text not null default 'transactions'");
-    await this.ensureSqliteColumn("portfolio_assets", "acquisition_date", "text");
-    await this.ensureSqliteColumn("portfolio_assets", "name_zh", "text");
-    await this.ensureSqliteColumn("portfolio_assets", "name_en", "text");
-    await this.ensureSqliteColumn("portfolio_assets", "account_id", "text");
-    await this.ensureSqliteColumn("portfolio_assets", "asset_type", "text");
-    await this.ensureSqliteColumn("portfolio_assets", "sector", "text");
-    await this.ensureSqliteColumn("portfolio_assets", "industry", "text");
-    await this.ensureSqliteColumn("portfolio_assets", "sector_canonical", "text");
-    await this.ensureSqliteColumn("portfolio_assets", "base_quantity", "real");
-    await this.ensureSqliteColumn("portfolio_assets", "classification_locked", "integer not null default 0");
+    for (const [table, column, definition] of ADDITIVE_COLUMNS) {
+      await this.ensureSqliteColumn(table, column, definition);
+    }
+    for (const sql of ADDITIVE_INDEXES) {
+      await this.db.execute(sql);
+    }
+    await this.ensureSyncTriggers();
+  }
+
+  /**
+   * Data repairs, backfills and self-heals. These run on EVERY launch and must
+   * never be gated: a row that needs healing can arrive at any time via sync
+   * from an older client or an import — not only when the schema changes.
+   * Plan 260 tried to gate these and broke the credit-group self-heal.
+   *
+   * Order matters and is preserved from the original initialize():
+   * base_quantity is set before the opening-lot insert reads it.
+   */
+  private async runDataHealing() {
     await this.db.execute(
       `update portfolio_assets set base_quantity = total_quantity where holding_source = 'manual' and base_quantity is null`,
     );
@@ -3005,7 +3000,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     // manual holding that lacks it. Idempotent via the deterministic id
     // (`inv_open_<assetId>`) — re-running, or two synced devices, converge on a
     // single row instead of duplicating the opening lot.
-    await this.ensureSqliteColumn("investment_records", "cashless", "integer not null default 0");
+    //
     // Data repair for the opening-lot cash leak: editing an opening lot used to
     // silently create/update a settled ledger row against it. A cashless record
     // must never carry a linked settled ledger leg — tombstone any such leg and
@@ -3024,8 +3019,6 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
        where cashless = 1 and linked_ledger_transaction_id is not null`,
       [nowIso()],
     );
-    // 股息再投入 (DRIP): links a record's cashDividend + buy legs. Null for non-DRIP.
-    await this.ensureSqliteColumn("investment_records", "drip_group_id", "text");
     await this.db.execute(
       `insert into investment_records (id, space_id, revision, created_at, updated_at, deleted_at, asset_id, linked_account_id, date, action, price, quantity, fee, note, is_reviewed, linked_ledger_transaction_id, cashless)
        select 'inv_open_' || a.id, a.space_id, 1, $1, $1, null, a.id, a.account_id,
@@ -3067,45 +3060,25 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
          )`,
       [nowIso()],
     );
-    // Retirement-projection extensions for financial_goals. Each one is
-    // optional at the DB level — readers coalesce missing values to the
-    // sane defaults documented in `goalFieldsFromDraft`.
-    await this.ensureSqliteColumn("financial_goals", "current_age", "real");
-    await this.ensureSqliteColumn("financial_goals", "retirement_age", "real");
-    await this.ensureSqliteColumn("financial_goals", "plan_through_age", "real");
-    await this.ensureSqliteColumn("financial_goals", "pre_retirement_return", "real");
-    await this.ensureSqliteColumn("financial_goals", "post_retirement_return", "real");
-    await this.ensureSqliteColumn("financial_goals", "inflation_rate", "real");
-    await this.ensureSqliteColumn("financial_goals", "annual_fee", "real");
-    await this.ensureSqliteColumn("financial_goals", "contribution_growth_rate", "real");
-    await this.ensureSqliteColumn("financial_goals", "spending_items", "text");
-    await this.ensureSqliteColumn("financial_goals", "income_items", "text");
-    await this.ensureSqliteColumn("financial_goals", "display_mode", "text");
-    await this.ensureSqliteColumn("financial_goals", "account_share_map", "text");
-    await this.ensureSqliteColumn("financial_goals", "target_date", "text");
-    await this.ensureSqliteColumn("ledger_transactions", "recurring_rule_id", "text");
-    await this.ensureSqliteColumn("ledger_transactions", "original_amount", "real");
-    await this.ensureSqliteColumn("ledger_transactions", "original_currency", "text");
-    await this.ensureSqliteColumn("ledger_transactions", "recurring_occurrence_key", "text");
-    await this.ensureSqliteColumn("ledger_transactions", "counter_account_id", "text");
-    await this.ensureSqliteColumn("ledger_transactions", "installment_group_id", "text");
-    await this.ensureSqliteColumn("ledger_transactions", "installment_index", "integer");
-    await this.ensureSqliteColumn("ledger_transactions", "installment_total", "integer");
-    await this.ensureSqliteColumn("ledger_transactions", "refund_of_ledger_id", "text");
-    await this.ensureSqliteColumn("ledger_transactions", "post_date", "text");
-    await this.ensureSqliteColumn("ledger_transactions", "leg_kind", "text");
-    await this.ensureSqliteColumn("recurring_transactions", "counter_account_id", "text");
-    await this.db.execute(`create unique index if not exists idx_ledger_recurring_occurrence on ledger_transactions (recurring_occurrence_key) where recurring_occurrence_key is not null and deleted_at is null`);
-    // These two columns are added by ensureSqliteColumn() above, not by a
-    // create-table migration, so their indexes cannot live in migration 9 —
-    // it runs before those columns exist (plan 259).
-    await this.db.execute(`create index if not exists idx_investment_drip_group on investment_records (drip_group_id) where drip_group_id is not null and deleted_at is null`);
-    await this.db.execute(`create index if not exists idx_accounts_book on accounts (book_id) where deleted_at is null`);
-    await this.ensureSyncInfrastructure();
     await this.ensureSqliteDefaultBook();
     await this.mergeAndHealBooks();
     await this.backfillUnassignedAccount();
     await this.backfillCreditGroups();
+  }
+
+  override async initialize() {
+    // DDL is skipped when the schema definition is byte-identical to what this
+    // database was last stamped with. The fingerprint is derived from the DDL
+    // itself, so it invalidates automatically when the schema changes — there is
+    // no constant to forget to bump (plan 268).
+    const fingerprint = schemaFingerprint();
+    if ((await this.readSchemaFingerprint()) !== fingerprint) {
+      await this.runSchemaDdl();
+      await this.writeSchemaFingerprint(fingerprint);
+    }
+
+    // Never gated. See runDataHealing()'s doc comment.
+    await this.runDataHealing();
     await this.ensureDefaultSettings();
     const rows = await this.db.select<Array<{ count: number }>>("select count(*) as count from accounts");
     if ((rows[0]?.count ?? 0) === 0) {
@@ -5861,9 +5834,15 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     if (isEffectivelyNegative(nextBalance)) throw new Error(`購買力不足，目前餘額 ${formatPlainAmount(baseBalance)} ${account.currency}。`);
   }
 
-  private async ensureSyncInfrastructure() {
-    await this.ensureSqliteColumn("sync_outbox", "updated_at", "text");
-    await this.ensureSqliteColumn("sync_outbox", "deleted_at", "text");
+  /**
+   * DDL for the sync outbox infrastructure: the runtime-flags table, the
+   * conflicts table, the unique index, and the 22 outbox-enqueue triggers — all
+   * `if not exists`, so this is safe to skip once already applied (plan 268).
+   * The two `sync_outbox` columns this used to add here have moved into
+   * `ADDITIVE_COLUMNS` (runSchemaDdl runs them before this). Nothing row-touching
+   * belongs in this method — see runSchemaDdl()'s doc comment.
+   */
+  private async ensureSyncTriggers() {
     await this.db.execute(`create unique index if not exists idx_sync_outbox_record_revision on sync_outbox (record_type, record_id, revision)`);
     await this.db.execute(`create table if not exists sync_runtime_flags (key text primary key, value text not null)`);
     await this.db.execute(`insert or ignore into sync_runtime_flags (key, value) values ('suppress_outbox', '0')`);
@@ -5878,20 +5857,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       created_at text not null,
       resolved_at text
     )`);
-    const tables: Array<[string, Exclude<SyncEntity, "settings">]> = [
-      ["accounts", "account"],
-      ["ledger_transactions", "ledger"],
-      ["portfolio_assets", "asset"],
-      ["investment_records", "investment"],
-      ["recurring_transactions", "recurring"],
-      ["recurring_investments", "recurringInvestment"],
-      ["financial_goals", "goal"],
-      ["books", "book"],
-      ["invoices", "invoice"],
-      ["clients", "client"],
-      ["credit_groups", "creditGroup"],
-    ];
-    for (const [table, entity] of tables) {
+    for (const [table, entity] of SYNC_TRIGGER_ENTITIES) {
       await this.db.execute(`create trigger if not exists sync_outbox_${entity}_insert
         after insert on ${table}
         when coalesce((select value from sync_runtime_flags where key = 'suppress_outbox'), '0') <> '1'
@@ -5949,20 +5915,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   }
 
   private async backfillSyncOutbox() {
-    const tables: Array<[string, Exclude<SyncEntity, "settings">]> = [
-      ["accounts", "account"],
-      ["ledger_transactions", "ledger"],
-      ["portfolio_assets", "asset"],
-      ["investment_records", "investment"],
-      ["recurring_transactions", "recurring"],
-      ["recurring_investments", "recurringInvestment"],
-      ["financial_goals", "goal"],
-      ["books", "book"],
-      ["invoices", "invoice"],
-      ["clients", "client"],
-      ["credit_groups", "creditGroup"],
-    ];
-    for (const [table, entity] of tables) {
+    for (const [table, entity] of SYNC_TRIGGER_ENTITIES) {
       await this.db.execute(
         `insert or ignore into sync_outbox
          (id, space_id, record_type, record_id, revision, created_at, updated_at, deleted_at)
@@ -6046,10 +5999,46 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     }
   }
 
-  private async ensureSqliteColumn(table: string, column: string, definition: string) {
+  /**
+   * Cache of `pragma table_info` results, keyed by table. The 64
+   * ensureSqliteColumn() calls in initialize() cover only 7 distinct tables, so
+   * probing per column cost 64 serialized IPC round trips where 7 suffice
+   * (plan 268). Populated lazily; invalidated for a table whenever we add a
+   * column to it, so the cache can never go stale within a run.
+   */
+  private tableColumnsCache = new Map<string, Set<string>>();
+
+  private async readTableColumns(table: string): Promise<Set<string>> {
+    const cached = this.tableColumnsCache.get(table);
+    if (cached) return cached;
     const rows = await this.db.select<Array<{ name: string }>>(`pragma table_info(${table})`);
-    if (rows.some((row) => row.name === column)) return;
+    const columns = new Set(rows.map((row) => row.name));
+    this.tableColumnsCache.set(table, columns);
+    return columns;
+  }
+
+  private async ensureSqliteColumn(table: string, column: string, definition: string) {
+    const columns = await this.readTableColumns(table);
+    if (columns.has(column)) return;
     await this.db.execute(`alter table ${table} add column ${column} ${definition}`);
+    columns.add(column);
+  }
+
+  private async readSchemaFingerprint(): Promise<number> {
+    try {
+      const rows = await this.db.select<Array<{ user_version: number }>>("PRAGMA user_version;");
+      return Number(rows?.[0]?.user_version ?? 0) || 0;
+    } catch {
+      // Unreadable pragma → treat as "never stamped" and run the full DDL phase.
+      // Never skip on uncertainty.
+      return 0;
+    }
+  }
+
+  private async writeSchemaFingerprint(fingerprint: number): Promise<void> {
+    // PRAGMA does not accept bound parameters; the value is a locally-computed
+    // integer, never user input.
+    await this.db.execute(`PRAGMA user_version = ${Math.trunc(fingerprint)};`);
   }
 
   /**

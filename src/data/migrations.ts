@@ -1,3 +1,5 @@
+import type { SyncEntity } from "../domain/sync";
+
 export interface Migration {
   id: number;
   description: string;
@@ -378,4 +380,157 @@ export function splitSqlStatements(sql: string): string[] {
     .split(/;\s*(?:\r?\n|$)/)
     .map((statement) => statement.trim())
     .filter((statement) => statement.length > 0);
+}
+
+/**
+ * Additive columns applied after the `migrations` array. SQLite has no
+ * `add column if not exists`, so these are applied by probing the table first
+ * (see TauriSqlFinanceRepository.ensureSqliteColumn).
+ *
+ * This list is DECLARATIVE ON PURPOSE (plan 268): it is both the thing that gets
+ * executed and the thing that gets fingerprinted, so adding a column here
+ * automatically invalidates the startup DDL gate. Never apply a column by
+ * calling ensureSqliteColumn() directly from initialize() — it would run, but it
+ * would not be part of the fingerprint, and existing installs would silently
+ * miss it.
+ */
+export const ADDITIVE_COLUMNS: ReadonlyArray<readonly [table: string, column: string, definition: string]> = [
+  ["ledger_transactions", "merchant", "text not null default ''"],
+  ["ledger_transactions", "name", "text not null default ''"],
+  ["ledger_transactions", "entry_type", "text not null default 'expense'"],
+  ["ledger_transactions", "subcategory", "text not null default ''"],
+  ["ledger_transactions", "settlement_status", "text not null default 'settled'"],
+  ["accounts", "credit_limit", "real"],
+  ["accounts", "credit_limit_group", "text not null default ''"],
+  ["recurring_transactions", "subcategory", "text not null default ''"],
+  ["recurring_transactions", "merchant", "text not null default ''"],
+  ["recurring_transactions", "entry_type", "text not null default 'expense'"],
+  ["recurring_transactions", "settlement_status", "text not null default 'settled'"],
+  ["recurring_transactions", "frequency", "text not null default 'monthly'"],
+  ["accounts", "loan_start_date", "text"],
+  ["accounts", "annual_interest_rate", "real"],
+  ["accounts", "loan_term", "real"],
+  ["accounts", "icon_name", "text"],
+  ["accounts", "color", "text"],
+  ["accounts", "bank_brand_domain", "text"],
+  ["accounts", "statement_day", "integer"],
+  ["accounts", "credit_payment_paid_until", "text"],
+  ["accounts", "payment_due_day", "integer"],
+  ["accounts", "custom_group", "text not null default ''"],
+  // 帳本 (Books, plan 188): the `books` table is created via migration 5; the
+  // join column is additive on `accounts`. Empty string is the "unassigned"
+  // sentinel that ensureSqliteDefaultBook() replaces with the default 個人帳.
+  ["accounts", "book_id", "text not null default ''"],
+  // 信用卡群組 (Credit groups, plan 254/255): additive join column on
+  // `accounts`. Null means ungrouped — statementDay/paymentDueDay/creditLimit
+  // stay on the account's own columns (derive-on-read only kicks in when set).
+  ["accounts", "credit_group_id", "text"],
+  ["portfolio_assets", "holding_source", "text not null default 'transactions'"],
+  ["portfolio_assets", "acquisition_date", "text"],
+  ["portfolio_assets", "name_zh", "text"],
+  ["portfolio_assets", "name_en", "text"],
+  ["portfolio_assets", "account_id", "text"],
+  ["portfolio_assets", "asset_type", "text"],
+  ["portfolio_assets", "sector", "text"],
+  ["portfolio_assets", "industry", "text"],
+  ["portfolio_assets", "sector_canonical", "text"],
+  ["portfolio_assets", "base_quantity", "real"],
+  ["portfolio_assets", "classification_locked", "integer not null default 0"],
+  ["investment_records", "cashless", "integer not null default 0"],
+  // 股息再投入 (DRIP): links a record's cashDividend + buy legs. Null for non-DRIP.
+  ["investment_records", "drip_group_id", "text"],
+  // Retirement-projection extensions for financial_goals. Each one is
+  // optional at the DB level — readers coalesce missing values to the
+  // sane defaults documented in `goalFieldsFromDraft`.
+  ["financial_goals", "current_age", "real"],
+  ["financial_goals", "retirement_age", "real"],
+  ["financial_goals", "plan_through_age", "real"],
+  ["financial_goals", "pre_retirement_return", "real"],
+  ["financial_goals", "post_retirement_return", "real"],
+  ["financial_goals", "inflation_rate", "real"],
+  ["financial_goals", "annual_fee", "real"],
+  ["financial_goals", "contribution_growth_rate", "real"],
+  ["financial_goals", "spending_items", "text"],
+  ["financial_goals", "income_items", "text"],
+  ["financial_goals", "display_mode", "text"],
+  ["financial_goals", "account_share_map", "text"],
+  ["financial_goals", "target_date", "text"],
+  ["ledger_transactions", "recurring_rule_id", "text"],
+  ["ledger_transactions", "original_amount", "real"],
+  ["ledger_transactions", "original_currency", "text"],
+  ["ledger_transactions", "recurring_occurrence_key", "text"],
+  ["ledger_transactions", "counter_account_id", "text"],
+  ["ledger_transactions", "installment_group_id", "text"],
+  ["ledger_transactions", "installment_index", "integer"],
+  ["ledger_transactions", "installment_total", "integer"],
+  ["ledger_transactions", "refund_of_ledger_id", "text"],
+  ["ledger_transactions", "post_date", "text"],
+  ["ledger_transactions", "leg_kind", "text"],
+  ["recurring_transactions", "counter_account_id", "text"],
+  // These two columns are added by ensureSqliteColumn() above, not by a
+  // create-table migration, so their indexes cannot live in migration 9 —
+  // it runs before those columns exist (plan 259).
+  ["sync_outbox", "updated_at", "text"],
+  ["sync_outbox", "deleted_at", "text"],
+] as const;
+
+/** Indexes that cannot live in a migration because their column is added above. */
+export const ADDITIVE_INDEXES: readonly string[] = [
+  `create unique index if not exists idx_ledger_recurring_occurrence on ledger_transactions (recurring_occurrence_key) where recurring_occurrence_key is not null and deleted_at is null`,
+  `create index if not exists idx_investment_drip_group on investment_records (drip_group_id) where drip_group_id is not null and deleted_at is null`,
+  `create index if not exists idx_accounts_book on accounts (book_id) where deleted_at is null`,
+];
+
+/**
+ * Every sync-tracked table paired with its sync entity name. Feeds both the
+ * outbox-trigger creation (`ensureSyncTriggers`) and the outbox backfill
+ * (`backfillSyncOutbox`) — previously duplicated verbatim in both places, which
+ * meant a new synced entity had to be added twice or the two sets would drift
+ * apart. Exported here so both call sites import the same list, and so it feeds
+ * `schemaFingerprint()` (plan 268).
+ */
+export const SYNC_TRIGGER_ENTITIES: ReadonlyArray<readonly [string, Exclude<SyncEntity, "settings">]> = [
+  ["accounts", "account"],
+  ["ledger_transactions", "ledger"],
+  ["portfolio_assets", "asset"],
+  ["investment_records", "investment"],
+  ["recurring_transactions", "recurring"],
+  ["recurring_investments", "recurringInvestment"],
+  ["financial_goals", "goal"],
+  ["books", "book"],
+  ["invoices", "invoice"],
+  ["clients", "client"],
+  ["credit_groups", "creditGroup"],
+];
+
+/**
+ * Fingerprint of the entire DDL definition: the migrations, the additive
+ * columns, the additive indexes, and the sync-trigger entity list. Stamped into
+ * `PRAGMA user_version` after the DDL phase runs, and compared on the next
+ * launch to decide whether the phase can be skipped (plan 268).
+ *
+ * SELF-INVALIDATING BY DESIGN. There is no constant to bump: change any DDL
+ * above and this number changes, so the phase re-runs on every existing install.
+ * That is the whole point — a hand-maintained version constant fails silently
+ * when someone forgets it, and "existing databases never get the new column" is
+ * the worst bug this area can produce.
+ *
+ * FNV-1a, masked to 31 bits because PRAGMA user_version is a signed 32-bit int.
+ * Collision risk is irrelevant here: a collision means one skipped DDL pass on
+ * one schema revision, and every statement in that pass is `if not exists`
+ * anyway — the next change re-runs it.
+ */
+export function schemaFingerprint(): number {
+  const source = JSON.stringify([
+    migrations.map((m) => [m.id, m.sql]),
+    ADDITIVE_COLUMNS,
+    ADDITIVE_INDEXES,
+    SYNC_TRIGGER_ENTITIES,
+  ]);
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < source.length; i += 1) {
+    hash ^= source.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0) & 0x7fffffff;
 }
