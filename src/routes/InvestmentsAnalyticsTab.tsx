@@ -249,6 +249,8 @@ export function InvestmentsAnalyticsTab({
   backfilling,
   onSectorClick,
 }: Props) {
+  "use memo"; // React Compiler trial (plan 266, Step 4): opt this route into compilation.
+
   const [period, setPeriod] = useState<AnalyticsPeriod>("1Y");
   // UI-only custom-range override for the page-global period control. When set,
   // it supplies the section *start* date only — `end` stays "today" everywhere

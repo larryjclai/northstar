@@ -14,13 +14,29 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.browser } },
     plugins: { "react-hooks": reactHooks, "react-refresh": reactRefresh },
     rules: {
-      // eslint-plugin-react-hooks@7's `recommended.rules` now bundles the React
-      // Compiler diagnostic rules (react-hooks/refs, set-state-in-effect, purity,
-      // etc.) as errors. Enabling those is plans/266-react-compiler.md, not this
-      // upgrade (plans/264) — so pin the pre-v7 rule set explicitly instead of
-      // spreading `recommended.rules`, which would turn them on as a side effect.
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
+      // React Compiler diagnostic rules (plans/266-react-compiler.md). Plan 264
+      // pinned the pre-v7 rule set to avoid inheriting these as `error` from
+      // `recommended.rules` as a side effect of a dependency bump. This plan is
+      // the deliberate, reviewable opt-in: enabled at `warn` (not `error`) so
+      // lint stays green — this repo's convention is `error` only for
+      // correctness guards (see `no-restricted-syntax` below). Findings are
+      // recorded in plans/266-react-compiler.md, not fixed here.
+      "react-hooks/static-components": "warn",
+      "react-hooks/use-memo": "warn",
+      "react-hooks/preserve-manual-memoization": "warn",
+      "react-hooks/incompatible-library": "warn",
+      "react-hooks/immutability": "warn",
+      "react-hooks/globals": "warn",
+      "react-hooks/refs": "warn",
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/error-boundaries": "warn",
+      "react-hooks/purity": "warn",
+      "react-hooks/set-state-in-render": "warn",
+      "react-hooks/unsupported-syntax": "warn",
+      "react-hooks/config": "warn",
+      "react-hooks/gating": "warn",
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "@typescript-eslint/ban-ts-comment": "warn",

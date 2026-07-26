@@ -1,8 +1,11 @@
-import react from "@vitejs/plugin-react";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
+import babel from "@rolldown/plugin-babel";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  plugins: [react()],
+  // Must mirror vite.config.ts's compiler setup — otherwise tests validate
+  // uncompiled components while the app ships compiled ones (plan 266).
+  plugins: [react(), babel({ presets: [reactCompilerPreset({ compilationMode: "annotation" })] })],
   test: {
     environment: "jsdom",
     globals: true,

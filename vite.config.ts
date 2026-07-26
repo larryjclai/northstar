@@ -1,5 +1,6 @@
 import tailwindcss from "@tailwindcss/vite";
-import react from "@vitejs/plugin-react";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
+import babel from "@rolldown/plugin-babel";
 import { defineConfig, type Plugin } from "vite";
 
 import path from "node:path";
@@ -11,7 +12,17 @@ const tauriDevHost = process.env.TAURI_DEV_HOST;
 
 export default defineConfig({
   base: "./",
-  plugins: [react(), tailwindcss(), marketDataProxy()],
+  plugins: [
+    react(),
+    // React Compiler (plan 266), deliberately in `annotation` mode: it compiles
+    // ONLY components marked "use memo". This app is already heavily
+    // hand-memoized (301 useMemo at time of writing), so whole-app compilation
+    // is a change with real risk and unproven benefit here — we opt components
+    // in one at a time and measure. See docs/performance-budget.md.
+    babel({ presets: [reactCompilerPreset({ compilationMode: "annotation" })] }),
+    tailwindcss(),
+    marketDataProxy(),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "./src"),
