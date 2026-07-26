@@ -284,8 +284,9 @@ export function SettingsExport({ t }: Pick<SettingsTabProps, "t">) {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="text-sm muted">
             {/* 匯出筆數，非金額展示 — 不經 currency helpers */}
-            {/* eslint-disable-next-line no-restricted-syntax */}
+            {/* eslint-disable no-restricted-syntax */}
             {jsonMode ? "將匯出整份資料庫" : <>預計匯出 <span className="mono font-medium" style={{ color: "var(--ns-fg)" }}>{estimatedCount.toLocaleString()}</span> 筆交易</>}
+            {/* eslint-enable no-restricted-syntax */}
           </div>
           <Button onClick={runExport} disabled={busy}>
             <DownloadSimple size={14} />{busy ? "匯出中…" : t("settings.export")}

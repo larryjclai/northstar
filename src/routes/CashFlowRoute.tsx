@@ -4237,8 +4237,9 @@ function fmtAmountDisplay(expr: string): string {
   const n = parseFloat(expr);
   if (isNaN(n)) return expr;
   // 金額輸入框編輯狀態，非最終展示 — 不經 currency helpers
-  // eslint-disable-next-line no-restricted-syntax
+  /* eslint-disable no-restricted-syntax */
   return Number.isInteger(n) ? n.toLocaleString("zh-TW") : n.toLocaleString("zh-TW", { maximumFractionDigits: 4 });
+  /* eslint-enable no-restricted-syntax */
 }
 
 function uniqueClean(values: string[]) {
