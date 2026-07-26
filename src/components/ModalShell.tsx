@@ -128,10 +128,17 @@ export function ModalShell({
   const [closing, setClosing] = useState(false);
   const closingRef = useRef(false);
   // Keep the latest close/flags reachable from the mount-only listener without re-binding.
+  // Written in an effect (not during render): a ref write during render is
+  // unsafe under concurrent rendering — React may render and discard the
+  // result, but the ref mutation would still have happened (plan 274,
+  // react-hooks/refs). Both refs are only ever read from the mount-only
+  // keydown listener and from `requestClose`, never during render.
   const closeRef = useRef(onClose);
-  closeRef.current = onClose;
   const disableEscapeRef = useRef(disableEscape);
-  disableEscapeRef.current = disableEscape;
+  useEffect(() => {
+    closeRef.current = onClose;
+    disableEscapeRef.current = disableEscape;
+  });
 
   // Bottom-sheet presentation is the MOBILE-layout affordance and must stay
   // mutually exclusive with the desktop sidebar (AppShell `aside.ns-sidebar`,
@@ -376,7 +383,20 @@ export function ModalShell({
             <div className="ns-sheet-handle" />
           </div>
         ) : null}
+        {/* react-hooks/refs (plan 274, Group C): the linter can't prove an
+            arbitrary `children` function won't call `requestClose` (which
+            reads closingRef/panelRef/closeRef) synchronously during this
+            render. In practice every call site (24+ across the app) only
+            ever wires the callback into a later event handler — e.g.
+            `onClick={dismiss}` on a close button — never invokes it inline.
+            This is the render-prop API's inherent shape: passing the
+            animated-close callback to consumers requires handing them a
+            function that reads these refs. Fixing it would mean redesigning
+            ModalShell's public API (out of scope for plan 274; it's used on
+            every screen). Suppressed, not fixed. */}
+        {/* eslint-disable react-hooks/refs */}
         {typeof children === "function" ? children(requestClose) : children}
+        {/* eslint-enable react-hooks/refs */}
       </div>
     </div>
   );

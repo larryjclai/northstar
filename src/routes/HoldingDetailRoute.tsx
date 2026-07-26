@@ -25,6 +25,7 @@ import {
   formatQuantity,
   resolveAssetName,
   resolveSectorLabel,
+  todayInTimezone,
   XIRR_MIN_DAYS,
 } from "../domain";
 import { isImportOpeningLot } from "./transactionsTxLabel";
@@ -41,6 +42,23 @@ import { HoldingEditModal } from "./HoldingEditModal";
 import { ManualPriceImportWizard } from "./ManualPriceImportWizard";
 import { computeDayChange } from "./holdingDetailToday";
 import { ChartLineUp, PencilSimple, UploadSimple } from "@phosphor-icons/react";
+
+/**
+ * 持倉天數：whole calendar days between `holdingSince` and `todayIso`
+ * (both `YYYY-MM-DD`). Pulled out as a pure function (plan 274,
+ * react-hooks/purity) — the previous inline form read `Date.now()` during
+ * render, which makes render impure (same inputs, different output across
+ * renders) and, being UTC, could also misreport 持倉天數 by a day for
+ * users east of UTC. Both dates are compared at UTC midnight so the result
+ * only depends on the calendar dates passed in, not on any wall-clock time.
+ * Exported for testing.
+ */
+export function computeHoldingDays(holdingSince: string | null, todayIso: string): number | null {
+  if (!holdingSince) return null;
+  const since = new Date(`${holdingSince.slice(0, 10)}T00:00:00Z`).getTime();
+  const today = new Date(`${todayIso.slice(0, 10)}T00:00:00Z`).getTime();
+  return Math.max(0, Math.floor((today - since) / 86_400_000));
+}
 
 export function HoldingDetailRoute() {
   const params = useParams({ strict: false }) as any;
@@ -65,14 +83,18 @@ export function HoldingDetailRoute() {
   );
   const showTradeMarkers = useUiPreferences((state) => state.showTradeMarkers);
   const setShowTradeMarkers = useUiPreferences((state) => state.setShowTradeMarkers);
+  const timezone = useUiPreferences((state) => state.timezone);
   const [seg, setSeg] = useState("1y");
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [priceFormOpen, setPriceFormOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const todayStr = new Date().toISOString().slice(0, 10);
+  // plan 274: derive "today" from the user's chosen timezone, not UTC.
+  // `new Date().toISOString()` is always UTC — for a zh-TW (UTC+8) user,
+  // that reads as yesterday between local 00:00 and 08:00.
+  const todayIso = todayInTimezone(timezone);
   const [priceInput, setPriceInput] = useState("");
-  const [priceDate, setPriceDate] = useState(todayStr);
+  const [priceDate, setPriceDate] = useState(todayIso);
   const [priceNote, setPriceNote] = useState("");
   const [priceMessage, setPriceMessage] = useState("");
   // Two-click inline confirm for deleting a manual-price snapshot (no window.confirm).
@@ -105,7 +127,6 @@ export function HoldingDetailRoute() {
 
   // Canonical valuation (quote → latest daily close → average cost) so this
   // page's market value agrees with the Dashboard and the 投資 list.
-  const today = new Date().toISOString().slice(0, 10);
   const dailyPriceLookup = useMemo(() => buildDailyPriceLookup(dailyPriceRows), [dailyPriceRows]);
   const manualPriceLookup = useMemo(
     () => buildManualPriceLookup(manualSnapshotRows),
@@ -114,14 +135,14 @@ export function HoldingDetailRoute() {
   const priced = useMemo(
     () =>
       asset
-        ? priceAssetOnDate(asset, today, {
-            todayIso: today,
+        ? priceAssetOnDate(asset, todayIso, {
+            todayIso,
             dailyPriceLookup,
             quote,
             manualPriceLookup,
           })
         : null,
-    [asset, today, dailyPriceLookup, quote, manualPriceLookup],
+    [asset, todayIso, dailyPriceLookup, quote, manualPriceLookup],
   );
   // For custom assets, the latest manual-price snapshot drives the displayed
   // 手動價格 + its date.
@@ -174,7 +195,7 @@ export function HoldingDetailRoute() {
       setPriceFormOpen(false);
       setPriceInput("");
       setPriceNote("");
-      setPriceDate(todayStr);
+      setPriceDate(todayIso);
     } catch (error) {
       setPriceMessage(error instanceof Error ? error.message : "價格更新失敗。");
     }
@@ -266,10 +287,13 @@ export function HoldingDetailRoute() {
   const xirr = useMemo(
     () =>
       calculateXirr(metrics.cashflows, {
-        date: new Date().toISOString().slice(0, 10),
+        // plan 274: reuse the timezone-correct `todayIso` (not flagged by the
+        // linter here, but leaving it UTC while every other "today" on this
+        // page is timezone-correct would be inconsistent).
+        date: todayIso,
         amount: xirrMarketValue,
       }),
-    [metrics, xirrMarketValue],
+    [metrics, xirrMarketValue, todayIso],
   );
 
   if (isInitialLoading) {
@@ -330,13 +354,11 @@ export function HoldingDetailRoute() {
     .map((t) => t.date)
     .sort()[0];
   const holdingSince = earliestBuyDate ?? asset.acquisitionDate ?? null;
-  const holdingDays = holdingSince
-    ? Math.max(0, Math.floor((Date.now() - new Date(holdingSince).getTime()) / 86_400_000))
-    : null;
+  const holdingDays = computeHoldingDays(holdingSince, todayIso);
   const xirrTooShort = xirr !== null && holdingDays !== null && holdingDays < XIRR_MIN_DAYS;
   // 配息 YTD：本年度現金股利。新列以 price 存總額(quantity=0)；舊列為
   // 「每股股利 × 股數」，兩者都要正確加總。
-  const thisYear = new Date().toISOString().slice(0, 4);
+  const thisYear = todayIso.slice(0, 4);
   const dividendYtd = txns
     .filter((t) => t.action === "cashDividend" && t.date.startsWith(thisYear))
     .reduce((sum, t) => sum + (t.quantity > 0 ? t.price * t.quantity : t.price) - t.fee, 0);

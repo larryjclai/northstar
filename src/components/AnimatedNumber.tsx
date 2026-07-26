@@ -36,7 +36,13 @@ export function AnimatedNumber({ value, format, fallback = "—", resetKey }: An
   const rafRef = useRef<number>(0);
   const prevResetKeyRef = useRef(resetKey);
   const formatRef = useRef(format);
-  formatRef.current = format;
+  // Written in an effect (not during render): a ref write during render is
+  // unsafe under concurrent rendering — React may render and discard the
+  // result (StrictMode double-render, an interrupted render), but the ref
+  // mutation would still have happened (plan 274, react-hooks/refs).
+  useEffect(() => {
+    formatRef.current = format;
+  });
 
   useEffect(() => {
     const target = value != null && Number.isFinite(value) ? value : null;
