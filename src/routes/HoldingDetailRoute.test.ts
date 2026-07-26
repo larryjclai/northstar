@@ -20,29 +20,10 @@ function makeLocalStorageStub() {
 
 vi.stubGlobal("localStorage", makeLocalStorageStub());
 
-// HoldingDetailRoute.tsx pulls in the coss/* UI kit for its rendered markup,
-// several of which resolve `cn` via the `@/lib/utils` path alias — an alias
-// vitest.config.ts doesn't define (only vite.config.ts does), so loading
-// them for real fails module resolution entirely. None of that markup is
-// exercised here — this suite only reaches for the pure `computeHoldingDays`
-// helper — so stub the presentational components out rather than widen
-// vitest's config for an unrelated purity fix.
-vi.mock("../components/coss/badge", () => ({ Badge: () => null }));
-vi.mock("../components/coss/button", () => ({ Button: () => null }));
-vi.mock("../components/coss/card", () => ({ Card: () => null }));
-vi.mock("../components/coss/skeleton", () => ({ Skeleton: () => null }));
-vi.mock("../components/coss/toggle-group", () => ({
-  ToggleGroup: () => null,
-  ToggleGroupItem: () => null,
-}));
-// These pull in the shadcn/ui Command+Dialog stack (AppSelect → ui/command →
-// ui/dialog → …), which hits the same unresolved `@/lib/utils` alias several
-// layers deeper. Stub the whole subtree rather than chase each leaf.
-vi.mock("../components/Field", () => ({ Field: () => null, TextInput: () => null }));
-vi.mock("./InvestmentsAddSheet", () => ({ InvestmentEntryDrawer: () => null }));
-vi.mock("./HoldingEditModal", () => ({ HoldingEditModal: () => null }));
-vi.mock("./ManualPriceImportWizard", () => ({ ManualPriceImportWizard: () => null }));
-
+// vitest.config.ts now resolves the `@` alias (plan 275), so the coss/*
+// component subtree HoldingDetailRoute.tsx pulls in for its rendered markup
+// no longer fails module resolution — the nine `vi.mock` calls that used to
+// stub those components out just to dodge that missing config are gone.
 const { computeHoldingDays } = await import("./HoldingDetailRoute");
 
 describe("computeHoldingDays (plan 274, react-hooks/purity)", () => {
