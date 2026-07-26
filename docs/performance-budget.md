@@ -52,13 +52,32 @@ must be rejected. Sync is designed as foreground-only (visibility-change + route
 transition, throttled to 60 s). If a feature needs periodic refresh, use
 visibility-change events, not polling.
 
-### R2 — Keep routes lazy; watch the chunk count
+### R2 — Keep every route lazily loaded
 
-Every route must use `lazyRouteComponent` in `src/routes/router.tsx`. After a build
-change, run `ls dist/assets/*.js | wc -l` — the count should remain in the 45–60
-range. If it drops to ~1-2, per-route splitting has regressed; investigate
-`vite.config.ts` `build.rollupOptions.output.codeSplitting` (see R5 — this is not
-`manualChunks`; that option is a deprecated shim in this project's bundler).
+Every route must use `lazyRouteComponent` in `src/routes/router.tsx`, so a route's
+code only loads when the user navigates to it.
+
+```bash
+npm run build && node scripts/check-eager-bundle.mjs
+```
+
+The check asserts:
+
+- **one built chunk per lazy route** — `dist/assets/*Route*.js` must match the
+  number of `lazyRouteComponent(...)` declarations in `src/routes/router.tsx`
+  (14 at the time of writing). If route chunks collapse into the entry, per-route
+  splitting has regressed — investigate
+  `vite.config.ts` `build.rollupOptions.output.codeSplitting` (see R5; this is
+  **not** `manualChunks`, which is a deprecated shim in this project's bundler).
+- **no `charts-*.js` in the eager graph** (see R5).
+
+**The total chunk count is deliberately NOT asserted.** It was previously pinned
+to a 45–60 band, which fired a false alarm when vite 8.1.5 legitimately split
+shared chunks more finely (51 → 57 → 84 across this batch) while every property
+that matters stayed healthy: route chunks unchanged at 14, vendors still
+consolidated, the entry chunk *shrank* 219 kB → 78 kB and the eager total *fell*.
+A guardrail that fires on healthy change teaches people to ignore it. Watch the
+eager total (R5) instead — that is the number a user actually pays.
 
 ### R3 — Never prewarm Foundation Models at launch
 

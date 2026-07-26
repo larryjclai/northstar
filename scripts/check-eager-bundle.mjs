@@ -14,7 +14,7 @@
 //
 // Usage: npm run build && node scripts/check-eager-bundle.mjs
 
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -68,3 +68,19 @@ if (chartsChunks.length > 0) {
 }
 
 console.log("[check-eager-bundle] OK: charts chunk is not in the eager set.");
+
+// R2: every lazyRouteComponent(...) in the router must produce its own chunk.
+// Deriving the expected count from the source (rather than hard-coding 14) means
+// adding a lazy route updates both sides at once — plan 269.
+const routerSource = readFileSync(path.join(root, "src/routes/router.tsx"), "utf8");
+const declaredLazyRoutes = (routerSource.match(/lazyRouteComponent\(/g) ?? []).length;
+const routeChunks = readdirSync(assetsDir).filter((f) => /Route-[^.]*\.js$/.test(f)).length;
+
+if (routeChunks < declaredLazyRoutes) {
+  console.error(
+    `[check-eager-bundle] FAIL: ${declaredLazyRoutes} lazy routes declared but only ` +
+      `${routeChunks} route chunks built — per-route splitting has regressed.`,
+  );
+  process.exit(1);
+}
+console.log(`[check-eager-bundle] OK: ${routeChunks} route chunks for ${declaredLazyRoutes} lazy routes.`);
