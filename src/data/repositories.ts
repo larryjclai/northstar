@@ -2736,7 +2736,7 @@ async function persistBrowserRepositoryData(storageKey: string, data: Repository
         return;
       } catch (localStorageError) {
         console.error("[repository] browser persistence failed", { indexedDbError, localStorageError });
-        throw new Error("瀏覽器儲存空間不足，無法寫入這份備份。請使用支援 IndexedDB 的瀏覽器，或改用桌面 App 匯入。");
+        throw new Error("瀏覽器儲存空間不足，無法寫入這份備份。請使用支援 IndexedDB 的瀏覽器，或改用桌面 App 匯入。", { cause: localStorageError });
       }
     }
   }
@@ -2745,7 +2745,7 @@ async function persistBrowserRepositoryData(storageKey: string, data: Repository
     writeLocalStorageRepositoryData(storageKey, data);
   } catch (error) {
     console.error("[repository] localStorage persistence failed", error);
-    throw new Error("瀏覽器 localStorage 空間不足，無法寫入這份備份。請改用支援 IndexedDB 的瀏覽器或桌面 App。");
+    throw new Error("瀏覽器 localStorage 空間不足，無法寫入這份備份。請改用支援 IndexedDB 的瀏覽器或桌面 App。", { cause: error });
   }
 }
 
