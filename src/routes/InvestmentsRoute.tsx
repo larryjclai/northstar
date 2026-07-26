@@ -36,7 +36,7 @@ import {
   type AnalyticsPosition,
   type LoadedFeed,
   type Account,
-  type DailyPrice,
+  type DailyPriceSeriesRow,
   type DayChangeQuote,
   type HoldingPosition,
   type InvestmentRecord,
@@ -846,7 +846,7 @@ function PerformanceTab({
   records: InvestmentRecord[];
   primaryCurrency: string;
   toPrimary: (value: number, currency: string, asOfDate?: string) => number;
-  dailyPrices: DailyPrice[];
+  dailyPrices: DailyPriceSeriesRow[];
   manualPriceSnapshots: ManualPriceSnapshot[];
   quoteMap: Record<string, DomainMarketQuote | undefined>;
   refreshing: boolean;
@@ -1095,7 +1095,7 @@ function HoldingsTab({
   toPrimary: (value: number, currency: string, asOfDate?: string) => number;
   primaryCurrency: string;
   /** Daily closes + live quotes, for the row 「今日」 % and expansion sparkline. */
-  dailyPrices: DailyPrice[];
+  dailyPrices: DailyPriceSeriesRow[];
   quotes: DayChangeQuote[];
   /** Investment records, for the expansion's 股利 YTD. */
   records: InvestmentRecord[];
@@ -1641,7 +1641,7 @@ function HoldingExpansion({
 }: {
   position: HoldingPosition;
   accountName: string;
-  dailyPrices: DailyPrice[];
+  dailyPrices: DailyPriceSeriesRow[];
   todayImpactLabel: string;
   dividendsYtd: number;
   holdingDays: number | null;
@@ -1886,7 +1886,7 @@ function buildPerformanceTrend({
   positions: HoldingPosition[];
   assets: PortfolioAsset[];
   records: InvestmentRecord[];
-  dailyPrices: DailyPrice[];
+  dailyPrices: DailyPriceSeriesRow[];
   manualPriceSnapshots: ManualPriceSnapshot[];
   toPrimary: (value: number, currency: string, asOfDate?: string) => number;
   range: PerformanceRange;
@@ -1935,7 +1935,7 @@ function buildPerformanceTrend({
   const trackedTickers = new Set(
     positions.filter((p) => !manualAssetIds.has(p.assetId)).map((p) => p.ticker.toUpperCase()),
   );
-  const pricesByTicker = new Map<string, DailyPrice[]>();
+  const pricesByTicker = new Map<string, DailyPriceSeriesRow[]>();
   for (const price of dailyPrices) {
     const ticker = price.ticker.toUpperCase();
     if (!trackedTickers.has(ticker)) continue;
@@ -2002,7 +2002,7 @@ function latestSnapshotOnOrBefore(rows: ManualPriceSnapshot[], date: string) {
   return null;
 }
 
-function latestPriceOnOrBefore(rows: DailyPrice[], date: string) {
+function latestPriceOnOrBefore(rows: DailyPriceSeriesRow[], date: string) {
   for (let index = rows.length - 1; index >= 0; index -= 1) {
     if (rows[index].date <= date) return rows[index];
   }
