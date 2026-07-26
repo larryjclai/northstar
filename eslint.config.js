@@ -27,13 +27,13 @@ export default tseslint.config(
       "react-refresh/only-export-components": "warn",
       "prefer-const": "warn",
       "no-irregular-whitespace": "warn",
-      // ESLint 10 promoted these two to `error` in its recommended set. This repo's
-      // convention is `warn` for advisory rules (see the six above) and `error` only
-      // for correctness guards like no-restricted-syntax below. Keeping them visible
-      // as warnings rather than breaking CI — the 8 current findings are recorded in
-      // plans/README.md for a separate cleanup (plan 264).
-      "no-useless-assignment": "warn",
-      "preserve-caught-error": "warn",
+      // ESLint 10 promoted these two to `error` in its recommended set. Plan 264
+      // downgraded them to `warn` to land the ESLint 10 upgrade without breaking CI
+      // on the 8 findings it turned up. Plan 272 cleared all 8 findings and restored
+      // both to `error`, so a regression now fails CI instead of being absorbed into
+      // the warning count.
+      "no-useless-assignment": "error",
+      "preserve-caught-error": "error",
     },
   },
   {
