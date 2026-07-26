@@ -134,6 +134,20 @@ export function AppShell() {
   const sidebarCollapsed = useUiPreferences((state) => state.sidebarCollapsed);
   const toggleSidebarCollapsed = useUiPreferences((state) => state.toggleSidebarCollapsed);
   const [demoExiting, setDemoExiting] = useState(false);
+  // Scroll-edge effect (plan 278): the demo banner sits flush at the viewport
+  // top, so "window has scrolled at all" and "content is under the banner"
+  // are the same condition here — a plain `scrollY > 0` window listener is
+  // correct for this surface (unlike the analytics nav, which needs an
+  // IntersectionObserver sentinel because it isn't pinned at scrollY 0).
+  const [bannerStuck, setBannerStuck] = useState(() =>
+    typeof window === "undefined" ? false : window.scrollY > 0,
+  );
+  useEffect(() => {
+    const onScroll = () => setBannerStuck(window.scrollY > 0);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
   const shellQueryClient = useQueryClient();
 
   async function handleExitDemo() {
@@ -476,10 +490,10 @@ export function AppShell() {
       >
         {demoActive ? (
           <div
-            className="flex items-center gap-3 text-body py-2 px-4 accent"
+            className="ns-scroll-edge flex items-center gap-3 text-body py-2 px-4 accent"
+            data-stuck={bannerStuck}
             style={{
               background: "var(--ns-accent-soft)",
-              borderBottom: "1px solid var(--ns-border)",
               position: "sticky",
               top: 0,
               zIndex: 30,

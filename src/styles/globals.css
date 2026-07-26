@@ -664,6 +664,25 @@ html[data-native-glass] .ns-sidebar-drag-cap {
 html[data-native-glass][data-theme="dark"] .ns-sidebar {
   background: color-mix(in srgb, var(--ns-bg-elev) 88%, transparent);
 }
+
+/* Scroll-edge effect (plan 278, motion-ga-spike.md Part B): border appears
+   only once content has scrolled under a sticky header, instead of a
+   permanently-drawn hard border. `[data-stuck="true"]` is toggled by the
+   surface's own JS (window scrollY for the demo banner, an
+   IntersectionObserver sentinel for the analytics nav — see AppShell.tsx and
+   InvestmentsAnalyticsTab.tsx). Reduced motion is handled by the universal
+   `prefers-reduced-motion` rule below, which zeroes transition-duration for
+   ordinary elements like these. */
+.ns-scroll-edge {
+  border-bottom: 1px solid transparent;
+  transition:
+    border-color 160ms var(--ns-ease),
+    background-color 160ms var(--ns-ease);
+}
+.ns-scroll-edge[data-stuck="true"] {
+  border-bottom-color: var(--ns-border);
+}
+
 /* Native apps cut between views; honor the OS "reduce motion" setting. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
