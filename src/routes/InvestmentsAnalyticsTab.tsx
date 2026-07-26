@@ -760,11 +760,22 @@ export function InvestmentsAnalyticsTab({
     <div className="grid gap-5">
       {/* ── Sticky in-page section nav (anchors, intentionally NOT styled like the
             page-level tabs so it doesn't read as a third tab layer) ──────────── */}
-      {/* Zero-height sentinel (plan 278): observed by IntersectionObserver above
-          to detect when the nav below has scrolled to the top and become
-          pinned, vs. sitting in its natural mid-page position. No margin, so
-          it doesn't disturb the nav's `-mb-2` spacing. */}
-      <div ref={navSentinelRef} aria-hidden="true" />
+      {/* Sentinel (plan 278): observed by IntersectionObserver above to detect
+          when the nav below has scrolled to the top and become pinned, vs.
+          sitting in its natural mid-page position.
+          `position: absolute` is load-bearing, not decoration: this parent is
+          `grid gap-5`, and an in-flow child — even a zero-height one — is a
+          grid item that creates its own row and so adds a full 20px gap,
+          pushing the nav down. Measured: in-flow sentinel = nav at +20px;
+          absolute = nav at 0, identical to having no sentinel at all. Taking
+          it out of flow also leaves the nav's `-mb-2` untouched. It keeps its
+          static position (the nav's natural top), which is exactly what must
+          be observed. Explicit 1px dimensions avoid a zero-area target. */}
+      <div
+        ref={navSentinelRef}
+        aria-hidden="true"
+        style={{ position: "absolute", width: 1, height: 1 }}
+      />
       <nav
         className="ns-scroll-edge sticky top-0 z-20 flex items-center gap-1 -mb-2 overflow-x-auto"
         data-stuck={navStuck}
