@@ -1,4 +1,11 @@
 # ─── Build artifacts ───────────────────────────────────
+# Both forms are required. `node_modules/` (trailing slash) matches a
+# DIRECTORY only — it does not match a *symlink* named node_modules, which is
+# how agent worktrees commonly share the main checkout's install. Without the
+# slashless line, a `git add -A` in such a worktree commits the symlink, and
+# the next checkout in the main repo replaces the real directory with a
+# self-referential link (happened on 2026-07-26, plan 278).
+node_modules
 node_modules/
 scratch/
 dist/
