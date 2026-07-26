@@ -234,6 +234,13 @@ export function ConnectStatus() {
   // the Tauri webview, so the original confirm()-gated handler did nothing).
   const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
 
+  // Manual vault-key rotation (plan 276, docs/vault-key-rotation-plan.md §7
+  // Q4): standalone "rotate now" entry point for a credential leaked
+  // independent of any device compromise. Same inline two-click confirm
+  // idiom as confirmRevokeId above.
+  const [confirmRotate, setConfirmRotate] = useState(false);
+  const [rotateLoading, setRotateLoading] = useState(false);
+
   // Force-full-resync inline confirm (window.confirm is a no-op in Tauri webview).
   const [confirmFullResync, setConfirmFullResync] = useState(false);
   const [confirmFullRepush, setConfirmFullRepush] = useState(false);
@@ -582,6 +589,43 @@ export function ConnectStatus() {
       toast.error("加密金鑰輪替重試失敗，請稍後再試。", {
         action: { label: "重新執行輪替", onClick: () => void handleRetryRotation() },
       });
+    }
+  }
+
+  // Plan 276: user-initiated "rotate now" (docs/vault-key-rotation-plan.md
+  // §7 Q4), for a credential leaked independent of any device compromise.
+  // Unlike handleRetryRotation above — which only ever re-runs a rotation
+  // that already had targets, so silently no-op-ing on
+  // "no-remaining-devices" is fine there — a fresh user click must handle
+  // all three RotationResult reasons plus a throw explicitly; silence here
+  // would read as "the button is broken".
+  async function handleManualRotate() {
+    if (!account) return;
+    setRotateLoading(true);
+    try {
+      const result = await rotateVaultKey(account);
+      if (result.reason === "partial-failure") {
+        console.error("[connect] vault key rotation partially failed (manual):", result.failed);
+        showRotationPartialFailureToast(result.failed);
+      } else if (result.rotated) {
+        toast.success("加密金鑰已更換。", {
+          description: "其他裝置下次同步時會自動取得新金鑰。",
+        });
+        setKitStale(await isRecoveryKitStale());
+      } else {
+        // reason === "no-remaining-devices" (operator decision 3, plan 241):
+        // solo-device account, nothing to rotate to. State it plainly rather
+        // than swallowing it.
+        toast.info("目前只有這台裝置，沒有其他裝置需要更換金鑰。");
+      }
+    } catch (e) {
+      console.error("[connect] manual vault key rotation failed:", e);
+      toast.error("加密金鑰更換失敗，請稍後再試。", {
+        action: { label: "重新執行輪替", onClick: () => void handleRetryRotation() },
+      });
+    } finally {
+      setRotateLoading(false);
+      setConfirmRotate(false);
     }
   }
 
@@ -1535,6 +1579,57 @@ export function ConnectStatus() {
             )}
           </div>
         ))}
+      </div>
+
+      {/* Vault key rotation (plan 276) — sits directly above the Recovery
+          Kit block because a rotation stales that kit. */}
+      <div className="mt-5" style={{ paddingTop: 18, borderTop: "1px solid var(--ns-border)" }}>
+        <div className="text-body font-semibold mb-1.5">加密金鑰</div>
+        <p className="text-caption text-[var(--ns-fg-muted)] mb-2.5">
+          懷疑金鑰可能外洩時，可以立即更換。更換後的新資料會用新金鑰加密；
+          <strong>先前已同步出去的舊資料仍維持原本的金鑰</strong>
+          ，更換金鑰不會把它們收回。
+        </p>
+        {devices.length <= 1 ? (
+          <p className="text-caption text-[var(--ns-fg-muted)]">
+            目前只有這台裝置。要更換金鑰需要至少一台其他已信任裝置來接收新金鑰。
+          </p>
+        ) : confirmRotate ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-caption" style={{ color: "var(--ns-warn, #b45309)" }}>
+              其他 {devices.length - 1}{" "}
+              台裝置各自連上一次後才會拿到新金鑰，在那之前它們讀不到新資料。備援碼也需要重新產生。
+            </p>
+            <div className="flex gap-1.5">
+              <Button
+                variant="ghost"
+                className="text-xs"
+                onClick={() => setConfirmRotate(false)}
+                disabled={rotateLoading}
+              >
+                取消
+              </Button>
+              <Button
+                variant="outline"
+                className="text-xs"
+                onClick={handleManualRotate}
+                disabled={rotateLoading}
+              >
+                {rotateLoading ? <Spinner size={13} className="animate-spin" /> : <Key size={13} />}
+                {rotateLoading ? "更換中…" : "確認更換"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            variant="outline"
+            className="text-xs w-full justify-center"
+            onClick={() => setConfirmRotate(true)}
+          >
+            <Key size={13} />
+            立即更換加密金鑰
+          </Button>
+        )}
       </div>
 
       {/* Recovery Kit */}
