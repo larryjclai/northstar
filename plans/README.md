@@ -47,12 +47,34 @@ grep -ohE "idx_[a-z_]+" src/data/migrations.ts src/data/repositories.ts | sort -
 （`gh secret delete RELEASES_TOKEN`；`gh secret list` 複驗不再列出）。
 刪除前全 repo 複查零引用。
 
-**⚠️ 但 PAT 本身仍然有效，尚未撤銷。** 刪 secret ≠ 撤 token —— 前者只移除 repo 裡的副本，
-後者才讓憑證失效。撤銷需 operator 在 GitHub 帳號設定頁操作，agent 無法代勞。
-在撤銷之前，任何持有該 token 值的人仍可使用它。
+**✅ 2026-07-26 結案。** operator 已在 GitHub 撤銷該 PAT，advisor 已刪除 repo secret
+（`gh secret list` 複驗只剩 4 個，`RELEASES_TOKEN` 不在其中）。**plan 243 Step 4 至此完成，243 全案關閉。**
 
 其餘既有 operator 項目維持原狀：238 的 5 個問題仍 gate 著 vault-key rotation；
 233/245/246/247 的手感驗收非阻塞。
+
+### Dependabot 複查：2 個 open alert，兩個都不影響出貨的 app
+
+GitHub 在每次 push 都提示「3 high」，實際查 API 是 **2 個 open**（另一個已關）。逐一追過：
+
+| 套件 | Dependabot 標的 scope | 實際情況 |
+|---|---|---|
+| `postcss` | development | 確認為 dev-only（`autoprefixer` / `shadcn` 的相依，不進 runtime bundle） |
+| `quinn-proto` | **runtime** ⚠️ | **實際上沒有被編進 binary** —— 見下 |
+
+`quinn-proto` 值得說明，因為 Dependabot 把它標成 runtime，看起來像是真的暴露：
+
+- 它由 `reqwest` 帶進**鎖檔**，但 `src-tauri/Cargo.toml:33` 是
+  `reqwest = { default-features = false, features = ["json", "rustls-tls"] }` ——
+  **`http3` 沒開**，而 quinn 只在 `http3` 之下才會被編譯。
+- `cargo tree -i quinn-proto`（host target）回報 **"nothing to print"** —— 它不在建置圖裡。
+
+Cargo.lock 會記錄 optional 相依的解析結果，Dependabot 讀鎖檔、看不到 feature 沒啟用，
+所以誤判為 runtime。**這是 false positive，不需要處理**，但值得記著：
+下次若有人啟用 `reqwest/http3`，這個 alert 就會從誤判變成真的。
+
+（先前記錄「所有 Dependabot alert 皆為 dev-only」需要修正 —— `quinn-proto` 不是 dev-only，
+它是 **lockfile-only**，兩者不同。）
 
 ### 一個順帶的影響（不阻塞任何事）
 
