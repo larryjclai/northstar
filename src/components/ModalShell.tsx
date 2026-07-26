@@ -383,7 +383,20 @@ export function ModalShell({
             <div className="ns-sheet-handle" />
           </div>
         ) : null}
+        {/* react-hooks/refs (plan 274, Group C): the linter can't prove an
+            arbitrary `children` function won't call `requestClose` (which
+            reads closingRef/panelRef/closeRef) synchronously during this
+            render. In practice every call site (24+ across the app) only
+            ever wires the callback into a later event handler — e.g.
+            `onClick={dismiss}` on a close button — never invokes it inline.
+            This is the render-prop API's inherent shape: passing the
+            animated-close callback to consumers requires handing them a
+            function that reads these refs. Fixing it would mean redesigning
+            ModalShell's public API (out of scope for plan 274; it's used on
+            every screen). Suppressed, not fixed. */}
+        {/* eslint-disable react-hooks/refs */}
         {typeof children === "function" ? children(requestClose) : children}
+        {/* eslint-enable react-hooks/refs */}
       </div>
     </div>
   );
