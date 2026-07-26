@@ -31,5 +31,4 @@ describe("resolveBankBrand", () => {
     expect(resolveBankBrand("我的小金庫", "esunbank.com")?.label).toBe("玉山銀行");
     expect(resolveBankBrand("國泰世華 數位帳戶", "taishinbank.com.tw")?.label).toBe("台新銀行");
   });
-
 });

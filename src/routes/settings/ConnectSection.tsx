@@ -1,15 +1,58 @@
-import { ArrowsClockwise, CheckCircle, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, PencilSimple, Plus, Sparkle, Storefront, Tag, Trash, UploadSimple, UsersThree, CaretDown, CaretRight, Backspace, Gear, Bank, Target, DeviceMobile, Desktop, Spinner, WifiHigh, CopySimple, QrCode, Warning } from "@phosphor-icons/react";
+import {
+  ArrowsClockwise,
+  CheckCircle,
+  CurrencyCircleDollar,
+  DownloadSimple,
+  Eye,
+  EyeSlash,
+  Globe,
+  Key,
+  PencilSimple,
+  Plus,
+  Sparkle,
+  Storefront,
+  Tag,
+  Trash,
+  UploadSimple,
+  UsersThree,
+  CaretDown,
+  CaretRight,
+  Backspace,
+  Gear,
+  Bank,
+  Target,
+  DeviceMobile,
+  Desktop,
+  Spinner,
+  WifiHigh,
+  CopySimple,
+  QrCode,
+  Warning,
+} from "@phosphor-icons/react";
 import { Badge } from "../../components/coss/badge";
 import { Button } from "../../components/coss/button";
 import { Card } from "../../components/coss/card";
 import { ModalCloseButton } from "../../components/ModalCloseButton";
-import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ActionButton } from "../../components/ActionButton";
 import { AppSelect } from "../../components/AppSelect";
 import { useToast } from "../../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../../data/hooks";
-import { downloadCsv, exportInvestmentCsv, exportLedgerCsv, exportFxRatesCsv } from "../../data/csv";
+import {
+  downloadCsv,
+  exportInvestmentCsv,
+  exportLedgerCsv,
+  exportFxRatesCsv,
+} from "../../data/csv";
 import { getFinanceRepository, type RepositorySnapshot } from "../../data/repositories";
 import { enterDemoMode, exitDemoMode, clearAllData } from "../../data/demoData";
 import { useDemoMode } from "../../state/demoMode";
@@ -17,7 +60,13 @@ import { COMMON_TIMEZONES, isValidTimezone } from "../../domain";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../../domain";
 import type { SyncConflictRecord } from "../../domain/sync";
 import { useRefreshFxRates } from "../../features/market-data/useMarketRefresh";
-import { useUiPreferences, DEFAULT_BENCHMARK_TICKER, type ClockMode, type NameLocalePreference, type ThemeMode } from "../../state/uiPreferences";
+import {
+  useUiPreferences,
+  DEFAULT_BENCHMARK_TICKER,
+  type ClockMode,
+  type NameLocalePreference,
+  type ThemeMode,
+} from "../../state/uiPreferences";
 import { TickerSearchField } from "../../components/TickerSearchField";
 import { getOrCreateDeviceIdentity } from "../../state/deviceIdentity";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -28,33 +77,56 @@ import { Glyph } from "../../lib/icons";
 import { Popover, PopoverTrigger, PopoverContent } from "../../components/ui/popover";
 import QRCode from "react-qr-code";
 import {
-  loadSyncAccount, getOrCreateSyncAccount, setSyncAccount, sha256Hex,
-  generateDeviceSecret, saveDeviceSecret,
+  loadSyncAccount,
+  getOrCreateSyncAccount,
+  setSyncAccount,
+  sha256Hex,
+  generateDeviceSecret,
+  saveDeviceSecret,
   type SyncAccount,
 } from "../../features/connect/sync/account";
+import { generateVaultKey, saveVaultKey, loadVaultKey } from "../../features/connect/crypto/vault";
 import {
-  generateVaultKey, saveVaultKey, loadVaultKey,
-} from "../../features/connect/crypto/vault";
-import {
-  registerUser, listDevices, revokeDevice, addDevice,
+  registerUser,
+  listDevices,
+  revokeDevice,
+  addDevice,
   isSyncWorkerConfigured,
   type DeviceRecord,
 } from "../../features/connect/sync/client";
 import {
-  startJoinSession, completeJoin, inspectJoinRequest, approveJoiningDevice,
-  type JoinSession, type PendingJoinApproval,
+  startJoinSession,
+  completeJoin,
+  inspectJoinRequest,
+  approveJoiningDevice,
+  type JoinSession,
+  type PendingJoinApproval,
 } from "../../features/connect/sync/pairing-flow";
 import { rotateVaultKey, type RotationFailure } from "../../features/connect/sync/rotation";
-import { runSync, forceFullResync, forceFullRepush } from "../../features/connect/sync/sync-manager";
+import {
+  runSync,
+  forceFullResync,
+  forceFullRepush,
+} from "../../features/connect/sync/sync-manager";
 import { clearLocalSyncState, unlinkSync } from "../../features/connect/sync/reset";
 import { summarizeConflict } from "../../features/connect/sync/conflictSummary";
-import { listBackups, restoreBackup, readBackupSnapshot, type BackupEntry } from "../../features/connect/sync/backup";
+import {
+  listBackups,
+  restoreBackup,
+  readBackupSnapshot,
+  type BackupEntry,
+} from "../../features/connect/sync/backup";
 import { buildBackupDiff, type BackupDiff } from "../../features/local-backup/backupDiff";
 import { updateFailureMessage } from "../../features/updater/errors";
 import { useSyncStatus } from "../../state/syncStatus";
 import {
-  generateRecoveryKit, confirmRecoveryKit, downloadRecoveryKit,
-  restoreFromRecoveryKit, loadLocalRecoveryKitStatus, isRecoveryKitStale, type LocalRecoveryKitStatus,
+  generateRecoveryKit,
+  confirmRecoveryKit,
+  downloadRecoveryKit,
+  restoreFromRecoveryKit,
+  loadLocalRecoveryKitStatus,
+  isRecoveryKitStale,
+  type LocalRecoveryKitStatus,
 } from "../../features/connect/crypto/recovery-kit";
 import type { SkippedEnvelope } from "../../features/connect/sync/pull";
 
@@ -66,9 +138,11 @@ function getDevicePlatform(): string {
 }
 
 function PlatformIcon({ platform }: { platform: string }) {
-  return platform === "ios" || platform === "android"
-    ? <DeviceMobile size={14} />
-    : <Desktop size={14} />;
+  return platform === "ios" || platform === "android" ? (
+    <DeviceMobile size={14} />
+  ) : (
+    <Desktop size={14} />
+  );
 }
 
 function formatRelativeTime(iso: string, now: number): string {
@@ -101,7 +175,7 @@ export function ConnectStatus() {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    loadSyncAccount().then(acc => {
+    loadSyncAccount().then((acc) => {
       setAccount(acc);
       setIsReady(true);
     });
@@ -116,7 +190,9 @@ export function ConnectStatus() {
   const [showDialog, setShowDialog] = useState(false);
 
   // Recovery Kit
-  const [kitStatus, setKitStatus] = useState<LocalRecoveryKitStatus | null>(() => loadLocalRecoveryKitStatus());
+  const [kitStatus, setKitStatus] = useState<LocalRecoveryKitStatus | null>(() =>
+    loadLocalRecoveryKitStatus(),
+  );
   const [kitCode, setKitCode] = useState<string | null>(null);
   const [kitLoading, setKitLoading] = useState(false);
   // True once the vault key has been rotated past what the last-generated
@@ -179,7 +255,9 @@ export function ConnectStatus() {
   // Load backups list when panel opens
   useEffect(() => {
     if (!showBackups) return;
-    listBackups().then(setBackups).catch(() => setBackups([]));
+    listBackups()
+      .then(setBackups)
+      .catch(() => setBackups([]));
   }, [showBackups]);
 
   // Joining device (B): publish this device's public key, show the code, and
@@ -195,7 +273,9 @@ export function ConnectStatus() {
   const [joinError, setJoinError] = useState<string | null>(null);
   const [pendingApproval, setPendingApproval] = useState<PendingJoinApproval | null>(null);
   const [approveLoading, setApproveLoading] = useState(false);
-  const [joinDeviceName, setJoinDeviceName] = useState(() => `My ${getDevicePlatform() === "windows" ? "PC" : "Mac"}`);
+  const [joinDeviceName, setJoinDeviceName] = useState(
+    () => `My ${getDevicePlatform() === "windows" ? "PC" : "Mac"}`,
+  );
 
   // Load pending changes count
   useEffect(() => {
@@ -218,7 +298,9 @@ export function ConnectStatus() {
         }
       }
     })();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [identity.localPushCursor, syncStatus.lastSyncAt]);
 
   async function resolveConflict(id: string, strategy: "keepLocal" | "useIncoming") {
@@ -227,7 +309,9 @@ export function ConnectStatus() {
       await repo.resolveSyncConflict(id, strategy);
       setConflicts((current) => current?.filter((conflict) => conflict.id !== id) ?? []);
       await queryClient.invalidateQueries();
-      toast.success(strategy === "keepLocal" ? "已保留本機版本，將於下次同步推送" : "已採用遠端版本");
+      toast.success(
+        strategy === "keepLocal" ? "已保留本機版本，將於下次同步推送" : "已採用遠端版本",
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "處理同步衝突失敗");
     }
@@ -245,21 +329,29 @@ export function ConnectStatus() {
       }
       setConflicts([]);
       await queryClient.invalidateQueries();
-      toast.success(strategy === "keepLocal" ? `已全部保留本機（${pending.length} 筆）` : `已全部採用遠端（${pending.length} 筆）`);
+      toast.success(
+        strategy === "keepLocal"
+          ? `已全部保留本機（${pending.length} 筆）`
+          : `已全部採用遠端（${pending.length} 筆）`,
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "批次處理同步衝突失敗");
       // Refresh so the list reflects whatever did resolve before the error.
       try {
         const repo = await getFinanceRepository();
         setConflicts((await repo.listSyncConflicts()).filter((c) => c.resolvedAt === null));
-      } catch { /* leave list as-is */ }
+      } catch {
+        /* leave list as-is */
+      }
     }
   }
 
   // Load device list when account is active
   useEffect(() => {
     if (!account) return;
-    listDevices(account.apiSecret).then(setDevices).catch(() => {});
+    listDevices(account.apiSecret)
+      .then(setDevices)
+      .catch(() => {});
   }, [account]);
 
   // Recovery-Kit staleness (Plan 242 step 3): re-derive whenever the kit
@@ -267,10 +359,19 @@ export function ConnectStatus() {
   // stamped with moving relative to whatever the vault key's current version
   // is right now.
   useEffect(() => {
-    if (!account) { setKitStale(false); return; }
+    if (!account) {
+      setKitStale(false);
+      return;
+    }
     let active = true;
-    isRecoveryKitStale().then((stale) => { if (active) setKitStale(stale); }).catch(() => {});
-    return () => { active = false; };
+    isRecoveryKitStale()
+      .then((stale) => {
+        if (active) setKitStale(stale);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, [account, kitStatus]);
 
   // Countdown timer for pairing session
@@ -289,7 +390,10 @@ export function ConnectStatus() {
   // Joining device (B): poll the relay until the existing device (A) approves
   // this device and deposits the wrapped vault key + account secret.
   useEffect(() => {
-    if (!session) { setJoinWaiting(false); return; }
+    if (!session) {
+      setJoinWaiting(false);
+      return;
+    }
     let active = true;
     setJoinWaiting(true);
     const poll = async () => {
@@ -310,7 +414,11 @@ export function ConnectStatus() {
           const r = await forceFullResync(repo);
           syncStatus.setSyncDone(r.pushed, r.pulled, r.applied);
           await queryClient.invalidateQueries();
-          toast.success(r.applied > 0 ? `已下載並套用 ${r.applied} 筆資料` : "已加入同步（伺服器目前沒有可下載的資料）");
+          toast.success(
+            r.applied > 0
+              ? `已下載並套用 ${r.applied} 筆資料`
+              : "已加入同步（伺服器目前沒有可下載的資料）",
+          );
         } catch (pullErr) {
           const msg = pullErr instanceof Error ? pullErr.message : String(pullErr);
           console.error("[sync] post-join resync failed:", pullErr);
@@ -323,7 +431,10 @@ export function ConnectStatus() {
     };
     const id = setInterval(poll, 2000);
     void poll();
-    return () => { active = false; clearInterval(id); };
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
@@ -479,7 +590,7 @@ export function ConnectStatus() {
     if (!account) return;
     try {
       await revokeDevice(account.apiSecret, deviceId);
-      setDevices(d => d.filter(dev => dev.id !== deviceId));
+      setDevices((d) => d.filter((dev) => dev.id !== deviceId));
       setConfirmRevokeId(null);
       // Honest threat-model framing (docs/vault-key-rotation-plan.md §1
       // "Bottom line, stated plainly"), shown on every revocation regardless
@@ -556,7 +667,9 @@ export function ConnectStatus() {
   // must read calmer than a genuine "decrypt-failed"/"invalid-payload"
   // warning, which will NOT self-heal by waiting.
   function summarizeSkips(total: number, details: SkippedEnvelope[] | undefined) {
-    const unknownKeyVersion = (details ?? []).filter((d) => d.reason === "unknown-key-version").length;
+    const unknownKeyVersion = (details ?? []).filter(
+      (d) => d.reason === "unknown-key-version",
+    ).length;
     const genuine = total - unknownKeyVersion;
     return { unknownKeyVersion, genuine };
   }
@@ -565,13 +678,16 @@ export function ConnectStatus() {
     const { unknownKeyVersion, genuine } = summarizeSkips(total, details);
     if (genuine === 0) {
       // Every skip is benign — a rotation this device hasn't picked up yet.
-      toast.info(`同步完成，${unknownKeyVersion} 筆資料因尚未取得新金鑰版本而略過（等下次同步取得新金鑰後即可讀取，無需處理）。`);
+      toast.info(
+        `同步完成，${unknownKeyVersion} 筆資料因尚未取得新金鑰版本而略過（等下次同步取得新金鑰後即可讀取，無需處理）。`,
+      );
       return;
     }
     const genuineNote = `有 ${genuine} 筆資料無法解密／格式不符而略過`;
-    const combinedNote = unknownKeyVersion > 0
-      ? `${genuineNote}；另有 ${unknownKeyVersion} 筆是尚未取得新金鑰版本而略過（等下次同步取得新金鑰後即可讀取，無需處理）`
-      : genuineNote;
+    const combinedNote =
+      unknownKeyVersion > 0
+        ? `${genuineNote}；另有 ${unknownKeyVersion} 筆是尚未取得新金鑰版本而略過（等下次同步取得新金鑰後即可讀取，無需處理）`
+        : genuineNote;
     toast.error(`同步完成，但${combinedNote}。若資料仍不完整，請試「完整重新下載」。`);
   }
 
@@ -603,9 +719,12 @@ export function ConnectStatus() {
       }
     } catch (e) {
       // Tauri plugin errors can be plain strings, not Error instances
-      const msg = e instanceof Error ? e.message
-        : typeof e === "string" ? e
-        : (e as { message?: string })?.message ?? JSON.stringify(e) ?? "同步失敗";
+      const msg =
+        e instanceof Error
+          ? e.message
+          : typeof e === "string"
+            ? e
+            : ((e as { message?: string })?.message ?? JSON.stringify(e) ?? "同步失敗");
       console.error("[sync] manual sync failed:", e);
       syncStatus.setError(msg);
     }
@@ -626,23 +745,33 @@ export function ConnectStatus() {
       if (result.applied > 0) {
         let skipNote = "";
         if (result.skipped > 0) {
-          const { unknownKeyVersion, genuine } = summarizeSkips(result.skipped, result.skippedDetails);
+          const { unknownKeyVersion, genuine } = summarizeSkips(
+            result.skipped,
+            result.skippedDetails,
+          );
           const parts = [
             genuine > 0 ? `${genuine} 筆無法解密／格式不符` : null,
-            unknownKeyVersion > 0 ? `${unknownKeyVersion} 筆尚未取得新金鑰版本（下次同步自動解決）` : null,
+            unknownKeyVersion > 0
+              ? `${unknownKeyVersion} 筆尚未取得新金鑰版本（下次同步自動解決）`
+              : null,
           ].filter((p): p is string => p !== null);
           skipNote = `（略過 ${result.skipped} 筆：${parts.join("、")}）`;
         }
         toast.success(`已從伺服器完整重新下載，套用 ${result.applied} 筆${skipNote}`);
       } else if (result.reason === "empty-relay") {
-        toast.error("伺服器沒有可下載的資料。請確認這台裝置已配對到正確的同步帳號（設定 → 新增裝置 / 我有配對碼）。");
+        toast.error(
+          "伺服器沒有可下載的資料。請確認這台裝置已配對到正確的同步帳號（設定 → 新增裝置 / 我有配對碼）。",
+        );
       } else {
         toast.success(`已是最新狀態，沒有需要套用的變更（伺服器 ${result.pulled} 筆都已存在）。`);
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message
-        : typeof e === "string" ? e
-        : (e as { message?: string })?.message ?? JSON.stringify(e) ?? "重新下載失敗";
+      const msg =
+        e instanceof Error
+          ? e.message
+          : typeof e === "string"
+            ? e
+            : ((e as { message?: string })?.message ?? JSON.stringify(e) ?? "重新下載失敗");
       console.error("[sync] force full resync failed:", e);
       syncStatus.setError(msg);
     }
@@ -661,9 +790,12 @@ export function ConnectStatus() {
       await queryClient.invalidateQueries();
       toast.success(`已重新上傳本機資料（${result.pushed} 筆）到伺服器，其他裝置同步後即可取得。`);
     } catch (e) {
-      const msg = e instanceof Error ? e.message
-        : typeof e === "string" ? e
-        : (e as { message?: string })?.message ?? JSON.stringify(e) ?? "重新上傳失敗";
+      const msg =
+        e instanceof Error
+          ? e.message
+          : typeof e === "string"
+            ? e
+            : ((e as { message?: string })?.message ?? JSON.stringify(e) ?? "重新上傳失敗");
       console.error("[sync] force full repush failed:", e);
       syncStatus.setError(msg);
     }
@@ -767,9 +899,7 @@ export function ConnectStatus() {
     if (mode === "show") void handleStartJoin();
   }
 
-  const codeDisplay = session
-    ? session.code.slice(0, 4) + " – " + session.code.slice(5)
-    : "——";
+  const codeDisplay = session ? session.code.slice(0, 4) + " – " + session.code.slice(5) : "——";
 
   if (!isReady) {
     return (
@@ -790,41 +920,71 @@ export function ConnectStatus() {
           啟用後，你的財務資料會以端對端加密的方式同步到你的其他裝置。資料加密後才離開裝置，伺服器看不到任何明文。
         </p>
         {!syncWorkerConfigured && (
-          <div className="text-xs flex items-start gap-2 mb-3.5" style={{ padding: "10px 12px", borderRadius: "var(--ns-r-sm)",
-            background: "var(--ns-warn-soft, var(--ns-bg-hover))", color: "var(--ns-warn, #b45309)" }}>
+          <div
+            className="text-xs flex items-start gap-2 mb-3.5"
+            style={{
+              padding: "10px 12px",
+              borderRadius: "var(--ns-r-sm)",
+              background: "var(--ns-warn-soft, var(--ns-bg-hover))",
+              color: "var(--ns-warn, #b45309)",
+            }}
+          >
             <Warning size={15} weight="fill" className="shrink-0" style={{ marginTop: 1 }} />
-            <span>這個 build 未設定同步服務 endpoint；Connect 同步目前停用。本機記帳與匯出功能不受影響。</span>
+            <span>
+              這個 build 未設定同步服務 endpoint；Connect 同步目前停用。本機記帳與匯出功能不受影響。
+            </span>
           </div>
         )}
         <div className="mb-3.5">
-          <label className="text-caption block" style={{ color: "var(--ns-fg-muted)", marginBottom: 5 }}>這台裝置的名稱</label>
+          <label
+            className="text-caption block"
+            style={{ color: "var(--ns-fg-muted)", marginBottom: 5 }}
+          >
+            這台裝置的名稱
+          </label>
           <input
             className="ns-input"
             style={{ maxWidth: 260 }}
             value={joinDeviceName}
-            onChange={e => setJoinDeviceName(e.target.value)}
+            onChange={(e) => setJoinDeviceName(e.target.value)}
             placeholder="My Mac"
           />
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button onClick={handleSetup} disabled={loading || !joinDeviceName.trim() || !syncWorkerConfigured}>
+          <Button
+            onClick={handleSetup}
+            disabled={loading || !joinDeviceName.trim() || !syncWorkerConfigured}
+          >
             {loading ? <Spinner size={14} className="animate-spin" /> : <WifiHigh size={14} />}
             {loading ? "啟用中…" : "啟用同步"}
           </Button>
-          <Button variant="ghost" onClick={() => openDialog("show")} disabled={!syncWorkerConfigured || !joinDeviceName.trim()}>
+          <Button
+            variant="ghost"
+            onClick={() => openDialog("show")}
+            disabled={!syncWorkerConfigured || !joinDeviceName.trim()}
+          >
             以配對碼加入現有裝置
           </Button>
           <Button variant="ghost" onClick={() => setShowRestore(!showRestore)}>
-            <Key size={14} />用備援碼還原
+            <Key size={14} />
+            用備援碼還原
           </Button>
         </div>
 
         {/* Recovery Kit restore — for when every paired device is gone but the
             user still has the printed/downloaded Recovery Kit code. */}
         {showRestore && (
-          <div className="mt-3.5" style={{ padding: "12px 14px", borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)" }}>
+          <div
+            className="mt-3.5"
+            style={{
+              padding: "12px 14px",
+              borderRadius: "var(--ns-r-sm)",
+              background: "var(--ns-bg-hover)",
+            }}
+          >
             <p className="text-xs muted mb-2">
-              輸入當初儲存的備援碼（8 組、每組 8 個字元）即可還原加密金鑰。還原後再按「啟用同步」，新帳號會沿用原金鑰，舊的加密備份仍可解密。
+              輸入當初儲存的備援碼（8 組、每組 8
+              個字元）即可還原加密金鑰。還原後再按「啟用同步」，新帳號會沿用原金鑰，舊的加密備份仍可解密。
             </p>
             <input
               className="ns-input mono text-xs w-full mb-2"
@@ -846,7 +1006,10 @@ export function ConnectStatus() {
         {showDialog && (
           <AddDeviceDialog
             mode="show"
-            onClose={() => { setShowDialog(false); setSession(null); }}
+            onClose={() => {
+              setShowDialog(false);
+              setSession(null);
+            }}
             session={session}
             sessionLoading={sessionLoading}
             secondsLeft={secondsLeft}
@@ -875,69 +1038,174 @@ export function ConnectStatus() {
         <div className="flex items-center gap-2">
           <h3 className="font-semibold">Connect 同步</h3>
           {!syncWorkerConfigured && (
-            <Badge variant="outline" className="rounded-full text-micro" style={{background: "var(--ns-warn-soft, var(--ns-bg-hover))", color: "var(--ns-warn, #b45309)" }}>未設定服務</Badge>
+            <Badge
+              variant="outline"
+              className="rounded-full text-micro"
+              style={{
+                background: "var(--ns-warn-soft, var(--ns-bg-hover))",
+                color: "var(--ns-warn, #b45309)",
+              }}
+            >
+              未設定服務
+            </Badge>
           )}
           {kitStatus?.confirmedAt ? (
-            <Badge variant="outline" className="rounded-full text-micro" style={{background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}>已啟用</Badge>
+            <Badge
+              variant="outline"
+              className="rounded-full text-micro"
+              style={{ background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}
+            >
+              已啟用
+            </Badge>
           ) : (
-            <Badge variant="outline" className="rounded-full text-micro" style={{background: "var(--ns-warn-soft, var(--ns-bg-hover))", color: "var(--ns-warn, #b45309)" }}>待備份備援碼</Badge>
+            <Badge
+              variant="outline"
+              className="rounded-full text-micro"
+              style={{
+                background: "var(--ns-warn-soft, var(--ns-bg-hover))",
+                color: "var(--ns-warn, #b45309)",
+              }}
+            >
+              待備份備援碼
+            </Badge>
           )}
         </div>
         <div className="flex gap-2">
-          <Button variant="ghost" className="text-xs"
+          <Button
+            variant="ghost"
+            className="text-xs"
             onClick={handleManualSync}
             title={!kitStatus?.confirmedAt ? "請先備份並確認 Recovery Kit" : undefined}
-            disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling" || !kitStatus?.confirmedAt || !syncWorkerConfigured}>
-            <ArrowsClockwise size={13} style={{ animation: (syncStatus.phase === "pushing" || syncStatus.phase === "pulling") ? "spin 1s linear infinite" : undefined }} />
-            {syncStatus.phase === "pushing" ? "上傳中…" : syncStatus.phase === "pulling" ? "下載中…" : "立即同步"}
+            disabled={
+              syncStatus.phase === "pushing" ||
+              syncStatus.phase === "pulling" ||
+              !kitStatus?.confirmedAt ||
+              !syncWorkerConfigured
+            }
+          >
+            <ArrowsClockwise
+              size={13}
+              style={{
+                animation:
+                  syncStatus.phase === "pushing" || syncStatus.phase === "pulling"
+                    ? "spin 1s linear infinite"
+                    : undefined,
+              }}
+            />
+            {syncStatus.phase === "pushing"
+              ? "上傳中…"
+              : syncStatus.phase === "pulling"
+                ? "下載中…"
+                : "立即同步"}
           </Button>
-          <Button variant="ghost" className="text-xs" onClick={() => openDialog("approve")} disabled={!syncWorkerConfigured}>
-            <Plus size={13} />新增裝置
+          <Button
+            variant="ghost"
+            className="text-xs"
+            onClick={() => openDialog("approve")}
+            disabled={!syncWorkerConfigured}
+          >
+            <Plus size={13} />
+            新增裝置
           </Button>
         </div>
       </div>
 
       {/* Recovery Kit gate — sync is blocked until the kit is confirmed */}
       {!kitStatus?.confirmedAt && (
-        <div className="text-xs flex items-start gap-2 mb-2.5" style={{ padding: "10px 12px", borderRadius: "var(--ns-r-sm)",
-          background: "var(--ns-warn-soft, var(--ns-bg-hover))", color: "var(--ns-warn, #b45309)" }}>
+        <div
+          className="text-xs flex items-start gap-2 mb-2.5"
+          style={{
+            padding: "10px 12px",
+            borderRadius: "var(--ns-r-sm)",
+            background: "var(--ns-warn-soft, var(--ns-bg-hover))",
+            color: "var(--ns-warn, #b45309)",
+          }}
+        >
           <Warning size={15} weight="fill" className="shrink-0" style={{ marginTop: 1 }} />
-          <span>同步尚未啟動。請先在下方「Recovery Kit 備援碼」產生並確認備份 —— 這是萬一所有裝置遺失時還原加密資料的唯一方法，確認後才會開始自動同步。</span>
+          <span>
+            同步尚未啟動。請先在下方「Recovery Kit 備援碼」產生並確認備份 ——
+            這是萬一所有裝置遺失時還原加密資料的唯一方法，確認後才會開始自動同步。
+          </span>
         </div>
       )}
 
       {/* Sync status bar */}
       {(syncStatus.phase !== "idle" || syncStatus.lastSyncAt) && (
-        <div className="text-caption flex items-center gap-1.5 mb-2.5" style={{ padding: "7px 10px", borderRadius: "var(--ns-r-sm)",
-          background: syncStatus.phase === "error" ? "var(--ns-neg-soft)" : "var(--ns-bg-hover)",
-          color: syncStatus.phase === "error" ? "var(--ns-neg)" : "var(--ns-fg-muted)" }}>
+        <div
+          className="text-caption flex items-center gap-1.5 mb-2.5"
+          style={{
+            padding: "7px 10px",
+            borderRadius: "var(--ns-r-sm)",
+            background: syncStatus.phase === "error" ? "var(--ns-neg-soft)" : "var(--ns-bg-hover)",
+            color: syncStatus.phase === "error" ? "var(--ns-neg)" : "var(--ns-fg-muted)",
+          }}
+        >
           {syncStatus.phase === "pushing" || syncStatus.phase === "pulling" ? (
-            <><Spinner size={13} className="animate-spin shrink-0" /><span>{syncStatus.phase === "pushing" ? "上傳變更中…" : "下載並套用中…"}</span></>
+            <>
+              <Spinner size={13} className="animate-spin shrink-0" />
+              <span>{syncStatus.phase === "pushing" ? "上傳變更中…" : "下載並套用中…"}</span>
+            </>
           ) : syncStatus.phase === "error" ? (
-            <><Warning size={13} weight="fill" className="shrink-0" /><span>{syncStatus.error}</span></>
+            <>
+              <Warning size={13} weight="fill" className="shrink-0" />
+              <span>{syncStatus.error}</span>
+            </>
           ) : syncStatus.phase === "done" ? (
-            <><CheckCircle size={13} weight="fill" className="shrink-0" style={{ color: "var(--ns-pos)" }} /><span>{`已同步：上傳 ${syncStatus.lastPushed} 筆，下載並套用 ${syncStatus.lastApplied} 筆`}</span></>
+            <>
+              <CheckCircle
+                size={13}
+                weight="fill"
+                className="shrink-0"
+                style={{ color: "var(--ns-pos)" }}
+              />
+              <span>{`已同步：上傳 ${syncStatus.lastPushed} 筆，下載並套用 ${syncStatus.lastApplied} 筆`}</span>
+            </>
           ) : syncStatus.lastSyncAt ? (
-            <span>上次同步：<RelativeTime iso={syncStatus.lastSyncAt} /></span>
+            <span>
+              上次同步：
+              <RelativeTime iso={syncStatus.lastSyncAt} />
+            </span>
           ) : null}
         </div>
       )}
 
       {/* Stats */}
-      <div className="text-body gap-3 mb-4" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))" }}>
+      <div
+        className="text-body gap-3 mb-4"
+        style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))" }}
+      >
         <Stat label="待同步" value={pending === null ? "—" : `${pending} 筆`} />
         <Stat label="待檢查衝突" value={conflicts === null ? "—" : `${conflicts.length} 筆`} />
-        <Stat label="上次同步" value={syncStatus.lastSyncAt ? syncStatus.lastSyncAt.slice(0, 10) : "尚未同步"} mono />
+        <Stat
+          label="上次同步"
+          value={syncStatus.lastSyncAt ? syncStatus.lastSyncAt.slice(0, 10) : "尚未同步"}
+          mono
+        />
         <Stat label="裝置 ID" value={identity.deviceId.slice(0, 8) + "…"} mono />
       </div>
 
       {conflicts?.length ? (
-        <div className="mb-4 rounded-md border p-3" style={{ borderColor: "var(--ns-neg)", background: "var(--ns-neg-soft)" }}>
+        <div
+          className="mb-4 rounded-md border p-3"
+          style={{ borderColor: "var(--ns-neg)", background: "var(--ns-neg-soft)" }}
+        >
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm font-semibold">同步衝突中心 · {conflicts.length} 筆</span>
             <span className="flex gap-1">
-              <Button variant="ghost" className="text-caption" onClick={() => resolveAllConflicts("keepLocal")}>全部保留本機</Button>
-              <Button variant="ghost" className="text-caption" onClick={() => resolveAllConflicts("useIncoming")}>全部採用遠端</Button>
+              <Button
+                variant="ghost"
+                className="text-caption"
+                onClick={() => resolveAllConflicts("keepLocal")}
+              >
+                全部保留本機
+              </Button>
+              <Button
+                variant="ghost"
+                className="text-caption"
+                onClick={() => resolveAllConflicts("useIncoming")}
+              >
+                全部採用遠端
+              </Button>
             </span>
           </div>
           <div className="mb-2 text-xs" style={{ color: "var(--ns-fg-muted)" }}>
@@ -947,18 +1215,42 @@ export function ConnectStatus() {
             {conflicts.map((conflict) => {
               const summary = summarizeConflict(conflict);
               return (
-                <div key={conflict.id} className="rounded-md border p-2.5 text-xs" style={{ borderColor: "var(--ns-border)", background: "var(--ns-bg-card)" }}>
+                <div
+                  key={conflict.id}
+                  className="rounded-md border p-2.5 text-xs"
+                  style={{ borderColor: "var(--ns-border)", background: "var(--ns-bg-card)" }}
+                >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="flex items-center gap-2 min-w-0">
-                      <Badge variant="outline" className="rounded-full text-micro shrink-0">{summary.entityLabel}</Badge>
-                      <span className="font-semibold truncate" title={summary.title}>{summary.title}</span>
+                      <Badge variant="outline" className="rounded-full text-micro shrink-0">
+                        {summary.entityLabel}
+                      </Badge>
+                      <span className="font-semibold truncate" title={summary.title}>
+                        {summary.title}
+                      </span>
                       <span className="shrink-0" style={{ color: "var(--ns-fg-muted)" }}>
-                        {summary.newer === "tie" ? "兩版同時間" : summary.newer === "local" ? "本機較新" : "遠端較新"}
+                        {summary.newer === "tie"
+                          ? "兩版同時間"
+                          : summary.newer === "local"
+                            ? "本機較新"
+                            : "遠端較新"}
                       </span>
                     </span>
                     <span className="flex gap-1 flex-shrink-0">
-                      <Button variant="ghost" className="text-caption" onClick={() => resolveConflict(conflict.id, "keepLocal")}>保留本機</Button>
-                      <Button variant="ghost" className="text-caption" onClick={() => resolveConflict(conflict.id, "useIncoming")}>採用遠端</Button>
+                      <Button
+                        variant="ghost"
+                        className="text-caption"
+                        onClick={() => resolveConflict(conflict.id, "keepLocal")}
+                      >
+                        保留本機
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="text-caption"
+                        onClick={() => resolveConflict(conflict.id, "useIncoming")}
+                      >
+                        採用遠端
+                      </Button>
                     </span>
                   </div>
                   {summary.diffs.length > 0 ? (
@@ -971,7 +1263,9 @@ export function ConnectStatus() {
                           <span className="mono">遠端 {diff.incoming}</span>
                         </div>
                       ))}
-                      {summary.diffs.length > 5 ? <div>…還有 {summary.diffs.length - 5} 個欄位不同</div> : null}
+                      {summary.diffs.length > 5 ? (
+                        <div>…還有 {summary.diffs.length - 5} 個欄位不同</div>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -993,12 +1287,31 @@ export function ConnectStatus() {
           <div className="flex justify-end">
             {confirmFullResync ? (
               <div className="flex gap-2 items-center">
-                <Button variant="ghost" className="text-xs" onClick={() => setConfirmFullResync(false)}>取消</Button>
-                <Button variant="outline" className="text-xs" onClick={handleForceFullResync} disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>確認重新下載</Button>
+                <Button
+                  variant="ghost"
+                  className="text-xs"
+                  onClick={() => setConfirmFullResync(false)}
+                >
+                  取消
+                </Button>
+                <Button
+                  variant="outline"
+                  className="text-xs"
+                  onClick={handleForceFullResync}
+                  disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}
+                >
+                  確認重新下載
+                </Button>
               </div>
             ) : (
-              <Button variant="outline" className="text-xs w-full justify-center" onClick={() => setConfirmFullResync(true)} disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
-                <ArrowsClockwise size={13} />完整重新下載
+              <Button
+                variant="outline"
+                className="text-xs w-full justify-center"
+                onClick={() => setConfirmFullResync(true)}
+                disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}
+              >
+                <ArrowsClockwise size={13} />
+                完整重新下載
               </Button>
             )}
           </div>
@@ -1015,12 +1328,31 @@ export function ConnectStatus() {
           <div className="flex justify-end">
             {confirmFullRepush ? (
               <div className="flex gap-2 items-center">
-                <Button variant="ghost" className="text-xs" onClick={() => setConfirmFullRepush(false)}>取消</Button>
-                <Button variant="outline" className="text-xs" onClick={handleForceFullRepush} disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>確認重新上傳</Button>
+                <Button
+                  variant="ghost"
+                  className="text-xs"
+                  onClick={() => setConfirmFullRepush(false)}
+                >
+                  取消
+                </Button>
+                <Button
+                  variant="outline"
+                  className="text-xs"
+                  onClick={handleForceFullRepush}
+                  disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}
+                >
+                  確認重新上傳
+                </Button>
               </div>
             ) : (
-              <Button variant="outline" className="text-xs w-full justify-center" onClick={() => setConfirmFullRepush(true)} disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}>
-                <UploadSimple size={13} />重新上傳本機資料
+              <Button
+                variant="outline"
+                className="text-xs w-full justify-center"
+                onClick={() => setConfirmFullRepush(true)}
+                disabled={syncStatus.phase === "pushing" || syncStatus.phase === "pulling"}
+              >
+                <UploadSimple size={13} />
+                重新上傳本機資料
               </Button>
             )}
           </div>
@@ -1028,7 +1360,10 @@ export function ConnectStatus() {
 
         {/* Unlink sync */}
         <Card className="flex flex-col p-4 bg-[var(--ns-bg-hover)] border-[var(--ns-border)]">
-          <div className="flex items-center gap-2 mb-2 font-medium" style={{ color: "var(--ns-warn)" }}>
+          <div
+            className="flex items-center gap-2 mb-2 font-medium"
+            style={{ color: "var(--ns-warn)" }}
+          >
             <WifiHigh size={16} /> 解除同步
           </div>
           <p className="text-caption text-[var(--ns-fg-muted)] mb-4 flex-1">
@@ -1037,20 +1372,41 @@ export function ConnectStatus() {
           <div className="flex justify-end">
             {confirmUnlink ? (
               <div className="flex gap-2 items-center">
-                <Button variant="ghost" className="text-xs" onClick={() => setConfirmUnlink(false)}>取消</Button>
-                <Button variant="outline" className="text-xs" style={{ color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }} onClick={handleUnlinkSync}>確認解除</Button>
+                <Button variant="ghost" className="text-xs" onClick={() => setConfirmUnlink(false)}>
+                  取消
+                </Button>
+                <Button
+                  variant="outline"
+                  className="text-xs"
+                  style={{ color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }}
+                  onClick={handleUnlinkSync}
+                >
+                  確認解除
+                </Button>
               </div>
             ) : (
-              <Button variant="outline" className="text-xs w-full justify-center" style={{ color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }} onClick={() => setConfirmUnlink(true)}>
-                <WifiHigh size={13} />解除同步
+              <Button
+                variant="outline"
+                className="text-xs w-full justify-center"
+                style={{ color: "var(--ns-warn)", borderColor: "var(--ns-warn)" }}
+                onClick={() => setConfirmUnlink(true)}
+              >
+                <WifiHigh size={13} />
+                解除同步
               </Button>
             )}
           </div>
         </Card>
 
         {/* Full data reset */}
-        <Card className="flex flex-col p-4" style={{ background: "var(--ns-neg-soft)", border: "1px solid var(--ns-neg)" }}>
-          <div className="flex items-center gap-2 mb-2 font-medium" style={{ color: "var(--ns-neg)" }}>
+        <Card
+          className="flex flex-col p-4"
+          style={{ background: "var(--ns-neg-soft)", border: "1px solid var(--ns-neg)" }}
+        >
+          <div
+            className="flex items-center gap-2 mb-2 font-medium"
+            style={{ color: "var(--ns-neg)" }}
+          >
             <Trash size={16} /> 完整重設資料
           </div>
           <p className="text-caption text-[var(--ns-fg-muted)] mb-4 flex-1">
@@ -1063,20 +1419,42 @@ export function ConnectStatus() {
                   className="ns-input text-xs w-full text-center"
                   value={deviceResetText}
                   onChange={(e) => setDeviceResetText(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && deviceResetConfirmed) handleDeviceReset(); if (e.key === "Escape") closeDeviceReset(); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && deviceResetConfirmed) handleDeviceReset();
+                    if (e.key === "Escape") closeDeviceReset();
+                  }}
                   placeholder="輸入 delete 確認"
                   autoFocus
                 />
                 <div className="flex gap-2">
-                  <Button variant="ghost" className="text-xs flex-1" onClick={closeDeviceReset}>取消</Button>
-                  <Button variant="outline" className="text-xs flex-1" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)", opacity: deviceResetConfirmed ? 1 : 0.5 }} disabled={!deviceResetConfirmed} onClick={handleDeviceReset}>
-                    <Trash size={13} />確認重設
+                  <Button variant="ghost" className="text-xs flex-1" onClick={closeDeviceReset}>
+                    取消
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="text-xs flex-1"
+                    style={{
+                      color: "var(--ns-neg)",
+                      borderColor: "var(--ns-neg)",
+                      opacity: deviceResetConfirmed ? 1 : 0.5,
+                    }}
+                    disabled={!deviceResetConfirmed}
+                    onClick={handleDeviceReset}
+                  >
+                    <Trash size={13} />
+                    確認重設
                   </Button>
                 </div>
               </div>
             ) : (
-              <Button variant="outline" className="text-xs w-full justify-center" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} onClick={() => setConfirmDeviceReset(true)}>
-                <Trash size={13} />完整重設資料
+              <Button
+                variant="outline"
+                className="text-xs w-full justify-center"
+                style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }}
+                onClick={() => setConfirmDeviceReset(true)}
+              >
+                <Trash size={13} />
+                完整重設資料
               </Button>
             )}
           </div>
@@ -1084,32 +1462,77 @@ export function ConnectStatus() {
       </div>
 
       {/* Device list */}
-      <div className="text-caption uppercase mb-2" style={{ color: "var(--ns-fg-dim)", letterSpacing: 0.06, fontFamily: "var(--ns-font-mono)" }}>
+      <div
+        className="text-caption uppercase mb-2"
+        style={{
+          color: "var(--ns-fg-dim)",
+          letterSpacing: 0.06,
+          fontFamily: "var(--ns-font-mono)",
+        }}
+      >
         已信任裝置 · {devices.length}
       </div>
       <div className="flex flex-col gap-1.5">
-        {devices.map(dev => (
-          <div key={dev.id} className="flex items-center gap-2.5" style={{
-            padding: "10px 14px", borderRadius: "var(--ns-r-md)",
-            background: dev.id === identity.deviceId ? "var(--ns-accent-soft)" : "var(--ns-bg-hover)",
-            border: dev.id === identity.deviceId ? "1px solid var(--ns-accent)" : "1px solid transparent",
-          }}>
+        {devices.map((dev) => (
+          <div
+            key={dev.id}
+            className="flex items-center gap-2.5"
+            style={{
+              padding: "10px 14px",
+              borderRadius: "var(--ns-r-md)",
+              background:
+                dev.id === identity.deviceId ? "var(--ns-accent-soft)" : "var(--ns-bg-hover)",
+              border:
+                dev.id === identity.deviceId
+                  ? "1px solid var(--ns-accent)"
+                  : "1px solid transparent",
+            }}
+          >
             <PlatformIcon platform={dev.platform} />
             <div className="flex-1">
               <div className="text-body font-medium">{dev.name}</div>
-              <div className="mono muted text-micro">{dev.id.slice(0, 8)}… · {dev.platform}</div>
+              <div className="mono muted text-micro">
+                {dev.id.slice(0, 8)}… · {dev.platform}
+              </div>
             </div>
-            {dev.id === identity.deviceId
-              ? <span className="text-caption" style={{ color: "var(--ns-fg-muted)" }}>本機</span>
-              : confirmRevokeId === dev.id
-                ? <div className="flex gap-1.5 items-center">
-                    <Button variant="ghost" className="text-caption" style={{ padding: "4px 8px" }} onClick={() => setConfirmRevokeId(null)}>取消</Button>
-                    <Button variant="outline" className="text-caption" style={{ padding: "4px 8px", color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} onClick={() => handleRevoke(dev.id)}>確認移除</Button>
-                  </div>
-                : <Button variant="ghost" size="icon-sm" aria-label="移除裝置" style={{ color: "var(--ns-neg)", padding: "4px 6px" }} onClick={() => setConfirmRevokeId(dev.id)}>
-                    <Trash size={13} />
-                  </Button>
-            }
+            {dev.id === identity.deviceId ? (
+              <span className="text-caption" style={{ color: "var(--ns-fg-muted)" }}>
+                本機
+              </span>
+            ) : confirmRevokeId === dev.id ? (
+              <div className="flex gap-1.5 items-center">
+                <Button
+                  variant="ghost"
+                  className="text-caption"
+                  style={{ padding: "4px 8px" }}
+                  onClick={() => setConfirmRevokeId(null)}
+                >
+                  取消
+                </Button>
+                <Button
+                  variant="outline"
+                  className="text-caption"
+                  style={{
+                    padding: "4px 8px",
+                    color: "var(--ns-neg)",
+                    borderColor: "var(--ns-neg)",
+                  }}
+                  onClick={() => handleRevoke(dev.id)}
+                >
+                  確認移除
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="移除裝置"
+                style={{ color: "var(--ns-neg)", padding: "4px 6px" }}
+                onClick={() => setConfirmRevokeId(dev.id)}
+              >
+                <Trash size={13} />
+              </Button>
+            )}
           </div>
         ))}
       </div>
@@ -1119,12 +1542,37 @@ export function ConnectStatus() {
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-2">
             <div className="text-body font-semibold">備援碼</div>
-            {kitStale
-              ? <Badge variant="outline" className="rounded-full text-micro" style={{background: "var(--ns-warn-soft, #fef3c7)", color: "var(--ns-warn, #b45309)" }}>已過期</Badge>
-              : kitStatus?.confirmedAt
-                ? <Badge variant="outline" className="rounded-full text-micro" style={{background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}>已儲存</Badge>
-                : <Badge variant="outline" className="rounded-full text-micro" style={{background: "var(--ns-warn-soft, #fef3c7)", color: "var(--ns-warn, #b45309)" }}>尚未設定</Badge>
-            }
+            {kitStale ? (
+              <Badge
+                variant="outline"
+                className="rounded-full text-micro"
+                style={{
+                  background: "var(--ns-warn-soft, #fef3c7)",
+                  color: "var(--ns-warn, #b45309)",
+                }}
+              >
+                已過期
+              </Badge>
+            ) : kitStatus?.confirmedAt ? (
+              <Badge
+                variant="outline"
+                className="rounded-full text-micro"
+                style={{ background: "var(--ns-pos-soft)", color: "var(--ns-pos)" }}
+              >
+                已儲存
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                className="rounded-full text-micro"
+                style={{
+                  background: "var(--ns-warn-soft, #fef3c7)",
+                  color: "var(--ns-warn, #b45309)",
+                }}
+              >
+                尚未設定
+              </Badge>
+            )}
           </div>
           {!kitCode && (
             <Button
@@ -1134,7 +1582,8 @@ export function ConnectStatus() {
               onClick={handleGenerateKit}
               disabled={kitLoading}
             >
-              <Key size={13} />{kitStatus?.confirmedAt ? "重新產生" : "產生備援碼"}
+              <Key size={13} />
+              {kitStatus?.confirmedAt ? "重新產生" : "產生備援碼"}
             </Button>
           )}
         </div>
@@ -1144,10 +1593,19 @@ export function ConnectStatus() {
             user-held artifact, per docs/vault-key-rotation-plan.md §3
             step 9). */}
         {kitStale && !kitCode && (
-          <div className="text-xs flex items-start gap-2 mb-2.5" style={{ padding: "10px 12px", borderRadius: "var(--ns-r-sm)",
-            background: "var(--ns-warn-soft, var(--ns-bg-hover))", color: "var(--ns-warn, #b45309)" }}>
+          <div
+            className="text-xs flex items-start gap-2 mb-2.5"
+            style={{
+              padding: "10px 12px",
+              borderRadius: "var(--ns-r-sm)",
+              background: "var(--ns-warn-soft, var(--ns-bg-hover))",
+              color: "var(--ns-warn, #b45309)",
+            }}
+          >
             <Warning size={15} weight="fill" className="shrink-0" style={{ marginTop: 1 }} />
-            <span>加密金鑰已輪替，目前儲存的備援碼是輪替前的舊金鑰——用它還原會拿到舊金鑰而非目前使用中的金鑰。建議重新產生並儲存備援碼。</span>
+            <span>
+              加密金鑰已輪替，目前儲存的備援碼是輪替前的舊金鑰——用它還原會拿到舊金鑰而非目前使用中的金鑰。建議重新產生並儲存備援碼。
+            </span>
           </div>
         )}
         <p className="text-sm muted" style={{ marginBottom: kitCode ? 14 : 0 }}>
@@ -1157,27 +1615,50 @@ export function ConnectStatus() {
         </p>
 
         {kitCode && (
-          <div className="mt-2.5" style={{ background: "var(--ns-bg-hover)", borderRadius: "var(--ns-r-md)", padding: "14px 16px" }}>
-            <div className="text-body font-semibold mb-3" style={{
-              fontFamily: "var(--ns-font-mono)",
-              letterSpacing: 1, wordBreak: "break-all", lineHeight: 1.7,
-              color: "var(--ns-fg)",
-            }}>
-              {kitCode.split("-").reduce<string[]>((acc, g, i) => {
-                acc.push(g);
-                if (i % 2 === 1 && i < 7) acc.push("\n");
-                return acc;
-              }, []).join("-").split("\n-").join("\n")}
+          <div
+            className="mt-2.5"
+            style={{
+              background: "var(--ns-bg-hover)",
+              borderRadius: "var(--ns-r-md)",
+              padding: "14px 16px",
+            }}
+          >
+            <div
+              className="text-body font-semibold mb-3"
+              style={{
+                fontFamily: "var(--ns-font-mono)",
+                letterSpacing: 1,
+                wordBreak: "break-all",
+                lineHeight: 1.7,
+                color: "var(--ns-fg)",
+              }}
+            >
+              {kitCode
+                .split("-")
+                .reduce<string[]>((acc, g, i) => {
+                  acc.push(g);
+                  if (i % 2 === 1 && i < 7) acc.push("\n");
+                  return acc;
+                }, [])
+                .join("-")
+                .split("\n-")
+                .join("\n")}
             </div>
-            <p className="text-caption flex items-center gap-1.5 mb-3" style={{ color: "var(--ns-warn, #b45309)" }}>
-              <Warning size={13} weight="fill" className="shrink-0" />請將此碼列印或抄寫到安全的地方。關閉後無法再次檢視。
+            <p
+              className="text-caption flex items-center gap-1.5 mb-3"
+              style={{ color: "var(--ns-warn, #b45309)" }}
+            >
+              <Warning size={13} weight="fill" className="shrink-0" />
+              請將此碼列印或抄寫到安全的地方。關閉後無法再次檢視。
             </p>
             <div className="flex gap-2">
               <Button onClick={handleDownloadKit}>
-                <DownloadSimple size={13} />下載備援碼
+                <DownloadSimple size={13} />
+                下載備援碼
               </Button>
               <Button variant="ghost" onClick={handleConfirmKit}>
-                <CheckCircle size={13} weight="bold" />我已安全儲存
+                <CheckCircle size={13} weight="bold" />
+                我已安全儲存
               </Button>
             </div>
           </div>
@@ -1188,9 +1669,13 @@ export function ConnectStatus() {
       <div className="mt-4" style={{ paddingTop: 16, borderTop: "1px solid var(--ns-border)" }}>
         <div className="flex items-center justify-between mb-1.5">
           <div className="text-body font-semibold">同步前快照</div>
-          <Button variant="ghost" className="text-caption" onClick={() => {
-            setShowBackups(!showBackups);
-          }}>
+          <Button
+            variant="ghost"
+            className="text-caption"
+            onClick={() => {
+              setShowBackups(!showBackups);
+            }}
+          >
             {showBackups ? "收起" : `查看備份`}
           </Button>
         </div>
@@ -1199,22 +1684,36 @@ export function ConnectStatus() {
         </p>
         {showBackups && (
           <div className="flex flex-col gap-1.5">
-            {backups.length === 0
-              ? <div className="muted text-xs">尚無快照（執行一次同步後會自動建立）</div>
-              : backups.map((b) => (
-                <div key={b.timestamp} style={{
-                  padding: "9px 12px", borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)",
-                }}>
+            {backups.length === 0 ? (
+              <div className="muted text-xs">尚無快照（執行一次同步後會自動建立）</div>
+            ) : (
+              backups.map((b) => (
+                <div
+                  key={b.timestamp}
+                  style={{
+                    padding: "9px 12px",
+                    borderRadius: "var(--ns-r-sm)",
+                    background: "var(--ns-bg-hover)",
+                  }}
+                >
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-xs font-medium">{b.label}</div>
-                      <div className="mono muted text-micro">{b.timestamp.slice(0, 19).replace("T", " ")}</div>
+                      <div className="mono muted text-micro">
+                        {b.timestamp.slice(0, 19).replace("T", " ")}
+                      </div>
                     </div>
                     {confirmRestoreTs === b.timestamp ? (
-                      <Button variant="ghost" className="text-caption" onClick={cancelRestore}>取消</Button>
+                      <Button variant="ghost" className="text-caption" onClick={cancelRestore}>
+                        取消
+                      </Button>
                     ) : (
-                      <Button variant="ghost" className="text-caption" style={{ color: "var(--ns-warn, #b45309)" }}
-                        onClick={() => beginRestore(b.timestamp)}>
+                      <Button
+                        variant="ghost"
+                        className="text-caption"
+                        style={{ color: "var(--ns-warn, #b45309)" }}
+                        onClick={() => beginRestore(b.timestamp)}
+                      >
                         還原
                       </Button>
                     )}
@@ -1227,7 +1726,9 @@ export function ConnectStatus() {
                       {restoreDiffLoading ? (
                         <p className="text-xs muted">讀取備份內容中…</p>
                       ) : !restoreDiff ? (
-                        <p className="text-xs" style={{ color: "var(--ns-neg)" }}>無法讀取此備份內容，可能已損毀。</p>
+                        <p className="text-xs" style={{ color: "var(--ns-neg)" }}>
+                          無法讀取此備份內容，可能已損毀。
+                        </p>
                       ) : (
                         <>
                           <p className="text-xs muted mb-2">
@@ -1237,12 +1738,17 @@ export function ConnectStatus() {
                           </p>
                           <div className="space-y-1 mb-3">
                             {restoreDiff.rows.map((r) => (
-                              <div key={r.label} className="flex items-center justify-between gap-3 text-xs">
+                              <div
+                                key={r.label}
+                                className="flex items-center justify-between gap-3 text-xs"
+                              >
                                 <span className="muted">{r.label}</span>
                                 <span style={r.delta < 0 ? { color: "var(--ns-neg)" } : undefined}>
                                   {r.current} → {r.backup}
                                   {r.delta !== 0 && (
-                                    <span className="ml-1">（{r.delta > 0 ? `+${r.delta}` : r.delta}）</span>
+                                    <span className="ml-1">
+                                      （{r.delta > 0 ? `+${r.delta}` : r.delta}）
+                                    </span>
                                   )}
                                 </span>
                               </div>
@@ -1277,7 +1783,7 @@ export function ConnectStatus() {
                   )}
                 </div>
               ))
-            }
+            )}
           </div>
         )}
       </div>
@@ -1286,7 +1792,10 @@ export function ConnectStatus() {
       {showDialog && (
         <AddDeviceDialog
           mode="approve"
-          onClose={() => { setShowDialog(false); setPendingApproval(null); }}
+          onClose={() => {
+            setShowDialog(false);
+            setPendingApproval(null);
+          }}
           session={session}
           sessionLoading={sessionLoading}
           secondsLeft={secondsLeft}
@@ -1333,10 +1842,23 @@ interface AddDeviceDialogProps {
 }
 
 function AddDeviceDialog({
-  mode, onClose,
-  session, sessionLoading, secondsLeft, codeDisplay, joinWaiting, onRegenerate,
-  joinCode, onJoinCodeChange, joinLoading, joinError, onInspect,
-  pendingApproval, approveLoading, onApprove, onCancelApprove,
+  mode,
+  onClose,
+  session,
+  sessionLoading,
+  secondsLeft,
+  codeDisplay,
+  joinWaiting,
+  onRegenerate,
+  joinCode,
+  onJoinCodeChange,
+  joinLoading,
+  joinError,
+  onInspect,
+  pendingApproval,
+  approveLoading,
+  onApprove,
+  onCancelApprove,
 }: AddDeviceDialogProps) {
   const toast = useToast();
 
@@ -1348,7 +1870,10 @@ function AddDeviceDialog({
 
   // Format code input automatically as XXXX-XXXX
   function handleCodeInput(raw: string) {
-    const clean = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+    const clean = raw
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "")
+      .slice(0, 8);
     const formatted = clean.length > 4 ? clean.slice(0, 4) + "-" + clean.slice(4) : clean;
     onJoinCodeChange(formatted);
   }
@@ -1364,150 +1889,216 @@ function AddDeviceDialog({
       style={{ zIndex: 200 }}
     >
       {(dismiss) => (
-      <Card style={{ width: 480, padding: 0, overflow: "hidden" }}>
-        {/* Header */}
-        <div className="flex items-center justify-between" style={{ padding: "18px 22px 0" }}>
-          <h3 className="text-lg font-semibold" style={{ fontFamily: "var(--ns-font-display)", margin: 0 }}>
-            {mode === "show" ? "加入現有裝置" : "新增裝置"}
-          </h3>
-          <ModalCloseButton onClick={dismiss} />
-        </div>
+        <Card style={{ width: 480, padding: 0, overflow: "hidden" }}>
+          {/* Header */}
+          <div className="flex items-center justify-between" style={{ padding: "18px 22px 0" }}>
+            <h3
+              className="text-lg font-semibold"
+              style={{ fontFamily: "var(--ns-font-display)", margin: 0 }}
+            >
+              {mode === "show" ? "加入現有裝置" : "新增裝置"}
+            </h3>
+            <ModalCloseButton onClick={dismiss} />
+          </div>
 
-        <div style={{ padding: "24px 22px 22px" }}>
-          {/* ── Joining device (B): show this device's code, wait for approval ── */}
-          {mode === "show" && (
-            <div>
-              <p className="text-sm muted mb-5">
-                在已有資料的裝置上開啟 Northstar，點「設定 → 新增裝置」，輸入下方的配對碼或掃描 QR Code，並確認本裝置。
-              </p>
+          <div style={{ padding: "24px 22px 22px" }}>
+            {/* ── Joining device (B): show this device's code, wait for approval ── */}
+            {mode === "show" && (
+              <div>
+                <p className="text-sm muted mb-5">
+                  在已有資料的裝置上開啟 Northstar，點「設定 → 新增裝置」，輸入下方的配對碼或掃描 QR
+                  Code，並確認本裝置。
+                </p>
 
-              {sessionLoading && (
-                <div className="text-body text-center" style={{ padding: "32px 0", color: "var(--ns-fg-muted)" }}>
-                  <Spinner size={20} className="animate-spin" style={{ margin: "0 auto 8px" }} />
-                  產生配對碼中…
-                </div>
-              )}
-
-              {session && (
-                <>
-                  {/* Code */}
-                  <div className="text-[38px] text-center" style={{
-                    padding: "20px 0 16px",
-                    fontFamily: "var(--ns-font-mono)", fontWeight: 700,
-                    letterSpacing: 6, color: "var(--ns-fg)",
-                  }}>
-                    {codeDisplay}
+                {sessionLoading && (
+                  <div
+                    className="text-body text-center"
+                    style={{ padding: "32px 0", color: "var(--ns-fg-muted)" }}
+                  >
+                    <Spinner size={20} className="animate-spin" style={{ margin: "0 auto 8px" }} />
+                    產生配對碼中…
                   </div>
+                )}
 
-                  {/* Timer */}
-                  <div className="text-xs text-center mb-5" style={{ color: secondsLeft < 60 ? "var(--ns-neg)" : "var(--ns-fg-muted)" }}>
-                    {secondsLeft > 0 ? `${mins}:${secs} 後失效` : "配對碼已失效"}
-                  </div>
-
-                  {/* QR */}
-                  <div className="flex justify-center mb-5">
-                    <div className="inline-block" style={{ padding: 14, background: "#fff", borderRadius: "var(--ns-r-md)" }}>
-                      <QRCode value={session.qrPayload} size={160} />
+                {session && (
+                  <>
+                    {/* Code */}
+                    <div
+                      className="text-[38px] text-center"
+                      style={{
+                        padding: "20px 0 16px",
+                        fontFamily: "var(--ns-font-mono)",
+                        fontWeight: 700,
+                        letterSpacing: 6,
+                        color: "var(--ns-fg)",
+                      }}
+                    >
+                      {codeDisplay}
                     </div>
-                  </div>
 
-                  {/* Waiting-for-approval status */}
-                  {joinWaiting && secondsLeft > 0 && (
-                    <div className="text-caption flex items-center justify-center gap-1.5 mb-4" style={{ color: "var(--ns-fg-muted)" }}>
-                      <Spinner size={13} className="animate-spin" />
-                      等待另一台裝置確認中…
+                    {/* Timer */}
+                    <div
+                      className="text-xs text-center mb-5"
+                      style={{ color: secondsLeft < 60 ? "var(--ns-neg)" : "var(--ns-fg-muted)" }}
+                    >
+                      {secondsLeft > 0 ? `${mins}:${secs} 後失效` : "配對碼已失效"}
                     </div>
-                  )}
 
-                  {/* Actions */}
-                  <div className="flex justify-center gap-2">
-                    <Button variant="ghost" onClick={handleCopyCode}>
-                      <CopySimple size={13} />複製配對碼
-                    </Button>
-                    {secondsLeft === 0 && (
-                      <Button variant="outline" onClick={onRegenerate}>
-                        <ArrowsClockwise size={13} />重新產生
-                      </Button>
+                    {/* QR */}
+                    <div className="flex justify-center mb-5">
+                      <div
+                        className="inline-block"
+                        style={{ padding: 14, background: "#fff", borderRadius: "var(--ns-r-md)" }}
+                      >
+                        <QRCode value={session.qrPayload} size={160} />
+                      </div>
+                    </div>
+
+                    {/* Waiting-for-approval status */}
+                    {joinWaiting && secondsLeft > 0 && (
+                      <div
+                        className="text-caption flex items-center justify-center gap-1.5 mb-4"
+                        style={{ color: "var(--ns-fg-muted)" }}
+                      >
+                        <Spinner size={13} className="animate-spin" />
+                        等待另一台裝置確認中…
+                      </div>
                     )}
+
+                    {/* Actions */}
+                    <div className="flex justify-center gap-2">
+                      <Button variant="ghost" onClick={handleCopyCode}>
+                        <CopySimple size={13} />
+                        複製配對碼
+                      </Button>
+                      {secondsLeft === 0 && (
+                        <Button variant="outline" onClick={onRegenerate}>
+                          <ArrowsClockwise size={13} />
+                          重新產生
+                        </Button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ── Existing device (A): enter B's code, then confirm the device ── */}
+            {mode === "approve" && !pendingApproval && (
+              <div>
+                <p className="text-sm muted mb-5">
+                  在新裝置上點「以配對碼加入現有裝置」取得配對碼，然後在這裡輸入，或掃描它顯示的 QR
+                  Code。
+                </p>
+
+                <div className="mb-5">
+                  <label
+                    className="text-caption block"
+                    style={{ color: "var(--ns-fg-muted)", marginBottom: 5 }}
+                  >
+                    配對碼
+                  </label>
+                  <input
+                    className="ns-input text-stat w-full text-center"
+                    style={{ fontFamily: "var(--ns-font-mono)", letterSpacing: 4 }}
+                    placeholder="XXXX-XXXX"
+                    value={joinCode}
+                    maxLength={9}
+                    onChange={(e) => handleCodeInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && joinCode.length === 9) onInspect();
+                    }}
+                    autoFocus
+                  />
+                </div>
+
+                {joinError && (
+                  <div
+                    className="text-xs mb-3.5"
+                    style={{
+                      color: "var(--ns-neg)",
+                      padding: "10px 12px",
+                      background: "var(--ns-neg-soft)",
+                      borderRadius: "var(--ns-r-sm)",
+                    }}
+                  >
+                    {joinError}
                   </div>
-                </>
-              )}
-            </div>
-          )}
+                )}
 
-          {/* ── Existing device (A): enter B's code, then confirm the device ── */}
-          {mode === "approve" && !pendingApproval && (
-            <div>
-              <p className="text-sm muted mb-5">
-                在新裝置上點「以配對碼加入現有裝置」取得配對碼，然後在這裡輸入，或掃描它顯示的 QR Code。
-              </p>
-
-              <div className="mb-5">
-                <label className="text-caption block" style={{ color: "var(--ns-fg-muted)", marginBottom: 5 }}>配對碼</label>
-                <input
-                  className="ns-input text-stat w-full text-center"
-                  style={{ fontFamily: "var(--ns-font-mono)", letterSpacing: 4 }}
-                  placeholder="XXXX-XXXX"
-                  value={joinCode}
-                  maxLength={9}
-                  onChange={e => handleCodeInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter" && joinCode.length === 9) onInspect(); }}
-                  autoFocus
-                />
-              </div>
-
-              {joinError && (
-                <div className="text-xs mb-3.5" style={{ color: "var(--ns-neg)", padding: "10px 12px", background: "var(--ns-neg-soft)", borderRadius: "var(--ns-r-sm)" }}>
-                  {joinError}
-                </div>
-              )}
-
-              <Button
-                className="w-full"
-                disabled={joinCode.length !== 9 || joinLoading}
-                onClick={onInspect}
-              >
-                {joinLoading ? <Spinner size={14} className="animate-spin" /> : <CheckCircle size={14} weight="bold" />}
-                {joinLoading ? "查詢中…" : "查詢裝置"}
-              </Button>
-            </div>
-          )}
-
-          {/* ── Existing device (A): confirm the joining device before wrapping keys ── */}
-          {mode === "approve" && pendingApproval && (
-            <div>
-              <p className="text-sm muted mb-4">
-                確認這是你要加入的裝置。核對裝置名稱與指紋無誤後再授權——授權後才會把加密金鑰傳給對方。
-              </p>
-
-              <div className="mb-4" style={{ padding: "14px 16px", borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)" }}>
-                <div className="flex items-center gap-2 mb-2">
-                  <PlatformIcon platform={pendingApproval.platform} />
-                  <span className="font-semibold">確認新裝置：{pendingApproval.name}</span>
-                </div>
-                <div className="text-caption" style={{ color: "var(--ns-fg-muted)" }}>金鑰指紋</div>
-                <div className="mono text-body" style={{ letterSpacing: 2, fontWeight: 600 }}>{pendingApproval.fingerprint}</div>
-              </div>
-
-              {joinError && (
-                <div className="text-xs mb-3.5" style={{ color: "var(--ns-neg)", padding: "10px 12px", background: "var(--ns-neg-soft)", borderRadius: "var(--ns-r-sm)" }}>
-                  {joinError}
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                <Button className="flex-1" disabled={approveLoading} onClick={onApprove}>
-                  {approveLoading ? <Spinner size={14} className="animate-spin" /> : <CheckCircle size={14} weight="bold" />}
-                  {approveLoading ? "授權中…" : "確認並授權"}
-                </Button>
-                <Button variant="outline" disabled={approveLoading} onClick={onCancelApprove}>
-                  取消
+                <Button
+                  className="w-full"
+                  disabled={joinCode.length !== 9 || joinLoading}
+                  onClick={onInspect}
+                >
+                  {joinLoading ? (
+                    <Spinner size={14} className="animate-spin" />
+                  ) : (
+                    <CheckCircle size={14} weight="bold" />
+                  )}
+                  {joinLoading ? "查詢中…" : "查詢裝置"}
                 </Button>
               </div>
-            </div>
-          )}
-        </div>
-      </Card>
+            )}
+
+            {/* ── Existing device (A): confirm the joining device before wrapping keys ── */}
+            {mode === "approve" && pendingApproval && (
+              <div>
+                <p className="text-sm muted mb-4">
+                  確認這是你要加入的裝置。核對裝置名稱與指紋無誤後再授權——授權後才會把加密金鑰傳給對方。
+                </p>
+
+                <div
+                  className="mb-4"
+                  style={{
+                    padding: "14px 16px",
+                    borderRadius: "var(--ns-r-sm)",
+                    background: "var(--ns-bg-hover)",
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <PlatformIcon platform={pendingApproval.platform} />
+                    <span className="font-semibold">確認新裝置：{pendingApproval.name}</span>
+                  </div>
+                  <div className="text-caption" style={{ color: "var(--ns-fg-muted)" }}>
+                    金鑰指紋
+                  </div>
+                  <div className="mono text-body" style={{ letterSpacing: 2, fontWeight: 600 }}>
+                    {pendingApproval.fingerprint}
+                  </div>
+                </div>
+
+                {joinError && (
+                  <div
+                    className="text-xs mb-3.5"
+                    style={{
+                      color: "var(--ns-neg)",
+                      padding: "10px 12px",
+                      background: "var(--ns-neg-soft)",
+                      borderRadius: "var(--ns-r-sm)",
+                    }}
+                  >
+                    {joinError}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <Button className="flex-1" disabled={approveLoading} onClick={onApprove}>
+                    {approveLoading ? (
+                      <Spinner size={14} className="animate-spin" />
+                    ) : (
+                      <CheckCircle size={14} weight="bold" />
+                    )}
+                    {approveLoading ? "授權中…" : "確認並授權"}
+                  </Button>
+                  <Button variant="outline" disabled={approveLoading} onClick={onCancelApprove}>
+                    取消
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
       )}
     </ModalShell>
   );
@@ -1516,7 +2107,9 @@ function AddDeviceDialog({
 function Stat({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <div className="text-xs font-medium" style={{  marginBottom: 3 , color: "var(--ns-fg-muted)" }}>{label}</div>
+      <div className="text-xs font-medium" style={{ marginBottom: 3, color: "var(--ns-fg-muted)" }}>
+        {label}
+      </div>
       <div className={(mono ? "mono " : "") + "font-medium"}>{value}</div>
     </div>
   );
@@ -1548,7 +2141,9 @@ export function UpdateChecker() {
   useEffect(() => {
     if (!isDesktop) return;
     import("@tauri-apps/api/app").then(({ getVersion }) =>
-      getVersion().then(setCurrentVersion).catch(() => {})
+      getVersion()
+        .then(setCurrentVersion)
+        .catch(() => {}),
     );
   }, [isDesktop]);
 
@@ -1560,7 +2155,10 @@ export function UpdateChecker() {
     try {
       const { check } = await import("@tauri-apps/plugin-updater");
       const update = await check();
-      if (!update) { setMessage("已是最新版本。"); return; }
+      if (!update) {
+        setMessage("已是最新版本。");
+        return;
+      }
       // Stop here — surface the version + release notes and wait for confirmation.
       setFound(update as unknown as FoundUpdate);
       setMessage("");
@@ -1601,42 +2199,74 @@ export function UpdateChecker() {
     <Card className="p-5">
       <div className="flex items-baseline justify-between mb-2">
         <h3 className="font-semibold">應用程式更新</h3>
-        {currentVersion && (
-          <span className="mono muted text-caption">v{currentVersion}</span>
-        )}
+        {currentVersion && <span className="mono muted text-caption">v{currentVersion}</span>}
       </div>
-      <p className="text-sm muted mb-4">檢查並安裝 Northstar 的最新桌面版本。所有更新都經過簽章驗證。</p>
+      <p className="text-sm muted mb-4">
+        檢查並安裝 Northstar 的最新桌面版本。所有更新都經過簽章驗證。
+      </p>
 
       {!found ? (
         <div className="flex items-center gap-3 flex-wrap">
           <Button onClick={checkForUpdates} loading={busy} disabled={busy}>
-            <ArrowsClockwise size={14} />{busy ? "檢查中…" : "檢查更新"}
+            <ArrowsClockwise size={14} />
+            {busy ? "檢查中…" : "檢查更新"}
           </Button>
           {message ? <span className="text-sm muted">{message}</span> : null}
         </div>
       ) : (
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-accent)", borderColor: "var(--ns-accent)" }}>新版本</Badge>
+            <Badge
+              variant="outline"
+              className="rounded-full"
+              style={{ color: "var(--ns-accent)", borderColor: "var(--ns-accent)" }}
+            >
+              新版本
+            </Badge>
             <span className="text-sm font-semibold">v{found.version}</span>
             {currentVersion ? <span className="text-xs muted">目前 v{currentVersion}</span> : null}
           </div>
-          <p className="text-sm muted">已找到新版本，確認後才會開始下載並安裝。下載完成會自動重新啟動。</p>
+          <p className="text-sm muted">
+            已找到新版本，確認後才會開始下載並安裝。下載完成會自動重新啟動。
+          </p>
           <div className="flex items-center gap-2 flex-wrap">
             <Button onClick={installUpdate} loading={installing} disabled={installing}>
-              <DownloadSimple size={14} />{installing ? "下載安裝中…" : "下載並安裝"}
+              <DownloadSimple size={14} />
+              {installing ? "下載安裝中…" : "下載並安裝"}
             </Button>
             {notes ? (
-              <Button variant="outline" onClick={() => setShowNotes((v) => !v)} disabled={installing}>
-                <Sparkle size={14} />{showNotes ? "隱藏更新內容" : "更新內容"}
+              <Button
+                variant="outline"
+                onClick={() => setShowNotes((v) => !v)}
+                disabled={installing}
+              >
+                <Sparkle size={14} />
+                {showNotes ? "隱藏更新內容" : "更新內容"}
               </Button>
             ) : null}
             {!installing ? (
-              <Button variant="ghost" onClick={() => { setFound(null); setMessage(""); setShowNotes(false); }}>稍後</Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setFound(null);
+                  setMessage("");
+                  setShowNotes(false);
+                }}
+              >
+                稍後
+              </Button>
             ) : null}
           </div>
           {showNotes && notes ? (
-            <div className="ns-surface text-sm overflow-y-auto whitespace-pre-wrap" style={{ padding: "12px 14px", borderRadius: "var(--ns-r-md)", maxHeight: 240, lineHeight: 1.6 }}>
+            <div
+              className="ns-surface text-sm overflow-y-auto whitespace-pre-wrap"
+              style={{
+                padding: "12px 14px",
+                borderRadius: "var(--ns-r-md)",
+                maxHeight: 240,
+                lineHeight: 1.6,
+              }}
+            >
               {notes}
             </div>
           ) : null}

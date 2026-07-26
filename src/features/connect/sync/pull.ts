@@ -140,7 +140,9 @@ export async function pullAndApply(
   const decrypted = settled.map((r) => (r.status === "rejected" ? null : r.value));
   const decryptSkipReasons: (SkipReason | null)[] = settled.map((r) =>
     r.status === "rejected"
-      ? (r.reason instanceof UnknownKeyVersionError ? "unknown-key-version" : "decrypt-failed")
+      ? r.reason instanceof UnknownKeyVersionError
+        ? "unknown-key-version"
+        : "decrypt-failed"
       : null,
   );
 
@@ -189,7 +191,11 @@ export async function pullAndApply(
     const payload = raw as SyncFields & Record<string, unknown>;
     if (!isValidPayload(envelope, payload)) {
       skipped++;
-      skippedDetails.push({ entity: envelope.entity, entityId: envelope.entityId, reason: "invalid-payload" });
+      skippedDetails.push({
+        entity: envelope.entity,
+        entityId: envelope.entityId,
+        reason: "invalid-payload",
+      });
       console.warn(
         `同步：略過格式不符的 envelope ${envelope.entity}/${envelope.entityId}（rev ${envelope.revision}），繼續同步其餘資料。`,
       );
@@ -233,15 +239,23 @@ export async function pullAndApply(
     await repo.applySyncChanges(changes, conflicts);
   }
 
-  return { pulled: foreign.length, applied, skipped, skippedDetails, nextCursor: result.nextCursor };
+  return {
+    pulled: foreign.length,
+    applied,
+    skipped,
+    skippedDetails,
+    nextCursor: result.nextCursor,
+  };
 }
 
 function shouldApply(existing: Record<string, unknown> | null, incoming: SyncFields) {
   if (!existing) return true;
   const revision = Number(existing.revision ?? 0);
   const updatedAt = String(existing.updatedAt ?? "");
-  return incoming.revision > revision
-    || (incoming.revision === revision && incoming.updatedAt > updatedAt);
+  return (
+    incoming.revision > revision ||
+    (incoming.revision === revision && incoming.updatedAt > updatedAt)
+  );
 }
 
 // Per-device DERIVED fields: recomputed locally from other records (account
@@ -265,7 +279,11 @@ const DERIVED_FIELDS: Partial<Record<SyncEntity, readonly string[]>> = {
  * per-device derived fields so only genuine differences in user-meaningful
  * fields surface.
  */
-function samePayload(entity: SyncEntity, left: Record<string, unknown>, right: Record<string, unknown>) {
+function samePayload(
+  entity: SyncEntity,
+  left: Record<string, unknown>,
+  right: Record<string, unknown>,
+) {
   return canonical(entity, left) === canonical(entity, right);
 }
 
@@ -278,9 +296,25 @@ function canonical(entity: SyncEntity, obj: Record<string, unknown>): string {
   return JSON.stringify(sorted);
 }
 
-const VALID_ENTITIES = new Set<SyncEntity>(["account", "ledger", "asset", "investment", "recurring", "recurringInvestment", "goal", "book", "invoice", "client", "creditGroup", "settings"]);
+const VALID_ENTITIES = new Set<SyncEntity>([
+  "account",
+  "ledger",
+  "asset",
+  "investment",
+  "recurring",
+  "recurringInvestment",
+  "goal",
+  "book",
+  "invoice",
+  "client",
+  "creditGroup",
+  "settings",
+]);
 
-function isValidPayload(envelope: EnvelopeRecord, payload: SyncFields & Record<string, unknown>): boolean {
+function isValidPayload(
+  envelope: EnvelopeRecord,
+  payload: SyncFields & Record<string, unknown>,
+): boolean {
   return (
     VALID_ENTITIES.has(envelope.entity as SyncEntity) &&
     !!payload &&

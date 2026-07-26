@@ -67,9 +67,7 @@ async function prewarm(): Promise<void> {
  * Returns the zh-TW text, or null on any error / unavailability.
  * Privacy: the input must be a MonthlySummaryInput (aggregate numbers only).
  */
-export async function generateMonthlySummary(
-  input: MonthlySummaryInput,
-): Promise<string | null> {
+export async function generateMonthlySummary(input: MonthlySummaryInput): Promise<string | null> {
   try {
     const inputJson = JSON.stringify(input);
     return await invoke<string>("monthly_summary_on_device", { inputJson });

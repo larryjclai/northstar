@@ -1,30 +1,33 @@
 import { Children, isValidElement } from "react";
 import type React from "react";
-import type { ChangeEvent, InputHTMLAttributes, PropsWithChildren, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
+import type {
+  ChangeEvent,
+  InputHTMLAttributes,
+  PropsWithChildren,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from "react";
 import { AppSelect } from "./AppSelect";
 
 export function Field({ label, children }: PropsWithChildren<{ label: string }>) {
   return (
     <label className="grid gap-1.5">
-      <span className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</span>
+      <span className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>
+        {label}
+      </span>
       {children}
     </label>
   );
 }
 
 export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      {...props}
-      className={`ns-input ${props.className ?? ""}`}
-      style={props.style}
-    />
-  );
+  return <input {...props} className={`ns-input ${props.className ?? ""}`} style={props.style} />;
 }
 
 export function SelectInput(props: SelectHTMLAttributes<HTMLSelectElement>) {
   const options = Children.toArray(props.children).flatMap((child) => {
-    if (!isValidElement<{ value?: string; children?: React.ReactNode; disabled?: boolean }>(child)) return [];
+    if (!isValidElement<{ value?: string; children?: React.ReactNode; disabled?: boolean }>(child))
+      return [];
     const value = String(child.props.value ?? "");
     const label = Children.toArray(child.props.children).join("");
     return [{ value, label, disabled: child.props.disabled }];
@@ -51,10 +54,6 @@ export function SelectInput(props: SelectHTMLAttributes<HTMLSelectElement>) {
 
 export function TextAreaInput(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
-    <textarea
-      {...props}
-      className={`ns-input ${props.className ?? ""}`}
-      style={props.style}
-    />
+    <textarea {...props} className={`ns-input ${props.className ?? ""}`} style={props.style} />
   );
 }

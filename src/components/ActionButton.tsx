@@ -9,11 +9,13 @@ export function ActionButton({
   className,
   style,
   ...props
-}: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "danger" | "ghost";
-  size?: "sm" | "md";
-  loading?: boolean;
-}>) {
+}: PropsWithChildren<
+  ButtonHTMLAttributes<HTMLButtonElement> & {
+    variant?: "primary" | "secondary" | "danger" | "ghost";
+    size?: "sm" | "md";
+    loading?: boolean;
+  }
+>) {
   const cossVariant =
     variant === "primary"
       ? "default"

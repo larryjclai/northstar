@@ -198,7 +198,9 @@ export function useRepositoryMutation<TInput>(
       await action(repository.data, input);
     },
     onSuccess: async () => {
-      await Promise.all(invalidate.map((key) => queryClient.invalidateQueries({ queryKey: keys[key] })));
+      await Promise.all(
+        invalidate.map((key) => queryClient.invalidateQueries({ queryKey: keys[key] })),
+      );
       // A local finance write just landed — restart the debounced auto-push
       // timer so the change syncs after a quiet period.
       noteLocalChange();

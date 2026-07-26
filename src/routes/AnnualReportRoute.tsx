@@ -23,7 +23,18 @@ import { ALL_BOOKS, bookAccountIdSet } from "../domain/bookScope";
 import { annualPrintButtonState, buildAnnualPrintHeaderMeta } from "./annualReportPrint";
 
 export function AnnualReportRoute() {
-  const { accounts, assets, investments, settings, dailyFxRates, books, isInitialLoading, isError, error, refetchAll } = useFinanceData();
+  const {
+    accounts,
+    assets,
+    investments,
+    settings,
+    dailyFxRates,
+    books,
+    isInitialLoading,
+    isError,
+    error,
+    refetchAll,
+  } = useFinanceData();
 
   // 列印 is desktop-only (plan 173 deferral → 233): iOS WKWebView's
   // window.print() renders the desktop print CSS poorly — hide, don't degrade.
@@ -33,8 +44,7 @@ export function AnnualReportRoute() {
   // on the desktop app (min window width 1024, where print works fine). Mirrors
   // plan 244's ModalShell fix. See plan 245.
   const isMobileViewport =
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(max-width: 1023px)").matches;
+    typeof window.matchMedia === "function" && window.matchMedia("(max-width: 1023px)").matches;
 
   const accountRows = accounts.data ?? [];
   const allAssetRows = assets.data ?? [];
@@ -49,9 +59,17 @@ export function AnnualReportRoute() {
   const activeBookId = useUiPreferences((state) => state.activeBookId);
   const [reportBookId, setReportBookId] = useState<string>(activeBookId);
   const reportIsAllBooks = reportBookId === ALL_BOOKS;
-  const reportAccountIds = useMemo(() => bookAccountIdSet(accountRows, reportBookId), [accountRows, reportBookId]);
+  const reportAccountIds = useMemo(
+    () => bookAccountIdSet(accountRows, reportBookId),
+    [accountRows, reportBookId],
+  );
   const recordRows = useMemo(
-    () => (reportIsAllBooks ? allRecordRows : allRecordRows.filter((r) => r.linkedAccountId != null && reportAccountIds.has(r.linkedAccountId))),
+    () =>
+      reportIsAllBooks
+        ? allRecordRows
+        : allRecordRows.filter(
+            (r) => r.linkedAccountId != null && reportAccountIds.has(r.linkedAccountId),
+          ),
     [allRecordRows, reportIsAllBooks, reportAccountIds],
   );
   const scopedAssetIds = useMemo(() => {
@@ -120,7 +138,11 @@ export function AnnualReportRoute() {
   // amounts is useless) or when there's nothing to print.
   const printButton = annualPrintButtonState({ privacyMode, hasRows: rows.length > 0 });
   const printMeta = useMemo(
-    () => buildAnnualPrintHeaderMeta(rows.map((r) => r.year), today),
+    () =>
+      buildAnnualPrintHeaderMeta(
+        rows.map((r) => r.year),
+        today,
+      ),
     [rows, today],
   );
 
@@ -128,7 +150,10 @@ export function AnnualReportRoute() {
 
   if (isInitialLoading) {
     return (
-      <div className="grid gap-5" style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
+      <div
+        className="grid gap-5"
+        style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}
+      >
         <Skeleton className="h-[120px]" />
         <Skeleton className="h-[320px]" />
       </div>
@@ -138,10 +163,15 @@ export function AnnualReportRoute() {
     return (
       <div className="grid min-h-[50vh] place-items-center p-6 text-center">
         <div className="max-w-md">
-          <h3 className="text-[17px] font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>
+          <h3
+            className="text-[17px] font-semibold"
+            style={{ fontFamily: "var(--ns-font-display)" }}
+          >
             無法載入資料
           </h3>
-          <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
+          <p className="muted mt-1 text-sm">
+            {error instanceof Error ? error.message : "請稍後再試。"}
+          </p>
           <Button className="mt-4" onClick={() => refetchAll()}>
             重新整理
           </Button>
@@ -151,7 +181,10 @@ export function AnnualReportRoute() {
   }
 
   return (
-    <div className="ns-annual-report" style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}>
+    <div
+      className="ns-annual-report"
+      style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}
+    >
       {/* Print-only report header — hidden on screen (ns-print-only), shown on
           the printed page so the PDF/paper carries the app name, the year span
           it covers, and when it was generated. */}
@@ -164,10 +197,16 @@ export function AnnualReportRoute() {
       </div>
 
       {/* Header — English eyebrow + Chinese h1 (DESIGN.md §3.5). */}
-      <div className="flex justify-between" style={{ marginBottom: 22, alignItems: "flex-start", gap: 16 }}>
+      <div
+        className="flex justify-between"
+        style={{ marginBottom: 22, alignItems: "flex-start", gap: 16 }}
+      >
         <div>
           <div className="text-xs ns-field-label">Annual tax summary</div>
-          <h1 className="text-[28px] font-semibold" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02 }}>
+          <h1
+            className="text-[28px] font-semibold"
+            style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02 }}
+          >
             年度報表
           </h1>
           <p className="muted text-body mt-2" style={{ maxWidth: 640 }}>
@@ -183,13 +222,20 @@ export function AnnualReportRoute() {
               value={reportBookId}
               onChange={(e) => setReportBookId(e.target.value)}
               className="px-2.5 py-2"
-              style={{ borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", background: "var(--ns-bg)", color: "var(--ns-fg)" }}
+              style={{
+                borderRadius: "var(--ns-r-md)",
+                border: "1px solid var(--ns-border)",
+                background: "var(--ns-bg)",
+                color: "var(--ns-fg)",
+              }}
               aria-label="選擇帳本"
               title="選擇帳本"
             >
               <option value={ALL_BOOKS}>總帳</option>
               {bookRows.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
               ))}
             </select>
           ) : null}
@@ -200,7 +246,8 @@ export function AnnualReportRoute() {
               title={printButton.title}
               onClick={() => window.print()}
             >
-              <Printer size={14} />列印 / 匯出 PDF
+              <Printer size={14} />
+              列印 / 匯出 PDF
             </Button>
           ) : null}
           <Button
@@ -209,7 +256,8 @@ export function AnnualReportRoute() {
             title={rows.length === 0 ? "尚無資料可匯出" : "匯出逐檔年度報稅明細"}
             onClick={() => downloadCsv("annual-tax.csv", exportAnnualTaxCsv(rows, primaryCurrency))}
           >
-            <DownloadSimple size={14} />匯出 CSV
+            <DownloadSimple size={14} />
+            匯出 CSV
           </Button>
         </div>
       </div>
@@ -221,7 +269,10 @@ export function AnnualReportRoute() {
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
-            <table className="w-full" style={{ borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
+            <table
+              className="w-full"
+              style={{ borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}
+            >
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--ns-border)" }}>
                   <Th align="left">年度</Th>
@@ -239,7 +290,9 @@ export function AnnualReportRoute() {
                   return (
                     <Fragment key={row.year}>
                       <tr
-                        onClick={hasDetail ? () => setExpandedYear(isOpen ? null : row.year) : undefined}
+                        onClick={
+                          hasDetail ? () => setExpandedYear(isOpen ? null : row.year) : undefined
+                        }
                         style={{
                           borderBottom: isLast && !isOpen ? "none" : "1px solid var(--ns-border)",
                           cursor: hasDetail ? "pointer" : undefined,
@@ -248,7 +301,11 @@ export function AnnualReportRoute() {
                         <Td align="left" style={{ fontWeight: 600 }}>
                           <span className="items-center" style={{ display: "inline-flex", gap: 6 }}>
                             {hasDetail ? (
-                              <CaretRight size={13} className="ns-caret-rotate" style={{ transform: isOpen ? "rotate(90deg)" : "none" }} />
+                              <CaretRight
+                                size={13}
+                                className="ns-caret-rotate"
+                                style={{ transform: isOpen ? "rotate(90deg)" : "none" }}
+                              />
                             ) : (
                               <span style={{ display: "inline-block", width: 13 }} />
                             )}
@@ -257,12 +314,22 @@ export function AnnualReportRoute() {
                         </Td>
                         <SignedTd amount={row.realizedGain} currency={primaryCurrency} />
                         <Td align="right">{formatMoney(row.dividends, primaryCurrency)}</Td>
-                        <Td align="right" style={{ color: "var(--ns-fg-muted)" }}>{formatMoney(row.tradingCost, primaryCurrency)}</Td>
+                        <Td align="right" style={{ color: "var(--ns-fg-muted)" }}>
+                          {formatMoney(row.tradingCost, primaryCurrency)}
+                        </Td>
                         <SignedTd amount={row.total} currency={primaryCurrency} strong />
                       </tr>
                       {isOpen && hasDetail ? (
-                        <tr style={{ borderBottom: isLast ? "none" : "1px solid var(--ns-border)" }}>
-                          <td colSpan={5} style={{ padding: "0 18px 16px", background: "var(--ns-bg-subtle, rgba(0,0,0,0.02))" }}>
+                        <tr
+                          style={{ borderBottom: isLast ? "none" : "1px solid var(--ns-border)" }}
+                        >
+                          <td
+                            colSpan={5}
+                            style={{
+                              padding: "0 18px 16px",
+                              background: "var(--ns-bg-subtle, rgba(0,0,0,0.02))",
+                            }}
+                          >
                             <YearDetail row={row} currency={primaryCurrency} />
                           </td>
                         </tr>
@@ -302,7 +369,8 @@ export function AnnualReportRoute() {
             外幣交易以「處分日」匯率換算為{primaryCurrency}；若該日無匯率資料，則回退至目前匯率。
           </p>
           <p style={{ margin: "6px 0 0" }}>
-            「交易成本」為該年度手續費與證交稅的合計，僅供揭露 —— 已實現損益已淨額化這些費用，故合計不會重複扣除。
+            「交易成本」為該年度手續費與證交稅的合計，僅供揭露 ——
+            已實現損益已淨額化這些費用，故合計不會重複扣除。
             目前手續費與證交稅為單一合併欄位，尚無法分開顯示。
           </p>
         </div>
@@ -315,7 +383,10 @@ export function AnnualReportRoute() {
 function YearDetail({ row, currency }: { row: AnnualReportYear; currency: string }) {
   return (
     <div className="pt-3">
-      <table className="w-full" style={{ borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
+      <table
+        className="w-full"
+        style={{ borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}
+      >
         <thead>
           <tr>
             <Th align="left">代號</Th>
@@ -328,22 +399,32 @@ function YearDetail({ row, currency }: { row: AnnualReportYear; currency: string
           {row.byHolding.map((h: AnnualHoldingTaxDetail) => (
             <tr key={h.assetId}>
               <Td align="left">{h.ticker}</Td>
-              <Td align="left" style={{ color: "var(--ns-fg-muted)" }}>{resolveCountryLabel(h.country, "zh-Hant")}</Td>
+              <Td align="left" style={{ color: "var(--ns-fg-muted)" }}>
+                {resolveCountryLabel(h.country, "zh-Hant")}
+              </Td>
               <SignedTd amount={h.realizedGain} currency={currency} />
               <Td align="right">{formatMoney(h.dividends, currency)}</Td>
             </tr>
           ))}
           <tr style={{ borderTop: "1px solid var(--ns-border)" }}>
-            <Td align="left" style={{ fontWeight: 600 }}>境內小計</Td>
+            <Td align="left" style={{ fontWeight: 600 }}>
+              境內小計
+            </Td>
             <Td align="left">{""}</Td>
             <SignedTd amount={row.domestic.realizedGain} currency={currency} strong />
-            <Td align="right" style={{ fontWeight: 600 }}>{formatMoney(row.domestic.dividends, currency)}</Td>
+            <Td align="right" style={{ fontWeight: 600 }}>
+              {formatMoney(row.domestic.dividends, currency)}
+            </Td>
           </tr>
           <tr>
-            <Td align="left" style={{ fontWeight: 600 }}>海外小計</Td>
+            <Td align="left" style={{ fontWeight: 600 }}>
+              海外小計
+            </Td>
             <Td align="left">{""}</Td>
             <SignedTd amount={row.overseas.realizedGain} currency={currency} strong />
-            <Td align="right" style={{ fontWeight: 600 }}>{formatMoney(row.overseas.dividends, currency)}</Td>
+            <Td align="right" style={{ fontWeight: 600 }}>
+              {formatMoney(row.overseas.dividends, currency)}
+            </Td>
           </tr>
         </tbody>
       </table>
@@ -355,7 +436,13 @@ function Th({ children, align }: { children: React.ReactNode; align: "left" | "r
   return (
     <th
       className="text-xs"
-      style={{ padding: "12px 18px", textAlign: align, color: "var(--ns-fg-muted)", fontWeight: 500, whiteSpace: "nowrap" }}
+      style={{
+        padding: "12px 18px",
+        textAlign: align,
+        color: "var(--ns-fg-muted)",
+        fontWeight: 500,
+        whiteSpace: "nowrap",
+      }}
     >
       {children}
     </th>
@@ -372,13 +459,24 @@ function Td({
   style?: React.CSSProperties;
 }) {
   return (
-    <td className="text-sm" style={{ padding: "14px 18px", textAlign: align, whiteSpace: "nowrap", ...style }}>
+    <td
+      className="text-sm"
+      style={{ padding: "14px 18px", textAlign: align, whiteSpace: "nowrap", ...style }}
+    >
       {children}
     </td>
   );
 }
 
-function SignedTd({ amount, currency, strong }: { amount: number; currency: string; strong?: boolean }) {
+function SignedTd({
+  amount,
+  currency,
+  strong,
+}: {
+  amount: number;
+  currency: string;
+  strong?: boolean;
+}) {
   const tone = amount > 0 ? "var(--ns-pos)" : amount < 0 ? "var(--ns-neg)" : "var(--ns-fg)";
   return (
     <Td align="right" style={{ color: tone, fontWeight: strong ? 600 : 400 }}>

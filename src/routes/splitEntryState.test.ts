@@ -26,7 +26,11 @@ function leg(amount: string, category = "餐飲", subcategory = ""): SplitLegDra
   return { amount, category, subcategory };
 }
 
-function share(amount: string, counterparty = "小明", counterAccountId = "acct-1"): SplitShareDraftState {
+function share(
+  amount: string,
+  counterparty = "小明",
+  counterAccountId = "acct-1",
+): SplitShareDraftState {
   return { amount, counterparty, counterAccountId };
 }
 
@@ -45,8 +49,12 @@ describe("enterSplitMode", () => {
   });
 
   it("seeds a blank amount when the current amount is 0 or unparseable", () => {
-    expect(enterSplitMode({ category: "餐飲", subcategory: "", amountExpression: "0" })[0].amount).toBe("");
-    expect(enterSplitMode({ category: "餐飲", subcategory: "", amountExpression: "abc" })[0].amount).toBe("");
+    expect(
+      enterSplitMode({ category: "餐飲", subcategory: "", amountExpression: "0" })[0].amount,
+    ).toBe("");
+    expect(
+      enterSplitMode({ category: "餐飲", subcategory: "", amountExpression: "abc" })[0].amount,
+    ).toBe("");
   });
 });
 
@@ -200,7 +208,9 @@ describe("combinedSplitError", () => {
   });
 
   it("requires at least 1 category leg when shares are present", () => {
-    expect(combinedSplitError([], [share("600"), share("400", "小華")])).toBe("分帳需要至少 1 筆自己的類別明細。");
+    expect(combinedSplitError([], [share("600"), share("400", "小華")])).toBe(
+      "分帳需要至少 1 筆自己的類別明細。",
+    );
   });
 
   it("still validates each leg's own fields before shares", () => {
@@ -211,12 +221,16 @@ describe("combinedSplitError", () => {
   it("validates share fields once the count/leg checks pass", () => {
     expect(combinedSplitError([leg("400")], [share("", "小明")])).toBe("分帳明細金額必須大於 0。");
     expect(combinedSplitError([leg("400")], [share("600", "")])).toBe("分帳明細必須填寫對象。");
-    expect(combinedSplitError([leg("400")], [share("600", "小明", "")])).toBe("分帳明細必須選擇應收帳戶。");
+    expect(combinedSplitError([leg("400")], [share("600", "小明", "")])).toBe(
+      "分帳明細必須選擇應收帳戶。",
+    );
   });
 
   it("matches splitLegsError exactly when there are no shares (regression safety)", () => {
     expect(combinedSplitError([leg("90")], [])).toBe(splitLegsError([leg("90")]));
-    expect(combinedSplitError([leg("90"), leg("45")], [])).toBe(splitLegsError([leg("90"), leg("45")]));
+    expect(combinedSplitError([leg("90"), leg("45")], [])).toBe(
+      splitLegsError([leg("90"), leg("45")]),
+    );
     expect(combinedSplitError([leg("90"), leg("45", "交通", "捷運")], [])).toBe(
       splitLegsError([leg("90"), leg("45", "交通", "捷運")]),
     );

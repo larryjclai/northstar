@@ -62,7 +62,10 @@ describeEachRepo("credit groups (信用卡群組)", (makeRepo) => {
     expect(created!.paymentDueDay).toBe(25);
     expect(created!.revision).toBe(1);
 
-    await repo.updateCreditGroup(created!.id, groupDraft({ name: "玉山銀行（改）", creditLimit: 150_000 }));
+    await repo.updateCreditGroup(
+      created!.id,
+      groupDraft({ name: "玉山銀行（改）", creditLimit: 150_000 }),
+    );
     groups = await repo.listCreditGroups();
     const updated = groups.find((g) => g.id === created!.id);
     expect(updated!.name).toBe("玉山銀行（改）");
@@ -93,14 +96,24 @@ describeEachRepo("credit groups (信用卡群組)", (makeRepo) => {
   it("applySyncChanges inserts a new creditGroup row, and a later apply updates it in place", async () => {
     const repo = await makeRepo();
     const t0 = "2026-07-01T00:00:00.000Z";
-    await repo.applySyncChanges([{
-      entity: "creditGroup",
-      payload: {
-        id: "creditGroup_remote_1", spaceId: "space_personal_default", revision: 1,
-        createdAt: t0, updatedAt: t0, deletedAt: null,
-        name: "國泰銀行", currency: "TWD", creditLimit: 80_000, statementDay: 20, paymentDueDay: 10,
+    await repo.applySyncChanges([
+      {
+        entity: "creditGroup",
+        payload: {
+          id: "creditGroup_remote_1",
+          spaceId: "space_personal_default",
+          revision: 1,
+          createdAt: t0,
+          updatedAt: t0,
+          deletedAt: null,
+          name: "國泰銀行",
+          currency: "TWD",
+          creditLimit: 80_000,
+          statementDay: 20,
+          paymentDueDay: 10,
+        },
       },
-    }]);
+    ]);
     let groups = await repo.listCreditGroups();
     let remote = groups.find((g) => g.id === "creditGroup_remote_1");
     expect(remote).toBeTruthy();
@@ -108,14 +121,24 @@ describeEachRepo("credit groups (信用卡群組)", (makeRepo) => {
     expect(remote!.creditLimit).toBe(80_000);
 
     const t1 = "2026-07-02T00:00:00.000Z";
-    await repo.applySyncChanges([{
-      entity: "creditGroup",
-      payload: {
-        id: "creditGroup_remote_1", spaceId: "space_personal_default", revision: 2,
-        createdAt: t0, updatedAt: t1, deletedAt: null,
-        name: "國泰銀行（改）", currency: "TWD", creditLimit: 90_000, statementDay: 20, paymentDueDay: 10,
+    await repo.applySyncChanges([
+      {
+        entity: "creditGroup",
+        payload: {
+          id: "creditGroup_remote_1",
+          spaceId: "space_personal_default",
+          revision: 2,
+          createdAt: t0,
+          updatedAt: t1,
+          deletedAt: null,
+          name: "國泰銀行（改）",
+          currency: "TWD",
+          creditLimit: 90_000,
+          statementDay: 20,
+          paymentDueDay: 10,
+        },
       },
-    }]);
+    ]);
     groups = await repo.listCreditGroups();
     remote = groups.find((g) => g.id === "creditGroup_remote_1");
     expect(remote!.name).toBe("國泰銀行（改）");
@@ -184,7 +207,10 @@ describeEachRepo("credit groups (信用卡群組)", (makeRepo) => {
 
     // Proof this is a snapshot, not still-derived: changing the group
     // afterward must NOT affect the now-ungrouped account.
-    await repo.updateCreditGroup(group.id, groupDraft({ statementDay: 1, paymentDueDay: 2, creditLimit: 1 }));
+    await repo.updateCreditGroup(
+      group.id,
+      groupDraft({ statementDay: 1, paymentDueDay: 2, creditLimit: 1 }),
+    );
     const [afterGroupChange] = await repo.listAccounts();
     expect(afterGroupChange.statementDay).toBe(10);
     expect(afterGroupChange.paymentDueDay).toBe(25);
@@ -211,8 +237,24 @@ describeEachRepo("credit group backfill (creditLimitGroup 自動歸群)", (makeR
 
   it("two credit accounts sharing a creditLimitGroup link to one new group, and re-running is idempotent", async () => {
     const repo = await makeRepo();
-    await repo.createAccount(creditAccountDraft({ name: "玉山卡A", creditLimitGroup: "玉山", statementDay: 10, paymentDueDay: 5, creditLimit: 50_000 }));
-    await repo.createAccount(creditAccountDraft({ name: "玉山卡B", creditLimitGroup: "玉山", statementDay: 10, paymentDueDay: 5, creditLimit: 80_000 }));
+    await repo.createAccount(
+      creditAccountDraft({
+        name: "玉山卡A",
+        creditLimitGroup: "玉山",
+        statementDay: 10,
+        paymentDueDay: 5,
+        creditLimit: 50_000,
+      }),
+    );
+    await repo.createAccount(
+      creditAccountDraft({
+        name: "玉山卡B",
+        creditLimitGroup: "玉山",
+        statementDay: 10,
+        paymentDueDay: 5,
+        creditLimit: 80_000,
+      }),
+    );
 
     await runBackfill(repo);
 
@@ -235,7 +277,11 @@ describeEachRepo("credit group backfill (creditLimitGroup 自動歸群)", (makeR
     expect(groups).toHaveLength(1);
     expect(groups[0].id).toBe(group.id);
     accounts = await repo.listAccounts();
-    expect(accounts.filter((a) => a.name === "玉山卡A" || a.name === "玉山卡B").every((a) => a.creditGroupId === group.id)).toBe(true);
+    expect(
+      accounts
+        .filter((a) => a.name === "玉山卡A" || a.name === "玉山卡B")
+        .every((a) => a.creditGroupId === group.id),
+    ).toBe(true);
   });
 
   it("a lone credit account with a creditLimitGroup is left ungrouped (nothing to share a bill with)", async () => {
@@ -252,8 +298,12 @@ describeEachRepo("credit group backfill (creditLimitGroup 自動歸群)", (makeR
 
   it("skips a creditLimitGroup whose members disagree on currency, rather than force-merging", async () => {
     const repo = await makeRepo();
-    await repo.createAccount(creditAccountDraft({ name: "混幣卡A", currency: "TWD", creditLimitGroup: "混幣群組" }));
-    await repo.createAccount(creditAccountDraft({ name: "混幣卡B", currency: "USD", creditLimitGroup: "混幣群組" }));
+    await repo.createAccount(
+      creditAccountDraft({ name: "混幣卡A", currency: "TWD", creditLimitGroup: "混幣群組" }),
+    );
+    await repo.createAccount(
+      creditAccountDraft({ name: "混幣卡B", currency: "USD", creditLimitGroup: "混幣群組" }),
+    );
 
     await runBackfill(repo);
 
@@ -267,7 +317,9 @@ describeEachRepo("credit group backfill (creditLimitGroup 自動歸群)", (makeR
 
   it("reuses an existing group with a matching name instead of creating a duplicate", async () => {
     const repo = await makeRepo();
-    await repo.createCreditGroup(groupDraft({ name: "永豐", statementDay: 12, paymentDueDay: 28, creditLimit: 60_000 }));
+    await repo.createCreditGroup(
+      groupDraft({ name: "永豐", statementDay: 12, paymentDueDay: 28, creditLimit: 60_000 }),
+    );
     const existing = (await repo.listCreditGroups())[0];
 
     await repo.createAccount(creditAccountDraft({ name: "永豐卡A", creditLimitGroup: "永豐" }));
@@ -279,6 +331,10 @@ describeEachRepo("credit group backfill (creditLimitGroup 自動歸群)", (makeR
     expect(groups).toHaveLength(1);
     expect(groups[0].id).toBe(existing.id);
     const accounts = await repo.listAccounts();
-    expect(accounts.filter((a) => a.name === "永豐卡A" || a.name === "永豐卡B").every((a) => a.creditGroupId === existing.id)).toBe(true);
+    expect(
+      accounts
+        .filter((a) => a.name === "永豐卡A" || a.name === "永豐卡B")
+        .every((a) => a.creditGroupId === existing.id),
+    ).toBe(true);
   });
 });

@@ -58,10 +58,7 @@ export interface IndexNudgeInput {
 }
 
 export type IndexNudgeReason =
-  | "insufficient-data"
-  | "leading"
-  | "lagging-not-persistent"
-  | "persistent-lag";
+  "insufficient-data" | "leading" | "lagging-not-persistent" | "persistent-lag";
 
 export interface IndexNudgeVerdict {
   /** True only for reason "persistent-lag". The single output a UI would gate on. */
@@ -166,8 +163,14 @@ export function alignTwrWithBenchmark(
   const twrBase = 1 + alignedTwr[0].pct / 100;
   const benchBase = benchByDate.get(alignedTwr[0].date)!;
   if (twrBase <= 0 || benchBase <= 0) return null; // degenerate base → fallback
-  const portfolioCum = alignedTwr.map((p) => ({ date: p.date, pct: ((1 + p.pct / 100) / twrBase - 1) * 100 }));
-  const benchmarkCum = alignedTwr.map((p) => ({ date: p.date, pct: (benchByDate.get(p.date)! / benchBase - 1) * 100 }));
+  const portfolioCum = alignedTwr.map((p) => ({
+    date: p.date,
+    pct: ((1 + p.pct / 100) / twrBase - 1) * 100,
+  }));
+  const benchmarkCum = alignedTwr.map((p) => ({
+    date: p.date,
+    pct: (benchByDate.get(p.date)! / benchBase - 1) * 100,
+  }));
   return { portfolioCum, benchmarkCum };
 }
 
@@ -232,7 +235,12 @@ export function evaluateIndexNudge(input: IndexNudgeInput): IndexNudgeVerdict {
   const n = Math.min(portfolioReturns.length, benchmarkReturns.length);
 
   if (n < input.minWindows) {
-    return { triggered: false, consecutiveLagging: 0, cumulativeGapPct: null, reason: "insufficient-data" };
+    return {
+      triggered: false,
+      consecutiveLagging: 0,
+      cumulativeGapPct: null,
+      reason: "insufficient-data",
+    };
   }
 
   // Count the trailing run of consecutive lagging windows (from most recent

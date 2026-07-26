@@ -1,18 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { parseCsvTable } from "./csv";
 import {
-  applyManualPriceMapping, autoDetectManualPriceFields, emptyManualPriceMapping,
-  missingManualPriceFields, type ManualPriceImportMapping,
+  applyManualPriceMapping,
+  autoDetectManualPriceFields,
+  emptyManualPriceMapping,
+  missingManualPriceFields,
+  type ManualPriceImportMapping,
 } from "./manualPriceImport";
 
 const ASSET_ID = "custom-1";
 
 // A typical valuation export: Chinese headers, ISO dates, a notes column.
-const NAV_CSV = [
-  "日期,淨值,備註",
-  "2026-06-01,1234.5,Q2 估值",
-  "2026-06-15,1300,",
-].join("\n");
+const NAV_CSV = ["日期,淨值,備註", "2026-06-01,1234.5,Q2 估值", "2026-06-15,1300,"].join("\n");
 
 function mappingFor(headers: string[]): ManualPriceImportMapping {
   return { ...emptyManualPriceMapping(), fields: autoDetectManualPriceFields(headers) };
@@ -55,24 +54,31 @@ describe("applyManualPriceMapping", () => {
     const preview = applyManualPriceMapping(rows, mappingFor(headers), ASSET_ID);
     expect(preview.invalid).toHaveLength(0);
     expect(preview.valid).toHaveLength(2);
-    expect(preview.valid[0].value).toEqual({ assetId: ASSET_ID, date: "2026-06-01", price: 1234.5, note: "Q2 估值" });
-    expect(preview.valid[1].value).toEqual({ assetId: ASSET_ID, date: "2026-06-15", price: 1300, note: "" });
+    expect(preview.valid[0].value).toEqual({
+      assetId: ASSET_ID,
+      date: "2026-06-01",
+      price: 1234.5,
+      note: "Q2 估值",
+    });
+    expect(preview.valid[1].value).toEqual({
+      assetId: ASSET_ID,
+      date: "2026-06-15",
+      price: 1300,
+      note: "",
+    });
   });
 
   it("strips thousands separators and currency symbols from price", () => {
-    const { headers, rows } = parseCsvTable([
-      "日期,淨值",
-      "2026-06-01,\"$1,234.50\"",
-    ].join("\n"), ",");
+    const { headers, rows } = parseCsvTable(
+      ["日期,淨值", '2026-06-01,"$1,234.50"'].join("\n"),
+      ",",
+    );
     const preview = applyManualPriceMapping(rows, mappingFor(headers), ASSET_ID);
     expect(preview.valid[0].value.price).toBe(1234.5);
   });
 
   it("rejects a row with an unparseable date", () => {
-    const { headers, rows } = parseCsvTable([
-      "日期,淨值",
-      "not-a-date,100",
-    ].join("\n"), ",");
+    const { headers, rows } = parseCsvTable(["日期,淨值", "not-a-date,100"].join("\n"), ",");
     const preview = applyManualPriceMapping(rows, mappingFor(headers), ASSET_ID);
     expect(preview.valid).toHaveLength(0);
     expect(preview.invalid).toHaveLength(1);
@@ -80,21 +86,17 @@ describe("applyManualPriceMapping", () => {
   });
 
   it("rejects a row with a non-numeric price", () => {
-    const { headers, rows } = parseCsvTable([
-      "日期,淨值",
-      "2026-06-01,abc",
-    ].join("\n"), ",");
+    const { headers, rows } = parseCsvTable(["日期,淨值", "2026-06-01,abc"].join("\n"), ",");
     const preview = applyManualPriceMapping(rows, mappingFor(headers), ASSET_ID);
     expect(preview.valid).toHaveLength(0);
     expect(preview.invalid[0].reason).toMatch(/數字/);
   });
 
   it("rejects a row with a negative or zero price", () => {
-    const { headers, rows } = parseCsvTable([
-      "日期,淨值",
-      "2026-06-01,-5",
-      "2026-06-02,0",
-    ].join("\n"), ",");
+    const { headers, rows } = parseCsvTable(
+      ["日期,淨值", "2026-06-01,-5", "2026-06-02,0"].join("\n"),
+      ",",
+    );
     const preview = applyManualPriceMapping(rows, mappingFor(headers), ASSET_ID);
     expect(preview.valid).toHaveLength(0);
     expect(preview.invalid).toHaveLength(2);

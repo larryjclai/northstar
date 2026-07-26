@@ -9,7 +9,13 @@
  * portfolio holdings are derived/recomputed automatically, and it works
  * identically in the browser (IndexedDB) and the desktop app (SQLite).
  */
-import type { FinanceRepository, InvestmentDraft, LedgerDraft, RecurringDraft, RepositorySnapshot } from "./repositories";
+import type {
+  FinanceRepository,
+  InvestmentDraft,
+  LedgerDraft,
+  RecurringDraft,
+  RepositorySnapshot,
+} from "./repositories";
 import type { DailyFxRate, DailyPrice } from "../domain/types";
 
 /** Marker stored on demo accounts' customGroup so demo data can be detected. */
@@ -47,12 +53,51 @@ interface AccountBlueprint {
 }
 
 const ACCOUNTS: AccountBlueprint[] = [
-  { name: "國泰世華 數位帳戶", type: "depository", openingBalance: 286_000, currency: "TWD", iconName: "Bank" },
-  { name: "台新 Richart", type: "depository", openingBalance: 82_000, currency: "TWD", iconName: "PiggyBank" },
-  { name: "街口支付", type: "cash", openingBalance: 3_800, currency: "TWD", iconName: "DeviceMobile" },
-  { name: "玉山 Pi 拍錢包卡", type: "credit", openingBalance: 0, currency: "TWD", iconName: "CreditCard", creditLimit: 150_000, statementDay: 5, paymentDueDay: 23 },
-  { name: "凱基證券", type: "investment", openingBalance: 210_000, currency: "TWD", iconName: "ChartLineUp" },
-  { name: "Firstrade", type: "investment", openingBalance: 3_000, currency: "USD", iconName: "ChartLineUp" },
+  {
+    name: "國泰世華 數位帳戶",
+    type: "depository",
+    openingBalance: 286_000,
+    currency: "TWD",
+    iconName: "Bank",
+  },
+  {
+    name: "台新 Richart",
+    type: "depository",
+    openingBalance: 82_000,
+    currency: "TWD",
+    iconName: "PiggyBank",
+  },
+  {
+    name: "街口支付",
+    type: "cash",
+    openingBalance: 3_800,
+    currency: "TWD",
+    iconName: "DeviceMobile",
+  },
+  {
+    name: "玉山 Pi 拍錢包卡",
+    type: "credit",
+    openingBalance: 0,
+    currency: "TWD",
+    iconName: "CreditCard",
+    creditLimit: 150_000,
+    statementDay: 5,
+    paymentDueDay: 23,
+  },
+  {
+    name: "凱基證券",
+    type: "investment",
+    openingBalance: 210_000,
+    currency: "TWD",
+    iconName: "ChartLineUp",
+  },
+  {
+    name: "Firstrade",
+    type: "investment",
+    openingBalance: 3_000,
+    currency: "USD",
+    iconName: "ChartLineUp",
+  },
 ];
 
 // ── Ledger blueprints (account referenced by name, resolved after creation) ──
@@ -76,19 +121,67 @@ function buildLedger(): LedgerBlueprint[] {
   // Monthly salary (this month + previous two). Offsets land on/after the 1st
   // so the current calendar month always shows income (non-zero savings rate).
   for (const d of [1, 31, 61]) {
-    rows.push({ daysAgo: d, account: cathay, name: "薪資", merchant: "公司", category: "收入", subcategory: "薪資", amount: 72_000 });
+    rows.push({
+      daysAgo: d,
+      account: cathay,
+      name: "薪資",
+      merchant: "公司",
+      category: "收入",
+      subcategory: "薪資",
+      amount: 72_000,
+    });
   }
   // Rent + fixed bills (this month + previous)
   for (const d of [1, 31]) {
-    rows.push({ daysAgo: d, account: cathay, name: "房租", merchant: "房東", category: "居住", subcategory: "房租", amount: -18_500 });
-    rows.push({ daysAgo: d + 1, account: cathay, name: "電費／水費", merchant: "台電", category: "居住", subcategory: "水電", amount: -1_380 });
-    rows.push({ daysAgo: d + 2, account: card, name: "中華電信 5G", merchant: "中華電信", category: "居住", subcategory: "通訊", amount: -899 });
+    rows.push({
+      daysAgo: d,
+      account: cathay,
+      name: "房租",
+      merchant: "房東",
+      category: "居住",
+      subcategory: "房租",
+      amount: -18_500,
+    });
+    rows.push({
+      daysAgo: d + 1,
+      account: cathay,
+      name: "電費／水費",
+      merchant: "台電",
+      category: "居住",
+      subcategory: "水電",
+      amount: -1_380,
+    });
+    rows.push({
+      daysAgo: d + 2,
+      account: card,
+      name: "中華電信 5G",
+      merchant: "中華電信",
+      category: "居住",
+      subcategory: "通訊",
+      amount: -899,
+    });
   }
 
   // Recurring-feel subscriptions on the card
   for (const d of [8, 38]) {
-    rows.push({ daysAgo: d, account: card, name: "Netflix", merchant: "Netflix", category: "娛樂", subcategory: "訂閱", amount: -390 });
-    rows.push({ daysAgo: d + 4, account: card, name: "Spotify", merchant: "Spotify", category: "娛樂", subcategory: "訂閱", amount: -149 });
+    rows.push({
+      daysAgo: d,
+      account: card,
+      name: "Netflix",
+      merchant: "Netflix",
+      category: "娛樂",
+      subcategory: "訂閱",
+      amount: -390,
+    });
+    rows.push({
+      daysAgo: d + 4,
+      account: card,
+      name: "Spotify",
+      merchant: "Spotify",
+      category: "娛樂",
+      subcategory: "訂閱",
+      amount: -149,
+    });
   }
 
   // Everyday spending — spread across the last ~50 days
@@ -144,22 +237,102 @@ interface InvestmentBlueprint {
 }
 
 const INVESTMENTS: InvestmentBlueprint[] = [
-  { daysAgo: 64, ticker: "2330.TW", name: "台積電", action: "buy", price: 980, quantity: 30, fee: 42, assetType: "equity" },
-  { daysAgo: 58, ticker: "0050.TW", name: "元大台灣50", action: "buy", price: 168, quantity: 200, fee: 48, assetType: "etf" },
-  { daysAgo: 50, ticker: "2412.TW", name: "中華電", action: "buy", price: 124, quantity: 100, fee: 20, assetType: "equity" },
-  { daysAgo: 40, ticker: "00878.TW", name: "國泰永續高股息", action: "buy", price: 21.8, quantity: 2_000, fee: 62, assetType: "etf" },
-  { daysAgo: 20, ticker: "0050.TW", name: "元大台灣50", action: "buy", price: 181, quantity: 100, fee: 26, assetType: "etf" },
-  { daysAgo: 14, ticker: "2330.TW", name: "台積電", action: "buy", price: 1_075, quantity: 20, fee: 31, assetType: "equity" },
-  { daysAgo: 5, ticker: "2330.TW", name: "台積電", action: "sell", price: 1_120, quantity: 10, fee: 16, assetType: "equity" },
+  {
+    daysAgo: 64,
+    ticker: "2330.TW",
+    name: "台積電",
+    action: "buy",
+    price: 980,
+    quantity: 30,
+    fee: 42,
+    assetType: "equity",
+  },
+  {
+    daysAgo: 58,
+    ticker: "0050.TW",
+    name: "元大台灣50",
+    action: "buy",
+    price: 168,
+    quantity: 200,
+    fee: 48,
+    assetType: "etf",
+  },
+  {
+    daysAgo: 50,
+    ticker: "2412.TW",
+    name: "中華電",
+    action: "buy",
+    price: 124,
+    quantity: 100,
+    fee: 20,
+    assetType: "equity",
+  },
+  {
+    daysAgo: 40,
+    ticker: "00878.TW",
+    name: "國泰永續高股息",
+    action: "buy",
+    price: 21.8,
+    quantity: 2_000,
+    fee: 62,
+    assetType: "etf",
+  },
+  {
+    daysAgo: 20,
+    ticker: "0050.TW",
+    name: "元大台灣50",
+    action: "buy",
+    price: 181,
+    quantity: 100,
+    fee: 26,
+    assetType: "etf",
+  },
+  {
+    daysAgo: 14,
+    ticker: "2330.TW",
+    name: "台積電",
+    action: "buy",
+    price: 1_075,
+    quantity: 20,
+    fee: 31,
+    assetType: "equity",
+  },
+  {
+    daysAgo: 5,
+    ticker: "2330.TW",
+    name: "台積電",
+    action: "sell",
+    price: 1_120,
+    quantity: 10,
+    fee: 16,
+    assetType: "equity",
+  },
   // A US holding → gives the portfolio real USD currency exposure.
-  { daysAgo: 45, ticker: "VOO", name: "Vanguard S&P 500 ETF", action: "buy", price: 480, quantity: 5, fee: 0, assetType: "etf", currency: "USD", account: "Firstrade" },
+  {
+    daysAgo: 45,
+    ticker: "VOO",
+    name: "Vanguard S&P 500 ETF",
+    action: "buy",
+    price: 480,
+    quantity: 5,
+    fee: 0,
+    assetType: "etf",
+    currency: "USD",
+    account: "Firstrade",
+  },
 ];
 
 // Cash dividends so the 股利分析 (dividend) view has data. Total-amount form:
 // quantity 0, price = net cash received. All dated AFTER each holding's first
 // buy (00878 day-40, 0050 day-58, 2412 day-50) so they're never received
 // before the position existed. 00878 高股息 pays monthly → two recent payouts.
-interface DividendBlueprint { daysAgo: number; ticker: string; name: string; total: number; assetType: "etf" | "equity"; }
+interface DividendBlueprint {
+  daysAgo: number;
+  ticker: string;
+  name: string;
+  total: number;
+  assetType: "etf" | "equity";
+}
 const DIVIDENDS: DividendBlueprint[] = [
   { daysAgo: 33, ticker: "00878.TW", name: "國泰永續高股息", total: 1_180, assetType: "etf" },
   { daysAgo: 30, ticker: "0050.TW", name: "元大台灣50", total: 980, assetType: "etf" },
@@ -168,12 +341,24 @@ const DIVIDENDS: DividendBlueprint[] = [
 ];
 
 // Current market prices so holdings show live value & unrealized P/L.
-const QUOTES: Array<{ symbol: string; nameZh: string; price: number; changePercent: number; currency?: string }> = [
+const QUOTES: Array<{
+  symbol: string;
+  nameZh: string;
+  price: number;
+  changePercent: number;
+  currency?: string;
+}> = [
   { symbol: "2330.TW", nameZh: "台積電", price: 1_140, changePercent: 0.86 },
   { symbol: "0050.TW", nameZh: "元大台灣50", price: 189.5, changePercent: 0.45 },
   { symbol: "2412.TW", nameZh: "中華電", price: 131.5, changePercent: -0.19 },
   { symbol: "00878.TW", nameZh: "國泰永續高股息", price: 23.6, changePercent: 0.21 },
-  { symbol: "VOO", nameZh: "Vanguard S&P 500 ETF", price: 540, changePercent: 0.32, currency: "USD" },
+  {
+    symbol: "VOO",
+    nameZh: "Vanguard S&P 500 ETF",
+    price: 540,
+    changePercent: 0.32,
+    currency: "USD",
+  },
 ];
 
 // ── Synthetic daily price / FX history ──────────────────────────────────────
@@ -187,8 +372,12 @@ const QUOTES: Array<{ symbol: string; nameZh: string; price: number; changePerce
 /** Deterministic ±1 pseudo-noise from a string+index seed (no Math.random). */
 function wobble(seed: string, i: number): number {
   let h = 2166136261;
-  for (let k = 0; k < seed.length; k += 1) { h ^= seed.charCodeAt(k); h = Math.imul(h, 16777619); }
-  h ^= i; h = Math.imul(h, 16777619);
+  for (let k = 0; k < seed.length; k += 1) {
+    h ^= seed.charCodeAt(k);
+    h = Math.imul(h, 16777619);
+  }
+  h ^= i;
+  h = Math.imul(h, 16777619);
   // Map to [-1, 1).
   return ((h >>> 0) / 0xffffffff) * 2 - 1;
 }
@@ -212,11 +401,54 @@ function interpAnchors(anchors: Array<[daysAgo: number, price: number]>, daysAgo
 /** Anchors per ticker: currency + [daysAgo, price]. Includes buy/sell dates so
  *  the daily series threads the transaction prices and ends at today's quote. */
 const PRICE_ANCHORS: Record<string, { currency: string; anchors: Array<[number, number]> }> = {
-  "2330.TW": { currency: "TWD", anchors: [[380, 820], [180, 910], [64, 980], [14, 1_075], [5, 1_120], [0, 1_140]] },
-  "0050.TW": { currency: "TWD", anchors: [[380, 148], [180, 160], [58, 168], [20, 181], [0, 189.5]] },
-  "2412.TW": { currency: "TWD", anchors: [[380, 116], [180, 120], [50, 124], [0, 131.5]] },
-  "00878.TW": { currency: "TWD", anchors: [[380, 19.4], [180, 20.6], [40, 21.8], [0, 23.6]] },
-  "VOO": { currency: "USD", anchors: [[380, 430], [180, 455], [45, 480], [0, 540]] },
+  "2330.TW": {
+    currency: "TWD",
+    anchors: [
+      [380, 820],
+      [180, 910],
+      [64, 980],
+      [14, 1_075],
+      [5, 1_120],
+      [0, 1_140],
+    ],
+  },
+  "0050.TW": {
+    currency: "TWD",
+    anchors: [
+      [380, 148],
+      [180, 160],
+      [58, 168],
+      [20, 181],
+      [0, 189.5],
+    ],
+  },
+  "2412.TW": {
+    currency: "TWD",
+    anchors: [
+      [380, 116],
+      [180, 120],
+      [50, 124],
+      [0, 131.5],
+    ],
+  },
+  "00878.TW": {
+    currency: "TWD",
+    anchors: [
+      [380, 19.4],
+      [180, 20.6],
+      [40, 21.8],
+      [0, 23.6],
+    ],
+  },
+  VOO: {
+    currency: "USD",
+    anchors: [
+      [380, 430],
+      [180, 455],
+      [45, 480],
+      [0, 540],
+    ],
+  },
 };
 
 const PRICE_HISTORY_DAYS = 380;
@@ -234,7 +466,14 @@ function buildDemoDailyPrices(): DailyPrice[] {
       const onAnchor = anchors.some(([ad]) => ad === daysAgo);
       const close = onAnchor ? base : Math.max(0.01, base + amplitude * wobble(ticker, daysAgo));
       const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-      rows.push({ ticker, date, close: +close.toFixed(2), currency, source: "demo", updatedAt: `${date}T13:30:00.000Z` });
+      rows.push({
+        ticker,
+        date,
+        close: +close.toFixed(2),
+        currency,
+        source: "demo",
+        updatedAt: `${date}T13:30:00.000Z`,
+      });
     }
   }
   return rows;
@@ -258,7 +497,14 @@ function buildDemoFxRates(): DailyFxRate[] {
       const base = startRate + (endRate - startRate) * t;
       const rate = daysAgo === 0 ? endRate : base * (1 + 0.003 * wobble(pair, daysAgo));
       const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-      rows.push({ from, to, date, rate: +rate.toFixed(4), source: "demo", updatedAt: `${date}T13:30:00.000Z` });
+      rows.push({
+        from,
+        to,
+        date,
+        rate: +rate.toFixed(4),
+        source: "demo",
+        updatedAt: `${date}T13:30:00.000Z`,
+      });
     }
   }
   return rows;
@@ -354,7 +600,7 @@ export async function loadDemoData(repo: FinanceRepository): Promise<void> {
       nameEn: null,
       currency: q.currency ?? "TWD",
       price: q.price,
-      change: +(q.price * q.changePercent / 100).toFixed(2),
+      change: +((q.price * q.changePercent) / 100).toFixed(2),
       changePercent: q.changePercent,
       marketTime: new Date().toISOString(),
     })),
@@ -385,9 +631,51 @@ export async function loadDemoData(repo: FinanceRepository): Promise<void> {
 
   // 6. Recurring rules (next run in the future → show in 近期帳單)
   const recurring: RecurringDraft[] = [
-    { accountId: idFor("國泰世華 數位帳戶"), amount: 72_000, currency: "TWD", category: "收入", subcategory: "薪資", merchant: "公司", entryType: "income", settlementStatus: "settled", note: "", frequency: "monthly", dayOfMonth: 5, nextRunDate: dateOnly(5), isActive: true },
-    { accountId: idFor("國泰世華 數位帳戶"), amount: -18_500, currency: "TWD", category: "居住", subcategory: "房租", merchant: "房東", entryType: "expense", settlementStatus: "settled", note: "", frequency: "monthly", dayOfMonth: 1, nextRunDate: dateOnly(12), isActive: true },
-    { accountId: idFor("玉山 Pi 拍錢包卡"), amount: -390, currency: "TWD", category: "娛樂", subcategory: "訂閱", merchant: "Netflix", entryType: "expense", settlementStatus: "settled", note: "", frequency: "monthly", dayOfMonth: 8, nextRunDate: dateOnly(8), isActive: true },
+    {
+      accountId: idFor("國泰世華 數位帳戶"),
+      amount: 72_000,
+      currency: "TWD",
+      category: "收入",
+      subcategory: "薪資",
+      merchant: "公司",
+      entryType: "income",
+      settlementStatus: "settled",
+      note: "",
+      frequency: "monthly",
+      dayOfMonth: 5,
+      nextRunDate: dateOnly(5),
+      isActive: true,
+    },
+    {
+      accountId: idFor("國泰世華 數位帳戶"),
+      amount: -18_500,
+      currency: "TWD",
+      category: "居住",
+      subcategory: "房租",
+      merchant: "房東",
+      entryType: "expense",
+      settlementStatus: "settled",
+      note: "",
+      frequency: "monthly",
+      dayOfMonth: 1,
+      nextRunDate: dateOnly(12),
+      isActive: true,
+    },
+    {
+      accountId: idFor("玉山 Pi 拍錢包卡"),
+      amount: -390,
+      currency: "TWD",
+      category: "娛樂",
+      subcategory: "訂閱",
+      merchant: "Netflix",
+      entryType: "expense",
+      settlementStatus: "settled",
+      note: "",
+      frequency: "monthly",
+      dayOfMonth: 8,
+      nextRunDate: dateOnly(8),
+      isActive: true,
+    },
   ];
   for (const r of recurring) await repo.createRecurringTransaction(r);
 
@@ -501,9 +789,19 @@ export async function enterDemoMode(repo: FinanceRepository): Promise<void> {
     localStorage.setItem(DEMO_FLAG_KEY, "1");
   } catch {
     // Couldn't safely preserve the real data → do not proceed.
-    try { await clearStash(); } catch { /* ignore */ }
-    try { localStorage.removeItem(DEMO_FLAG_KEY); } catch { /* ignore */ }
-    throw new Error("無法安全保存你目前的資料，已取消進入示範模式（你的資料未被更動）。可先到設定手動匯出備份。");
+    try {
+      await clearStash();
+    } catch {
+      /* ignore */
+    }
+    try {
+      localStorage.removeItem(DEMO_FLAG_KEY);
+    } catch {
+      /* ignore */
+    }
+    throw new Error(
+      "無法安全保存你目前的資料，已取消進入示範模式（你的資料未被更動）。可先到設定手動匯出備份。",
+    );
   }
 
   // Real data is safely stashed; now swap in the demo set.
@@ -517,14 +815,26 @@ export async function enterDemoMode(repo: FinanceRepository): Promise<void> {
  */
 export async function exitDemoMode(repo: FinanceRepository): Promise<void> {
   let snapshot: RepositorySnapshot | null = null;
-  try { snapshot = await readStash(); } catch { /* no stash — keep null */ }
+  try {
+    snapshot = await readStash();
+  } catch {
+    /* no stash — keep null */
+  }
 
   // Backward-compat: older builds stashed the snapshot in localStorage.
   if (!snapshot) {
     let raw: string | null = null;
-    try { raw = localStorage.getItem(DEMO_BACKUP_KEY); } catch { /* no backup — keep null */ }
+    try {
+      raw = localStorage.getItem(DEMO_BACKUP_KEY);
+    } catch {
+      /* no backup — keep null */
+    }
     if (raw) {
-      try { snapshot = JSON.parse(raw) as RepositorySnapshot; } catch { snapshot = null; }
+      try {
+        snapshot = JSON.parse(raw) as RepositorySnapshot;
+      } catch {
+        snapshot = null;
+      }
     }
   }
 
@@ -534,11 +844,17 @@ export async function exitDemoMode(repo: FinanceRepository): Promise<void> {
     await clearAllData(repo);
   }
 
-  try { await clearStash(); } catch { /* ignore */ }
+  try {
+    await clearStash();
+  } catch {
+    /* ignore */
+  }
   try {
     localStorage.removeItem(DEMO_BACKUP_KEY);
     localStorage.removeItem(DEMO_FLAG_KEY);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 /**

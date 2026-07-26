@@ -1,7 +1,9 @@
 // HTTP client for the Northstar sync worker.
 // All payloads are already encrypted by the caller; this module only handles transport.
 
-export const WORKER_URL = (import.meta.env.VITE_NORTHSTAR_SYNC_WORKER_URL ?? "").trim().replace(/\/+$/, "");
+export const WORKER_URL = (import.meta.env.VITE_NORTHSTAR_SYNC_WORKER_URL ?? "")
+  .trim()
+  .replace(/\/+$/, "");
 
 export function isSyncWorkerConfigured(): boolean {
   return WORKER_URL.length > 0;
@@ -104,10 +106,7 @@ export async function registerUser(opts: {
 }
 
 /** Push a batch of encrypted envelopes. */
-export async function pushEnvelopes(
-  apiSecret: string,
-  envelopes: EnvelopeRecord[],
-): Promise<void> {
+export async function pushEnvelopes(apiSecret: string, envelopes: EnvelopeRecord[]): Promise<void> {
   await request("/envelopes", {
     method: "POST",
     apiSecret,
@@ -133,7 +132,13 @@ export async function addDevice(
   // publicKeyB64 (Plan 239): the approver already knows the joining device's
   // public key from the pairing bundle, so it can seed the directory here
   // directly rather than requiring the joining device to self-provision later.
-  device: { id: string; name: string; platform: string; secretHash?: string; publicKeyB64?: string },
+  device: {
+    id: string;
+    name: string;
+    platform: string;
+    secretHash?: string;
+    publicKeyB64?: string;
+  },
 ): Promise<void> {
   await request("/devices", { method: "POST", apiSecret, body: JSON.stringify(device) });
 }
@@ -278,9 +283,7 @@ export async function createPairingSession(
  * the session claimed on first successful fetch. Used by the ECDH flow (Device A
  * claims B's public-key bundle) and the legacy flow (Device B claims A's bundle).
  */
-export async function claimPairingSession(
-  code: string,
-): Promise<{ encryptedBundle: string }> {
+export async function claimPairingSession(code: string): Promise<{ encryptedBundle: string }> {
   // Unauthenticated — the code itself is the credential
   return request<{ encryptedBundle: string }>(`/pairing/${encodeURIComponent(code)}`);
 }

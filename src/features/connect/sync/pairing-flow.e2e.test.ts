@@ -8,9 +8,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---- in-memory relay (shared with the ./client mock via vi.hoisted) ----
 const relay = vi.hoisted(() => ({
-  sessions: new Map<string, { encryptedBundle: string; deviceId: string; token: string; claimed: boolean }>(),
-  keyEnvelopes: new Map<string, Array<{ id: string; sourceDeviceId: string; keyType: string; wrappedKey: string; sourcePublicKeyB64?: string; wrappedKeyVersion: number; createdAt: string }>>(),
-  devices: [] as Array<{ id: string; name: string; platform: string; secretHash?: string; publicKeyB64?: string }>,
+  sessions: new Map<
+    string,
+    { encryptedBundle: string; deviceId: string; token: string; claimed: boolean }
+  >(),
+  keyEnvelopes: new Map<
+    string,
+    Array<{
+      id: string;
+      sourceDeviceId: string;
+      keyType: string;
+      wrappedKey: string;
+      sourcePublicKeyB64?: string;
+      wrappedKeyVersion: number;
+      createdAt: string;
+    }>
+  >(),
+  devices: [] as Array<{
+    id: string;
+    name: string;
+    platform: string;
+    secretHash?: string;
+    publicKeyB64?: string;
+  }>,
   // Mirrors the real worker's `devices.public_key` column (Plan 239) — a single
   // slot per device id, settable via EITHER addDevice's optional field OR the
   // self-provision endpoint, set-once either way (matching handleAddDevice's
@@ -53,39 +73,58 @@ vi.mock("./client", () => ({
     s.claimed = true;
     return { encryptedBundle: s.encryptedBundle };
   }),
-  storeKeyEnvelope: vi.fn(async (
-    _apiSecret: string,
-    target: string,
-    env: { id: string; sourceDeviceId: string; keyType: string; wrappedKey: string; sourcePublicKeyB64?: string; wrappedKeyVersion: number },
-  ) => {
-    const arr = relay.keyEnvelopes.get(target) ?? [];
-    const next = arr.filter((e) => e.keyType !== env.keyType);
-    next.push({ ...env, createdAt: new Date().toISOString() });
-    relay.keyEnvelopes.set(target, next);
-  }),
+  storeKeyEnvelope: vi.fn(
+    async (
+      _apiSecret: string,
+      target: string,
+      env: {
+        id: string;
+        sourceDeviceId: string;
+        keyType: string;
+        wrappedKey: string;
+        sourcePublicKeyB64?: string;
+        wrappedKeyVersion: number;
+      },
+    ) => {
+      const arr = relay.keyEnvelopes.get(target) ?? [];
+      const next = arr.filter((e) => e.keyType !== env.keyType);
+      next.push({ ...env, createdAt: new Date().toISOString() });
+      relay.keyEnvelopes.set(target, next);
+    },
+  ),
   fetchKeyEnvelopesWithToken: vi.fn(async (token: string, target: string) => {
     const ok = [...relay.sessions.values()].some((s) => s.token === token && s.deviceId === target);
     if (!ok) throw new Error("Invalid pairing token");
     return relay.keyEnvelopes.get(target) ?? [];
   }),
-  addDevice: vi.fn(async (
-    _apiSecret: string,
-    device: { id: string; name: string; platform: string; secretHash?: string; publicKeyB64?: string },
-  ) => {
-    relay.devices.push(device);
-    if (device.publicKeyB64 && !relay.publicKeys.has(device.id)) {
-      relay.publicKeys.set(device.id, device.publicKeyB64);
-    }
-  }),
+  addDevice: vi.fn(
+    async (
+      _apiSecret: string,
+      device: {
+        id: string;
+        name: string;
+        platform: string;
+        secretHash?: string;
+        publicKeyB64?: string;
+      },
+    ) => {
+      relay.devices.push(device);
+      if (device.publicKeyB64 && !relay.publicKeys.has(device.id)) {
+        relay.publicKeys.set(device.id, device.publicKeyB64);
+      }
+    },
+  ),
   // Plan 239: self-provision endpoint. Set-once, matching the real worker's
   // `public_key IS NULL` guard — a device already seeded (by addDevice, or a
   // prior self-provision call) gets a 409, regardless of which path set it.
-  provisionDevicePublicKey: vi.fn(async (_apiSecret: string, deviceId: string, publicKeyB64: string) => {
-    if (relay.publicKeys.has(deviceId)) {
-      throw new Error("Sync worker 409: already set");
-    }
-    relay.publicKeys.set(deviceId, publicKeyB64);
-  }),
+  provisionDevicePublicKey: vi.fn(
+    async (_apiSecret: string, deviceId: string, publicKeyB64: string) => {
+      if (relay.publicKeys.has(deviceId)) {
+        throw new Error("Sync worker 409: already set");
+      }
+      relay.publicKeys.set(deviceId, publicKeyB64);
+    },
+  ),
   // legacy — unused by the ECDH flow but imported by the module under test
   createPairingSession: vi.fn(),
   // imported by account.ts (ensureDeviceCredential); unused on the pairing path
@@ -99,7 +138,13 @@ import {
   approveJoiningDevice,
 } from "./pairing-flow";
 import { generateVaultKey, saveVaultKey, loadVaultKey, exportVaultKey } from "../crypto/vault";
-import { getOrCreateSyncAccount, loadSyncAccount, loadDeviceSecret, getSyncAuthToken, sha256Hex } from "./account";
+import {
+  getOrCreateSyncAccount,
+  loadSyncAccount,
+  loadDeviceSecret,
+  getSyncAuthToken,
+  sha256Hex,
+} from "./account";
 import { resetSecretStoreForTests } from "../crypto/secretStore";
 import { provisionDevicePublicKey } from "./client";
 
@@ -109,11 +154,17 @@ function makeLocalStorage(): Storage {
   const m = new Map<string, string>();
   return {
     getItem: (k: string) => m.get(k) ?? null,
-    setItem: (k: string, v: string) => { m.set(k, String(v)); },
-    removeItem: (k: string) => { m.delete(k); },
+    setItem: (k: string, v: string) => {
+      m.set(k, String(v));
+    },
+    removeItem: (k: string) => {
+      m.delete(k);
+    },
     clear: () => m.clear(),
     key: (i: number) => Array.from(m.keys())[i] ?? null,
-    get length() { return m.size; },
+    get length() {
+      return m.size;
+    },
   } as Storage;
 }
 
@@ -188,7 +239,11 @@ describe("ECDH pairing end-to-end", () => {
 
     // A registered B — with B's device-credential HASH (Plan 132), never a secret.
     const registered = relay.devices.find((d) => d.id === session.deviceId)!;
-    expect(registered).toMatchObject({ id: session.deviceId, name: "我的 iPhone", platform: "ios" });
+    expect(registered).toMatchObject({
+      id: session.deviceId,
+      name: "我的 iPhone",
+      platform: "ios",
+    });
     expect(registered.secretHash).toBeTruthy();
     // The bundle A processed must carry only the HASH, never B's raw secret.
     expect(relay.bundles[0]).not.toContain(session.deviceSecret);

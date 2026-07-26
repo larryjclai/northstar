@@ -38,7 +38,10 @@ export function NumberField({
       ? raw
       : value === 0
         ? ""
-        : value.toLocaleString("zh-TW", { maximumFractionDigits: decimals, minimumFractionDigits: 0 });
+        : value.toLocaleString("zh-TW", {
+            maximumFractionDigits: decimals,
+            minimumFractionDigits: 0,
+          });
 
   return (
     <input
@@ -48,8 +51,14 @@ export function NumberField({
       aria-label={ariaLabel}
       value={display}
       placeholder={placeholder}
-      onFocus={() => { setRaw(value === 0 ? "" : String(value)); onFocus?.(); }}
-      onBlur={() => { setRaw(null); onBlur?.(); }}
+      onFocus={() => {
+        setRaw(value === 0 ? "" : String(value));
+        onFocus?.();
+      }}
+      onBlur={() => {
+        setRaw(null);
+        onBlur?.();
+      }}
       onChange={(event) => {
         // Strip non-numerics and collapse to a single decimal point.
         let cleaned = event.target.value.replace(/[^\d.]/g, "");

@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { summarizeTransactions, type SummaryTxRow } from "./transactionsSummary";
 
 // USD -> ×30 stub so the per-row conversion is observable; TWD passes through.
-const toPrimary = (amount: number, currency: string): number => (currency === "USD" ? amount * 30 : amount);
+const toPrimary = (amount: number, currency: string): number =>
+  currency === "USD" ? amount * 30 : amount;
 
 function row(overrides: Partial<SummaryTxRow>): SummaryTxRow {
   return {

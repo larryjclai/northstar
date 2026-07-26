@@ -23,7 +23,8 @@ export function buildTransfer(input: TransferInput): LedgerTransaction[] {
     throw new Error("Source amount must be greater than zero.");
   }
 
-  const sameCurrency = input.sourceCurrency.toUpperCase() === input.destinationCurrency.toUpperCase();
+  const sameCurrency =
+    input.sourceCurrency.toUpperCase() === input.destinationCurrency.toUpperCase();
   const destinationAmount = sameCurrency ? input.sourceAmount : input.destinationAmount;
   if (destinationAmount === undefined || destinationAmount <= 0) {
     throw new Error("Destination amount is required for cross-currency transfers.");

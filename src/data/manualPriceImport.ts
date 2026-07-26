@@ -53,14 +53,18 @@ function headerScore(header: string, synonyms: string[]) {
     const lowerSyn = synonym.toLowerCase();
     const compactSyn = compact(synonym);
     if (lower === lowerSyn || compactHeader === compactSyn) best = Math.max(best, 100);
-    else if (lower.includes(lowerSyn) || compactHeader.includes(compactSyn)) best = Math.max(best, 70);
-    else if (lowerSyn.includes(lower) || compactSyn.includes(compactHeader)) best = Math.max(best, 40);
+    else if (lower.includes(lowerSyn) || compactHeader.includes(compactSyn))
+      best = Math.max(best, 70);
+    else if (lowerSyn.includes(lower) || compactSyn.includes(compactHeader))
+      best = Math.max(best, 40);
   }
   return best;
 }
 
 /** Guess field → header mapping from the CSV headers. */
-export function autoDetectManualPriceFields(headers: string[]): Partial<Record<ManualPriceField, string>> {
+export function autoDetectManualPriceFields(
+  headers: string[],
+): Partial<Record<ManualPriceField, string>> {
   const fields: Partial<Record<ManualPriceField, string>> = {};
   const used = new Set<string>();
   for (const field of MANUAL_PRICE_FIELDS) {
@@ -71,7 +75,10 @@ export function autoDetectManualPriceFields(headers: string[]): Partial<Record<M
       .filter((candidate) => candidate.score > 0)
       .sort((a, b) => b.score - a.score);
     const match = candidates[0]?.header;
-    if (match) { fields[field] = match; used.add(match); }
+    if (match) {
+      fields[field] = match;
+      used.add(match);
+    }
   }
   return fields;
 }

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildCostBasisTimeline, buildPositionMetrics, buildQuantityTimeline, calculateXirr, cashflowSpanDays } from "./portfolioMetrics";
+import {
+  buildCostBasisTimeline,
+  buildPositionMetrics,
+  buildQuantityTimeline,
+  calculateXirr,
+  cashflowSpanDays,
+} from "./portfolioMetrics";
 import type { InvestmentRecord } from "./types";
 
 function record(partial: Partial<InvestmentRecord>): InvestmentRecord {
@@ -133,7 +139,14 @@ describe("buildPositionMetrics (moving average)", () => {
     // today). It must still settle first, else the sell hits zero inventory.
     const m = buildPositionMetrics([
       record({ id: "sell", date: "2026-05-26", action: "sell", price: 90, quantity: 2 }),
-      record({ id: "open", date: "2026-06-04", action: "buy", price: 88, quantity: 11, cashless: true }),
+      record({
+        id: "open",
+        date: "2026-06-04",
+        action: "buy",
+        price: 88,
+        quantity: 11,
+        cashless: true,
+      }),
     ]);
     expect(m.quantity).toBe(9);
     // The opening still contributes its −cost cashflow (anchors XIRR).
@@ -155,11 +168,14 @@ describe("buildCostBasisTimeline", () => {
     expect(t[2]).toEqual({ date: "2024-03-01", delta: -750 });
     // Sum of deltas = remaining cost basis = matches buildPositionMetrics.
     const remaining = t.reduce((s, d) => s + d.delta, 0);
-    expect(remaining).toBeCloseTo(buildPositionMetrics([
-      record({ date: "2024-01-01", action: "buy", price: 100, quantity: 10, fee: 0 }),
-      record({ date: "2024-02-01", action: "buy", price: 200, quantity: 10, fee: 0 }),
-      record({ date: "2024-03-01", action: "sell", price: 300, quantity: 5, fee: 0 }),
-    ]).costBasis, 6);
+    expect(remaining).toBeCloseTo(
+      buildPositionMetrics([
+        record({ date: "2024-01-01", action: "buy", price: 100, quantity: 10, fee: 0 }),
+        record({ date: "2024-02-01", action: "buy", price: 200, quantity: 10, fee: 0 }),
+        record({ date: "2024-03-01", action: "sell", price: 300, quantity: 5, fee: 0 }),
+      ]).costBasis,
+      6,
+    );
   });
 
   it("ignores stock dividends and splits (no cost change)", () => {
@@ -192,19 +208,19 @@ describe("cashflowSpanDays", () => {
 
 describe("calculateXirr", () => {
   it("returns ~simple rate for a one-year doubling", () => {
-    const r = calculateXirr(
-      [{ date: "2024-01-01", amount: -1000 }],
-      { date: "2025-01-01", amount: 1100 },
-    );
+    const r = calculateXirr([{ date: "2024-01-01", amount: -1000 }], {
+      date: "2025-01-01",
+      amount: 1100,
+    });
     expect(r).not.toBeNull();
     expect(r as number).toBeCloseTo(0.1, 2);
   });
 
   it("annualizes a 6-month 10% gain to ~21%", () => {
-    const r = calculateXirr(
-      [{ date: "2024-01-01", amount: -1000 }],
-      { date: "2024-07-01", amount: 1100 },
-    );
+    const r = calculateXirr([{ date: "2024-01-01", amount: -1000 }], {
+      date: "2024-07-01",
+      amount: 1100,
+    });
     expect(r as number).toBeGreaterThan(0.19);
     expect(r as number).toBeLessThan(0.23);
   });
@@ -223,14 +239,16 @@ describe("calculateXirr", () => {
 
   it("returns null without both an inflow and an outflow", () => {
     expect(calculateXirr([{ date: "2024-01-01", amount: -1000 }])).toBeNull();
-    expect(calculateXirr([{ date: "2024-01-01", amount: 100 }], { date: "2025-01-01", amount: 200 })).toBeNull();
+    expect(
+      calculateXirr([{ date: "2024-01-01", amount: 100 }], { date: "2025-01-01", amount: 200 }),
+    ).toBeNull();
   });
 
   it("handles a loss", () => {
-    const r = calculateXirr(
-      [{ date: "2024-01-01", amount: -1000 }],
-      { date: "2025-01-01", amount: 800 },
-    );
+    const r = calculateXirr([{ date: "2024-01-01", amount: -1000 }], {
+      date: "2025-01-01",
+      amount: 800,
+    });
     expect(r as number).toBeCloseTo(-0.2, 2);
   });
 
@@ -257,7 +275,9 @@ describe("calculateXirr", () => {
     const sorted = [...flows].sort((a, b) => a.date.localeCompare(b.date));
     const t0 = Date.parse(sorted[0].date);
     const npvAtRate = sorted.reduce(
-      (sum, f) => sum + f.amount / Math.pow(1 + (r as number), (Date.parse(f.date) - t0) / (365 * 86_400_000)),
+      (sum, f) =>
+        sum +
+        f.amount / Math.pow(1 + (r as number), (Date.parse(f.date) - t0) / (365 * 86_400_000)),
       0,
     );
     expect(npvAtRate).toBeCloseTo(0, 5);

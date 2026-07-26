@@ -1,14 +1,43 @@
 import { describe, expect, it } from "vitest";
-import { buildNetWorthBreakdown, buildOutstandingSettlements, buildTopHoldingSummaries, calculateAvailableCash, calculateLiabilities, changePctWithFloor, creditBalanceLabel, explainAccountBalance } from "./dashboardSummary";
+import {
+  buildNetWorthBreakdown,
+  buildOutstandingSettlements,
+  buildTopHoldingSummaries,
+  calculateAvailableCash,
+  calculateLiabilities,
+  changePctWithFloor,
+  creditBalanceLabel,
+  explainAccountBalance,
+} from "./dashboardSummary";
 import type { Account, LedgerTransaction, PortfolioAsset } from "./types";
 
 function ledgerRow(overrides: Partial<LedgerTransaction>): LedgerTransaction {
   return {
-    id: "tx", spaceId: "s", revision: 1, createdAt: "", updatedAt: "", deletedAt: null,
-    accountId: "a", counterAccountId: null, date: "2026-05-01T00:00", name: "", amount: 0, currency: "TWD",
-    originalAmount: null, originalCurrency: null, category: "", subcategory: "", merchant: "",
-    entryType: "expense", settlementStatus: "settled", note: "", linkedInvestmentRecordId: null,
-    groupId: null, isReviewed: false, receiptAttachmentId: null, recurringRuleId: null,
+    id: "tx",
+    spaceId: "s",
+    revision: 1,
+    createdAt: "",
+    updatedAt: "",
+    deletedAt: null,
+    accountId: "a",
+    counterAccountId: null,
+    date: "2026-05-01T00:00",
+    name: "",
+    amount: 0,
+    currency: "TWD",
+    originalAmount: null,
+    originalCurrency: null,
+    category: "",
+    subcategory: "",
+    merchant: "",
+    entryType: "expense",
+    settlementStatus: "settled",
+    note: "",
+    linkedInvestmentRecordId: null,
+    groupId: null,
+    isReviewed: false,
+    receiptAttachmentId: null,
+    recurringRuleId: null,
     ...overrides,
   };
 }
@@ -16,13 +45,39 @@ function ledgerRow(overrides: Partial<LedgerTransaction>): LedgerTransaction {
 describe("buildOutstandingSettlements", () => {
   const identity = (n: number) => n;
   it("totals unsettled AR/AP and ignores settled rows", () => {
-    const r = buildOutstandingSettlements([
-      ledgerRow({ id: "ar1", settlementStatus: "receivable", entryType: "income", amount: 500, date: "2026-05-03T00:00" }),
-      ledgerRow({ id: "ar2", settlementStatus: "receivable", entryType: "income", amount: 200, date: "2026-05-01T00:00" }),
-      ledgerRow({ id: "ap1", settlementStatus: "payable", entryType: "expense", amount: -300, date: "2026-05-02T00:00" }),
-      ledgerRow({ id: "s1", settlementStatus: "settled", amount: -100 }),
-      ledgerRow({ id: "del", settlementStatus: "receivable", amount: 999, deletedAt: "2026-05-01" }),
-    ], identity);
+    const r = buildOutstandingSettlements(
+      [
+        ledgerRow({
+          id: "ar1",
+          settlementStatus: "receivable",
+          entryType: "income",
+          amount: 500,
+          date: "2026-05-03T00:00",
+        }),
+        ledgerRow({
+          id: "ar2",
+          settlementStatus: "receivable",
+          entryType: "income",
+          amount: 200,
+          date: "2026-05-01T00:00",
+        }),
+        ledgerRow({
+          id: "ap1",
+          settlementStatus: "payable",
+          entryType: "expense",
+          amount: -300,
+          date: "2026-05-02T00:00",
+        }),
+        ledgerRow({ id: "s1", settlementStatus: "settled", amount: -100 }),
+        ledgerRow({
+          id: "del",
+          settlementStatus: "receivable",
+          amount: 999,
+          deletedAt: "2026-05-01",
+        }),
+      ],
+      identity,
+    );
     expect(r.receivableTotal).toBe(700);
     expect(r.payableTotal).toBe(300);
     expect(r.receivableCount).toBe(2);
@@ -170,7 +225,15 @@ describe("creditBalanceLabel", () => {
 describe("explainAccountBalance", () => {
   it("attributes a payable counter-leg of −302 as +302 via counter", () => {
     const result = explainAccountBalance("card", 0, [
-      ledgerRow({ id: "p1", accountId: "checking", counterAccountId: "card", amount: -302, name: "刷卡", date: "2026-05-01T00:00", settlementStatus: "payable" }),
+      ledgerRow({
+        id: "p1",
+        accountId: "checking",
+        counterAccountId: "card",
+        amount: -302,
+        name: "刷卡",
+        date: "2026-05-01T00:00",
+        settlementStatus: "payable",
+      }),
     ]);
     expect(result.opening).toBe(0);
     expect(result.contributions).toHaveLength(1);
@@ -200,4 +263,3 @@ describe("changePctWithFloor", () => {
     expect(changePctWithFloor(-1000, -900)).toBeCloseTo(10, 9);
   });
 });
-

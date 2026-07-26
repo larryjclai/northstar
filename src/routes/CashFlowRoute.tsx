@@ -22,7 +22,16 @@ import {
 } from "@phosphor-icons/react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ChangeEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bar, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  ComposedChart,
+  Line,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 import { MerchantAutocomplete } from "../components/MerchantAutocomplete";
 import { groupByDay, groupByMonth } from "./cashFlowGrouping";
@@ -56,12 +65,39 @@ import { ClientManager } from "../components/ClientManager";
 import { useToast } from "../components/Toast";
 import { activeFilterChips } from "./activeFilterChips";
 import type { ClientDraft, InvoiceDraft, LedgerDraft, TransferDraft } from "../data/repositories";
-import { buildLedgerSuggestions, buildMerchantCategoryMap, buildOutstandingSettlements, classifyLedgerGroup, evaluateAmountExpression, filterCategoriesByType, formatNumber, installmentLabel, isNeutralLedgerRow, isWithinDateScope, makeDefaultDateScope, nextRecurringDate, nowAsDatetimeLocal, recurringFrequencyLabels, resolveDateScope, todayInTimezone, toDatetimeLocalValue } from "../domain";
+import {
+  buildLedgerSuggestions,
+  buildMerchantCategoryMap,
+  buildOutstandingSettlements,
+  classifyLedgerGroup,
+  evaluateAmountExpression,
+  filterCategoriesByType,
+  formatNumber,
+  installmentLabel,
+  isNeutralLedgerRow,
+  isWithinDateScope,
+  makeDefaultDateScope,
+  nextRecurringDate,
+  nowAsDatetimeLocal,
+  recurringFrequencyLabels,
+  resolveDateScope,
+  todayInTimezone,
+  toDatetimeLocalValue,
+} from "../domain";
 import type { SplitLegInput, SplitShareInput, SplitSharedFields } from "../domain/splitLegs";
 import { buildInvoiceDrafts, defaultInvoiceDueDate } from "../domain/invoiceEntry";
 import { computeSalesTax } from "../domain/salesTax";
-import { agingBuckets, bimonthly401Summary, daysSalesOutstanding, outstandingSalesTax } from "../domain/invoiceReporting";
-import { nextInvoiceNumber, validateInvoiceNumber, type InvoiceNumberPreset } from "../domain/invoiceNumbering";
+import {
+  agingBuckets,
+  bimonthly401Summary,
+  daysSalesOutstanding,
+  outstandingSalesTax,
+} from "../domain/invoiceReporting";
+import {
+  nextInvoiceNumber,
+  validateInvoiceNumber,
+  type InvoiceNumberPreset,
+} from "../domain/invoiceNumbering";
 import {
   addShareDraft,
   addSplitLeg,
@@ -82,7 +118,15 @@ import {
   type SplitShareDraftState,
 } from "./splitEntryState";
 import { convertCurrency, buildDailyRateIndex, formatCompactNumber } from "../domain/currency";
-import type { Account, Client, DateScopeValue, LedgerTransaction, RecurringFrequency, RecurringTransaction, ResolvedDateScope } from "../domain";
+import type {
+  Account,
+  Client,
+  DateScopeValue,
+  LedgerTransaction,
+  RecurringFrequency,
+  RecurringTransaction,
+  ResolvedDateScope,
+} from "../domain";
 import { ALL_BOOKS, bookAccountIdSet, scopeRows } from "../domain/bookScope";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useNumericField } from "../hooks/useNumericField";
@@ -96,13 +140,14 @@ import { useNumericField } from "../hooks/useNumericField";
  */
 type CashType = "expense" | "income" | "transfer" | "ar" | "ap";
 
-const TYPE_META: Record<CashType, { label: string; color: string; sign: string; eyebrow: string }> = {
-  expense: { label: "支出", color: "var(--ns-neg)", sign: "−", eyebrow: "支出金額" },
-  income: { label: "收入", color: "var(--ns-pos)", sign: "+", eyebrow: "收入金額" },
-  transfer: { label: "轉帳", color: "var(--ns-accent)", sign: "", eyebrow: "轉帳金額" },
-  ar: { label: "應收帳款", color: "var(--ns-chart-3)", sign: "+", eyebrow: "應收金額" },
-  ap: { label: "應付帳款", color: "var(--ns-chart-5)", sign: "−", eyebrow: "應付金額" },
-};
+const TYPE_META: Record<CashType, { label: string; color: string; sign: string; eyebrow: string }> =
+  {
+    expense: { label: "支出", color: "var(--ns-neg)", sign: "−", eyebrow: "支出金額" },
+    income: { label: "收入", color: "var(--ns-pos)", sign: "+", eyebrow: "收入金額" },
+    transfer: { label: "轉帳", color: "var(--ns-accent)", sign: "", eyebrow: "轉帳金額" },
+    ar: { label: "應收帳款", color: "var(--ns-chart-3)", sign: "+", eyebrow: "應收金額" },
+    ap: { label: "應付帳款", color: "var(--ns-chart-5)", sign: "−", eyebrow: "應付金額" },
+  };
 
 const TYPE_ORDER: CashType[] = ["expense", "income", "ar", "ap", "transfer"];
 
@@ -193,7 +238,8 @@ const LONG_RANGE_CUSTOM_DAYS = 92;
  * than ~3 months) render month-collapsed groups instead (plan 169 variant D).
  */
 function isLongRange(dateScope: DateScopeValue, dateRange: ResolvedDateScope): boolean {
-  if (dateScope.preset === "ytd" || dateScope.preset === "last12m" || dateScope.preset === "all") return true;
+  if (dateScope.preset === "ytd" || dateScope.preset === "last12m" || dateScope.preset === "all")
+    return true;
   if (dateScope.preset === "custom" && dateRange.start && dateRange.end) {
     const start = new Date(`${dateRange.start}T00:00:00`).getTime();
     const end = new Date(`${dateRange.end}T00:00:00`).getTime();
@@ -208,7 +254,18 @@ function formatMonthLabel(month: string): string {
 }
 
 export function CashFlowRoute() {
-  const { accounts, ledger, recurring, settings, dailyFxRates, books, isInitialLoading, isError, error, refetchAll } = useFinanceData();
+  const {
+    accounts,
+    ledger,
+    recurring,
+    settings,
+    dailyFxRates,
+    books,
+    isInitialLoading,
+    isError,
+    error,
+    refetchAll,
+  } = useFinanceData();
   const timezone = useUiPreferences((state) => state.timezone);
   const activeBookId = useUiPreferences((state) => state.activeBookId);
   const emptyLedger = useMemo(() => makeEmptyLedger(timezone), [timezone]);
@@ -237,7 +294,9 @@ export function CashFlowRoute() {
   const [editingRecurringRuleId, setEditingRecurringRuleId] = useState<string | null>(null);
   // When editing a recurring-rule occurrence, the pending edit waits here while
   // the user picks the scope (this / future / all).
-  const [recurringEditPrompt, setRecurringEditPrompt] = useState<(LedgerDraft & { id: string }) | null>(null);
+  const [recurringEditPrompt, setRecurringEditPrompt] = useState<
+    (LedgerDraft & { id: string }) | null
+  >(null);
   // A receivable/payable awaiting its settle-account choice.
   const [settlePrompt, setSettlePrompt] = useState<LedgerTransaction | null>(null);
   const [drawerRecurringFreq, setDrawerRecurringFreq] = useState("none");
@@ -245,7 +304,9 @@ export function CashFlowRoute() {
   const [installmentPeriods, setInstallmentPeriods] = useState(0);
   // Installment delete prompt: the row whose delete button was pressed, used to
   // show the three-option chooser (this period / this and later / whole group).
-  const [installmentDeletePrompt, setInstallmentDeletePrompt] = useState<LedgerTransaction | null>(null);
+  const [installmentDeletePrompt, setInstallmentDeletePrompt] = useState<LedgerTransaction | null>(
+    null,
+  );
 
   const [ledgerForm, setLedgerForm] = useState<LedgerDraft>(emptyLedger);
   // 多類別拆分 (plan 182): non-null = the drawer is in MOZE-style split mode,
@@ -285,12 +346,18 @@ export function CashFlowRoute() {
   const toast = useToast();
   const [dateScope, setDateScope] = useState(() => makeDefaultDateScope(timezone, "month"));
   // `?account=<id>` deep-link from the Accounts page pre-selects that account.
-  const { account: accountParam, tx: txParam, from: fromParam } = useSearch({ strict: false }) as { account?: string; tx?: string; from?: string };
+  const {
+    account: accountParam,
+    tx: txParam,
+    from: fromParam,
+  } = useSearch({ strict: false }) as { account?: string; tx?: string; from?: string };
   const [selectedAccount, setSelectedAccount] = useState(accountParam ?? "all");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "categories" | "merchants" | "recurring">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "categories" | "merchants" | "recurring">(
+    "overview",
+  );
   // Cashflow chart bucketing granularity (日/週/月/年).
   const [chartGranularity, setChartGranularity] = useState<ChartGranularity>("day");
   const [detailRow, setDetailRow] = useState<LedgerTransaction | null>(null);
@@ -318,14 +385,25 @@ export function CashFlowRoute() {
 
   // 開發票 (plan 191): gated to a specific 公司帳 (not 總帳, not a personal book)
   // — docs/ledger-books-plan.md §3 scopes invoices to the company book only.
-  const activeBookRecord = useMemo(() => bookRows.find((b) => b.id === activeBookId) ?? null, [bookRows, activeBookId]);
+  const activeBookRecord = useMemo(
+    () => bookRows.find((b) => b.id === activeBookId) ?? null,
+    [bookRows, activeBookId],
+  );
   const isActiveCompanyBook = activeBookRecord?.kind === "company";
-  const bookClients = useMemo(() => clientRows.filter((c) => c.bookId === activeBookId), [clientRows, activeBookId]);
-  const bookInvoices = useMemo(() => invoiceRows.filter((i) => i.bookId === activeBookId), [invoiceRows, activeBookId]);
+  const bookClients = useMemo(
+    () => clientRows.filter((c) => c.bookId === activeBookId),
+    [clientRows, activeBookId],
+  );
+  const bookInvoices = useMemo(
+    () => invoiceRows.filter((i) => i.bookId === activeBookId),
+    [invoiceRows, activeBookId],
+  );
   // Suggests the next number off the most recently issued invoice in this book.
   const lastInvoiceNumber = useMemo(() => {
     if (bookInvoices.length === 0) return null;
-    const sorted = [...bookInvoices].sort((a, b) => b.issueDate.localeCompare(a.issueDate) || b.createdAt.localeCompare(a.createdAt));
+    const sorted = [...bookInvoices].sort(
+      (a, b) => b.issueDate.localeCompare(a.issueDate) || b.createdAt.localeCompare(a.createdAt),
+    );
     return sorted[0].invoiceNumber;
   }, [bookInvoices]);
 
@@ -335,15 +413,29 @@ export function CashFlowRoute() {
   // top of this. In 總帳 (activeBookId "all") every id is included → identical
   // to pre-books. The transfer-sibling lookup + suggestion pools keep reading
   // the full ledger so cross-book transfers still render.
-  const switcherAccountIds = useMemo(() => bookAccountIdSet(accountRows, activeBookId), [accountRows, activeBookId]);
-  const bookAccounts = useMemo(() => accountRows.filter((a) => switcherAccountIds.has(a.id)), [accountRows, switcherAccountIds]);
-  const bookLedgerRows = useMemo(() => scopeRows(ledgerRows, switcherAccountIds), [ledgerRows, switcherAccountIds]);
+  const switcherAccountIds = useMemo(
+    () => bookAccountIdSet(accountRows, activeBookId),
+    [accountRows, activeBookId],
+  );
+  const bookAccounts = useMemo(
+    () => accountRows.filter((a) => switcherAccountIds.has(a.id)),
+    [accountRows, switcherAccountIds],
+  );
+  const bookLedgerRows = useMemo(
+    () => scopeRows(ledgerRows, switcherAccountIds),
+    [ledgerRows, switcherAccountIds],
+  );
   const fxHistory = dailyFxRates.data ?? [];
   const fxIndex = useMemo(() => buildDailyRateIndex(fxHistory), [fxHistory]);
   const primaryCurrency = appSettings?.primaryCurrency ?? "TWD";
-  const toPrimary = useCallback((row: LedgerTransaction, amount = row.amount) =>
-    convertCurrency(amount, row.currency, primaryCurrency, appSettings, { dailyRateIndex: fxIndex, asOfDate: row.date }),
-  [appSettings, fxIndex, primaryCurrency]);
+  const toPrimary = useCallback(
+    (row: LedgerTransaction, amount = row.amount) =>
+      convertCurrency(amount, row.currency, primaryCurrency, appSettings, {
+        dailyRateIndex: fxIndex,
+        asOfDate: row.date,
+      }),
+    [appSettings, fxIndex, primaryCurrency],
+  );
 
   // Deep-link from the Reconcile screen: open the transaction's detail panel once
   // the ledger has loaded (matching what a tap on a CashFlow row does).
@@ -382,7 +474,8 @@ export function CashFlowRoute() {
   // Each merchant's most-used (category, subcategory) from expense history, so
   // picking a merchant can auto-fill its usual category.
   const merchantCategoryMap = useMemo(() => buildMerchantCategoryMap(ledgerRows), [ledgerRows]);
-  const categoryForMerchant = (merchant: string) => merchantCategoryMap.get(merchant.trim()) ?? null;
+  const categoryForMerchant = (merchant: string) =>
+    merchantCategoryMap.get(merchant.trim()) ?? null;
 
   // Once a category is chosen, suggest the merchants and accounts most often
   // used with it (from settled expense history). Drives the progressive flow:
@@ -401,12 +494,19 @@ export function CashFlowRoute() {
     ["ledger", "accounts"],
   );
   const updateLedger = useRepositoryMutation(
-    (repository, input: LedgerDraft & { id: string }) => repository.updateLedgerTransaction(input.id, input),
+    (repository, input: LedgerDraft & { id: string }) =>
+      repository.updateLedgerTransaction(input.id, input),
     ["ledger", "accounts"],
   );
   const applyRecurringEdit = useRepositoryMutation(
-    (repository, input: { id: string; scope: import("../data/repositories").RecurringEditScope; draft: LedgerDraft }) =>
-      repository.applyRecurringScopeEdit(input.id, input.scope, input.draft),
+    (
+      repository,
+      input: {
+        id: string;
+        scope: import("../data/repositories").RecurringEditScope;
+        draft: LedgerDraft;
+      },
+    ) => repository.applyRecurringScopeEdit(input.id, input.scope, input.draft),
     ["ledger", "accounts", "recurring"],
   );
   const deleteLedger = useRepositoryMutation(
@@ -414,11 +514,13 @@ export function CashFlowRoute() {
     ["ledger", "accounts"],
   );
   const updateSettingsMutation = useRepositoryMutation(
-    (repository, input: import("../domain/types").AppSettings) => repository.updateAppSettings(input),
+    (repository, input: import("../domain/types").AppSettings) =>
+      repository.updateAppSettings(input),
     ["settings"],
   );
   const createRecurring = useRepositoryMutation(
-    (repository, input: import("../data/repositories").RecurringDraft) => repository.createRecurringTransaction(input),
+    (repository, input: import("../data/repositories").RecurringDraft) =>
+      repository.createRecurringTransaction(input),
     ["recurring"],
   );
   const postRecurring = useRepositoryMutation(
@@ -439,13 +541,22 @@ export function CashFlowRoute() {
     ["ledger", "accounts"],
   );
   const createSplitMutation = useRepositoryMutation(
-    (repository, input: { shared: SplitSharedFields; legs: SplitLegInput[]; shares: SplitShareInput[] }) =>
-      repository.createSplit(input.shared, input.legs, input.shares),
+    (
+      repository,
+      input: { shared: SplitSharedFields; legs: SplitLegInput[]; shares: SplitShareInput[] },
+    ) => repository.createSplit(input.shared, input.legs, input.shares),
     ["ledger", "accounts"],
   );
   const updateSplitMutation = useRepositoryMutation(
-    (repository, input: { groupId: string; shared: SplitSharedFields; legs: SplitLegInput[]; shares: SplitShareInput[] }) =>
-      repository.updateSplit(input.groupId, input.shared, input.legs, input.shares),
+    (
+      repository,
+      input: {
+        groupId: string;
+        shared: SplitSharedFields;
+        legs: SplitLegInput[];
+        shares: SplitShareInput[];
+      },
+    ) => repository.updateSplit(input.groupId, input.shared, input.legs, input.shares),
     ["ledger", "accounts"],
   );
   const createInstallmentPlan = useRepositoryMutation(
@@ -455,7 +566,10 @@ export function CashFlowRoute() {
   );
   const deleteInstallmentPlan = useRepositoryMutation(
     (repository, input: { groupId: string; fromIndex?: number }) =>
-      repository.deleteInstallmentPlan(input.groupId, input.fromIndex !== undefined ? { fromIndex: input.fromIndex } : undefined),
+      repository.deleteInstallmentPlan(
+        input.groupId,
+        input.fromIndex !== undefined ? { fromIndex: input.fromIndex } : undefined,
+      ),
     ["ledger", "accounts"],
   );
 
@@ -468,7 +582,10 @@ export function CashFlowRoute() {
   // distinguishable `InvoiceMetadataError` so the caller can tell the operator
   // and close the drawer instead of inviting a duplicate resubmit.
   const createInvoiceEntry = useRepositoryMutation(
-    async (repository, input: { ledger: LedgerDraft; invoice: Omit<InvoiceDraft, "linkedLedgerTransactionId"> }) => {
+    async (
+      repository,
+      input: { ledger: LedgerDraft; invoice: Omit<InvoiceDraft, "linkedLedgerTransactionId"> },
+    ) => {
       const before = new Set((await repository.listLedgerTransactions()).map((row) => row.id));
       await repository.createLedgerTransaction(input.ledger);
       const after = await repository.listLedgerTransactions();
@@ -480,7 +597,9 @@ export function CashFlowRoute() {
         await repository.createInvoice({ ...input.invoice, linkedLedgerTransactionId: created.id });
       } catch (e) {
         const reason = e instanceof Error ? e.message : String(e);
-        throw new InvoiceMetadataError(`應收帳款已建立，但發票資料建立失敗（${reason}）。請至客戶管理重新確認後手動補登。`);
+        throw new InvoiceMetadataError(
+          `應收帳款已建立，但發票資料建立失敗（${reason}）。請至客戶管理重新確認後手動補登。`,
+        );
       }
     },
     // "invoices" isn't a key `useRepositoryMutation` knows about (it's a local
@@ -493,7 +612,8 @@ export function CashFlowRoute() {
     [],
   );
   const updateClientMutation = useRepositoryMutation(
-    (repository, input: { id: string; draft: ClientDraft }) => repository.updateClient(input.id, input.draft),
+    (repository, input: { id: string; draft: ClientDraft }) =>
+      repository.updateClient(input.id, input.draft),
     [],
   );
   // 開發票 (plan 191 step 4): stamps/clears the linked invoice's settledAt —
@@ -505,15 +625,23 @@ export function CashFlowRoute() {
     [],
   );
 
-  const rememberMerchants = useRepositoryMutation(async (repository, input: string[]) => {
-    const nextNames = uniqueClean(input);
-    if (nextNames.length === 0) return;
-    const current = await repository.getAppSettings();
-    const existing = new Set(current.merchants.map((merchant) => merchant.trim()).filter(Boolean));
-    const additions = nextNames.filter((merchant) => !existing.has(merchant));
-    if (additions.length === 0) return;
-    await repository.updateAppSettings({ ...current, merchants: [...current.merchants, ...additions] });
-  }, ["settings"]);
+  const rememberMerchants = useRepositoryMutation(
+    async (repository, input: string[]) => {
+      const nextNames = uniqueClean(input);
+      if (nextNames.length === 0) return;
+      const current = await repository.getAppSettings();
+      const existing = new Set(
+        current.merchants.map((merchant) => merchant.trim()).filter(Boolean),
+      );
+      const additions = nextNames.filter((merchant) => !existing.has(merchant));
+      if (additions.length === 0) return;
+      await repository.updateAppSettings({
+        ...current,
+        merchants: [...current.merchants, ...additions],
+      });
+    },
+    ["settings"],
+  );
 
   const rememberCategories = useRepositoryMutation(
     async (repository, input: Array<{ category: string; subcategory: string }>) => {
@@ -522,7 +650,10 @@ export function CashFlowRoute() {
         .filter((item) => item.category);
       if (nextItems.length === 0) return;
       const current = await repository.getAppSettings();
-      const nextCategories = current.categories.map((category) => ({ ...category, children: [...category.children] }));
+      const nextCategories = current.categories.map((category) => ({
+        ...category,
+        children: [...category.children],
+      }));
       let changed = false;
       for (const item of nextItems) {
         let category = nextCategories.find((candidate) => candidate.name === item.category);
@@ -575,7 +706,13 @@ export function CashFlowRoute() {
    */
   function linkedFeeAmountFor(row: LedgerTransaction): number {
     if (!row.groupId) return 0;
-    const leg = ledgerRows.find((r) => r.groupId === row.groupId && r.category === "手續費" && r.legKind == null && r.deletedAt === null);
+    const leg = ledgerRows.find(
+      (r) =>
+        r.groupId === row.groupId &&
+        r.category === "手續費" &&
+        r.legKind == null &&
+        r.deletedAt === null,
+    );
     return leg ? Math.abs(leg.amount) : 0;
   }
 
@@ -682,7 +819,7 @@ export function CashFlowRoute() {
         // account carried over from an expense/income draft.
         accountId: toRp ? "" : current.accountId,
         // 代墊 counter account only applies to 應收/應付; clear it otherwise.
-        counterAccountId: toRp ? current.counterAccountId ?? null : null,
+        counterAccountId: toRp ? (current.counterAccountId ?? null) : null,
       }));
     }
   }
@@ -737,16 +874,20 @@ export function CashFlowRoute() {
     setEntryDisplayCurrency(first.currency);
     const total = groupRows.reduce((sum, r) => sum + Math.abs(r.amount), 0);
     setAmountExpression(String(total));
-    setSplitLegs(categoryRows.map((r) => ({
-      amount: String(Math.abs(r.amount)),
-      category: r.category,
-      subcategory: r.subcategory,
-    })));
-    setShareDrafts(shareRows.map((r) => ({
-      amount: String(Math.abs(r.amount)),
-      counterparty: r.name,
-      counterAccountId: r.counterAccountId ?? "",
-    })));
+    setSplitLegs(
+      categoryRows.map((r) => ({
+        amount: String(Math.abs(r.amount)),
+        category: r.category,
+        subcategory: r.subcategory,
+      })),
+    );
+    setShareDrafts(
+      shareRows.map((r) => ({
+        amount: String(Math.abs(r.amount)),
+        counterparty: r.name,
+        counterAccountId: r.counterAccountId ?? "",
+      })),
+    );
     setDrawerRecurringFreq("none");
     setInstallmentPeriods(0);
     setMessage("");
@@ -862,7 +1003,10 @@ export function CashFlowRoute() {
     setDrawerOpen(true);
   }
 
-  function startDuplicate(row: LedgerTransaction, transferPair?: { source: LedgerTransaction; dest: LedgerTransaction }) {
+  function startDuplicate(
+    row: LedgerTransaction,
+    transferPair?: { source: LedgerTransaction; dest: LedgerTransaction },
+  ) {
     const splitRows = splitGroupRowsFor(row);
     if (splitRows) {
       startSplitEdit(splitRows, true);
@@ -961,8 +1105,9 @@ export function CashFlowRoute() {
         if (combinedError) throw new Error(combinedError);
         if (!ledgerForm.accountId) throw new Error("請選擇帳戶。");
         const splitEntryType = entryTypeFor(drawerType) as "expense" | "income";
-        const isCreditSplit = splitEntryType === "expense"
-          && accountRows.find((a) => a.id === ledgerForm.accountId)?.type === "credit";
+        const isCreditSplit =
+          splitEntryType === "expense" &&
+          accountRows.find((a) => a.id === ledgerForm.accountId)?.type === "credit";
         const shared: SplitSharedFields = {
           accountId: ledgerForm.accountId,
           date: ledgerForm.date,
@@ -972,20 +1117,29 @@ export function CashFlowRoute() {
           entryType: splitEntryType,
           settlementStatus: "settled",
           note: ledgerForm.note,
-          postDate: isCreditSplit ? (ledgerForm.postDate || null) : null,
+          postDate: isCreditSplit ? ledgerForm.postDate || null : null,
         };
         const legs = toSplitLegInputs(splitLegs);
         const shares = toShareInputs(shareDrafts);
         if (editingId && editingSplitGroupId) {
-          await updateSplitMutation.mutateAsync({ groupId: editingSplitGroupId, shared, legs, shares });
+          await updateSplitMutation.mutateAsync({
+            groupId: editingSplitGroupId,
+            shared,
+            legs,
+            shares,
+          });
           toast.success("已更新拆分交易");
         } else {
           await createSplitMutation.mutateAsync({ shared, legs, shares });
-          toast.success(shares.length > 0
-            ? `已新增拆分交易（${legs.length} 筆分類、${shares.length} 筆分帳）`
-            : `已新增拆分交易（${legs.length} 筆分類）`);
+          toast.success(
+            shares.length > 0
+              ? `已新增拆分交易（${legs.length} 筆分類、${shares.length} 筆分帳）`
+              : `已新增拆分交易（${legs.length} 筆分類）`,
+          );
         }
-        await rememberCategories.mutateAsync(legs.map((leg) => ({ category: leg.category, subcategory: leg.subcategory })));
+        await rememberCategories.mutateAsync(
+          legs.map((leg) => ({ category: leg.category, subcategory: leg.subcategory })),
+        );
         rememberMerchantNames([shared.merchant]);
         closeDrawer();
         // 對帳 round-trip (plan 225): only an edit (never a fresh split) bounces
@@ -1018,7 +1172,10 @@ export function CashFlowRoute() {
           counterAccountId: ledgerForm.counterAccountId ?? null,
         });
         try {
-          await createInvoiceEntry.mutateAsync({ ledger: invoiceLedgerDraft, invoice: invoiceMetaDraft });
+          await createInvoiceEntry.mutateAsync({
+            ledger: invoiceLedgerDraft,
+            invoice: invoiceMetaDraft,
+          });
           await queryClient.invalidateQueries({ queryKey: ["invoices"] });
         } catch (mutationError) {
           // The ledger row (if it landed) is already invalidated via
@@ -1036,7 +1193,9 @@ export function CashFlowRoute() {
           throw mutationError;
         }
         toast.success(`已建立發票並記錄應收帳款（${invoiceMetaDraft.invoiceNumber}）`);
-        await rememberCategories.mutateAsync([{ category: invoiceLedgerDraft.category, subcategory: invoiceLedgerDraft.subcategory }]);
+        await rememberCategories.mutateAsync([
+          { category: invoiceLedgerDraft.category, subcategory: invoiceLedgerDraft.subcategory },
+        ]);
         rememberMerchantNames([invoiceLedgerDraft.merchant]);
         closeDrawer();
         return;
@@ -1050,8 +1209,16 @@ export function CashFlowRoute() {
       let originalCurrency: string | null = null;
 
       if (isForeignCurrency) {
-        const converted = convertCurrency(rawAmount, entryDisplayCurrency, ledgerForm.currency, appSettings);
-        if (converted === null) throw new Error(`找不到 ${entryDisplayCurrency} → ${ledgerForm.currency} 的匯率，請先在「設定 → 匯率」中新增。`);
+        const converted = convertCurrency(
+          rawAmount,
+          entryDisplayCurrency,
+          ledgerForm.currency,
+          appSettings,
+        );
+        if (converted === null)
+          throw new Error(
+            `找不到 ${entryDisplayCurrency} → ${ledgerForm.currency} 的匯率，請先在「設定 → 匯率」中新增。`,
+          );
         signedAmount = entryType === "expense" ? -converted : converted;
         originalAmount = entryType === "expense" ? -rawAmount : rawAmount;
         originalCurrency = entryDisplayCurrency;
@@ -1060,19 +1227,22 @@ export function CashFlowRoute() {
       }
 
       const isReceivablePayable = drawerType === "ar" || drawerType === "ap";
-      const note = dueDate ? `${ledgerForm.note ? `${ledgerForm.note} · ` : ""}到期 ${dueDate}`.trim() : ledgerForm.note;
+      const note = dueDate
+        ? `${ledgerForm.note ? `${ledgerForm.note} · ` : ""}到期 ${dueDate}`.trim()
+        : ledgerForm.note;
       // 延後入帳 only applies to a credit-card expense; clear it otherwise so a
       // posting date never lingers on income/transfer or non-credit accounts.
-      const isCreditExpense = entryType === "expense"
-        && accountRows.find((a) => a.id === ledgerForm.accountId)?.type === "credit";
-      const postDate = isCreditExpense ? (ledgerForm.postDate || null) : null;
+      const isCreditExpense =
+        entryType === "expense" &&
+        accountRows.find((a) => a.id === ledgerForm.accountId)?.type === "credit";
+      const postDate = isCreditExpense ? ledgerForm.postDate || null : null;
       const payload: LedgerDraft = {
         ...ledgerForm,
         entryType,
         settlementStatus: settlementFor(drawerType),
         postDate,
         // 代墊 counter account only applies to 應收/應付.
-        counterAccountId: isReceivablePayable ? (ledgerForm.counterAccountId || null) : null,
+        counterAccountId: isReceivablePayable ? ledgerForm.counterAccountId || null : null,
         amount: signedAmount,
         originalAmount,
         originalCurrency,
@@ -1084,7 +1254,8 @@ export function CashFlowRoute() {
         // Fees attach to income/expense rows only — the repo emits/reconciles
         // a linked 手續費 expense leg on both create AND edit (plan 226).
         // Transfers keep their separate transferForm.feeAmount path.
-        feeAmount: (entryType === "expense" || entryType === "income") ? (ledgerForm.feeAmount || 0) : 0,
+        feeAmount:
+          entryType === "expense" || entryType === "income" ? ledgerForm.feeAmount || 0 : 0,
       };
       // Expense/income/transfer need an account up front; receivable/payable
       // defer the settle account to 結清 time (only the optional 代墊 account
@@ -1104,21 +1275,21 @@ export function CashFlowRoute() {
           const frequency = drawerRecurringFreq as RecurringFrequency;
           const dayOfMonth = parseInt(payload.date.slice(8, 10));
           await createRecurring.mutateAsync({
-             frequency,
-             dayOfMonth,
-             accountId: payload.accountId,
-             counterAccountId: payload.counterAccountId ?? null,
-             amount: payload.amount,
-             currency: payload.currency,
-             category: payload.category,
-             subcategory: payload.subcategory,
-             merchant: payload.merchant,
-             entryType: payload.entryType as "income" | "expense",
-             settlementStatus: payload.settlementStatus,
-             note: payload.note,
-             nextRunDate: nextRecurringDate(payload.date.slice(0, 10), frequency, dayOfMonth),
-             isActive: true,
-             seedToday: todayInTimezone(timezone),
+            frequency,
+            dayOfMonth,
+            accountId: payload.accountId,
+            counterAccountId: payload.counterAccountId ?? null,
+            amount: payload.amount,
+            currency: payload.currency,
+            category: payload.category,
+            subcategory: payload.subcategory,
+            merchant: payload.merchant,
+            entryType: payload.entryType as "income" | "expense",
+            settlementStatus: payload.settlementStatus,
+            note: payload.note,
+            nextRunDate: nextRecurringDate(payload.date.slice(0, 10), frequency, dayOfMonth),
+            isActive: true,
+            seedToday: todayInTimezone(timezone),
           });
           toast.success("已建立週期規則");
         }
@@ -1132,25 +1303,27 @@ export function CashFlowRoute() {
           const frequency = drawerRecurringFreq as RecurringFrequency;
           const dayOfMonth = parseInt(payload.date.slice(8, 10));
           await createRecurring.mutateAsync({
-             frequency,
-             dayOfMonth,
-             accountId: payload.accountId,
-             counterAccountId: payload.counterAccountId ?? null,
-             amount: payload.amount,
-             currency: payload.currency,
-             category: payload.category,
-             subcategory: payload.subcategory,
-             merchant: payload.merchant,
-             entryType: payload.entryType as "income" | "expense",
-             settlementStatus: payload.settlementStatus,
-             note: payload.note,
-             nextRunDate: nextRecurringDate(payload.date.slice(0, 10), frequency, dayOfMonth),
-             isActive: true,
-             seedToday: todayInTimezone(timezone),
+            frequency,
+            dayOfMonth,
+            accountId: payload.accountId,
+            counterAccountId: payload.counterAccountId ?? null,
+            amount: payload.amount,
+            currency: payload.currency,
+            category: payload.category,
+            subcategory: payload.subcategory,
+            merchant: payload.merchant,
+            entryType: payload.entryType as "income" | "expense",
+            settlementStatus: payload.settlementStatus,
+            note: payload.note,
+            nextRunDate: nextRecurringDate(payload.date.slice(0, 10), frequency, dayOfMonth),
+            isActive: true,
+            seedToday: todayInTimezone(timezone),
           });
         }
       }
-      await rememberCategories.mutateAsync([{ category: payload.category, subcategory: payload.subcategory }]);
+      await rememberCategories.mutateAsync([
+        { category: payload.category, subcategory: payload.subcategory },
+      ]);
       rememberMerchantNames([payload.merchant]);
       closeDrawer();
       // 對帳 round-trip (plan 225): editingId gates out plain creates/installment
@@ -1166,8 +1339,12 @@ export function CashFlowRoute() {
     const { id, ...draft } = recurringEditPrompt;
     try {
       await applyRecurringEdit.mutateAsync({ id, scope, draft });
-      toast.success(scope === "this" ? "已更新此筆" : scope === "future" ? "已更新此筆與未來" : "已更新全部");
-      await rememberCategories.mutateAsync([{ category: draft.category, subcategory: draft.subcategory }]);
+      toast.success(
+        scope === "this" ? "已更新此筆" : scope === "future" ? "已更新此筆與未來" : "已更新全部",
+      );
+      await rememberCategories.mutateAsync([
+        { category: draft.category, subcategory: draft.subcategory },
+      ]);
       rememberMerchantNames([draft.merchant]);
       setRecurringEditPrompt(null);
       closeDrawer();
@@ -1189,7 +1366,10 @@ export function CashFlowRoute() {
       if (editingTransferGroupId) {
         // 編輯轉帳 (plan 227): in-place leg update — NOT create, which would
         // mint a duplicate pair while the original stays (the bug this fixes).
-        await updateTransferMutation.mutateAsync({ groupId: editingTransferGroupId, input: transferForm });
+        await updateTransferMutation.mutateAsync({
+          groupId: editingTransferGroupId,
+          input: transferForm,
+        });
         toast.success("已更新轉帳");
       } else {
         await createTransfer.mutateAsync(transferForm);
@@ -1236,7 +1416,10 @@ export function CashFlowRoute() {
         await deleteLedger.mutateAsync(row.id);
         toast.success("已刪除此期分期");
       } else if (mode === "later") {
-        await deleteInstallmentPlan.mutateAsync({ groupId: row.installmentGroupId!, fromIndex: row.installmentIndex ?? undefined });
+        await deleteInstallmentPlan.mutateAsync({
+          groupId: row.installmentGroupId!,
+          fromIndex: row.installmentIndex ?? undefined,
+        });
         toast.success("已刪除此期與之後的分期");
       } else {
         await deleteInstallmentPlan.mutateAsync({ groupId: row.installmentGroupId! });
@@ -1280,7 +1463,10 @@ export function CashFlowRoute() {
       // own success toast on a stamping failure — the ledger row is already
       // settled either way.
       try {
-        await stampInvoiceSettledMutation.mutateAsync({ linkedLedgerTransactionId: row.id, settledAt: new Date().toISOString() });
+        await stampInvoiceSettledMutation.mutateAsync({
+          linkedLedgerTransactionId: row.id,
+          settledAt: new Date().toISOString(),
+        });
         await queryClient.invalidateQueries({ queryKey: ["invoices"] });
       } catch (stampError) {
         console.error("Failed to stamp invoice settledAt", stampError);
@@ -1305,40 +1491,67 @@ export function CashFlowRoute() {
     }
   }
 
-  const scopedRows = useMemo(() => bookLedgerRows.filter((row) => {
-    if (!isWithinDateScope(row.date, dateRange)) return false;
-    if (selectedAccount !== "all" && row.accountId !== selectedAccount) return false;
-    if (selectedCategory !== "all" && row.category !== selectedCategory) return false;
-    return true;
-  }), [bookLedgerRows, dateRange, selectedAccount, selectedCategory]);
+  const scopedRows = useMemo(
+    () =>
+      bookLedgerRows.filter((row) => {
+        if (!isWithinDateScope(row.date, dateRange)) return false;
+        if (selectedAccount !== "all" && row.accountId !== selectedAccount) return false;
+        if (selectedCategory !== "all" && row.category !== selectedCategory) return false;
+        return true;
+      }),
+    [bookLedgerRows, dateRange, selectedAccount, selectedCategory],
+  );
   const activityRows = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase();
     if (!query) return scopedRows;
-    return scopedRows.filter((row) => [
-      row.name,
-      row.merchant,
-      row.category,
-      row.subcategory,
-      row.note,
-      accountName(row.accountId),
-    ].some((value) => value.toLocaleLowerCase().includes(query)));
+    return scopedRows.filter((row) =>
+      [
+        row.name,
+        row.merchant,
+        row.category,
+        row.subcategory,
+        row.note,
+        accountName(row.accountId),
+      ].some((value) => value.toLocaleLowerCase().includes(query)),
+    );
   }, [scopedRows, searchQuery, accountRows]);
   // Period aggregates: a full filter+reduce pass over `scopedRows` each. Keyed
   // on the scoped rows and converter only — NOT `searchQuery` — so typing in
   // the search box (which only affects `activityRows`) doesn't re-run them.
   const { periodIncome, periodExpense, periodNet, periodTransferCount, missingFx } = useMemo(() => {
     const income = scopedRows
-      .filter((row) => row.entryType === "income" && row.settlementStatus === "settled" && !isNeutralLedgerRow(row))
+      .filter(
+        (row) =>
+          row.entryType === "income" &&
+          row.settlementStatus === "settled" &&
+          !isNeutralLedgerRow(row),
+      )
       .reduce((sum, row) => sum + Math.max(0, toPrimary(row) ?? 0), 0);
     const expense = scopedRows
-      .filter((row) => row.entryType === "expense" && row.settlementStatus === "settled" && !isNeutralLedgerRow(row))
+      .filter(
+        (row) =>
+          row.entryType === "expense" &&
+          row.settlementStatus === "settled" &&
+          !isNeutralLedgerRow(row),
+      )
       // Signed: expense amounts are negative, so −amount is positive spend; a
       // refund (positive-amount expense) nets back out instead of adding.
       .reduce((sum, row) => sum - (toPrimary(row) ?? 0), 0);
-    const transferCount = new Set(scopedRows.filter((row) => row.entryType === "transfer").map((row) => row.groupId ?? row.id)).size;
-    const missing = [...new Set(scopedRows
-      .filter((row) => !isNeutralLedgerRow(row) && row.settlementStatus === "settled" && toPrimary(row) === null)
-      .map((row) => `${row.currency} → ${primaryCurrency}`))];
+    const transferCount = new Set(
+      scopedRows.filter((row) => row.entryType === "transfer").map((row) => row.groupId ?? row.id),
+    ).size;
+    const missing = [
+      ...new Set(
+        scopedRows
+          .filter(
+            (row) =>
+              !isNeutralLedgerRow(row) &&
+              row.settlementStatus === "settled" &&
+              toPrimary(row) === null,
+          )
+          .map((row) => `${row.currency} → ${primaryCurrency}`),
+      ),
+    ];
     return {
       periodIncome: income,
       periodExpense: expense,
@@ -1358,21 +1571,44 @@ export function CashFlowRoute() {
       return true;
     });
     for (const row of baseRows) {
-      if (row.entryType !== "expense" || row.settlementStatus !== "settled" || isNeutralLedgerRow(row)) continue;
+      if (
+        row.entryType !== "expense" ||
+        row.settlementStatus !== "settled" ||
+        isNeutralLedgerRow(row)
+      )
+        continue;
       const key = row.category || "未分類";
       // Signed (−amount): refunds net against the category they refund.
       map.set(key, (map.get(key) ?? 0) - (toPrimary(row) ?? 0));
     }
-    const defaultColors = ["var(--ns-chart-1)","var(--ns-chart-2)","var(--ns-chart-3)","var(--ns-chart-4)","var(--ns-chart-5)","var(--ns-chart-6)","var(--ns-chart-7)","#a78bfa","#f472b6","#facc15"];
-    return [...map.entries()]
-      // A category can net negative if refunds exceed spend in the period;
-      // hide it from the spend donut rather than drawing a negative slice.
-      .filter(([, amount]) => amount > 0)
-      .map(([name, amount], idx) => {
-        const catSetting = appSettings?.categories.find(c => c.name === name);
-        return { name, amount, color: catSetting?.color || defaultColors[idx % defaultColors.length], icon: catSetting?.iconName || 'Tag' };
-      })
-      .sort((a, b) => b.amount - a.amount);
+    const defaultColors = [
+      "var(--ns-chart-1)",
+      "var(--ns-chart-2)",
+      "var(--ns-chart-3)",
+      "var(--ns-chart-4)",
+      "var(--ns-chart-5)",
+      "var(--ns-chart-6)",
+      "var(--ns-chart-7)",
+      "#a78bfa",
+      "#f472b6",
+      "#facc15",
+    ];
+    return (
+      [...map.entries()]
+        // A category can net negative if refunds exceed spend in the period;
+        // hide it from the spend donut rather than drawing a negative slice.
+        .filter(([, amount]) => amount > 0)
+        .map(([name, amount], idx) => {
+          const catSetting = appSettings?.categories.find((c) => c.name === name);
+          return {
+            name,
+            amount,
+            color: catSetting?.color || defaultColors[idx % defaultColors.length],
+            icon: catSetting?.iconName || "Tag",
+          };
+        })
+        .sort((a, b) => b.amount - a.amount)
+    );
   }, [bookLedgerRows, dateRange, selectedAccount, appSettings, toPrimary]);
 
   const totalCategorySpend = allCategorySpend.reduce((s, c) => s + c.amount, 0);
@@ -1385,7 +1621,13 @@ export function CashFlowRoute() {
   const topMerchantSpend = useMemo(() => {
     const map = new Map<string, number>();
     for (const row of scopedRows) {
-      if (row.entryType !== "expense" || row.settlementStatus !== "settled" || !row.merchant || isNeutralLedgerRow(row)) continue;
+      if (
+        row.entryType !== "expense" ||
+        row.settlementStatus !== "settled" ||
+        !row.merchant ||
+        isNeutralLedgerRow(row)
+      )
+        continue;
       // Signed (−amount): refunds net against the merchant they refund.
       map.set(row.merchant, (map.get(row.merchant) ?? 0) - (toPrimary(row) ?? 0));
     }
@@ -1410,7 +1652,11 @@ export function CashFlowRoute() {
       return row.entryType === "income" || row.entryType === "expense";
     });
     const slots = buildCashflowBuckets(chartGranularity, dateRange).map((b) => ({
-      ...b, income: 0, expense: 0, net: 0, cumulativeNet: 0,
+      ...b,
+      income: 0,
+      expense: 0,
+      net: 0,
+      cumulativeNet: 0,
     }));
     const byKey = new Map(slots.map((s) => [s.key, s]));
     for (const row of rows) {
@@ -1434,14 +1680,15 @@ export function CashFlowRoute() {
     return slots;
   }, [bookLedgerRows, selectedAccount, selectedCategory, chartGranularity, dateRange, toPrimary]);
 
-
   const sortedRows = useMemo(
-
     () => [...ledgerRows].sort((a, b) => b.date.localeCompare(a.date)),
     [ledgerRows],
   );
 
-  const displayRows = useMemo(() => mergeTransferRows(activityRows, ledgerRows), [activityRows, ledgerRows]);
+  const displayRows = useMemo(
+    () => mergeTransferRows(activityRows, ledgerRows),
+    [activityRows, ledgerRows],
+  );
 
   // Long ranges (YTD / 近12個月 / 全部 / a >92-day custom range) render
   // month-collapsed groups instead of a flat day list (variant D); load-more
@@ -1482,7 +1729,10 @@ export function CashFlowRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange, selectedAccount, selectedCategory, searchQuery, isInitialLoading]);
 
-  const visibleRows = useMemo(() => displayRows.slice(0, visibleCount), [displayRows, visibleCount]);
+  const visibleRows = useMemo(
+    () => displayRows.slice(0, visibleCount),
+    [displayRows, visibleCount],
+  );
   const dayGroups = useMemo(() => groupByDay(visibleRows, toPrimary), [visibleRows, toPrimary]);
   const monthGroups = useMemo(() => groupByMonth(displayRows, toPrimary), [displayRows, toPrimary]);
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
@@ -1533,14 +1783,20 @@ export function CashFlowRoute() {
 
   // Unsettled receivables / payables (respecting the account filter).
   const settlementConvert = useCallback(
-    (amount: number, currency: string) => convertCurrency(amount, currency, primaryCurrency, appSettings, { dailyRateIndex: fxIndex }) ?? amount,
+    (amount: number, currency: string) =>
+      convertCurrency(amount, currency, primaryCurrency, appSettings, {
+        dailyRateIndex: fxIndex,
+      }) ?? amount,
     [appSettings, fxIndex, primaryCurrency],
   );
   const settlements = useMemo(
-    () => buildOutstandingSettlements(
-      selectedAccount === "all" ? bookLedgerRows : bookLedgerRows.filter((r) => r.accountId === selectedAccount),
-      settlementConvert,
-    ),
+    () =>
+      buildOutstandingSettlements(
+        selectedAccount === "all"
+          ? bookLedgerRows
+          : bookLedgerRows.filter((r) => r.accountId === selectedAccount),
+        settlementConvert,
+      ),
     [bookLedgerRows, selectedAccount, settlementConvert],
   );
 
@@ -1549,9 +1805,18 @@ export function CashFlowRoute() {
   // plain memos (not a shared hook) mirroring the invoicesQuery/clientsQuery
   // pattern above: local to this route, not in scope for this plan.
   const todayIso = useMemo(() => todayInTimezone(timezone), [timezone]);
-  const invoiceAging = useMemo(() => agingBuckets(bookInvoices, todayIso), [bookInvoices, todayIso]);
-  const invoiceDso = useMemo(() => daysSalesOutstanding(bookInvoices, { todayIso }), [bookInvoices, todayIso]);
-  const currentPeriodSalesTax = useMemo(() => outstandingSalesTax(bookInvoices, todayIso), [bookInvoices, todayIso]);
+  const invoiceAging = useMemo(
+    () => agingBuckets(bookInvoices, todayIso),
+    [bookInvoices, todayIso],
+  );
+  const invoiceDso = useMemo(
+    () => daysSalesOutstanding(bookInvoices, { todayIso }),
+    [bookInvoices, todayIso],
+  );
+  const currentPeriodSalesTax = useMemo(
+    () => outstandingSalesTax(bookInvoices, todayIso),
+    [bookInvoices, todayIso],
+  );
   const currentFilingYear = useMemo(() => Number(todayIso.slice(0, 4)), [todayIso]);
   const invoice401Summary = useMemo(
     () => bimonthly401Summary(bookInvoices, currentFilingYear),
@@ -1560,7 +1825,10 @@ export function CashFlowRoute() {
 
   // Render one day-group (header + its rows) — shared by the flat short-range
   // list and by each expanded month in the long-range (variant D) view.
-  const renderDayGroup = (g: { date: string; rows: DisplayRow[]; net: number }, indented = false) => (
+  const renderDayGroup = (
+    g: { date: string; rows: DisplayRow[]; net: number },
+    indented = false,
+  ) => (
     <div key={g.date}>
       <div
         className="ns-cf-day-header flex items-center justify-between"
@@ -1572,8 +1840,10 @@ export function CashFlowRoute() {
       >
         <span className="text-xs muted font-medium">{g.date}</span>
         <span className="dim mono text-caption">
-          Net <span className={g.net >= 0 ? "pos" : "neg"}>
-            {(g.net >= 0 ? "+" : "−")}{primaryCurrency} {formatNumber(Math.abs(g.net))}
+          Net{" "}
+          <span className={g.net >= 0 ? "pos" : "neg"}>
+            {g.net >= 0 ? "+" : "−"}
+            {primaryCurrency} {formatNumber(Math.abs(g.net))}
           </span>
         </span>
       </div>
@@ -1586,7 +1856,9 @@ export function CashFlowRoute() {
             transferPair={r.transferPair}
             splitLegs={r.splitLegs}
             splitExpanded={Boolean(r.splitLegs && r.groupId && expandedSplits.has(r.groupId))}
-            onToggleSplit={() => { if (r.groupId) toggleSplit(r.groupId); }}
+            onToggleSplit={() => {
+              if (r.groupId) toggleSplit(r.groupId);
+            }}
             accountName={accountName}
             categoryIcon={catGroup?.iconName || undefined}
             onEdit={() => setDetailRow(r)}
@@ -1605,7 +1877,10 @@ export function CashFlowRoute() {
     return (
       <div className="grid gap-5 p-1 max-w-[1180px] mx-auto">
         <Skeleton className="h-[200px]" />
-        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+        <div
+          className="grid gap-4"
+          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
+        >
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-28" />
           ))}
@@ -1618,10 +1893,15 @@ export function CashFlowRoute() {
     return (
       <div className="grid min-h-[50vh] place-items-center p-6 text-center">
         <div className="max-w-md">
-          <h3 className="text-[17px] font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>
+          <h3
+            className="text-[17px] font-semibold"
+            style={{ fontFamily: "var(--ns-font-display)" }}
+          >
             無法載入資料
           </h3>
-          <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
+          <p className="muted mt-1 text-sm">
+            {error instanceof Error ? error.message : "請稍後再試。"}
+          </p>
           <Button className="mt-4" onClick={() => refetchAll()}>
             重新整理
           </Button>
@@ -1636,23 +1916,38 @@ export function CashFlowRoute() {
       <div className="flex items-end justify-between gap-4 mb-[22px] flex-wrap">
         <div>
           <div className="text-xs ns-field-label">{periodLabel}</div>
-          <h1 className="text-[28px] m-0 font-semibold" style={{ fontFamily: "var(--ns-font-display)", letterSpacing: -0.02 }}>
+          <h1
+            className="text-[28px] m-0 font-semibold"
+            style={{ fontFamily: "var(--ns-font-display)", letterSpacing: -0.02 }}
+          >
             記帳
           </h1>
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
-          <input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsv} />
+          <input
+            ref={csvInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleCsv}
+          />
           <LedgerDateControl value={dateScope} onChange={setDateScope} />
 
           <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
             <PopoverTrigger
               render={
                 <Button variant="outline" size="lg" className="whitespace-nowrap">
-                  <Funnel size={14} />篩選
+                  <Funnel size={14} />
+                  篩選
                   {activeFilterCount > 0 ? (
                     <span
                       className="inline-flex items-center justify-center rounded-full text-white text-[10px] font-semibold leading-none"
-                      style={{ background: "var(--ns-accent)", minWidth: 16, height: 16, padding: "0 4px" }}
+                      style={{
+                        background: "var(--ns-accent)",
+                        minWidth: 16,
+                        height: 16,
+                        padding: "0 4px",
+                      }}
                     >
                       {activeFilterCount}
                     </span>
@@ -1664,17 +1959,38 @@ export function CashFlowRoute() {
               <div className="flex flex-col gap-3">
                 <div>
                   <div className="text-xs ns-field-label mb-1.5">帳戶</div>
-                  <AccountFilter accounts={bookAccounts} value={selectedAccount} onChange={setSelectedAccount} className="text-body" style={{ minWidth: "100%", maxWidth: "none" }} />
+                  <AccountFilter
+                    accounts={bookAccounts}
+                    value={selectedAccount}
+                    onChange={setSelectedAccount}
+                    className="text-body"
+                    style={{ minWidth: "100%", maxWidth: "none" }}
+                  />
                 </div>
                 <div>
                   <div className="text-xs ns-field-label mb-1.5">分類</div>
-                  <CategoryFilter categories={allCategories} value={selectedCategory} onChange={setSelectedCategory} style={{ minWidth: "100%", maxWidth: "none" }} />
+                  <CategoryFilter
+                    categories={allCategories}
+                    value={selectedCategory}
+                    onChange={setSelectedCategory}
+                    style={{ minWidth: "100%", maxWidth: "none" }}
+                  />
                 </div>
-                <div className="flex items-center justify-between pt-2" style={{ borderTop: "1px solid var(--ns-border)" }}>
-                  <button type="button" className="text-xs muted cursor-pointer" onClick={clearAllFilters} disabled={activeFilterCount === 0}>
+                <div
+                  className="flex items-center justify-between pt-2"
+                  style={{ borderTop: "1px solid var(--ns-border)" }}
+                >
+                  <button
+                    type="button"
+                    className="text-xs muted cursor-pointer"
+                    onClick={clearAllFilters}
+                    disabled={activeFilterCount === 0}
+                  >
                     清除全部
                   </button>
-                  <Button size="sm" onClick={() => setFilterPopoverOpen(false)}>完成</Button>
+                  <Button size="sm" onClick={() => setFilterPopoverOpen(false)}>
+                    完成
+                  </Button>
                 </div>
               </div>
             </PopoverContent>
@@ -1684,35 +2000,63 @@ export function CashFlowRoute() {
               (docs/ledger-books-plan.md §3) — hidden in 總帳 and personal books. */}
           {isActiveCompanyBook && (
             <>
-              <Button variant="outline" size="lg" className="whitespace-nowrap" onClick={() => setClientManagerOpen(true)}>
-                <Users size={14} weight="bold" />客戶
+              <Button
+                variant="outline"
+                size="lg"
+                className="whitespace-nowrap"
+                onClick={() => setClientManagerOpen(true)}
+              >
+                <Users size={14} weight="bold" />
+                客戶
               </Button>
-              <Button variant="outline" size="lg" className="whitespace-nowrap" onClick={openInvoiceCreate}>
-                <Receipt size={14} weight="bold" />開發票
+              <Button
+                variant="outline"
+                size="lg"
+                className="whitespace-nowrap"
+                onClick={openInvoiceCreate}
+              >
+                <Receipt size={14} weight="bold" />
+                開發票
               </Button>
             </>
           )}
 
           <Button size="lg" className="whitespace-nowrap" onClick={() => openCreate("expense")}>
-            <Plus size={14} weight="bold" />記一筆
+            <Plus size={14} weight="bold" />
+            記一筆
           </Button>
         </div>
       </div>
 
-      <div className="flex mb-6 overflow-x-auto" style={{ borderBottom: '1px solid var(--ns-border)' }}>
+      <div
+        className="flex mb-6 overflow-x-auto"
+        style={{ borderBottom: "1px solid var(--ns-border)" }}
+      >
         {[
-          { id: 'overview', label: '交易' },
-          { id: 'categories', label: '分類' },
-          { id: 'merchants', label: '商家' },
-          { id: 'recurring', label: '週期規則' },
-        ].map(t => (
-          <button key={t.id} className="text-sm whitespace-nowrap cursor-pointer" onClick={() => setActiveTab(t.id as any)} style={{
-            padding: '10px 20px', background: 'none', border: 'none',
-            fontFamily: 'inherit', fontWeight: activeTab === t.id ? 600 : 400,
-            color: activeTab === t.id ? 'var(--ns-fg)' : 'var(--ns-fg-muted)',
-            borderBottom: activeTab === t.id ? '2px solid var(--ns-accent)' : '2px solid transparent',
-            marginBottom: -1, transition: 'color 0.12s',
-          }}>{t.label}</button>
+          { id: "overview", label: "交易" },
+          { id: "categories", label: "分類" },
+          { id: "merchants", label: "商家" },
+          { id: "recurring", label: "週期規則" },
+        ].map((t) => (
+          <button
+            key={t.id}
+            className="text-sm whitespace-nowrap cursor-pointer"
+            onClick={() => setActiveTab(t.id as any)}
+            style={{
+              padding: "10px 20px",
+              background: "none",
+              border: "none",
+              fontFamily: "inherit",
+              fontWeight: activeTab === t.id ? 600 : 400,
+              color: activeTab === t.id ? "var(--ns-fg)" : "var(--ns-fg-muted)",
+              borderBottom:
+                activeTab === t.id ? "2px solid var(--ns-accent)" : "2px solid transparent",
+              marginBottom: -1,
+              transition: "color 0.12s",
+            }}
+          >
+            {t.label}
+          </button>
         ))}
       </div>
 
@@ -1722,7 +2066,11 @@ export function CashFlowRoute() {
             <span
               key={chip.key}
               className="inline-flex items-center gap-1.5 text-xs rounded-full px-2.5 py-1"
-              style={{ background: "var(--ns-surface-strong)", border: "1px solid var(--ns-border)", color: "var(--ns-fg)" }}
+              style={{
+                background: "var(--ns-surface-strong)",
+                border: "1px solid var(--ns-border)",
+                color: "var(--ns-fg)",
+              }}
             >
               {chip.label}
               <button
@@ -1739,7 +2087,9 @@ export function CashFlowRoute() {
           <button type="button" className="text-xs cursor-pointer muted" onClick={clearAllFilters}>
             清除全部
           </button>
-          <div className="ml-auto text-xs muted whitespace-nowrap">符合 {displayRows.length} 筆</div>
+          <div className="ml-auto text-xs muted whitespace-nowrap">
+            符合 {displayRows.length} 筆
+          </div>
         </div>
       ) : null}
 
@@ -1751,415 +2101,624 @@ export function CashFlowRoute() {
             </Card>
           ) : null}
           {/* Suggest-and-confirm bulk categorization for uncategorized rows (plan 174). */}
-          <BulkCategorizeCard ledgerRows={ledgerRows} accounts={accountRows} settings={appSettings} />
+          <BulkCategorizeCard
+            ledgerRows={ledgerRows}
+            accounts={accountRows}
+            settings={appSettings}
+          />
           {/* 未結清 (應收/應付) moved into the right column — see NSLgBottomA. */}
           <div className="mb-5">
-        {/* Cashflow Chart */}
-        <Card id="cashflow-chart" className="p-6">
-          <div className="flex items-end gap-4 mb-3.5 flex-wrap">
-            <div>
-              <div className="text-xs ns-field-label">現金流 · Net</div>
-              <div className={"ns-num-lg " + (periodNet >= 0 ? "pos" : "neg")}>
-                {periodNet >= 0 ? "+" : "−"}{primaryCurrency} {formatNumber(Math.abs(periodNet))}
-              </div>
-            </div>
-            <div className="flex-1"/>
-            {/* Income / Spending / Savings — 儲蓄率 hero + secondary 收入/支出 pair */}
-            <div className="flex gap-2 items-stretch">
-              {/* Hero: 儲蓄率 */}
-              <div className="ns-surface flex flex-col justify-center min-w-[104px]" style={{ padding: "10px 14px", borderRadius: "var(--ns-r-sm)", background: "var(--ns-accent-soft)" }}>
-                <div className="text-xs muted font-medium" style={{ fontSize: 10, marginBottom: 2 }}>儲蓄率</div>
-                <div
-                  className={"num " + (periodIncome > 0 && periodNet >= 0 ? "pos" : "muted")}
-                  style={{ fontSize: 22, fontWeight: 600, fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", lineHeight: 1.1 }}
-                >
-                  {periodIncome > 0 ? `${((periodNet / periodIncome) * 100).toFixed(1)}%` : "—"}
+            {/* Cashflow Chart */}
+            <Card id="cashflow-chart" className="p-6">
+              <div className="flex items-end gap-4 mb-3.5 flex-wrap">
+                <div>
+                  <div className="text-xs ns-field-label">現金流 · Net</div>
+                  <div className={"ns-num-lg " + (periodNet >= 0 ? "pos" : "neg")}>
+                    {periodNet >= 0 ? "+" : "−"}
+                    {primaryCurrency} {formatNumber(Math.abs(periodNet))}
+                  </div>
+                </div>
+                <div className="flex-1" />
+                {/* Income / Spending / Savings — 儲蓄率 hero + secondary 收入/支出 pair */}
+                <div className="flex gap-2 items-stretch">
+                  {/* Hero: 儲蓄率 */}
+                  <div
+                    className="ns-surface flex flex-col justify-center min-w-[104px]"
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: "var(--ns-r-sm)",
+                      background: "var(--ns-accent-soft)",
+                    }}
+                  >
+                    <div
+                      className="text-xs muted font-medium"
+                      style={{ fontSize: 10, marginBottom: 2 }}
+                    >
+                      儲蓄率
+                    </div>
+                    <div
+                      className={"num " + (periodIncome > 0 && periodNet >= 0 ? "pos" : "muted")}
+                      style={{
+                        fontSize: 22,
+                        fontWeight: 600,
+                        fontFamily: "var(--ns-font-num)",
+                        fontVariantNumeric: "tabular-nums",
+                        whiteSpace: "nowrap",
+                        lineHeight: 1.1,
+                      }}
+                    >
+                      {periodIncome > 0 ? `${((periodNet / periodIncome) * 100).toFixed(1)}%` : "—"}
+                    </div>
+                  </div>
+                  {/* Secondary: 收入 / 支出 stacked compact */}
+                  <div className="flex flex-col gap-1.5 justify-center">
+                    <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+                      <span className="muted text-caption min-w-[28px]">收入</span>
+                      <span className="num pos text-caption font-medium">
+                        {primaryCurrency} {formatNumber(periodIncome)}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+                      <span className="muted text-caption min-w-[28px]">支出</span>
+                      <span className="num neg text-caption font-medium">
+                        {primaryCurrency} {formatNumber(periodExpense)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
-              {/* Secondary: 收入 / 支出 stacked compact */}
-              <div className="flex flex-col gap-1.5 justify-center">
-                <div className="flex items-baseline gap-1.5 whitespace-nowrap">
-                  <span className="muted text-caption min-w-[28px]">收入</span>
-                  <span className="num pos text-caption font-medium">{primaryCurrency} {formatNumber(periodIncome)}</span>
+              {/* Legend + 日/週/月/年 granularity selector */}
+              <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+                <div className="flex items-center gap-3.5">
+                  {[
+                    { label: "收入", color: "var(--ns-pos)" },
+                    { label: "支出", color: "var(--ns-neg)" },
+                  ].map((l) => (
+                    <div key={l.label} className="flex items-center gap-1.5">
+                      <span
+                        style={{
+                          width: 9,
+                          height: 9,
+                          borderRadius: 2,
+                          background: l.color,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span className="muted text-caption">{l.label}</span>
+                    </div>
+                  ))}
+                  {/* Cumulative-net line legend uses a horizontal stroke */}
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="w-3 h-0.5 shrink-0 rounded-[1px]"
+                      style={{ background: "var(--ns-accent)" }}
+                    />
+                    <span className="muted text-caption">累積淨額</span>
+                  </div>
                 </div>
-                <div className="flex items-baseline gap-1.5 whitespace-nowrap">
-                  <span className="muted text-caption min-w-[28px]">支出</span>
-                  <span className="num neg text-caption font-medium">{primaryCurrency} {formatNumber(periodExpense)}</span>
-                </div>
+                <SegmentedControl
+                  value={chartGranularity}
+                  options={CHART_GRANULARITY_OPTIONS}
+                  onChange={setChartGranularity}
+                />
               </div>
-            </div>
-          </div>
-          {/* Legend + 日/週/月/年 granularity selector */}
-          <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
-            <div className="flex items-center gap-3.5">
-              {([
-                { label: "收入", color: "var(--ns-pos)" },
-                { label: "支出", color: "var(--ns-neg)" },
-              ]).map((l) => (
-                <div key={l.label} className="flex items-center gap-1.5">
-                  <span style={{ width: 9, height: 9, borderRadius: 2, background: l.color, flexShrink: 0 }} />
-                  <span className="muted text-caption">{l.label}</span>
-                </div>
-              ))}
-              {/* Cumulative-net line legend uses a horizontal stroke */}
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-0.5 shrink-0 rounded-[1px]" style={{ background: "var(--ns-accent)" }} />
-                <span className="muted text-caption">累積淨額</span>
-              </div>
-            </div>
-            <SegmentedControl value={chartGranularity} options={CHART_GRANULARITY_OPTIONS} onChange={setChartGranularity} />
-          </div>
-          <div className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              {/* Grouped income/expense bars (left axis) + a cumulative-net line
+              <div className="h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  {/* Grouped income/expense bars (left axis) + a cumulative-net line
                   on a secondary right axis so the running total doesn't get
                   squashed by the per-bucket bar scale. */}
-              <ComposedChart data={cashflowBars} margin={{ top: 6, right: 6, bottom: 0, left: 4 }} barCategoryGap={chartGranularity === "day" ? "12%" : "24%"} barGap={2}>
-                {/* Left axis: per-bucket bar magnitudes */}
-                <YAxis
-                  yAxisId="bars"
-                  width={44}
-                  tick={{ fontSize: 10.5, fill: resolveColor("var(--ns-fg-dim)") }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v) => formatCompactNumber(Math.abs(v as number))}
-                />
-                {/* Right axis: cumulative net (can go negative) */}
-                <YAxis
-                  yAxisId="cum"
-                  orientation="right"
-                  width={44}
-                  tick={{ fontSize: 10.5, fill: resolveColor("var(--ns-accent)") }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v) => formatCompactNumber(v as number)}
-                />
-                <ReferenceLine yAxisId="cum" y={0} stroke={resolveColor("var(--ns-border-strong)")} />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fontSize: 10.5, fill: resolveColor("var(--ns-fg-dim)") }}
-                  tickLine={false}
-                  axisLine={false}
-                  interval={chartGranularity === "day" ? 3 : 0}
-                  minTickGap={4}
-                />
-                <Tooltip
-                  cursor={{ fill: resolveColor("var(--ns-bg-hover)") }}
-                  contentStyle={{ background: "var(--ns-surface)", border: "1px solid var(--ns-border)", borderRadius: 6, fontSize: 12 }}
-                  formatter={(v: any, name: any) => {
-                    const labelMap: Record<string, string> = { income: "收入", expense: "支出", cumulativeNet: "累積淨額" };
-                    const val = v as number;
-                    // Cumulative net shows explicit sign; bars show their magnitude.
-                    const display = name === "cumulativeNet"
-                      ? `${val >= 0 ? "+" : "−"}${primaryCurrency} ${formatNumber(Math.abs(val))}`
-                      : `${primaryCurrency} ${formatNumber(Math.abs(val))}`;
-                    return [display, labelMap[name] ?? name];
-                  }}
-                  labelFormatter={(v) => String(v)}
-                />
-                {/* Side-by-side bars (no stackId → grouped), both grow upward */}
-                <Bar yAxisId="bars" dataKey="income" fill="var(--ns-pos)" radius={[2, 2, 0, 0]} maxBarSize={18} />
-                <Bar yAxisId="bars" dataKey="expense" fill="var(--ns-neg)" radius={[2, 2, 0, 0]} maxBarSize={18} />
-                {/* Cumulative net trajectory across the period */}
-                <Line yAxisId="cum" dataKey="cumulativeNet" stroke="var(--ns-accent)" strokeWidth={1.75} dot={false} type="monotone" />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-xs muted font-medium">分類支出 · {periodLabel}</div>
-            {selectedCategory !== "all" && (
-              <Button variant="ghost" size="xs" onClick={() => setSelectedCategory("all")}>
-                <X weight="bold" />清除篩選
-              </Button>
-            )}
-          </div>
-
-          {/* Category Bar List */}
-          {allCategorySpend.length > 0 ? (
-            <div className="flex flex-col gap-3">
-              {(showAllCategories ? allCategorySpend : allCategorySpend.slice(0, CATEGORY_BAR_LIMIT)).map((r) => {
-                const pct = totalCategorySpend > 0 ? (r.amount / totalCategorySpend) * 100 : 0;
-                const isActive = selectedCategory === "all" || selectedCategory === r.name;
-                const displayPct = pct < 1 ? "<1" : pct.toFixed(1);
-                return (
-                  <div
-                    key={r.name}
-                    onClick={() => setSelectedCategory(prev => prev === r.name ? "all" : r.name)}
-                    className="cursor-pointer"
-                    style={{
-                      opacity: isActive ? 1 : 0.45,
-                      transition: "opacity 0.15s ease",
-                    }}
+                  <ComposedChart
+                    data={cashflowBars}
+                    margin={{ top: 6, right: 6, bottom: 0, left: 4 }}
+                    barCategoryGap={chartGranularity === "day" ? "12%" : "24%"}
+                    barGap={2}
                   >
-                    <div className="text-body flex justify-between items-center mb-[5px]">
-                      <div className="flex items-center gap-1.5">
-                        <Glyph name={r.icon} size={14} />
-                        <span className="font-medium">{r.name}</span>
+                    {/* Left axis: per-bucket bar magnitudes */}
+                    <YAxis
+                      yAxisId="bars"
+                      width={44}
+                      tick={{ fontSize: 10.5, fill: resolveColor("var(--ns-fg-dim)") }}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(v) => formatCompactNumber(Math.abs(v as number))}
+                    />
+                    {/* Right axis: cumulative net (can go negative) */}
+                    <YAxis
+                      yAxisId="cum"
+                      orientation="right"
+                      width={44}
+                      tick={{ fontSize: 10.5, fill: resolveColor("var(--ns-accent)") }}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(v) => formatCompactNumber(v as number)}
+                    />
+                    <ReferenceLine
+                      yAxisId="cum"
+                      y={0}
+                      stroke={resolveColor("var(--ns-border-strong)")}
+                    />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 10.5, fill: resolveColor("var(--ns-fg-dim)") }}
+                      tickLine={false}
+                      axisLine={false}
+                      interval={chartGranularity === "day" ? 3 : 0}
+                      minTickGap={4}
+                    />
+                    <Tooltip
+                      cursor={{ fill: resolveColor("var(--ns-bg-hover)") }}
+                      contentStyle={{
+                        background: "var(--ns-surface)",
+                        border: "1px solid var(--ns-border)",
+                        borderRadius: 6,
+                        fontSize: 12,
+                      }}
+                      formatter={(v: any, name: any) => {
+                        const labelMap: Record<string, string> = {
+                          income: "收入",
+                          expense: "支出",
+                          cumulativeNet: "累積淨額",
+                        };
+                        const val = v as number;
+                        // Cumulative net shows explicit sign; bars show their magnitude.
+                        const display =
+                          name === "cumulativeNet"
+                            ? `${val >= 0 ? "+" : "−"}${primaryCurrency} ${formatNumber(Math.abs(val))}`
+                            : `${primaryCurrency} ${formatNumber(Math.abs(val))}`;
+                        return [display, labelMap[name] ?? name];
+                      }}
+                      labelFormatter={(v) => String(v)}
+                    />
+                    {/* Side-by-side bars (no stackId → grouped), both grow upward */}
+                    <Bar
+                      yAxisId="bars"
+                      dataKey="income"
+                      fill="var(--ns-pos)"
+                      radius={[2, 2, 0, 0]}
+                      maxBarSize={18}
+                    />
+                    <Bar
+                      yAxisId="bars"
+                      dataKey="expense"
+                      fill="var(--ns-neg)"
+                      radius={[2, 2, 0, 0]}
+                      maxBarSize={18}
+                    />
+                    {/* Cumulative net trajectory across the period */}
+                    <Line
+                      yAxisId="cum"
+                      dataKey="cumulativeNet"
+                      stroke="var(--ns-accent)"
+                      strokeWidth={1.75}
+                      dot={false}
+                      type="monotone"
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+            <Card className="p-5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs muted font-medium">分類支出 · {periodLabel}</div>
+                {selectedCategory !== "all" && (
+                  <Button variant="ghost" size="xs" onClick={() => setSelectedCategory("all")}>
+                    <X weight="bold" />
+                    清除篩選
+                  </Button>
+                )}
+              </div>
+
+              {/* Category Bar List */}
+              {allCategorySpend.length > 0 ? (
+                <div className="flex flex-col gap-3">
+                  {(showAllCategories
+                    ? allCategorySpend
+                    : allCategorySpend.slice(0, CATEGORY_BAR_LIMIT)
+                  ).map((r) => {
+                    const pct = totalCategorySpend > 0 ? (r.amount / totalCategorySpend) * 100 : 0;
+                    const isActive = selectedCategory === "all" || selectedCategory === r.name;
+                    const displayPct = pct < 1 ? "<1" : pct.toFixed(1);
+                    return (
+                      <div
+                        key={r.name}
+                        onClick={() =>
+                          setSelectedCategory((prev) => (prev === r.name ? "all" : r.name))
+                        }
+                        className="cursor-pointer"
+                        style={{
+                          opacity: isActive ? 1 : 0.45,
+                          transition: "opacity 0.15s ease",
+                        }}
+                      >
+                        <div className="text-body flex justify-between items-center mb-[5px]">
+                          <div className="flex items-center gap-1.5">
+                            <Glyph name={r.icon} size={14} />
+                            <span className="font-medium">{r.name}</span>
+                          </div>
+                          <span className="num muted text-xs">
+                            {displayPct}% · {primaryCurrency} {formatNumber(r.amount)}
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            height: 6,
+                            borderRadius: 99,
+                            background: "var(--ns-bg-hover)",
+                            overflow: "hidden",
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: `${Math.max(2, pct)}%`,
+                              height: "100%",
+                              background: r.color,
+                            }}
+                          />
+                        </div>
                       </div>
-                      <span className="num muted text-xs">
-                        {displayPct}% · {primaryCurrency} {formatNumber(r.amount)}
-                      </span>
-                    </div>
-                    <div style={{ height: 6, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
-                      <div style={{ width: `${Math.max(2, pct)}%`, height: "100%", background: r.color }} />
-                    </div>
-                  </div>
-                );
-              })}
-              {allCategorySpend.length > CATEGORY_BAR_LIMIT && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllCategories((v) => !v)}
-                  className="muted text-xs text-left cursor-pointer py-0.5"
-                  style={{ background: "none", border: "none", color: "var(--ns-accent)", fontFamily: "var(--ns-font-mono)" }}
-                >
-                  {showAllCategories ? "▲ 收合" : `▼ 顯示其餘 ${allCategorySpend.length - CATEGORY_BAR_LIMIT} 類`}
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="muted text-body text-center py-[30px]">本月尚無支出</div>
-          )}
-        </Card>
-        <RankingCard title="商家花費排行" rows={topMerchantSpend} emptyText="此期間尚無商家資料" currency={primaryCurrency} />
-      </div>
-
-      {preview ? (
-        <Card className="mb-4" style={{ padding: "var(--ns-pad-card)" }}>
-          <div className="font-semibold mb-1.5">
-            匯入預覽：{preview.valid.length} valid / {preview.invalid.length} invalid
-          </div>
-          {preview.invalid.map((item) => (
-            <div key={item.row} className="text-body" style={{ color: "var(--ns-neg)" }}>Row {item.row}: {item.reason}</div>
-          ))}
-          <div className="mt-3 flex gap-2">
-            <Button
-              onClick={async () => {
-                const rows = preview.valid.map((item) => item.value);
-                await importLedger.mutateAsync(rows);
-                rememberMerchantNames(rows.map((row) => row.merchant));
-                setPreview(null);
-                toast.success(`成功匯入 ${rows.length} 筆資料`);
-              }}
-            >
-              確認匯入
-            </Button>
-            <Button variant="outline" onClick={() => setPreview(null)}>取消</Button>
-          </div>
-        </Card>
-      ) : null}
-
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-5 items-start">
-        {/* Transactions grouped by day */}
-        <Card className="p-0">
-           <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--ns-border)" }}>
-             <div className="flex items-center justify-between gap-3">
-               <span className="text-[15px] font-semibold">近期動態</span>
-               <span className="muted text-xs">{displayRows.length} 筆</span>
-             </div>
-             {/* Search on its own row below the title (B9). */}
-             <label className="relative block mt-2.5">
-               <MagnifyingGlass size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--ns-muted)" }} />
-               <input className="ns-input text-xs w-full h-[34px]" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜尋商家、分類或備註" style={{ padding: "0 12px 0 30px" }} />
-             </label>
-           </div>
-
-           {displayRows.length === 0 ? (
-            <div className="text-center" style={{ padding: "56px 20px" }}>
-              <div className="w-[52px] h-[52px] inline-flex items-center justify-center mb-3.5" style={{ borderRadius: "var(--ns-r-md)", background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
-                <Receipt size={24} weight="duotone" />
-              </div>
-              <div className="font-semibold mb-1.5">還沒有記帳資料</div>
-              <div className="flex flex-wrap justify-center gap-2">
-                <Button onClick={() => openCreate("expense")}><Plus size={14} weight="bold" />新增交易</Button>
-                <Button variant="outline" onClick={() => csvInputRef.current?.click()}><UploadSimple size={14} />匯入 CSV</Button>
-              </div>
-            </div>
-           ) : isLongRangeView ? (
-            <>
-              {/* Month-collapsed view for long ranges (YTD / 近12個月 / 全部 /
-                  a >92-day custom range) — plan 169 variant D. */}
-              {monthGroups.map((m) => {
-                const expanded = effectiveExpandedMonths.has(m.month);
-                return (
-                  <div key={m.month}>
+                    );
+                  })}
+                  {allCategorySpend.length > CATEGORY_BAR_LIMIT && (
                     <button
                       type="button"
-                      className="ns-cf-month-header w-full flex items-center justify-between gap-3 text-left cursor-pointer"
-                      onClick={() => toggleMonth(m.month)}
+                      onClick={() => setShowAllCategories((v) => !v)}
+                      className="muted text-xs text-left cursor-pointer py-0.5"
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "var(--ns-accent)",
+                        fontFamily: "var(--ns-font-mono)",
+                      }}
                     >
-                      <span className="flex items-center gap-2 min-w-0">
-                        {expanded ? <CaretDown size={14} /> : <CaretRight size={14} />}
-                        <span className="text-sm font-medium whitespace-nowrap">{formatMonthLabel(m.month)}</span>
-                        <span className="muted text-xs whitespace-nowrap">{m.count} 筆</span>
-                      </span>
-                      <span className="flex items-center gap-3 text-caption mono whitespace-nowrap">
-                        <span style={{ color: "var(--ns-pos)" }}>收入 +{primaryCurrency} {formatNumber(m.income)}</span>
-                        <span style={{ color: "var(--ns-neg)" }}>支出 −{primaryCurrency} {formatNumber(m.expense)}</span>
-                        <span className={m.net >= 0 ? "pos" : "neg"}>淨 {m.net >= 0 ? "+" : "−"}{primaryCurrency} {formatNumber(Math.abs(m.net))}</span>
-                      </span>
+                      {showAllCategories
+                        ? "▲ 收合"
+                        : `▼ 顯示其餘 ${allCategorySpend.length - CATEGORY_BAR_LIMIT} 類`}
                     </button>
-                    {expanded ? (
-                      <div style={{ borderLeft: "2px solid var(--ns-border)", marginLeft: 22 }}>
-                        {groupByDay(m.rows, toPrimary).map((g) => renderDayGroup(g, true))}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </>
-           ) : (
-            <>
-              {dayGroups.map((g) => renderDayGroup(g))}
-              {visibleCount < displayRows.length ? (
-                <div className="text-center" style={{ padding: "16px 20px 20px" }}>
-                  <Button variant="outline" onClick={() => setVisibleCount((c) => c + 30)}>顯示更早的交易</Button>
-                  <div className="muted text-caption mt-1.5">每次多載 30 筆</div>
+                  )}
                 </div>
-              ) : null}
-            </>
-           )}
-        </Card>
+              ) : (
+                <div className="muted text-body text-center py-[30px]">本月尚無支出</div>
+              )}
+            </Card>
+            <RankingCard
+              title="商家花費排行"
+              rows={topMerchantSpend}
+              emptyText="此期間尚無商家資料"
+              currency={primaryCurrency}
+            />
+          </div>
 
-        {/* Right column: 固定收支 (30 天) + 未結清 — sticky on desktop. */}
-        <div className="flex flex-col gap-5 lg:sticky lg:top-5 self-start">
-          <UpcomingPayments
-            recurringRows={recurringRows}
-            accountName={accountName}
-            timezone={timezone}
-            onPost={async (id) => { try { await postRecurring.mutateAsync(id); toast.success("已記入交易"); } catch { toast.error("記入失敗"); } }}
-            posting={postRecurring.isPending}
-            onManage={() => setActiveTab("recurring")}
-            primaryCurrency={primaryCurrency}
-            convert={settlementConvert}
-          />
-          {settlements.items.length > 0 ? (
-            <Card style={{ padding: "var(--ns-pad-card)" }}>
-              <div className="text-sm font-semibold mb-2.5">未結清</div>
-              <div className="flex items-center gap-2 flex-wrap mb-2">
-                {settlements.receivableTotal > 0 ? (
-                  <div className="flex items-baseline gap-1.5">
-                    <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收 {settlements.receivableCount}</Badge>
-                    <span className="num text-[15px]" style={{ color: "var(--ns-pos)" }}>+{primaryCurrency} {formatNumber(settlements.receivableTotal)}</span>
-                  </div>
-                ) : null}
-                {settlements.payableTotal > 0 ? (
-                  <div className="flex items-baseline gap-1.5">
-                    <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}>應付 {settlements.payableCount}</Badge>
-                    <span className="num text-[15px]" style={{ color: "var(--ns-neg)" }}>−{primaryCurrency} {formatNumber(settlements.payableTotal)}</span>
-                  </div>
-                ) : null}
+          {preview ? (
+            <Card className="mb-4" style={{ padding: "var(--ns-pad-card)" }}>
+              <div className="font-semibold mb-1.5">
+                匯入預覽：{preview.valid.length} valid / {preview.invalid.length} invalid
               </div>
-              <div className="muted text-caption mb-2.5">結清後才計入收支</div>
-              <div className="flex flex-col gap-2">
-                {settlements.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="text-body flex items-center justify-between gap-2 cursor-pointer"
-                    onClick={() => {
-                      const row = ledgerRows.find((r) => r.id === item.id);
-                      if (row) setDetailRow(row);
-                    }}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate">{item.name}</div>
-                      <div className="muted text-caption">{item.date.slice(0, 10)}</div>
-                    </div>
-                    <span className="num whitespace-nowrap" style={{ color: item.kind === "receivable" ? "var(--ns-pos)" : "var(--ns-neg)" }}>
-                      {item.kind === "receivable" ? "+" : "−"}{item.currency} {formatNumber(item.amount)}
-                    </span>
-                  </div>
-                ))}
+              {preview.invalid.map((item) => (
+                <div key={item.row} className="text-body" style={{ color: "var(--ns-neg)" }}>
+                  Row {item.row}: {item.reason}
+                </div>
+              ))}
+              <div className="mt-3 flex gap-2">
+                <Button
+                  onClick={async () => {
+                    const rows = preview.valid.map((item) => item.value);
+                    await importLedger.mutateAsync(rows);
+                    rememberMerchantNames(rows.map((row) => row.merchant));
+                    setPreview(null);
+                    toast.success(`成功匯入 ${rows.length} 筆資料`);
+                  }}
+                >
+                  確認匯入
+                </Button>
+                <Button variant="outline" onClick={() => setPreview(null)}>
+                  取消
+                </Button>
               </div>
             </Card>
           ) : null}
 
-          {/* 發票報表 (plan 193): 帳齡/DSO、本期應繳營業稅、401 雙月彙總 — company
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-5 items-start">
+            {/* Transactions grouped by day */}
+            <Card className="p-0">
+              <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--ns-border)" }}>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[15px] font-semibold">近期動態</span>
+                  <span className="muted text-xs">{displayRows.length} 筆</span>
+                </div>
+                {/* Search on its own row below the title (B9). */}
+                <label className="relative block mt-2.5">
+                  <MagnifyingGlass
+                    size={14}
+                    style={{
+                      position: "absolute",
+                      left: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "var(--ns-muted)",
+                    }}
+                  />
+                  <input
+                    className="ns-input text-xs w-full h-[34px]"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="搜尋商家、分類或備註"
+                    style={{ padding: "0 12px 0 30px" }}
+                  />
+                </label>
+              </div>
+
+              {displayRows.length === 0 ? (
+                <div className="text-center" style={{ padding: "56px 20px" }}>
+                  <div
+                    className="w-[52px] h-[52px] inline-flex items-center justify-center mb-3.5"
+                    style={{
+                      borderRadius: "var(--ns-r-md)",
+                      background: "var(--ns-accent-soft)",
+                      color: "var(--ns-accent)",
+                    }}
+                  >
+                    <Receipt size={24} weight="duotone" />
+                  </div>
+                  <div className="font-semibold mb-1.5">還沒有記帳資料</div>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Button onClick={() => openCreate("expense")}>
+                      <Plus size={14} weight="bold" />
+                      新增交易
+                    </Button>
+                    <Button variant="outline" onClick={() => csvInputRef.current?.click()}>
+                      <UploadSimple size={14} />
+                      匯入 CSV
+                    </Button>
+                  </div>
+                </div>
+              ) : isLongRangeView ? (
+                <>
+                  {/* Month-collapsed view for long ranges (YTD / 近12個月 / 全部 /
+                  a >92-day custom range) — plan 169 variant D. */}
+                  {monthGroups.map((m) => {
+                    const expanded = effectiveExpandedMonths.has(m.month);
+                    return (
+                      <div key={m.month}>
+                        <button
+                          type="button"
+                          className="ns-cf-month-header w-full flex items-center justify-between gap-3 text-left cursor-pointer"
+                          onClick={() => toggleMonth(m.month)}
+                        >
+                          <span className="flex items-center gap-2 min-w-0">
+                            {expanded ? <CaretDown size={14} /> : <CaretRight size={14} />}
+                            <span className="text-sm font-medium whitespace-nowrap">
+                              {formatMonthLabel(m.month)}
+                            </span>
+                            <span className="muted text-xs whitespace-nowrap">{m.count} 筆</span>
+                          </span>
+                          <span className="flex items-center gap-3 text-caption mono whitespace-nowrap">
+                            <span style={{ color: "var(--ns-pos)" }}>
+                              收入 +{primaryCurrency} {formatNumber(m.income)}
+                            </span>
+                            <span style={{ color: "var(--ns-neg)" }}>
+                              支出 −{primaryCurrency} {formatNumber(m.expense)}
+                            </span>
+                            <span className={m.net >= 0 ? "pos" : "neg"}>
+                              淨 {m.net >= 0 ? "+" : "−"}
+                              {primaryCurrency} {formatNumber(Math.abs(m.net))}
+                            </span>
+                          </span>
+                        </button>
+                        {expanded ? (
+                          <div style={{ borderLeft: "2px solid var(--ns-border)", marginLeft: 22 }}>
+                            {groupByDay(m.rows, toPrimary).map((g) => renderDayGroup(g, true))}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </>
+              ) : (
+                <>
+                  {dayGroups.map((g) => renderDayGroup(g))}
+                  {visibleCount < displayRows.length ? (
+                    <div className="text-center" style={{ padding: "16px 20px 20px" }}>
+                      <Button variant="outline" onClick={() => setVisibleCount((c) => c + 30)}>
+                        顯示更早的交易
+                      </Button>
+                      <div className="muted text-caption mt-1.5">每次多載 30 筆</div>
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </Card>
+
+            {/* Right column: 固定收支 (30 天) + 未結清 — sticky on desktop. */}
+            <div className="flex flex-col gap-5 lg:sticky lg:top-5 self-start">
+              <UpcomingPayments
+                recurringRows={recurringRows}
+                accountName={accountName}
+                timezone={timezone}
+                onPost={async (id) => {
+                  try {
+                    await postRecurring.mutateAsync(id);
+                    toast.success("已記入交易");
+                  } catch {
+                    toast.error("記入失敗");
+                  }
+                }}
+                posting={postRecurring.isPending}
+                onManage={() => setActiveTab("recurring")}
+                primaryCurrency={primaryCurrency}
+                convert={settlementConvert}
+              />
+              {settlements.items.length > 0 ? (
+                <Card style={{ padding: "var(--ns-pad-card)" }}>
+                  <div className="text-sm font-semibold mb-2.5">未結清</div>
+                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                    {settlements.receivableTotal > 0 ? (
+                      <div className="flex items-baseline gap-1.5">
+                        <Badge
+                          variant="outline"
+                          className="rounded-full"
+                          style={{ color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}
+                        >
+                          應收 {settlements.receivableCount}
+                        </Badge>
+                        <span className="num text-[15px]" style={{ color: "var(--ns-pos)" }}>
+                          +{primaryCurrency} {formatNumber(settlements.receivableTotal)}
+                        </span>
+                      </div>
+                    ) : null}
+                    {settlements.payableTotal > 0 ? (
+                      <div className="flex items-baseline gap-1.5">
+                        <Badge
+                          variant="outline"
+                          className="rounded-full"
+                          style={{ color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}
+                        >
+                          應付 {settlements.payableCount}
+                        </Badge>
+                        <span className="num text-[15px]" style={{ color: "var(--ns-neg)" }}>
+                          −{primaryCurrency} {formatNumber(settlements.payableTotal)}
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="muted text-caption mb-2.5">結清後才計入收支</div>
+                  <div className="flex flex-col gap-2">
+                    {settlements.items.map((item) => (
+                      <div
+                        key={item.id}
+                        className="text-body flex items-center justify-between gap-2 cursor-pointer"
+                        onClick={() => {
+                          const row = ledgerRows.find((r) => r.id === item.id);
+                          if (row) setDetailRow(row);
+                        }}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate">{item.name}</div>
+                          <div className="muted text-caption">{item.date.slice(0, 10)}</div>
+                        </div>
+                        <span
+                          className="num whitespace-nowrap"
+                          style={{
+                            color: item.kind === "receivable" ? "var(--ns-pos)" : "var(--ns-neg)",
+                          }}
+                        >
+                          {item.kind === "receivable" ? "+" : "−"}
+                          {item.currency} {formatNumber(item.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              ) : null}
+
+              {/* 發票報表 (plan 193): 帳齡/DSO、本期應繳營業稅、401 雙月彙總 — company
               book only (docs/ledger-books-plan.md §3), and only once there's
               at least one invoice to report on. */}
-          {isActiveCompanyBook && bookInvoices.length > 0 && (
-            <Card style={{ padding: "var(--ns-pad-card)" }}>
-              <div className="text-sm font-semibold mb-2.5">本期應繳營業稅</div>
-              <div className="num text-lg" style={{ color: "var(--ns-neg)" }}>{primaryCurrency} {formatNumber(currentPeriodSalesTax)}</div>
-              <div className="muted text-caption mt-1.5">
-                依開立日計算，含尚未收款的發票 — 銷項稅額於開立當期即應繳納，非收款當期。
-              </div>
-            </Card>
-          )}
-
-          {isActiveCompanyBook && bookInvoices.length > 0 && (
-            <Card style={{ padding: "var(--ns-pad-card)" }}>
-              <div className="text-sm font-semibold mb-2.5">帳齡 · 收款週期</div>
-              <div className="flex flex-col gap-1.5 mb-2.5">
-                {invoiceAging.map((b) => (
-                  <div key={b.bucket} className="text-body flex items-center justify-between gap-2">
-                    <span className="muted">{AGING_BUCKET_LABELS[b.bucket]}</span>
-                    <span className="num whitespace-nowrap">
-                      {b.count} 筆 · {primaryCurrency} {formatNumber(b.total)}
-                    </span>
+              {isActiveCompanyBook && bookInvoices.length > 0 && (
+                <Card style={{ padding: "var(--ns-pad-card)" }}>
+                  <div className="text-sm font-semibold mb-2.5">本期應繳營業稅</div>
+                  <div className="num text-lg" style={{ color: "var(--ns-neg)" }}>
+                    {primaryCurrency} {formatNumber(currentPeriodSalesTax)}
                   </div>
-                ))}
-              </div>
-              <div className="muted text-caption">
-                平均收款週期 (DSO)：{invoiceDso === null ? "—" : `${invoiceDso.toFixed(1)} 天`}
-              </div>
-            </Card>
-          )}
+                  <div className="muted text-caption mt-1.5">
+                    依開立日計算，含尚未收款的發票 — 銷項稅額於開立當期即應繳納，非收款當期。
+                  </div>
+                </Card>
+              )}
 
-          {isActiveCompanyBook && bookInvoices.length > 0 && (
-            <Card style={{ padding: "var(--ns-pad-card)" }}>
-              <div className="text-sm font-semibold mb-2.5">{currentFilingYear} 年度 401 雙月彙總</div>
-              <div className="ns-detail-table-wrap">
-                <table className="ns-detail-table">
-                  <thead>
-                    <tr>
-                      <th>期間</th>
-                      <th className="text-right">未稅銷售額</th>
-                      <th className="text-right">銷項稅額</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoice401Summary.map((row) => (
-                      <tr key={row.period}>
-                        <td>{row.period}</td>
-                        <td className="num text-right">{formatNumber(row.taxableSales)}</td>
-                        <td className="num text-right">{formatNumber(row.salesTax)}</td>
-                      </tr>
+              {isActiveCompanyBook && bookInvoices.length > 0 && (
+                <Card style={{ padding: "var(--ns-pad-card)" }}>
+                  <div className="text-sm font-semibold mb-2.5">帳齡 · 收款週期</div>
+                  <div className="flex flex-col gap-1.5 mb-2.5">
+                    {invoiceAging.map((b) => (
+                      <div
+                        key={b.bucket}
+                        className="text-body flex items-center justify-between gap-2"
+                      >
+                        <span className="muted">{AGING_BUCKET_LABELS[b.bucket]}</span>
+                        <span className="num whitespace-nowrap">
+                          {b.count} 筆 · {primaryCurrency} {formatNumber(b.total)}
+                        </span>
+                      </div>
                     ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td>合計</td>
-                      <td className="num text-right">{formatNumber(invoice401Summary.reduce((sum, r) => sum + r.taxableSales, 0))}</td>
-                      <td className="num text-right">{formatNumber(invoice401Summary.reduce((sum, r) => sum + r.salesTax, 0))}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-              <div className="muted text-caption mt-1.5">供 401 申報參考。</div>
-            </Card>
-          )}
-        </div>
-      </div>
-      </>
+                  </div>
+                  <div className="muted text-caption">
+                    平均收款週期 (DSO)：{invoiceDso === null ? "—" : `${invoiceDso.toFixed(1)} 天`}
+                  </div>
+                </Card>
+              )}
+
+              {isActiveCompanyBook && bookInvoices.length > 0 && (
+                <Card style={{ padding: "var(--ns-pad-card)" }}>
+                  <div className="text-sm font-semibold mb-2.5">
+                    {currentFilingYear} 年度 401 雙月彙總
+                  </div>
+                  <div className="ns-detail-table-wrap">
+                    <table className="ns-detail-table">
+                      <thead>
+                        <tr>
+                          <th>期間</th>
+                          <th className="text-right">未稅銷售額</th>
+                          <th className="text-right">銷項稅額</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {invoice401Summary.map((row) => (
+                          <tr key={row.period}>
+                            <td>{row.period}</td>
+                            <td className="num text-right">{formatNumber(row.taxableSales)}</td>
+                            <td className="num text-right">{formatNumber(row.salesTax)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td>合計</td>
+                          <td className="num text-right">
+                            {formatNumber(
+                              invoice401Summary.reduce((sum, r) => sum + r.taxableSales, 0),
+                            )}
+                          </td>
+                          <td className="num text-right">
+                            {formatNumber(
+                              invoice401Summary.reduce((sum, r) => sum + r.salesTax, 0),
+                            )}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                  <div className="muted text-caption mt-1.5">供 401 申報參考。</div>
+                </Card>
+              )}
+            </div>
+          </div>
+        </>
       )}
 
       {activeTab === "categories" && (
-        <CategoriesTab dateRange={dateRange} ledgerRows={bookLedgerRows} appSettings={appSettings} primaryCurrency={primaryCurrency} toPrimary={toPrimary} onSettingsClick={() => setCategoryDrawerOpen(true)} />
+        <CategoriesTab
+          dateRange={dateRange}
+          ledgerRows={bookLedgerRows}
+          appSettings={appSettings}
+          primaryCurrency={primaryCurrency}
+          toPrimary={toPrimary}
+          onSettingsClick={() => setCategoryDrawerOpen(true)}
+        />
       )}
 
       {activeTab === "merchants" && (
-        <MerchantsTab dateRange={dateRange} ledgerRows={bookLedgerRows} primaryCurrency={primaryCurrency} toPrimary={toPrimary} />
+        <MerchantsTab
+          dateRange={dateRange}
+          ledgerRows={bookLedgerRows}
+          primaryCurrency={primaryCurrency}
+          toPrimary={toPrimary}
+        />
       )}
 
-      {activeTab === "recurring" && (
-        <RecurringRulesTab />
-      )}
+      {activeTab === "recurring" && <RecurringRulesTab />}
 
       <EntryDrawer
         open={drawerOpen}
@@ -2246,10 +2805,29 @@ export function CashFlowRoute() {
       />
       <TransactionDetailPanel
         row={detailRow}
-        onClose={() => { setDetailRow(null); returnIfFromReconcile(); }}
-        onEdit={(row) => { setDetailRow(null); startEdit(row); }}
-        onDuplicate={(row) => { setDetailRow(null); startDuplicate(row, (row as LedgerTransaction & { transferPair?: { source: LedgerTransaction; dest: LedgerTransaction } }).transferPair); }}
-        onDelete={(row) => { setDetailRow(null); requestDelete(row); }}
+        onClose={() => {
+          setDetailRow(null);
+          returnIfFromReconcile();
+        }}
+        onEdit={(row) => {
+          setDetailRow(null);
+          startEdit(row);
+        }}
+        onDuplicate={(row) => {
+          setDetailRow(null);
+          startDuplicate(
+            row,
+            (
+              row as LedgerTransaction & {
+                transferPair?: { source: LedgerTransaction; dest: LedgerTransaction };
+              }
+            ).transferPair,
+          );
+        }}
+        onDelete={(row) => {
+          setDetailRow(null);
+          requestDelete(row);
+        }}
         accountName={accountName}
         recurringRows={recurringRows}
         onRefund={async (row, refundAmount, refundDate, refundNote) => {
@@ -2275,7 +2853,10 @@ export function CashFlowRoute() {
           });
           setDetailRow(null);
         }}
-        onSettle={(row) => { setDetailRow(null); setSettlePrompt(row); }}
+        onSettle={(row) => {
+          setDetailRow(null);
+          setSettlePrompt(row);
+        }}
       />
       {recurringEditPrompt && (
         <RecurringScopeModal
@@ -2331,31 +2912,41 @@ function SettleModal({
       style={{ zIndex: 1000 }}
       panelClassName="ns-modal-panel"
     >
-      {(dismiss) => (<>
-        <div className="text-[15px] font-semibold mb-1">{isReceivable ? "收款結清" : "付款結清"}</div>
-        <div className="text-xs muted mb-4" style={{ lineHeight: 1.6 }}>
-          {row.merchant || row.name || (isReceivable ? "應收款項" : "應付款項")} · {amountLabel}
-          <br />
-          {isReceivable ? "款項實際收到哪個帳戶？" : "從哪個帳戶付款？"}
-        </div>
-        <DrawerField label={isReceivable ? "收款帳戶" : "付款帳戶"} required>
-          <AccountFilter
-            accounts={accounts}
-            value={accountId}
-            onChange={setAccountId}
-            allowAll={false}
-            placeholder="選擇帳戶"
-            style={{ width: "100%", maxWidth: "none", minWidth: 0 }}
-            positionerClassName="z-[1001]"
-          />
-        </DrawerField>
-        <div className="flex justify-end gap-2" style={{ marginTop: 18 }}>
-          <Button variant="outline" onClick={dismiss} disabled={pending}>取消</Button>
-          <Button onClick={() => accountId && onConfirm(accountId)} disabled={pending || !accountId}>
-            <Check size={14} weight="bold" />結清
-          </Button>
-        </div>
-      </>)}
+      {(dismiss) => (
+        <>
+          <div className="text-[15px] font-semibold mb-1">
+            {isReceivable ? "收款結清" : "付款結清"}
+          </div>
+          <div className="text-xs muted mb-4" style={{ lineHeight: 1.6 }}>
+            {row.merchant || row.name || (isReceivable ? "應收款項" : "應付款項")} · {amountLabel}
+            <br />
+            {isReceivable ? "款項實際收到哪個帳戶？" : "從哪個帳戶付款？"}
+          </div>
+          <DrawerField label={isReceivable ? "收款帳戶" : "付款帳戶"} required>
+            <AccountFilter
+              accounts={accounts}
+              value={accountId}
+              onChange={setAccountId}
+              allowAll={false}
+              placeholder="選擇帳戶"
+              style={{ width: "100%", maxWidth: "none", minWidth: 0 }}
+              positionerClassName="z-[1001]"
+            />
+          </DrawerField>
+          <div className="flex justify-end gap-2" style={{ marginTop: 18 }}>
+            <Button variant="outline" onClick={dismiss} disabled={pending}>
+              取消
+            </Button>
+            <Button
+              onClick={() => accountId && onConfirm(accountId)}
+              disabled={pending || !accountId}
+            >
+              <Check size={14} weight="bold" />
+              結清
+            </Button>
+          </div>
+        </>
+      )}
     </ModalShell>
   );
 }
@@ -2371,10 +2962,22 @@ function RecurringScopeModal({
   onCancel: () => void;
   onChoose: (scope: import("../data/repositories").RecurringEditScope) => void;
 }) {
-  const options: { scope: import("../data/repositories").RecurringEditScope; label: string; desc: string }[] = [
+  const options: {
+    scope: import("../data/repositories").RecurringEditScope;
+    label: string;
+    desc: string;
+  }[] = [
     { scope: "this", label: "只改此次紀錄", desc: "僅更新這一筆，不影響規則與其他紀錄。" },
-    { scope: "future", label: "此次與未來紀錄", desc: "更新這一筆，並修改週期規則（影響日後產生的紀錄）。" },
-    { scope: "all", label: "全部紀錄（過去＋現在＋未來）", desc: "更新規則與所有已產生的紀錄（保留各自日期）。" },
+    {
+      scope: "future",
+      label: "此次與未來紀錄",
+      desc: "更新這一筆，並修改週期規則（影響日後產生的紀錄）。",
+    },
+    {
+      scope: "all",
+      label: "全部紀錄（過去＋現在＋未來）",
+      desc: "更新規則與所有已產生的紀錄（保留各自日期）。",
+    },
   ];
   return (
     <ModalShell
@@ -2384,30 +2987,43 @@ function RecurringScopeModal({
       style={{ zIndex: 1000 }}
       panelClassName="ns-modal-panel"
     >
-      {(dismiss) => (<>
-        <div className="text-[15px] font-semibold mb-1">套用變更範圍</div>
-        <div className="text-xs muted mb-4">這是由週期規則產生的紀錄，請選擇要套用的範圍。</div>
-        <div className="flex flex-col gap-2">
-          {options.map((o) => (
-            <button
-              key={o.scope}
-              disabled={pending}
-              onClick={() => onChoose(o.scope)}
-              style={{
-                textAlign: "left", padding: "12px 14px", borderRadius: "var(--ns-r-md)",
-                border: "1px solid var(--ns-border)", background: "var(--ns-bg-card)",
-                cursor: pending ? "default" : "pointer", fontFamily: "inherit", opacity: pending ? 0.6 : 1,
-              }}
-            >
-              <div className="text-body" style={{ fontWeight: 500, color: "var(--ns-fg)" }}>{o.label}</div>
-              <div className="text-xs muted" style={{ marginTop: 3, lineHeight: 1.5 }}>{o.desc}</div>
-            </button>
-          ))}
-        </div>
-        <div className="flex justify-end mt-4">
-          <Button variant="outline" onClick={dismiss} disabled={pending}>取消</Button>
-        </div>
-      </>)}
+      {(dismiss) => (
+        <>
+          <div className="text-[15px] font-semibold mb-1">套用變更範圍</div>
+          <div className="text-xs muted mb-4">這是由週期規則產生的紀錄，請選擇要套用的範圍。</div>
+          <div className="flex flex-col gap-2">
+            {options.map((o) => (
+              <button
+                key={o.scope}
+                disabled={pending}
+                onClick={() => onChoose(o.scope)}
+                style={{
+                  textAlign: "left",
+                  padding: "12px 14px",
+                  borderRadius: "var(--ns-r-md)",
+                  border: "1px solid var(--ns-border)",
+                  background: "var(--ns-bg-card)",
+                  cursor: pending ? "default" : "pointer",
+                  fontFamily: "inherit",
+                  opacity: pending ? 0.6 : 1,
+                }}
+              >
+                <div className="text-body" style={{ fontWeight: 500, color: "var(--ns-fg)" }}>
+                  {o.label}
+                </div>
+                <div className="text-xs muted" style={{ marginTop: 3, lineHeight: 1.5 }}>
+                  {o.desc}
+                </div>
+              </button>
+            ))}
+          </div>
+          <div className="flex justify-end mt-4">
+            <Button variant="outline" onClick={dismiss} disabled={pending}>
+              取消
+            </Button>
+          </div>
+        </>
+      )}
     </ModalShell>
   );
 }
@@ -2428,8 +3044,16 @@ function InstallmentDeleteModal({
   const label = installmentLabel(row);
   const options: { mode: "this" | "later" | "all"; label: string; desc: string }[] = [
     { mode: "this", label: "僅刪除此期", desc: "只刪除這一期分期紀錄，其餘各期保留。" },
-    { mode: "later", label: "此期與之後", desc: `刪除第 ${row.installmentIndex ?? "?"} 期及之後所有未到期的分期紀錄。` },
-    { mode: "all", label: "整組分期", desc: "刪除這筆購物的全部分期紀錄（共 " + (row.installmentTotal ?? "?") + " 期）。" },
+    {
+      mode: "later",
+      label: "此期與之後",
+      desc: `刪除第 ${row.installmentIndex ?? "?"} 期及之後所有未到期的分期紀錄。`,
+    },
+    {
+      mode: "all",
+      label: "整組分期",
+      desc: "刪除這筆購物的全部分期紀錄（共 " + (row.installmentTotal ?? "?") + " 期）。",
+    },
   ];
   return (
     <ModalShell
@@ -2439,32 +3063,53 @@ function InstallmentDeleteModal({
       style={{ zIndex: 1000 }}
       panelClassName="ns-modal-panel"
     >
-      {(dismiss) => (<>
-        <div className="text-[15px] font-semibold mb-1">刪除分期紀錄</div>
-        <div className="text-xs muted mb-4">
-          {label ? `這是第 ${row.installmentIndex}/${row.installmentTotal} 期的分期紀錄，請選擇刪除範圍。` : "請選擇刪除範圍。"}
-        </div>
-        <div className="flex flex-col gap-2">
-          {options.map((o) => (
-            <button
-              key={o.mode}
-              disabled={pending}
-              onClick={() => onChoose(o.mode)}
-              style={{
-                textAlign: "left", padding: "12px 14px", borderRadius: "var(--ns-r-md)",
-                border: "1px solid var(--ns-border)", background: "var(--ns-bg-card)",
-                cursor: pending ? "default" : "pointer", fontFamily: "inherit", opacity: pending ? 0.6 : 1,
-              }}
-            >
-              <div className="text-body" style={{ fontWeight: 500, color: o.mode === "all" ? "var(--ns-neg)" : "var(--ns-fg)" }}>{o.label}</div>
-              <div className="text-xs muted" style={{ marginTop: 3, lineHeight: 1.5 }}>{o.desc}</div>
-            </button>
-          ))}
-        </div>
-        <div className="flex justify-end mt-4">
-          <Button variant="outline" onClick={dismiss} disabled={pending}>取消</Button>
-        </div>
-      </>)}
+      {(dismiss) => (
+        <>
+          <div className="text-[15px] font-semibold mb-1">刪除分期紀錄</div>
+          <div className="text-xs muted mb-4">
+            {label
+              ? `這是第 ${row.installmentIndex}/${row.installmentTotal} 期的分期紀錄，請選擇刪除範圍。`
+              : "請選擇刪除範圍。"}
+          </div>
+          <div className="flex flex-col gap-2">
+            {options.map((o) => (
+              <button
+                key={o.mode}
+                disabled={pending}
+                onClick={() => onChoose(o.mode)}
+                style={{
+                  textAlign: "left",
+                  padding: "12px 14px",
+                  borderRadius: "var(--ns-r-md)",
+                  border: "1px solid var(--ns-border)",
+                  background: "var(--ns-bg-card)",
+                  cursor: pending ? "default" : "pointer",
+                  fontFamily: "inherit",
+                  opacity: pending ? 0.6 : 1,
+                }}
+              >
+                <div
+                  className="text-body"
+                  style={{
+                    fontWeight: 500,
+                    color: o.mode === "all" ? "var(--ns-neg)" : "var(--ns-fg)",
+                  }}
+                >
+                  {o.label}
+                </div>
+                <div className="text-xs muted" style={{ marginTop: 3, lineHeight: 1.5 }}>
+                  {o.desc}
+                </div>
+              </button>
+            ))}
+          </div>
+          <div className="flex justify-end mt-4">
+            <Button variant="outline" onClick={dismiss} disabled={pending}>
+              取消
+            </Button>
+          </div>
+        </>
+      )}
     </ModalShell>
   );
 }
@@ -2524,7 +3169,14 @@ function LedgerRow({
           onClick={onToggleSplit}
           style={{ padding: "9px 20px", borderBottom: "1px solid var(--ns-border)" }}
         >
-          <div className="w-[30px] h-[30px] shrink-0 flex items-center justify-center" style={{ borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)" }}>
+          <div
+            className="w-[30px] h-[30px] shrink-0 flex items-center justify-center"
+            style={{
+              borderRadius: "var(--ns-r-sm)",
+              background: "var(--ns-bg-hover)",
+              color: "var(--ns-fg-muted)",
+            }}
+          >
             <Receipt size={14} />
           </div>
           <div className="flex-1 min-w-0">
@@ -2532,20 +3184,43 @@ function LedgerRow({
               <span className="text-sm font-medium whitespace-nowrap overflow-hidden text-ellipsis">
                 {row.name || row.merchant || "多類別"}
               </span>
-              <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-accent)", borderColor: "var(--ns-accent)" }}>
+              <Badge
+                variant="outline"
+                className="rounded-full"
+                style={{ color: "var(--ns-accent)", borderColor: "var(--ns-accent)" }}
+              >
                 拆分 {splitLegs.length} 筆
               </Badge>
-              {splitExpanded ? <CaretDown size={14} style={{ color: "var(--ns-fg-muted)", flexShrink: 0 }} /> : <CaretRight size={14} style={{ color: "var(--ns-fg-muted)", flexShrink: 0 }} />}
+              {splitExpanded ? (
+                <CaretDown size={14} style={{ color: "var(--ns-fg-muted)", flexShrink: 0 }} />
+              ) : (
+                <CaretRight size={14} style={{ color: "var(--ns-fg-muted)", flexShrink: 0 }} />
+              )}
             </div>
             <div className="muted text-caption truncate">{subtitle}</div>
           </div>
           <div className="text-right">
-            <div className="num text-[14.5px]" style={{ color }}>{sign}{currencySymbol(row.currency)}{formatNumber(Math.abs(row.amount))}</div>
+            <div className="num text-[14.5px]" style={{ color }}>
+              {sign}
+              {currencySymbol(row.currency)}
+              {formatNumber(Math.abs(row.amount))}
+            </div>
           </div>
           <div className="ns-cf-actions flex gap-1" onClick={(e) => e.stopPropagation()}>
-            <Button variant="ghost" size="icon-sm" title="編輯拆分" onClick={onOpenEdit}><PencilSimple size={13} /></Button>
-            <Button variant="ghost" size="icon-sm" title="複製" onClick={onDuplicate}><CopySimple size={13} /></Button>
-            <Button variant="destructive-outline" size="icon-sm" title="刪除（整組刪除）" onClick={onDelete}><Trash size={13} /></Button>
+            <Button variant="ghost" size="icon-sm" title="編輯拆分" onClick={onOpenEdit}>
+              <PencilSimple size={13} />
+            </Button>
+            <Button variant="ghost" size="icon-sm" title="複製" onClick={onDuplicate}>
+              <CopySimple size={13} />
+            </Button>
+            <Button
+              variant="destructive-outline"
+              size="icon-sm"
+              title="刪除（整組刪除）"
+              onClick={onDelete}
+            >
+              <Trash size={13} />
+            </Button>
           </div>
         </div>
         {splitExpanded ? (
@@ -2558,8 +3233,13 @@ function LedgerRow({
                     : `${leg.category || "未分類"}${leg.subcategory ? ` / ${leg.subcategory}` : ""}`}
                 </span>
                 <div className="flex items-center gap-1.5">
-                  <span className="muted text-caption" style={{ fontFamily: "var(--ns-font-mono)", whiteSpace: "nowrap" }}>
-                    {leg.amount >= 0 ? "+" : "−"}{currencySymbol(leg.currency)}{formatNumber(Math.abs(leg.amount))}
+                  <span
+                    className="muted text-caption"
+                    style={{ fontFamily: "var(--ns-font-mono)", whiteSpace: "nowrap" }}
+                  >
+                    {leg.amount >= 0 ? "+" : "−"}
+                    {currencySymbol(leg.currency)}
+                    {formatNumber(Math.abs(leg.amount))}
                   </span>
                   {leg.legKind === "share" && (
                     <Button
@@ -2567,7 +3247,10 @@ function LedgerRow({
                       size="icon-sm"
                       title="還款"
                       aria-label="還款"
-                      onClick={(e) => { e.stopPropagation(); onShareRepay(leg); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onShareRepay(leg);
+                      }}
                     >
                       <HandCoins size={13} />
                     </Button>
@@ -2586,10 +3269,16 @@ function LedgerRow({
   if (isTransfer && transferPair) {
     const { source, dest } = transferPair;
     const crossCcy = source.currency !== dest.currency;
-    const rate = crossCcy && dest.amount !== 0 ? Math.abs(source.amount) / Math.abs(dest.amount) : null;
+    const rate =
+      crossCcy && dest.amount !== 0 ? Math.abs(source.amount) / Math.abs(dest.amount) : null;
     const subtitleParts = [
       `${accountName(source.accountId)} → ${accountName(dest.accountId)}`,
-      rate ? `@${rate.toFixed(rate >= 100 ? 2 : 4).replace(/0+$/, "").replace(/\.$/, "")}` : null,
+      rate
+        ? `@${rate
+            .toFixed(rate >= 100 ? 2 : 4)
+            .replace(/0+$/, "")
+            .replace(/\.$/, "")}`
+        : null,
       source.note || null,
     ].filter(Boolean);
     return (
@@ -2598,7 +3287,14 @@ function LedgerRow({
         onClick={onEdit}
         style={{ padding: "9px 20px", borderBottom: "1px solid var(--ns-border)" }}
       >
-        <div className="w-[30px] h-[30px] shrink-0 flex items-center justify-center" style={{ borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)" }}>
+        <div
+          className="w-[30px] h-[30px] shrink-0 flex items-center justify-center"
+          style={{
+            borderRadius: "var(--ns-r-sm)",
+            background: "var(--ns-bg-hover)",
+            color: "var(--ns-fg-muted)",
+          }}
+        >
           <ArrowsLeftRight size={14} />
         </div>
         <div className="flex-1 min-w-0">
@@ -2610,14 +3306,24 @@ function LedgerRow({
           <div className="muted text-caption truncate">{subtitleParts.join(" · ")}</div>
         </div>
         <div className="text-right">
-          <div className="num text-[14.5px]" style={{ color: "var(--ns-fg)" }}>{currencySymbol(source.currency)}{formatNumber(Math.abs(source.amount))}</div>
+          <div className="num text-[14.5px]" style={{ color: "var(--ns-fg)" }}>
+            {currencySymbol(source.currency)}
+            {formatNumber(Math.abs(source.amount))}
+          </div>
           {crossCcy ? (
-            <div className="muted text-micro" style={{ fontFamily: "var(--ns-font-mono)" }}>→ {currencySymbol(dest.currency)}{formatNumber(Math.abs(dest.amount))}</div>
+            <div className="muted text-micro" style={{ fontFamily: "var(--ns-font-mono)" }}>
+              → {currencySymbol(dest.currency)}
+              {formatNumber(Math.abs(dest.amount))}
+            </div>
           ) : null}
         </div>
-        <div className="ns-cf-actions flex gap-1" onClick={e => e.stopPropagation()}>
-          <Button variant="ghost" size="icon-sm" title="複製" onClick={onDuplicate}><CopySimple size={13} /></Button>
-          <Button variant="destructive-outline" size="icon-sm" title="刪除" onClick={onDelete}><Trash size={13} /></Button>
+        <div className="ns-cf-actions flex gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button variant="ghost" size="icon-sm" title="複製" onClick={onDuplicate}>
+            <CopySimple size={13} />
+          </Button>
+          <Button variant="destructive-outline" size="icon-sm" title="刪除" onClick={onDelete}>
+            <Trash size={13} />
+          </Button>
         </div>
       </div>
     );
@@ -2642,39 +3348,95 @@ function LedgerRow({
       onClick={onEdit}
       style={{ padding: "9px 20px", borderBottom: "1px solid var(--ns-border)" }}
     >
-      <div className="w-[30px] h-[30px] shrink-0 flex items-center justify-center" style={{ borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)" }}>
-        {isTransfer ? <ArrowsLeftRight size={14} /> : categoryIcon ? <Glyph name={categoryIcon} size={15} /> : <Tag size={14} />}
+      <div
+        className="w-[30px] h-[30px] shrink-0 flex items-center justify-center"
+        style={{
+          borderRadius: "var(--ns-r-sm)",
+          background: "var(--ns-bg-hover)",
+          color: "var(--ns-fg-muted)",
+        }}
+      >
+        {isTransfer ? (
+          <ArrowsLeftRight size={14} />
+        ) : categoryIcon ? (
+          <Glyph name={categoryIcon} size={15} />
+        ) : (
+          <Tag size={14} />
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium whitespace-nowrap overflow-hidden text-ellipsis">
             {row.name || row.category || (isTransfer ? "轉帳" : "未命名")}
           </span>
-          {isReceivable ? <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}>應收</Badge> : null}
-          {isPayable ? <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}>應付</Badge> : null}
-          {installmentLabel(row) ? <Badge variant="outline" className="rounded-full" style={{ color: "var(--ns-accent)", borderColor: "var(--ns-accent)" }}>{installmentLabel(row)}</Badge> : null}
+          {isReceivable ? (
+            <Badge
+              variant="outline"
+              className="rounded-full"
+              style={{ color: "var(--ns-chart-3)", borderColor: "var(--ns-chart-3)" }}
+            >
+              應收
+            </Badge>
+          ) : null}
+          {isPayable ? (
+            <Badge
+              variant="outline"
+              className="rounded-full"
+              style={{ color: "var(--ns-chart-5)", borderColor: "var(--ns-chart-5)" }}
+            >
+              應付
+            </Badge>
+          ) : null}
+          {installmentLabel(row) ? (
+            <Badge
+              variant="outline"
+              className="rounded-full"
+              style={{ color: "var(--ns-accent)", borderColor: "var(--ns-accent)" }}
+            >
+              {installmentLabel(row)}
+            </Badge>
+          ) : null}
         </div>
         <div className="muted text-caption truncate">{subtitle}</div>
       </div>
       <div className="text-right">
         {row.originalCurrency && row.originalAmount != null ? (
           <>
-            <div className="num text-[14.5px]" style={{ color }}>{sign}{currencySymbol(row.originalCurrency)}{formatNumber(Math.abs(row.originalAmount))}</div>
-            <div className="muted text-micro" style={{ fontFamily: "var(--ns-font-mono)" }}>≈ {currencySymbol(row.currency)}{formatNumber(Math.abs(row.amount))}</div>
+            <div className="num text-[14.5px]" style={{ color }}>
+              {sign}
+              {currencySymbol(row.originalCurrency)}
+              {formatNumber(Math.abs(row.originalAmount))}
+            </div>
+            <div className="muted text-micro" style={{ fontFamily: "var(--ns-font-mono)" }}>
+              ≈ {currencySymbol(row.currency)}
+              {formatNumber(Math.abs(row.amount))}
+            </div>
           </>
         ) : (
-          <div className="num text-[14.5px]" style={{ color }}>{sign}{currencySymbol(row.currency)}{formatNumber(Math.abs(row.amount))}</div>
+          <div className="num text-[14.5px]" style={{ color }}>
+            {sign}
+            {currencySymbol(row.currency)}
+            {formatNumber(Math.abs(row.amount))}
+          </div>
         )}
       </div>
-      <div className="ns-cf-actions flex gap-1" onClick={e => e.stopPropagation()}>
-        {(isReceivable || isPayable) ? (
-          <Button variant="ghost" size="icon-sm" title="結清" onClick={onSettle}><Check size={14} /></Button>
+      <div className="ns-cf-actions flex gap-1" onClick={(e) => e.stopPropagation()}>
+        {isReceivable || isPayable ? (
+          <Button variant="ghost" size="icon-sm" title="結清" onClick={onSettle}>
+            <Check size={14} />
+          </Button>
         ) : null}
         {!isTransfer ? (
-          <Button variant="ghost" size="icon-sm" title="編輯" onClick={onOpenEdit}><PencilSimple size={13} /></Button>
+          <Button variant="ghost" size="icon-sm" title="編輯" onClick={onOpenEdit}>
+            <PencilSimple size={13} />
+          </Button>
         ) : null}
-        <Button variant="ghost" size="icon-sm" title="複製" onClick={onDuplicate}><CopySimple size={13} /></Button>
-        <Button variant="destructive-outline" size="icon-sm" title="刪除" onClick={onDelete}><Trash size={13} /></Button>
+        <Button variant="ghost" size="icon-sm" title="複製" onClick={onDuplicate}>
+          <CopySimple size={13} />
+        </Button>
+        <Button variant="destructive-outline" size="icon-sm" title="刪除" onClick={onDelete}>
+          <Trash size={13} />
+        </Button>
       </div>
     </div>
   );
@@ -2682,17 +3444,38 @@ function LedgerRow({
 
 /* ─────────────── Stat + ranking cards ─────────────── */
 
-function StatCard({ label, value, tone }: { label: string; value: string; tone: "pos" | "neg" | "muted" }) {
-  const color = tone === "pos" ? "var(--ns-pos)" : tone === "neg" ? "var(--ns-neg)" : "var(--ns-fg)";
+function StatCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "pos" | "neg" | "muted";
+}) {
+  const color =
+    tone === "pos" ? "var(--ns-pos)" : tone === "neg" ? "var(--ns-neg)" : "var(--ns-fg)";
   return (
     <Card style={{ padding: 18 }}>
       <div className="text-xs mb-2 muted font-medium">{label}</div>
-      <div className="num text-stat font-medium" style={{ color }}>{value}</div>
+      <div className="num text-stat font-medium" style={{ color }}>
+        {value}
+      </div>
     </Card>
   );
 }
 
-function RankingCard({ title, rows, emptyText, currency }: { title: string; rows: Array<{ name: string; amount: number }>; emptyText: string; currency: string }) {
+function RankingCard({
+  title,
+  rows,
+  emptyText,
+  currency,
+}: {
+  title: string;
+  rows: Array<{ name: string; amount: number }>;
+  emptyText: string;
+  currency: string;
+}) {
   const max = rows[0]?.amount ?? 1;
   return (
     <Card style={{ padding: "var(--ns-pad-card)" }}>
@@ -2705,10 +3488,25 @@ function RankingCard({ title, rows, emptyText, currency }: { title: string; rows
             <div key={row.name}>
               <div className="text-body flex justify-between mb-[5px]">
                 <span className="truncate">{row.name}</span>
-                <span className="num muted">{currency} {formatNumber(row.amount)}</span>
+                <span className="num muted">
+                  {currency} {formatNumber(row.amount)}
+                </span>
               </div>
-              <div style={{ height: 6, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
-                <div style={{ width: `${Math.max(6, (row.amount / max) * 100)}%`, height: "100%", background: "var(--ns-accent)" }} />
+              <div
+                style={{
+                  height: 6,
+                  borderRadius: 99,
+                  background: "var(--ns-bg-hover)",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${Math.max(6, (row.amount / max) * 100)}%`,
+                    height: "100%",
+                    background: "var(--ns-accent)",
+                  }}
+                />
               </div>
             </div>
           ))}
@@ -2778,12 +3576,29 @@ function UpcomingPayments({
                 <div key={row.id} className="text-body flex items-center justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="truncate">{row.merchant || row.category}</div>
-                    <div className="muted text-caption">{row.nextRunDate} · {accountName(row.accountId)}</div>
+                    <div className="muted text-caption">
+                      {row.nextRunDate} · {accountName(row.accountId)}
+                    </div>
                   </div>
-                  <span className="num whitespace-nowrap" style={{ color: row.entryType === "income" ? "var(--ns-pos)" : "var(--ns-neg)" }}>
-                    {row.entryType === "income" ? "+" : "−"}{row.currency} {formatNumber(Math.abs(row.amount))}
+                  <span
+                    className="num whitespace-nowrap"
+                    style={{
+                      color: row.entryType === "income" ? "var(--ns-pos)" : "var(--ns-neg)",
+                    }}
+                  >
+                    {row.entryType === "income" ? "+" : "−"}
+                    {row.currency} {formatNumber(Math.abs(row.amount))}
                   </span>
-                  <Button variant="ghost" size="xs" className="whitespace-nowrap" disabled={posting} onClick={() => onPost(row.id)} title="立即記入這筆交易">記入</Button>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="whitespace-nowrap"
+                    disabled={posting}
+                    onClick={() => onPost(row.id)}
+                    title="立即記入這筆交易"
+                  >
+                    記入
+                  </Button>
                 </div>
               ))}
             </div>
@@ -2791,13 +3606,22 @@ function UpcomingPayments({
             <div className="muted text-body">30 天內沒有排定的週期事件。</div>
           )}
           {later.length > 0 ? (
-            <div className="mt-3.5 pt-3 flex flex-col gap-1.5" style={{ borderTop: "1px solid var(--ns-border)" }}>
+            <div
+              className="mt-3.5 pt-3 flex flex-col gap-1.5"
+              style={{ borderTop: "1px solid var(--ns-border)" }}
+            >
               <div className="muted text-caption font-medium mb-0.5">之後</div>
               {later.map((row) => (
-                <div key={row.id} className="text-caption flex items-center justify-between gap-2 muted">
-                  <span className="truncate">{row.nextRunDate} · {row.merchant || row.category}</span>
+                <div
+                  key={row.id}
+                  className="text-caption flex items-center justify-between gap-2 muted"
+                >
+                  <span className="truncate">
+                    {row.nextRunDate} · {row.merchant || row.category}
+                  </span>
                   <span className="num whitespace-nowrap">
-                    {row.entryType === "income" ? "+" : "−"}{row.currency} {formatNumber(Math.abs(row.amount))}
+                    {row.entryType === "income" ? "+" : "−"}
+                    {row.currency} {formatNumber(Math.abs(row.amount))}
                   </span>
                 </div>
               ))}
@@ -2806,15 +3630,24 @@ function UpcomingPayments({
         </>
       )}
       {active.length > 0 ? (
-        <div className="mt-3.5 pt-3 flex items-center justify-between gap-2" style={{ borderTop: "1px solid var(--ns-border)" }}>
+        <div
+          className="mt-3.5 pt-3 flex items-center justify-between gap-2"
+          style={{ borderTop: "1px solid var(--ns-border)" }}
+        >
           <span className="muted text-caption">
             每月固定{" "}
-            <span className="num" style={{ color: monthlyTotal >= 0 ? "var(--ns-pos)" : "var(--ns-neg)" }}>
-              {monthlyTotal >= 0 ? "+" : "−"}{primaryCurrency} {formatNumber(Math.abs(monthlyTotal))}
+            <span
+              className="num"
+              style={{ color: monthlyTotal >= 0 ? "var(--ns-pos)" : "var(--ns-neg)" }}
+            >
+              {monthlyTotal >= 0 ? "+" : "−"}
+              {primaryCurrency} {formatNumber(Math.abs(monthlyTotal))}
             </span>{" "}
             · {active.length} 條規則
           </span>
-          <Button variant="ghost" size="xs" className="whitespace-nowrap" onClick={onManage}>管理 ›</Button>
+          <Button variant="ghost" size="xs" className="whitespace-nowrap" onClick={onManage}>
+            管理 ›
+          </Button>
         </div>
       ) : null}
     </Card>
@@ -2896,7 +3729,12 @@ function EntryDrawer({
   merchantPool: string[];
   categorySuggestions: { merchants: string[]; accountIds: string[] };
   categoryForMerchant: (merchant: string) => { category: string; subcategory: string } | null;
-  accountRows: Array<Pick<Account, "id" | "name" | "currency" | "type" | "iconName" | "color" | "bankBrandDomain" | "bookId">>;
+  accountRows: Array<
+    Pick<
+      Account,
+      "id" | "name" | "currency" | "type" | "iconName" | "color" | "bankBrandDomain" | "bookId"
+    >
+  >;
   onSubmitLedger: () => void;
   onSubmitTransfer: () => void;
   message: string;
@@ -2938,10 +3776,16 @@ function EntryDrawer({
   const activeBookId = useUiPreferences((state) => state.activeBookId);
   const isAllBooksEntry = activeBookId === ALL_BOOKS;
   const [showAllEntryAccounts, setShowAllEntryAccounts] = useState(false);
-  useEffect(() => { if (open) { setShowAdvanced(false); setShowAllEntryAccounts(false); } }, [open]);
-  const entryPickerAccounts = isAllBooksEntry || showAllEntryAccounts
-    ? accountRows
-    : accountRows.filter((a) => a.bookId === activeBookId);
+  useEffect(() => {
+    if (open) {
+      setShowAdvanced(false);
+      setShowAllEntryAccounts(false);
+    }
+  }, [open]);
+  const entryPickerAccounts =
+    isAllBooksEntry || showAllEntryAccounts
+      ? accountRows
+      : accountRows.filter((a) => a.bookId === activeBookId);
 
   // Scrim must dim only the content area, never the native-vibrancy sidebar
   // (otherwise it flattens into a grey block — plan 052). The desktop sidebar
@@ -2965,17 +3809,14 @@ function EntryDrawer({
     return Math.round(raw / installmentPeriods);
   })();
 
-  const destAmountField = useNumericField(
-    transferForm.destinationAmount ?? 0,
-    (v) => setTransferForm({ ...transferForm, destinationAmount: v }),
+  const destAmountField = useNumericField(transferForm.destinationAmount ?? 0, (v) =>
+    setTransferForm({ ...transferForm, destinationAmount: v }),
   );
-  const transferFeeField = useNumericField(
-    transferForm.feeAmount ?? 0,
-    (v) => setTransferForm({ ...transferForm, feeAmount: v }),
+  const transferFeeField = useNumericField(transferForm.feeAmount ?? 0, (v) =>
+    setTransferForm({ ...transferForm, feeAmount: v }),
   );
-  const expenseFeeField = useNumericField(
-    ledgerForm.feeAmount ?? 0,
-    (v) => setLedgerForm({ ...ledgerForm, feeAmount: v }),
+  const expenseFeeField = useNumericField(ledgerForm.feeAmount ?? 0, (v) =>
+    setLedgerForm({ ...ledgerForm, feeAmount: v }),
   );
 
   // Two-phase close (mirrors ModalShell's requestClose): let the exit
@@ -3051,7 +3892,7 @@ function EntryDrawer({
   const isRp = type === "ar" || type === "ap";
 
   const linkedRule = editingRecurringRuleId
-    ? recurringRows.find((r) => r.id === editingRecurringRuleId) ?? null
+    ? (recurringRows.find((r) => r.id === editingRecurringRuleId) ?? null)
     : null;
 
   // Currencies available for entry: account's own currency + those in exchange rates
@@ -3078,9 +3919,10 @@ function EntryDrawer({
   // 分帳 (plan 222): the drawer's total is legs + shares combined; shares are
   // expense-only (the builder throws 分帳僅支援支出 on income) so income splits
   // never render the 分帳 section and shareDrafts is kept cleared for them.
-  const splitTotal = splitMode && splitLegs
-    ? derivedSplitTotal(splitLegs) + (type === "expense" ? derivedShareTotal(shareDrafts) : 0)
-    : 0;
+  const splitTotal =
+    splitMode && splitLegs
+      ? derivedSplitTotal(splitLegs) + (type === "expense" ? derivedShareTotal(shareDrafts) : 0)
+      : 0;
   // Combined check (plan 222): splitLegsError alone only knows about legs, so
   // it wrongly demands >=2 legs even when a share makes the combined total
   // valid (1 category leg + 1 share). combinedSplitError is the single
@@ -3093,17 +3935,24 @@ function EntryDrawer({
   // amount is being entered in a foreign currency (splits store one account-
   // currency amount per leg; no originalAmount support on legs).
   const canEnterSplit =
-    isAcct && !splitMode && !editing && !activeInstallment && !isForeignEntry && Boolean(ledgerForm.category.trim());
+    isAcct &&
+    !splitMode &&
+    !editing &&
+    !activeInstallment &&
+    !isForeignEntry &&
+    Boolean(ledgerForm.category.trim());
 
   function enterSplit() {
     // Legs are amounts in the ACCOUNT currency; pin the display currency so a
     // later currency-selector change can't desync the derived total's unit.
     setEntryDisplayCurrency(ledgerForm.currency);
-    setSplitLegs(enterSplitMode({
-      category: ledgerForm.category,
-      subcategory: ledgerForm.subcategory,
-      amountExpression,
-    }));
+    setSplitLegs(
+      enterSplitMode({
+        category: ledgerForm.category,
+        subcategory: ledgerForm.subcategory,
+        amountExpression,
+      }),
+    );
   }
 
   function removeLegAt(index: number) {
@@ -3113,7 +3962,11 @@ function EntryDrawer({
       // Down to 1 (or 0) legs with no shares present → back to the plain form
       // carrying that leg's values.
       const remaining = next[0] ?? makeEmptySplitLeg();
-      setLedgerForm({ ...ledgerForm, category: remaining.category, subcategory: remaining.subcategory });
+      setLedgerForm({
+        ...ledgerForm,
+        category: remaining.category,
+        subcategory: remaining.subcategory,
+      });
       setAmountExpression(remaining.amount || "0");
       setSplitLegs(null);
       setShareDrafts([]);
@@ -3127,14 +3980,16 @@ function EntryDrawer({
   // a value the user already entered. Split mode hides them: `ledgerForm.category`
   // is stale there (legs own the categories).
   const hasCategory = Boolean(ledgerForm.category.trim());
-  const merchantChips = !splitMode && hasCategory && !ledgerForm.merchant.trim()
-    ? categorySuggestions.merchants.filter((m) => m && m !== ledgerForm.merchant)
-    : [];
-  const accountChips = !splitMode && hasCategory && !ledgerForm.accountId
-    ? categorySuggestions.accountIds
-        .map((id) => accountRows.find((a) => a.id === id))
-        .filter((a): a is (typeof accountRows)[number] => Boolean(a))
-    : [];
+  const merchantChips =
+    !splitMode && hasCategory && !ledgerForm.merchant.trim()
+      ? categorySuggestions.merchants.filter((m) => m && m !== ledgerForm.merchant)
+      : [];
+  const accountChips =
+    !splitMode && hasCategory && !ledgerForm.accountId
+      ? categorySuggestions.accountIds
+          .map((id) => accountRows.find((a) => a.id === id))
+          .filter((a): a is (typeof accountRows)[number] => Boolean(a))
+      : [];
 
   return (
     <div className="fixed inset-0 z-50" onClick={requestClose}>
@@ -3154,22 +4009,41 @@ function EntryDrawer({
         data-closing={closing || undefined}
         style={{
           width: "min(500px, 100%)",
-          background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
+          background: "var(--ns-bg-elev)",
+          borderLeft: "1px solid var(--ns-border)",
           boxShadow: "var(--ns-shadow-2)",
         }}
       >
         {/* Header */}
-        <div className="flex items-center gap-3" style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--ns-border)" }}>
-          <div className="w-8 h-8 flex items-center justify-center" style={{ borderRadius: "var(--ns-r-sm)", background: meta.color, color: "#fff" }}>
+        <div
+          className="flex items-center gap-3"
+          style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--ns-border)" }}
+        >
+          <div
+            className="w-8 h-8 flex items-center justify-center"
+            style={{ borderRadius: "var(--ns-r-sm)", background: meta.color, color: "#fff" }}
+          >
             <Plus size={15} weight="bold" />
           </div>
-          <h2 className="text-lg m-0 font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>
+          <h2
+            className="text-lg m-0 font-semibold"
+            style={{ fontFamily: "var(--ns-font-display)" }}
+          >
             {editing ? "編輯交易" : "新增交易"}
           </h2>
           <div className="flex-1" />
           {onOpenImport && !editing && (
-            <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => { onClose(); onOpenImport(); }}>
-              <UploadSimple size={14} style={{ marginRight: 6 }} />匯入 CSV
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden sm:inline-flex"
+              onClick={() => {
+                onClose();
+                onOpenImport();
+              }}
+            >
+              <UploadSimple size={14} style={{ marginRight: 6 }} />
+              匯入 CSV
             </Button>
           )}
           <ModalCloseButton onClick={requestClose} />
@@ -3187,11 +4061,16 @@ function EntryDrawer({
                   className="text-body"
                   onClick={() => onTypeChange(t)}
                   style={{
-                    padding: "6px 14px", borderRadius: 999, fontWeight: 500, cursor: "pointer",
+                    padding: "6px 14px",
+                    borderRadius: 999,
+                    fontWeight: 500,
+                    cursor: "pointer",
                     border: active ? "none" : "1px solid var(--ns-border)",
                     background: active ? m.color : "var(--ns-bg-card)",
                     color: active ? "#fff" : "var(--ns-fg-dim)",
-                    fontFamily: "inherit", transition: "background 150ms var(--ns-ease), color 150ms var(--ns-ease), border-color 150ms var(--ns-ease)",
+                    fontFamily: "inherit",
+                    transition:
+                      "background 150ms var(--ns-ease), color 150ms var(--ns-ease), border-color 150ms var(--ns-ease)",
                   }}
                 >
                   {m.label}
@@ -3202,58 +4081,98 @@ function EntryDrawer({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-auto flex flex-col gap-[18px]" style={{ padding: "20px 24px" }}>
+        <div
+          className="flex-1 overflow-auto flex flex-col gap-[18px]"
+          style={{ padding: "20px 24px" }}
+        >
           {/* Recurring rule banner */}
           {linkedRule && (
-            <div className="text-xs flex items-center gap-2" style={{
-              padding: "10px 14px", borderRadius: "var(--ns-r-sm)",
-              background: "var(--ns-accent-soft)", border: "1px solid var(--ns-accent)",
-            }}>
-              <span className="font-semibold" style={{ color: "var(--ns-accent)" }}>週期交易</span>
+            <div
+              className="text-xs flex items-center gap-2"
+              style={{
+                padding: "10px 14px",
+                borderRadius: "var(--ns-r-sm)",
+                background: "var(--ns-accent-soft)",
+                border: "1px solid var(--ns-accent)",
+              }}
+            >
+              <span className="font-semibold" style={{ color: "var(--ns-accent)" }}>
+                週期交易
+              </span>
               <span className="muted">
-                此筆由週期規則「{linkedRule.merchant || linkedRule.category}」自動產生（{recurringFrequencyLabels[linkedRule.frequency]}）
+                此筆由週期規則「{linkedRule.merchant || linkedRule.category}」自動產生（
+                {recurringFrequencyLabels[linkedRule.frequency]}）
               </span>
             </div>
           )}
           {/* Amount — in split mode this is the READ-ONLY derived Σ of the
               leg amounts (MOZE:「多類別 $180」), never directly editable. */}
           <DrawerField
-            label={splitMode
-              ? `多類別 · 共 ${ledgerForm.currency} ${formatNumber(splitTotal)}`
-              : `${meta.eyebrow} · ${type === "transfer" ? transferForm.sourceCurrency : entryDisplayCurrency}`}
+            label={
+              splitMode
+                ? `多類別 · 共 ${ledgerForm.currency} ${formatNumber(splitTotal)}`
+                : `${meta.eyebrow} · ${type === "transfer" ? transferForm.sourceCurrency : entryDisplayCurrency}`
+            }
             required
           >
-            <div style={{
-              display: "flex", alignItems: "center",
-              background: "var(--ns-bg-elev)",
-              border: amountFocused ? "1px solid var(--ns-accent)" : "1px solid var(--ns-border)",
-              boxShadow: amountFocused ? "0 0 0 3px var(--ns-accent-soft)" : "none",
-              borderRadius: "var(--ns-r-sm)", height: 52, overflow: "hidden",
-              transition: "border-color 0.12s, box-shadow 0.12s",
-            }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                background: "var(--ns-bg-elev)",
+                border: amountFocused ? "1px solid var(--ns-accent)" : "1px solid var(--ns-border)",
+                boxShadow: amountFocused ? "0 0 0 3px var(--ns-accent-soft)" : "none",
+                borderRadius: "var(--ns-r-sm)",
+                height: 52,
+                overflow: "hidden",
+                transition: "border-color 0.12s, box-shadow 0.12s",
+              }}
+            >
               {isAcct && entryCurrencies.length > 1 && !splitMode ? (
                 <AppSelect
                   value={entryDisplayCurrency}
                   onChange={setEntryDisplayCurrency}
-                  options={entryCurrencies.map((currency) => ({ value: currency, label: currency }))}
+                  options={entryCurrencies.map((currency) => ({
+                    value: currency,
+                    label: currency,
+                  }))}
                   searchPlaceholder="搜尋幣別…"
                   style={{
-                    padding: "0 10px 0 14px", fontSize: 16, color: meta.color,
-                    fontFamily: "var(--ns-font-mono)", fontWeight: 500,
-                    flexShrink: 0, borderRight: "1px solid var(--ns-border)",
-                    height: "100%", background: "transparent", border: "none",
-                    width: 92, minWidth: 92,
+                    padding: "0 10px 0 14px",
+                    fontSize: 16,
+                    color: meta.color,
+                    fontFamily: "var(--ns-font-mono)",
+                    fontWeight: 500,
+                    flexShrink: 0,
+                    borderRight: "1px solid var(--ns-border)",
+                    height: "100%",
+                    background: "transparent",
+                    border: "none",
+                    width: 92,
+                    minWidth: 92,
                   }}
                 />
               ) : (
-                <span className="text-xl" style={{
-                  padding: "0 14px", color: meta.color,
-                  fontFamily: "var(--ns-font-mono)", fontWeight: 500,
-                  flexShrink: 0, borderRight: "1px solid var(--ns-border)",
-                  height: "100%", display: "flex", alignItems: "center",
-                  userSelect: "none",
-                }}>
-                  {type === "transfer" ? transferForm.sourceCurrency : splitMode ? ledgerForm.currency : entryDisplayCurrency}
+                <span
+                  className="text-xl"
+                  style={{
+                    padding: "0 14px",
+                    color: meta.color,
+                    fontFamily: "var(--ns-font-mono)",
+                    fontWeight: 500,
+                    flexShrink: 0,
+                    borderRight: "1px solid var(--ns-border)",
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    userSelect: "none",
+                  }}
+                >
+                  {type === "transfer"
+                    ? transferForm.sourceCurrency
+                    : splitMode
+                      ? ledgerForm.currency
+                      : entryDisplayCurrency}
                 </span>
               )}
               {splitMode ? (
@@ -3261,9 +4180,16 @@ function EntryDrawer({
                   className="text-stat"
                   aria-label="多類別總金額（各明細加總）"
                   style={{
-                    flex: 1, padding: "0 14px", fontFamily: "var(--ns-font-mono)",
-                    color: meta.color, textAlign: "right", height: "100%",
-                    minWidth: 0, display: "flex", alignItems: "center", justifyContent: "flex-end",
+                    flex: 1,
+                    padding: "0 14px",
+                    fontFamily: "var(--ns-font-mono)",
+                    color: meta.color,
+                    textAlign: "right",
+                    height: "100%",
+                    minWidth: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
                     fontVariantNumeric: "tabular-nums lining-nums",
                   }}
                 >
@@ -3273,10 +4199,17 @@ function EntryDrawer({
                 <NumberField
                   className="text-stat"
                   style={{
-                    flex: 1, border: "none", outline: "none", background: "transparent",
-                    padding: "0 14px", fontFamily: "var(--ns-font-mono)",
-                    color: meta.color, textAlign: "right", height: "100%",
-                    minWidth: 0, width: "100%",
+                    flex: 1,
+                    border: "none",
+                    outline: "none",
+                    background: "transparent",
+                    padding: "0 14px",
+                    fontFamily: "var(--ns-font-mono)",
+                    color: meta.color,
+                    textAlign: "right",
+                    height: "100%",
+                    minWidth: 0,
+                    width: "100%",
                     fontVariantNumeric: "tabular-nums lining-nums",
                   }}
                   decimals={2}
@@ -3284,8 +4217,13 @@ function EntryDrawer({
                   onFocus={() => setAmountFocused(true)}
                   onBlur={() => setAmountFocused(false)}
                   onChange={(v) => {
-                    const sameCcy = transferForm.sourceCurrency === transferForm.destinationCurrency;
-                    setTransferForm({ ...transferForm, sourceAmount: v, destinationAmount: sameCcy ? v : transferForm.destinationAmount });
+                    const sameCcy =
+                      transferForm.sourceCurrency === transferForm.destinationCurrency;
+                    setTransferForm({
+                      ...transferForm,
+                      sourceAmount: v,
+                      destinationAmount: sameCcy ? v : transferForm.destinationAmount,
+                    });
                   }}
                   placeholder="0"
                 />
@@ -3293,10 +4231,17 @@ function EntryDrawer({
                 <input
                   className="text-stat"
                   style={{
-                    flex: 1, border: "none", outline: "none", background: "transparent",
-                    padding: "0 14px", fontFamily: "var(--ns-font-mono)",
-                    color: meta.color, textAlign: "right", height: "100%",
-                    minWidth: 0, width: "100%",
+                    flex: 1,
+                    border: "none",
+                    outline: "none",
+                    background: "transparent",
+                    padding: "0 14px",
+                    fontFamily: "var(--ns-font-mono)",
+                    color: meta.color,
+                    textAlign: "right",
+                    height: "100%",
+                    minWidth: 0,
+                    width: "100%",
                     fontVariantNumeric: "tabular-nums lining-nums",
                   }}
                   value={amountFocused ? amountExpression : fmtAmountDisplay(amountExpression)}
@@ -3315,12 +4260,14 @@ function EntryDrawer({
             )}
             {convertedHint && (
               <div className="muted text-caption" style={{ marginTop: 5 }}>
-                ≈ {ledgerForm.currency} {formatNumber(convertedHint.converted)}（1 {entryDisplayCurrency} ≈ {convertedHint.rate} {ledgerForm.currency}）
+                ≈ {ledgerForm.currency} {formatNumber(convertedHint.converted)}（1{" "}
+                {entryDisplayCurrency} ≈ {convertedHint.rate} {ledgerForm.currency}）
               </div>
             )}
             {activeInstallment && installmentPreviewAmount !== null && (
               <div className="muted text-caption" style={{ marginTop: 5 }}>
-                每期約 {entryDisplayCurrency} {formatNumber(installmentPreviewAmount)}，共 {installmentPeriods} 期
+                每期約 {entryDisplayCurrency} {formatNumber(installmentPreviewAmount)}，共{" "}
+                {installmentPeriods} 期
               </div>
             )}
           </DrawerField>
@@ -3330,12 +4277,20 @@ function EntryDrawer({
               settle account here — it's chosen at 結清 time (the counterparty
               may not have said which account they'll use yet). */}
           {!isAcct && (
-            <div style={{ display: "grid", gridTemplateColumns: type === "transfer" ? "1fr 1fr" : "1fr", gap: 14 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: type === "transfer" ? "1fr 1fr" : "1fr",
+                gap: 14,
+              }}
+            >
               <DrawerField label="日期">
                 <input
                   className="ns-input"
                   type="datetime-local"
-                  value={toDatetimeLocalValue(type === "transfer" ? transferForm.date : ledgerForm.date)}
+                  value={toDatetimeLocalValue(
+                    type === "transfer" ? transferForm.date : ledgerForm.date,
+                  )}
                   onChange={(e) =>
                     type === "transfer"
                       ? setTransferForm({ ...transferForm, date: e.target.value })
@@ -3360,7 +4315,11 @@ function EntryDrawer({
                   value={transferForm.sourceAccountId}
                   onChange={(id) => {
                     const account = accountRows.find((a) => a.id === id);
-                    setTransferForm({ ...transferForm, sourceAccountId: id, sourceCurrency: account?.currency ?? transferForm.sourceCurrency });
+                    setTransferForm({
+                      ...transferForm,
+                      sourceAccountId: id,
+                      sourceCurrency: account?.currency ?? transferForm.sourceCurrency,
+                    });
                   }}
                   allowAll={false}
                   placeholder="選擇帳戶"
@@ -3375,7 +4334,14 @@ function EntryDrawer({
                     const account = accountRows.find((a) => a.id === id);
                     const destCurrency = account?.currency ?? transferForm.destinationCurrency;
                     const sameCcy = transferForm.sourceCurrency === destCurrency;
-                    setTransferForm({ ...transferForm, destinationAccountId: id, destinationCurrency: destCurrency, destinationAmount: sameCcy ? transferForm.sourceAmount : transferForm.destinationAmount });
+                    setTransferForm({
+                      ...transferForm,
+                      destinationAccountId: id,
+                      destinationCurrency: destCurrency,
+                      destinationAmount: sameCcy
+                        ? transferForm.sourceAmount
+                        : transferForm.destinationAmount,
+                    });
                   }}
                   allowAll={false}
                   placeholder="選擇帳戶"
@@ -3386,22 +4352,23 @@ function EntryDrawer({
           )}
 
           {/* Cross-currency: editable destination amount */}
-          {type === "transfer" && transferForm.sourceCurrency !== transferForm.destinationCurrency && (
-            <DrawerField label={`對方收到金額 · ${transferForm.destinationCurrency}`} required>
-              <input
-                className="ns-input"
-                placeholder="0"
-                style={{ fontFamily: "var(--ns-font-mono)" }}
-                {...destAmountField}
-              />
-              <div className="muted text-caption mt-1">
-                跨幣轉帳：輸入對方帳戶實際收到的金額
-                {transferForm.sourceAmount > 0 && (transferForm.destinationAmount ?? 0) > 0
-                  ? `（匯率約 1 ${transferForm.sourceCurrency} ≈ ${(transferForm.destinationAmount! / transferForm.sourceAmount).toFixed(4)} ${transferForm.destinationCurrency}）`
-                  : ""}
-              </div>
-            </DrawerField>
-          )}
+          {type === "transfer" &&
+            transferForm.sourceCurrency !== transferForm.destinationCurrency && (
+              <DrawerField label={`對方收到金額 · ${transferForm.destinationCurrency}`} required>
+                <input
+                  className="ns-input"
+                  placeholder="0"
+                  style={{ fontFamily: "var(--ns-font-mono)" }}
+                  {...destAmountField}
+                />
+                <div className="muted text-caption mt-1">
+                  跨幣轉帳：輸入對方帳戶實際收到的金額
+                  {transferForm.sourceAmount > 0 && (transferForm.destinationAmount ?? 0) > 0
+                    ? `（匯率約 1 ${transferForm.sourceCurrency} ≈ ${(transferForm.destinationAmount! / transferForm.sourceAmount).toFixed(4)} ${transferForm.destinationCurrency}）`
+                    : ""}
+                </div>
+              </DrawerField>
+            )}
 
           {/* Transfer fee */}
           {type === "transfer" && (
@@ -3412,7 +4379,9 @@ function EntryDrawer({
                 style={{ fontFamily: "var(--ns-font-mono)" }}
                 {...transferFeeField}
               />
-              <div className="muted text-caption mt-1">跨行/跨國轉帳手續費，將從轉出帳戶另計一筆「手續費」支出。</div>
+              <div className="muted text-caption mt-1">
+                跨行/跨國轉帳手續費，將從轉出帳戶另計一筆「手續費」支出。
+              </div>
             </DrawerField>
           )}
 
@@ -3428,7 +4397,12 @@ function EntryDrawer({
                     {splitLegs.map((legState, index) => (
                       <div key={index} className="ns-split-leg">
                         <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
-                          <span className="muted text-caption" style={{ fontFamily: "var(--ns-font-mono)" }}>#{index + 1}</span>
+                          <span
+                            className="muted text-caption"
+                            style={{ fontFamily: "var(--ns-font-mono)" }}
+                          >
+                            #{index + 1}
+                          </span>
                           <span className="text-xs font-medium flex-1 truncate">
                             {legState.category
                               ? `${legState.category}${legState.subcategory ? ` / ${legState.subcategory}` : ""}`
@@ -3438,7 +4412,11 @@ function EntryDrawer({
                             className="ns-input text-right"
                             style={{ width: 110, height: 32, fontFamily: "var(--ns-font-mono)" }}
                             value={legState.amount}
-                            onChange={(e) => setSplitLegs(updateSplitLeg(splitLegs, index, { amount: e.target.value }))}
+                            onChange={(e) =>
+                              setSplitLegs(
+                                updateSplitLeg(splitLegs, index, { amount: e.target.value }),
+                              )
+                            }
                             placeholder="0"
                             inputMode="decimal"
                             aria-label={`第 ${index + 1} 筆明細金額`}
@@ -3457,8 +4435,14 @@ function EntryDrawer({
                           categories={categories}
                           category={legState.category}
                           subcategory={legState.subcategory}
-                          onPick={(name) => setSplitLegs(updateSplitLeg(splitLegs, index, { category: name, subcategory: "" }))}
-                          onPickSub={(s) => setSplitLegs(updateSplitLeg(splitLegs, index, { subcategory: s }))}
+                          onPick={(name) =>
+                            setSplitLegs(
+                              updateSplitLeg(splitLegs, index, { category: name, subcategory: "" }),
+                            )
+                          }
+                          onPickSub={(s) =>
+                            setSplitLegs(updateSplitLeg(splitLegs, index, { subcategory: s }))
+                          }
                         />
                       </div>
                     ))}
@@ -3468,16 +4452,25 @@ function EntryDrawer({
                         className="text-xs"
                         onClick={() => setSplitLegs(addSplitLeg(splitLegs))}
                         style={{
-                          padding: "5px 12px", borderRadius: 999, cursor: "pointer",
-                          background: "transparent", color: "var(--ns-accent)",
-                          border: "1px dashed var(--ns-accent)", fontFamily: "inherit",
-                          display: "flex", alignItems: "center", gap: 4,
+                          padding: "5px 12px",
+                          borderRadius: 999,
+                          cursor: "pointer",
+                          background: "transparent",
+                          color: "var(--ns-accent)",
+                          border: "1px dashed var(--ns-accent)",
+                          fontFamily: "inherit",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
                         }}
                       >
-                        <Plus size={14} weight="bold" />新增分類
+                        <Plus size={14} weight="bold" />
+                        新增分類
                       </button>
                       {splitError ? (
-                        <span className="text-caption" style={{ color: "var(--ns-neg)" }}>{splitError}</span>
+                        <span className="text-caption" style={{ color: "var(--ns-neg)" }}>
+                          {splitError}
+                        </span>
                       ) : null}
                     </div>
                   </div>
@@ -3488,24 +4481,35 @@ function EntryDrawer({
                     categories={categories}
                     category={ledgerForm.category}
                     subcategory={ledgerForm.subcategory}
-                    onPick={(name) => setLedgerForm({ ...ledgerForm, category: name, subcategory: "" })}
+                    onPick={(name) =>
+                      setLedgerForm({ ...ledgerForm, category: name, subcategory: "" })
+                    }
                     onPickSub={(s) => setLedgerForm({ ...ledgerForm, subcategory: s })}
-                    trailing={canEnterSplit ? (
-                      <button
-                        type="button"
-                        className="text-xs"
-                        onClick={enterSplit}
-                        title="拆分為多個分類，各自填金額"
-                        style={{
-                          padding: "5px 11px", borderRadius: 999, cursor: "pointer",
-                          background: "transparent", color: "var(--ns-accent)",
-                          border: "1px dashed var(--ns-accent)", fontFamily: "inherit",
-                          display: "flex", alignItems: "center", gap: 4,
-                        }}
-                      >
-                        <Plus size={14} weight="bold" />分類
-                      </button>
-                    ) : undefined}
+                    trailing={
+                      canEnterSplit ? (
+                        <button
+                          type="button"
+                          className="text-xs"
+                          onClick={enterSplit}
+                          title="拆分為多個分類，各自填金額"
+                          style={{
+                            padding: "5px 11px",
+                            borderRadius: 999,
+                            cursor: "pointer",
+                            background: "transparent",
+                            color: "var(--ns-accent)",
+                            border: "1px dashed var(--ns-accent)",
+                            fontFamily: "inherit",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          <Plus size={14} weight="bold" />
+                          分類
+                        </button>
+                      ) : undefined
+                    }
                   />
                 </DrawerField>
               )}
@@ -3521,12 +4525,23 @@ function EntryDrawer({
                     {shareDrafts.map((shareState, index) => (
                       <div key={index} className="ns-split-leg">
                         <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
-                          <span className="muted text-caption" style={{ fontFamily: "var(--ns-font-mono)" }}>#{index + 1}</span>
+                          <span
+                            className="muted text-caption"
+                            style={{ fontFamily: "var(--ns-font-mono)" }}
+                          >
+                            #{index + 1}
+                          </span>
                           <input
                             className="ns-input flex-1"
                             style={{ height: 32 }}
                             value={shareState.counterparty}
-                            onChange={(e) => setShareDrafts(updateShareDraft(shareDrafts, index, { counterparty: e.target.value }))}
+                            onChange={(e) =>
+                              setShareDrafts(
+                                updateShareDraft(shareDrafts, index, {
+                                  counterparty: e.target.value,
+                                }),
+                              )
+                            }
                             placeholder="小明"
                             aria-label={`第 ${index + 1} 筆分帳對象`}
                           />
@@ -3534,7 +4549,11 @@ function EntryDrawer({
                             className="ns-input text-right"
                             style={{ width: 110, height: 32, fontFamily: "var(--ns-font-mono)" }}
                             value={shareState.amount}
-                            onChange={(e) => setShareDrafts(updateShareDraft(shareDrafts, index, { amount: e.target.value }))}
+                            onChange={(e) =>
+                              setShareDrafts(
+                                updateShareDraft(shareDrafts, index, { amount: e.target.value }),
+                              )
+                            }
                             placeholder="0"
                             inputMode="decimal"
                             aria-label={`第 ${index + 1} 筆分帳金額`}
@@ -3551,7 +4570,11 @@ function EntryDrawer({
                         </div>
                         <AppSelect
                           value={shareState.counterAccountId}
-                          onChange={(id) => setShareDrafts(updateShareDraft(shareDrafts, index, { counterAccountId: id }))}
+                          onChange={(id) =>
+                            setShareDrafts(
+                              updateShareDraft(shareDrafts, index, { counterAccountId: id }),
+                            )
+                          }
                           options={accountRows.map((a) => ({ value: a.id, label: a.name }))}
                           placeholder="選擇應收帳戶"
                           style={{ width: "100%", height: 32 }}
@@ -3564,16 +4587,25 @@ function EntryDrawer({
                         className="text-xs"
                         onClick={() => setShareDrafts(addShareDraft(shareDrafts))}
                         style={{
-                          padding: "5px 12px", borderRadius: 999, cursor: "pointer",
-                          background: "transparent", color: "var(--ns-accent)",
-                          border: "1px dashed var(--ns-accent)", fontFamily: "inherit",
-                          display: "flex", alignItems: "center", gap: 4,
+                          padding: "5px 12px",
+                          borderRadius: 999,
+                          cursor: "pointer",
+                          background: "transparent",
+                          color: "var(--ns-accent)",
+                          border: "1px dashed var(--ns-accent)",
+                          fontFamily: "inherit",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
                         }}
                       >
-                        <Plus size={14} weight="bold" />分帳
+                        <Plus size={14} weight="bold" />
+                        分帳
                       </button>
                       {shareError ? (
-                        <span className="text-caption" style={{ color: "var(--ns-neg)" }}>{shareError}</span>
+                        <span className="text-caption" style={{ color: "var(--ns-neg)" }}>
+                          {shareError}
+                        </span>
                       ) : null}
                     </div>
                   </div>
@@ -3592,7 +4624,11 @@ function EntryDrawer({
                       value={ledgerForm.accountId}
                       onChange={(id) => {
                         const account = accountRows.find((a) => a.id === id);
-                        setLedgerForm({ ...ledgerForm, accountId: id, currency: account?.currency ?? ledgerForm.currency });
+                        setLedgerForm({
+                          ...ledgerForm,
+                          accountId: id,
+                          currency: account?.currency ?? ledgerForm.currency,
+                        });
                       }}
                       allowAll={false}
                       placeholder="選擇帳戶"
@@ -3602,7 +4638,13 @@ function EntryDrawer({
                       <button
                         type="button"
                         className="muted text-xs"
-                        style={{ marginTop: 4, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                        style={{
+                          marginTop: 4,
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: 0,
+                        }}
                         onClick={() => setShowAllEntryAccounts(true)}
                       >
                         顯示全部帳戶
@@ -3610,7 +4652,12 @@ function EntryDrawer({
                     ) : null}
                   </DrawerField>
                   <DrawerField label="日期">
-                    <input className="ns-input" type="datetime-local" value={ledgerForm.date} onChange={(e) => setLedgerForm({ ...ledgerForm, date: e.target.value })} />
+                    <input
+                      className="ns-input"
+                      type="datetime-local"
+                      value={ledgerForm.date}
+                      onChange={(e) => setLedgerForm({ ...ledgerForm, date: e.target.value })}
+                    />
                   </DrawerField>
                 </div>
                 {accountChips.length > 0 && (
@@ -3618,7 +4665,11 @@ function EntryDrawer({
                     chips={accountChips.map((a) => ({ key: a.id, label: a.name }))}
                     onPick={(id) => {
                       const account = accountRows.find((a) => a.id === id);
-                      setLedgerForm({ ...ledgerForm, accountId: id, currency: account?.currency ?? ledgerForm.currency });
+                      setLedgerForm({
+                        ...ledgerForm,
+                        accountId: id,
+                        currency: account?.currency ?? ledgerForm.currency,
+                      });
                     }}
                   />
                 )}
@@ -3628,19 +4679,32 @@ function EntryDrawer({
               <div>
                 <div className="grid grid-cols-2 gap-3.5">
                   <DrawerField label="名稱">
-                    <input className="ns-input" value={ledgerForm.name} onChange={(e) => setLedgerForm({ ...ledgerForm, name: e.target.value })} placeholder={type === "expense" ? "計程車" : "月薪"} />
+                    <input
+                      className="ns-input"
+                      value={ledgerForm.name}
+                      onChange={(e) => setLedgerForm({ ...ledgerForm, name: e.target.value })}
+                      placeholder={type === "expense" ? "計程車" : "月薪"}
+                    />
                   </DrawerField>
                   <DrawerField label="商家 / 來源">
-                    <MerchantAutocomplete value={ledgerForm.merchant} merchants={merchantPool} onChange={(next) => {
-                      const patch = { ...ledgerForm, merchant: next };
-                      // Reverse path: typing a merchant auto-fills its usual category,
-                      // but only when no category has been chosen yet.
-                      if (!ledgerForm.category.trim()) {
-                        const suggestion = categoryForMerchant(next);
-                        if (suggestion?.category) { patch.category = suggestion.category; patch.subcategory = suggestion.subcategory; }
-                      }
-                      setLedgerForm(patch);
-                    }} placeholder={type === "expense" ? "UBER" : "公司"} />
+                    <MerchantAutocomplete
+                      value={ledgerForm.merchant}
+                      merchants={merchantPool}
+                      onChange={(next) => {
+                        const patch = { ...ledgerForm, merchant: next };
+                        // Reverse path: typing a merchant auto-fills its usual category,
+                        // but only when no category has been chosen yet.
+                        if (!ledgerForm.category.trim()) {
+                          const suggestion = categoryForMerchant(next);
+                          if (suggestion?.category) {
+                            patch.category = suggestion.category;
+                            patch.subcategory = suggestion.subcategory;
+                          }
+                        }
+                        setLedgerForm(patch);
+                      }}
+                      placeholder={type === "expense" ? "UBER" : "公司"}
+                    />
                   </DrawerField>
                 </div>
                 {merchantChips.length > 0 && (
@@ -3684,7 +4748,12 @@ function EntryDrawer({
                     <button
                       type="button"
                       className="ns-input"
-                      style={{ flex: 1, cursor: "pointer", fontWeight: ledgerForm.postDate ? 400 : 600, color: ledgerForm.postDate ? "var(--ns-fg-muted)" : "var(--ns-fg)" }}
+                      style={{
+                        flex: 1,
+                        cursor: "pointer",
+                        fontWeight: ledgerForm.postDate ? 400 : 600,
+                        color: ledgerForm.postDate ? "var(--ns-fg-muted)" : "var(--ns-fg)",
+                      }}
                       onClick={() => setLedgerForm({ ...ledgerForm, postDate: null })}
                     >
                       當下入帳
@@ -3692,8 +4761,20 @@ function EntryDrawer({
                     <button
                       type="button"
                       className="ns-input"
-                      style={{ flex: 1, cursor: "pointer", fontWeight: ledgerForm.postDate ? 600 : 400, color: ledgerForm.postDate ? "var(--ns-fg)" : "var(--ns-fg-muted)" }}
-                      onClick={() => setLedgerForm({ ...ledgerForm, postDate: ledgerForm.postDate ?? (ledgerForm.date ? ledgerForm.date.slice(0, 10) : "") })}
+                      style={{
+                        flex: 1,
+                        cursor: "pointer",
+                        fontWeight: ledgerForm.postDate ? 600 : 400,
+                        color: ledgerForm.postDate ? "var(--ns-fg)" : "var(--ns-fg-muted)",
+                      }}
+                      onClick={() =>
+                        setLedgerForm({
+                          ...ledgerForm,
+                          postDate:
+                            ledgerForm.postDate ??
+                            (ledgerForm.date ? ledgerForm.date.slice(0, 10) : ""),
+                        })
+                      }
                     >
                       延後到…
                     </button>
@@ -3721,7 +4802,17 @@ function EntryDrawer({
                   type="button"
                   onClick={() => setShowAdvanced((v) => !v)}
                   className="text-xs"
-                  style={{ background: "none", border: "none", color: "var(--ns-fg-muted)", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: "2px 0", fontFamily: "inherit" }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--ns-fg-muted)",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "2px 0",
+                    fontFamily: "inherit",
+                  }}
                 >
                   {showAdvanced ? <CaretDown size={13} /> : <CaretRight size={13} />}
                   更多選項（手續費、週期、備註）
@@ -3729,21 +4820,23 @@ function EntryDrawer({
               </div>
               {showAdvanced && (
                 <>
-                  {(type === "expense" || type === "income") && !activeInstallment && !splitMode && (
-                    <DrawerField label={`外加手續費（選填） · ${ledgerForm.currency}`}>
-                      <input
-                        className="ns-input"
-                        placeholder="0"
-                        style={{ fontFamily: "var(--ns-font-mono)" }}
-                        {...expenseFeeField}
-                      />
-                      <div className="muted text-caption mt-1">
-                        {type === "income"
-                          ? "薪轉/跨行/海外匯入手續費，將另計一筆「手續費」支出。收入以總額（gross）計入，帳戶實際入帳為總額扣除手續費。"
-                          : "海外刷卡/跨國交易手續費，將另計一筆「手續費」支出。"}
-                      </div>
-                    </DrawerField>
-                  )}
+                  {(type === "expense" || type === "income") &&
+                    !activeInstallment &&
+                    !splitMode && (
+                      <DrawerField label={`外加手續費（選填） · ${ledgerForm.currency}`}>
+                        <input
+                          className="ns-input"
+                          placeholder="0"
+                          style={{ fontFamily: "var(--ns-font-mono)" }}
+                          {...expenseFeeField}
+                        />
+                        <div className="muted text-caption mt-1">
+                          {type === "income"
+                            ? "薪轉/跨行/海外匯入手續費，將另計一筆「手續費」支出。收入以總額（gross）計入，帳戶實際入帳為總額扣除手續費。"
+                            : "海外刷卡/跨國交易手續費，將另計一筆「手續費」支出。"}
+                        </div>
+                      </DrawerField>
+                    )}
                   {!activeInstallment && !splitMode && (
                     <DrawerField label="週期交易">
                       <AppSelect
@@ -3755,7 +4848,12 @@ function EntryDrawer({
                     </DrawerField>
                   )}
                   <DrawerField label="備註">
-                    <input className="ns-input" value={ledgerForm.note} onChange={(e) => setLedgerForm({ ...ledgerForm, note: e.target.value })} placeholder="選填" />
+                    <input
+                      className="ns-input"
+                      value={ledgerForm.note}
+                      onChange={(e) => setLedgerForm({ ...ledgerForm, note: e.target.value })}
+                      placeholder="選填"
+                    />
                   </DrawerField>
                 </>
               )}
@@ -3765,7 +4863,17 @@ function EntryDrawer({
           {/* AR / AP */}
           {isRp && (
             <>
-              <div className="text-xs" style={{ padding: "12px 14px", borderRadius: "var(--ns-r-md)", background: `color-mix(in srgb, ${meta.color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${meta.color} 25%, transparent)`, color: "var(--ns-fg-muted)", lineHeight: 1.6 }}>
+              <div
+                className="text-xs"
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: "var(--ns-r-md)",
+                  background: `color-mix(in srgb, ${meta.color} 10%, transparent)`,
+                  border: `1px solid color-mix(in srgb, ${meta.color} 25%, transparent)`,
+                  color: "var(--ns-fg-muted)",
+                  lineHeight: 1.6,
+                }}
+              >
                 {type === "ar"
                   ? "應收帳款：對方欠你的錢（代墊、借錢給別人都算）。選下方「付款帳戶」＝你先出錢的帳戶，建立時立即扣款；對方還款時點 ✓ 結清會入「收款帳戶」，整筆不計收支。留空則結清後才計入收入。"
                   : "應付帳款：你欠對方的錢（代墊、跟別人借錢都算）。選下方「收款帳戶」＝錢先進來的帳戶，例如借現金就選現金，建立時立即入帳；還款時點 ✓ 結清會由「付款帳戶」扣款，整筆不計收支。留空則結清後才計入支出。"}
@@ -3774,12 +4882,21 @@ function EntryDrawer({
               {/* 開發票 toggle (plan 191 step 2) — only offered for ar in a 公司帳. */}
               {type === "ar" && isActiveCompanyBook && (
                 <label className="flex items-center gap-2 text-body" style={{ cursor: "pointer" }}>
-                  <input type="checkbox" checked={isInvoiceEntry} onChange={(e) => setIsInvoiceEntry(e.target.checked)} />
+                  <input
+                    type="checkbox"
+                    checked={isInvoiceEntry}
+                    onChange={(e) => setIsInvoiceEntry(e.target.checked)}
+                  />
                   <span>設為發票（自動計算 5% 銷項營業稅）</span>
                 </label>
               )}
 
-              <DrawerField label={type === "ar" ? (isInvoiceEntry ? "客戶" : "對象（欠款方）") : "對象（收款方）"} required>
+              <DrawerField
+                label={
+                  type === "ar" ? (isInvoiceEntry ? "客戶" : "對象（欠款方）") : "對象（收款方）"
+                }
+                required
+              >
                 {type === "ar" && isInvoiceEntry ? (
                   <>
                     <ClientAutocomplete
@@ -3789,7 +4906,10 @@ function EntryDrawer({
                         setCounterparty(name);
                         setInvoiceClientId(client?.id ?? null);
                         if (client && !dueDate) {
-                          const suggested = defaultInvoiceDueDate(ledgerForm.date, client.defaultPaymentTerms);
+                          const suggested = defaultInvoiceDueDate(
+                            ledgerForm.date,
+                            client.defaultPaymentTerms,
+                          );
                           if (suggested) setDueDate(suggested);
                         }
                       }}
@@ -3797,14 +4917,28 @@ function EntryDrawer({
                     <button
                       type="button"
                       className="text-micro muted"
-                      style={{ marginTop: 5, cursor: "pointer", background: "none", border: "none", padding: 0, textDecoration: "underline" }}
+                      style={{
+                        marginTop: 5,
+                        cursor: "pointer",
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        textDecoration: "underline",
+                      }}
                       onClick={onOpenClientManager}
                     >
                       管理客戶
                     </button>
                   </>
                 ) : (
-                  <input className="ns-input" value={counterparty} onChange={(e) => setCounterparty(e.target.value)} placeholder={type === "ar" ? "例：小明、ABC 公司" : "例：借我錢的朋友、房東、供應商"} />
+                  <input
+                    className="ns-input"
+                    value={counterparty}
+                    onChange={(e) => setCounterparty(e.target.value)}
+                    placeholder={
+                      type === "ar" ? "例：小明、ABC 公司" : "例：借我錢的朋友、房東、供應商"
+                    }
+                  />
                 )}
               </DrawerField>
 
@@ -3816,14 +4950,19 @@ function EntryDrawer({
                       <AppSelect
                         value={invoiceNumberPreset}
                         onChange={(v) => setInvoiceNumberPreset(v as InvoiceNumberPreset)}
-                        options={[{ value: "TW_UNIFORM", label: "統一發票" }, { value: "FREE_TEXT", label: "自由格式" }]}
+                        options={[
+                          { value: "TW_UNIFORM", label: "統一發票" },
+                          { value: "FREE_TEXT", label: "自由格式" },
+                        ]}
                         style={{ width: 120, flexShrink: 0, height: 40 }}
                       />
                       <input
                         className="ns-input"
                         value={invoiceNumber}
                         onChange={(e) => setInvoiceNumber(e.target.value.toUpperCase())}
-                        placeholder={invoiceNumberPreset === "TW_UNIFORM" ? "AB12345678" : "自訂發票號碼"}
+                        placeholder={
+                          invoiceNumberPreset === "TW_UNIFORM" ? "AB12345678" : "自訂發票號碼"
+                        }
                         style={{ fontFamily: "var(--ns-font-mono)", flex: 1 }}
                       />
                     </div>
@@ -3831,7 +4970,14 @@ function EntryDrawer({
                       <button
                         type="button"
                         className="text-micro muted"
-                        style={{ marginTop: 5, cursor: "pointer", background: "none", border: "none", padding: 0, textDecoration: "underline" }}
+                        style={{
+                          marginTop: 5,
+                          cursor: "pointer",
+                          background: "none",
+                          border: "none",
+                          padding: 0,
+                          textDecoration: "underline",
+                        }}
                         onClick={() => {
                           const result = nextInvoiceNumber(lastInvoiceNumber, invoiceNumberPreset);
                           if (result.ok) setInvoiceNumber(result.value);
@@ -3840,11 +4986,17 @@ function EntryDrawer({
                         建議號碼：延續上一張（{lastInvoiceNumber}）
                       </button>
                     )}
-                    {invoiceNumber.trim() && !validateInvoiceNumber(invoiceNumber.trim(), invoiceNumberPreset) && (
-                      <div className="text-micro" style={{ marginTop: 5, color: "var(--ns-neg)" }}>
-                        {invoiceNumberPreset === "TW_UNIFORM" ? "格式需為 2 碼英文字軌 + 8 碼數字（例：AB12345678）。" : "請輸入發票號碼。"}
-                      </div>
-                    )}
+                    {invoiceNumber.trim() &&
+                      !validateInvoiceNumber(invoiceNumber.trim(), invoiceNumberPreset) && (
+                        <div
+                          className="text-micro"
+                          style={{ marginTop: 5, color: "var(--ns-neg)" }}
+                        >
+                          {invoiceNumberPreset === "TW_UNIFORM"
+                            ? "格式需為 2 碼英文字軌 + 8 碼數字（例：AB12345678）。"
+                            : "請輸入發票號碼。"}
+                        </div>
+                      )}
                   </DrawerField>
                   <DrawerField label="稅額試算（5% 內含）">
                     {(() => {
@@ -3852,7 +5004,8 @@ function EntryDrawer({
                       const { taxExclusive, tax } = computeSalesTax(total);
                       return (
                         <div className="text-body muted">
-                          未稅 {formatNumber(taxExclusive)} ＋ 稅額 {formatNumber(tax)} ＝ 含稅 {formatNumber(total)}
+                          未稅 {formatNumber(taxExclusive)} ＋ 稅額 {formatNumber(tax)} ＝ 含稅{" "}
+                          {formatNumber(total)}
                         </div>
                       );
                     })()}
@@ -3860,14 +5013,36 @@ function EntryDrawer({
                 </>
               )}
 
-              <DrawerField label={type === "ar" ? (isInvoiceEntry ? "到期日（選填）" : "預計收款日（選填）") : "付款截止日（選填）"}>
-                <input className="ns-input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={{ fontFamily: "var(--ns-font-mono)" }} />
+              <DrawerField
+                label={
+                  type === "ar"
+                    ? isInvoiceEntry
+                      ? "到期日（選填）"
+                      : "預計收款日（選填）"
+                    : "付款截止日（選填）"
+                }
+              >
+                <input
+                  className="ns-input"
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  style={{ fontFamily: "var(--ns-font-mono)" }}
+                />
               </DrawerField>
-              <DrawerField label={type === "ar" ? "付款帳戶（我先墊付，建立時扣款，選填）" : "收款帳戶（借入／先收到的錢，建立時入帳，選填）"}>
+              <DrawerField
+                label={
+                  type === "ar"
+                    ? "付款帳戶（我先墊付，建立時扣款，選填）"
+                    : "收款帳戶（借入／先收到的錢，建立時入帳，選填）"
+                }
+              >
                 <AccountFilter
                   accounts={accountRows}
                   value={ledgerForm.counterAccountId ?? "all"}
-                  onChange={(id) => setLedgerForm({ ...ledgerForm, counterAccountId: id === "all" ? null : id })}
+                  onChange={(id) =>
+                    setLedgerForm({ ...ledgerForm, counterAccountId: id === "all" ? null : id })
+                  }
                   allowAll
                   allLabel={type === "ar" ? "不指定（結清後才計收入）" : "不指定（結清後才計支出）"}
                   placeholder="選擇帳戶"
@@ -3882,14 +5057,24 @@ function EntryDrawer({
                       <button
                         key={c.name}
                         className="text-xs"
-                        onClick={() => setLedgerForm({ ...ledgerForm, category: c.name, subcategory: "" })}
+                        onClick={() =>
+                          setLedgerForm({ ...ledgerForm, category: c.name, subcategory: "" })
+                        }
                         style={{
-                          padding: "5px 11px", borderRadius: 999, cursor: "pointer",
-                          background: active ? (c.color || "var(--ns-accent)") : "var(--ns-bg-card)",
-                          color: active ? readableTextColor(c.color || "var(--ns-accent)") : "var(--ns-fg)",
-                          border: active ? "1px solid rgba(0,0,0,0.12)" : "1px solid var(--ns-border)",
+                          padding: "5px 11px",
+                          borderRadius: 999,
+                          cursor: "pointer",
+                          background: active ? c.color || "var(--ns-accent)" : "var(--ns-bg-card)",
+                          color: active
+                            ? readableTextColor(c.color || "var(--ns-accent)")
+                            : "var(--ns-fg)",
+                          border: active
+                            ? "1px solid rgba(0,0,0,0.12)"
+                            : "1px solid var(--ns-border)",
                           fontFamily: "inherit",
-                          display: "flex", alignItems: "center", gap: 4,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
                         }}
                       >
                         {c.iconName && <Glyph name={c.iconName} size={14} />}
@@ -3930,20 +5115,37 @@ function EntryDrawer({
             </>
           )}
 
-          {message ? <div className="text-body" style={{ color: "var(--ns-neg)" }}>{message}</div> : null}
+          {message ? (
+            <div className="text-body" style={{ color: "var(--ns-neg)" }}>
+              {message}
+            </div>
+          ) : null}
         </div>
 
         {/* Footer */}
-        <div className="flex gap-2" style={{ padding: "14px 24px", borderTop: "1px solid var(--ns-border)" }}>
-          <Button variant="outline" className="shrink-0 grow-0 basis-20 justify-center" onClick={requestClose}>取消</Button>
+        <div
+          className="flex gap-2"
+          style={{ padding: "14px 24px", borderTop: "1px solid var(--ns-border)" }}
+        >
+          <Button
+            variant="outline"
+            className="shrink-0 grow-0 basis-20 justify-center"
+            onClick={requestClose}
+          >
+            取消
+          </Button>
           <Button
             className="flex-1 justify-center"
             style={{ background: meta.color, borderColor: meta.color, color: "#fff" }}
             onClick={type === "transfer" ? onSubmitTransfer : onSubmitLedger}
             disabled={
-              (splitMode && Boolean(splitError))
-              || (type === "ar" && isInvoiceEntry && !editing
-                && (!counterparty.trim() || !invoiceNumber.trim() || !validateInvoiceNumber(invoiceNumber.trim(), invoiceNumberPreset)))
+              (splitMode && Boolean(splitError)) ||
+              (type === "ar" &&
+                isInvoiceEntry &&
+                !editing &&
+                (!counterparty.trim() ||
+                  !invoiceNumber.trim() ||
+                  !validateInvoiceNumber(invoiceNumber.trim(), invoiceNumberPreset)))
             }
           >
             <Check size={14} weight="bold" />
@@ -3951,7 +5153,13 @@ function EntryDrawer({
               ? "儲存變更"
               : type === "ar" && isInvoiceEntry
                 ? "開立發票"
-                : type === "ar" ? "記錄應收" : type === "ap" ? "記錄應付" : type === "transfer" ? "建立轉帳" : "儲存交易"}
+                : type === "ar"
+                  ? "記錄應收"
+                  : type === "ap"
+                    ? "記錄應付"
+                    : type === "transfer"
+                      ? "建立轉帳"
+                      : "儲存交易"}
           </Button>
         </div>
       </div>
@@ -3984,7 +5192,14 @@ function CategoryChipPicker({
   const subcategories = categories.find((c) => c.name === category)?.children ?? [];
   return (
     <>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: subcategories.length ? 10 : 0 }}>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 6,
+          marginBottom: subcategories.length ? 10 : 0,
+        }}
+      >
         {categories.map((c) => {
           const active = category === c.name;
           const color = c.color || "var(--ns-accent)";
@@ -3994,14 +5209,20 @@ function CategoryChipPicker({
               className="text-xs"
               onClick={() => onPick(c.name)}
               style={{
-                padding: "5px 11px", borderRadius: 999, cursor: "pointer",
+                padding: "5px 11px",
+                borderRadius: 999,
+                cursor: "pointer",
                 background: active ? color : "var(--ns-bg-card)",
                 // Contrast-aware text so light category colors don't swallow
                 // the label; faint border gives light chips edge definition (B14).
                 color: active ? readableTextColor(color) : "var(--ns-fg)",
                 border: active ? "1px solid rgba(0,0,0,0.12)" : "1px solid var(--ns-border)",
-                fontFamily: "inherit", transition: "background 120ms var(--ns-ease), color 120ms var(--ns-ease), border-color 120ms var(--ns-ease)",
-                display: "flex", alignItems: "center", gap: 4,
+                fontFamily: "inherit",
+                transition:
+                  "background 120ms var(--ns-ease), color 120ms var(--ns-ease), border-color 120ms var(--ns-ease)",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
               }}
             >
               {c.iconName && <Glyph name={c.iconName} size={14} />}
@@ -4009,11 +5230,21 @@ function CategoryChipPicker({
             </button>
           );
         })}
-        {categories.length === 0 ? <span className="muted text-xs">尚未建立分類，可於設定新增。</span> : null}
+        {categories.length === 0 ? (
+          <span className="muted text-xs">尚未建立分類，可於設定新增。</span>
+        ) : null}
         {trailing}
       </div>
       {subcategories.length ? (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, paddingLeft: 10, borderLeft: "2px solid var(--ns-border)" }}>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 5,
+            paddingLeft: 10,
+            borderLeft: "2px solid var(--ns-border)",
+          }}
+        >
           {subcategories.map((s) => {
             const active = subcategory === s;
             return (
@@ -4022,7 +5253,9 @@ function CategoryChipPicker({
                 className="text-xs"
                 onClick={() => onPickSub(s)}
                 style={{
-                  padding: "4px 10px", borderRadius: 999, cursor: "pointer",
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  cursor: "pointer",
                   background: active ? "var(--ns-accent)" : "var(--ns-bg-hover)",
                   color: active ? "var(--ns-accent-fg)" : "var(--ns-fg-muted)",
                   border: active ? "none" : "1px solid var(--ns-border)",
@@ -4039,7 +5272,15 @@ function CategoryChipPicker({
   );
 }
 
-function DrawerField({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
+function DrawerField({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: ReactNode;
+}) {
   return (
     <div>
       <label className="text-caption block muted mb-1.5 uppercase" style={{ letterSpacing: 0.04 }}>
@@ -4074,7 +5315,9 @@ function mergeTransferRows(rows: LedgerTransaction[], allRows: LedgerTransaction
       seen.add(row.groupId);
       // Look the pair up from the full ledger so an account/search filter that
       // matched only one leg still renders the complete transfer.
-      const legs = allRows.filter((r) => r.groupId === row.groupId && r.entryType === "transfer" && r.deletedAt === null);
+      const legs = allRows.filter(
+        (r) => r.groupId === row.groupId && r.entryType === "transfer" && r.deletedAt === null,
+      );
       const source = legs.find((l) => l.amount < 0) ?? row;
       const dest = legs.find((l) => l.id !== source.id) ?? row;
       out.push({ ...source, transferPair: { source, dest } });
@@ -4086,7 +5329,12 @@ function mergeTransferRows(rows: LedgerTransaction[], allRows: LedgerTransaction
       // Includes 分帳 share legs (plan 222) — the collapsed total then equals
       // the FULL bank posting (matches what actually left the account); RAW
       // rows (not this display row) still feed spend aggregations, unaffected.
-      const legs = allRows.filter((r) => r.groupId === row.groupId && (r.legKind === "category" || r.legKind === "share") && r.deletedAt === null);
+      const legs = allRows.filter(
+        (r) =>
+          r.groupId === row.groupId &&
+          (r.legKind === "category" || r.legKind === "share") &&
+          r.deletedAt === null,
+      );
       // A share leg's `name`/`category` carry the counterparty/blank-category
       // (see domain/splitLegs buildSplitLegs), never representative of the
       // group — prefer the first category leg for the display row's identity.
@@ -4134,14 +5382,20 @@ function cashflowBucketKey(granularity: ChartGranularity, dateStr: string): stri
 }
 
 /** Ordered list of buckets ({key, label}) for the visible window. */
-function buildCashflowBuckets(granularity: ChartGranularity, range: { start: string | null; end: string | null }): Array<{ key: string; label: string }> {
+function buildCashflowBuckets(
+  granularity: ChartGranularity,
+  range: { start: string | null; end: string | null },
+): Array<{ key: string; label: string }> {
   const start = range.start ?? isoLocal(new Date());
   const end = range.end ?? start;
   if (granularity === "day") {
     return enumerateDays(start, end).map((day) => ({ key: day, label: day.slice(5) }));
   }
   if (granularity === "month") {
-    return enumerateMonths(start, end).map((month) => ({ key: month, label: `${Number(month.slice(5, 7))}月` }));
+    return enumerateMonths(start, end).map((month) => ({
+      key: month,
+      label: `${Number(month.slice(5, 7))}月`,
+    }));
   }
   if (granularity === "year") {
     return enumerateYears(start, end).map((year) => ({ key: year, label: year }));
@@ -4211,8 +5465,11 @@ function SuggestionRow({
           className="text-xs"
           onClick={() => onPick(chip.key)}
           style={{
-            padding: "4px 11px", borderRadius: 999, cursor: "pointer",
-            background: "var(--ns-accent-soft)", color: "var(--ns-accent)",
+            padding: "4px 11px",
+            borderRadius: 999,
+            cursor: "pointer",
+            background: "var(--ns-accent-soft)",
+            color: "var(--ns-accent)",
             border: "1px solid color-mix(in srgb, var(--ns-accent) 30%, transparent)",
             fontFamily: "inherit",
           }}
@@ -4225,7 +5482,16 @@ function SuggestionRow({
 }
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
-  TWD: "NT$", USD: "$", JPY: "¥", EUR: "€", GBP: "£", CNY: "¥", HKD: "HK$", AUD: "A$", CAD: "C$", SGD: "S$",
+  TWD: "NT$",
+  USD: "$",
+  JPY: "¥",
+  EUR: "€",
+  GBP: "£",
+  CNY: "¥",
+  HKD: "HK$",
+  AUD: "A$",
+  CAD: "C$",
+  SGD: "S$",
 };
 function currencySymbol(code: string) {
   return CURRENCY_SYMBOLS[code] ?? code;
@@ -4237,8 +5503,11 @@ function fmtAmountDisplay(expr: string): string {
   const n = parseFloat(expr);
   if (isNaN(n)) return expr;
   // 金額輸入框編輯狀態，非最終展示 — 不經 currency helpers
-  // eslint-disable-next-line no-restricted-syntax
-  return Number.isInteger(n) ? n.toLocaleString("zh-TW") : n.toLocaleString("zh-TW", { maximumFractionDigits: 4 });
+  /* eslint-disable no-restricted-syntax */
+  return Number.isInteger(n)
+    ? n.toLocaleString("zh-TW")
+    : n.toLocaleString("zh-TW", { maximumFractionDigits: 4 });
+  /* eslint-enable no-restricted-syntax */
 }
 
 function uniqueClean(values: string[]) {
@@ -4250,4 +5519,3 @@ function resolveColor(color: string): string {
   const name = color.slice(4, -1).trim();
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || color;
 }
-

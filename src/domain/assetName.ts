@@ -33,7 +33,10 @@ export function resolveAssetName(
   // In that case nameZh isn't actually localized, so prefer the user-entered
   // `name` (a TW user typically types the Chinese name) instead of letting the
   // English value win the Chinese branch.
-  const zhName = asset.nameZh && asset.nameZh === asset.nameEn ? (asset.name || asset.nameZh) : (asset.nameZh || fallback);
+  const zhName =
+    asset.nameZh && asset.nameZh === asset.nameEn
+      ? asset.name || asset.nameZh
+      : asset.nameZh || fallback;
 
   switch (preference) {
     case "zh-Hant":

@@ -188,10 +188,7 @@ export async function createSecretStore(): Promise<SecretStore> {
     try {
       return await createStrongholdStore();
     } catch (err) {
-      console.error(
-        "[SecretStore] Stronghold init failed — falling back to localStorage:",
-        err,
-      );
+      console.error("[SecretStore] Stronghold init failed — falling back to localStorage:", err);
       return createLocalStorageStore();
     }
   }
@@ -211,9 +208,7 @@ export async function createSecretStore(): Promise<SecretStore> {
  *   post-cutover step, handled in a separate commit after per-platform
  *   verification). See docs/secret-storage-plan.md §4.
  */
-export async function migrateLocalStorageSecrets(
-  store: SecretStore,
-): Promise<void> {
+export async function migrateLocalStorageSecrets(store: SecretStore): Promise<void> {
   for (const key of SECRET_KEYS) {
     const existing = localStorage.getItem(key);
     if (existing == null) continue; // nothing in localStorage to migrate

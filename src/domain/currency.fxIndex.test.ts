@@ -114,12 +114,24 @@ describe("property: indexed lookup equals linear scan on random data", () => {
       const day = 1 + Math.floor(rand() * 28);
       const asOf = `2026-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
       const amount = 1 + rand() * 1000;
-      const viaLinear = convertCurrency(amount, f, t, settings, { dailyRates: rates, asOfDate: asOf });
-      const viaIndex = convertCurrency(amount, f, t, settings, { dailyRateIndex: index, asOfDate: asOf });
+      const viaLinear = convertCurrency(amount, f, t, settings, {
+        dailyRates: rates,
+        asOfDate: asOf,
+      });
+      const viaIndex = convertCurrency(amount, f, t, settings, {
+        dailyRateIndex: index,
+        asOfDate: asOf,
+      });
       expect(viaIndex).toBe(viaLinear);
       // Also cross-check the inverse direction.
-      const invLinear = convertCurrency(amount, t, f, settings, { dailyRates: rates, asOfDate: asOf });
-      const invIndex = convertCurrency(amount, t, f, settings, { dailyRateIndex: index, asOfDate: asOf });
+      const invLinear = convertCurrency(amount, t, f, settings, {
+        dailyRates: rates,
+        asOfDate: asOf,
+      });
+      const invIndex = convertCurrency(amount, t, f, settings, {
+        dailyRateIndex: index,
+        asOfDate: asOf,
+      });
       expect(invIndex).toBe(invLinear);
     }
   });

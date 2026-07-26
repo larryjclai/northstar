@@ -49,17 +49,33 @@ async function clearSyncIdentity(repo: FinanceRepository): Promise<void> {
   // participant in sync. Read the version list BEFORE removing anything.
   const versions = await listVaultKeyVersions();
   for (const version of versions) {
-    try { await store.remove(vaultKeySlot(version)); } catch { /* ignore backend errors */ }
+    try {
+      await store.remove(vaultKeySlot(version));
+    } catch {
+      /* ignore backend errors */
+    }
   }
-  try { await store.remove(VAULT_KEY_CURRENT_VERSION_KEY); } catch { /* ignore backend errors */ }
-  try { await store.remove(VAULT_KEY_VERSIONS_INDEX_KEY); } catch { /* ignore backend errors */ }
+  try {
+    await store.remove(VAULT_KEY_CURRENT_VERSION_KEY);
+  } catch {
+    /* ignore backend errors */
+  }
+  try {
+    await store.remove(VAULT_KEY_VERSIONS_INDEX_KEY);
+  } catch {
+    /* ignore backend errors */
+  }
 
   // Secrets: wipe every SECRET_KEYS entry from the SecretStore (Stronghold on
   // device — the authoritative store — or the localStorage fallback in web/tests).
   // Iterate SECRET_KEYS so any key added later (e.g. the device credential) is
   // cleared automatically.
   for (const key of SECRET_KEYS) {
-    try { await store.remove(key); } catch { /* ignore backend errors */ }
+    try {
+      await store.remove(key);
+    } catch {
+      /* ignore backend errors */
+    }
   }
 
   // All sync-related localStorage keys (identity, cursors, account, secrets).
@@ -78,7 +94,11 @@ async function clearSyncIdentity(repo: FinanceRepository): Promise<void> {
     ...SECRET_KEYS,
   ];
   for (const key of keys) {
-    try { localStorage.removeItem(key); } catch { /* ignore quota/private mode */ }
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      /* ignore quota/private mode */
+    }
   }
 
   // Recovery-kit confirmed flag.

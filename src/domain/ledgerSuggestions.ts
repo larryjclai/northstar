@@ -15,7 +15,8 @@ export function buildLedgerSuggestions(
   const merchant = filters.merchant?.trim();
 
   for (const row of rows) {
-    if (row.deletedAt !== null || row.entryType !== "expense" || row.settlementStatus !== "settled") continue;
+    if (row.deletedAt !== null || row.entryType !== "expense" || row.settlementStatus !== "settled")
+      continue;
     if (category && row.category !== category) continue;
     if (merchant && row.merchant !== merchant) continue;
     if (row.merchant) merchantCounts.set(row.merchant, (merchantCounts.get(row.merchant) ?? 0) + 1);
@@ -30,7 +31,10 @@ export function buildLedgerSuggestions(
 
 function rankedKeys(counts: Map<string, number>) {
   return [...counts.entries()]
-    .sort(([leftKey, leftCount], [rightKey, rightCount]) => rightCount - leftCount || leftKey.localeCompare(rightKey))
+    .sort(
+      ([leftKey, leftCount], [rightKey, rightCount]) =>
+        rightCount - leftCount || leftKey.localeCompare(rightKey),
+    )
     .map(([key]) => key);
 }
 

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { projectRetirement, projectRetirementScenarios, resolveAnnualSpending } from "./retirementProjection";
+import {
+  projectRetirement,
+  projectRetirementScenarios,
+  resolveAnnualSpending,
+} from "./retirementProjection";
 import type { FinancialGoal } from "./types";
 
 function baseGoal(overrides: Partial<FinancialGoal> = {}): FinancialGoal {
@@ -46,7 +50,10 @@ describe("projectRetirement", () => {
   });
 
   it("transitions phase at retirement age", () => {
-    const projection = projectRetirement({ goal: baseGoal({ retirementAge: 55 }), currentValue: 1_000_000 });
+    const projection = projectRetirement({
+      goal: baseGoal({ retirementAge: 55 }),
+      currentValue: 1_000_000,
+    });
     const lastAcc = projection.series.find((row) => row.age === 54)!;
     const firstRet = projection.series.find((row) => row.age === 55)!;
     expect(lastAcc.phase).toBe("accumulation");
@@ -81,7 +88,9 @@ describe("projectRetirement", () => {
     });
     expect(projection.onTrack).toBe(false);
     // Should hit zero at some point during retirement.
-    const ranOutAt = projection.series.find((row) => row.phase === "retirement" && row.endBalance === 0);
+    const ranOutAt = projection.series.find(
+      (row) => row.phase === "retirement" && row.endBalance === 0,
+    );
     expect(ranOutAt).toBeDefined();
   });
 
@@ -127,8 +136,14 @@ describe("projectRetirement", () => {
   });
 
   it("treats withdrawalRate stored as a percent the same as a decimal", () => {
-    const decimal = projectRetirement({ goal: baseGoal({ withdrawalRate: 0.04 }), currentValue: 100_000 });
-    const percent = projectRetirement({ goal: baseGoal({ withdrawalRate: 4 }), currentValue: 100_000 });
+    const decimal = projectRetirement({
+      goal: baseGoal({ withdrawalRate: 0.04 }),
+      currentValue: 100_000,
+    });
+    const percent = projectRetirement({
+      goal: baseGoal({ withdrawalRate: 4 }),
+      currentValue: 100_000,
+    });
     // Both mean a 4% SWR → identical 25× target, not a 100% withdrawal.
     expect(percent.targetAtRetirement).toBe(decimal.targetAtRetirement);
     expect(decimal.targetAtRetirement).toBe(15_000_000);
@@ -138,7 +153,11 @@ describe("projectRetirement", () => {
     // A portfolio at the 25× target with steady contributions and an unset post
     // return should not collapse purely because of a disconnected default.
     const inherited = projectRetirement({
-      goal: baseGoal({ postRetirementReturn: null, preRetirementReturn: 0.07, monthlyContribution: 50_000 }),
+      goal: baseGoal({
+        postRetirementReturn: null,
+        preRetirementReturn: 0.07,
+        monthlyContribution: 50_000,
+      }),
       currentValue: 5_000_000,
     });
     const last = inherited.series[inherited.series.length - 1];
@@ -150,14 +169,32 @@ describe("projectRetirement", () => {
     const linked = projectRetirement({
       goal: baseGoal({
         displayMode: "nominal",
-        incomeItems: [{ id: "p1", name: "Pension", monthlyAmount: 20_000, startAge: 65, endAge: 90, inflationLinked: true }],
+        incomeItems: [
+          {
+            id: "p1",
+            name: "Pension",
+            monthlyAmount: 20_000,
+            startAge: 65,
+            endAge: 90,
+            inflationLinked: true,
+          },
+        ],
       }),
       currentValue: 1_000_000,
     });
     const fixed = projectRetirement({
       goal: baseGoal({
         displayMode: "nominal",
-        incomeItems: [{ id: "p1", name: "Pension", monthlyAmount: 20_000, startAge: 65, endAge: 90, inflationLinked: false }],
+        incomeItems: [
+          {
+            id: "p1",
+            name: "Pension",
+            monthlyAmount: 20_000,
+            startAge: 65,
+            endAge: 90,
+            inflationLinked: false,
+          },
+        ],
       }),
       currentValue: 1_000_000,
     });
@@ -173,7 +210,8 @@ describe("projectRetirement", () => {
       goal: baseGoal({ monthlyContribution: 50_000 }),
       currentValue: 1_000_000,
     });
-    const endOf = (p: typeof set.neutral) => p.projection.series[p.projection.series.length - 1].endBalance;
+    const endOf = (p: typeof set.neutral) =>
+      p.projection.series[p.projection.series.length - 1].endBalance;
     expect(endOf(set.optimistic)).toBeGreaterThan(endOf(set.neutral));
     expect(endOf(set.neutral)).toBeGreaterThan(endOf(set.pessimistic));
     expect(set.scenariosOnTrack).toBeGreaterThanOrEqual(0);

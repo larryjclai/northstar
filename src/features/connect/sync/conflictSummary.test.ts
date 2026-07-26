@@ -97,8 +97,16 @@ describe("summarizeConflict", () => {
       conflict({
         entity: "investment",
         entityId: "inv_abcdef0123456789",
-        localPayload: { id: "inv_abcdef0123456789", quantity: 10, updatedAt: "2026-01-01T00:00:00.000Z" },
-        incomingPayload: { id: "inv_abcdef0123456789", quantity: 12, updatedAt: "2026-01-02T00:00:00.000Z" },
+        localPayload: {
+          id: "inv_abcdef0123456789",
+          quantity: 10,
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+        incomingPayload: {
+          id: "inv_abcdef0123456789",
+          quantity: 12,
+          updatedAt: "2026-01-02T00:00:00.000Z",
+        },
       }),
     );
     expect(summary.entityLabel).toBe("投資交易");

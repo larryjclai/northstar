@@ -24,17 +24,33 @@ const baseRecord: InvestmentRecord = {
 
 describe("investment cash helpers", () => {
   it("calculates account cash movement for each investment action", () => {
-    expect(calculateInvestmentCashDelta({ action: "buy", price: 100, quantity: 2, fee: 5 })).toBe(-205);
-    expect(calculateInvestmentCashDelta({ action: "sell", price: 120, quantity: 2, fee: 3 })).toBe(237);
-    expect(calculateInvestmentCashDelta({ action: "cashDividend", price: 1.5, quantity: 10, fee: 1 })).toBe(14);
-    expect(calculateInvestmentCashDelta({ action: "cashDividend", price: 1500, quantity: 0, fee: 10 })).toBe(1490);
-    expect(calculateInvestmentCashDelta({ action: "capitalReduction", price: 2, quantity: 10, fee: 9 })).toBe(20);
-    expect(calculateInvestmentCashDelta({ action: "stockDividend", price: 0, quantity: 1, fee: 0 })).toBe(0);
-    expect(calculateInvestmentCashDelta({ action: "stockSplit", price: 0, quantity: 2, fee: 0 })).toBe(0);
+    expect(calculateInvestmentCashDelta({ action: "buy", price: 100, quantity: 2, fee: 5 })).toBe(
+      -205,
+    );
+    expect(calculateInvestmentCashDelta({ action: "sell", price: 120, quantity: 2, fee: 3 })).toBe(
+      237,
+    );
+    expect(
+      calculateInvestmentCashDelta({ action: "cashDividend", price: 1.5, quantity: 10, fee: 1 }),
+    ).toBe(14);
+    expect(
+      calculateInvestmentCashDelta({ action: "cashDividend", price: 1500, quantity: 0, fee: 10 }),
+    ).toBe(1490);
+    expect(
+      calculateInvestmentCashDelta({ action: "capitalReduction", price: 2, quantity: 10, fee: 9 }),
+    ).toBe(20);
+    expect(
+      calculateInvestmentCashDelta({ action: "stockDividend", price: 0, quantity: 1, fee: 0 }),
+    ).toBe(0);
+    expect(
+      calculateInvestmentCashDelta({ action: "stockSplit", price: 0, quantity: 2, fee: 0 }),
+    ).toBe(0);
   });
 
   it("buy net cash includes fee (應收付金額)", () => {
-    expect(calculateInvestmentCashDelta({ action: "buy", price: 5065, quantity: 2, fee: 8 })).toBe(-10138);
+    expect(calculateInvestmentCashDelta({ action: "buy", price: 5065, quantity: 2, fee: 8 })).toBe(
+      -10138,
+    );
   });
 
   it("computes available inventory for the selected asset and account", () => {

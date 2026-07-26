@@ -7,10 +7,10 @@ export type SyncPhase = "idle" | "pushing" | "pulling" | "done" | "error";
 
 export interface SyncStatusState {
   phase: SyncPhase;
-  lastSyncAt: string | null;   // ISO timestamp of last successful full sync
-  lastPushed: number;           // envelopes pushed in last run
-  lastPulled: number;           // envelopes pulled in last run
-  lastApplied: number;          // records merged in last run
+  lastSyncAt: string | null; // ISO timestamp of last successful full sync
+  lastPushed: number; // envelopes pushed in last run
+  lastPulled: number; // envelopes pulled in last run
+  lastApplied: number; // records merged in last run
   error: string | null;
 
   // Actions
@@ -23,7 +23,11 @@ export interface SyncStatusState {
 const STORAGE_KEY = "northstar.sync.lastSyncAt.v1";
 
 function loadLastSyncAt(): string | null {
-  try { return localStorage.getItem(STORAGE_KEY); } catch { return null; }
+  try {
+    return localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export const useSyncStatus = create<SyncStatusState>((set) => ({
@@ -38,10 +42,21 @@ export const useSyncStatus = create<SyncStatusState>((set) => ({
 
   setSyncDone: (pushed, pulled, applied) => {
     const now = new Date().toISOString();
-    try { localStorage.setItem(STORAGE_KEY, now); } catch { /* ignore */ }
-    set({ phase: "done", lastSyncAt: now, lastPushed: pushed, lastPulled: pulled, lastApplied: applied, error: null });
+    try {
+      localStorage.setItem(STORAGE_KEY, now);
+    } catch {
+      /* ignore */
+    }
+    set({
+      phase: "done",
+      lastSyncAt: now,
+      lastPushed: pushed,
+      lastPulled: pulled,
+      lastApplied: applied,
+      error: null,
+    });
     // Return to idle after a brief moment so the spinner stops
-    setTimeout(() => set((s) => s.phase === "done" ? { ...s, phase: "idle" } : s), 2500);
+    setTimeout(() => set((s) => (s.phase === "done" ? { ...s, phase: "idle" } : s)), 2500);
   },
 
   setError: (message) => set({ phase: "error", error: message }),

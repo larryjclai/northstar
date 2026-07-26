@@ -23,7 +23,13 @@ function ymd(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-export function MonthPicker({ value, onChange, className, triggerClassName, onSelectDay }: MonthPickerProps) {
+export function MonthPicker({
+  value,
+  onChange,
+  className,
+  triggerClassName,
+  onSelectDay,
+}: MonthPickerProps) {
   const [open, setOpen] = React.useState(false);
   const [mode, setMode] = React.useState<"month" | "day">("month");
   const [year, setYear] = React.useState(() => {
@@ -34,8 +40,18 @@ export function MonthPicker({ value, onChange, className, triggerClassName, onSe
   const currentYear = value ? parseInt(value.slice(0, 4), 10) : undefined;
 
   const months = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
   ];
   function shiftMonth(delta: number) {
     const base = value ? new Date(`${value}-01T00:00:00`) : new Date();
@@ -46,19 +62,33 @@ export function MonthPicker({ value, onChange, className, triggerClassName, onSe
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <div className="flex items-center gap-1">
-      <button type="button" className={buttonVariants({ variant: "outline", size: "icon" })} aria-label="上一個月" onClick={() => shiftMonth(-1)}><CaretLeft size={15} /></button>
-      <PopoverTrigger
-        className={cn(
-          buttonVariants({ variant: "outline" }),
-          "gap-2",
-          !value && "text-[var(--ns-fg-muted)]",
-          triggerClassName
-        )}
-      >
-        <CalendarBlank size={16} />
-        <span style={{ fontSize: 14 }}>{value || "Select month"}</span>
-      </PopoverTrigger>
-      <button type="button" className={buttonVariants({ variant: "outline", size: "icon" })} aria-label="下一個月" onClick={() => shiftMonth(1)}><CaretRight size={15} /></button>
+        <button
+          type="button"
+          className={buttonVariants({ variant: "outline", size: "icon" })}
+          aria-label="上一個月"
+          onClick={() => shiftMonth(-1)}
+        >
+          <CaretLeft size={15} />
+        </button>
+        <PopoverTrigger
+          className={cn(
+            buttonVariants({ variant: "outline" }),
+            "gap-2",
+            !value && "text-[var(--ns-fg-muted)]",
+            triggerClassName,
+          )}
+        >
+          <CalendarBlank size={16} />
+          <span style={{ fontSize: 14 }}>{value || "Select month"}</span>
+        </PopoverTrigger>
+        <button
+          type="button"
+          className={buttonVariants({ variant: "outline", size: "icon" })}
+          aria-label="下一個月"
+          onClick={() => shiftMonth(1)}
+        >
+          <CaretRight size={15} />
+        </button>
       </div>
       <PopoverContent className={cn("w-64 p-3", className)} align="start">
         {onSelectDay ? (
@@ -72,7 +102,7 @@ export function MonthPicker({ value, onChange, className, triggerClassName, onSe
                   "py-1 text-xs rounded transition-colors font-medium",
                   mode === m
                     ? "bg-[var(--ns-surface)] text-[var(--ns-fg)] shadow-sm"
-                    : "text-[var(--ns-fg-muted)] hover:text-[var(--ns-fg)]"
+                    : "text-[var(--ns-fg-muted)] hover:text-[var(--ns-fg)]",
                 )}
               >
                 {m === "month" ? "選月" : "選日"}
@@ -127,7 +157,7 @@ export function MonthPicker({ value, onChange, className, triggerClassName, onSe
                       "p-2 text-sm rounded-md transition-colors font-medium",
                       isSelected
                         ? "bg-[var(--ns-accent)] text-white"
-                        : "hover:bg-[var(--ns-surface-strong)] text-[var(--ns-fg)]"
+                        : "hover:bg-[var(--ns-surface-strong)] text-[var(--ns-fg)]",
                     )}
                   >
                     {month}

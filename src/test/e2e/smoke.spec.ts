@@ -19,11 +19,18 @@ test("first-run trust and entry surfaces stay usable", async ({ page }) => {
       contentType: "application/json",
       body: JSON.stringify({
         chart: {
-          result: [{
-            meta: { symbol: "USDTWD=X", currency: "TWD", regularMarketPrice: 31.2, previousClose: 31.1 },
-            timestamp: [Date.UTC(2026, 4, 30) / 1000],
-            indicators: { quote: [{ close: [31.2] }] },
-          }],
+          result: [
+            {
+              meta: {
+                symbol: "USDTWD=X",
+                currency: "TWD",
+                regularMarketPrice: 31.2,
+                previousClose: 31.1,
+              },
+              timestamp: [Date.UTC(2026, 4, 30) / 1000],
+              indicators: { quote: [{ close: [31.2] }] },
+            },
+          ],
           error: null,
         },
       }),
@@ -56,7 +63,9 @@ test("first-run trust and entry surfaces stay usable", async ({ page }) => {
   await page.keyboard.press("Escape"); // close the popover before the quick-add step
 
   await page.keyboard.press("Control+N");
-  const quickInput = page.getByPlaceholder("記帳 · 試試「午餐 @添飯 120 信用卡」或「+ 接案 5000 富邦」");
+  const quickInput = page.getByPlaceholder(
+    "記帳 · 試試「午餐 @添飯 120 信用卡」或「+ 接案 5000 富邦」",
+  );
   await expect(quickInput).toBeVisible();
   await quickInput.fill("拿鐵 180");
   await quickInput.press("Enter");
@@ -82,7 +91,9 @@ test("first-run trust and entry surfaces stay usable", async ({ page }) => {
   await page.goto("/settings");
   await page.getByText("一般與備份", { exact: true }).click();
   await page.getByRole("button", { name: "重新計算帳戶與投資" }).click();
-  await expect(page.getByText("已修正 0 筆衍生資料。孤兒關聯 0 筆，不完整轉帳 0 組。")).toBeVisible();
+  await expect(
+    page.getByText("已修正 0 筆衍生資料。孤兒關聯 0 筆，不完整轉帳 0 組。"),
+  ).toBeVisible();
 
   expect(consoleErrors.filter((item) => !item.includes("Download the React DevTools"))).toEqual([]);
 });

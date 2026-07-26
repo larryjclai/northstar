@@ -23,7 +23,8 @@ export function quoteLookupKeys(symbol: string) {
   const normalized = normalizeMarketSymbol(symbol);
   if (!normalized) return [];
   const stripped = stripTaiwanMarketSuffix(normalized);
-  if (normalized === stripped && /^\d{4,6}$/.test(normalized)) return [normalized, `${normalized}.TW`, `${normalized}.TWO`];
+  if (normalized === stripped && /^\d{4,6}$/.test(normalized))
+    return [normalized, `${normalized}.TW`, `${normalized}.TWO`];
   return normalized === stripped ? [normalized] : [normalized, stripped];
 }
 
@@ -39,7 +40,10 @@ export function buildQuoteLookup<T extends QuoteSymbolLike>(quotes: T[]) {
   return lookup;
 }
 
-export function findQuoteForTicker<T extends QuoteSymbolLike>(lookup: Map<string, T>, ticker: string) {
+export function findQuoteForTicker<T extends QuoteSymbolLike>(
+  lookup: Map<string, T>,
+  ticker: string,
+) {
   for (const key of quoteLookupKeys(ticker)) {
     const quote = lookup.get(key);
     if (quote) return quote;

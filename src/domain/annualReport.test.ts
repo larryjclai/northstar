@@ -10,20 +10,44 @@ function record(
 ): InvestmentRecord {
   return {
     id: `r_${Math.random().toString(36).slice(2)}`,
-    spaceId: "space", revision: 1, createdAt: "", updatedAt: "", deletedAt: null,
-    linkedAccountId: null, price: 0, quantity: 0, fee: 0, note: "",
-    isReviewed: false, linkedLedgerTransactionId: null, cashless: false,
+    spaceId: "space",
+    revision: 1,
+    createdAt: "",
+    updatedAt: "",
+    deletedAt: null,
+    linkedAccountId: null,
+    price: 0,
+    quantity: 0,
+    fee: 0,
+    note: "",
+    isReviewed: false,
+    linkedLedgerTransactionId: null,
+    cashless: false,
     ...overrides,
   };
 }
 
 function asset(overrides: Partial<PortfolioAsset> & Pick<PortfolioAsset, "id">): PortfolioAsset {
   return {
-    spaceId: "space", revision: 1, createdAt: "", updatedAt: "", deletedAt: null,
-    ticker: overrides.id, name: overrides.id, nameZh: null, nameEn: null,
-    currency: "TWD", totalQuantity: 0, averageCost: 0, holdingSource: "transactions",
-    acquisitionDate: null, assetType: null, sector: null, industry: null,
-    accountId: null, baseQuantity: null,
+    spaceId: "space",
+    revision: 1,
+    createdAt: "",
+    updatedAt: "",
+    deletedAt: null,
+    ticker: overrides.id,
+    name: overrides.id,
+    nameZh: null,
+    nameEn: null,
+    currency: "TWD",
+    totalQuantity: 0,
+    averageCost: 0,
+    holdingSource: "transactions",
+    acquisitionDate: null,
+    assetType: null,
+    sector: null,
+    industry: null,
+    accountId: null,
+    baseQuantity: null,
     ...overrides,
   };
 }
@@ -37,9 +61,30 @@ describe("buildAnnualReport", () => {
   it("EQUALITY GUARD: per-year realized gains sum to lifetime realizedGain", () => {
     // Sells across two years against one moving-average position.
     const records = [
-      record({ assetId: "a", date: "2023-01-10", action: "buy", price: 100, quantity: 100, fee: 50 }),
-      record({ assetId: "a", date: "2024-03-01", action: "sell", price: 130, quantity: 40, fee: 20 }),
-      record({ assetId: "a", date: "2025-06-01", action: "sell", price: 150, quantity: 60, fee: 30 }),
+      record({
+        assetId: "a",
+        date: "2023-01-10",
+        action: "buy",
+        price: 100,
+        quantity: 100,
+        fee: 50,
+      }),
+      record({
+        assetId: "a",
+        date: "2024-03-01",
+        action: "sell",
+        price: 130,
+        quantity: 40,
+        fee: 20,
+      }),
+      record({
+        assetId: "a",
+        date: "2025-06-01",
+        action: "sell",
+        price: 150,
+        quantity: 60,
+        fee: 30,
+      }),
     ];
     const { years: report } = buildAnnualReport({
       assets: [asset({ id: "a" })],
@@ -90,7 +135,13 @@ describe("buildAnnualReport", () => {
     const records = [
       record({ assetId: "a", date: "2024-01-01", action: "buy", price: 10, quantity: 100 }), // cost 1000
       // cancel 100 shares, return 12/share = 1200 cash; basis 1000 → 200 realized gain.
-      record({ assetId: "a", date: "2025-05-01", action: "capitalReduction", price: 12, quantity: 100 }),
+      record({
+        assetId: "a",
+        date: "2025-05-01",
+        action: "capitalReduction",
+        price: 12,
+        quantity: 100,
+      }),
     ];
     const { years: report } = buildAnnualReport({
       assets: [asset({ id: "a" })],
@@ -118,8 +169,22 @@ describe("buildAnnualReport", () => {
 
   it("tradingCost = Σ fee for the year and total EXCLUDES tradingCost", () => {
     const records = [
-      record({ assetId: "a", date: "2025-01-01", action: "buy", price: 100, quantity: 10, fee: 15 }),
-      record({ assetId: "a", date: "2025-09-01", action: "sell", price: 120, quantity: 10, fee: 25 }),
+      record({
+        assetId: "a",
+        date: "2025-01-01",
+        action: "buy",
+        price: 100,
+        quantity: 10,
+        fee: 15,
+      }),
+      record({
+        assetId: "a",
+        date: "2025-09-01",
+        action: "sell",
+        price: 120,
+        quantity: 10,
+        fee: 25,
+      }),
     ];
     const { years: report } = buildAnnualReport({
       assets: [asset({ id: "a" })],
@@ -190,7 +255,13 @@ describe("buildAnnualReport", () => {
       // Domestic holding (.TW suffix).
       record({ assetId: "tw", date: "2025-01-01", action: "buy", price: 20, quantity: 1000 }),
       record({ assetId: "tw", date: "2025-06-01", action: "sell", price: 25, quantity: 1000 }), // +5000
-      record({ assetId: "tw", date: "2025-08-01", action: "cashDividend", price: 400, quantity: 0 }), // +400
+      record({
+        assetId: "tw",
+        date: "2025-08-01",
+        action: "cashDividend",
+        price: 400,
+        quantity: 0,
+      }), // +400
       // Overseas holding (bare US ticker).
       record({ assetId: "us", date: "2025-01-01", action: "buy", price: 10, quantity: 100 }),
       record({ assetId: "us", date: "2025-09-01", action: "sell", price: 15, quantity: 100 }), // +500
@@ -218,7 +289,10 @@ describe("buildAnnualReport", () => {
     expect(y2025.overseas.dividends).toBeCloseTo(50, 6);
 
     // domestic + overseas === year total.
-    expect(y2025.domestic.realizedGain + y2025.overseas.realizedGain).toBeCloseTo(y2025.realizedGain, 6);
+    expect(y2025.domestic.realizedGain + y2025.overseas.realizedGain).toBeCloseTo(
+      y2025.realizedGain,
+      6,
+    );
     expect(y2025.domestic.dividends + y2025.overseas.dividends).toBeCloseTo(y2025.dividends, 6);
   });
 
@@ -229,7 +303,9 @@ describe("buildAnnualReport", () => {
       record({ assetId: "x", date: "2025-06-01", action: "sell", price: 12, quantity: 100 }), // +200
     ];
     const { years: report } = buildAnnualReport({
-      assets: [asset({ id: "x", ticker: "1234", currency: "" as unknown as PortfolioAsset["currency"] })],
+      assets: [
+        asset({ id: "x", ticker: "1234", currency: "" as unknown as PortfolioAsset["currency"] }),
+      ],
       recordsByAsset: byAsset(records),
       dividendByYear: [],
       toPrimary: identity,
@@ -254,7 +330,11 @@ describe("buildAnnualReport", () => {
       record({ assetId: "c", date: "2025-06-01", action: "sell", price: 15, quantity: 1000 }), // +5000
     ];
     const { years: report } = buildAnnualReport({
-      assets: [asset({ id: "a", ticker: "a" }), asset({ id: "b", ticker: "b" }), asset({ id: "c", ticker: "c" })],
+      assets: [
+        asset({ id: "a", ticker: "a" }),
+        asset({ id: "b", ticker: "b" }),
+        asset({ id: "c", ticker: "c" }),
+      ],
       recordsByAsset: byAsset(records),
       dividendByYear: [],
       toPrimary: identity,
@@ -268,7 +348,8 @@ describe("buildAnnualReport", () => {
 
   it("excludes and counts an unpriced (null-rate) disposal instead of valuing it 0", () => {
     // No USD rate → toPrimary returns null; TWD passes through.
-    const fx = (value: number, currency: string): number | null => (currency === "USD" ? null : value);
+    const fx = (value: number, currency: string): number | null =>
+      currency === "USD" ? null : value;
     const records = [
       // TWD holding realizes +200 → counted.
       record({ assetId: "tw", date: "2025-01-01", action: "buy", price: 10, quantity: 100 }),
@@ -278,7 +359,10 @@ describe("buildAnnualReport", () => {
       record({ assetId: "us", date: "2025-08-01", action: "sell", price: 12, quantity: 100 }),
     ];
     const { years, fxMisses } = buildAnnualReport({
-      assets: [asset({ id: "tw", ticker: "2330.TW", currency: "TWD" }), asset({ id: "us", ticker: "AAPL", currency: "USD" })],
+      assets: [
+        asset({ id: "tw", ticker: "2330.TW", currency: "TWD" }),
+        asset({ id: "us", ticker: "AAPL", currency: "USD" }),
+      ],
       recordsByAsset: byAsset(records),
       dividendByYear: [],
       toPrimary: fx,

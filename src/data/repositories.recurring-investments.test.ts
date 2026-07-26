@@ -143,7 +143,9 @@ describeEachRepo("recurring investments", (makeRepo) => {
   it("TW fixedShares with an integer quantity still posts (regression)", async () => {
     const repo = await makeRepo({
       accounts: [cash],
-      recurringInvestments: [rule({ ticker: "2330.TW", mode: "fixedShares", quantity: 10, amount: 0, price: 612 })],
+      recurringInvestments: [
+        rule({ ticker: "2330.TW", mode: "fixedShares", quantity: 10, amount: 0, price: 612 }),
+      ],
     });
     await repo.postRecurringInvestment("recinv_0050");
 
@@ -154,7 +156,9 @@ describeEachRepo("recurring investments", (makeRepo) => {
   it("TW fixedShares with a non-integer quantity rejects", async () => {
     const repo = await makeRepo({
       accounts: [cash],
-      recurringInvestments: [rule({ ticker: "2330.TW", mode: "fixedShares", quantity: 0.5, amount: 0, price: 612 })],
+      recurringInvestments: [
+        rule({ ticker: "2330.TW", mode: "fixedShares", quantity: 0.5, amount: 0, price: 612 }),
+      ],
     });
     await expect(repo.postRecurringInvestment("recinv_0050")).rejects.toThrow(
       "台股定期定股的股數必須是整數，請先編輯規則。",
@@ -164,18 +168,40 @@ describeEachRepo("recurring investments", (makeRepo) => {
   it("create / update / delete round-trips", async () => {
     const repo = await makeRepo({ accounts: [cash] });
     await repo.createRecurringInvestment({
-      accountId: "acct_cash", ticker: "2330.tw", name: "台積電", currency: "TWD",
-      mode: "fixedShares", amount: 0, quantity: 10, price: 1000, fee: 0,
-      frequency: "monthly", dayOfMonth: 10, nextRunDate: "2099-01-10", isActive: true, note: "",
+      accountId: "acct_cash",
+      ticker: "2330.tw",
+      name: "台積電",
+      currency: "TWD",
+      mode: "fixedShares",
+      amount: 0,
+      quantity: 10,
+      price: 1000,
+      fee: 0,
+      frequency: "monthly",
+      dayOfMonth: 10,
+      nextRunDate: "2099-01-10",
+      isActive: true,
+      note: "",
     });
     let rules = await repo.listRecurringInvestments();
     expect(rules).toHaveLength(1);
     expect(rules[0].ticker).toBe("2330.TW"); // normalised upper-case
 
     await repo.updateRecurringInvestment(rules[0].id, {
-      accountId: "acct_cash", ticker: "2330.TW", name: "台積電", currency: "TWD",
-      mode: "fixedShares", amount: 0, quantity: 20, price: 1000, fee: 0,
-      frequency: "monthly", dayOfMonth: 10, nextRunDate: "2099-01-10", isActive: true, note: "",
+      accountId: "acct_cash",
+      ticker: "2330.TW",
+      name: "台積電",
+      currency: "TWD",
+      mode: "fixedShares",
+      amount: 0,
+      quantity: 20,
+      price: 1000,
+      fee: 0,
+      frequency: "monthly",
+      dayOfMonth: 10,
+      nextRunDate: "2099-01-10",
+      isActive: true,
+      note: "",
     });
     rules = await repo.listRecurringInvestments();
     expect(rules[0].quantity).toBe(20);

@@ -67,7 +67,9 @@ export function DateTimeField({
           required={required}
           onChange={(event) => update({ date: event.target.value })}
         />
-        <div className={`grid gap-2 ${clockMode === "12h" ? "grid-cols-[1fr_1fr_100px]" : "grid-cols-2"}`}>
+        <div
+          className={`grid gap-2 ${clockMode === "12h" ? "grid-cols-[1fr_1fr_100px]" : "grid-cols-2"}`}
+        >
           <SelectInput
             value={displayHour}
             onChange={(event) => {
@@ -124,7 +126,10 @@ function parseDateTime(value: string): { date: string; hour: number; minute: num
   return { date, hour, minute };
 }
 
-function formatDisplayHour(hour24: number, mode: "24h" | "12h"): { displayHour: number; period: "AM" | "PM" } {
+function formatDisplayHour(
+  hour24: number,
+  mode: "24h" | "12h",
+): { displayHour: number; period: "AM" | "PM" } {
   if (mode === "24h") {
     return { displayHour: hour24, period: hour24 >= 12 ? "PM" : "AM" };
   }

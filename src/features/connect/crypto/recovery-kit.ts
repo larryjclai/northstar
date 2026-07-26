@@ -8,7 +8,13 @@
 // If all trusted devices are lost, entering this code restores the vault key
 // and allows the user to pair a new device or decrypt local backups.
 
-import { exportVaultKey, importVaultKey, loadVaultKey, saveVaultKey, getCurrentVaultKeyVersion } from "./vault";
+import {
+  exportVaultKey,
+  importVaultKey,
+  loadVaultKey,
+  saveVaultKey,
+  getCurrentVaultKeyVersion,
+} from "./vault";
 
 const STATUS_KEY = "northstar.recovery.status.v1";
 
@@ -27,7 +33,11 @@ export interface LocalRecoveryKitStatus {
 export function loadLocalRecoveryKitStatus(): LocalRecoveryKitStatus | null {
   const raw = localStorage.getItem(STATUS_KEY);
   if (!raw) return null;
-  try { return JSON.parse(raw) as LocalRecoveryKitStatus; } catch { return null; }
+  try {
+    return JSON.parse(raw) as LocalRecoveryKitStatus;
+  } catch {
+    return null;
+  }
 }
 
 function saveLocalRecoveryKitStatus(status: LocalRecoveryKitStatus) {
@@ -36,8 +46,7 @@ function saveLocalRecoveryKitStatus(status: LocalRecoveryKitStatus) {
 
 /** Format raw hex string as XXXXXXXX-XXXXXXXX-... (8 groups of 8) */
 export function formatKitCode(hex: string): string {
-  return Array.from({ length: 8 }, (_, i) => hex.slice(i * 8, i * 8 + 8).toUpperCase())
-    .join("-");
+  return Array.from({ length: 8 }, (_, i) => hex.slice(i * 8, i * 8 + 8).toUpperCase()).join("-");
 }
 
 /** Strip formatting and normalise to lowercase hex */
@@ -56,9 +65,15 @@ export async function generateRecoveryKit(): Promise<string> {
   const keyVersion = await getCurrentVaultKeyVersion();
   const b64 = await exportVaultKey(vaultKey);
   const raw = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-  const hex = Array.from(raw).map((b) => b.toString(16).padStart(2, "0")).join("");
+  const hex = Array.from(raw)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
   const code = formatKitCode(hex);
-  saveLocalRecoveryKitStatus({ createdAt: new Date().toISOString(), confirmedAt: null, keyVersion });
+  saveLocalRecoveryKitStatus({
+    createdAt: new Date().toISOString(),
+    confirmedAt: null,
+    keyVersion,
+  });
   return code;
 }
 
@@ -83,7 +98,11 @@ export async function isRecoveryKitStale(): Promise<boolean> {
 
 /** Clear the local "recovery kit confirmed" flag (used by full device reset). */
 export function clearRecoveryKitStatus(): void {
-  try { localStorage.removeItem(STATUS_KEY); } catch { /* ignore */ }
+  try {
+    localStorage.removeItem(STATUS_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Mark the Recovery Kit as confirmed (user has saved it). */
@@ -118,7 +137,11 @@ export async function restoreFromRecoveryKit(input: string): Promise<void> {
   const key = await importVaultKey(b64);
   await saveVaultKey(key);
   const keyVersion = await getCurrentVaultKeyVersion();
-  saveLocalRecoveryKitStatus({ createdAt: new Date().toISOString(), confirmedAt: new Date().toISOString(), keyVersion });
+  saveLocalRecoveryKitStatus({
+    createdAt: new Date().toISOString(),
+    confirmedAt: new Date().toISOString(),
+    keyVersion,
+  });
 }
 
 /** Download the Recovery Kit as a .txt file. */

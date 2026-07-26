@@ -16,7 +16,11 @@ export const actionShortLabels: Record<string, string> = {
 const IMPORT_SHORT_LABEL = "匯入";
 
 /** A cashless opening-balance lot (manual-import baseline) — show as 「匯入」, not 「買」. */
-export function isImportOpeningLot(record: { cashless?: boolean; id: string; assetId: string }): boolean {
+export function isImportOpeningLot(record: {
+  cashless?: boolean;
+  id: string;
+  assetId: string;
+}): boolean {
   return record.cashless === true || record.id === `inv_open_${record.assetId}`;
 }
 

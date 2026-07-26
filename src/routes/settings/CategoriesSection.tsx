@@ -1,22 +1,80 @@
-import { ArrowsClockwise, CheckCircle, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, PencilSimple, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X, CaretDown, CaretRight, Backspace, Gear, Bank, Target, DeviceMobile, Desktop, Spinner, WifiHigh, CopySimple, QrCode, Warning } from "@phosphor-icons/react";
+import {
+  ArrowsClockwise,
+  CheckCircle,
+  CurrencyCircleDollar,
+  DownloadSimple,
+  Eye,
+  EyeSlash,
+  Globe,
+  Key,
+  PencilSimple,
+  Plus,
+  Storefront,
+  Tag,
+  Trash,
+  UploadSimple,
+  UsersThree,
+  X,
+  CaretDown,
+  CaretRight,
+  Backspace,
+  Gear,
+  Bank,
+  Target,
+  DeviceMobile,
+  Desktop,
+  Spinner,
+  WifiHigh,
+  CopySimple,
+  QrCode,
+  Warning,
+} from "@phosphor-icons/react";
 import { Badge } from "../../components/coss/badge";
 import { Button } from "../../components/coss/button";
 import { Card } from "../../components/coss/card";
-import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ActionButton } from "../../components/ActionButton";
 import { AppSelect } from "../../components/AppSelect";
 import { useToast } from "../../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../../data/hooks";
-import { downloadCsv, exportInvestmentCsv, exportLedgerCsv, exportFxRatesCsv } from "../../data/csv";
+import {
+  downloadCsv,
+  exportInvestmentCsv,
+  exportLedgerCsv,
+  exportFxRatesCsv,
+} from "../../data/csv";
 import { getFinanceRepository, type RepositorySnapshot } from "../../data/repositories";
 import { enterDemoMode, exitDemoMode, clearAllData } from "../../data/demoData";
 import { useDemoMode } from "../../state/demoMode";
-import { COMMON_TIMEZONES, isValidTimezone, formatMoney, categoryPeriodSpend, convertCurrency, makeDefaultDateScope, resolveDateScope, todayInTimezone } from "../../domain";
+import {
+  COMMON_TIMEZONES,
+  isValidTimezone,
+  formatMoney,
+  categoryPeriodSpend,
+  convertCurrency,
+  makeDefaultDateScope,
+  resolveDateScope,
+  todayInTimezone,
+} from "../../domain";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../../domain";
 import type { SyncConflictRecord } from "../../domain/sync";
 import { useRefreshFxRates } from "../../features/market-data/useMarketRefresh";
-import { useUiPreferences, DEFAULT_BENCHMARK_TICKER, type ClockMode, type NameLocalePreference, type ThemeMode } from "../../state/uiPreferences";
+import {
+  useUiPreferences,
+  DEFAULT_BENCHMARK_TICKER,
+  type ClockMode,
+  type NameLocalePreference,
+  type ThemeMode,
+} from "../../state/uiPreferences";
 import { TickerSearchField } from "../../components/TickerSearchField";
 import { getOrCreateDeviceIdentity } from "../../state/deviceIdentity";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -26,43 +84,59 @@ import { Glyph } from "../../lib/icons";
 import { Popover, PopoverTrigger, PopoverContent } from "../../components/ui/popover";
 import QRCode from "react-qr-code";
 import {
-  loadSyncAccount, getOrCreateSyncAccount, setSyncAccount, sha256Hex,
+  loadSyncAccount,
+  getOrCreateSyncAccount,
+  setSyncAccount,
+  sha256Hex,
   type SyncAccount,
 } from "../../features/connect/sync/account";
+import { generateVaultKey, saveVaultKey, loadVaultKey } from "../../features/connect/crypto/vault";
 import {
-  generateVaultKey, saveVaultKey, loadVaultKey,
-} from "../../features/connect/crypto/vault";
-import {
-  registerUser, listDevices, revokeDevice, addDevice,
+  registerUser,
+  listDevices,
+  revokeDevice,
+  addDevice,
   type DeviceRecord,
 } from "../../features/connect/sync/client";
 import {
-  initiatePairing, joinWithCode, type PairingSession,
+  initiatePairing,
+  joinWithCode,
+  type PairingSession,
 } from "../../features/connect/sync/pairing-flow";
 import { runSync, forceFullResync } from "../../features/connect/sync/sync-manager";
 import { summarizeConflict } from "../../features/connect/sync/conflictSummary";
 import { listBackups, restoreBackup, type BackupEntry } from "../../features/connect/sync/backup";
 import { useSyncStatus } from "../../state/syncStatus";
 import {
-  generateRecoveryKit, confirmRecoveryKit, downloadRecoveryKit,
-  restoreFromRecoveryKit, loadLocalRecoveryKitStatus, type LocalRecoveryKitStatus,
+  generateRecoveryKit,
+  confirmRecoveryKit,
+  downloadRecoveryKit,
+  restoreFromRecoveryKit,
+  loadLocalRecoveryKitStatus,
+  type LocalRecoveryKitStatus,
 } from "../../features/connect/crypto/recovery-kit";
 import type { SettingsTabProps } from "./shared";
 
 // ─────── Categories Tab ───────
-export function SettingsCategories({ form, setForm, submit, t, renameCategory }: SettingsTabProps & { renameCategory: (oldName: string, newName: string) => Promise<unknown> }) {
+export function SettingsCategories({
+  form,
+  setForm,
+  submit,
+  t,
+  renameCategory,
+}: SettingsTabProps & { renameCategory: (oldName: string, newName: string) => Promise<unknown> }) {
   const toast = useToast();
   const [editId, setEditId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const [newCat, setNewCat] = useState({ name: '', iconName: 'Tag', color: '#9fe870', budget: '' });
+  const [newCat, setNewCat] = useState({ name: "", iconName: "Tag", color: "#9fe870", budget: "" });
   const [expandId, setExpandId] = useState<string | null>(null);
   // Inline two-click delete confirm (window.confirm is a no-op in the Tauri webview).
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   // Inline subcategory editing (prompt() is unsupported in the Tauri webview).
   const [editingSub, setEditingSub] = useState<{ cat: string; sub: string } | null>(null);
-  const [editSubValue, setEditSubValue] = useState('');
+  const [editSubValue, setEditSubValue] = useState("");
   const [addingSubFor, setAddingSubFor] = useState<string | null>(null);
-  const [newSubValue, setNewSubValue] = useState('');
+  const [newSubValue, setNewSubValue] = useState("");
 
   // Real "已消費" figures for the current month, computed via the canonical
   // categoryPeriodSpend aggregator (same helper CategoriesRoute uses) so this table
@@ -77,7 +151,10 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
   const dateRange = useMemo(() => resolveDateScope(dateScope, timezone), [dateScope, timezone]);
   const toPrimaryFn = useMemo(
     () => (row: (typeof ledgerRows)[number]) =>
-      convertCurrency(row.amount, row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date }),
+      convertCurrency(row.amount, row.currency, primaryCurrency, appSettings, {
+        dailyRates: fxHistory,
+        asOfDate: row.date,
+      }),
     [primaryCurrency, appSettings, fxHistory],
   );
   const periodSpend = useMemo(
@@ -94,8 +171,21 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
     setEditingSub(null);
     if (!next || next === oldSub) return;
     const target = form.categories.find((cat) => cat.name === catName);
-    if (target?.children?.includes(next)) { toast.error("子分類已存在"); return; }
-    const nextForm = { ...form, categories: form.categories.map((cat) => cat.name === catName ? { ...cat, children: cat.children.map((child: string) => child === oldSub ? next : child) } : cat) };
+    if (target?.children?.includes(next)) {
+      toast.error("子分類已存在");
+      return;
+    }
+    const nextForm = {
+      ...form,
+      categories: form.categories.map((cat) =>
+        cat.name === catName
+          ? {
+              ...cat,
+              children: cat.children.map((child: string) => (child === oldSub ? next : child)),
+            }
+          : cat,
+      ),
+    };
     submit(nextForm);
     toast.success("已更新子分類");
   }
@@ -103,23 +193,48 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
   function addSubcategory(catName: string, rawName: string) {
     const name = rawName.trim();
     setAddingSubFor(null);
-    setNewSubValue('');
+    setNewSubValue("");
     if (!name) return;
     const target = form.categories.find((cat) => cat.name === catName);
-    if (target?.children?.includes(name)) { toast.error("子分類已存在"); return; }
-    const nextForm = { ...form, categories: form.categories.map((cat) => cat.name === catName ? { ...cat, children: [...(cat.children || []), name] } : cat) };
+    if (target?.children?.includes(name)) {
+      toast.error("子分類已存在");
+      return;
+    }
+    const nextForm = {
+      ...form,
+      categories: form.categories.map((cat) =>
+        cat.name === catName ? { ...cat, children: [...(cat.children || []), name] } : cat,
+      ),
+    };
     submit(nextForm);
     toast.success("已新增子分類");
   }
-  
-  const colorPicker = ['#f0c050','#6fb3ff','#a99cff','#6ee49a','#ff7d6b','#34c5b0','#f0a050','#9fe870','#d97a9c','#868685'];
+
+  const colorPicker = [
+    "#f0c050",
+    "#6fb3ff",
+    "#a99cff",
+    "#6ee49a",
+    "#ff7d6b",
+    "#34c5b0",
+    "#f0a050",
+    "#9fe870",
+    "#d97a9c",
+    "#868685",
+  ];
 
   function addCategory() {
     if (!newCat.name) return;
-    const nextCat = { name: newCat.name, children: [], iconName: newCat.iconName, color: newCat.color, budget: newCat.budget ? +newCat.budget : undefined };
+    const nextCat = {
+      name: newCat.name,
+      children: [],
+      iconName: newCat.iconName,
+      color: newCat.color,
+      budget: newCat.budget ? +newCat.budget : undefined,
+    };
     const nextForm = { ...form, categories: [...form.categories, nextCat] };
     submit(nextForm);
-    setNewCat({ name: '', iconName: 'Tag', color: '#9fe870', budget: '' });
+    setNewCat({ name: "", iconName: "Tag", color: "#9fe870", budget: "" });
     setAdding(false);
     toast.success("已新增分類");
   }
@@ -137,13 +252,13 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
       // renameCategory already updates settings; merge remaining patch fields
       const nextForm = {
         ...form,
-        categories: form.categories.map((c) => c.name === oldName ? { ...c, ...patch } : c),
+        categories: form.categories.map((c) => (c.name === oldName ? { ...c, ...patch } : c)),
       };
       submit(nextForm);
     } else {
       const nextForm = {
         ...form,
-        categories: form.categories.map((c) => c.name === oldName ? { ...c, ...patch } : c),
+        categories: form.categories.map((c) => (c.name === oldName ? { ...c, ...patch } : c)),
       };
       submit(nextForm);
     }
@@ -154,132 +269,271 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
     <div className="max-w-4xl">
       <div className="flex items-end justify-between mb-5">
         <div>
-          <div className="text-xs mb-1" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>Manage · {form.categories.length} categories</div>
-          <h2 className="text-2xl font-semibold" style={{ fontFamily: 'var(--ns-font-display)', margin: 0 }}>{t('settings.categories')}</h2>
-          <p className="muted text-body mt-1 mb-0">{t('settings.categoriesDesc')}</p>
+          <div className="text-xs mb-1" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>
+            Manage · {form.categories.length} categories
+          </div>
+          <h2
+            className="text-2xl font-semibold"
+            style={{ fontFamily: "var(--ns-font-display)", margin: 0 }}
+          >
+            {t("settings.categories")}
+          </h2>
+          <p className="muted text-body mt-1 mb-0">{t("settings.categoriesDesc")}</p>
         </div>
         <Button onClick={() => setAdding(true)}>
-          <Plus size={14} weight="bold" />{t('settings.addCategory')}
+          <Plus size={14} weight="bold" />
+          {t("settings.addCategory")}
         </Button>
       </div>
 
       {adding && (
-        <Card className="mb-3.5" style={{ padding: 18, border: '1.5px solid var(--ns-accent)' }}>
-          <div className="text-body font-medium mb-3">{t('settings.newCategory')}</div>
-          <div className="gap-3 mb-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+        <Card className="mb-3.5" style={{ padding: 18, border: "1.5px solid var(--ns-accent)" }}>
+          <div className="text-body font-medium mb-3">{t("settings.newCategory")}</div>
+          <div className="gap-3 mb-3" style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
             <div>
-              <label className="text-caption" style={{ color: 'var(--ns-fg-muted)', display: 'block', marginBottom: 5 }}>名稱 *</label>
-              <input className="ns-input" value={newCat.name} onChange={e => setNewCat(n=>({...n,name:e.target.value}))} />
+              <label
+                className="text-caption"
+                style={{ color: "var(--ns-fg-muted)", display: "block", marginBottom: 5 }}
+              >
+                名稱 *
+              </label>
+              <input
+                className="ns-input"
+                value={newCat.name}
+                onChange={(e) => setNewCat((n) => ({ ...n, name: e.target.value }))}
+              />
             </div>
             <div>
-              <label className="text-caption" style={{ color: 'var(--ns-fg-muted)', display: 'block', marginBottom: 5 }}>月預算</label>
-              <input className="ns-input" value={newCat.budget} onChange={e => setNewCat(n=>({...n,budget:e.target.value}))} />
+              <label
+                className="text-caption"
+                style={{ color: "var(--ns-fg-muted)", display: "block", marginBottom: 5 }}
+              >
+                月預算
+              </label>
+              <input
+                className="ns-input"
+                value={newCat.budget}
+                onChange={(e) => setNewCat((n) => ({ ...n, budget: e.target.value }))}
+              />
             </div>
           </div>
           <div className="mb-2.5">
-            <label className="text-caption mb-1.5" style={{ color: 'var(--ns-fg-muted)', display: 'block' }}>圖示</label>
-            <div className="gap-1.5" style={{ display: 'flex', flexWrap: 'wrap' }}>
+            <label
+              className="text-caption mb-1.5"
+              style={{ color: "var(--ns-fg-muted)", display: "block" }}
+            >
+              圖示
+            </label>
+            <div className="gap-1.5" style={{ display: "flex", flexWrap: "wrap" }}>
               <Popover>
-                <PopoverTrigger className="text-lg" style={{ width:32,height:32,borderRadius:'var(--ns-r-sm)',
-                  background:'var(--ns-bg-hover)',
-                  border:'1px solid var(--ns-border)',
-                  cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
+                <PopoverTrigger
+                  className="text-lg"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: "var(--ns-r-sm)",
+                    background: "var(--ns-bg-hover)",
+                    border: "1px solid var(--ns-border)",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
                   <Glyph name={newCat.iconName} size={18} />
                 </PopoverTrigger>
                 <PopoverContent className="z-[150] shadow-xl rounded-xl w-auto p-0">
                   <IconPicker
                     value={newCat.iconName}
-                    onSelect={(name) => setNewCat(n=>({...n,iconName: name}))}
+                    onSelect={(name) => setNewCat((n) => ({ ...n, iconName: name }))}
                   />
                 </PopoverContent>
               </Popover>
             </div>
           </div>
           <div className="mb-3.5">
-            <label className="text-caption mb-1.5" style={{ color: 'var(--ns-fg-muted)', display: 'block' }}>顏色</label>
+            <label
+              className="text-caption mb-1.5"
+              style={{ color: "var(--ns-fg-muted)", display: "block" }}
+            >
+              顏色
+            </label>
             <div className="flex gap-2">
-              {colorPicker.map(c => (
-                <div key={c} onClick={() => setNewCat(n=>({...n,color:c}))} style={{
-                  width:22,height:22,borderRadius:99,background:c,cursor:'pointer',
-                  outline:newCat.color===c?'2px solid var(--ns-fg)':'none',outlineOffset:2 }} />
+              {colorPicker.map((c) => (
+                <div
+                  key={c}
+                  onClick={() => setNewCat((n) => ({ ...n, color: c }))}
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: 99,
+                    background: c,
+                    cursor: "pointer",
+                    outline: newCat.color === c ? "2px solid var(--ns-fg)" : "none",
+                    outlineOffset: 2,
+                  }}
+                />
               ))}
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => setAdding(false)}>取消</Button>
-            <Button onClick={addCategory} style={{ opacity: newCat.name?1:0.5 }}>
-              <CheckCircle size={13} weight="bold" />新增
+            <Button variant="ghost" onClick={() => setAdding(false)}>
+              取消
+            </Button>
+            <Button onClick={addCategory} style={{ opacity: newCat.name ? 1 : 0.5 }}>
+              <CheckCircle size={13} weight="bold" />
+              新增
             </Button>
           </div>
         </Card>
       )}
 
       <Card className="p-0">
-        <div className="ns-settings-category-head text-micro py-2.5 px-5" style={{ borderBottom:'1px solid var(--ns-border)',
-          display:'grid', gridTemplateColumns:'2.2fr 1fr 1fr 1.6fr 80px',
-          color:'var(--ns-fg-dim)', fontFamily:'var(--ns-font-mono)',
-          letterSpacing:0.07, textTransform:'uppercase' }}>
-          <span>{t('settings.category')}</span>
-          <span className="text-right">{t('settings.spent')}</span>
-          <span className="ns-settings-category-budget text-right">{t('settings.budget')}</span>
-          <span className="ns-settings-category-usage pl-2">{t('settings.usage')}</span>
+        <div
+          className="ns-settings-category-head text-micro py-2.5 px-5"
+          style={{
+            borderBottom: "1px solid var(--ns-border)",
+            display: "grid",
+            gridTemplateColumns: "2.2fr 1fr 1fr 1.6fr 80px",
+            color: "var(--ns-fg-dim)",
+            fontFamily: "var(--ns-font-mono)",
+            letterSpacing: 0.07,
+            textTransform: "uppercase",
+          }}
+        >
+          <span>{t("settings.category")}</span>
+          <span className="text-right">{t("settings.spent")}</span>
+          <span className="ns-settings-category-budget text-right">{t("settings.budget")}</span>
+          <span className="ns-settings-category-usage pl-2">{t("settings.usage")}</span>
           <span />
         </div>
         {form.categories.map((c, i: number) => {
           const spent = spentByCategory.get(c.name) ?? 0;
           const over = c.budget && spent > c.budget;
-          const pct  = c.budget ? Math.min(spent / c.budget, 1) : 0;
+          const pct = c.budget ? Math.min(spent / c.budget, 1) : 0;
           const isEdit = editId === c.name;
           return (
             <div key={c.name}>
-              <div className="ns-settings-category-row" style={{
-                display:'grid', gridTemplateColumns:'2.2fr 1fr 1fr 1.6fr 80px',
-                alignItems:'center', padding:'13px 20px',
-                borderTop: i ? '1px solid var(--ns-border)' : 'none',
-                background: isEdit ? 'var(--ns-bg-hover)' : 'transparent',
-              }}>
-                <div className="flex items-center gap-3" style={{ cursor:'pointer' }} onClick={() => setExpandId(expandId===c.name ? null : c.name)}>
-                  <div className="text-lg" style={{ width:34,height:34,borderRadius:'var(--ns-r-sm)',
-                    background:(c.color||'#868685')+'28',display:'flex',alignItems:'center',justifyContent:'center' }}><Glyph name={c.iconName || 'Tag'} size={18} /></div>
+              <div
+                className="ns-settings-category-row"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "2.2fr 1fr 1fr 1.6fr 80px",
+                  alignItems: "center",
+                  padding: "13px 20px",
+                  borderTop: i ? "1px solid var(--ns-border)" : "none",
+                  background: isEdit ? "var(--ns-bg-hover)" : "transparent",
+                }}
+              >
+                <div
+                  className="flex items-center gap-3"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setExpandId(expandId === c.name ? null : c.name)}
+                >
+                  <div
+                    className="text-lg"
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: "var(--ns-r-sm)",
+                      background: (c.color || "#868685") + "28",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Glyph name={c.iconName || "Tag"} size={18} />
+                  </div>
                   <div>
                     <div className="text-body font-medium">{c.name}</div>
-                    <div className="muted mono text-micro">{c.children?.length||0} {t('settings.subcategories')}</div>
+                    <div className="muted mono text-micro">
+                      {c.children?.length || 0} {t("settings.subcategories")}
+                    </div>
                   </div>
-                  {expandId===c.name ? <CaretDown size={12} /> : <CaretRight size={12} />}
+                  {expandId === c.name ? <CaretDown size={12} /> : <CaretRight size={12} />}
                 </div>
-                <span className={'num text-sm text-right '+(over?'neg':'')} style={{ fontWeight:over?600:400 }}>
+                <span
+                  className={"num text-sm text-right " + (over ? "neg" : "")}
+                  style={{ fontWeight: over ? 600 : 400 }}
+                >
                   {formatMoney(spent, "TWD")}
                 </span>
                 <span className="num muted ns-settings-category-budget text-body text-right">
-                  {c.budget ? formatMoney(c.budget, "TWD") : '—'}
+                  {c.budget ? formatMoney(c.budget, "TWD") : "—"}
                 </span>
                 <div className="ns-settings-category-usage pl-2">
                   {c.budget ? (
                     <>
-                      <div style={{ height:7,borderRadius:99,background:'var(--ns-bg-hover)',overflow:'hidden',marginBottom:3 }}>
-                        <div style={{ width:(pct*100)+'%',height:'100%',background:over?'var(--ns-neg)':(c.color||'#868685'),borderRadius:99 }} />
+                      <div
+                        style={{
+                          height: 7,
+                          borderRadius: 99,
+                          background: "var(--ns-bg-hover)",
+                          overflow: "hidden",
+                          marginBottom: 3,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: pct * 100 + "%",
+                            height: "100%",
+                            background: over ? "var(--ns-neg)" : c.color || "#868685",
+                            borderRadius: 99,
+                          }}
+                        />
                       </div>
-                      <div className="mono text-micro" style={{ color:over?'var(--ns-neg)':'var(--ns-fg-dim)' }}>
-                        {(pct*100).toFixed(0)}%{over?' · '+t('settings.overBudget'):''}
+                      <div
+                        className="mono text-micro"
+                        style={{ color: over ? "var(--ns-neg)" : "var(--ns-fg-dim)" }}
+                      >
+                        {(pct * 100).toFixed(0)}%{over ? " · " + t("settings.overBudget") : ""}
                       </div>
                     </>
-                  ) : <span className="dim text-caption">{t('settings.noLimit')}</span>}
+                  ) : (
+                    <span className="dim text-caption">{t("settings.noLimit")}</span>
+                  )}
                 </div>
-                <div style={{ display:'flex', gap:4, justifyContent:'flex-end' }}>
-                  <Button variant="ghost" size="icon-sm" aria-label="設定" className="p-1.5" onClick={() => setEditId(isEdit?null:c.name)}>
+                <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="設定"
+                    className="p-1.5"
+                    onClick={() => setEditId(isEdit ? null : c.name)}
+                  >
                     <Gear size={14} />
                   </Button>
                   {confirmDeleteId === c.name ? (
                     <>
-                      <Button variant="ghost" size="icon-sm" className="p-1.5" style={{color:'var(--ns-neg)'}} title="確定刪除" onClick={() => deleteCategory(c.name)}>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="p-1.5"
+                        style={{ color: "var(--ns-neg)" }}
+                        title="確定刪除"
+                        onClick={() => deleteCategory(c.name)}
+                      >
                         <CheckCircle size={14} weight="bold" />
                       </Button>
-                      <Button variant="ghost" size="icon-sm" className="p-1.5" title="取消" onClick={() => setConfirmDeleteId(null)}>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="p-1.5"
+                        title="取消"
+                        onClick={() => setConfirmDeleteId(null)}
+                      >
                         <X size={14} />
                       </Button>
                     </>
                   ) : (
-                    <Button variant="ghost" size="icon-sm" aria-label="刪除" className="p-1.5" style={{color:'var(--ns-neg)'}} onClick={() => setConfirmDeleteId(c.name)}>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="刪除"
+                      className="p-1.5"
+                      style={{ color: "var(--ns-neg)" }}
+                      onClick={() => setConfirmDeleteId(c.name)}
+                    >
                       <Backspace size={14} />
                     </Button>
                   )}
@@ -287,28 +541,47 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
               </div>
 
               {isEdit && (
-                <div style={{ padding:'14px 20px 16px', borderTop:'1px dashed var(--ns-border)', background:'var(--ns-bg-hover)' }}>
-                  <EditCatForm cat={c} colors={colorPicker} onSave={(patch) => saveEdit(c.name, patch)} onCancel={() => setEditId(null)} />
+                <div
+                  style={{
+                    padding: "14px 20px 16px",
+                    borderTop: "1px dashed var(--ns-border)",
+                    background: "var(--ns-bg-hover)",
+                  }}
+                >
+                  <EditCatForm
+                    cat={c}
+                    colors={colorPicker}
+                    onSave={(patch) => saveEdit(c.name, patch)}
+                    onCancel={() => setEditId(null)}
+                  />
                 </div>
               )}
 
               {expandId === c.name && (
-                <div style={{ background:'var(--ns-bg)', borderTop:'1px solid var(--ns-border)' }}>
+                <div
+                  style={{ background: "var(--ns-bg)", borderTop: "1px solid var(--ns-border)" }}
+                >
                   {c.children?.map((s: string, si: number) => {
                     const isEditingSub = editingSub?.cat === c.name && editingSub?.sub === s;
                     return (
-                      <div key={s} className="text-body flex items-center gap-2.5" style={{ padding:'9px 20px 9px 66px',
-                        borderTop: si?'1px solid var(--ns-border)':'none' }}>
+                      <div
+                        key={s}
+                        className="text-body flex items-center gap-2.5"
+                        style={{
+                          padding: "9px 20px 9px 66px",
+                          borderTop: si ? "1px solid var(--ns-border)" : "none",
+                        }}
+                      >
                         <span className="dim">↳</span>
                         {isEditingSub ? (
                           <input
                             autoFocus
                             className="ns-input text-body flex-1 py-1 px-2"
                             value={editSubValue}
-                            onChange={e => setEditSubValue(e.target.value)}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') renameSubcategory(c.name, s, editSubValue);
-                              if (e.key === 'Escape') setEditingSub(null);
+                            onChange={(e) => setEditSubValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") renameSubcategory(c.name, s, editSubValue);
+                              if (e.key === "Escape") setEditingSub(null);
                             }}
                             onBlur={() => renameSubcategory(c.name, s, editSubValue)}
                           />
@@ -317,33 +590,81 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
                         )}
                         <div className="flex gap-1">
                           {!isEditingSub && (
-                            <Button variant="ghost" size="icon-sm" aria-label="編輯" style={{padding:'3px 6px'}} onClick={() => { setEditingSub({ cat: c.name, sub: s }); setEditSubValue(s); }}><PencilSimple size={12}/></Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label="編輯"
+                              style={{ padding: "3px 6px" }}
+                              onClick={() => {
+                                setEditingSub({ cat: c.name, sub: s });
+                                setEditSubValue(s);
+                              }}
+                            >
+                              <PencilSimple size={12} />
+                            </Button>
                           )}
-                          <Button variant="ghost" size="icon-sm" aria-label="刪除" style={{color:'var(--ns-neg)', padding:'3px 6px'}} onClick={() => {
-                            const nextForm = { ...form, categories: form.categories.map((cat) => cat.name === c.name ? { ...cat, children: cat.children.filter((x: string) => x !== s) } : cat) };
-                            submit(nextForm);
-                          }}><Trash size={12}/></Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="刪除"
+                            style={{ color: "var(--ns-neg)", padding: "3px 6px" }}
+                            onClick={() => {
+                              const nextForm = {
+                                ...form,
+                                categories: form.categories.map((cat) =>
+                                  cat.name === c.name
+                                    ? {
+                                        ...cat,
+                                        children: cat.children.filter((x: string) => x !== s),
+                                      }
+                                    : cat,
+                                ),
+                              };
+                              submit(nextForm);
+                            }}
+                          >
+                            <Trash size={12} />
+                          </Button>
                         </div>
                       </div>
                     );
                   })}
-                  <div style={{ padding:'9px 20px 9px 66px', borderTop: c.children?.length ? '1px solid var(--ns-border)' : 'none' }}>
+                  <div
+                    style={{
+                      padding: "9px 20px 9px 66px",
+                      borderTop: c.children?.length ? "1px solid var(--ns-border)" : "none",
+                    }}
+                  >
                     {addingSubFor === c.name ? (
                       <input
                         autoFocus
                         className="ns-input text-body py-1 px-2"
-                        style={{ width:'60%' }}
+                        style={{ width: "60%" }}
                         placeholder="子分類名稱…"
                         value={newSubValue}
-                        onChange={e => setNewSubValue(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') addSubcategory(c.name, newSubValue);
-                          if (e.key === 'Escape') { setAddingSubFor(null); setNewSubValue(''); }
+                        onChange={(e) => setNewSubValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") addSubcategory(c.name, newSubValue);
+                          if (e.key === "Escape") {
+                            setAddingSubFor(null);
+                            setNewSubValue("");
+                          }
                         }}
                         onBlur={() => addSubcategory(c.name, newSubValue)}
                       />
                     ) : (
-                      <Button variant="ghost" className="text-xs py-1 px-2" style={{ minHeight: "auto" }} onClick={() => { setAddingSubFor(c.name); setNewSubValue(''); }}><Plus size={12} className="mr-1" />新增子分類</Button>
+                      <Button
+                        variant="ghost"
+                        className="text-xs py-1 px-2"
+                        style={{ minHeight: "auto" }}
+                        onClick={() => {
+                          setAddingSubFor(c.name);
+                          setNewSubValue("");
+                        }}
+                      >
+                        <Plus size={12} className="mr-1" />
+                        新增子分類
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -356,35 +677,79 @@ export function SettingsCategories({ form, setForm, submit, t, renameCategory }:
   );
 }
 
-function EditCatForm({ cat, colors, onSave, onCancel }: { cat: CategoryGroup; colors: string[]; onSave: (patch: Partial<CategoryGroup>) => void; onCancel: () => void }) {
-  const [name,   setName]   = useState(cat.name);
-  const [icon,   setIcon]   = useState(cat.iconName || 'Tag');
-  const [color,  setColor]  = useState(cat.color || '#868685');
-  const [budget, setBudget] = useState(cat.budget || '');
+function EditCatForm({
+  cat,
+  colors,
+  onSave,
+  onCancel,
+}: {
+  cat: CategoryGroup;
+  colors: string[];
+  onSave: (patch: Partial<CategoryGroup>) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(cat.name);
+  const [icon, setIcon] = useState(cat.iconName || "Tag");
+  const [color, setColor] = useState(cat.color || "#868685");
+  const [budget, setBudget] = useState(cat.budget || "");
   const [rollover, setRollover] = useState(Boolean(cat.rollover));
   // Which entry types this category appears for in the 收入/支出 picker (plan 056).
   // Absent ⇒ "both" so existing categories keep showing for both types.
-  const [kind, setKind] = useState<NonNullable<CategoryGroup['kind']>>(cat.kind ?? 'both');
+  const [kind, setKind] = useState<NonNullable<CategoryGroup["kind"]>>(cat.kind ?? "both");
   const timezone = useUiPreferences((state) => state.timezone);
   const currentMonth = todayInTimezone(timezone).slice(0, 7);
   return (
-    <div className="gap-3" style={{ display:'grid', gridTemplateColumns:'1fr 1fr' }}>
+    <div className="gap-3" style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
       <div>
-        <label className="text-caption mb-1" style={{ color:'var(--ns-fg-muted)',display:'block' }}>名稱</label>
-        <input className="ns-input text-body"value={name} onChange={e=>setName(e.target.value)}/>
+        <label
+          className="text-caption mb-1"
+          style={{ color: "var(--ns-fg-muted)", display: "block" }}
+        >
+          名稱
+        </label>
+        <input
+          className="ns-input text-body"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
       </div>
       <div>
-        <label className="text-caption mb-1" style={{ color:'var(--ns-fg-muted)',display:'block' }}>月預算 (NTD)</label>
-        <input className="ns-input text-body"placeholder="留空 = 不設限" value={budget} onChange={e=>setBudget(e.target.value)}/>
+        <label
+          className="text-caption mb-1"
+          style={{ color: "var(--ns-fg-muted)", display: "block" }}
+        >
+          月預算 (NTD)
+        </label>
+        <input
+          className="ns-input text-body"
+          placeholder="留空 = 不設限"
+          value={budget}
+          onChange={(e) => setBudget(e.target.value)}
+        />
       </div>
       <div>
-        <label className="text-caption mb-1.5" style={{ color:'var(--ns-fg-muted)',display:'block' }}>圖示</label>
-        <div style={{ display:'flex',flexWrap:'wrap',gap:5 }}>
+        <label
+          className="text-caption mb-1.5"
+          style={{ color: "var(--ns-fg-muted)", display: "block" }}
+        >
+          圖示
+        </label>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
           <Popover>
-            <PopoverTrigger className="text-lg" style={{ width:32,height:32,borderRadius:'var(--ns-r-sm)',
-              background:'var(--ns-bg-hover)',
-              border:'1px solid var(--ns-border)',
-              cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
+            <PopoverTrigger
+              className="text-lg"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: "var(--ns-r-sm)",
+                background: "var(--ns-bg-hover)",
+                border: "1px solid var(--ns-border)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
               <Glyph name={icon} size={18} />
             </PopoverTrigger>
             <PopoverContent className="z-[150] shadow-xl rounded-xl w-auto p-0">
@@ -394,26 +759,51 @@ function EditCatForm({ cat, colors, onSave, onCancel }: { cat: CategoryGroup; co
         </div>
       </div>
       <div>
-        <label className="text-caption mb-1.5" style={{ color:'var(--ns-fg-muted)',display:'block' }}>顏色</label>
-        <div className="gap-1.5" style={{ display:'flex',flexWrap:'wrap' }}>
-          {colors.map((c: string)=>(
-            <div key={c} onClick={()=>setColor(c)} style={{
-              width:20,height:20,borderRadius:99,background:c,cursor:'pointer',
-              outline:color===c?'2px solid var(--ns-fg)':'none',outlineOffset:2 }} />
+        <label
+          className="text-caption mb-1.5"
+          style={{ color: "var(--ns-fg-muted)", display: "block" }}
+        >
+          顏色
+        </label>
+        <div className="gap-1.5" style={{ display: "flex", flexWrap: "wrap" }}>
+          {colors.map((c: string) => (
+            <div
+              key={c}
+              onClick={() => setColor(c)}
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 99,
+                background: c,
+                cursor: "pointer",
+                outline: color === c ? "2px solid var(--ns-fg)" : "none",
+                outlineOffset: 2,
+              }}
+            />
           ))}
         </div>
       </div>
-      <div className="py-2.5" style={{ gridColumn:'1 / -1', borderTop:'1px dashed var(--ns-border)' }}>
-        <label className="text-caption mb-1.5" style={{ color:'var(--ns-fg-muted)', display:'block' }}>適用類型</label>
+      <div
+        className="py-2.5"
+        style={{ gridColumn: "1 / -1", borderTop: "1px dashed var(--ns-border)" }}
+      >
+        <label
+          className="text-caption mb-1.5"
+          style={{ color: "var(--ns-fg-muted)", display: "block" }}
+        >
+          適用類型
+        </label>
         <div className="flex gap-1.5">
-          {([
-            { value: 'both', label: '兩者' },
-            { value: 'income', label: '收入' },
-            { value: 'expense', label: '支出' },
-          ] as const).map((opt) => (
+          {(
+            [
+              { value: "both", label: "兩者" },
+              { value: "income", label: "收入" },
+              { value: "expense", label: "支出" },
+            ] as const
+          ).map((opt) => (
             <Button
               key={opt.value}
-              variant={kind === opt.value ? 'default' : 'ghost'}
+              variant={kind === opt.value ? "default" : "ghost"}
               className="text-xs"
               onClick={() => setKind(opt.value)}
             >
@@ -421,28 +811,50 @@ function EditCatForm({ cat, colors, onSave, onCancel }: { cat: CategoryGroup; co
             </Button>
           ))}
         </div>
-        <div className="text-caption mt-1.5" style={{ color:'var(--ns-fg-muted)' }}>
+        <div className="text-caption mt-1.5" style={{ color: "var(--ns-fg-muted)" }}>
           決定此分類在記帳時出現於收入、支出或兩者的選單。
         </div>
       </div>
-      <div className="flex items-center justify-between gap-3 py-2.5" style={{ gridColumn:'1 / -1', borderTop:'1px dashed var(--ns-border)' }}>
-        <label className="flex items-center gap-2" style={{ cursor:'pointer' }}>
-          <input type="checkbox" checked={rollover} onChange={e=>setRollover(e.target.checked)} disabled={!budget} />
+      <div
+        className="flex items-center justify-between gap-3 py-2.5"
+        style={{ gridColumn: "1 / -1", borderTop: "1px dashed var(--ns-border)" }}
+      >
+        <label className="flex items-center gap-2" style={{ cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={rollover}
+            onChange={(e) => setRollover(e.target.checked)}
+            disabled={!budget}
+          />
           <div>
             <div className="text-body font-medium">預算結轉（rollover）</div>
-            <div className="text-caption" style={{ color:'var(--ns-fg-muted)' }}>沒花完的預算滾入下月；超支則扣除。需設定月預算。</div>
+            <div className="text-caption" style={{ color: "var(--ns-fg-muted)" }}>
+              沒花完的預算滾入下月；超支則扣除。需設定月預算。
+            </div>
           </div>
         </label>
         {rollover && (
-          <Button variant="ghost" className="text-xs" onClick={()=>onSave({ rolloverStart: currentMonth })}>
+          <Button
+            variant="ghost"
+            className="text-xs"
+            onClick={() => onSave({ rolloverStart: currentMonth })}
+          >
             清除結轉
           </Button>
         )}
       </div>
-      <div className="flex gap-2" style={{ gridColumn:'1 / -1' }}>
-        <Button variant="ghost" className="text-xs" onClick={onCancel}>取消</Button>
-        <Button className="text-xs" onClick={()=>onSave({name,iconName:icon,color,budget:budget?+budget:null,rollover,kind})}>
-          <CheckCircle size={14} weight="bold" />儲存
+      <div className="flex gap-2" style={{ gridColumn: "1 / -1" }}>
+        <Button variant="ghost" className="text-xs" onClick={onCancel}>
+          取消
+        </Button>
+        <Button
+          className="text-xs"
+          onClick={() =>
+            onSave({ name, iconName: icon, color, budget: budget ? +budget : null, rollover, kind })
+          }
+        >
+          <CheckCircle size={14} weight="bold" />
+          儲存
         </Button>
       </div>
     </div>

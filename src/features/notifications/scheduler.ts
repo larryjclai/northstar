@@ -49,8 +49,7 @@ function isTauri(): boolean {
 /** Hash a string id to a positive 32-bit integer (notification ids must be i32). */
 function hashTo32(s: string): number {
   let h = 0;
-  for (let i = 0; i < s.length; i++)
-    h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
   return Math.abs(h);
 }
 
@@ -59,10 +58,7 @@ function hashTo32(s: string): number {
  * Cancels all existing pending notifications, then schedules the upcoming ones.
  * Gated to Tauri runtime; never throws.
  */
-export async function syncScheduledReminders(
-  all: ScheduledReminder[],
-  now: Date,
-): Promise<void> {
+export async function syncScheduledReminders(all: ScheduledReminder[], now: Date): Promise<void> {
   if (!isTauri()) return;
   try {
     const n = await import("@tauri-apps/plugin-notification");

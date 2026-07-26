@@ -1,4 +1,12 @@
-import type { Account, AppSettings, DailyFxRate, DailyPriceSeriesRow, LedgerTransaction, ManualPriceSnapshot, PortfolioAsset } from "./types";
+import type {
+  Account,
+  AppSettings,
+  DailyFxRate,
+  DailyPriceSeriesRow,
+  LedgerTransaction,
+  ManualPriceSnapshot,
+  PortfolioAsset,
+} from "./types";
 import { convertCurrency } from "./currency";
 
 /**
@@ -146,7 +154,17 @@ export interface BuildDataHealthReportInput {
  *    60 days, summarised by type.
  */
 export function buildDataHealthReport(input: BuildDataHealthReportInput): DataHealthReport {
-  const { accounts, ledger, assets, quotes, dailyPrices, dailyFxRates, manualPriceSnapshots, settings, todayIso } = input;
+  const {
+    accounts,
+    ledger,
+    assets,
+    quotes,
+    dailyPrices,
+    dailyFxRates,
+    manualPriceSnapshots,
+    settings,
+    todayIso,
+  } = input;
   const issues: DataHealthIssue[] = [];
 
   const primaryCurrency = settings?.primaryCurrency ?? "TWD";
@@ -373,7 +391,8 @@ export function buildDataHealthReport(input: BuildDataHealthReportInput): DataHe
   for (const row of ledger) {
     if (row.deletedAt !== null) continue;
     const mainOrphan = row.accountId !== "" && !validAccountIds.has(row.accountId);
-    const counterOrphan = row.counterAccountId != null && !validAccountIds.has(row.counterAccountId);
+    const counterOrphan =
+      row.counterAccountId != null && !validAccountIds.has(row.counterAccountId);
     if (mainOrphan || counterOrphan) {
       orphanRows.push(row.name || row.merchant || row.id);
     }

@@ -234,7 +234,9 @@ describe("legacy-schema migration + repair chain", () => {
 
     // ...and the record's ledger link is cleared.
     const records = await repo.listInvestmentRecords();
-    expect(records.find((r) => r.id === "inv_open_asset_x")?.linkedLedgerTransactionId ?? null).toBeNull();
+    expect(
+      records.find((r) => r.id === "inv_open_asset_x")?.linkedLedgerTransactionId ?? null,
+    ).toBeNull();
   });
 
   it("asset merge: collapses a manual+transaction split for one ticker", async () => {
@@ -296,10 +298,18 @@ describe("legacy-schema migration + repair chain", () => {
     const repo = await createSqliteFinanceRepositoryForTests(shim as never);
 
     const fingerprint = async () => {
-      const acc = await db.select(`select id, revision, updated_at, deleted_at, balance from accounts order by id`);
-      const led = await db.select(`select id, revision, updated_at, deleted_at, amount from ledger_transactions order by id`);
-      const inv = await db.select(`select id, revision, updated_at, deleted_at, linked_ledger_transaction_id from investment_records order by id`);
-      const ast = await db.select(`select id, revision, updated_at, deleted_at, total_quantity, average_cost from portfolio_assets order by id`);
+      const acc = await db.select(
+        `select id, revision, updated_at, deleted_at, balance from accounts order by id`,
+      );
+      const led = await db.select(
+        `select id, revision, updated_at, deleted_at, amount from ledger_transactions order by id`,
+      );
+      const inv = await db.select(
+        `select id, revision, updated_at, deleted_at, linked_ledger_transaction_id from investment_records order by id`,
+      );
+      const ast = await db.select(
+        `select id, revision, updated_at, deleted_at, total_quantity, average_cost from portfolio_assets order by id`,
+      );
       return JSON.stringify({ acc, led, inv, ast });
     };
 
@@ -387,7 +397,10 @@ describe("plan 268: schema DDL gate", () => {
 
   it("a second initialize() skips the DDL phase entirely", async () => {
     const { shim } = makeRawDb();
-    const spyTarget = shim as unknown as { execute: (...args: unknown[]) => unknown; select: (...args: unknown[]) => unknown };
+    const spyTarget = shim as unknown as {
+      execute: (...args: unknown[]) => unknown;
+      select: (...args: unknown[]) => unknown;
+    };
     const executeSpy = vi.spyOn(spyTarget, "execute");
     const selectSpy = vi.spyOn(spyTarget, "select");
 
@@ -400,7 +413,9 @@ describe("plan 268: schema DDL gate", () => {
 
     await repo.initialize();
 
-    const allSql = [...executeSpy.mock.calls, ...selectSpy.mock.calls].map((call) => String(call[0]));
+    const allSql = [...executeSpy.mock.calls, ...selectSpy.mock.calls].map((call) =>
+      String(call[0]),
+    );
     expect(allSql.some((sql) => /pragma table_info/i.test(sql))).toBe(false);
     expect(allSql.some((sql) => /create trigger/i.test(sql))).toBe(false);
     expect(allSql.some((sql) => /alter table/i.test(sql))).toBe(false);
@@ -411,7 +426,9 @@ describe("plan 268: schema DDL gate", () => {
     const repo = await createSqliteFinanceRepositoryForTests(shim as never);
 
     const countRow = async (table: string) => {
-      const rows = await db.select<Array<{ count: number }>>(`select count(*) as count from ${table}`);
+      const rows = await db.select<Array<{ count: number }>>(
+        `select count(*) as count from ${table}`,
+      );
       return rows[0]?.count ?? 0;
     };
     const before = {
@@ -527,10 +544,12 @@ describe("plan 268: schema DDL gate", () => {
     // moved back ahead of the DDL and no longer propagate over sync.
     await createSqliteFinanceRepositoryForTests(shim as never);
 
-    const outboxRows = await db.select<Array<{ record_type: string; record_id: string; revision: number }>>(
-      `select record_type, record_id, revision from sync_outbox order by record_type, record_id`,
+    const outboxRows = await db.select<
+      Array<{ record_type: string; record_id: string; revision: number }>
+    >(`select record_type, record_id, revision from sync_outbox order by record_type, record_id`);
+    const ledgerRow = outboxRows.find(
+      (r) => r.record_type === "ledger" && r.record_id === "led_bad",
     );
-    const ledgerRow = outboxRows.find((r) => r.record_type === "ledger" && r.record_id === "led_bad");
     const investmentRow = outboxRows.find(
       (r) => r.record_type === "investment" && r.record_id === "inv_open_asset_x",
     );

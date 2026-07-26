@@ -55,7 +55,15 @@ describe("ledger group classifier", () => {
     const rows: LedgerTransaction[] = [
       { ...base, id: "a", groupId: "g", accountId: "source", amount: -100, entryType: "transfer" },
       { ...base, id: "b", groupId: "g", accountId: "dest", amount: 100, entryType: "transfer" },
-      { ...base, id: "fee", groupId: "g", accountId: "source", amount: -15, category: "手續費", entryType: "expense" },
+      {
+        ...base,
+        id: "fee",
+        groupId: "g",
+        accountId: "source",
+        amount: -15,
+        category: "手續費",
+        entryType: "expense",
+      },
     ];
     expect(classifyLedgerGroup(rows)).toBe("transfer");
   });

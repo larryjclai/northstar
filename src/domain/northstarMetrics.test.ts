@@ -66,7 +66,12 @@ describe("trailingMonthlyExpense", () => {
   it("excludes unsettled rows", () => {
     const rows = [
       row({ id: "settled", date: "2026-05-10T00:00", amount: -300 }),
-      row({ id: "unsettled", date: "2026-05-10T00:00", amount: -900, settlementStatus: "receivable" }),
+      row({
+        id: "unsettled",
+        date: "2026-05-10T00:00",
+        amount: -900,
+        settlementStatus: "receivable",
+      }),
     ];
     expect(trailingMonthlyExpense(rows, toPrimary, "2026-06-01", 3)).toBeCloseTo(100); // 300/3
   });
@@ -90,7 +95,12 @@ describe("trailingMonthlyExpense", () => {
   it("excludes counterAccountId pass-through rows (neutral)", () => {
     const rows = [
       row({ id: "exp", date: "2026-05-01T00:00", amount: -300 }),
-      row({ id: "passthru", date: "2026-05-01T00:00", amount: -500, counterAccountId: "other-acct" }),
+      row({
+        id: "passthru",
+        date: "2026-05-01T00:00",
+        amount: -500,
+        counterAccountId: "other-acct",
+      }),
     ];
     expect(trailingMonthlyExpense(rows, toPrimary, "2026-06-01", 3)).toBeCloseTo(100);
   });

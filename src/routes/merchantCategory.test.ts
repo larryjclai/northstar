@@ -53,7 +53,13 @@ describe("buildMerchantCategoryMap", () => {
 
   it("preserves category names that contain spaces", () => {
     const rows: LedgerTransaction[] = [
-      { ...base, id: "1", merchant: "Whole Foods", category: "Food Court", subcategory: "Lunch Set" },
+      {
+        ...base,
+        id: "1",
+        merchant: "Whole Foods",
+        category: "Food Court",
+        subcategory: "Lunch Set",
+      },
     ];
     const map = buildMerchantCategoryMap(rows);
     expect(map.get("Whole Foods")).toEqual({ category: "Food Court", subcategory: "Lunch Set" });

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { agingBuckets, bimonthly401Summary, daysSalesOutstanding, outstandingSalesTax } from "./invoiceReporting";
+import {
+  agingBuckets,
+  bimonthly401Summary,
+  daysSalesOutstanding,
+  outstandingSalesTax,
+} from "./invoiceReporting";
 import type { Invoice } from "./types";
 
 const TODAY = "2026-07-14"; // Tuesday, bimonthly period 7-8月 (docs/ledger-books-plan.md §3)
@@ -28,7 +33,10 @@ function invoice(overrides: Partial<Invoice> & Pick<Invoice, "id">): Invoice {
 describe("agingBuckets", () => {
   it("buckets an unpaid invoice 45 days past due into d31_60 (the 31–60 day range)", () => {
     // dueDate 45 days before TODAY.
-    const rows = agingBuckets([invoice({ id: "i1", dueDate: "2026-05-30", amount: 12_000 })], TODAY);
+    const rows = agingBuckets(
+      [invoice({ id: "i1", dueDate: "2026-05-30", amount: 12_000 })],
+      TODAY,
+    );
     const d31_60 = rows.find((r) => r.bucket === "d31_60")!;
     expect(d31_60.count).toBe(1);
     expect(d31_60.total).toBe(12_000);
@@ -72,7 +80,9 @@ describe("agingBuckets", () => {
 
   it("always returns all five bucket ids, even when empty", () => {
     const rows = agingBuckets([], TODAY);
-    expect(rows.map((r) => r.bucket).sort()).toEqual(["notDue", "d1_30", "d31_60", "d61_90", "over90"].sort());
+    expect(rows.map((r) => r.bucket).sort()).toEqual(
+      ["notDue", "d1_30", "d31_60", "d61_90", "over90"].sort(),
+    );
   });
 
   it("buckets a 75-day overdue invoice into d61_90 (61–90 range)", () => {
@@ -151,9 +161,24 @@ describe("bimonthly401Summary", () => {
   it("buckets invoices across two periods by issueDate, summing taxExclusive + tax per period", () => {
     const rows = bimonthly401Summary(
       [
-        invoice({ id: "i1", issueDate: "2026-03-10", taxExclusiveAmount: 100_000, taxAmount: 5_000 }),
-        invoice({ id: "i2", issueDate: "2026-04-20", taxExclusiveAmount: 40_000, taxAmount: 2_000 }),
-        invoice({ id: "i3", issueDate: "2026-07-05", taxExclusiveAmount: 20_000, taxAmount: 1_000 }),
+        invoice({
+          id: "i1",
+          issueDate: "2026-03-10",
+          taxExclusiveAmount: 100_000,
+          taxAmount: 5_000,
+        }),
+        invoice({
+          id: "i2",
+          issueDate: "2026-04-20",
+          taxExclusiveAmount: 40_000,
+          taxAmount: 2_000,
+        }),
+        invoice({
+          id: "i3",
+          issueDate: "2026-07-05",
+          taxExclusiveAmount: 20_000,
+          taxAmount: 1_000,
+        }),
       ],
       2026,
     );
@@ -166,12 +191,22 @@ describe("bimonthly401Summary", () => {
   });
 
   it("excludes invoices from a different year", () => {
-    const rows = bimonthly401Summary([invoice({ id: "i1", issueDate: "2025-07-05", taxAmount: 5_000 })], 2026);
+    const rows = bimonthly401Summary(
+      [invoice({ id: "i1", issueDate: "2025-07-05", taxAmount: 5_000 })],
+      2026,
+    );
     expect(rows.every((r) => r.salesTax === 0)).toBe(true);
   });
 
   it("always returns all six periods in calendar order", () => {
     const rows = bimonthly401Summary([], 2026);
-    expect(rows.map((r) => r.period)).toEqual(["1-2月", "3-4月", "5-6月", "7-8月", "9-10月", "11-12月"]);
+    expect(rows.map((r) => r.period)).toEqual([
+      "1-2月",
+      "3-4月",
+      "5-6月",
+      "7-8月",
+      "9-10月",
+      "11-12月",
+    ]);
   });
 });

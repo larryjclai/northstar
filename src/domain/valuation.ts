@@ -128,11 +128,19 @@ export function priceAssetOnDate(
   }
   const isCurrent = d >= opts.todayIso;
   if (isCurrent && opts.quote && Number.isFinite(opts.quote.price) && opts.quote.price > 0) {
-    return { value: opts.quote.price, currency: opts.quote.currency || asset.currency, source: "quote" };
+    return {
+      value: opts.quote.price,
+      currency: opts.quote.currency || asset.currency,
+      source: "quote",
+    };
   }
   const close = findDailyPriceAtOrBefore(opts.dailyPriceLookup, asset.ticker, d);
   if (close) {
-    return { value: close.close, currency: close.currency || opts.quote?.currency || asset.currency, source: "close" };
+    return {
+      value: close.close,
+      currency: close.currency || opts.quote?.currency || asset.currency,
+      source: "close",
+    };
   }
   return { value: asset.averageCost, currency: asset.currency, source: "cost" };
 }

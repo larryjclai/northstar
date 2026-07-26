@@ -105,7 +105,10 @@ const ENTITY_BY_KEY: Record<keyof SyncSource, SyncEntity> = {
  * across all sync-tracked entities, ordered oldest-first. `nextCursor` is the
  * newest updatedAt seen (or the input cursor if nothing changed).
  */
-export function buildPendingChanges(source: SyncSource, sinceCursor: string | null): PendingChangeSet {
+export function buildPendingChanges(
+  source: SyncSource,
+  sinceCursor: string | null,
+): PendingChangeSet {
   const since = sinceCursor ?? "";
   const changes: PendingChange[] = [];
 

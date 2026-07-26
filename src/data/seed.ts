@@ -1,4 +1,10 @@
-import type { Account, InvestmentRecord, LedgerTransaction, PortfolioAsset, RecurringTransaction } from "../domain";
+import type {
+  Account,
+  InvestmentRecord,
+  LedgerTransaction,
+  PortfolioAsset,
+  RecurringTransaction,
+} from "../domain";
 
 export const seedAccounts: Account[] = [];
 export const seedAssets: PortfolioAsset[] = [];

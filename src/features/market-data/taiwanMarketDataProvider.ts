@@ -3,10 +3,10 @@ import { parseCsvTable } from "../../data/csv";
 import type { AssetProfile, SymbolSearchResult } from "./provider";
 
 interface TaiwanOpenDataRow {
-  "公司代號"?: string;
-  "公司名稱"?: string;
-  "公司簡稱"?: string;
-  "產業別"?: string;
+  公司代號?: string;
+  公司名稱?: string;
+  公司簡稱?: string;
+  產業別?: string;
 }
 
 type TaiwanMarket = "TWSE" | "TPEx";
@@ -20,7 +20,12 @@ export interface TaiwanCompany {
   market: TaiwanMarket;
 }
 
-const DATASETS: Array<{ market: TaiwanMarket; jsonUrl: string; csvUrl: string; suffix: ".TW" | ".TWO" }> = [
+const DATASETS: Array<{
+  market: TaiwanMarket;
+  jsonUrl: string;
+  csvUrl: string;
+  suffix: ".TW" | ".TWO";
+}> = [
   {
     market: "TWSE",
     jsonUrl: "https://openapi.twse.com.tw/v1/opendata/t187ap03_L",
@@ -113,7 +118,8 @@ export class TaiwanMarketDataProvider {
 }
 
 async function fetchCompanies(): Promise<TaiwanCompany[]> {
-  if (companyCache && Date.now() - companyCache.updatedAt < cacheMaxAgeMs) return companyCache.companies;
+  if (companyCache && Date.now() - companyCache.updatedAt < cacheMaxAgeMs)
+    return companyCache.companies;
 
   const settled = await Promise.allSettled(DATASETS.map(fetchDataset));
   const companies = settled.flatMap((item) => (item.status === "fulfilled" ? item.value : []));
@@ -149,7 +155,10 @@ async function fetchSecurityNames(): Promise<Map<string, string>> {
     securityNamesCache = { updatedAt: Date.now(), names };
     return names;
   } catch (error) {
-    console.warn("[market] TWSE STOCK_DAY_ALL unavailable; ETF Chinese names will be missing.", error);
+    console.warn(
+      "[market] TWSE STOCK_DAY_ALL unavailable; ETF Chinese names will be missing.",
+      error,
+    );
     return new Map();
   }
 }
@@ -212,15 +221,22 @@ export function filterTaiwanSecurities(
 async function fetchDataset(dataset: (typeof DATASETS)[number]): Promise<TaiwanCompany[]> {
   try {
     const rows = await fetchJsonRows(dataset.jsonUrl);
-    const parsed = rows.map((row) => rowToCompany(row, dataset)).filter((row): row is TaiwanCompany => Boolean(row));
+    const parsed = rows
+      .map((row) => rowToCompany(row, dataset))
+      .filter((row): row is TaiwanCompany => Boolean(row));
     if (parsed.length) return parsed;
   } catch (error) {
-    console.warn(`[market] ${dataset.market} JSON company profile unavailable; falling back to CSV.`, error);
+    console.warn(
+      `[market] ${dataset.market} JSON company profile unavailable; falling back to CSV.`,
+      error,
+    );
   }
 
   const csv = await fetchText(dataset.csvUrl);
   const table = parseCsvTable(csv);
-  return table.rows.map((row) => rowToCompany(row as TaiwanOpenDataRow, dataset)).filter((row): row is TaiwanCompany => Boolean(row));
+  return table.rows
+    .map((row) => rowToCompany(row as TaiwanOpenDataRow, dataset))
+    .filter((row): row is TaiwanCompany => Boolean(row));
 }
 
 async function fetchJsonRows(url: string): Promise<TaiwanOpenDataRow[]> {
@@ -237,12 +253,17 @@ async function fetchMarketData(url: string, responseType: "json" | "text"): Prom
     return invoke<string>("fetch_market_data", { url, responseType });
   }
 
-  const response = await fetch(`/api/market-data?url=${encodeURIComponent(url)}&responseType=${responseType}`);
+  const response = await fetch(
+    `/api/market-data?url=${encodeURIComponent(url)}&responseType=${responseType}`,
+  );
   if (!response.ok) throw new Error(`Market data returned HTTP ${response.status}.`);
   return response.text();
 }
 
-function rowToCompany(row: TaiwanOpenDataRow, dataset: (typeof DATASETS)[number]): TaiwanCompany | null {
+function rowToCompany(
+  row: TaiwanOpenDataRow,
+  dataset: (typeof DATASETS)[number],
+): TaiwanCompany | null {
   const code = clean(row["公司代號"]);
   const nameZh = clean(row["公司名稱"]) ?? clean(row["公司簡稱"]);
   if (!code || !nameZh) return null;

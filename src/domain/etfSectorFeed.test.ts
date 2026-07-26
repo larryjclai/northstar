@@ -6,7 +6,11 @@ import {
   sectorWeightsFor,
   type EtfSectorFeed,
 } from "./etfSectorFeed";
-import { buildSectorBreakdown, type BreakdownEntry, type AnalyticsPosition } from "./portfolioAnalytics";
+import {
+  buildSectorBreakdown,
+  type BreakdownEntry,
+  type AnalyticsPosition,
+} from "./portfolioAnalytics";
 import { resolveCanonicalSectorLabel } from "./canonicalSector";
 
 // A trimmed real sample captured from scripts/etf-feed/build_feed.py (canonical
@@ -131,7 +135,8 @@ describe("loadEtfSectorFeed (bundled + public, injectable seams)", () => {
 describe("feed weights → buildSectorBreakdown (068 weighted split lights up)", () => {
   const sectorOpts = {
     sectorLabelOf: (raw: string | null | undefined) => raw ?? null,
-    canonicalLabelOf: (key: string | null | undefined) => resolveCanonicalSectorLabel(key, "zh-Hant"),
+    canonicalLabelOf: (key: string | null | undefined) =>
+      resolveCanonicalSectorLabel(key, "zh-Hant"),
     etfBucket: "ETF / 基金",
     unknownLabel: "未知",
     otherLabel: "其他",
@@ -152,7 +157,11 @@ describe("feed weights → buildSectorBreakdown (068 weighted split lights up)",
     };
     const entries: BreakdownEntry[] = [
       {
-        position: pos({ ticker: "VOO", assetType: "etf", sectorWeights: sectorWeightsFor(loaded, "VOO") }),
+        position: pos({
+          ticker: "VOO",
+          assetType: "etf",
+          sectorWeights: sectorWeightsFor(loaded, "VOO"),
+        }),
         value: 1000,
       },
     ];
@@ -173,7 +182,11 @@ describe("feed weights → buildSectorBreakdown (068 weighted split lights up)",
     };
     const entries: BreakdownEntry[] = [
       {
-        position: pos({ ticker: "BND", assetType: "etf", sectorWeights: sectorWeightsFor(loaded, "BND") }),
+        position: pos({
+          ticker: "BND",
+          assetType: "etf",
+          sectorWeights: sectorWeightsFor(loaded, "BND"),
+        }),
         value: 500,
       },
     ];

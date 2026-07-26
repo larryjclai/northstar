@@ -151,8 +151,7 @@ export function projectNetWorth(
   const series = [anchor, ...seriesFromEngine];
 
   // Extract milestones: yearsFromNow = 10, 20, 30.
-  const findAt = (y: number) =>
-    series.find((p) => p.yearsFromNow === y)?.neutralBalance ?? 0;
+  const findAt = (y: number) => series.find((p) => p.yearsFromNow === y)?.neutralBalance ?? 0;
 
   return {
     series,

@@ -95,7 +95,10 @@ export function buildInvoiceDrafts(form: InvoiceEntryForm): InvoiceEntryDrafts {
  * one manually). `issueDate` may be a plain date (`YYYY-MM-DD`) or a
  * datetime-local string (`YYYY-MM-DDTHH:mm`) — only the date portion matters.
  */
-export function defaultInvoiceDueDate(issueDate: string, defaultPaymentTerms: number | null): string | null {
+export function defaultInvoiceDueDate(
+  issueDate: string,
+  defaultPaymentTerms: number | null,
+): string | null {
   if (defaultPaymentTerms === null || !Number.isFinite(defaultPaymentTerms)) return null;
   const datePart = issueDate.slice(0, 10);
   const parsed = new Date(`${datePart}T00:00:00`);

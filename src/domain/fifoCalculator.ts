@@ -14,7 +14,8 @@ export function calculateFifo(records: InvestmentRecord[]): FifoResult {
 
   for (const record of sorted) {
     if (record.action === "buy" || record.action === "stockDividend") {
-      const totalCost = record.action === "stockDividend" ? 0 : record.price * record.quantity + record.fee;
+      const totalCost =
+        record.action === "stockDividend" ? 0 : record.price * record.quantity + record.fee;
       openLots.push({
         id: `${record.id}:lot`,
         recordId: record.id,

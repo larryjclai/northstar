@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { parseCsvTable } from "./csv";
 import {
-  applyInvestmentMapping, autoDetectActivityMap, autoDetectFields, distinctValues,
-  parseImportDate, WITHDRAW_ACTION, type InvestmentImportMapping,
+  applyInvestmentMapping,
+  autoDetectActivityMap,
+  autoDetectFields,
+  distinctValues,
+  parseImportDate,
+  WITHDRAW_ACTION,
+  type InvestmentImportMapping,
 } from "./investmentImport";
 
 // A Firstrade-style export with Chinese headers + 買進/賣出 values + MM/DD/YYYY dates.
@@ -34,10 +39,13 @@ describe("autoDetectFields", () => {
   });
 
   it("recognizes Northstar activity export fields instead of the internal symbol id", () => {
-    const { headers } = parseCsvTable([
-      "id,accountId,symbol,activityType,date,quantity,unitPrice,currency,fee,amount,accountName,assetSymbol,assetName,exchangeMic",
-      "r1,a1,asset_uuid,BUY,2026-06-04T11:08:58.897+00:00,100,165,TWD,14,16500,KGI,5347,Vanguard International Semiconductor Corporation,XTAI_OTC",
-    ].join("\n"), ",");
+    const { headers } = parseCsvTable(
+      [
+        "id,accountId,symbol,activityType,date,quantity,unitPrice,currency,fee,amount,accountName,assetSymbol,assetName,exchangeMic",
+        "r1,a1,asset_uuid,BUY,2026-06-04T11:08:58.897+00:00,100,165,TWD,14,16500,KGI,5347,Vanguard International Semiconductor Corporation,XTAI_OTC",
+      ].join("\n"),
+      ",",
+    );
     const fields = autoDetectFields(headers);
     expect(fields.action).toBe("activityType");
     expect(fields.ticker).toBe("assetSymbol");
@@ -79,13 +87,23 @@ describe("applyInvestmentMapping", () => {
   };
 
   it("produces drafts with normalised dates, signs and account context", () => {
-    const preview = applyInvestmentMapping(rows, baseMapping, { linkedAccountId: "acc1", accountCurrency: "USD" });
+    const preview = applyInvestmentMapping(rows, baseMapping, {
+      linkedAccountId: "acc1",
+      accountCurrency: "USD",
+    });
     expect(preview.invalid).toHaveLength(0);
     expect(preview.valid).toHaveLength(2);
     const buy = preview.valid[0].value;
     expect(buy).toMatchObject({ kind: "investment" });
     if (buy.kind !== "investment") throw new Error("expected investment");
-    expect(buy.draft).toMatchObject({ action: "buy", ticker: "VTI", quantity: 1, date: "2026-06-05", linkedAccountId: "acc1", currency: "USD" });
+    expect(buy.draft).toMatchObject({
+      action: "buy",
+      ticker: "VTI",
+      quantity: 1,
+      date: "2026-06-05",
+      linkedAccountId: "acc1",
+      currency: "USD",
+    });
     const sell = preview.valid[1].value;
     expect(sell).toMatchObject({ kind: "investment" });
     if (sell.kind !== "investment") throw new Error("expected investment");
@@ -94,26 +112,41 @@ describe("applyInvestmentMapping", () => {
 
   it("flags unmapped action values", () => {
     const mapping: InvestmentImportMapping = { ...baseMapping, activityMap: { 買進: "buy" } };
-    const preview = applyInvestmentMapping(rows, mapping, { linkedAccountId: "acc1", accountCurrency: "USD" });
+    const preview = applyInvestmentMapping(rows, mapping, {
+      linkedAccountId: "acc1",
+      accountCurrency: "USD",
+    });
     expect(preview.valid).toHaveLength(1);
     expect(preview.invalid[0].reason).toContain("未對應的交易類別");
   });
 
   it("rejects rows whose currency disagrees with the account", () => {
     const mapping: InvestmentImportMapping = { ...baseMapping, fields: { ...baseMapping.fields } };
-    const withCurrency = parseCsvTable(["日期,交易類別,數量,代號,價格,幣別", "06/05/2026,買進,1,VTI,368,USD"].join("\n"), ",");
+    const withCurrency = parseCsvTable(
+      ["日期,交易類別,數量,代號,價格,幣別", "06/05/2026,買進,1,VTI,368,USD"].join("\n"),
+      ",",
+    );
     const m: InvestmentImportMapping = {
       fields: autoDetectFields(withCurrency.headers),
       activityMap: { 買進: "buy" },
       dateFormat: "auto",
     };
-    const preview = applyInvestmentMapping(withCurrency.rows, m, { linkedAccountId: "acc1", accountCurrency: "TWD" });
+    const preview = applyInvestmentMapping(withCurrency.rows, m, {
+      linkedAccountId: "acc1",
+      accountCurrency: "TWD",
+    });
     expect(preview.invalid[0].reason).toContain("不一致");
   });
 
   it("skips rows mapped to ignore", () => {
-    const mapping: InvestmentImportMapping = { ...baseMapping, activityMap: { 買進: "ignore", 賣出: "sell" } };
-    const preview = applyInvestmentMapping(rows, mapping, { linkedAccountId: "acc1", accountCurrency: "USD" });
+    const mapping: InvestmentImportMapping = {
+      ...baseMapping,
+      activityMap: { 買進: "ignore", 賣出: "sell" },
+    };
+    const preview = applyInvestmentMapping(rows, mapping, {
+      linkedAccountId: "acc1",
+      accountCurrency: "USD",
+    });
     expect(preview.valid).toHaveLength(1);
     expect(preview.valid[0].value.kind).toBe("investment");
     if (preview.valid[0].value.kind !== "investment") throw new Error("expected investment");
@@ -141,7 +174,13 @@ describe("applyInvestmentMapping", () => {
       accountCurrency: "",
       accounts: [
         { id: "local-kgi", name: "KGI", type: "investment", currency: "TWD", deletedAt: null },
-        { id: "local-first", name: "Firstrade", type: "investment", currency: "USD", deletedAt: null },
+        {
+          id: "local-first",
+          name: "Firstrade",
+          type: "investment",
+          currency: "USD",
+          deletedAt: null,
+        },
       ] as any,
     });
     expect(preview.invalid).toHaveLength(0);

@@ -1,6 +1,13 @@
 import { useMemo, useState } from "react";
 import { CaretUpDown, Check } from "@phosphor-icons/react";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "./ui/command";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "./ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Glyph, DEFAULT_ACCOUNT_ICON } from "../lib/icons";
 import { BankLogo } from "./BankLogo";
@@ -27,16 +34,38 @@ const GROUP_ORDER: { key: string; label: string; types: AccountType[] }[] = [
   { key: "other", label: "其他", types: ["other"] },
 ];
 
-const SWATCHES = ["var(--ns-chart-1)", "var(--ns-chart-2)", "var(--ns-chart-3)", "var(--ns-chart-4)", "var(--ns-chart-5)"];
+const SWATCHES = [
+  "var(--ns-chart-1)",
+  "var(--ns-chart-2)",
+  "var(--ns-chart-3)",
+  "var(--ns-chart-4)",
+  "var(--ns-chart-5)",
+];
 
-function AccountMark({ account, index, size = 22 }: { account: AccountLike; index: number; size?: number }) {
+function AccountMark({
+  account,
+  index,
+  size = 22,
+}: {
+  account: AccountLike;
+  index: number;
+  size?: number;
+}) {
   const bg = account.color || SWATCHES[index % SWATCHES.length];
   return (
     <span
       style={{
-        position: "relative", width: size, height: size, borderRadius: "var(--ns-r-sm)", flexShrink: 0,
-        background: bg, color: "var(--ns-bg)", display: "inline-flex",
-        alignItems: "center", justifyContent: "center", overflow: "hidden",
+        position: "relative",
+        width: size,
+        height: size,
+        borderRadius: "var(--ns-r-sm)",
+        flexShrink: 0,
+        background: bg,
+        color: "var(--ns-bg)",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
       }}
     >
       <Glyph
@@ -99,10 +128,10 @@ export function AccountFilter({
         ...g,
         rows: accounts.filter((a) => g.types.includes(a.type)),
       })).filter((g) => g.rows.length > 0),
-    [accounts]
+    [accounts],
   );
 
-  const selected = value === "all" ? null : accounts.find((a) => a.id === value) ?? null;
+  const selected = value === "all" ? null : (accounts.find((a) => a.id === value) ?? null);
 
   function select(next: string) {
     onChange(next);
@@ -118,22 +147,43 @@ export function AccountFilter({
             type="button"
             className="ns-input"
             style={{
-              display: "inline-flex", alignItems: "center", gap: 8, minWidth: 140, maxWidth: 220,
-              height: 36, boxSizing: "border-box", padding: "0 10px", cursor: "pointer",
-              textAlign: "left", whiteSpace: "nowrap", ...style,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              minWidth: 140,
+              maxWidth: 220,
+              height: 36,
+              boxSizing: "border-box",
+              padding: "0 10px",
+              cursor: "pointer",
+              textAlign: "left",
+              whiteSpace: "nowrap",
+              ...style,
             }}
           >
             {selected ? (
               <AccountMark account={selected} index={indexById.get(selected.id) ?? 0} size={20} />
             ) : null}
-            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", color: selected || !mutedAllLabel ? undefined : "var(--ns-fg-dim)" }}>
+            <span
+              style={{
+                flex: 1,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                color: selected || !mutedAllLabel ? undefined : "var(--ns-fg-dim)",
+              }}
+            >
               {selected ? selected.name : allowAll ? allLabel : placeholder}
             </span>
             <CaretUpDown size={14} style={{ flexShrink: 0, color: "var(--ns-fg-dim)" }} />
           </button>
         }
       />
-      <PopoverContent align="start" className={`w-64 p-0 ${contentClassName ?? ""}`} positionerClassName={positionerClassName} style={{ width: 256 }}>
+      <PopoverContent
+        align="start"
+        className={`w-64 p-0 ${contentClassName ?? ""}`}
+        positionerClassName={positionerClassName}
+        style={{ width: 256 }}
+      >
         <Command>
           <CommandInput placeholder="搜尋帳戶…" />
           <CommandList>
@@ -155,7 +205,14 @@ export function AccountFilter({
                     onSelect={() => select(a.id)}
                   >
                     <AccountMark account={a} index={indexById.get(a.id) ?? 0} size={22} />
-                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <span
+                      style={{
+                        flex: 1,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {a.name}
                     </span>
                     {value === a.id ? <Check size={14} style={{ flexShrink: 0 }} /> : null}

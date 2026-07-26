@@ -48,7 +48,8 @@ describe("projectNetWorth", () => {
 
   it("bear ≤ neutral ≤ bull throughout the series", () => {
     const result = projectNetWorth(NW, ANNUAL_CONTRIBUTION, RETURN_PCT);
-    for (const point of result.series.slice(1)) { // skip year-0 anchor (all equal)
+    for (const point of result.series.slice(1)) {
+      // skip year-0 anchor (all equal)
       expect(point.bearBalance).toBeLessThanOrEqual(point.neutralBalance + 1); // ±1 rounding
       expect(point.neutralBalance).toBeLessThanOrEqual(point.bullBalance + 1);
     }

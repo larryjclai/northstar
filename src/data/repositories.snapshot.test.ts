@@ -93,7 +93,9 @@ describeEachRepo("snapshot round-trip (books/invoices/clients)", (makeRepo) => {
     expect(restoredClient!.taxId).toBe("12345678");
     expect(restoredClient!.defaultPaymentTerms).toBe(30);
 
-    const restoredInvoice = (await target.listInvoices()).find((i) => i.invoiceNumber === "AB12345678");
+    const restoredInvoice = (await target.listInvoices()).find(
+      (i) => i.invoiceNumber === "AB12345678",
+    );
     expect(restoredInvoice).toBeTruthy();
     expect(restoredInvoice!.id).toBe(invoice!.id);
     expect(restoredInvoice!.bookId).toBe(restoredCompany!.id);
@@ -115,7 +117,14 @@ describeEachRepo("snapshot round-trip (books/invoices/clients)", (makeRepo) => {
     const source = await makeRepo();
 
     await source.saveDailyPrices([
-      { ticker: "0050.TW", date: "2026-06-10", close: 195.5, currency: "TWD", source: "twse", updatedAt: "2026-06-10T08:00:00Z" },
+      {
+        ticker: "0050.TW",
+        date: "2026-06-10",
+        close: 195.5,
+        currency: "TWD",
+        source: "twse",
+        updatedAt: "2026-06-10T08:00:00Z",
+      },
     ]);
 
     const snapshot = await source.exportSnapshot();

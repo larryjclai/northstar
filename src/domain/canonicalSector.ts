@@ -121,38 +121,38 @@ const TWSE_CODE_TO_CANONICAL: Record<string, CanonicalSectorKey> = {
  * slices land in the same 11 buckets as direct holdings.
  */
 const GICS_NAME_TO_CANONICAL: Record<string, CanonicalSectorKey> = {
-  "technology": "technology",
+  technology: "technology",
   "information technology": "technology",
-  "information_technology": "technology",
+  information_technology: "technology",
   "financial services": "financials",
-  "financial_services": "financials",
-  "financials": "financials",
-  "financial": "financials",
-  "healthcare": "healthcare",
+  financial_services: "financials",
+  financials: "financials",
+  financial: "financials",
+  healthcare: "healthcare",
   "health care": "healthcare",
-  "health_care": "healthcare",
+  health_care: "healthcare",
   "consumer cyclical": "consumer_cyclical",
-  "consumer_cyclical": "consumer_cyclical",
+  consumer_cyclical: "consumer_cyclical",
   "consumer discretionary": "consumer_cyclical",
-  "consumer_discretionary": "consumer_cyclical",
+  consumer_discretionary: "consumer_cyclical",
   "consumer defensive": "consumer_defensive",
-  "consumer_defensive": "consumer_defensive",
+  consumer_defensive: "consumer_defensive",
   "consumer staples": "consumer_defensive",
-  "consumer_staples": "consumer_defensive",
-  "industrials": "industrials",
-  "industrial": "industrials",
-  "energy": "energy",
+  consumer_staples: "consumer_defensive",
+  industrials: "industrials",
+  industrial: "industrials",
+  energy: "energy",
   "basic materials": "materials",
-  "basic_materials": "materials",
-  "materials": "materials",
+  basic_materials: "materials",
+  materials: "materials",
   "real estate": "real_estate",
-  "real_estate": "real_estate",
-  "realestate": "real_estate",
-  "utilities": "utilities",
+  real_estate: "real_estate",
+  realestate: "real_estate",
+  utilities: "utilities",
   "communication services": "communication",
-  "communication_services": "communication",
-  "communication": "communication",
-  "communications": "communication",
+  communication_services: "communication",
+  communication: "communication",
+  communications: "communication",
 };
 
 /**
@@ -194,6 +194,11 @@ export function resolveCanonicalSectorLabel(
   if (!value) return null;
   const entry = (CANONICAL_SECTOR_LABELS as Record<string, { zh: string; en: string }>)[value];
   if (!entry) return value;
-  const zh = preference === "zh-Hant" ? true : preference === "en" ? false : (runtimeLocale || "").toLowerCase().startsWith("zh");
+  const zh =
+    preference === "zh-Hant"
+      ? true
+      : preference === "en"
+        ? false
+        : (runtimeLocale || "").toLowerCase().startsWith("zh");
   return zh ? entry.zh : entry.en;
 }

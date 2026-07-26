@@ -71,7 +71,10 @@ export class SitcaFundProvider {
    * unfiltered match count, so the caller can tell the user when a broad query
    * (e.g. a bare fund-company name) matched far more funds than are shown.
    */
-  async searchFunds(query: string, max = 20): Promise<{ items: SymbolSearchResult[]; total: number }> {
+  async searchFunds(
+    query: string,
+    max = 20,
+  ): Promise<{ items: SymbolSearchResult[]; total: number }> {
     if (query.trim().length < 2) return { items: [], total: 0 };
     try {
       const { funds } = await fetchFunds();
@@ -152,7 +155,8 @@ function scoreFund(fund: SitcaFund, q: string): number {
   const company = normalizeFundQuery(fund.company ?? "");
 
   if (code === q || certCode === q) return SCORE_EXACT_CODE;
-  if ((code && code.startsWith(q)) || (certCode && certCode.startsWith(q))) return SCORE_CODE_PREFIX;
+  if ((code && code.startsWith(q)) || (certCode && certCode.startsWith(q)))
+    return SCORE_CODE_PREFIX;
   if (name === q) return SCORE_NAME_EXACT;
   if (name.startsWith(q)) return SCORE_NAME_PREFIX;
   if (name.includes(q)) return SCORE_NAME_SUBSTR;
@@ -168,11 +172,7 @@ function scoreFund(fund: SitcaFund, q: string): number {
  * code substring → company-only), not the first `max` found in file order.
  * No I/O — testable standalone.
  */
-export function filterFunds(
-  funds: SitcaFund[],
-  query: string,
-  max = 20,
-): SymbolSearchResult[] {
+export function filterFunds(funds: SitcaFund[], query: string, max = 20): SymbolSearchResult[] {
   const q = normalizeFundQuery(query);
   if (!q) return [];
   const scored: Array<{ fund: SitcaFund; score: number; index: number }> = [];

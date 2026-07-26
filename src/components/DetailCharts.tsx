@@ -32,7 +32,15 @@ function Tooltip({ text }: { text: string }) {
 
 /** Monthly spend bars. Hover (desktop) or tap (mobile) reveals the amount;
  * zero-value months render with no bar height. */
-export function MiniBars({ data, color, currency }: { data: MonthPoint[]; color: string; currency: string }) {
+export function MiniBars({
+  data,
+  color,
+  currency,
+}: {
+  data: MonthPoint[];
+  color: string;
+  currency: string;
+}) {
   const [active, setActive] = useState<number | null>(null);
   const max = Math.max(1, ...data.map((item) => item.amount));
   return (
@@ -65,7 +73,13 @@ export function MiniBars({ data, color, currency }: { data: MonthPoint[]; color:
 
 /** Day-of-week spend bars. Hover/tap reveals the amount; zero days render
  * with no bar height. */
-export function WeekdayBars({ data, currency }: { data: Array<{ key: number; name: string; amount: number }>; currency: string }) {
+export function WeekdayBars({
+  data,
+  currency,
+}: {
+  data: Array<{ key: number; name: string; amount: number }>;
+  currency: string;
+}) {
   const [active, setActive] = useState<number | null>(null);
   const max = Math.max(1, ...data.map((item) => item.amount));
   return (

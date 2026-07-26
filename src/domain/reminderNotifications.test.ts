@@ -63,9 +63,27 @@ describe("buildReminderNotifications", () => {
 });
 
 describe("unacknowledgedReminders", () => {
-  const n1 = { id: "cc:cc1:2026-05-22", title: "T", body: "B", dueDate: "2026-05-22", daysUntilDue: 12 };
-  const n2 = { id: "cc:cc2:2026-06-15", title: "T", body: "B", dueDate: "2026-06-15", daysUntilDue: 36 };
-  const n3 = { id: "cc:cc3:2026-07-01", title: "T", body: "B", dueDate: "2026-07-01", daysUntilDue: 52 };
+  const n1 = {
+    id: "cc:cc1:2026-05-22",
+    title: "T",
+    body: "B",
+    dueDate: "2026-05-22",
+    daysUntilDue: 12,
+  };
+  const n2 = {
+    id: "cc:cc2:2026-06-15",
+    title: "T",
+    body: "B",
+    dueDate: "2026-06-15",
+    daysUntilDue: 36,
+  };
+  const n3 = {
+    id: "cc:cc3:2026-07-01",
+    title: "T",
+    body: "B",
+    dueDate: "2026-07-01",
+    daysUntilDue: 52,
+  };
 
   it("filters out acknowledged ids and returns the remaining two", () => {
     const result = unacknowledgedReminders([n1, n2, n3], [n1.id]);

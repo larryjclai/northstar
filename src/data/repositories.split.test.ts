@@ -160,7 +160,9 @@ describeEachRepo("split legs (多類別拆分)", (makeRepo) => {
 
   it("updateSplit throws on an unknown group and writes nothing", async () => {
     const repo = await makeRepo({ accounts: [cash] });
-    await expect(repo.updateSplit("group_missing", shared, legs)).rejects.toThrow("找不到拆分群組。");
+    await expect(repo.updateSplit("group_missing", shared, legs)).rejects.toThrow(
+      "找不到拆分群組。",
+    );
     expect(await repo.listLedgerTransactions()).toHaveLength(0);
     const [account] = await repo.listAccounts();
     expect(account.balance).toBe(10_000);
@@ -172,8 +174,9 @@ describeEachRepo("split legs (多類別拆分)", (makeRepo) => {
     const before = await activeGroupRows(repo);
     const groupId = before[0].groupId!;
 
-    await expect(repo.updateSplit(groupId, shared, [{ amount: 100, category: "餐飲", subcategory: "" }]))
-      .rejects.toThrow("拆分至少需要 2 筆明細。");
+    await expect(
+      repo.updateSplit(groupId, shared, [{ amount: 100, category: "餐飲", subcategory: "" }]),
+    ).rejects.toThrow("拆分至少需要 2 筆明細。");
 
     const after = await activeGroupRows(repo);
     expect(after.map((row) => row.id).sort()).toEqual(before.map((row) => row.id).sort());
@@ -249,7 +252,9 @@ describeEachRepo("split legs — 分帳 share legs (plan 221)", (makeRepo) => {
   it("updateSplit keeps shares: 300/700 replaces 400/600, old rows tombstoned with bumped revisions", async () => {
     const repo = await makeRepo({ accounts: [cash, ar] });
     await repo.createSplit(shared, dinnerLegs, [share]);
-    const before = (await repo.listLedgerTransactions()).filter((row) => row.legKind === "category" || row.legKind === "share");
+    const before = (await repo.listLedgerTransactions()).filter(
+      (row) => row.legKind === "category" || row.legKind === "share",
+    );
     const groupId = before[0].groupId!;
 
     await repo.updateSplit(

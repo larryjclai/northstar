@@ -1,7 +1,18 @@
 import { useEffect, useState } from "react";
 import { useUiPreferences } from "../state/uiPreferences";
 
-const PALETTE = ["#f0c050", "#6fb3ff", "#a99cff", "#6ee49a", "#ff7d6b", "#34c5b0", "#f0a050", "#9fe870", "#d97a9c", "#868685"];
+const PALETTE = [
+  "#f0c050",
+  "#6fb3ff",
+  "#a99cff",
+  "#6ee49a",
+  "#ff7d6b",
+  "#34c5b0",
+  "#f0a050",
+  "#9fe870",
+  "#d97a9c",
+  "#868685",
+];
 
 function hashColor(seed: string) {
   let h = 0;
@@ -17,7 +28,15 @@ function hashColor(seed: string) {
  * Privacy note: rendering a logo sends the bare ticker to the CDN. The monogram
  * fallback keeps the feature fully functional even when the network is blocked.
  */
-export function AssetLogo({ ticker, name, size = 32 }: { ticker: string; name?: string; size?: number }) {
+export function AssetLogo({
+  ticker,
+  name,
+  size = 32,
+}: {
+  ticker: string;
+  name?: string;
+  size?: number;
+}) {
   const logosEnabled = useUiPreferences((state) => state.assetLogosEnabled);
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [ticker]);
@@ -26,7 +45,10 @@ export function AssetLogo({ ticker, name, size = 32 }: { ticker: string; name?: 
   const label = (name?.trim() || ticker || "?").slice(0, 2).toUpperCase();
   // Only hit the third-party CDN when the user has opted in; otherwise the
   // colored monogram is shown and no ticker leaves the device.
-  const src = logosEnabled && symbol ? `https://assets.parqet.com/logos/symbol/${encodeURIComponent(symbol)}?format=png&size=64` : "";
+  const src =
+    logosEnabled && symbol
+      ? `https://assets.parqet.com/logos/symbol/${encodeURIComponent(symbol)}?format=png&size=64`
+      : "";
   const radius = Math.round(size * 0.28);
 
   return (
@@ -56,7 +78,15 @@ export function AssetLogo({ ticker, name, size = 32 }: { ticker: string; name?: 
           alt=""
           loading="lazy"
           onError={() => setFailed(true)}
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", background: "#fff", borderRadius: radius }}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            background: "#fff",
+            borderRadius: radius,
+          }}
         />
       ) : null}
     </span>

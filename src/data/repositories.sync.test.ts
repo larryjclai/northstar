@@ -1,6 +1,10 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import { createMemoryFinanceRepositoryForTests, createSqliteFinanceRepositoryForTests, type FinanceRepository } from "./repositories";
+import {
+  createMemoryFinanceRepositoryForTests,
+  createSqliteFinanceRepositoryForTests,
+  type FinanceRepository,
+} from "./repositories";
 
 // Minimal shim of @tauri-apps/plugin-sql's Database over node:sqlite (same as
 // repositories.sqlite-tx.test.ts). plugin-sql uses `$1,$2,…` placeholders;
@@ -9,13 +13,18 @@ function makeShim() {
   const raw = new DatabaseSync(":memory:");
   function named(values?: unknown[]) {
     const obj: Record<string, unknown> = {};
-    (values ?? []).forEach((v, i) => { obj[`$${i + 1}`] = v === undefined ? null : v; });
+    (values ?? []).forEach((v, i) => {
+      obj[`$${i + 1}`] = v === undefined ? null : v;
+    });
     return obj as never;
   }
   return {
     async execute(sql: string, values?: unknown[]) {
       await Promise.resolve();
-      if (!values || values.length === 0) { raw.exec(sql); return { rowsAffected: 0, lastInsertId: 0 }; }
+      if (!values || values.length === 0) {
+        raw.exec(sql);
+        return { rowsAffected: 0, lastInsertId: 0 };
+      }
       const info = raw.prepare(sql).run(named(values));
       return { rowsAffected: Number(info.changes), lastInsertId: Number(info.lastInsertRowid) };
     },
@@ -23,17 +32,31 @@ function makeShim() {
       await Promise.resolve();
       return raw.prepare(sql).all(named(values)) as unknown as T;
     },
-    async close() { raw.close(); return true; },
+    async close() {
+      raw.close();
+      return true;
+    },
   } as never;
 }
 
 async function setupSqlite(): Promise<{ repo: FinanceRepository; accountId: string }> {
   const repo = await createSqliteFinanceRepositoryForTests(makeShim());
   await repo.createAccount({
-    name: "現金", currency: "TWD", openingBalance: 0, type: "cash",
-    creditLimit: null, creditLimitGroup: "", statementDay: null, paymentDueDay: null, creditPaymentPaidUntil: null,
-    isSharedToHousehold: false, loanStartDate: null, annualInterestRate: null, loanTerm: null,
-    iconName: null, color: null,
+    name: "現金",
+    currency: "TWD",
+    openingBalance: 0,
+    type: "cash",
+    creditLimit: null,
+    creditLimitGroup: "",
+    statementDay: null,
+    paymentDueDay: null,
+    creditPaymentPaidUntil: null,
+    isSharedToHousehold: false,
+    loanStartDate: null,
+    annualInterestRate: null,
+    loanTerm: null,
+    iconName: null,
+    color: null,
   } as never);
   const [account] = await repo.listAccounts();
   return { repo, accountId: account.id };
@@ -80,10 +103,21 @@ describe("collectPendingChanges (repository)", () => {
   it("reports created and deleted records as pending changes", async () => {
     const repo = createMemoryFinanceRepositoryForTests({});
     await repo.createAccount({
-      name: "錢包", currency: "TWD", openingBalance: 0, type: "cash",
-      creditLimit: null, creditLimitGroup: "", statementDay: null, paymentDueDay: null, creditPaymentPaidUntil: null,
-      isSharedToHousehold: false, loanStartDate: null, annualInterestRate: null, loanTerm: null,
-      iconName: null, color: null,
+      name: "錢包",
+      currency: "TWD",
+      openingBalance: 0,
+      type: "cash",
+      creditLimit: null,
+      creditLimitGroup: "",
+      statementDay: null,
+      paymentDueDay: null,
+      creditPaymentPaidUntil: null,
+      isSharedToHousehold: false,
+      loanStartDate: null,
+      annualInterestRate: null,
+      loanTerm: null,
+      iconName: null,
+      color: null,
     });
 
     const all = await repo.collectPendingChanges(null);
@@ -111,17 +145,23 @@ describe("sync recurring-occurrence dedup (SQLite)", () => {
     const { repo, accountId } = await setupSqlite();
 
     // Seed row "aaa" via applySyncChanges (simulates local device).
-    await repo.applySyncChanges([{
-      entity: "ledger",
-      payload: makeLedgerPayload("aaa", accountId, OCCURRENCE_KEY),
-    }]);
+    await repo.applySyncChanges([
+      {
+        entity: "ledger",
+        payload: makeLedgerPayload("aaa", accountId, OCCURRENCE_KEY),
+      },
+    ]);
 
     // Apply duplicate from remote device with id "zzz" (> "aaa").
     // Without the dedup fix this would throw UNIQUE constraint error 2067.
-    await expect(repo.applySyncChanges([{
-      entity: "ledger",
-      payload: makeLedgerPayload("zzz", accountId, OCCURRENCE_KEY),
-    }])).resolves.toBeUndefined();
+    await expect(
+      repo.applySyncChanges([
+        {
+          entity: "ledger",
+          payload: makeLedgerPayload("zzz", accountId, OCCURRENCE_KEY),
+        },
+      ]),
+    ).resolves.toBeUndefined();
 
     // Exactly one non-deleted row with this occurrence key.
     const live = await repo.listLedgerTransactions();
@@ -139,16 +179,22 @@ describe("sync recurring-occurrence dedup (SQLite)", () => {
     const { repo, accountId } = await setupSqlite();
 
     // Seed row "aaa" via applySyncChanges (simulates local device).
-    await repo.applySyncChanges([{
-      entity: "ledger",
-      payload: makeLedgerPayload("aaa", accountId, OCCURRENCE_KEY),
-    }]);
+    await repo.applySyncChanges([
+      {
+        entity: "ledger",
+        payload: makeLedgerPayload("aaa", accountId, OCCURRENCE_KEY),
+      },
+    ]);
 
     // Apply duplicate from remote with id "000" (< "aaa") — incoming wins.
-    await expect(repo.applySyncChanges([{
-      entity: "ledger",
-      payload: makeLedgerPayload("000", accountId, OCCURRENCE_KEY),
-    }])).resolves.toBeUndefined();
+    await expect(
+      repo.applySyncChanges([
+        {
+          entity: "ledger",
+          payload: makeLedgerPayload("000", accountId, OCCURRENCE_KEY),
+        },
+      ]),
+    ).resolves.toBeUndefined();
 
     // Exactly one non-deleted row, and it's the incoming "000".
     const live = await repo.listLedgerTransactions();
@@ -173,16 +219,20 @@ describe("sync recurring-occurrence dedup (memory)", () => {
     const repo = createMemoryFinanceRepositoryForTests({});
 
     // Seed the existing occurrence row tx_bbb (e.g. posted locally).
-    await repo.applySyncChanges([{
-      entity: "ledger",
-      payload: makeLedgerPayload("tx_bbb", "acct_cash", OCCURRENCE_KEY),
-    }]);
+    await repo.applySyncChanges([
+      {
+        entity: "ledger",
+        payload: makeLedgerPayload("tx_bbb", "acct_cash", OCCURRENCE_KEY),
+      },
+    ]);
 
     // Apply a duplicate from a remote device with a smaller id tx_aaa.
-    await repo.applySyncChanges([{
-      entity: "ledger",
-      payload: makeLedgerPayload("tx_aaa", "acct_cash", OCCURRENCE_KEY),
-    }]);
+    await repo.applySyncChanges([
+      {
+        entity: "ledger",
+        payload: makeLedgerPayload("tx_aaa", "acct_cash", OCCURRENCE_KEY),
+      },
+    ]);
 
     const live = await repo.listLedgerTransactions();
     const liveWithKey = live.filter((r) => r.recurringOccurrenceKey === OCCURRENCE_KEY);
@@ -197,15 +247,19 @@ describe("sync recurring-occurrence dedup (memory)", () => {
   it("incoming id > existing id: existing wins, incoming is stored tombstoned", async () => {
     const repo = createMemoryFinanceRepositoryForTests({});
 
-    await repo.applySyncChanges([{
-      entity: "ledger",
-      payload: makeLedgerPayload("tx_aaa", "acct_cash", OCCURRENCE_KEY),
-    }]);
+    await repo.applySyncChanges([
+      {
+        entity: "ledger",
+        payload: makeLedgerPayload("tx_aaa", "acct_cash", OCCURRENCE_KEY),
+      },
+    ]);
 
-    await repo.applySyncChanges([{
-      entity: "ledger",
-      payload: makeLedgerPayload("tx_zzz", "acct_cash", OCCURRENCE_KEY),
-    }]);
+    await repo.applySyncChanges([
+      {
+        entity: "ledger",
+        payload: makeLedgerPayload("tx_zzz", "acct_cash", OCCURRENCE_KEY),
+      },
+    ]);
 
     const live = await repo.listLedgerTransactions();
     const liveWithKey = live.filter((r) => r.recurringOccurrenceKey === OCCURRENCE_KEY);

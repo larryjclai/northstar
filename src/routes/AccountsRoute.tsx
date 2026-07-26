@@ -1,4 +1,18 @@
-import { ArrowsClockwise, BookOpen, CaretDown, CaretRight, Check, DownloadSimple, ListChecks, PencilSimple, Percent, Plus, Scales, Trash, MagnifyingGlass } from "@phosphor-icons/react";
+import {
+  ArrowsClockwise,
+  BookOpen,
+  CaretDown,
+  CaretRight,
+  Check,
+  DownloadSimple,
+  ListChecks,
+  PencilSimple,
+  Percent,
+  Plus,
+  Scales,
+  Trash,
+  MagnifyingGlass,
+} from "@phosphor-icons/react";
 import { ReactNode, useMemo, useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -27,7 +41,26 @@ import { ALL_BOOKS } from "../domain/bookScope";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useNumericField } from "../hooks/useNumericField";
 
-type AccountFormState = Pick<Account, "name" | "currency" | "openingBalance" | "type" | "creditLimit" | "creditLimitGroup" | "creditGroupId" | "statementDay" | "paymentDueDay" | "creditPaymentPaidUntil" | "isSharedToHousehold" | "loanStartDate" | "annualInterestRate" | "loanTerm" | "iconName" | "color" | "bankBrandDomain"> & { customGroup: string; bookId: string };
+type AccountFormState = Pick<
+  Account,
+  | "name"
+  | "currency"
+  | "openingBalance"
+  | "type"
+  | "creditLimit"
+  | "creditLimitGroup"
+  | "creditGroupId"
+  | "statementDay"
+  | "paymentDueDay"
+  | "creditPaymentPaidUntil"
+  | "isSharedToHousehold"
+  | "loanStartDate"
+  | "annualInterestRate"
+  | "loanTerm"
+  | "iconName"
+  | "color"
+  | "bankBrandDomain"
+> & { customGroup: string; bookId: string };
 
 const emptyAccount: AccountFormState = {
   name: "",
@@ -53,7 +86,15 @@ const emptyAccount: AccountFormState = {
   bookId: "",
 };
 
-const accountTypes: AccountType[] = ["depository", "cash", "credit", "loan", "investment", "alternative", "other"];
+const accountTypes: AccountType[] = [
+  "depository",
+  "cash",
+  "credit",
+  "loan",
+  "investment",
+  "alternative",
+  "other",
+];
 const accountTypeLabels: Record<AccountType, string> = {
   depository: "銀行帳戶",
   cash: "現金",
@@ -73,7 +114,18 @@ const accountTypeDescriptions: Record<AccountType, string> = {
   other: "其他類型",
 };
 
-const ACCOUNT_COLORS = ["#f0c050", "#6fb3ff", "#a99cff", "#6ee49a", "#ff7d6b", "#34c5b0", "#f0a050", "#9fe870", "#d97a9c", "#868685"];
+const ACCOUNT_COLORS = [
+  "#f0c050",
+  "#6fb3ff",
+  "#a99cff",
+  "#6ee49a",
+  "#ff7d6b",
+  "#34c5b0",
+  "#f0a050",
+  "#9fe870",
+  "#d97a9c",
+  "#868685",
+];
 
 // Display grouping that mirrors the prototype (Cash / Investment / Credit·liabilities / Other).
 const GROUP_ORDER: { key: string; label: string; types: AccountType[] }[] = [
@@ -84,10 +136,17 @@ const GROUP_ORDER: { key: string; label: string; types: AccountType[] }[] = [
   { key: "other", label: "其他", types: ["other"] },
 ];
 
-const MARK_COLORS = ["var(--ns-chart-1)", "var(--ns-chart-2)", "var(--ns-chart-3)", "var(--ns-chart-4)", "var(--ns-chart-5)"];
+const MARK_COLORS = [
+  "var(--ns-chart-1)",
+  "var(--ns-chart-2)",
+  "var(--ns-chart-3)",
+  "var(--ns-chart-4)",
+  "var(--ns-chart-5)",
+];
 
 export function AccountsRoute() {
-  const { accounts, settings, books, creditGroups, isInitialLoading, isError, error, refetchAll } = useFinanceData();
+  const { accounts, settings, books, creditGroups, isInitialLoading, isError, error, refetchAll } =
+    useFinanceData();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const timezone = useUiPreferences((state) => state.timezone);
@@ -108,20 +167,49 @@ export function AccountsRoute() {
   const [accountQuery, setAccountQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all"); // "all" | a GROUP_ORDER key
 
-  const createAccount = useRepositoryMutation((repository, input: AccountFormState) => repository.createAccount(input), ["accounts"]);
-  const updateAccount = useRepositoryMutation((repository, input: AccountFormState & { id: string }) => repository.updateAccount(input.id, input), ["accounts"]);
-  const deleteAccount = useRepositoryMutation((repository, id: string) => repository.deleteAccount(id), ["accounts"]);
+  const createAccount = useRepositoryMutation(
+    (repository, input: AccountFormState) => repository.createAccount(input),
+    ["accounts"],
+  );
+  const updateAccount = useRepositoryMutation(
+    (repository, input: AccountFormState & { id: string }) =>
+      repository.updateAccount(input.id, input),
+    ["accounts"],
+  );
+  const deleteAccount = useRepositoryMutation(
+    (repository, id: string) => repository.deleteAccount(id),
+    ["accounts"],
+  );
   const adjustBalance = useRepositoryMutation(
     (repository, input: { accountId: string; targetBalance: number; date: string; note: string }) =>
       repository.adjustAccountBalance(input.accountId, input.targetBalance, input.date, input.note),
     ["accounts", "ledger"],
   );
-  const createBook = useRepositoryMutation((repository, input: BookDraft) => repository.createBook(input), ["books"]);
-  const updateBook = useRepositoryMutation((repository, input: BookDraft & { id: string }) => repository.updateBook(input.id, input), ["books"]);
-  const deleteBook = useRepositoryMutation((repository, id: string) => repository.deleteBook(id), ["books"]);
-  const createCreditGroup = useRepositoryMutation((repository, input: CreditGroupDraft) => repository.createCreditGroup(input), ["creditGroups"]);
-  const updateCreditGroup = useRepositoryMutation((repository, input: CreditGroupDraft & { id: string }) => repository.updateCreditGroup(input.id, input), ["creditGroups"]);
-  const deleteCreditGroup = useRepositoryMutation((repository, id: string) => repository.deleteCreditGroup(id), ["creditGroups", "accounts"]);
+  const createBook = useRepositoryMutation(
+    (repository, input: BookDraft) => repository.createBook(input),
+    ["books"],
+  );
+  const updateBook = useRepositoryMutation(
+    (repository, input: BookDraft & { id: string }) => repository.updateBook(input.id, input),
+    ["books"],
+  );
+  const deleteBook = useRepositoryMutation(
+    (repository, id: string) => repository.deleteBook(id),
+    ["books"],
+  );
+  const createCreditGroup = useRepositoryMutation(
+    (repository, input: CreditGroupDraft) => repository.createCreditGroup(input),
+    ["creditGroups"],
+  );
+  const updateCreditGroup = useRepositoryMutation(
+    (repository, input: CreditGroupDraft & { id: string }) =>
+      repository.updateCreditGroup(input.id, input),
+    ["creditGroups"],
+  );
+  const deleteCreditGroup = useRepositoryMutation(
+    (repository, id: string) => repository.deleteCreditGroup(id),
+    ["creditGroups", "accounts"],
+  );
 
   const rows = accounts.data ?? [];
   const bookRows = books.data ?? [];
@@ -130,17 +218,20 @@ export function AccountsRoute() {
   // Default book for a NEW account: the active book when a real one is selected,
   // else the first personal book, else the first book (188 guarantees ≥1).
   const defaultCreateBookId = useMemo(() => {
-    if (activeBookId !== ALL_BOOKS && bookRows.some((b) => b.id === activeBookId)) return activeBookId;
+    if (activeBookId !== ALL_BOOKS && bookRows.some((b) => b.id === activeBookId))
+      return activeBookId;
     return (bookRows.find((b) => b.kind === "personal") ?? bookRows[0])?.id ?? "";
   }, [activeBookId, bookRows]);
   const bookNameById = useMemo(() => new Map(bookRows.map((b) => [b.id, b.name])), [bookRows]);
   const primaryCurrency = appSettings?.primaryCurrency ?? "TWD";
   const currencyOptions = useMemo(() => buildConfiguredCurrencyOptions(appSettings), [appSettings]);
-  const selectedCurrency = currencyOptions.includes(form.currency) ? form.currency : currencyOptions[0];
+  const selectedCurrency = currencyOptions.includes(form.currency)
+    ? form.currency
+    : currencyOptions[0];
   const isEditing = Boolean(editingId);
 
   const toBase = (value: number, currency: string) =>
-    appSettings ? convertCurrency(value, currency, primaryCurrency, appSettings) ?? value : value;
+    appSettings ? (convertCurrency(value, currency, primaryCurrency, appSettings) ?? value) : value;
 
   // Currency breakdown (by native currency, valued in base).
   const currencyBreakdown = useMemo(() => {
@@ -153,7 +244,12 @@ export function AccountsRoute() {
     }
     const totalAbs = [...byCcy.values()].reduce((s, v) => s + Math.abs(v.base), 0) || 1;
     return [...byCcy.entries()]
-      .map(([ccy, v], i) => ({ ccy, ...v, pct: (Math.abs(v.base) / totalAbs) * 100, color: MARK_COLORS[i % MARK_COLORS.length] }))
+      .map(([ccy, v], i) => ({
+        ccy,
+        ...v,
+        pct: (Math.abs(v.base) / totalAbs) * 100,
+        color: MARK_COLORS[i % MARK_COLORS.length],
+      }))
       .sort((a, b) => Math.abs(b.base) - Math.abs(a.base))
       .slice(0, 4);
   }, [rows, appSettings]);
@@ -162,7 +258,11 @@ export function AccountsRoute() {
     return GROUP_ORDER.map((g) => {
       const groupRows = rows
         .filter((a) => g.types.includes(a.type))
-        .sort((a, b) => (a.customGroup || "未分組").localeCompare(b.customGroup || "未分組") || a.name.localeCompare(b.name));
+        .sort(
+          (a, b) =>
+            (a.customGroup || "未分組").localeCompare(b.customGroup || "未分組") ||
+            a.name.localeCompare(b.name),
+        );
       const total = groupRows.reduce((s, a) => s + toBase(a.balance, a.currency), 0);
       return { ...g, rows: groupRows, total };
     }).filter((g) => g.rows.length > 0);
@@ -172,7 +272,10 @@ export function AccountsRoute() {
     const q = accountQuery.trim().toLowerCase();
     return groups
       .filter((g) => typeFilter === "all" || g.key === typeFilter)
-      .map((g) => ({ ...g, rows: q ? g.rows.filter((a) => a.name.toLowerCase().includes(q)) : g.rows }))
+      .map((g) => ({
+        ...g,
+        rows: q ? g.rows.filter((a) => a.name.toLowerCase().includes(q)) : g.rows,
+      }))
       .filter((g) => g.rows.length > 0);
   }, [groups, accountQuery, typeFilter]);
 
@@ -180,10 +283,12 @@ export function AccountsRoute() {
   // liabilities = the magnitude of negative balances, so assets − liabilities
   // = net worth. `gross` is the denominator for each account's weight bar.
   const totals = useMemo(() => {
-    let assets = 0, liabilities = 0;
+    let assets = 0,
+      liabilities = 0;
     for (const a of rows) {
       const b = toBase(a.balance, a.currency);
-      if (b >= 0) assets += b; else liabilities += -b;
+      if (b >= 0) assets += b;
+      else liabilities += -b;
     }
     return { assets, liabilities, net: assets - liabilities, gross: assets + liabilities };
   }, [rows, appSettings]);
@@ -199,12 +304,22 @@ export function AccountsRoute() {
     setEditingId(account.id);
     setTypeStep(account.type);
     setForm({
-      name: account.name, currency: account.currency, openingBalance: account.openingBalance, type: account.type,
-      creditLimit: account.creditLimit, creditLimitGroup: account.creditLimitGroup, creditGroupId: account.creditGroupId ?? null, isSharedToHousehold: account.isSharedToHousehold,
-      loanStartDate: account.loanStartDate, annualInterestRate: account.annualInterestRate, loanTerm: account.loanTerm,
-      iconName: account.iconName ?? null, color: account.color ?? null,
+      name: account.name,
+      currency: account.currency,
+      openingBalance: account.openingBalance,
+      type: account.type,
+      creditLimit: account.creditLimit,
+      creditLimitGroup: account.creditLimitGroup,
+      creditGroupId: account.creditGroupId ?? null,
+      isSharedToHousehold: account.isSharedToHousehold,
+      loanStartDate: account.loanStartDate,
+      annualInterestRate: account.annualInterestRate,
+      loanTerm: account.loanTerm,
+      iconName: account.iconName ?? null,
+      color: account.color ?? null,
       bankBrandDomain: account.bankBrandDomain ?? null,
-      statementDay: account.statementDay ?? null, paymentDueDay: account.paymentDueDay ?? null,
+      statementDay: account.statementDay ?? null,
+      paymentDueDay: account.paymentDueDay ?? null,
       creditPaymentPaidUntil: account.creditPaymentPaidUntil ?? null,
       customGroup: account.customGroup ?? "",
       bookId: account.bookId,
@@ -222,7 +337,10 @@ export function AccountsRoute() {
 
   async function submit() {
     setMessage("");
-    if (!form.name.trim()) { setMessage("請輸入帳戶名稱。"); return; }
+    if (!form.name.trim()) {
+      setMessage("請輸入帳戶名稱。");
+      return;
+    }
     try {
       const payload = { ...form, currency: selectedCurrency };
       if (editingId) await updateAccount.mutateAsync({ ...payload, id: editingId });
@@ -241,8 +359,13 @@ export function AccountsRoute() {
   async function handleCreateCreditGroup(input: CreditGroupDraft): Promise<string | null> {
     await createCreditGroup.mutateAsync(input);
     const fresh = queryClient.getQueryData<CreditGroup[]>(queryKeys.creditGroups) ?? [];
-    const matches = fresh.filter((g) => g.name === input.name && g.currency === input.currency && !g.deletedAt);
-    const newest = matches.reduce<CreditGroup | null>((best, g) => (!best || g.createdAt > best.createdAt ? g : best), null);
+    const matches = fresh.filter(
+      (g) => g.name === input.name && g.currency === input.currency && !g.deletedAt,
+    );
+    const newest = matches.reduce<CreditGroup | null>(
+      (best, g) => (!best || g.createdAt > best.createdAt ? g : best),
+      null,
+    );
     return newest?.id ?? null;
   }
 
@@ -255,13 +378,22 @@ export function AccountsRoute() {
     for (const member of members) {
       await updateAccount.mutateAsync({
         id: member.id,
-        name: member.name, currency: member.currency, openingBalance: member.openingBalance, type: member.type,
-        creditLimit: member.creditLimit, creditLimitGroup: member.creditLimitGroup, creditGroupId: null,
+        name: member.name,
+        currency: member.currency,
+        openingBalance: member.openingBalance,
+        type: member.type,
+        creditLimit: member.creditLimit,
+        creditLimitGroup: member.creditLimitGroup,
+        creditGroupId: null,
         isSharedToHousehold: member.isSharedToHousehold,
-        loanStartDate: member.loanStartDate, annualInterestRate: member.annualInterestRate, loanTerm: member.loanTerm,
-        iconName: member.iconName ?? null, color: member.color ?? null,
+        loanStartDate: member.loanStartDate,
+        annualInterestRate: member.annualInterestRate,
+        loanTerm: member.loanTerm,
+        iconName: member.iconName ?? null,
+        color: member.color ?? null,
         bankBrandDomain: member.bankBrandDomain ?? null,
-        statementDay: member.statementDay ?? null, paymentDueDay: member.paymentDueDay ?? null,
+        statementDay: member.statementDay ?? null,
+        paymentDueDay: member.paymentDueDay ?? null,
         creditPaymentPaidUntil: member.creditPaymentPaidUntil ?? null,
         customGroup: member.customGroup ?? "",
         bookId: member.bookId,
@@ -280,15 +412,25 @@ export function AccountsRoute() {
   async function submitAdjust() {
     setAdjustMessage("");
     const target = Number(adjustTarget);
-    if (Number.isNaN(target)) { setAdjustMessage("請輸入有效的目標餘額。"); return; }
+    if (Number.isNaN(target)) {
+      setAdjustMessage("請輸入有效的目標餘額。");
+      return;
+    }
     try {
-      await adjustBalance.mutateAsync({ accountId: adjustingAccountId!, targetBalance: target, date: adjustDate, note: adjustNote.trim() || "手動調整餘額" });
+      await adjustBalance.mutateAsync({
+        accountId: adjustingAccountId!,
+        targetBalance: target,
+        date: adjustDate,
+        note: adjustNote.trim() || "手動調整餘額",
+      });
       setAdjustingAccountId(null);
     } catch (error) {
       setAdjustMessage(error instanceof Error ? error.message : "調整失敗。");
     }
   }
-  const adjustingAccount = adjustingAccountId ? rows.find((r) => r.id === adjustingAccountId) : null;
+  const adjustingAccount = adjustingAccountId
+    ? rows.find((r) => r.id === adjustingAccountId)
+    : null;
 
   async function recalculate() {
     setRecalculating(true);
@@ -297,7 +439,9 @@ export function AccountsRoute() {
       const repository = await getFinanceRepository();
       const report = await repository.recalculateDerivedData();
       await queryClient.invalidateQueries();
-      setMessage(`重新計算完成：修正 ${report.changedAccounts} 個帳戶、${report.changedAssets} 個持倉。${report.incompleteTransferGroupIds.length ? ` 發現 ${report.incompleteTransferGroupIds.length} 組不完整轉帳。` : ""}${report.incompleteDripGroupIds.length ? ` 發現 ${report.incompleteDripGroupIds.length} 筆股利再投入紀錄不完整（同步中，稍後會自動補齊）。` : ""}${report.incompleteSplitGroupIds.length ? ` 發現 ${report.incompleteSplitGroupIds.length} 筆拆分交易不完整（同步中，稍後會自動補齊）。` : ""}${report.missingFxPairs.length ? ` 缺少匯率：${report.missingFxPairs.join("、")}。` : ""}`);
+      setMessage(
+        `重新計算完成：修正 ${report.changedAccounts} 個帳戶、${report.changedAssets} 個持倉。${report.incompleteTransferGroupIds.length ? ` 發現 ${report.incompleteTransferGroupIds.length} 組不完整轉帳。` : ""}${report.incompleteDripGroupIds.length ? ` 發現 ${report.incompleteDripGroupIds.length} 筆股利再投入紀錄不完整（同步中，稍後會自動補齊）。` : ""}${report.incompleteSplitGroupIds.length ? ` 發現 ${report.incompleteSplitGroupIds.length} 筆拆分交易不完整（同步中，稍後會自動補齊）。` : ""}${report.missingFxPairs.length ? ` 缺少匯率：${report.missingFxPairs.join("、")}。` : ""}`,
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "重新計算失敗。");
     } finally {
@@ -321,10 +465,15 @@ export function AccountsRoute() {
     return (
       <div className="grid min-h-[50vh] place-items-center p-6 text-center">
         <div className="max-w-md">
-          <h3 className="text-[17px] font-semibold" style={{ fontFamily: "var(--ns-font-display)" }}>
+          <h3
+            className="text-[17px] font-semibold"
+            style={{ fontFamily: "var(--ns-font-display)" }}
+          >
             無法載入資料
           </h3>
-          <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
+          <p className="muted mt-1 text-sm">
+            {error instanceof Error ? error.message : "請稍後再試。"}
+          </p>
           <Button className="mt-4" onClick={() => refetchAll()}>
             重新整理
           </Button>
@@ -334,18 +483,43 @@ export function AccountsRoute() {
   }
 
   return (
-    <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]" style={{ maxWidth: 1180, margin: "0 auto" }}>
+    <div
+      className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]"
+      style={{ maxWidth: 1180, margin: "0 auto" }}
+    >
       {/* Header */}
       <div className="flex items-end justify-between flex-wrap gap-4" style={{ marginBottom: 22 }}>
         <div>
-          <div className="text-xs ns-field-label">{rows.length} accounts · {primaryCurrency} base</div>
-          <h1 className="text-[28px] font-semibold" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02 }}>帳戶</h1>
+          <div className="text-xs ns-field-label">
+            {rows.length} accounts · {primaryCurrency} base
+          </div>
+          <h1
+            className="text-[28px] font-semibold"
+            style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02 }}
+          >
+            帳戶
+          </h1>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setBookManagerOpen(true)}><BookOpen size={14} />帳本</Button>
-          <Button variant="outline" onClick={recalculate} loading={recalculating}><ArrowsClockwise size={14} />{recalculating ? "計算中…" : "重新計算"}</Button>
-          <Button variant="outline" onClick={() => downloadCsv("northstar-accounts.csv", exportAccountsCsv(rows))}><DownloadSimple size={14} />匯出</Button>
-          <Button onClick={openCreate}><Plus size={14} weight="bold" />新增帳戶</Button>
+          <Button variant="outline" onClick={() => setBookManagerOpen(true)}>
+            <BookOpen size={14} />
+            帳本
+          </Button>
+          <Button variant="outline" onClick={recalculate} loading={recalculating}>
+            <ArrowsClockwise size={14} />
+            {recalculating ? "計算中…" : "重新計算"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => downloadCsv("northstar-accounts.csv", exportAccountsCsv(rows))}
+          >
+            <DownloadSimple size={14} />
+            匯出
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus size={14} weight="bold" />
+            新增帳戶
+          </Button>
         </div>
       </div>
 
@@ -357,19 +531,36 @@ export function AccountsRoute() {
           visibly sum. */}
       {rows.length > 0 ? (
         <Card className="ns-holdings-summary mb-3.5" data-cols="3">
-          {([
+          {[
             { label: "總資產", value: totals.assets, tone: undefined },
             { label: "總負債", value: totals.liabilities, tone: "neg" as const },
-            { label: "淨值", value: totals.net, tone: totals.net < 0 ? "neg" as const : undefined },
-          ]).map((c) => (
+            {
+              label: "淨值",
+              value: totals.net,
+              tone: totals.net < 0 ? ("neg" as const) : undefined,
+            },
+          ].map((c) => (
             <div key={c.label} className="ns-holdings-summary-col min-w-0">
-              <div className="text-xs mb-2 shrink-0 font-medium" style={{ color: "var(--ns-fg-muted)" }}>{c.label}</div>
+              <div
+                className="text-xs mb-2 shrink-0 font-medium"
+                style={{ color: "var(--ns-fg-muted)" }}
+              >
+                {c.label}
+              </div>
               <div
                 className={`num${c.tone === "neg" ? " neg" : ""}`}
-                style={{ fontSize: "clamp(14px, 1.7vw, 22px)", fontWeight: 500, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                style={{
+                  fontSize: "clamp(14px, 1.7vw, 22px)",
+                  fontWeight: 500,
+                  minWidth: 0,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
                 title={`${c.tone === "neg" && c.value !== 0 ? "−" : ""}${formatNumber(Math.abs(c.value))}`}
               >
-                {c.tone === "neg" && c.value !== 0 ? "−" : ""}{formatNumber(Math.abs(c.value))}
+                {c.tone === "neg" && c.value !== 0 ? "−" : ""}
+                {formatNumber(Math.abs(c.value))}
               </div>
             </div>
           ))}
@@ -381,8 +572,13 @@ export function AccountsRoute() {
           plan 210) instead of a grid of per-currency progress-bar cards. */}
       {currencyBreakdown.length > 1 ? (
         <Card className="p-5 mb-5">
-          <div className="text-xs mb-3.5 font-medium" style={{ color: "var(--ns-fg-muted)" }}>幣別配置</div>
-          <div className="ns-holdings-alloc-bar" title={currencyBreakdown.map((c) => `${c.ccy} ${c.pct.toFixed(1)}%`).join(" · ")}>
+          <div className="text-xs mb-3.5 font-medium" style={{ color: "var(--ns-fg-muted)" }}>
+            幣別配置
+          </div>
+          <div
+            className="ns-holdings-alloc-bar"
+            title={currencyBreakdown.map((c) => `${c.ccy} ${c.pct.toFixed(1)}%`).join(" · ")}
+          >
             {currencyBreakdown.map((c) => (
               <div
                 key={c.ccy}
@@ -394,25 +590,39 @@ export function AccountsRoute() {
           <div className="ns-holdings-allocation-list mt-3.5">
             {currencyBreakdown.map((c) => (
               <div key={c.ccy} className="text-xs flex items-center gap-2 min-w-0">
-                <span style={{ width: 9, height: 9, borderRadius: 2, background: c.color, flexShrink: 0 }} />
-                <span className="flex-1 min-w-0 truncate" title={c.ccy}>{c.ccy}</span>
-                <span className="mono dim shrink-0">{formatNumber(c.base)} · {c.pct.toFixed(1)}%</span>
+                <span
+                  style={{
+                    width: 9,
+                    height: 9,
+                    borderRadius: 2,
+                    background: c.color,
+                    flexShrink: 0,
+                  }}
+                />
+                <span className="flex-1 min-w-0 truncate" title={c.ccy}>
+                  {c.ccy}
+                </span>
+                <span className="mono dim shrink-0">
+                  {formatNumber(c.base)} · {c.pct.toFixed(1)}%
+                </span>
               </div>
             ))}
           </div>
         </Card>
-      ) : <div className="mb-1.5" />}
+      ) : (
+        <div className="mb-1.5" />
+      )}
 
       {/* Search + type filter — only shown when there are enough accounts */}
       {rows.length > 5 ? (
         <div className="flex flex-wrap items-center gap-2 mb-4">
           <label className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--ns-bg-hover)] border border-[var(--ns-border)] focus-within:border-[var(--ns-accent)] focus-within:ring-1 focus-within:ring-[var(--ns-accent)] transition-all flex-1 min-w-[200px] max-w-[320px]">
             <MagnifyingGlass size={14} className="text-[var(--ns-fg-muted)]" />
-            <input 
-              className="bg-transparent border-none outline-none text-sm w-full placeholder:text-[var(--ns-fg-muted)] text-[var(--ns-fg)]" 
-              value={accountQuery} 
-              onChange={(e) => setAccountQuery(e.target.value)} 
-              placeholder="搜尋帳戶名稱…" 
+            <input
+              className="bg-transparent border-none outline-none text-sm w-full placeholder:text-[var(--ns-fg-muted)] text-[var(--ns-fg)]"
+              value={accountQuery}
+              onChange={(e) => setAccountQuery(e.target.value)}
+              placeholder="搜尋帳戶名稱…"
             />
           </label>
           <FilterPill
@@ -428,10 +638,17 @@ export function AccountsRoute() {
       {rows.length === 0 ? (
         <Card className="p-12 text-center">
           <div className="font-semibold mb-1.5">還沒有帳戶</div>
-          <div className="muted text-body" style={{ marginBottom: 18 }}>新增銀行、現金、信用卡或券商帳戶，或用導覽選擇 CSV 匯入與示範資料。</div>
+          <div className="muted text-body" style={{ marginBottom: 18 }}>
+            新增銀行、現金、信用卡或券商帳戶，或用導覽選擇 CSV 匯入與示範資料。
+          </div>
           <div className="flex flex-wrap justify-center gap-2">
-            <Button onClick={openCreate}><Plus size={14} weight="bold" />新增第一個帳戶</Button>
-            <Button variant="outline" onClick={openOnboarding}>開啟導覽</Button>
+            <Button onClick={openCreate}>
+              <Plus size={14} weight="bold" />
+              新增第一個帳戶
+            </Button>
+            <Button variant="outline" onClick={openOnboarding}>
+              開啟導覽
+            </Button>
           </div>
         </Card>
       ) : visibleGroups.length === 0 ? (
@@ -440,127 +657,291 @@ export function AccountsRoute() {
         <div className="grid gap-4">
           {visibleGroups.map((g) => (
             <Card key={g.key} className="p-0">
-              <div onClick={() => setCollapsedGroups((current) => {
-                const next = new Set(current);
-                if (next.has(g.key)) next.delete(g.key); else next.add(g.key);
-                return next;
-              })} className="flex items-center justify-between cursor-pointer" style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)" }}>
-                <h3 className="text-[15px] flex items-center gap-[7px]" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}>{collapsedGroups.has(g.key) ? <CaretRight size={14} /> : <CaretDown size={14} />}{g.label}</h3>
+              <div
+                onClick={() =>
+                  setCollapsedGroups((current) => {
+                    const next = new Set(current);
+                    if (next.has(g.key)) next.delete(g.key);
+                    else next.add(g.key);
+                    return next;
+                  })
+                }
+                className="flex items-center justify-between cursor-pointer"
+                style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)" }}
+              >
+                <h3
+                  className="text-[15px] flex items-center gap-[7px]"
+                  style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 500 }}
+                >
+                  {collapsedGroups.has(g.key) ? <CaretRight size={14} /> : <CaretDown size={14} />}
+                  {g.label}
+                </h3>
                 <div className="flex items-center gap-3.5">
                   <span className="dim mono text-caption">{g.rows.length} accounts</span>
-                  <span className="num text-base" style={{ fontWeight: 500, color: g.total < 0 ? "var(--ns-neg)" : undefined }}>
-                    {g.total < 0 ? "−" : ""}{formatNumber(Math.abs(g.total))}
+                  <span
+                    className="num text-base"
+                    style={{ fontWeight: 500, color: g.total < 0 ? "var(--ns-neg)" : undefined }}
+                  >
+                    {g.total < 0 ? "−" : ""}
+                    {formatNumber(Math.abs(g.total))}
                   </span>
                 </div>
               </div>
-              {!collapsedGroups.has(g.key) && g.rows.map((a, i) => {
-                const base = toBase(a.balance, a.currency);
-                const groupCredit = a.type === "credit" && a.creditGroupId ? calculateCreditGroup(a.creditGroupId, rows, creditGroupRows) : null;
-                const subgroup = a.customGroup || "未分組";
-                const showSubgroup = i === 0 || (g.rows[i - 1].customGroup || "未分組") !== subgroup;
+              {!collapsedGroups.has(g.key) &&
+                g.rows.map((a, i) => {
+                  const base = toBase(a.balance, a.currency);
+                  const groupCredit =
+                    a.type === "credit" && a.creditGroupId
+                      ? calculateCreditGroup(a.creditGroupId, rows, creditGroupRows)
+                      : null;
+                  const subgroup = a.customGroup || "未分組";
+                  const showSubgroup =
+                    i === 0 || (g.rows[i - 1].customGroup || "未分組") !== subgroup;
 
-                // Accent color: user color > brand color > chart palette fallback
-                const brand = resolveBankBrand(a.name, a.bankBrandDomain);
-                const accentColor = a.color || brand?.brandColor || MARK_COLORS[i % MARK_COLORS.length];
+                  // Accent color: user color > brand color > chart palette fallback
+                  const brand = resolveBankBrand(a.name, a.bankBrandDomain);
+                  const accentColor =
+                    a.color || brand?.brandColor || MARK_COLORS[i % MARK_COLORS.length];
 
-                // Credit utilization bar (per-card; group limit used when set)
-                const creditLimit = groupCredit?.limit || a.creditLimit;
-                const creditUsed = groupCredit ? groupCredit.used : Math.max(0, -a.balance);
-                const utilPct = a.type === "credit" && creditLimit ? Math.min(100, (creditUsed / creditLimit) * 100) : null;
-                const utilBarColor = utilPct !== null && utilPct >= 80 ? "var(--ns-neg)" : accentColor;
+                  // Credit utilization bar (per-card; group limit used when set)
+                  const creditLimit = groupCredit?.limit || a.creditLimit;
+                  const creditUsed = groupCredit ? groupCredit.used : Math.max(0, -a.balance);
+                  const utilPct =
+                    a.type === "credit" && creditLimit
+                      ? Math.min(100, (creditUsed / creditLimit) * 100)
+                      : null;
+                  const utilBarColor =
+                    utilPct !== null && utilPct >= 80 ? "var(--ns-neg)" : accentColor;
 
-                return (
-                  <div key={a.id}>
-                  {showSubgroup ? <div className="text-xs" style={{ padding: "10px 22px 4px", borderTop: i ? "1px solid var(--ns-border)" : "none", color: "var(--ns-fg-muted)", fontWeight: 500 }}>{subgroup}</div> : null}
-                  <div
-                    className="ns-acct-row flex items-center flex-wrap gap-3.5 gap-y-2.5"
-                    style={{
-                      padding: "12px 18px",
-                      borderTop: !showSubgroup && i ? "1px solid var(--ns-border)" : "none",
-                    }}
-                  >
-                    <div className="flex items-center justify-center font-semibold shrink-0 overflow-hidden" style={{ position: "relative", width: 36, height: 36, borderRadius: "var(--ns-r-sm)", background: a.color || brand?.brandColor || MARK_COLORS[i % MARK_COLORS.length], color: "var(--ns-bg)" }}>
-                      <Glyph name={a.iconName || DEFAULT_ACCOUNT_ICON[a.type]} size={20} color="var(--ns-bg)" fallbackText={a.name.slice(0, 2)} />
-                      <BankLogo accountName={a.name} bankBrandDomain={a.bankBrandDomain} size={36} />
-                    </div>
-                    <div
-                      className="min-w-0 cursor-pointer"
-                      style={{ maxWidth: 280, flexShrink: 1 }}
-                      onClick={() => navigate({ to: "/cash-flow", search: { account: a.id } })}
-                      title={`查看「${a.name}」的交易紀錄`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="ns-acct-name text-sm font-medium truncate">{a.name}</span>
-                        <Badge variant="outline" className="rounded-full">{a.currency}</Badge>
-                      </div>
-                      <div className="muted text-xs" style={{ marginTop: 2 }}>
-                        {accountTypeLabels[a.type]}
-                        {a.type === "credit" && a.creditLimit ? ` · 額度 ${formatNumber(a.creditLimit)}` : ""}
-                        {groupCredit ? ` · 共用 ${groupCredit.name}` : ""}
-                        {a.type === "loan" && a.annualInterestRate !== null ? ` · 年利率 ${a.annualInterestRate}%` : ""}
-                        {a.type === "credit" && a.paymentDueDay ? ` · 繳款 ${a.paymentDueDay} 日` : ""}
-                      </div>
-                      {utilPct !== null ? (
-                        <div style={{ marginTop: 5 }}>
-                          <div className="overflow-hidden" style={{ height: 3, borderRadius: 99, background: "var(--ns-bg-hover)" }}>
-                              <div className="ns-progress-fill" style={{ background: utilBarColor, transform: `scaleX(${(utilPct ?? 0) / 100})` }} />
-                          </div>
+                  return (
+                    <div key={a.id}>
+                      {showSubgroup ? (
+                        <div
+                          className="text-xs"
+                          style={{
+                            padding: "10px 22px 4px",
+                            borderTop: i ? "1px solid var(--ns-border)" : "none",
+                            color: "var(--ns-fg-muted)",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {subgroup}
                         </div>
                       ) : null}
-                    </div>
-                    {/* Amount + actions travel together as the right cluster so
+                      <div
+                        className="ns-acct-row flex items-center flex-wrap gap-3.5 gap-y-2.5"
+                        style={{
+                          padding: "12px 18px",
+                          borderTop: !showSubgroup && i ? "1px solid var(--ns-border)" : "none",
+                        }}
+                      >
+                        <div
+                          className="flex items-center justify-center font-semibold shrink-0 overflow-hidden"
+                          style={{
+                            position: "relative",
+                            width: 36,
+                            height: 36,
+                            borderRadius: "var(--ns-r-sm)",
+                            background:
+                              a.color || brand?.brandColor || MARK_COLORS[i % MARK_COLORS.length],
+                            color: "var(--ns-bg)",
+                          }}
+                        >
+                          <Glyph
+                            name={a.iconName || DEFAULT_ACCOUNT_ICON[a.type]}
+                            size={20}
+                            color="var(--ns-bg)"
+                            fallbackText={a.name.slice(0, 2)}
+                          />
+                          <BankLogo
+                            accountName={a.name}
+                            bankBrandDomain={a.bankBrandDomain}
+                            size={36}
+                          />
+                        </div>
+                        <div
+                          className="min-w-0 cursor-pointer"
+                          style={{ maxWidth: 280, flexShrink: 1 }}
+                          onClick={() => navigate({ to: "/cash-flow", search: { account: a.id } })}
+                          title={`查看「${a.name}」的交易紀錄`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="ns-acct-name text-sm font-medium truncate">
+                              {a.name}
+                            </span>
+                            <Badge variant="outline" className="rounded-full">
+                              {a.currency}
+                            </Badge>
+                          </div>
+                          <div className="muted text-xs" style={{ marginTop: 2 }}>
+                            {accountTypeLabels[a.type]}
+                            {a.type === "credit" && a.creditLimit
+                              ? ` · 額度 ${formatNumber(a.creditLimit)}`
+                              : ""}
+                            {groupCredit ? ` · 共用 ${groupCredit.name}` : ""}
+                            {a.type === "loan" && a.annualInterestRate !== null
+                              ? ` · 年利率 ${a.annualInterestRate}%`
+                              : ""}
+                            {a.type === "credit" && a.paymentDueDay
+                              ? ` · 繳款 ${a.paymentDueDay} 日`
+                              : ""}
+                          </div>
+                          {utilPct !== null ? (
+                            <div style={{ marginTop: 5 }}>
+                              <div
+                                className="overflow-hidden"
+                                style={{
+                                  height: 3,
+                                  borderRadius: 99,
+                                  background: "var(--ns-bg-hover)",
+                                }}
+                              >
+                                <div
+                                  className="ns-progress-fill"
+                                  style={{
+                                    background: utilBarColor,
+                                    transform: `scaleX(${(utilPct ?? 0) / 100})`,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                        {/* Amount + actions travel together as the right cluster so
                         they wrap to a second line as a unit on a narrow phone
                         instead of forcing the row (and card) wider than screen. */}
-                    <div className="flex items-center gap-3 ml-auto">
-                      <div className="text-right">
-                        {a.type === "credit" ? (() => {
-                          const cb = creditBalanceLabel(a.balance);
-                          const toneColor = cb.state === "owed" ? "var(--ns-neg)" : cb.state === "credit" ? "var(--ns-pos)" : "var(--ns-fg-dim)";
-                          return (
-                            <>
-                              <div className="num text-[15px] font-medium" style={{ color: toneColor }}>
-                                {cb.state === "owed" ? "−" : cb.state === "credit" ? "+" : ""}{formatNumber(Math.abs(toBase(cb.state === "zero" ? 0 : a.balance, a.currency)))}
-                              </div>
-                              <div className="muted text-caption">{cb.label}</div>
-                            </>
-                          );
-                        })() : (
-                          <>
-                            <div className="num text-[15px] font-medium" style={{ color: a.balance < 0 ? "var(--ns-neg)" : undefined }}>
-                              {a.balance < 0 ? "−" : ""}{formatNumber(Math.abs(base))}
-                            </div>
-                            {a.currency !== primaryCurrency ? <div className="muted mono text-caption">{formatNumber(a.balance)} {a.currency}</div> : null}
-                          </>
-                        )}
-                      </div>
-                      <div className="ns-acct-actions flex gap-1">
-                        {a.type === "credit" ? (
-                          <Button variant="ghost" size="icon-sm" title="對帳" onClick={() => navigate({ to: "/cash-flow/reconcile/$accountId", params: { accountId: a.id } })}><ListChecks size={14} /></Button>
-                        ) : null}
-                        {a.type === "investment" ? (
-                          <Button variant="ghost" size="icon-sm" title="交易成本設定" onClick={() => navigate({ to: "/settings", search: { tab: "tradingFees" } })}><Percent size={14} /></Button>
-                        ) : null}
-                        <Button variant="ghost" size="icon-sm" title="編輯" onClick={() => startEdit(a)}><PencilSimple size={14} /></Button>
-                        <Button variant="ghost" size="icon-sm" title="調整餘額" onClick={() => openAdjust(a)}><Scales size={14} /></Button>
-                        <Button variant="destructive-outline" size="icon-sm" title="刪除" onClick={async () => { try { await deleteAccount.mutateAsync(a.id); } catch (e) { setMessage(e instanceof Error ? e.message : "刪除失敗。"); } }}><Trash size={14} /></Button>
+                        <div className="flex items-center gap-3 ml-auto">
+                          <div className="text-right">
+                            {a.type === "credit" ? (
+                              (() => {
+                                const cb = creditBalanceLabel(a.balance);
+                                const toneColor =
+                                  cb.state === "owed"
+                                    ? "var(--ns-neg)"
+                                    : cb.state === "credit"
+                                      ? "var(--ns-pos)"
+                                      : "var(--ns-fg-dim)";
+                                return (
+                                  <>
+                                    <div
+                                      className="num text-[15px] font-medium"
+                                      style={{ color: toneColor }}
+                                    >
+                                      {cb.state === "owed" ? "−" : cb.state === "credit" ? "+" : ""}
+                                      {formatNumber(
+                                        Math.abs(
+                                          toBase(cb.state === "zero" ? 0 : a.balance, a.currency),
+                                        ),
+                                      )}
+                                    </div>
+                                    <div className="muted text-caption">{cb.label}</div>
+                                  </>
+                                );
+                              })()
+                            ) : (
+                              <>
+                                <div
+                                  className="num text-[15px] font-medium"
+                                  style={{ color: a.balance < 0 ? "var(--ns-neg)" : undefined }}
+                                >
+                                  {a.balance < 0 ? "−" : ""}
+                                  {formatNumber(Math.abs(base))}
+                                </div>
+                                {a.currency !== primaryCurrency ? (
+                                  <div className="muted mono text-caption">
+                                    {formatNumber(a.balance)} {a.currency}
+                                  </div>
+                                ) : null}
+                              </>
+                            )}
+                          </div>
+                          <div className="ns-acct-actions flex gap-1">
+                            {a.type === "credit" ? (
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                title="對帳"
+                                onClick={() =>
+                                  navigate({
+                                    to: "/cash-flow/reconcile/$accountId",
+                                    params: { accountId: a.id },
+                                  })
+                                }
+                              >
+                                <ListChecks size={14} />
+                              </Button>
+                            ) : null}
+                            {a.type === "investment" ? (
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                title="交易成本設定"
+                                onClick={() =>
+                                  navigate({ to: "/settings", search: { tab: "tradingFees" } })
+                                }
+                              >
+                                <Percent size={14} />
+                              </Button>
+                            ) : null}
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              title="編輯"
+                              onClick={() => startEdit(a)}
+                            >
+                              <PencilSimple size={14} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              title="調整餘額"
+                              onClick={() => openAdjust(a)}
+                            >
+                              <Scales size={14} />
+                            </Button>
+                            <Button
+                              variant="destructive-outline"
+                              size="icon-sm"
+                              title="刪除"
+                              onClick={async () => {
+                                try {
+                                  await deleteAccount.mutateAsync(a.id);
+                                } catch (e) {
+                                  setMessage(e instanceof Error ? e.message : "刪除失敗。");
+                                }
+                              }}
+                            >
+                              <Trash size={14} />
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
             </Card>
           ))}
         </div>
       )}
-      {message ? <Card className="text-body mt-4" style={{ padding: "10px 16px", color: "var(--ns-fg-muted)" }}>{message}</Card> : null}
+      {message ? (
+        <Card
+          className="text-body mt-4"
+          style={{ padding: "10px 16px", color: "var(--ns-fg-muted)" }}
+        >
+          {message}
+        </Card>
+      ) : null}
 
       {/* Add / edit drawer */}
       {drawerOpen ? (
         <AccountDrawer
           isEditing={isEditing}
           typeStep={typeStep}
-          setTypeStep={(t) => { setTypeStep(t); setForm({ ...emptyAccount, type: t, bookId: form.bookId || defaultCreateBookId }); setMessage(""); }}
+          setTypeStep={(t) => {
+            setTypeStep(t);
+            setForm({ ...emptyAccount, type: t, bookId: form.bookId || defaultCreateBookId });
+            setMessage("");
+          }}
           form={form}
           setForm={setForm}
           books={bookRows}
@@ -574,7 +955,12 @@ export function AccountsRoute() {
           onCreateGroup={handleCreateCreditGroup}
           onUpdateGroup={(input) => updateCreditGroup.mutateAsync(input)}
           onDeleteGroup={handleDeleteCreditGroup}
-          groupMutationPending={createCreditGroup.isPending || updateCreditGroup.isPending || deleteCreditGroup.isPending || updateAccount.isPending}
+          groupMutationPending={
+            createCreditGroup.isPending ||
+            updateCreditGroup.isPending ||
+            deleteCreditGroup.isPending ||
+            updateAccount.isPending
+          }
         />
       ) : null}
 
@@ -588,28 +974,59 @@ export function AccountsRoute() {
           panelStyle={{ maxWidth: 420 }}
         >
           {(dismiss) => (
-          <Card className="w-full p-0">
-            <div className="py-4 px-5" style={{ borderBottom: "1px solid var(--ns-border)" }}>
-              <h2 className="text-base font-semibold" style={{ margin: 0 }}>調整餘額 · {adjustingAccount.name}</h2>
-              <div className="muted text-xs" style={{ marginTop: 2 }}>目前餘額：{formatNumber(adjustingAccount.balance)} {adjustingAccount.currency}</div>
-            </div>
-            <div className="py-4 px-5 flex flex-col gap-3.5">
-              <DrawerField label="目標餘額">
-                <input className="ns-input" type="number" value={adjustTarget} onChange={(e) => setAdjustTarget(e.target.value)} />
-              </DrawerField>
-              <DrawerField label="調整時間">
-                <input className="ns-input" type="datetime-local" value={adjustDate} onChange={(e) => setAdjustDate(e.target.value)} />
-              </DrawerField>
-              <DrawerField label="備註（選填）">
-                <input className="ns-input" value={adjustNote} onChange={(e) => setAdjustNote(e.target.value)} placeholder="例如：對帳後修正" />
-              </DrawerField>
-              {adjustMessage ? <div className="text-body" style={{ color: "var(--ns-neg)" }}>{adjustMessage}</div> : null}
-              <div className="flex gap-2">
-                <Button className="flex-1 justify-center" onClick={submitAdjust} loading={adjustBalance.isPending}>{adjustBalance.isPending ? "調整中…" : "確認調整"}</Button>
-                <Button variant="outline" onClick={dismiss}>取消</Button>
+            <Card className="w-full p-0">
+              <div className="py-4 px-5" style={{ borderBottom: "1px solid var(--ns-border)" }}>
+                <h2 className="text-base font-semibold" style={{ margin: 0 }}>
+                  調整餘額 · {adjustingAccount.name}
+                </h2>
+                <div className="muted text-xs" style={{ marginTop: 2 }}>
+                  目前餘額：{formatNumber(adjustingAccount.balance)} {adjustingAccount.currency}
+                </div>
               </div>
-            </div>
-          </Card>
+              <div className="py-4 px-5 flex flex-col gap-3.5">
+                <DrawerField label="目標餘額">
+                  <input
+                    className="ns-input"
+                    type="number"
+                    value={adjustTarget}
+                    onChange={(e) => setAdjustTarget(e.target.value)}
+                  />
+                </DrawerField>
+                <DrawerField label="調整時間">
+                  <input
+                    className="ns-input"
+                    type="datetime-local"
+                    value={adjustDate}
+                    onChange={(e) => setAdjustDate(e.target.value)}
+                  />
+                </DrawerField>
+                <DrawerField label="備註（選填）">
+                  <input
+                    className="ns-input"
+                    value={adjustNote}
+                    onChange={(e) => setAdjustNote(e.target.value)}
+                    placeholder="例如：對帳後修正"
+                  />
+                </DrawerField>
+                {adjustMessage ? (
+                  <div className="text-body" style={{ color: "var(--ns-neg)" }}>
+                    {adjustMessage}
+                  </div>
+                ) : null}
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1 justify-center"
+                    onClick={submitAdjust}
+                    loading={adjustBalance.isPending}
+                  >
+                    {adjustBalance.isPending ? "調整中…" : "確認調整"}
+                  </Button>
+                  <Button variant="outline" onClick={dismiss}>
+                    取消
+                  </Button>
+                </div>
+              </div>
+            </Card>
           )}
         </ModalShell>
       ) : null}
@@ -638,7 +1055,13 @@ export function AccountsRoute() {
  * drives BookDraft in/out.
  */
 function BookManager({
-  books, accounts, onCreate, onUpdate, onDelete, creating, onClose,
+  books,
+  accounts,
+  onCreate,
+  onUpdate,
+  onDelete,
+  creating,
+  onClose,
 }: {
   books: Book[];
   accounts: Account[];
@@ -662,14 +1085,19 @@ function BookManager({
   }, [accounts]);
 
   const toDraft = (b: Book): BookDraft => ({
-    name: b.name, kind: b.kind, color: b.color,
+    name: b.name,
+    kind: b.kind,
+    color: b.color,
     includeInPersonalNetWorth: b.includeInPersonalNetWorth,
     includeInFireMetrics: b.includeInFireMetrics,
   });
 
   async function submitCreate() {
     setError("");
-    if (!newName.trim()) { setError("請輸入帳本名稱。"); return; }
+    if (!newName.trim()) {
+      setError("請輸入帳本名稱。");
+      return;
+    }
     try {
       // Company books default both toggles OFF (a legally separate entity's
       // money isn't the user's personal net worth); personal books default ON.
@@ -703,23 +1131,55 @@ function BookManager({
   }
 
   return (
-    <ModalShell variant="center" title="帳本管理" onClose={onClose} panelClassName="w-full" panelStyle={{ maxWidth: 520 }}>
+    <ModalShell
+      variant="center"
+      title="帳本管理"
+      onClose={onClose}
+      panelClassName="w-full"
+      panelStyle={{ maxWidth: 520 }}
+    >
       {(dismiss) => (
         <Card className="w-full p-0">
-          <div className="py-4 px-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--ns-border)" }}>
-            <h2 className="text-base font-semibold" style={{ margin: 0 }}>帳本管理</h2>
+          <div
+            className="py-4 px-5 flex items-center justify-between"
+            style={{ borderBottom: "1px solid var(--ns-border)" }}
+          >
+            <h2 className="text-base font-semibold" style={{ margin: 0 }}>
+              帳本管理
+            </h2>
             <ModalCloseButton onClick={dismiss} />
           </div>
-          <div className="py-4 px-5 flex flex-col gap-4" style={{ maxHeight: "70vh", overflowY: "auto" }}>
+          <div
+            className="py-4 px-5 flex flex-col gap-4"
+            style={{ maxHeight: "70vh", overflowY: "auto" }}
+          >
             {/* Existing books */}
             <div className="flex flex-col gap-3">
               {books.map((b) => (
-                <div key={b.id} style={{ border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-md)", padding: "12px 14px" }}>
+                <div
+                  key={b.id}
+                  style={{
+                    border: "1px solid var(--ns-border)",
+                    borderRadius: "var(--ns-r-md)",
+                    padding: "12px 14px",
+                  }}
+                >
                   <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
-                    <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: "50%", background: b.color || "var(--ns-fg-dim)", flexShrink: 0 }} />
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: "50%",
+                        background: b.color || "var(--ns-fg-dim)",
+                        flexShrink: 0,
+                      }}
+                    />
                     <span className="font-medium">{b.name}</span>
                     <Badge variant="secondary">{b.kind === "company" ? "公司帳" : "個人帳"}</Badge>
-                    <span className="muted text-xs" style={{ marginLeft: "auto" }}>{accountCountByBook.get(b.id) ?? 0} 個帳戶</span>
+                    <span className="muted text-xs" style={{ marginLeft: "auto" }}>
+                      {accountCountByBook.get(b.id) ?? 0} 個帳戶
+                    </span>
                     {confirmDeleteId === b.id ? (
                       <div className="flex items-center gap-2">
                         <Button
@@ -731,7 +1191,12 @@ function BookManager({
                         >
                           確定刪除
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)} disabled={deletingId === b.id}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setConfirmDeleteId(null)}
+                          disabled={deletingId === b.id}
+                        >
                           取消
                         </Button>
                       </div>
@@ -747,46 +1212,83 @@ function BookManager({
                       </Button>
                     )}
                   </div>
-                  <label className="flex items-center justify-between text-body" style={{ padding: "4px 0", cursor: "pointer" }}>
+                  <label
+                    className="flex items-center justify-between text-body"
+                    style={{ padding: "4px 0", cursor: "pointer" }}
+                  >
                     <span>計入個人淨值</span>
                     <input
                       type="checkbox"
                       checked={b.includeInPersonalNetWorth}
-                      onChange={(e) => void onUpdate(b.id, { ...toDraft(b), includeInPersonalNetWorth: e.target.checked })}
+                      onChange={(e) =>
+                        void onUpdate(b.id, {
+                          ...toDraft(b),
+                          includeInPersonalNetWorth: e.target.checked,
+                        })
+                      }
                     />
                   </label>
-                  <label className="flex items-center justify-between text-body" style={{ padding: "4px 0", cursor: "pointer" }}>
+                  <label
+                    className="flex items-center justify-between text-body"
+                    style={{ padding: "4px 0", cursor: "pointer" }}
+                  >
                     <span>計入 FIRE 指標</span>
                     <input
                       type="checkbox"
                       checked={b.includeInFireMetrics}
-                      onChange={(e) => void onUpdate(b.id, { ...toDraft(b), includeInFireMetrics: e.target.checked })}
+                      onChange={(e) =>
+                        void onUpdate(b.id, {
+                          ...toDraft(b),
+                          includeInFireMetrics: e.target.checked,
+                        })
+                      }
                     />
                   </label>
                 </div>
               ))}
             </div>
-            {error ? <div className="text-body" style={{ color: "var(--ns-neg)" }}>{error}</div> : null}
+            {error ? (
+              <div className="text-body" style={{ color: "var(--ns-neg)" }}>
+                {error}
+              </div>
+            ) : null}
 
             {/* Create new book */}
-            <div style={{ borderTop: "1px solid var(--ns-border)", paddingTop: 14 }} className="flex flex-col gap-3">
+            <div
+              style={{ borderTop: "1px solid var(--ns-border)", paddingTop: 14 }}
+              className="flex flex-col gap-3"
+            >
               <div className="text-xs ns-field-label">新增帳本</div>
               <DrawerField label="名稱">
-                <input className="ns-input" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="例：我的公司、家庭共用" />
+                <input
+                  className="ns-input"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="例：我的公司、家庭共用"
+                />
               </DrawerField>
               <DrawerField label="類型">
                 <AppSelect
                   value={newKind}
                   onChange={(v) => setNewKind(v as BookKind)}
-                  options={[{ value: "company", label: "公司帳" }, { value: "personal", label: "個人帳" }]}
+                  options={[
+                    { value: "company", label: "公司帳" },
+                    { value: "personal", label: "個人帳" },
+                  ]}
                   style={{ width: "100%", height: 40 }}
                 />
               </DrawerField>
               <DrawerField label="顏色（選填，hex）">
-                <input className="ns-input" value={newColor} onChange={(e) => setNewColor(e.target.value)} placeholder="#5b8def" />
+                <input
+                  className="ns-input"
+                  value={newColor}
+                  onChange={(e) => setNewColor(e.target.value)}
+                  placeholder="#5b8def"
+                />
               </DrawerField>
               <Button className="justify-center" onClick={submitCreate} loading={creating}>
-                <Plus size={14} weight="bold" />建立帳本
+                <Plus size={14} weight="bold" />
+                建立帳本
               </Button>
             </div>
           </div>
@@ -797,8 +1299,23 @@ function BookManager({
 }
 
 function AccountDrawer({
-  isEditing, typeStep, setTypeStep, form, setForm, books, selectedCurrency, currencyOptions, message, pending, onSubmit, onClose,
-  creditGroups, onCreateGroup, onUpdateGroup, onDeleteGroup, groupMutationPending,
+  isEditing,
+  typeStep,
+  setTypeStep,
+  form,
+  setForm,
+  books,
+  selectedCurrency,
+  currencyOptions,
+  message,
+  pending,
+  onSubmit,
+  onClose,
+  creditGroups,
+  onCreateGroup,
+  onUpdateGroup,
+  onDeleteGroup,
+  groupMutationPending,
 }: {
   isEditing: boolean;
   typeStep: AccountType | null;
@@ -819,7 +1336,7 @@ function AccountDrawer({
   groupMutationPending: boolean;
 }) {
   const [step, setStep] = useState(0);
-  const [importMethod, setImportMethod] = useState('skip');
+  const [importMethod, setImportMethod] = useState("skip");
   const [csvDropped, setCsvDropped] = useState(false);
   const [groupModal, setGroupModal] = useState<null | {
     mode: "create" | "edit";
@@ -832,10 +1349,18 @@ function AccountDrawer({
   const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(false);
 
   const creditGroupOptions = creditGroups.filter((g) => g.currency === selectedCurrency);
-  const selectedGroup = form.creditGroupId ? creditGroups.find((g) => g.id === form.creditGroupId) ?? null : null;
+  const selectedGroup = form.creditGroupId
+    ? (creditGroups.find((g) => g.id === form.creditGroupId) ?? null)
+    : null;
 
   function openCreateGroupModal() {
-    setGroupModal({ mode: "create", name: "", creditLimit: null, statementDay: null, paymentDueDay: null });
+    setGroupModal({
+      mode: "create",
+      name: "",
+      creditLimit: null,
+      statementDay: null,
+      paymentDueDay: null,
+    });
     setGroupError("");
     setConfirmDeleteGroup(false);
   }
@@ -858,7 +1383,10 @@ function AccountDrawer({
   }
   async function submitGroupModal() {
     if (!groupModal) return;
-    if (!groupModal.name.trim()) { setGroupError("請輸入群組名稱。"); return; }
+    if (!groupModal.name.trim()) {
+      setGroupError("請輸入群組名稱。");
+      return;
+    }
     setGroupError("");
     try {
       if (groupModal.mode === "create") {
@@ -901,7 +1429,9 @@ function AccountDrawer({
     }
   }
 
-  const openingBalanceField = useNumericField(form.openingBalance, (v) => setForm({ ...form, openingBalance: v }));
+  const openingBalanceField = useNumericField(form.openingBalance, (v) =>
+    setForm({ ...form, openingBalance: v }),
+  );
 
   // If we open in edit mode, go straight to step 1
   useEffect(() => {
@@ -912,14 +1442,14 @@ function AccountDrawer({
     }
   }, [isEditing, typeStep]);
 
-  const stepLabels = ['帳戶類型', '基本資料', '初始餘額', '完成'];
+  const stepLabels = ["帳戶類型", "基本資料", "初始餘額", "完成"];
 
   async function handleNext() {
     if (step === 2 || isEditing) {
       await onSubmit();
       if (!isEditing) setStep(3);
     } else {
-      setStep(s => s + 1);
+      setStep((s) => s + 1);
     }
   }
 
@@ -928,412 +1458,805 @@ function AccountDrawer({
     else if (step === 1 && !isEditing) {
       setTypeStep(null as any);
       setStep(0);
-    }
-    else if (step === 1 && isEditing) onClose();
-    else setStep(s => s - 1);
+    } else if (step === 1 && isEditing) onClose();
+    else setStep((s) => s - 1);
   }
 
   const canAdvance = step === 0 ? !!typeStep : step === 1 ? !!form.name.trim() : true;
 
   return (
     <>
-    <ModalShell
-      variant="drawer"
-      mobilePresentation="bottom-sheet"
-      title={isEditing ? "編輯帳戶" : "新增帳戶"}
-      onClose={onClose}
-      style={{ zIndex: 50 }}
-      panelClassName="flex flex-col"
-      panelStyle={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "min(520px, 100%)", background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)", boxShadow: "var(--ns-shadow-2)" }}
-    >
-      {(dismiss) => (<>
-        <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--ns-border)" }}>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="flex items-center justify-center" style={{ width: 32, height: 32, borderRadius: "var(--ns-r-sm)", background: "var(--ns-accent)", color: "var(--ns-accent-fg)" }}>
-                <Plus size={16} weight="bold" />
-              </div>
-              <h2 className="text-lg font-semibold" style={{ margin: 0, fontFamily: "var(--ns-font-display)" }}>
-                {isEditing ? "編輯帳戶" : "新增帳戶"}
-              </h2>
-            </div>
-            <ModalCloseButton onClick={dismiss} />
-          </div>
-          {!isEditing && (
-            <div className="flex items-center">
-              {stepLabels.map((s, i) => (
-                <div key={s} className="flex items-center" style={{ flex: i < stepLabels.length - 1 ? 1 : 0 }}>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <div className="text-micro shrink-0 flex items-center justify-center" style={{
-                      width: 20, height: 20, borderRadius: 99,
-                      background: i < step ? 'var(--ns-accent)' : i === step ? 'var(--ns-fg)' : 'var(--ns-bg-hover)',
-                      color: i < step ? 'var(--ns-accent-fg)' : i === step ? 'var(--ns-bg)' : 'var(--ns-fg-dim)',
-                      fontFamily: 'var(--ns-font-mono)', fontWeight: 700,
-                    }}>
-                      {i < step ? <Check size={14} weight="bold" /> : i + 1}
-                    </div>
-                    <span className="text-caption" style={{
-                      whiteSpace: 'nowrap',
-                      color: i === step ? 'var(--ns-fg)' : 'var(--ns-fg-dim)',
-                      fontWeight: i === step ? 500 : 400,
-                    }}>{s}</span>
+      <ModalShell
+        variant="drawer"
+        mobilePresentation="bottom-sheet"
+        title={isEditing ? "編輯帳戶" : "新增帳戶"}
+        onClose={onClose}
+        style={{ zIndex: 50 }}
+        panelClassName="flex flex-col"
+        panelStyle={{
+          position: "absolute",
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: "min(520px, 100%)",
+          background: "var(--ns-bg-elev)",
+          borderLeft: "1px solid var(--ns-border)",
+          boxShadow: "var(--ns-shadow-2)",
+        }}
+      >
+        {(dismiss) => (
+          <>
+            <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--ns-border)" }}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className="flex items-center justify-center"
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: "var(--ns-r-sm)",
+                      background: "var(--ns-accent)",
+                      color: "var(--ns-accent-fg)",
+                    }}
+                  >
+                    <Plus size={16} weight="bold" />
                   </div>
-                  {i < stepLabels.length - 1 && (
-                    <div style={{
-                      flex: 1, height: 1, margin: '0 6px', minWidth: 8,
-                      background: i < step ? 'var(--ns-accent)' : 'var(--ns-border)',
-                    }} />
-                  )}
+                  <h2
+                    className="text-lg font-semibold"
+                    style={{ margin: 0, fontFamily: "var(--ns-font-display)" }}
+                  >
+                    {isEditing ? "編輯帳戶" : "新增帳戶"}
+                  </h2>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="p-6" style={{ flex: 1, overflow: "auto" }}>
-          {step === 0 && !isEditing && (
-            <div>
-              <div className="ns-eyebrow mb-1.5">步驟 1 / 4</div>
-              <h3 className="text-xl font-semibold" style={{ fontFamily: 'var(--ns-font-display)', margin: '0 0 6px' }}>選擇帳戶類型</h3>
-              <p className="muted text-body" style={{ margin: '0 0 20px', lineHeight: 1.5 }}>帳戶類型決定記帳方式與報表歸類，之後仍可更改。</p>
-              <div className="grid grid-cols-2 gap-2.5">
-                {accountTypes.map((type) => (
-                  <div key={type} onClick={() => setTypeStep(type)} className="cursor-pointer flex items-center gap-3" style={{
-                    padding: '14px 16px', borderRadius: 'var(--ns-r-md)',
-                    background: typeStep === type ? 'var(--ns-accent-soft)' : 'var(--ns-bg-card)',
-                    border: typeStep === type ? '1.5px solid var(--ns-accent)' : '1px solid var(--ns-border)',
-                  }}>
-                    <div className="shrink-0 flex items-center justify-center" style={{
-                      width: 36, height: 36, borderRadius: 'var(--ns-r-sm)',
-                      background: typeStep === type ? 'var(--ns-accent)' : 'var(--ns-bg-elev)',
-                      color: typeStep === type ? 'var(--ns-accent-fg)' : 'var(--ns-fg)',
-                    }}>
-                      {accountTypeLabels[type].slice(0, 1)}
-                    </div>
-                    <div>
-                      <div className="text-body font-medium">{accountTypeLabels[type]}</div>
-                      <div className="muted text-caption" style={{ marginTop: 2 }}>{accountTypeDescriptions[type]}</div>
-                    </div>
-                  </div>
-                ))}
+                <ModalCloseButton onClick={dismiss} />
               </div>
-            </div>
-          )}
-
-          {step === 1 && (
-            <div>
-              {!isEditing && <div className="ns-eyebrow mb-1.5">步驟 2 / 4</div>}
-              <h3 className="text-xl font-semibold" style={{ fontFamily: 'var(--ns-font-display)', margin: '0 0 6px' }}>
-                {isEditing ? "帳戶基本資料" : "帳戶基本資料"}
-              </h3>
-              
-              <div className="flex flex-col gap-4 mt-5">
-                <DrawerField label="名稱 *">
-                  <input className="ns-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="例：玉山活存、富邦證券" />
-                </DrawerField>
-                <DrawerField label="幣別">
-                  <AppSelect
-                    value={selectedCurrency}
-                    onChange={(currency) => setForm({ ...form, currency })}
-                    options={currencyOptions.map((currency) => ({ value: currency, label: currency }))}
-                    searchPlaceholder="搜尋幣別…"
-                    style={{ width: "100%", height: 40 }}
-                  />
-                </DrawerField>
-                {/* 帳本 assignment (plan 189) — shown once a second book exists;
-                    a single-book user has nothing to choose. */}
-                {books.length > 1 ? (
-                  <DrawerField label="帳本">
-                    <AppSelect
-                      value={form.bookId || (books[0]?.id ?? "")}
-                      onChange={(bookId) => setForm({ ...form, bookId })}
-                      options={books.map((b) => ({ value: b.id, label: b.name, description: b.kind === "company" ? "公司帳" : "個人帳" }))}
-                      searchPlaceholder="搜尋帳本…"
-                      style={{ width: "100%", height: 40 }}
-                    />
-                  </DrawerField>
-                ) : null}
-                <DrawerField label="自訂群組（選填）">
-                  <input className="ns-input" value={form.customGroup} onChange={(e) => setForm({ ...form, customGroup: e.target.value })} placeholder="例：台灣、海外、家庭" />
-                </DrawerField>
-
-                <DrawerField label="Logo、圖示與顏色（選填）">
-                  <div className="flex flex-col gap-3">
-                    <AppSelect
-                      value={form.bankBrandDomain ?? "auto"}
-                      onChange={(value) => setForm({ ...form, bankBrandDomain: value === "auto" ? null : value })}
-                      options={[
-                        { value: "auto", label: "自動判讀", description: "依帳戶名稱關鍵字判斷；不需要完全一模一樣" },
-                        ...BANK_BRANDS.map((brand) => ({
-                          value: brand.domain,
-                          label: brand.label,
-                          description: brand.domain,
-                        })),
-                      ]}
-                      searchPlaceholder="搜尋銀行、券商或網域…"
-                      style={{ width: "100%", height: 40 }}
-                    />
-                    <div className="muted text-xs">
-                      Logo 顯示需在設定開啟「銀行／券商 Logo」。手選品牌會優先於名稱自動判讀；圖示是 logo 無法載入時的備援。
-                    </div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                    <Popover>
-                      <PopoverTrigger className="text-xl flex items-center justify-center" style={{ width: 40, height: 40, borderRadius: "var(--ns-r-sm)", color: form.color ? "var(--ns-bg)" : undefined, background: form.color || "var(--ns-bg-hover)", border: "1px solid var(--ns-border)", cursor: "pointer" }}>
-                        <Glyph name={form.iconName || DEFAULT_ACCOUNT_ICON[form.type]} size={20} color={form.color ? "var(--ns-bg)" : undefined} fallbackText="＋" />
-                      </PopoverTrigger>
-                      <PopoverContent className="z-[150] shadow-xl rounded-xl w-auto p-0">
-                        <IconPicker value={form.iconName} onSelect={(name) => setForm({ ...form, iconName: name })} />
-                      </PopoverContent>
-                    </Popover>
-                    <div className="flex gap-1.5 flex-wrap">
-                      {ACCOUNT_COLORS.map((c) => (
-                        <div key={c} onClick={() => setForm({ ...form, color: c })} className="cursor-pointer" style={{ width: 22, height: 22, borderRadius: 99, background: c, outline: form.color === c ? "2px solid var(--ns-fg)" : "none", outlineOffset: 2 }} />
-                      ))}
-                    </div>
-                    {(form.iconName || form.color) ? (
-                      <Button type="button" variant="ghost" size="xs" onClick={() => setForm({ ...form, iconName: null, color: null })}>清除</Button>
-                    ) : null}
-                    </div>
-                  </div>
-                </DrawerField>
-
-                {form.type === "credit" ? (
-                  <>
-                    <DrawerField label="信用卡群組">
-                      <div className="flex items-center gap-2">
-                        <select
-                          className="ns-input"
-                          style={{ flex: 1 }}
-                          value={form.creditGroupId ?? ""}
-                          onChange={(e) => setForm({ ...form, creditGroupId: e.target.value || null })}
+              {!isEditing && (
+                <div className="flex items-center">
+                  {stepLabels.map((s, i) => (
+                    <div
+                      key={s}
+                      className="flex items-center"
+                      style={{ flex: i < stepLabels.length - 1 ? 1 : 0 }}
+                    >
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <div
+                          className="text-micro shrink-0 flex items-center justify-center"
+                          style={{
+                            width: 20,
+                            height: 20,
+                            borderRadius: 99,
+                            background:
+                              i < step
+                                ? "var(--ns-accent)"
+                                : i === step
+                                  ? "var(--ns-fg)"
+                                  : "var(--ns-bg-hover)",
+                            color:
+                              i < step
+                                ? "var(--ns-accent-fg)"
+                                : i === step
+                                  ? "var(--ns-bg)"
+                                  : "var(--ns-fg-dim)",
+                            fontFamily: "var(--ns-font-mono)",
+                            fontWeight: 700,
+                          }}
                         >
-                          <option value="">無（獨立卡）</option>
-                          {creditGroupOptions.map((g) => (
-                            <option key={g.id} value={g.id}>{g.name}</option>
-                          ))}
-                        </select>
-                        {selectedGroup ? (
-                          <Button type="button" variant="outline" size="sm" onClick={openEditGroupModal}>編輯</Button>
-                        ) : (
-                          <Button type="button" variant="outline" size="sm" onClick={openCreateGroupModal}>＋ 新增群組</Button>
-                        )}
+                          {i < step ? <Check size={14} weight="bold" /> : i + 1}
+                        </div>
+                        <span
+                          className="text-caption"
+                          style={{
+                            whiteSpace: "nowrap",
+                            color: i === step ? "var(--ns-fg)" : "var(--ns-fg-dim)",
+                            fontWeight: i === step ? 500 : 400,
+                          }}
+                        >
+                          {s}
+                        </span>
                       </div>
-                      {selectedGroup ? (
-                        <div className="muted text-xs" style={{ marginTop: 4 }}>此群組的額度／結帳日／繳款日套用到所有成員卡；在此編輯會同步更新。</div>
-                      ) : null}
-                    </DrawerField>
-                    <DrawerField label="信用額度">
-                      <input
-                        className="ns-input"
-                        type="number"
-                        value={selectedGroup ? (selectedGroup.creditLimit ?? "") : (form.creditLimit ?? "")}
-                        disabled={!!selectedGroup}
-                        onChange={(e) => setForm({ ...form, creditLimit: e.target.value ? Number(e.target.value) : null })}
-                        placeholder="120000"
-                      />
-                      {selectedGroup ? <div className="muted text-xs" style={{ marginTop: 4 }}>來自群組「{selectedGroup.name}」</div> : null}
-                    </DrawerField>
-                    <div className="grid grid-cols-2 gap-3.5">
-                      <DrawerField label="結帳日（每月）">
-                        <input
-                          className="ns-input"
-                          type="number"
-                          min={1}
-                          max={31}
-                          value={selectedGroup ? (selectedGroup.statementDay ?? "") : (form.statementDay ?? "")}
-                          disabled={!!selectedGroup}
-                          onChange={(e) => setForm({ ...form, statementDay: e.target.value ? Math.min(31, Math.max(1, Number(e.target.value))) : null })}
-                          placeholder="例：5"
+                      {i < stepLabels.length - 1 && (
+                        <div
+                          style={{
+                            flex: 1,
+                            height: 1,
+                            margin: "0 6px",
+                            minWidth: 8,
+                            background: i < step ? "var(--ns-accent)" : "var(--ns-border)",
+                          }}
                         />
-                        {selectedGroup ? <div className="muted text-xs" style={{ marginTop: 4 }}>來自群組「{selectedGroup.name}」</div> : null}
-                      </DrawerField>
-                      <DrawerField label="繳款日（每月）">
-                        <input
-                          className="ns-input"
-                          type="number"
-                          min={1}
-                          max={31}
-                          value={selectedGroup ? (selectedGroup.paymentDueDay ?? "") : (form.paymentDueDay ?? "")}
-                          disabled={!!selectedGroup}
-                          onChange={(e) => setForm({ ...form, paymentDueDay: e.target.value ? Math.min(31, Math.max(1, Number(e.target.value))) : null })}
-                          placeholder="例：22"
-                        />
-                        {selectedGroup ? <div className="muted text-xs" style={{ marginTop: 4 }}>來自群組「{selectedGroup.name}」</div> : null}
-                      </DrawerField>
-                    </div>
-                  </>
-                ) : null}
-
-                {form.type === "loan" ? (
-                  <>
-                    <DrawerField label="貸款開始日期">
-                      <input className="ns-input" type="date" value={form.loanStartDate ?? ""} onChange={(e) => setForm({ ...form, loanStartDate: e.target.value || null })} />
-                    </DrawerField>
-                    <div className="grid grid-cols-2 gap-3.5">
-                      <DrawerField label="年利率（%）">
-                        <input className="ns-input" type="number" step="0.01" value={form.annualInterestRate ?? ""} onChange={(e) => setForm({ ...form, annualInterestRate: e.target.value ? Number(e.target.value) : null })} placeholder="2.5" />
-                      </DrawerField>
-                      <DrawerField label="貸款期限（月）">
-                        <input className="ns-input" type="number" value={form.loanTerm ?? ""} onChange={(e) => setForm({ ...form, loanTerm: e.target.value ? Number(e.target.value) : null })} placeholder="240" />
-                      </DrawerField>
-                    </div>
-                  </>
-                ) : null}
-
-                {/* Household toggle removed temporarily as feature is not released */}
-              </div>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div>
-              <div className="ns-eyebrow mb-1.5">步驟 3 / 4</div>
-              <h3 className="text-xl font-semibold" style={{ fontFamily: 'var(--ns-font-display)', margin: '0 0 6px' }}>初始餘額與匯入</h3>
-              <p className="muted text-body" style={{ margin: '0 0 18px', lineHeight: 1.5 }}>
-                設定今天的帳戶餘額。也可以直接匯入 CSV 交易紀錄。
-              </p>
-
-              <div className="mb-5">
-                <DrawerField label={`${form.type === "alternative" ? "目前市值" : "期初餘額"}（${form.currency}）`}>
-                  <input
-                    className="ns-input text-stat"
-                    style={{ fontFamily: 'var(--ns-font-mono)', fontVariantNumeric: 'tabular-nums', height: 56 }}
-                    placeholder="0"
-                    {...openingBalanceField}
-                  />
-                </DrawerField>
-                {form.type === "alternative" && (
-                  <div className="muted text-xs mt-1.5">輸入此資產目前的估計市值，日後可用「調整餘額」手動更新。</div>
-                )}
-                {form.type === 'credit' && (
-                  <div className="muted text-xs mt-1.5 flex items-center gap-1">
-                    信用卡尚未繳清的金額請以負數輸入（例：輸入 −302 表示尚欠 302）；已結清請填 0。
-                  </div>
-                )}
-                {form.type !== "alternative" && form.type !== "credit" && (
-                  <div className="muted text-xs mt-1.5">
-                    這是帳戶的起始餘額；目前餘額 = 期初餘額 + 已結算交易。若要直接修正目前餘額，請用帳戶列的「調整餘額」。
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="text-xs block mb-2" style={{ color: 'var(--ns-fg-muted)' }}>交易紀錄匯入 <span className="dim">（選填）</span></label>
-                <div className="flex flex-col gap-2">
-                  {[
-                    { id: 'skip', label: '先跳過，稍後手動新增', sub: '' },
-                    { id: 'csv', label: '匯入 CSV 交易紀錄', sub: '支援富邦、玉山、永豐、IBKR 等格式' },
-                  ].map(m => (
-                    <div key={m.id} onClick={() => setImportMethod(m.id)} className="cursor-pointer flex items-center gap-3" style={{
-                      padding: '13px 16px', borderRadius: 'var(--ns-r-md)',
-                      background: importMethod === m.id ? 'var(--ns-accent-soft)' : 'var(--ns-bg-card)',
-                      border: importMethod === m.id ? '1.5px solid var(--ns-accent)' : '1px solid var(--ns-border)',
-                    }}>
-                      <div style={{ flex: 1 }}>
-                        <div className="text-body font-medium">{m.label}</div>
-                        {m.sub && <div className="muted text-xs" style={{ marginTop: 2 }}>{m.sub}</div>}
-                      </div>
-                      {importMethod === m.id && <Check size={15} weight="bold" style={{ color: 'var(--ns-accent)' }} />}
+                      )}
                     </div>
                   ))}
                 </div>
-              </div>
+              )}
             </div>
-          )}
 
-          {step === 3 && (
-            <div className="flex flex-col items-center text-center py-8 px-0">
-              <div className="flex items-center justify-center mb-5" style={{ width: 72, height: 72, borderRadius: 99, background: 'var(--ns-accent)', color: 'var(--ns-accent-fg)', boxShadow: '0 12px 40px color-mix(in srgb, var(--ns-accent) 38%, transparent)' }}>
-                <Plus size={32} />
-              </div>
-              <h2 className="text-[24px] font-semibold" style={{ fontFamily: 'var(--ns-font-display)', margin: '0 0 8px' }}>帳戶已建立</h2>
-              <p className="muted text-body" style={{ margin: '0 0 28px', lineHeight: 1.6, maxWidth: 340 }}>
-                <strong style={{ color: 'var(--ns-fg)' }}>{form.name || '新帳戶'}</strong> 已加入 Northstar。<br />所有資料只存在這台電腦。
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="flex gap-2 py-3.5 px-6" style={{ borderTop: "1px solid var(--ns-border)" }}>
-          {step < 3 ? (
-            <>
-              <Button variant="outline" className="shrink-0 grow-0 basis-[90px] justify-center" onClick={handleBack}>
-                {step === 0 || (step === 1 && isEditing) ? "取消" : "← 上一步"}
-              </Button>
-              <Button className="flex-1 justify-center" style={{ opacity: canAdvance ? 1 : 0.45 }} onClick={() => canAdvance && handleNext()} disabled={pending} loading={pending}>
-                {pending ? "處理中…" : step === 2 || isEditing ? "儲存" : "下一步 →"}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button className="flex-1 justify-center" onClick={onClose}>完成</Button>
-            </>
-          )}
-        </div>
-      </>)}
-    </ModalShell>
-    {groupModal ? (
-      <ModalShell
-        variant="center"
-        title={groupModal.mode === "create" ? "新增信用卡群組" : `編輯群組 · ${selectedGroup?.name ?? ""}`}
-        onClose={closeGroupModal}
-        style={{ zIndex: 1000 }}
-        panelClassName="w-full"
-        panelStyle={{ maxWidth: 420 }}
-      >
-        {(dismiss) => (
-          <Card className="w-full p-0">
-            <div className="py-4 px-5" style={{ borderBottom: "1px solid var(--ns-border)" }}>
-              <h2 className="text-base font-semibold" style={{ margin: 0 }}>
-                {groupModal.mode === "create" ? "新增信用卡群組" : "編輯信用卡群組"}
-              </h2>
-              <div className="muted text-xs" style={{ marginTop: 2 }}>群組的額度／結帳日／繳款日由所有成員卡共用；編輯會同步套用到每張卡。</div>
-            </div>
-            <div className="py-4 px-5 flex flex-col gap-3.5">
-              <DrawerField label="群組名稱">
-                <input className="ns-input" value={groupModal.name} onChange={(e) => setGroupModal({ ...groupModal, name: e.target.value })} placeholder="例：玉山信用卡" />
-              </DrawerField>
-              <DrawerField label={`幣別`}>
-                <input className="ns-input" value={selectedCurrency} disabled />
-              </DrawerField>
-              <DrawerField label="信用額度">
-                <input className="ns-input" type="number" value={groupModal.creditLimit ?? ""} onChange={(e) => setGroupModal({ ...groupModal, creditLimit: e.target.value ? Number(e.target.value) : null })} placeholder="120000" />
-              </DrawerField>
-              <div className="grid grid-cols-2 gap-3.5">
-                <DrawerField label="結帳日（每月）">
-                  <input className="ns-input" type="number" min={1} max={31} value={groupModal.statementDay ?? ""} onChange={(e) => setGroupModal({ ...groupModal, statementDay: e.target.value ? Math.min(31, Math.max(1, Number(e.target.value))) : null })} placeholder="例：5" />
-                </DrawerField>
-                <DrawerField label="繳款日（每月）">
-                  <input className="ns-input" type="number" min={1} max={31} value={groupModal.paymentDueDay ?? ""} onChange={(e) => setGroupModal({ ...groupModal, paymentDueDay: e.target.value ? Math.min(31, Math.max(1, Number(e.target.value))) : null })} placeholder="例：22" />
-                </DrawerField>
-              </div>
-              {groupError ? <div className="text-body" style={{ color: "var(--ns-neg)" }}>{groupError}</div> : null}
-              <div className="flex gap-2">
-                <Button className="flex-1 justify-center" onClick={submitGroupModal} loading={groupMutationPending}>
-                  {groupMutationPending ? "處理中…" : "儲存"}
-                </Button>
-                <Button variant="outline" onClick={dismiss}>取消</Button>
-              </div>
-              {groupModal.mode === "edit" ? (
-                <div style={{ borderTop: "1px solid var(--ns-border)", paddingTop: 14 }}>
-                  {confirmDeleteGroup ? (
-                    <div className="flex items-center gap-2">
-                      <div className="muted text-xs" style={{ flex: 1 }}>刪除群組後，所有成員卡改回獨立卡並保留目前的額度／結帳日／繳款日。</div>
-                      <Button variant="destructive-outline" size="sm" onClick={submitDeleteGroup} loading={groupMutationPending}>確定刪除</Button>
-                      <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteGroup(false)}>取消</Button>
-                    </div>
-                  ) : (
-                    <Button variant="destructive-outline" size="sm" onClick={() => setConfirmDeleteGroup(true)}>
-                      <Trash size={14} />刪除群組
-                    </Button>
-                  )}
+            <div className="p-6" style={{ flex: 1, overflow: "auto" }}>
+              {step === 0 && !isEditing && (
+                <div>
+                  <div className="ns-eyebrow mb-1.5">步驟 1 / 4</div>
+                  <h3
+                    className="text-xl font-semibold"
+                    style={{ fontFamily: "var(--ns-font-display)", margin: "0 0 6px" }}
+                  >
+                    選擇帳戶類型
+                  </h3>
+                  <p className="muted text-body" style={{ margin: "0 0 20px", lineHeight: 1.5 }}>
+                    帳戶類型決定記帳方式與報表歸類，之後仍可更改。
+                  </p>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {accountTypes.map((type) => (
+                      <div
+                        key={type}
+                        onClick={() => setTypeStep(type)}
+                        className="cursor-pointer flex items-center gap-3"
+                        style={{
+                          padding: "14px 16px",
+                          borderRadius: "var(--ns-r-md)",
+                          background:
+                            typeStep === type ? "var(--ns-accent-soft)" : "var(--ns-bg-card)",
+                          border:
+                            typeStep === type
+                              ? "1.5px solid var(--ns-accent)"
+                              : "1px solid var(--ns-border)",
+                        }}
+                      >
+                        <div
+                          className="shrink-0 flex items-center justify-center"
+                          style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: "var(--ns-r-sm)",
+                            background:
+                              typeStep === type ? "var(--ns-accent)" : "var(--ns-bg-elev)",
+                            color: typeStep === type ? "var(--ns-accent-fg)" : "var(--ns-fg)",
+                          }}
+                        >
+                          {accountTypeLabels[type].slice(0, 1)}
+                        </div>
+                        <div>
+                          <div className="text-body font-medium">{accountTypeLabels[type]}</div>
+                          <div className="muted text-caption" style={{ marginTop: 2 }}>
+                            {accountTypeDescriptions[type]}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ) : null}
+              )}
+
+              {step === 1 && (
+                <div>
+                  {!isEditing && <div className="ns-eyebrow mb-1.5">步驟 2 / 4</div>}
+                  <h3
+                    className="text-xl font-semibold"
+                    style={{ fontFamily: "var(--ns-font-display)", margin: "0 0 6px" }}
+                  >
+                    {isEditing ? "帳戶基本資料" : "帳戶基本資料"}
+                  </h3>
+
+                  <div className="flex flex-col gap-4 mt-5">
+                    <DrawerField label="名稱 *">
+                      <input
+                        className="ns-input"
+                        value={form.name}
+                        onChange={(e) => setForm({ ...form, name: e.target.value })}
+                        placeholder="例：玉山活存、富邦證券"
+                      />
+                    </DrawerField>
+                    <DrawerField label="幣別">
+                      <AppSelect
+                        value={selectedCurrency}
+                        onChange={(currency) => setForm({ ...form, currency })}
+                        options={currencyOptions.map((currency) => ({
+                          value: currency,
+                          label: currency,
+                        }))}
+                        searchPlaceholder="搜尋幣別…"
+                        style={{ width: "100%", height: 40 }}
+                      />
+                    </DrawerField>
+                    {/* 帳本 assignment (plan 189) — shown once a second book exists;
+                    a single-book user has nothing to choose. */}
+                    {books.length > 1 ? (
+                      <DrawerField label="帳本">
+                        <AppSelect
+                          value={form.bookId || (books[0]?.id ?? "")}
+                          onChange={(bookId) => setForm({ ...form, bookId })}
+                          options={books.map((b) => ({
+                            value: b.id,
+                            label: b.name,
+                            description: b.kind === "company" ? "公司帳" : "個人帳",
+                          }))}
+                          searchPlaceholder="搜尋帳本…"
+                          style={{ width: "100%", height: 40 }}
+                        />
+                      </DrawerField>
+                    ) : null}
+                    <DrawerField label="自訂群組（選填）">
+                      <input
+                        className="ns-input"
+                        value={form.customGroup}
+                        onChange={(e) => setForm({ ...form, customGroup: e.target.value })}
+                        placeholder="例：台灣、海外、家庭"
+                      />
+                    </DrawerField>
+
+                    <DrawerField label="Logo、圖示與顏色（選填）">
+                      <div className="flex flex-col gap-3">
+                        <AppSelect
+                          value={form.bankBrandDomain ?? "auto"}
+                          onChange={(value) =>
+                            setForm({ ...form, bankBrandDomain: value === "auto" ? null : value })
+                          }
+                          options={[
+                            {
+                              value: "auto",
+                              label: "自動判讀",
+                              description: "依帳戶名稱關鍵字判斷；不需要完全一模一樣",
+                            },
+                            ...BANK_BRANDS.map((brand) => ({
+                              value: brand.domain,
+                              label: brand.label,
+                              description: brand.domain,
+                            })),
+                          ]}
+                          searchPlaceholder="搜尋銀行、券商或網域…"
+                          style={{ width: "100%", height: 40 }}
+                        />
+                        <div className="muted text-xs">
+                          Logo 顯示需在設定開啟「銀行／券商
+                          Logo」。手選品牌會優先於名稱自動判讀；圖示是 logo 無法載入時的備援。
+                        </div>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <Popover>
+                            <PopoverTrigger
+                              className="text-xl flex items-center justify-center"
+                              style={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: "var(--ns-r-sm)",
+                                color: form.color ? "var(--ns-bg)" : undefined,
+                                background: form.color || "var(--ns-bg-hover)",
+                                border: "1px solid var(--ns-border)",
+                                cursor: "pointer",
+                              }}
+                            >
+                              <Glyph
+                                name={form.iconName || DEFAULT_ACCOUNT_ICON[form.type]}
+                                size={20}
+                                color={form.color ? "var(--ns-bg)" : undefined}
+                                fallbackText="＋"
+                              />
+                            </PopoverTrigger>
+                            <PopoverContent className="z-[150] shadow-xl rounded-xl w-auto p-0">
+                              <IconPicker
+                                value={form.iconName}
+                                onSelect={(name) => setForm({ ...form, iconName: name })}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <div className="flex gap-1.5 flex-wrap">
+                            {ACCOUNT_COLORS.map((c) => (
+                              <div
+                                key={c}
+                                onClick={() => setForm({ ...form, color: c })}
+                                className="cursor-pointer"
+                                style={{
+                                  width: 22,
+                                  height: 22,
+                                  borderRadius: 99,
+                                  background: c,
+                                  outline: form.color === c ? "2px solid var(--ns-fg)" : "none",
+                                  outlineOffset: 2,
+                                }}
+                              />
+                            ))}
+                          </div>
+                          {form.iconName || form.color ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="xs"
+                              onClick={() => setForm({ ...form, iconName: null, color: null })}
+                            >
+                              清除
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </DrawerField>
+
+                    {form.type === "credit" ? (
+                      <>
+                        <DrawerField label="信用卡群組">
+                          <div className="flex items-center gap-2">
+                            <select
+                              className="ns-input"
+                              style={{ flex: 1 }}
+                              value={form.creditGroupId ?? ""}
+                              onChange={(e) =>
+                                setForm({ ...form, creditGroupId: e.target.value || null })
+                              }
+                            >
+                              <option value="">無（獨立卡）</option>
+                              {creditGroupOptions.map((g) => (
+                                <option key={g.id} value={g.id}>
+                                  {g.name}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedGroup ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={openEditGroupModal}
+                              >
+                                編輯
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={openCreateGroupModal}
+                              >
+                                ＋ 新增群組
+                              </Button>
+                            )}
+                          </div>
+                          {selectedGroup ? (
+                            <div className="muted text-xs" style={{ marginTop: 4 }}>
+                              此群組的額度／結帳日／繳款日套用到所有成員卡；在此編輯會同步更新。
+                            </div>
+                          ) : null}
+                        </DrawerField>
+                        <DrawerField label="信用額度">
+                          <input
+                            className="ns-input"
+                            type="number"
+                            value={
+                              selectedGroup
+                                ? (selectedGroup.creditLimit ?? "")
+                                : (form.creditLimit ?? "")
+                            }
+                            disabled={!!selectedGroup}
+                            onChange={(e) =>
+                              setForm({
+                                ...form,
+                                creditLimit: e.target.value ? Number(e.target.value) : null,
+                              })
+                            }
+                            placeholder="120000"
+                          />
+                          {selectedGroup ? (
+                            <div className="muted text-xs" style={{ marginTop: 4 }}>
+                              來自群組「{selectedGroup.name}」
+                            </div>
+                          ) : null}
+                        </DrawerField>
+                        <div className="grid grid-cols-2 gap-3.5">
+                          <DrawerField label="結帳日（每月）">
+                            <input
+                              className="ns-input"
+                              type="number"
+                              min={1}
+                              max={31}
+                              value={
+                                selectedGroup
+                                  ? (selectedGroup.statementDay ?? "")
+                                  : (form.statementDay ?? "")
+                              }
+                              disabled={!!selectedGroup}
+                              onChange={(e) =>
+                                setForm({
+                                  ...form,
+                                  statementDay: e.target.value
+                                    ? Math.min(31, Math.max(1, Number(e.target.value)))
+                                    : null,
+                                })
+                              }
+                              placeholder="例：5"
+                            />
+                            {selectedGroup ? (
+                              <div className="muted text-xs" style={{ marginTop: 4 }}>
+                                來自群組「{selectedGroup.name}」
+                              </div>
+                            ) : null}
+                          </DrawerField>
+                          <DrawerField label="繳款日（每月）">
+                            <input
+                              className="ns-input"
+                              type="number"
+                              min={1}
+                              max={31}
+                              value={
+                                selectedGroup
+                                  ? (selectedGroup.paymentDueDay ?? "")
+                                  : (form.paymentDueDay ?? "")
+                              }
+                              disabled={!!selectedGroup}
+                              onChange={(e) =>
+                                setForm({
+                                  ...form,
+                                  paymentDueDay: e.target.value
+                                    ? Math.min(31, Math.max(1, Number(e.target.value)))
+                                    : null,
+                                })
+                              }
+                              placeholder="例：22"
+                            />
+                            {selectedGroup ? (
+                              <div className="muted text-xs" style={{ marginTop: 4 }}>
+                                來自群組「{selectedGroup.name}」
+                              </div>
+                            ) : null}
+                          </DrawerField>
+                        </div>
+                      </>
+                    ) : null}
+
+                    {form.type === "loan" ? (
+                      <>
+                        <DrawerField label="貸款開始日期">
+                          <input
+                            className="ns-input"
+                            type="date"
+                            value={form.loanStartDate ?? ""}
+                            onChange={(e) =>
+                              setForm({ ...form, loanStartDate: e.target.value || null })
+                            }
+                          />
+                        </DrawerField>
+                        <div className="grid grid-cols-2 gap-3.5">
+                          <DrawerField label="年利率（%）">
+                            <input
+                              className="ns-input"
+                              type="number"
+                              step="0.01"
+                              value={form.annualInterestRate ?? ""}
+                              onChange={(e) =>
+                                setForm({
+                                  ...form,
+                                  annualInterestRate: e.target.value
+                                    ? Number(e.target.value)
+                                    : null,
+                                })
+                              }
+                              placeholder="2.5"
+                            />
+                          </DrawerField>
+                          <DrawerField label="貸款期限（月）">
+                            <input
+                              className="ns-input"
+                              type="number"
+                              value={form.loanTerm ?? ""}
+                              onChange={(e) =>
+                                setForm({
+                                  ...form,
+                                  loanTerm: e.target.value ? Number(e.target.value) : null,
+                                })
+                              }
+                              placeholder="240"
+                            />
+                          </DrawerField>
+                        </div>
+                      </>
+                    ) : null}
+
+                    {/* Household toggle removed temporarily as feature is not released */}
+                  </div>
+                </div>
+              )}
+
+              {step === 2 && (
+                <div>
+                  <div className="ns-eyebrow mb-1.5">步驟 3 / 4</div>
+                  <h3
+                    className="text-xl font-semibold"
+                    style={{ fontFamily: "var(--ns-font-display)", margin: "0 0 6px" }}
+                  >
+                    初始餘額與匯入
+                  </h3>
+                  <p className="muted text-body" style={{ margin: "0 0 18px", lineHeight: 1.5 }}>
+                    設定今天的帳戶餘額。也可以直接匯入 CSV 交易紀錄。
+                  </p>
+
+                  <div className="mb-5">
+                    <DrawerField
+                      label={`${form.type === "alternative" ? "目前市值" : "期初餘額"}（${form.currency}）`}
+                    >
+                      <input
+                        className="ns-input text-stat"
+                        style={{
+                          fontFamily: "var(--ns-font-mono)",
+                          fontVariantNumeric: "tabular-nums",
+                          height: 56,
+                        }}
+                        placeholder="0"
+                        {...openingBalanceField}
+                      />
+                    </DrawerField>
+                    {form.type === "alternative" && (
+                      <div className="muted text-xs mt-1.5">
+                        輸入此資產目前的估計市值，日後可用「調整餘額」手動更新。
+                      </div>
+                    )}
+                    {form.type === "credit" && (
+                      <div className="muted text-xs mt-1.5 flex items-center gap-1">
+                        信用卡尚未繳清的金額請以負數輸入（例：輸入 −302 表示尚欠 302）；已結清請填
+                        0。
+                      </div>
+                    )}
+                    {form.type !== "alternative" && form.type !== "credit" && (
+                      <div className="muted text-xs mt-1.5">
+                        這是帳戶的起始餘額；目前餘額 = 期初餘額 +
+                        已結算交易。若要直接修正目前餘額，請用帳戶列的「調整餘額」。
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-xs block mb-2" style={{ color: "var(--ns-fg-muted)" }}>
+                      交易紀錄匯入 <span className="dim">（選填）</span>
+                    </label>
+                    <div className="flex flex-col gap-2">
+                      {[
+                        { id: "skip", label: "先跳過，稍後手動新增", sub: "" },
+                        {
+                          id: "csv",
+                          label: "匯入 CSV 交易紀錄",
+                          sub: "支援富邦、玉山、永豐、IBKR 等格式",
+                        },
+                      ].map((m) => (
+                        <div
+                          key={m.id}
+                          onClick={() => setImportMethod(m.id)}
+                          className="cursor-pointer flex items-center gap-3"
+                          style={{
+                            padding: "13px 16px",
+                            borderRadius: "var(--ns-r-md)",
+                            background:
+                              importMethod === m.id ? "var(--ns-accent-soft)" : "var(--ns-bg-card)",
+                            border:
+                              importMethod === m.id
+                                ? "1.5px solid var(--ns-accent)"
+                                : "1px solid var(--ns-border)",
+                          }}
+                        >
+                          <div style={{ flex: 1 }}>
+                            <div className="text-body font-medium">{m.label}</div>
+                            {m.sub && (
+                              <div className="muted text-xs" style={{ marginTop: 2 }}>
+                                {m.sub}
+                              </div>
+                            )}
+                          </div>
+                          {importMethod === m.id && (
+                            <Check size={15} weight="bold" style={{ color: "var(--ns-accent)" }} />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {step === 3 && (
+                <div className="flex flex-col items-center text-center py-8 px-0">
+                  <div
+                    className="flex items-center justify-center mb-5"
+                    style={{
+                      width: 72,
+                      height: 72,
+                      borderRadius: 99,
+                      background: "var(--ns-accent)",
+                      color: "var(--ns-accent-fg)",
+                      boxShadow:
+                        "0 12px 40px color-mix(in srgb, var(--ns-accent) 38%, transparent)",
+                    }}
+                  >
+                    <Plus size={32} />
+                  </div>
+                  <h2
+                    className="text-[24px] font-semibold"
+                    style={{ fontFamily: "var(--ns-font-display)", margin: "0 0 8px" }}
+                  >
+                    帳戶已建立
+                  </h2>
+                  <p
+                    className="muted text-body"
+                    style={{ margin: "0 0 28px", lineHeight: 1.6, maxWidth: 340 }}
+                  >
+                    <strong style={{ color: "var(--ns-fg)" }}>{form.name || "新帳戶"}</strong>{" "}
+                    已加入 Northstar。
+                    <br />
+                    所有資料只存在這台電腦。
+                  </p>
+                </div>
+              )}
             </div>
-          </Card>
+
+            <div
+              className="flex gap-2 py-3.5 px-6"
+              style={{ borderTop: "1px solid var(--ns-border)" }}
+            >
+              {step < 3 ? (
+                <>
+                  <Button
+                    variant="outline"
+                    className="shrink-0 grow-0 basis-[90px] justify-center"
+                    onClick={handleBack}
+                  >
+                    {step === 0 || (step === 1 && isEditing) ? "取消" : "← 上一步"}
+                  </Button>
+                  <Button
+                    className="flex-1 justify-center"
+                    style={{ opacity: canAdvance ? 1 : 0.45 }}
+                    onClick={() => canAdvance && handleNext()}
+                    disabled={pending}
+                    loading={pending}
+                  >
+                    {pending ? "處理中…" : step === 2 || isEditing ? "儲存" : "下一步 →"}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button className="flex-1 justify-center" onClick={onClose}>
+                    完成
+                  </Button>
+                </>
+              )}
+            </div>
+          </>
         )}
       </ModalShell>
-    ) : null}
+      {groupModal ? (
+        <ModalShell
+          variant="center"
+          title={
+            groupModal.mode === "create"
+              ? "新增信用卡群組"
+              : `編輯群組 · ${selectedGroup?.name ?? ""}`
+          }
+          onClose={closeGroupModal}
+          style={{ zIndex: 1000 }}
+          panelClassName="w-full"
+          panelStyle={{ maxWidth: 420 }}
+        >
+          {(dismiss) => (
+            <Card className="w-full p-0">
+              <div className="py-4 px-5" style={{ borderBottom: "1px solid var(--ns-border)" }}>
+                <h2 className="text-base font-semibold" style={{ margin: 0 }}>
+                  {groupModal.mode === "create" ? "新增信用卡群組" : "編輯信用卡群組"}
+                </h2>
+                <div className="muted text-xs" style={{ marginTop: 2 }}>
+                  群組的額度／結帳日／繳款日由所有成員卡共用；編輯會同步套用到每張卡。
+                </div>
+              </div>
+              <div className="py-4 px-5 flex flex-col gap-3.5">
+                <DrawerField label="群組名稱">
+                  <input
+                    className="ns-input"
+                    value={groupModal.name}
+                    onChange={(e) => setGroupModal({ ...groupModal, name: e.target.value })}
+                    placeholder="例：玉山信用卡"
+                  />
+                </DrawerField>
+                <DrawerField label={`幣別`}>
+                  <input className="ns-input" value={selectedCurrency} disabled />
+                </DrawerField>
+                <DrawerField label="信用額度">
+                  <input
+                    className="ns-input"
+                    type="number"
+                    value={groupModal.creditLimit ?? ""}
+                    onChange={(e) =>
+                      setGroupModal({
+                        ...groupModal,
+                        creditLimit: e.target.value ? Number(e.target.value) : null,
+                      })
+                    }
+                    placeholder="120000"
+                  />
+                </DrawerField>
+                <div className="grid grid-cols-2 gap-3.5">
+                  <DrawerField label="結帳日（每月）">
+                    <input
+                      className="ns-input"
+                      type="number"
+                      min={1}
+                      max={31}
+                      value={groupModal.statementDay ?? ""}
+                      onChange={(e) =>
+                        setGroupModal({
+                          ...groupModal,
+                          statementDay: e.target.value
+                            ? Math.min(31, Math.max(1, Number(e.target.value)))
+                            : null,
+                        })
+                      }
+                      placeholder="例：5"
+                    />
+                  </DrawerField>
+                  <DrawerField label="繳款日（每月）">
+                    <input
+                      className="ns-input"
+                      type="number"
+                      min={1}
+                      max={31}
+                      value={groupModal.paymentDueDay ?? ""}
+                      onChange={(e) =>
+                        setGroupModal({
+                          ...groupModal,
+                          paymentDueDay: e.target.value
+                            ? Math.min(31, Math.max(1, Number(e.target.value)))
+                            : null,
+                        })
+                      }
+                      placeholder="例：22"
+                    />
+                  </DrawerField>
+                </div>
+                {groupError ? (
+                  <div className="text-body" style={{ color: "var(--ns-neg)" }}>
+                    {groupError}
+                  </div>
+                ) : null}
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1 justify-center"
+                    onClick={submitGroupModal}
+                    loading={groupMutationPending}
+                  >
+                    {groupMutationPending ? "處理中…" : "儲存"}
+                  </Button>
+                  <Button variant="outline" onClick={dismiss}>
+                    取消
+                  </Button>
+                </div>
+                {groupModal.mode === "edit" ? (
+                  <div style={{ borderTop: "1px solid var(--ns-border)", paddingTop: 14 }}>
+                    {confirmDeleteGroup ? (
+                      <div className="flex items-center gap-2">
+                        <div className="muted text-xs" style={{ flex: 1 }}>
+                          刪除群組後，所有成員卡改回獨立卡並保留目前的額度／結帳日／繳款日。
+                        </div>
+                        <Button
+                          variant="destructive-outline"
+                          size="sm"
+                          onClick={submitDeleteGroup}
+                          loading={groupMutationPending}
+                        >
+                          確定刪除
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setConfirmDeleteGroup(false)}
+                        >
+                          取消
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="destructive-outline"
+                        size="sm"
+                        onClick={() => setConfirmDeleteGroup(true)}
+                      >
+                        <Trash size={14} />
+                        刪除群組
+                      </Button>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </Card>
+          )}
+        </ModalShell>
+      ) : null}
     </>
   );
 }
@@ -1348,10 +2271,13 @@ function DrawerField({ label, children }: { label: string; children: ReactNode }
 }
 
 function calculateCreditGroup(groupId: string, accounts: Account[], groups: CreditGroup[]) {
-  const groupRows = accounts.filter((account) => account.type === "credit" && account.creditGroupId === groupId);
+  const groupRows = accounts.filter(
+    (account) => account.type === "credit" && account.creditGroupId === groupId,
+  );
   const used = groupRows.reduce((sum, account) => sum + Math.max(0, -account.balance), 0);
   const group = groups.find((g) => g.id === groupId);
-  const limit = group?.creditLimit ?? Math.max(...groupRows.map((account) => account.creditLimit ?? 0), 0);
+  const limit =
+    group?.creditLimit ?? Math.max(...groupRows.map((account) => account.creditLimit ?? 0), 0);
   const name = group?.name ?? "";
   return { name, used, limit };
 }

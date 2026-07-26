@@ -71,7 +71,7 @@ export async function pushPendingChanges(
     );
     await pushEnvelopes(authToken, envelopes);
     await repo.acknowledgePendingChanges(
-      batch.flatMap((change) => change.outboxId ? [change.outboxId] : []),
+      batch.flatMap((change) => (change.outboxId ? [change.outboxId] : [])),
     );
   }
 

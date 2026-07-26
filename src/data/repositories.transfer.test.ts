@@ -65,12 +65,21 @@ const draft: TransferDraft = {
   note: "",
 };
 
-async function activeLegs(repo: { listLedgerTransactions(): Promise<LedgerTransaction[]> }, groupId: string) {
+async function activeLegs(
+  repo: { listLedgerTransactions(): Promise<LedgerTransaction[]> },
+  groupId: string,
+) {
   const rows = await repo.listLedgerTransactions();
   return rows.filter((row) => row.groupId === groupId && row.deletedAt === null);
 }
 
-async function createDraftTransfer(repo: { createTransfer(input: TransferDraft): Promise<void>; listLedgerTransactions(): Promise<LedgerTransaction[]> }, input: TransferDraft = draft) {
+async function createDraftTransfer(
+  repo: {
+    createTransfer(input: TransferDraft): Promise<void>;
+    listLedgerTransactions(): Promise<LedgerTransaction[]>;
+  },
+  input: TransferDraft = draft,
+) {
   await repo.createTransfer(input);
   const rows = await repo.listLedgerTransactions();
   const groupId = rows.find((row) => row.entryType === "transfer")!.groupId!;
@@ -84,7 +93,12 @@ describeEachRepo("transfer edit (updateTransfer, plan 227)", (makeRepo) => {
     expect(before).toHaveLength(2);
     const beforeIds = before.map((row) => row.id).sort();
 
-    await repo.updateTransfer(groupId, { ...draft, sourceAmount: 800, date: "2026-07-05", note: "改過" });
+    await repo.updateTransfer(groupId, {
+      ...draft,
+      sourceAmount: 800,
+      date: "2026-07-05",
+      note: "改過",
+    });
 
     const after = await activeLegs(repo, groupId);
     expect(after).toHaveLength(2); // THE regression: must stay 2, not 4

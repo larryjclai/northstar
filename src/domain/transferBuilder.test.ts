@@ -61,4 +61,3 @@ describe("transfer builder", () => {
     expect(rows[0].category).toBe("外幣兌換");
   });
 });
-

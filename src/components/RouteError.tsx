@@ -8,11 +8,18 @@ export function RouteError({ error, reset }: ErrorComponentProps) {
       <div className="max-w-md">
         <div
           className="mx-auto grid size-12 place-items-center"
-          style={{ background: "var(--ns-warning-soft)", color: "var(--ns-warn)", borderRadius: "var(--ns-r-md)" }}
+          style={{
+            background: "var(--ns-warning-soft)",
+            color: "var(--ns-warn)",
+            borderRadius: "var(--ns-r-md)",
+          }}
         >
           <Warning size={24} weight="fill" />
         </div>
-        <h3 className="mt-4 text-[17px]" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+        <h3
+          className="mt-4 text-[17px]"
+          style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}
+        >
           這個畫面發生問題
         </h3>
         <p className="muted mt-1 text-sm">{error?.message ?? "發生未預期的錯誤。"}</p>

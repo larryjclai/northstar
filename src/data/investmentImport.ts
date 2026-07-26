@@ -6,7 +6,15 @@ import type { InvestmentDraft, LedgerDraft } from "./repositories";
 // ─────── Field model ───────
 
 export const INVESTMENT_FIELDS = [
-  "date", "action", "ticker", "name", "quantity", "price", "fee", "currency", "note",
+  "date",
+  "action",
+  "ticker",
+  "name",
+  "quantity",
+  "price",
+  "fee",
+  "currency",
+  "note",
 ] as const;
 export type InvestmentField = (typeof INVESTMENT_FIELDS)[number];
 
@@ -26,12 +34,21 @@ export const FIELD_LABELS: Record<InvestmentField, string> = {
 };
 
 export const ACTION_VALUES: InvestmentAction[] = [
-  "buy", "sell", "cashDividend", "stockDividend", "capitalReduction", "stockSplit",
+  "buy",
+  "sell",
+  "cashDividend",
+  "stockDividend",
+  "capitalReduction",
+  "stockSplit",
 ];
 export const DEPOSIT_ACTION = "deposit";
 export const WITHDRAW_ACTION = "withdraw";
 export type ImportActivity = InvestmentAction | typeof DEPOSIT_ACTION | typeof WITHDRAW_ACTION;
-export const IMPORT_ACTION_VALUES: ImportActivity[] = [...ACTION_VALUES, DEPOSIT_ACTION, WITHDRAW_ACTION];
+export const IMPORT_ACTION_VALUES: ImportActivity[] = [
+  ...ACTION_VALUES,
+  DEPOSIT_ACTION,
+  WITHDRAW_ACTION,
+];
 
 export const ACTION_LABELS: Record<InvestmentAction, string> = {
   buy: "買進",
@@ -75,7 +92,17 @@ export function emptyMapping(): InvestmentImportMapping {
 
 const FIELD_SYNONYMS: Record<InvestmentField, string[]> = {
   date: ["date", "日期", "交易日", "交易日期", "成交日", "trade date", "datetime"],
-  action: ["activityType", "action", "type", "交易類別", "交易種類", "類別", "活動", "activity", "side"],
+  action: [
+    "activityType",
+    "action",
+    "type",
+    "交易類別",
+    "交易種類",
+    "類別",
+    "活動",
+    "activity",
+    "side",
+  ],
   ticker: ["assetSymbol", "ticker", "symbol", "代號", "股票代號", "代碼", "證券代號"],
   name: ["assetName", "name", "說明", "名稱", "描述", "description", "security", "證券名稱"],
   quantity: ["quantity", "qty", "數量", "股數", "shares", "成交數量"],
@@ -86,30 +113,49 @@ const FIELD_SYNONYMS: Record<InvestmentField, string[]> = {
 };
 
 const ACTION_SYNONYMS: Record<string, InvestmentAction> = {
-  "買進": "buy", "買": "buy", "buy": "buy", "購入": "buy", "bought": "buy", "申購": "buy",
-  "賣出": "sell", "賣": "sell", "sell": "sell", "sold": "sell", "贖回": "sell",
-  "現金股利": "cashDividend", "股利": "cashDividend", "配息": "cashDividend", "dividend": "cashDividend", "cash dividend": "cashDividend", "div": "cashDividend",
-  "股票股利": "stockDividend", "配股": "stockDividend", "stock dividend": "stockDividend",
-  "減資": "capitalReduction", "capital reduction": "capitalReduction",
-  "股票分割": "stockSplit", "分割": "stockSplit", "split": "stockSplit",
+  買進: "buy",
+  買: "buy",
+  buy: "buy",
+  購入: "buy",
+  bought: "buy",
+  申購: "buy",
+  賣出: "sell",
+  賣: "sell",
+  sell: "sell",
+  sold: "sell",
+  贖回: "sell",
+  現金股利: "cashDividend",
+  股利: "cashDividend",
+  配息: "cashDividend",
+  dividend: "cashDividend",
+  "cash dividend": "cashDividend",
+  div: "cashDividend",
+  股票股利: "stockDividend",
+  配股: "stockDividend",
+  "stock dividend": "stockDividend",
+  減資: "capitalReduction",
+  "capital reduction": "capitalReduction",
+  股票分割: "stockSplit",
+  分割: "stockSplit",
+  split: "stockSplit",
 };
 const IMPORT_ACTION_SYNONYMS: Record<string, ImportActivity> = {
   ...ACTION_SYNONYMS,
-  "入金": DEPOSIT_ACTION,
-  "存入": DEPOSIT_ACTION,
-  "存款": DEPOSIT_ACTION,
-  "deposit": DEPOSIT_ACTION,
+  入金: DEPOSIT_ACTION,
+  存入: DEPOSIT_ACTION,
+  存款: DEPOSIT_ACTION,
+  deposit: DEPOSIT_ACTION,
   "transfer in": DEPOSIT_ACTION,
-  "transfer_in": DEPOSIT_ACTION,
-  "transferin": DEPOSIT_ACTION,
-  "出金": WITHDRAW_ACTION,
-  "提款": WITHDRAW_ACTION,
-  "提領": WITHDRAW_ACTION,
-  "withdraw": WITHDRAW_ACTION,
-  "withdrawal": WITHDRAW_ACTION,
+  transfer_in: DEPOSIT_ACTION,
+  transferin: DEPOSIT_ACTION,
+  出金: WITHDRAW_ACTION,
+  提款: WITHDRAW_ACTION,
+  提領: WITHDRAW_ACTION,
+  withdraw: WITHDRAW_ACTION,
+  withdrawal: WITHDRAW_ACTION,
   "transfer out": WITHDRAW_ACTION,
-  "transfer_out": WITHDRAW_ACTION,
-  "transferout": WITHDRAW_ACTION,
+  transfer_out: WITHDRAW_ACTION,
+  transferout: WITHDRAW_ACTION,
 };
 
 /** Guess field → header mapping from the CSV headers. */
@@ -127,12 +173,17 @@ export function autoDetectFields(headers: string[]): Partial<Record<InvestmentFi
       .filter((candidate) => candidate.score > 0)
       .sort((a, b) => b.score - a.score);
     const match = candidates[0]?.header;
-    if (match) { fields[field] = match; used.add(match); }
+    if (match) {
+      fields[field] = match;
+      used.add(match);
+    }
   }
   return fields;
 }
 
-function detectNorthstarActivityFields(headers: string[]): Partial<Record<InvestmentField, string>> | null {
+function detectNorthstarActivityFields(
+  headers: string[],
+): Partial<Record<InvestmentField, string>> | null {
   const byLower = new Map(headers.map((header) => [header.toLowerCase(), header]));
   if (!byLower.has("activitytype") || !byLower.has("assetsymbol")) return null;
   const pick = (name: string) => byLower.get(name.toLowerCase());
@@ -161,20 +212,28 @@ function headerScore(header: string, synonyms: string[]) {
     const lowerSyn = synonym.toLowerCase();
     const compactSyn = compact(synonym);
     if (lower === lowerSyn || compactHeader === compactSyn) best = Math.max(best, 100);
-    else if (lower.includes(lowerSyn) || compactHeader.includes(compactSyn)) best = Math.max(best, 70);
-    else if (lowerSyn.includes(lower) || compactSyn.includes(compactHeader)) best = Math.max(best, 40);
+    else if (lower.includes(lowerSyn) || compactHeader.includes(compactSyn))
+      best = Math.max(best, 70);
+    else if (lowerSyn.includes(lower) || compactSyn.includes(compactHeader))
+      best = Math.max(best, 40);
   }
   return best;
 }
 
 /** Distinct non-empty values found in a column, preserving first-seen order. */
-export function distinctValues(rows: Record<string, string>[], header: string | undefined): string[] {
+export function distinctValues(
+  rows: Record<string, string>[],
+  header: string | undefined,
+): string[] {
   if (!header) return [];
   const seen = new Set<string>();
   const out: string[] = [];
   for (const row of rows) {
     const value = (row[header] ?? "").trim();
-    if (value && !seen.has(value)) { seen.add(value); out.push(value); }
+    if (value && !seen.has(value)) {
+      seen.add(value);
+      out.push(value);
+    }
   }
   return out;
 }
@@ -202,10 +261,13 @@ export type InvestmentImportValue =
   | { kind: "investment"; draft: InvestmentDraft; label: string }
   | { kind: "cash"; draft: LedgerDraft; label: string };
 
-function pad(n: number): string { return String(n).padStart(2, "0"); }
+function pad(n: number): string {
+  return String(n).padStart(2, "0");
+}
 
 function toIso(y: number, m: number, d: number): string {
-  if (!(y >= 1900 && y <= 2999 && m >= 1 && m <= 12 && d >= 1 && d <= 31)) throw new Error("日期格式無效");
+  if (!(y >= 1900 && y <= 2999 && m >= 1 && m <= 12 && d >= 1 && d <= 31))
+    throw new Error("日期格式無效");
   return `${y}-${pad(m)}-${pad(d)}`;
 }
 
@@ -229,7 +291,10 @@ export function parseImportDate(raw: string, fmt: DateFormat): string {
     return toIso(parts[2], parts[0], parts[1]); // default to MDY (most broker exports)
   }
   const ts = Date.parse(s);
-  if (!Number.isNaN(ts)) { const d = new Date(ts); return toIso(d.getFullYear(), d.getMonth() + 1, d.getDate()); }
+  if (!Number.isNaN(ts)) {
+    const d = new Date(ts);
+    return toIso(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  }
   throw new Error("日期格式無效");
 }
 
@@ -274,7 +339,9 @@ export function applyInvestmentMapping(
 
       if (action === DEPOSIT_ACTION || action === WITHDRAW_ACTION) {
         const amountRaw = row.amount?.trim() || get(row, "price");
-        const amount = Math.abs(parseNumber(amountRaw, action === DEPOSIT_ACTION ? "入金金額" : "出金金額"));
+        const amount = Math.abs(
+          parseNumber(amountRaw, action === DEPOSIT_ACTION ? "入金金額" : "出金金額"),
+        );
         const signedAmount = action === DEPOSIT_ACTION ? amount : -amount;
         const label = action === DEPOSIT_ACTION ? "入金" : "出金";
         preview.valid.push({
@@ -309,7 +376,8 @@ export function applyInvestmentMapping(
       const quantity = Math.abs(parseNumber(get(row, "quantity"), "數量", isDividend));
       const mappedPrice = parseNumber(get(row, "price"), "價格", isDividend);
       const fallbackAmount = row.amount ? Math.abs(parseNumber(row.amount, "金額", true)) : 0;
-      const price = isDividend && mappedPrice === 0 && fallbackAmount > 0 ? fallbackAmount : mappedPrice;
+      const price =
+        isDividend && mappedPrice === 0 && fallbackAmount > 0 ? fallbackAmount : mappedPrice;
       const feeRaw = get(row, "fee");
       const fee = feeRaw ? Math.abs(parseNumber(feeRaw, "手續費")) : 0;
 
@@ -345,7 +413,10 @@ export function applyInvestmentMapping(
 }
 
 function resolveRowAccount(row: Record<string, string>, ctx: MappingContext) {
-  const accounts = ctx.accounts?.filter((account) => account.type === "investment" && account.deletedAt === null) ?? [];
+  const accounts =
+    ctx.accounts?.filter(
+      (account) => account.type === "investment" && account.deletedAt === null,
+    ) ?? [];
   const rawId = row.accountId?.trim();
   const rawName = row.accountName?.trim();
   const byId = rawId ? accounts.find((account) => account.id === rawId) : null;
@@ -356,7 +427,11 @@ function resolveRowAccount(row: Record<string, string>, ctx: MappingContext) {
   if (byName) return { id: byName.id, name: byName.name, currency: byName.currency };
   if (ctx.linkedAccountId) {
     const fallback = accounts.find((account) => account.id === ctx.linkedAccountId);
-    return { id: ctx.linkedAccountId, name: fallback?.name ?? "投資帳戶", currency: ctx.accountCurrency };
+    return {
+      id: ctx.linkedAccountId,
+      name: fallback?.name ?? "投資帳戶",
+      currency: ctx.accountCurrency,
+    };
   }
   throw new Error(rawName ? `找不到投資帳戶「${rawName}」` : "缺少投資帳戶");
 }

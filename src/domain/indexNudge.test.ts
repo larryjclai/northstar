@@ -10,7 +10,11 @@ import {
 
 // Helpers -------------------------------------------------------------------
 /** Build a benchmark series that beats the portfolio by `gap` pp every window. */
-function laggingBy(gap: number, windows: number, portReturn = 1): { port: number[]; bench: number[] } {
+function laggingBy(
+  gap: number,
+  windows: number,
+  portReturn = 1,
+): { port: number[]; bench: number[] } {
   return {
     port: Array.from({ length: windows }, () => portReturn),
     bench: Array.from({ length: windows }, () => portReturn + gap),
@@ -20,7 +24,11 @@ function laggingBy(gap: number, windows: number, portReturn = 1): { port: number
 describe("evaluateIndexNudge", () => {
   it("returns insufficient-data when fewer than minWindows are supplied", () => {
     const { port, bench } = laggingBy(2, 5); // 5 lagging windows, need 8
-    const v = evaluateIndexNudge({ portfolioReturns: port, benchmarkReturns: bench, minWindows: 8 });
+    const v = evaluateIndexNudge({
+      portfolioReturns: port,
+      benchmarkReturns: bench,
+      minWindows: 8,
+    });
     expect(v.reason).toBe("insufficient-data");
     expect(v.triggered).toBe(false);
     expect(v.consecutiveLagging).toBe(0);
@@ -31,7 +39,11 @@ describe("evaluateIndexNudge", () => {
     // 8 windows, portfolio ahead in the last one (breaks any lagging streak).
     const port = [1, 1, 1, 1, 1, 1, 1, 5];
     const bench = [3, 3, 3, 3, 3, 3, 3, 1];
-    const v = evaluateIndexNudge({ portfolioReturns: port, benchmarkReturns: bench, minWindows: 8 });
+    const v = evaluateIndexNudge({
+      portfolioReturns: port,
+      benchmarkReturns: bench,
+      minWindows: 8,
+    });
     expect(v.reason).toBe("leading");
     expect(v.triggered).toBe(false);
     expect(v.consecutiveLagging).toBe(0);
@@ -41,7 +53,11 @@ describe("evaluateIndexNudge", () => {
   it("treats an exact tie in the latest window as leading (strict-lag rule)", () => {
     const port = [1, 1, 1, 1, 1, 1, 1, 2];
     const bench = [3, 3, 3, 3, 3, 3, 3, 2]; // tie on the last window
-    const v = evaluateIndexNudge({ portfolioReturns: port, benchmarkReturns: bench, minWindows: 8 });
+    const v = evaluateIndexNudge({
+      portfolioReturns: port,
+      benchmarkReturns: bench,
+      minWindows: 8,
+    });
     expect(v.reason).toBe("leading");
     expect(v.triggered).toBe(false);
   });
@@ -50,7 +66,11 @@ describe("evaluateIndexNudge", () => {
     // 8 windows of data (passes the sample gate) but only the last 3 lag.
     const port = [5, 5, 5, 5, 5, 1, 1, 1];
     const bench = [1, 1, 1, 1, 1, 3, 3, 3];
-    const v = evaluateIndexNudge({ portfolioReturns: port, benchmarkReturns: bench, minWindows: 8 });
+    const v = evaluateIndexNudge({
+      portfolioReturns: port,
+      benchmarkReturns: bench,
+      minWindows: 8,
+    });
     expect(v.reason).toBe("lagging-not-persistent");
     expect(v.triggered).toBe(false);
     expect(v.consecutiveLagging).toBe(3);
@@ -60,7 +80,11 @@ describe("evaluateIndexNudge", () => {
   it("returns lagging-not-persistent when persistent but the cumulative gap is below the floor", () => {
     // 8 consecutive lagging windows but only 0.5pp each → 4pp total < 5pp floor.
     const { port, bench } = laggingBy(0.5, 8);
-    const v = evaluateIndexNudge({ portfolioReturns: port, benchmarkReturns: bench, minWindows: 8 });
+    const v = evaluateIndexNudge({
+      portfolioReturns: port,
+      benchmarkReturns: bench,
+      minWindows: 8,
+    });
     expect(v.reason).toBe("lagging-not-persistent");
     expect(v.triggered).toBe(false);
     expect(v.consecutiveLagging).toBe(8);
@@ -69,7 +93,11 @@ describe("evaluateIndexNudge", () => {
 
   it("triggers persistent-lag when the streak and cumulative gap both clear", () => {
     const { port, bench } = laggingBy(2, 8); // 8 windows × 2pp = 16pp gap
-    const v = evaluateIndexNudge({ portfolioReturns: port, benchmarkReturns: bench, minWindows: 8 });
+    const v = evaluateIndexNudge({
+      portfolioReturns: port,
+      benchmarkReturns: bench,
+      minWindows: 8,
+    });
     expect(v.reason).toBe("persistent-lag");
     expect(v.triggered).toBe(true);
     expect(v.consecutiveLagging).toBe(8);
@@ -80,7 +108,11 @@ describe("evaluateIndexNudge", () => {
     // Earlier windows lag too, but a leading window in the middle resets the run.
     const port = [1, 1, 5, 1, 1, 1, 1, 1, 1, 1, 1, 1]; // index 2 leads
     const bench = [3, 3, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3];
-    const v = evaluateIndexNudge({ portfolioReturns: port, benchmarkReturns: bench, minWindows: 8 });
+    const v = evaluateIndexNudge({
+      portfolioReturns: port,
+      benchmarkReturns: bench,
+      minWindows: 8,
+    });
     expect(v.consecutiveLagging).toBe(9); // windows 3..11 (0-indexed)
     expect(v.reason).toBe("persistent-lag");
     expect(v.triggered).toBe(true);
@@ -92,7 +124,11 @@ describe("evaluateIndexNudge", () => {
     // 9 windows: only the last 8 lag; streak === minWindows.
     const port = [9, 1, 1, 1, 1, 1, 1, 1, 1];
     const bench = [1, 3, 3, 3, 3, 3, 3, 3, 3];
-    const v = evaluateIndexNudge({ portfolioReturns: port, benchmarkReturns: bench, minWindows: 8 });
+    const v = evaluateIndexNudge({
+      portfolioReturns: port,
+      benchmarkReturns: bench,
+      minWindows: 8,
+    });
     expect(v.consecutiveLagging).toBe(8);
     expect(v.reason).toBe("persistent-lag");
     expect(v.triggered).toBe(true);
@@ -103,7 +139,11 @@ describe("evaluateIndexNudge", () => {
     // 8 windows × 0.625pp = 5.0pp === DEFAULT_GAP_FLOOR_PCT.
     const gap = DEFAULT_GAP_FLOOR_PCT / 8;
     const { port, bench } = laggingBy(gap, 8);
-    const v = evaluateIndexNudge({ portfolioReturns: port, benchmarkReturns: bench, minWindows: 8 });
+    const v = evaluateIndexNudge({
+      portfolioReturns: port,
+      benchmarkReturns: bench,
+      minWindows: 8,
+    });
     expect(v.cumulativeGapPct).toBeCloseTo(DEFAULT_GAP_FLOOR_PCT, 6);
     expect(v.reason).toBe("persistent-lag");
     expect(v.triggered).toBe(true);
@@ -111,7 +151,12 @@ describe("evaluateIndexNudge", () => {
 
   it("respects a custom gapFloorPct override", () => {
     const { port, bench } = laggingBy(1, 8); // 8pp cumulative gap
-    const v = evaluateIndexNudge({ portfolioReturns: port, benchmarkReturns: bench, minWindows: 8, gapFloorPct: 10 });
+    const v = evaluateIndexNudge({
+      portfolioReturns: port,
+      benchmarkReturns: bench,
+      minWindows: 8,
+      gapFloorPct: 10,
+    });
     expect(v.reason).toBe("lagging-not-persistent"); // 8pp < 10pp floor
     expect(v.triggered).toBe(false);
   });
@@ -119,7 +164,11 @@ describe("evaluateIndexNudge", () => {
   it("considers only the first min(length) windows when series lengths differ", () => {
     const port = [1, 1, 1, 1, 1, 1, 1, 1];
     const bench = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3]; // longer; min length = 8
-    const v = evaluateIndexNudge({ portfolioReturns: port, benchmarkReturns: bench, minWindows: 8 });
+    const v = evaluateIndexNudge({
+      portfolioReturns: port,
+      benchmarkReturns: bench,
+      minWindows: 8,
+    });
     expect(v.consecutiveLagging).toBe(8);
     expect(v.triggered).toBe(true);
   });
@@ -136,7 +185,11 @@ function isoAddDays(date: string, days: number): string {
 
 /** Cumulative-return series with points exactly at the k·91-day boundaries,
  *  compounding at `quarterlyPct` % per window. */
-function quarterlySeries(start: string, quarters: number, quarterlyPct: number): NudgeWindowSeries[] {
+function quarterlySeries(
+  start: string,
+  quarters: number,
+  quarterlyPct: number,
+): NudgeWindowSeries[] {
   return Array.from({ length: quarters + 1 }, (_, k) => ({
     date: isoAddDays(start, k * DEFAULT_NUDGE_WINDOW_DAYS),
     pct: (Math.pow(1 + quarterlyPct / 100, k) - 1) * 100,
@@ -152,7 +205,12 @@ describe("buildIndexNudgeWindows", () => {
 
   it("slices ~3 quarters of aligned series into 3 windows with correct per-window returns", () => {
     // Sanity-check the fixture's hand-computed dates and cum levels.
-    expect(port3q.map((p) => p.date)).toEqual(["2025-01-01", "2025-04-02", "2025-07-02", "2025-10-01"]);
+    expect(port3q.map((p) => p.date)).toEqual([
+      "2025-01-01",
+      "2025-04-02",
+      "2025-07-02",
+      "2025-10-01",
+    ]);
     expect(port3q[3].pct).toBeCloseTo(33.1, 6);
     expect(bench3q[3].pct).toBeCloseTo(15.7625, 6);
 
@@ -192,15 +250,27 @@ describe("buildIndexNudgeWindows", () => {
   it("returns empty arrays when fewer than 2 aligned points exist", () => {
     // Disjoint dates → 0 aligned points.
     const disjoint = buildIndexNudgeWindows({
-      portfolioCum: [{ date: "2025-01-01", pct: 0 }, { date: "2025-01-02", pct: 1 }],
-      benchmarkCum: [{ date: "2025-06-01", pct: 0 }, { date: "2025-06-02", pct: 1 }],
+      portfolioCum: [
+        { date: "2025-01-01", pct: 0 },
+        { date: "2025-01-02", pct: 1 },
+      ],
+      benchmarkCum: [
+        { date: "2025-06-01", pct: 0 },
+        { date: "2025-06-02", pct: 1 },
+      ],
     });
     expect(disjoint).toEqual({ portfolioReturns: [], benchmarkReturns: [] });
 
     // Exactly 1 common date → still insufficient.
     const single = buildIndexNudgeWindows({
-      portfolioCum: [{ date: "2025-01-01", pct: 0 }, { date: "2025-01-02", pct: 1 }],
-      benchmarkCum: [{ date: "2025-01-01", pct: 0 }, { date: "2025-03-01", pct: 1 }],
+      portfolioCum: [
+        { date: "2025-01-01", pct: 0 },
+        { date: "2025-01-02", pct: 1 },
+      ],
+      benchmarkCum: [
+        { date: "2025-01-01", pct: 0 },
+        { date: "2025-03-01", pct: 1 },
+      ],
     });
     expect(single).toEqual({ portfolioReturns: [], benchmarkReturns: [] });
   });

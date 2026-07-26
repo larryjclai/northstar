@@ -27,4 +27,3 @@ export interface RecoveryKitStatus {
   createdAt: string | null;
   confirmedAt: string | null;
 }
-

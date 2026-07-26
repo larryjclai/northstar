@@ -89,8 +89,12 @@ describe("categoryPickerOptions", () => {
   });
 
   it("empty selection behaves identically to filterCategoriesByType", () => {
-    expect(categoryPickerOptions(list, "income", "")).toEqual(filterCategoriesByType(list, "income"));
-    expect(categoryPickerOptions(list, "expense", "")).toEqual(filterCategoriesByType(list, "expense"));
+    expect(categoryPickerOptions(list, "income", "")).toEqual(
+      filterCategoriesByType(list, "income"),
+    );
+    expect(categoryPickerOptions(list, "expense", "")).toEqual(
+      filterCategoriesByType(list, "expense"),
+    );
   });
 
   it("still falls back to the full list when no category matches the type", () => {

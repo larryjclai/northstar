@@ -24,11 +24,12 @@ export function FilterPill({
   const count = selected.size;
 
   // Render selected labels. If multiple are selected, show count to prevent layout shift
-  const displayLabel = count > 1 
-    ? `${count} 項已選`
-    : count === 1
-    ? options.find(o => selected.has(o.value))?.label || label
-    : label;
+  const displayLabel =
+    count > 1
+      ? `${count} 項已選`
+      : count === 1
+        ? options.find((o) => selected.has(o.value))?.label || label
+        : label;
 
   return (
     <Popover>
@@ -43,18 +44,35 @@ export function FilterPill({
         {icon || <ListPlus size={14} />}
         <span className="truncate max-w-[120px]">{displayLabel}</span>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-56 p-2 rounded-xl border border-[var(--ns-border)]" style={{ background: "var(--ns-surface-strong)", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
-        <div className="mb-2 flex items-center justify-between px-2 text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>
+      <PopoverContent
+        align="start"
+        className="w-56 p-2 rounded-xl border border-[var(--ns-border)]"
+        style={{ background: "var(--ns-surface-strong)", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}
+      >
+        <div
+          className="mb-2 flex items-center justify-between px-2 text-xs"
+          style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}
+        >
           <span>{label}</span>
-          {count > 0 && <button className="hover:underline text-[var(--ns-neg)]" onClick={() => onChange(new Set())}>Clear filters</button>}
+          {count > 0 && (
+            <button
+              className="hover:underline text-[var(--ns-neg)]"
+              onClick={() => onChange(new Set())}
+            >
+              Clear filters
+            </button>
+          )}
         </div>
         <div className="max-h-64 overflow-y-auto flex flex-col gap-1">
           {options.map((opt) => (
-            <label key={opt.value} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-[var(--ns-bg-hover)] transition-colors">
-              <input 
-                type="checkbox" 
-                checked={selected.has(opt.value)} 
-                onChange={() => toggle(opt.value)} 
+            <label
+              key={opt.value}
+              className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-[var(--ns-bg-hover)] transition-colors"
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(opt.value)}
+                onChange={() => toggle(opt.value)}
                 className="accent-[var(--ns-accent)] rounded-sm w-4 h-4 border-[var(--ns-border)]"
               />
               <span className="truncate flex-1">{opt.label}</span>

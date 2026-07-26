@@ -19,11 +19,23 @@ export interface AmountMatch {
 }
 
 const CHINESE_DIGIT: Record<string, number> = {
-  零: 0, 一: 1, 二: 2, 兩: 2, 三: 3, 四: 4,
-  五: 5, 六: 6, 七: 7, 八: 8, 九: 9,
+  零: 0,
+  一: 1,
+  二: 2,
+  兩: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+  七: 7,
+  八: 8,
+  九: 9,
 };
 const CHINESE_LEVEL: Record<string, number> = {
-  十: 10, 百: 100, 千: 1000, 萬: 10000,
+  十: 10,
+  百: 100,
+  千: 1000,
+  萬: 10000,
 };
 
 /**
@@ -40,9 +52,15 @@ export function parseChineseNumber(s: string): number | null {
   let lastLevel = 10000; // sentinel: nothing seen yet
 
   for (const ch of s) {
-    if (ch === "零") { cur = 0; continue; }
+    if (ch === "零") {
+      cur = 0;
+      continue;
+    }
     const d = CHINESE_DIGIT[ch];
-    if (d !== undefined) { cur = d; continue; }
+    if (d !== undefined) {
+      cur = d;
+      continue;
+    }
     const lv = CHINESE_LEVEL[ch];
     if (!lv) return null;
     if (lv === 10000) {
@@ -70,10 +88,13 @@ function stripCommas(s: string): number {
 }
 
 const UNIT_MULTIPLIERS: Record<string, number> = {
-  "萬": 10000, "万": 10000,
-  "千": 1000,
-  "k": 1000, "K": 1000,
-  "m": 1000000, "M": 1000000,
+  萬: 10000,
+  万: 10000,
+  千: 1000,
+  k: 1000,
+  K: 1000,
+  m: 1000000,
+  M: 1000000,
 };
 
 /** Return all non-overlapping [start, end) spans to exclude from amount scanning. */

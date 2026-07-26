@@ -173,7 +173,10 @@ export function buildUserLexicon(
     let best = "";
     let bestCount = 0;
     for (const [catKey, count] of counts) {
-      if (count > bestCount) { best = catKey; bestCount = count; }
+      if (count > bestCount) {
+        best = catKey;
+        bestCount = count;
+      }
     }
     const [category, subcategory = ""] = best.split(DELIM);
     if (category) {
@@ -249,9 +252,6 @@ export function matchAccountFromLexicon(
  * Look up category for a merchant/name token.
  * Returns null when no mapping exists (neither learned nor seeded).
  */
-export function lookupCategory(
-  token: string,
-  lexicon: UserLexicon,
-): CategoryMatch | null {
+export function lookupCategory(token: string, lexicon: UserLexicon): CategoryMatch | null {
   return lexicon.keywordCategory.get(token.toLowerCase().trim()) ?? null;
 }

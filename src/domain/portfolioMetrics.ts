@@ -61,9 +61,7 @@ const day = (s: string) => s.slice(0, 10);
  * total cost untouched, so the per-share cost rises.
  */
 export function buildPositionMetrics(records: InvestmentRecord[]): PositionMetrics {
-  const sorted = records
-    .filter((r) => r.deletedAt === null)
-    .sort(openingFirst);
+  const sorted = records.filter((r) => r.deletedAt === null).sort(openingFirst);
 
   let quantity = 0;
   let cost = 0;
@@ -151,9 +149,7 @@ export interface CostBasisDelta {
  * dividends / splits never change total cost, so they emit nothing.
  */
 export function buildCostBasisTimeline(records: InvestmentRecord[]): CostBasisDelta[] {
-  const sorted = records
-    .filter((r) => r.deletedAt === null)
-    .sort(openingFirst);
+  const sorted = records.filter((r) => r.deletedAt === null).sort(openingFirst);
   const deltas: CostBasisDelta[] = [];
   let quantity = 0;
   let cost = 0;
@@ -213,9 +209,7 @@ export interface QuantityDelta {
  * `buildPositionMetrics`), so callers get an exact endpoint.
  */
 export function buildQuantityTimeline(records: InvestmentRecord[]): QuantityDelta[] {
-  const sorted = records
-    .filter((r) => r.deletedAt === null)
-    .sort(openingFirst);
+  const sorted = records.filter((r) => r.deletedAt === null).sort(openingFirst);
   const deltas: QuantityDelta[] = [];
   let quantity = 0;
   for (const r of sorted) {
@@ -276,7 +270,8 @@ export function calculateXirr(
   terminal?: { date: string; amount: number },
 ): number | null {
   const flows = [...cashflows];
-  if (terminal && Math.abs(terminal.amount) > EPS) flows.push({ date: day(terminal.date), amount: terminal.amount });
+  if (terminal && Math.abs(terminal.amount) > EPS)
+    flows.push({ date: day(terminal.date), amount: terminal.amount });
   if (flows.length < 2) return null;
   if (!flows.some((f) => f.amount < -EPS) || !flows.some((f) => f.amount > EPS)) return null;
 

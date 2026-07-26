@@ -22,7 +22,11 @@ describe("addMonthsClamped", () => {
 
 describe("buildInstallmentSchedule", () => {
   it("splits evenly and sums exactly to the total", () => {
-    const schedule = buildInstallmentSchedule({ totalAmount: -12_000, periods: 12, startDate: "2026-06-11" });
+    const schedule = buildInstallmentSchedule({
+      totalAmount: -12_000,
+      periods: 12,
+      startDate: "2026-06-11",
+    });
     expect(schedule).toHaveLength(12);
     expect(schedule.every((p) => p.amount === -1000)).toBe(true);
     expect(schedule[0].date).toBe("2026-06-11");
@@ -31,7 +35,11 @@ describe("buildInstallmentSchedule", () => {
   });
 
   it("folds the rounding remainder into the first period", () => {
-    const schedule = buildInstallmentSchedule({ totalAmount: -10_000, periods: 3, startDate: "2026-06-11" });
+    const schedule = buildInstallmentSchedule({
+      totalAmount: -10_000,
+      periods: 3,
+      startDate: "2026-06-11",
+    });
     expect(schedule[0].amount).toBe(-3333.34);
     expect(schedule[1].amount).toBe(-3333.33);
     expect(schedule[2].amount).toBe(-3333.33);
@@ -40,9 +48,15 @@ describe("buildInstallmentSchedule", () => {
   });
 
   it("rejects invalid input", () => {
-    expect(() => buildInstallmentSchedule({ totalAmount: -1000, periods: 1, startDate: "2026-06-11" })).toThrow();
-    expect(() => buildInstallmentSchedule({ totalAmount: -1000, periods: 2.5, startDate: "2026-06-11" })).toThrow();
-    expect(() => buildInstallmentSchedule({ totalAmount: 0, periods: 3, startDate: "2026-06-11" })).toThrow();
+    expect(() =>
+      buildInstallmentSchedule({ totalAmount: -1000, periods: 1, startDate: "2026-06-11" }),
+    ).toThrow();
+    expect(() =>
+      buildInstallmentSchedule({ totalAmount: -1000, periods: 2.5, startDate: "2026-06-11" }),
+    ).toThrow();
+    expect(() =>
+      buildInstallmentSchedule({ totalAmount: 0, periods: 3, startDate: "2026-06-11" }),
+    ).toThrow();
   });
 });
 

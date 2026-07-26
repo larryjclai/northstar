@@ -110,7 +110,9 @@ function createFsStore(): BackupStore {
     async read(id) {
       const { readTextFile, BaseDirectory } = await fs();
       try {
-        const text = await readTextFile(`${BACKUP_DIR}/${id}`, { baseDir: BaseDirectory.AppLocalData });
+        const text = await readTextFile(`${BACKUP_DIR}/${id}`, {
+          baseDir: BaseDirectory.AppLocalData,
+        });
         return JSON.parse(text) as RepositorySnapshot;
       } catch {
         return null;
@@ -239,7 +241,10 @@ function isEmptySnapshot(s: RepositorySnapshot): boolean {
   );
 }
 
-async function createBackup(repo: FinanceRepository, kind: LocalBackupKind): Promise<LocalBackupEntry> {
+async function createBackup(
+  repo: FinanceRepository,
+  kind: LocalBackupKind,
+): Promise<LocalBackupEntry> {
   const snapshot = await repo.exportSnapshot();
   const now = Date.now();
   const entry: LocalBackupEntry = {
@@ -257,10 +262,14 @@ async function createBackup(repo: FinanceRepository, kind: LocalBackupKind): Pro
  * day). No-op for an empty database. Prunes old scheduled backups afterwards.
  * Returns the new entry, or null if skipped. Caller must skip during demo mode.
  */
-export async function runDailyBackupIfDue(repo: FinanceRepository): Promise<LocalBackupEntry | null> {
+export async function runDailyBackupIfDue(
+  repo: FinanceRepository,
+): Promise<LocalBackupEntry | null> {
   const today = dayKey(new Date());
   const existing = await store().list();
-  const hasToday = existing.some((e) => e.kind === "scheduled" && dayKey(new Date(e.timestamp)) === today);
+  const hasToday = existing.some(
+    (e) => e.kind === "scheduled" && dayKey(new Date(e.timestamp)) === today,
+  );
   if (hasToday) return null;
 
   const snapshot = await repo.exportSnapshot();

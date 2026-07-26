@@ -89,6 +89,9 @@ export const repoFactories = [
  *     });
  *   });
  */
-export function describeEachRepo(name: string, body: (makeRepo: MakeRepo, repoLabel: RepoLabel) => void) {
+export function describeEachRepo(
+  name: string,
+  body: (makeRepo: MakeRepo, repoLabel: RepoLabel) => void,
+) {
   describe.each(repoFactories)(`${name} [%s]`, (label, makeRepo) => body(makeRepo, label));
 }

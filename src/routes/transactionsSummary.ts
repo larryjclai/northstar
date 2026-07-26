@@ -29,9 +29,12 @@ export function summarizeTransactions(
     dividends = 0;
   for (const row of rows) {
     if (row.kind !== "investment" || row.isOpeningLot) continue;
-    if (row.actionKey === "buy") bought += toPrimary(row.price * row.quantity, row.currency, row.date);
-    else if (row.actionKey === "sell") sold += toPrimary(row.price * row.quantity, row.currency, row.date);
-    else if (row.actionKey === "cashDividend") dividends += toPrimary(row.price, row.currency, row.date);
+    if (row.actionKey === "buy")
+      bought += toPrimary(row.price * row.quantity, row.currency, row.date);
+    else if (row.actionKey === "sell")
+      sold += toPrimary(row.price * row.quantity, row.currency, row.date);
+    else if (row.actionKey === "cashDividend")
+      dividends += toPrimary(row.price, row.currency, row.date);
   }
   return { count: rows.length, bought, sold, dividends };
 }

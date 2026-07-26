@@ -21,7 +21,12 @@ function installFakeIndexedDB() {
       return stores.get(this.name)!;
     }
     getAll() {
-      const req: { result?: unknown; error?: unknown; onsuccess?: () => void; onerror?: () => void } = {};
+      const req: {
+        result?: unknown;
+        error?: unknown;
+        onsuccess?: () => void;
+        onerror?: () => void;
+      } = {};
       schedule(() => {
         req.result = [...this.map().values()];
         req.onsuccess?.();
@@ -29,7 +34,12 @@ function installFakeIndexedDB() {
       return req;
     }
     get(key: string) {
-      const req: { result?: unknown; error?: unknown; onsuccess?: () => void; onerror?: () => void } = {};
+      const req: {
+        result?: unknown;
+        error?: unknown;
+        onsuccess?: () => void;
+        onerror?: () => void;
+      } = {};
       schedule(() => {
         req.result = this.map().get(key);
         req.onsuccess?.();
@@ -97,7 +107,10 @@ function installFakeIndexedDB() {
 }
 
 function snapshot(exportedAt: string, accounts: number): RepositorySnapshot {
-  return { exportedAt, accounts: Array.from({ length: accounts }, (_, i) => ({ id: `a${i}` })) } as unknown as RepositorySnapshot;
+  return {
+    exportedAt,
+    accounts: Array.from({ length: accounts }, (_, i) => ({ id: `a${i}` })),
+  } as unknown as RepositorySnapshot;
 }
 
 describe("sync backup store", () => {

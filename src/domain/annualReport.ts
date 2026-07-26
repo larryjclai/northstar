@@ -168,7 +168,12 @@ function dividendNative(record: InvestmentRecord): number {
   return gross - record.fee;
 }
 
-type HoldingYearBucket = { ticker: string; country: string | null; realizedGain: number; dividends: number };
+type HoldingYearBucket = {
+  ticker: string;
+  country: string | null;
+  realizedGain: number;
+  dividends: number;
+};
 
 export function buildAnnualReport(input: BuildAnnualReportInput): AnnualReport {
   const { assets, recordsByAsset, dividendByYear, toPrimary } = input;
@@ -192,7 +197,12 @@ export function buildAnnualReport(input: BuildAnnualReportInput): AnnualReport {
   // year -> assetId -> per-holding bucket (Decision A/B/C mirrored per-asset).
   const byHoldingMap = new Map<string, Map<string, HoldingYearBucket>>();
 
-  const bucketFor = (year: string, assetId: string, ticker: string, country: string | null): HoldingYearBucket => {
+  const bucketFor = (
+    year: string,
+    assetId: string,
+    ticker: string,
+    country: string | null,
+  ): HoldingYearBucket => {
     let yearMap = byHoldingMap.get(year);
     if (!yearMap) {
       yearMap = new Map();
@@ -269,7 +279,10 @@ export function buildAnnualReport(input: BuildAnnualReportInput): AnnualReport {
               dividends: bucket.dividends,
             }))
             .filter((h) => h.realizedGain !== 0 || h.dividends !== 0)
-            .sort((a, b) => Math.abs(b.realizedGain) + b.dividends - (Math.abs(a.realizedGain) + a.dividends))
+            .sort(
+              (a, b) =>
+                Math.abs(b.realizedGain) + b.dividends - (Math.abs(a.realizedGain) + a.dividends),
+            )
         : [];
 
       const domestic = { realizedGain: 0, dividends: 0 };
@@ -281,9 +294,21 @@ export function buildAnnualReport(input: BuildAnnualReportInput): AnnualReport {
       }
 
       // total excludes tradingCost — fees are already netted into realizedGain.
-      return { year, realizedGain, dividends, tradingCost, total: realizedGain + dividends, byHolding, domestic, overseas };
+      return {
+        year,
+        realizedGain,
+        dividends,
+        tradingCost,
+        total: realizedGain + dividends,
+        byHolding,
+        domestic,
+        overseas,
+      };
     })
     .sort((a, b) => a.year.localeCompare(b.year));
 
-  return { years: yearRows, fxMisses: { count: fxMissCount, currencies: [...fxMissCurrencies].sort() } };
+  return {
+    years: yearRows,
+    fxMisses: { count: fxMissCount, currencies: [...fxMissCurrencies].sort() },
+  };
 }

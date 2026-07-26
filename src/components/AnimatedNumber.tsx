@@ -55,8 +55,7 @@ export function AnimatedNumber({ value, format, fallback = "—", resetKey }: An
     const reduceMotion =
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const snap =
-      from == null || resetChanged || reduceMotion || isPrivacyMaskOn();
+    const snap = from == null || resetChanged || reduceMotion || isPrivacyMaskOn();
 
     if (snap || formatRef.current(from as number) === formatRef.current(target)) {
       shownRef.current = target;

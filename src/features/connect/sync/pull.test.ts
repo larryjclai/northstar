@@ -25,7 +25,10 @@ vi.mock("../crypto/vault", () => ({
 const mockedPullEnvelopes = vi.mocked(pullEnvelopes);
 const mockedLoadVaultKeyVersion = vi.mocked(loadVaultKeyVersion);
 
-async function createAccount(repo: ReturnType<typeof createMemoryFinanceRepositoryForTests>, name: string) {
+async function createAccount(
+  repo: ReturnType<typeof createMemoryFinanceRepositoryForTests>,
+  name: string,
+) {
   await repo.createAccount({
     name,
     currency: "TWD",
@@ -91,12 +94,19 @@ describe("pullAndApply", () => {
       revision: first.revision + 1,
       updatedAt: "2099-01-02T00:00:00.000Z",
     };
-    mockedPullEnvelopes.mockResolvedValue({ envelopes: [envelope(incoming)], nextCursor: "1", count: 1 });
+    mockedPullEnvelopes.mockResolvedValue({
+      envelopes: [envelope(incoming)],
+      nextCursor: "1",
+      count: 1,
+    });
 
     const result = await pullAndApply(repo, { userId: "u", apiSecret: "s" }, "", "device_a");
 
     expect(result.applied).toBe(1);
-    expect((await repo.listAccounts()).map((account) => account.name).sort()).toEqual(["備用金", "日常錢包"]);
+    expect((await repo.listAccounts()).map((account) => account.name).sort()).toEqual([
+      "備用金",
+      "日常錢包",
+    ]);
   });
 
   it("applies a complete tombstone and keeps it available for later sync", async () => {
@@ -104,13 +114,25 @@ describe("pullAndApply", () => {
     await createAccount(repo, "錢包");
     const [account] = await repo.listAccounts();
     const deletedAt = "2099-01-02T00:00:00.000Z";
-    const tombstone = { ...account, revision: account.revision + 1, updatedAt: deletedAt, deletedAt };
-    mockedPullEnvelopes.mockResolvedValue({ envelopes: [envelope(tombstone)], nextCursor: "2", count: 1 });
+    const tombstone = {
+      ...account,
+      revision: account.revision + 1,
+      updatedAt: deletedAt,
+      deletedAt,
+    };
+    mockedPullEnvelopes.mockResolvedValue({
+      envelopes: [envelope(tombstone)],
+      nextCursor: "2",
+      count: 1,
+    });
 
     await pullAndApply(repo, { userId: "u", apiSecret: "s" }, "", "device_a");
 
     expect(await repo.listAccounts()).toHaveLength(0);
-    expect(await repo.getSyncPayload("account", account.id)).toMatchObject({ deletedAt, revision: 2 });
+    expect(await repo.getSyncPayload("account", account.id)).toMatchObject({
+      deletedAt,
+      revision: 2,
+    });
   });
 
   it("records an equal-revision divergence for later inspection", async () => {
@@ -118,7 +140,11 @@ describe("pullAndApply", () => {
     await createAccount(repo, "錢包");
     const [account] = await repo.listAccounts();
     const incoming = { ...account, name: "遠端錢包" };
-    mockedPullEnvelopes.mockResolvedValue({ envelopes: [envelope(incoming)], nextCursor: "3", count: 1 });
+    mockedPullEnvelopes.mockResolvedValue({
+      envelopes: [envelope(incoming)],
+      nextCursor: "3",
+      count: 1,
+    });
 
     const result = await pullAndApply(repo, { userId: "u", apiSecret: "s" }, "", "device_a");
 
@@ -133,7 +159,10 @@ describe("pullAndApply", () => {
     await repo.resolveSyncConflict((await repo.listSyncConflicts())[0].id, "keepLocal");
 
     expect(await repo.listSyncConflicts()).toMatchObject([{ resolvedAt: expect.any(String) }]);
-    expect(await repo.getSyncPayload("account", account.id)).toMatchObject({ name: "錢包", revision: 2 });
+    expect(await repo.getSyncPayload("account", account.id)).toMatchObject({
+      name: "錢包",
+      revision: 2,
+    });
   });
 
   it("skips an undecryptable envelope and still applies the rest of the page", async () => {
@@ -141,12 +170,21 @@ describe("pullAndApply", () => {
     await createAccount(repo, "錢包");
     await createAccount(repo, "備用金");
     const [first, second] = await repo.listAccounts();
-    const good = { ...second, name: "日常錢包", revision: second.revision + 1, updatedAt: "2099-01-02T00:00:00.000Z" };
+    const good = {
+      ...second,
+      name: "日常錢包",
+      revision: second.revision + 1,
+      updatedAt: "2099-01-02T00:00:00.000Z",
+    };
     // A poison envelope (invalid ciphertext → decrypt throws) must NOT abort the
     // page: the cursor would otherwise pin here forever and the device would
     // never sync anything past it.
     const poison = { ...envelope(first), id: "env_poison", encryptedPayload: "{not-json" };
-    mockedPullEnvelopes.mockResolvedValue({ envelopes: [poison, envelope(good)], nextCursor: "9", count: 2 });
+    mockedPullEnvelopes.mockResolvedValue({
+      envelopes: [poison, envelope(good)],
+      nextCursor: "9",
+      count: 2,
+    });
 
     const result = await pullAndApply(repo, { userId: "u", apiSecret: "s" }, "", "device_a");
 
@@ -166,8 +204,15 @@ describe("pullAndApply", () => {
     const accountRecord = account as unknown as Record<string, unknown>;
     const reordered: Record<string, unknown> = {};
     for (const k of Object.keys(accountRecord).reverse()) reordered[k] = accountRecord[k];
-    const incoming = { ...reordered, balance: Number(accountRecord.balance ?? 0) + 9999 } as unknown as Account;
-    mockedPullEnvelopes.mockResolvedValue({ envelopes: [envelope(incoming)], nextCursor: "5", count: 1 });
+    const incoming = {
+      ...reordered,
+      balance: Number(accountRecord.balance ?? 0) + 9999,
+    } as unknown as Account;
+    mockedPullEnvelopes.mockResolvedValue({
+      envelopes: [envelope(incoming)],
+      nextCursor: "5",
+      count: 1,
+    });
 
     const result = await pullAndApply(repo, { userId: "u", apiSecret: "s" }, "", "device_a");
 
@@ -182,7 +227,11 @@ describe("pullAndApply", () => {
     // Same revision, different content, but the incoming edit is newer →
     // last-write-wins applies it silently, no conflict to triage.
     const incoming = { ...account, name: "遠端錢包", updatedAt: "2099-12-31T00:00:00.000Z" };
-    mockedPullEnvelopes.mockResolvedValue({ envelopes: [envelope(incoming)], nextCursor: "4", count: 1 });
+    mockedPullEnvelopes.mockResolvedValue({
+      envelopes: [envelope(incoming)],
+      nextCursor: "4",
+      count: 1,
+    });
 
     const result = await pullAndApply(repo, { userId: "u", apiSecret: "s" }, "", "device_a");
 
@@ -199,10 +248,21 @@ describe("pullAndApply", () => {
     const repo = createMemoryFinanceRepositoryForTests();
     await createAccount(repo, "錢包");
     const [account] = await repo.listAccounts();
-    const incoming = { ...account, name: "v2 錢包", revision: account.revision + 1, updatedAt: "2099-01-02T00:00:00.000Z" };
+    const incoming = {
+      ...account,
+      name: "v2 錢包",
+      revision: account.revision + 1,
+      updatedAt: "2099-01-02T00:00:00.000Z",
+    };
     // This device holds version 2 (not just the default version 1).
-    mockedLoadVaultKeyVersion.mockImplementation(async (v: number) => (v === 2 ? ({} as never) : null));
-    mockedPullEnvelopes.mockResolvedValue({ envelopes: [envelope(incoming, "device_b", 2)], nextCursor: "10", count: 1 });
+    mockedLoadVaultKeyVersion.mockImplementation(async (v: number) =>
+      v === 2 ? ({} as never) : null,
+    );
+    mockedPullEnvelopes.mockResolvedValue({
+      envelopes: [envelope(incoming, "device_b", 2)],
+      nextCursor: "10",
+      count: 1,
+    });
 
     const result = await pullAndApply(repo, { userId: "u", apiSecret: "s" }, "", "device_a");
 
@@ -219,12 +279,26 @@ describe("pullAndApply", () => {
     const [first, second] = await repo.listAccounts();
     // Envelope A: stamped version 5, which this device has never held (a
     // rotation it hasn't picked up yet — NOT corruption).
-    mockedLoadVaultKeyVersion.mockImplementation(async (v: number) => (v === 1 ? ({} as never) : null));
-    const futureVersion = envelope({ ...first, revision: first.revision + 1, updatedAt: "2099-01-01T00:00:00.000Z" }, "device_b", 5);
+    mockedLoadVaultKeyVersion.mockImplementation(async (v: number) =>
+      v === 1 ? ({} as never) : null,
+    );
+    const futureVersion = envelope(
+      { ...first, revision: first.revision + 1, updatedAt: "2099-01-01T00:00:00.000Z" },
+      "device_b",
+      5,
+    );
     // Envelope B: version 1 (a key this device DOES hold), but the ciphertext
     // itself is malformed — genuine corruption.
-    const corrupt = { ...envelope(second, "device_b", 1), id: "env_corrupt", encryptedPayload: "{not-json" };
-    mockedPullEnvelopes.mockResolvedValue({ envelopes: [futureVersion, corrupt], nextCursor: "11", count: 2 });
+    const corrupt = {
+      ...envelope(second, "device_b", 1),
+      id: "env_corrupt",
+      encryptedPayload: "{not-json",
+    };
+    mockedPullEnvelopes.mockResolvedValue({
+      envelopes: [futureVersion, corrupt],
+      nextCursor: "11",
+      count: 2,
+    });
 
     const result = await pullAndApply(repo, { userId: "u", apiSecret: "s" }, "", "device_a");
 
@@ -246,7 +320,12 @@ describe("pullAndApply", () => {
     await createAccount(repo, "B");
     await createAccount(repo, "C");
     const [a, b, c] = await repo.listAccounts();
-    const bump = (acc: Account, name: string) => ({ ...acc, name, revision: acc.revision + 1, updatedAt: "2099-01-03T00:00:00.000Z" });
+    const bump = (acc: Account, name: string) => ({
+      ...acc,
+      name,
+      revision: acc.revision + 1,
+      updatedAt: "2099-01-03T00:00:00.000Z",
+    });
     mockedPullEnvelopes.mockResolvedValue({
       envelopes: [
         envelope(bump(a, "A2"), "device_b", 1),
@@ -269,10 +348,19 @@ describe("pullAndApply", () => {
     const repo = createMemoryFinanceRepositoryForTests();
     await createAccount(repo, "錢包");
     const [account] = await repo.listAccounts();
-    const incoming = { ...account, name: "舊格式", revision: account.revision + 1, updatedAt: "2099-01-04T00:00:00.000Z" };
+    const incoming = {
+      ...account,
+      name: "舊格式",
+      revision: account.revision + 1,
+      updatedAt: "2099-01-04T00:00:00.000Z",
+    };
     const legacyEnvelope = envelope(incoming) as Record<string, unknown>;
     delete legacyEnvelope.keyVersion; // simulate a relay row from before this column existed on the wire
-    mockedPullEnvelopes.mockResolvedValue({ envelopes: [legacyEnvelope as never], nextCursor: "13", count: 1 });
+    mockedPullEnvelopes.mockResolvedValue({
+      envelopes: [legacyEnvelope as never],
+      nextCursor: "13",
+      count: 1,
+    });
 
     const result = await pullAndApply(repo, { userId: "u", apiSecret: "s" }, "", "device_a");
 

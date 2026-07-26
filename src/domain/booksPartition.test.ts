@@ -35,10 +35,22 @@ const identity = (n: number) => n;
 type MinimalAccount = Pick<Account, "id" | "type" | "balance" | "currency" | "deletedAt">;
 type MinimalLedgerRow = Pick<
   LedgerTransaction,
-  "id" | "accountId" | "entryType" | "amount" | "currency" | "name" | "merchant" | "date" | "deletedAt" | "settlementStatus" | "groupId"
+  | "id"
+  | "accountId"
+  | "entryType"
+  | "amount"
+  | "currency"
+  | "name"
+  | "merchant"
+  | "date"
+  | "deletedAt"
+  | "settlementStatus"
+  | "groupId"
 >;
 
-function account(overrides: Partial<MinimalAccount> & Pick<MinimalAccount, "id" | "type" | "balance">): Account {
+function account(
+  overrides: Partial<MinimalAccount> & Pick<MinimalAccount, "id" | "type" | "balance">,
+): Account {
   const row: MinimalAccount = {
     currency: "TWD",
     deletedAt: null,
@@ -47,7 +59,9 @@ function account(overrides: Partial<MinimalAccount> & Pick<MinimalAccount, "id" 
   return row as unknown as Account;
 }
 
-function ledgerRow(overrides: Partial<MinimalLedgerRow> & Pick<MinimalLedgerRow, "id">): LedgerTransaction {
+function ledgerRow(
+  overrides: Partial<MinimalLedgerRow> & Pick<MinimalLedgerRow, "id">,
+): LedgerTransaction {
   const row: MinimalLedgerRow = {
     accountId: "acct_cash_main",
     date: "2026-05-01T00:00",
@@ -79,12 +93,60 @@ const investmentsValue = 300_000;
 // ── Seed: ledger rows incl. income / expense / transfer pair / receivable / payable ──
 const transferGroupId = "group_transfer_1";
 const ledger: LedgerTransaction[] = [
-  ledgerRow({ id: "l_income", accountId: "acct_cash_main", entryType: "income", amount: 50_000, name: "薪資", date: "2026-05-05T00:00" }),
-  ledgerRow({ id: "l_expense", accountId: "acct_checking", entryType: "expense", amount: -1200, name: "雜貨", date: "2026-05-06T00:00" }),
-  ledgerRow({ id: "l_transfer_out", accountId: "acct_checking", entryType: "transfer", amount: -20_000, groupId: transferGroupId, name: "轉帳", date: "2026-05-07T00:00" }),
-  ledgerRow({ id: "l_transfer_in", accountId: "acct_cash_main", entryType: "transfer", amount: 20_000, groupId: transferGroupId, name: "轉帳", date: "2026-05-07T00:00" }),
-  ledgerRow({ id: "l_receivable", accountId: "acct_cash_main", entryType: "income", settlementStatus: "receivable", amount: 8000, merchant: "客戶A", name: "應收帳款", date: "2026-05-08T00:00" }),
-  ledgerRow({ id: "l_payable", accountId: "acct_checking", entryType: "expense", settlementStatus: "payable", amount: -3000, merchant: "供應商B", name: "應付帳款", date: "2026-05-09T00:00" }),
+  ledgerRow({
+    id: "l_income",
+    accountId: "acct_cash_main",
+    entryType: "income",
+    amount: 50_000,
+    name: "薪資",
+    date: "2026-05-05T00:00",
+  }),
+  ledgerRow({
+    id: "l_expense",
+    accountId: "acct_checking",
+    entryType: "expense",
+    amount: -1200,
+    name: "雜貨",
+    date: "2026-05-06T00:00",
+  }),
+  ledgerRow({
+    id: "l_transfer_out",
+    accountId: "acct_checking",
+    entryType: "transfer",
+    amount: -20_000,
+    groupId: transferGroupId,
+    name: "轉帳",
+    date: "2026-05-07T00:00",
+  }),
+  ledgerRow({
+    id: "l_transfer_in",
+    accountId: "acct_cash_main",
+    entryType: "transfer",
+    amount: 20_000,
+    groupId: transferGroupId,
+    name: "轉帳",
+    date: "2026-05-07T00:00",
+  }),
+  ledgerRow({
+    id: "l_receivable",
+    accountId: "acct_cash_main",
+    entryType: "income",
+    settlementStatus: "receivable",
+    amount: 8000,
+    merchant: "客戶A",
+    name: "應收帳款",
+    date: "2026-05-08T00:00",
+  }),
+  ledgerRow({
+    id: "l_payable",
+    accountId: "acct_checking",
+    entryType: "expense",
+    settlementStatus: "payable",
+    amount: -3000,
+    merchant: "供應商B",
+    name: "應付帳款",
+    date: "2026-05-09T00:00",
+  }),
 ];
 
 describe("books partition characterization (plan 188)", () => {

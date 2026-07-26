@@ -123,10 +123,7 @@ describe("buildStatementPeriods", () => {
   });
 
   it("paying a closed statement's due date does NOT mark the open cycle paid (plan 251)", () => {
-    const rows = [
-      row("2026-07-10T10:00", -1000),
-      row("2026-07-20T10:00", -1749),
-    ];
+    const rows = [row("2026-07-10T10:00", -1000), row("2026-07-20T10:00", -1749)];
     const opts = { statementDay: 15, paymentDueDay: 3, today: "2026-07-24" } as const;
     const periods = buildStatementPeriods(rows, { ...opts, creditPaymentPaidUntil: "2026-08-03" });
     const closed = periods.find((p) => p.end === "2026-07-15")!;
@@ -143,7 +140,10 @@ describe("buildStatementPeriods", () => {
       { date: "2026-07-12T10:00", amount: -200, isReviewed: false, accountId: "ubear" },
     ];
     const periods = buildStatementPeriods(rows, {
-      statementDay: 15, paymentDueDay: 3, creditPaymentPaidUntil: null, today: "2026-07-24",
+      statementDay: 15,
+      paymentDueDay: 3,
+      creditPaymentPaidUntil: null,
+      today: "2026-07-24",
     });
     const cycle = periods.find((p) => p.end === "2026-07-15")!;
     expect(cycle.rows).toHaveLength(2);

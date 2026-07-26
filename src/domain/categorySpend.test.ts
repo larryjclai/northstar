@@ -81,7 +81,12 @@ describe("categoryPeriodSpend", () => {
     const result = categoryPeriodSpend(
       [
         row({ id: "settled", amount: -500, category: "Transport" }),
-        row({ id: "pending1", amount: -200, category: "Transport", settlementStatus: "receivable" }),
+        row({
+          id: "pending1",
+          amount: -200,
+          category: "Transport",
+          settlementStatus: "receivable",
+        }),
         row({ id: "pending2", amount: -100, category: "Transport", settlementStatus: "payable" }),
       ],
       dateRange,

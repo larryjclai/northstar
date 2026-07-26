@@ -1,31 +1,13 @@
 export type CurrencyCode = "TWD" | "USD" | "JPY" | "EUR" | string;
 
 export type AccountType =
-  | "depository"
-  | "cash"
-  | "credit"
-  | "loan"
-  | "investment"
-  | "alternative"
-  | "other";
+  "depository" | "cash" | "credit" | "loan" | "investment" | "alternative" | "other";
 
 export type InvestmentAction =
-  | "buy"
-  | "sell"
-  | "cashDividend"
-  | "stockDividend"
-  | "capitalReduction"
-  | "stockSplit";
+  "buy" | "sell" | "cashDividend" | "stockDividend" | "capitalReduction" | "stockSplit";
 
 export type AssetType =
-  | "equity"
-  | "etf"
-  | "mutual_fund"
-  | "index"
-  | "crypto"
-  | "cash"
-  | "custom"
-  | "other";
+  "equity" | "etf" | "mutual_fund" | "index" | "crypto" | "cash" | "custom" | "other";
 
 export const assetTypeLabels: Record<AssetType, string> = {
   equity: "股票",

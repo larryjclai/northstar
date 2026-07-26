@@ -32,9 +32,7 @@ interface StoredKeyPair {
 }
 
 export async function generateDeviceKeyPair(): Promise<CryptoKeyPair> {
-  return crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, [
-    "deriveKey",
-  ]);
+  return crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey"]);
 }
 
 export async function saveDeviceKeyPair(pair: CryptoKeyPair): Promise<void> {
@@ -52,8 +50,16 @@ export async function loadDeviceKeyPair(): Promise<CryptoKeyPair | null> {
   if (!raw) return null;
   const stored: StoredKeyPair = JSON.parse(raw);
   const [pub, priv] = await Promise.all([
-    crypto.subtle.importKey("jwk", stored.publicKey, { name: "ECDH", namedCurve: "P-256" }, true, []),
-    crypto.subtle.importKey("jwk", stored.privateKey, { name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey"]),
+    crypto.subtle.importKey(
+      "jwk",
+      stored.publicKey,
+      { name: "ECDH", namedCurve: "P-256" },
+      true,
+      [],
+    ),
+    crypto.subtle.importKey("jwk", stored.privateKey, { name: "ECDH", namedCurve: "P-256" }, true, [
+      "deriveKey",
+    ]),
   ]);
   return { publicKey: pub, privateKey: priv };
 }
@@ -257,10 +263,7 @@ export async function encryptBundle(
  * @deprecated Part of the legacy code-encrypted bundle path. Use the ECDH flow.
  * Decrypt the credentials bundle using the bundle key derived from the pairing code.
  */
-export async function decryptBundle(
-  bundleKey: CryptoKey,
-  b64: string,
-): Promise<CredentialsBundle> {
+export async function decryptBundle(bundleKey: CryptoKey, b64: string): Promise<CredentialsBundle> {
   const combined = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
   const iv = combined.slice(0, 12);
   const ciphertext = combined.slice(12);

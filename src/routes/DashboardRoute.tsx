@@ -1,7 +1,17 @@
 import { ArrowDown, ArrowsClockwise, ArrowUp, ChartBar, X } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Area,
+  AreaChart,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFinanceData } from "../data/hooks";
 import { getFinanceRepository, type StoredMarketQuote } from "../data/repositories";
@@ -60,13 +70,22 @@ import {
 } from "../domain";
 import { calculateAvailableCash, changePctWithFloor } from "../domain/dashboardSummary";
 import { buildTodoRows, type TodoRow } from "../domain/todoRows";
-import { bookAccountIdSet, fireMetricAccountIdSet, personalNetWorthAccountIdSet, scopeRows } from "../domain/bookScope";
+import {
+  bookAccountIdSet,
+  fireMetricAccountIdSet,
+  personalNetWorthAccountIdSet,
+  scopeRows,
+} from "../domain/bookScope";
 import { stripStartDate, STRIP_PERIODS, type StripPeriod } from "../domain/dateScope";
 import { healthFingerprint, overBudgetFingerprint } from "../domain/bannerFingerprint";
 import { trailingMonthlyNet } from "../domain/northstarMetrics";
 import { smoothTrend } from "../domain/trendSmoothing";
 import { NetWorthProjectionCard } from "../components/NetWorthProjectionCard";
-import { useRefreshQuotes, useRefreshFxRates, useRefreshDailyPrices } from "../features/market-data/useMarketRefresh";
+import {
+  useRefreshQuotes,
+  useRefreshFxRates,
+  useRefreshDailyPrices,
+} from "../features/market-data/useMarketRefresh";
 import { useState } from "react";
 import type React from "react";
 import { SegmentedControl } from "../components/SegmentedControl";
@@ -83,10 +102,10 @@ const STRIP_PERIOD_LABELS: Record<StripPeriod, string> = {
   "1W": "近 1 週",
   "1M": "近 1 個月",
   "3M": "近 3 個月",
-  "YTD": "今年以來",
+  YTD: "今年以來",
   "1Y": "近 1 年",
   "5Y": "近 5 年",
-  "All": "全期間",
+  All: "全期間",
 };
 
 /**
@@ -96,7 +115,9 @@ const STRIP_PERIOD_LABELS: Record<StripPeriod, string> = {
  * LONG_VIEW_WINDOW: trailing moving-average window applied to the net-worth
  * trend when long-view mode is on (display-only; see domain/trendSmoothing).
  */
-const MILESTONE_TIERS = [1_000_000, 3_000_000, 5_000_000, 10_000_000, 20_000_000, 50_000_000, 100_000_000];
+const MILESTONE_TIERS = [
+  1_000_000, 3_000_000, 5_000_000, 10_000_000, 20_000_000, 50_000_000, 100_000_000,
+];
 const LONG_VIEW_WINDOW = 30;
 
 /** Dashboard cards the user can hide via 編輯版面 (net-worth hero + KPI stay). */
@@ -114,7 +135,6 @@ const DASHBOARD_CARDS: Array<{ key: string; label: string }> = [
   // 本月摘要 (AI) moved inline under the greeting header (2026-07 · plan 116);
   // no longer a layout-toggle card — shows whenever FM is available and there's data.
 ];
-
 
 const CHART_COLORS = [
   "var(--ns-chart-1)",
@@ -136,7 +156,25 @@ const TODO_META: Record<TodoRow["type"], { label: string; color: string }> = {
 };
 
 export function DashboardRoute() {
-  const { accounts, ledger, assets, quotes, settings, dailyFxRates, dailyPrices, manualPriceSnapshots, recurring, recurringInvestments, financialGoals, investments, books, isInitialLoading, isError, error, refetchAll } = useFinanceData();
+  const {
+    accounts,
+    ledger,
+    assets,
+    quotes,
+    settings,
+    dailyFxRates,
+    dailyPrices,
+    manualPriceSnapshots,
+    recurring,
+    recurringInvestments,
+    financialGoals,
+    investments,
+    books,
+    isInitialLoading,
+    isError,
+    error,
+    refetchAll,
+  } = useFinanceData();
   const refreshQuotes = useRefreshQuotes();
   const refreshFxRates = useRefreshFxRates();
   const refreshDailyPrices = useRefreshDailyPrices();
@@ -163,14 +201,34 @@ export function DashboardRoute() {
     );
   };
   const [stripPeriod, setStripPeriod] = useState<StripPeriod>("1M");
-  const [dismissingBanner, setDismissingBanner] = useState<"dataHealth" | "overBudget" | null>(null);
-  function dismissBannerAnimated(key: "dataHealth" | "overBudget", fingerprint: string, e: React.MouseEvent) {
+  const [dismissingBanner, setDismissingBanner] = useState<"dataHealth" | "overBudget" | null>(
+    null,
+  );
+  function dismissBannerAnimated(
+    key: "dataHealth" | "overBudget",
+    fingerprint: string,
+    e: React.MouseEvent,
+  ) {
     const wrapper = (e.currentTarget as HTMLElement).closest(".ns-banner-collapse");
-    if (!wrapper) { setDismissedBanner(key, fingerprint); return; }
+    if (!wrapper) {
+      setDismissedBanner(key, fingerprint);
+      return;
+    }
     setDismissingBanner(key);
     let done = false;
-    const finish = () => { if (done) return; done = true; setDismissedBanner(key, fingerprint); setDismissingBanner(null); };
-    wrapper.addEventListener("transitionend", (ev) => { if (ev.target === wrapper) finish(); }, { once: true });
+    const finish = () => {
+      if (done) return;
+      done = true;
+      setDismissedBanner(key, fingerprint);
+      setDismissingBanner(null);
+    };
+    wrapper.addEventListener(
+      "transitionend",
+      (ev) => {
+        if (ev.target === wrapper) finish();
+      },
+      { once: true },
+    );
     window.setTimeout(finish, 300); // reduced-motion / missed-event fallback
   }
   const queryClient = useQueryClient();
@@ -219,13 +277,31 @@ export function DashboardRoute() {
   //    projection). Switcher-INDEPENDENT: only books with includeInFireMetrics.
   //  • personalNetWorth scope → the FI-progress figure (goals). Switcher-
   //    INDEPENDENT: only books with includeInPersonalNetWorth.
-  const switcherAccountIds = useMemo(() => bookAccountIdSet(accountRows, activeBookId), [accountRows, activeBookId]);
-  const fireAccountIds = useMemo(() => fireMetricAccountIdSet(accountRows, bookRows), [accountRows, bookRows]);
-  const personalAccountIds = useMemo(() => personalNetWorthAccountIdSet(accountRows, bookRows), [accountRows, bookRows]);
-  const fireLedgerRows = useMemo(() => scopeRows(ledgerRows, fireAccountIds), [ledgerRows, fireAccountIds]);
-  const fireAccounts = useMemo(() => accountRows.filter((a) => fireAccountIds.has(a.id)), [accountRows, fireAccountIds]);
+  const switcherAccountIds = useMemo(
+    () => bookAccountIdSet(accountRows, activeBookId),
+    [accountRows, activeBookId],
+  );
+  const fireAccountIds = useMemo(
+    () => fireMetricAccountIdSet(accountRows, bookRows),
+    [accountRows, bookRows],
+  );
+  const personalAccountIds = useMemo(
+    () => personalNetWorthAccountIdSet(accountRows, bookRows),
+    [accountRows, bookRows],
+  );
+  const fireLedgerRows = useMemo(
+    () => scopeRows(ledgerRows, fireAccountIds),
+    [ledgerRows, fireAccountIds],
+  );
+  const fireAccounts = useMemo(
+    () => accountRows.filter((a) => fireAccountIds.has(a.id)),
+    [accountRows, fireAccountIds],
+  );
   const fireInvestmentRows = useMemo(
-    () => investmentRows.filter((r) => r.linkedAccountId != null && fireAccountIds.has(r.linkedAccountId)),
+    () =>
+      investmentRows.filter(
+        (r) => r.linkedAccountId != null && fireAccountIds.has(r.linkedAccountId),
+      ),
     [investmentRows, fireAccountIds],
   );
 
@@ -235,14 +311,20 @@ export function DashboardRoute() {
   );
 
   // "更新" refreshes stock quotes and FX rates together (B6).
-  const refreshingMarket = refreshQuotes.isPending || refreshFxRates.isPending || refreshDailyPrices.isPending;
+  const refreshingMarket =
+    refreshQuotes.isPending || refreshFxRates.isPending || refreshDailyPrices.isPending;
   async function refreshMarket() {
     if (useDemoMode.getState().active) {
-      toast.info("示範模式使用內建行情", { description: "已略過線上更新；結束示範模式後會恢復自動更新。" });
+      toast.info("示範模式使用內建行情", {
+        description: "已略過線上更新；結束示範模式後會恢復自動更新。",
+      });
       return;
     }
     const tickers = assetRows.map((a) => a.ticker);
-    const pairs = (appSettings?.exchangeRates ?? []).map((r) => ({ from: r.from, to: r.to || primaryCurrency }));
+    const pairs = (appSettings?.exchangeRates ?? []).map((r) => ({
+      from: r.from,
+      to: r.to || primaryCurrency,
+    }));
     const tasks: Promise<unknown>[] = [];
     if (tickers.length) tasks.push(refreshQuotes.mutateAsync(tickers));
     if (tickers.length) tasks.push(refreshDailyPrices.mutateAsync({ tickers, range: "1y" }));
@@ -276,19 +358,39 @@ export function DashboardRoute() {
         settings: appSettings,
         todayIso: todayIso,
       }),
-    [accountRows, ledgerRows, assetRows, quoteRows, dailyPriceRows, fxHistory, manualSnapshotRows, appSettings, todayIso],
+    [
+      accountRows,
+      ledgerRows,
+      assetRows,
+      quoteRows,
+      dailyPriceRows,
+      fxHistory,
+      manualSnapshotRows,
+      appSettings,
+      todayIso,
+    ],
   );
   // Identity of the current data-health state (plan 209) — dismissal is stored
   // against this string; the banner returns only when it changes.
-  const dataHealthFingerprint = useMemo(() => healthFingerprint(dataHealthReport.issues), [dataHealthReport.issues]);
+  const dataHealthFingerprint = useMemo(
+    () => healthFingerprint(dataHealthReport.issues),
+    [dataHealthReport.issues],
+  );
   // Switcher-scoped (plan 189): the general net-worth view honors the active
   // book / 總帳. In 總帳 (activeBookId "all") switcherAccountIds is every id, so
   // this is identical to pre-books behavior.
-  const filteredAccounts = accountRows.filter((a) => switcherAccountIds.has(a.id) && (selectedAccount === "all" || a.id === selectedAccount));
+  const filteredAccounts = accountRows.filter(
+    (a) => switcherAccountIds.has(a.id) && (selectedAccount === "all" || a.id === selectedAccount),
+  );
 
   const quoteLookup = useMemo(() => buildQuoteLookup(quoteRows), [quoteRows]);
   const quoteFor = (ticker: string) => findQuoteForTicker(quoteLookup, ticker);
-  const filteredAssets = assetRows.filter((a) => a.accountId != null && switcherAccountIds.has(a.accountId) && (selectedAccount === "all" || a.accountId === selectedAccount));
+  const filteredAssets = assetRows.filter(
+    (a) =>
+      a.accountId != null &&
+      switcherAccountIds.has(a.accountId) &&
+      (selectedAccount === "all" || a.accountId === selectedAccount),
+  );
 
   // Single valuation context shared by the KPI market value, the allocation
   // donut, and the net-worth trend endpoint so all three agree: live quote →
@@ -298,7 +400,10 @@ export function DashboardRoute() {
   // Manual-price resolver for custom (manually-priced) assets; shared by the KPI
   // market value, the allocation donut, and the net-worth trend so all three value
   // custom assets identically (manual snapshot → average cost).
-  const manualPriceLookup = useMemo(() => buildManualPriceLookup(manualSnapshotRows), [manualSnapshotRows]);
+  const manualPriceLookup = useMemo(
+    () => buildManualPriceLookup(manualSnapshotRows),
+    [manualSnapshotRows],
+  );
   const { total: marketValue } = holdingsMarketValue(filteredAssets, todayIso, toPrimary, {
     todayIso,
     dailyPriceLookup,
@@ -321,7 +426,9 @@ export function DashboardRoute() {
   const computeScopedNetWorth = useCallback(
     (accountIds: Set<string>) => {
       const scopedAccounts = accountRows.filter((a) => accountIds.has(a.id));
-      const scopedAssets = assetRows.filter((a) => a.accountId != null && accountIds.has(a.accountId));
+      const scopedAssets = assetRows.filter(
+        (a) => a.accountId != null && accountIds.has(a.accountId),
+      );
       const { total } = holdingsMarketValue(scopedAssets, todayIso, toPrimary, {
         todayIso,
         dailyPriceLookup,
@@ -332,23 +439,41 @@ export function DashboardRoute() {
     },
     [accountRows, assetRows, todayIso, toPrimary, dailyPriceLookup, manualPriceLookup, quoteLookup],
   );
-  const personalNetWorth = useMemo(() => computeScopedNetWorth(personalAccountIds), [computeScopedNetWorth, personalAccountIds]);
-  const fireNetWorth = useMemo(() => computeScopedNetWorth(fireAccountIds), [computeScopedNetWorth, fireAccountIds]);
+  const personalNetWorth = useMemo(
+    () => computeScopedNetWorth(personalAccountIds),
+    [computeScopedNetWorth, personalAccountIds],
+  );
+  const fireNetWorth = useMemo(
+    () => computeScopedNetWorth(fireAccountIds),
+    [computeScopedNetWorth, fireAccountIds],
+  );
 
-  const monthRows = ledgerRows.filter((row) => row.date.startsWith(monthKey) && row.settlementStatus === "settled" && !isNeutralLedgerRow(row) && switcherAccountIds.has(row.accountId) && (selectedAccount === "all" || row.accountId === selectedAccount));
-  const monthIncome = monthRows.filter((row) => row.entryType === "income").reduce((sum, row) => sum + toPrimary(Math.max(0, row.amount), row.currency, row.date), 0);
+  const monthRows = ledgerRows.filter(
+    (row) =>
+      row.date.startsWith(monthKey) &&
+      row.settlementStatus === "settled" &&
+      !isNeutralLedgerRow(row) &&
+      switcherAccountIds.has(row.accountId) &&
+      (selectedAccount === "all" || row.accountId === selectedAccount),
+  );
+  const monthIncome = monthRows
+    .filter((row) => row.entryType === "income")
+    .reduce((sum, row) => sum + toPrimary(Math.max(0, row.amount), row.currency, row.date), 0);
   // Signed (−amount): expense amounts are negative → positive spend; a refund
   // (positive-amount expense) nets back out instead of inflating spend.
-  const monthExpense = monthRows.filter((row) => row.entryType === "expense").reduce((sum, row) => sum + toPrimary(-row.amount, row.currency, row.date), 0);
+  const monthExpense = monthRows
+    .filter((row) => row.entryType === "expense")
+    .reduce((sum, row) => sum + toPrimary(-row.amount, row.currency, row.date), 0);
   const monthNet = monthIncome - monthExpense;
   // Savings rate stays honest in deficit months: with no income but real
   // spending we surface a negative rate (net flow over spend) instead of a
   // flattering 0%.
-  const savingsRate = monthIncome > 0
-    ? (monthNet / monthIncome) * 100
-    : monthExpense > 0
-      ? (monthNet / monthExpense) * 100
-      : 0;
+  const savingsRate =
+    monthIncome > 0
+      ? (monthNet / monthIncome) * 100
+      : monthExpense > 0
+        ? (monthNet / monthExpense) * 100
+        : 0;
 
   // Northstar bottom-line metrics —————————————————————————————————————————
   // FIRE-family (plan 189): scoped by fireMetricAccountIdSet, switcher-
@@ -371,7 +496,9 @@ export function DashboardRoute() {
   // TTM passive income (dividends) for coverage ratio — FIRE-scoped records so
   // company-book holdings don't inflate personal passive income.
   const dividendAnalysis = useMemo(() => {
-    const assetMeta = new Map(assetRows.map((a) => [a.id, { ticker: a.ticker, currency: a.currency }]));
+    const assetMeta = new Map(
+      assetRows.map((a) => [a.id, { ticker: a.ticker, currency: a.currency }]),
+    );
     return buildDividendAnalysis({
       records: fireInvestmentRows,
       assetMeta,
@@ -432,7 +559,8 @@ export function DashboardRoute() {
       value: savingsRate,
       display: `${savingsRate.toFixed(1)}%`,
       formatValue: (n) => `${n.toFixed(1)}%`,
-      sub: monthIncome > 0 ? `本月收入 ${formatMoney(monthIncome, primaryCurrency)}` : "本月尚無收入",
+      sub:
+        monthIncome > 0 ? `本月收入 ${formatMoney(monthIncome, primaryCurrency)}` : "本月尚無收入",
     },
     {
       key: "coverageRatio",
@@ -440,9 +568,10 @@ export function DashboardRoute() {
       value: coveragePct,
       display: coveragePct !== null ? `${coveragePct.toFixed(1)}%` : "—",
       formatValue: (n) => `${n.toFixed(1)}%`,
-      sub: coveragePct !== null
-        ? `被動收入已覆蓋 ${coveragePct.toFixed(1)}% 的年開支`
-        : "尚無費用資料",
+      sub:
+        coveragePct !== null
+          ? `被動收入已覆蓋 ${coveragePct.toFixed(1)}% 的年開支`
+          : "尚無費用資料",
     },
     {
       key: "runway",
@@ -450,9 +579,7 @@ export function DashboardRoute() {
       value: runwayMo,
       display: runwayMo !== null ? `${runwayMo.toFixed(1)} 個月` : "—",
       formatValue: (n) => `${n.toFixed(1)} 個月`,
-      sub: runwayMo !== null
-        ? `流動資產可支撐約 ${Math.floor(runwayMo)} 個月`
-        : "尚無費用資料",
+      sub: runwayMo !== null ? `流動資產可支撐約 ${Math.floor(runwayMo)} 個月` : "尚無費用資料",
     },
     {
       key: "fireProgress",
@@ -469,14 +596,48 @@ export function DashboardRoute() {
   // Switcher-scoped (plan 189): the net-worth trend follows the active book /
   // 總帳 just like the hero. In 總帳 the sets are every id → identical to before.
   const trend = useMemo(
-    () => buildNetWorthTrend(
-      accountRows.filter((a) => switcherAccountIds.has(a.id) && (selectedAccount === "all" || a.id === selectedAccount)),
-      ledgerRows.filter((r) => switcherAccountIds.has(r.accountId) && (selectedAccount === "all" || r.accountId === selectedAccount)),
-      assetRows.filter((a) => a.accountId != null && switcherAccountIds.has(a.accountId) && (selectedAccount === "all" || a.accountId === selectedAccount)),
-      investmentRows.filter((r) => r.linkedAccountId != null && switcherAccountIds.has(r.linkedAccountId) && (selectedAccount === "all" || r.linkedAccountId === selectedAccount)),
-      quoteRows, dailyPriceRows, appSettings, fxHistory, manualSnapshotRows
-    ),
-    [accountRows, ledgerRows, assetRows, investmentRows, switcherAccountIds, selectedAccount, quoteRows, dailyPriceRows, appSettings, fxHistory, manualSnapshotRows],
+    () =>
+      buildNetWorthTrend(
+        accountRows.filter(
+          (a) =>
+            switcherAccountIds.has(a.id) && (selectedAccount === "all" || a.id === selectedAccount),
+        ),
+        ledgerRows.filter(
+          (r) =>
+            switcherAccountIds.has(r.accountId) &&
+            (selectedAccount === "all" || r.accountId === selectedAccount),
+        ),
+        assetRows.filter(
+          (a) =>
+            a.accountId != null &&
+            switcherAccountIds.has(a.accountId) &&
+            (selectedAccount === "all" || a.accountId === selectedAccount),
+        ),
+        investmentRows.filter(
+          (r) =>
+            r.linkedAccountId != null &&
+            switcherAccountIds.has(r.linkedAccountId) &&
+            (selectedAccount === "all" || r.linkedAccountId === selectedAccount),
+        ),
+        quoteRows,
+        dailyPriceRows,
+        appSettings,
+        fxHistory,
+        manualSnapshotRows,
+      ),
+    [
+      accountRows,
+      ledgerRows,
+      assetRows,
+      investmentRows,
+      switcherAccountIds,
+      selectedAccount,
+      quoteRows,
+      dailyPriceRows,
+      appSettings,
+      fxHistory,
+      manualSnapshotRows,
+    ],
   );
   // The headline net worth uses live quotes; the trend's "today" point uses daily
   // closes, so they can disagree by a small amount. Align ONLY the final (today)
@@ -497,11 +658,16 @@ export function DashboardRoute() {
   // anchor point at the window start (carrying the last value before it) keeps
   // the line spanning the full range even across quiet stretches.
   const rangeView = useMemo(() => {
-    if (reconciledTrend.length < 2) return { points: reconciledTrend, change: 0, pct: null as number | null };
+    if (reconciledTrend.length < 2)
+      return { points: reconciledTrend, change: 0, pct: null as number | null };
     if (stripPeriod === "All") {
       const first = reconciledTrend[0].value;
       const last = reconciledTrend[reconciledTrend.length - 1].value;
-      return { points: reconciledTrend, change: last - first, pct: changePctWithFloor(first, last) };
+      return {
+        points: reconciledTrend,
+        change: last - first,
+        pct: changePctWithFloor(first, last),
+      };
     }
     const startIso = stripStartDate(stripPeriod, todayIso);
     const within = reconciledTrend.filter((p) => p.iso >= startIso);
@@ -509,7 +675,10 @@ export function DashboardRoute() {
     // Value as of the window start = last point on/before startIso (carry-forward).
     let carried: number | null = null;
     for (let i = reconciledTrend.length - 1; i >= 0; i--) {
-      if (reconciledTrend[i].iso <= startIso) { carried = reconciledTrend[i].value; break; }
+      if (reconciledTrend[i].iso <= startIso) {
+        carried = reconciledTrend[i].value;
+        break;
+      }
     }
 
     let points = within;
@@ -560,10 +729,13 @@ export function DashboardRoute() {
     milestoneRanRef.current = true;
     // Milestone celebrations track personalNetWorth (switcher-independent, plan
     // 189) so switching to a 公司帳 view never trips a personal-wealth milestone.
-    const crossed = MILESTONE_TIERS.filter((tier) => tier > milestoneReached && personalNetWorth >= tier);
+    const crossed = MILESTONE_TIERS.filter(
+      (tier) => tier > milestoneReached && personalNetWorth >= tier,
+    );
     if (crossed.length === 0) return;
     const highest = crossed[crossed.length - 1];
-    const label = highest === MILESTONE_TIERS[0] ? "第一桶金" : formatMoney(highest, primaryCurrency);
+    const label =
+      highest === MILESTONE_TIERS[0] ? "第一桶金" : formatMoney(highest, primaryCurrency);
     toast.success(`🎉 達成里程碑：${label}`, {
       description: "淨值跨過新的里程碑，繼續穩穩前行。",
       durationMs: 8_000,
@@ -577,7 +749,10 @@ export function DashboardRoute() {
     for (const row of monthRows) {
       if (row.entryType !== "expense" || !row.category) continue;
       // Signed (−amount): refunds reduce the category's spend against budget.
-      spendByCat.set(row.category, (spendByCat.get(row.category) ?? 0) - toPrimary(row.amount, row.currency, row.date));
+      spendByCat.set(
+        row.category,
+        (spendByCat.get(row.category) ?? 0) - toPrimary(row.amount, row.currency, row.date),
+      );
     }
     const cats = (appSettings?.categories ?? []).map((c, i) => ({
       name: c.name,
@@ -597,7 +772,11 @@ export function DashboardRoute() {
   // Identity of the current overspend occurrence (plan 209): month + WHICH
   // categories, no amount — see domain/bannerFingerprint for why.
   const overBudgetFp = useMemo(
-    () => overBudgetFingerprint(monthKey, overBudget.map((c) => c.name)),
+    () =>
+      overBudgetFingerprint(
+        monthKey,
+        overBudget.map((c) => c.name),
+      ),
     [monthKey, overBudget],
   );
 
@@ -605,14 +784,20 @@ export function DashboardRoute() {
   const allocation = useMemo(() => {
     const byClass = new Map<string, number>();
     for (const asset of filteredAssets) {
-      const price = priceAssetOnDate(asset, todayIso, { todayIso, dailyPriceLookup, quote: quoteFor(asset.ticker), manualPriceLookup });
+      const price = priceAssetOnDate(asset, todayIso, {
+        todayIso,
+        dailyPriceLookup,
+        quote: quoteFor(asset.ticker),
+        manualPriceLookup,
+      });
       const value = toPrimary(price.value * asset.totalQuantity, price.currency, todayIso);
       if (value <= 0) continue;
       const label = asset.assetType ? assetTypeLabels[asset.assetType] : "其他";
       byClass.set(label, (byClass.get(label) ?? 0) + value);
     }
     if (availableCash > 0) byClass.set("現金", (byClass.get("現金") ?? 0) + availableCash);
-    if (alternativeAssets > 0) byClass.set("實體資產", (byClass.get("實體資產") ?? 0) + alternativeAssets);
+    if (alternativeAssets > 0)
+      byClass.set("實體資產", (byClass.get("實體資產") ?? 0) + alternativeAssets);
     const total = [...byClass.values()].reduce((s, v) => s + v, 0);
     return [...byClass.entries()]
       .map(([label, value], i) => ({
@@ -622,13 +807,25 @@ export function DashboardRoute() {
         pct: total > 0 ? (value / total) * 100 : 0,
       }))
       .sort((a, b) => b.value - a.value);
-  }, [filteredAssets, quoteRows, availableCash, alternativeAssets, toPrimary, dailyPriceLookup, manualPriceLookup, todayIso]);
+  }, [
+    filteredAssets,
+    quoteRows,
+    availableCash,
+    alternativeAssets,
+    toPrimary,
+    dailyPriceLookup,
+    manualPriceLookup,
+    todayIso,
+  ]);
 
   // Investment positions (current holdings) for the fixed-basket analytics that
   // power the Portfolio Strip. Mirror the page's account filter so the strip
   // matches the rest of the dashboard.
   const analyticsPositions = useMemo<AnalyticsPosition[]>(() => {
-    const list = selectedAccount === "all" ? assetRows : assetRows.filter((a) => a.accountId === selectedAccount);
+    const list =
+      selectedAccount === "all"
+        ? assetRows
+        : assetRows.filter((a) => a.accountId === selectedAccount);
     return list
       .filter((a) => a.deletedAt === null && a.totalQuantity > 0)
       .map((a) => ({
@@ -695,7 +892,13 @@ export function DashboardRoute() {
       start,
       end,
     });
-    if (series.length < 2) return { portfolio: null as number | null, benchmark: null as number | null, alpha: null as number | null, basis: "fixed" as const };
+    if (series.length < 2)
+      return {
+        portfolio: null as number | null,
+        benchmark: null as number | null,
+        alpha: null as number | null,
+        basis: "fixed" as const,
+      };
     let portfolio = cumulativeReturnPct(series.map((p) => p.value));
     let benchmark: number | null = null;
     let alpha: number | null = null;
@@ -709,7 +912,16 @@ export function DashboardRoute() {
       }
     }
     return { portfolio, benchmark, alpha, basis: "fixed" as const };
-  }, [analyticsPositions, investmentRows, dailyPriceRows, manualSnapshotRows, toPrimary, stripPeriod, benchmarkTicker, timezone]);
+  }, [
+    analyticsPositions,
+    investmentRows,
+    dailyPriceRows,
+    manualSnapshotRows,
+    toPrimary,
+    stripPeriod,
+    benchmarkTicker,
+    timezone,
+  ]);
 
   // Build the complete metric list now that stripData.alpha is available.
   const allMetrics = [
@@ -718,7 +930,10 @@ export function DashboardRoute() {
       key: "benchmarkGap",
       label: `vs ${benchmarkTicker} 累積差距`,
       value: stripData.alpha,
-      display: stripData.alpha != null ? `${stripData.alpha >= 0 ? "+" : ""}${stripData.alpha.toFixed(1)}%` : "—",
+      display:
+        stripData.alpha != null
+          ? `${stripData.alpha >= 0 ? "+" : ""}${stripData.alpha.toFixed(1)}%`
+          : "—",
       formatValue: (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`,
       sub: `投組相對 ${benchmarkTicker} 的期間累積報酬差距（${stripData.basis === "twr" ? "時間加權 TWR 口徑" : "固定權重近似"}）`,
     },
@@ -729,20 +944,32 @@ export function DashboardRoute() {
   // session's close; after close → today's close vs the prior session's. The
   // reference close always comes from daily_prices (reliable), never the live
   // quote's previousClose (which can be garbage for post-spinoff tickers).
-  const heldAssetCount = useMemo(() => assetRows.filter((a) => a.deletedAt === null && a.totalQuantity > 0).length, [assetRows]);
+  const heldAssetCount = useMemo(
+    () => assetRows.filter((a) => a.deletedAt === null && a.totalQuantity > 0).length,
+    [assetRows],
+  );
   const movers = useMemo(() => {
     const assetByTicker = new Map(assetRows.map((a) => [a.ticker.toUpperCase(), a]));
-    const heldTickers = assetRows.filter((a) => a.deletedAt === null && a.totalQuantity > 0).map((a) => a.ticker);
+    const heldTickers = assetRows
+      .filter((a) => a.deletedAt === null && a.totalQuantity > 0)
+      .map((a) => a.ticker);
     const all = dayChangeMovers({
       dailyPrices: dailyPriceRows,
-      quotes: quoteRows.map((q) => ({ symbol: q.symbol, price: q.price, marketTime: q.marketTime })),
+      quotes: quoteRows.map((q) => ({
+        symbol: q.symbol,
+        price: q.price,
+        marketTime: q.marketTime,
+      })),
       heldTickers,
       limit: 1000,
       nameFor: (t) => resolveAssetName(assetByTicker.get(t.toUpperCase()), nameLocale),
     });
     // Top 3 up / top 3 down (best → worst within each column).
     const gainers = all.filter((m) => m.changePercent > 0).slice(0, 3);
-    const losers = all.filter((m) => m.changePercent < 0).sort((a, b) => a.changePercent - b.changePercent).slice(0, 3);
+    const losers = all
+      .filter((m) => m.changePercent < 0)
+      .sort((a, b) => a.changePercent - b.changePercent)
+      .slice(0, 3);
     return { gainers, losers, count: all.length };
   }, [dailyPriceRows, quoteRows, assetRows, nameLocale]);
 
@@ -761,7 +988,10 @@ export function DashboardRoute() {
       let closes: DailyPriceSeriesRow[] = [];
       for (const key of quoteLookupKeys(asset.ticker)) {
         const bucket = dailyPriceLookup.get(key);
-        if (bucket?.length) { closes = bucket; break; }
+        if (bucket?.length) {
+          closes = bucket;
+          break;
+        }
       }
       const lastClose = closes.length ? closes[closes.length - 1] : null;
       const prevClose = closes.length >= 2 ? closes[closes.length - 2] : null;
@@ -774,7 +1004,8 @@ export function DashboardRoute() {
         current = quote.price;
         currency = quote.currency || lastClose.currency || asset.currency;
         const quoteDate = quote.marketTime ? quote.marketTime.slice(0, 10) : null;
-        reference = quoteDate && quoteDate > lastClose.date ? lastClose.close : prevClose?.close ?? null;
+        reference =
+          quoteDate && quoteDate > lastClose.date ? lastClose.close : (prevClose?.close ?? null);
       } else if (lastClose && prevClose) {
         current = lastClose.close;
         reference = prevClose.close;
@@ -812,7 +1043,13 @@ export function DashboardRoute() {
     const horizon = todayInTimezone(timezone, d);
     const today = todayInTimezone(timezone);
     return recurringRows
-      .filter((r) => r.isActive && r.nextRunDate >= today && r.nextRunDate <= horizon && switcherAccountIds.has(r.accountId))
+      .filter(
+        (r) =>
+          r.isActive &&
+          r.nextRunDate >= today &&
+          r.nextRunDate <= horizon &&
+          switcherAccountIds.has(r.accountId),
+      )
       .sort((a, b) => a.nextRunDate.localeCompare(b.nextRunDate));
   }, [recurringRows, timezone, switcherAccountIds]);
 
@@ -825,26 +1062,46 @@ export function DashboardRoute() {
     const horizon = todayInTimezone(timezone, d);
     const today = todayInTimezone(timezone);
     return (recurringInvestments.data ?? [])
-      .filter((r) => r.isActive && r.nextRunDate >= today && r.nextRunDate <= horizon && switcherAccountIds.has(r.accountId))
+      .filter(
+        (r) =>
+          r.isActive &&
+          r.nextRunDate >= today &&
+          r.nextRunDate <= horizon &&
+          switcherAccountIds.has(r.accountId),
+      )
       .map((r) => ({
-        id: r.id, name: r.name, ticker: r.ticker, accountId: r.accountId, nextRunDate: r.nextRunDate,
-        perPeriodCash: (r.mode === "fixedShares" ? (r.quantity || 0) * (r.price || 0) : (r.amount || 0)) + (r.fee || 0),
+        id: r.id,
+        name: r.name,
+        ticker: r.ticker,
+        accountId: r.accountId,
+        nextRunDate: r.nextRunDate,
+        perPeriodCash:
+          (r.mode === "fixedShares" ? (r.quantity || 0) * (r.price || 0) : r.amount || 0) +
+          (r.fee || 0),
       }));
   }, [recurringInvestments.data, timezone, switcherAccountIds]);
 
   // Credit-card payments coming due (within ~45 days), soonest first.
   const creditReminders = useMemo(
-    () => buildCreditCardReminders(filteredAccounts, todayInTimezone(timezone), (amount, currency) => toPrimary(amount, currency)).filter((r) => r.daysUntilDue <= 45),
+    () =>
+      buildCreditCardReminders(filteredAccounts, todayInTimezone(timezone), (amount, currency) =>
+        toPrimary(amount, currency),
+      ).filter((r) => r.daysUntilDue <= 45),
     [filteredAccounts, timezone],
   );
 
   // Unsettled accounts receivable / payable — switcher-scoped (plan 189 §1 #4):
   // a company invoice receivable must not appear while viewing 個人帳.
   const settlements = useMemo(
-    () => buildOutstandingSettlements(
-      ledgerRows.filter((r) => switcherAccountIds.has(r.accountId) && (selectedAccount === "all" || r.accountId === selectedAccount)),
-      (amount, currency) => toPrimary(amount, currency),
-    ),
+    () =>
+      buildOutstandingSettlements(
+        ledgerRows.filter(
+          (r) =>
+            switcherAccountIds.has(r.accountId) &&
+            (selectedAccount === "all" || r.accountId === selectedAccount),
+        ),
+        (amount, currency) => toPrimary(amount, currency),
+      ),
     [ledgerRows, switcherAccountIds, selectedAccount, toPrimary],
   );
 
@@ -860,11 +1117,17 @@ export function DashboardRoute() {
   // lives in `domain/todoRows.ts` (plan 223) so it can be reused uncapped for
   // the 查看全部 modal; the card keeps its compact 6-row slice.
   const todoRowsAll = useMemo(
-    () => buildTodoRows(
-      { bills: upcoming, cards: creditReminders, settleItems: settlements.items, dcaRules: upcomingDca },
-      (id) => accountMap.get(id)?.name ?? "",
-      toPrimary,
-    ),
+    () =>
+      buildTodoRows(
+        {
+          bills: upcoming,
+          cards: creditReminders,
+          settleItems: settlements.items,
+          dcaRules: upcomingDca,
+        },
+        (id) => accountMap.get(id)?.name ?? "",
+        toPrimary,
+      ),
     [upcoming, creditReminders, settlements, upcomingDca, accountMap, toPrimary],
   );
   const todoRows = useMemo(() => todoRowsAll.slice(0, 6), [todoRowsAll]);
@@ -887,7 +1150,11 @@ export function DashboardRoute() {
       return { pair, rate: latest.rate, changePct };
     });
     if (rows.length === 0 && appSettings) {
-      rows = appSettings.exchangeRates.map((r) => ({ pair: `${r.from}/${r.to}`, rate: r.rate, changePct: null }));
+      rows = appSettings.exchangeRates.map((r) => ({
+        pair: `${r.from}/${r.to}`,
+        rate: r.rate,
+        changePct: null,
+      }));
     }
     return rows.slice(0, 4);
   }, [fxHistory, appSettings]);
@@ -907,18 +1174,30 @@ export function DashboardRoute() {
   // is already sorted by spend/limit ratio (see its useMemo), so [0] is the
   // category nearest its limit.
   const topBudgetCat = budgetCats[0];
-  const budgetSub = overBudget.length > 0
-    ? `${overBudget.length} 個超支`
-    : topBudgetCat && topBudgetCat.budget
-      ? `${topBudgetCat.name} ${Math.round((topBudgetCat.spent / topBudgetCat.budget) * 100)}%`
-      : "無超支";
+  const budgetSub =
+    overBudget.length > 0
+      ? `${overBudget.length} 個超支`
+      : topBudgetCat && topBudgetCat.budget
+        ? `${topBudgetCat.name} ${Math.round((topBudgetCat.spent / topBudgetCat.budget) * 100)}%`
+        : "無超支";
   const soonestTodo = todoRows[0];
   const pulseCells: Array<{ label: string; value: string; sub: string; color?: string }> = [
     {
       label: "投資今日",
-      value: portfolioDayChange.amount == null ? "—" : `${portfolioDayChange.amount >= 0 ? "+" : "−"}${formatNumber(Math.abs(portfolioDayChange.amount))}`,
-      sub: portfolioDayChange.pct == null ? "" : `${portfolioDayChange.pct >= 0 ? "+" : "−"}${Math.abs(portfolioDayChange.pct).toFixed(2)}%`,
-      color: portfolioDayChange.amount == null ? undefined : portfolioDayChange.amount >= 0 ? "var(--ns-gain)" : "var(--ns-loss)",
+      value:
+        portfolioDayChange.amount == null
+          ? "—"
+          : `${portfolioDayChange.amount >= 0 ? "+" : "−"}${formatNumber(Math.abs(portfolioDayChange.amount))}`,
+      sub:
+        portfolioDayChange.pct == null
+          ? ""
+          : `${portfolioDayChange.pct >= 0 ? "+" : "−"}${Math.abs(portfolioDayChange.pct).toFixed(2)}%`,
+      color:
+        portfolioDayChange.amount == null
+          ? undefined
+          : portfolioDayChange.amount >= 0
+            ? "var(--ns-gain)"
+            : "var(--ns-loss)",
     },
     {
       label: "本月現金流",
@@ -943,7 +1222,10 @@ export function DashboardRoute() {
     return (
       <div className="grid gap-5 p-1">
         <Skeleton className="h-[320px]" />
-        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+        <div
+          className="grid gap-4"
+          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
+        >
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-28" />
           ))}
@@ -956,10 +1238,15 @@ export function DashboardRoute() {
     return (
       <div className="grid min-h-[50vh] place-items-center p-6 text-center">
         <div className="max-w-md">
-          <h3 className="text-[17px]" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+          <h3
+            className="text-[17px]"
+            style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}
+          >
             無法載入資料
           </h3>
-          <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
+          <p className="muted mt-1 text-sm">
+            {error instanceof Error ? error.message : "請稍後再試。"}
+          </p>
           <Button className="mt-4" onClick={() => refetchAll()}>
             重新整理
           </Button>
@@ -969,144 +1256,269 @@ export function DashboardRoute() {
   }
 
   return (
-    <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]" style={{ maxWidth: 1180, margin: "0 auto" }}>
+    <div
+      className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]"
+      style={{ maxWidth: 1180, margin: "0 auto" }}
+    >
       {/* Render the wrapper only when a banner will actually show — an empty
           .ns-banner-collapse still carries its 14px margin (phantom gap). */}
-      {dataHealthFingerprint !== dismissedBanners.dataHealth && (!dataHealthReport.healthy || hasAnyData) ? (
-        <div className="ns-banner-collapse" data-dismissed={dismissingBanner === "dataHealth" || undefined}>
-        {!dataHealthReport.healthy ? (
-          <div
-            className="text-body"
-            style={{
-              padding: "10px 14px",
-              borderRadius: "var(--ns-r-md)",
-              background: dataHealthReport.errorCount > 0 ? "var(--ns-neg-soft)" : "var(--ns-warn-soft)",
-              border: "1px solid var(--ns-border)",
-            }}
-          >
+      {dataHealthFingerprint !== dismissedBanners.dataHealth &&
+      (!dataHealthReport.healthy || hasAnyData) ? (
+        <div
+          className="ns-banner-collapse"
+          data-dismissed={dismissingBanner === "dataHealth" || undefined}
+        >
+          {!dataHealthReport.healthy ? (
             <div
-              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, cursor: "pointer", userSelect: "none" }}
-              onClick={() => setHealthExpanded((v) => !v)}
+              className="text-body"
+              style={{
+                padding: "10px 14px",
+                borderRadius: "var(--ns-r-md)",
+                background:
+                  dataHealthReport.errorCount > 0 ? "var(--ns-neg-soft)" : "var(--ns-warn-soft)",
+                border: "1px solid var(--ns-border)",
+              }}
             >
-              <span>
-                <strong>資料健康：{dataHealthReport.issues.length} 項提醒</strong>
-                {!healthExpanded && dataHealthReport.issues.length > 0 ? (
-                  <span className="ml-2 muted">{dataHealthReport.issues[0].message}</span>
-                ) : null}
-              </span>
-              <span className="flex items-center gap-2 shrink-0">
-                <span className="text-caption muted">{healthExpanded ? "收合 ▲" : "展開 ▼"}</span>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="關閉提示"
-                  title="關閉提示"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    dismissBannerAnimated("dataHealth", dataHealthFingerprint, e);
-                  }}
-                >
-                  <X />
-                </Button>
-              </span>
-            </div>
-            {healthExpanded ? (
-              <div className="mt-2 flex flex-col gap-1">
-                {dataHealthReport.issues.map((issue) => (
-                  <div key={issue.id} className="text-xs" style={{ color: issue.severity === "error" ? "var(--ns-neg)" : "var(--ns-fg-muted)" }}>
-                    {issue.severity === "error" ? "⚠ " : "· "}{issue.message}
-                  </div>
-                ))}
-                <div className="mt-1.5 flex gap-4 flex-wrap">
-                  {dataHealthReport.issues.some((i) => i.kind === "missing-fx" || i.kind === "stale-fx") ? (
-                    <Link to="/settings" className="text-xs">前往更新匯率</Link>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+                onClick={() => setHealthExpanded((v) => !v)}
+              >
+                <span>
+                  <strong>資料健康：{dataHealthReport.issues.length} 項提醒</strong>
+                  {!healthExpanded && dataHealthReport.issues.length > 0 ? (
+                    <span className="ml-2 muted">{dataHealthReport.issues[0].message}</span>
                   ) : null}
-                  {dataHealthReport.issues.some((i) => i.kind === "missing-price-history" || i.kind === "stale-quote" || i.kind === "stale-manual-price") ? (
-                    <Link to="/investments" className="text-xs">前往投資回補</Link>
-                  ) : null}
-                </div>
+                </span>
+                <span className="flex items-center gap-2 shrink-0">
+                  <span className="text-caption muted">{healthExpanded ? "收合 ▲" : "展開 ▼"}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label="關閉提示"
+                    title="關閉提示"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dismissBannerAnimated("dataHealth", dataHealthFingerprint, e);
+                    }}
+                  >
+                    <X />
+                  </Button>
+                </span>
               </div>
-            ) : null}
-          </div>
-        ) : hasAnyData ? (
-          // All green → collapse to one quiet line so the feature stays
-          // discoverable instead of vanishing entirely — until the user
-          // dismisses it. Dismissal is remembered against the "ok" fingerprint,
-          // so it stays hidden while healthy and returns the moment any issue
-          // appears (a different fingerprint), per plan 209.
-          <div className="text-xs" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-pos-soft, var(--ns-bg-hover))", border: "1px solid var(--ns-border)", color: "var(--ns-fg-muted)" }}>
-            <span style={{ width: 7, height: 7, borderRadius: 99, background: "var(--ns-pos)", flexShrink: 0 }} />
-            資料健康：報價、匯率與帳戶餘額都正常。
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="ml-auto"
-              aria-label="關閉提示"
-              title="關閉提示"
-              onClick={(e) => dismissBannerAnimated("dataHealth", dataHealthFingerprint, e)}
+              {healthExpanded ? (
+                <div className="mt-2 flex flex-col gap-1">
+                  {dataHealthReport.issues.map((issue) => (
+                    <div
+                      key={issue.id}
+                      className="text-xs"
+                      style={{
+                        color: issue.severity === "error" ? "var(--ns-neg)" : "var(--ns-fg-muted)",
+                      }}
+                    >
+                      {issue.severity === "error" ? "⚠ " : "· "}
+                      {issue.message}
+                    </div>
+                  ))}
+                  <div className="mt-1.5 flex gap-4 flex-wrap">
+                    {dataHealthReport.issues.some(
+                      (i) => i.kind === "missing-fx" || i.kind === "stale-fx",
+                    ) ? (
+                      <Link to="/settings" className="text-xs">
+                        前往更新匯率
+                      </Link>
+                    ) : null}
+                    {dataHealthReport.issues.some(
+                      (i) =>
+                        i.kind === "missing-price-history" ||
+                        i.kind === "stale-quote" ||
+                        i.kind === "stale-manual-price",
+                    ) ? (
+                      <Link to="/investments" className="text-xs">
+                        前往投資回補
+                      </Link>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : hasAnyData ? (
+            // All green → collapse to one quiet line so the feature stays
+            // discoverable instead of vanishing entirely — until the user
+            // dismisses it. Dismissal is remembered against the "ok" fingerprint,
+            // so it stays hidden while healthy and returns the moment any issue
+            // appears (a different fingerprint), per plan 209.
+            <div
+              className="text-xs"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 14px",
+                borderRadius: "var(--ns-r-md)",
+                background: "var(--ns-pos-soft, var(--ns-bg-hover))",
+                border: "1px solid var(--ns-border)",
+                color: "var(--ns-fg-muted)",
+              }}
             >
-              <X />
-            </Button>
-          </div>
-        ) : null}
+              <span
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: 99,
+                  background: "var(--ns-pos)",
+                  flexShrink: 0,
+                }}
+              />
+              資料健康：報價、匯率與帳戶餘額都正常。
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="ml-auto"
+                aria-label="關閉提示"
+                title="關閉提示"
+                onClick={(e) => dismissBannerAnimated("dataHealth", dataHealthFingerprint, e)}
+              >
+                <X />
+              </Button>
+            </div>
+          ) : null}
         </div>
       ) : null}
       {/* Over-budget alert */}
       {overBudget.length > 0 && overBudgetFp !== dismissedBanners.overBudget ? (
-        <div className="ns-banner-collapse" data-dismissed={dismissingBanner === "overBudget" || undefined}>
-        <div className="text-body" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: "var(--ns-r-md)", background: "var(--ns-neg-soft)", border: "1px solid color-mix(in srgb, var(--ns-neg) 40%, transparent)" }}>
-          <span>
-            <strong>{overBudget.map((c) => c.name).join("、")}</strong> 本月已超支
-            &nbsp;·&nbsp; 超出 {formatMoney(overBudget.reduce((s, c) => s + (c.spent - (c.budget ?? 0)), 0), primaryCurrency)}
-          </span>
-          <Button variant="ghost" size="xs" className="ml-auto" render={<Link to="/cash-flow/categories" />}>查看分類 →</Button>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="關閉提示"
-            title="關閉提示"
-            onClick={(e) => dismissBannerAnimated("overBudget", overBudgetFp, e)}
+        <div
+          className="ns-banner-collapse"
+          data-dismissed={dismissingBanner === "overBudget" || undefined}
+        >
+          <div
+            className="text-body"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "10px 14px",
+              borderRadius: "var(--ns-r-md)",
+              background: "var(--ns-neg-soft)",
+              border: "1px solid color-mix(in srgb, var(--ns-neg) 40%, transparent)",
+            }}
           >
-            <X />
-          </Button>
-        </div>
+            <span>
+              <strong>{overBudget.map((c) => c.name).join("、")}</strong> 本月已超支 &nbsp;·&nbsp;
+              超出{" "}
+              {formatMoney(
+                overBudget.reduce((s, c) => s + (c.spent - (c.budget ?? 0)), 0),
+                primaryCurrency,
+              )}
+            </span>
+            <Button
+              variant="ghost"
+              size="xs"
+              className="ml-auto"
+              render={<Link to="/cash-flow/categories" />}
+            >
+              查看分類 →
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="關閉提示"
+              title="關閉提示"
+              onClick={(e) => dismissBannerAnimated("overBudget", overBudgetFp, e)}
+            >
+              <X />
+            </Button>
+          </div>
         </div>
       ) : null}
 
       {/* Header — greeting left, FX one-liner + 更新行情 + 版面 + 通知 pinned
           top-right. The AI summary is NOT in this row (see below): as prose it
           needs the full width, not the leftovers of a justify-between split. */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between" style={{ marginBottom: 10 }}>
+      <div
+        className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+        style={{ marginBottom: 10 }}
+      >
         <div className="min-w-0">
           <div className="text-xs ns-field-label">Overview · {monthLabel}</div>
-          <h1 className="text-[28px]" style={{ fontFamily: "var(--ns-font-display)", margin: 0, letterSpacing: -0.02, fontWeight: 600 }}>{greeting}</h1>
+          <h1
+            className="text-[28px]"
+            style={{
+              fontFamily: "var(--ns-font-display)",
+              margin: 0,
+              letterSpacing: -0.02,
+              fontWeight: 600,
+            }}
+          >
+            {greeting}
+          </h1>
         </div>
         {/* 匯率 one-liner sits inline with 更新行情 + 版面. The single time-range
             control lives on the net-worth card (the period segmented control). */}
         <div className="flex flex-wrap items-center justify-end gap-2 sm:shrink-0">
-            <FxInline rates={fxRates} />
-            <Button variant="outline" size="lg" className="flex-1 sm:flex-none shrink-0" onClick={refreshMarket} loading={refreshingMarket} disabled={refreshingMarket || (assetRows.length === 0 && (appSettings?.exchangeRates?.length ?? 0) === 0)} title="更新持倉報價、匯率與每日歷史股價">
-              <ArrowsClockwise size={14} />{refreshingMarket ? "更新中" : "更新行情"}
-            </Button>
-            {hasAnyData ? (
-              <Popover>
-                <PopoverTrigger render={<Button variant="outline" size="lg" className="flex-1 sm:flex-none shrink-0" />}>
-                  <SquaresFour size={14} />版面
-                </PopoverTrigger>
-                <PopoverContent align="end" className="p-2" style={{ width: 220 }}>
-                  <div className="text-xs muted font-medium pt-1.5 px-2 pb-2">編輯版面 · 顯示卡片</div>
-                  <div className="flex flex-col">
-                    {DASHBOARD_CARDS.map((c) => (
-                      <label key={c.key} className="text-body" style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 8px", borderRadius: "var(--ns-r-sm)", cursor: "pointer" }}>
-                        <input type="checkbox" checked={cardVisible(c.key)} onChange={() => toggleCard(c.key)} />
-                        {c.label}
-                      </label>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            ) : null}
-            <NotificationCenter />
+          <FxInline rates={fxRates} />
+          <Button
+            variant="outline"
+            size="lg"
+            className="flex-1 sm:flex-none shrink-0"
+            onClick={refreshMarket}
+            loading={refreshingMarket}
+            disabled={
+              refreshingMarket ||
+              (assetRows.length === 0 && (appSettings?.exchangeRates?.length ?? 0) === 0)
+            }
+            title="更新持倉報價、匯率與每日歷史股價"
+          >
+            <ArrowsClockwise size={14} />
+            {refreshingMarket ? "更新中" : "更新行情"}
+          </Button>
+          {hasAnyData ? (
+            <Popover>
+              <PopoverTrigger
+                render={
+                  <Button variant="outline" size="lg" className="flex-1 sm:flex-none shrink-0" />
+                }
+              >
+                <SquaresFour size={14} />
+                版面
+              </PopoverTrigger>
+              <PopoverContent align="end" className="p-2" style={{ width: 220 }}>
+                <div className="text-xs muted font-medium pt-1.5 px-2 pb-2">
+                  編輯版面 · 顯示卡片
+                </div>
+                <div className="flex flex-col">
+                  {DASHBOARD_CARDS.map((c) => (
+                    <label
+                      key={c.key}
+                      className="text-body"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "7px 8px",
+                        borderRadius: "var(--ns-r-sm)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={cardVisible(c.key)}
+                        onChange={() => toggleCard(c.key)}
+                      />
+                      {c.label}
+                    </label>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          ) : null}
+          <NotificationCenter />
         </div>
       </div>
 
@@ -1130,7 +1542,16 @@ export function DashboardRoute() {
       <div className="ns-dash-row1">
         <Card className="flex flex-col min-w-0" style={{ padding: 22 }}>
           {/* ── Hero header: eyebrow + value + MoM badge (netWorth only) ── */}
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20, marginBottom: 14, flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: 20,
+              marginBottom: 14,
+              flexWrap: "wrap",
+            }}
+          >
             <div className="min-w-0 flex-1">
               {/* Eyebrow: metric label + currency for money metrics */}
               <div className="flex items-center gap-2" style={{ marginBottom: 5 }}>
@@ -1141,18 +1562,28 @@ export function DashboardRoute() {
                 </div>
                 {/* Metric picker — small inline Popover */}
                 <Popover>
-                  <PopoverTrigger render={<button
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 4,
-                      padding: "2px 7px", borderRadius: "var(--ns-r-sm)",
-                      border: "1px solid var(--ns-border)",
-                      background: "var(--ns-bg-hover)",
-                      color: "var(--ns-fg-muted)",
-                      fontSize: 11, cursor: "pointer", fontFamily: "inherit",
-                    }}
-                    title="選擇主要指標"
-                  />}>
-                    <ChartBar size={14} />北極星指標
+                  <PopoverTrigger
+                    render={
+                      <button
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          padding: "2px 7px",
+                          borderRadius: "var(--ns-r-sm)",
+                          border: "1px solid var(--ns-border)",
+                          background: "var(--ns-bg-hover)",
+                          color: "var(--ns-fg-muted)",
+                          fontSize: 11,
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                        title="選擇主要指標"
+                      />
+                    }
+                  >
+                    <ChartBar size={14} />
+                    北極星指標
                   </PopoverTrigger>
                   <PopoverContent align="start" className="p-2" style={{ width: 200 }}>
                     <div className="text-xs muted font-medium pt-1.5 px-2 pb-2">選擇主要指標</div>
@@ -1163,17 +1594,29 @@ export function DashboardRoute() {
                           className="text-body"
                           onClick={() => setNorthstarMetric(m.key)}
                           style={{
-                            display: "flex", alignItems: "center", justifyContent: "space-between",
-                            gap: 8, padding: "7px 8px",
-                            borderRadius: "var(--ns-r-sm)", cursor: "pointer",
-                            background: m.key === northstarMetric ? "var(--ns-bg-hover)" : "transparent",
-                            border: "none", width: "100%", textAlign: "left",
-                            color: "var(--ns-fg)", fontFamily: "inherit",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 8,
+                            padding: "7px 8px",
+                            borderRadius: "var(--ns-r-sm)",
+                            cursor: "pointer",
+                            background:
+                              m.key === northstarMetric ? "var(--ns-bg-hover)" : "transparent",
+                            border: "none",
+                            width: "100%",
+                            textAlign: "left",
+                            color: "var(--ns-fg)",
+                            fontFamily: "inherit",
                           }}
                         >
                           <span>{m.label}</span>
                           {m.key === northstarMetric ? (
-                            <span style={{ color: "var(--ns-accent)", fontSize: 10, fontWeight: 600 }}>✓</span>
+                            <span
+                              style={{ color: "var(--ns-accent)", fontSize: 10, fontWeight: 600 }}
+                            >
+                              ✓
+                            </span>
                           ) : null}
                         </button>
                       ))}
@@ -1183,12 +1626,26 @@ export function DashboardRoute() {
               </div>
 
               {/* Hero value */}
-              <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap", minWidth: 0 }}>
-                <span style={{
-                  fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums lining-nums",
-                  fontSize: "clamp(28px, 4vw, 56px)", letterSpacing: "-0.025em", fontWeight: 600,
-                  whiteSpace: "nowrap", flexShrink: 0,
-                }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: 12,
+                  flexWrap: "wrap",
+                  minWidth: 0,
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: "var(--ns-font-num)",
+                    fontVariantNumeric: "tabular-nums lining-nums",
+                    fontSize: "clamp(28px, 4vw, 56px)",
+                    letterSpacing: "-0.025em",
+                    fontWeight: 600,
+                    whiteSpace: "nowrap",
+                    flexShrink: 0,
+                  }}
+                >
                   <AnimatedNumber
                     value={activeMetric.value}
                     format={activeMetric.formatValue}
@@ -1201,10 +1658,14 @@ export function DashboardRoute() {
                   <>
                     {/* 淨值變動 is a market-performance number (§2.4 gain/loss axis):
                         it must agree with 投資今日/今日漲跌 under 紅漲綠跌, not with toasts. */}
-                    <Badge variant={momChange >= 0 ? "gain" : "loss"} className="gap-1 rounded-full px-2">
+                    <Badge
+                      variant={momChange >= 0 ? "gain" : "loss"}
+                      className="gap-1 rounded-full px-2"
+                    >
                       {momChange >= 0 ? <ArrowUp weight="bold" /> : <ArrowDown weight="bold" />}
                       <span className="num">
-                        {momChange >= 0 ? "+" : "−"}{formatNumber(Math.abs(momChange))}
+                        {momChange >= 0 ? "+" : "−"}
+                        {formatNumber(Math.abs(momChange))}
                         {momPct != null ? <> · {Math.abs(momPct).toFixed(2)}%</> : null}
                       </span>
                     </Badge>
@@ -1217,9 +1678,12 @@ export function DashboardRoute() {
               {activeMetric.key === "netWorth" && Math.abs(netSettlement) > 0.5 ? (
                 <div className="muted text-xs mt-1" title="現金基礎淨值加計應收、減去應付">
                   調整後淨值（含應收應付）{" "}
-                  <span className="num" style={{ color: "var(--ns-fg)" }}>{formatMoney(adjustedNetWorth, primaryCurrency)}</span>
+                  <span className="num" style={{ color: "var(--ns-fg)" }}>
+                    {formatMoney(adjustedNetWorth, primaryCurrency)}
+                  </span>
                   <span className="ml-1.5">
-                    ({netSettlement >= 0 ? "+" : "−"}{formatNumber(Math.abs(netSettlement))})
+                    ({netSettlement >= 0 ? "+" : "−"}
+                    {formatNumber(Math.abs(netSettlement))})
                   </span>
                 </div>
               ) : null}
@@ -1263,7 +1727,13 @@ export function DashboardRoute() {
                         </linearGradient>
                       </defs>
                       <YAxis hide domain={["dataMin - 20000", "dataMax + 20000"]} />
-                      <Area type="monotone" dataKey="value" stroke="var(--ns-accent)" fill="url(#netWorthMini)" strokeWidth={2} />
+                      <Area
+                        type="monotone"
+                        dataKey="value"
+                        stroke="var(--ns-accent)"
+                        fill="url(#netWorthMini)"
+                        strokeWidth={2}
+                      />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -1275,10 +1745,14 @@ export function DashboardRoute() {
           {activeMetric.key === "netWorth" && reconciledTrend.length <= 1 ? (
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <span className="muted text-body">
-                {hasAnyData ? "累積幾筆資料後會顯示淨值趨勢。" : "先建立第一個帳戶，Northstar 會開始計算總覽。"}
+                {hasAnyData
+                  ? "累積幾筆資料後會顯示淨值趨勢。"
+                  : "先建立第一個帳戶，Northstar 會開始計算總覽。"}
               </span>
               <span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <Button size="sm" render={<Link to={hasAnyData ? "/cash-flow" : "/accounts"} />}>{hasAnyData ? "去記帳" : "建立帳戶"}</Button>
+                <Button size="sm" render={<Link to={hasAnyData ? "/cash-flow" : "/accounts"} />}>
+                  {hasAnyData ? "去記帳" : "建立帳戶"}
+                </Button>
                 {!hasAnyData ? (
                   <Button size="sm" variant="outline" onClick={loadDemo} loading={demoLoading}>
                     {demoLoading ? "載入中…" : "載入示範資料"}
@@ -1300,48 +1774,105 @@ export function DashboardRoute() {
       </div>
 
       {/* Row 2 · 待辦 (bills + credit cards + AR/AP merged) + 今日漲跌 */}
-      <div className={(cardVisible("todos") && cardVisible("topMovers") && heldAssetCount > 0 ? "ns-dash-activity-grid" : "") + " mb-4"}>
-        {cardVisible("todos") ? <TodoCard rows={todoRows} totalDue={todoTotalDue} totalCount={todoRowsAll.length} onViewAll={() => setTodoAllOpen(true)} /> : null}
-        {cardVisible("topMovers") && heldAssetCount > 0 ? <TopMoversCard gainers={movers.gainers} losers={movers.losers} /> : null}
+      <div
+        className={
+          (cardVisible("todos") && cardVisible("topMovers") && heldAssetCount > 0
+            ? "ns-dash-activity-grid"
+            : "") + " mb-4"
+        }
+      >
+        {cardVisible("todos") ? (
+          <TodoCard
+            rows={todoRows}
+            totalDue={todoTotalDue}
+            totalCount={todoRowsAll.length}
+            onViewAll={() => setTodoAllOpen(true)}
+          />
+        ) : null}
+        {cardVisible("topMovers") && heldAssetCount > 0 ? (
+          <TopMoversCard gainers={movers.gainers} losers={movers.losers} />
+        ) : null}
       </div>
 
-      {todoAllOpen ? <TodoAllModal rows={todoRowsAll} onClose={() => setTodoAllOpen(false)} /> : null}
+      {todoAllOpen ? (
+        <TodoAllModal rows={todoRowsAll} onClose={() => setTodoAllOpen(false)} />
+      ) : null}
 
       {/* Row 3a · Budget */}
       {cardVisible("budget") ? (
-      <div className="ns-dash-row2">
-        <Card style={{ padding: "var(--ns-pad-card)" }}>
-          <SectionHead eyebrow={`Budget · ${todayLabel.slice(0, todayLabel.indexOf("月") + 1) || "本月"}`} title="預算進度" action={<Button variant="ghost" size="xs" render={<Link to="/cash-flow/categories" />}>管理分類 →</Button>} />
-          {budgetCats.length === 0 ? (
-            <div className="muted text-body">尚未設定分類預算 — 到「管理分類」為分類設定每月預算後，這裡會顯示進度。</div>
-          ) : (
-            <div className="flex flex-col" style={{ gap: 9 }}>
-              {budgetCats.map((c) => {
-                const pct = Math.min(c.spent / c.budget, 1);
-                const over = c.spent > c.budget;
-                return (
-                  <div key={c.name} style={{ display: "grid", gridTemplateColumns: "84px 1fr 132px", gap: 10, alignItems: "center" }}>
-                    <span className="text-body truncate">{c.name}</span>
-                    <div style={{ height: 7, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden" }}>
-                      <div style={{ width: `${pct * 100}%`, height: "100%", background: over ? "var(--ns-neg)" : c.color, borderRadius: 99 }} />
+        <div className="ns-dash-row2">
+          <Card style={{ padding: "var(--ns-pad-card)" }}>
+            <SectionHead
+              eyebrow={`Budget · ${todayLabel.slice(0, todayLabel.indexOf("月") + 1) || "本月"}`}
+              title="預算進度"
+              action={
+                <Button variant="ghost" size="xs" render={<Link to="/cash-flow/categories" />}>
+                  管理分類 →
+                </Button>
+              }
+            />
+            {budgetCats.length === 0 ? (
+              <div className="muted text-body">
+                尚未設定分類預算 — 到「管理分類」為分類設定每月預算後，這裡會顯示進度。
+              </div>
+            ) : (
+              <div className="flex flex-col" style={{ gap: 9 }}>
+                {budgetCats.map((c) => {
+                  const pct = Math.min(c.spent / c.budget, 1);
+                  const over = c.spent > c.budget;
+                  return (
+                    <div
+                      key={c.name}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "84px 1fr 132px",
+                        gap: 10,
+                        alignItems: "center",
+                      }}
+                    >
+                      <span className="text-body truncate">{c.name}</span>
+                      <div
+                        style={{
+                          height: 7,
+                          borderRadius: 99,
+                          background: "var(--ns-bg-hover)",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: `${pct * 100}%`,
+                            height: "100%",
+                            background: over ? "var(--ns-neg)" : c.color,
+                            borderRadius: 99,
+                          }}
+                        />
+                      </div>
+                      <div className="text-xs text-right flex justify-end gap-1">
+                        <span className={"num " + (over ? "neg" : "muted")}>
+                          {(pct * 100).toFixed(0)}%
+                        </span>
+                        <span className="dim">·</span>
+                        <span className={"num " + (over ? "neg" : "")}>
+                          NT${formatNumber(c.spent)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-xs text-right flex justify-end gap-1">
-                      <span className={"num " + (over ? "neg" : "muted")}>{(pct * 100).toFixed(0)}%</span>
-                      <span className="dim">·</span>
-                      <span className={"num " + (over ? "neg" : "")}>NT${formatNumber(c.spent)}</span>
-                    </div>
+                  );
+                })}
+                {totalBudget > 0 ? (
+                  <div
+                    className="muted text-xs mt-2 pt-2.5"
+                    style={{ borderTop: "1px solid var(--ns-border)" }}
+                  >
+                    總預算 NT${formatNumber(totalBudget)}
+                    {overBudget.length ? ` · ${overBudget.length} 個分類超支` : ""}
                   </div>
-                );
-              })}
-              {totalBudget > 0 ? (
-                <div className="muted text-xs mt-2 pt-2.5" style={{ borderTop: "1px solid var(--ns-border)" }}>
-                  總預算 NT${formatNumber(totalBudget)}{overBudget.length ? ` · ${overBudget.length} 個分類超支` : ""}
-                </div>
-              ) : null}
-            </div>
-          )}
-        </Card>
-      </div>
+                ) : null}
+              </div>
+            )}
+          </Card>
+        </div>
       ) : null}
 
       {/* Row 3b · 淨值趨勢 (demoted; default-hidden, re-enableable from 版面) */}
@@ -1359,10 +1890,30 @@ export function DashboardRoute() {
                         <stop offset="95%" stopColor="var(--ns-accent)" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <XAxis dataKey="date" stroke="var(--ns-fg-muted)" fontSize={11} minTickGap={24} />
+                    <XAxis
+                      dataKey="date"
+                      stroke="var(--ns-fg-muted)"
+                      fontSize={11}
+                      minTickGap={24}
+                    />
                     <YAxis hide domain={["dataMin - 20000", "dataMax + 20000"]} />
-                    <Tooltip formatter={(value) => formatMoney(Number(value), primaryCurrency)} contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }} itemStyle={{ color: "var(--ns-fg)" }} labelStyle={{ color: "var(--ns-fg)" }} />
-                    <Area type="monotone" dataKey="value" stroke="var(--ns-accent)" fill="url(#netWorthTrendFull)" strokeWidth={2} />
+                    <Tooltip
+                      formatter={(value) => formatMoney(Number(value), primaryCurrency)}
+                      contentStyle={{
+                        borderRadius: 8,
+                        border: "1px solid var(--ns-border)",
+                        background: "var(--ns-bg-elev)",
+                      }}
+                      itemStyle={{ color: "var(--ns-fg)" }}
+                      labelStyle={{ color: "var(--ns-fg)" }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke="var(--ns-accent)"
+                      fill="url(#netWorthTrendFull)"
+                      strokeWidth={2}
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -1371,13 +1922,36 @@ export function DashboardRoute() {
             <div className="muted text-body">累積幾筆資料後會顯示淨值趨勢。</div>
           )}
           {analyticsPositions.length > 0 ? (
-            <PortfolioStrip period={stripPeriod} data={stripData} benchmarkTicker={benchmarkTicker} />
+            <PortfolioStrip
+              period={stripPeriod}
+              data={stripData}
+              benchmarkTicker={benchmarkTicker}
+            />
           ) : null}
           <div className="ns-dash-kpi-stack mt-4">
-            <KpiCard label="投資" value={formatMoney(marketValue, primaryCurrency)} color="var(--ns-chart-1)" />
-            <KpiCard label="現金 / 存款" value={formatMoney(availableCash, primaryCurrency)} color="var(--ns-chart-2)" />
-            {alternativeAssets > 0 ? <KpiCard label="其他資產" value={formatMoney(alternativeAssets, primaryCurrency)} color="var(--ns-chart-4)" /> : null}
-            <KpiCard label="負債" value={formatMoney(liabilities, primaryCurrency)} color="var(--ns-chart-5)" tone={liabilities > 0 ? "neg" : undefined} />
+            <KpiCard
+              label="投資"
+              value={formatMoney(marketValue, primaryCurrency)}
+              color="var(--ns-chart-1)"
+            />
+            <KpiCard
+              label="現金 / 存款"
+              value={formatMoney(availableCash, primaryCurrency)}
+              color="var(--ns-chart-2)"
+            />
+            {alternativeAssets > 0 ? (
+              <KpiCard
+                label="其他資產"
+                value={formatMoney(alternativeAssets, primaryCurrency)}
+                color="var(--ns-chart-4)"
+              />
+            ) : null}
+            <KpiCard
+              label="負債"
+              value={formatMoney(liabilities, primaryCurrency)}
+              color="var(--ns-chart-5)"
+              tone={liabilities > 0 ? "neg" : undefined}
+            />
           </div>
         </Card>
       ) : null}
@@ -1386,99 +1960,223 @@ export function DashboardRoute() {
       <div className="ns-dash-row3">
         {/* Allocation */}
         {cardVisible("allocation") ? (
-        <Card style={{ padding: "var(--ns-pad-card)" }}>
-          <SectionHead eyebrow="Asset allocation" title="資產配置" />
-          {allocation.length === 0 ? (
-            <div className="muted text-body">尚無資產可顯示配置。</div>
-          ) : (
-            <div className="flex flex-wrap gap-4 items-center">
-              <div style={{ width: 120, height: 120, flexShrink: 0 }}>
-                <ResponsiveContainer>
-                  <PieChart>
-                    <Pie data={allocation} dataKey="value" nameKey="label" cx="50%" cy="50%" innerRadius={42} outerRadius={60} stroke="none" paddingAngle={2}>
-                      {allocation.map((a) => <Cell key={a.label} fill={a.color} />)}
-                    </Pie>
-                    <Tooltip formatter={(value) => formatMoney(Number(value), primaryCurrency)} contentStyle={{ borderRadius: 8, border: "1px solid var(--ns-border)", background: "var(--ns-bg-elev)" }} itemStyle={{ color: "var(--ns-fg)" }} labelStyle={{ color: "var(--ns-fg)" }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div style={{ flex: 1, minWidth: 160, display: "flex", flexDirection: "column", gap: 6 }}>
-                {allocation.map((a) => (
-                  <div key={a.label} className="text-xs" style={{ display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid var(--ns-border)", paddingBottom: 5 }}>
-                    <span style={{ width: 8, height: 8, background: a.color, borderRadius: 2, flexShrink: 0 }} />
-                    {/* Single-line with ellipsis; the legend now takes the card's
+          <Card style={{ padding: "var(--ns-pad-card)" }}>
+            <SectionHead eyebrow="Asset allocation" title="資產配置" />
+            {allocation.length === 0 ? (
+              <div className="muted text-body">尚無資產可顯示配置。</div>
+            ) : (
+              <div className="flex flex-wrap gap-4 items-center">
+                <div style={{ width: 120, height: 120, flexShrink: 0 }}>
+                  <ResponsiveContainer>
+                    <PieChart>
+                      <Pie
+                        data={allocation}
+                        dataKey="value"
+                        nameKey="label"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={42}
+                        outerRadius={60}
+                        stroke="none"
+                        paddingAngle={2}
+                      >
+                        {allocation.map((a) => (
+                          <Cell key={a.label} fill={a.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value) => formatMoney(Number(value), primaryCurrency)}
+                        contentStyle={{
+                          borderRadius: 8,
+                          border: "1px solid var(--ns-border)",
+                          background: "var(--ns-bg-elev)",
+                        }}
+                        itemStyle={{ color: "var(--ns-fg)" }}
+                        labelStyle={{ color: "var(--ns-fg)" }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div
+                  style={{
+                    flex: 1,
+                    minWidth: 160,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 6,
+                  }}
+                >
+                  {allocation.map((a) => (
+                    <div
+                      key={a.label}
+                      className="text-xs"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        borderBottom: "1px solid var(--ns-border)",
+                        paddingBottom: 5,
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 8,
+                          height: 8,
+                          background: a.color,
+                          borderRadius: 2,
+                          flexShrink: 0,
+                        }}
+                      />
+                      {/* Single-line with ellipsis; the legend now takes the card's
                         full width (wraps below the donut on narrow cards) so short
                         class labels never split mid-character. */}
-                    <span className="flex-1 min-w-0 truncate" title={a.label}>{a.label}</span>
-                    {/* Compact (萬/億 · K/M) so the value never forces the label to
+                      <span className="flex-1 min-w-0 truncate" title={a.label}>
+                        {a.label}
+                      </span>
+                      {/* Compact (萬/億 · K/M) so the value never forces the label to
                         wrap vertically on a narrow card. */}
-                    <span className="num muted text-caption shrink-0" title={formatMoney(a.value, primaryCurrency)}>{formatCompactMoney(a.value, primaryCurrency)}</span>
-                    <span className="num text-right shrink-0" style={{ minWidth: 42 }}>{a.pct.toFixed(1)}%</span>
-                  </div>
-                ))}
+                      <span
+                        className="num muted text-caption shrink-0"
+                        title={formatMoney(a.value, primaryCurrency)}
+                      >
+                        {formatCompactMoney(a.value, primaryCurrency)}
+                      </span>
+                      <span className="num text-right shrink-0" style={{ minWidth: 42 }}>
+                        {a.pct.toFixed(1)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </Card>
+            )}
+          </Card>
         ) : null}
 
         {/* Goals */}
         {cardVisible("goals") ? (
-        <Card style={{ padding: "var(--ns-pad-card)" }}>
-          <SectionHead eyebrow="Goals" title={`${goals.length} 個進行中目標`} action={<Button variant="ghost" size="xs" render={<Link to="/goals" />}>全部 →</Button>} />
-          {goals.length === 0 ? (
-            <div className="muted text-body">還沒有設定目標。<Link to="/goals" className="accent">建立 FIRE 目標 →</Link></div>
+          <Card style={{ padding: "var(--ns-pad-card)" }}>
+            <SectionHead
+              eyebrow="Goals"
+              title={`${goals.length} 個進行中目標`}
+              action={
+                <Button variant="ghost" size="xs" render={<Link to="/goals" />}>
+                  全部 →
+                </Button>
+              }
+            />
+            {goals.length === 0 ? (
+              <div className="muted text-body">
+                還沒有設定目標。
+                <Link to="/goals" className="accent">
+                  建立 FIRE 目標 →
+                </Link>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {goals.map((g) => (
+                  <div key={g.id}>
+                    <div className="flex justify-between mb-1.5">
+                      <span className="text-body font-medium">{g.name}</span>
+                      {g.pct >= 100 ? (
+                        <Badge variant="success" size="sm" className="rounded-full px-2">
+                          達成
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <div
+                      style={{
+                        height: 8,
+                        borderRadius: 99,
+                        background: "var(--ns-bg-hover)",
+                        overflow: "hidden",
+                        marginBottom: 5,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${Math.min(g.pct, 100)}%`,
+                          height: "100%",
+                          background: "var(--ns-accent)",
+                          borderRadius: 99,
+                        }}
+                      />
+                    </div>
+                    <div className="text-caption flex justify-between">
+                      <span className="mono accent">{g.pct.toFixed(1)}%</span>
+                      <span className="mono muted">
+                        目標 {formatMoney(g.target, primaryCurrency)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        ) : null}
+      </div>
+
+      {/* Row 5 · Recent activity (demoted; default-hidden, re-enableable from 版面) */}
+      {cardVisible("recentActivity") ? (
+        <Card className="mb-4">
+          <div
+            className="flex items-baseline justify-between"
+            style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)" }}
+          >
+            <div>
+              <div className="text-xs mb-1 muted font-medium">Recent activity</div>
+              <h3
+                className="text-base m-0 font-medium"
+                style={{ fontFamily: "var(--ns-font-display)" }}
+              >
+                最近交易
+              </h3>
+            </div>
+            <Button variant="ghost" size="xs" render={<Link to="/cash-flow" />}>
+              查看全部 →
+            </Button>
+          </div>
+          {recent.length === 0 ? (
+            <div className="muted text-body" style={{ padding: "18px 22px" }}>
+              還沒有交易紀錄。
+            </div>
           ) : (
-            <div className="flex flex-col gap-4">
-              {goals.map((g) => (
-                <div key={g.id}>
-                  <div className="flex justify-between mb-1.5">
-                    <span className="text-body font-medium">{g.name}</span>
-                    {g.pct >= 100 ? <Badge variant="success" size="sm" className="rounded-full px-2">達成</Badge> : null}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))",
+              }}
+            >
+              {recent.map((r, i) => (
+                <div
+                  key={r.id}
+                  className="ns-row"
+                  style={{
+                    gap: 12,
+                    paddingLeft: 22,
+                    paddingRight: 22,
+                    borderLeft: i % 2 === 1 ? "1px solid var(--ns-border)" : "none",
+                  }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13.5px] font-medium truncate">
+                      {r.name || r.category || (r.entryType === "transfer" ? "轉帳" : "交易")}
+                    </div>
+                    <div className="muted text-caption truncate">
+                      {r.date.slice(5).replace("T", " ")} ·{" "}
+                      {accountMap.get(r.accountId)?.name ?? ""}
+                    </div>
                   </div>
-                  <div style={{ height: 8, borderRadius: 99, background: "var(--ns-bg-hover)", overflow: "hidden", marginBottom: 5 }}>
-                    <div style={{ width: `${Math.min(g.pct, 100)}%`, height: "100%", background: "var(--ns-accent)", borderRadius: 99 }} />
-                  </div>
-                  <div className="text-caption flex justify-between">
-                    <span className="mono accent">{g.pct.toFixed(1)}%</span>
-                    <span className="mono muted">目標 {formatMoney(g.target, primaryCurrency)}</span>
+                  <div
+                    className={"num text-sm text-right " + (r.amount >= 0 ? "pos" : "")}
+                    style={{ minWidth: 88 }}
+                  >
+                    {r.amount >= 0 ? "+" : "−"}NT${formatNumber(Math.abs(r.amount))}
                   </div>
                 </div>
               ))}
             </div>
           )}
         </Card>
-        ) : null}
-      </div>
-
-      {/* Row 5 · Recent activity (demoted; default-hidden, re-enableable from 版面) */}
-      {cardVisible("recentActivity") ? (
-      <Card className="mb-4">
-        <div className="flex items-baseline justify-between" style={{ padding: "14px 22px", borderBottom: "1px solid var(--ns-border)" }}>
-          <div>
-            <div className="text-xs mb-1 muted font-medium">Recent activity</div>
-            <h3 className="text-base m-0 font-medium" style={{ fontFamily: "var(--ns-font-display)" }}>最近交易</h3>
-          </div>
-          <Button variant="ghost" size="xs" render={<Link to="/cash-flow" />}>查看全部 →</Button>
-        </div>
-        {recent.length === 0 ? (
-          <div className="muted text-body" style={{ padding: "18px 22px" }}>還沒有交易紀錄。</div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))" }}>
-            {recent.map((r, i) => (
-              <div key={r.id} className="ns-row" style={{ gap: 12, paddingLeft: 22, paddingRight: 22, borderLeft: i % 2 === 1 ? "1px solid var(--ns-border)" : "none" }}>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13.5px] font-medium truncate">{r.name || r.category || (r.entryType === "transfer" ? "轉帳" : "交易")}</div>
-                  <div className="muted text-caption truncate">{r.date.slice(5).replace("T", " ")} · {accountMap.get(r.accountId)?.name ?? ""}</div>
-                </div>
-                <div className={"num text-sm text-right " + (r.amount >= 0 ? "pos" : "")} style={{ minWidth: 88 }}>
-                  {r.amount >= 0 ? "+" : "−"}NT${formatNumber(Math.abs(r.amount))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
       ) : null}
 
       {/* Row 6 · 30-year net-worth projection — FIRE-family (plan 189):
@@ -1490,7 +2188,6 @@ export function DashboardRoute() {
           primaryCurrency={primaryCurrency}
         />
       ) : null}
-
     </div>
   );
 }
@@ -1526,8 +2223,12 @@ function MonthlySummaryInline({
   // Check FM availability once on mount.
   useEffect(() => {
     let cancelled = false;
-    isFmAvailable().then((ok) => { if (!cancelled) setAvailable(ok); });
-    return () => { cancelled = true; };
+    isFmAvailable().then((ok) => {
+      if (!cancelled) setAvailable(ok);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const generate = useCallback(async () => {
@@ -1592,17 +2293,36 @@ function MonthlySummaryInline({
 }
 
 /** Header one-liner: top FX pairs, replacing the standalone 匯率 card (plan 164). */
-function FxInline({ rates }: { rates: Array<{ pair: string; rate: number; changePct: number | null }> }) {
+function FxInline({
+  rates,
+}: {
+  rates: Array<{ pair: string; rate: number; changePct: number | null }>;
+}) {
   if (rates.length === 0) return null;
   return (
-    <span className="mono" style={{ display: "inline-flex", gap: 14, alignItems: "center", fontSize: 11.5, color: "var(--ns-fg-dim)" }}>
+    <span
+      className="mono"
+      style={{
+        display: "inline-flex",
+        gap: 14,
+        alignItems: "center",
+        fontSize: 11.5,
+        color: "var(--ns-fg-dim)",
+      }}
+    >
       {rates.slice(0, 2).map((fx) => (
         <span key={fx.pair} style={{ display: "inline-flex", gap: 5, alignItems: "baseline" }}>
           <span>{fx.pair}</span>
           <span style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{fx.rate.toFixed(2)}</span>
           {fx.changePct != null ? (
-            <span style={{ color: fx.changePct >= 0 ? "var(--ns-pos)" : "var(--ns-neg)", fontSize: 10.5 }}>
-              {fx.changePct >= 0 ? "▲" : "▼"}{Math.abs(fx.changePct).toFixed(2)}%
+            <span
+              style={{
+                color: fx.changePct >= 0 ? "var(--ns-pos)" : "var(--ns-neg)",
+                fontSize: 10.5,
+              }}
+            >
+              {fx.changePct >= 0 ? "▲" : "▼"}
+              {Math.abs(fx.changePct).toFixed(2)}%
             </span>
           ) : null}
         </span>
@@ -1612,13 +2332,49 @@ function FxInline({ rates }: { rates: Array<{ pair: string; rate: number; change
 }
 
 /** 4-cell 一眼脈搏 strip under the net-worth hero (plan 164, Direction A). */
-function PulseStrip({ cells }: { cells: Array<{ label: string; value: string; sub: string; color?: string }> }) {
+function PulseStrip({
+  cells,
+}: {
+  cells: Array<{ label: string; value: string; sub: string; color?: string }>;
+}) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))", borderTop: "1px solid var(--ns-border)", marginTop: 16, paddingTop: 14 }}>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))",
+        borderTop: "1px solid var(--ns-border)",
+        marginTop: 16,
+        paddingTop: 14,
+      }}
+    >
       {cells.map((c, i) => (
-        <div key={c.label} style={{ paddingLeft: i ? 14 : 0, paddingRight: 14, borderLeft: i ? "1px solid var(--ns-border)" : "none", minWidth: 0 }}>
-          <div className="text-xs muted font-medium truncate" style={{ fontSize: 10, marginBottom: 4 }}>{c.label}</div>
-          <div className="num truncate" style={{ fontSize: 15, fontWeight: 600, fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums", color: c.color ?? "var(--ns-fg)" }}>{c.value}</div>
+        <div
+          key={c.label}
+          style={{
+            paddingLeft: i ? 14 : 0,
+            paddingRight: 14,
+            borderLeft: i ? "1px solid var(--ns-border)" : "none",
+            minWidth: 0,
+          }}
+        >
+          <div
+            className="text-xs muted font-medium truncate"
+            style={{ fontSize: 10, marginBottom: 4 }}
+          >
+            {c.label}
+          </div>
+          <div
+            className="num truncate"
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              fontFamily: "var(--ns-font-num)",
+              fontVariantNumeric: "tabular-nums",
+              color: c.color ?? "var(--ns-fg)",
+            }}
+          >
+            {c.value}
+          </div>
           {c.sub ? <div className="muted text-caption truncate mt-0.5">{c.sub}</div> : null}
         </div>
       ))}
@@ -1626,17 +2382,35 @@ function PulseStrip({ cells }: { cells: Array<{ label: string; value: string; su
   );
 }
 
-function KpiCard({ label, value, color, tone }: { label: string; value: string; color: string; tone?: "neg" }) {
+function KpiCard({
+  label,
+  value,
+  color,
+  tone,
+}: {
+  label: string;
+  value: string;
+  color: string;
+  tone?: "neg";
+}) {
   return (
     <Card className="flex flex-row items-center gap-2.5 min-w-0" style={{ padding: "13px 16px" }}>
       <div style={{ width: 4, height: 32, borderRadius: 99, background: color, flexShrink: 0 }} />
       <div className="flex-1 min-w-0">
-        <div className="text-xs muted font-medium" style={{ fontSize: 10 }}>{label}</div>
-        <div className={"font-medium truncate " + (tone === "neg" ? "neg" : "")} style={{
-          fontSize: "clamp(13px, 1.4vw, 18px)",
-          fontFamily: "var(--ns-font-num)", fontVariantNumeric: "tabular-nums",
-          marginTop: 1,
-        }}>{value}</div>
+        <div className="text-xs muted font-medium" style={{ fontSize: 10 }}>
+          {label}
+        </div>
+        <div
+          className={"font-medium truncate " + (tone === "neg" ? "neg" : "")}
+          style={{
+            fontSize: "clamp(13px, 1.4vw, 18px)",
+            fontFamily: "var(--ns-font-num)",
+            fontVariantNumeric: "tabular-nums",
+            marginTop: 1,
+          }}
+        >
+          {value}
+        </div>
       </div>
     </Card>
   );
@@ -1647,36 +2421,100 @@ function fmtPctSigned(v: number | null): string {
   return `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}%`;
 }
 
-function PortfolioStrip({ period, data, benchmarkTicker }: {
+function PortfolioStrip({
+  period,
+  data,
+  benchmarkTicker,
+}: {
   period: StripPeriod;
-  data: { portfolio: number | null; benchmark: number | null; alpha: number | null; basis: "twr" | "fixed" };
+  data: {
+    portfolio: number | null;
+    benchmark: number | null;
+    alpha: number | null;
+    basis: "twr" | "fixed";
+  };
   benchmarkTicker: string;
 }) {
   const cells = [
-    { label: "投資組合", val: data.portfolio, color: data.portfolio == null ? "var(--ns-fg-muted)" : data.portfolio >= 0 ? "var(--ns-gain)" : "var(--ns-loss)" },
+    {
+      label: "投資組合",
+      val: data.portfolio,
+      color:
+        data.portfolio == null
+          ? "var(--ns-fg-muted)"
+          : data.portfolio >= 0
+            ? "var(--ns-gain)"
+            : "var(--ns-loss)",
+    },
     { label: `${benchmarkTicker} 指標`, val: data.benchmark, color: "var(--ns-fg-muted)" },
-    { label: "超額報酬", val: data.alpha, color: data.alpha == null ? "var(--ns-fg-muted)" : data.alpha >= 0 ? "var(--ns-accent)" : "var(--ns-loss)" },
+    {
+      label: "超額報酬",
+      val: data.alpha,
+      color:
+        data.alpha == null
+          ? "var(--ns-fg-muted)"
+          : data.alpha >= 0
+            ? "var(--ns-accent)"
+            : "var(--ns-loss)",
+    },
   ];
   return (
     <div className="mt-3.5">
       <div className="text-xs mb-2 muted font-medium">
         投資組合 vs Benchmark · {period} · {data.basis === "twr" ? "TWR 口徑" : "固定權重近似"}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", borderRadius: "var(--ns-r-md)", border: "1px solid var(--ns-border)", overflow: "hidden" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          borderRadius: "var(--ns-r-md)",
+          border: "1px solid var(--ns-border)",
+          overflow: "hidden",
+        }}
+      >
         {cells.map((c, i) => (
-          <div key={c.label} style={{ padding: "10px 14px", borderLeft: i ? "1px solid var(--ns-border)" : "none", background: "var(--ns-bg-hover)", minWidth: 0 }}>
-            <div className="text-xs muted font-medium truncate" style={{ fontSize: 10, marginBottom: 3 }}>{c.label}</div>
-            <div className="num text-[19px]" style={{ fontWeight: 600, fontFamily: "var(--ns-font-num)", color: c.color, fontVariantNumeric: "tabular-nums" }}>{fmtPctSigned(c.val)}</div>
+          <div
+            key={c.label}
+            style={{
+              padding: "10px 14px",
+              borderLeft: i ? "1px solid var(--ns-border)" : "none",
+              background: "var(--ns-bg-hover)",
+              minWidth: 0,
+            }}
+          >
+            <div
+              className="text-xs muted font-medium truncate"
+              style={{ fontSize: 10, marginBottom: 3 }}
+            >
+              {c.label}
+            </div>
+            <div
+              className="num text-[19px]"
+              style={{
+                fontWeight: 600,
+                fontFamily: "var(--ns-font-num)",
+                color: c.color,
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {fmtPctSigned(c.val)}
+            </div>
           </div>
         ))}
       </div>
       {data.portfolio == null ? (
         <div className="muted text-caption mt-1.5">
-          需要更多每日股價才能計算期間報酬。<Link to="/investments" className="accent">前往回補 →</Link>
+          需要更多每日股價才能計算期間報酬。
+          <Link to="/investments" className="accent">
+            前往回補 →
+          </Link>
         </div>
       ) : data.benchmark == null ? (
         <div className="muted text-caption mt-1.5">
-          尚無 {benchmarkTicker} 歷史股價，無法比較 benchmark。<Link to="/investments" className="accent">前往投資 →</Link>
+          尚無 {benchmarkTicker} 歷史股價，無法比較 benchmark。
+          <Link to="/investments" className="accent">
+            前往投資 →
+          </Link>
         </div>
       ) : null}
     </div>
@@ -1689,7 +2527,15 @@ function MoverRow({ mover }: { mover: Mover }) {
     <Link
       to="/holdings/$ticker"
       params={{ ticker: mover.ticker }}
-      style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", textDecoration: "none", color: "inherit", minWidth: 0 }}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "8px 0",
+        textDecoration: "none",
+        color: "inherit",
+        minWidth: 0,
+      }}
     >
       <div className="flex-1 min-w-0">
         <div className="mono text-xs font-semibold truncate">{mover.ticker}</div>
@@ -1698,26 +2544,47 @@ function MoverRow({ mover }: { mover: Mover }) {
       <span
         className="num text-caption"
         style={{
-          flexShrink: 0, fontWeight: 600, fontVariantNumeric: "tabular-nums",
-          padding: "2px 7px", borderRadius: 999,
+          flexShrink: 0,
+          fontWeight: 600,
+          fontVariantNumeric: "tabular-nums",
+          padding: "2px 7px",
+          borderRadius: 999,
           color: isPos ? "var(--ns-gain)" : "var(--ns-loss)",
           background: `color-mix(in srgb, ${isPos ? "var(--ns-gain)" : "var(--ns-loss)"} 12%, transparent)`,
         }}
       >
-        {isPos ? "+" : "−"}{Math.abs(mover.changePercent).toFixed(2)}%
+        {isPos ? "+" : "−"}
+        {Math.abs(mover.changePercent).toFixed(2)}%
       </span>
     </Link>
   );
 }
 
-function MoverColumn({ label, tone, movers }: { label: string; tone: "pos" | "neg"; movers: Mover[] }) {
+function MoverColumn({
+  label,
+  tone,
+  movers,
+}: {
+  label: string;
+  tone: "pos" | "neg";
+  movers: Mover[];
+}) {
   return (
     <div className="min-w-0">
-      <div className="text-xs font-medium" style={{ fontSize: 10, marginBottom: 4, color: tone === "pos" ? "var(--ns-gain)" : "var(--ns-loss)" }}>
+      <div
+        className="text-xs font-medium"
+        style={{
+          fontSize: 10,
+          marginBottom: 4,
+          color: tone === "pos" ? "var(--ns-gain)" : "var(--ns-loss)",
+        }}
+      >
         {label}
       </div>
       {movers.length === 0 ? (
-        <div className="dim text-xs" style={{ padding: "8px 0" }}>—</div>
+        <div className="dim text-xs" style={{ padding: "8px 0" }}>
+          —
+        </div>
       ) : (
         movers.map((m) => <MoverRow key={m.ticker} mover={m} />)
       )}
@@ -1736,60 +2603,104 @@ function TodoRowItem({ row, first }: { row: TodoRow; first: boolean }) {
   const meta = TODO_META[row.type];
   const inner = (
     <>
-      <span style={{ width: 6, height: 6, borderRadius: 99, background: meta.color, flexShrink: 0 }} title={meta.label} />
+      <span
+        style={{ width: 6, height: 6, borderRadius: 99, background: meta.color, flexShrink: 0 }}
+        title={meta.label}
+      />
       <div className="flex-1 min-w-0">
         <div className="text-[13.5px] font-medium truncate">{row.name}</div>
         {row.sub ? <div className="muted text-caption truncate">{row.sub}</div> : null}
       </div>
       <div className="text-right">
-        <div className="num text-[13.5px]" style={{ color: row.amt >= 0 ? "var(--ns-pos)" : "var(--ns-neg)" }}>
+        <div
+          className="num text-[13.5px]"
+          style={{ color: row.amt >= 0 ? "var(--ns-pos)" : "var(--ns-neg)" }}
+        >
           {row.amt >= 0 ? "+" : "−"}NT${formatNumber(Math.abs(row.amt))}
         </div>
         <div className="mono dim text-caption">{row.date}</div>
       </div>
     </>
   );
-  const rowStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderTop: first ? "none" : "1px solid var(--ns-border)" };
+  const rowStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "12px 20px",
+    borderTop: first ? "none" : "1px solid var(--ns-border)",
+  };
   if (row.type === "card" && row.linkAccountId) {
     return (
-      <Link to="/cash-flow/reconcile/$accountId" params={{ accountId: row.linkAccountId }} style={{ ...rowStyle, textDecoration: "none", color: "inherit" }}>
+      <Link
+        to="/cash-flow/reconcile/$accountId"
+        params={{ accountId: row.linkAccountId }}
+        style={{ ...rowStyle, textDecoration: "none", color: "inherit" }}
+      >
         {inner}
       </Link>
     );
   }
   if ((row.type === "recv" || row.type === "pay") && row.linkTxId) {
     return (
-      <Link to="/cash-flow" search={{ tx: row.linkTxId }} style={{ ...rowStyle, textDecoration: "none", color: "inherit" }}>
+      <Link
+        to="/cash-flow"
+        search={{ tx: row.linkTxId }}
+        style={{ ...rowStyle, textDecoration: "none", color: "inherit" }}
+      >
         {inner}
       </Link>
     );
   }
   if (row.type === "dca") {
     return (
-      <Link to="/investments" search={{ tab: "recurring" }} style={{ ...rowStyle, textDecoration: "none", color: "inherit" }}>
+      <Link
+        to="/investments"
+        search={{ tab: "recurring" }}
+        style={{ ...rowStyle, textDecoration: "none", color: "inherit" }}
+      >
         {inner}
       </Link>
     );
   }
-  return (
-    <div style={rowStyle}>
-      {inner}
-    </div>
-  );
+  return <div style={rowStyle}>{inner}</div>;
 }
 
-function TodoCard({ rows, totalDue, totalCount, onViewAll }: { rows: TodoRow[]; totalDue: number; totalCount: number; onViewAll: () => void }) {
+function TodoCard({
+  rows,
+  totalDue,
+  totalCount,
+  onViewAll,
+}: {
+  rows: TodoRow[];
+  totalDue: number;
+  totalCount: number;
+  onViewAll: () => void;
+}) {
   return (
     <Card className="ns-dash-activity-card p-0">
-      <div className="flex items-center justify-between pt-4 px-5 pb-3" style={{ borderBottom: "1px solid var(--ns-border)" }}>
+      <div
+        className="flex items-center justify-between pt-4 px-5 pb-3"
+        style={{ borderBottom: "1px solid var(--ns-border)" }}
+      >
         <div>
           <div className="text-xs mb-1 muted font-medium">To-do</div>
-          <h3 className="text-base m-0 font-medium" style={{ fontFamily: "var(--ns-font-display)" }}>待辦 · 30 天</h3>
+          <h3
+            className="text-base m-0 font-medium"
+            style={{ fontFamily: "var(--ns-font-display)" }}
+          >
+            待辦 · 30 天
+          </h3>
         </div>
-        {totalDue < 0 ? <Badge variant="error" className="rounded-full px-2">NT${formatNumber(Math.abs(totalDue))}</Badge> : null}
+        {totalDue < 0 ? (
+          <Badge variant="error" className="rounded-full px-2">
+            NT${formatNumber(Math.abs(totalDue))}
+          </Badge>
+        ) : null}
       </div>
       {rows.length === 0 ? (
-        <div className="muted text-body" style={{ padding: "18px 20px" }}>近期沒有待辦事項。</div>
+        <div className="muted text-body" style={{ padding: "18px 20px" }}>
+          近期沒有待辦事項。
+        </div>
       ) : (
         rows.map((row, i) => <TodoRowItem key={row.key} row={row} first={i === 0} />)
       )}
@@ -1798,7 +2709,11 @@ function TodoCard({ rows, totalDue, totalCount, onViewAll }: { rows: TodoRow[]; 
           variant="ghost"
           onClick={onViewAll}
           className="w-full rounded-none"
-          style={{ padding: "12px 20px", borderTop: "1px solid var(--ns-border)", justifyContent: "center" }}
+          style={{
+            padding: "12px 20px",
+            borderTop: "1px solid var(--ns-border)",
+            justifyContent: "center",
+          }}
         >
           查看全部 {totalCount} 筆 →
         </Button>
@@ -1815,19 +2730,35 @@ function TodoCard({ rows, totalDue, totalCount, onViewAll }: { rows: TodoRow[]; 
  */
 function TodoAllModal({ rows, onClose }: { rows: TodoRow[]; onClose: () => void }) {
   return (
-    <ModalShell variant="center" title={`全部待辦 · ${rows.length} 筆`} onClose={onClose} panelClassName="w-full" panelStyle={{ maxWidth: 480 }}>
+    <ModalShell
+      variant="center"
+      title={`全部待辦 · ${rows.length} 筆`}
+      onClose={onClose}
+      panelClassName="w-full"
+      panelStyle={{ maxWidth: 480 }}
+    >
       {(dismiss) => (
         <Card className="w-full p-0">
-          <div className="py-4 px-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--ns-border)" }}>
+          <div
+            className="py-4 px-5 flex items-center justify-between"
+            style={{ borderBottom: "1px solid var(--ns-border)" }}
+          >
             <div>
-              <h2 className="text-base font-semibold" style={{ margin: 0 }}>{`全部待辦 · ${rows.length} 筆`}</h2>
-              <div className="muted text-caption" style={{ marginTop: 2 }}>未來 30 天週期交易 · 45 天內信用卡繳款 · 全部未結清</div>
+              <h2
+                className="text-base font-semibold"
+                style={{ margin: 0 }}
+              >{`全部待辦 · ${rows.length} 筆`}</h2>
+              <div className="muted text-caption" style={{ marginTop: 2 }}>
+                未來 30 天週期交易 · 45 天內信用卡繳款 · 全部未結清
+              </div>
             </div>
             <ModalCloseButton onClick={dismiss} />
           </div>
           <div style={{ maxHeight: "70vh", overflowY: "auto" }}>
             {rows.length === 0 ? (
-              <div className="muted text-body" style={{ padding: "18px 20px" }}>近期沒有待辦事項。</div>
+              <div className="muted text-body" style={{ padding: "18px 20px" }}>
+                近期沒有待辦事項。
+              </div>
             ) : (
               rows.map((row, i) => <TodoRowItem key={row.key} row={row} first={i === 0} />)
             )}
@@ -1842,17 +2773,31 @@ function TopMoversCard({ gainers, losers }: { gainers: Mover[]; losers: Mover[] 
   const empty = gainers.length === 0 && losers.length === 0;
   return (
     <Card className="ns-dash-activity-card p-0">
-      <div className="flex items-baseline justify-between" style={{ padding: "14px 18px 10px", borderBottom: "1px solid var(--ns-border)" }}>
+      <div
+        className="flex items-baseline justify-between"
+        style={{ padding: "14px 18px 10px", borderBottom: "1px solid var(--ns-border)" }}
+      >
         <div>
           <div className="text-xs mb-1 muted font-medium">Today</div>
-          <h3 className="text-base m-0 font-medium" style={{ fontFamily: "var(--ns-font-display)" }}>今日漲跌</h3>
+          <h3
+            className="text-base m-0 font-medium"
+            style={{ fontFamily: "var(--ns-font-display)" }}
+          >
+            今日漲跌
+          </h3>
         </div>
-        <Button variant="ghost" size="xs" render={<Link to="/investments" />}>詳細 →</Button>
+        <Button variant="ghost" size="xs" render={<Link to="/investments" />}>
+          詳細 →
+        </Button>
       </div>
       {empty ? (
-        <div className="muted text-body" style={{ padding: "16px 18px" }}>回補歷史股價後顯示當日漲跌幅。</div>
+        <div className="muted text-body" style={{ padding: "16px 18px" }}>
+          回補歷史股價後顯示當日漲跌幅。
+        </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "10px 18px 16px" }}>
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: 12, padding: "10px 18px 16px" }}
+        >
           {gainers.length > 0 ? <MoverColumn label="上漲" tone="pos" movers={gainers} /> : null}
           {losers.length > 0 ? <MoverColumn label="下跌" tone="neg" movers={losers} /> : null}
         </div>
@@ -1861,12 +2806,29 @@ function TopMoversCard({ gainers, losers }: { gainers: Mover[]; losers: Mover[] 
   );
 }
 
-function SectionHead({ eyebrow, title, action }: { eyebrow: string; title: string; action?: React.ReactNode }) {
+function SectionHead({
+  eyebrow,
+  title,
+  action,
+}: {
+  eyebrow: string;
+  title: string;
+  action?: React.ReactNode;
+}) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 14,
+      }}
+    >
       <div>
         <div className="text-xs mb-1 muted font-medium">{eyebrow}</div>
-        <h3 className="text-base m-0 font-medium" style={{ fontFamily: "var(--ns-font-display)" }}>{title}</h3>
+        <h3 className="text-base m-0 font-medium" style={{ fontFamily: "var(--ns-font-display)" }}>
+          {title}
+        </h3>
       </div>
       {action ?? null}
     </div>
@@ -1911,7 +2873,9 @@ function buildNetWorthTrend(
   // series collapses short ranges to a single point. Points are only emitted at
   // event dates (cash moves, trades, daily-price updates), so a quiet stretch
   // stays sparse rather than ballooning to one point per calendar day.
-  const earliest = (startCandidates.length ? [...startCandidates].sort()[0] : dateOnly(settledRows[0].date));
+  const earliest = startCandidates.length
+    ? [...startCandidates].sort()[0]
+    : dateOnly(settledRows[0].date);
   const now = new Date();
   const keyOf = (date: string) => dateOnly(date);
   const labelOf = (key: string) => formatDay(key);
@@ -1926,7 +2890,10 @@ function buildNetWorthTrend(
     const joinedDate = dateOnly(account.createdAt);
     if (!joinedDate) continue;
     const key = keyOf(joinedDate);
-    cashDelta.set(key, (cashDelta.get(key) ?? 0) + toPrimary(account.openingBalance, account.currency, joinedDate));
+    cashDelta.set(
+      key,
+      (cashDelta.get(key) ?? 0) + toPrimary(account.openingBalance, account.currency, joinedDate),
+    );
   }
   for (const row of ledgerRows) {
     if (row.deletedAt !== null) continue;
@@ -1972,7 +2939,11 @@ function buildNetWorthTrend(
     if (qtyTimeline.length > 0) {
       for (const { date, delta } of qtyTimeline) addQuantityEvent(asset.id, date, delta);
     } else if (asset.totalQuantity !== 0) {
-      addQuantityEvent(asset.id, dateOnly(asset.acquisitionDate || asset.createdAt), asset.totalQuantity);
+      addQuantityEvent(
+        asset.id,
+        dateOnly(asset.acquisitionDate || asset.createdAt),
+        asset.totalQuantity,
+      );
     }
   }
 
@@ -1983,7 +2954,9 @@ function buildNetWorthTrend(
   const priceKeys = dailyPrices
     .filter((row) => relevantTickers.has(row.ticker.trim().toUpperCase()))
     .map((row) => keyOf(row.date));
-  const orderedKeys = [...new Set([startKey, todayKey, ...cashDelta.keys(), ...quantityEvents.keys(), ...priceKeys])].sort();
+  const orderedKeys = [
+    ...new Set([startKey, todayKey, ...cashDelta.keys(), ...quantityEvents.keys(), ...priceKeys]),
+  ].sort();
 
   let cashRunning = 0;
   const quantities = new Map<string, number>();
@@ -2001,7 +2974,12 @@ function buildNetWorthTrend(
       const quantity = quantities.get(asset.id) ?? 0;
       if (Math.abs(quantity) < 1e-9) return sum;
       const quote = quoteFor(asset.ticker);
-      const price = priceAssetOnDate(asset, valuationDate, { todayIso, dailyPriceLookup, quote, manualPriceLookup });
+      const price = priceAssetOnDate(asset, valuationDate, {
+        todayIso,
+        dailyPriceLookup,
+        quote,
+        manualPriceLookup,
+      });
       return sum + toPrimary(price.value * quantity, price.currency, valuationDate);
     }, 0);
     timeline.push({ date: labelOf(key), value: cashRunning + holdingsValue, iso: isoOf(key) });
@@ -2017,7 +2995,12 @@ function buildNetWorthTrend(
       const quantity = quantities.get(asset.id) ?? 0;
       if (Math.abs(quantity) < 1e-9) return sum;
       const quote = quoteFor(asset.ticker);
-      const price = priceAssetOnDate(asset, todayIso, { todayIso, dailyPriceLookup, quote, manualPriceLookup });
+      const price = priceAssetOnDate(asset, todayIso, {
+        todayIso,
+        dailyPriceLookup,
+        quote,
+        manualPriceLookup,
+      });
       return sum + toPrimary(price.value * quantity, price.currency, todayIso);
     }, 0);
     timeline.push({ date: "現在", value: cashRunning + holdingsValue, iso: todayIso });

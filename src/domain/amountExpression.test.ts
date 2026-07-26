@@ -23,4 +23,3 @@ describe("amount expression", () => {
     expect(() => evaluateAmountExpression("10/0")).toThrow("Division by zero");
   });
 });
-

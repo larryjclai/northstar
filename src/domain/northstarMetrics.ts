@@ -137,10 +137,7 @@ export function trailingMonthlyNet(
  *                          Source: buildDividendAnalysis(...).ttmTotal
  * @param annualExpense     Annual expense = trailingMonthlyExpense(...) × 12
  */
-export function coverageRatioPct(
-  ttmPassiveIncome: number,
-  annualExpense: number,
-): number | null {
+export function coverageRatioPct(ttmPassiveIncome: number, annualExpense: number): number | null {
   if (annualExpense <= 0) return null;
   return (ttmPassiveIncome / annualExpense) * 100;
 }
@@ -153,10 +150,7 @@ export function coverageRatioPct(
  *                       Source: calculateAvailableCash(accounts, toPrimary)
  * @param monthlyExpense Average monthly expense (trailing); use trailingMonthlyExpense().
  */
-export function runwayMonths(
-  liquidAssets: number,
-  monthlyExpense: number,
-): number | null {
+export function runwayMonths(liquidAssets: number, monthlyExpense: number): number | null {
   if (monthlyExpense <= 0) return null;
   return liquidAssets / monthlyExpense;
 }

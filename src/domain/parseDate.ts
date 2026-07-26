@@ -19,17 +19,44 @@ export interface DateMatch {
 // ── Lookup tables ──
 
 const WEEKDAY_EN: Record<string, number> = {
-  sun: 0, sunday: 0, mon: 1, monday: 1, tue: 2, tuesday: 2,
-  wed: 3, wednesday: 3, thu: 4, thursday: 4, fri: 5, friday: 5,
-  sat: 6, saturday: 6,
+  sun: 0,
+  sunday: 0,
+  mon: 1,
+  monday: 1,
+  tue: 2,
+  tuesday: 2,
+  wed: 3,
+  wednesday: 3,
+  thu: 4,
+  thursday: 4,
+  fri: 5,
+  friday: 5,
+  sat: 6,
+  saturday: 6,
 };
 const WEEKDAY_ZH: Record<string, number> = {
-  日: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6,
+  日: 0,
+  一: 1,
+  二: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
 };
 // 3-letter prefix → month number (for English month names)
 const MONTH_EN: Record<string, number> = {
-  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
-  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+  jan: 1,
+  feb: 2,
+  mar: 3,
+  apr: 4,
+  may: 5,
+  jun: 6,
+  jul: 7,
+  aug: 8,
+  sep: 9,
+  oct: 10,
+  nov: 11,
+  dec: 12,
 };
 
 // ── Date arithmetic helpers ──
@@ -39,7 +66,12 @@ function parseComponents(todayLocal: string): { y: number; m: number; d: number;
   return { y, m, d, wd: new Date(y, m - 1, d).getDay() };
 }
 
-function offset(y: number, m: number, d: number, delta: number): { y: number; m: number; d: number } {
+function offset(
+  y: number,
+  m: number,
+  d: number,
+  delta: number,
+): { y: number; m: number; d: number } {
   const dt = new Date(y, m - 1, d + delta);
   return { y: dt.getFullYear(), m: dt.getMonth() + 1, d: dt.getDate() };
 }
@@ -62,7 +94,12 @@ function recentWeekday(
 }
 
 /** Month/day → YYYY: pick current year unless that date is in the future → previous year. */
-function resolveYear(y: number, m: number, d: number, today: ReturnType<typeof parseComponents>): number {
+function resolveYear(
+  y: number,
+  m: number,
+  d: number,
+  today: ReturnType<typeof parseComponents>,
+): number {
   if (m > today.m || (m === today.m && d > today.d)) return y - 1;
   return y;
 }
@@ -92,13 +129,19 @@ export function parseDate(text: string, todayLocal: string): DateMatch | null {
   // 2. Yesterday ─────────────────────────────────────────────────────────────
   {
     const m = /昨天|昨日|\b(?:yesterday|yest)\b/i.exec(text);
-    if (m) { const r = offset(t.y, t.m, t.d, -1); return hit(m, r.y, r.m, r.d); }
+    if (m) {
+      const r = offset(t.y, t.m, t.d, -1);
+      return hit(m, r.y, r.m, r.d);
+    }
   }
 
   // 3. 前天 (day before yesterday) ───────────────────────────────────────────
   {
     const m = /前天/.exec(text);
-    if (m) { const r = offset(t.y, t.m, t.d, -2); return hit(m, r.y, r.m, r.d); }
+    if (m) {
+      const r = offset(t.y, t.m, t.d, -2);
+      return hit(m, r.y, r.m, r.d);
+    }
   }
 
   // 4a. Chinese weekday ──────────────────────────────────────────────────────
@@ -119,7 +162,10 @@ export function parseDate(text: string, todayLocal: string): DateMatch | null {
   // 4b. English weekday ──────────────────────────────────────────────────────
   // "last wed" / "last monday" or standalone "wed" / "monday"
   {
-    const m = /\b(last\s+)?(sun|mon|tue|wed|thu|fri|sat|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i.exec(text);
+    const m =
+      /\b(last\s+)?(sun|mon|tue|wed|thu|fri|sat|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i.exec(
+        text,
+      );
     if (m) {
       const isLast = !!m[1];
       const targetWD = WEEKDAY_EN[m[2].toLowerCase()];
@@ -134,7 +180,8 @@ export function parseDate(text: string, todayLocal: string): DateMatch | null {
   {
     const m = /(\d{1,2})月(\d{1,2})日?/.exec(text);
     if (m) {
-      const mo = Number(m[1]); const d = Number(m[2]);
+      const mo = Number(m[1]);
+      const d = Number(m[2]);
       if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
         const y = resolveYear(t.y, mo, d, t);
         return hit(m, y, mo, d);
@@ -146,7 +193,8 @@ export function parseDate(text: string, todayLocal: string): DateMatch | null {
   {
     const m = /\b(\d{1,2})\/(\d{1,2})\b/.exec(text);
     if (m) {
-      const mo = Number(m[1]); const d = Number(m[2]);
+      const mo = Number(m[1]);
+      const d = Number(m[2]);
       if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
         const y = resolveYear(t.y, mo, d, t);
         return hit(m, y, mo, d);
@@ -159,7 +207,8 @@ export function parseDate(text: string, todayLocal: string): DateMatch | null {
   {
     const m = /\b(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\b/.exec(text);
     if (m) {
-      const mo = Number(m[1]); const d = Number(m[2]);
+      const mo = Number(m[1]);
+      const d = Number(m[2]);
       const y = resolveYear(t.y, mo, d, t);
       return hit(m, y, mo, d);
     }
@@ -167,7 +216,10 @@ export function parseDate(text: string, todayLocal: string): DateMatch | null {
 
   // 5d. English month name + day: "mar 15" / "march 15" ─────────────────────
   {
-    const m = /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})\b/i.exec(text);
+    const m =
+      /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})\b/i.exec(
+        text,
+      );
     if (m) {
       const mo = MONTH_EN[m[1].toLowerCase().slice(0, 3)];
       const d = Number(m[2]);

@@ -17,13 +17,13 @@ const tier1LedgerResult: QuickAddParseResult = {
   source: "on-device",
   ledger: {
     entryType: { value: "expense", confidence: "high" },
-    amount:    { value: 120,       confidence: "high" },
-    accountId: { value: "a_card",  confidence: "high" },
-    merchant:  { value: "星巴克", confidence: "high" },
-    name:      { value: "拿鐵",   confidence: "high" },
-    category:  { value: "餐飲",   confidence: "high" },
+    amount: { value: 120, confidence: "high" },
+    accountId: { value: "a_card", confidence: "high" },
+    merchant: { value: "星巴克", confidence: "high" },
+    name: { value: "拿鐵", confidence: "high" },
+    category: { value: "餐飲", confidence: "high" },
     subcategory: { value: "飲料", confidence: "high" },
-    date:      { value: null,      confidence: "none" },
+    date: { value: null, confidence: "none" },
   },
 };
 
@@ -128,39 +128,47 @@ describe("orchestrate – Tier 0 unknown → calls on-device parser", () => {
 // Tier 1 account resolution + sanitisation
 // ---------------------------------------------------------------------------
 describe("orchestrate – sanitises on-device account/merchant", () => {
-  function ledgerResult(over: Partial<{ accountId: string | null; merchant: string | null; name: string | null }>): QuickAddParseResult {
+  function ledgerResult(
+    over: Partial<{ accountId: string | null; merchant: string | null; name: string | null }>,
+  ): QuickAddParseResult {
     return {
       kind: "ledger",
       source: "on-device",
       ledger: {
-        entryType:  { value: "expense", confidence: "high" },
-        amount:     { value: 300,       confidence: "high" },
-        accountId:  { value: over.accountId ?? null, confidence: "high" },
-        merchant:   { value: over.merchant ?? null,  confidence: "high" },
-        name:       { value: over.name ?? null,      confidence: "high" },
-        category:   { value: "餐飲",   confidence: "high" },
-        subcategory:{ value: null,      confidence: "none" },
-        date:       { value: null,      confidence: "none" },
+        entryType: { value: "expense", confidence: "high" },
+        amount: { value: 300, confidence: "high" },
+        accountId: { value: over.accountId ?? null, confidence: "high" },
+        merchant: { value: over.merchant ?? null, confidence: "high" },
+        name: { value: over.name ?? null, confidence: "high" },
+        category: { value: "餐飲", confidence: "high" },
+        subcategory: { value: null, confidence: "none" },
+        date: { value: null, confidence: "none" },
       },
     };
   }
 
   it("maps a model-returned account NAME back to its id", async () => {
-    const parser = makeParser({ parse: vi.fn().mockResolvedValue(ledgerResult({ accountId: "信用卡" })) });
+    const parser = makeParser({
+      parse: vi.fn().mockResolvedValue(ledgerResult({ accountId: "信用卡" })),
+    });
     const { result } = await orchestrate("unknown text", ctx, parser);
     if (result.kind !== "ledger") throw new Error("expected ledger");
     expect(result.accountId).toBe("a_card");
   });
 
   it("nulls a hallucinated account that matches no id or name", async () => {
-    const parser = makeParser({ parse: vi.fn().mockResolvedValue(ledgerResult({ accountId: "玉山銀行" })) });
+    const parser = makeParser({
+      parse: vi.fn().mockResolvedValue(ledgerResult({ accountId: "玉山銀行" })),
+    });
     const { result } = await orchestrate("unknown text", ctx, parser);
     if (result.kind !== "ledger") throw new Error("expected ledger");
     expect(result.accountId).toBeNull();
   });
 
   it("drops a merchant that merely duplicates the name", async () => {
-    const parser = makeParser({ parse: vi.fn().mockResolvedValue(ledgerResult({ merchant: "計程車", name: "計程車" })) });
+    const parser = makeParser({
+      parse: vi.fn().mockResolvedValue(ledgerResult({ merchant: "計程車", name: "計程車" })),
+    });
     const { result } = await orchestrate("unknown text", ctx, parser);
     if (result.kind !== "ledger") throw new Error("expected ledger");
     expect(result.merchant).toBe("");
@@ -191,12 +199,21 @@ describe("orchestrate – on-device parser unavailable", () => {
 // Timeout / error resilience
 // ---------------------------------------------------------------------------
 describe("orchestrate – timeout and error handling", () => {
-  beforeEach(() => { vi.useFakeTimers(); });
-  afterEach(() => { vi.useRealTimers(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it("falls back to Tier 0 when on-device parse times out", async () => {
     const parser = makeParser({
-      parse: vi.fn().mockImplementation(() => new Promise(() => { /* never resolves */ })),
+      parse: vi.fn().mockImplementation(
+        () =>
+          new Promise(() => {
+            /* never resolves */
+          }),
+      ),
     });
     const promise = orchestrate("no-amount-text", ctx, parser);
     // Use async variant so microtasks flush between timer ticks.
@@ -208,7 +225,12 @@ describe("orchestrate – timeout and error handling", () => {
 
   it("falls back to Tier 0 when available() check times out (500 ms gate)", async () => {
     const parser = makeParser({
-      available: vi.fn().mockImplementation(() => new Promise(() => { /* never resolves */ })),
+      available: vi.fn().mockImplementation(
+        () =>
+          new Promise(() => {
+            /* never resolves */
+          }),
+      ),
     });
     const promise = orchestrate("no-amount-text", ctx, parser);
     await vi.advanceTimersByTimeAsync(600);
@@ -242,12 +264,12 @@ describe("orchestrate – investment via on-device", () => {
     kind: "investment",
     source: "on-device",
     investment: {
-      action:    { value: "buy",     confidence: "high" },
-      ticker:    { value: "AAPL",    confidence: "high" },
-      quantity:  { value: 10,        confidence: "high" },
-      price:     { value: 180,       confidence: "high" },
-      accountId: { value: "a_cash",  confidence: "low" },
-      date:      { value: null,      confidence: "none" },
+      action: { value: "buy", confidence: "high" },
+      ticker: { value: "AAPL", confidence: "high" },
+      quantity: { value: 10, confidence: "high" },
+      price: { value: 180, confidence: "high" },
+      accountId: { value: "a_cash", confidence: "low" },
+      date: { value: null, confidence: "none" },
     },
   };
 
@@ -272,14 +294,14 @@ describe("orchestrate – on-device result without amount falls back", () => {
       kind: "ledger",
       source: "on-device",
       ledger: {
-        entryType:  { value: "expense", confidence: "low" },
-        amount:     { value: null,      confidence: "none" },
-        accountId:  { value: null,      confidence: "none" },
-        merchant:   { value: "未知",    confidence: "low" },
-        name:       { value: null,      confidence: "none" },
-        category:   { value: null,      confidence: "none" },
-        subcategory:{ value: null,      confidence: "none" },
-        date:       { value: null,      confidence: "none" },
+        entryType: { value: "expense", confidence: "low" },
+        amount: { value: null, confidence: "none" },
+        accountId: { value: null, confidence: "none" },
+        merchant: { value: "未知", confidence: "low" },
+        name: { value: null, confidence: "none" },
+        category: { value: null, confidence: "none" },
+        subcategory: { value: null, confidence: "none" },
+        date: { value: null, confidence: "none" },
       },
     };
     const parser = makeParser({ parse: vi.fn().mockResolvedValue(noAmount) });

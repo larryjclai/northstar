@@ -39,8 +39,12 @@ function makeCtx(data: RepositoryData) {
   const nowIso = () => "2026-06-15T00:00:00.000Z";
   const createId = (prefix: string) => `${prefix}_test_${++_idCounter}`;
   const ctx = {
-    get data(): RepositoryData { return data; },
-    set data(v: RepositoryData) { data = v; },
+    get data(): RepositoryData {
+      return data;
+    },
+    set data(v: RepositoryData) {
+      data = v;
+    },
     persist,
     nowIso,
     createId,
@@ -55,7 +59,19 @@ describe("createMarketDataStore — listMarketQuotes / saveMarketQuotes", () => 
     const store = createMarketDataStore(ctx);
 
     await store.saveMarketQuotes(
-      [{ symbol: "0050.TW", name: "元大台灣50", nameZh: null, nameEn: null, currency: "TWD", price: 200, change: 1, changePercent: 0.5, marketTime: "2026-06-15T06:00:00.000Z" }],
+      [
+        {
+          symbol: "0050.TW",
+          name: "元大台灣50",
+          nameZh: null,
+          nameEn: null,
+          currency: "TWD",
+          price: 200,
+          change: 1,
+          changePercent: 0.5,
+          marketTime: "2026-06-15T06:00:00.000Z",
+        },
+      ],
       "yahoo",
     );
 
@@ -73,8 +89,38 @@ describe("createMarketDataStore — listMarketQuotes / saveMarketQuotes", () => 
     const { ctx } = makeCtx(data);
     const store = createMarketDataStore(ctx);
 
-    await store.saveMarketQuotes([{ symbol: "AAPL", name: "Apple", nameZh: null, nameEn: null, currency: "USD", price: 100, change: 0, changePercent: 0, marketTime: "" }], "yahoo");
-    await store.saveMarketQuotes([{ symbol: "AAPL", name: "Apple Inc.", nameZh: null, nameEn: null, currency: "USD", price: 150, change: 2, changePercent: 1.3, marketTime: "" }], "yahoo");
+    await store.saveMarketQuotes(
+      [
+        {
+          symbol: "AAPL",
+          name: "Apple",
+          nameZh: null,
+          nameEn: null,
+          currency: "USD",
+          price: 100,
+          change: 0,
+          changePercent: 0,
+          marketTime: "",
+        },
+      ],
+      "yahoo",
+    );
+    await store.saveMarketQuotes(
+      [
+        {
+          symbol: "AAPL",
+          name: "Apple Inc.",
+          nameZh: null,
+          nameEn: null,
+          currency: "USD",
+          price: 150,
+          change: 2,
+          changePercent: 1.3,
+          marketTime: "",
+        },
+      ],
+      "yahoo",
+    );
 
     const quotes = await store.listMarketQuotes();
     expect(quotes).toHaveLength(1);
@@ -113,7 +159,19 @@ describe("createMarketDataStore — listMarketQuotes / saveMarketQuotes", () => 
     const store = createMarketDataStore(ctx);
 
     await store.saveMarketQuotes(
-      [{ symbol: "0050.TW", name: "元大台灣50", nameZh: "元大台灣50", nameEn: "Yuanta Taiwan 50", currency: "TWD", price: 200, change: 0, changePercent: 0, marketTime: "" }],
+      [
+        {
+          symbol: "0050.TW",
+          name: "元大台灣50",
+          nameZh: "元大台灣50",
+          nameEn: "Yuanta Taiwan 50",
+          currency: "TWD",
+          price: 200,
+          change: 0,
+          changePercent: 0,
+          marketTime: "",
+        },
+      ],
       "yahoo",
     );
 
@@ -166,7 +224,9 @@ describe("createMarketDataStore — saveDailyFxRates / getDailyFxRate", () => {
     const { ctx } = makeCtx(data);
     const store = createMarketDataStore(ctx);
 
-    await store.saveDailyFxRates([{ from: "usd", to: "twd", date: "2026-06-15", rate: 32, source: "manual", updatedAt: "" }]);
+    await store.saveDailyFxRates([
+      { from: "usd", to: "twd", date: "2026-06-15", rate: 32, source: "manual", updatedAt: "" },
+    ]);
     const rate = await store.getDailyFxRate("USD", "TWD", "2026-06-15");
     expect(rate?.rate).toBe(32);
   });
@@ -199,8 +259,22 @@ describe("createMarketDataStore — saveDailyPrices / getDailyPrice", () => {
     const store = createMarketDataStore(ctx);
 
     await store.saveDailyPrices([
-      { ticker: "0050.TW", date: "2026-06-10", close: 195.5, currency: "TWD", source: "twse", updatedAt: "" },
-      { ticker: "0050.TW", date: "2026-06-13", close: 200.0, currency: "TWD", source: "twse", updatedAt: "" },
+      {
+        ticker: "0050.TW",
+        date: "2026-06-10",
+        close: 195.5,
+        currency: "TWD",
+        source: "twse",
+        updatedAt: "",
+      },
+      {
+        ticker: "0050.TW",
+        date: "2026-06-13",
+        close: 200.0,
+        currency: "TWD",
+        source: "twse",
+        updatedAt: "",
+      },
     ]);
 
     const price = await store.getDailyPrice("0050.TW", "2026-06-15");
@@ -215,8 +289,22 @@ describe("createMarketDataStore — saveDailyPrices / getDailyPrice", () => {
     const store = createMarketDataStore(ctx);
 
     await store.saveDailyPrices([
-      { ticker: "AAPL", date: "2026-01-02", close: 180, currency: "USD", source: "yahoo", updatedAt: "" },
-      { ticker: "AAPL", date: "2026-06-01", close: 200, currency: "USD", source: "yahoo", updatedAt: "" },
+      {
+        ticker: "AAPL",
+        date: "2026-01-02",
+        close: 180,
+        currency: "USD",
+        source: "yahoo",
+        updatedAt: "",
+      },
+      {
+        ticker: "AAPL",
+        date: "2026-06-01",
+        close: 200,
+        currency: "USD",
+        source: "yahoo",
+        updatedAt: "",
+      },
     ]);
 
     expect((await store.getDailyPrice("AAPL", "2026-03-01"))?.close).toBe(180);
@@ -235,7 +323,16 @@ describe("createMarketDataStore — saveDailyPrices / getDailyPrice", () => {
     const { ctx } = makeCtx(data);
     const store = createMarketDataStore(ctx);
 
-    await store.saveDailyPrices([{ ticker: "aapl", date: "2026-06-15T12:00:00Z", close: 210, currency: "USD", source: "yahoo", updatedAt: "" }]);
+    await store.saveDailyPrices([
+      {
+        ticker: "aapl",
+        date: "2026-06-15T12:00:00Z",
+        close: 210,
+        currency: "USD",
+        source: "yahoo",
+        updatedAt: "",
+      },
+    ]);
     const price = await store.getDailyPrice("AAPL", "2026-06-15");
     expect(price?.close).toBe(210);
     expect(price?.date).toBe("2026-06-15");
@@ -247,9 +344,30 @@ describe("createMarketDataStore — saveDailyPrices / getDailyPrice", () => {
     const store = createMarketDataStore(ctx);
 
     await store.saveDailyPrices([
-      { ticker: "AAPL", date: "2026-01-02", close: 180, currency: "USD", source: "yahoo", updatedAt: "" },
-      { ticker: "AAPL", date: "2026-06-01", close: 200, currency: "USD", source: "yahoo", updatedAt: "" },
-      { ticker: "MSFT", date: "2026-06-01", close: 400, currency: "USD", source: "yahoo", updatedAt: "" },
+      {
+        ticker: "AAPL",
+        date: "2026-01-02",
+        close: 180,
+        currency: "USD",
+        source: "yahoo",
+        updatedAt: "",
+      },
+      {
+        ticker: "AAPL",
+        date: "2026-06-01",
+        close: 200,
+        currency: "USD",
+        source: "yahoo",
+        updatedAt: "",
+      },
+      {
+        ticker: "MSFT",
+        date: "2026-06-01",
+        close: 400,
+        currency: "USD",
+        source: "yahoo",
+        updatedAt: "",
+      },
     ]);
 
     const aaplOnly = await store.listDailyPrices({ ticker: "AAPL" });
@@ -268,9 +386,24 @@ describe("createMarketDataStore — createManualPriceSnapshot / listManualPriceS
     const store = createMarketDataStore(ctx);
 
     // Create
-    await store.createManualPriceSnapshot({ assetId: "asset_1", date: "2026-06-10", price: 150, note: "手動估值" });
-    await store.createManualPriceSnapshot({ assetId: "asset_1", date: "2026-06-15", price: 155, note: "" });
-    await store.createManualPriceSnapshot({ assetId: "asset_2", date: "2026-06-15", price: 200, note: "" });
+    await store.createManualPriceSnapshot({
+      assetId: "asset_1",
+      date: "2026-06-10",
+      price: 150,
+      note: "手動估值",
+    });
+    await store.createManualPriceSnapshot({
+      assetId: "asset_1",
+      date: "2026-06-15",
+      price: 155,
+      note: "",
+    });
+    await store.createManualPriceSnapshot({
+      assetId: "asset_2",
+      date: "2026-06-15",
+      price: 200,
+      note: "",
+    });
 
     expect(persist).toHaveBeenCalledTimes(3);
 
@@ -305,7 +438,12 @@ describe("createMarketDataStore — createManualPriceSnapshot / listManualPriceS
     const { ctx } = makeCtx(data);
     const store = createMarketDataStore(ctx);
 
-    await store.createManualPriceSnapshot({ assetId: "asset_1", date: "2026-06-15", price: 100, note: "" });
+    await store.createManualPriceSnapshot({
+      assetId: "asset_1",
+      date: "2026-06-15",
+      price: 100,
+      note: "",
+    });
     await store.deleteManualPriceSnapshot("nonexistent_id");
 
     const all = await store.listManualPriceSnapshots();

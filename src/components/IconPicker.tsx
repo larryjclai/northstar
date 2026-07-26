@@ -25,15 +25,34 @@ export function IconPicker({
     return ICON_GROUPS.map((g) => ({
       ...g,
       names: g.names.filter(
-        (n) => n.toLowerCase().includes(q) || (ICON_KEYWORDS[n] ?? "").toLowerCase().includes(q)
+        (n) => n.toLowerCase().includes(q) || (ICON_KEYWORDS[n] ?? "").toLowerCase().includes(q),
       ),
     })).filter((g) => g.names.length > 0);
   }, [query]);
 
   return (
-    <div style={{ width: 300, padding: 12, maxHeight: 400, display: "flex", flexDirection: "column", gap: 10 }}>
+    <div
+      style={{
+        width: 300,
+        padding: 12,
+        maxHeight: 400,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+      }}
+    >
       <div style={{ position: "relative" }}>
-        <MagnifyingGlass size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--ns-fg-dim)", pointerEvents: "none" }} />
+        <MagnifyingGlass
+          size={14}
+          style={{
+            position: "absolute",
+            left: 10,
+            top: "50%",
+            transform: "translateY(-50%)",
+            color: "var(--ns-fg-dim)",
+            pointerEvents: "none",
+          }}
+        />
         <input
           autoFocus
           className="ns-input text-body"
@@ -43,9 +62,19 @@ export function IconPicker({
           style={{ width: "100%", height: 34, padding: "0 10px 0 30px", boxSizing: "border-box" }}
         />
       </div>
-      <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, paddingRight: 2 }}>
+      <div
+        style={{
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+          paddingRight: 2,
+        }}
+      >
         {groups.length === 0 ? (
-          <div className="muted text-body" style={{ textAlign: "center", padding: "16px 0" }}>找不到圖示</div>
+          <div className="muted text-body" style={{ textAlign: "center", padding: "16px 0" }}>
+            找不到圖示
+          </div>
         ) : (
           groups.map((g) => (
             <div key={g.label}>
@@ -61,11 +90,18 @@ export function IconPicker({
                       title={ICON_KEYWORDS[name] || name}
                       onClick={() => onSelect(name)}
                       style={{
-                        width: "100%", aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center",
-                        borderRadius: "var(--ns-r-sm)", cursor: "pointer",
+                        width: "100%",
+                        aspectRatio: "1",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderRadius: "var(--ns-r-sm)",
+                        cursor: "pointer",
                         background: active ? "var(--ns-accent)" : "var(--ns-bg-hover)",
                         color: active ? "var(--ns-bg)" : "var(--ns-fg)",
-                        border: active ? "1px solid var(--ns-accent)" : "1px solid var(--ns-border)",
+                        border: active
+                          ? "1px solid var(--ns-accent)"
+                          : "1px solid var(--ns-border)",
                       }}
                     >
                       <Icon size={18} weight={active ? "fill" : "regular"} />

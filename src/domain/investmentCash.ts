@@ -35,11 +35,12 @@ export function calculateInvestmentAccountQuantity(
 ) {
   let quantity = 0;
   const sorted = records
-    .filter((record) =>
-      record.deletedAt === null &&
-      record.assetId === assetId &&
-      record.linkedAccountId === accountId &&
-      record.id !== excludeRecordId
+    .filter(
+      (record) =>
+        record.deletedAt === null &&
+        record.assetId === assetId &&
+        record.linkedAccountId === accountId &&
+        record.id !== excludeRecordId,
     )
     .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -80,7 +81,8 @@ export function calculateInvestmentQuantity(
 ): number {
   let delta = initialQuantity;
   for (const record of [...records].sort((a, b) => a.date.localeCompare(b.date))) {
-    if (record.deletedAt !== null || record.assetId !== assetId || record.id === excludeRecordId) continue;
+    if (record.deletedAt !== null || record.assetId !== assetId || record.id === excludeRecordId)
+      continue;
     if (record.action === "buy" || record.action === "stockDividend") delta += record.quantity;
     else if (record.action === "sell") delta -= record.quantity;
     else if (record.action === "stockSplit" && record.quantity > 0) delta *= record.quantity;

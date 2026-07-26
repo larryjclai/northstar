@@ -180,4 +180,3 @@ export async function ensureDevicePublicKeyUploaded(account: SyncAccount): Promi
   }
   await store.set(PUBLIC_KEY_UPLOADED_MARKER_KEY, "1");
 }
-

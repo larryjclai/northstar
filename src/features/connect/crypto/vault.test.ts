@@ -21,11 +21,19 @@ beforeAll(() => {
     const store = new Map<string, string>();
     globalThis.localStorage = {
       getItem: (k: string) => store.get(k) ?? null,
-      setItem: (k: string, v: string) => { store.set(k, String(v)); },
-      removeItem: (k: string) => { store.delete(k); },
-      clear: () => { store.clear(); },
+      setItem: (k: string, v: string) => {
+        store.set(k, String(v));
+      },
+      removeItem: (k: string) => {
+        store.delete(k);
+      },
+      clear: () => {
+        store.clear();
+      },
       key: (i: number) => Array.from(store.keys())[i] ?? null,
-      get length() { return store.size; },
+      get length() {
+        return store.size;
+      },
     } as Storage;
   }
 });
@@ -202,10 +210,19 @@ describe("versioned vault key storage", () => {
     // versioned-storage API surface here is generate/export/import/save/load
     // only — there is no delete/remove/clear export at all.
     const moduleExports = {
-      generateVaultKey, exportVaultKey, importVaultKey, saveVaultKey, loadVaultKey,
-      saveVaultKeyVersion, loadVaultKeyVersion, getCurrentVaultKeyVersion,
-      setCurrentVaultKeyVersion, listVaultKeyVersions, vaultKeySlot,
-      encryptPayload, decryptPayload,
+      generateVaultKey,
+      exportVaultKey,
+      importVaultKey,
+      saveVaultKey,
+      loadVaultKey,
+      saveVaultKeyVersion,
+      loadVaultKeyVersion,
+      getCurrentVaultKeyVersion,
+      setCurrentVaultKeyVersion,
+      listVaultKeyVersions,
+      vaultKeySlot,
+      encryptPayload,
+      decryptPayload,
     };
     const exportNames = Object.keys(moduleExports);
     expect(exportNames.some((n) => /remove|delete|clear|wipe/i.test(n))).toBe(false);

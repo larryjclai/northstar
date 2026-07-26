@@ -16,7 +16,10 @@ export interface ResolvedDateScope {
   label: string;
 }
 
-export function makeDefaultDateScope(timezone: string, preset: DateScopePreset = "month"): DateScopeValue {
+export function makeDefaultDateScope(
+  timezone: string,
+  preset: DateScopePreset = "month",
+): DateScopeValue {
   const today = todayInTimezone(timezone);
   return {
     preset,
@@ -45,7 +48,12 @@ export function resolveDateScope(scope: DateScopeValue, timezone: string): Resol
   }
 
   const month = scope.month || today.slice(0, 7);
-  return { preset: "month", start: `${month}-01`, end: lastDayOfMonth(month), label: month.replace("-", " / ") };
+  return {
+    preset: "month",
+    start: `${month}-01`,
+    end: lastDayOfMonth(month),
+    label: month.replace("-", " / "),
+  };
 }
 
 export function isWithinDateScope(date: string, scope: ResolvedDateScope) {
@@ -92,10 +100,15 @@ export function stripStartDate(period: StripPeriod, end: string): string {
   if (period === "All") return "1900-01-01";
   if (period === "YTD") return `${end.slice(0, 4)}-01-01`;
   const days: Record<Exclude<StripPeriod, "YTD" | "All">, number> = {
-    "1D": 1, "1W": 7, "1M": 31, "3M": 92, "1Y": 365, "5Y": 1825,
+    "1D": 1,
+    "1W": 7,
+    "1M": 31,
+    "3M": 92,
+    "1Y": 365,
+    "5Y": 1825,
   };
   const [year, month, day] = end.split("-").map(Number);
-  const d = new Date(year, month - 1, day);     // local construct
+  const d = new Date(year, month - 1, day); // local construct
   d.setDate(d.getDate() - days[period]);
-  return ymd(d);                                 // local read — see exemplar
+  return ymd(d); // local read — see exemplar
 }

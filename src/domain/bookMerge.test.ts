@@ -50,7 +50,11 @@ describe("planBookMerge", () => {
   });
 
   it("excludes tombstoned (soft-deleted) books from both survivor and loser consideration", () => {
-    const deleted = book({ id: "book_old", createdAt: "2025-01-01T00:00:00.000Z", deletedAt: "2026-01-01T00:00:00.000Z" });
+    const deleted = book({
+      id: "book_old",
+      createdAt: "2025-01-01T00:00:00.000Z",
+      deletedAt: "2026-01-01T00:00:00.000Z",
+    });
     const survivor = book({ id: "book_b", createdAt: "2026-02-01T00:00:00.000Z" });
     const loser = book({ id: "book_c", createdAt: "2026-03-01T00:00:00.000Z" });
     const plan = planBookMerge([deleted, survivor, loser]);
@@ -104,7 +108,9 @@ describe("isUntouchedMint", () => {
   });
 
   it("is false once tombstoned", () => {
-    expect(isUntouchedMint(book({ id: "book_a", deletedAt: "2026-01-01T00:00:00.000Z" }))).toBe(false);
+    expect(isUntouchedMint(book({ id: "book_a", deletedAt: "2026-01-01T00:00:00.000Z" }))).toBe(
+      false,
+    );
   });
 });
 
@@ -116,14 +122,24 @@ describe("planMintMerge — decision 2's narrowed domain (untouched mints only)"
   });
 
   it("never puts a customized book in loserIds, even when it is older than the mint", () => {
-    const customizedOlder = book({ id: "book_custom", name: "生活帳", revision: 3, createdAt: "2025-01-01T00:00:00.000Z" });
+    const customizedOlder = book({
+      id: "book_custom",
+      name: "生活帳",
+      revision: 3,
+      createdAt: "2025-01-01T00:00:00.000Z",
+    });
     const mintNewer = book({ id: "book_mint", createdAt: "2026-01-01T00:00:00.000Z" });
     // Only one mint exists — still no merge, regardless of createdAt ordering.
     expect(planMintMerge([customizedOlder, mintNewer])).toBeNull();
   });
 
   it("never puts a customized book in loserIds, even when it is newer than the mint, once a second mint exists", () => {
-    const customizedNewer = book({ id: "book_custom", name: "生活帳", revision: 5, createdAt: "2026-06-01T00:00:00.000Z" });
+    const customizedNewer = book({
+      id: "book_custom",
+      name: "生活帳",
+      revision: 5,
+      createdAt: "2026-06-01T00:00:00.000Z",
+    });
     const mintA = book({ id: "book_mint_a", createdAt: "2026-01-01T00:00:00.000Z" });
     const mintB = book({ id: "book_mint_b", createdAt: "2026-02-01T00:00:00.000Z" });
     const plan = planMintMerge([customizedNewer, mintA, mintB]);

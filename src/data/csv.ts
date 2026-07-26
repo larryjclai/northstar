@@ -1,4 +1,11 @@
-import type { Account, AnnualReportYear, DailyFxRate, InvestmentRecord, LedgerTransaction, PortfolioAsset } from "../domain";
+import type {
+  Account,
+  AnnualReportYear,
+  DailyFxRate,
+  InvestmentRecord,
+  LedgerTransaction,
+  PortfolioAsset,
+} from "../domain";
 import { resolveCountryLabel } from "../domain";
 import type { InvestmentDraft, LedgerDraft } from "./repositories";
 
@@ -9,7 +16,16 @@ export interface ImportPreview<T> {
 
 export function exportAccountsCsv(accounts: Account[]) {
   return toCsv(
-    ["id", "name", "currency", "type", "openingBalance", "balance", "creditLimit", "creditLimitGroup"],
+    [
+      "id",
+      "name",
+      "currency",
+      "type",
+      "openingBalance",
+      "balance",
+      "creditLimit",
+      "creditLimitGroup",
+    ],
     accounts.map((account) => ({
       id: account.id,
       name: account.name,
@@ -29,7 +45,18 @@ export function exportLedgerCsv(
   opts: { includeNotes?: boolean } = {},
 ) {
   const includeNotes = opts.includeNotes !== false;
-  const headers = ["date", "account", "name", "entryType", "settlementStatus", "amount", "currency", "category", "subcategory", "merchant"];
+  const headers = [
+    "date",
+    "account",
+    "name",
+    "entryType",
+    "settlementStatus",
+    "amount",
+    "currency",
+    "category",
+    "subcategory",
+    "merchant",
+  ];
   if (includeNotes) headers.push("note");
   return toCsv(
     headers,
@@ -62,7 +89,10 @@ export function exportFxRatesCsv(rates: DailyFxRate[]) {
   );
 }
 
-export function exportInvestmentCsv(records: InvestmentRecord[], assetFor: (id: string) => PortfolioAsset | undefined) {
+export function exportInvestmentCsv(
+  records: InvestmentRecord[],
+  assetFor: (id: string) => PortfolioAsset | undefined,
+) {
   return toCsv(
     ["date", "ticker", "name", "currency", "action", "price", "quantity", "fee", "note"],
     records.map((record) => {
@@ -100,7 +130,10 @@ export function exportAnnualTaxCsv(rows: AnnualReportYear[], currency: string) {
   );
 }
 
-export function parseLedgerCsv(text: string, accountFor: (nameOrId: string) => Pick<Account, "id" | "currency"> | undefined): ImportPreview<LedgerDraft> {
+export function parseLedgerCsv(
+  text: string,
+  accountFor: (nameOrId: string) => Pick<Account, "id" | "currency"> | undefined,
+): ImportPreview<LedgerDraft> {
   return previewRows(text, (row) => {
     const account = accountFor(required(row, "account"));
     if (!account) throw new Error("找不到帳戶");
@@ -113,7 +146,8 @@ export function parseLedgerCsv(text: string, accountFor: (nameOrId: string) => P
     const date = required(row, "date");
     if (Number.isNaN(Date.parse(date))) throw new Error("date 格式無效");
     const currency = required(row, "currency").toUpperCase();
-    if (currency !== account.currency.toUpperCase()) throw new Error(`currency 必須與帳戶幣別 ${account.currency} 一致`);
+    if (currency !== account.currency.toUpperCase())
+      throw new Error(`currency 必須與帳戶幣別 ${account.currency} 一致`);
     return {
       date,
       accountId: account.id,
@@ -134,9 +168,12 @@ export function parseInvestmentCsv(text: string): ImportPreview<InvestmentDraft>
   return previewRows(text, (row) => {
     const action = required(row, "action") as InvestmentDraft["action"];
     const quantityRaw = row.quantity?.trim() ?? "";
-    const quantity = action === "cashDividend"
-      ? (quantityRaw ? numberField(row, "quantity") : 0)
-      : numberField(row, "quantity");
+    const quantity =
+      action === "cashDividend"
+        ? quantityRaw
+          ? numberField(row, "quantity")
+          : 0
+        : numberField(row, "quantity");
     return {
       date: required(row, "date"),
       ticker: required(row, "ticker").toUpperCase(),
@@ -214,7 +251,9 @@ function parseCsv(text: string) {
   const [headers, ...rows] = records;
   if (!headers) return [];
   return rows.map((values) =>
-    Object.fromEntries(headers.map((header, index) => [header.trim(), values[index]?.trim() ?? ""])),
+    Object.fromEntries(
+      headers.map((header, index) => [header.trim(), values[index]?.trim() ?? ""]),
+    ),
   );
 }
 
@@ -226,13 +265,19 @@ export function detectDelimiter(text: string): string {
   let bestCount = -1;
   for (const delimiter of candidates) {
     const count = firstLine.split(delimiter).length - 1;
-    if (count > bestCount) { bestCount = count; best = delimiter; }
+    if (count > bestCount) {
+      bestCount = count;
+      best = delimiter;
+    }
   }
   return best;
 }
 
 /** Parse a CSV into its header list + row objects, with a chosen/auto delimiter. */
-export function parseCsvTable(text: string, delimiter?: string): { headers: string[]; rows: Record<string, string>[] } {
+export function parseCsvTable(
+  text: string,
+  delimiter?: string,
+): { headers: string[]; rows: Record<string, string>[] } {
   const delim = delimiter ?? detectDelimiter(text);
   const records = splitCsvRecords(text, delim);
   const [headerRow, ...rest] = records;
@@ -275,7 +320,10 @@ function parseEntryType(value: string | undefined, amount: number): LedgerDraft[
   return amount >= 0 ? "income" : "expense";
 }
 
-function parseSettlementStatus(value: string | undefined, entryType: LedgerDraft["entryType"]): LedgerDraft["settlementStatus"] {
+function parseSettlementStatus(
+  value: string | undefined,
+  entryType: LedgerDraft["entryType"],
+): LedgerDraft["settlementStatus"] {
   if (value === "receivable" || value === "應收") return "receivable";
   if (value === "payable" || value === "應付") return "payable";
   if (value === "settled" || value === "已收付") return "settled";

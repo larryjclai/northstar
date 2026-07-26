@@ -38,7 +38,10 @@ export interface FireProjection {
  * Returns `monthsToTarget = null` when contributions and growth combined can
  * never reach the target (e.g. PMT = 0 and PV < target with non-positive r).
  */
-export function calculateFireProjection(input: FireProjectionInput, now: Date = new Date()): FireProjection {
+export function calculateFireProjection(
+  input: FireProjectionInput,
+  now: Date = new Date(),
+): FireProjection {
   const { currentValue, monthlyContribution, expectedAnnualReturn, targetAmount } = input;
   const progressRatio = targetAmount > 0 ? currentValue / targetAmount : 0;
   const achieved = currentValue >= targetAmount && targetAmount > 0;
@@ -118,7 +121,9 @@ export function calculateFireProjection(input: FireProjectionInput, now: Date = 
  * trust it; otherwise we derive it from annual spending and the safe
  * withdrawal rate (Trinity-study "25× rule" when rate = 4%).
  */
-export function resolveTargetAmount(goal: Pick<FinancialGoal, "targetAmount" | "annualSpending" | "withdrawalRate">): number {
+export function resolveTargetAmount(
+  goal: Pick<FinancialGoal, "targetAmount" | "annualSpending" | "withdrawalRate">,
+): number {
   if (goal.targetAmount && goal.targetAmount > 0) return goal.targetAmount;
   if (goal.withdrawalRate <= 0) return goal.annualSpending * 25;
   return goal.annualSpending / goal.withdrawalRate;

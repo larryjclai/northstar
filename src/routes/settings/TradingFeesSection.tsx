@@ -49,13 +49,20 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
   return (
     <div className="max-w-4xl space-y-6">
       <div>
-        <div className="text-xs" style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Investments</div>
-        <h2 style={{ fontFamily: "var(--ns-font-display)", fontSize: 24, margin: 0, fontWeight: 600 }}>
+        <div
+          className="text-xs"
+          style={{ marginBottom: 4, color: "var(--ns-fg-muted)", fontWeight: 500 }}
+        >
+          Investments
+        </div>
+        <h2
+          style={{ fontFamily: "var(--ns-font-display)", fontSize: 24, margin: 0, fontWeight: 600 }}
+        >
           交易成本（台股）
         </h2>
         <p className="muted" style={{ fontSize: 13, marginTop: 4, marginBottom: 0 }}>
-          自動試算台股買賣的券商手續費與證券交易稅，並預填到新增交易的「手續費」欄位。
-          預填僅適用於 .TW / .TWO 標的，且可隨時手動覆寫。
+          自動試算台股買賣的券商手續費與證券交易稅，並預填到新增交易的「手續費」欄位。 預填僅適用於
+          .TW / .TWO 標的，且可隨時手動覆寫。
         </p>
       </div>
 
@@ -70,17 +77,30 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
             background: draft.enabled ? "var(--ns-accent-soft)" : "transparent",
           }}
         >
-          <div style={{
-            width: 36, height: 20, borderRadius: 10, flexShrink: 0,
-            background: draft.enabled ? "var(--ns-accent)" : "var(--ns-border)",
-            position: "relative", transition: "background var(--ns-dur) var(--ns-ease)",
-          }}>
-            <div style={{
-              position: "absolute", top: 2, left: 2,
-              width: 16, height: 16, borderRadius: "50%", background: "var(--ns-bg-elev)",
-              transition: "transform var(--ns-dur) var(--ns-ease)",
-              transform: draft.enabled ? "translateX(16px)" : "translateX(0)",
-            }} />
+          <div
+            style={{
+              width: 36,
+              height: 20,
+              borderRadius: 10,
+              flexShrink: 0,
+              background: draft.enabled ? "var(--ns-accent)" : "var(--ns-border)",
+              position: "relative",
+              transition: "background var(--ns-dur) var(--ns-ease)",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                top: 2,
+                left: 2,
+                width: 16,
+                height: 16,
+                borderRadius: "50%",
+                background: "var(--ns-bg-elev)",
+                transition: "transform var(--ns-dur) var(--ns-ease)",
+                transform: draft.enabled ? "translateX(16px)" : "translateX(0)",
+              }}
+            />
           </div>
           <div>
             <div className="font-medium">
@@ -95,7 +115,15 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
         {/* Rate fields */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <div>
-            <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>
+            <label
+              className="text-xs"
+              style={{
+                display: "block",
+                marginBottom: 6,
+                color: "var(--ns-fg-muted)",
+                fontWeight: 500,
+              }}
+            >
               券商手續費率（%）
             </label>
             <input
@@ -113,7 +141,15 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
           </div>
 
           <div>
-            <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>
+            <label
+              className="text-xs"
+              style={{
+                display: "block",
+                marginBottom: 6,
+                color: "var(--ns-fg-muted)",
+                fontWeight: 500,
+              }}
+            >
               最低手續費（NTD）
             </label>
             <input
@@ -122,7 +158,9 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
               step="1"
               min="0"
               value={draft.minBrokerFee}
-              onChange={(e) => setDraft({ ...draft, minBrokerFee: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+              onChange={(e) =>
+                setDraft({ ...draft, minBrokerFee: Math.max(0, parseInt(e.target.value, 10) || 0) })
+              }
               onBlur={() => save(draft)}
               style={{ fontFamily: "var(--ns-font-mono)", textAlign: "right" }}
             />
@@ -130,7 +168,15 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
           </div>
 
           <div>
-            <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>
+            <label
+              className="text-xs"
+              style={{
+                display: "block",
+                marginBottom: 6,
+                color: "var(--ns-fg-muted)",
+                fontWeight: 500,
+              }}
+            >
               證交稅率 — 股票賣出（%）
             </label>
             <input
@@ -140,7 +186,9 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
               min="0"
               max="1"
               value={decimalToPct(draft.sellTaxRateStock)}
-              onChange={(e) => setDraft({ ...draft, sellTaxRateStock: pctToDecimal(e.target.value) })}
+              onChange={(e) =>
+                setDraft({ ...draft, sellTaxRateStock: pctToDecimal(e.target.value) })
+              }
               onBlur={() => save(draft)}
               style={{ fontFamily: "var(--ns-font-mono)", textAlign: "right" }}
             />
@@ -148,7 +196,15 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
           </div>
 
           <div>
-            <label className="text-xs" style={{  display: "block", marginBottom: 6 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>
+            <label
+              className="text-xs"
+              style={{
+                display: "block",
+                marginBottom: 6,
+                color: "var(--ns-fg-muted)",
+                fontWeight: 500,
+              }}
+            >
               證交稅率 — ETF 賣出（%）
             </label>
             <input
@@ -167,7 +223,10 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
         </div>
 
         {/* Reset */}
-        <div className="flex items-center justify-between pt-2" style={{ borderTop: "1px solid var(--ns-border)" }}>
+        <div
+          className="flex items-center justify-between pt-2"
+          style={{ borderTop: "1px solid var(--ns-border)" }}
+        >
           <p className="text-xs muted mb-0">
             以上為台灣法定預設費率（v1）。日沖減稅與期貨/選擇權不在此範圍。
           </p>
@@ -180,7 +239,14 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
       {/* Per-account brokerage discount (折扣) */}
       <Card className="p-5 space-y-4">
         <div>
-          <h3 style={{ fontFamily: "var(--ns-font-display)", fontSize: 16, margin: 0, fontWeight: 600 }}>
+          <h3
+            style={{
+              fontFamily: "var(--ns-font-display)",
+              fontSize: 16,
+              margin: 0,
+              fontWeight: 600,
+            }}
+          >
             各券商手續費設定
           </h3>
           <p className="text-xs muted mt-1 mb-0">
@@ -193,9 +259,16 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
             {investmentAccounts.map((a) => {
               const current = draft.accountDiscounts?.[a.id];
               const isEnabled = current !== 0; // 0 means free (disabled)
-              
+
               return (
-                <div key={a.id} className="flex flex-col gap-3 p-3 rounded-md border" style={{ borderColor: "var(--ns-border)", background: isEnabled ? "transparent" : "var(--ns-surface-hover)" }}>
+                <div
+                  key={a.id}
+                  className="flex flex-col gap-3 p-3 rounded-md border"
+                  style={{
+                    borderColor: "var(--ns-border)",
+                    background: isEnabled ? "transparent" : "var(--ns-surface-hover)",
+                  }}
+                >
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-medium text-sm">{a.name}</span>
                     <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
@@ -218,7 +291,7 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
                       套用手續費
                     </label>
                   </div>
-                  
+
                   {isEnabled && (
                     <div className="flex items-center justify-between gap-3 pl-6">
                       <span className="text-xs muted">手續費折扣（留空為無折扣）</span>
@@ -229,7 +302,13 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
                           step="0.1"
                           min="0"
                           max="10"
-                          style={{ width: 80, fontFamily: "var(--ns-font-mono)", textAlign: "right", height: 28, fontSize: 13 }}
+                          style={{
+                            width: 80,
+                            fontFamily: "var(--ns-font-mono)",
+                            textAlign: "right",
+                            height: 28,
+                            fontSize: 13,
+                          }}
                           placeholder="無"
                           value={current == null || current === 0 ? "" : (current * 10).toString()}
                           onChange={(e) => {

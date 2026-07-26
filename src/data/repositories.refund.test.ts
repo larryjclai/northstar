@@ -54,11 +54,13 @@ describeEachRepo("refund ledger rows (退款沖銷)", (makeRepo) => {
     const original = (await repo.listLedgerTransactions())[0];
 
     // Partial refund of 400.
-    await repo.createLedgerTransaction(expenseDraft({
-      name: "外套 退款",
-      amount: 400,
-      refundOfLedgerId: original.id,
-    }));
+    await repo.createLedgerTransaction(
+      expenseDraft({
+        name: "外套 退款",
+        amount: 400,
+        refundOfLedgerId: original.id,
+      }),
+    );
 
     const rows = await repo.listLedgerTransactions();
     const refund = rows.find((r) => r.refundOfLedgerId)!;

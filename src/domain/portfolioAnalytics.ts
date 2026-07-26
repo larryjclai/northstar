@@ -101,7 +101,9 @@ export function cumulativeReturnPct(values: number[]): number {
  * first point), aligned 1:1 with the input dates. Used to overlay portfolio vs
  * benchmark on the same axis regardless of their absolute scales.
  */
-export function toCumulativeReturnSeries(points: ValuePoint[]): Array<{ date: string; pct: number }> {
+export function toCumulativeReturnSeries(
+  points: ValuePoint[],
+): Array<{ date: string; pct: number }> {
   if (points.length === 0) return [];
   const base = points[0].value;
   if (Math.abs(base) <= EPS) return points.map((p) => ({ date: p.date, pct: 0 }));
@@ -385,13 +387,17 @@ export function buildSectorBreakdown(
   const minCoverage = opts.minTrustworthyCoverage ?? 0.5;
   const byLabel = new Map<string, number>();
   let total = 0;
-  const add = (label: string, value: number) => byLabel.set(label, (byLabel.get(label) ?? 0) + value);
+  const add = (label: string, value: number) =>
+    byLabel.set(label, (byLabel.get(label) ?? 0) + value);
 
   // Resolve one raw sector value to a bucket label for the active level. For the
   // canonical level we map through `toCanonicalSector` first (with an optional
   // pre-derived canonical key, e.g. a direct holding's persisted `sectorCanonical`),
   // then localize via `canonicalLabelOf`. Returns null when it can't classify.
-  const labelFor = (raw: string | null | undefined, presetCanonical?: string | null): string | null => {
+  const labelFor = (
+    raw: string | null | undefined,
+    presetCanonical?: string | null,
+  ): string | null => {
     if (level === "industry") return sectorLabelOf(raw);
     const key = presetCanonical ?? toCanonicalSector({ sector: raw });
     if (!key) return null;
@@ -402,7 +408,10 @@ export function buildSectorBreakdown(
     if (!(value > EPS)) continue;
     total += value;
 
-    const isFund = position.assetType === "etf" || position.assetType === "mutual_fund" || position.assetType === "index";
+    const isFund =
+      position.assetType === "etf" ||
+      position.assetType === "mutual_fund" ||
+      position.assetType === "index";
     const manualSector = position.classificationLocked ? labelFor(position.sector) : null;
 
     // 1) Manual tag wins outright (mapped through the active taxonomy).
@@ -441,7 +450,11 @@ export function buildSectorBreakdown(
     //    persisted `sectorCanonical`, deriving from raw when absent), else 未知.
     const direct =
       level === "canonical"
-        ? labelFor(position.sector, position.sectorCanonical ?? toCanonicalSector({ sector: position.sector, industry: position.industry }))
+        ? labelFor(
+            position.sector,
+            position.sectorCanonical ??
+              toCanonicalSector({ sector: position.sector, industry: position.industry }),
+          )
         : sectorLabelOf(position.sector);
     add(direct ?? unknownLabel, value);
   }
@@ -517,7 +530,13 @@ function priceBasket(opts: {
   const { positions, dailyPrices, manualSnapshots, toPrimary } = opts;
   const start = day(opts.start);
   const end = day(opts.end);
-  const blank: PricedBasket = { dates: [], positionValues: [], positions: [], excluded: [], coverageStart: null };
+  const blank: PricedBasket = {
+    dates: [],
+    positionValues: [],
+    positions: [],
+    excluded: [],
+    coverageStart: null,
+  };
   if (!start || !end || start > end) return blank;
 
   const held = positions.filter((p) => Math.abs(p.quantity) > EPS);
@@ -535,7 +554,9 @@ function priceBasket(opts: {
   const snapsByAsset = new Map<string, ManualPriceSnapshot[]>();
   for (const snap of manualSnapshots) {
     if (day(snap.date) > end) continue;
-    (snapsByAsset.get(snap.assetId) ?? snapsByAsset.set(snap.assetId, []).get(snap.assetId)!).push(snap);
+    (snapsByAsset.get(snap.assetId) ?? snapsByAsset.set(snap.assetId, []).get(snap.assetId)!).push(
+      snap,
+    );
   }
   for (const rows of snapsByAsset.values()) rows.sort((a, b) => a.date.localeCompare(b.date));
 
@@ -545,13 +566,28 @@ function priceBasket(opts: {
   // transaction-based holding, instead of its lone creation snapshot. Manual
   // snapshots are only the fallback for genuinely non-market assets (no ticker
   // history at all, e.g. real estate). `isManual` no longer gates this.
-  interface Priced { pos: AnalyticsPosition; source: Array<{ date: string; price: number }>; firstDate: string }
+  interface Priced {
+    pos: AnalyticsPosition;
+    source: Array<{ date: string; price: number }>;
+    firstDate: string;
+  }
   const priced: Priced[] = [];
   const excluded: AnalyticsPosition[] = [];
   for (const pos of held) {
-    const tickerHistory = (pricesByTicker.get(pos.ticker.toUpperCase()) ?? []).map((p) => ({ date: day(p.date), price: p.close }));
-    const snapHistory = (snapsByAsset.get(pos.assetId) ?? []).map((s) => ({ date: day(s.date), price: s.price }));
-    const source = tickerHistory.length >= 2 ? tickerHistory : snapHistory.length > 0 ? snapHistory : tickerHistory;
+    const tickerHistory = (pricesByTicker.get(pos.ticker.toUpperCase()) ?? []).map((p) => ({
+      date: day(p.date),
+      price: p.close,
+    }));
+    const snapHistory = (snapsByAsset.get(pos.assetId) ?? []).map((s) => ({
+      date: day(s.date),
+      price: s.price,
+    }));
+    const source =
+      tickerHistory.length >= 2
+        ? tickerHistory
+        : snapHistory.length > 0
+          ? snapHistory
+          : tickerHistory;
     if (source.length === 0) {
       excluded.push(pos);
       continue;
@@ -569,7 +605,10 @@ function priceBasket(opts: {
   // everyone to their short history.
   const COVERAGE_THRESHOLD = 0.7;
   const weightOf = (p: Priced) =>
-    Math.max(0, toPrimary(p.source[p.source.length - 1].price * p.pos.quantity, p.pos.currency, end));
+    Math.max(
+      0,
+      toPrimary(p.source[p.source.length - 1].price * p.pos.quantity, p.pos.currency, end),
+    );
   const totalWeight = priced.reduce((s, p) => s + weightOf(p), 0);
   const byFirstDate = [...priced].sort((a, b) => a.firstDate.localeCompare(b.firstDate));
   let thresholdStart = byFirstDate[byFirstDate.length - 1].firstDate; // fallback: require all
@@ -609,7 +648,13 @@ function priceBasket(opts: {
     }),
   );
 
-  return { dates, positionValues, positions: spanning.map((p) => p.pos), excluded, coverageStart: effectiveStart };
+  return {
+    dates,
+    positionValues,
+    positions: spanning.map((p) => p.pos),
+    excluded,
+    coverageStart: effectiveStart,
+  };
 }
 
 export interface PortfolioValueSeries {
@@ -722,7 +767,8 @@ export function buildReturnAttribution(opts: {
       items.push({ assetId: pos.assetId, ticker: pos.ticker, contribution, pct: 0, returnPct });
     });
   }
-  for (const item of items) item.pct = Math.abs(total) > EPS ? (item.contribution / total) * 100 : 0;
+  for (const item of items)
+    item.pct = Math.abs(total) > EPS ? (item.contribution / total) * 100 : 0;
   items.sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
   return {
     items,
@@ -805,7 +851,14 @@ export function buildCostBasisAttribution(opts: {
     const contribution = marketValue - costBasis;
     const pct = Math.abs(costBasis) > EPS ? (contribution / costBasis) * 100 : 0;
     total += contribution;
-    items.push({ assetId: position.assetId, ticker: position.ticker, marketValue, costBasis, contribution, pct });
+    items.push({
+      assetId: position.assetId,
+      ticker: position.ticker,
+      marketValue,
+      costBasis,
+      contribution,
+      pct,
+    });
   }
 
   items.sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
@@ -867,7 +920,10 @@ export function buildPortfolioTwr(opts: {
     const t = p.ticker.toUpperCase();
     if (!heldTickers.has(t) || day(p.date) > end) continue;
     let arr = closesByTicker.get(t);
-    if (!arr) { arr = []; closesByTicker.set(t, arr); }
+    if (!arr) {
+      arr = [];
+      closesByTicker.set(t, arr);
+    }
     arr.push({ date: day(p.date), price: p.close });
   }
   for (const arr of closesByTicker.values()) arr.sort((a, b) => a.date.localeCompare(b.date));
@@ -886,7 +942,10 @@ export function buildPortfolioTwr(opts: {
     const steps = sharesByAsset.get(assetId);
     if (!steps) return 0;
     let q = 0;
-    for (const s of steps) { if (s.date <= d) q = s.qty; else break; }
+    for (const s of steps) {
+      if (s.date <= d) q = s.qty;
+      else break;
+    }
     return q;
   };
   const closeOnOrBefore = (ticker: string, d: string): number | null => {
@@ -950,14 +1009,28 @@ export function buildPortfolioTwr(opts: {
     if (bucket && priced && priced > bucket) bucket = priced;
     if (!bucket) continue;
     if (r.action === "buy") {
-      contribByDate.set(bucket, (contribByDate.get(bucket) ?? 0) + toPrimary(r.price * r.quantity + r.fee, pos.currency, rd));
+      contribByDate.set(
+        bucket,
+        (contribByDate.get(bucket) ?? 0) +
+          toPrimary(r.price * r.quantity + r.fee, pos.currency, rd),
+      );
     } else if (r.action === "sell") {
-      contribByDate.set(bucket, (contribByDate.get(bucket) ?? 0) - toPrimary(r.price * r.quantity - r.fee, pos.currency, rd));
+      contribByDate.set(
+        bucket,
+        (contribByDate.get(bucket) ?? 0) -
+          toPrimary(r.price * r.quantity - r.fee, pos.currency, rd),
+      );
     } else if (r.action === "capitalReduction" && r.price > 0) {
-      contribByDate.set(bucket, (contribByDate.get(bucket) ?? 0) - toPrimary(r.price * r.quantity, pos.currency, rd));
+      contribByDate.set(
+        bucket,
+        (contribByDate.get(bucket) ?? 0) - toPrimary(r.price * r.quantity, pos.currency, rd),
+      );
     } else if (r.action === "cashDividend") {
       const total = r.quantity > 0 ? r.price * r.quantity : r.price;
-      incomeByDate.set(bucket, (incomeByDate.get(bucket) ?? 0) + toPrimary(total - r.fee, pos.currency, rd));
+      incomeByDate.set(
+        bucket,
+        (incomeByDate.get(bucket) ?? 0) + toPrimary(total - r.fee, pos.currency, rd),
+      );
     }
   }
 
@@ -1012,7 +1085,10 @@ export function buildBenchmarkSeries(
  * portfolio vs benchmark cumulative returns on the same dates before indexing,
  * so both lines start from the same baseline date.
  */
-export function alignByDate(a: ValuePoint[], b: ValuePoint[]): { a: ValuePoint[]; b: ValuePoint[] } {
+export function alignByDate(
+  a: ValuePoint[],
+  b: ValuePoint[],
+): { a: ValuePoint[]; b: ValuePoint[] } {
   const bDates = new Set(b.map((p) => p.date));
   const aDates = new Set(a.map((p) => p.date));
   return {
@@ -1126,7 +1202,9 @@ export function dayChangeMovers(opts: {
   }
   for (const rows of closesByTicker.values()) rows.sort((a, b) => a.date.localeCompare(b.date));
 
-  const quoteByTicker = buildQuoteLookup(opts.quotes.filter((q) => Number.isFinite(q.price) && q.price > 0));
+  const quoteByTicker = buildQuoteLookup(
+    opts.quotes.filter((q) => Number.isFinite(q.price) && q.price > 0),
+  );
 
   const movers: Mover[] = [];
   for (const ticker of heldTickers) {
@@ -1145,7 +1223,8 @@ export function dayChangeMovers(opts: {
       const quoteDate = quote.marketTime ? day(quote.marketTime) : null;
       // Quote dated after the last recorded close → that close is the prior
       // session. Otherwise the quote is the latest recorded session → step back.
-      reference = quoteDate && quoteDate > lastClose.date ? lastClose.close : prevClose?.close ?? null;
+      reference =
+        quoteDate && quoteDate > lastClose.date ? lastClose.close : (prevClose?.close ?? null);
     } else if (lastClose && prevClose) {
       current = lastClose.close;
       reference = prevClose.close;

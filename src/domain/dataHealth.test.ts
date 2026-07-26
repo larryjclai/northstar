@@ -6,7 +6,15 @@ import {
   latestManualPriceDate,
 } from "./dataHealth";
 import type { BuildDataHealthReportInput, QuoteForHealth } from "./dataHealth";
-import type { Account, AppSettings, DailyFxRate, DailyPrice, LedgerTransaction, ManualPriceSnapshot, PortfolioAsset } from "./types";
+import type {
+  Account,
+  AppSettings,
+  DailyFxRate,
+  DailyPrice,
+  LedgerTransaction,
+  ManualPriceSnapshot,
+  PortfolioAsset,
+} from "./types";
 
 // ─── Fixture helpers ──────────────────────────────────────────────────────────
 
@@ -312,9 +320,7 @@ describe("stale-manual-price", () => {
 describe("stale-fx", () => {
   it("triggers when a used foreign currency has daily FX older than 7 days", () => {
     const input = healthyInput();
-    input.accounts = [
-      makeAccount({ currency: "USD" }),
-    ];
+    input.accounts = [makeAccount({ currency: "USD" })];
     input.settings = {
       ...makeSettings(),
       exchangeRates: [{ from: "USD", to: "TWD", rate: 32.5, updatedAt: "2026-05-01T00:00:00Z" }],
@@ -513,7 +519,11 @@ describe("overdue-settlement", () => {
     const input = healthyInput();
     // todayIso = 2026-06-11; 30 days back = 2026-05-12 → within 60 days
     input.ledger = [
-      makeLedgerRow({ id: "ar_recent", settlementStatus: "receivable", date: "2026-05-12T00:00:00" }),
+      makeLedgerRow({
+        id: "ar_recent",
+        settlementStatus: "receivable",
+        date: "2026-05-12T00:00:00",
+      }),
     ];
     const report = buildDataHealthReport(input);
     expect(report.issues.find((i) => i.kind === "overdue-settlement")).toBeUndefined();
@@ -531,7 +541,12 @@ describe("overdue-settlement", () => {
   it("does NOT trigger for deleted ledger rows", () => {
     const input = healthyInput();
     input.ledger = [
-      makeLedgerRow({ id: "del", settlementStatus: "receivable", date: "2026-01-01T00:00:00", deletedAt: "2026-02-01T00:00:00Z" }),
+      makeLedgerRow({
+        id: "del",
+        settlementStatus: "receivable",
+        date: "2026-01-01T00:00:00",
+        deletedAt: "2026-02-01T00:00:00Z",
+      }),
     ];
     const report = buildDataHealthReport(input);
     expect(report.issues.find((i) => i.kind === "overdue-settlement")).toBeUndefined();
@@ -618,9 +633,9 @@ describe("customPriceStaleness helper (per-holding badge / plan 150)", () => {
   it("returns 'not-custom' for a non-custom asset regardless of snapshots", () => {
     const asset = makeAsset(); // assetType "etf"
     expect(customPriceStaleness(asset, [], TODAY)).toBe("not-custom");
-    expect(
-      customPriceStaleness(asset, [makeManualSnapshot({ date: "2020-01-01" })], TODAY),
-    ).toBe("not-custom");
+    expect(customPriceStaleness(asset, [makeManualSnapshot({ date: "2020-01-01" })], TODAY)).toBe(
+      "not-custom",
+    );
   });
 
   it("returns 'missing' for a custom asset with no snapshots", () => {
