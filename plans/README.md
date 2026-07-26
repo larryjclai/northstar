@@ -1,5 +1,44 @@
 # Implementation Plans
 
+## ✅ 2026-07-26 收尾 — 259–273 全批完成 @ `0dee6867`
+
+`/improve` 效能+升級批次結束。**13 份計畫派工，11 份落地、1 份 REJECTED（被量測否決）、1 份部分完成（卡在上游相依）。**
+
+| 量測 | 之前 | 之後 |
+|---|---|---|
+| eager bundle | 1,799,730 B | **1,397,251 B**（−402 kB，recharts 移出開機圖） |
+| `pragma table_info` 冷啟動 | 65 次 | **7 次**；第二次啟動 **0 次** |
+| 核心表索引 | 0 個 | **13 個** |
+| `daily_prices` 開機 payload | 17.28 MB / 1,833 ms | **12.69 MB / 1,143 ms**（−690 ms，271 實測） |
+| `format:check` | 失敗（279 檔，且 CI 沒在跑） | **exit 0 且已納入 CI** |
+| 測試 | 1,498 | **1,508** |
+| `tsc` / `lint` / `build` | — | 全部 exit 0 |
+
+**未收下的**：TypeScript 7 的 `tsc --noEmit` **10.877 s → 1.92 s（~5.7×）**——實測有效，但 `typescript-eslint@8.65.0` 的 peer 是 `typescript: ">=4.8.4 <6.1.0"`，硬擋。tsconfig 遷移已落地，等上游放寬只需改一行版本號（plan 263）。
+
+### 這批的方法論教訓
+
+**13 次派工裡，執行者 7 次正確地 STOP，而其中 6 次錯在計畫（我），不在執行。**
+
+| 誰擋下什麼 | 後果 |
+|---|---|
+| 259：索引引用的欄位是 `ensureSqliteColumn` 加的，跑在 migrations 之後 | 新資料庫直接崩，36/72 測試倒 |
+| 267：`manualChunks` 在 Rolldown 下是 deprecated shim，搶不過遞迴相依捕獲 | 修法無效，只省 73 B |
+| 268：我用 `grep -c` 數欄位，把註解也數進去（64 說成 65） | 湊數會污染 fingerprint |
+| 260：把持續性自癒當成一次性 schema 工作 | gate 掉 → 同步進來的髒資料永不修復 |
+| 261：假設「賣掉的標的歷史會累積」 | 實測 0.2%，計畫依自己的 STOP 條件被 REJECTED |
+| 270：Prettier 換行會孤立 `eslint-disable-next-line` | 隱私遮罩的合法豁免失效 |
+
+**結論**：把「校驗碼式」的 STOP 條件寫進計畫（`ADDITIVE_COLUMNS.length` 必須是 64、非持有列數 < 2000 就 REJECT、diff-grep 必須印空）比寫「請仔細做」有效得多。它們讓轉錄錯誤與錯誤假設無所遁形，而不是靠執行者的謹慎。
+
+### 待你決定的事
+
+1. **push**：所有 merge 都只在本地，一次都沒 push。
+2. **清理已合併分支**：14 條可刪（`git branch --merged main --list 'perf/ai-*' 'chore/ai-*' 'fix/ai-*' 'docs/ai-*' 'spike/ai-*' 'style/ai-*' | xargs -n1 git branch -d`）。`wip/ai-plan260-blocked` 是 260 的保存，可一併刪（268 已取代）。
+3. **`git config blame.ignoreRevsFile .git-blame-ignore-revs`** 已在本機設好；每個 clone 都要各自設一次（已寫進 CONTRIBUTING.md）。
+4. **266 的 go/no-go**：React Compiler 目前是 annotation 模式（等同 no-op，僅 `InvestmentsAnalyticsTab` 標註）。全面開啟前要先處理 40 條 Rules-of-React 違規——其中 `AnimatedNumber`/`AppShell`/`ModalShell` 的 render 期間改 ref 看起來是真 bug。
+
+
 ## Reconciled 2026-07-25 @ `b22c566e`
 
 94 個表格列全部盤點：**沒有任何 TODO / BLOCKED / IN PROGRESS**。積壓的不是「待做」，
@@ -1306,3 +1345,176 @@ then-unbuilt 130–132 crypto foundation, which has since SHIPPED).
 |------|-------|----------|--------|------------|--------|
 | 143 | Household sharing spike (pre-books, account-level) | P3 | M | — | SUPERSEDED by 195 (books-aware rewrite; 143 designed against account-`isSharedToHousehold` + unbuilt 130–132; obsolete) |
 | 195 | 共享帳本 key/membership spike — book-key wrapping (builds on SHIPPED pairing/secretStore/vault + worker ECDH), membership/revocation, worker namespace delta, 雙向共寫 conflict UX, phased Phase 3/4 outline → `docs/shared-books-plan.md`. Doc-only. | P3 | M | 186 §4 (merged) | DONE — reviewed+APPROVED (doc-only), branch `feat/ai-shared-books-spike` @ `378c0e0f` (`docs/shared-books-plan.md` 663 lines, 7 sections; re-verified vs SHIPPED pairing/secretStore/vault + worker 0001-0007). **Recommends: Book Space Key** (per-book AES-GCM-256 wrapped to member devices via existing ECDH, zero new crypto primitives) + **mandatory rotation on member removal**; removed member keeps pre-removal data (locked honest answer); worker `0008` +3 additive tables, per-book relay_sequence. Found dead household/devices stubs (README-only). Phase 3 read-only=M, Phase 4 雙向共寫=XL. **6 open questions gate any Phase 3 build. Operator answers (2026-07-14):** Q1 removed-member-keeps-past-data = ACCEPT; Q2 convert-in-place confirmed NOT a server-resource concern (relay stores opaque blobs, one-time small upload; cost is client-side re-encrypt only); **Q3 NEW DECISION: member display names/nicknames are LOCAL-ONLY, never uploaded — relay stores only opaque device/member ids.** Q3 recovery-kit = NONE (use re-invite); Q4 push-gate = trust client for v1 (no relay enforcement until Phase 4); Q6 private-notes = NO per-row privacy tier (whole row shared). **ALL 6 open questions now answered — Phase 3/4 build plans can be cut from the spike whenever the operator starts Phase 3.** **MERGED** (`378c0e0f` verified ancestor 2026-07-17; `docs/shared-books-plan.md` present at HEAD — row previously stale). |
+
+## 259–267 — 效能 + 版本升級（`/improve` 2026-07-25 @ `79032d3b`）
+
+Operator ask：「改善程式速度，順便規劃 tauri 之類的版本升級」。範圍限縮在
+**效能 + 依賴/遷移**兩類，其餘類別這次沒審。12 個發現全部選中，寫成 9 份計畫。
+
+**先更正一個前提**：**沒有 Tauri 3**。`cargo search tauri` @ `79032d3b` 回報
+`tauri = "2.11.5"`，目前 repo 在 `2.11.3` —— 是 patch bump，不是遷移。這批真正有份量的
+升級是 **TypeScript 7**（原生 Go 編譯器）。
+
+**實測數字（advisor 在此 commit 上實跑，非估算）**：
+
+| 量測 | 現況 | 之後 |
+|---|---|---|
+| `tsc --noEmit` | **5.26 s** | **0.66 s**（TS 7，遷移後 0 error）—— 8× |
+| 啟動 DB round trip | 約 **150 次序列化 IPC** + 11 次全表掃描 | 計畫 260 後約 4 次 |
+| eager bundle | 約 **1.7 MB**，含整包 recharts | 計畫 267 後 −388 kB |
+| 核心表索引 | `ledger_transactions` 等 5 張表 **0 個** | 計畫 259 後 +13 個 |
+
+### 執行順序與狀態
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 259 | SQLite 索引（13 個，涵蓋 `group_id`/`asset_id`/`account_id`/`ticker`/`book_id` 等熱路徑）+ WAL 下 `PRAGMA synchronous=NORMAL`。純加法，不改任何 query 文字 | P1 | S | — | **DONE** — reviewed+APPROVED，分支 `fix/ai-sqlite-indexes` @ `3d0f1a5c`，**已由 operator 同意並 merge 進 main @ `aa791298`**（`--no-ff`，未 push）。執行者第一輪正確地 STOP：原計畫把 `idx_investment_drip_group`/`idx_accounts_book` 放進 migration 9，但這兩個欄位是 `ensureSqliteColumn()` 加的、跑在 migrations 迴圈**之後** → 新資料庫 `no such column: drip_group_id`，`repositories.investments.test.ts` 72 個倒 36 個。計畫已修正：migration 9 收 11 個索引，那兩個改用 repo 既有先例（`idx_ledger_recurring_occurrence` @ 3095）在 `initialize()` 內 imperative 建立。Reviewer 獨立複驗：migration 6/6、investments **72/72**、`npm test` **129 檔 1498 測試全過**、tsc 0、lint 0、build 0。新測試逐一比對 13 個索引名（正是能擋下原錯的斷言）+ 冪等性。Scope 乾淨（3 檔）。 |
+| 260 | ~~用 `PRAGMA user_version` gate 掉整段啟動管線~~ | P1 | M | 259 | **SUPERSEDED by 268**（先 BLOCKED）。執行過才發現前提是錯的：`backfillCreditGroups` / `backfillUnassignedAccount` / `mergeAndHealBooks` 不是一次性 schema 工作，而是**持續性資料自癒**（程式碼註解自己寫著 `Runs every initialize() pass`、`at every wired call site … applySyncChanges`），gate 掉會讓同步進來的髒資料永遠不被修——`repositories.creditGroup.test.ts` 倒 2 個測試證實。更根本的是：資料修復語句**與 63 個 `ensureSqliteColumn` 交錯**，所以「整段 verbatim 搬走」在結構上就不可能。部分成果保存在分支 `wip/ai-plan260-blocked` @ `fe24855e`。 |
+| 268 | **重寫版**：先把 schema DDL 與資料自癒**實體分離**，再用**自我失效的 fingerprint** 只 gate DDL | P1 | L | 259（已 merge） | **DONE** — reviewed+APPROVED，分支 `perf/ai-schema-ddl-phase` @ `ce172efa`（3 commits：Phase A 純賺／結構拆分／加 gate，各自可獨立 revert），**尚未 merge，待 operator 決定**。Reviewer 獨立驗證的重點：(1) **64 組 `(table, column, definition)` 用腳本逐項比對原始碼 → 完全一致，順序與定義文字都沒變**；(2) 6 條動到資料列的語句同樣逐條比對 → text + order 完全一致，沒有任何 SQL 被改動；(3) `runSchemaDdl()` 內 `update`/`insert`/`delete` 數量 = **0**，那條「動資料列的語句不准進去」的規則是機械可查的。實測：`pragma table_info` 全新資料庫 65 → **7**，第二次啟動 65 → **0**；第二次啟動總 DB 呼叫 **44**（首次 166）。`npm test` **129 檔 1505 測試全過**（基線 1498 + 7 新）、`creditGroup.test.ts` **20/20**（260 掛掉的那支）、tsc/lint/build 全 0。新測試是真的：兩個自癒回歸測試都是「initialize → 插入壞資料 → 再 initialize」，把自癒函式搬進 gate 就會紅；第三個（credit group）沿用既有測試，我查證 `creditGroup.test.ts:206` 確實走第二次 `initialize()`，覆蓋成立。 |
+| 261 | ~~`daily_prices` 只載入「還持有的 ticker + benchmark」~~ | P2 | M | 259 | **REJECTED — 量測數字否決了這個修法**（operator 於 `4473222a` 實跑）。`daily_prices` 共 **124,158 列 / 114 個 ticker**，但屬於**非持有 ticker** 的只有 **250 列（0.2%）**。計畫自己的 STOP 條件寫著「非持有列數 < ~2000 就判 REJECTED」，實測 250 → 依約否決。原假設「賣掉的標的價格歷史會永遠累積」在這份真實資料上**不成立**：99.8% 的列都屬於現在還持有的標的，收斂 ticker 省不到東西。**這是量測閘門發揮作用**——擋下了一次對財務載入路徑的無謂改動。 |
+| 262 | 依賴維護掃除：in-range patch/minor 全部、Tauri 2.11.3→2.11.5、`src-tauri` 補 `[profile.release]` | P2 | S–M | — | **DONE** — reviewed+APPROVED，分支 `chore/ai-dependency-sweep` @ `7e532aa5`（3 commits），**尚未 merge**。Reviewer 獨立複驗：`npm test` **1498 不變**、tsc/lint/`license:check`/`check:tauri` 全 0、`check-eager-bundle.mjs` exit 0（`charts` 仍不在 eager set）。`package.json` **完全沒動**（所有 bump 都在既有 caret 範圍內，只動 lockfile）。Cargo.lock 只動 3 個 tauri 套件 + 移除重複的 `quick-xml 0.37.5`；**`tauri-plugin-sql` 確認仍在 2.4.0**（vendored patch 沒被拖動）。`catch_unwind` 零命中，故 `panic = "abort"` 四行全留。release binary 9,559,584 B。 |
+| 263 | **TypeScript 5.9.3 → 7.0.2** | P2 | M | — | **部分完成 — config 遷移 APPROVED；TS 7 升級 BLOCKED（外部相依）**。分支 `chore/ai-typescript-7` @ `78d2d716`（2 commits），**尚未 merge**。**已落地**：`tsconfig.json` 拔掉 `baseUrl`、`moduleResolution` 改 `bundler`、補 `types:["node"]`（三項在 TS 5.9.3 上也合法，已驗）；`typescript` 範圍 `^5.8.3` → `^5.9.3`。**擋住的原因**：`typescript-eslint@8.65.0`（確認為最新）peer 是 `typescript: ">=4.8.4 <6.1.0"`；TS 7 下 `npm run lint` **硬失敗** `Error: typescript-eslint does not support TS 7.0.`（exit 2，不是 lint 發現）。依 Step 4 的 fallback 只回退編譯器、保留 config 遷移。**實測效益（回退前量到，證明加速是真的）**：`tsc --noEmit` **10.877 s → 1.92 s（~5.7×）**，0 error。（我先前在主 checkout 量到 5.26 s → 0.66 s／8×；倍率差來自 worktree 冷快取，兩邊 error 都是 0。）⚠️ Reviewer 抓到並要求修正：install→revert 兩次連續安裝把 **12 個 `@typescript-eslint/*` 從頂層擠進巢狀目錄**（頂層 16→4），為一行版本 bump 產生 466 行 lockfile diff。已還原 lockfile 後單次 `rm -rf node_modules && npm install` 重建 → 巢狀 **0**／頂層 **16**，整條分支收斂成 **3 檔 4 增 4 刪**。**重啟條件**：`typescript-eslint` peer 放寬到含 TS 7 後，改一行版本即可收下 5.7–8×。**264 完成後應主動重驗**（264 會把 typescript-eslint 帶到最新）。 |
+| 264 | Lint 全家桶：eslint 9→10、`eslint-plugin-react-hooks` 5→**7**、`eslint-config-prettier` 9→10、`globals` 15→17、`react-refresh` 0.4→0.5 | P3 | M | 262（已 merge） | **DONE** — reviewed+APPROVED（1 輪 REVISE），**已 merge 進 main @ `62e935d8`**。**執行者的關鍵判斷（我認可）**：`eslint-plugin-react-hooks@7` 的 `recommended.rules` **偷偷多塞 14 條 React Compiler 診斷規則且全是 `error`**，照原樣 spread 會一次帶進 40 個錯誤，等於在「升級引擎」的 commit 裡順便打開 266 才該開的東西。它改成把 react-hooks 明確釘成升級前的兩條並加註解引用兩份計畫編號。⚠️ **Reviewer 攔下的 CI 阻斷**：ESLint 10 把 `no-useless-assignment` 與 `preserve-caught-error` 升成 `error` → `npm run lint` exit 1，而 `ci.yml:23` 正是跑 `npm run lint`，直接 merge 會讓 CI 變紅。依 repo 既有慣例（六條建議性規則全是 `warn`，只有隱私遮罩守衛 `no-restricted-syntax` 是 `error`）把這兩條設為 `warn`：發現仍可見，CI 不擋。複驗：lint **exit 0**（772 warnings / 0 errors）、tsc 0、build 0、**1505 測試全過**、隱私遮罩守衛反向驗證仍以 **error** 觸發、scope 乾淨 3 檔。**Step 5b 結果**：`typescript-eslint@8.65.0` peer 仍是 `typescript: ">=4.8.4 <6.1.0"`，**沒放寬 → 263 繼續 BLOCKED**。 |
+| 265 | 測試基礎建設 major：jsdom 26→29、`@types/node` 22→26、`jest-dom` 6→7 | P3 | M | 262 | **DONE** — reviewed+APPROVED，**已 merge @ `4030cb8f`**。零測試檔需要修改。**關鍵檢查做對了**：jest-dom 7 最危險的失敗模式是 matcher 靜默未註冊（斷言全變 no-op，測試「全過」卻什麼都沒驗）。執行者把一個 `.not.toBeInTheDocument()` 反轉,確認拿到**真正的 jest-dom 拋錯**才判定 matcher 是活的,然後還原。另查 CI 的 `node-version: lts/*`（5 處）滿足 jsdom 29 engine 範圍。複驗：1505 全過、tsc 0、lint 0、e2e 2/2。 |
+| 266 | React Compiler，**分階段**：先開 react-hooks v7 的 compiler lint 規則讀報告，再用 `compilationMode:'annotation'` 掛上（等同 no-op），單一路由試點量測後**停下來交決策**。不刪任何現有 `useMemo` | P3 | M | **264（硬相依）** | TODO |
+| 267 | 把 recharts 踢出 eager graph —— `clsx`/`tailwind-merge` 被塞進 `charts` chunk，導致 entry→`card`→`charts` 整包 388 kB 每次開機都載 | P2 | M | — | **DONE** — reviewed+APPROVED（2 輪 REVISE），分支 `perf/ai-eager-bundle` @ `f8751466`，**已由 operator 同意並 merge 進 main @ `72fc7a7f`**（`--no-ff`，未 push）。原計畫的 `manualChunks` 三行修法**在本專案無效**：vite@8.0.16 底層是 **Rolldown 1.0.3**，`manualChunks` 是 deprecated shim，會被轉成單一 `codeSplitting` group（無 `priority`），而 `includeDependenciesRecursively` 預設 true → charts group 遞迴吸走 `clsx`（recharts 自己的相依）。改用 `output.codeSplitting.groups` + `priority`（classutils:100 / 其餘:50 / charts:10）後成功。Reviewer 獨立複驗（自己重 build + 自己重走 import graph）：eager **1,799,730 → 1,411,980 B，−387,750 B**，`charts` 已不在 eager set，`card` 不再 import charts，chunk 數 57（45–60 內），Dashboard/CashFlow/Investments/HoldingDetail/Goals 五條圖表路由仍能 reach charts。新增 `scripts/check-eager-bundle.mjs`（真的會 fail：反向驗證把 priority 調成 1 後確實 exit 1）+ `docs/performance-budget.md` **R5**（並順手修好 R2 的過時 `manualChunks` 引用）。⚠️ 執行者發現並經 reviewer 確認：`npm run test:e2e` 跑的是 **dev server 不是 `dist/`**，無法驗證 production chunking——計畫的 test plan 已更正，真正的驗證是 Step 3 的靜態可達性檢查 + 該 script。 |
+
+### 相依說明
+
+- **259 → 260**：260 的 `SCHEMA_GENERATION = 10` 假設 259 的 migration id 9 已存在。
+- **264 → 266（硬相依）**：React Compiler 的 lint 規則出在 `eslint-plugin-react-hooks` v6+；
+  沒有它，266 的 Step 2「讀 compiler 違規報告」無從做起，等於瞎裝。
+- **262 → 263/264/265**：先把 in-range 的 patch/minor 清掉，三個 major 的 diff 才乾淨。
+- 259 / 262 / 267 三份彼此獨立，可並行。
+
+### merge 後的合併驗證（259 + 267 同時在 main 上）
+
+兩條分支各自都是從 `79032d3b` 開出去的，彼此沒互相測過，所以 merge 後在 main 上重驗了一次：
+`tsc` 0 / `npm run build` 0 / `npm test` **1498 全過** / `node scripts/check-eager-bundle.mjs` exit 0
+（`charts` 不在 eager set，EAGER TOTAL **1,415,155**）。
+
+註：1,415,155 比 267 worktree 內量到的 1,411,980 多約 3.2 kB，是 259 讓 `repositories.ts` 多了 14 行、
+被打進 eager 的 `card` chunk 所致——預期內，不是回歸。
+
+### ⚠️ 背景 executor 可能在主 checkout 裡動手（且會跟你的 git 指令 race）
+
+260 的執行者沒有待在自己的 worktree —— 它在**主 checkout** 建了分支並改了
+`src/data/migrations.ts` / `repositories.ts`。兩個後果：
+
+1. 主工作區一度帶著會讓 2 個測試失敗的未提交改動。已備份成 `wip/ai-plan260-blocked`
+   分支（commit `fe24855e`）後還原，main 回到 1498 全過。
+2. 它在主 checkout 執行 `git checkout -b perf/ai-startup-schema-gate`，**剛好卡在**
+   reviewer 檢查分支（顯示 `main`）與執行 merge 之間 —— 導致 267 的 merge commit
+   落到那條分支上而不是 main。已用 `git merge --ff-only` 把 main 拉回正確狀態
+   （`72fc7a7f`），該誤導性分支名已刪除。**沒有任何 commit 遺失。**
+
+**教訓：有背景 executor 在跑時，不要在主 checkout 下 git 指令。** 分支狀態要在操作
+的「同一個」指令裡檢查，不能分兩次 tool call —— 中間會被 race。
+
+### ⚠️ worktree 派工的陷阱
+
+背景 executor 的 worktree 是以**該 session 起始的 HEAD** 建立的，不是當下的 `main`。
+260 第一次派工就撞到：main 已在 `aa791298`，worktree 卻停在 `79032d3b`，migration id 9 不存在。
+（執行者的 base-commit 檢查有擋下來，沒動到任何檔案。）
+**每次在 merge 之後派新工，都要先叫 executor 跑 `git merge --ff-only <目前 main sha>`。**
+
+### ⚠️ 執行這批計畫時不要並行跑 e2e
+
+`playwright.config.ts` 的 `webServer` 綁死 `http://127.0.0.1:5173`，且
+`reuseExistingServer: !process.env.CI` —— 本機沒有 `CI` 變數時它是 **true**。
+`vite.config.ts` 又是 `strictPort: true`。
+
+後果：**兩個 worktree 同時跑 `npm run test:e2e`，第二個會直接沿用第一個的 dev server，
+等於拿 A 分支的測試去測 B 分支的程式**。不是紅燈，是靜默的假結果。
+
+262 / 265 / 266 / 267 的驗證清單都含 `npm run test:e2e`，所以這幾份**必須序列化執行**。
+（`PORT` 環境變數只改得動 vite，改不動 playwright 寫死的 `url`/`baseURL`。）
+
+## 269–270 — 262 帶出的兩個既有問題（2026-07-25 @ `72fc7a7f`）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 269 | 修正 **R2** 守則：改成斷言「每條 lazy route 都有自己的 chunk」，拿掉 45–60 的總數帶 | P3 | S | — | **DONE** — reviewed+APPROVED，分支 `docs/ai-fix-r2-guardrail` @ `7fbecf1b`，**尚未 merge**。新判準從 `router.tsx` 的 `lazyRouteComponent(` 數量推導（正則帶括號，正確排除 import 那行：15 個提及 → **14** 個呼叫），與建出的 `*Route*.js` 比對，且用 `<` 不是 `!==`——route chunk 被切更細是合法的，這個檢查只抓崩潰。反向驗證有做：暫時加第 15 個宣告 → script exit 1 並印出 `FAIL: 15 lazy routes declared but only 14 route chunks built`，還原後 `git status` 乾淨。Reviewer 複驗：script exit 0 報 `14 route chunks for 14 lazy routes`、`npm test` 1505 全過、scope 只 2 檔。⚠️ 執行者抓到**我的計畫自相矛盾**：Step 1 的目標內容刻意保留「45–60」當歷史說明，但我的驗收條件寫 `grep -c "45–60" → 0`。它選擇忠於逐字目標內容並回報矛盾，而不是偷偷改寫散文去騙過 grep——判斷正確。條件已改成 `grep -c "45–60 range" → 0`（斷言消失即可，歷史說明要留）。 |
+| 270 | **決定 Prettier 的去留**：`npm run format:check` 在 main 上失敗，**277 / 360 個檔案（77%）**，而且完全沒有強制力——沒有 husky／lint-staged／git hook，`ci.yml` 也沒跑它。分支 A 採用（跑一次 `--write` + `.git-blame-ignore-revs` + 加進 CI，**建議**）／分支 B 移除。**Step 0 需要 operator 決定,不准執行者自己選** | P3 | S–M | ⏳ 需等 259–268 整批 merge 完（277 檔重排會跟每一條未合分支衝突） | TODO — 等 operator 選 A 或 B |
+
+## 271 — daily_prices 啟動成本 spike（261 否決後的後續，2026-07-25 @ `4473222a`）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 271 | **量測 spike** — daily_prices 啟動成本 | P2 | M | — | **DONE** — reviewed+APPROVED，**已 merge @ `5137462a`**，產出 `docs/daily-prices-startup-spike.md`（零程式碼改動）。**實測（跑真 app、真 profile，非估算）**：fetch **1,833 ms**／payload **17.28 MB**／124,158 列；SQLite 本身只 **~80 ms**；JS 計算 **~11–13 ms**。→ **95.6% 的時間是 Tauri IPC 序列化 + JSON parse**，既不是資料庫也不是數學。這獨立佐證了 Dead End 3（下推 SQL）的否決：就算搬進 SQL 也打不到真瓶頸。發現 `source`／`updated_at` 兩欄無任何消費端讀取，實測拿掉後 **1833→1143 ms（−690 ms）／17.28→12.69 MB**。→ 建議 Option A，已開 plan 273。 |
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 272 | 清掉 264 帶出的 8 個 ESLint 10 發現，並補上其中一個暴露出的測試缺口。**四類問題四種修法**：①4 處是 `catch` 內重複賦值害初始值變死碼 → 刪 `catch` 內那行而非刪初始值 ②`fireGoal.ts:66` 所有分支都賦值 → 拿掉初始值，靠 TS definite-assignment 驗證 ③`portfolioMetrics.ts:325` 是 **XIRR bisection solver** 裡的死賦值（已證明：`fhi` 寫於 317、讀於 318，之後永不再讀）→ 刪，**但先補一個能觸發 bisect fallback 的測試**（現有 `calculateXirr` 測試沒有任何一個逼出這條路徑）④2 處重拋錯誤沒帶 `cause` → 補上，**不動繁中文案**。最後把兩條規則從 `warn` 調回 `error` | P3 | S–M | 264（已 merge） | TODO |
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 273 | **實作 271 的 Option A：啟動路徑只讀 4 個欄位，省 690 ms**。⚠️ **有資料損毀陷阱**：不能直接把兩欄從 `listDailyPrices()` 拿掉——它餵給 `exportSnapshot()`（`repositories.ts:4917`）→ 備份檔 → `importSnapshot()` → `saveDailyPrices()`，而後者是 `price.source \|\| "manual"`，會讓**每次備份還原都把 12.4 萬列的來源改寫成 "manual"**。設計因此是**新增**一個 `listDailyPriceSeries()` 給開機路徑，`listDailyPrices()` 一個字都不動。型別用 `DailyPrice extends DailyPriceSeriesRow` 讓既有呼叫端自動相容，只改**型別註記**、零邏輯 | P1 | M | 271（已 merge） | TODO |
+
+### 264 帶出的 8 個新 lint 發現（已降為 warn，待獨立清理）
+
+ESLint 10 的兩條新規則在既有程式碼上抓到 8 處。已設為 `warn` 讓 CI 通過，**發現本身沒有被消音**：
+
+- `no-useless-assignment`（6）：`src/data/demoData.ts:519,524`、`src/domain/fireGoal.ts:66`、
+  `src/domain/nlParser.ts:150,162`、`src/domain/portfolioMetrics.ts:325` —— 賦值後未被後續語句使用
+- `preserve-caught-error`（2）：`src/data/repositories.ts:2739,2748` —— 重新拋出的錯誤沒帶 `cause`，
+  原始錯誤資訊在傳播過程中遺失
+
+後者對除錯有實質影響（sync 路徑上的錯誤鏈被截斷）。兩者都適合一份小的獨立清理計畫，
+不該混進依賴升級的 diff 裡。
+
+### 261 否決後**倖存下來**的發現（值得另開計畫）
+
+261 的**修法**被否決了，但它想解決的**問題反而被量測放大了**：
+
+`daily_prices` 有 **124,158 列**，而 `useFinanceData()` 在每次啟動時**無條件全量載入**
+（`hooks.ts` 呼叫 `listDailyPrices()` 不帶 filter），整包序列化成 JSON 過 Tauri IPC。
+平均每個 ticker 約 1,089 列 ≈ 4.3 年的日線。這仍然是目前最大的單項啟動成本之一。
+
+**收斂 ticker 沒用**（只省 0.2%），**收斂日期會壞掉**（TWR／淨值走勢／報酬歸因都從
+`1900-01-01` 走全歷史，`AGENTS.md` 明令不得靜默改動財務數學）。所以正確的方向必須是
+第三條路，候選：
+
+1. **把計算下推到 SQL** —— 淨值序列與 TWR 目前是把 12 萬列搬進 JS 再算；改成在 SQLite
+   內聚合，跨 IPC 的就只剩結果序列。correctness 不變，搬運量降幾個數量級。
+2. **延後而非截斷** —— Dashboard 只為了 data-health 橫幅需要價格，那不是首屏關鍵路徑；
+   `dailyPrices` 可以移出開機 bundle，由真正需要的路由觸發。
+3. **兩者併用**。
+
+⚠️ 這**不是**「把 261 改一改」——修法完全不同、風險輪廓也不同，應該用新編號另開。
+
+### 262 帶出的兩個新發現（都不是 262 的錯，是既有狀態）
+
+**1. `npm run format:check` 在 main 上本來就是壞的 —— 277 個檔案。**
+我在 main（`72fc7a7f`）上親自跑過：`exit=1`，`Code style issues found in 277 files`。
+也就是說這個 script 現在沒有人能跑綠，等於**格式閘門是死的**。262 之後變 278
+（多了 `src/domain/types.ts`，純粹是 Prettier 3.8.4→3.9.6 對 union type 換行的意見改變，
+無功能影響）。我原本在 262 的驗收條件裡寫「`format:check` exits 0」——**那條從一開始就不可能成立，是我沒先驗證**。
+條件已改成「比對失敗檔案數，不是比對 exit code」。
+→ 值得單獨開一份計畫決定：要嘛跑一次 `prettier --write` 收乾淨並加 pre-commit hook，要嘛把這個 script 拿掉。維持現狀最糟。
+
+**2. chunk 總數 84，超出 `docs/performance-budget.md` **R2** 的 45–60 帶。**
+成因是 vite 8.0.16 → 8.1.5（rolldown 換版）把共用 chunk 切得更細。我實際診斷過，**是良性的**：
+per-route splitting 完好（14 個 route chunk）、大 vendor 仍然合併（icons 415k / charts 409k / card 218k / react 190k）、
+entry chunk 反而從 219k 縮到 **78k**、eager total 從 1,415,111 降到 **1,398,585**。只是多了 19 個 <1kB 的小 chunk。
+R2 那條帶當初是為了抓「splitting 崩掉變成 1–2 個 chunk」而寫的，現在對**健康的成長**誤報。
+→ R2 的判準該改成表達真正意圖（route chunk 數 ≥ 14、entry graph 不含 charts），而不是卡總數上限。
+
+### 這次考慮過但判定不值得做（別再重審）
+
+- **Phosphor icons chunk 415 kB**：tree-shaking **有**生效（已驗 `Acorn`/`Anchor`/`Alien`
+  都不在產物裡），415 kB = 實際用到的約 134 個圖示 × 6 種 weight。而 app **4 種 weight 都在用**
+  （regular / bold ×61 / duotone ×42 / fill ×24），砍掉 thin+light 只省約 ⅓，代價是自己維護一個
+  Vite plugin。在本機讀檔的 Tauri app 不划算。
+- **把 `repositories.ts`（7061 行）拆出 eager chunk**：它在開機關鍵路徑上
+  （`getFinanceRepository()` 必須先跑完才有第一次 render），拆出去省不到啟動時間。
+  它的**大小**是技術債議題，歸 plan 009，不是啟動效能議題。
+- **`serializeDatabase()` 的序列化不要改成平行**：那是刻意的，配合 vendored
+  `tauri-plugin-sql` 的 `max_connections(1)`，用來擋 iOS 上的 `db-locked`。260 是讓它**少做事**，
+  不是讓它**平行做**。
+
+### 這次沒審的範圍
+
+correctness/bugs、security、test coverage、tech debt/architecture、DX、docs、direction
+七類這次**完全沒看**——operator 的要求限縮在效能與升級。`src-tauri/` 的 Rust 程式碼除了
+`Cargo.toml` 的 profile 之外沒有審。`worker/` 完全沒碰。
