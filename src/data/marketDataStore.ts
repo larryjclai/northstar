@@ -16,7 +16,7 @@
  * the store in sync with the live reference without copying.
  */
 
-import type { DailyFxRate, DailyPrice, ManualPriceSnapshot } from "../domain/types";
+import type { DailyFxRate, DailyPrice, DailyPriceSeriesRow, ManualPriceSnapshot } from "../domain/types";
 import type { MarketQuote } from "../features/market-data";
 import type { ManualPriceSnapshotDraft, RepositoryData, StoredMarketQuote } from "./repositories";
 
@@ -113,6 +113,21 @@ export function createMarketDataStore(ctx: MarketDataStoreContext) {
         .filter((row) => (ticker ? row.ticker === ticker : true))
         .filter((row) => (since ? row.date >= since : true))
         .sort((a, b) => a.date.localeCompare(b.date));
+    },
+
+    /**
+     * Startup path: the four columns readers use. See DailyPriceSeriesRow.
+     * NOT interchangeable with listDailyPrices() — that one feeds
+     * exportSnapshot() and must keep returning full rows (plan 273).
+     */
+    async listDailyPriceSeries(filter?: { ticker?: string; since?: string }): Promise<DailyPriceSeriesRow[]> {
+      const ticker = filter?.ticker?.toUpperCase();
+      const since = filter?.since;
+      return ctx.data.dailyPrices
+        .filter((row) => (ticker ? row.ticker === ticker : true))
+        .filter((row) => (since ? row.date >= since : true))
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map((row) => ({ ticker: row.ticker, date: row.date, close: row.close, currency: row.currency }));
     },
 
     async saveDailyPrices(prices: DailyPrice[]): Promise<void> {

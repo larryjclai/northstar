@@ -44,7 +44,7 @@ import {
   alignByDate,
   XIRR_MIN_DAYS,
   type AnalyticsPosition,
-  type DailyPrice,
+  type DailyPriceSeriesRow,
   type InvestmentRecord,
   type ManualPriceSnapshot,
   formatMoney,
@@ -223,7 +223,7 @@ function Sparkline({ data, color, width = 60, height = 26 }: { data: Array<numbe
 interface Props {
   positions: AnalyticsPosition[];
   records: InvestmentRecord[];
-  dailyPrices: DailyPrice[];
+  dailyPrices: DailyPriceSeriesRow[];
   manualSnapshots: ManualPriceSnapshot[];
   toPrimary: (value: number, currency: string, asOf?: string) => number;
   allAssetMeta: Map<string, { ticker: string; currency: string }>;
@@ -1329,7 +1329,7 @@ export function InvestmentsAnalyticsTab({
 
 function latestPositionValue(
   position: AnalyticsPosition,
-  dailyPrices: DailyPrice[],
+  dailyPrices: DailyPriceSeriesRow[],
   manualSnapshots: ManualPriceSnapshot[],
   toPrimary: (value: number, currency: string, asOf?: string) => number,
   end: string,
@@ -1696,7 +1696,7 @@ function nsSquarify(
 /** Build treemap input: current market value + 1Y price return per position. */
 function buildHoldingHeat(
   positions: AnalyticsPosition[],
-  dailyPrices: DailyPrice[],
+  dailyPrices: DailyPriceSeriesRow[],
   manualSnapshots: ManualPriceSnapshot[],
   toPrimary: (value: number, currency: string, asOf?: string) => number,
   end: string,

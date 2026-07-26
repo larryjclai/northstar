@@ -10,6 +10,7 @@ import type {
   CreditGroup,
   DailyFxRate,
   DailyPrice,
+  DailyPriceSeriesRow,
   FinancialGoal,
   GoalDisplayMode,
   GoalKind,
@@ -425,6 +426,12 @@ export interface FinanceRepository {
   saveDailyFxRates(rates: DailyFxRate[]): Promise<void>;
   getDailyFxRate(from: string, to: string, date: string): Promise<DailyFxRate | null>;
   listDailyPrices(filter?: { ticker?: string; since?: string }): Promise<DailyPrice[]>;
+  /**
+   * Startup path: the four columns readers use. See DailyPriceSeriesRow.
+   * NOT interchangeable with listDailyPrices() — that one feeds
+   * exportSnapshot() and must keep returning full rows (plan 273).
+   */
+  listDailyPriceSeries(filter?: { ticker?: string; since?: string }): Promise<DailyPriceSeriesRow[]>;
   saveDailyPrices(prices: DailyPrice[]): Promise<void>;
   getDailyPrice(ticker: string, date: string): Promise<DailyPrice | null>;
   listManualPriceSnapshots(filter?: { assetId?: string }): Promise<ManualPriceSnapshot[]>;
@@ -2309,6 +2316,7 @@ class BrowserFinanceRepository implements FinanceRepository {
   async saveDailyFxRates(rates: DailyFxRate[]) { return this.marketData.saveDailyFxRates(rates); }
   async getDailyFxRate(from: string, to: string, date: string) { return this.marketData.getDailyFxRate(from, to, date); }
   async listDailyPrices(filter?: { ticker?: string; since?: string }) { return this.marketData.listDailyPrices(filter); }
+  async listDailyPriceSeries(filter?: { ticker?: string; since?: string }) { return this.marketData.listDailyPriceSeries(filter); }
   async saveDailyPrices(prices: DailyPrice[]) { return this.marketData.saveDailyPrices(prices); }
   async getDailyPrice(ticker: string, date: string) { return this.marketData.getDailyPrice(ticker, date); }
   async listManualPriceSnapshots(filter?: { assetId?: string }) { return this.marketData.listManualPriceSnapshots(filter); }
@@ -4605,6 +4613,40 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       currency: row.currency ?? "",
       source: row.source,
       updatedAt: row.updated_at,
+    }));
+  }
+
+  /**
+   * Startup path: the four columns readers use. See DailyPriceSeriesRow.
+   * NOT interchangeable with listDailyPrices() — that one feeds
+   * exportSnapshot() and must keep returning full rows (plan 273).
+   */
+  override async listDailyPriceSeries(filter?: { ticker?: string; since?: string }) {
+    const clauses: string[] = [];
+    const params: unknown[] = [];
+    if (filter?.ticker) {
+      params.push(filter.ticker.toUpperCase());
+      clauses.push(`ticker = $${params.length}`);
+    }
+    if (filter?.since) {
+      params.push(filter.since.slice(0, 10));
+      clauses.push(`date >= $${params.length}`);
+    }
+    const where = clauses.length ? `where ${clauses.join(" and ")}` : "";
+    const rows = await this.db.select<Array<{
+      ticker: string;
+      date: string;
+      close: number;
+      currency: string;
+    }>>(
+      `select ticker, date, close, currency from daily_prices ${where} order by ticker, date asc`,
+      params,
+    );
+    return rows.map((row) => ({
+      ticker: row.ticker,
+      date: row.date,
+      close: row.close,
+      currency: row.currency ?? "",
     }));
   }
 

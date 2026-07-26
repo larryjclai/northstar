@@ -1,4 +1,4 @@
-import type { Account, AppSettings, DailyFxRate, DailyPrice, LedgerTransaction, ManualPriceSnapshot, PortfolioAsset } from "./types";
+import type { Account, AppSettings, DailyFxRate, DailyPriceSeriesRow, LedgerTransaction, ManualPriceSnapshot, PortfolioAsset } from "./types";
 import { convertCurrency } from "./currency";
 
 /**
@@ -120,7 +120,7 @@ export interface BuildDataHealthReportInput {
   assets: PortfolioAsset[];
   /** Minimal quote info — pass { symbol, updatedAt } mappings only. */
   quotes: QuoteForHealth[];
-  dailyPrices: DailyPrice[];
+  dailyPrices: DailyPriceSeriesRow[];
   dailyFxRates: DailyFxRate[];
   /** Manual price snapshots — used to flag stale prices on custom assets. */
   manualPriceSnapshots?: ManualPriceSnapshot[];

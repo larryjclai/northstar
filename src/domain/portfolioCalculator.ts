@@ -1,5 +1,5 @@
 import { buildPositionMetrics } from "./portfolioMetrics";
-import type { DailyPrice, HoldingPosition, InvestmentRecord, PortfolioAsset } from "./types";
+import type { DailyPriceSeriesRow, HoldingPosition, InvestmentRecord, PortfolioAsset } from "./types";
 import { buildDailyPriceLookup, findDailyPriceAtOrBefore, type DailyPriceLookup } from "./valuation";
 
 export interface MarketQuote {
@@ -16,7 +16,7 @@ export interface MarketQuote {
  * trend. Omit it to keep the legacy quote-only behaviour (value 0 when unpriced).
  */
 export interface HoldingValuation {
-  dailyPrices: DailyPrice[];
+  dailyPrices: DailyPriceSeriesRow[];
   /** Valuation date (today, YYYY-MM-DD) for the close lookup. */
   asOf: string;
   /**

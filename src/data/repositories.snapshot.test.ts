@@ -104,4 +104,28 @@ describeEachRepo("snapshot round-trip (books/invoices/clients)", (makeRepo) => {
     expect(restoredInvoice!.taxExclusiveAmount).toBe(100_000);
     expect(restoredInvoice!.taxAmount).toBe(5_000);
   });
+
+  // Plan 273 — listDailyPriceSeries() narrows the *startup* read to four
+  // columns, but exportSnapshot() must keep calling listDailyPrices() (the
+  // full row). saveDailyPrices() normalises missing `source`/`updatedAt` to
+  // "manual"/now — so if the round trip ever lost those fields, every
+  // backup/restore would silently rewrite all price provenance. This guards
+  // that the trap plan 273 was designed around never regresses.
+  it("export -> import preserves daily price source and updatedAt (guards plan 273's round-trip trap)", async () => {
+    const source = await makeRepo();
+
+    await source.saveDailyPrices([
+      { ticker: "0050.TW", date: "2026-06-10", close: 195.5, currency: "TWD", source: "twse", updatedAt: "2026-06-10T08:00:00Z" },
+    ]);
+
+    const snapshot = await source.exportSnapshot();
+
+    const target = await makeRepo();
+    await target.importSnapshot(snapshot);
+
+    const restored = await target.listDailyPrices({ ticker: "0050.TW" });
+    expect(restored).toHaveLength(1);
+    expect(restored[0].source).toBe("twse");
+    expect(restored[0].updatedAt).toBe("2026-06-10T08:00:00Z");
+  });
 });

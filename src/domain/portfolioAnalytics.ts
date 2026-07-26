@@ -1,4 +1,4 @@
-import type { DailyPrice, InvestmentRecord, ManualPriceSnapshot } from "./types";
+import type { DailyPriceSeriesRow, InvestmentRecord, ManualPriceSnapshot } from "./types";
 import { buildQuoteLookup, findQuoteForTicker, quoteLookupKeys } from "./marketSymbols";
 import { buildPositionMetrics, buildQuantityTimeline } from "./portfolioMetrics";
 import { toCanonicalSector } from "./canonicalSector";
@@ -508,7 +508,7 @@ function latestOnOrBefore<T extends { date: string }>(sortedAsc: T[], date: stri
  */
 function priceBasket(opts: {
   positions: AnalyticsPosition[];
-  dailyPrices: DailyPrice[];
+  dailyPrices: DailyPriceSeriesRow[];
   manualSnapshots: ManualPriceSnapshot[];
   toPrimary: (value: number, currency: string, asOf?: string) => number;
   start: string;
@@ -524,7 +524,7 @@ function priceBasket(opts: {
 
   // Price sources keyed for fast lookup; include history up to `end` so a close
   // before `start` can carry forward into the window.
-  const pricesByTicker = new Map<string, DailyPrice[]>();
+  const pricesByTicker = new Map<string, DailyPriceSeriesRow[]>();
   for (const row of dailyPrices) {
     if (day(row.date) > end) continue;
     const key = row.ticker.toUpperCase();
@@ -626,7 +626,7 @@ export interface PortfolioValueSeries {
  */
 export function buildPortfolioValueSeries(opts: {
   positions: AnalyticsPosition[];
-  dailyPrices: DailyPrice[];
+  dailyPrices: DailyPriceSeriesRow[];
   manualSnapshots: ManualPriceSnapshot[];
   toPrimary: (value: number, currency: string, asOf?: string) => number;
   start: string;
@@ -702,7 +702,7 @@ export interface CostBasisAttribution {
  */
 export function buildReturnAttribution(opts: {
   positions: AnalyticsPosition[];
-  dailyPrices: DailyPrice[];
+  dailyPrices: DailyPriceSeriesRow[];
   manualSnapshots: ManualPriceSnapshot[];
   toPrimary: (value: number, currency: string, asOf?: string) => number;
   start: string;
@@ -739,7 +739,7 @@ export function buildReturnAttribution(opts: {
 export function buildCostBasisAttribution(opts: {
   positions: AnalyticsPosition[];
   records: InvestmentRecord[];
-  dailyPrices: DailyPrice[];
+  dailyPrices: DailyPriceSeriesRow[];
   manualSnapshots: ManualPriceSnapshot[];
   toPrimary: (value: number, currency: string, asOf?: string) => number;
   end: string;
@@ -754,8 +754,8 @@ export function buildCostBasisAttribution(opts: {
     recordsByAsset.set(record.assetId, rows);
   }
 
-  const latestDailyPrice = (ticker: string): DailyPrice | null => {
-    let best: DailyPrice | null = null;
+  const latestDailyPrice = (ticker: string): DailyPriceSeriesRow | null => {
+    let best: DailyPriceSeriesRow | null = null;
     const key = ticker.toUpperCase();
     for (const row of dailyPrices) {
       if (row.ticker.toUpperCase() !== key || day(row.date) > end) continue;
@@ -847,7 +847,7 @@ export interface PortfolioTwr {
 export function buildPortfolioTwr(opts: {
   positions: AnalyticsPosition[];
   records: InvestmentRecord[];
-  dailyPrices: DailyPrice[];
+  dailyPrices: DailyPriceSeriesRow[];
   toPrimary: (value: number, currency: string, asOf?: string) => number;
   start: string;
   end: string;
@@ -993,7 +993,7 @@ export function buildPortfolioTwr(opts: {
  * Returned raw — cumulative return is scale-free, so no FX conversion needed.
  */
 export function buildBenchmarkSeries(
-  dailyPrices: DailyPrice[],
+  dailyPrices: DailyPriceSeriesRow[],
   ticker: string,
   start: string,
   end: string,
@@ -1041,7 +1041,7 @@ export interface AllocationDriftSeries {
  */
 export function allocationDriftSeries(opts: {
   positions: AnalyticsPosition[];
-  dailyPrices: DailyPrice[];
+  dailyPrices: DailyPriceSeriesRow[];
   manualSnapshots: ManualPriceSnapshot[];
   toPrimary: (value: number, currency: string, asOf?: string) => number;
   start: string;
@@ -1107,7 +1107,7 @@ export interface DayChangeQuote {
  * exactly "Friday vs Thursday". Sorted best → worst, limited to `limit` (7).
  */
 export function dayChangeMovers(opts: {
-  dailyPrices: DailyPrice[];
+  dailyPrices: DailyPriceSeriesRow[];
   quotes: DayChangeQuote[];
   heldTickers: Iterable<string>;
   limit?: number;
@@ -1117,7 +1117,7 @@ export function dayChangeMovers(opts: {
   const held = new Set(heldTickers.flatMap(quoteLookupKeys));
   const limit = opts.limit ?? 7;
 
-  const closesByTicker = new Map<string, DailyPrice[]>();
+  const closesByTicker = new Map<string, DailyPriceSeriesRow[]>();
   for (const row of opts.dailyPrices) {
     const keys = quoteLookupKeys(row.ticker).filter((key) => held.has(key));
     for (const key of keys) {

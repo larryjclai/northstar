@@ -79,7 +79,9 @@ export function useFinanceData() {
   });
   const dailyPrices = useQuery({
     queryKey: keys.dailyPrices,
-    queryFn: () => repository.data!.listDailyPrices(),
+    // Only the four columns any reader uses. The full row (with source/updatedAt)
+    // is still what exportSnapshot() reads via listDailyPrices() — see plan 273.
+    queryFn: () => repository.data!.listDailyPriceSeries(),
     enabled,
   });
   const financialGoals = useQuery({
