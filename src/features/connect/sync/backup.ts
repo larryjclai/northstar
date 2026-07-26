@@ -15,7 +15,7 @@ const DEDUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 
 export interface BackupEntry {
   timestamp: string; // ISO — also used as IDB key
-  label: string;     // human-readable, e.g. "同步前備份 · 2026-05-31 22:14"
+  label: string; // human-readable, e.g. "同步前備份 · 2026-05-31 22:14"
   snapshot: RepositorySnapshot;
 }
 
@@ -80,7 +80,9 @@ export async function saveBackup(snapshot: RepositorySnapshot): Promise<void> {
     const tx2 = db.transaction(STORE, "readwrite");
     const store2 = tx2.objectStore(STORE);
     toDelete.forEach((e) => store2.delete(e.timestamp));
-    await new Promise<void>((res) => { tx2.oncomplete = () => res(); });
+    await new Promise<void>((res) => {
+      tx2.oncomplete = () => res();
+    });
   }
 }
 
@@ -91,11 +93,7 @@ export async function listBackups(): Promise<BackupEntry[]> {
     const tx = db.transaction(STORE, "readonly");
     const req = tx.objectStore(STORE).getAll();
     req.onsuccess = () =>
-      resolve(
-        (req.result as BackupEntry[]).sort(
-          (a, b) => b.timestamp.localeCompare(a.timestamp),
-        ),
-      );
+      resolve((req.result as BackupEntry[]).sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
     req.onerror = () => reject(req.error);
   });
 }

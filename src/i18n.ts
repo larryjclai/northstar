@@ -45,7 +45,7 @@ useUiPreferences.subscribe((state, prevState) => {
     } else {
       const langMap: Record<string, string> = {
         "zh-Hant": "zh-TW",
-        "en": "en",
+        en: "en",
       };
       i18n.changeLanguage(langMap[state.nameLocale] || "zh-TW");
     }
@@ -59,7 +59,7 @@ if (initialLocale === "auto") {
 } else {
   const langMap: Record<string, string> = {
     "zh-Hant": "zh-TW",
-    "en": "en",
+    en: "en",
   };
   i18n.changeLanguage(langMap[initialLocale] || "zh-TW");
 }

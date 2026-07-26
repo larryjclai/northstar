@@ -46,7 +46,10 @@ describeEachRepo("invoices + clients (發票/客戶)", (makeRepo) => {
     expect(created!.taxId).toBe("12345678");
     expect(created!.defaultPaymentTerms).toBe(30);
 
-    await repo.updateClient(created!.id, clientDraft({ name: "客戶甲（改名）", taxId: "", defaultPaymentTerms: null }));
+    await repo.updateClient(
+      created!.id,
+      clientDraft({ name: "客戶甲（改名）", taxId: "", defaultPaymentTerms: null }),
+    );
     clients = await repo.listClients();
     const updated = clients.find((client) => client.id === created!.id);
     expect(updated!.name).toBe("客戶甲（改名）");
@@ -74,7 +77,16 @@ describeEachRepo("invoices + clients (發票/客戶)", (makeRepo) => {
     // A newly created invoice always starts unsettled.
     expect(created!.settledAt).toBeNull();
 
-    await repo.updateInvoice(created!.id, invoiceDraft({ clientId: null, invoiceNumber: "AB12345679", amount: 210_000, taxExclusiveAmount: 200_000, taxAmount: 10_000 }));
+    await repo.updateInvoice(
+      created!.id,
+      invoiceDraft({
+        clientId: null,
+        invoiceNumber: "AB12345679",
+        amount: 210_000,
+        taxExclusiveAmount: 200_000,
+        taxAmount: 10_000,
+      }),
+    );
     invoices = await repo.listInvoices();
     const updated = invoices.find((invoice) => invoice.id === created!.id);
     expect(updated!.invoiceNumber).toBe("AB12345679");
@@ -89,7 +101,9 @@ describeEachRepo("invoices + clients (發票/客戶)", (makeRepo) => {
   it("stampInvoiceSettled sets and clears settledAt on the invoice matching linkedLedgerTransactionId", async () => {
     const repo = await makeRepo();
     await repo.createInvoice(invoiceDraft({ linkedLedgerTransactionId: "ledger_abc" }));
-    const invoice = (await repo.listInvoices()).find((row) => row.linkedLedgerTransactionId === "ledger_abc")!;
+    const invoice = (await repo.listInvoices()).find(
+      (row) => row.linkedLedgerTransactionId === "ledger_abc",
+    )!;
     expect(invoice.settledAt).toBeNull();
 
     await repo.stampInvoiceSettled("ledger_abc", "2026-07-15T00:00:00.000Z");
@@ -107,7 +121,9 @@ describeEachRepo("invoices + clients (發票/客戶)", (makeRepo) => {
     await repo.createInvoice(invoiceDraft({ linkedLedgerTransactionId: "ledger_abc" }));
     // Should not throw, and should not touch the unrelated invoice.
     await repo.stampInvoiceSettled("ledger_does_not_exist", "2026-07-15T00:00:00.000Z");
-    const invoice = (await repo.listInvoices()).find((row) => row.linkedLedgerTransactionId === "ledger_abc")!;
+    const invoice = (await repo.listInvoices()).find(
+      (row) => row.linkedLedgerTransactionId === "ledger_abc",
+    )!;
     expect(invoice.settledAt).toBeNull();
   });
 

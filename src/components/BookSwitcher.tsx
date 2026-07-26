@@ -39,7 +39,8 @@ export function BookSwitcher({ collapsed }: { collapsed: boolean }) {
   const setActiveBookId = useUiPreferences((state) => state.setActiveBookId);
 
   const bookRows: Book[] = books.data ?? [];
-  const activeBook = activeBookId === ALL_BOOKS ? null : bookRows.find((b) => b.id === activeBookId) ?? null;
+  const activeBook =
+    activeBookId === ALL_BOOKS ? null : (bookRows.find((b) => b.id === activeBookId) ?? null);
   // Fallback label/dot for an activeBookId that no longer resolves (e.g. data
   // not loaded yet) — treat as 總帳 visually rather than showing nothing.
   const label = activeBookId === ALL_BOOKS || !activeBook ? "總帳" : activeBook.name;
@@ -69,7 +70,10 @@ export function BookSwitcher({ collapsed }: { collapsed: boolean }) {
               className="w-full flex items-center gap-2 px-3 py-2 text-body text-muted-foreground bg-secondary/30 hover:bg-secondary/50 rounded-md border border-border/50 transition-colors muted"
             >
               <BookDot color={dotColor} />
-              <span className="flex-1 text-left" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span
+                className="flex-1 text-left"
+                style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+              >
                 {label}
               </span>
               <CaretUpDown size={14} style={{ flexShrink: 0, opacity: 0.6 }} />
@@ -107,7 +111,15 @@ export function BookSwitcher({ collapsed }: { collapsed: boolean }) {
               style={{ justifyContent: "flex-start" }}
             >
               <BookDot color={b.color} />
-              <span style={{ flex: 1, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span
+                style={{
+                  flex: 1,
+                  textAlign: "left",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {b.name}
               </span>
               {activeBookId === b.id ? <Check size={14} /> : null}

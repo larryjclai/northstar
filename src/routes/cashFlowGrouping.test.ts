@@ -54,7 +54,13 @@ describe("groupByDay", () => {
     const rows = [
       row({ id: "1", date: "2026-05-01T09:00", entryType: "income", amount: 500 }),
       row({ id: "2", date: "2026-05-01T10:00", entryType: "transfer", amount: -500 }),
-      row({ id: "3", date: "2026-05-01T11:00", entryType: "expense", amount: -50, counterAccountId: "b" }),
+      row({
+        id: "3",
+        date: "2026-05-01T11:00",
+        entryType: "expense",
+        amount: -50,
+        counterAccountId: "b",
+      }),
     ];
     const groups = groupByDay(rows, toPrimary);
     expect(groups[0].rows).toHaveLength(3); // still all rendered

@@ -52,9 +52,7 @@ export function NetWorthProjectionCard({
 
   const projection = useMemo(
     () =>
-      hasData
-        ? projectNetWorth(netWorth, annualContribution, returnPct, primaryCurrency)
-        : null,
+      hasData ? projectNetWorth(netWorth, annualContribution, returnPct, primaryCurrency) : null,
     [netWorth, annualContribution, returnPct, primaryCurrency, hasData],
   );
 
@@ -97,36 +95,17 @@ export function NetWorthProjectionCard({
       <div style={{ position: "relative", height: 200 }}>
         <div style={{ position: "absolute", inset: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
-              data={series}
-              margin={{ top: 8, right: 0, left: 0, bottom: 24 }}
-            >
+            <AreaChart data={series} margin={{ top: 8, right: 0, left: 0, bottom: 24 }}>
               <defs>
                 {/* Bear/bull fill band */}
                 <linearGradient id="nwp-band" x1="0" x2="0" y1="0" y2="1">
-                  <stop
-                    offset="5%"
-                    stopColor="var(--ns-accent)"
-                    stopOpacity={0.15}
-                  />
-                  <stop
-                    offset="95%"
-                    stopColor="var(--ns-accent)"
-                    stopOpacity={0}
-                  />
+                  <stop offset="5%" stopColor="var(--ns-accent)" stopOpacity={0.15} />
+                  <stop offset="95%" stopColor="var(--ns-accent)" stopOpacity={0} />
                 </linearGradient>
                 {/* Neutral line gradient */}
                 <linearGradient id="nwp-neutral" x1="0" x2="0" y1="0" y2="1">
-                  <stop
-                    offset="5%"
-                    stopColor="var(--ns-accent)"
-                    stopOpacity={0.25}
-                  />
-                  <stop
-                    offset="95%"
-                    stopColor="var(--ns-accent)"
-                    stopOpacity={0}
-                  />
+                  <stop offset="5%" stopColor="var(--ns-accent)" stopOpacity={0.25} />
+                  <stop offset="95%" stopColor="var(--ns-accent)" stopOpacity={0} />
                 </linearGradient>
               </defs>
 
@@ -137,10 +116,7 @@ export function NetWorthProjectionCard({
                 axisLine={false}
                 minTickGap={40}
               />
-              <YAxis
-                hide
-                domain={[0, "dataMax"]}
-              />
+              <YAxis hide domain={[0, "dataMax"]} />
               <Tooltip
                 formatter={(value, name) => {
                   const labels: Record<string, string> = {
@@ -240,10 +216,7 @@ export function NetWorthProjectionCard({
           <span className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>
             預期年化報酬（中性）
           </span>
-          <span
-            className="num text-xs"
-            style={{ fontWeight: 600, color: "var(--ns-accent)" }}
-          >
+          <span className="num text-xs" style={{ fontWeight: 600, color: "var(--ns-accent)" }}>
             {returnPct.toFixed(1)}%
           </span>
         </div>
@@ -272,10 +245,7 @@ export function NetWorthProjectionCard({
       </div>
 
       {/* ── Disclaimer ── */}
-      <div
-        className="text-caption"
-        style={{ color: "var(--ns-fg-dim)", marginTop: 12 }}
-      >
+      <div className="text-caption" style={{ color: "var(--ns-fg-dim)", marginTop: 12 }}>
         以名目金額（含通膨）顯示 · 情境幅度 ±2.5% · 僅供參考，非財務建議
       </div>
     </Card>
@@ -291,7 +261,7 @@ function SectionHead() {
     <div style={{ marginBottom: 16 }}>
       <div
         className="text-xs"
-        style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}
+        style={{ marginBottom: 4, color: "var(--ns-fg-muted)", fontWeight: 500 }}
       >
         Future net worth · 30-year projection
       </div>
@@ -327,7 +297,10 @@ function MilestoneCell({
         border: "1px solid var(--ns-border)",
       }}
     >
-      <div className="text-xs" style={{  fontSize: 10, marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>
+      <div
+        className="text-xs"
+        style={{ fontSize: 10, marginBottom: 4, color: "var(--ns-fg-muted)", fontWeight: 500 }}
+      >
         {label}
       </div>
       <div
@@ -346,19 +319,9 @@ function MilestoneCell({
   );
 }
 
-function LegendDot({
-  color,
-  dashed,
-  label,
-}: {
-  color: string;
-  dashed?: boolean;
-  label: string;
-}) {
+function LegendDot({ color, dashed, label }: { color: string; dashed?: boolean; label: string }) {
   return (
-    <span
-      style={{ display: "flex", alignItems: "center", gap: 5 }}
-    >
+    <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
       <span
         style={{
           display: "inline-block",

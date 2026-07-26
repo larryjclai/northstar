@@ -1,6 +1,10 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import { createSqliteFinanceRepositoryForTests, type FinanceRepository, type InvestmentDraft } from "./repositories";
+import {
+  createSqliteFinanceRepositoryForTests,
+  type FinanceRepository,
+  type InvestmentDraft,
+} from "./repositories";
 
 // Minimal shim of @tauri-apps/plugin-sql's Database over node:sqlite, so the
 // real SQLite repository (BEGIN/COMMIT, triggers, recompute) can be exercised
@@ -11,7 +15,9 @@ function makeShim() {
   const raw = new DatabaseSync(":memory:");
   function named(values?: unknown[]) {
     const obj: Record<string, unknown> = {};
-    (values ?? []).forEach((v, i) => { obj[`$${i + 1}`] = v === undefined ? null : v; });
+    (values ?? []).forEach((v, i) => {
+      obj[`$${i + 1}`] = v === undefined ? null : v;
+    });
     return obj as never;
   }
   return {
@@ -19,7 +25,10 @@ function makeShim() {
     // concurrently-started operations can interleave at their await points.
     async execute(sql: string, values?: unknown[]) {
       await Promise.resolve();
-      if (!values || values.length === 0) { raw.exec(sql); return { rowsAffected: 0, lastInsertId: 0 }; }
+      if (!values || values.length === 0) {
+        raw.exec(sql);
+        return { rowsAffected: 0, lastInsertId: 0 };
+      }
       const info = raw.prepare(sql).run(named(values));
       return { rowsAffected: Number(info.changes), lastInsertId: Number(info.lastInsertRowid) };
     },
@@ -27,22 +36,44 @@ function makeShim() {
       await Promise.resolve();
       return raw.prepare(sql).all(named(values)) as unknown as T;
     },
-    async close() { raw.close(); return true; },
+    async close() {
+      raw.close();
+      return true;
+    },
   } as never;
 }
 
 const buy: InvestmentDraft = {
-  ticker: "2412.TW", name: "中華電", currency: "TWD", linkedAccountId: null,
-  date: "2026-06-01T20:38", action: "buy", price: 2125, quantity: 5, fee: 5, note: "",
+  ticker: "2412.TW",
+  name: "中華電",
+  currency: "TWD",
+  linkedAccountId: null,
+  date: "2026-06-01T20:38",
+  action: "buy",
+  price: 2125,
+  quantity: 5,
+  fee: 5,
+  note: "",
 };
 
 async function setup(): Promise<{ repo: FinanceRepository; accountId: string }> {
   const repo = await createSqliteFinanceRepositoryForTests(makeShim());
   await repo.createAccount({
-    name: "凱基證券", currency: "TWD", openingBalance: 100000, type: "investment",
-    creditLimit: null, creditLimitGroup: "", statementDay: null, paymentDueDay: null, creditPaymentPaidUntil: null,
-    isSharedToHousehold: false, loanStartDate: null, annualInterestRate: null, loanTerm: null,
-    iconName: null, color: null,
+    name: "凱基證券",
+    currency: "TWD",
+    openingBalance: 100000,
+    type: "investment",
+    creditLimit: null,
+    creditLimitGroup: "",
+    statementDay: null,
+    paymentDueDay: null,
+    creditPaymentPaidUntil: null,
+    isSharedToHousehold: false,
+    loanStartDate: null,
+    annualInterestRate: null,
+    loanTerm: null,
+    iconName: null,
+    color: null,
   } as never);
   const [account] = await repo.listAccounts();
   return { repo, accountId: account.id };
@@ -71,10 +102,18 @@ describe("sqlite repository transactions", () => {
     await repo.createInvestmentRecord(draft);
     const [created] = await repo.listInvestmentRecords();
 
-    await expect(Promise.all([
-      repo.updateInvestmentRecord(created.id, { ...draft, quantity: 3 }),
-      repo.createInvestmentRecord({ ...draft, ticker: "2330.TW", name: "台積電", quantity: 1, price: 1000 }),
-    ])).resolves.toBeDefined();
+    await expect(
+      Promise.all([
+        repo.updateInvestmentRecord(created.id, { ...draft, quantity: 3 }),
+        repo.createInvestmentRecord({
+          ...draft,
+          ticker: "2330.TW",
+          name: "台積電",
+          quantity: 1,
+          price: 1000,
+        }),
+      ]),
+    ).resolves.toBeDefined();
 
     const records = await repo.listInvestmentRecords();
     expect(records.find((r) => r.id === created.id)?.quantity).toBe(3);
@@ -93,13 +132,22 @@ describe("sqlite repository transactions", () => {
 
     const snapshot = await repo.exportSnapshot();
 
-    await expect(Promise.all([
-      repo.updateInvestmentRecord(created.id, { ...draft, quantity: 3 }),
-      repo.importSnapshot(snapshot),
-    ])).resolves.toBeDefined();
+    await expect(
+      Promise.all([
+        repo.updateInvestmentRecord(created.id, { ...draft, quantity: 3 }),
+        repo.importSnapshot(snapshot),
+      ]),
+    ).resolves.toBeDefined();
 
     // The DB must remain usable afterwards (no stranded transaction / lock).
-    await expect(repo.createInvestmentRecord({ ...draft, ticker: "2330.TW", name: "台積電", quantity: 1, price: 1000 }))
-      .resolves.toBeUndefined();
+    await expect(
+      repo.createInvestmentRecord({
+        ...draft,
+        ticker: "2330.TW",
+        name: "台積電",
+        quantity: 1,
+        price: 1000,
+      }),
+    ).resolves.toBeUndefined();
   });
 });

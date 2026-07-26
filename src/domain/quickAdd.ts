@@ -262,7 +262,10 @@ function extractKnownMerchant(
     }
   });
   if (exactIdx >= 0) {
-    const name = tokens.filter((_, i) => i !== exactIdx).join(" ").trim();
+    const name = tokens
+      .filter((_, i) => i !== exactIdx)
+      .join(" ")
+      .trim();
     return { merchant: exactCanonical, name };
   }
 
@@ -352,8 +355,13 @@ export function parseQuickAdd(raw: string, ctx: QuickAddContext): QuickAddParsed
   let explicitMerchant: string | undefined;
   if (merchantTagMatch) {
     explicitMerchant = merchantTagMatch[1];
-    body = (body.slice(0, merchantTagMatch.index) + " " + body.slice(merchantTagMatch.index + merchantTagMatch[0].length))
-      .replace(/\s+/g, " ").trim();
+    body = (
+      body.slice(0, merchantTagMatch.index) +
+      " " +
+      body.slice(merchantTagMatch.index + merchantTagMatch[0].length)
+    )
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   // Date keyword extraction — must happen before amount scan so date spans
@@ -365,7 +373,8 @@ export function parseQuickAdd(raw: string, ctx: QuickAddContext): QuickAddParsed
     if (dateHit) {
       parsedDate = dateHit.datetimeLocal;
       body = (body.slice(0, dateHit.span[0]) + " " + body.slice(dateHit.span[1]))
-        .replace(/\s+/g, " ").trim();
+        .replace(/\s+/g, " ")
+        .trim();
     }
   }
 
@@ -384,8 +393,10 @@ export function parseQuickAdd(raw: string, ctx: QuickAddContext): QuickAddParsed
   if (account) remainingText = remainingText.replace(account.name, " ");
   remainingText = remainingText.replace(/\s+/g, " ").trim();
   // Strip English prepositions that link merchant to account/amount tokens.
-  remainingText = remainingText.replace(/\b(?:at|from|on|for|paid|with|via|using)\b/gi, " ")
-    .replace(/\s+/g, " ").trim();
+  remainingText = remainingText
+    .replace(/\b(?:at|from|on|for|paid|with|via|using)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
   // merchant / name split:
   //   1. @ syntax → merchant = @value, name (description) = remainingText.

@@ -33,7 +33,13 @@ async function fullSync(from: any, to: any, opts: { dropOpening?: boolean } = {}
   // Serialize every entity from A exactly as push would (getSyncPayload),
   // wrap as envelopes from a different device, and pullAndApply into B.
   const entities: Exclude<SyncEntity, "settings">[] = [
-    "account", "asset", "investment", "ledger", "recurring", "recurringInvestment", "goal",
+    "account",
+    "asset",
+    "investment",
+    "ledger",
+    "recurring",
+    "recurringInvestment",
+    "goal",
   ];
   const data = (from as any).data;
   const lists: Record<string, any[]> = {
@@ -48,7 +54,8 @@ async function fullSync(from: any, to: any, opts: { dropOpening?: boolean } = {}
   const envelopes: any[] = [];
   for (const entity of entities) {
     for (const row of lists[entity]) {
-      if (opts.dropOpening && entity === "investment" && String(row.id).startsWith("inv_open_")) continue;
+      if (opts.dropOpening && entity === "investment" && String(row.id).startsWith("inv_open_"))
+        continue;
       const payload = await from.getSyncPayload(entity, row.id);
       if (!payload) continue;
       envelopes.push({
@@ -70,57 +77,111 @@ describe("repro: manual holding + buy sync", () => {
   it("syncs 400 manual + 20 buy = 420 to device B", async () => {
     const A = createMemoryFinanceRepositoryForTests();
     await A.createAccount({
-      name: "券商", currency: "TWD", openingBalance: 0, type: "investment",
-      creditLimit: null, creditLimitGroup: "", statementDay: null, paymentDueDay: null,
-      creditPaymentPaidUntil: null, isSharedToHousehold: false, loanStartDate: null,
-      annualInterestRate: null, loanTerm: null, iconName: null, color: null,
+      name: "券商",
+      currency: "TWD",
+      openingBalance: 0,
+      type: "investment",
+      creditLimit: null,
+      creditLimitGroup: "",
+      statementDay: null,
+      paymentDueDay: null,
+      creditPaymentPaidUntil: null,
+      isSharedToHousehold: false,
+      loanStartDate: null,
+      annualInterestRate: null,
+      loanTerm: null,
+      iconName: null,
+      color: null,
     } as any);
     const acct = (await A.listAccounts())[0];
 
     await A.createManualHolding({
-      ticker: "2449.TW", name: "京元電子", currency: "TWD",
-      totalQuantity: 400, averageCost: 50, acquisitionDate: "2024-01-01", accountId: acct.id,
+      ticker: "2449.TW",
+      name: "京元電子",
+      currency: "TWD",
+      totalQuantity: 400,
+      averageCost: 50,
+      acquisitionDate: "2024-01-01",
+      accountId: acct.id,
     });
     await A.createInvestmentRecord({
-      ticker: "2449.TW", name: "京元電子", currency: "TWD", linkedAccountId: acct.id,
-      date: "2024-06-01", action: "buy", price: 60, quantity: 20, fee: 0, note: "",
+      ticker: "2449.TW",
+      name: "京元電子",
+      currency: "TWD",
+      linkedAccountId: acct.id,
+      date: "2024-06-01",
+      action: "buy",
+      price: 60,
+      quantity: 20,
+      fee: 0,
+      note: "",
     });
 
     const aAssets = await A.listPortfolioAssets();
-    const aTotal = aAssets.filter(a => a.ticker === "2449.TW").reduce((s, a) => s + a.totalQuantity, 0);
+    const aTotal = aAssets
+      .filter((a) => a.ticker === "2449.TW")
+      .reduce((s, a) => s + a.totalQuantity, 0);
     expect(aTotal).toBe(420);
 
     const B = createMemoryFinanceRepositoryForTests();
     await fullSync(A, B);
 
     const bAssets = await B.listPortfolioAssets();
-    const bTotal = bAssets.filter(a => a.ticker === "2449.TW").reduce((s, a) => s + a.totalQuantity, 0);
+    const bTotal = bAssets
+      .filter((a) => a.ticker === "2449.TW")
+      .reduce((s, a) => s + a.totalQuantity, 0);
     expect(bTotal).toBe(420);
   });
 
   it("survives a missing opening-balance lot (the reported bug)", async () => {
     const A = createMemoryFinanceRepositoryForTests();
     await A.createAccount({
-      name: "券商", currency: "TWD", openingBalance: 0, type: "investment",
-      creditLimit: null, creditLimitGroup: "", statementDay: null, paymentDueDay: null,
-      creditPaymentPaidUntil: null, isSharedToHousehold: false, loanStartDate: null,
-      annualInterestRate: null, loanTerm: null, iconName: null, color: null,
+      name: "券商",
+      currency: "TWD",
+      openingBalance: 0,
+      type: "investment",
+      creditLimit: null,
+      creditLimitGroup: "",
+      statementDay: null,
+      paymentDueDay: null,
+      creditPaymentPaidUntil: null,
+      isSharedToHousehold: false,
+      loanStartDate: null,
+      annualInterestRate: null,
+      loanTerm: null,
+      iconName: null,
+      color: null,
     } as any);
     const acct = (await A.listAccounts())[0];
     await A.createManualHolding({
-      ticker: "2449.TW", name: "京元電子", currency: "TWD",
-      totalQuantity: 400, averageCost: 50, acquisitionDate: "2024-01-01", accountId: acct.id,
+      ticker: "2449.TW",
+      name: "京元電子",
+      currency: "TWD",
+      totalQuantity: 400,
+      averageCost: 50,
+      acquisitionDate: "2024-01-01",
+      accountId: acct.id,
     });
     await A.createInvestmentRecord({
-      ticker: "2449.TW", name: "京元電子", currency: "TWD", linkedAccountId: acct.id,
-      date: "2024-06-01", action: "buy", price: 60, quantity: 20, fee: 0, note: "",
+      ticker: "2449.TW",
+      name: "京元電子",
+      currency: "TWD",
+      linkedAccountId: acct.id,
+      date: "2024-06-01",
+      action: "buy",
+      price: 60,
+      quantity: 20,
+      fee: 0,
+      note: "",
     });
 
     const B = createMemoryFinanceRepositoryForTests();
     await fullSync(A, B, { dropOpening: true });
 
     const bAssets = await B.listPortfolioAssets();
-    const bTotal = bAssets.filter(a => a.ticker === "2449.TW").reduce((s, a) => s + a.totalQuantity, 0);
+    const bTotal = bAssets
+      .filter((a) => a.ticker === "2449.TW")
+      .reduce((s, a) => s + a.totalQuantity, 0);
     expect(bTotal).toBe(420);
   });
 });

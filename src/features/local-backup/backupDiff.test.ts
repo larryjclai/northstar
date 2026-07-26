@@ -39,9 +39,13 @@ function snapshot(
     dailyPrices: fill(counts.dailyPrices ?? 0),
   } as unknown as RepositorySnapshot;
   if (!opts.omitOptionals) {
-    base.recurringInvestments = fill(counts.recurringInvestments ?? 0) as RepositorySnapshot["recurringInvestments"];
+    base.recurringInvestments = fill(
+      counts.recurringInvestments ?? 0,
+    ) as RepositorySnapshot["recurringInvestments"];
     base.financialGoals = fill(counts.financialGoals ?? 0) as RepositorySnapshot["financialGoals"];
-    base.manualPriceSnapshots = fill(counts.manualPriceSnapshots ?? 0) as RepositorySnapshot["manualPriceSnapshots"];
+    base.manualPriceSnapshots = fill(
+      counts.manualPriceSnapshots ?? 0,
+    ) as RepositorySnapshot["manualPriceSnapshots"];
   }
   return base;
 }

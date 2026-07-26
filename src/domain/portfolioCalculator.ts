@@ -1,6 +1,15 @@
 import { buildPositionMetrics } from "./portfolioMetrics";
-import type { DailyPriceSeriesRow, HoldingPosition, InvestmentRecord, PortfolioAsset } from "./types";
-import { buildDailyPriceLookup, findDailyPriceAtOrBefore, type DailyPriceLookup } from "./valuation";
+import type {
+  DailyPriceSeriesRow,
+  HoldingPosition,
+  InvestmentRecord,
+  PortfolioAsset,
+} from "./types";
+import {
+  buildDailyPriceLookup,
+  findDailyPriceAtOrBefore,
+  type DailyPriceLookup,
+} from "./valuation";
 
 export interface MarketQuote {
   symbol: string;
@@ -24,7 +33,10 @@ export interface HoldingValuation {
    * latest manual snapshot at-or-before the date; only consulted for custom
    * assets. Non-custom valuation is unaffected whether or not this is supplied.
    */
-  manualPriceLookup?: (assetId: string, date: string) => { price: number; currency: string } | undefined;
+  manualPriceLookup?: (
+    assetId: string,
+    date: string,
+  ) => { price: number; currency: string } | undefined;
 }
 
 /**
@@ -39,19 +51,24 @@ function resolveHoldingPrice(
   quote: MarketQuote | undefined,
   lookup: DailyPriceLookup | null,
   asOf: string | null,
-  manualPriceLookup?: (assetId: string, date: string) => { price: number; currency: string } | undefined,
+  manualPriceLookup?: (
+    assetId: string,
+    date: string,
+  ) => { price: number; currency: string } | undefined,
 ): { marketPrice: number | null; valuePrice: number } {
   // Custom (manually-priced) assets value from manual snapshots → cost only; they
   // never consult a live quote or daily close. Gated strictly on assetType so the
   // standard quote → close → cost path below is byte-for-byte unchanged.
   if (asset.assetType === "custom") {
     const manual = asOf ? manualPriceLookup?.(asset.id, asOf) : undefined;
-    const manualPrice = manual && Number.isFinite(manual.price) && manual.price > 0 ? manual.price : null;
+    const manualPrice =
+      manual && Number.isFinite(manual.price) && manual.price > 0 ? manual.price : null;
     const valuePrice = manualPrice ?? (lookup ? asset.averageCost : 0);
     return { marketPrice: manualPrice, valuePrice };
   }
   const quotePrice = quote?.price ?? null;
-  const closePrice = lookup && asOf ? findDailyPriceAtOrBefore(lookup, asset.ticker, asOf)?.close ?? null : null;
+  const closePrice =
+    lookup && asOf ? (findDailyPriceAtOrBefore(lookup, asset.ticker, asOf)?.close ?? null) : null;
   const marketPrice = quotePrice ?? closePrice;
   // Cost fallback only applies once a valuation context exists; without it we
   // preserve the legacy "0 when unpriced" behaviour (marketPrice stays null and
@@ -79,18 +96,27 @@ export function buildHoldingPositions(
     .filter((asset) => asset.deletedAt === null)
     .map((asset) => {
       const assetRecords = recordsByAsset.get(asset.id) ?? [];
-      const quantity = asset.holdingSource === "manual"
-        ? asset.totalQuantity
-        : assetRecords
-          .sort((a, b) => a.date.localeCompare(b.date))
-          .reduce((sum, record) => {
-            if (record.action === "buy" || record.action === "stockDividend") return sum + record.quantity;
-            if (record.action === "sell") return sum - record.quantity;
-            if (record.action === "stockSplit" && record.quantity > 0) return sum * record.quantity;
-            return sum;
-          }, 0);
+      const quantity =
+        asset.holdingSource === "manual"
+          ? asset.totalQuantity
+          : assetRecords
+              .sort((a, b) => a.date.localeCompare(b.date))
+              .reduce((sum, record) => {
+                if (record.action === "buy" || record.action === "stockDividend")
+                  return sum + record.quantity;
+                if (record.action === "sell") return sum - record.quantity;
+                if (record.action === "stockSplit" && record.quantity > 0)
+                  return sum * record.quantity;
+                return sum;
+              }, 0);
       const quote = quotes[asset.ticker];
-      const { marketPrice, valuePrice } = resolveHoldingPrice(asset, quote, lookup, asOf, valuation?.manualPriceLookup);
+      const { marketPrice, valuePrice } = resolveHoldingPrice(
+        asset,
+        quote,
+        lookup,
+        asOf,
+        valuation?.manualPriceLookup,
+      );
       const marketValue = quantity * valuePrice;
       const costBasis = quantity * asset.averageCost;
       const unrealizedGain = marketValue - costBasis;
@@ -145,7 +171,13 @@ export function buildHoldingPositionsByAccount(
   for (const asset of assets) {
     if (asset.deletedAt !== null) continue;
     const quote = quotes[asset.ticker];
-    const { marketPrice, valuePrice } = resolveHoldingPrice(asset, quote, lookup, asOf, valuation?.manualPriceLookup);
+    const { marketPrice, valuePrice } = resolveHoldingPrice(
+      asset,
+      quote,
+      lookup,
+      asOf,
+      valuation?.manualPriceLookup,
+    );
 
     const assetRecords = recordsByAsset.get(asset.id) ?? [];
 

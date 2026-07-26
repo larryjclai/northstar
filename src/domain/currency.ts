@@ -75,7 +75,12 @@ export function convertCurrency(
   return null;
 }
 
-function pickDailyRate(rates: DailyFxRate[], from: string, to: string, asOfDate: string): number | null {
+function pickDailyRate(
+  rates: DailyFxRate[],
+  from: string,
+  to: string,
+  asOfDate: string,
+): number | null {
   let best: DailyFxRate | null = null;
   for (const row of rates) {
     if (row.from !== from || row.to !== to) continue;
@@ -127,10 +132,12 @@ export function createFxConverter(
   const rates = dailyRates ?? [];
   const dailyRateIndex = buildDailyRateIndex(rates);
   function toPrimary(amount: number, currency: string, asOfDate?: string) {
-    return convertCurrency(amount, currency, primary, settings, {
-      dailyRateIndex,
-      asOfDate,
-    }) ?? 0;
+    return (
+      convertCurrency(amount, currency, primary, settings, {
+        dailyRateIndex,
+        asOfDate,
+      }) ?? 0
+    );
   }
   /**
    * Null-aware sibling of {@link toPrimary}: returns `null` (instead of silently
@@ -186,11 +193,15 @@ export function formatCompactNumber(amount: number): string {
   const abs = Math.abs(amount);
   const sign = amount < 0 ? MINUS : "";
   if (__compactLocale === "en") {
-    if (abs < 1000) return typographicMinus(amount.toLocaleString("en", { maximumFractionDigits: 0 }));
-    return typographicMinus(amount.toLocaleString("en", { notation: "compact", maximumFractionDigits: 2 }));
+    if (abs < 1000)
+      return typographicMinus(amount.toLocaleString("en", { maximumFractionDigits: 0 }));
+    return typographicMinus(
+      amount.toLocaleString("en", { notation: "compact", maximumFractionDigits: 2 }),
+    );
   }
   // zh-TW: switch to 萬 (10^4) then 億 (10^8).
-  if (abs < 10_000) return typographicMinus(amount.toLocaleString("zh-TW", { maximumFractionDigits: 0 }));
+  if (abs < 10_000)
+    return typographicMinus(amount.toLocaleString("zh-TW", { maximumFractionDigits: 0 }));
   if (abs < 100_000_000) return `${sign}${trimUnit(abs / 10_000)}萬`;
   return `${sign}${trimUnit(abs / 100_000_000)}億`;
 }
@@ -203,7 +214,9 @@ export function formatCompactMoney(amount: number, currency: string): string {
 // Keep up to two decimals but drop trailing zeros so "1485萬" not "1485.00萬"
 // and "1.49億" reads cleanly.
 function trimUnit(value: number): string {
-  return value.toLocaleString(__compactLocale === "en" ? "en" : "zh-TW", { maximumFractionDigits: 2 });
+  return value.toLocaleString(__compactLocale === "en" ? "en" : "zh-TW", {
+    maximumFractionDigits: 2,
+  });
 }
 
 export function isPrivacyMaskOn() {
@@ -241,10 +254,14 @@ export function formatPrice(value: number, fractionDigits?: number) {
   // zeros beyond the 2-decimal minimum are dropped. Pass an explicit count to
   // pin a fixed number of decimals. See B18 precision policy.
   if (fractionDigits === undefined) {
-    return typographicMinus(value.toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 6 }));
+    return typographicMinus(
+      value.toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
+    );
   }
-  return typographicMinus(value.toLocaleString("zh-TW", {
-    maximumFractionDigits: fractionDigits,
-    minimumFractionDigits: fractionDigits,
-  }));
+  return typographicMinus(
+    value.toLocaleString("zh-TW", {
+      maximumFractionDigits: fractionDigits,
+      minimumFractionDigits: fractionDigits,
+    }),
+  );
 }

@@ -29,20 +29,44 @@ import { resolveCountryLabel, resolveHoldingCountry } from "./assetCountry";
 const identity = (value: number) => value;
 
 function price(ticker: string, date: string, close: number): DailyPrice {
-  return { ticker, date, close, currency: "USD", source: "test", updatedAt: `${date}T00:00:00.000Z` };
+  return {
+    ticker,
+    date,
+    close,
+    currency: "USD",
+    source: "test",
+    updatedAt: `${date}T00:00:00.000Z`,
+  };
 }
 
 function snapshot(assetId: string, date: string, p: number): ManualPriceSnapshot {
-  return { id: `${assetId}-${date}`, assetId, date, price: p, note: "", createdAt: `${date}T00:00:00.000Z` };
+  return {
+    id: `${assetId}-${date}`,
+    assetId,
+    date,
+    price: p,
+    note: "",
+    createdAt: `${date}T00:00:00.000Z`,
+  };
 }
 
 function pos(partial: Partial<AnalyticsPosition>): AnalyticsPosition {
-  return { assetId: "a", ticker: "AAA", quantity: 10, currency: "USD", isManual: false, ...partial };
+  return {
+    assetId: "a",
+    ticker: "AAA",
+    quantity: 10,
+    currency: "USD",
+    isManual: false,
+    ...partial,
+  };
 }
 
 describe("dailyReturns", () => {
   it("computes simple period returns", () => {
-    expect(dailyReturns([100, 110, 99])).toEqual([expect.closeTo(0.1, 10), expect.closeTo(-0.1, 10)]);
+    expect(dailyReturns([100, 110, 99])).toEqual([
+      expect.closeTo(0.1, 10),
+      expect.closeTo(-0.1, 10),
+    ]);
   });
   it("skips steps off a non-positive prior value", () => {
     expect(dailyReturns([100, 0, 50])).toEqual([-1]); // 0→50 skipped (prev 0)
@@ -165,9 +189,18 @@ describe("hasEnoughReturns", () => {
 describe("buildPortfolioValueSeries", () => {
   it("values a single tracked holding across the window", () => {
     const positions = [pos({ assetId: "a", ticker: "AAA", quantity: 10 })];
-    const dailyPrices = [price("AAA", "2024-01-01", 10), price("AAA", "2024-01-02", 11), price("AAA", "2024-01-03", 12)];
+    const dailyPrices = [
+      price("AAA", "2024-01-01", 10),
+      price("AAA", "2024-01-02", 11),
+      price("AAA", "2024-01-03", 12),
+    ];
     const { series, excludedTickers, coverageStart } = buildPortfolioValueSeries({
-      positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-01", end: "2024-01-03",
+      positions,
+      dailyPrices,
+      manualSnapshots: [],
+      toPrimary: identity,
+      start: "2024-01-01",
+      end: "2024-01-03",
     });
     expect(series.map((p) => p.value)).toEqual([100, 110, 120]);
     expect(coverageStart).toBe("2024-01-01");
@@ -180,11 +213,19 @@ describe("buildPortfolioValueSeries", () => {
       pos({ assetId: "b", ticker: "BBB", quantity: 10 }),
     ];
     const dailyPrices = [
-      price("AAA", "2024-01-01", 10), price("AAA", "2024-01-02", 10), price("AAA", "2024-01-03", 10),
-      price("BBB", "2024-01-01", 5), price("BBB", "2024-01-03", 5), // missing 01-02
+      price("AAA", "2024-01-01", 10),
+      price("AAA", "2024-01-02", 10),
+      price("AAA", "2024-01-03", 10),
+      price("BBB", "2024-01-01", 5),
+      price("BBB", "2024-01-03", 5), // missing 01-02
     ];
     const { series } = buildPortfolioValueSeries({
-      positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-01", end: "2024-01-03",
+      positions,
+      dailyPrices,
+      manualSnapshots: [],
+      toPrimary: identity,
+      start: "2024-01-01",
+      end: "2024-01-03",
     });
     // 01-02 carries BBB's 01-01 close → basket stays 150 throughout.
     expect(series.map((p) => p.value)).toEqual([150, 150, 150]);
@@ -196,11 +237,19 @@ describe("buildPortfolioValueSeries", () => {
       pos({ assetId: "b", ticker: "BBB", quantity: 10 }),
     ];
     const dailyPrices = [
-      price("AAA", "2024-01-01", 10), price("AAA", "2024-01-02", 10), price("AAA", "2024-01-03", 10),
-      price("BBB", "2024-01-02", 5), price("BBB", "2024-01-03", 5), // first price only on 01-02
+      price("AAA", "2024-01-01", 10),
+      price("AAA", "2024-01-02", 10),
+      price("AAA", "2024-01-03", 10),
+      price("BBB", "2024-01-02", 5),
+      price("BBB", "2024-01-03", 5), // first price only on 01-02
     ];
     const { series, coverageStart } = buildPortfolioValueSeries({
-      positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-01", end: "2024-01-03",
+      positions,
+      dailyPrices,
+      manualSnapshots: [],
+      toPrimary: identity,
+      start: "2024-01-01",
+      end: "2024-01-03",
     });
     expect(coverageStart).toBe("2024-01-02");
     expect(series[0].date).toBe("2024-01-02");
@@ -214,7 +263,12 @@ describe("buildPortfolioValueSeries", () => {
     ];
     const dailyPrices = [price("AAA", "2024-01-01", 10), price("AAA", "2024-01-02", 20)];
     const { series, excludedTickers } = buildPortfolioValueSeries({
-      positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-01", end: "2024-01-02",
+      positions,
+      dailyPrices,
+      manualSnapshots: [],
+      toPrimary: identity,
+      start: "2024-01-01",
+      end: "2024-01-02",
     });
     expect(excludedTickers).toEqual(["CCC"]);
     expect(series.map((p) => p.value)).toEqual([100, 200]);
@@ -224,7 +278,12 @@ describe("buildPortfolioValueSeries", () => {
     const positions = [pos({ assetId: "m1", ticker: "MAN", quantity: 10, isManual: true })];
     const manualSnapshots = [snapshot("m1", "2024-01-01", 7), snapshot("m1", "2024-01-02", 8)];
     const { series } = buildPortfolioValueSeries({
-      positions, dailyPrices: [], manualSnapshots, toPrimary: identity, start: "2024-01-01", end: "2024-01-02",
+      positions,
+      dailyPrices: [],
+      manualSnapshots,
+      toPrimary: identity,
+      start: "2024-01-01",
+      end: "2024-01-02",
     });
     expect(series.map((p) => p.value)).toEqual([70, 80]);
   });
@@ -233,10 +292,19 @@ describe("buildPortfolioValueSeries", () => {
     // The key manual-holding fix: a manually-tracked lot of a listed ticker uses
     // the backfilled daily_prices, so it isn't collapsed to its creation snapshot.
     const positions = [pos({ assetId: "m1", ticker: "AAA", quantity: 10, isManual: true })];
-    const dailyPrices = [price("AAA", "2024-01-01", 10), price("AAA", "2024-01-02", 11), price("AAA", "2024-01-03", 12)];
+    const dailyPrices = [
+      price("AAA", "2024-01-01", 10),
+      price("AAA", "2024-01-02", 11),
+      price("AAA", "2024-01-03", 12),
+    ];
     const manualSnapshots = [snapshot("m1", "2024-01-03", 99)]; // stale single snapshot, ignored
     const { series, coverageStart, excludedTickers } = buildPortfolioValueSeries({
-      positions, dailyPrices, manualSnapshots, toPrimary: identity, start: "2024-01-01", end: "2024-01-03",
+      positions,
+      dailyPrices,
+      manualSnapshots,
+      toPrimary: identity,
+      start: "2024-01-01",
+      end: "2024-01-03",
     });
     expect(coverageStart).toBe("2024-01-01");
     expect(series.map((p) => p.value)).toEqual([100, 110, 120]);
@@ -246,9 +314,15 @@ describe("buildPortfolioValueSeries", () => {
   it("applies the currency converter with the as-of date", () => {
     const positions = [pos({ assetId: "a", ticker: "AAA", quantity: 1, currency: "USD" })];
     const dailyPrices = [price("AAA", "2024-01-01", 100)];
-    const toPrimary = (value: number, currency: string) => (currency === "USD" ? value * 30 : value);
+    const toPrimary = (value: number, currency: string) =>
+      currency === "USD" ? value * 30 : value;
     const { series } = buildPortfolioValueSeries({
-      positions, dailyPrices, manualSnapshots: [], toPrimary, start: "2024-01-01", end: "2024-01-01",
+      positions,
+      dailyPrices,
+      manualSnapshots: [],
+      toPrimary,
+      start: "2024-01-01",
+      end: "2024-01-01",
     });
     expect(series[0].value).toBe(3000);
   });
@@ -262,12 +336,21 @@ describe("buildPortfolioValueSeries", () => {
       pos({ assetId: "b", ticker: "BBB", quantity: 1 }),
     ];
     const dailyPrices = [
-      price("AAA", "2024-01-01", 10), price("AAA", "2024-01-02", 10), price("AAA", "2024-01-03", 10),
-      price("AAA", "2024-01-04", 10), price("AAA", "2024-01-05", 10),
-      price("BBB", "2024-01-04", 5), price("BBB", "2024-01-05", 5),
+      price("AAA", "2024-01-01", 10),
+      price("AAA", "2024-01-02", 10),
+      price("AAA", "2024-01-03", 10),
+      price("AAA", "2024-01-04", 10),
+      price("AAA", "2024-01-05", 10),
+      price("BBB", "2024-01-04", 5),
+      price("BBB", "2024-01-05", 5),
     ];
     const { series, excludedTickers, coverageStart } = buildPortfolioValueSeries({
-      positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-01", end: "2024-01-05",
+      positions,
+      dailyPrices,
+      manualSnapshots: [],
+      toPrimary: identity,
+      start: "2024-01-01",
+      end: "2024-01-05",
     });
     expect(coverageStart).toBe("2024-01-01");
     expect(series.length).toBe(5);
@@ -283,11 +366,19 @@ describe("buildPortfolioValueSeries", () => {
       pos({ assetId: "b", ticker: "BBB", quantity: 100 }),
     ];
     const dailyPrices = [
-      price("AAA", "2024-01-01", 10), price("AAA", "2024-01-02", 10), price("AAA", "2024-01-03", 10),
-      price("BBB", "2024-01-02", 50), price("BBB", "2024-01-03", 50),
+      price("AAA", "2024-01-01", 10),
+      price("AAA", "2024-01-02", 10),
+      price("AAA", "2024-01-03", 10),
+      price("BBB", "2024-01-02", 50),
+      price("BBB", "2024-01-03", 50),
     ];
     const { series, coverageStart } = buildPortfolioValueSeries({
-      positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-01", end: "2024-01-03",
+      positions,
+      dailyPrices,
+      manualSnapshots: [],
+      toPrimary: identity,
+      start: "2024-01-01",
+      end: "2024-01-03",
     });
     expect(coverageStart).toBe("2024-01-02"); // BBB (dominant) prices from here
     expect(series.length).toBe(2);
@@ -298,7 +389,12 @@ describe("buildPortfolioValueSeries", () => {
     const positions = [pos({ assetId: "a", ticker: "AAA", quantity: 0 })];
     const dailyPrices = [price("AAA", "2024-01-01", 10)];
     const { series } = buildPortfolioValueSeries({
-      positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-01", end: "2024-01-01",
+      positions,
+      dailyPrices,
+      manualSnapshots: [],
+      toPrimary: identity,
+      start: "2024-01-01",
+      end: "2024-01-01",
     });
     expect(series).toEqual([]);
   });
@@ -311,11 +407,18 @@ describe("buildReturnAttribution", () => {
       pos({ assetId: "b", ticker: "BBB", quantity: 5 }),
     ];
     const dailyPrices = [
-      price("AAA", "2024-01-01", 10), price("AAA", "2024-01-03", 13), // (13−10)×10 = +30
-      price("BBB", "2024-01-01", 20), price("BBB", "2024-01-03", 18), // (18−20)×5  = −10
+      price("AAA", "2024-01-01", 10),
+      price("AAA", "2024-01-03", 13), // (13−10)×10 = +30
+      price("BBB", "2024-01-01", 20),
+      price("BBB", "2024-01-03", 18), // (18−20)×5  = −10
     ];
     const { items, total, excludedTickers } = buildReturnAttribution({
-      positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-01", end: "2024-01-03",
+      positions,
+      dailyPrices,
+      manualSnapshots: [],
+      toPrimary: identity,
+      start: "2024-01-01",
+      end: "2024-01-03",
     });
     expect(excludedTickers).toEqual([]);
     expect(total).toBeCloseTo(20); // +30 − 10
@@ -336,11 +439,18 @@ describe("buildReturnAttribution", () => {
       pos({ assetId: "b", ticker: "DOWN", quantity: 10 }),
     ];
     const dailyPrices = [
-      price("UP", "2024-01-01", 100), price("UP", "2024-01-03", 105), // +5×10 = +50, +5%
-      price("DOWN", "2024-01-01", 100), price("DOWN", "2024-01-03", 80), // −20×10 = −200, −20%
+      price("UP", "2024-01-01", 100),
+      price("UP", "2024-01-03", 105), // +5×10 = +50, +5%
+      price("DOWN", "2024-01-01", 100),
+      price("DOWN", "2024-01-03", 80), // −20×10 = −200, −20%
     ];
     const { items, total } = buildReturnAttribution({
-      positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-01", end: "2024-01-03",
+      positions,
+      dailyPrices,
+      manualSnapshots: [],
+      toPrimary: identity,
+      start: "2024-01-01",
+      end: "2024-01-03",
     });
     expect(total).toBeCloseTo(-150); // portfolio down overall this window
     const up = items.find((i) => i.ticker === "UP")!;
@@ -361,9 +471,23 @@ describe("buildReturnAttribution", () => {
       price("AAA", "2024-01-02", 12),
       price("AAA", "2024-01-03", 15),
     ];
-    const full = buildReturnAttribution({ positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-01", end: "2024-01-03" });
-    const recent = buildReturnAttribution({ positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-02", end: "2024-01-03" });
-    expect(full.items[0].contribution).toBeCloseTo(50);   // (15−10)×10
+    const full = buildReturnAttribution({
+      positions,
+      dailyPrices,
+      manualSnapshots: [],
+      toPrimary: identity,
+      start: "2024-01-01",
+      end: "2024-01-03",
+    });
+    const recent = buildReturnAttribution({
+      positions,
+      dailyPrices,
+      manualSnapshots: [],
+      toPrimary: identity,
+      start: "2024-01-02",
+      end: "2024-01-03",
+    });
+    expect(full.items[0].contribution).toBeCloseTo(50); // (15−10)×10
     expect(recent.items[0].contribution).toBeCloseTo(30); // (15−12)×10
   });
 });
@@ -388,8 +512,16 @@ describe("buildBenchmarkSeries", () => {
 
 describe("alignByDate", () => {
   it("keeps only common dates", () => {
-    const a = [{ date: "d1", value: 1 }, { date: "d2", value: 2 }, { date: "d3", value: 3 }];
-    const b = [{ date: "d2", value: 20 }, { date: "d3", value: 30 }, { date: "d4", value: 40 }];
+    const a = [
+      { date: "d1", value: 1 },
+      { date: "d2", value: 2 },
+      { date: "d3", value: 3 },
+    ];
+    const b = [
+      { date: "d2", value: 20 },
+      { date: "d3", value: 30 },
+      { date: "d4", value: 40 },
+    ];
     const out = alignByDate(a, b);
     expect(out.a.map((p) => p.date)).toEqual(["d2", "d3"]);
     expect(out.b.map((p) => p.date)).toEqual(["d2", "d3"]);
@@ -403,11 +535,18 @@ describe("allocationDriftSeries", () => {
       pos({ assetId: "b", ticker: "BBB", quantity: 10, assetClass: "Bond" }),
     ];
     const dailyPrices = [
-      price("AAA", "2024-01-01", 10), price("AAA", "2024-01-02", 20),
-      price("BBB", "2024-01-01", 10), price("BBB", "2024-01-02", 10),
+      price("AAA", "2024-01-01", 10),
+      price("AAA", "2024-01-02", 20),
+      price("BBB", "2024-01-01", 10),
+      price("BBB", "2024-01-02", 10),
     ];
     const drift = allocationDriftSeries({
-      positions, dailyPrices, manualSnapshots: [], toPrimary: identity, start: "2024-01-01", end: "2024-01-02",
+      positions,
+      dailyPrices,
+      manualSnapshots: [],
+      toPrimary: identity,
+      start: "2024-01-01",
+      end: "2024-01-02",
     });
     expect(drift.classes).toEqual(["Equity", "Bond"]);
     expect(drift.data[0][0]).toBeCloseTo(50, 6); // equity 100 / 200
@@ -423,8 +562,10 @@ describe("dayChangeMovers", () => {
   it("intraday: quote newer than the latest close → live vs 昨收", () => {
     // Today's close isn't recorded yet; quote is dated after the latest close.
     const dailyPrices = [
-      price("AAA", "2024-01-01", 100), price("AAA", "2024-01-02", 110), // latest close 110
-      price("BBB", "2024-01-01", 60), price("BBB", "2024-01-02", 50), // latest close 50
+      price("AAA", "2024-01-01", 100),
+      price("AAA", "2024-01-02", 110), // latest close 110
+      price("BBB", "2024-01-01", 60),
+      price("BBB", "2024-01-02", 50), // latest close 50
     ];
     const quotes = [
       { symbol: "AAA", price: 121, marketTime: "2024-01-03T05:30:00Z" }, // +10% vs 110
@@ -467,11 +608,18 @@ describe("dayChangeMovers", () => {
 
   it("filters to held tickers, honors limit and the name resolver", () => {
     const dailyPrices = [
-      price("AAA", "2024-01-01", 100), price("AAA", "2024-01-02", 110),
-      price("ZZZ", "2024-01-01", 10), price("ZZZ", "2024-01-02", 99), // not held
+      price("AAA", "2024-01-01", 100),
+      price("AAA", "2024-01-02", 110),
+      price("ZZZ", "2024-01-01", 10),
+      price("ZZZ", "2024-01-02", 99), // not held
     ];
     const quotes = [{ symbol: "AAA", price: 121, marketTime: "2024-01-03T00:00:00Z" }];
-    const movers = dayChangeMovers({ dailyPrices, quotes, heldTickers: ["AAA"], nameFor: () => "台積電" });
+    const movers = dayChangeMovers({
+      dailyPrices,
+      quotes,
+      heldTickers: ["AAA"],
+      nameFor: () => "台積電",
+    });
     expect(movers).toHaveLength(1);
     expect(movers[0].name).toBe("台積電");
   });
@@ -507,8 +655,14 @@ const sectorOpts = {
 describe("buildSectorBreakdown", () => {
   it("gives ETFs/funds the ETF bucket instead of 未知, and Σ buckets = total", () => {
     const entries: BreakdownEntry[] = [
-      { position: pos({ assetId: "tsmc", ticker: "2330.TW", sector: "24", assetType: "equity" }), value: 600 },
-      { position: pos({ assetId: "etf", ticker: "0050.TW", sector: null, assetType: "etf" }), value: 400 },
+      {
+        position: pos({ assetId: "tsmc", ticker: "2330.TW", sector: "24", assetType: "equity" }),
+        value: 600,
+      },
+      {
+        position: pos({ assetId: "etf", ticker: "0050.TW", sector: null, assetType: "etf" }),
+        value: 400,
+      },
     ];
     const b = buildSectorBreakdown(entries, sectorOpts);
     const labels = b.buckets.map((x) => x.label);
@@ -523,8 +677,19 @@ describe("buildSectorBreakdown", () => {
 
   it("collapses a TW 半導體 and a US Technology holding into ONE 資訊科技 bucket", () => {
     const entries: BreakdownEntry[] = [
-      { position: pos({ assetId: "tsmc", ticker: "2330.TW", sector: "24", assetType: "equity" }), value: 300 },
-      { position: pos({ assetId: "nvda", ticker: "NVDA", sector: "Technology", assetType: "equity" }), value: 200 },
+      {
+        position: pos({ assetId: "tsmc", ticker: "2330.TW", sector: "24", assetType: "equity" }),
+        value: 300,
+      },
+      {
+        position: pos({
+          assetId: "nvda",
+          ticker: "NVDA",
+          sector: "Technology",
+          assetType: "equity",
+        }),
+        value: 200,
+      },
     ];
     const b = buildSectorBreakdown(entries, sectorOpts);
     const byLabel = new Map(b.buckets.map((x) => [x.label, x.value]));
@@ -533,10 +698,21 @@ describe("buildSectorBreakdown", () => {
     expect(b.total).toBeCloseTo(500);
   });
 
-  it("level: \"industry\" keeps the fine TWSE/Yahoo split (drill-down)", () => {
+  it('level: "industry" keeps the fine TWSE/Yahoo split (drill-down)', () => {
     const entries: BreakdownEntry[] = [
-      { position: pos({ assetId: "tsmc", ticker: "2330.TW", sector: "24", assetType: "equity" }), value: 300 },
-      { position: pos({ assetId: "nvda", ticker: "NVDA", sector: "Technology", assetType: "equity" }), value: 200 },
+      {
+        position: pos({ assetId: "tsmc", ticker: "2330.TW", sector: "24", assetType: "equity" }),
+        value: 300,
+      },
+      {
+        position: pos({
+          assetId: "nvda",
+          ticker: "NVDA",
+          sector: "Technology",
+          assetType: "equity",
+        }),
+        value: 200,
+      },
     ];
     const b = buildSectorBreakdown(entries, { ...sectorOpts, level: "industry" });
     const byLabel = new Map(b.buckets.map((x) => [x.label, x.value]));
@@ -548,7 +724,16 @@ describe("buildSectorBreakdown", () => {
   it("derives the canonical bucket from a legacy row's raw sector when sectorCanonical is null", () => {
     const entries: BreakdownEntry[] = [
       // Old row: only the TWSE code stored, no persisted canonical key.
-      { position: pos({ assetId: "old", ticker: "2882.TW", sector: "17", sectorCanonical: null, assetType: "equity" }), value: 100 },
+      {
+        position: pos({
+          assetId: "old",
+          ticker: "2882.TW",
+          sector: "17",
+          sectorCanonical: null,
+          assetType: "equity",
+        }),
+        value: 100,
+      },
     ];
     const b = buildSectorBreakdown(entries, sectorOpts);
     expect(b.buckets.map((x) => x.label)).toEqual(["金融"]); // 金融保險 (17) → 金融
@@ -556,7 +741,16 @@ describe("buildSectorBreakdown", () => {
 
   it("prefers a persisted sectorCanonical key over re-deriving from raw", () => {
     const entries: BreakdownEntry[] = [
-      { position: pos({ assetId: "x", ticker: "X", sector: "24", sectorCanonical: "healthcare", assetType: "equity" }), value: 100 },
+      {
+        position: pos({
+          assetId: "x",
+          ticker: "X",
+          sector: "24",
+          sectorCanonical: "healthcare",
+          assetType: "equity",
+        }),
+        value: 100,
+      },
     ];
     const b = buildSectorBreakdown(entries, sectorOpts);
     expect(b.buckets.map((x) => x.label)).toEqual(["醫療保健"]);

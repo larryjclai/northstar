@@ -89,7 +89,8 @@ export function buildSplitLegs(
   if (shares.length > 0 && legs.length < 1) throw new Error("分帳需要至少 1 筆自己的類別明細。");
 
   const categoryDrafts: SplitLegDraft[] = legs.map((leg) => {
-    if (!Number.isFinite(leg.amount) || leg.amount <= 0) throw new Error("拆分明細金額必須大於 0。");
+    if (!Number.isFinite(leg.amount) || leg.amount <= 0)
+      throw new Error("拆分明細金額必須大於 0。");
     if (!leg.category.trim()) throw new Error("拆分明細必須選擇類別。");
     return {
       accountId: shared.accountId,
@@ -110,7 +111,8 @@ export function buildSplitLegs(
   });
 
   const shareDrafts: SplitShareDraft[] = shares.map((share) => {
-    if (!Number.isFinite(share.amount) || share.amount <= 0) throw new Error("分帳明細金額必須大於 0。");
+    if (!Number.isFinite(share.amount) || share.amount <= 0)
+      throw new Error("分帳明細金額必須大於 0。");
     if (!share.counterparty.trim()) throw new Error("分帳明細必須填寫對象。");
     if (!share.counterAccountId) throw new Error("分帳明細必須選擇應收帳戶。");
     return {

@@ -123,4 +123,3 @@ class Parser {
     return this.tokens[this.index - 1];
   }
 }
-

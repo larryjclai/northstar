@@ -31,7 +31,10 @@ function row(opts: { kind: "ar" | "ap"; settled: boolean }): RoleRow {
 describe("arApAccountRoles", () => {
   it("returns null for a non-代墊 row (no counterAccountId)", () => {
     expect(
-      arApAccountRoles({ entryType: "expense", accountId: "acct_richart", counterAccountId: null }, accountName),
+      arApAccountRoles(
+        { entryType: "expense", accountId: "acct_richart", counterAccountId: null },
+        accountName,
+      ),
     ).toBeNull();
   });
 

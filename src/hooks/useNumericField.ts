@@ -11,9 +11,7 @@ export function useNumericField(value: number, onChange: (v: number) => void) {
   return {
     type: "text" as const,
     inputMode: "decimal" as const,
-    value: focused
-      ? (value || "")
-      : (value ? value.toLocaleString("zh-TW") : ""),
+    value: focused ? value || "" : value ? value.toLocaleString("zh-TW") : "",
     onFocus: () => setFocused(true),
     onBlur: () => setFocused(false),
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -26,7 +26,11 @@ function toRgb(input: string): [number, number, number] | null {
 
   if (color.startsWith("#")) {
     let hex = color.slice(1);
-    if (hex.length === 3) hex = hex.split("").map((ch) => ch + ch).join("");
+    if (hex.length === 3)
+      hex = hex
+        .split("")
+        .map((ch) => ch + ch)
+        .join("");
     if (hex.length !== 6) return null;
     const n = Number.parseInt(hex, 16);
     if (Number.isNaN(n)) return null;
@@ -35,7 +39,10 @@ function toRgb(input: string): [number, number, number] | null {
 
   const match = color.match(/rgba?\(([^)]+)\)/i);
   if (match) {
-    const parts = match[1].split(/[\s,/]+/).map(Number).filter((v) => !Number.isNaN(v));
+    const parts = match[1]
+      .split(/[\s,/]+/)
+      .map(Number)
+      .filter((v) => !Number.isNaN(v));
     if (parts.length >= 3) return [parts[0], parts[1], parts[2]];
   }
   return null;

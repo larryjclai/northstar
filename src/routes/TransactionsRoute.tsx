@@ -1,4 +1,16 @@
-import { ArrowsDownUp, Bank, CopySimple, FunnelSimple, MagnifyingGlass, PencilSimple, Plus, PlusCircle, Trash, UploadSimple, ListPlus } from "@phosphor-icons/react";
+import {
+  ArrowsDownUp,
+  Bank,
+  CopySimple,
+  FunnelSimple,
+  MagnifyingGlass,
+  PencilSimple,
+  Plus,
+  PlusCircle,
+  Trash,
+  UploadSimple,
+  ListPlus,
+} from "@phosphor-icons/react";
 import { Button } from "../components/coss/button";
 import { Card as CossCard } from "../components/coss/card";
 import { Skeleton } from "../components/coss/skeleton";
@@ -15,8 +27,21 @@ import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popove
 import { downloadCsv, exportInvestmentCsv } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import type { InvestmentActivityImportDraft } from "../data/repositories";
-import { InvestmentImportWizard, type InvestmentActivityImportPlan } from "./InvestmentImportWizard";
-import { calculateInvestmentCashDelta, createFxConverter, formatMoney, formatNumber, formatPrice, formatQuantity, isWithinDateScope, makeDefaultDateScope, resolveDateScope } from "../domain";
+import {
+  InvestmentImportWizard,
+  type InvestmentActivityImportPlan,
+} from "./InvestmentImportWizard";
+import {
+  calculateInvestmentCashDelta,
+  createFxConverter,
+  formatMoney,
+  formatNumber,
+  formatPrice,
+  formatQuantity,
+  isWithinDateScope,
+  makeDefaultDateScope,
+  resolveDateScope,
+} from "../domain";
 import type { InvestmentAction } from "../domain";
 import { useUiPreferences } from "../state/uiPreferences";
 import { InvestmentEntryDrawer, type TransactionPreset } from "./InvestmentsAddSheet";
@@ -40,7 +65,11 @@ const DEPOSIT = "deposit";
 const WITHDRAW = "withdraw";
 const depositLabel = "入金";
 const withdrawLabel = "出金";
-const allActionLabels: Record<string, string> = { ...actionLabels, [DEPOSIT]: depositLabel, [WITHDRAW]: withdrawLabel };
+const allActionLabels: Record<string, string> = {
+  ...actionLabels,
+  [DEPOSIT]: depositLabel,
+  [WITHDRAW]: withdrawLabel,
+};
 
 type TxKind = "investment" | "cash";
 
@@ -89,7 +118,18 @@ interface UnifiedTx {
 }
 
 export function TransactionsRoute() {
-  const { accounts, assets, investments, ledger, settings, dailyFxRates, isInitialLoading, isError, error, refetchAll } = useFinanceData();
+  const {
+    accounts,
+    assets,
+    investments,
+    ledger,
+    settings,
+    dailyFxRates,
+    isInitialLoading,
+    isError,
+    error,
+    refetchAll,
+  } = useFinanceData();
   const timezone = useUiPreferences((state) => state.timezone);
   const { primaryCurrency, toPrimary } = useMemo(
     () => createFxConverter(settings.data, dailyFxRates.data ?? []),
@@ -108,18 +148,34 @@ export function TransactionsRoute() {
   const [dateScope, setDateScope] = useState(() => makeDefaultDateScope(timezone, "all"));
   const dateRange = useMemo(() => resolveDateScope(dateScope, timezone), [dateScope, timezone]);
 
-  const deleteRecord = useRepositoryMutation((repository, id: string) => repository.deleteInvestmentRecord(id), ["investments", "assets", "accounts", "ledger"]);
-  const importRecords = useRepositoryMutation((repository, input: InvestmentActivityImportDraft) => repository.importInvestmentActivity(input), ["investments", "assets", "accounts", "ledger"]);
+  const deleteRecord = useRepositoryMutation(
+    (repository, id: string) => repository.deleteInvestmentRecord(id),
+    ["investments", "assets", "accounts", "ledger"],
+  );
+  const importRecords = useRepositoryMutation(
+    (repository, input: InvestmentActivityImportDraft) =>
+      repository.importInvestmentActivity(input),
+    ["investments", "assets", "accounts", "ledger"],
+  );
 
   const assetRows = assets.data ?? [];
   const recordRows = investments.data ?? [];
   const accountRows = accounts.data ?? [];
   const ledgerRows = ledger.data ?? [];
 
-  const accountMap = useMemo(() => new Map(accountRows.map((account) => [account.id, account])), [accountRows]);
+  const accountMap = useMemo(
+    () => new Map(accountRows.map((account) => [account.id, account])),
+    [accountRows],
+  );
   const assetFor = (id: string) => assetRows.find((asset) => asset.id === id);
-  const investmentAccounts = useMemo(() => accountRows.filter((a) => a.type === "investment"), [accountRows]);
-  const investmentAccountIds = useMemo(() => new Set(investmentAccounts.map((a) => a.id)), [investmentAccounts]);
+  const investmentAccounts = useMemo(
+    () => accountRows.filter((a) => a.type === "investment"),
+    [accountRows],
+  );
+  const investmentAccountIds = useMemo(
+    () => new Set(investmentAccounts.map((a) => a.id)),
+    [investmentAccounts],
+  );
 
   // Unified rows: each investment record, plus cash transfers into/out of a
   // brokerage account. Transfers that belong to a
@@ -165,7 +221,13 @@ export function TransactionsRoute() {
     });
 
     const cashTx: UnifiedTx[] = ledgerRows
-      .filter((row) => row.entryType === "transfer" && row.amount !== 0 && investmentAccountIds.has(row.accountId) && !row.linkedInvestmentRecordId)
+      .filter(
+        (row) =>
+          row.entryType === "transfer" &&
+          row.amount !== 0 &&
+          investmentAccountIds.has(row.accountId) &&
+          !row.linkedInvestmentRecordId,
+      )
       .map((row) => {
         const account = accountMap.get(row.accountId);
         const isDeposit = row.amount >= 0;
@@ -203,8 +265,9 @@ export function TransactionsRoute() {
         if (assetTypeFilter !== "all" && tx.assetType !== assetTypeFilter) return false;
         if (brokerFilter.size > 0 && !brokerFilter.has(tx.brokerId ?? "none")) return false;
         if (!query) return true;
-        return [tx.ticker, tx.name, tx.brokerName, tx.note, allActionLabels[tx.actionKey]]
-          .some((value) => value?.toLocaleLowerCase().includes(query));
+        return [tx.ticker, tx.name, tx.brokerName, tx.note, allActionLabels[tx.actionKey]].some(
+          (value) => value?.toLocaleLowerCase().includes(query),
+        );
       })
       .sort((a, b) => `${b.date}-${b.createdAt}`.localeCompare(`${a.date}-${a.createdAt}`));
   }, [allTx, searchQuery, dateRange, assetTypeFilter, typeFilter, brokerFilter]);
@@ -239,7 +302,10 @@ export function TransactionsRoute() {
   // the primary currency at its trade date before summing (USD buys no longer
   // get added to TWD buys at face value). Computed from filteredTx — the same
   // rows the list renders — so the cards always agree with what's on screen.
-  const totals = useMemo(() => summarizeTransactions(filteredTx, toPrimary), [filteredTx, toPrimary]);
+  const totals = useMemo(
+    () => summarizeTransactions(filteredTx, toPrimary),
+    [filteredTx, toPrimary],
+  );
 
   const [page, setPage] = useState(1);
   const pageSize = 50;
@@ -264,7 +330,12 @@ export function TransactionsRoute() {
     [viewMode, pageRows],
   );
   const hasGroups = viewMode === "month" ? monthGroups.length > 0 : dayGroups.length > 0;
-  const hasActiveFilters = typeFilter.size > 0 || brokerFilter.size > 0 || assetTypeFilter !== "all" || Boolean(searchQuery) || dateScope.preset !== "all";
+  const hasActiveFilters =
+    typeFilter.size > 0 ||
+    brokerFilter.size > 0 ||
+    assetTypeFilter !== "all" ||
+    Boolean(searchQuery) ||
+    dateScope.preset !== "all";
 
   // Filter dropdown options. Broker list includes an "unspecified" bucket when
   // any row lacks a broker so those rows remain reachable.
@@ -306,7 +377,10 @@ export function TransactionsRoute() {
   if (isInitialLoading) {
     return (
       <div className="grid gap-5 p-1">
-        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
+        <div
+          className="grid gap-4"
+          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}
+        >
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-20" />
           ))}
@@ -319,10 +393,15 @@ export function TransactionsRoute() {
     return (
       <div className="grid min-h-[50vh] place-items-center p-6 text-center">
         <div className="max-w-md">
-          <h3 className="text-[17px]" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+          <h3
+            className="text-[17px]"
+            style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}
+          >
             無法載入資料
           </h3>
-          <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
+          <p className="muted mt-1 text-sm">
+            {error instanceof Error ? error.message : "請稍後再試。"}
+          </p>
           <Button className="mt-4" onClick={() => refetchAll()}>
             重新整理
           </Button>
@@ -334,26 +413,46 @@ export function TransactionsRoute() {
   return (
     <div className="mt-4 ns-investment-transactions">
       <div className="ns-invest-summary">
-        <SummaryCard label="交易筆數" value={`${totals.count} 筆`} sublabel={hasActiveFilters ? "符合篩選" : dateRange.label} />
-        <SummaryCard label="總買入" value={formatMoney(totals.bought, primaryCurrency)} sublabel="期間買入金額" />
-        <SummaryCard label="總賣出" value={formatMoney(totals.sold, primaryCurrency)} sublabel="期間賣出金額" />
-        <SummaryCard label="總股利" value={formatMoney(totals.dividends, primaryCurrency)} sublabel="現金股利" />
+        <SummaryCard
+          label="交易筆數"
+          value={`${totals.count} 筆`}
+          sublabel={hasActiveFilters ? "符合篩選" : dateRange.label}
+        />
+        <SummaryCard
+          label="總買入"
+          value={formatMoney(totals.bought, primaryCurrency)}
+          sublabel="期間買入金額"
+        />
+        <SummaryCard
+          label="總賣出"
+          value={formatMoney(totals.sold, primaryCurrency)}
+          sublabel="期間賣出金額"
+        />
+        <SummaryCard
+          label="總股利"
+          value={formatMoney(totals.dividends, primaryCurrency)}
+          sublabel="現金股利"
+        />
       </div>
 
-      {message ? <div className="mb-4"><StatusText>{message}</StatusText></div> : null}
+      {message ? (
+        <div className="mb-4">
+          <StatusText>{message}</StatusText>
+        </div>
+      ) : null}
 
       <CossCard className="ns-invest-panel">
         <div className="flex flex-wrap items-center gap-2 p-3 bg-[var(--ns-surface)] border-b border-[var(--ns-border)] rounded-t-[var(--ns-r-md)]">
           <label className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--ns-bg-hover)] border border-[var(--ns-border)] focus-within:border-[var(--ns-accent)] focus-within:ring-1 focus-within:ring-[var(--ns-accent)] transition-all">
             <MagnifyingGlass size={14} className="text-[var(--ns-fg-muted)]" />
-            <input 
-              className="bg-transparent border-none outline-none text-sm w-48 placeholder:text-[var(--ns-fg-muted)] text-[var(--ns-fg)]" 
-              value={searchQuery} 
-              onChange={(event) => setSearchQuery(event.target.value)} 
-              placeholder="Search ..." 
+            <input
+              className="bg-transparent border-none outline-none text-sm w-48 placeholder:text-[var(--ns-fg-muted)] text-[var(--ns-fg)]"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search ..."
             />
           </label>
-          
+
           <FilterPill
             label="資產類別"
             selected={assetTypeFilter === "all" ? new Set() : new Set([assetTypeFilter])}
@@ -365,7 +464,7 @@ export function TransactionsRoute() {
               { value: "cash", label: "現金" },
             ]}
           />
-          
+
           <FilterPill
             label="交易類型"
             selected={typeFilter}
@@ -401,7 +500,12 @@ export function TransactionsRoute() {
           />
 
           {hasActiveFilters && (
-            <Button variant="ghost" size="xs" className="text-[var(--ns-neg)]" onClick={clearFilters}>
+            <Button
+              variant="ghost"
+              size="xs"
+              className="text-[var(--ns-neg)]"
+              onClick={clearFilters}
+            >
               Clear filters
             </Button>
           )}
@@ -420,15 +524,29 @@ export function TransactionsRoute() {
               icon={<PlusCircle size={24} weight="duotone" />}
               title="還沒有投資交易"
               description="先新增一筆交易，或從券商 CSV 大量匯入交易紀錄。"
-              action={<ActionButton onClick={openCreate}><Plus size={14} weight="bold" />新增第一筆交易</ActionButton>}
-              secondaryAction={<Button variant="outline" onClick={() => setImportOpen(true)}><UploadSimple size={16} />匯入 CSV</Button>}
+              action={
+                <ActionButton onClick={openCreate}>
+                  <Plus size={14} weight="bold" />
+                  新增第一筆交易
+                </ActionButton>
+              }
+              secondaryAction={
+                <Button variant="outline" onClick={() => setImportOpen(true)}>
+                  <UploadSimple size={16} />
+                  匯入 CSV
+                </Button>
+              }
             />
           ) : (
             <EmptyState
               icon={<FunnelSimple size={24} weight="duotone" />}
               title="沒有符合篩選的交易"
               description="試著放寬日期、交易種類或券商的篩選條件。"
-              action={<ActionButton variant="secondary" onClick={clearFilters}>清除篩選</ActionButton>}
+              action={
+                <ActionButton variant="secondary" onClick={clearFilters}>
+                  清除篩選
+                </ActionButton>
+              }
             />
           )
         ) : (
@@ -469,10 +587,35 @@ export function TransactionsRoute() {
                   ))}
             </div>
             {totalPages > 1 && (
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 24, marginBottom: 24 }}>
-                <Button variant="outline" disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>上一頁</Button>
-                <span className="text-body" style={{ alignSelf: 'center', color: 'var(--ns-fg-muted)' }}>{page} / {totalPages}</span>
-                <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>下一頁</Button>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  gap: 12,
+                  marginTop: 24,
+                  marginBottom: 24,
+                }}
+              >
+                <Button
+                  variant="outline"
+                  disabled={page === 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  上一頁
+                </Button>
+                <span
+                  className="text-body"
+                  style={{ alignSelf: "center", color: "var(--ns-fg-muted)" }}
+                >
+                  {page} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  下一頁
+                </Button>
               </div>
             )}
           </>
@@ -501,8 +644,6 @@ export function TransactionsRoute() {
     </div>
   );
 }
-
-
 
 function InvestmentMonthGroup({
   group,
@@ -539,7 +680,13 @@ function InvestmentMonthGroup({
           </thead>
           <tbody>
             {group.rows.map((tx) => (
-              <InvestmentTransactionRow key={tx.id} tx={tx} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} />
+              <InvestmentTransactionRow
+                key={tx.id}
+                tx={tx}
+                onEdit={onEdit}
+                onDuplicate={onDuplicate}
+                onDelete={onDelete}
+              />
             ))}
           </tbody>
         </table>
@@ -547,7 +694,13 @@ function InvestmentMonthGroup({
 
       <div className="ns-invest-mobile-list">
         {group.rows.map((tx) => (
-          <InvestmentTransactionMobile key={tx.id} tx={tx} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} />
+          <InvestmentTransactionMobile
+            key={tx.id}
+            tx={tx}
+            onEdit={onEdit}
+            onDuplicate={onDuplicate}
+            onDelete={onDelete}
+          />
         ))}
       </div>
     </section>
@@ -592,7 +745,13 @@ function InvestmentDayGroup({
           </thead>
           <tbody>
             {group.rows.map((tx) => (
-              <InvestmentTransactionRow key={tx.id} tx={tx} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} />
+              <InvestmentTransactionRow
+                key={tx.id}
+                tx={tx}
+                onEdit={onEdit}
+                onDuplicate={onDuplicate}
+                onDelete={onDelete}
+              />
             ))}
           </tbody>
           <tfoot>
@@ -603,7 +762,8 @@ function InvestmentDayGroup({
                 </td>
                 <td className="num text-right muted">{formatNumber(s.fee)}</td>
                 <td className={`num text-right ${s.net >= 0 ? "pos" : "neg"}`}>
-                  {s.net >= 0 ? "+" : "−"}{formatMoney(Math.abs(s.net), s.currency)}
+                  {s.net >= 0 ? "+" : "−"}
+                  {formatMoney(Math.abs(s.net), s.currency)}
                 </td>
                 <td colSpan={2} />
               </tr>
@@ -614,13 +774,22 @@ function InvestmentDayGroup({
 
       <div className="ns-invest-mobile-list">
         {group.rows.map((tx) => (
-          <InvestmentTransactionMobile key={tx.id} tx={tx} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} />
+          <InvestmentTransactionMobile
+            key={tx.id}
+            tx={tx}
+            onEdit={onEdit}
+            onDuplicate={onDuplicate}
+            onDelete={onDelete}
+          />
         ))}
         {group.subtotals.map((s) => (
           <div key={s.currency} className="ns-invest-mobile-subtotal">
-            <span className="muted">小計 · 成交 {formatMoney(s.gross, s.currency)} · 費 {formatNumber(s.fee)}</span>
+            <span className="muted">
+              小計 · 成交 {formatMoney(s.gross, s.currency)} · 費 {formatNumber(s.fee)}
+            </span>
             <strong className={s.net >= 0 ? "pos" : "neg"}>
-              {s.net >= 0 ? "+" : "−"}{formatMoney(Math.abs(s.net), s.currency)}
+              {s.net >= 0 ? "+" : "−"}
+              {formatMoney(Math.abs(s.net), s.currency)}
             </strong>
           </div>
         ))}
@@ -647,7 +816,9 @@ function InvestmentTransactionRow({
       <td>
         <div className="ns-invest-asset-cell">
           {isCash ? (
-            <span className="ns-invest-cash-logo"><Bank size={16} weight="duotone" /></span>
+            <span className="ns-invest-cash-logo">
+              <Bank size={16} weight="duotone" />
+            </span>
           ) : (
             <AssetLogo ticker={tx.ticker} name={tx.name} size={30} />
           )}
@@ -658,7 +829,9 @@ function InvestmentTransactionRow({
         </div>
       </td>
       <td>
-        <Badge variant={actionBadgeVariant(tx.actionKey)} className="rounded-full uppercase">{txTypeLabel(tx)}</Badge>
+        <Badge variant={actionBadgeVariant(tx.actionKey)} className="rounded-full uppercase">
+          {txTypeLabel(tx)}
+        </Badge>
       </td>
       <td className="num text-right">{isCash ? "—" : formatQuantity(tx.quantity)}</td>
       <td className="num text-right">{isCash ? "—" : formatPrice(tx.price)}</td>
@@ -667,18 +840,40 @@ function InvestmentTransactionRow({
         <td className="num text-right muted">—</td>
       ) : (
         <td className={`num text-right ${tx.signed >= 0 ? "pos" : "neg"}`}>
-          {tx.signed >= 0 ? "+" : "−"}{formatMoney(Math.abs(tx.signed), tx.currency)}
+          {tx.signed >= 0 ? "+" : "−"}
+          {formatMoney(Math.abs(tx.signed), tx.currency)}
         </td>
       )}
       <td className="muted">{tx.brokerName}</td>
       <td className="text-right">
         {tx.recordId ? (
           <div className="ns-invest-row-actions">
-            <Button variant="ghost" size="icon-xs" aria-label="編輯交易" onClick={() => onEdit(tx.recordId!)}><PencilSimple size={13} /></Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="編輯交易"
+              onClick={() => onEdit(tx.recordId!)}
+            >
+              <PencilSimple size={13} />
+            </Button>
             {!tx.isOpeningLot ? (
-              <Button variant="ghost" size="icon-xs" aria-label="複製交易" onClick={() => onDuplicate(tx.recordId!)}><CopySimple size={13} /></Button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="複製交易"
+                onClick={() => onDuplicate(tx.recordId!)}
+              >
+                <CopySimple size={13} />
+              </Button>
             ) : null}
-            <Button variant="destructive-outline" size="icon-xs" aria-label="刪除交易" onClick={() => void onDelete(tx.recordId!)}><Trash size={13} /></Button>
+            <Button
+              variant="destructive-outline"
+              size="icon-xs"
+              aria-label="刪除交易"
+              onClick={() => void onDelete(tx.recordId!)}
+            >
+              <Trash size={13} />
+            </Button>
           </div>
         ) : (
           <span className="muted text-xs">記帳</span>
@@ -703,17 +898,23 @@ function InvestmentTransactionMobile({
   return (
     <div className="ns-invest-mobile-row">
       {isCash ? (
-        <span className="ns-invest-cash-logo"><Bank size={16} weight="duotone" /></span>
+        <span className="ns-invest-cash-logo">
+          <Bank size={16} weight="duotone" />
+        </span>
       ) : (
         <AssetLogo ticker={tx.ticker} name={tx.name} size={34} />
       )}
       <div className="min-w-0 flex-1">
         <div className="ns-invest-mobile-title">
           <strong>{isCash ? tx.name : tx.ticker}</strong>
-          <Badge variant={actionBadgeVariant(tx.actionKey)} className="rounded-full uppercase">{txTypeLabel(tx)}</Badge>
+          <Badge variant={actionBadgeVariant(tx.actionKey)} className="rounded-full uppercase">
+            {txTypeLabel(tx)}
+          </Badge>
         </div>
         <div className="muted text-xs tabular">
-          {isCash ? tx.date.slice(5, 10) : `${tx.date.slice(5, 10)} · ${formatQuantity(tx.quantity)} @ ${formatPrice(tx.price)}`}
+          {isCash
+            ? tx.date.slice(5, 10)
+            : `${tx.date.slice(5, 10)} · ${formatQuantity(tx.quantity)} @ ${formatPrice(tx.price)}`}
         </div>
       </div>
       <div className="ns-invest-mobile-amount">
@@ -721,18 +922,40 @@ function InvestmentTransactionMobile({
           <strong className="muted">—</strong>
         ) : (
           <strong className={tx.signed >= 0 ? "pos" : "neg"}>
-            {tx.signed >= 0 ? "+" : "−"}{formatMoney(Math.abs(tx.signed), tx.currency)}
+            {tx.signed >= 0 ? "+" : "−"}
+            {formatMoney(Math.abs(tx.signed), tx.currency)}
           </strong>
         )}
         <span>{tx.brokerName}</span>
       </div>
       {tx.recordId ? (
         <div className="ns-invest-mobile-actions">
-          <Button variant="ghost" size="icon-xs" aria-label="編輯交易" onClick={() => onEdit(tx.recordId!)}><PencilSimple size={13} /></Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="編輯交易"
+            onClick={() => onEdit(tx.recordId!)}
+          >
+            <PencilSimple size={13} />
+          </Button>
           {!tx.isOpeningLot ? (
-            <Button variant="ghost" size="icon-xs" aria-label="複製交易" onClick={() => onDuplicate(tx.recordId!)}><CopySimple size={13} /></Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="複製交易"
+              onClick={() => onDuplicate(tx.recordId!)}
+            >
+              <CopySimple size={13} />
+            </Button>
           ) : null}
-          <Button variant="destructive-outline" size="icon-xs" aria-label="刪除交易" onClick={() => void onDelete(tx.recordId!)}><Trash size={13} /></Button>
+          <Button
+            variant="destructive-outline"
+            size="icon-xs"
+            aria-label="刪除交易"
+            onClick={() => void onDelete(tx.recordId!)}
+          >
+            <Trash size={13} />
+          </Button>
         </div>
       ) : null}
     </div>
@@ -750,10 +973,18 @@ function SummaryCard({
 }) {
   return (
     <CossCard className="p-4 sm:p-5">
-      <div className="text-xs ns-field-label" style={{ marginBottom: 8 }}>{label}</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <div className="num text-stat" style={{ fontWeight: 500 }}>{value}</div>
-        {sublabel && <div className="num text-body" style={{ color: 'var(--ns-muted)' }}>{sublabel}</div>}
+      <div className="text-xs ns-field-label" style={{ marginBottom: 8 }}>
+        {label}
+      </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+        <div className="num text-stat" style={{ fontWeight: 500 }}>
+          {value}
+        </div>
+        {sublabel && (
+          <div className="num text-body" style={{ color: "var(--ns-muted)" }}>
+            {sublabel}
+          </div>
+        )}
       </div>
     </CossCard>
   );
@@ -766,7 +997,9 @@ function formatMonthLabel(month: string) {
   return `${date.toLocaleString("en-US", { month: "long" }).toUpperCase()} ${date.getFullYear()}`;
 }
 
-function actionBadgeVariant(action: string): "success" | "error" | "warning" | "info" | "secondary" | "outline" {
+function actionBadgeVariant(
+  action: string,
+): "success" | "error" | "warning" | "info" | "secondary" | "outline" {
   if (action === "buy") return "success";
   if (action === "sell") return "error";
   if (action === "cashDividend" || action === "stockDividend") return "warning";

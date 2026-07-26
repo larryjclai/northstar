@@ -1,5 +1,10 @@
 import { CalendarBlank } from "@phosphor-icons/react";
-import { dateScopePresetLabel, resolveDateScope, type DateScopePreset, type DateScopeValue } from "../domain/dateScope";
+import {
+  dateScopePresetLabel,
+  resolveDateScope,
+  type DateScopePreset,
+  type DateScopeValue,
+} from "../domain/dateScope";
 import { useUiPreferences } from "../state/uiPreferences";
 import { SegmentedControl } from "./SegmentedControl";
 import { MonthPicker } from "./ui/month-picker";
@@ -40,7 +45,10 @@ export function DateScopeControl({
         <SegmentedControl
           value={value.preset}
           onChange={(preset) => onChange({ ...value, preset })}
-          options={presets.map((preset) => ({ value: preset, label: dateScopePresetLabel(preset) }))}
+          options={presets.map((preset) => ({
+            value: preset,
+            label: dateScopePresetLabel(preset),
+          }))}
         />
       </div>
 

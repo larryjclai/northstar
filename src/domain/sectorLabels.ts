@@ -77,23 +77,23 @@ const TWSE_INDUSTRY: Record<string, { zh: string; en: string }> = {
 
 /** English GICS sector (from Yahoo) → Chinese, for zh-locale display of US/intl stocks. */
 const GICS_SECTOR_ZH: Record<string, string> = {
-  "technology": "資訊科技",
+  technology: "資訊科技",
   "information technology": "資訊科技",
   "financial services": "金融服務",
-  "financials": "金融",
-  "healthcare": "醫療保健",
+  financials: "金融",
+  healthcare: "醫療保健",
   "health care": "醫療保健",
   "consumer cyclical": "非必需消費",
   "consumer discretionary": "非必需消費",
   "consumer defensive": "必需消費",
   "consumer staples": "必需消費",
   "communication services": "通訊服務",
-  "energy": "能源",
-  "industrials": "工業",
+  energy: "能源",
+  industrials: "工業",
   "basic materials": "原物料",
-  "materials": "原物料",
+  materials: "原物料",
   "real estate": "房地產",
-  "utilities": "公用事業",
+  utilities: "公用事業",
 };
 
 function prefersChinese(preference: NameLocalePreference, runtimeLocale: string): boolean {

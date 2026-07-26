@@ -5,7 +5,9 @@ import { parseDate } from "./parseDate";
 const TODAY = "2026-06-13";
 
 // ── helpers ──
-function dt(s: string) { return `${s}T00:00`; }
+function dt(s: string) {
+  return `${s}T00:00`;
+}
 
 // ---------------------------------------------------------------------------
 // Relative days

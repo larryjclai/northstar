@@ -12,13 +12,30 @@ import { NumberField } from "../components/NumberField";
 import { StatusText } from "../components/StatusText";
 import { TickerSearchField } from "../components/TickerSearchField";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import type { DividendReinvestmentDraft, InvestmentDraft, PortfolioAssetDraft } from "../data/repositories";
-import { calculateInvestmentCashDelta, formatNumber, formatQuantity, nowAsDatetimeLocal, type Account, type InvestmentAction, type PortfolioAsset } from "../domain";
+import type {
+  DividendReinvestmentDraft,
+  InvestmentDraft,
+  PortfolioAssetDraft,
+} from "../data/repositories";
+import {
+  calculateInvestmentCashDelta,
+  formatNumber,
+  formatQuantity,
+  nowAsDatetimeLocal,
+  type Account,
+  type InvestmentAction,
+  type PortfolioAsset,
+} from "../domain";
 import { TaiwanMarketDataProvider } from "../features/market-data/taiwanMarketDataProvider";
 import { assertExplicitMarketSuffix } from "../domain/marketSymbols";
 import { YahooFinanceProvider } from "../features/market-data/yahooFinanceProvider";
 import { useUiPreferences } from "../state/uiPreferences";
-import { computeTradeFee, brokerFeeDiscountFor, isTaiwanTicker, DEFAULT_TW_FEES } from "../domain/tradingFees";
+import {
+  computeTradeFee,
+  brokerFeeDiscountFor,
+  isTaiwanTicker,
+  DEFAULT_TW_FEES,
+} from "../domain/tradingFees";
 import { feeStartsTouched } from "./investmentsAddSheetFee";
 
 export type InvestmentEntryMode = "snapshot" | "transaction";
@@ -56,7 +73,13 @@ const SIDE_TO_ACTION: Record<TxSide, InvestmentAction> = {
   split: "stockSplit",
   reduction: "capitalReduction",
 };
-const SIDE_LABEL: Record<TxSide, string> = { buy: "買進", sell: "賣出", dividend: "股利", split: "拆股", reduction: "減資" };
+const SIDE_LABEL: Record<TxSide, string> = {
+  buy: "買進",
+  sell: "賣出",
+  dividend: "股利",
+  split: "拆股",
+  reduction: "減資",
+};
 const SIDE_CONFIRM: Record<TxSide, string> = {
   buy: "確認買入",
   sell: "確認賣出",
@@ -143,7 +166,9 @@ export function InvestmentEntryDrawer({
   // When on, the snapshot is created with assetType "custom" and prices from
   // manual snapshots → average cost (see domain/valuation, HoldingDetailRoute).
   const [isCustom, setIsCustom] = useState(false);
-  const [transactionForm, setTransactionForm] = useState<InvestmentDraft>(() => emptyTransactionDraft(timezone));
+  const [transactionForm, setTransactionForm] = useState<InvestmentDraft>(() =>
+    emptyTransactionDraft(timezone),
+  );
   const [message, setMessage] = useState("");
   // 股利 sub-mode: 現金股利 / 股票股利(配股) / 股息再投入(DRIP). cash/stock map to the
   // record `action`; drip is an extra mode that records a linked dividend + buy.
@@ -182,7 +207,8 @@ export function InvestmentEntryDrawer({
     ["investments", "assets", "accounts", "ledger"],
   );
   const updateRecord = useRepositoryMutation(
-    (repository, input: InvestmentDraft & { id: string }) => repository.updateInvestmentRecord(input.id, input),
+    (repository, input: InvestmentDraft & { id: string }) =>
+      repository.updateInvestmentRecord(input.id, input),
     ["investments", "assets", "accounts", "ledger"],
   );
 
@@ -251,7 +277,8 @@ export function InvestmentEntryDrawer({
   const eligibleAccounts = accounts.filter(
     (account) => account.deletedAt === null && account.type === "investment",
   );
-  const selectedTransactionAccount = eligibleAccounts.find((account) => account.id === transactionForm.linkedAccountId) ?? null;
+  const selectedTransactionAccount =
+    eligibleAccounts.find((account) => account.id === transactionForm.linkedAccountId) ?? null;
 
   // Current holding for the entered ticker + account, used for the FIFO preview.
   const matchedAsset = useMemo(() => {
@@ -259,7 +286,9 @@ export function InvestmentEntryDrawer({
     if (!ticker) return null;
     return (
       portfolioAssets.find(
-        (a) => a.ticker.toUpperCase() === ticker && a.deletedAt === null &&
+        (a) =>
+          a.ticker.toUpperCase() === ticker &&
+          a.deletedAt === null &&
           (a.holdingSource === "transactions" || a.accountId === transactionForm.linkedAccountId),
       ) ?? null
     );
@@ -283,7 +312,9 @@ export function InvestmentEntryDrawer({
   const currency = selectedTransactionAccount?.currency ?? transactionForm.currency;
 
   function setAction(nextSide: TxSide) {
-    setTransactionForm((current) => normalizeTransactionDraft({ ...current, action: SIDE_TO_ACTION[nextSide] }));
+    setTransactionForm((current) =>
+      normalizeTransactionDraft({ ...current, action: SIDE_TO_ACTION[nextSide] }),
+    );
     if (nextSide === "dividend") setDividendMode("cash");
     setMessage("");
   }
@@ -343,10 +374,22 @@ export function InvestmentEntryDrawer({
         return;
       }
 
-      if (side === "split" && transactionForm.quantity <= 0) throw new Error("請輸入拆股比例（例如 3 = 1 股拆 3 股）。");
-      if (side === "reduction" && transactionForm.quantity <= 0) throw new Error("請輸入被註銷的股數。");
-      if (side === "dividend" && isStockDividend(transactionForm.action) && transactionForm.quantity <= 0) throw new Error("請輸入配發的股數。");
-      if (side === "dividend" && !isStockDividend(transactionForm.action) && transactionForm.price <= 0) throw new Error("請輸入股利金額。");
+      if (side === "split" && transactionForm.quantity <= 0)
+        throw new Error("請輸入拆股比例（例如 3 = 1 股拆 3 股）。");
+      if (side === "reduction" && transactionForm.quantity <= 0)
+        throw new Error("請輸入被註銷的股數。");
+      if (
+        side === "dividend" &&
+        isStockDividend(transactionForm.action) &&
+        transactionForm.quantity <= 0
+      )
+        throw new Error("請輸入配發的股數。");
+      if (
+        side === "dividend" &&
+        !isStockDividend(transactionForm.action) &&
+        transactionForm.price <= 0
+      )
+        throw new Error("請輸入股利金額。");
 
       const payload = normalizeTransactionDraft(transactionForm);
       if (transactionPreset?.id) {
@@ -444,16 +487,20 @@ export function InvestmentEntryDrawer({
   }
   const newMarketValue = newQty * (price || curAvg);
   const confirmAmount =
-    side === "split" ? `×${qty || 0}`
-      : side === "dividend" && dividendMode === "drip" ? `+${formatNumber(qty || 0)} 股`
-        : side === "dividend" && isStockDividend(transactionForm.action) ? `+${formatNumber(qty || 0)} 股`
+    side === "split"
+      ? `×${qty || 0}`
+      : side === "dividend" && dividendMode === "drip"
+        ? `+${formatNumber(qty || 0)} 股`
+        : side === "dividend" && isStockDividend(transactionForm.action)
+          ? `+${formatNumber(qty || 0)} 股`
           : formatPreviewMoney(totalValue, currency);
 
   // T+2 settlement warning (TWD buys only).
   const cashDelta = calculateInvestmentCashDelta(normalizeTransactionDraft(transactionForm));
-  const twdTopUpShortfall = selectedTransactionAccount && currency.toUpperCase() === "TWD" && side === "buy"
-    ? Math.max(0, -(selectedTransactionAccount.balance + cashDelta))
-    : 0;
+  const twdTopUpShortfall =
+    selectedTransactionAccount && currency.toUpperCase() === "TWD" && side === "buy"
+      ? Math.max(0, -(selectedTransactionAccount.balance + cashDelta))
+      : 0;
   const tPlus2Date = addDays(transactionForm.date, 2);
 
   return (
@@ -464,426 +511,664 @@ export function InvestmentEntryDrawer({
       onClose={onClose}
       style={{ zIndex: 50 }}
       panelStyle={{
-        position: "absolute", right: 0, top: 0, bottom: 0, width: "min(520px, 100%)",
-        background: "var(--ns-bg-elev)", borderLeft: "1px solid var(--ns-border)",
-        display: "flex", flexDirection: "column", boxShadow: "var(--ns-shadow-2)",
+        position: "absolute",
+        right: 0,
+        top: 0,
+        bottom: 0,
+        width: "min(520px, 100%)",
+        background: "var(--ns-bg-elev)",
+        borderLeft: "1px solid var(--ns-border)",
+        display: "flex",
+        flexDirection: "column",
+        boxShadow: "var(--ns-shadow-2)",
       }}
     >
-      {(dismiss) => (<>
-        {/* Header */}
-        <div className="flex items-center gap-3" style={{ padding: "20px 24px", borderBottom: "1px solid var(--ns-border)" }}>
-          <h2 className="text-xl" style={{ margin: 0, fontFamily: "var(--ns-font-display)", fontWeight: 600, letterSpacing: -0.02 }}>
-            {mode === "snapshot" ? "建立目前部位" : title}
-          </h2>
-          <div className="flex-1" />
-          {onOpenImport && !transactionPreset && mode === "transaction" && (
-            <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => { onClose(); onOpenImport(); }}>
-              <UploadSimple size={14} className="mr-1.5" />匯入 CSV
-            </Button>
-          )}
-          {!transactionPreset ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => { setMode(mode === "snapshot" ? "transaction" : "snapshot"); setMessage(""); }}
-            >
-              {mode === "snapshot" ? "改記一筆交易" : "建立持倉／自訂資產"}
-            </Button>
-          ) : null}
-          <ModalCloseButton onClick={dismiss} />
-        </div>
-
-        {eligibleAccounts.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
-            <div className="flex items-center justify-center" style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}>
-              <Bank size={24} weight="duotone" />
-            </div>
-            <div>
-              <h3 className="text-base" style={{ margin: "0 0 8px 0", fontWeight: 600 }}>尚未建立投資帳戶</h3>
-              <p className="muted text-sm" style={{ margin: 0, lineHeight: 1.5 }}>
-                在開始記錄投資交易前，您需要先建立至少一個「投資種類」的帳戶。
-              </p>
-            </div>
-            <Button render={<Link to="/accounts" onClick={onClose} />} className="mt-2">前往建立帳戶</Button>
-          </div>
-        ) : mode === "snapshot" ? (
-          <div className="flex-1" style={{ overflow: "auto", padding: "20px 24px" }}>
-            <label
-              className="mb-4 flex gap-2.5"
+      {(dismiss) => (
+        <>
+          {/* Header */}
+          <div
+            className="flex items-center gap-3"
+            style={{ padding: "20px 24px", borderBottom: "1px solid var(--ns-border)" }}
+          >
+            <h2
+              className="text-xl"
               style={{
-                alignItems: "flex-start",
-                padding: "12px 14px",
-                borderRadius: 10,
-                border: "1px solid var(--ns-border)",
-                background: "var(--ns-bg-elev)",
-                cursor: "pointer",
+                margin: 0,
+                fontFamily: "var(--ns-font-display)",
+                fontWeight: 600,
+                letterSpacing: -0.02,
               }}
             >
-              <input
-                type="checkbox"
-                checked={isCustom}
-                onChange={(event) => { setIsCustom(event.target.checked); setMessage(""); }}
-                style={{ marginTop: 2, accentColor: "var(--ns-accent)" }}
-              />
-              <span>
-                <span className="block font-semibold">自訂資產（無報價）</span>
-                <span className="muted text-xs block" style={{ marginTop: 2, lineHeight: 1.5 }}>
-                  無市場報價的資產（例如未上市股權、不動產、收藏品）。不需 ticker，市值由你之後在持倉頁手動更新價格決定；未更新前以平均成本計價。
-                </span>
-              </span>
-            </label>
-            <HoldingForm
-              value={snapshotForm}
-              onChange={setSnapshotForm}
-              onSubmit={submitSnapshot}
-              submitLabel={createHolding.isPending ? "儲存中…" : "儲存持倉"}
-              accounts={accounts}
-            />
-            {message ? <div className="mt-3"><StatusText>{message}</StatusText></div> : null}
-          </div>
-        ) : (
-          <>
-            {/* Side tabs */}
-            <div style={{ padding: "18px 24px 0" }}>
-              <ToggleGroup
+              {mode === "snapshot" ? "建立目前部位" : title}
+            </h2>
+            <div className="flex-1" />
+            {onOpenImport && !transactionPreset && mode === "transaction" && (
+              <Button
                 variant="outline"
-                className="w-full"
-                value={[side]}
-                onValueChange={(value) => {
-                  const next = value[0] as TxSide | undefined;
-                  if (next) setAction(next);
+                size="sm"
+                className="hidden sm:inline-flex"
+                onClick={() => {
+                  onClose();
+                  onOpenImport();
                 }}
               >
-                {(Object.keys(SIDE_TO_ACTION) as TxSide[]).map((s) => (
-                  <ToggleGroupItem key={s} value={s} className={SEG_ITEM_CLASS}>
-                    {SIDE_LABEL[s]}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-            </div>
+                <UploadSimple size={14} className="mr-1.5" />
+                匯入 CSV
+              </Button>
+            )}
+            {!transactionPreset ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setMode(mode === "snapshot" ? "transaction" : "snapshot");
+                  setMessage("");
+                }}
+              >
+                {mode === "snapshot" ? "改記一筆交易" : "建立持倉／自訂資產"}
+              </Button>
+            ) : null}
+            <ModalCloseButton onClick={dismiss} />
+          </div>
 
-            <div className="flex flex-1 flex-col" style={{ overflow: "auto", padding: "20px 24px", gap: 18 }}>
-              {/* Ticker + quick chips */}
+          {eligibleAccounts.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
+              <div
+                className="flex items-center justify-center"
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: "50%",
+                  background: "var(--ns-accent-soft)",
+                  color: "var(--ns-accent)",
+                }}
+              >
+                <Bank size={24} weight="duotone" />
+              </div>
               <div>
-                <label className="text-xs ns-field-label block">股票代號 / Symbol</label>
-                <TickerSearchField
-                  value={transactionForm.ticker}
-                  onChange={(ticker) => setTransactionForm({ ...transactionForm, ticker })}
-                  onSelect={(result) => {
-                    const next = {
-                      ...transactionForm,
-                      ticker: result.symbol.toUpperCase(),
-                      name: result.name || result.symbol,
-                      currency: selectedTransactionAccount?.currency ?? transactionForm.currency,
-                      assetType: result.assetType ?? transactionForm.assetType ?? null,
-                    };
-                    setTransactionForm(next);
-                    void enrichTransactionClassification(next);
+                <h3 className="text-base" style={{ margin: "0 0 8px 0", fontWeight: 600 }}>
+                  尚未建立投資帳戶
+                </h3>
+                <p className="muted text-sm" style={{ margin: 0, lineHeight: 1.5 }}>
+                  在開始記錄投資交易前，您需要先建立至少一個「投資種類」的帳戶。
+                </p>
+              </div>
+              <Button render={<Link to="/accounts" onClick={onClose} />} className="mt-2">
+                前往建立帳戶
+              </Button>
+            </div>
+          ) : mode === "snapshot" ? (
+            <div className="flex-1" style={{ overflow: "auto", padding: "20px 24px" }}>
+              <label
+                className="mb-4 flex gap-2.5"
+                style={{
+                  alignItems: "flex-start",
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  border: "1px solid var(--ns-border)",
+                  background: "var(--ns-bg-elev)",
+                  cursor: "pointer",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={isCustom}
+                  onChange={(event) => {
+                    setIsCustom(event.target.checked);
+                    setMessage("");
                   }}
+                  style={{ marginTop: 2, accentColor: "var(--ns-accent)" }}
                 />
-                {tickerSuggestions.length > 0 ? (
-                  <div className="mt-2 flex gap-1.5" style={{ flexWrap: "wrap" }}>
-                    {tickerSuggestions.map((s) => (
-                      <Button key={s} variant="outline" size="xs" className="font-mono" onClick={() => setTransactionForm({ ...transactionForm, ticker: s })}>
-                        {s}
-                      </Button>
-                    ))}
-                  </div>
-                ) : null}
+                <span>
+                  <span className="block font-semibold">自訂資產（無報價）</span>
+                  <span className="muted text-xs block" style={{ marginTop: 2, lineHeight: 1.5 }}>
+                    無市場報價的資產（例如未上市股權、不動產、收藏品）。不需
+                    ticker，市值由你之後在持倉頁手動更新價格決定；未更新前以平均成本計價。
+                  </span>
+                </span>
+              </label>
+              <HoldingForm
+                value={snapshotForm}
+                onChange={setSnapshotForm}
+                onSubmit={submitSnapshot}
+                submitLabel={createHolding.isPending ? "儲存中…" : "儲存持倉"}
+                accounts={accounts}
+              />
+              {message ? (
+                <div className="mt-3">
+                  <StatusText>{message}</StatusText>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <>
+              {/* Side tabs */}
+              <div style={{ padding: "18px 24px 0" }}>
+                <ToggleGroup
+                  variant="outline"
+                  className="w-full"
+                  value={[side]}
+                  onValueChange={(value) => {
+                    const next = value[0] as TxSide | undefined;
+                    if (next) setAction(next);
+                  }}
+                >
+                  {(Object.keys(SIDE_TO_ACTION) as TxSide[]).map((s) => (
+                    <ToggleGroupItem key={s} value={s} className={SEG_ITEM_CLASS}>
+                      {SIDE_LABEL[s]}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
               </div>
 
-              {/* Date + account */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div
+                className="flex flex-1 flex-col"
+                style={{ overflow: "auto", padding: "20px 24px", gap: 18 }}
+              >
+                {/* Ticker + quick chips */}
                 <div>
-                  <label className="text-xs ns-field-label block">日期</label>
-                  <input className="ns-input" type="datetime-local" value={transactionForm.date} onChange={(e) => setTransactionForm({ ...transactionForm, date: e.target.value })} />
-                </div>
-                <div>
-                  <label className="text-xs ns-field-label block">券商 / 帳戶</label>
-                  <AccountFilter
-                    accounts={eligibleAccounts}
-                    value={transactionForm.linkedAccountId ?? "all"}
-                    onChange={(id) =>
-                      setTransactionForm({
+                  <label className="text-xs ns-field-label block">股票代號 / Symbol</label>
+                  <TickerSearchField
+                    value={transactionForm.ticker}
+                    onChange={(ticker) => setTransactionForm({ ...transactionForm, ticker })}
+                    onSelect={(result) => {
+                      const next = {
                         ...transactionForm,
-                        linkedAccountId: id === "all" ? null : id,
-                        currency: eligibleAccounts.find((a) => a.id === id)?.currency ?? transactionForm.currency,
-                      })
-                    }
-                    allowAll
-                    allLabel="選擇券商"
-                    placeholder="選擇券商"
-                    style={{ width: "100%", maxWidth: "none", minWidth: 0, height: 40 }}
-                    contentClassName="z-80"
-                    positionerClassName="z-80"
+                        ticker: result.symbol.toUpperCase(),
+                        name: result.name || result.symbol,
+                        currency: selectedTransactionAccount?.currency ?? transactionForm.currency,
+                        assetType: result.assetType ?? transactionForm.assetType ?? null,
+                      };
+                      setTransactionForm(next);
+                      void enrichTransactionClassification(next);
+                    }}
                   />
+                  {tickerSuggestions.length > 0 ? (
+                    <div className="mt-2 flex gap-1.5" style={{ flexWrap: "wrap" }}>
+                      {tickerSuggestions.map((s) => (
+                        <Button
+                          key={s}
+                          variant="outline"
+                          size="xs"
+                          className="font-mono"
+                          onClick={() => setTransactionForm({ ...transactionForm, ticker: s })}
+                        >
+                          {s}
+                        </Button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-              </div>
 
-              {/* ── Group separator: 標的識別 → 金額明細 ── */}
-              <div style={{ borderBottom: "1px solid var(--ns-border)", margin: "2px 0" }} />
-
-              {/* Side-specific numeric fields */}
-              {side === "split" ? (
-                <div>
-                  <label className="text-xs ns-field-label block">拆股比例（1 股 → N 股）</label>
-                  <NumberField
-                    value={transactionForm.quantity}
-                    onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })}
-                    decimals={4}
-                    placeholder="3"
-                    className="ns-input mono text-lg"
-                    style={NUM_INPUT_STYLE}
-                  />
-                  <div className="muted text-caption mt-1.5">
-                    輸入 3 = 3-for-1（持股 ×3、均價 ÷3、總成本不變）；小於 1 為反向拆股（例 0.5 = 2 併 1）。無手續費。
+                {/* Date + account */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <div>
+                    <label className="text-xs ns-field-label block">日期</label>
+                    <input
+                      className="ns-input"
+                      type="datetime-local"
+                      value={transactionForm.date}
+                      onChange={(e) =>
+                        setTransactionForm({ ...transactionForm, date: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs ns-field-label block">券商 / 帳戶</label>
+                    <AccountFilter
+                      accounts={eligibleAccounts}
+                      value={transactionForm.linkedAccountId ?? "all"}
+                      onChange={(id) =>
+                        setTransactionForm({
+                          ...transactionForm,
+                          linkedAccountId: id === "all" ? null : id,
+                          currency:
+                            eligibleAccounts.find((a) => a.id === id)?.currency ??
+                            transactionForm.currency,
+                        })
+                      }
+                      allowAll
+                      allLabel="選擇券商"
+                      placeholder="選擇券商"
+                      style={{ width: "100%", maxWidth: "none", minWidth: 0, height: 40 }}
+                      contentClassName="z-80"
+                      positionerClassName="z-80"
+                    />
                   </div>
                 </div>
-              ) : side === "dividend" ? (
-                <div className="flex flex-col gap-3.5">
-                  {/* 現金股利 / 股票股利(配股) / 股息再投入(DRIP) sub-toggle. Editing an
-                      existing record stays on cash/stock — DRIP is create-only. */}
-                  <ToggleGroup
-                    variant="outline"
-                    className="w-full"
-                    value={[dividendMode]}
-                    onValueChange={(value) => {
-                      const next = value[0] as "cash" | "stock" | "drip" | undefined;
-                      if (!next) return;
-                      setDividendMode(next);
-                      // Leaving DRIP resets the amount auto-fill so re-entering starts fresh.
-                      if (next !== "drip") dripAmountTouchedRef.current = false;
-                      // cash + drip both record a cashDividend leg; stock = 配股.
-                      setTransactionForm((c) => normalizeTransactionDraft({ ...c, action: next === "stock" ? "stockDividend" : "cashDividend" }));
-                      setMessage("");
-                    }}
-                  >
-                    <ToggleGroupItem value="cash" className={SEG_ITEM_CLASS}>現金股利</ToggleGroupItem>
-                    <ToggleGroupItem value="stock" className={SEG_ITEM_CLASS}>股票股利</ToggleGroupItem>
-                    {!isEditingTransaction && <ToggleGroupItem value="drip" className={SEG_ITEM_CLASS}>股息再投入</ToggleGroupItem>}
-                  </ToggleGroup>
-                  {dividendMode === "stock" ? (
-                    <div>
-                      <label className="text-xs ns-field-label block">配發股數</label>
-                      <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={5} placeholder="100" style={NUM_INPUT_STYLE} />
-                      <div className="muted text-caption mt-1.5">
-                        配股不涉及現金：股數增加、總成本不變，因此平均成本會下降。
-                      </div>
+
+                {/* ── Group separator: 標的識別 → 金額明細 ── */}
+                <div style={{ borderBottom: "1px solid var(--ns-border)", margin: "2px 0" }} />
+
+                {/* Side-specific numeric fields */}
+                {side === "split" ? (
+                  <div>
+                    <label className="text-xs ns-field-label block">拆股比例（1 股 → N 股）</label>
+                    <NumberField
+                      value={transactionForm.quantity}
+                      onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })}
+                      decimals={4}
+                      placeholder="3"
+                      className="ns-input mono text-lg"
+                      style={NUM_INPUT_STYLE}
+                    />
+                    <div className="muted text-caption mt-1.5">
+                      輸入 3 = 3-for-1（持股 ×3、均價 ÷3、總成本不變）；小於 1 為反向拆股（例 0.5 =
+                      2 併 1）。無手續費。
                     </div>
-                  ) : dividendMode === "drip" ? (
-                    <div className="flex flex-col gap-3.5">
+                  </div>
+                ) : side === "dividend" ? (
+                  <div className="flex flex-col gap-3.5">
+                    {/* 現金股利 / 股票股利(配股) / 股息再投入(DRIP) sub-toggle. Editing an
+                      existing record stays on cash/stock — DRIP is create-only. */}
+                    <ToggleGroup
+                      variant="outline"
+                      className="w-full"
+                      value={[dividendMode]}
+                      onValueChange={(value) => {
+                        const next = value[0] as "cash" | "stock" | "drip" | undefined;
+                        if (!next) return;
+                        setDividendMode(next);
+                        // Leaving DRIP resets the amount auto-fill so re-entering starts fresh.
+                        if (next !== "drip") dripAmountTouchedRef.current = false;
+                        // cash + drip both record a cashDividend leg; stock = 配股.
+                        setTransactionForm((c) =>
+                          normalizeTransactionDraft({
+                            ...c,
+                            action: next === "stock" ? "stockDividend" : "cashDividend",
+                          }),
+                        );
+                        setMessage("");
+                      }}
+                    >
+                      <ToggleGroupItem value="cash" className={SEG_ITEM_CLASS}>
+                        現金股利
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="stock" className={SEG_ITEM_CLASS}>
+                        股票股利
+                      </ToggleGroupItem>
+                      {!isEditingTransaction && (
+                        <ToggleGroupItem value="drip" className={SEG_ITEM_CLASS}>
+                          股息再投入
+                        </ToggleGroupItem>
+                      )}
+                    </ToggleGroup>
+                    {dividendMode === "stock" ? (
                       <div>
-                        <label className="text-xs ns-field-label block">股利金額（總額）</label>
+                        <label className="text-xs ns-field-label block">配發股數</label>
                         <NumberField
                           className="ns-input mono text-lg"
-                          value={dripDividendAmount}
-                          onChange={(amount) => {
-                            dripAmountTouchedRef.current = true;
-                            setDripDividendAmount(amount);
-                          }}
-                          decimals={2}
-                          placeholder="3,500"
+                          value={transactionForm.quantity}
+                          onChange={(quantity) =>
+                            setTransactionForm({ ...transactionForm, quantity })
+                          }
+                          decimals={5}
+                          placeholder="100"
                           style={NUM_INPUT_STYLE}
                         />
                         <div className="muted text-caption mt-1.5">
-                          未修改時自動帶入 股數 × 價格。
+                          配股不涉及現金：股數增加、總成本不變，因此平均成本會下降。
                         </div>
                       </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    ) : dividendMode === "drip" ? (
+                      <div className="flex flex-col gap-3.5">
                         <div>
-                          <label className="text-xs ns-field-label block">再投入股數</label>
+                          <label className="text-xs ns-field-label block">股利金額（總額）</label>
                           <NumberField
                             className="ns-input mono text-lg"
-                            value={transactionForm.quantity}
-                            onChange={(quantity) => {
-                              setTransactionForm({ ...transactionForm, quantity });
-                              if (!dripAmountTouchedRef.current) {
-                                setDripDividendAmount(Math.round(quantity * transactionForm.price * 100) / 100);
-                              }
+                            value={dripDividendAmount}
+                            onChange={(amount) => {
+                              dripAmountTouchedRef.current = true;
+                              setDripDividendAmount(amount);
                             }}
-                            decimals={5}
-                            placeholder="2"
+                            decimals={2}
+                            placeholder="3,500"
                             style={NUM_INPUT_STYLE}
                           />
+                          <div className="muted text-caption mt-1.5">
+                            未修改時自動帶入 股數 × 價格。
+                          </div>
                         </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                          <div>
+                            <label className="text-xs ns-field-label block">再投入股數</label>
+                            <NumberField
+                              className="ns-input mono text-lg"
+                              value={transactionForm.quantity}
+                              onChange={(quantity) => {
+                                setTransactionForm({ ...transactionForm, quantity });
+                                if (!dripAmountTouchedRef.current) {
+                                  setDripDividendAmount(
+                                    Math.round(quantity * transactionForm.price * 100) / 100,
+                                  );
+                                }
+                              }}
+                              decimals={5}
+                              placeholder="2"
+                              style={NUM_INPUT_STYLE}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs ns-field-label block">再投入價格</label>
+                            <NumberField
+                              className="ns-input mono text-lg"
+                              value={transactionForm.price}
+                              onChange={(price) => {
+                                setTransactionForm({ ...transactionForm, price });
+                                if (!dripAmountTouchedRef.current) {
+                                  setDripDividendAmount(
+                                    Math.round(transactionForm.quantity * price * 100) / 100,
+                                  );
+                                }
+                              }}
+                              decimals={5}
+                              placeholder="1,042.00"
+                              style={NUM_INPUT_STYLE}
+                            />
+                          </div>
+                        </div>
+                        <div className="muted text-caption">
+                          股息再投入：記錄一筆現金股利（計入股利統計）＋一筆買進（併入平均成本）。
+                          現金淨變動 ≈ 0，剩餘現金{" "}
+                          {formatPreviewMoney(
+                            Math.max(
+                              0,
+                              dripDividendAmount - transactionForm.quantity * transactionForm.price,
+                            ),
+                            currency,
+                          )}{" "}
+                          留在帳戶。
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                         <div>
-                          <label className="text-xs ns-field-label block">再投入價格</label>
+                          <label className="text-xs ns-field-label block">股利金額（總額）</label>
                           <NumberField
                             className="ns-input mono text-lg"
                             value={transactionForm.price}
-                            onChange={(price) => {
-                              setTransactionForm({ ...transactionForm, price });
-                              if (!dripAmountTouchedRef.current) {
-                                setDripDividendAmount(Math.round(transactionForm.quantity * price * 100) / 100);
-                              }
-                            }}
-                            decimals={5}
-                            placeholder="1,042.00"
+                            onChange={(price) => setTransactionForm({ ...transactionForm, price })}
+                            decimals={2}
+                            placeholder="3,500"
+                            style={NUM_INPUT_STYLE}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs ns-field-label block">代扣稅 / 手續費</label>
+                          <NumberField
+                            className="ns-input mono text-lg"
+                            value={transactionForm.fee}
+                            onChange={(fee) => setTransactionForm({ ...transactionForm, fee })}
+                            placeholder="0"
                             style={NUM_INPUT_STYLE}
                           />
                         </div>
                       </div>
-                      <div className="muted text-caption">
-                        股息再投入：記錄一筆現金股利（計入股利統計）＋一筆買進（併入平均成本）。
-                        現金淨變動 ≈ 0，剩餘現金 {formatPreviewMoney(Math.max(0, dripDividendAmount - transactionForm.quantity * transactionForm.price), currency)} 留在帳戶。
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                      <div>
-                        <label className="text-xs ns-field-label block">股利金額（總額）</label>
-                        <NumberField className="ns-input mono text-lg" value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={2} placeholder="3,500" style={NUM_INPUT_STYLE} />
-                      </div>
-                      <div>
-                        <label className="text-xs ns-field-label block">代扣稅 / 手續費</label>
-                        <NumberField className="ns-input mono text-lg" value={transactionForm.fee} onChange={(fee) => setTransactionForm({ ...transactionForm, fee })} placeholder="0" style={NUM_INPUT_STYLE} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : side === "reduction" ? (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                  <div>
-                    <label className="text-xs ns-field-label block">被註銷股數</label>
-                    <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={5} placeholder="20" style={NUM_INPUT_STYLE} />
+                    )}
                   </div>
-                  <div>
-                    <label className="text-xs ns-field-label block">每股退回現金</label>
-                    <NumberField className="ns-input mono text-lg" value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={5} placeholder="10" style={NUM_INPUT_STYLE} />
-                    <div className="muted text-caption mt-1.5">
-                      現金減資填每股退回金額；彌補虧損減資（不退現金）填 0。
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {/* Stock / ETF instrument toggle — determines sell-tax rate when
-                      auto-fill is enabled; also shown on buys so the user's choice
-                      persists if they switch between buy and sell. */}
-                  {feeConfig.enabled && isTaiwanTicker(transactionForm.ticker) && (
+                ) : side === "reduction" ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                     <div>
-                      <label className="text-xs ns-field-label block">標的類型</label>
-                      <ToggleGroup
-                        variant="outline"
-                        className="w-full"
-                        value={[instrument]}
-                        onValueChange={(value) => {
-                          const next = value[0] as "stock" | "etf" | undefined;
-                          if (next) {
-                            feeTouchedRef.current = false;
-                            setInstrument(next);
-                          }
-                        }}
-                      >
-                        <ToggleGroupItem value="stock" className={SEG_ITEM_CLASS}>股票</ToggleGroupItem>
-                        <ToggleGroupItem value="etf" className={SEG_ITEM_CLASS}>ETF</ToggleGroupItem>
-                      </ToggleGroup>
-                    </div>
-                  )}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
-                    <div>
-                      <label className="text-xs ns-field-label block">股數</label>
-                      <NumberField className="ns-input mono text-lg" value={transactionForm.quantity} onChange={(quantity) => setTransactionForm({ ...transactionForm, quantity })} decimals={5} placeholder="100" style={NUM_INPUT_STYLE} />
-                    </div>
-                    <div>
-                      <label className="text-xs ns-field-label block">每股價格</label>
-                      <NumberField className="ns-input mono text-lg" value={transactionForm.price} onChange={(price) => setTransactionForm({ ...transactionForm, price })} decimals={5} placeholder="1,042.00" style={NUM_INPUT_STYLE} />
-                    </div>
-                    <div>
-                      <label className="text-xs ns-field-label block">
-                        手續費
-                        {feeConfig.enabled && isTaiwanTicker(transactionForm.ticker) && !feeTouchedRef.current && (
-                          <span className="muted ml-1.5" style={{ fontSize: 10, fontWeight: 400, letterSpacing: 0 }}>自動試算</span>
-                        )}
-                      </label>
+                      <label className="text-xs ns-field-label block">被註銷股數</label>
                       <NumberField
                         className="ns-input mono text-lg"
-                        value={transactionForm.fee}
-                        onChange={(fee) => {
-                          feeTouchedRef.current = true;
-                          setTransactionForm({ ...transactionForm, fee });
-                        }}
-                        decimals={2}
-                        placeholder="選填"
+                        value={transactionForm.quantity}
+                        onChange={(quantity) =>
+                          setTransactionForm({ ...transactionForm, quantity })
+                        }
+                        decimals={5}
+                        placeholder="20"
                         style={NUM_INPUT_STYLE}
                       />
-                      {feeConfig.enabled && isTaiwanTicker(transactionForm.ticker) && feeTouchedRef.current && (
-                        <button
-                          type="button"
-                          className="text-xs muted mt-1"
-                          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline" }}
-                          onClick={() => {
-                            feeTouchedRef.current = false;
-                            const action = transactionForm.action;
-                            if (action === "buy" || action === "sell") {
-                              setTransactionForm((prev) => ({
-                                ...prev,
-                                fee: computeTradeFee({ action, qty: prev.quantity, price: prev.price, instrument, config: feeConfig, brokerFeeDiscount: brokerFeeDiscountFor(feeConfig, prev.linkedAccountId) }),
-                              }));
+                    </div>
+                    <div>
+                      <label className="text-xs ns-field-label block">每股退回現金</label>
+                      <NumberField
+                        className="ns-input mono text-lg"
+                        value={transactionForm.price}
+                        onChange={(price) => setTransactionForm({ ...transactionForm, price })}
+                        decimals={5}
+                        placeholder="10"
+                        style={NUM_INPUT_STYLE}
+                      />
+                      <div className="muted text-caption mt-1.5">
+                        現金減資填每股退回金額；彌補虧損減資（不退現金）填 0。
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {/* Stock / ETF instrument toggle — determines sell-tax rate when
+                      auto-fill is enabled; also shown on buys so the user's choice
+                      persists if they switch between buy and sell. */}
+                    {feeConfig.enabled && isTaiwanTicker(transactionForm.ticker) && (
+                      <div>
+                        <label className="text-xs ns-field-label block">標的類型</label>
+                        <ToggleGroup
+                          variant="outline"
+                          className="w-full"
+                          value={[instrument]}
+                          onValueChange={(value) => {
+                            const next = value[0] as "stock" | "etf" | undefined;
+                            if (next) {
+                              feeTouchedRef.current = false;
+                              setInstrument(next);
                             }
                           }}
                         >
-                          重新試算
-                        </button>
-                      )}
-                      {feeConfig.enabled &&
-                        isTaiwanTicker(transactionForm.ticker) &&
-                        (transactionForm.action === "buy" || transactionForm.action === "sell") &&
-                        (() => {
-                          const d = brokerFeeDiscountFor(feeConfig, transactionForm.linkedAccountId);
-                          return d < 1 ? (
-                            <div className="text-xs muted mt-1">
-                              此帳戶券商手續費折扣 {(d * 10).toFixed((d * 10) % 1 === 0 ? 0 : 1)} 折（證交稅不打折）
-                            </div>
-                          ) : null;
-                        })()}
+                          <ToggleGroupItem value="stock" className={SEG_ITEM_CLASS}>
+                            股票
+                          </ToggleGroupItem>
+                          <ToggleGroupItem value="etf" className={SEG_ITEM_CLASS}>
+                            ETF
+                          </ToggleGroupItem>
+                        </ToggleGroup>
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                        gap: 12,
+                      }}
+                    >
+                      <div>
+                        <label className="text-xs ns-field-label block">股數</label>
+                        <NumberField
+                          className="ns-input mono text-lg"
+                          value={transactionForm.quantity}
+                          onChange={(quantity) =>
+                            setTransactionForm({ ...transactionForm, quantity })
+                          }
+                          decimals={5}
+                          placeholder="100"
+                          style={NUM_INPUT_STYLE}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs ns-field-label block">每股價格</label>
+                        <NumberField
+                          className="ns-input mono text-lg"
+                          value={transactionForm.price}
+                          onChange={(price) => setTransactionForm({ ...transactionForm, price })}
+                          decimals={5}
+                          placeholder="1,042.00"
+                          style={NUM_INPUT_STYLE}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs ns-field-label block">
+                          手續費
+                          {feeConfig.enabled &&
+                            isTaiwanTicker(transactionForm.ticker) &&
+                            !feeTouchedRef.current && (
+                              <span
+                                className="muted ml-1.5"
+                                style={{ fontSize: 10, fontWeight: 400, letterSpacing: 0 }}
+                              >
+                                自動試算
+                              </span>
+                            )}
+                        </label>
+                        <NumberField
+                          className="ns-input mono text-lg"
+                          value={transactionForm.fee}
+                          onChange={(fee) => {
+                            feeTouchedRef.current = true;
+                            setTransactionForm({ ...transactionForm, fee });
+                          }}
+                          decimals={2}
+                          placeholder="選填"
+                          style={NUM_INPUT_STYLE}
+                        />
+                        {feeConfig.enabled &&
+                          isTaiwanTicker(transactionForm.ticker) &&
+                          feeTouchedRef.current && (
+                            <button
+                              type="button"
+                              className="text-xs muted mt-1"
+                              style={{
+                                background: "none",
+                                border: "none",
+                                padding: 0,
+                                cursor: "pointer",
+                                textDecoration: "underline",
+                              }}
+                              onClick={() => {
+                                feeTouchedRef.current = false;
+                                const action = transactionForm.action;
+                                if (action === "buy" || action === "sell") {
+                                  setTransactionForm((prev) => ({
+                                    ...prev,
+                                    fee: computeTradeFee({
+                                      action,
+                                      qty: prev.quantity,
+                                      price: prev.price,
+                                      instrument,
+                                      config: feeConfig,
+                                      brokerFeeDiscount: brokerFeeDiscountFor(
+                                        feeConfig,
+                                        prev.linkedAccountId,
+                                      ),
+                                    }),
+                                  }));
+                                }
+                              }}
+                            >
+                              重新試算
+                            </button>
+                          )}
+                        {feeConfig.enabled &&
+                          isTaiwanTicker(transactionForm.ticker) &&
+                          (transactionForm.action === "buy" || transactionForm.action === "sell") &&
+                          (() => {
+                            const d = brokerFeeDiscountFor(
+                              feeConfig,
+                              transactionForm.linkedAccountId,
+                            );
+                            return d < 1 ? (
+                              <div className="text-xs muted mt-1">
+                                此帳戶券商手續費折扣 {(d * 10).toFixed((d * 10) % 1 === 0 ? 0 : 1)}{" "}
+                                折（證交稅不打折）
+                              </div>
+                            ) : null;
+                          })()}
+                      </div>
                     </div>
                   </div>
+                )}
+
+                {/* ── Group separator: 金額明細 → 附加資訊 ── */}
+                <div style={{ borderBottom: "1px solid var(--ns-border)", margin: "2px 0" }} />
+
+                {/* Note */}
+                <div>
+                  <label className="text-xs ns-field-label block">備註</label>
+                  <input
+                    className="ns-input"
+                    value={transactionForm.note}
+                    onChange={(e) =>
+                      setTransactionForm({ ...transactionForm, note: e.target.value })
+                    }
+                    placeholder="選填"
+                  />
                 </div>
-              )}
 
-              {/* ── Group separator: 金額明細 → 附加資訊 ── */}
-              <div style={{ borderBottom: "1px solid var(--ns-border)", margin: "2px 0" }} />
+                {/* FIFO impact preview */}
+                <Card className="gap-0 rounded-[var(--ns-r-md)] border-[var(--ns-accent)] bg-[var(--ns-accent-soft)] p-4 shadow-none before:hidden">
+                  <div className="text-xs mb-2.5 font-medium" style={{ color: "var(--ns-accent)" }}>
+                    部位影響預覽
+                  </div>
+                  <div
+                    className="text-body"
+                    style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
+                  >
+                    <div>
+                      <span className="muted">{totalLabel}</span>
+                      <br />
+                      <span className="num text-base font-medium">
+                        {side === "split"
+                          ? `×${formatNumber(totalValue)}`
+                          : side === "dividend" && isStockDividend(transactionForm.action)
+                            ? `+${formatQuantity(totalValue)} 股`
+                            : formatPreviewMoney(totalValue, currency)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="muted">新平均成本</span>
+                      <br />
+                      <span className="num text-base font-medium">
+                        {formatPreviewMoney(newAvg, currency)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="muted">新部位股數</span>
+                      <br />
+                      <span className="num text-base font-medium">{formatQuantity(newQty)} 股</span>
+                    </div>
+                    <div>
+                      <span className="muted">新市值</span>
+                      <br />
+                      <span className="num pos text-base font-medium">
+                        {formatPreviewMoney(newMarketValue, currency)}
+                      </span>
+                    </div>
+                  </div>
+                </Card>
 
-              {/* Note */}
-              <div>
-                <label className="text-xs ns-field-label block">備註</label>
-                <input className="ns-input" value={transactionForm.note} onChange={(e) => setTransactionForm({ ...transactionForm, note: e.target.value })} placeholder="選填" />
+                {twdTopUpShortfall > 0 ? (
+                  <div className="text-xs" style={{ color: "var(--ns-warn)" }}>
+                    台股 T+2 提醒：預估交割後需補 {formatNumber(twdTopUpShortfall)} TWD，請在{" "}
+                    {tPlus2Date || "交割日前"} 前補款。
+                  </div>
+                ) : null}
+                {message ? <StatusText>{message}</StatusText> : null}
               </div>
 
-              {/* FIFO impact preview */}
-              <Card className="gap-0 rounded-[var(--ns-r-md)] border-[var(--ns-accent)] bg-[var(--ns-accent-soft)] p-4 shadow-none before:hidden">
-                <div className="text-xs mb-2.5 font-medium" style={{ color: "var(--ns-accent)" }}>部位影響預覽</div>
-                <div className="text-body" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <div><span className="muted">{totalLabel}</span><br /><span className="num text-base font-medium">{side === "split" ? `×${formatNumber(totalValue)}` : side === "dividend" && isStockDividend(transactionForm.action) ? `+${formatQuantity(totalValue)} 股` : formatPreviewMoney(totalValue, currency)}</span></div>
-                  <div><span className="muted">新平均成本</span><br /><span className="num text-base font-medium">{formatPreviewMoney(newAvg, currency)}</span></div>
-                  <div><span className="muted">新部位股數</span><br /><span className="num text-base font-medium">{formatQuantity(newQty)} 股</span></div>
-                  <div><span className="muted">新市值</span><br /><span className="num pos text-base font-medium">{formatPreviewMoney(newMarketValue, currency)}</span></div>
-                </div>
-              </Card>
-
-              {twdTopUpShortfall > 0 ? (
-                <div className="text-xs" style={{ color: "var(--ns-warn)" }}>
-                  台股 T+2 提醒：預估交割後需補 {formatNumber(twdTopUpShortfall)} TWD，請在 {tPlus2Date || "交割日前"} 前補款。
-                </div>
-              ) : null}
-              {message ? <StatusText>{message}</StatusText> : null}
-            </div>
-
-            {/* Footer */}
-            <div className="flex gap-2.5" style={{ padding: "16px 24px", borderTop: "1px solid var(--ns-border)" }}>
-              <Button variant="outline" className="flex-1" onClick={dismiss}>取消</Button>
-              <Button
-                className="flex-[2]"
-                onClick={submitTransaction}
-                loading={createRecord.isPending || updateRecord.isPending || createDrip.isPending}
+              {/* Footer */}
+              <div
+                className="flex gap-2.5"
+                style={{ padding: "16px 24px", borderTop: "1px solid var(--ns-border)" }}
               >
-                {(createRecord.isPending || updateRecord.isPending || createDrip.isPending) ? "儲存中…" : isEditingTransaction ? "儲存交易" : `${SIDE_CONFIRM[side]} · ${confirmAmount}`}
-              </Button>
-            </div>
-          </>
-        )}
-      </>)}
+                <Button variant="outline" className="flex-1" onClick={dismiss}>
+                  取消
+                </Button>
+                <Button
+                  className="flex-[2]"
+                  onClick={submitTransaction}
+                  loading={createRecord.isPending || updateRecord.isPending || createDrip.isPending}
+                >
+                  {createRecord.isPending || updateRecord.isPending || createDrip.isPending
+                    ? "儲存中…"
+                    : isEditingTransaction
+                      ? "儲存交易"
+                      : `${SIDE_CONFIRM[side]} · ${confirmAmount}`}
+                </Button>
+              </div>
+            </>
+          )}
+        </>
+      )}
     </ModalShell>
   );
 }

@@ -52,7 +52,9 @@ describe("buildInvoiceDrafts", () => {
   });
 
   it("throws a validation error for a TW-format number failing the preset", () => {
-    expect(() => buildInvoiceDrafts(baseForm({ invoiceNumber: "not-a-real-number" }))).toThrow(/發票號碼格式錯誤/);
+    expect(() => buildInvoiceDrafts(baseForm({ invoiceNumber: "not-a-real-number" }))).toThrow(
+      /發票號碼格式錯誤/,
+    );
   });
 
   it("throws for a blank invoice number", () => {
@@ -61,7 +63,9 @@ describe("buildInvoiceDrafts", () => {
 
   it("accepts any non-empty string under the FREE_TEXT preset", () => {
     expect(() =>
-      buildInvoiceDrafts(baseForm({ invoiceNumber: "INV-2026-001", invoiceNumberPreset: "FREE_TEXT" })),
+      buildInvoiceDrafts(
+        baseForm({ invoiceNumber: "INV-2026-001", invoiceNumberPreset: "FREE_TEXT" }),
+      ),
     ).not.toThrow();
   });
 

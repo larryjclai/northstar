@@ -34,9 +34,7 @@ describe("groupByDayWithSubtotals", () => {
       row({ actionKey: "buy", price: 5065, quantity: 2, fee: 8, signed: -10138 }),
     ]);
     expect(groups).toHaveLength(1);
-    expect(groups[0].subtotals).toEqual([
-      { currency: "TWD", gross: 10130, fee: 8, net: -10138 },
-    ]);
+    expect(groups[0].subtotals).toEqual([{ currency: "TWD", gross: 10130, fee: 8, net: -10138 }]);
   });
 
   it("sums gross and net across a buy and a sell on the same day", () => {
@@ -45,9 +43,7 @@ describe("groupByDayWithSubtotals", () => {
       row({ actionKey: "sell", price: 120, quantity: 1, fee: 3, signed: 117 }),
     ]);
     expect(groups).toHaveLength(1);
-    expect(groups[0].subtotals).toEqual([
-      { currency: "TWD", gross: 320, fee: 8, net: -88 },
-    ]);
+    expect(groups[0].subtotals).toEqual([{ currency: "TWD", gross: 320, fee: 8, net: -88 }]);
   });
 
   it("excludes opening-lot rows from subtotals but keeps them in rows", () => {
@@ -57,9 +53,7 @@ describe("groupByDayWithSubtotals", () => {
     ];
     const groups = groupByDayWithSubtotals(rows);
     expect(groups[0].rows).toHaveLength(2);
-    expect(groups[0].subtotals).toEqual([
-      { currency: "TWD", gross: 200, fee: 4, net: -204 },
-    ]);
+    expect(groups[0].subtotals).toEqual([{ currency: "TWD", gross: 200, fee: 4, net: -204 }]);
   });
 
   it("keeps one subtotal per currency, ordered by first appearance, no cross-currency summing", () => {
@@ -78,8 +72,6 @@ describe("groupByDayWithSubtotals", () => {
     const groups = groupByDayWithSubtotals([
       row({ actionKey: "deposit", price: 0, quantity: 0, fee: 0, signed: 5000 }),
     ]);
-    expect(groups[0].subtotals).toEqual([
-      { currency: "TWD", gross: 0, fee: 0, net: 5000 },
-    ]);
+    expect(groups[0].subtotals).toEqual([{ currency: "TWD", gross: 0, fee: 0, net: 5000 }]);
   });
 });

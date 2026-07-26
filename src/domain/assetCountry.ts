@@ -90,7 +90,7 @@ const CURRENCY_COUNTRY: Record<string, string> = {
 export function resolveHoldingCountry(ticker: string, currency?: string | null): string | null {
   const normalized = (ticker ?? "").trim().toUpperCase();
   const code = (currency ?? "").trim().toUpperCase();
-  const currencyCountry = code ? CURRENCY_COUNTRY[code] ?? null : null;
+  const currencyCountry = code ? (CURRENCY_COUNTRY[code] ?? null) : null;
 
   if (!normalized) return currencyCountry;
 

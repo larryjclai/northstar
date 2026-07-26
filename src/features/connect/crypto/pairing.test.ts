@@ -22,11 +22,19 @@ beforeAll(() => {
     const store = new Map<string, string>();
     globalThis.localStorage = {
       getItem: (k: string) => store.get(k) ?? null,
-      setItem: (k: string, v: string) => { store.set(k, String(v)); },
-      removeItem: (k: string) => { store.delete(k); },
-      clear: () => { store.clear(); },
+      setItem: (k: string, v: string) => {
+        store.set(k, String(v));
+      },
+      removeItem: (k: string) => {
+        store.delete(k);
+      },
+      clear: () => {
+        store.clear();
+      },
       key: (i: number) => Array.from(store.keys())[i] ?? null,
-      get length() { return store.size; },
+      get length() {
+        return store.size;
+      },
     } as Storage;
   }
 });
@@ -50,10 +58,7 @@ describe("pairing code format", () => {
 describe("bundle round-trip", () => {
   it("encrypts and decrypts a bundle using two independently derived keys", async () => {
     const code = "ABCD-2345";
-    const [keyA, keyB] = await Promise.all([
-      deriveBundleKey(code),
-      deriveBundleKey(code),
-    ]);
+    const [keyA, keyB] = await Promise.all([deriveBundleKey(code), deriveBundleKey(code)]);
     const bundle: CredentialsBundle = {
       userId: "user-abc-123",
       apiSecret: "secret-xyz",
@@ -87,7 +92,12 @@ describe("per-session salt bundle round-trip", () => {
       deriveBundleKey(code, salt),
       deriveBundleKey(code, salt),
     ]);
-    const bundle: PublicPairingBundle = { deviceId: "dev-b-1", publicKeyB64: "cHVi", name: "My Mac", platform: "macos" };
+    const bundle: PublicPairingBundle = {
+      deviceId: "dev-b-1",
+      publicKeyB64: "cHVi",
+      name: "My Mac",
+      platform: "macos",
+    };
     const ct = await encryptBundle(keyA, bundle as unknown as CredentialsBundle);
     const result = await decryptBundle(keyB, ct);
     expect(result).toEqual(bundle);
@@ -97,7 +107,12 @@ describe("per-session salt bundle round-trip", () => {
     const code = "ABCD-2345";
     const keyA = await deriveBundleKey(code, generateBundleSalt());
     const keyWrong = await deriveBundleKey(code, generateBundleSalt());
-    const bundle: PublicPairingBundle = { deviceId: "dev-b-1", publicKeyB64: "cHVi", name: "My Mac", platform: "macos" };
+    const bundle: PublicPairingBundle = {
+      deviceId: "dev-b-1",
+      publicKeyB64: "cHVi",
+      name: "My Mac",
+      platform: "macos",
+    };
     const ct = await encryptBundle(keyA, bundle as unknown as CredentialsBundle);
     await expect(decryptBundle(keyWrong, ct)).rejects.toThrow();
   });
@@ -112,10 +127,7 @@ describe("per-session salt bundle round-trip", () => {
 
 describe("public-key fingerprint (SAS-lite)", () => {
   it("is stable per key, differs across keys, and is 8 upper-hex chars", async () => {
-    const [pairA, pairB] = await Promise.all([
-      generateDeviceKeyPair(),
-      generateDeviceKeyPair(),
-    ]);
+    const [pairA, pairB] = await Promise.all([generateDeviceKeyPair(), generateDeviceKeyPair()]);
     const pubA = await exportPublicKey(pairA.publicKey);
     const pubB = await exportPublicKey(pairB.publicKey);
     const fpA1 = await fingerprintPublicKey(pubA);
@@ -129,10 +141,7 @@ describe("public-key fingerprint (SAS-lite)", () => {
 
 describe("ECDH extended shared key (vault-v1 + account-v1)", () => {
   it("derives the same key on both sides and wraps vault + encrypts account JSON", async () => {
-    const [pairA, pairB] = await Promise.all([
-      generateDeviceKeyPair(),
-      generateDeviceKeyPair(),
-    ]);
+    const [pairA, pairB] = await Promise.all([generateDeviceKeyPair(), generateDeviceKeyPair()]);
     const [sharedA, sharedB] = await Promise.all([
       deriveSharedKeyExtended(pairA.privateKey, pairB.publicKey),
       deriveSharedKeyExtended(pairB.privateKey, pairA.publicKey),
@@ -158,10 +167,7 @@ describe("ECDH extended shared key (vault-v1 + account-v1)", () => {
 
 describe("ECDH wrap/unwrap", () => {
   it("wrap vault key on one side, unwrap on other, key still works for payload round-trip", async () => {
-    const [pairA, pairB] = await Promise.all([
-      generateDeviceKeyPair(),
-      generateDeviceKeyPair(),
-    ]);
+    const [pairA, pairB] = await Promise.all([generateDeviceKeyPair(), generateDeviceKeyPair()]);
 
     // Each device derives shared key from their own private + the other's public
     const [sharedA, sharedB] = await Promise.all([

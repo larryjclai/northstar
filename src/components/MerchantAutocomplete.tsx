@@ -5,7 +5,12 @@ import { useMemo, useState } from "react";
 // Deliberately not the Popover+Command combobox (AccountFilter): that pattern
 // wraps a button trigger, but this field must stay a plain text input.
 
-export function MerchantAutocomplete({ value, merchants, onChange, placeholder = "選填" }: {
+export function MerchantAutocomplete({
+  value,
+  merchants,
+  onChange,
+  placeholder = "選填",
+}: {
   value: string;
   /** Known merchant names, ranked by history frequency (unfiltered — the component filters). */
   merchants: string[];
@@ -20,7 +25,9 @@ export function MerchantAutocomplete({ value, merchants, onChange, placeholder =
     const q = value.trim().toLowerCase();
     // Substring filter (case-insensitive; CJK needs no tokenization). Hide the
     // exact current value — the dropdown would only repeat what's typed.
-    const pool = q ? merchants.filter((m) => m.toLowerCase().includes(q) && m.toLowerCase() !== q) : merchants;
+    const pool = q
+      ? merchants.filter((m) => m.toLowerCase().includes(q) && m.toLowerCase() !== q)
+      : merchants;
     return pool.slice(0, 8);
   }, [value, merchants]);
 
@@ -40,7 +47,11 @@ export function MerchantAutocomplete({ value, merchants, onChange, placeholder =
         role="combobox"
         aria-expanded={visible}
         aria-autocomplete="list"
-        onChange={(e) => { onChange(e.target.value); setOpen(true); setHighlight(0); }}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+          setHighlight(0);
+        }}
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         onKeyDown={(e) => {
@@ -68,10 +79,18 @@ export function MerchantAutocomplete({ value, merchants, onChange, placeholder =
           role="listbox"
           aria-label="商家建議"
           style={{
-            position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 90,
-            maxHeight: 224, overflowY: "auto", padding: 4,
-            background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)",
-            borderRadius: "var(--ns-r-sm)", boxShadow: "var(--ns-shadow-strong)",
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
+            zIndex: 90,
+            maxHeight: 224,
+            overflowY: "auto",
+            padding: 4,
+            background: "var(--ns-bg-elev)",
+            border: "1px solid var(--ns-border)",
+            borderRadius: "var(--ns-r-sm)",
+            boxShadow: "var(--ns-shadow-strong)",
           }}
         >
           {matches.map((merchant, i) => (
@@ -83,11 +102,20 @@ export function MerchantAutocomplete({ value, merchants, onChange, placeholder =
               className="text-xs"
               // onMouseDown (not onClick) so the input's blur doesn't close the
               // dropdown before the selection lands.
-              onMouseDown={(e) => { e.preventDefault(); select(merchant); }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                select(merchant);
+              }}
               onMouseEnter={() => setHighlight(i)}
               style={{
-                display: "block", width: "100%", textAlign: "left", cursor: "pointer",
-                padding: "6px 8px", borderRadius: "var(--ns-r-xs)", border: "none", fontFamily: "inherit",
+                display: "block",
+                width: "100%",
+                textAlign: "left",
+                cursor: "pointer",
+                padding: "6px 8px",
+                borderRadius: "var(--ns-r-xs)",
+                border: "none",
+                fontFamily: "inherit",
                 background: i === highlight ? "var(--ns-bg-hover)" : "transparent",
                 color: "var(--ns-fg)",
               }}

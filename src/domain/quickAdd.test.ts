@@ -15,18 +15,34 @@ const baseSettings: AppSettings = {
   exchangeRates: [],
 };
 
-const accountRows: Account[] = ([
-  { id: "a_cash",  name: "錢包",   type: "cash",   currency: "TWD" },
-  { id: "a_card",  name: "信用卡", type: "credit", currency: "TWD" },
-  { id: "a_fubon", name: "富邦證券", type: "investment", currency: "TWD" },
-] as const).map((a) => ({
+const accountRows: Account[] = (
+  [
+    { id: "a_cash", name: "錢包", type: "cash", currency: "TWD" },
+    { id: "a_card", name: "信用卡", type: "credit", currency: "TWD" },
+    { id: "a_fubon", name: "富邦證券", type: "investment", currency: "TWD" },
+  ] as const
+).map((a) => ({
   ...a,
   bookId: "book_test_default",
-  openingBalance: 0, balance: 0, creditLimit: null, creditLimitGroup: "", creditGroupId: null,
-  statementDay: null, paymentDueDay: null, creditPaymentPaidUntil: null,
-  isSharedToHousehold: false, loanStartDate: null, annualInterestRate: null,
-  loanTerm: null, iconName: null, color: null, deletedAt: null,
-  updatedAt: "2026-01-01", createdAt: "2026-01-01", revision: 1, spaceId: "s1",
+  openingBalance: 0,
+  balance: 0,
+  creditLimit: null,
+  creditLimitGroup: "",
+  creditGroupId: null,
+  statementDay: null,
+  paymentDueDay: null,
+  creditPaymentPaidUntil: null,
+  isSharedToHousehold: false,
+  loanStartDate: null,
+  annualInterestRate: null,
+  loanTerm: null,
+  iconName: null,
+  color: null,
+  deletedAt: null,
+  updatedAt: "2026-01-01",
+  createdAt: "2026-01-01",
+  revision: 1,
+  spaceId: "s1",
 }));
 
 const lexicon = buildUserLexicon(accountRows, [], baseSettings);
@@ -56,32 +72,77 @@ describe("parseQuickAdd", () => {
 
   it("parses an expense without an account (unknown merchant → name only)", () => {
     const r = parseQuickAdd("便當 90", ctx);
-    expect(r).toMatchObject({ kind: "ledger", entryType: "expense", amount: 90, accountId: null, merchant: "", name: "便當" });
+    expect(r).toMatchObject({
+      kind: "ledger",
+      entryType: "expense",
+      amount: 90,
+      accountId: null,
+      merchant: "",
+      name: "便當",
+    });
   });
 
   it("treats a leading + or 收入 as income", () => {
-    expect(parseQuickAdd("+ 接案 5000 錢包", ctx)).toMatchObject({ kind: "ledger", entryType: "income", amount: 5000, accountId: "a_cash", merchant: "", name: "接案" });
-    expect(parseQuickAdd("收入 利息 30", ctx)).toMatchObject({ kind: "ledger", entryType: "income", amount: 30 });
+    expect(parseQuickAdd("+ 接案 5000 錢包", ctx)).toMatchObject({
+      kind: "ledger",
+      entryType: "income",
+      amount: 5000,
+      accountId: "a_cash",
+      merchant: "",
+      name: "接案",
+    });
+    expect(parseQuickAdd("收入 利息 30", ctx)).toMatchObject({
+      kind: "ledger",
+      entryType: "income",
+      amount: 30,
+    });
   });
 
   it("parses an investment buy with ticker, qty, price", () => {
     const r = parseQuickAdd("買 2330.TW 5股 @1042", ctx);
-    expect(r).toEqual({ kind: "investment", action: "buy", ticker: "2330.TW", quantity: 5, price: 1042, accountId: null });
+    expect(r).toEqual({
+      kind: "investment",
+      action: "buy",
+      ticker: "2330.TW",
+      quantity: 5,
+      price: 1042,
+      accountId: null,
+    });
   });
 
   it("parses a sell and strips commas in price", () => {
     const r = parseQuickAdd("賣 AAPL 10 @1,200 富邦證券", ctx);
-    expect(r).toMatchObject({ kind: "investment", action: "sell", ticker: "AAPL", quantity: 10, price: 1200, accountId: "a_fubon" });
+    expect(r).toMatchObject({
+      kind: "investment",
+      action: "sell",
+      ticker: "AAPL",
+      quantity: 10,
+      price: 1200,
+      accountId: "a_fubon",
+    });
   });
 
   it("forces an investment parse without a 買/賣 verb in investment mode", () => {
     const r = parseQuickAdd("2330.TW 5股 @1042", { ...ctx, mode: "investment" });
-    expect(r).toMatchObject({ kind: "investment", action: "buy", ticker: "2330.TW", quantity: 5, price: 1042 });
+    expect(r).toMatchObject({
+      kind: "investment",
+      action: "buy",
+      ticker: "2330.TW",
+      quantity: 5,
+      price: 1042,
+    });
   });
 
   it("still reads 賣/sell as a sell in investment mode", () => {
     const r = parseQuickAdd("賣 AAPL 10 @180 富邦證券", { ...ctx, mode: "investment" });
-    expect(r).toMatchObject({ kind: "investment", action: "sell", ticker: "AAPL", quantity: 10, price: 180, accountId: "a_fubon" });
+    expect(r).toMatchObject({
+      kind: "investment",
+      action: "sell",
+      ticker: "AAPL",
+      quantity: 10,
+      price: 180,
+      accountId: "a_fubon",
+    });
   });
 
   it("never routes to investment in ledger mode, even with a 買 verb", () => {
@@ -119,7 +180,13 @@ describe("parseQuickAdd – bilingual fixture table", () => {
     // 計程車 is not a known merchant → lands in name; category still resolves
     // to the same 交通 value through the name-token seed lookup.
     const r = parseQuickAdd("計程車 250", ctx);
-    expect(r).toMatchObject({ kind: "ledger", amount: 250, merchant: "", name: "計程車", category: "交通" });
+    expect(r).toMatchObject({
+      kind: "ledger",
+      amount: 250,
+      merchant: "",
+      name: "計程車",
+      category: "交通",
+    });
   });
 
   it("咖啡 一百二 → amount 120 from Chinese numeral", () => {
@@ -205,7 +272,13 @@ describe("parseQuickAdd – bilingual fixture table", () => {
   it("Chinese name with 'on'-like substring is not stripped", () => {
     // "信用卡" doesn't contain ASCII 'on' as a word boundary token
     const r = parseQuickAdd("晚餐 500 信用卡", ctx);
-    expect(r).toMatchObject({ kind: "ledger", amount: 500, merchant: "", name: "晚餐", accountId: "a_card" });
+    expect(r).toMatchObject({
+      kind: "ledger",
+      amount: 500,
+      merchant: "",
+      name: "晚餐",
+      accountId: "a_card",
+    });
   });
 
   // ── Seed alias: cash / card ──

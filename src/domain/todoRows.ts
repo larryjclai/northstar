@@ -26,10 +26,39 @@ export type TodoRow = {
 };
 
 export interface TodoRowSources {
-  bills: Array<{ id: string; entryType: string; merchant: string; category: string; accountId: string; nextRunDate: string; amount: number }>;
-  cards: Array<{ accountId: string; name: string; dueDate: string; daysUntilDue: number; outstanding: number }>;
-  settleItems: Array<{ id: string; kind: string; counterparty: string; name: string; date: string; amount: number; currency: string }>;
-  dcaRules: Array<{ id: string; name: string; ticker: string; accountId: string; nextRunDate: string; perPeriodCash: number }>;
+  bills: Array<{
+    id: string;
+    entryType: string;
+    merchant: string;
+    category: string;
+    accountId: string;
+    nextRunDate: string;
+    amount: number;
+  }>;
+  cards: Array<{
+    accountId: string;
+    name: string;
+    dueDate: string;
+    daysUntilDue: number;
+    outstanding: number;
+  }>;
+  settleItems: Array<{
+    id: string;
+    kind: string;
+    counterparty: string;
+    name: string;
+    date: string;
+    amount: number;
+    currency: string;
+  }>;
+  dcaRules: Array<{
+    id: string;
+    name: string;
+    ticker: string;
+    accountId: string;
+    nextRunDate: string;
+    perPeriodCash: number;
+  }>;
 }
 
 /** Full date-sorted merge — NO caps. Callers slice for the compact card. */

@@ -47,7 +47,8 @@ export function HoldingForm({
   const eligibleAccounts = accounts.filter(
     (account) => account.deletedAt === null && account.type === "investment",
   );
-  const selectedAccount = eligibleAccounts.find((account) => account.id === value.accountId) ?? null;
+  const selectedAccount =
+    eligibleAccounts.find((account) => account.id === value.accountId) ?? null;
   const isFundLike = value.assetType === "etf" || value.assetType === "mutual_fund";
 
   return (
@@ -83,7 +84,12 @@ export function HoldingForm({
         </Field>
       </div>
       <Field label="名稱">
-        <TextInput value={value.name} disabled={classificationOnly} onChange={(event) => onChange({ ...value, name: event.target.value })} placeholder="元大台灣50" />
+        <TextInput
+          value={value.name}
+          disabled={classificationOnly}
+          onChange={(event) => onChange({ ...value, name: event.target.value })}
+          placeholder="元大台灣50"
+        />
       </Field>
       <Field label="券商 / 帳戶">
         <SelectInput
@@ -91,7 +97,11 @@ export function HoldingForm({
           disabled={classificationOnly}
           onChange={(event) => {
             const account = eligibleAccounts.find((row) => row.id === event.target.value);
-            onChange({ ...value, accountId: event.target.value || null, currency: account?.currency ?? value.currency });
+            onChange({
+              ...value,
+              accountId: event.target.value || null,
+              currency: account?.currency ?? value.currency,
+            });
           }}
         >
           <option value="">— 選擇券商 —</option>
@@ -104,13 +114,30 @@ export function HoldingForm({
       </Field>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Field label="股數">
-          <TextInput type="number" value={value.totalQuantity} disabled={classificationOnly} onChange={(event) => onChange({ ...value, totalQuantity: Number(event.target.value) })} />
+          <TextInput
+            type="number"
+            value={value.totalQuantity}
+            disabled={classificationOnly}
+            onChange={(event) => onChange({ ...value, totalQuantity: Number(event.target.value) })}
+          />
         </Field>
         <Field label="平均成本">
-          <TextInput type="number" value={value.averageCost} disabled={classificationOnly} onChange={(event) => onChange({ ...value, averageCost: Number(event.target.value) })} />
+          <TextInput
+            type="number"
+            value={value.averageCost}
+            disabled={classificationOnly}
+            onChange={(event) => onChange({ ...value, averageCost: Number(event.target.value) })}
+          />
         </Field>
         <Field label="起始日期">
-          <TextInput type="date" value={value.acquisitionDate ?? ""} disabled={classificationOnly} onChange={(event) => onChange({ ...value, acquisitionDate: event.target.value || null })} />
+          <TextInput
+            type="date"
+            value={value.acquisitionDate ?? ""}
+            disabled={classificationOnly}
+            onChange={(event) =>
+              onChange({ ...value, acquisitionDate: event.target.value || null })
+            }
+          />
         </Field>
       </div>
       {!classificationOnly ? (
@@ -122,11 +149,15 @@ export function HoldingForm({
         <Field label="類型">
           <SelectInput
             value={value.assetType ?? ""}
-            onChange={(event) => onChange({ ...value, assetType: (event.target.value || null) as AssetType | null })}
+            onChange={(event) =>
+              onChange({ ...value, assetType: (event.target.value || null) as AssetType | null })
+            }
           >
             <option value="">未指定</option>
             {Object.entries(assetTypeLabels).map(([assetType, label]) => (
-              <option key={assetType} value={assetType}>{label}</option>
+              <option key={assetType} value={assetType}>
+                {label}
+              </option>
             ))}
           </SelectInput>
         </Field>
@@ -149,10 +180,15 @@ export function HoldingForm({
         ) : null}
       </div>
       <datalist id="holding-gics-sectors">
-        {gicsSectors.map((sector) => <option key={sector} value={sector} />)}
+        {gicsSectors.map((sector) => (
+          <option key={sector} value={sector} />
+        ))}
       </datalist>
       <div>
-        <ActionButton onClick={onSubmit}><CheckCircle size={16} />{submitLabel}</ActionButton>
+        <ActionButton onClick={onSubmit}>
+          <CheckCircle size={16} />
+          {submitLabel}
+        </ActionButton>
       </div>
     </div>
   );

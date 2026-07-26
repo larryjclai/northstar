@@ -15,7 +15,11 @@ export function firstFutureRunDate(
   return next;
 }
 
-export function nextRecurringDate(value: string, frequency: RecurringFrequency, dayOfMonth: number): string {
+export function nextRecurringDate(
+  value: string,
+  frequency: RecurringFrequency,
+  dayOfMonth: number,
+): string {
   const [year, month, day] = value.slice(0, 10).split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
   switch (frequency) {

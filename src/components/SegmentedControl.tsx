@@ -89,10 +89,7 @@ export function SegmentedControl<TValue extends string>({
               position: "relative",
               background: "transparent",
               border: "1px solid transparent",
-              color:
-                value === option.value
-                  ? "var(--ns-fg)"
-                  : "var(--ns-fg-muted)",
+              color: value === option.value ? "var(--ns-fg)" : "var(--ns-fg-muted)",
             }}
           >
             {option.icon}

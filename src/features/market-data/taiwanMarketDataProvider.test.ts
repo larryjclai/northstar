@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { filterTaiwanSecurities, parseSecurityNames, type TaiwanCompany } from "./taiwanMarketDataProvider";
+import {
+  filterTaiwanSecurities,
+  parseSecurityNames,
+  type TaiwanCompany,
+} from "./taiwanMarketDataProvider";
 
 describe("parseSecurityNames", () => {
   it("maps both bare code and .TW-suffixed key to the Chinese name", () => {
@@ -21,19 +25,13 @@ describe("parseSecurityNames", () => {
   });
 
   it("skips rows with missing Code", () => {
-    const result = parseSecurityNames([
-      { Name: "缺少代號" },
-      { Code: "0050", Name: "元大台灣50" },
-    ]);
+    const result = parseSecurityNames([{ Name: "缺少代號" }, { Code: "0050", Name: "元大台灣50" }]);
     expect(result.size).toBe(2);
     expect(result.has("undefined")).toBe(false);
   });
 
   it("skips rows with missing Name", () => {
-    const result = parseSecurityNames([
-      { Code: "9999" },
-      { Code: "0050", Name: "元大台灣50" },
-    ]);
+    const result = parseSecurityNames([{ Code: "9999" }, { Code: "0050", Name: "元大台灣50" }]);
     expect(result.size).toBe(2);
     expect(result.has("9999")).toBe(false);
   });

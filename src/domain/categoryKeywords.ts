@@ -22,17 +22,32 @@ export const SEED_KEYWORDS: Array<[string[], SeedCategory]> = [
   [["公車", "bus", "巴士"], { category: "交通", subcategory: "捷運" }],
   [["火車", "高鐵", "台鐵", "train"], { category: "交通", subcategory: "捷運" }],
   // 餐飲
-  [["咖啡", "coffee", "拿鐵", "latte", "星巴克", "starbucks"], { category: "餐飲", subcategory: "飲料" }],
+  [
+    ["咖啡", "coffee", "拿鐵", "latte", "星巴克", "starbucks"],
+    { category: "餐飲", subcategory: "飲料" },
+  ],
   [["飲料", "手搖", "珍奶", "bubble tea", "tea"], { category: "餐飲", subcategory: "飲料" }],
-  [["便當", "外食", "lunch", "dinner", "午餐", "晚餐", "早餐", "breakfast"], { category: "餐飲", subcategory: "外食" }],
-  [["點心", "snack", "零食", "甜點", "dessert", "蛋糕", "cake"], { category: "餐飲", subcategory: "點心" }],
+  [
+    ["便當", "外食", "lunch", "dinner", "午餐", "晚餐", "早餐", "breakfast"],
+    { category: "餐飲", subcategory: "外食" },
+  ],
+  [
+    ["點心", "snack", "零食", "甜點", "dessert", "蛋糕", "cake"],
+    { category: "餐飲", subcategory: "點心" },
+  ],
   [["菜", "菜錢", "超市", "grocery", "食材"], { category: "餐飲", subcategory: "菜錢" }],
   // 居住
   [["房租", "rent", "租金"], { category: "居住", subcategory: "房租" }],
-  [["水電", "電費", "水費", "utility", "utilities", "瓦斯"], { category: "居住", subcategory: "水電" }],
+  [
+    ["水電", "電費", "水費", "utility", "utilities", "瓦斯"],
+    { category: "居住", subcategory: "水電" },
+  ],
   [["管理費", "hoa"], { category: "居住", subcategory: "管理費" }],
   // 收入
-  [["薪資", "薪水", "salary", "payroll", "工資", "月薪"], { category: "收入", subcategory: "薪資" }],
+  [
+    ["薪資", "薪水", "salary", "payroll", "工資", "月薪"],
+    { category: "收入", subcategory: "薪資" },
+  ],
   [["獎金", "bonus", "年終"], { category: "收入", subcategory: "獎金" }],
   [["退款", "refund", "退費"], { category: "收入", subcategory: "退款" }],
   [["利息", "interest"], { category: "收入", subcategory: "獎金" }],

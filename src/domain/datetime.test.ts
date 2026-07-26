@@ -32,14 +32,22 @@ describe("datetime helpers", () => {
   });
 
   it("formats a calendar-only date as midnight in the zone", () => {
-    expect(formatDateInTimezone("2026-05-24", "Asia/Taipei", { year: "numeric", month: "2-digit", day: "2-digit" })).toBe(
-      "2026/05/24",
-    );
+    expect(
+      formatDateInTimezone("2026-05-24", "Asia/Taipei", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }),
+    ).toBe("2026/05/24");
     // Same string, different timezone: the calendar date should not flip
     // because we anchored to midnight-in-zone (see parseAsDate).
-    expect(formatDateInTimezone("2026-05-24", "UTC", { year: "numeric", month: "2-digit", day: "2-digit" })).toBe(
-      "2026/05/24",
-    );
+    expect(
+      formatDateInTimezone("2026-05-24", "UTC", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }),
+    ).toBe("2026/05/24");
   });
 
   it("formats a full datetime in the chosen timezone", () => {

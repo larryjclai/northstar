@@ -16,7 +16,12 @@
  * the store in sync with the live reference without copying.
  */
 
-import type { DailyFxRate, DailyPrice, DailyPriceSeriesRow, ManualPriceSnapshot } from "../domain/types";
+import type {
+  DailyFxRate,
+  DailyPrice,
+  DailyPriceSeriesRow,
+  ManualPriceSnapshot,
+} from "../domain/types";
 import type { MarketQuote } from "../features/market-data";
 import type { ManualPriceSnapshotDraft, RepositoryData, StoredMarketQuote } from "./repositories";
 
@@ -63,7 +68,11 @@ export function createMarketDataStore(ctx: MarketDataStoreContext) {
       await ctx.persist();
     },
 
-    async listDailyFxRates(filter?: { from?: string; to?: string; since?: string }): Promise<DailyFxRate[]> {
+    async listDailyFxRates(filter?: {
+      from?: string;
+      to?: string;
+      since?: string;
+    }): Promise<DailyFxRate[]> {
       const from = filter?.from?.toUpperCase();
       const to = filter?.to?.toUpperCase();
       const since = filter?.since;
@@ -89,7 +98,13 @@ export function createMarketDataStore(ctx: MarketDataStoreContext) {
           source: rate.source || "manual",
           updatedAt: rate.updatedAt || updatedAt,
         };
-        if (!normalized.from || !normalized.to || !Number.isFinite(normalized.rate) || normalized.rate <= 0) continue;
+        if (
+          !normalized.from ||
+          !normalized.to ||
+          !Number.isFinite(normalized.rate) ||
+          normalized.rate <= 0
+        )
+          continue;
         map.set(`${normalized.from}|${normalized.to}|${normalized.date}`, normalized);
       }
       ctx.data.dailyFxRates = [...map.values()];
@@ -120,14 +135,22 @@ export function createMarketDataStore(ctx: MarketDataStoreContext) {
      * NOT interchangeable with listDailyPrices() — that one feeds
      * exportSnapshot() and must keep returning full rows (plan 273).
      */
-    async listDailyPriceSeries(filter?: { ticker?: string; since?: string }): Promise<DailyPriceSeriesRow[]> {
+    async listDailyPriceSeries(filter?: {
+      ticker?: string;
+      since?: string;
+    }): Promise<DailyPriceSeriesRow[]> {
       const ticker = filter?.ticker?.toUpperCase();
       const since = filter?.since;
       return ctx.data.dailyPrices
         .filter((row) => (ticker ? row.ticker === ticker : true))
         .filter((row) => (since ? row.date >= since : true))
         .sort((a, b) => a.date.localeCompare(b.date))
-        .map((row) => ({ ticker: row.ticker, date: row.date, close: row.close, currency: row.currency }));
+        .map((row) => ({
+          ticker: row.ticker,
+          date: row.date,
+          close: row.close,
+          currency: row.currency,
+        }));
     },
 
     async saveDailyPrices(prices: DailyPrice[]): Promise<void> {
@@ -145,7 +168,13 @@ export function createMarketDataStore(ctx: MarketDataStoreContext) {
           source: price.source || "manual",
           updatedAt: price.updatedAt || updatedAt,
         };
-        if (!normalized.ticker || !normalized.date || !Number.isFinite(normalized.close) || normalized.close <= 0) continue;
+        if (
+          !normalized.ticker ||
+          !normalized.date ||
+          !Number.isFinite(normalized.close) ||
+          normalized.close <= 0
+        )
+          continue;
         map.set(`${normalized.ticker}|${normalized.date}`, normalized);
       }
       ctx.data.dailyPrices = [...map.values()];

@@ -22,7 +22,13 @@ const ENTITY_LABELS: Record<SyncEntity, string> = {
 
 // Sync bookkeeping fields are never meaningful to show as a "change".
 const IGNORED_FIELDS = new Set([
-  "id", "revision", "updatedAt", "createdAt", "deletedAt", "userId", "householdId",
+  "id",
+  "revision",
+  "updatedAt",
+  "createdAt",
+  "deletedAt",
+  "userId",
+  "householdId",
 ]);
 
 // Friendly labels for the fields most likely to differ. Unknown keys fall back
@@ -70,7 +76,9 @@ export function summarizeConflict(conflict: SyncConflictRecord): ConflictSummary
   const { localPayload: local, incomingPayload: incoming } = conflict;
   const entityLabel = ENTITY_LABELS[conflict.entity] ?? conflict.entity;
 
-  const titleField = TITLE_FIELDS.find((f) => typeof local[f] === "string" && (local[f] as string).trim());
+  const titleField = TITLE_FIELDS.find(
+    (f) => typeof local[f] === "string" && (local[f] as string).trim(),
+  );
   const title = titleField
     ? String(local[titleField])
     : `${entityLabel} ${conflict.entityId.slice(0, 8)}…`;
@@ -78,7 +86,11 @@ export function summarizeConflict(conflict: SyncConflictRecord): ConflictSummary
   const localUpdated = String(local.updatedAt ?? "");
   const incomingUpdated = String(incoming.updatedAt ?? "");
   const newer: ConflictSummary["newer"] =
-    localUpdated === incomingUpdated ? "tie" : localUpdated > incomingUpdated ? "local" : "incoming";
+    localUpdated === incomingUpdated
+      ? "tie"
+      : localUpdated > incomingUpdated
+        ? "local"
+        : "incoming";
 
   const keys = new Set([...Object.keys(local), ...Object.keys(incoming)]);
   const diffs: ConflictFieldDiff[] = [];

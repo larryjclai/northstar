@@ -18,9 +18,37 @@ describe("buildTodoRows", () => {
   it("merges all three sources and sorts by date ascending", () => {
     const rows = buildTodoRows(
       sources({
-        bills: [{ id: "b1", entryType: "expense", merchant: "房租", category: "住房", accountId: "acc1", nextRunDate: "2026-07-20", amount: 20000 }],
-        cards: [{ accountId: "cc1", name: "玉山信用卡", dueDate: "2026-07-15", daysUntilDue: 5, outstanding: 3200 }],
-        settleItems: [{ id: "s1", kind: "receivable", counterparty: "客戶A", name: "發票 1001", date: "2026-07-25T00:00:00.000Z", amount: 5000, currency: "TWD" }],
+        bills: [
+          {
+            id: "b1",
+            entryType: "expense",
+            merchant: "房租",
+            category: "住房",
+            accountId: "acc1",
+            nextRunDate: "2026-07-20",
+            amount: 20000,
+          },
+        ],
+        cards: [
+          {
+            accountId: "cc1",
+            name: "玉山信用卡",
+            dueDate: "2026-07-15",
+            daysUntilDue: 5,
+            outstanding: 3200,
+          },
+        ],
+        settleItems: [
+          {
+            id: "s1",
+            kind: "receivable",
+            counterparty: "客戶A",
+            name: "發票 1001",
+            date: "2026-07-25T00:00:00.000Z",
+            amount: 5000,
+            currency: "TWD",
+          },
+        ],
       }),
       accountName,
       identity,
@@ -42,7 +70,15 @@ describe("buildTodoRows", () => {
     const rows = buildTodoRows(
       sources({
         bills,
-        cards: [{ accountId: "cc1", name: "玉山信用卡", dueDate: "2026-07-31", daysUntilDue: 20, outstanding: 3200 }],
+        cards: [
+          {
+            accountId: "cc1",
+            name: "玉山信用卡",
+            dueDate: "2026-07-31",
+            daysUntilDue: 20,
+            outstanding: 3200,
+          },
+        ],
       }),
       accountName,
       identity,
@@ -56,13 +92,53 @@ describe("buildTodoRows", () => {
     const rows = buildTodoRows(
       sources({
         bills: [
-          { id: "b1", entryType: "income", merchant: "薪水", category: "收入", accountId: "acc1", nextRunDate: "2026-07-05", amount: 50000 },
-          { id: "b2", entryType: "expense", merchant: "房租", category: "住房", accountId: "acc1", nextRunDate: "2026-07-06", amount: 20000 },
+          {
+            id: "b1",
+            entryType: "income",
+            merchant: "薪水",
+            category: "收入",
+            accountId: "acc1",
+            nextRunDate: "2026-07-05",
+            amount: 50000,
+          },
+          {
+            id: "b2",
+            entryType: "expense",
+            merchant: "房租",
+            category: "住房",
+            accountId: "acc1",
+            nextRunDate: "2026-07-06",
+            amount: 20000,
+          },
         ],
-        cards: [{ accountId: "cc1", name: "玉山信用卡", dueDate: "2026-07-10", daysUntilDue: 5, outstanding: 3200 }],
+        cards: [
+          {
+            accountId: "cc1",
+            name: "玉山信用卡",
+            dueDate: "2026-07-10",
+            daysUntilDue: 5,
+            outstanding: 3200,
+          },
+        ],
         settleItems: [
-          { id: "s1", kind: "receivable", counterparty: "客戶A", name: "發票 1001", date: "2026-07-11T00:00:00.000Z", amount: 5000, currency: "TWD" },
-          { id: "s2", kind: "payable", counterparty: "廠商B", name: "採購 2002", date: "2026-07-12T00:00:00.000Z", amount: 8000, currency: "TWD" },
+          {
+            id: "s1",
+            kind: "receivable",
+            counterparty: "客戶A",
+            name: "發票 1001",
+            date: "2026-07-11T00:00:00.000Z",
+            amount: 5000,
+            currency: "TWD",
+          },
+          {
+            id: "s2",
+            kind: "payable",
+            counterparty: "廠商B",
+            name: "採購 2002",
+            date: "2026-07-12T00:00:00.000Z",
+            amount: 8000,
+            currency: "TWD",
+          },
         ],
       }),
       accountName,
@@ -85,8 +161,27 @@ describe("buildTodoRows", () => {
   it("interleaves a dca row by date, signs amt negative, and shows the account name", () => {
     const rows = buildTodoRows(
       sources({
-        bills: [{ id: "b1", entryType: "expense", merchant: "房租", category: "住房", accountId: "acc1", nextRunDate: "2026-07-20", amount: 20000 }],
-        dcaRules: [{ id: "d1", name: "0050 定期定額", ticker: "0050", accountId: "acc1", nextRunDate: "2026-07-10", perPeriodCash: 5000 }],
+        bills: [
+          {
+            id: "b1",
+            entryType: "expense",
+            merchant: "房租",
+            category: "住房",
+            accountId: "acc1",
+            nextRunDate: "2026-07-20",
+            amount: 20000,
+          },
+        ],
+        dcaRules: [
+          {
+            id: "d1",
+            name: "0050 定期定額",
+            ticker: "0050",
+            accountId: "acc1",
+            nextRunDate: "2026-07-10",
+            perPeriodCash: 5000,
+          },
+        ],
       }),
       accountName,
       identity,
@@ -103,7 +198,16 @@ describe("buildTodoRows", () => {
   it("dca row falls back to ticker as name when name is empty", () => {
     const rows = buildTodoRows(
       sources({
-        dcaRules: [{ id: "d1", name: "", ticker: "0050", accountId: "acc1", nextRunDate: "2026-07-10", perPeriodCash: -5000 }],
+        dcaRules: [
+          {
+            id: "d1",
+            name: "",
+            ticker: "0050",
+            accountId: "acc1",
+            nextRunDate: "2026-07-10",
+            perPeriodCash: -5000,
+          },
+        ],
       }),
       accountName,
       identity,
@@ -116,7 +220,17 @@ describe("buildTodoRows", () => {
     const toPrimaryNull = () => null;
     const rows = buildTodoRows(
       sources({
-        settleItems: [{ id: "s1", kind: "receivable", counterparty: "客戶A", name: "發票 1001", date: "2026-07-11", amount: 5000, currency: "USD" }],
+        settleItems: [
+          {
+            id: "s1",
+            kind: "receivable",
+            counterparty: "客戶A",
+            name: "發票 1001",
+            date: "2026-07-11",
+            amount: 5000,
+            currency: "USD",
+          },
+        ],
       }),
       accountName,
       toPrimaryNull,

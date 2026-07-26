@@ -9,7 +9,12 @@
 // Designed to be called both on manual button press and on app focus.
 
 import type { FinanceRepository } from "../../../data/repositories";
-import { getOrCreateDeviceIdentity, setRemotePullCursor, setLocalPushCursor, resetSyncCursors } from "../../../state/deviceIdentity";
+import {
+  getOrCreateDeviceIdentity,
+  setRemotePullCursor,
+  setLocalPushCursor,
+  resetSyncCursors,
+} from "../../../state/deviceIdentity";
 import { loadVaultKey } from "../crypto/vault";
 import { isRecoveryKitConfirmed } from "../crypto/recovery-kit";
 import { loadSyncAccount, ensureDeviceCredential, ensureDevicePublicKeyUploaded } from "./account";
@@ -171,7 +176,9 @@ export async function forceFullResync(repo: FinanceRepository): Promise<SyncResu
     // Drain the relay one page at a time. pullAndApply re-exports the (now
     // updated) local state on each call, so pages accumulate correctly.
     for (;;) {
-      const page = await pullAndApply(repo, account, cursor, device.deviceId, { includeOwnDevice: true });
+      const page = await pullAndApply(repo, account, cursor, device.deviceId, {
+        includeOwnDevice: true,
+      });
       pulled += page.pulled;
       applied += page.applied;
       skipped += page.skipped;

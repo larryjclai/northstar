@@ -38,7 +38,10 @@ export interface AssetProfile {
 export interface MarketDataProvider {
   readonly sourceName: string;
   fetchQuotes(symbols: string[]): Promise<Record<string, MarketQuote>>;
-  fetchAssetProfiles(symbols: string[], onProgress?: (done: number, total: number) => void): Promise<Record<string, AssetProfile>>;
+  fetchAssetProfiles(
+    symbols: string[],
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<Record<string, AssetProfile>>;
   fetchHistory(symbol: string, range?: string, interval?: string): Promise<MarketHistoryPoint[]>;
   searchSymbols(query: string): Promise<SymbolSearchResult[]>;
   fetchFxRate(from: string, to: string): Promise<MarketQuote>;

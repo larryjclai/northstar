@@ -116,15 +116,19 @@ export async function rotateVaultKey(
   const authToken = await getSyncAuthToken(account);
 
   const devices = await listDevices(authToken);
-  const targets = devices.filter(
-    (d) => d.id !== self.deviceId && d.id !== excludeDeviceId,
-  );
+  const targets = devices.filter((d) => d.id !== self.deviceId && d.id !== excludeDeviceId);
 
   // Operator decision (plan 241, decision 3): a solo-device account — zero
   // remaining devices to re-wrap to — is a deliberate no-op. Do not
   // generate a key, do not allocate a version, do not touch the pointer.
   if (targets.length === 0) {
-    return { rotated: false, reason: "no-remaining-devices", targetCount: 0, succeeded: [], failed: [] };
+    return {
+      rotated: false,
+      reason: "no-remaining-devices",
+      targetCount: 0,
+      succeeded: [],
+      failed: [],
+    };
   }
 
   // Step 1 (spike §3): generate the new key and persist it under its OWN
@@ -212,7 +216,8 @@ export async function rotateVaultKey(
         succeeded.shift();
         failed.push({
           deviceId: pingTargetId,
-          reason: "confirmation ping: deposited envelope not found on relay (lost a concurrent rotation race, or the write did not persist)",
+          reason:
+            "confirmation ping: deposited envelope not found on relay (lost a concurrent rotation race, or the write did not persist)",
         });
       }
     } catch (e) {
@@ -231,7 +236,14 @@ export async function rotateVaultKey(
   // rotateVaultKey() is the documented recovery, see this module's
   // docstring — v1 has no automatic retry/resume state by design).
   if (failed.length > 0) {
-    return { rotated: false, reason: "partial-failure", newVersion, targetCount: targets.length, succeeded, failed };
+    return {
+      rotated: false,
+      reason: "partial-failure",
+      newVersion,
+      targetCount: targets.length,
+      succeeded,
+      failed,
+    };
   }
 
   await setCurrentVaultKeyVersion(newVersion);
@@ -240,7 +252,14 @@ export async function rotateVaultKey(
   // recorded version against getCurrentVaultKeyVersion(). Flipping the
   // pointer above is the only action rotation needs to take; there is no
   // separate "mark stale" call. Phase D renders the resulting signal.
-  return { rotated: true, reason: "ok", newVersion, targetCount: targets.length, succeeded, failed: [] };
+  return {
+    rotated: true,
+    reason: "ok",
+    newVersion,
+    targetCount: targets.length,
+    succeeded,
+    failed: [],
+  };
 }
 
 /**

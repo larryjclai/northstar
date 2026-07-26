@@ -148,9 +148,27 @@ describe("matchAccountFromLexicon", () => {
 // ---------------------------------------------------------------------------
 describe("buildUserLexicon – learned keyword→category", () => {
   const ledger: LedgerTransaction[] = [
-    makeLedger({ id: "t1", merchant: "計程車", category: "交通", subcategory: "計程車", amount: -250 }),
-    makeLedger({ id: "t2", merchant: "計程車", category: "交通", subcategory: "計程車", amount: -180 }),
-    makeLedger({ id: "t3", merchant: "星巴克", category: "餐飲", subcategory: "飲料", amount: -120 }),
+    makeLedger({
+      id: "t1",
+      merchant: "計程車",
+      category: "交通",
+      subcategory: "計程車",
+      amount: -250,
+    }),
+    makeLedger({
+      id: "t2",
+      merchant: "計程車",
+      category: "交通",
+      subcategory: "計程車",
+      amount: -180,
+    }),
+    makeLedger({
+      id: "t3",
+      merchant: "星巴克",
+      category: "餐飲",
+      subcategory: "飲料",
+      amount: -120,
+    }),
   ];
   const lex = buildUserLexicon(accounts, ledger, baseSettings);
 
@@ -233,14 +251,32 @@ describe("buildUserLexicon – merchants", () => {
 describe("buildUserLexicon – corrections override everything", () => {
   // History says 計程車 → 交通, but user correction says → 居住 (unusual but their call)
   const ledger: LedgerTransaction[] = [
-    makeLedger({ id: "t1", merchant: "計程車", category: "交通", subcategory: "計程車", amount: -250 }),
-    makeLedger({ id: "t2", merchant: "計程車", category: "交通", subcategory: "計程車", amount: -250 }),
-    makeLedger({ id: "t3", merchant: "計程車", category: "交通", subcategory: "計程車", amount: -250 }),
+    makeLedger({
+      id: "t1",
+      merchant: "計程車",
+      category: "交通",
+      subcategory: "計程車",
+      amount: -250,
+    }),
+    makeLedger({
+      id: "t2",
+      merchant: "計程車",
+      category: "交通",
+      subcategory: "計程車",
+      amount: -250,
+    }),
+    makeLedger({
+      id: "t3",
+      merchant: "計程車",
+      category: "交通",
+      subcategory: "計程車",
+      amount: -250,
+    }),
   ];
 
   const corrections: CorrectionStore = {
-    "計程車": { category: "居住", subcategory: "管理費" },       // overrides 3× history
-    "星巴克": { accountId: "a_cash" },                          // account correction
+    計程車: { category: "居住", subcategory: "管理費" }, // overrides 3× history
+    星巴克: { accountId: "a_cash" }, // account correction
   };
 
   const lex = buildUserLexicon(accounts, ledger, baseSettings, corrections);

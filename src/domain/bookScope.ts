@@ -76,6 +76,8 @@ export function fireMetricAccountIdSet(accounts: Account[], books: Book[]): Set<
  * Independent of any `activeBookId` — this does not take one, by design.
  */
 export function personalNetWorthAccountIdSet(accounts: Account[], books: Book[]): Set<string> {
-  const includedBookIds = new Set(books.filter((b) => b.includeInPersonalNetWorth).map((b) => b.id));
+  const includedBookIds = new Set(
+    books.filter((b) => b.includeInPersonalNetWorth).map((b) => b.id),
+  );
   return new Set(accounts.filter((a) => includedBookIds.has(a.bookId)).map((a) => a.id));
 }

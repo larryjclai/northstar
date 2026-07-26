@@ -57,7 +57,8 @@ export function computeDayChange(
     // session. Otherwise the quote is (or predates) the latest recorded
     // session → step back one more close.
     const quoteDate = quote.marketTime ? quote.marketTime.slice(0, 10) : null;
-    refClose = quoteDate && quoteDate > lastClose.date ? lastClose.close : (prevClose?.close ?? null);
+    refClose =
+      quoteDate && quoteDate > lastClose.date ? lastClose.close : (prevClose?.close ?? null);
     asOf = quote.updatedAt ?? quote.marketTime ?? lastClose.date;
   } else if (lastClose && prevClose) {
     current = lastClose.close;

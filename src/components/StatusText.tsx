@@ -5,4 +5,3 @@ export function StatusText({ children }: { children: string }) {
     </p>
   );
 }
-

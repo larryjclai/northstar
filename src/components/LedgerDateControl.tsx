@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { format, parseISO } from "date-fns";
 import { CalendarBlank, CaretDown, CaretLeft, CaretRight } from "@phosphor-icons/react";
-import { dateScopePresetLabel, resolveDateScope, type DateScopePreset, type DateScopeValue } from "../domain/dateScope";
+import {
+  dateScopePresetLabel,
+  resolveDateScope,
+  type DateScopePreset,
+  type DateScopeValue,
+} from "../domain/dateScope";
 import { useUiPreferences } from "../state/uiPreferences";
 import { SegmentedControl } from "./SegmentedControl";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
@@ -12,7 +17,20 @@ import { cn } from "../lib/utils";
 // the domain type but isn't surfaced here — mirrors DateScopeControl's
 // default `presets` prop, so no domain change is needed (plan 168).
 const PERIOD_PRESETS: DateScopePreset[] = ["month", "ytd", "last12m", "custom"];
-const MONTH_LABELS = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
+const MONTH_LABELS = [
+  "1月",
+  "2月",
+  "3月",
+  "4月",
+  "5月",
+  "6月",
+  "7月",
+  "8月",
+  "9月",
+  "10月",
+  "11月",
+  "12月",
+];
 
 function shiftMonthValue(month: string, delta: number) {
   const [year, mm] = month.split("-").map(Number);
@@ -43,7 +61,9 @@ export function LedgerDateControl({
 }) {
   const timezone = useUiPreferences((state) => state.timezone);
   const [open, setOpen] = useState(false);
-  const [gridYear, setGridYear] = useState(() => Number(value.month.slice(0, 4)) || new Date().getFullYear());
+  const [gridYear, setGridYear] = useState(
+    () => Number(value.month.slice(0, 4)) || new Date().getFullYear(),
+  );
 
   const resolved = resolveDateScope(value, timezone);
   const label =
@@ -110,13 +130,19 @@ export function LedgerDateControl({
           <span>{label}</span>
           <CaretDown size={14} />
         </PopoverTrigger>
-        <PopoverContent align="center" className={cn("p-3", value.preset === "custom" ? "w-auto" : "w-72")}>
+        <PopoverContent
+          align="center"
+          className={cn("p-3", value.preset === "custom" ? "w-auto" : "w-72")}
+        >
           <div className="mb-3">
             <div className="text-xs ns-field-label mb-1.5">快速預設</div>
             <SegmentedControl
               value={value.preset === "all" ? "custom" : value.preset}
               onChange={selectPreset}
-              options={PERIOD_PRESETS.map((preset) => ({ value: preset, label: dateScopePresetLabel(preset) }))}
+              options={PERIOD_PRESETS.map((preset) => ({
+                value: preset,
+                label: dateScopePresetLabel(preset),
+              }))}
               fullWidth
             />
           </div>
@@ -174,7 +200,7 @@ export function LedgerDateControl({
                         "p-2 text-xs rounded-md transition-colors font-medium",
                         isSelected
                           ? "bg-[var(--ns-accent)] text-white"
-                          : "hover:bg-[var(--ns-bg-hover)] text-[var(--ns-fg)]"
+                          : "hover:bg-[var(--ns-bg-hover)] text-[var(--ns-fg)]",
                       )}
                     >
                       {monthLabel}

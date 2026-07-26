@@ -1,6 +1,17 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
-import { Bank, House, Receipt, Target, TrendUp, GearSix, ChartLineUp, ClockCounterClockwise, Storefront, Tag } from "@phosphor-icons/react";
+import {
+  Bank,
+  House,
+  Receipt,
+  Target,
+  TrendUp,
+  GearSix,
+  ChartLineUp,
+  ClockCounterClockwise,
+  Storefront,
+  Tag,
+} from "@phosphor-icons/react";
 import { useFinanceData } from "../data/hooks";
 import {
   Command,
@@ -35,7 +46,10 @@ export function GlobalSearch({
   const recordRows = investments.data ?? [];
   const ledgerRows = ledger.data ?? [];
   const goalRows = financialGoals.data ?? [];
-  const merchants = useMemo(() => [...new Set(ledgerRows.map((row) => row.merchant).filter(Boolean))].slice(0, 50), [ledgerRows]);
+  const merchants = useMemo(
+    () => [...new Set(ledgerRows.map((row) => row.merchant).filter(Boolean))].slice(0, 50),
+    [ledgerRows],
+  );
   const categories = settings.data?.categories ?? [];
 
   // Group assets by ticker
@@ -61,10 +75,15 @@ export function GlobalSearch({
         const ticker = asset?.ticker?.trim() || "";
         const name = ticker || asset?.name || "Unknown Asset";
         const actionLabel =
-          r.action === "buy" ? "買進" :
-          r.action === "sell" ? "賣出" :
-          r.action === "cashDividend" ? "現金股息" :
-          r.action === "stockDividend" ? "股票股息" : "交易";
+          r.action === "buy"
+            ? "買進"
+            : r.action === "sell"
+              ? "賣出"
+              : r.action === "cashDividend"
+                ? "現金股息"
+                : r.action === "stockDividend"
+                  ? "股票股息"
+                  : "交易";
         return {
           id: r.id,
           label: `${r.date} · ${actionLabel} ${name} ${r.quantity ? `(${r.quantity})` : ""}`,
@@ -96,7 +115,7 @@ export function GlobalSearch({
         <CommandInput placeholder="搜尋頁面、帳戶、交易、商家、分類、持股或目標..." />
         <CommandList>
           <CommandEmpty>找不到相關結果。</CommandEmpty>
-          
+
           <CommandGroup heading="導覽列 (Navigation)">
             {navItems.map((item) => (
               <CommandItem
@@ -112,7 +131,11 @@ export function GlobalSearch({
           {accountRows.length > 0 && (
             <CommandGroup heading="帳戶 (Accounts)">
               {accountRows.map((account) => (
-                <CommandItem key={account.id} value={`帳戶 ${account.name} ${account.currency}`} onSelect={() => runCommand(() => navigate({ to: "/accounts" }))}>
+                <CommandItem
+                  key={account.id}
+                  value={`帳戶 ${account.name} ${account.currency}`}
+                  onSelect={() => runCommand(() => navigate({ to: "/accounts" }))}
+                >
                   <Bank size={16} weight="duotone" className="mr-2" />
                   <span>{account.name}</span>
                   <span className="ml-2 text-muted-foreground text-xs">{account.currency}</span>
@@ -123,19 +146,39 @@ export function GlobalSearch({
 
           {ledgerRows.length > 0 && (
             <CommandGroup heading="記帳流水 (Ledger)">
-              {[...ledgerRows].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 80).map((row) => (
-                <CommandItem key={row.id} value={`流水 ${row.date} ${row.name} ${row.merchant} ${row.category}`} onSelect={() => runCommand(() => navigate({ to: "/cash-flow" }))}>
-                  <Receipt size={16} weight="duotone" className="mr-2" />
-                  <span>{row.date.slice(0, 10)} · {row.name || row.merchant || row.category}</span>
-                </CommandItem>
-              ))}
+              {[...ledgerRows]
+                .sort((a, b) => b.date.localeCompare(a.date))
+                .slice(0, 80)
+                .map((row) => (
+                  <CommandItem
+                    key={row.id}
+                    value={`流水 ${row.date} ${row.name} ${row.merchant} ${row.category}`}
+                    onSelect={() => runCommand(() => navigate({ to: "/cash-flow" }))}
+                  >
+                    <Receipt size={16} weight="duotone" className="mr-2" />
+                    <span>
+                      {row.date.slice(0, 10)} · {row.name || row.merchant || row.category}
+                    </span>
+                  </CommandItem>
+                ))}
             </CommandGroup>
           )}
 
           {merchants.length > 0 && (
             <CommandGroup heading="商家 (Merchants)">
               {merchants.map((merchant) => (
-                <CommandItem key={merchant} value={`商家 ${merchant}`} onSelect={() => runCommand(() => navigate({ to: "/cash-flow/merchants/$merchantName", params: { merchantName: merchant } }))}>
+                <CommandItem
+                  key={merchant}
+                  value={`商家 ${merchant}`}
+                  onSelect={() =>
+                    runCommand(() =>
+                      navigate({
+                        to: "/cash-flow/merchants/$merchantName",
+                        params: { merchantName: merchant },
+                      }),
+                    )
+                  }
+                >
                   <Storefront size={16} weight="duotone" className="mr-2" />
                   <span>{merchant}</span>
                 </CommandItem>
@@ -146,9 +189,22 @@ export function GlobalSearch({
           {categories.length > 0 && (
             <CommandGroup heading="分類 (Categories)">
               {categories.map((category) => (
-                <CommandItem key={category.name} value={`分類 ${category.name}`} onSelect={() => runCommand(() => navigate({ to: "/cash-flow/categories/$categoryName", params: { categoryName: category.name } }))}>
+                <CommandItem
+                  key={category.name}
+                  value={`分類 ${category.name}`}
+                  onSelect={() =>
+                    runCommand(() =>
+                      navigate({
+                        to: "/cash-flow/categories/$categoryName",
+                        params: { categoryName: category.name },
+                      }),
+                    )
+                  }
+                >
                   <Tag size={16} weight="duotone" className="mr-2" />
-                  <span>{category.iconName || "•"} {category.name}</span>
+                  <span>
+                    {category.iconName || "•"} {category.name}
+                  </span>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -159,7 +215,11 @@ export function GlobalSearch({
               {tickers.map((t) => (
                 <CommandItem
                   key={t.ticker}
-                  onSelect={() => runCommand(() => navigate({ to: "/holdings/$ticker", params: { ticker: t.ticker } }))}
+                  onSelect={() =>
+                    runCommand(() =>
+                      navigate({ to: "/holdings/$ticker", params: { ticker: t.ticker } }),
+                    )
+                  }
                 >
                   <ChartLineUp size={16} weight="duotone" className="mr-2" />
                   <span>{t.ticker}</span>
@@ -193,7 +253,11 @@ export function GlobalSearch({
           {goalRows.length > 0 && (
             <CommandGroup heading="目標 (Goals)">
               {goalRows.map((goal) => (
-                <CommandItem key={goal.id} value={`目標 ${goal.name}`} onSelect={() => runCommand(() => navigate({ to: "/goals" }))}>
+                <CommandItem
+                  key={goal.id}
+                  value={`目標 ${goal.name}`}
+                  onSelect={() => runCommand(() => navigate({ to: "/goals" }))}
+                >
                   <Target size={16} weight="duotone" className="mr-2" />
                   <span>{goal.name}</span>
                 </CommandItem>

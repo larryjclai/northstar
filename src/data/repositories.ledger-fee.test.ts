@@ -74,14 +74,16 @@ describeEachRepo("createLedgerTransaction fee leg", (makeRepo) => {
 
   it("expense with feeAmount keeps the FX-surcharge subcategory", async () => {
     const repo = await makeRepo({ accounts: [account] });
-    await repo.createLedgerTransaction(draft({
-      name: "海外刷卡",
-      amount: -1_000,
-      category: "購物",
-      subcategory: "",
-      entryType: "expense",
-      feeAmount: 15,
-    }));
+    await repo.createLedgerTransaction(
+      draft({
+        name: "海外刷卡",
+        amount: -1_000,
+        category: "購物",
+        subcategory: "",
+        entryType: "expense",
+        feeAmount: 15,
+      }),
+    );
 
     const rows = await repo.listLedgerTransactions();
     const fee = rows.find((r) => r.category === "手續費")!;

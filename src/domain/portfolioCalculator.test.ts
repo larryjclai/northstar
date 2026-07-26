@@ -80,7 +80,11 @@ describe("portfolio calculator", () => {
   });
 
   it("splits transaction holdings by linked account when computing per-account positions", () => {
-    const schwab: InvestmentRecord = { ...buyRecord, id: "inv_schwab", linkedAccountId: "acct_schwab" };
+    const schwab: InvestmentRecord = {
+      ...buyRecord,
+      id: "inv_schwab",
+      linkedAccountId: "acct_schwab",
+    };
     const firstrade: InvestmentRecord = {
       ...buyRecord,
       id: "inv_first",
@@ -129,7 +133,12 @@ describe("portfolio calculator — daily-close valuation fallback", () => {
   });
 
   it("falls back to average cost (honest 0 P/L) when there is no quote or close", () => {
-    const [position] = buildHoldingPositionsByAccount([manualAsset], [], {}, { dailyPrices: [], asOf: "2026-06-08" });
+    const [position] = buildHoldingPositionsByAccount(
+      [manualAsset],
+      [],
+      {},
+      { dailyPrices: [], asOf: "2026-06-08" },
+    );
     expect(position.marketPrice).toBeNull();
     expect(position.marketValue).toBe(3000 * 50);
     expect(position.unrealizedGain).toBe(0);
@@ -200,7 +209,12 @@ describe("portfolio calculator — custom (manually-priced) assets", () => {
         { assetId: "asset_custom", date: "2026-06-05", price: 120, currency: "TWD" },
       ]),
     };
-    const [position] = buildHoldingPositions([customAsset], [], { "": { symbol: "", price: 8888, currency: "TWD" } }, valuation);
+    const [position] = buildHoldingPositions(
+      [customAsset],
+      [],
+      { "": { symbol: "", price: 8888, currency: "TWD" } },
+      valuation,
+    );
     expect(position.marketPrice).toBe(120);
     expect(position.marketValue).toBe(10 * 120);
   });
@@ -224,7 +238,12 @@ describe("portfolio calculator — custom (manually-priced) assets", () => {
       manualPriceLookup: buildManualPriceLookup([]),
     };
     // A quote keyed by the empty ticker exists but must be ignored.
-    const [position] = buildHoldingPositions([customAsset], [], { "": { symbol: "", price: 8888, currency: "TWD" } }, valuation);
+    const [position] = buildHoldingPositions(
+      [customAsset],
+      [],
+      { "": { symbol: "", price: 8888, currency: "TWD" } },
+      valuation,
+    );
     expect(position.marketPrice).toBeNull();
     expect(position.marketValue).toBe(10 * 100);
   });

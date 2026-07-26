@@ -22,7 +22,13 @@ export const DEFAULT_BENCHMARK_TICKER = "0050.TW";
  * first screen collapses to hero + pulse strip + 待辦 + 今日漲跌. Still fully
  * re-enableable per-card from 版面 — this only changes the *default*.
  */
-export const DIRECTION_A_HIDDEN_CARDS: string[] = ["allocation", "goals", "recentActivity", "projection", "netWorthTrend"];
+export const DIRECTION_A_HIDDEN_CARDS: string[] = [
+  "allocation",
+  "goals",
+  "recentActivity",
+  "projection",
+  "netWorthTrend",
+];
 
 export interface UiPreferences {
   privacyMode: boolean;
@@ -110,15 +116,21 @@ export interface UiPreferences {
 
 /** Toggleable holdings-table columns (the rest are always shown). */
 export type HoldingsColumnKey =
-  | "dayPnl"
-  | "account"
-  | "averageCost"
-  | "marketPrice"
-  | "assetType"
-  | "costBasis";
+  "dayPnl" | "account" | "averageCost" | "marketPrice" | "assetType" | "costBasis";
 
-export const HOLDINGS_COLUMN_DEFAULTS: HoldingsColumnKey[] = ["account", "averageCost", "marketPrice"];
-const HOLDINGS_COLUMN_ALL: HoldingsColumnKey[] = ["dayPnl", "account", "averageCost", "marketPrice", "assetType", "costBasis"];
+export const HOLDINGS_COLUMN_DEFAULTS: HoldingsColumnKey[] = [
+  "account",
+  "averageCost",
+  "marketPrice",
+];
+const HOLDINGS_COLUMN_ALL: HoldingsColumnKey[] = [
+  "dayPnl",
+  "account",
+  "averageCost",
+  "marketPrice",
+  "assetType",
+  "costBasis",
+];
 
 const STORAGE_KEY = "northstar.uiPreferences.v1";
 
@@ -187,23 +199,25 @@ function loadPersisted(): PersistedShape {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...fallback, onboardingDismissed: legacyDismissed };
     const parsed = JSON.parse(raw) as Partial<PersistedShape>;
-    const tz = typeof parsed.timezone === "string" && isValidTimezone(parsed.timezone)
-      ? parsed.timezone
-      : fallback.timezone;
+    const tz =
+      typeof parsed.timezone === "string" && isValidTimezone(parsed.timezone)
+        ? parsed.timezone
+        : fallback.timezone;
     const theme: ThemeMode =
       parsed.theme === "dark" || parsed.theme === "light" ? parsed.theme : "system";
     return {
       privacyMode: typeof parsed.privacyMode === "boolean" ? parsed.privacyMode : false,
       nameLocale:
-        parsed.nameLocale === "zh-Hant" || parsed.nameLocale === "en"
-          ? parsed.nameLocale
-          : "auto",
+        parsed.nameLocale === "zh-Hant" || parsed.nameLocale === "en" ? parsed.nameLocale : "auto",
       clockMode: parsed.clockMode === "12h" ? "12h" : "24h",
       timezone: tz,
       theme,
-      assetLogosEnabled: typeof parsed.assetLogosEnabled === "boolean" ? parsed.assetLogosEnabled : false,
+      assetLogosEnabled:
+        typeof parsed.assetLogosEnabled === "boolean" ? parsed.assetLogosEnabled : false,
       holdingsColumns: Array.isArray(parsed.holdingsColumns)
-        ? parsed.holdingsColumns.filter((k): k is HoldingsColumnKey => HOLDINGS_COLUMN_ALL.includes(k as HoldingsColumnKey))
+        ? parsed.holdingsColumns.filter((k): k is HoldingsColumnKey =>
+            HOLDINGS_COLUMN_ALL.includes(k as HoldingsColumnKey),
+          )
         : HOLDINGS_COLUMN_DEFAULTS,
       benchmarkTicker:
         typeof parsed.benchmarkTicker === "string" && parsed.benchmarkTicker.trim()
@@ -218,7 +232,8 @@ function loadPersisted(): PersistedShape {
           ? parsed.density
           : "default",
       radius: parsed.radius === "sharp" || parsed.radius === "round" ? parsed.radius : "default",
-      showTradeMarkers: typeof parsed.showTradeMarkers === "boolean" ? parsed.showTradeMarkers : true,
+      showTradeMarkers:
+        typeof parsed.showTradeMarkers === "boolean" ? parsed.showTradeMarkers : true,
       // Plan 164 one-time migration: existing installs persisted `[]` (nothing
       // hidden) under the old default. On their first load after this update,
       // if hidden cards is still exactly [] and we haven't seeded before, seed
@@ -228,12 +243,19 @@ function loadPersisted(): PersistedShape {
         const persistedHidden = Array.isArray(parsed.dashboardHiddenCards)
           ? parsed.dashboardHiddenCards.filter((k): k is string => typeof k === "string")
           : [];
-        const alreadySeeded = typeof parsed.dashboardDefaultsSeeded === "boolean" ? parsed.dashboardDefaultsSeeded : false;
-        return persistedHidden.length === 0 && !alreadySeeded ? DIRECTION_A_HIDDEN_CARDS : persistedHidden;
+        const alreadySeeded =
+          typeof parsed.dashboardDefaultsSeeded === "boolean"
+            ? parsed.dashboardDefaultsSeeded
+            : false;
+        return persistedHidden.length === 0 && !alreadySeeded
+          ? DIRECTION_A_HIDDEN_CARDS
+          : persistedHidden;
       })(),
       dashboardDefaultsSeeded: true,
       onboardingDismissed:
-        typeof parsed.onboardingDismissed === "boolean" ? parsed.onboardingDismissed : legacyDismissed,
+        typeof parsed.onboardingDismissed === "boolean"
+          ? parsed.onboardingDismissed
+          : legacyDismissed,
       dismissedBanners:
         parsed.dismissedBanners && typeof parsed.dismissedBanners === "object"
           ? {
@@ -245,7 +267,8 @@ function loadPersisted(): PersistedShape {
                 : {}),
             }
           : {},
-      sidebarCollapsed: typeof parsed.sidebarCollapsed === "boolean" ? parsed.sidebarCollapsed : false,
+      sidebarCollapsed:
+        typeof parsed.sidebarCollapsed === "boolean" ? parsed.sidebarCollapsed : false,
       northstarMetric:
         typeof parsed.northstarMetric === "string" && parsed.northstarMetric.trim()
           ? parsed.northstarMetric.trim()
@@ -256,7 +279,8 @@ function loadPersisted(): PersistedShape {
         typeof parsed.milestoneReached === "number" && Number.isFinite(parsed.milestoneReached)
           ? parsed.milestoneReached
           : 0,
-      remindersEnabled: typeof parsed.remindersEnabled === "boolean" ? parsed.remindersEnabled : false,
+      remindersEnabled:
+        typeof parsed.remindersEnabled === "boolean" ? parsed.remindersEnabled : false,
       acknowledgedReminders: Array.isArray(parsed.acknowledgedReminders)
         ? parsed.acknowledgedReminders.filter((k): k is string => typeof k === "string")
         : [],

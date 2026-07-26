@@ -59,7 +59,10 @@ export function buildInstallmentSchedule(opts: {
 }
 
 /** "3/12期" badge text for an installment row; null for normal rows. */
-export function installmentLabel(row: { installmentIndex?: number | null; installmentTotal?: number | null }): string | null {
+export function installmentLabel(row: {
+  installmentIndex?: number | null;
+  installmentTotal?: number | null;
+}): string | null {
   if (row.installmentIndex == null || row.installmentTotal == null) return null;
   return `${row.installmentIndex}/${row.installmentTotal}期`;
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { healthFingerprint, overBudgetFingerprint } from "./bannerFingerprint";
 
 describe("healthFingerprint", () => {
-  it("returns \"ok\" for no issues", () => {
+  it('returns "ok" for no issues', () => {
     expect(healthFingerprint([])).toBe("ok");
   });
 
@@ -43,15 +43,15 @@ describe("healthFingerprint", () => {
 
   it("distinguishes two ids that share the same kind (stale-manual-price vs stale-manual-price-missing)", () => {
     const stale = healthFingerprint([{ kind: "stale-manual-price", id: "stale-manual-price" }]);
-    const missing = healthFingerprint([{ kind: "stale-manual-price", id: "stale-manual-price-missing" }]);
+    const missing = healthFingerprint([
+      { kind: "stale-manual-price", id: "stale-manual-price-missing" },
+    ]);
     expect(stale).not.toBe(missing);
   });
 
   it("returns to the same string once the issue set is fully resolved", () => {
     expect(healthFingerprint([])).toBe("ok");
-    expect(
-      healthFingerprint([{ kind: "stale-quote", id: "stale-quote" }]),
-    ).not.toBe("ok");
+    expect(healthFingerprint([{ kind: "stale-quote", id: "stale-quote" }])).not.toBe("ok");
   });
 });
 

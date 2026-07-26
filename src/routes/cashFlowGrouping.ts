@@ -37,7 +37,10 @@ export function groupByDay<T extends LedgerTransaction>(
   return [...map.entries()].map(([date, dayRows]) => ({
     date,
     rows: dayRows,
-    net: dayRows.reduce((sum, row) => (isNeutralLedgerRow(row) ? sum : sum + (toPrimary(row) ?? 0)), 0),
+    net: dayRows.reduce(
+      (sum, row) => (isNeutralLedgerRow(row) ? sum : sum + (toPrimary(row) ?? 0)),
+      0,
+    ),
   }));
 }
 
@@ -60,6 +63,13 @@ export function groupByMonth<T extends LedgerTransaction>(
       if (amount >= 0) income += amount;
       else expense += -amount;
     }
-    return { month, rows: monthRows, count: monthRows.length, income, expense, net: income - expense };
+    return {
+      month,
+      rows: monthRows,
+      count: monthRows.length,
+      income,
+      expense,
+      net: income - expense,
+    };
   });
 }

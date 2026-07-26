@@ -48,8 +48,12 @@ function read(): DeviceIdentity | null {
     return {
       deviceId: parsed.deviceId,
       createdAt: parsed.createdAt ?? new Date().toISOString(),
-      schemaVersion: typeof parsed.schemaVersion === "number" ? parsed.schemaVersion : SYNC_SCHEMA_VERSION,
-      localPushCursor: parsed.localPushCursor ?? (parsed as { lastSyncCursor?: string | null }).lastSyncCursor ?? null,
+      schemaVersion:
+        typeof parsed.schemaVersion === "number" ? parsed.schemaVersion : SYNC_SCHEMA_VERSION,
+      localPushCursor:
+        parsed.localPushCursor ??
+        (parsed as { lastSyncCursor?: string | null }).lastSyncCursor ??
+        null,
       remotePullCursor: parsed.remotePullCursor ?? null,
     };
   } catch {
@@ -118,8 +122,7 @@ export async function hydrateDeviceIdentity(): Promise<void> {
       return;
     }
     const { readTextFile, exists, BaseDirectory } = await fs();
-    if (!(await exists(IDENTITY_FILE, { baseDir: BaseDirectory.AppLocalData })))
-      return;
+    if (!(await exists(IDENTITY_FILE, { baseDir: BaseDirectory.AppLocalData }))) return;
     const text = await readTextFile(IDENTITY_FILE, {
       baseDir: BaseDirectory.AppLocalData,
     });

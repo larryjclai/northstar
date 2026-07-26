@@ -1,6 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { AssetType } from "../../domain";
-import type { AssetProfile, MarketDataProvider, MarketHistoryPoint, MarketQuote, SymbolSearchResult } from "./provider";
+import type {
+  AssetProfile,
+  MarketDataProvider,
+  MarketHistoryPoint,
+  MarketQuote,
+  SymbolSearchResult,
+} from "./provider";
 
 interface YahooChartEnvelope {
   northstarError?: string;
@@ -66,7 +72,9 @@ export class YahooFinanceProvider implements MarketDataProvider {
       return true;
     });
 
-    const fetched = await Promise.allSettled(missing.map((symbol) => this.fetchQuoteFromChart(symbol)));
+    const fetched = await Promise.allSettled(
+      missing.map((symbol) => this.fetchQuoteFromChart(symbol)),
+    );
     for (const item of fetched) {
       if (item.status === "fulfilled") {
         quoteCache.set(item.value.symbol, { quote: item.value, updatedAt: Date.now() });
@@ -119,7 +127,9 @@ export class YahooFinanceProvider implements MarketDataProvider {
     if (envelope.northstarError) throw new Error(envelope.northstarError);
     const allowed = new Set(["EQUITY", "ETF", "MUTUALFUND", "INDEX", "CRYPTOCURRENCY", "CRYPTO"]);
     return envelope.quotes
-      .filter((item) => item.symbol && (!item.quoteType || allowed.has(item.quoteType.toUpperCase())))
+      .filter(
+        (item) => item.symbol && (!item.quoteType || allowed.has(item.quoteType.toUpperCase())),
+      )
       .map((item) => ({
         symbol: item.symbol ?? "",
         name: item.shortname ?? item.longname ?? item.symbol ?? "",
@@ -130,14 +140,19 @@ export class YahooFinanceProvider implements MarketDataProvider {
       }));
   }
 
-  async fetchAssetProfiles(symbols: string[], onProgress?: (done: number, total: number) => void): Promise<Record<string, AssetProfile>> {
+  async fetchAssetProfiles(
+    symbols: string[],
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<Record<string, AssetProfile>> {
     const normalized = [...new Set(symbols.map(normalizeSymbol).filter(Boolean))].sort();
     const result: Record<string, AssetProfile> = {};
     let done = 0;
 
     for (let index = 0; index < normalized.length; index += 4) {
       const chunk = normalized.slice(index, index + 4);
-      const fetched = await Promise.allSettled(chunk.map((symbol) => this.fetchAssetProfile(symbol)));
+      const fetched = await Promise.allSettled(
+        chunk.map((symbol) => this.fetchAssetProfile(symbol)),
+      );
       for (const item of fetched) {
         done += 1;
         if (item.status === "fulfilled") {
@@ -173,14 +188,25 @@ export class YahooFinanceProvider implements MarketDataProvider {
 
     const primary = pickPrimary(zhResult, enResult);
     if (!primary) {
-      const reason = zhResult.status === "rejected" ? zhResult.reason : enResult.status === "rejected" ? enResult.reason : null;
-      throw reason instanceof Error ? reason : new Error(`Yahoo Finance did not return a quote for ${symbol}.`);
+      const reason =
+        zhResult.status === "rejected"
+          ? zhResult.reason
+          : enResult.status === "rejected"
+            ? enResult.reason
+            : null;
+      throw reason instanceof Error
+        ? reason
+        : new Error(`Yahoo Finance did not return a quote for ${symbol}.`);
     }
 
-    const closes = primary.indicators.quote[0]?.close?.filter((close): close is number => Boolean(close && close > 0)) ?? [];
+    const closes =
+      primary.indicators.quote[0]?.close?.filter((close): close is number =>
+        Boolean(close && close > 0),
+      ) ?? [];
     const price = primary.meta.regularMarketPrice ?? closes.at(-1);
     if (!price) throw new Error(`Yahoo Finance did not return a quote for ${symbol}.`);
-    const previousClose = primary.meta.previousClose ?? primary.meta.chartPreviousClose ?? closes.at(-2) ?? price;
+    const previousClose =
+      primary.meta.previousClose ?? primary.meta.chartPreviousClose ?? closes.at(-2) ?? price;
     const change = price - previousClose;
 
     const nameZh = zhResult.status === "fulfilled" ? extractName(zhResult.value) : null;
@@ -201,15 +227,27 @@ export class YahooFinanceProvider implements MarketDataProvider {
     };
   }
 
-  private async fetchChart(symbol: string, range: string, interval: string, lang?: string): Promise<YahooChartResult> {
+  private async fetchChart(
+    symbol: string,
+    range: string,
+    interval: string,
+    lang?: string,
+  ): Promise<YahooChartResult> {
     const encodedSymbol = encodeURIComponent(symbol);
     const params: Record<string, string> = { range, interval };
     if (lang) params.lang = lang;
     const searchParams = new URLSearchParams(params);
-    const envelope = await fetchYahooJson<YahooChartEnvelope>(`/v8/finance/chart/${encodedSymbol}`, searchParams);
+    const envelope = await fetchYahooJson<YahooChartEnvelope>(
+      `/v8/finance/chart/${encodedSymbol}`,
+      searchParams,
+    );
     const result = envelope.chart.result?.[0];
     if (!result) {
-      throw new Error(envelope.northstarError ?? envelope.chart.error?.description ?? `Yahoo Finance did not return chart data for ${symbol}.`);
+      throw new Error(
+        envelope.northstarError ??
+          envelope.chart.error?.description ??
+          `Yahoo Finance did not return chart data for ${symbol}.`,
+      );
     }
     return result;
   }
@@ -229,7 +267,9 @@ export class YahooFinanceProvider implements MarketDataProvider {
     });
     const envelope = await fetchYahooJson<YahooSearchEnvelope>("/v1/finance/search", searchParams);
     if (envelope.northstarError) throw new Error(envelope.northstarError);
-    const match = envelope.quotes.find((item) => item.symbol?.toUpperCase() === symbol.toUpperCase());
+    const match = envelope.quotes.find(
+      (item) => item.symbol?.toUpperCase() === symbol.toUpperCase(),
+    );
     if (!match) {
       throw new Error(`Yahoo Finance did not return profile data for ${symbol}.`);
     }

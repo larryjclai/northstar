@@ -1,19 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { buildDailyPriceLookup, buildManualPriceLookup, priceAssetOnDate, holdingsMarketValue } from "./valuation";
+import {
+  buildDailyPriceLookup,
+  buildManualPriceLookup,
+  priceAssetOnDate,
+  holdingsMarketValue,
+} from "./valuation";
 import type { DailyPrice } from "./types";
 
 const asset = { ticker: "0050.TW", currency: "TWD", averageCost: 50 };
 const TODAY = "2026-06-08";
 
 function close(date: string, value: number): DailyPrice {
-  return { ticker: "0050.TW", date, close: value, currency: "TWD", source: "test", updatedAt: `${date}T00:00:00.000Z` };
+  return {
+    ticker: "0050.TW",
+    date,
+    close: value,
+    currency: "TWD",
+    source: "test",
+    updatedAt: `${date}T00:00:00.000Z`,
+  };
 }
 
 describe("priceAssetOnDate", () => {
   const lookup = buildDailyPriceLookup([close("2026-06-02", 55), close("2026-06-06", 58)]);
 
   it("prefers the live quote for today", () => {
-    const price = priceAssetOnDate(asset, TODAY, { todayIso: TODAY, dailyPriceLookup: lookup, quote: { price: 60, currency: "TWD" } });
+    const price = priceAssetOnDate(asset, TODAY, {
+      todayIso: TODAY,
+      dailyPriceLookup: lookup,
+      quote: { price: 60, currency: "TWD" },
+    });
     expect(price).toEqual({ value: 60, currency: "TWD", source: "quote" });
   });
 
@@ -29,18 +45,31 @@ describe("priceAssetOnDate", () => {
   });
 
   it("ignores the live quote on a historical date and uses the close on/before it", () => {
-    const price = priceAssetOnDate(asset, "2026-06-04", { todayIso: TODAY, dailyPriceLookup: lookup, quote: { price: 99, currency: "TWD" } });
+    const price = priceAssetOnDate(asset, "2026-06-04", {
+      todayIso: TODAY,
+      dailyPriceLookup: lookup,
+      quote: { price: 99, currency: "TWD" },
+    });
     expect(price).toEqual({ value: 55, currency: "TWD", source: "close" });
   });
 
   it("uses average cost for a historical date predating any close", () => {
-    const price = priceAssetOnDate(asset, "2026-05-01", { todayIso: TODAY, dailyPriceLookup: lookup });
+    const price = priceAssetOnDate(asset, "2026-05-01", {
+      todayIso: TODAY,
+      dailyPriceLookup: lookup,
+    });
     expect(price).toEqual({ value: 50, currency: "TWD", source: "cost" });
   });
 });
 
 describe("priceAssetOnDate — custom (manually-priced) assets", () => {
-  const customAsset = { id: "fund-1", ticker: "", currency: "TWD", averageCost: 100, assetType: "custom" };
+  const customAsset = {
+    id: "fund-1",
+    ticker: "",
+    currency: "TWD",
+    averageCost: 100,
+    assetType: "custom",
+  };
   const lookup = buildDailyPriceLookup([close("2026-06-06", 58)]);
 
   // A manual-snapshot resolver mirroring findDailyPriceAtOrBefore: latest at/before date.
@@ -70,7 +99,9 @@ describe("priceAssetOnDate — custom (manually-priced) assets", () => {
   });
 
   it("never consults quote or daily close even for the current date", () => {
-    const manualPriceLookup = manualLookupFrom([{ date: "2026-06-01", price: 110, currency: "TWD" }]);
+    const manualPriceLookup = manualLookupFrom([
+      { date: "2026-06-01", price: 110, currency: "TWD" },
+    ]);
     const price = priceAssetOnDate(customAsset, TODAY, {
       todayIso: TODAY,
       dailyPriceLookup: lookup,
@@ -81,7 +112,9 @@ describe("priceAssetOnDate — custom (manually-priced) assets", () => {
   });
 
   it("falls back to cost when snapshots exist only after the date", () => {
-    const manualPriceLookup = manualLookupFrom([{ date: "2026-06-10", price: 130, currency: "TWD" }]);
+    const manualPriceLookup = manualLookupFrom([
+      { date: "2026-06-10", price: 130, currency: "TWD" },
+    ]);
     const price = priceAssetOnDate(customAsset, "2026-06-06", {
       todayIso: TODAY,
       dailyPriceLookup: lookup,
@@ -100,20 +133,36 @@ describe("priceAssetOnDate — custom (manually-priced) assets", () => {
   });
 
   it("falls back to cost when no manual lookup is provided", () => {
-    const price = priceAssetOnDate(customAsset, TODAY, { todayIso: TODAY, dailyPriceLookup: lookup });
+    const price = priceAssetOnDate(customAsset, TODAY, {
+      todayIso: TODAY,
+      dailyPriceLookup: lookup,
+    });
     expect(price).toEqual({ value: 100, currency: "TWD", source: "cost" });
   });
 
   it("regression: a normal tickered asset is unaffected (quote/close/cost order intact)", () => {
-    const opts = { todayIso: TODAY, dailyPriceLookup: lookup, manualPriceLookup: () => ({ price: 7, currency: "TWD" }) };
+    const opts = {
+      todayIso: TODAY,
+      dailyPriceLookup: lookup,
+      manualPriceLookup: () => ({ price: 7, currency: "TWD" }),
+    };
     // Today with a quote → quote wins; the manual lookup must be ignored for non-custom.
-    expect(priceAssetOnDate(asset, TODAY, { ...opts, quote: { price: 60, currency: "TWD" } }))
-      .toEqual({ value: 60, currency: "TWD", source: "quote" });
+    expect(
+      priceAssetOnDate(asset, TODAY, { ...opts, quote: { price: 60, currency: "TWD" } }),
+    ).toEqual({ value: 60, currency: "TWD", source: "quote" });
     // Historical date → daily close on/before.
-    expect(priceAssetOnDate(asset, "2026-06-06", opts)).toEqual({ value: 58, currency: "TWD", source: "close" });
+    expect(priceAssetOnDate(asset, "2026-06-06", opts)).toEqual({
+      value: 58,
+      currency: "TWD",
+      source: "close",
+    });
     // No quote/close available → cost.
-    expect(priceAssetOnDate(asset, "2026-05-01", { ...opts, dailyPriceLookup: buildDailyPriceLookup([]) }))
-      .toEqual({ value: 50, currency: "TWD", source: "cost" });
+    expect(
+      priceAssetOnDate(asset, "2026-05-01", {
+        ...opts,
+        dailyPriceLookup: buildDailyPriceLookup([]),
+      }),
+    ).toEqual({ value: 50, currency: "TWD", source: "cost" });
   });
 });
 
@@ -173,7 +222,14 @@ describe("holdingsMarketValue", () => {
   it("sums a mix of one tickered and one custom asset in primary currency", () => {
     const assets = [
       { ticker: "0050.TW", currency: "TWD", averageCost: 50, totalQuantity: 100 },
-      { id: "fund-1", ticker: "", currency: "TWD", averageCost: 100, assetType: "custom", totalQuantity: 10 },
+      {
+        id: "fund-1",
+        ticker: "",
+        currency: "TWD",
+        averageCost: 100,
+        assetType: "custom",
+        totalQuantity: 10,
+      },
     ];
     const { total } = holdingsMarketValue(assets, TODAY, identity, {
       todayIso: TODAY,

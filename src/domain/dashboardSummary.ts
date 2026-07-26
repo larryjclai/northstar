@@ -19,10 +19,14 @@ export interface HoldingSummaryRow {
   hasQuote: boolean;
 }
 
-export function calculateAvailableCash(accounts: Account[], toPrimary: (amount: number, currency: string) => number) {
+export function calculateAvailableCash(
+  accounts: Account[],
+  toPrimary: (amount: number, currency: string) => number,
+) {
   return accounts.reduce((sum, account) => {
     if (account.deletedAt !== null) return sum;
-    if (account.type === "loan" || account.type === "credit" || account.type === "alternative") return sum;
+    if (account.type === "loan" || account.type === "credit" || account.type === "alternative")
+      return sum;
     return sum + toPrimary(Math.max(0, account.balance), account.currency);
   }, 0);
 }
@@ -30,7 +34,10 @@ export function calculateAvailableCash(accounts: Account[], toPrimary: (amount: 
 // Non-liquid / alternative assets (property, metals, vehicles…) tracked as
 // accounts with a manually-maintained market value. Counted toward net worth
 // but kept out of the liquid-cash figure.
-export function calculateAlternativeAssets(accounts: Account[], toPrimary: (amount: number, currency: string) => number) {
+export function calculateAlternativeAssets(
+  accounts: Account[],
+  toPrimary: (amount: number, currency: string) => number,
+) {
   return accounts.reduce((sum, account) => {
     if (account.deletedAt !== null) return sum;
     if (account.type !== "alternative") return sum;
@@ -38,11 +45,16 @@ export function calculateAlternativeAssets(accounts: Account[], toPrimary: (amou
   }, 0);
 }
 
-export function calculateLiabilities(accounts: Account[], toPrimary: (amount: number, currency: string) => number) {
+export function calculateLiabilities(
+  accounts: Account[],
+  toPrimary: (amount: number, currency: string) => number,
+) {
   return accounts.reduce((sum, account) => {
     if (account.deletedAt !== null) return sum;
-    if (account.type === "loan") return sum + toPrimary(Math.abs(account.balance), account.currency);
-    if (account.type === "credit") return sum + toPrimary(Math.max(0, -account.balance), account.currency);
+    if (account.type === "loan")
+      return sum + toPrimary(Math.abs(account.balance), account.currency);
+    if (account.type === "credit")
+      return sum + toPrimary(Math.max(0, -account.balance), account.currency);
     return sum;
   }, 0);
 }
@@ -125,7 +137,9 @@ function lastDayOfMonthOnOrBefore(today: string, day: number): string {
   if (d >= dayThis) return new Date(Date.UTC(y, m - 1, dayThis)).toISOString().slice(0, 10);
   const py = m === 1 ? y - 1 : y;
   const pm = m === 1 ? 11 : m - 2;
-  return new Date(Date.UTC(py, pm, Math.min(day, daysInMonthUtc(py, pm)))).toISOString().slice(0, 10);
+  return new Date(Date.UTC(py, pm, Math.min(day, daysInMonthUtc(py, pm))))
+    .toISOString()
+    .slice(0, 10);
 }
 
 /** The first date strictly after `afterDate` that falls on `day` of month. */
@@ -135,7 +149,9 @@ function nextDayOfMonthStrictlyAfter(afterDate: string, day: number): string {
   if (d < dayThis) return new Date(Date.UTC(y, m - 1, dayThis)).toISOString().slice(0, 10);
   const ny = m === 12 ? y + 1 : y;
   const nm = m % 12;
-  return new Date(Date.UTC(ny, nm, Math.min(day, daysInMonthUtc(ny, nm)))).toISOString().slice(0, 10);
+  return new Date(Date.UTC(ny, nm, Math.min(day, daysInMonthUtc(ny, nm))))
+    .toISOString()
+    .slice(0, 10);
 }
 
 /**
@@ -150,12 +166,18 @@ export function buildCreditCardReminders(
 ): CreditCardReminder[] {
   const reminders: CreditCardReminder[] = [];
   const todayStr = today.slice(0, 10);
-  
+
   for (const account of accounts) {
-    if (account.deletedAt !== null || account.type !== "credit" || !account.paymentDueDay || !account.statementDay) continue;
+    if (
+      account.deletedAt !== null ||
+      account.type !== "credit" ||
+      !account.paymentDueDay ||
+      !account.statementDay
+    )
+      continue;
     const owed = Math.max(0, -account.balance);
     if (owed <= 0) continue; // If the whole account is fully paid off, no reminder needed.
-    
+
     // Find the most recently closed statement's date
     let statementClose = lastDayOfMonthOnOrBefore(todayStr, account.statementDay);
     // Find the due date for that specific statement
@@ -170,9 +192,9 @@ export function buildCreditCardReminders(
     // If the due date for the most recently closed statement is already marked as paid,
     // they don't owe anything for it. (New purchases belong to the NEXT statement which hasn't closed yet).
     if (account.creditPaymentPaidUntil && account.creditPaymentPaidUntil >= dueDate) continue;
-    
+
     const daysUntilDue = Math.round((Date.parse(dueDate) - Date.parse(todayStr)) / 86400000);
-    
+
     reminders.push({
       accountId: account.id,
       name: account.name,
@@ -204,16 +226,64 @@ export function creditBalanceLabel(balance: number): CreditBalanceDisplay {
 export function explainAccountBalance(
   accountId: string,
   openingBalance: number,
-  ledger: Array<Pick<LedgerTransaction, "id" | "date" | "name" | "amount" | "accountId" | "counterAccountId" | "settlementStatus" | "deletedAt">>,
-): { opening: number; contributions: Array<{ id: string; date: string; name: string; delta: number; via: "main" | "counter" }>; total: number } {
-  const contributions: Array<{ id: string; date: string; name: string; delta: number; via: "main" | "counter" }> = [];
+  ledger: Array<
+    Pick<
+      LedgerTransaction,
+      | "id"
+      | "date"
+      | "name"
+      | "amount"
+      | "accountId"
+      | "counterAccountId"
+      | "settlementStatus"
+      | "deletedAt"
+    >
+  >,
+): {
+  opening: number;
+  contributions: Array<{
+    id: string;
+    date: string;
+    name: string;
+    delta: number;
+    via: "main" | "counter";
+  }>;
+  total: number;
+} {
+  const contributions: Array<{
+    id: string;
+    date: string;
+    name: string;
+    delta: number;
+    via: "main" | "counter";
+  }> = [];
   for (const row of ledger) {
     if (row.deletedAt !== null) continue;
     if (row.counterAccountId) {
-      if (row.counterAccountId === accountId) contributions.push({ id: row.id, date: row.date, name: row.name, delta: -row.amount, via: "counter" });
-      if (row.settlementStatus === "settled" && row.accountId === accountId) contributions.push({ id: row.id, date: row.date, name: row.name, delta: row.amount, via: "main" });
+      if (row.counterAccountId === accountId)
+        contributions.push({
+          id: row.id,
+          date: row.date,
+          name: row.name,
+          delta: -row.amount,
+          via: "counter",
+        });
+      if (row.settlementStatus === "settled" && row.accountId === accountId)
+        contributions.push({
+          id: row.id,
+          date: row.date,
+          name: row.name,
+          delta: row.amount,
+          via: "main",
+        });
     } else if (row.settlementStatus === "settled" && row.accountId === accountId) {
-      contributions.push({ id: row.id, date: row.date, name: row.name, delta: row.amount, via: "main" });
+      contributions.push({
+        id: row.id,
+        date: row.date,
+        name: row.name,
+        delta: row.amount,
+        via: "main",
+      });
     }
   }
   const total = openingBalance + contributions.reduce((s, c) => s + c.delta, 0);
@@ -261,7 +331,11 @@ export function buildOutstandingSettlements(
     items.push({
       id: row.id,
       kind: row.settlementStatus,
-      name: row.name || row.merchant || row.category || (row.settlementStatus === "receivable" ? "應收款項" : "應付款項"),
+      name:
+        row.name ||
+        row.merchant ||
+        row.category ||
+        (row.settlementStatus === "receivable" ? "應收款項" : "應付款項"),
       counterparty: row.merchant,
       date: row.date,
       amount,
@@ -284,11 +358,7 @@ export function buildOutstandingSettlements(
  * meaningful — e.g. a fresh ledger whose net worth starts near zero would
  * otherwise show +570% for a month of ordinary deposits.
  */
-export function changePctWithFloor(
-  start: number,
-  end: number,
-  floorRatio = 0.2,
-): number | null {
+export function changePctWithFloor(start: number, end: number, floorRatio = 0.2): number | null {
   if (start === 0) return null;
   if (Math.abs(start) < Math.abs(end) * floorRatio) return null;
   return ((end - start) / Math.abs(start)) * 100;
@@ -322,4 +392,3 @@ export function buildTopHoldingSummaries(
     .sort((a, b) => b.marketValuePrimary - a.marketValuePrimary)
     .slice(0, limit);
 }
-

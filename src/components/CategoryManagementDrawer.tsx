@@ -52,7 +52,7 @@ export function CategoryManagementDrawer({
     const name = raw.trim();
     setAddingMain(false);
     setDraftMain("");
-    if (!name || local.some(c => c.name === name)) return;
+    if (!name || local.some((c) => c.name === name)) return;
     setLocal([...local, { name, children: [] }]);
   }
 
@@ -61,47 +61,56 @@ export function CategoryManagementDrawer({
     setAddingSubFor(null);
     setDraftSub("");
     if (!name) return;
-    setLocal(local.map(c => {
-      if (c.name === mainName) {
-        if (c.children.includes(name)) return c;
-        return { ...c, children: [...c.children, name] };
-      }
-      return c;
-    }));
-    setExpanded(prev => ({ ...prev, [mainName]: true }));
+    setLocal(
+      local.map((c) => {
+        if (c.name === mainName) {
+          if (c.children.includes(name)) return c;
+          return { ...c, children: [...c.children, name] };
+        }
+        return c;
+      }),
+    );
+    setExpanded((prev) => ({ ...prev, [mainName]: true }));
   }
 
   function removeSubCategory(mainName: string, subName: string) {
-    setLocal(local.map(c => {
-      if (c.name === mainName) {
-        return { ...c, children: c.children.filter(child => child !== subName) };
-      }
-      return c;
-    }));
+    setLocal(
+      local.map((c) => {
+        if (c.name === mainName) {
+          return { ...c, children: c.children.filter((child) => child !== subName) };
+        }
+        return c;
+      }),
+    );
   }
 
   function commitRenameMain(oldName: string, raw: string) {
     const newName = raw.trim();
     setRenamingMain(null);
-    if (!newName || newName === oldName || local.some(c => c.name === newName)) return;
-    setLocal(local.map(c => c.name === oldName ? { ...c, name: newName } : c));
+    if (!newName || newName === oldName || local.some((c) => c.name === newName)) return;
+    setLocal(local.map((c) => (c.name === oldName ? { ...c, name: newName } : c)));
   }
 
   function commitRenameSub(mainName: string, oldSubName: string, raw: string) {
     const newName = raw.trim();
     setRenamingSub(null);
     if (!newName || newName === oldSubName) return;
-    setLocal(local.map(c => {
-      if (c.name === mainName) {
-        if (c.children.includes(newName)) return c;
-        return { ...c, children: c.children.map(child => child === oldSubName ? newName : child) };
-      }
-      return c;
-    }));
+    setLocal(
+      local.map((c) => {
+        if (c.name === mainName) {
+          if (c.children.includes(newName)) return c;
+          return {
+            ...c,
+            children: c.children.map((child) => (child === oldSubName ? newName : child)),
+          };
+        }
+        return c;
+      }),
+    );
   }
 
   function removeMainCategory(name: string) {
-    setLocal(local.filter(c => c.name !== name));
+    setLocal(local.filter((c) => c.name !== name));
     setConfirmRemove(null);
   }
 
@@ -120,160 +129,336 @@ export function CategoryManagementDrawer({
       disableEscape
       style={{ zIndex: 100 }}
       panelStyle={{
-        position: "absolute", right: 0, top: 0, bottom: 0, width: "100%", maxWidth: 400,
-        background: "var(--ns-bg)", borderLeft: "1px solid var(--ns-border)",
-        display: "flex", flexDirection: "column", boxShadow: "var(--ns-shadow-xl)",
+        position: "absolute",
+        right: 0,
+        top: 0,
+        bottom: 0,
+        width: "100%",
+        maxWidth: 400,
+        background: "var(--ns-bg)",
+        borderLeft: "1px solid var(--ns-border)",
+        display: "flex",
+        flexDirection: "column",
+        boxShadow: "var(--ns-shadow-xl)",
       }}
     >
-      {(dismiss) => (<>
-        <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--ns-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h2 className="text-base" style={{ fontWeight: 600 }}>分類管理</h2>
-          <ModalCloseButton onClick={dismiss} />
-        </div>
-
-        <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-            {addingMain ? (
-              <input
-                autoFocus
-                className="ns-input text-body"
-                style={{ flex: 1 }}
-                placeholder="主分類名稱…"
-                value={draftMain}
-                onChange={(e) => setDraftMain(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") commitAddMain(draftMain);
-                  if (e.key === "Escape") { setAddingMain(false); setDraftMain(""); }
-                }}
-                onBlur={() => commitAddMain(draftMain)}
-              />
-            ) : (
-              <Button onClick={() => { setAddingMain(true); setDraftMain(""); }}><Plus size={14} />新增主分類</Button>
-            )}
+      {(dismiss) => (
+        <>
+          <div
+            style={{
+              padding: "16px 24px",
+              borderBottom: "1px solid var(--ns-border)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <h2 className="text-base" style={{ fontWeight: 600 }}>
+              分類管理
+            </h2>
+            <ModalCloseButton onClick={dismiss} />
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {local.map(group => {
-              const isExp = expanded[group.name] || false;
-              const isRenamingMain = renamingMain === group.name;
-              return (
-                <Card key={group.name} style={{ padding: "12px 16px" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
-                      <div style={{ cursor: "pointer", display: "flex", alignItems: "center" }} onClick={() => toggle(group.name)}>
-                        <CaretRight size={14} weight="bold" className="ns-caret-rotate" style={{ transform: isExp ? "rotate(90deg)" : "none" }} />
-                      </div>
-                      <Popover>
-                        <PopoverTrigger className="ns-btn-icon text-base">
-                          {group.iconName ? <Glyph name={group.iconName} size={16} /> : <Tag size={16} />}
-                        </PopoverTrigger>
-                        <PopoverContent className="z-[150] shadow-xl rounded-xl w-auto p-0">
-                          <IconPicker
-                            value={group.iconName}
-                            onSelect={(name) => {
-                              setLocal(local.map(c => c.name === group.name ? { ...c, iconName: name } : c));
-                            }}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      {isRenamingMain ? (
-                        <input
-                          autoFocus
-                          className="ns-input text-sm"
-                          style={{ flex: 1, padding: "4px 8px" }}
-                          value={draftRename}
-                          onChange={(e) => setDraftRename(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") commitRenameMain(group.name, draftRename);
-                            if (e.key === "Escape") setRenamingMain(null);
-                          }}
-                          onBlur={() => commitRenameMain(group.name, draftRename)}
-                        />
-                      ) : (
-                        <>
-                          <span style={{ fontWeight: 500, cursor: "pointer" }} onClick={() => toggle(group.name)}>{group.name}</span>
-                          <span className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>({group.children.length})</span>
-                        </>
-                      )}
-                    </div>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      {confirmRemove === group.name ? (
-                        <>
-                          <Button variant="destructive" size="sm" className="text-xs" onClick={() => removeMainCategory(group.name)}>確定刪除</Button>
-                          <Button variant="ghost" size="sm" className="text-xs" onClick={() => setConfirmRemove(null)}>取消</Button>
-                        </>
-                      ) : (
-                        <>
-                          <Button variant="ghost" size="icon-sm" aria-label="新增子分類" onClick={() => { setAddingSubFor(group.name); setDraftSub(""); setExpanded(prev => ({ ...prev, [group.name]: true })); }}><Plus size={14} /></Button>
-                          <Button variant="ghost" size="icon-sm" aria-label="重新命名" onClick={() => { setRenamingMain(group.name); setDraftRename(group.name); }}><PencilSimple size={14} /></Button>
-                          <Button variant="destructive-outline" size="icon-sm" aria-label="刪除" onClick={() => setConfirmRemove(group.name)}><Trash size={14} /></Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+              {addingMain ? (
+                <input
+                  autoFocus
+                  className="ns-input text-body"
+                  style={{ flex: 1 }}
+                  placeholder="主分類名稱…"
+                  value={draftMain}
+                  onChange={(e) => setDraftMain(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitAddMain(draftMain);
+                    if (e.key === "Escape") {
+                      setAddingMain(false);
+                      setDraftMain("");
+                    }
+                  }}
+                  onBlur={() => commitAddMain(draftMain)}
+                />
+              ) : (
+                <Button
+                  onClick={() => {
+                    setAddingMain(true);
+                    setDraftMain("");
+                  }}
+                >
+                  <Plus size={14} />
+                  新增主分類
+                </Button>
+              )}
+            </div>
 
-                  {isExp && (group.children.length > 0 || addingSubFor === group.name) && (
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed var(--ns-border)", display: "flex", flexDirection: "column", gap: 8 }}>
-                      {group.children.map(child => {
-                        const isRenamingThis = renamingSub?.main === group.name && renamingSub?.sub === child;
-                        return (
-                          <div key={child} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 24 }}>
-                            {isRenamingThis ? (
-                              <input
-                                autoFocus
-                                className="ns-input text-sm"
-                                style={{ flex: 1, padding: "4px 8px" }}
-                                value={draftRename}
-                                onChange={(e) => setDraftRename(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") commitRenameSub(group.name, child, draftRename);
-                                  if (e.key === "Escape") setRenamingSub(null);
-                                }}
-                                onBlur={() => commitRenameSub(group.name, child, draftRename)}
-                              />
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {local.map((group) => {
+                const isExp = expanded[group.name] || false;
+                const isRenamingMain = renamingMain === group.name;
+                return (
+                  <Card key={group.name} style={{ padding: "12px 16px" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+                        <div
+                          style={{ cursor: "pointer", display: "flex", alignItems: "center" }}
+                          onClick={() => toggle(group.name)}
+                        >
+                          <CaretRight
+                            size={14}
+                            weight="bold"
+                            className="ns-caret-rotate"
+                            style={{ transform: isExp ? "rotate(90deg)" : "none" }}
+                          />
+                        </div>
+                        <Popover>
+                          <PopoverTrigger className="ns-btn-icon text-base">
+                            {group.iconName ? (
+                              <Glyph name={group.iconName} size={16} />
                             ) : (
-                              <span className="text-sm">{child}</span>
+                              <Tag size={16} />
                             )}
-                            <div style={{ display: "flex", gap: 4 }}>
-                              {!isRenamingThis && (
-                                <Button variant="ghost" size="icon-sm" aria-label="重新命名" onClick={() => { setRenamingSub({ main: group.name, sub: child }); setDraftRename(child); }}><PencilSimple /></Button>
-                              )}
-                              <Button variant="destructive-outline" size="icon-sm" aria-label="刪除" onClick={() => removeSubCategory(group.name, child)}><Trash /></Button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {addingSubFor === group.name && (
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 24 }}>
+                          </PopoverTrigger>
+                          <PopoverContent className="z-[150] shadow-xl rounded-xl w-auto p-0">
+                            <IconPicker
+                              value={group.iconName}
+                              onSelect={(name) => {
+                                setLocal(
+                                  local.map((c) =>
+                                    c.name === group.name ? { ...c, iconName: name } : c,
+                                  ),
+                                );
+                              }}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        {isRenamingMain ? (
                           <input
                             autoFocus
                             className="ns-input text-sm"
                             style={{ flex: 1, padding: "4px 8px" }}
-                            placeholder="子分類名稱…"
-                            value={draftSub}
-                            onChange={(e) => setDraftSub(e.target.value)}
+                            value={draftRename}
+                            onChange={(e) => setDraftRename(e.target.value)}
                             onKeyDown={(e) => {
-                              if (e.key === "Enter") commitAddSub(group.name, draftSub);
-                              if (e.key === "Escape") { setAddingSubFor(null); setDraftSub(""); }
+                              if (e.key === "Enter") commitRenameMain(group.name, draftRename);
+                              if (e.key === "Escape") setRenamingMain(null);
                             }}
-                            onBlur={() => commitAddSub(group.name, draftSub)}
+                            onBlur={() => commitRenameMain(group.name, draftRename)}
                           />
-                          <Button variant="ghost" size="icon-sm" aria-label="確認新增" onClick={() => commitAddSub(group.name, draftSub)}><Check size={14} /></Button>
-                        </div>
-                      )}
+                        ) : (
+                          <>
+                            <span
+                              style={{ fontWeight: 500, cursor: "pointer" }}
+                              onClick={() => toggle(group.name)}
+                            >
+                              {group.name}
+                            </span>
+                            <span className="text-xs" style={{ color: "var(--ns-fg-muted)" }}>
+                              ({group.children.length})
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {confirmRemove === group.name ? (
+                          <>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="text-xs"
+                              onClick={() => removeMainCategory(group.name)}
+                            >
+                              確定刪除
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs"
+                              onClick={() => setConfirmRemove(null)}
+                            >
+                              取消
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label="新增子分類"
+                              onClick={() => {
+                                setAddingSubFor(group.name);
+                                setDraftSub("");
+                                setExpanded((prev) => ({ ...prev, [group.name]: true }));
+                              }}
+                            >
+                              <Plus size={14} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label="重新命名"
+                              onClick={() => {
+                                setRenamingMain(group.name);
+                                setDraftRename(group.name);
+                              }}
+                            >
+                              <PencilSimple size={14} />
+                            </Button>
+                            <Button
+                              variant="destructive-outline"
+                              size="icon-sm"
+                              aria-label="刪除"
+                              onClick={() => setConfirmRemove(group.name)}
+                            >
+                              <Trash size={14} />
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </Card>
-              );
-            })}
-          </div>
-        </div>
 
-        <div style={{ padding: "16px 24px", borderTop: "1px solid var(--ns-border)", display: "flex", gap: 12 }}>
-          <Button variant="outline" style={{ flex: 1, justifyContent: "center" }} onClick={dismiss}>取消</Button>
-          <Button style={{ flex: 1, justifyContent: "center" }} onClick={async () => { await onSave(local); onClose(); }}>儲存變更</Button>
-        </div>
-      </>)}
+                    {isExp && (group.children.length > 0 || addingSubFor === group.name) && (
+                      <div
+                        style={{
+                          marginTop: 12,
+                          paddingTop: 12,
+                          borderTop: "1px dashed var(--ns-border)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 8,
+                        }}
+                      >
+                        {group.children.map((child) => {
+                          const isRenamingThis =
+                            renamingSub?.main === group.name && renamingSub?.sub === child;
+                          return (
+                            <div
+                              key={child}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                paddingLeft: 24,
+                              }}
+                            >
+                              {isRenamingThis ? (
+                                <input
+                                  autoFocus
+                                  className="ns-input text-sm"
+                                  style={{ flex: 1, padding: "4px 8px" }}
+                                  value={draftRename}
+                                  onChange={(e) => setDraftRename(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter")
+                                      commitRenameSub(group.name, child, draftRename);
+                                    if (e.key === "Escape") setRenamingSub(null);
+                                  }}
+                                  onBlur={() => commitRenameSub(group.name, child, draftRename)}
+                                />
+                              ) : (
+                                <span className="text-sm">{child}</span>
+                              )}
+                              <div style={{ display: "flex", gap: 4 }}>
+                                {!isRenamingThis && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="重新命名"
+                                    onClick={() => {
+                                      setRenamingSub({ main: group.name, sub: child });
+                                      setDraftRename(child);
+                                    }}
+                                  >
+                                    <PencilSimple />
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="destructive-outline"
+                                  size="icon-sm"
+                                  aria-label="刪除"
+                                  onClick={() => removeSubCategory(group.name, child)}
+                                >
+                                  <Trash />
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {addingSubFor === group.name && (
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                              paddingLeft: 24,
+                            }}
+                          >
+                            <input
+                              autoFocus
+                              className="ns-input text-sm"
+                              style={{ flex: 1, padding: "4px 8px" }}
+                              placeholder="子分類名稱…"
+                              value={draftSub}
+                              onChange={(e) => setDraftSub(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") commitAddSub(group.name, draftSub);
+                                if (e.key === "Escape") {
+                                  setAddingSubFor(null);
+                                  setDraftSub("");
+                                }
+                              }}
+                              onBlur={() => commitAddSub(group.name, draftSub)}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label="確認新增"
+                              onClick={() => commitAddSub(group.name, draftSub)}
+                            >
+                              <Check size={14} />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: "16px 24px",
+              borderTop: "1px solid var(--ns-border)",
+              display: "flex",
+              gap: 12,
+            }}
+          >
+            <Button
+              variant="outline"
+              style={{ flex: 1, justifyContent: "center" }}
+              onClick={dismiss}
+            >
+              取消
+            </Button>
+            <Button
+              style={{ flex: 1, justifyContent: "center" }}
+              onClick={async () => {
+                await onSave(local);
+                onClose();
+              }}
+            >
+              儲存變更
+            </Button>
+          </div>
+        </>
+      )}
     </ModalShell>
   );
 }

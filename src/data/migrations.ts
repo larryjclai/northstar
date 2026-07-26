@@ -394,7 +394,9 @@ export function splitSqlStatements(sql: string): string[] {
  * would not be part of the fingerprint, and existing installs would silently
  * miss it.
  */
-export const ADDITIVE_COLUMNS: ReadonlyArray<readonly [table: string, column: string, definition: string]> = [
+export const ADDITIVE_COLUMNS: ReadonlyArray<
+  readonly [table: string, column: string, definition: string]
+> = [
   ["ledger_transactions", "merchant", "text not null default ''"],
   ["ledger_transactions", "name", "text not null default ''"],
   ["ledger_transactions", "entry_type", "text not null default 'expense'"],
@@ -489,7 +491,9 @@ export const ADDITIVE_INDEXES: readonly string[] = [
  * apart. Exported here so both call sites import the same list, and so it feeds
  * `schemaFingerprint()` (plan 268).
  */
-export const SYNC_TRIGGER_ENTITIES: ReadonlyArray<readonly [string, Exclude<SyncEntity, "settings">]> = [
+export const SYNC_TRIGGER_ENTITIES: ReadonlyArray<
+  readonly [string, Exclude<SyncEntity, "settings">]
+> = [
   ["accounts", "account"],
   ["ledger_transactions", "ledger"],
   ["portfolio_assets", "asset"],

@@ -62,7 +62,10 @@ export function removeSplitLeg(legs: SplitLegDraftState[], index: number): Split
  * UNLESS there are 分帳 shares present: 1 category leg + ≥1 share is a valid
  * 分帳 (the foundation's combined-≥2 rule counts legs + shares together).
  */
-export function shouldExitSplitMode(legs: SplitLegDraftState[], shares: SplitShareDraftState[]): boolean {
+export function shouldExitSplitMode(
+  legs: SplitLegDraftState[],
+  shares: SplitShareDraftState[],
+): boolean {
   return legs.length <= 1 && shares.length === 0;
 }
 
@@ -141,7 +144,10 @@ export function updateShareDraft(
   return shares.map((share, i) => (i === index ? { ...share, ...patch } : share));
 }
 
-export function removeShareDraft(shares: SplitShareDraftState[], index: number): SplitShareDraftState[] {
+export function removeShareDraft(
+  shares: SplitShareDraftState[],
+  index: number,
+): SplitShareDraftState[] {
   return shares.filter((_, i) => i !== index);
 }
 

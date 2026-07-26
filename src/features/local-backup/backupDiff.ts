@@ -19,12 +19,24 @@ export interface BackupDiff {
   hasDecrease: boolean;
 }
 
-function row(label: string, current: readonly unknown[], backup: readonly unknown[]): BackupDiffRow {
-  return { label, current: current.length, backup: backup.length, delta: backup.length - current.length };
+function row(
+  label: string,
+  current: readonly unknown[],
+  backup: readonly unknown[],
+): BackupDiffRow {
+  return {
+    label,
+    current: current.length,
+    backup: backup.length,
+    delta: backup.length - current.length,
+  };
 }
 
 /** Build the per-entity counts diff between the CURRENT snapshot and a BACKUP. */
-export function buildBackupDiff(current: RepositorySnapshot, backup: RepositorySnapshot): BackupDiff {
+export function buildBackupDiff(
+  current: RepositorySnapshot,
+  backup: RepositorySnapshot,
+): BackupDiff {
   const rows: BackupDiffRow[] = [
     row("帳戶", current.accounts, backup.accounts),
     row("交易", current.ledgerTransactions, backup.ledgerTransactions),

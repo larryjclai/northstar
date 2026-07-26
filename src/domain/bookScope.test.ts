@@ -30,7 +30,9 @@ function book(overrides: MinimalBook): Book {
   return overrides as unknown as Book;
 }
 
-function ledgerRow(overrides: Partial<MinimalLedgerRow> & Pick<MinimalLedgerRow, "id" | "accountId">): LedgerTransaction {
+function ledgerRow(
+  overrides: Partial<MinimalLedgerRow> & Pick<MinimalLedgerRow, "id" | "accountId">,
+): LedgerTransaction {
   const row: MinimalLedgerRow = {
     entryType: "expense",
     counterAccountId: null,
@@ -42,8 +44,16 @@ function ledgerRow(overrides: Partial<MinimalLedgerRow> & Pick<MinimalLedgerRow,
 
 // ── Shared fixture: 個人帳 (personal, both toggles ON by default) and 公司帳
 // (company, both toggles OFF by default per §5's operator-locked decision) ──
-const personalBook = book({ id: "book_personal", includeInFireMetrics: true, includeInPersonalNetWorth: true });
-const companyBook = book({ id: "book_company", includeInFireMetrics: false, includeInPersonalNetWorth: false });
+const personalBook = book({
+  id: "book_personal",
+  includeInFireMetrics: true,
+  includeInPersonalNetWorth: true,
+});
+const companyBook = book({
+  id: "book_company",
+  includeInFireMetrics: false,
+  includeInPersonalNetWorth: false,
+});
 const books: Book[] = [personalBook, companyBook];
 
 const acctPersonalCash = account({ id: "acct_personal_cash", bookId: "book_personal" });
@@ -55,7 +65,9 @@ describe("bookScope (plan 189 Step 1 semantics)", () => {
   // (a) bookAccountIdSet(accounts, "all") → identity (every account id)
   it("bookAccountIdSet with activeBookId 'all' (總帳) returns every account id", () => {
     const set = bookAccountIdSet(accounts, ALL_BOOKS);
-    expect(set).toEqual(new Set(["acct_personal_cash", "acct_personal_card", "acct_company_checking"]));
+    expect(set).toEqual(
+      new Set(["acct_personal_cash", "acct_personal_card", "acct_company_checking"]),
+    );
     expect(set.size).toBe(accounts.length);
   });
 
@@ -131,10 +143,16 @@ describe("bookScope (plan 189 Step 1 semantics)", () => {
     // switcher to influence. Flip the company book's FIRE toggle ON here and
     // confirm the result changes solely because of the toggle, not because of
     // any notion of "which book is active".
-    const companyOptedIn = book({ id: "book_company", includeInFireMetrics: true, includeInPersonalNetWorth: false });
+    const companyOptedIn = book({
+      id: "book_company",
+      includeInFireMetrics: true,
+      includeInPersonalNetWorth: false,
+    });
     const toggledBooks: Book[] = [personalBook, companyOptedIn];
     const set = fireMetricAccountIdSet(accounts, toggledBooks);
-    expect(set).toEqual(new Set(["acct_personal_cash", "acct_personal_card", "acct_company_checking"]));
+    expect(set).toEqual(
+      new Set(["acct_personal_cash", "acct_personal_card", "acct_company_checking"]),
+    );
   });
 
   // (d) A transfer pair whose two legs are in different books stays

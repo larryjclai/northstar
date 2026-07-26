@@ -115,12 +115,7 @@ describe("runSync — happy path round trip", () => {
   it("starts the pull from the device's stored remote cursor", async () => {
     mockedGetDevice.mockReturnValue(device({ remotePullCursor: "seq-99" }) as never);
     await runSync(fakeRepo());
-    expect(mockedPull).toHaveBeenCalledWith(
-      expect.anything(),
-      account,
-      "seq-99",
-      "device_a",
-    );
+    expect(mockedPull).toHaveBeenCalledWith(expect.anything(), account, "seq-99", "device_a");
   });
 });
 

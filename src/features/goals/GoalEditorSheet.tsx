@@ -73,7 +73,8 @@ export function GoalEditorSheet({
   }, [accounts, goal, primaryCurrency]);
 
   const save = useRepositoryMutation(
-    (repo, input: FinancialGoalDraft & { id?: string }) => repo.upsertFinancialGoal(input).then(() => {}),
+    (repo, input: FinancialGoalDraft & { id?: string }) =>
+      repo.upsertFinancialGoal(input).then(() => {}),
     ["financialGoals"],
   );
 
@@ -92,8 +93,14 @@ export function GoalEditorSheet({
   }
 
   async function handleSave() {
-    if (!name.trim()) { toast.error("請輸入目標名稱"); return; }
-    if (!(targetAmount > 0)) { toast.error("請輸入目標金額"); return; }
+    if (!name.trim()) {
+      toast.error("請輸入目標名稱");
+      return;
+    }
+    if (!(targetAmount > 0)) {
+      toast.error("請輸入目標金額");
+      return;
+    }
     const accountShareMap: Record<string, number> = {};
     for (const [id, pct] of Object.entries(linked)) accountShareMap[id] = pct / 100;
     try {
@@ -139,107 +146,191 @@ export function GoalEditorSheet({
       panelClassName="w-full max-w-lg rounded-lg border shadow-xl"
       panelStyle={{ background: "var(--ns-surface)", borderColor: "var(--ns-border)" }}
     >
-      {(dismiss) => (<>
-        <header className="flex items-center justify-between border-b px-5 py-3" style={{ borderColor: "var(--ns-border)" }}>
-          <h2 className="text-lg font-semibold">{goal ? "編輯目標" : "新目標"}</h2>
-          <ModalCloseButton onClick={dismiss} />
-        </header>
+      {(dismiss) => (
+        <>
+          <header
+            className="flex items-center justify-between border-b px-5 py-3"
+            style={{ borderColor: "var(--ns-border)" }}
+          >
+            <h2 className="text-lg font-semibold">{goal ? "編輯目標" : "新目標"}</h2>
+            <ModalCloseButton onClick={dismiss} />
+          </header>
 
-        <div className="max-h-[70vh] overflow-y-auto px-5 pb-5 pt-4" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Field label="目標名稱">
-            <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：日本旅遊、買車頭期款" />
-          </Field>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
-            <Field label="幣別">
-              <SelectInput value={currency} onChange={(e) => setCurrency(e.target.value)}>
-                {currencyOptions.map((code) => <option key={code} value={code}>{code}</option>)}
-              </SelectInput>
+          <div
+            className="max-h-[70vh] overflow-y-auto px-5 pb-5 pt-4"
+            style={{ display: "flex", flexDirection: "column", gap: 14 }}
+          >
+            <Field label="目標名稱">
+              <TextInput
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="例如：日本旅遊、買車頭期款"
+              />
             </Field>
-            <Field label="目標金額">
-              <NumberField value={targetAmount} onChange={setTargetAmount} aria-label="目標金額" />
-            </Field>
-          </div>
 
-          <Field label="目標日期（選填）">
-            <TextInput
-              type="date"
-              value={targetDate}
-              onChange={(e) => setTargetDate(e.target.value)}
-              aria-label="目標日期"
-            />
-          </Field>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Field label="每月投入（選填）">
-              <NumberField value={monthlyContribution} onChange={setMonthlyContribution} aria-label="每月投入" />
-            </Field>
-            <Field label="預期年報酬率 %（選填）">
-              <NumberField value={expectedReturnPct} onChange={setExpectedReturnPct} decimals={1} aria-label="預期年報酬率" />
-            </Field>
-          </div>
-
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>綁定帳戶</div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 8, lineHeight: 1.5 }}>
-              目標進度 = 綁定帳戶的餘額 × 比例加總（依匯率換算成目標幣別）。共用帳戶可只計入部分比例，例如同一帳戶 50% 算旅遊、50% 算買車。
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
+              <Field label="幣別">
+                <SelectInput value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                  {currencyOptions.map((code) => (
+                    <option key={code} value={code}>
+                      {code}
+                    </option>
+                  ))}
+                </SelectInput>
+              </Field>
+              <Field label="目標金額">
+                <NumberField
+                  value={targetAmount}
+                  onChange={setTargetAmount}
+                  aria-label="目標金額"
+                />
+              </Field>
             </div>
-            {bindableAccounts.length === 0 ? (
-              <div className="muted" style={{ fontSize: 12.5, padding: "10px 12px", borderRadius: "var(--ns-r-sm)", background: "var(--ns-bg-hover)" }}>
-                還沒有可綁定的帳戶。先到「帳戶」頁建立一個儲蓄帳戶。
-              </div>
-            ) : (
-              <div style={{ border: "1px solid var(--ns-border)", borderRadius: "var(--ns-r-sm)", overflow: "hidden" }}>
-                {bindableAccounts.map((account, index) => {
-                  const pct = linked[account.id];
-                  const checked = pct !== undefined;
-                  return (
-                    <label
-                      key={account.id}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", cursor: "pointer",
-                        borderBottom: index < bindableAccounts.length - 1 ? "1px solid var(--ns-border)" : "none",
-                        background: checked ? "var(--ns-accent-soft)" : "transparent",
-                      }}
-                    >
-                      <input type="checkbox" checked={checked} onChange={() => toggleAccount(account.id)} style={{ accentColor: "var(--ns-accent)" }} />
-                      <span style={{ flex: 1, fontSize: 13.5, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {account.name}
-                      </span>
-                      <span className="num muted" style={{ fontSize: 12.5, fontVariantNumeric: "tabular-nums" }}>
-                        {account.currency} {formatNumber(account.balance)}
-                      </span>
-                      {checked && (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }} onClick={(e) => e.preventDefault()}>
-                          <input
-                            type="number"
-                            min={1}
-                            max={100}
-                            value={pct}
-                            onChange={(e) => setShare(account.id, Number(e.target.value))}
-                            onClick={(e) => e.stopPropagation()}
-                            aria-label={`${account.name} 計入比例`}
-                            className="ns-input mono"
-                            style={{ width: 58, padding: "3px 6px", fontSize: 12.5, textAlign: "right" }}
-                          />
-                          <span className="muted" style={{ fontSize: 12 }}>%</span>
-                        </span>
-                      )}
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
 
-        <footer className="flex justify-end gap-2 border-t px-5 py-3" style={{ borderColor: "var(--ns-border)" }}>
-          <Button variant="ghost" onClick={dismiss}>取消</Button>
-          <Button onClick={handleSave} disabled={save.isPending}>
-            {save.isPending ? "儲存中…" : goal ? "儲存變更" : "建立目標"}
-          </Button>
-        </footer>
-      </>)}
+            <Field label="目標日期（選填）">
+              <TextInput
+                type="date"
+                value={targetDate}
+                onChange={(e) => setTargetDate(e.target.value)}
+                aria-label="目標日期"
+              />
+            </Field>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <Field label="每月投入（選填）">
+                <NumberField
+                  value={monthlyContribution}
+                  onChange={setMonthlyContribution}
+                  aria-label="每月投入"
+                />
+              </Field>
+              <Field label="預期年報酬率 %（選填）">
+                <NumberField
+                  value={expectedReturnPct}
+                  onChange={setExpectedReturnPct}
+                  decimals={1}
+                  aria-label="預期年報酬率"
+                />
+              </Field>
+            </div>
+
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>綁定帳戶</div>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 8, lineHeight: 1.5 }}>
+                目標進度 = 綁定帳戶的餘額 ×
+                比例加總（依匯率換算成目標幣別）。共用帳戶可只計入部分比例，例如同一帳戶 50%
+                算旅遊、50% 算買車。
+              </div>
+              {bindableAccounts.length === 0 ? (
+                <div
+                  className="muted"
+                  style={{
+                    fontSize: 12.5,
+                    padding: "10px 12px",
+                    borderRadius: "var(--ns-r-sm)",
+                    background: "var(--ns-bg-hover)",
+                  }}
+                >
+                  還沒有可綁定的帳戶。先到「帳戶」頁建立一個儲蓄帳戶。
+                </div>
+              ) : (
+                <div
+                  style={{
+                    border: "1px solid var(--ns-border)",
+                    borderRadius: "var(--ns-r-sm)",
+                    overflow: "hidden",
+                  }}
+                >
+                  {bindableAccounts.map((account, index) => {
+                    const pct = linked[account.id];
+                    const checked = pct !== undefined;
+                    return (
+                      <label
+                        key={account.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          padding: "9px 12px",
+                          cursor: "pointer",
+                          borderBottom:
+                            index < bindableAccounts.length - 1
+                              ? "1px solid var(--ns-border)"
+                              : "none",
+                          background: checked ? "var(--ns-accent-soft)" : "transparent",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleAccount(account.id)}
+                          style={{ accentColor: "var(--ns-accent)" }}
+                        />
+                        <span
+                          style={{
+                            flex: 1,
+                            fontSize: 13.5,
+                            minWidth: 0,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {account.name}
+                        </span>
+                        <span
+                          className="num muted"
+                          style={{ fontSize: 12.5, fontVariantNumeric: "tabular-nums" }}
+                        >
+                          {account.currency} {formatNumber(account.balance)}
+                        </span>
+                        {checked && (
+                          <span
+                            style={{ display: "inline-flex", alignItems: "center", gap: 3 }}
+                            onClick={(e) => e.preventDefault()}
+                          >
+                            <input
+                              type="number"
+                              min={1}
+                              max={100}
+                              value={pct}
+                              onChange={(e) => setShare(account.id, Number(e.target.value))}
+                              onClick={(e) => e.stopPropagation()}
+                              aria-label={`${account.name} 計入比例`}
+                              className="ns-input mono"
+                              style={{
+                                width: 58,
+                                padding: "3px 6px",
+                                fontSize: 12.5,
+                                textAlign: "right",
+                              }}
+                            />
+                            <span className="muted" style={{ fontSize: 12 }}>
+                              %
+                            </span>
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <footer
+            className="flex justify-end gap-2 border-t px-5 py-3"
+            style={{ borderColor: "var(--ns-border)" }}
+          >
+            <Button variant="ghost" onClick={dismiss}>
+              取消
+            </Button>
+            <Button onClick={handleSave} disabled={save.isPending}>
+              {save.isPending ? "儲存中…" : goal ? "儲存變更" : "建立目標"}
+            </Button>
+          </footer>
+        </>
+      )}
     </ModalShell>
   );
 }

@@ -37,7 +37,9 @@ function account(overrides: Partial<Account> & Pick<Account, "id" | "name">): Ac
   };
 }
 
-function ledgerDraft(overrides: Partial<LedgerDraft> & Pick<LedgerDraft, "accountId" | "amount">): LedgerDraft {
+function ledgerDraft(
+  overrides: Partial<LedgerDraft> & Pick<LedgerDraft, "accountId" | "amount">,
+): LedgerDraft {
   return {
     date: "2026-06-10",
     name: "測試",
@@ -60,11 +62,23 @@ describeEachRepo("recompute account balances — tombstone + write-skip", (makeR
     const repo = await makeRepo({ accounts: [accountA, accountB] });
 
     // Seed 6 settled rows across two accounts.
-    await repo.createLedgerTransaction(ledgerDraft({ accountId: "acct_a", amount: 2_000, entryType: "income", category: "收入" }));
+    await repo.createLedgerTransaction(
+      ledgerDraft({ accountId: "acct_a", amount: 2_000, entryType: "income", category: "收入" }),
+    );
     await repo.createLedgerTransaction(ledgerDraft({ accountId: "acct_a", amount: -500 }));
-    await repo.createLedgerTransaction(ledgerDraft({ accountId: "acct_a", amount: 300, entryType: "income", category: "收入", name: "將被刪除" }));
+    await repo.createLedgerTransaction(
+      ledgerDraft({
+        accountId: "acct_a",
+        amount: 300,
+        entryType: "income",
+        category: "收入",
+        name: "將被刪除",
+      }),
+    );
     await repo.createLedgerTransaction(ledgerDraft({ accountId: "acct_b", amount: -200 }));
-    await repo.createLedgerTransaction(ledgerDraft({ accountId: "acct_b", amount: 1_000, entryType: "income", category: "收入" }));
+    await repo.createLedgerTransaction(
+      ledgerDraft({ accountId: "acct_b", amount: 1_000, entryType: "income", category: "收入" }),
+    );
     await repo.createLedgerTransaction(ledgerDraft({ accountId: "acct_b", amount: -50 }));
 
     // Soft-delete the +300 row on A (its tombstone must not count toward balance).
@@ -110,7 +124,13 @@ describeEachRepo("recompute assets — de-quadratic scan keeps quantity/cost sta
   it("derives identical quantity and average cost after successive buys", async () => {
     const repo = await makeRepo({ accounts: [brokerAccount] });
     await repo.createInvestmentRecord(buyDraft);
-    await repo.createInvestmentRecord({ ...buyDraft, date: "2026-05-26", price: 120, quantity: 3, fee: 0 });
+    await repo.createInvestmentRecord({
+      ...buyDraft,
+      date: "2026-05-26",
+      price: 120,
+      quantity: 3,
+      fee: 0,
+    });
 
     const assets = await repo.listPortfolioAssets();
     const qqq = assets.find((a) => a.ticker === "QQQ")!;

@@ -35,8 +35,7 @@ export function validateInvoiceNumber(value: string, preset: InvoiceNumberPreset
 }
 
 export type NextInvoiceNumberResult =
-  | { ok: true; value: string }
-  | { ok: false; value: null; error: "invalid_format" | "overflow" };
+  { ok: true; value: string } | { ok: false; value: null; error: "invalid_format" | "overflow" };
 
 /**
  * Compute the next invoice number after `prev`.
@@ -49,10 +48,14 @@ export type NextInvoiceNumberResult =
  *   the preset's shape, or `"overflow"` if incrementing would exceed 8 digits
  *   (99,999,999) — the letter track is never auto-rolled.
  */
-export function nextInvoiceNumber(prev: string, preset: InvoiceNumberPreset): NextInvoiceNumberResult {
+export function nextInvoiceNumber(
+  prev: string,
+  preset: InvoiceNumberPreset,
+): NextInvoiceNumberResult {
   if (preset === "FREE_TEXT") return { ok: true, value: prev };
 
-  if (!validateInvoiceNumber(prev, preset)) return { ok: false, value: null, error: "invalid_format" };
+  if (!validateInvoiceNumber(prev, preset))
+    return { ok: false, value: null, error: "invalid_format" };
 
   const prefix = prev.slice(0, 2);
   const numeric = Number(prev.slice(2));

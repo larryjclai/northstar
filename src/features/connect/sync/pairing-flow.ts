@@ -20,7 +20,14 @@
 // The relay only ever sees B's public key and ciphertext wrapped under an ECDH
 // shared secret — grinding the low-entropy code yields nothing of value.
 
-import { exportVaultKey, loadVaultKey, importVaultKey, saveVaultKey, encryptPayload, decryptPayload } from "../crypto/vault";
+import {
+  exportVaultKey,
+  loadVaultKey,
+  importVaultKey,
+  saveVaultKey,
+  encryptPayload,
+  decryptPayload,
+} from "../crypto/vault";
 import {
   generatePairingCode,
   generateBundleSalt,
@@ -114,10 +121,7 @@ export interface JoinSession {
  * PUBLIC key to the relay. Show `session.code` / render `session.qrPayload` for
  * the user to enter on Device A. Then poll via completeJoin().
  */
-export async function startJoinSession(
-  deviceName: string,
-  platform: string,
-): Promise<JoinSession> {
+export async function startJoinSession(deviceName: string, platform: string): Promise<JoinSession> {
   const pair = await generateDeviceKeyPair();
   await saveDeviceKeyPair(pair);
   const publicKeyB64 = await exportPublicKey(pair.publicKey);
@@ -139,7 +143,11 @@ export async function startJoinSession(
   };
   const cipher = await encryptPayload(bundleKey, publicBundle);
 
-  const { pairingToken } = await joinPairingSession(code, packBundle(salt, cipher), device.deviceId);
+  const { pairingToken } = await joinPairingSession(
+    code,
+    packBundle(salt, cipher),
+    device.deviceId,
+  );
 
   return {
     code,
@@ -184,7 +192,10 @@ export async function completeJoin(session: JoinSession): Promise<JoinResult | n
   // (see runSync) doesn't block this device from syncing.
   confirmRecoveryKit();
 
-  const acct = (await decryptPayload(shared, account.wrappedKey)) as { userId: string; apiSecret: string };
+  const acct = (await decryptPayload(shared, account.wrappedKey)) as {
+    userId: string;
+    apiSecret: string;
+  };
   await setSyncAccount({ userId: acct.userId, apiSecret: acct.apiSecret });
 
   // Persist this device's own relay credential. Device A already registered its

@@ -135,7 +135,10 @@ export function daysSalesOutstanding(
   );
   if (settledInWindow.length === 0) return null;
 
-  const totalDays = settledInWindow.reduce((sum, invoice) => sum + daysBetween(invoice.issueDate, invoice.settledAt), 0);
+  const totalDays = settledInWindow.reduce(
+    (sum, invoice) => sum + daysBetween(invoice.issueDate, invoice.settledAt),
+    0,
+  );
   return totalDays / settledInWindow.length;
 }
 

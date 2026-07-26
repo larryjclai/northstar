@@ -33,10 +33,22 @@ const identity = (n: number) => n;
 type MinimalAccount = Pick<Account, "id" | "type" | "balance" | "currency" | "deletedAt">;
 type MinimalLedgerRow = Pick<
   LedgerTransaction,
-  "id" | "accountId" | "entryType" | "amount" | "currency" | "name" | "merchant" | "date" | "deletedAt" | "settlementStatus" | "groupId"
+  | "id"
+  | "accountId"
+  | "entryType"
+  | "amount"
+  | "currency"
+  | "name"
+  | "merchant"
+  | "date"
+  | "deletedAt"
+  | "settlementStatus"
+  | "groupId"
 >;
 
-function account(overrides: Partial<MinimalAccount> & Pick<MinimalAccount, "id" | "type" | "balance">): Account {
+function account(
+  overrides: Partial<MinimalAccount> & Pick<MinimalAccount, "id" | "type" | "balance">,
+): Account {
   const row: MinimalAccount = {
     currency: "TWD",
     deletedAt: null,
@@ -45,7 +57,9 @@ function account(overrides: Partial<MinimalAccount> & Pick<MinimalAccount, "id" 
   return row as unknown as Account;
 }
 
-function ledgerRow(overrides: Partial<MinimalLedgerRow> & Pick<MinimalLedgerRow, "id">): LedgerTransaction {
+function ledgerRow(
+  overrides: Partial<MinimalLedgerRow> & Pick<MinimalLedgerRow, "id">,
+): LedgerTransaction {
   const row: MinimalLedgerRow = {
     accountId: "acct_company_cash",
     date: "2026-06-01T00:00",
@@ -73,14 +87,46 @@ const investmentsValue = 0;
 
 // ── Seed: income / expense / an 開發票 receivable / an unrelated payable ──
 const ledger: LedgerTransaction[] = [
-  ledgerRow({ id: "l_income", accountId: "acct_company_checking", entryType: "income", amount: 30_000, name: "顧問收入", date: "2026-06-02T00:00" }),
-  ledgerRow({ id: "l_expense", accountId: "acct_company_card", entryType: "expense", amount: -8_000, name: "軟體訂閱", date: "2026-06-03T00:00" }),
+  ledgerRow({
+    id: "l_income",
+    accountId: "acct_company_checking",
+    entryType: "income",
+    amount: 30_000,
+    name: "顧問收入",
+    date: "2026-06-02T00:00",
+  }),
+  ledgerRow({
+    id: "l_expense",
+    accountId: "acct_company_card",
+    entryType: "expense",
+    amount: -8_000,
+    name: "軟體訂閱",
+    date: "2026-06-03T00:00",
+  }),
   // Model A (docs/ledger-books-plan.md §3): 開發票 = a receivable income row of
   // the 含稅 total. This is the row a future `Invoice` record would link to via
   // `linkedLedgerTransactionId` — the aggregate functions below never see the
   // Invoice, only this ledger row.
-  ledgerRow({ id: "l_invoice_receivable", accountId: "acct_company_cash", entryType: "income", settlementStatus: "receivable", amount: 105_000, merchant: "客戶甲", name: "開立發票", date: "2026-06-05T00:00" }),
-  ledgerRow({ id: "l_payable", accountId: "acct_company_checking", entryType: "expense", settlementStatus: "payable", amount: -5_000, merchant: "供應商乙", name: "應付帳款", date: "2026-06-06T00:00" }),
+  ledgerRow({
+    id: "l_invoice_receivable",
+    accountId: "acct_company_cash",
+    entryType: "income",
+    settlementStatus: "receivable",
+    amount: 105_000,
+    merchant: "客戶甲",
+    name: "開立發票",
+    date: "2026-06-05T00:00",
+  }),
+  ledgerRow({
+    id: "l_payable",
+    accountId: "acct_company_checking",
+    entryType: "expense",
+    settlementStatus: "payable",
+    amount: -5_000,
+    merchant: "供應商乙",
+    name: "應付帳款",
+    date: "2026-06-06T00:00",
+  }),
 ];
 
 describe("invoices partition characterization (plan 190)", () => {

@@ -1,7 +1,14 @@
 import { CaretUpDown, Check } from "@phosphor-icons/react";
 import type React from "react";
 import { useMemo, useState } from "react";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "./ui/command";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "./ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 export interface AppSelectOption {
@@ -37,7 +44,10 @@ export function AppSelect({
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const selected = useMemo(() => options.find((option) => option.value === value) ?? null, [options, value]);
+  const selected = useMemo(
+    () => options.find((option) => option.value === value) ?? null,
+    [options, value],
+  );
   const searchable = options.length > 8;
 
   function select(next: string) {
@@ -68,14 +78,27 @@ export function AppSelect({
               ...style,
             }}
           >
-            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", color: selected ? undefined : "var(--ns-fg-dim)" }}>
+            <span
+              style={{
+                flex: 1,
+                minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                color: selected ? undefined : "var(--ns-fg-dim)",
+              }}
+            >
               {selected?.label ?? placeholder}
             </span>
             <CaretUpDown size={14} style={{ flexShrink: 0, color: "var(--ns-fg-dim)" }} />
           </button>
         }
       />
-      <PopoverContent align="start" className={`w-64 p-0 ${contentClassName ?? ""}`} positionerClassName={positionerClassName} style={{ width: 256 }}>
+      <PopoverContent
+        align="start"
+        className={`w-64 p-0 ${contentClassName ?? ""}`}
+        positionerClassName={positionerClassName}
+        style={{ width: 256 }}
+      >
         <Command>
           {searchable ? <CommandInput placeholder={searchPlaceholder} /> : null}
           <CommandList>
@@ -88,9 +111,23 @@ export function AppSelect({
                   disabled={option.disabled}
                   onSelect={() => select(option.value)}
                 >
-                  <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{option.label}</span>
-                    {option.description ? <span className="muted text-caption">{option.description}</span> : null}
+                  <span
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 2,
+                    }}
+                  >
+                    <span
+                      style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                    >
+                      {option.label}
+                    </span>
+                    {option.description ? (
+                      <span className="muted text-caption">{option.description}</span>
+                    ) : null}
                   </span>
                   {value === option.value ? <Check size={14} style={{ flexShrink: 0 }} /> : null}
                 </CommandItem>

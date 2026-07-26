@@ -18,7 +18,9 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
   let i = 0;
   while ((match = re.exec(text)) !== null) {
     if (match.index > lastIndex) {
-      nodes.push(<Fragment key={`${keyPrefix}-t${i}`}>{text.slice(lastIndex, match.index)}</Fragment>);
+      nodes.push(
+        <Fragment key={`${keyPrefix}-t${i}`}>{text.slice(lastIndex, match.index)}</Fragment>,
+      );
       i += 1;
     }
     nodes.push(<strong key={`${keyPrefix}-b${i}`}>{match[1]}</strong>);
@@ -87,17 +89,33 @@ function parseBlocks(text: string): Block[] {
   return blocks;
 }
 
-export function MarkdownText({ text, className, style }: { text: string; className?: string; style?: CSSProperties }) {
+export function MarkdownText({
+  text,
+  className,
+  style,
+}: {
+  text: string;
+  className?: string;
+  style?: CSSProperties;
+}) {
   const blocks = parseBlocks(text);
   return (
     <div className={className} style={style}>
       {blocks.map((block, idx) => {
         const key = `b${idx}`;
         if (block.type === "h2") {
-          return <h2 key={key} className="text-base">{renderInline(block.text, key)}</h2>;
+          return (
+            <h2 key={key} className="text-base">
+              {renderInline(block.text, key)}
+            </h2>
+          );
         }
         if (block.type === "h3") {
-          return <h3 key={key} className="text-sm">{renderInline(block.text, key)}</h3>;
+          return (
+            <h3 key={key} className="text-sm">
+              {renderInline(block.text, key)}
+            </h3>
+          );
         }
         if (block.type === "ul") {
           return (

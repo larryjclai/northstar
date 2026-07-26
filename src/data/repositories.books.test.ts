@@ -1,6 +1,12 @@
 import { expect, it } from "vitest";
 import { describeEachRepo } from "./repositories.testHarness";
-import type { AccountDraft, BookDraft, ClientDraft, FinanceRepository, InvoiceDraft } from "./repositories";
+import type {
+  AccountDraft,
+  BookDraft,
+  ClientDraft,
+  FinanceRepository,
+  InvoiceDraft,
+} from "./repositories";
 
 // 帳本 (Books) Phase 1a — plan 188. Runs against BOTH the in-memory twin and the
 // real SQLite repo (describeEachRepo) so the two implementations stay in parity:
@@ -199,7 +205,9 @@ describeEachRepo("books (帳本)", (makeRepo) => {
     // (both unacknowledged), so filter for entityId and assert a tombstoned
     // entry exists, rather than assuming a single/last entry.
     const pending = await repo.collectPendingChanges(null);
-    const bookChanges = pending.changes.filter((change) => change.entity === "book" && change.entityId === company.id);
+    const bookChanges = pending.changes.filter(
+      (change) => change.entity === "book" && change.entityId === company.id,
+    );
     const deleteChange = bookChanges.find((change) => change.deleted);
     expect(deleteChange).toBeTruthy();
     expect(deleteChange!.revision).toBeGreaterThan(1);
@@ -211,7 +219,9 @@ describeEachRepo("books (帳本)", (makeRepo) => {
     const company = (await repo.listBooks()).find((book) => book.name === "公司帳")!;
     await repo.createAccount(accountDraft({ name: "公司現金", bookId: company.id }));
 
-    await expect(repo.deleteBook(company.id)).rejects.toThrow("此帳本還有 1 個帳戶，請先將它們移到其他帳本。");
+    await expect(repo.deleteBook(company.id)).rejects.toThrow(
+      "此帳本還有 1 個帳戶，請先將它們移到其他帳本。",
+    );
 
     // Refused, not cascaded — the book and its account are both still there.
     const books = await repo.listBooks();
@@ -268,7 +278,9 @@ describeEachRepo("books (帳本)", (makeRepo) => {
     };
     await repo.createInvoice(invoiceDraft);
 
-    await expect(repo.deleteBook(company.id)).rejects.toThrow("此帳本還有發票或客戶資料，不能刪除。");
+    await expect(repo.deleteBook(company.id)).rejects.toThrow(
+      "此帳本還有發票或客戶資料，不能刪除。",
+    );
   });
 
   it("refuses to delete a book that still has clients", async () => {
@@ -283,7 +295,9 @@ describeEachRepo("books (帳本)", (makeRepo) => {
     };
     await repo.createClient(clientDraft);
 
-    await expect(repo.deleteBook(company.id)).rejects.toThrow("此帳本還有發票或客戶資料，不能刪除。");
+    await expect(repo.deleteBook(company.id)).rejects.toThrow(
+      "此帳本還有發票或客戶資料，不能刪除。",
+    );
   });
 
   // Plan 211 — default-帳本 convergence: merge untouched system-minted
@@ -342,7 +356,10 @@ describeEachRepo("books (帳本)", (makeRepo) => {
     expect(tombstoneChange!.revision).toBeGreaterThan(1);
 
     const accountChange = pending.changes.find(
-      (change) => change.entity === "account" && change.entityId === accountBefore.id && change.revision === accountAfter.revision,
+      (change) =>
+        change.entity === "account" &&
+        change.entityId === accountBefore.id &&
+        change.revision === accountAfter.revision,
     );
     expect(accountChange).toBeTruthy();
   });
@@ -355,7 +372,9 @@ describeEachRepo("books (帳本)", (makeRepo) => {
     const repo = await makeRepo();
     const original = await defaultBook(repo);
     await repo.createBook(mintDraft);
-    const created = (await repo.listBooks()).find((book) => book.kind === "personal" && book.id !== original.id)!;
+    const created = (await repo.listBooks()).find(
+      (book) => book.kind === "personal" && book.id !== original.id,
+    )!;
     // Simulate a user edit — bumps revision to 2, taking it out of the mint domain.
     await repo.updateBook(created.id, { ...mintDraft, name: "生活帳" });
 
@@ -370,7 +389,13 @@ describeEachRepo("books (帳本)", (makeRepo) => {
 
   it("straggler heal (personal): an account pointing at a tombstoned personal book re-homes to the default, with a bumped revision", async () => {
     const repo = await makeRepo();
-    await repo.createBook({ name: "生活帳", kind: "personal", includeInPersonalNetWorth: true, includeInFireMetrics: true, color: "#123456" });
+    await repo.createBook({
+      name: "生活帳",
+      kind: "personal",
+      includeInPersonalNetWorth: true,
+      includeInFireMetrics: true,
+      color: "#123456",
+    });
     const lifeBook = (await repo.listBooks()).find((book) => book.name === "生活帳")!;
     await repo.createAccount(accountDraft({ name: "生活帳戶", bookId: lifeBook.id }));
     const accountBefore = (await repo.listAccounts()).find((a) => a.name === "生活帳戶")!;
@@ -379,10 +404,16 @@ describeEachRepo("books (帳本)", (makeRepo) => {
     // deleteBook, or a race) while this device's account row still points at
     // it — the exact straggler the 207 spike's §3(c) found.
     const tombstonePayload = await repo.getSyncPayload("book", lifeBook.id);
-    await repo.applySyncChanges([{
-      entity: "book",
-      payload: { ...tombstonePayload, deletedAt: new Date().toISOString(), revision: Number(tombstonePayload!.revision) + 1 },
-    }]);
+    await repo.applySyncChanges([
+      {
+        entity: "book",
+        payload: {
+          ...tombstonePayload,
+          deletedAt: new Date().toISOString(),
+          revision: Number(tombstonePayload!.revision) + 1,
+        },
+      },
+    ]);
 
     const defaultBookRow = await defaultBook(repo);
     const healed = (await repo.listAccounts()).find((a) => a.id === accountBefore.id)!;
@@ -403,10 +434,16 @@ describeEachRepo("books (帳本)", (makeRepo) => {
 
     const tombstonePayload = await repo.getSyncPayload("book", company.id);
     const tombstoneRevision = Number(tombstonePayload!.revision) + 1;
-    await repo.applySyncChanges([{
-      entity: "book",
-      payload: { ...tombstonePayload, deletedAt: new Date().toISOString(), revision: tombstoneRevision },
-    }]);
+    await repo.applySyncChanges([
+      {
+        entity: "book",
+        payload: {
+          ...tombstonePayload,
+          deletedAt: new Date().toISOString(),
+          revision: tombstoneRevision,
+        },
+      },
+    ]);
 
     const resurrected = (await repo.listBooks()).find((book) => book.id === company.id);
     expect(resurrected).toBeTruthy();
@@ -422,7 +459,9 @@ describeEachRepo("books (帳本)", (makeRepo) => {
 
   it("straggler heal (unknown id): an account pointing at a book id this device has never seen re-homes to the default", async () => {
     const repo = await makeRepo();
-    await repo.createAccount(accountDraft({ name: "幽靈帳本帳戶", bookId: "book_ghost_never_synced" }));
+    await repo.createAccount(
+      accountDraft({ name: "幽靈帳本帳戶", bookId: "book_ghost_never_synced" }),
+    );
     const accountBefore = (await repo.listAccounts()).find((a) => a.name === "幽靈帳本帳戶")!;
 
     await triggerMergeCycle(repo);
@@ -435,7 +474,13 @@ describeEachRepo("books (帳本)", (makeRepo) => {
   it("running the merge+heal routine twice is idempotent — the second run changes nothing", async () => {
     const repo = await makeRepo();
     await repo.createBook(mintDraft);
-    await repo.createBook({ name: "生活帳", kind: "personal", includeInPersonalNetWorth: true, includeInFireMetrics: true, color: "#123456" });
+    await repo.createBook({
+      name: "生活帳",
+      kind: "personal",
+      includeInPersonalNetWorth: true,
+      includeInFireMetrics: true,
+      color: "#123456",
+    });
     const lifeBook = (await repo.listBooks()).find((book) => book.name === "生活帳")!;
     await repo.createAccount(accountDraft({ name: "帳戶A", bookId: lifeBook.id })); // legit customized book, untouched
     await repo.createAccount(accountDraft({ name: "幽靈", bookId: "book_ghost_idempotence" })); // unknown id, heals once
@@ -443,8 +488,12 @@ describeEachRepo("books (帳本)", (makeRepo) => {
     await triggerMergeCycle(repo); // first run: merges the 2 mints, heals the ghost account
 
     const snapshot = async () => ({
-      books: (await repo.listBooks()).map((book) => ({ id: book.id, revision: book.revision })).sort((a, b) => a.id.localeCompare(b.id)),
-      accounts: (await repo.listAccounts()).map((a) => ({ id: a.id, bookId: a.bookId, revision: a.revision })).sort((a, b) => a.id.localeCompare(b.id)),
+      books: (await repo.listBooks())
+        .map((book) => ({ id: book.id, revision: book.revision }))
+        .sort((a, b) => a.id.localeCompare(b.id)),
+      accounts: (await repo.listAccounts())
+        .map((a) => ({ id: a.id, bookId: a.bookId, revision: a.revision }))
+        .sort((a, b) => a.id.localeCompare(b.id)),
     });
     const afterFirst = await snapshot();
 
@@ -475,10 +524,16 @@ describeEachRepo("books (帳本)", (makeRepo) => {
     // by the time the post-apply hook runs, only 1 active mint remains, so
     // no local merge happens and the announce counter must stay at 0.
     const payload = await repo.getSyncPayload("book", loser.id);
-    await repo.applySyncChanges([{
-      entity: "book",
-      payload: { ...payload, deletedAt: new Date().toISOString(), revision: Number(payload!.revision) + 1 },
-    }]);
+    await repo.applySyncChanges([
+      {
+        entity: "book",
+        payload: {
+          ...payload,
+          deletedAt: new Date().toISOString(),
+          revision: Number(payload!.revision) + 1,
+        },
+      },
+    ]);
 
     expect(await repo.consumeBookMergeAnnouncement()).toBe(0);
   });

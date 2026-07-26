@@ -36,7 +36,9 @@ async function fetchQuotesByProvider(
   const sitca = new SitcaFundProvider();
 
   const fundSymbols = symbols.filter(isSitcaFundSymbol);
-  const marketSymbols = expandMarketDataSymbols(symbols.filter((symbol) => !isSitcaFundSymbol(symbol)));
+  const marketSymbols = expandMarketDataSymbols(
+    symbols.filter((symbol) => !isSitcaFundSymbol(symbol)),
+  );
 
   const [yahooQuotes, sitcaQuotes] = await Promise.all([
     marketSymbols.length
@@ -94,7 +96,14 @@ export async function refreshLatestMarketData() {
     try {
       const points = await provider.fetchHistory(`${from}${to}=X`, "5d", "1d");
       for (const point of points) {
-        dailyRates.push({ from, to, date: point.date.slice(0, 10), rate: point.close, source: provider.sourceName, updatedAt });
+        dailyRates.push({
+          from,
+          to,
+          date: point.date.slice(0, 10),
+          rate: point.close,
+          source: provider.sourceName,
+          updatedAt,
+        });
       }
       const last = points.at(-1);
       if (last) latestRates.set(`${from}|${to}`, { from, to, rate: last.close, updatedAt });
@@ -103,7 +112,8 @@ export async function refreshLatestMarketData() {
     }
   }
   if (dailyRates.length) await repository.saveDailyFxRates(dailyRates);
-  if (dailyRates.length) await repository.updateAppSettings({ ...settings, exchangeRates: [...latestRates.values()] });
+  if (dailyRates.length)
+    await repository.updateAppSettings({ ...settings, exchangeRates: [...latestRates.values()] });
   await repository.recalculateDerivedData();
   return { quotes: quotes.length, fxRates: dailyRates.length };
 }
@@ -115,7 +125,8 @@ export function useRefreshQuotes() {
       if (isDemoMode()) throw new Error(DEMO_MARKET_MESSAGE);
       const repository = await getFinanceRepository();
       const tagged = await fetchQuotesByProvider(symbols);
-      if (tagged.length === 0) throw new Error("報價來源暫時限制更新，請稍後再試。既有快取仍會保留。");
+      if (tagged.length === 0)
+        throw new Error("報價來源暫時限制更新，請稍後再試。既有快取仍會保留。");
       await saveQuotesByProvider(repository, tagged);
       return tagged.map((item) => item.quote);
     },
@@ -147,11 +158,14 @@ export function useBackfillAssetProfiles() {
         // override.)
         if (asset.classificationLocked) return false;
         const ticker = asset.ticker.trim().toUpperCase();
-        const taiwanNeedsProfile = isTaiwanTicker(ticker) && (!hasChineseName(asset.nameZh) || !asset.industry || !asset.sector);
+        const taiwanNeedsProfile =
+          isTaiwanTicker(ticker) &&
+          (!hasChineseName(asset.nameZh) || !asset.industry || !asset.sector);
         // Equities anywhere (not just TW) re-qualify while sector/industry are
         // missing — Yahoo's profile fetch was crumb-broken for a long time, so
         // many rows have assetType but no classification.
-        const equityNeedsSector = asset.assetType === "equity" && (!asset.sector || !asset.industry);
+        const equityNeedsSector =
+          asset.assetType === "equity" && (!asset.sector || !asset.industry);
         return force || !asset.assetType || equityNeedsSector || taiwanNeedsProfile;
       });
       const symbols = [...new Set(candidates.map((asset) => asset.ticker.trim().toUpperCase()))];
@@ -237,7 +251,9 @@ export function useRefreshFxRates() {
       }
 
       if (collected.length === 0) {
-        throw new Error(failed.length ? `匯率取得失敗：${failed.join("；")}` : "沒有可更新的匯率。");
+        throw new Error(
+          failed.length ? `匯率取得失敗：${failed.join("；")}` : "沒有可更新的匯率。",
+        );
       }
 
       await repository.saveDailyFxRates(collected);
@@ -300,7 +316,9 @@ export function useRefreshDailyPrices() {
       }
 
       if (collected.length === 0) {
-        throw new Error(failed.length ? `每日股價取得失敗：${failed.join("；")}` : "沒有可更新的股價。");
+        throw new Error(
+          failed.length ? `每日股價取得失敗：${failed.join("；")}` : "沒有可更新的股價。",
+        );
       }
 
       await repository.saveDailyPrices(collected);

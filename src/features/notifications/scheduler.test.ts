@@ -5,10 +5,7 @@ import {
   type ScheduledReminder,
 } from "./scheduler";
 
-function makeReminder(
-  id: string,
-  minutesFromNow: number,
-): ScheduledReminder {
+function makeReminder(id: string, minutesFromNow: number): ScheduledReminder {
   const fireAt = new Date(Date.now() + minutesFromNow * 60_000);
   return { id, title: `Title ${id}`, body: `Body ${id}`, fireAt };
 }

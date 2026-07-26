@@ -65,9 +65,21 @@ describe("calculateFireProjection", () => {
   });
 
   it("derives target from annual spending and withdrawal rate", () => {
-    expect(resolveTargetAmount({ annualSpending: 600_000, withdrawalRate: 0.04, targetAmount: null })).toBe(15_000_000);
-    expect(resolveTargetAmount({ annualSpending: 600_000, withdrawalRate: 0.04, targetAmount: 0 })).toBe(15_000_000);
-    expect(resolveTargetAmount({ annualSpending: 600_000, withdrawalRate: 0.04, targetAmount: 9_000_000 })).toBe(9_000_000);
-    expect(resolveTargetAmount({ annualSpending: 600_000, withdrawalRate: 0, targetAmount: null })).toBe(15_000_000);
+    expect(
+      resolveTargetAmount({ annualSpending: 600_000, withdrawalRate: 0.04, targetAmount: null }),
+    ).toBe(15_000_000);
+    expect(
+      resolveTargetAmount({ annualSpending: 600_000, withdrawalRate: 0.04, targetAmount: 0 }),
+    ).toBe(15_000_000);
+    expect(
+      resolveTargetAmount({
+        annualSpending: 600_000,
+        withdrawalRate: 0.04,
+        targetAmount: 9_000_000,
+      }),
+    ).toBe(9_000_000);
+    expect(
+      resolveTargetAmount({ annualSpending: 600_000, withdrawalRate: 0, targetAmount: null }),
+    ).toBe(15_000_000);
   });
 });

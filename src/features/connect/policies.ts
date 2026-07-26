@@ -27,4 +27,3 @@ export const connectProductRules = [
   "Household sharing uses a separate Household Space Key.",
   "Northstar cannot recover encrypted data if every trusted device and the Recovery Kit are lost.",
 ];
-

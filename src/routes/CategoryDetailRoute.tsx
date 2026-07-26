@@ -11,13 +11,22 @@ import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 import { MiniBars, WeekdayBars, type MonthPoint } from "../components/DetailCharts";
 import { downloadCsv, exportLedgerCsv } from "../data/csv";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
-import { convertCurrency, formatMoney, isWithinDateScope, makeDefaultDateScope, resolveDateScope, type CategoryGroup, type LedgerTransaction } from "../domain";
+import {
+  convertCurrency,
+  formatMoney,
+  isWithinDateScope,
+  makeDefaultDateScope,
+  resolveDateScope,
+  type CategoryGroup,
+  type LedgerTransaction,
+} from "../domain";
 import { Glyph } from "../lib/icons";
 import { useUiPreferences } from "../state/uiPreferences";
 
 export function CategoryDetailRoute() {
   const { categoryName } = useParams({ strict: false }) as { categoryName: string };
-  const { ledger, settings, accounts, dailyFxRates, isInitialLoading, isError, error, refetchAll } = useFinanceData();
+  const { ledger, settings, accounts, dailyFxRates, isInitialLoading, isError, error, refetchAll } =
+    useFinanceData();
   const timezone = useUiPreferences((state) => state.timezone);
   const [detailRow, setDetailRow] = useState<LedgerTransaction | null>(null);
   const [subcategoryFilter, setSubcategoryFilter] = useState("all");
@@ -58,34 +67,71 @@ export function CategoryDetailRoute() {
   const rows = useMemo(
     () =>
       ledgerRows
-        .filter((row) => row.category === categoryName && row.entryType === "expense" && row.settlementStatus === "settled" && !row.counterAccountId)
+        .filter(
+          (row) =>
+            row.category === categoryName &&
+            row.entryType === "expense" &&
+            row.settlementStatus === "settled" &&
+            !row.counterAccountId,
+        )
         .sort((a, b) => b.date.localeCompare(a.date)),
     [ledgerRows, categoryName],
   );
 
   const visibleRows = useMemo(
-    () => rows.filter((row) => isWithinDateScope(row.date, dateRange) && (subcategoryFilter === "all" || (row.subcategory || "其他") === subcategoryFilter)),
+    () =>
+      rows.filter(
+        (row) =>
+          isWithinDateScope(row.date, dateRange) &&
+          (subcategoryFilter === "all" || (row.subcategory || "其他") === subcategoryFilter),
+      ),
     [rows, dateRange, subcategoryFilter],
   );
 
   const periodRows = rows.filter((row) => isWithinDateScope(row.date, dateRange));
   const periodTotal = periodRows.reduce((sum, row) => sum + (convertedAmount(row) ?? 0), 0);
   const filteredTotal = visibleRows.reduce((sum, row) => sum + (convertedAmount(row) ?? 0), 0);
-  const monthlyAverage = periodTotal / Math.max(1, countMonthsInRange(dateRange.start, dateRange.end));
+  const monthlyAverage =
+    periodTotal / Math.max(1, countMonthsInRange(dateRange.start, dateRange.end));
   const allPeriodExpense = ledgerRows
-    .filter((row) => row.entryType === "expense" && row.settlementStatus === "settled" && !row.counterAccountId && isWithinDateScope(row.date, dateRange))
-    .reduce((sum, row) => sum + (convertCurrency(-row.amount, row.currency, primaryCurrency, appSettings, { dailyRates: fxHistory, asOfDate: row.date }) ?? 0), 0);
+    .filter(
+      (row) =>
+        row.entryType === "expense" &&
+        row.settlementStatus === "settled" &&
+        !row.counterAccountId &&
+        isWithinDateScope(row.date, dateRange),
+    )
+    .reduce(
+      (sum, row) =>
+        sum +
+        (convertCurrency(-row.amount, row.currency, primaryCurrency, appSettings, {
+          dailyRates: fxHistory,
+          asOfDate: row.date,
+        }) ?? 0),
+      0,
+    );
   const share = allPeriodExpense > 0 ? (periodTotal / allPeriodExpense) * 100 : 0;
 
-  const previousYearRange = dateRange.start && dateRange.end ? { start: shiftYear(dateRange.start, -1), end: shiftYear(dateRange.end, -1) } : null;
+  const previousYearRange =
+    dateRange.start && dateRange.end
+      ? { start: shiftYear(dateRange.start, -1), end: shiftYear(dateRange.end, -1) }
+      : null;
   const previousYearTotal = previousYearRange
     ? rows
-        .filter((row) => row.date.slice(0, 10) >= previousYearRange.start && row.date.slice(0, 10) <= previousYearRange.end)
+        .filter(
+          (row) =>
+            row.date.slice(0, 10) >= previousYearRange.start &&
+            row.date.slice(0, 10) <= previousYearRange.end,
+        )
         .reduce((sum, row) => sum + (convertedAmount(row) ?? 0), 0)
     : 0;
-  const yoy = previousYearTotal > 0 ? ((periodTotal - previousYearTotal) / previousYearTotal) * 100 : null;
+  const yoy =
+    previousYearTotal > 0 ? ((periodTotal - previousYearTotal) / previousYearTotal) * 100 : null;
 
-  const monthlyData = useMemo(() => buildMonthPoints(rows, convertedAmount), [rows, appSettings, fxHistory, primaryCurrency]);
+  const monthlyData = useMemo(
+    () => buildMonthPoints(rows, convertedAmount),
+    [rows, appSettings, fxHistory, primaryCurrency],
+  );
   const subcategoryData = useMemo(() => {
     const map = new Map<string, { amount: number; count: number }>();
     for (const row of periodRows) {
@@ -96,12 +142,22 @@ export function CategoryDetailRoute() {
       map.set(key, current);
     }
     return [...map.entries()]
-      .map(([name, value]) => ({ name, ...value, pct: periodTotal > 0 ? (value.amount / periodTotal) * 100 : 0 }))
+      .map(([name, value]) => ({
+        name,
+        ...value,
+        pct: periodTotal > 0 ? (value.amount / periodTotal) * 100 : 0,
+      }))
       .sort((a, b) => b.amount - a.amount);
   }, [periodRows, periodTotal, appSettings, fxHistory, primaryCurrency]);
 
-  const weekdayData = useMemo(() => buildWeekdayData(periodRows, convertedAmount), [periodRows, appSettings, fxHistory, primaryCurrency]);
-  const peakWeekday = weekdayData.reduce((best, item) => (item.amount > best.amount ? item : best), weekdayData[0]);
+  const weekdayData = useMemo(
+    () => buildWeekdayData(periodRows, convertedAmount),
+    [periodRows, appSettings, fxHistory, primaryCurrency],
+  );
+  const peakWeekday = weekdayData.reduce(
+    (best, item) => (item.amount > best.amount ? item : best),
+    weekdayData[0],
+  );
   const topMerchants = useMemo(() => {
     const map = new Map<string, { amount: number; count: number }>();
     for (const row of periodRows) {
@@ -117,7 +173,10 @@ export function CategoryDetailRoute() {
       .slice(0, 4);
   }, [periodRows, appSettings, fxHistory, primaryCurrency]);
 
-  const maxTransaction = periodRows.reduce((max, row) => Math.max(max, convertedAmount(row) ?? 0), 0);
+  const maxTransaction = periodRows.reduce(
+    (max, row) => Math.max(max, convertedAmount(row) ?? 0),
+    0,
+  );
   const accountsUsed = new Set(periodRows.map((row) => row.accountId)).size;
   const avgPerTransaction = periodRows.length ? periodTotal / periodRows.length : 0;
 
@@ -134,10 +193,15 @@ export function CategoryDetailRoute() {
     return (
       <div className="grid min-h-[50vh] place-items-center p-6 text-center">
         <div className="max-w-md">
-          <h3 className="text-[17px]" style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}>
+          <h3
+            className="text-[17px]"
+            style={{ fontFamily: "var(--ns-font-display)", fontWeight: 600 }}
+          >
             無法載入資料
           </h3>
-          <p className="muted mt-1 text-sm">{error instanceof Error ? error.message : "請稍後再試。"}</p>
+          <p className="muted mt-1 text-sm">
+            {error instanceof Error ? error.message : "請稍後再試。"}
+          </p>
           <Button className="mt-4" onClick={() => refetchAll()}>
             重新整理
           </Button>
@@ -151,14 +215,17 @@ export function CategoryDetailRoute() {
       <div className="ns-detail-header">
         <div className="min-w-0">
           <Button variant="ghost" render={<Link to="/cash-flow" />} className="mb-2">
-            <CaretLeft size={14} />返回記帳
+            <CaretLeft size={14} />
+            返回記帳
           </Button>
           <div className="ns-detail-title-row">
             <div className="ns-detail-marker" style={{ background: color }}>
               <Glyph name={icon} size={26} color="var(--ns-accent-fg)" />
             </div>
             <div className="min-w-0">
-              <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>Cash Flow / 分類</div>
+              <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>
+                Cash Flow / 分類
+              </div>
               <h1 className="ns-detail-title">{categoryName}</h1>
               {children.length ? (
                 <div className="ns-pill-row">
@@ -182,21 +249,32 @@ export function CategoryDetailRoute() {
         <div className="ns-detail-actions">
           <DateScopeControl value={dateScope} onChange={setDateScope} />
           <Button variant="outline" onClick={() => setCategoryDrawerOpen(true)}>
-            <PencilSimple size={14} />管理分類
+            <PencilSimple size={14} />
+            管理分類
           </Button>
           <Button
             variant="outline"
             disabled={periodRows.length === 0}
             title={periodRows.length === 0 ? "此區間沒有交易可匯出" : "匯出此分類在目前區間的交易"}
-            onClick={() => downloadCsv(`northstar-category-${categoryName}.csv`, exportLedgerCsv(periodRows, accountName))}
+            onClick={() =>
+              downloadCsv(
+                `northstar-category-${categoryName}.csv`,
+                exportLedgerCsv(periodRows, accountName),
+              )
+            }
           >
-            <DownloadSimple size={14} />匯出
+            <DownloadSimple size={14} />
+            匯出
           </Button>
         </div>
       </div>
 
       <div className="ns-metric-strip">
-        <InsightTile label={`${dateRange.label} 總支出`} value={formatMoney(periodTotal, primaryCurrency)} tone="accent" />
+        <InsightTile
+          label={`${dateRange.label} 總支出`}
+          value={formatMoney(periodTotal, primaryCurrency)}
+          tone="accent"
+        />
         <InsightTile label="交易筆數" value={`${periodRows.length} 筆`} />
         <InsightTile label="月均支出" value={formatMoney(monthlyAverage, primaryCurrency)} />
         <InsightTile label="佔總支出" value={`${share.toFixed(1)}%`} />
@@ -232,7 +310,10 @@ export function CategoryDetailRoute() {
             )}
           </Panel>
 
-          <Panel eyebrow="星期分佈" title={peakWeekday ? `高峰：星期${peakWeekday.name}` : "星期分佈"}>
+          <Panel
+            eyebrow="星期分佈"
+            title={peakWeekday ? `高峰：星期${peakWeekday.name}` : "星期分佈"}
+          >
             <WeekdayBars data={weekdayData} currency={primaryCurrency} />
           </Panel>
         </div>
@@ -243,7 +324,10 @@ export function CategoryDetailRoute() {
               rows={[
                 ["每筆均消", formatMoney(avgPerTransaction, primaryCurrency)],
                 ["最高單筆", formatMoney(maxTransaction, primaryCurrency)],
-                ["去年同期間", yoy === null ? "資料不足" : `${yoy >= 0 ? "↑ +" : "↓ "}${yoy.toFixed(1)}%`],
+                [
+                  "去年同期間",
+                  yoy === null ? "資料不足" : `${yoy >= 0 ? "↑ +" : "↓ "}${yoy.toFixed(1)}%`,
+                ],
                 ["使用帳戶數", `${accountsUsed} 個帳戶`],
               ]}
             />
@@ -264,7 +348,9 @@ export function CategoryDetailRoute() {
                       <span className="truncate font-medium">{merchant.name}</span>
                       <span className="muted text-xs">{merchant.count} 次</span>
                     </span>
-                    <span className="num ml-auto">−{formatMoney(merchant.amount, primaryCurrency)}</span>
+                    <span className="num ml-auto">
+                      −{formatMoney(merchant.amount, primaryCurrency)}
+                    </span>
                   </Link>
                 ))}
               </div>
@@ -332,13 +418,30 @@ function TransactionsPanel({
     <Card className="ns-transactions-card">
       <div className="ns-section-head">
         <div>
-          <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{title}</div>
-          <h2>{rows.length} 筆 · {formatMoney(total, primaryCurrency)}</h2>
+          <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>
+            {title}
+          </div>
+          <h2>
+            {rows.length} 筆 · {formatMoney(total, primaryCurrency)}
+          </h2>
         </div>
         <div className="ns-pill-row">
-          <button type="button" className="ns-filter-pill" data-active={activeFilter === "all" || undefined} onClick={() => onFilter("all")}>全部</button>
+          <button
+            type="button"
+            className="ns-filter-pill"
+            data-active={activeFilter === "all" || undefined}
+            onClick={() => onFilter("all")}
+          >
+            全部
+          </button>
           {filters.map((filter) => (
-            <button key={filter} type="button" className="ns-filter-pill" data-active={activeFilter === filter || undefined} onClick={() => onFilter(filter)}>
+            <button
+              key={filter}
+              type="button"
+              className="ns-filter-pill"
+              data-active={activeFilter === filter || undefined}
+              onClick={() => onFilter(filter)}
+            >
               {filter}
             </button>
           ))}
@@ -365,7 +468,10 @@ function TransactionsPanel({
                     <td>{row.name || row.merchant || "未命名交易"}</td>
                     <td className="muted">{row.subcategory || "其他"}</td>
                     <td className="muted">{accountName(row.accountId)}</td>
-                    <td className={`num text-right ${row.amount > 0 ? "pos" : "neg"}`}>{row.amount > 0 ? "+" : "−"}{formatMoney(Math.abs(row.amount), row.currency)}</td>
+                    <td className={`num text-right ${row.amount > 0 ? "pos" : "neg"}`}>
+                      {row.amount > 0 ? "+" : "−"}
+                      {formatMoney(Math.abs(row.amount), row.currency)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -373,10 +479,18 @@ function TransactionsPanel({
           </div>
           <div className="ns-mobile-transaction-list">
             {rows.map((row) => (
-              <button key={row.id} type="button" className="ns-mobile-transaction-row" onClick={() => onSelect(row)}>
+              <button
+                key={row.id}
+                type="button"
+                className="ns-mobile-transaction-row"
+                onClick={() => onSelect(row)}
+              >
                 <span className="mono muted">{row.date.slice(5, 10)}</span>
                 <span className="truncate">{row.name || row.merchant || "未命名交易"}</span>
-                <span className={`num ${row.amount > 0 ? "pos" : "neg"}`}>{row.amount > 0 ? "+" : "−"}{formatMoney(Math.abs(row.amount), row.currency)}</span>
+                <span className={`num ${row.amount > 0 ? "pos" : "neg"}`}>
+                  {row.amount > 0 ? "+" : "−"}
+                  {formatMoney(Math.abs(row.amount), row.currency)}
+                </span>
               </button>
             ))}
           </div>
@@ -388,10 +502,20 @@ function TransactionsPanel({
   );
 }
 
-function Panel({ eyebrow, title, children }: { eyebrow: string; title: string; children: ReactNode }) {
+function Panel({
+  eyebrow,
+  title,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  children: ReactNode;
+}) {
   return (
     <Card className="ns-analysis-panel">
-      <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{eyebrow}</div>
+      <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>
+        {eyebrow}
+      </div>
       <h2>{title}</h2>
       {children}
     </Card>
@@ -401,8 +525,12 @@ function Panel({ eyebrow, title, children }: { eyebrow: string; title: string; c
 function InsightTile({ label, value, tone }: { label: string; value: string; tone?: "accent" }) {
   return (
     <Card className="ns-insight-tile">
-      <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>{label}</div>
-      <div className="num" data-tone={tone}>{value}</div>
+      <div className="text-xs" style={{ color: "var(--ns-fg-muted)", fontWeight: 500 }}>
+        {label}
+      </div>
+      <div className="num" data-tone={tone}>
+        {value}
+      </div>
     </Card>
   );
 }
@@ -433,12 +561,17 @@ function Initials({ name }: { name: string }) {
   return <span className="ns-initials">{name.slice(0, 2).toUpperCase()}</span>;
 }
 
-function buildMonthPoints(rows: LedgerTransaction[], amountFor: (row: LedgerTransaction) => number | null): MonthPoint[] {
+function buildMonthPoints(
+  rows: LedgerTransaction[],
+  amountFor: (row: LedgerTransaction) => number | null,
+): MonthPoint[] {
   const now = new Date();
   return Array.from({ length: 6 }, (_, index) => {
     const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-    const amount = rows.filter((row) => row.date.startsWith(key)).reduce((sum, row) => sum + (amountFor(row) ?? 0), 0);
+    const amount = rows
+      .filter((row) => row.date.startsWith(key))
+      .reduce((sum, row) => sum + (amountFor(row) ?? 0), 0);
     return {
       key,
       label: `${date.getMonth() + 1}月`,
@@ -461,16 +594,27 @@ function countMonthsInRange(start: string | null, end: string | null) {
   return Math.max(1, (endYear - startYear) * 12 + (endMonth - startMonth) + 1);
 }
 
-function buildWeekdayData(rows: LedgerTransaction[], amountFor: (row: LedgerTransaction) => number | null) {
+function buildWeekdayData(
+  rows: LedgerTransaction[],
+  amountFor: (row: LedgerTransaction) => number | null,
+) {
   const names = ["日", "一", "二", "三", "四", "五", "六"];
   const amounts = new Map<number, number>();
   for (const row of rows) {
     const day = new Date(row.date).getDay();
     amounts.set(day, (amounts.get(day) ?? 0) + (amountFor(row) ?? 0));
   }
-  return [1, 2, 3, 4, 5, 6, 0].map((key) => ({ key, name: names[key], amount: amounts.get(key) ?? 0 }));
+  return [1, 2, 3, 4, 5, 6, 0].map((key) => ({
+    key,
+    name: names[key],
+    amount: amounts.get(key) ?? 0,
+  }));
 }
 
 function breakdownColor(index: number, fallback: string) {
-  return [fallback, "var(--ns-chart-1)", "var(--ns-chart-2)", "var(--ns-chart-3)", "var(--ns-fg-dim)"][index] ?? "var(--ns-fg-dim)";
+  return (
+    [fallback, "var(--ns-chart-1)", "var(--ns-chart-2)", "var(--ns-chart-3)", "var(--ns-fg-dim)"][
+      index
+    ] ?? "var(--ns-fg-dim)"
+  );
 }

@@ -37,10 +37,22 @@ export interface ToastDescriptor {
 interface ToastContextValue {
   show: (descriptor: Omit<ToastDescriptor, "id">) => string;
   dismiss: (id: string) => void;
-  success: (title: string, options?: Partial<Omit<ToastDescriptor, "id" | "tone" | "title">>) => string;
-  error: (title: string, options?: Partial<Omit<ToastDescriptor, "id" | "tone" | "title">>) => string;
-  info: (title: string, options?: Partial<Omit<ToastDescriptor, "id" | "tone" | "title">>) => string;
-  warning: (title: string, options?: Partial<Omit<ToastDescriptor, "id" | "tone" | "title">>) => string;
+  success: (
+    title: string,
+    options?: Partial<Omit<ToastDescriptor, "id" | "tone" | "title">>,
+  ) => string;
+  error: (
+    title: string,
+    options?: Partial<Omit<ToastDescriptor, "id" | "tone" | "title">>,
+  ) => string;
+  info: (
+    title: string,
+    options?: Partial<Omit<ToastDescriptor, "id" | "tone" | "title">>,
+  ) => string;
+  warning: (
+    title: string,
+    options?: Partial<Omit<ToastDescriptor, "id" | "tone" | "title">>,
+  ) => string;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -86,29 +98,34 @@ export function ToastProvider({ children }: PropsWithChildren) {
   // `remove` deletes it once that animation finishes. Also stops any
   // still-running auto-dismiss timer — it no longer matters once leaving.
   const dismiss = useCallback((id: string) => {
-    setToasts((current) => current.map((toast) => (
-      toast.id === id && !toast.leaving ? { ...toast, leaving: true } : toast
-    )));
+    setToasts((current) =>
+      current.map((toast) =>
+        toast.id === id && !toast.leaving ? { ...toast, leaving: true } : toast,
+      ),
+    );
     const entry = timers.current.get(id);
     if (entry?.timer) clearTimeout(entry.timer);
     timers.current.delete(id);
   }, []);
 
-  const show = useCallback<ToastContextValue["show"]>((descriptor) => {
-    const id = genId();
-    const tone = descriptor.tone;
-    const durationMs = descriptor.durationMs ?? defaultDuration[tone];
-    const entry: ToastState = { ...descriptor, id };
-    setToasts((current) => [...current, entry]);
-    if (durationMs > 0) {
-      timers.current.set(id, {
-        remainingMs: durationMs,
-        startedAt: Date.now(),
-        timer: setTimeout(() => dismiss(id), durationMs),
-      });
-    }
-    return id;
-  }, [dismiss]);
+  const show = useCallback<ToastContextValue["show"]>(
+    (descriptor) => {
+      const id = genId();
+      const tone = descriptor.tone;
+      const durationMs = descriptor.durationMs ?? defaultDuration[tone];
+      const entry: ToastState = { ...descriptor, id };
+      setToasts((current) => [...current, entry]);
+      if (durationMs > 0) {
+        timers.current.set(id, {
+          remainingMs: durationMs,
+          startedAt: Date.now(),
+          timer: setTimeout(() => dismiss(id), durationMs),
+        });
+      }
+      return id;
+    },
+    [dismiss],
+  );
 
   // Pause every running auto-dismiss timer, remembering how much time was
   // left — used while the pointer hovers the stack and while the document is
@@ -145,23 +162,29 @@ export function ToastProvider({ children }: PropsWithChildren) {
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
   }, [pauseAll, resumeAll]);
 
-  const value = useMemo<ToastContextValue>(() => ({
-    show,
-    dismiss,
-    success: (title, options) => show({ tone: "success", title, ...options }),
-    error: (title, options) => show({ tone: "error", title, ...options }),
-    info: (title, options) => show({ tone: "info", title, ...options }),
-    warning: (title, options) => show({ tone: "warning", title, ...options }),
-  }), [show, dismiss]);
+  const value = useMemo<ToastContextValue>(
+    () => ({
+      show,
+      dismiss,
+      success: (title, options) => show({ tone: "success", title, ...options }),
+      error: (title, options) => show({ tone: "error", title, ...options }),
+      info: (title, options) => show({ tone: "info", title, ...options }),
+      warning: (title, options) => show({ tone: "warning", title, ...options }),
+    }),
+    [show, dismiss],
+  );
 
   // Clean up dangling timers if provider unmounts mid-life (HMR, route swap).
-  useEffect(() => () => {
-    const map = timers.current;
-    for (const entry of map.values()) {
-      if (entry.timer) clearTimeout(entry.timer);
-    }
-    map.clear();
-  }, []);
+  useEffect(
+    () => () => {
+      const map = timers.current;
+      for (const entry of map.values()) {
+        if (entry.timer) clearTimeout(entry.timer);
+      }
+      map.clear();
+    },
+    [],
+  );
 
   return (
     <ToastContext.Provider value={value}>
@@ -193,7 +216,13 @@ interface ToastViewportProps {
   onResumeAll: () => void;
 }
 
-function ToastViewport({ toasts, onDismiss, onRemove, onPauseAll, onResumeAll }: ToastViewportProps) {
+function ToastViewport({
+  toasts,
+  onDismiss,
+  onRemove,
+  onPauseAll,
+  onResumeAll,
+}: ToastViewportProps) {
   if (toasts.length === 0) return null;
   return (
     <div
@@ -241,7 +270,14 @@ interface DragState {
   dragging: boolean;
 }
 
-function ToastItem({ toast, leaving, onDismiss, onRemove, onPauseAll, onResumeAll }: ToastItemProps) {
+function ToastItem({
+  toast,
+  leaving,
+  onDismiss,
+  onRemove,
+  onPauseAll,
+  onResumeAll,
+}: ToastItemProps) {
   const [showDetail, setShowDetail] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -385,11 +421,15 @@ function ToastItem({ toast, leaving, onDismiss, onRemove, onPauseAll, onResumeAl
       onPointerCancel={endDrag}
     >
       <div className="flex items-start gap-3 px-4 py-3">
-        <div className="mt-0.5 shrink-0" style={{ color: palette.icon }}>{icon}</div>
+        <div className="mt-0.5 shrink-0" style={{ color: palette.icon }}>
+          {icon}
+        </div>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold leading-5">{toast.title}</div>
           {toast.description ? (
-            <div className="mt-1 text-xs leading-5" style={{ color: palette.muted }}>{toast.description}</div>
+            <div className="mt-1 text-xs leading-5" style={{ color: palette.muted }}>
+              {toast.description}
+            </div>
           ) : null}
           {toast.details ? (
             <div className="mt-1">
@@ -423,7 +463,11 @@ function ToastItem({ toast, leaving, onDismiss, onRemove, onPauseAll, onResumeAl
               {showDetail ? (
                 <pre
                   className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-md border p-2 text-[11px] leading-4"
-                  style={{ borderColor: palette.border, background: palette.detailBg, color: palette.detailFg }}
+                  style={{
+                    borderColor: palette.border,
+                    background: palette.detailBg,
+                    color: palette.detailFg,
+                  }}
                 >
                   {toast.detail}
                 </pre>
@@ -434,7 +478,10 @@ function ToastItem({ toast, leaving, onDismiss, onRemove, onPauseAll, onResumeAl
             {toast.action ? (
               <button
                 type="button"
-                onClick={() => { toast.action!.onClick(); onDismiss(toast.id); }}
+                onClick={() => {
+                  toast.action!.onClick();
+                  onDismiss(toast.id);
+                }}
                 className="text-xs font-semibold underline-offset-2 hover:underline"
                 style={{ color: palette.icon }}
               >
@@ -448,7 +495,8 @@ function ToastItem({ toast, leaving, onDismiss, onRemove, onPauseAll, onResumeAl
                 className="inline-flex items-center gap-1 text-xs font-medium"
                 style={{ color: palette.muted }}
               >
-                <Copy size={14} />{copied ? "已複製" : "複製詳細"}
+                <Copy size={14} />
+                {copied ? "已複製" : "複製詳細"}
               </button>
             ) : null}
           </div>

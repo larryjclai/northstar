@@ -2,11 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // In-memory fs fake for @tauri-apps/plugin-fs
 let fileStore: Map<string, string>;
-const mockWriteTextFile = vi.fn(
-  async (path: string, data: string, _opts?: unknown) => {
-    fileStore.set(path, data);
-  },
-);
+const mockWriteTextFile = vi.fn(async (path: string, data: string, _opts?: unknown) => {
+  fileStore.set(path, data);
+});
 const mockReadTextFile = vi.fn(async (path: string, _opts?: unknown) => {
   const content = fileStore.get(path);
   if (content === undefined) throw new Error("file not found");
@@ -18,13 +16,8 @@ const mockExists = vi.fn(async (path: string, _opts?: unknown) => {
 
 vi.mock("@tauri-apps/plugin-fs", () => ({
   writeTextFile: (...args: unknown[]) =>
-    mockWriteTextFile(
-      args[0] as string,
-      args[1] as string,
-      args[2],
-    ),
-  readTextFile: (...args: unknown[]) =>
-    mockReadTextFile(args[0] as string, args[1]),
+    mockWriteTextFile(args[0] as string, args[1] as string, args[2]),
+  readTextFile: (...args: unknown[]) => mockReadTextFile(args[0] as string, args[1]),
   exists: (...args: unknown[]) => mockExists(args[0] as string, args[1]),
   BaseDirectory: { AppLocalData: 26 },
 }));

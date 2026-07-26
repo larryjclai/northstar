@@ -68,17 +68,14 @@ export function computeTradeFee(opts: ComputeTradeFeeOpts): number {
   const consideration = qty * price;
 
   const discount =
-    opts.brokerFeeDiscount == null
-      ? 1
-      : Math.min(1, Math.max(0, opts.brokerFeeDiscount));
+    opts.brokerFeeDiscount == null ? 1 : Math.min(1, Math.max(0, opts.brokerFeeDiscount));
   const brokerage = Math.max(
     config.minBrokerFee,
     Math.round(consideration * config.brokerFeeRate * discount),
   );
 
   if (action === "sell") {
-    const taxRate =
-      instrument === "etf" ? config.sellTaxRateEtf : config.sellTaxRateStock;
+    const taxRate = instrument === "etf" ? config.sellTaxRateEtf : config.sellTaxRateStock;
     const sellTax = Math.round(consideration * taxRate);
     return brokerage + sellTax;
   }

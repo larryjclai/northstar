@@ -2,7 +2,10 @@ import { Bell } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useFinanceData } from "../data/hooks";
 import { todayInTimezone } from "../domain";
-import { buildReminderNotifications, unacknowledgedReminders } from "../domain/reminderNotifications";
+import {
+  buildReminderNotifications,
+  unacknowledgedReminders,
+} from "../domain/reminderNotifications";
 import { useUiPreferences } from "../state/uiPreferences";
 import { Button } from "./coss/button";
 
@@ -117,7 +120,11 @@ export function NotificationCenter() {
         className="h-9 shrink-0 sm:h-9"
         style={{ position: "relative" }}
       >
-        <Bell size={16} weight={count > 0 ? "fill" : "duotone"} style={{ color: count > 0 ? "var(--ns-accent)" : undefined, flexShrink: 0 }} />
+        <Bell
+          size={16}
+          weight={count > 0 ? "fill" : "duotone"}
+          style={{ color: count > 0 ? "var(--ns-accent)" : undefined, flexShrink: 0 }}
+        />
         {count > 0 && (
           <span
             aria-label={`${count} 則未讀提醒`}
@@ -180,7 +187,9 @@ export function NotificationCenter() {
               <Button
                 variant="ghost"
                 size="xs"
-                onClick={() => { handleAcknowledgeAll(); }}
+                onClick={() => {
+                  handleAcknowledgeAll();
+                }}
               >
                 全部標為已讀
               </Button>
@@ -214,7 +223,14 @@ export function NotificationCenter() {
                     }}
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 500, fontSize: 12, color: "var(--ns-fg-dim)", marginBottom: 1 }}>
+                      <div
+                        style={{
+                          fontWeight: 500,
+                          fontSize: 12,
+                          color: "var(--ns-fg-dim)",
+                          marginBottom: 1,
+                        }}
+                      >
                         {n.title}
                       </div>
                       <div style={{ fontSize: 13, color: "var(--ns-fg)", lineHeight: 1.4 }}>
@@ -224,15 +240,11 @@ export function NotificationCenter() {
                         {n.daysUntilDue === 0
                           ? "今天到期"
                           : n.daysUntilDue < 0
-                          ? `已逾期 ${Math.abs(n.daysUntilDue)} 天`
-                          : `${n.daysUntilDue} 天後到期`}
+                            ? `已逾期 ${Math.abs(n.daysUntilDue)} 天`
+                            : `${n.daysUntilDue} 天後到期`}
                       </div>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="xs"
-                      onClick={() => acknowledgeReminder(n.id)}
-                    >
+                    <Button variant="outline" size="xs" onClick={() => acknowledgeReminder(n.id)}>
                       標為已讀
                     </Button>
                   </li>

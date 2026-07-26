@@ -47,7 +47,8 @@ export function BulkCategorizeCard({
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
 
   const applyCategory = useRepositoryMutation(
-    (repository, input: LedgerDraft & { id: string }) => repository.updateLedgerTransaction(input.id, input),
+    (repository, input: LedgerDraft & { id: string }) =>
+      repository.updateLedgerTransaction(input.id, input),
     ["ledger", "accounts"],
   );
 
@@ -64,7 +65,8 @@ export function BulkCategorizeCard({
 
   const rowById = useMemo(() => new Map(ledgerRows.map((row) => [row.id, row])), [ledgerRows]);
 
-  const isChecked = (s: CategorySuggestion) => overrides[s.transactionId] ?? (s.confidence === "high");
+  const isChecked = (s: CategorySuggestion) =>
+    overrides[s.transactionId] ?? s.confidence === "high";
   const checkedList = suggestions.filter(isChecked);
 
   if (suggestions.length === 0 && !open) return null;
@@ -96,20 +98,35 @@ export function BulkCategorizeCard({
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2.5 w-full text-left"
-        style={{ padding: "12px 16px", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+        style={{
+          padding: "12px 16px",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          fontFamily: "inherit",
+        }}
       >
         <MagicWand size={15} weight="duotone" style={{ color: "var(--ns-accent)" }} />
         <span className="text-sm font-semibold">自動分類建議</span>
         {suggestions.length > 0 && (
           <span
             className="text-caption font-medium"
-            style={{ padding: "1px 8px", borderRadius: 999, background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}
+            style={{
+              padding: "1px 8px",
+              borderRadius: 999,
+              background: "var(--ns-accent-soft)",
+              color: "var(--ns-accent)",
+            }}
           >
             {suggestions.length} 筆待確認
           </span>
         )}
         <div className="flex-1" />
-        <CaretDown size={14} className="ns-caret-rotate" style={{ color: "var(--ns-fg-muted)", transform: open ? "rotate(180deg)" : "none" }} />
+        <CaretDown
+          size={14}
+          className="ns-caret-rotate"
+          style={{ color: "var(--ns-fg-muted)", transform: open ? "rotate(180deg)" : "none" }}
+        />
       </button>
 
       {open && (
@@ -131,13 +148,24 @@ export function BulkCategorizeCard({
                     <label
                       key={s.transactionId}
                       className="flex items-center gap-3"
-                      style={{ padding: "10px 16px", cursor: "pointer", borderTop: "1px solid var(--ns-border)" }}
+                      style={{
+                        padding: "10px 16px",
+                        cursor: "pointer",
+                        borderTop: "1px solid var(--ns-border)",
+                      }}
                     >
                       <input
                         type="checkbox"
                         checked={checked}
-                        onChange={(e) => setOverrides((prev) => ({ ...prev, [s.transactionId]: e.target.checked }))}
-                        style={{ accentColor: "var(--ns-accent)", width: 16, height: 16, flexShrink: 0 }}
+                        onChange={(e) =>
+                          setOverrides((prev) => ({ ...prev, [s.transactionId]: e.target.checked }))
+                        }
+                        style={{
+                          accentColor: "var(--ns-accent)",
+                          width: 16,
+                          height: 16,
+                          flexShrink: 0,
+                        }}
                       />
                       <div className="min-w-0 flex-1">
                         <div className="text-body font-medium truncate">
@@ -149,14 +177,24 @@ export function BulkCategorizeCard({
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-caption font-medium" style={{ padding: "2px 8px", borderRadius: 999, background: "var(--ns-surface-strong)", color: "var(--ns-fg)" }}>
+                        <span
+                          className="text-caption font-medium"
+                          style={{
+                            padding: "2px 8px",
+                            borderRadius: 999,
+                            background: "var(--ns-surface-strong)",
+                            color: "var(--ns-fg)",
+                          }}
+                        >
                           {s.suggested}
                         </span>
                         <span
                           className="text-caption"
                           style={{
-                            padding: "2px 7px", borderRadius: 999,
-                            background: s.confidence === "high" ? "var(--ns-pos-soft)" : "var(--ns-border)",
+                            padding: "2px 7px",
+                            borderRadius: 999,
+                            background:
+                              s.confidence === "high" ? "var(--ns-pos-soft)" : "var(--ns-border)",
                             color: s.confidence === "high" ? "var(--ns-pos)" : "var(--ns-fg-muted)",
                           }}
                         >
@@ -167,8 +205,13 @@ export function BulkCategorizeCard({
                   );
                 })}
               </div>
-              <div className="flex items-center gap-2" style={{ padding: "12px 16px", borderTop: "1px solid var(--ns-border)" }}>
-                <span className="muted text-caption flex-1">已勾選 {checkedList.length} / {suggestions.length} 筆</span>
+              <div
+                className="flex items-center gap-2"
+                style={{ padding: "12px 16px", borderTop: "1px solid var(--ns-border)" }}
+              >
+                <span className="muted text-caption flex-1">
+                  已勾選 {checkedList.length} / {suggestions.length} 筆
+                </span>
                 <Button
                   onClick={handleApply}
                   disabled={checkedList.length === 0 || applyCategory.isPending}
@@ -190,7 +233,11 @@ export function BulkCategorizeCard({
  * and subcategory. Preserving every other field keeps the row's invariants
  * (amount sign, currency-account match) intact through updateLedgerTransaction.
  */
-function draftFromRow(row: LedgerTransaction, category: string, subcategory: string): LedgerDraft & { id: string } {
+function draftFromRow(
+  row: LedgerTransaction,
+  category: string,
+  subcategory: string,
+): LedgerDraft & { id: string } {
   return {
     id: row.id,
     accountId: row.accountId,

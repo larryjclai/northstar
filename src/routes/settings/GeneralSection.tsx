@@ -1,14 +1,57 @@
-import { ArrowsClockwise, CheckCircle, Compass, CurrencyCircleDollar, DownloadSimple, Eye, EyeSlash, Globe, Key, PencilSimple, Plus, Storefront, Tag, Trash, UploadSimple, UsersThree, X, CaretDown, CaretRight, Backspace, Gear, Target, DeviceMobile, Desktop, Spinner, WifiHigh, CopySimple, QrCode, Warning } from "@phosphor-icons/react";
+import {
+  ArrowsClockwise,
+  CheckCircle,
+  Compass,
+  CurrencyCircleDollar,
+  DownloadSimple,
+  Eye,
+  EyeSlash,
+  Globe,
+  Key,
+  PencilSimple,
+  Plus,
+  Storefront,
+  Tag,
+  Trash,
+  UploadSimple,
+  UsersThree,
+  X,
+  CaretDown,
+  CaretRight,
+  Backspace,
+  Gear,
+  Target,
+  DeviceMobile,
+  Desktop,
+  Spinner,
+  WifiHigh,
+  CopySimple,
+  QrCode,
+  Warning,
+} from "@phosphor-icons/react";
 import { Badge } from "../../components/coss/badge";
 import { Button } from "../../components/coss/button";
 import { Card } from "../../components/coss/card";
-import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ActionButton } from "../../components/ActionButton";
 import { AppSelect } from "../../components/AppSelect";
 import { useToast } from "../../components/Toast";
 import { useFinanceData, useRepositoryMutation } from "../../data/hooks";
-import { downloadCsv, exportInvestmentCsv, exportLedgerCsv, exportFxRatesCsv } from "../../data/csv";
+import {
+  downloadCsv,
+  exportInvestmentCsv,
+  exportLedgerCsv,
+  exportFxRatesCsv,
+} from "../../data/csv";
 import { getFinanceRepository, type RepositorySnapshot } from "../../data/repositories";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { enterDemoMode, exitDemoMode } from "../../data/demoData";
@@ -17,7 +60,13 @@ import { COMMON_TIMEZONES, isValidTimezone } from "../../domain";
 import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../../domain";
 import type { SyncConflictRecord } from "../../domain/sync";
 import { useRefreshFxRates } from "../../features/market-data/useMarketRefresh";
-import { useUiPreferences, DEFAULT_BENCHMARK_TICKER, type ClockMode, type NameLocalePreference, type ThemeMode } from "../../state/uiPreferences";
+import {
+  useUiPreferences,
+  DEFAULT_BENCHMARK_TICKER,
+  type ClockMode,
+  type NameLocalePreference,
+  type ThemeMode,
+} from "../../state/uiPreferences";
 import { openOnboarding } from "../../components/OnboardingOverlay";
 import { TickerSearchField } from "../../components/TickerSearchField";
 import { getOrCreateDeviceIdentity } from "../../state/deviceIdentity";
@@ -28,31 +77,46 @@ import { Glyph } from "../../lib/icons";
 import { Popover, PopoverTrigger, PopoverContent } from "../../components/ui/popover";
 import QRCode from "react-qr-code";
 import {
-  loadSyncAccount, getOrCreateSyncAccount, setSyncAccount, sha256Hex,
+  loadSyncAccount,
+  getOrCreateSyncAccount,
+  setSyncAccount,
+  sha256Hex,
   type SyncAccount,
 } from "../../features/connect/sync/account";
+import { generateVaultKey, saveVaultKey, loadVaultKey } from "../../features/connect/crypto/vault";
 import {
-  generateVaultKey, saveVaultKey, loadVaultKey,
-} from "../../features/connect/crypto/vault";
-import {
-  registerUser, listDevices, revokeDevice, addDevice,
+  registerUser,
+  listDevices,
+  revokeDevice,
+  addDevice,
   type DeviceRecord,
 } from "../../features/connect/sync/client";
 import {
-  initiatePairing, joinWithCode, type PairingSession,
+  initiatePairing,
+  joinWithCode,
+  type PairingSession,
 } from "../../features/connect/sync/pairing-flow";
 import { runSync, forceFullResync } from "../../features/connect/sync/sync-manager";
 import { summarizeConflict } from "../../features/connect/sync/conflictSummary";
 import { listBackups, restoreBackup, type BackupEntry } from "../../features/connect/sync/backup";
 import {
-  listLocalBackups, createManualBackup, restoreLocalBackup, deleteLocalBackup,
-  readLocalBackupSnapshot, localBackupLocation, type LocalBackupEntry,
+  listLocalBackups,
+  createManualBackup,
+  restoreLocalBackup,
+  deleteLocalBackup,
+  readLocalBackupSnapshot,
+  localBackupLocation,
+  type LocalBackupEntry,
 } from "../../features/local-backup/localBackup";
 import { buildBackupDiff, type BackupDiff } from "../../features/local-backup/backupDiff";
 import { useSyncStatus } from "../../state/syncStatus";
 import {
-  generateRecoveryKit, confirmRecoveryKit, downloadRecoveryKit,
-  restoreFromRecoveryKit, loadLocalRecoveryKitStatus, type LocalRecoveryKitStatus,
+  generateRecoveryKit,
+  confirmRecoveryKit,
+  downloadRecoveryKit,
+  restoreFromRecoveryKit,
+  loadLocalRecoveryKitStatus,
+  type LocalRecoveryKitStatus,
 } from "../../features/connect/crypto/recovery-kit";
 import type { SettingsTabProps } from "./shared";
 import { ConnectStatus, UpdateChecker } from "./ConnectSection";
@@ -109,7 +173,9 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
   const [importConfirmInput, setImportConfirmInput] = useState("");
 
   useEffect(() => {
-    listLocalBackups().then(setLocalBackups).catch(() => setLocalBackups([]));
+    listLocalBackups()
+      .then(setLocalBackups)
+      .catch(() => setLocalBackups([]));
   }, []);
 
   // Build the import preview whenever a file is staged, without touching the DB.
@@ -129,7 +195,8 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
       try {
         const text = await pendingImportFile.text();
         const parsed = JSON.parse(text) as RepositorySnapshot;
-        if (!parsed || !Array.isArray(parsed.accounts)) throw new Error("無效的備份檔（缺少 accounts 欄位）");
+        if (!parsed || !Array.isArray(parsed.accounts))
+          throw new Error("無效的備份檔（缺少 accounts 欄位）");
         const repository = await getFinanceRepository();
         const current = await repository.exportSnapshot();
         if (cancelled) return;
@@ -140,11 +207,17 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
         if (!cancelled) setImportDiffLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [pendingImportFile]);
 
   async function refreshLocalBackups() {
-    try { setLocalBackups(await listLocalBackups()); } catch { /* ignore */ }
+    try {
+      setLocalBackups(await listLocalBackups());
+    } catch {
+      /* ignore */
+    }
   }
 
   async function handleManualBackup() {
@@ -261,7 +334,7 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `northstar-backup-${new Date().toISOString().slice(0,10)}.json`;
+      link.download = `northstar-backup-${new Date().toISOString().slice(0, 10)}.json`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -276,7 +349,8 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
     try {
       const text = await file.text();
       const parsed = JSON.parse(text) as RepositorySnapshot;
-      if (!parsed || !Array.isArray(parsed.accounts)) throw new Error("無效的備份檔（缺少 accounts 欄位）");
+      if (!parsed || !Array.isArray(parsed.accounts))
+        throw new Error("無效的備份檔（缺少 accounts 欄位）");
       const repository = await getFinanceRepository();
       await repository.importSnapshot(parsed);
       await queryClient.invalidateQueries();
@@ -310,21 +384,37 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
   return (
     <div className="max-w-4xl space-y-6">
       <div>
-        <h2 style={{fontFamily:'var(--ns-font-display)',fontSize:24,margin:0,fontWeight:600}}>{t('settings.general')}</h2>
-        <p className="muted" style={{fontSize:13,marginTop:4,marginBottom:0}}>{t('settings.generalDesc')}</p>
+        <h2
+          style={{ fontFamily: "var(--ns-font-display)", fontSize: 24, margin: 0, fontWeight: 600 }}
+        >
+          {t("settings.general")}
+        </h2>
+        <p className="muted" style={{ fontSize: 13, marginTop: 4, marginBottom: 0 }}>
+          {t("settings.generalDesc")}
+        </p>
       </div>
 
       <Card className="p-5">
         <h3 className="font-semibold mb-2">帳本維護</h3>
-        <p className="text-sm muted mb-4">重新依期初餘額、已結算流水與投資紀錄計算衍生資料。這不會新增調整餘額交易。</p>
+        <p className="text-sm muted mb-4">
+          重新依期初餘額、已結算流水與投資紀錄計算衍生資料。這不會新增調整餘額交易。
+        </p>
         <Button onClick={recalculate} disabled={recalculating}>
-          <ArrowsClockwise size={14}/>{recalculating ? "重新計算中" : "重新計算帳戶與投資"}
+          <ArrowsClockwise size={14} />
+          {recalculating ? "重新計算中" : "重新計算帳戶與投資"}
         </Button>
-        {recalculationSummary ? <div className="ns-surface mt-3 p-3 text-sm">{recalculationSummary}</div> : null}
+        {recalculationSummary ? (
+          <div className="ns-surface mt-3 p-3 text-sm">{recalculationSummary}</div>
+        ) : null}
       </Card>
 
       <Card className="p-5">
-        <div className="text-xs" style={{  marginBottom: 4 , color: "var(--ns-fg-muted)", fontWeight: 500 }}>Demo</div>
+        <div
+          className="text-xs"
+          style={{ marginBottom: 4, color: "var(--ns-fg-muted)", fontWeight: 500 }}
+        >
+          Demo
+        </div>
         <h3 className="font-semibold mb-2">示範模式</h3>
         {inDemo ? (
           <>
@@ -332,35 +422,48 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
               目前在示範模式。你原本的資料已安全保存，結束後會完整還原。
             </p>
             <Button onClick={handleExitDemo} disabled={demoBusy !== null}>
-              <ArrowsClockwise size={14} />{demoBusy === "exit" ? "還原中…" : "結束示範並還原我的資料"}
+              <ArrowsClockwise size={14} />
+              {demoBusy === "exit" ? "還原中…" : "結束示範並還原我的資料"}
             </Button>
           </>
         ) : (
           <>
-            <p className="text-sm muted mb-4">載入一組範例帳戶、交易、持股與目標來瀏覽完整畫面或展示。<strong>不會清除你的資料</strong>——進入前會先把你目前的資料安全保存，結束示範時自動還原。</p>
+            <p className="text-sm muted mb-4">
+              載入一組範例帳戶、交易、持股與目標來瀏覽完整畫面或展示。
+              <strong>不會清除你的資料</strong>
+              ——進入前會先把你目前的資料安全保存，結束示範時自動還原。
+            </p>
             <div className="flex flex-wrap gap-2">
               <Button onClick={handleLoadDemo} disabled={demoBusy !== null}>
-                <Plus size={14} weight="bold" />{demoBusy === "load" ? "進入中…" : "進入示範模式"}
+                <Plus size={14} weight="bold" />
+                {demoBusy === "load" ? "進入中…" : "進入示範模式"}
               </Button>
             </div>
             <p className="text-xs muted mt-3">
-              想解除同步或清空資料？請到「設定 → Connect 同步」的<strong>「解除同步」</strong>（保留資料）或<strong>「完整重設資料」</strong>（解除同步並清除資料）。
+              想解除同步或清空資料？請到「設定 → Connect 同步」的<strong>「解除同步」</strong>
+              （保留資料）或<strong>「完整重設資料」</strong>（解除同步並清除資料）。
             </p>
           </>
         )}
       </Card>
 
       <Card className="p-5">
-        <h3 className="font-semibold mb-4">{t('settings.privacyMode')}</h3>
+        <h3 className="font-semibold mb-4">{t("settings.privacyMode")}</h3>
         <button
           onClick={togglePrivacy}
           className="flex w-full items-center gap-3 rounded-md border p-3 text-left transition"
-          style={{ borderColor: privacyMode ? "var(--ns-accent)" : "var(--ns-border)", background: privacyMode ? "var(--ns-accent-soft)" : "transparent" }}
+          style={{
+            borderColor: privacyMode ? "var(--ns-accent)" : "var(--ns-border)",
+            background: privacyMode ? "var(--ns-accent-soft)" : "transparent",
+          }}
         >
           {privacyMode ? <EyeSlash size={18} /> : <Eye size={18} />}
           <div>
-            <div className="font-medium">{t('settings.privacyMode')} - {privacyMode ? t('settings.privacyModeOn') : t('settings.privacyModeOff')}</div>
-            <div className="text-xs muted">{t('settings.privacyModeDesc')}</div>
+            <div className="font-medium">
+              {t("settings.privacyMode")} -{" "}
+              {privacyMode ? t("settings.privacyModeOn") : t("settings.privacyModeOff")}
+            </div>
+            <div className="text-xs muted">{t("settings.privacyModeDesc")}</div>
           </div>
         </button>
 
@@ -375,7 +478,9 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
             { value: "dark", label: "深色" },
           ]}
         />
-        <p className="text-xs muted mt-3 mb-0">深色和淺色會立即套用；跟隨系統會回到裝置的外觀設定。</p>
+        <p className="text-xs muted mt-3 mb-0">
+          深色和淺色會立即套用；跟隨系統會回到裝置的外觀設定。
+        </p>
 
         <h3 className="font-semibold mb-3 mt-6">盈虧配色</h3>
         <SegmentedControl
@@ -392,7 +497,9 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
           預覽：<span style={{ color: "var(--ns-gain)", fontWeight: 600 }}>+2.34%</span>
           <span className="muted">（漲）　</span>
           <span style={{ color: "var(--ns-loss)", fontWeight: 600 }}>−1.21%</span>
-          <span className="muted">（跌）— 只影響投資損益、報酬率與個股漲跌；現金流收支與成功/錯誤提示維持固定綠/紅。</span>
+          <span className="muted">
+            （跌）— 只影響投資損益、報酬率與個股漲跌；現金流收支與成功/錯誤提示維持固定綠/紅。
+          </span>
         </p>
 
         <h3 className="font-semibold mb-3 mt-6">介面密度</h3>
@@ -420,7 +527,7 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
           ]}
         />
 
-        <h3 className="font-semibold mb-3 mt-6">{t('settings.language')}</h3>
+        <h3 className="font-semibold mb-3 mt-6">{t("settings.language")}</h3>
         <SegmentedControl
           fullWidth
           value={nameLocale}
@@ -432,7 +539,7 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
           ]}
         />
 
-        <h3 className="font-semibold mb-4 mt-6">{t('settings.timezone')}</h3>
+        <h3 className="font-semibold mb-4 mt-6">{t("settings.timezone")}</h3>
         <AppSelect
           value={timezone}
           onChange={setTimezone}
@@ -445,12 +552,23 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
         <button
           onClick={() => setAssetLogosEnabled(!assetLogosEnabled)}
           className="flex w-full items-center gap-3 rounded-md border p-3 text-left transition"
-          style={{ borderColor: assetLogosEnabled ? "var(--ns-accent)" : "var(--ns-border)", background: assetLogosEnabled ? "var(--ns-accent-soft)" : "transparent" }}
+          style={{
+            borderColor: assetLogosEnabled ? "var(--ns-accent)" : "var(--ns-border)",
+            background: assetLogosEnabled ? "var(--ns-accent-soft)" : "transparent",
+          }}
         >
           <Globe size={18} />
           <div>
-            <div className="font-medium">投資標的品牌 LOGO - {assetLogosEnabled ? "已開啟" : "已關閉"}</div>
-            <div className="text-xs muted">開啟後會向第三方服務 (assets.parqet.com) 請求各標的的 LOGO 圖示。<strong style={{ color: "var(--ns-fg)" }}>隱私風險：你持有的股票代號會傳送到該第三方</strong>。關閉時一律顯示本地產生的字母標記，不會發出任何請求。</div>
+            <div className="font-medium">
+              投資標的品牌 LOGO - {assetLogosEnabled ? "已開啟" : "已關閉"}
+            </div>
+            <div className="text-xs muted">
+              開啟後會向第三方服務 (assets.parqet.com) 請求各標的的 LOGO 圖示。
+              <strong style={{ color: "var(--ns-fg)" }}>
+                隱私風險：你持有的股票代號會傳送到該第三方
+              </strong>
+              。關閉時一律顯示本地產生的字母標記，不會發出任何請求。
+            </div>
           </div>
         </button>
 
@@ -462,11 +580,16 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
         <button
           onClick={() => setRemindersEnabled(!remindersEnabled)}
           className="flex w-full items-center gap-3 rounded-md border p-3 text-left transition"
-          style={{ borderColor: remindersEnabled ? "var(--ns-accent)" : "var(--ns-border)", background: remindersEnabled ? "var(--ns-accent-soft)" : "transparent" }}
+          style={{
+            borderColor: remindersEnabled ? "var(--ns-accent)" : "var(--ns-border)",
+            background: remindersEnabled ? "var(--ns-accent-soft)" : "transparent",
+          }}
         >
           <DeviceMobile size={18} />
           <div>
-            <div className="font-medium">到期提醒通知 - {remindersEnabled ? "已開啟" : "已關閉"}</div>
+            <div className="font-medium">
+              到期提醒通知 - {remindersEnabled ? "已開啟" : "已關閉"}
+            </div>
             <div className="text-xs muted">在繳款日與週期入帳前發送系統通知</div>
           </div>
         </button>
@@ -483,29 +606,49 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
           <Compass size={18} weight="duotone" />
           <div>
             <div className="font-medium">重新開始新手導覽</div>
-            <div className="text-xs muted">顯示設定與匯入的引導流程，並在側欄重新顯示導覽入口。</div>
+            <div className="text-xs muted">
+              顯示設定與匯入的引導流程，並在側欄重新顯示導覽入口。
+            </div>
           </div>
         </button>
       </Card>
 
       <Card className="p-5">
-        <h3 className="font-semibold mb-2">{t('settings.backupTitle')}</h3>
-        <p className="text-sm muted mb-4">{t('settings.backupDesc')}</p>
+        <h3 className="font-semibold mb-2">{t("settings.backupTitle")}</h3>
+        <p className="text-sm muted mb-4">{t("settings.backupDesc")}</p>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={exportBackup}><DownloadSimple size={14}/>{t('settings.exportJson')}</Button>
-          <Button variant="ghost" onClick={()=>fileInputRef.current?.click()} disabled={importing}><UploadSimple size={14}/>{t('settings.importBackup')}</Button>
-          <input type="file" ref={fileInputRef} className="hidden" accept=".json,application/json" onChange={(e)=>{
-            const file = e.target.files?.[0];
-            if (file) setPendingImportFile(file);
-            e.target.value = '';
-          }} />
+          <Button onClick={exportBackup}>
+            <DownloadSimple size={14} />
+            {t("settings.exportJson")}
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+          >
+            <UploadSimple size={14} />
+            {t("settings.importBackup")}
+          </Button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept=".json,application/json"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) setPendingImportFile(file);
+              e.target.value = "";
+            }}
+          />
         </div>
         {pendingImportFile && (
           <div className="ns-surface mt-4 p-3" style={{ border: "1px solid var(--ns-neg)" }}>
             <div className="flex items-start gap-2 mb-3">
               <Warning size={18} style={{ color: "var(--ns-neg)", flexShrink: 0, marginTop: 1 }} />
               <div className="text-sm">
-                即將以 <span className="mono font-medium">{pendingImportFile.name}</span> 覆蓋目前<strong>所有</strong>資料，此動作無法復原。建議先按上方「{t('settings.exportJson')}」備份。
+                即將以 <span className="mono font-medium">{pendingImportFile.name}</span> 覆蓋目前
+                <strong>所有</strong>資料，此動作無法復原。建議先按上方「{t("settings.exportJson")}
+                」備份。
               </div>
             </div>
             <p className="text-xs muted mb-2">
@@ -514,7 +657,9 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
             {importDiffLoading ? (
               <p className="text-xs muted mb-3">讀取備份內容中…</p>
             ) : importDiffError ? (
-              <p className="text-xs mb-3" style={{ color: "var(--ns-neg)" }}>無法讀取此備份檔：{importDiffError}</p>
+              <p className="text-xs mb-3" style={{ color: "var(--ns-neg)" }}>
+                無法讀取此備份檔：{importDiffError}
+              </p>
             ) : importDiff ? (
               <>
                 <p className="text-xs muted mb-2">
@@ -556,22 +701,34 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
               <Button
                 variant="outline"
                 style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }}
-                disabled={importing || !importDiff || importConfirmInput.trim() !== RESTORE_CONFIRM_PHRASE}
+                disabled={
+                  importing || !importDiff || importConfirmInput.trim() !== RESTORE_CONFIRM_PHRASE
+                }
                 onClick={() => importBackup(pendingImportFile)}
               >
-                <UploadSimple size={14} />{importing ? "匯入中…" : "確定匯入（覆蓋現有資料）"}
+                <UploadSimple size={14} />
+                {importing ? "匯入中…" : "確定匯入（覆蓋現有資料）"}
               </Button>
-              <Button variant="ghost" disabled={importing} onClick={() => setPendingImportFile(null)}>取消</Button>
+              <Button
+                variant="ghost"
+                disabled={importing}
+                onClick={() => setPendingImportFile(null)}
+              >
+                取消
+              </Button>
             </div>
           </div>
         )}
-        <p className="text-xs muted mt-3">想要 CSV / 篩選範圍的匯出，請到上方「{t('settings.export')}」分頁。</p>
+        <p className="text-xs muted mt-3">
+          想要 CSV / 篩選範圍的匯出，請到上方「{t("settings.export")}」分頁。
+        </p>
 
         <div className="mt-6 pt-4" style={{ borderTop: "1px solid var(--ns-border)" }}>
           <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
             <h4 className="font-semibold text-sm">本地自動備份</h4>
             <Button variant="outline" onClick={handleManualBackup} disabled={backupBusy}>
-              <DownloadSimple size={14} />{backupBusy ? "處理中…" : "立即備份"}
+              <DownloadSimple size={14} />
+              {backupBusy ? "處理中…" : "立即備份"}
             </Button>
           </div>
           <p className="text-xs muted mb-3">
@@ -589,20 +746,41 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-sm truncate">{b.label}</div>
-                      <Badge variant="outline" className="mt-1">{b.kind === "scheduled" ? "自動" : "手動"}</Badge>
+                      <Badge variant="outline" className="mt-1">
+                        {b.kind === "scheduled" ? "自動" : "手動"}
+                      </Badge>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {confirmRestoreId === b.id ? (
-                        <Button variant="ghost" disabled={backupBusy} onClick={cancelRestoreLocal}>取消</Button>
+                        <Button variant="ghost" disabled={backupBusy} onClick={cancelRestoreLocal}>
+                          取消
+                        </Button>
                       ) : confirmDeleteId === b.id ? (
                         <>
-                          <Button variant="outline" style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }} onClick={() => handleDeleteLocal(b.id)}>確定刪除</Button>
-                          <Button variant="ghost" onClick={() => setConfirmDeleteId(null)}>取消</Button>
+                          <Button
+                            variant="outline"
+                            style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }}
+                            onClick={() => handleDeleteLocal(b.id)}
+                          >
+                            確定刪除
+                          </Button>
+                          <Button variant="ghost" onClick={() => setConfirmDeleteId(null)}>
+                            取消
+                          </Button>
                         </>
                       ) : (
                         <>
-                          <Button variant="ghost" disabled={backupBusy} onClick={() => beginRestoreLocal(b.id)}><UploadSimple size={14} />還原</Button>
-                          <Button variant="ghost" onClick={() => setConfirmDeleteId(b.id)}><Trash size={14} /></Button>
+                          <Button
+                            variant="ghost"
+                            disabled={backupBusy}
+                            onClick={() => beginRestoreLocal(b.id)}
+                          >
+                            <UploadSimple size={14} />
+                            還原
+                          </Button>
+                          <Button variant="ghost" onClick={() => setConfirmDeleteId(b.id)}>
+                            <Trash size={14} />
+                          </Button>
                         </>
                       )}
                     </div>
@@ -615,7 +793,9 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
                       {restoreDiffLoading ? (
                         <p className="text-xs muted">讀取備份內容中…</p>
                       ) : !restoreDiff ? (
-                        <p className="text-xs" style={{ color: "var(--ns-neg)" }}>無法讀取此備份內容，可能已損毀。</p>
+                        <p className="text-xs" style={{ color: "var(--ns-neg)" }}>
+                          無法讀取此備份內容，可能已損毀。
+                        </p>
                       ) : (
                         <>
                           <p className="text-xs muted mb-2">
@@ -625,12 +805,17 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
                           </p>
                           <div className="space-y-1 mb-3">
                             {restoreDiff.rows.map((r) => (
-                              <div key={r.label} className="flex items-center justify-between gap-3 text-xs">
+                              <div
+                                key={r.label}
+                                className="flex items-center justify-between gap-3 text-xs"
+                              >
                                 <span className="muted">{r.label}</span>
                                 <span style={r.delta < 0 ? { color: "var(--ns-neg)" } : undefined}>
                                   {r.current} → {r.backup}
                                   {r.delta !== 0 && (
-                                    <span className="ml-1">（{r.delta > 0 ? `+${r.delta}` : r.delta}）</span>
+                                    <span className="ml-1">
+                                      （{r.delta > 0 ? `+${r.delta}` : r.delta}）
+                                    </span>
                                   )}
                                 </span>
                               </div>
@@ -654,7 +839,9 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
                           <Button
                             variant="outline"
                             style={{ color: "var(--ns-neg)", borderColor: "var(--ns-neg)" }}
-                            disabled={backupBusy || restoreConfirmInput.trim() !== RESTORE_CONFIRM_PHRASE}
+                            disabled={
+                              backupBusy || restoreConfirmInput.trim() !== RESTORE_CONFIRM_PHRASE
+                            }
                             onClick={() => handleRestoreLocal(b.id)}
                           >
                             確定還原（覆蓋現有）
@@ -677,4 +864,3 @@ export function SettingsGeneral({ form, t }: Pick<SettingsTabProps, "form" | "t"
 }
 
 // ─────── Connect Sync ───────
-

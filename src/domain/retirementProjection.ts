@@ -93,10 +93,23 @@ export interface ProjectionInput {
 export function projectRetirement(input: ProjectionInput): RetirementProjection {
   const { goal, currentValue } = input;
   const params = resolveParameters(goal);
-  const { currentAge, retirementAge, planThroughAge, preReturn, postReturn, fee, inflation, contributionGrowth } = params;
+  const {
+    currentAge,
+    retirementAge,
+    planThroughAge,
+    preReturn,
+    postReturn,
+    fee,
+    inflation,
+    contributionGrowth,
+  } = params;
 
   const annualSpending = resolveAnnualSpending(goal);
-  const wr = clamp(normalizeRate(goal.withdrawalRate) || PROJECTION_DEFAULTS.withdrawalRate, 0.0001, 1);
+  const wr = clamp(
+    normalizeRate(goal.withdrawalRate) || PROJECTION_DEFAULTS.withdrawalRate,
+    0.0001,
+    1,
+  );
   const baseTarget = annualSpending / wr;
 
   // Convert spending into today's-money or nominal-money depending on mode.
@@ -110,9 +123,8 @@ export function projectRetirement(input: ProjectionInput): RetirementProjection 
   let contribution = goal.monthlyContribution * 12;
   // Apply growth either to keep contributions flat in real terms (today mode)
   // or compound them in nominal mode.
-  const contributionGrowthEffective = displayMode === "today"
-    ? Math.max(0, contributionGrowth - inflation)
-    : contributionGrowth;
+  const contributionGrowthEffective =
+    displayMode === "today" ? Math.max(0, contributionGrowth - inflation) : contributionGrowth;
 
   let fiAge: number | null = null;
 
@@ -131,7 +143,13 @@ export function projectRetirement(input: ProjectionInput): RetirementProjection 
       contribution *= 1 + contributionGrowthEffective;
     } else {
       const ageInRetirement = age - retirementAge;
-      yearSpending = spendingForYear(goal.spendingItems, annualSpending, ageInRetirement, inflation, displayMode);
+      yearSpending = spendingForYear(
+        goal.spendingItems,
+        annualSpending,
+        ageInRetirement,
+        inflation,
+        displayMode,
+      );
       yearIncome = incomeForYear(goal.incomeItems, age, inflation, currentAge, displayMode);
       const netDraw = Math.max(0, yearSpending - yearIncome);
       const grossNext = balance * (1 + effectivePostReturn);
@@ -213,7 +231,10 @@ export interface ScenarioSet {
  */
 export function projectRetirementScenarios(input: ProjectionInput, spread = 0.025): ScenarioSet {
   const run = (key: ScenarioKey, returnDelta: number): ScenarioProjection => {
-    const preBase = input.goal.preRetirementReturn ?? input.goal.expectedAnnualReturn ?? PROJECTION_DEFAULTS.preRetirementReturn;
+    const preBase =
+      input.goal.preRetirementReturn ??
+      input.goal.expectedAnnualReturn ??
+      PROJECTION_DEFAULTS.preRetirementReturn;
     const postBase = input.goal.postRetirementReturn ?? preBase;
     const projection = projectRetirement({
       ...input,
@@ -230,7 +251,9 @@ export function projectRetirementScenarios(input: ProjectionInput, spread = 0.02
   const pessimistic = run("pessimistic", -spread);
   const neutral = run("neutral", 0);
   const optimistic = run("optimistic", spread);
-  const scenariosOnTrack = [pessimistic, neutral, optimistic].filter((s) => s.projection.onTrack).length;
+  const scenariosOnTrack = [pessimistic, neutral, optimistic].filter(
+    (s) => s.projection.onTrack,
+  ).length;
   return { pessimistic, neutral, optimistic, scenariosOnTrack };
 }
 
@@ -258,7 +281,10 @@ function resolveParameters(goal: FinancialGoal): ResolvedParameters {
     currentAge: validAge(goal.currentAge, PROJECTION_DEFAULTS.currentAge),
     retirementAge: validAge(goal.retirementAge, PROJECTION_DEFAULTS.retirementAge),
     planThroughAge: validAge(goal.planThroughAge, PROJECTION_DEFAULTS.planThroughAge),
-    preReturn: validRate(goal.preRetirementReturn ?? goal.expectedAnnualReturn, PROJECTION_DEFAULTS.preRetirementReturn),
+    preReturn: validRate(
+      goal.preRetirementReturn ?? goal.expectedAnnualReturn,
+      PROJECTION_DEFAULTS.preRetirementReturn,
+    ),
     // Post-retirement return inherits the accumulation return when not set
     // explicitly. A disconnected flat default made a portfolio that reached the
     // 25× SWR target spuriously deplete ("存到 25× 卻顯示未達標"); inheriting the
@@ -269,11 +295,19 @@ function resolveParameters(goal: FinancialGoal): ResolvedParameters {
     ),
     fee: validRate(goal.annualFee, PROJECTION_DEFAULTS.annualFee),
     inflation: validRate(goal.inflationRate, PROJECTION_DEFAULTS.inflationRate),
-    contributionGrowth: validRate(goal.contributionGrowthRate, PROJECTION_DEFAULTS.contributionGrowthRate),
+    contributionGrowth: validRate(
+      goal.contributionGrowthRate,
+      PROJECTION_DEFAULTS.contributionGrowthRate,
+    ),
   };
 }
 
-function adjustReturn(gross: number, fee: number, inflation: number, mode: GoalDisplayMode): number {
+function adjustReturn(
+  gross: number,
+  fee: number,
+  inflation: number,
+  mode: GoalDisplayMode,
+): number {
   const net = gross - fee;
   if (mode === "today") {
     // Real return: (1 + r_net) / (1 + i) - 1. Clamp at -0.999 so we never
@@ -291,9 +325,10 @@ function spendingForYear(
   inflation: number,
   mode: GoalDisplayMode,
 ): number {
-  const base = items && items.length > 0
-    ? items.reduce((sum, item) => sum + Math.max(0, item.monthlyAmount), 0) * 12
-    : fallbackAnnual;
+  const base =
+    items && items.length > 0
+      ? items.reduce((sum, item) => sum + Math.max(0, item.monthlyAmount), 0) * 12
+      : fallbackAnnual;
   if (mode === "nominal") {
     return base * Math.pow(1 + inflation, Math.max(0, ageInRetirement));
   }
@@ -328,7 +363,8 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function validAge(value: number | null, fallback: number): number {
-  if (value === null || value === undefined || !Number.isFinite(value) || value < 0 || value > 130) return fallback;
+  if (value === null || value === undefined || !Number.isFinite(value) || value < 0 || value > 130)
+    return fallback;
   return Math.round(value);
 }
 

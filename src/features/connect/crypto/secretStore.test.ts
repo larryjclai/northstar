@@ -154,18 +154,14 @@ describe("migrateLocalStorageSecrets", () => {
     const mockStore = createMockStore();
     // First migration: copies from localStorage
     await migrateLocalStorageSecrets(mockStore);
-    expect(await mockStore.get("northstar.vault.key.v1")).toBe(
-      "original-in-localStorage",
-    );
+    expect(await mockStore.get("northstar.vault.key.v1")).toBe("original-in-localStorage");
 
     // Simulate localStorage changing after the first migration (shouldn't matter)
     localStorage.setItem("northstar.vault.key.v1", "updated-in-localStorage");
 
     // Second migration: key already in store → not overwritten
     await migrateLocalStorageSecrets(mockStore);
-    expect(await mockStore.get("northstar.vault.key.v1")).toBe(
-      "original-in-localStorage",
-    );
+    expect(await mockStore.get("northstar.vault.key.v1")).toBe("original-in-localStorage");
   });
 
   it("migration does NOT clear localStorage — rollback remains possible", async () => {
@@ -176,12 +172,8 @@ describe("migrateLocalStorageSecrets", () => {
     await migrateLocalStorageSecrets(mockStore);
 
     // localStorage copies must still be present after migration
-    expect(localStorage.getItem("northstar.vault.key.v1")).toBe(
-      "vault-key-original",
-    );
-    expect(localStorage.getItem("northstar.device.keypair.v1")).toBe(
-      "keypair-original",
-    );
+    expect(localStorage.getItem("northstar.vault.key.v1")).toBe("vault-key-original");
+    expect(localStorage.getItem("northstar.device.keypair.v1")).toBe("keypair-original");
   });
 
   it("does not write to the store if localStorage is empty", async () => {
@@ -224,9 +216,7 @@ describe("getSecretStore", () => {
     expect(await store.get("northstar.vault.key.v1")).toBe("vault-key-preexisting");
     expect(await store.get("northstar.sync.account.v1")).toBe("account-preexisting");
     // Non-destructive: localStorage copies are retained.
-    expect(localStorage.getItem("northstar.vault.key.v1")).toBe(
-      "vault-key-preexisting",
-    );
+    expect(localStorage.getItem("northstar.vault.key.v1")).toBe("vault-key-preexisting");
   });
 
   it("returns the same memoized instance on repeated calls (no re-init/race)", async () => {

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { computeDayChange, type DayChangeCloseInput, type DayChangeQuoteInput } from "./holdingDetailToday";
+import {
+  computeDayChange,
+  type DayChangeCloseInput,
+  type DayChangeQuoteInput,
+} from "./holdingDetailToday";
 
 function closes(...pairs: Array<[string, number]>): DayChangeCloseInput[] {
   return pairs.map(([date, close]) => ({ date, close }));

@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { CaretUpDown, Check } from "@phosphor-icons/react";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "./ui/command";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "./ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Glyph } from "../lib/icons";
 
@@ -10,7 +17,15 @@ function CategoryDot({ category }: { category: CategoryLike }) {
   return category.iconName ? (
     <Glyph name={category.iconName} size={16} color={category.color || "var(--ns-fg-muted)"} />
   ) : (
-    <span style={{ width: 10, height: 10, borderRadius: "50%", flexShrink: 0, background: category.color || "var(--ns-fg-muted)" }} />
+    <span
+      style={{
+        width: 10,
+        height: 10,
+        borderRadius: "50%",
+        flexShrink: 0,
+        background: category.color || "var(--ns-fg-muted)",
+      }}
+    />
   );
 }
 
@@ -34,7 +49,7 @@ export function CategoryFilter({
   style?: React.CSSProperties;
 }) {
   const [open, setOpen] = useState(false);
-  const selected = value === "all" ? null : categories.find((c) => c.name === value) ?? null;
+  const selected = value === "all" ? null : (categories.find((c) => c.name === value) ?? null);
 
   function select(next: string) {
     onChange(next);
@@ -50,9 +65,18 @@ export function CategoryFilter({
             type="button"
             className="ns-input text-body"
             style={{
-              display: "inline-flex", alignItems: "center", gap: 8, minWidth: 116, maxWidth: 220,
-              height: 36, boxSizing: "border-box", padding: "0 10px", cursor: "pointer",
-              textAlign: "left", whiteSpace: "nowrap", ...style,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              minWidth: 116,
+              maxWidth: 220,
+              height: 36,
+              boxSizing: "border-box",
+              padding: "0 10px",
+              cursor: "pointer",
+              textAlign: "left",
+              whiteSpace: "nowrap",
+              ...style,
             }}
           >
             {selected ? <CategoryDot category={selected} /> : null}
@@ -76,7 +100,16 @@ export function CategoryFilter({
               {categories.map((c) => (
                 <CommandItem key={c.name} value={c.name} onSelect={() => select(c.name)}>
                   <CategoryDot category={c} />
-                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
+                  <span
+                    style={{
+                      flex: 1,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {c.name}
+                  </span>
                   {value === c.name ? <Check size={14} style={{ flexShrink: 0 }} /> : null}
                 </CommandItem>
               ))}

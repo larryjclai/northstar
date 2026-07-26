@@ -7,7 +7,10 @@ function rec(id: string, updatedAt: string, deletedAt: string | null = null, rev
 
 const source = {
   accounts: [rec("a1", "2026-05-01T00:00:00Z"), rec("a2", "2026-05-10T00:00:00Z")],
-  ledgerTransactions: [rec("l1", "2026-05-05T00:00:00Z"), rec("l2", "2026-05-20T00:00:00Z", "2026-05-20T00:00:00Z")],
+  ledgerTransactions: [
+    rec("l1", "2026-05-05T00:00:00Z"),
+    rec("l2", "2026-05-20T00:00:00Z", "2026-05-20T00:00:00Z"),
+  ],
   portfolioAssets: [],
   investmentRecords: [],
   recurringTransactions: [rec("r1", "2026-04-01T00:00:00Z")],
@@ -31,7 +34,13 @@ describe("buildPendingChanges", () => {
   it("flags soft-deleted records as deleted", () => {
     const res = buildPendingChanges(source, "2026-05-15T00:00:00Z");
     expect(res.changes).toEqual([
-      { entity: "ledger", entityId: "l2", revision: 1, updatedAt: "2026-05-20T00:00:00Z", deleted: true },
+      {
+        entity: "ledger",
+        entityId: "l2",
+        revision: 1,
+        updatedAt: "2026-05-20T00:00:00Z",
+        deleted: true,
+      },
     ]);
   });
 

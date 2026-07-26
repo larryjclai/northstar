@@ -9,7 +9,12 @@
 // The interface is intentionally thin so the orchestrator is fully unit-testable
 // without a real device (just mock the NlParser with vi.fn()).
 
-import { parseQuickAdd, type QuickAddContext, type QuickAddParsed, type QuickAddParseResult } from "./quickAdd";
+import {
+  parseQuickAdd,
+  type QuickAddContext,
+  type QuickAddParsed,
+  type QuickAddParseResult,
+} from "./quickAdd";
 
 export interface NlParser {
   /** Return true when the underlying model is available and ready (fast check). */

@@ -9,7 +9,11 @@ import type { Client } from "../domain/types";
  * its 統編/收款期限 the same way merchant selection reuses a learned category
  * (`docs/ledger-books-plan.md` §"客戶主檔").
  */
-export function ClientAutocomplete({ value, clients, onChange }: {
+export function ClientAutocomplete({
+  value,
+  clients,
+  onChange,
+}: {
   value: string;
   /** Book-scoped client list. */
   clients: Client[];
@@ -43,7 +47,11 @@ export function ClientAutocomplete({ value, clients, onChange }: {
         role="combobox"
         aria-expanded={visible}
         aria-autocomplete="list"
-        onChange={(e) => { onChange(e.target.value, null); setOpen(true); setHighlight(0); }}
+        onChange={(e) => {
+          onChange(e.target.value, null);
+          setOpen(true);
+          setHighlight(0);
+        }}
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         onKeyDown={(e) => {
@@ -69,10 +77,18 @@ export function ClientAutocomplete({ value, clients, onChange }: {
           role="listbox"
           aria-label="客戶建議"
           style={{
-            position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 90,
-            maxHeight: 224, overflowY: "auto", padding: 4,
-            background: "var(--ns-bg-elev)", border: "1px solid var(--ns-border)",
-            borderRadius: "var(--ns-r-sm)", boxShadow: "var(--ns-shadow-strong)",
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
+            zIndex: 90,
+            maxHeight: 224,
+            overflowY: "auto",
+            padding: 4,
+            background: "var(--ns-bg-elev)",
+            border: "1px solid var(--ns-border)",
+            borderRadius: "var(--ns-r-sm)",
+            boxShadow: "var(--ns-shadow-strong)",
           }}
         >
           {matches.map((client, i) => (
@@ -82,18 +98,33 @@ export function ClientAutocomplete({ value, clients, onChange }: {
               role="option"
               aria-selected={i === highlight}
               className="text-xs"
-              onMouseDown={(e) => { e.preventDefault(); select(client); }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                select(client);
+              }}
               onMouseEnter={() => setHighlight(i)}
               style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-                width: "100%", textAlign: "left", cursor: "pointer",
-                padding: "6px 8px", borderRadius: "var(--ns-r-xs)", border: "none", fontFamily: "inherit",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+                width: "100%",
+                textAlign: "left",
+                cursor: "pointer",
+                padding: "6px 8px",
+                borderRadius: "var(--ns-r-xs)",
+                border: "none",
+                fontFamily: "inherit",
                 background: i === highlight ? "var(--ns-bg-hover)" : "transparent",
                 color: "var(--ns-fg)",
               }}
             >
               <span>{client.name}</span>
-              {client.taxId ? <span className="muted text-micro" style={{ fontFamily: "var(--ns-font-mono)" }}>{client.taxId}</span> : null}
+              {client.taxId ? (
+                <span className="muted text-micro" style={{ fontFamily: "var(--ns-font-mono)" }}>
+                  {client.taxId}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>

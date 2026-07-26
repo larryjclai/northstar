@@ -44,7 +44,10 @@ function device(localPushCursor: string | null) {
   };
 }
 
-async function createAccount(repo: ReturnType<typeof createMemoryFinanceRepositoryForTests>, name: string) {
+async function createAccount(
+  repo: ReturnType<typeof createMemoryFinanceRepositoryForTests>,
+  name: string,
+) {
   await repo.createAccount({
     name,
     currency: "TWD",

@@ -7,9 +7,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---- in-memory relay (shared with the ./client mock via vi.hoisted) ----
 const relay = vi.hoisted(() => ({
-  sessions: new Map<string, { encryptedBundle: string; deviceId: string; token: string; claimed: boolean }>(),
-  keyEnvelopes: new Map<string, Array<{ id: string; sourceDeviceId: string; keyType: string; wrappedKey: string; sourcePublicKeyB64?: string; wrappedKeyVersion: number; createdAt: string }>>(),
-  devices: [] as Array<{ id: string; name: string; platform: string; secretHash?: string; publicKeyB64?: string | null }>,
+  sessions: new Map<
+    string,
+    { encryptedBundle: string; deviceId: string; token: string; claimed: boolean }
+  >(),
+  keyEnvelopes: new Map<
+    string,
+    Array<{
+      id: string;
+      sourceDeviceId: string;
+      keyType: string;
+      wrappedKey: string;
+      sourcePublicKeyB64?: string;
+      wrappedKeyVersion: number;
+      createdAt: string;
+    }>
+  >(),
+  devices: [] as Array<{
+    id: string;
+    name: string;
+    platform: string;
+    secretHash?: string;
+    publicKeyB64?: string | null;
+  }>,
   publicKeys: new Map<string, string>(),
   keyVersionCounters: new Map<string, number>(),
   bundles: [] as string[],
@@ -43,16 +63,25 @@ vi.mock("./client", () => ({
     s.claimed = true;
     return { encryptedBundle: s.encryptedBundle };
   }),
-  storeKeyEnvelope: vi.fn(async (
-    _apiSecret: string,
-    target: string,
-    env: { id: string; sourceDeviceId: string; keyType: string; wrappedKey: string; sourcePublicKeyB64?: string; wrappedKeyVersion: number },
-  ) => {
-    const arr = relay.keyEnvelopes.get(target) ?? [];
-    const next = arr.filter((e) => e.keyType !== env.keyType);
-    next.push({ ...env, createdAt: new Date().toISOString() });
-    relay.keyEnvelopes.set(target, next);
-  }),
+  storeKeyEnvelope: vi.fn(
+    async (
+      _apiSecret: string,
+      target: string,
+      env: {
+        id: string;
+        sourceDeviceId: string;
+        keyType: string;
+        wrappedKey: string;
+        sourcePublicKeyB64?: string;
+        wrappedKeyVersion: number;
+      },
+    ) => {
+      const arr = relay.keyEnvelopes.get(target) ?? [];
+      const next = arr.filter((e) => e.keyType !== env.keyType);
+      next.push({ ...env, createdAt: new Date().toISOString() });
+      relay.keyEnvelopes.set(target, next);
+    },
+  ),
   fetchKeyEnvelopesWithToken: vi.fn(async (token: string, target: string) => {
     const ok = [...relay.sessions.values()].some((s) => s.token === token && s.deviceId === target);
     if (!ok) throw new Error("Invalid pairing token");
@@ -73,21 +102,31 @@ vi.mock("./client", () => ({
       publicKeyB64: relay.publicKeys.get(d.id) ?? d.publicKeyB64 ?? null,
     }));
   }),
-  addDevice: vi.fn(async (
-    _apiSecret: string,
-    device: { id: string; name: string; platform: string; secretHash?: string; publicKeyB64?: string },
-  ) => {
-    relay.devices.push(device);
-    if (device.publicKeyB64 && !relay.publicKeys.has(device.id)) {
-      relay.publicKeys.set(device.id, device.publicKeyB64);
-    }
-  }),
-  provisionDevicePublicKey: vi.fn(async (_apiSecret: string, deviceId: string, publicKeyB64: string) => {
-    if (relay.publicKeys.has(deviceId)) {
-      throw new Error("Sync worker 409: already set");
-    }
-    relay.publicKeys.set(deviceId, publicKeyB64);
-  }),
+  addDevice: vi.fn(
+    async (
+      _apiSecret: string,
+      device: {
+        id: string;
+        name: string;
+        platform: string;
+        secretHash?: string;
+        publicKeyB64?: string;
+      },
+    ) => {
+      relay.devices.push(device);
+      if (device.publicKeyB64 && !relay.publicKeys.has(device.id)) {
+        relay.publicKeys.set(device.id, device.publicKeyB64);
+      }
+    },
+  ),
+  provisionDevicePublicKey: vi.fn(
+    async (_apiSecret: string, deviceId: string, publicKeyB64: string) => {
+      if (relay.publicKeys.has(deviceId)) {
+        throw new Error("Sync worker 409: already set");
+      }
+      relay.publicKeys.set(deviceId, publicKeyB64);
+    },
+  ),
   // legacy — unused by the flows under test but imported by pairing-flow.ts
   createPairingSession: vi.fn(),
   // imported by account.ts (ensureDeviceCredential); unused on these paths
@@ -101,7 +140,13 @@ import {
   approveJoiningDevice,
 } from "./pairing-flow";
 import { rotateVaultKey, pickUpRotatedVaultKey } from "./rotation";
-import { generateVaultKey, saveVaultKey, loadVaultKey, exportVaultKey, getCurrentVaultKeyVersion } from "../crypto/vault";
+import {
+  generateVaultKey,
+  saveVaultKey,
+  loadVaultKey,
+  exportVaultKey,
+  getCurrentVaultKeyVersion,
+} from "../crypto/vault";
 import { generateDeviceKeyPair, exportPublicKey } from "../crypto/pairing";
 import { getOrCreateSyncAccount, type SyncAccount } from "./account";
 import { resetSecretStoreForTests } from "../crypto/secretStore";
@@ -117,11 +162,17 @@ function makeLocalStorage(): Storage {
   const m = new Map<string, string>();
   return {
     getItem: (k: string) => m.get(k) ?? null,
-    setItem: (k: string, v: string) => { m.set(k, String(v)); },
-    removeItem: (k: string) => { m.delete(k); },
+    setItem: (k: string, v: string) => {
+      m.set(k, String(v));
+    },
+    removeItem: (k: string) => {
+      m.delete(k);
+    },
     clear: () => m.clear(),
     key: (i: number) => Array.from(m.keys())[i] ?? null,
-    get length() { return m.size; },
+    get length() {
+      return m.size;
+    },
   } as Storage;
 }
 
@@ -170,7 +221,13 @@ describe("rotateVaultKey — initiator side", () => {
 
     const result = await rotateVaultKey(aAccount);
 
-    expect(result).toEqual({ rotated: false, reason: "no-remaining-devices", targetCount: 0, succeeded: [], failed: [] });
+    expect(result).toEqual({
+      rotated: false,
+      reason: "no-remaining-devices",
+      targetCount: 0,
+      succeeded: [],
+      failed: [],
+    });
     // No key generated, no version allocated, no pointer touched.
     expect(mockedAllocateKeyVersion).not.toHaveBeenCalled();
     expect(mockedStoreKeyEnvelope).not.toHaveBeenCalled();

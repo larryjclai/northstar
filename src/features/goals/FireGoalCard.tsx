@@ -22,12 +22,22 @@ export function FireGoalCard() {
   const fxHistory = dailyFxRates.data ?? [];
 
   const currentValue = useMemo(
-    () => goal ? computeNetWorthInCurrency(goal.currency, accountRows, assetRows, quoteRows, appSettings, fxHistory) : 0,
+    () =>
+      goal
+        ? computeNetWorthInCurrency(
+            goal.currency,
+            accountRows,
+            assetRows,
+            quoteRows,
+            appSettings,
+            fxHistory,
+          )
+        : 0,
     [goal, accountRows, assetRows, quoteRows, appSettings, fxHistory],
   );
 
   const projection = useMemo(
-    () => goal ? projectRetirement({ goal, currentValue }) : null,
+    () => (goal ? projectRetirement({ goal, currentValue }) : null),
     [goal, currentValue],
   );
 
@@ -57,7 +67,8 @@ export function FireGoalCard() {
               className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold outline-none transition"
               style={{ background: "var(--ns-accent)", color: "var(--ns-on-accent, white)" }}
             >
-              <Target size={16} weight="fill" />前往目標
+              <Target size={16} weight="fill" />
+              前往目標
             </Link>
           }
         />
@@ -78,7 +89,8 @@ export function FireGoalCard() {
           className="inline-flex items-center gap-1 text-xs font-semibold"
           style={{ color: "var(--ns-accent)" }}
         >
-          查看完整計畫<ArrowRight size={12} />
+          查看完整計畫
+          <ArrowRight size={12} />
         </Link>
       }
     >
@@ -87,7 +99,9 @@ export function FireGoalCard() {
           <div className="text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
             目前淨值
           </div>
-          <div className="text-lg font-semibold tabular">{formatMoney(currentValue, goal.currency)}</div>
+          <div className="text-lg font-semibold tabular">
+            {formatMoney(currentValue, goal.currency)}
+          </div>
         </div>
         <div className="text-right">
           <div className="text-xs uppercase tracking-wide" style={{ color: "var(--ns-muted)" }}>
@@ -98,7 +112,10 @@ export function FireGoalCard() {
       </div>
 
       <div className="mt-4">
-        <div className="flex items-center justify-between text-xs" style={{ color: "var(--ns-muted)" }}>
+        <div
+          className="flex items-center justify-between text-xs"
+          style={{ color: "var(--ns-muted)" }}
+        >
           <span>進度</span>
           <span className="tabular ns-goal-pct" data-celebrate={celebrating || undefined}>
             {progressPct.toFixed(1)}%
@@ -131,9 +148,15 @@ export function FireGoalCard() {
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <SummaryStat label="預估達成" value={projection.fiAge ? `${projection.fiAge} 歲` : "目前路徑不會達成"} />
+        <SummaryStat
+          label="預估達成"
+          value={projection.fiAge ? `${projection.fiAge} 歲` : "目前路徑不會達成"}
+        />
         <SummaryStat label="目前進度" value={`${progressPct.toFixed(0)}%`} />
-        <SummaryStat label="月貢獻" value={`${formatMoney(goal.monthlyContribution, goal.currency)} / 月`} />
+        <SummaryStat
+          label="月貢獻"
+          value={`${formatMoney(goal.monthlyContribution, goal.currency)} / 月`}
+        />
       </div>
 
       {reachedFi ? (
@@ -141,7 +164,8 @@ export function FireGoalCard() {
           className="mt-4 inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold"
           style={{ background: "var(--ns-accent-soft)", color: "var(--ns-accent)" }}
         >
-          <Confetti size={18} weight="fill" />已達成 FIRE 目標
+          <Confetti size={18} weight="fill" />
+          已達成 FIRE 目標
         </div>
       ) : null}
     </Card>
@@ -151,7 +175,9 @@ export function FireGoalCard() {
 function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border p-3" style={{ borderColor: "var(--ns-border)" }}>
-      <div className="text-xs" style={{ color: "var(--ns-muted)" }}>{label}</div>
+      <div className="text-xs" style={{ color: "var(--ns-muted)" }}>
+        {label}
+      </div>
       <div className="mt-1 text-sm font-semibold tabular">{value}</div>
     </div>
   );

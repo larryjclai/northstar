@@ -1,13 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { accountBalanceDelta, assertLedgerInvariants, assertTransferInvariants, deriveAccountBalances, findMissingFxPairs, incompleteDripGroupIds, incompleteSplitGroupIds } from "./ledgerTrust";
+import {
+  accountBalanceDelta,
+  assertLedgerInvariants,
+  assertTransferInvariants,
+  deriveAccountBalances,
+  findMissingFxPairs,
+  incompleteDripGroupIds,
+  incompleteSplitGroupIds,
+} from "./ledgerTrust";
 import type { Account, InvestmentRecord, LedgerTransaction } from "./types";
 
 const account: Account = {
-  id: "acct_twd", spaceId: "space", revision: 1, createdAt: "", updatedAt: "", deletedAt: null,
-  name: "Wallet", currency: "TWD", openingBalance: 100, balance: 999, type: "cash", bookId: "book_test_default",
-  creditLimit: null, creditLimitGroup: "", creditGroupId: null, statementDay: null, paymentDueDay: null,
-  creditPaymentPaidUntil: null, isSharedToHousehold: false, loanStartDate: null,
-  annualInterestRate: null, loanTerm: null, iconName: null, color: null,
+  id: "acct_twd",
+  spaceId: "space",
+  revision: 1,
+  createdAt: "",
+  updatedAt: "",
+  deletedAt: null,
+  name: "Wallet",
+  currency: "TWD",
+  openingBalance: 100,
+  balance: 999,
+  type: "cash",
+  bookId: "book_test_default",
+  creditLimit: null,
+  creditLimitGroup: "",
+  creditGroupId: null,
+  statementDay: null,
+  paymentDueDay: null,
+  creditPaymentPaidUntil: null,
+  isSharedToHousehold: false,
+  loanStartDate: null,
+  annualInterestRate: null,
+  loanTerm: null,
+  iconName: null,
+  color: null,
 };
 
 function ledger(
@@ -17,11 +44,30 @@ function ledger(
   overrides: Partial<LedgerTransaction> = {},
 ): LedgerTransaction {
   return {
-    id, spaceId: "space", revision: 1, createdAt: "", updatedAt: "", deletedAt: null,
-    accountId: account.id, counterAccountId: null, date: "2026-06-01", name: id, amount, currency: "TWD",
-    originalAmount: null, originalCurrency: null, category: "", subcategory: "", merchant: "",
-    entryType: amount > 0 ? "income" : "expense", settlementStatus, note: "",
-    linkedInvestmentRecordId: null, groupId: null, isReviewed: true, receiptAttachmentId: null,
+    id,
+    spaceId: "space",
+    revision: 1,
+    createdAt: "",
+    updatedAt: "",
+    deletedAt: null,
+    accountId: account.id,
+    counterAccountId: null,
+    date: "2026-06-01",
+    name: id,
+    amount,
+    currency: "TWD",
+    originalAmount: null,
+    originalCurrency: null,
+    category: "",
+    subcategory: "",
+    merchant: "",
+    entryType: amount > 0 ? "income" : "expense",
+    settlementStatus,
+    note: "",
+    linkedInvestmentRecordId: null,
+    groupId: null,
+    isReviewed: true,
+    receiptAttachmentId: null,
     recurringRuleId: null,
     ...overrides,
   };
@@ -29,17 +75,36 @@ function ledger(
 
 function investment(id: string, overrides: Partial<InvestmentRecord> = {}): InvestmentRecord {
   return {
-    id, spaceId: "space", revision: 1, createdAt: "", updatedAt: "", deletedAt: null,
-    assetId: "asset_1", linkedAccountId: account.id, date: "2026-06-01", action: "buy",
-    price: 100, quantity: 1, fee: 0, note: "", isReviewed: true,
-    linkedLedgerTransactionId: null, cashless: false, dripGroupId: null,
+    id,
+    spaceId: "space",
+    revision: 1,
+    createdAt: "",
+    updatedAt: "",
+    deletedAt: null,
+    assetId: "asset_1",
+    linkedAccountId: account.id,
+    date: "2026-06-01",
+    action: "buy",
+    price: 100,
+    quantity: 1,
+    fee: 0,
+    note: "",
+    isReviewed: true,
+    linkedLedgerTransactionId: null,
+    cashless: false,
+    dripGroupId: null,
     ...overrides,
   };
 }
 
 describe("ledger trust rules", () => {
   it("derives balances from opening balance and settled rows only", () => {
-    expect(deriveAccountBalances([account], [ledger("settled", -20, "settled"), ledger("pending", -90, "payable")])[0].balance).toBe(80);
+    expect(
+      deriveAccountBalances(
+        [account],
+        [ledger("settled", -20, "settled"), ledger("pending", -90, "payable")],
+      )[0].balance,
+    ).toBe(80);
   });
 
   it("treats 代墊 receivable/payable as a two-leg pass-through (net zero)", () => {
@@ -47,15 +112,18 @@ describe("ledger trust rules", () => {
     const cash = { ...account, openingBalance: 0 }; // acct_twd
 
     // 應收 代墊: amount +100, accountId = bank (收款), counterAccountId = cash (付款).
-    const pendingAr = ledger("ar", 100, "receivable", { accountId: bank.id, counterAccountId: cash.id });
+    const pendingAr = ledger("ar", 100, "receivable", {
+      accountId: bank.id,
+      counterAccountId: cash.id,
+    });
     const pending = deriveAccountBalances([cash, bank], [pendingAr]);
     expect(pending.find((a) => a.id === cash.id)!.balance).toBe(-100); // fronted now
-    expect(pending.find((a) => a.id === bank.id)!.balance).toBe(0);    // not yet received
+    expect(pending.find((a) => a.id === bank.id)!.balance).toBe(0); // not yet received
 
     const settledAr = { ...pendingAr, settlementStatus: "settled" as const };
     const settled = deriveAccountBalances([cash, bank], [settledAr]);
     expect(settled.find((a) => a.id === cash.id)!.balance).toBe(-100); // still out the cash
-    expect(settled.find((a) => a.id === bank.id)!.balance).toBe(100);  // repaid into bank
+    expect(settled.find((a) => a.id === bank.id)!.balance).toBe(100); // repaid into bank
     // Whole portfolio nets to zero across the lifecycle.
     expect(settled.reduce((s, a) => s + a.balance, 0)).toBe(0);
   });
@@ -71,30 +139,118 @@ describe("ledger trust rules", () => {
   });
 
   it("rejects invalid signs, zero, and account currency mismatches", () => {
-    expect(() => assertLedgerInvariants({ accountId: account.id, amount: 0, currency: "TWD", entryType: "expense" }, [account])).toThrow();
-    expect(() => assertLedgerInvariants({ accountId: account.id, amount: 20, currency: "TWD", entryType: "expense" }, [account])).toThrow();
-    expect(() => assertLedgerInvariants({ accountId: account.id, amount: 20, currency: "USD", entryType: "income" }, [account])).toThrow();
+    expect(() =>
+      assertLedgerInvariants(
+        { accountId: account.id, amount: 0, currency: "TWD", entryType: "expense" },
+        [account],
+      ),
+    ).toThrow();
+    expect(() =>
+      assertLedgerInvariants(
+        { accountId: account.id, amount: 20, currency: "TWD", entryType: "expense" },
+        [account],
+      ),
+    ).toThrow();
+    expect(() =>
+      assertLedgerInvariants(
+        { accountId: account.id, amount: 20, currency: "USD", entryType: "income" },
+        [account],
+      ),
+    ).toThrow();
   });
 
   it("allows positive expense only for refund rows (退款沖銷)", () => {
     // Plain positive expense stays rejected.
-    expect(() => assertLedgerInvariants({ accountId: account.id, amount: 400, currency: "TWD", entryType: "expense" }, [account])).toThrow();
+    expect(() =>
+      assertLedgerInvariants(
+        { accountId: account.id, amount: 400, currency: "TWD", entryType: "expense" },
+        [account],
+      ),
+    ).toThrow();
     // Refund rows must be positive.
-    expect(() => assertLedgerInvariants({ accountId: account.id, amount: 400, currency: "TWD", entryType: "expense", refundOfLedgerId: "ledger_original" }, [account])).not.toThrow();
-    expect(() => assertLedgerInvariants({ accountId: account.id, amount: -400, currency: "TWD", entryType: "expense", refundOfLedgerId: "ledger_original" }, [account])).toThrow();
+    expect(() =>
+      assertLedgerInvariants(
+        {
+          accountId: account.id,
+          amount: 400,
+          currency: "TWD",
+          entryType: "expense",
+          refundOfLedgerId: "ledger_original",
+        },
+        [account],
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertLedgerInvariants(
+        {
+          accountId: account.id,
+          amount: -400,
+          currency: "TWD",
+          entryType: "expense",
+          refundOfLedgerId: "ledger_original",
+        },
+        [account],
+      ),
+    ).toThrow();
   });
 
   it("rejects same-account and unbalanced same-currency transfers", () => {
     const destination = { ...account, id: "acct_destination" };
-    expect(() => assertTransferInvariants({ sourceAccountId: account.id, destinationAccountId: account.id, sourceCurrency: "TWD", destinationCurrency: "TWD", sourceAmount: 10 }, [account])).toThrow();
-    expect(() => assertTransferInvariants({ sourceAccountId: account.id, destinationAccountId: destination.id, sourceCurrency: "TWD", destinationCurrency: "TWD", sourceAmount: 10, destinationAmount: 11 }, [account, destination])).toThrow();
-    expect(() => assertTransferInvariants({ sourceAccountId: account.id, destinationAccountId: destination.id, sourceCurrency: "TWD", destinationCurrency: "TWD", sourceAmount: 10, destinationAmount: 10 }, [account, destination])).not.toThrow();
+    expect(() =>
+      assertTransferInvariants(
+        {
+          sourceAccountId: account.id,
+          destinationAccountId: account.id,
+          sourceCurrency: "TWD",
+          destinationCurrency: "TWD",
+          sourceAmount: 10,
+        },
+        [account],
+      ),
+    ).toThrow();
+    expect(() =>
+      assertTransferInvariants(
+        {
+          sourceAccountId: account.id,
+          destinationAccountId: destination.id,
+          sourceCurrency: "TWD",
+          destinationCurrency: "TWD",
+          sourceAmount: 10,
+          destinationAmount: 11,
+        },
+        [account, destination],
+      ),
+    ).toThrow();
+    expect(() =>
+      assertTransferInvariants(
+        {
+          sourceAccountId: account.id,
+          destinationAccountId: destination.id,
+          sourceCurrency: "TWD",
+          destinationCurrency: "TWD",
+          sourceAmount: 10,
+          destinationAmount: 10,
+        },
+        [account, destination],
+      ),
+    ).not.toThrow();
   });
 
   it("reports currencies that cannot be converted into the primary currency", () => {
-    expect(findMissingFxPairs([{ ...account, currency: "USD" }], [], [], {
-      primaryCurrency: "TWD", categories: [], merchants: [], exchangeRates: [],
-    }, [])).toEqual(["USD/TWD"]);
+    expect(
+      findMissingFxPairs(
+        [{ ...account, currency: "USD" }],
+        [],
+        [],
+        {
+          primaryCurrency: "TWD",
+          categories: [],
+          merchants: [],
+          exchangeRates: [],
+        },
+        [],
+      ),
+    ).toEqual(["USD/TWD"]);
   });
 });
 
@@ -115,7 +271,11 @@ describe("incompleteSplitGroupIds", () => {
   it("treats a split whose sibling leg was tombstoned as incomplete", () => {
     const rows = [
       ledger("leg1", -100, "settled", { groupId: "group_c", legKind: "category" }),
-      ledger("leg2", -50, "settled", { groupId: "group_c", legKind: "category", deletedAt: "2026-07-01T00:00:00.000Z" }),
+      ledger("leg2", -50, "settled", {
+        groupId: "group_c",
+        legKind: "category",
+        deletedAt: "2026-07-01T00:00:00.000Z",
+      }),
     ];
     expect(incompleteSplitGroupIds(rows)).toEqual(["group_c"]);
   });
@@ -133,14 +293,22 @@ describe("incompleteSplitGroupIds", () => {
   it("does not report a category leg + a share leg sharing a groupId (分帳)", () => {
     const rows = [
       ledger("leg1", -400, "settled", { groupId: "group_share", legKind: "category" }),
-      ledger("leg2", -600, "settled", { groupId: "group_share", legKind: "share", counterAccountId: "acct_ar" }),
+      ledger("leg2", -600, "settled", {
+        groupId: "group_share",
+        legKind: "share",
+        counterAccountId: "acct_ar",
+      }),
     ];
     expect(incompleteSplitGroupIds(rows)).toEqual([]);
   });
 
   it("reports a lone share leg's groupId", () => {
     const rows = [
-      ledger("leg1", -600, "settled", { groupId: "group_lone_share", legKind: "share", counterAccountId: "acct_ar" }),
+      ledger("leg1", -600, "settled", {
+        groupId: "group_lone_share",
+        legKind: "share",
+        counterAccountId: "acct_ar",
+      }),
     ];
     expect(incompleteSplitGroupIds(rows)).toEqual(["group_lone_share"]);
   });
@@ -180,7 +348,11 @@ describe("incompleteDripGroupIds", () => {
   it("treats a DRIP pair whose sibling leg was tombstoned as incomplete", () => {
     const rows = [
       investment("cash_leg", { action: "cashDividend", dripGroupId: "drip_d" }),
-      investment("buy_leg", { action: "buy", dripGroupId: "drip_d", deletedAt: "2026-07-01T00:00:00.000Z" }),
+      investment("buy_leg", {
+        action: "buy",
+        dripGroupId: "drip_d",
+        deletedAt: "2026-07-01T00:00:00.000Z",
+      }),
     ];
     expect(incompleteDripGroupIds(rows)).toEqual(["drip_d"]);
   });

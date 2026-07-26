@@ -6,7 +6,10 @@ const pt = (value: number, iso = "2026-01-01") => ({ value, iso, date: iso });
 describe("smoothTrend", () => {
   it("computes a trailing moving average over a known series", () => {
     // window 3 over [10,20,30,40,50]; last point keeps its real value.
-    const out = smoothTrend([10, 20, 30, 40, 50].map((v) => pt(v)), { window: 3 });
+    const out = smoothTrend(
+      [10, 20, 30, 40, 50].map((v) => pt(v)),
+      { window: 3 },
+    );
     expect(out.map((p) => p.value)).toEqual([
       10, // avg(10)
       15, // avg(10,20)
@@ -23,7 +26,10 @@ describe("smoothTrend", () => {
   });
 
   it("degrades gracefully when the series is shorter than the window (no NaN, no throw)", () => {
-    const out = smoothTrend([10, 30].map((v) => pt(v)), { window: 30 });
+    const out = smoothTrend(
+      [10, 30].map((v) => pt(v)),
+      { window: 30 },
+    );
     expect(out.map((p) => p.value)).toEqual([10, 30]);
     expect(out.every((p) => Number.isFinite(p.value))).toBe(true);
   });

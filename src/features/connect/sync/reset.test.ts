@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearLocalSyncState, unlinkSync } from "./reset";
-import {
-  SECRET_KEYS,
-  getSecretStore,
-  resetSecretStoreForTests,
-} from "../crypto/secretStore";
+import { SECRET_KEYS, getSecretStore, resetSecretStoreForTests } from "../crypto/secretStore";
 import {
   generateVaultKey,
   saveVaultKeyVersion,
@@ -48,7 +44,11 @@ describe("clearLocalSyncState", () => {
     const importSnapshot = vi.fn().mockResolvedValue(undefined);
     const clearSyncConflicts = vi.fn().mockResolvedValue(undefined);
     // clearAllData calls getAppSettings then importSnapshot — provide both.
-    const repo = { getAppSettings: vi.fn().mockResolvedValue({}), importSnapshot, clearSyncConflicts } as any;
+    const repo = {
+      getAppSettings: vi.fn().mockResolvedValue({}),
+      importSnapshot,
+      clearSyncConflicts,
+    } as any;
 
     await clearLocalSyncState(repo);
 
@@ -87,7 +87,12 @@ describe("unlinkSync", () => {
     const importSnapshot = vi.fn().mockResolvedValue(undefined);
     const clearSyncConflicts = vi.fn().mockResolvedValue(undefined);
     const requeueAllPendingChanges = vi.fn().mockResolvedValue(undefined);
-    const repo = { getAppSettings: vi.fn().mockResolvedValue({}), importSnapshot, clearSyncConflicts, requeueAllPendingChanges } as any;
+    const repo = {
+      getAppSettings: vi.fn().mockResolvedValue({}),
+      importSnapshot,
+      clearSyncConflicts,
+      requeueAllPendingChanges,
+    } as any;
 
     await unlinkSync(repo);
 

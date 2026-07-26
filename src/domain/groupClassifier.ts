@@ -23,4 +23,3 @@ export function classifyLedgerGroup(rows: LedgerTransaction[]): LedgerGroupKind 
 
   return "unknown";
 }
-

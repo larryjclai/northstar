@@ -19,7 +19,9 @@ const epsilon = 0.000001;
  * pass-through receivable/payable rows (those with a `counterAccountId`, which
  * net to zero across their two legs).
  */
-export function isNeutralLedgerRow(row: Pick<LedgerTransaction, "entryType" | "counterAccountId">): boolean {
+export function isNeutralLedgerRow(
+  row: Pick<LedgerTransaction, "entryType" | "counterAccountId">,
+): boolean {
   return row.entryType === "transfer" || row.counterAccountId != null;
 }
 
@@ -46,7 +48,8 @@ export function assertLedgerInvariants(
   accounts: Account[],
   options: { allowTransfer?: boolean } = {},
 ) {
-  if (!Number.isFinite(input.amount) || Math.abs(input.amount) <= epsilon) throw new Error("金額必須大於 0。");
+  if (!Number.isFinite(input.amount) || Math.abs(input.amount) <= epsilon)
+    throw new Error("金額必須大於 0。");
   // Receivable/payable rows may be created before the settle account is known
   // (the counterparty hasn't said which account they'll pay into yet), so an
   // empty accountId is allowed — the account is chosen at settle time. When an
@@ -73,13 +76,19 @@ export function assertLedgerInvariants(
 }
 
 export function assertTransferInvariants(input: TransferInvariantInput, accounts: Account[]) {
-  if (input.sourceAccountId === input.destinationAccountId) throw new Error("來源與目標帳戶不可相同。");
-  if (!Number.isFinite(input.sourceAmount) || input.sourceAmount <= epsilon) throw new Error("轉帳金額必須大於 0。");
+  if (input.sourceAccountId === input.destinationAccountId)
+    throw new Error("來源與目標帳戶不可相同。");
+  if (!Number.isFinite(input.sourceAmount) || input.sourceAmount <= epsilon)
+    throw new Error("轉帳金額必須大於 0。");
   const source = accounts.find((row) => row.id === input.sourceAccountId && row.deletedAt === null);
-  const destination = accounts.find((row) => row.id === input.destinationAccountId && row.deletedAt === null);
+  const destination = accounts.find(
+    (row) => row.id === input.destinationAccountId && row.deletedAt === null,
+  );
   if (!source || !destination) throw new Error("找不到轉帳帳戶。");
-  if (source.currency.toUpperCase() !== input.sourceCurrency.toUpperCase()) throw new Error("來源帳戶幣別不一致。");
-  if (destination.currency.toUpperCase() !== input.destinationCurrency.toUpperCase()) throw new Error("目標帳戶幣別不一致。");
+  if (source.currency.toUpperCase() !== input.sourceCurrency.toUpperCase())
+    throw new Error("來源帳戶幣別不一致。");
+  if (destination.currency.toUpperCase() !== input.destinationCurrency.toUpperCase())
+    throw new Error("目標帳戶幣別不一致。");
   if (
     input.sourceCurrency.toUpperCase() === input.destinationCurrency.toUpperCase() &&
     input.destinationAmount !== undefined &&
@@ -117,7 +126,8 @@ export function accountBalanceDelta(row: LedgerTransaction, accountId: string): 
 
 export function deriveAccountBalances(accounts: Account[], ledger: LedgerTransaction[]) {
   const totals = new Map<string, number>();
-  const add = (accountId: string, value: number) => totals.set(accountId, (totals.get(accountId) ?? 0) + value);
+  const add = (accountId: string, value: number) =>
+    totals.set(accountId, (totals.get(accountId) ?? 0) + value);
   for (const row of ledger) {
     if (row.deletedAt !== null) continue;
     if (row.counterAccountId) {
@@ -144,10 +154,24 @@ export function buildRecalculationReport(
   investments: InvestmentRecord[],
   missingFxPairs: string[] = [],
 ): RecalculationReport {
-  const accountIds = new Set(afterAccounts.filter((row) => row.deletedAt === null).map((row) => row.id));
-  const assetIds = new Set(afterAssets.filter((row) => row.deletedAt === null).map((row) => row.id));
-  const accountDifferences = differences(beforeAccounts, afterAccounts, (row) => row.balance, (row) => row.name);
-  const assetDifferences = differences(beforeAssets, afterAssets, (row) => row.totalQuantity, (row) => row.ticker);
+  const accountIds = new Set(
+    afterAccounts.filter((row) => row.deletedAt === null).map((row) => row.id),
+  );
+  const assetIds = new Set(
+    afterAssets.filter((row) => row.deletedAt === null).map((row) => row.id),
+  );
+  const accountDifferences = differences(
+    beforeAccounts,
+    afterAccounts,
+    (row) => row.balance,
+    (row) => row.name,
+  );
+  const assetDifferences = differences(
+    beforeAssets,
+    afterAssets,
+    (row) => row.totalQuantity,
+    (row) => row.ticker,
+  );
   const transferGroups = new Map<string, LedgerTransaction[]>();
   for (const row of ledger) {
     if (row.deletedAt !== null || row.entryType !== "transfer" || !row.groupId) continue;
@@ -156,9 +180,17 @@ export function buildRecalculationReport(
   return {
     accountDifferences,
     assetDifferences,
-    orphanLedgerIds: ledger.filter((row) => row.deletedAt === null && !accountIds.has(row.accountId)).map((row) => row.id),
+    orphanLedgerIds: ledger
+      .filter((row) => row.deletedAt === null && !accountIds.has(row.accountId))
+      .map((row) => row.id),
     orphanInvestmentIds: investments
-      .filter((row) => row.deletedAt === null && (!assetIds.has(row.assetId) || !row.linkedAccountId || !accountIds.has(row.linkedAccountId)))
+      .filter(
+        (row) =>
+          row.deletedAt === null &&
+          (!assetIds.has(row.assetId) ||
+            !row.linkedAccountId ||
+            !accountIds.has(row.linkedAccountId)),
+      )
       .map((row) => row.id),
     incompleteTransferGroupIds: [...transferGroups.entries()]
       .filter(([, rows]) => rows.filter((row) => row.entryType === "transfer").length !== 2)
@@ -181,7 +213,12 @@ export function buildRecalculationReport(
 export function incompleteSplitGroupIds(ledger: LedgerTransaction[]): string[] {
   const counts = new Map<string, number>();
   for (const row of ledger) {
-    if (row.deletedAt !== null || (row.legKind !== "category" && row.legKind !== "share") || !row.groupId) continue;
+    if (
+      row.deletedAt !== null ||
+      (row.legKind !== "category" && row.legKind !== "share") ||
+      !row.groupId
+    )
+      continue;
     counts.set(row.groupId, (counts.get(row.groupId) ?? 0) + 1);
   }
   return [...counts.entries()].filter(([, count]) => count === 1).map(([groupId]) => groupId);

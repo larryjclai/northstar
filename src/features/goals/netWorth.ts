@@ -43,7 +43,10 @@ export function computeNetWorthInCurrency(
 
   if (goalCurrency.toUpperCase() === primary.toUpperCase()) return netInPrimary;
 
-  const goalConverter = createFxConverter({ ...appSettings, primaryCurrency: goalCurrency.toUpperCase() }, fxHistory);
+  const goalConverter = createFxConverter(
+    { ...appSettings, primaryCurrency: goalCurrency.toUpperCase() },
+    fxHistory,
+  );
   return goalConverter.toPrimary(netInPrimary, primary);
 }
 
@@ -64,7 +67,10 @@ export function computeLinkedAccountsValue(
   if (!appSettings) return 0;
   const entries = Object.entries(accountShareMap ?? {}).filter(([, weight]) => weight > 0);
   if (entries.length === 0) return 0;
-  const converter = createFxConverter({ ...appSettings, primaryCurrency: goalCurrency.toUpperCase() }, fxHistory);
+  const converter = createFxConverter(
+    { ...appSettings, primaryCurrency: goalCurrency.toUpperCase() },
+    fxHistory,
+  );
   return entries.reduce((sum, [accountId, weight]) => {
     const account = accountRows.find((row) => row.id === accountId);
     if (!account) return sum;

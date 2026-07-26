@@ -26,7 +26,10 @@ import { exitDemoMode } from "../data/demoData";
 import { usePostDueRecurring, useFinanceData } from "../data/hooks";
 import { todayInTimezone } from "../domain";
 import { buildCreditCardReminders } from "../domain/dashboardSummary";
-import { buildReminderNotifications, unacknowledgedReminders } from "../domain/reminderNotifications";
+import {
+  buildReminderNotifications,
+  unacknowledgedReminders,
+} from "../domain/reminderNotifications";
 import { BookSwitcher } from "./BookSwitcher";
 import { GlobalSearch } from "./GlobalSearch";
 import { ModalCloseButton } from "./ModalCloseButton";
@@ -46,7 +49,10 @@ import { useSyncStatus } from "../state/syncStatus";
 import { queryKeys } from "../data/hooks";
 import { refreshLatestMarketData } from "../features/market-data/useMarketRefresh";
 import { runDailyBackupIfDue } from "../features/local-backup/localBackup";
-import { isCrossDeviceLinkUpdateError, UPDATE_RESTART_RETRY_MESSAGE } from "../features/updater/errors";
+import {
+  isCrossDeviceLinkUpdateError,
+  UPDATE_RESTART_RETRY_MESSAGE,
+} from "../features/updater/errors";
 import { buildPaymentReminders, syncScheduledReminders } from "../features/notifications/scheduler";
 import { haptic } from "../lib/haptics";
 
@@ -62,13 +68,10 @@ const appIconUrl = new URL("../../src-tauri/icons/icon.png", import.meta.url).hr
 function applyNativeGlassAttribute() {
   if (typeof window === "undefined" || typeof document === "undefined") return;
   const isTauri = "__TAURI_INTERNALS__" in window;
-  const isMacDesktop = navigator.platform.toUpperCase().includes("MAC") && navigator.maxTouchPoints === 0;
+  const isMacDesktop =
+    navigator.platform.toUpperCase().includes("MAC") && navigator.maxTouchPoints === 0;
   if (isTauri && isMacDesktop) document.documentElement.setAttribute("data-native-glass", "");
 }
-
-
-
-
 
 export function AppShell() {
   const { t } = useTranslation();
@@ -81,7 +84,7 @@ export function AppShell() {
     { to: "/accounts", label: t("nav.accounts"), icon: Bank },
     { to: "/goals", label: t("nav.goals"), icon: Target },
   ];
-  
+
   const nav2Items = [
     { to: "/reports/annual", label: "年度報表", icon: FileText },
     { to: "/settings", label: t("nav.settings"), icon: GearSix },
@@ -152,7 +155,10 @@ export function AppShell() {
   return (
     <div
       className="ns-app-shell min-h-screen lg:grid"
-      style={{ gridTemplateColumns: collapsed ? "64px 1fr" : "240px 1fr", transition: "grid-template-columns var(--ns-dur) var(--ns-ease)" }}
+      style={{
+        gridTemplateColumns: collapsed ? "64px 1fr" : "240px 1fr",
+        transition: "grid-template-columns var(--ns-dur) var(--ns-ease)",
+      }}
     >
       {/* macOS overlay title bar: full-width draggable strip; hidden on non-macOS via CSS. */}
       <div data-tauri-drag-region className="ns-titlebar-drag" aria-hidden="true" />
@@ -175,7 +181,8 @@ export function AppShell() {
           // Clicks that land on the sidebar simply won't dismiss the overlay,
           // which is acceptable — outside-click still works on the content area.
           zIndex: 1100,
-          transition: "width var(--ns-dur) var(--ns-ease), min-width var(--ns-dur) var(--ns-ease), padding var(--ns-dur) var(--ns-ease)",
+          transition:
+            "width var(--ns-dur) var(--ns-ease), min-width var(--ns-dur) var(--ns-ease), padding var(--ns-dur) var(--ns-ease)",
         }}
       >
         {/* macOS: drag cap for the sidebar's top whitespace — .ns-titlebar-drag
@@ -190,8 +197,22 @@ export function AppShell() {
            (img/span/wrapper div) needs its own data-tauri-drag-region. The
            collapse buttons are deliberately excluded so they stay clickable. */}
         {collapsed ? (
-          <div data-tauri-drag-region style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "0 0 16px" }}>
-            <img data-tauri-drag-region src={appIconUrl} alt="" style={{ width: 26, height: 26, borderRadius: 7 }} />
+          <div
+            data-tauri-drag-region
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 6,
+              padding: "0 0 16px",
+            }}
+          >
+            <img
+              data-tauri-drag-region
+              src={appIconUrl}
+              alt=""
+              style={{ width: 26, height: 26, borderRadius: 7 }}
+            />
             <button
               type="button"
               onClick={toggleSidebarCollapsed}
@@ -203,13 +224,32 @@ export function AppShell() {
             </button>
           </div>
         ) : (
-          <div data-tauri-drag-region style={{ padding: "0 8px 16px", display: "flex", alignItems: "center", gap: 9, justifyContent: "space-between" }}>
+          <div
+            data-tauri-drag-region
+            style={{
+              padding: "0 8px 16px",
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              justifyContent: "space-between",
+            }}
+          >
             <div data-tauri-drag-region style={{ display: "flex", alignItems: "center", gap: 9 }}>
-              <img data-tauri-drag-region src={appIconUrl} alt="" style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0 }} />
+              <img
+                data-tauri-drag-region
+                src={appIconUrl}
+                alt=""
+                style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0 }}
+              />
               <span
                 data-tauri-drag-region
                 className="text-[15px]"
-                style={{ fontFamily: "var(--ns-font-brand)", fontWeight: 600, letterSpacing: -0.01, whiteSpace: "nowrap" }}
+                style={{
+                  fontFamily: "var(--ns-font-brand)",
+                  fontWeight: 600,
+                  letterSpacing: -0.01,
+                  whiteSpace: "nowrap",
+                }}
               >
                 Northstar
               </span>
@@ -266,18 +306,27 @@ export function AppShell() {
               onClick={() => setQuickAddOpen(true)}
               title="快速記帳 (⌘N)"
               className="ns-nav-link w-full"
-              style={{ justifyContent: "center", padding: "9px 8px", background: "var(--ns-accent)", color: "var(--ns-accent-fg)", borderRadius: "var(--ns-r-sm)" }}
+              style={{
+                justifyContent: "center",
+                padding: "9px 8px",
+                background: "var(--ns-accent)",
+                color: "var(--ns-accent-fg)",
+                borderRadius: "var(--ns-r-sm)",
+              }}
             >
               <Plus size={16} weight="bold" />
             </button>
           ) : (
-            <Button
-              onClick={() => setQuickAddOpen(true)}
-              className="w-full justify-center gap-2"
-            >
+            <Button onClick={() => setQuickAddOpen(true)} className="w-full justify-center gap-2">
               <Plus size={15} weight="bold" />
               <span className="flex-1 text-left">快速記帳</span>
-              <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded px-1.5 font-mono text-[10px] font-medium" style={{ background: "color-mix(in srgb, var(--ns-accent-fg) 18%, transparent)", color: "var(--ns-accent-fg)" }}>
+              <kbd
+                className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded px-1.5 font-mono text-[10px] font-medium"
+                style={{
+                  background: "color-mix(in srgb, var(--ns-accent-fg) 18%, transparent)",
+                  color: "var(--ns-accent-fg)",
+                }}
+              >
                 <span className="text-xs">⌘</span>N
               </kbd>
             </Button>
@@ -301,7 +350,11 @@ export function AppShell() {
             </Link>
           ))}
 
-          {!collapsed && <div className="text-xs muted font-medium" style={{ padding: '18px 11px 8px' }}>Settings</div>}
+          {!collapsed && (
+            <div className="text-xs muted font-medium" style={{ padding: "18px 11px 8px" }}>
+              Settings
+            </div>
+          )}
           {collapsed && <div style={{ height: 18 }} />}
           {nav2Items.map((item) => (
             <Link
@@ -347,16 +400,30 @@ export function AppShell() {
               ...(collapsed ? { justifyContent: "center", padding: "9px 8px" } : undefined),
             }}
           >
-            {privacyMode ? <EyeSlash size={16} weight="fill" /> : <Eye size={16} weight="duotone" />}
+            {privacyMode ? (
+              <EyeSlash size={16} weight="fill" />
+            ) : (
+              <Eye size={16} weight="duotone" />
+            )}
             {!collapsed && (privacyMode ? "顯示金額" : "隱藏金額")}
           </button>
 
           {!collapsed && (
             <div className="ns-surface p-3">
               <div className="flex items-center mb-1" style={{ gap: 7 }}>
-                <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="muted">
-                  <rect x="5" y="9" width="10" height="8" rx="1.5"/>
-                  <path d="M7 9V6a3 3 0 016 0v3"/>
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="muted"
+                >
+                  <rect x="5" y="9" width="10" height="8" rx="1.5" />
+                  <path d="M7 9V6a3 3 0 016 0v3" />
                 </svg>
                 <span className="text-xs font-medium">Local-first</span>
               </div>
@@ -366,10 +433,23 @@ export function AppShell() {
             </div>
           )}
           {collapsed && (
-            <div title={t("shell.dataSavedLocally")} className="flex dim" style={{ justifyContent: "center", padding: "6px 0" }}>
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="5" y="9" width="10" height="8" rx="1.5"/>
-                <path d="M7 9V6a3 3 0 016 0v3"/>
+            <div
+              title={t("shell.dataSavedLocally")}
+              className="flex dim"
+              style={{ justifyContent: "center", padding: "6px 0" }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="5" y="9" width="10" height="8" rx="1.5" />
+                <path d="M7 9V6a3 3 0 016 0v3" />
               </svg>
             </div>
           )}
@@ -393,13 +473,25 @@ export function AppShell() {
         {demoActive ? (
           <div
             className="flex items-center gap-3 text-body py-2 px-4 accent"
-            style={{ background: "var(--ns-accent-soft)", borderBottom: "1px solid var(--ns-border)", position: "sticky", top: 0, zIndex: 30 }}
+            style={{
+              background: "var(--ns-accent-soft)",
+              borderBottom: "1px solid var(--ns-border)",
+              position: "sticky",
+              top: 0,
+              zIndex: 30,
+            }}
           >
             <span className="font-semibold">示範模式</span>
             <span className="flex-1 min-w-0 muted truncate">
               你的資料已安全保存，結束後會還原。
             </span>
-            <Button variant="outline" className="shrink-0" style={{ height: 30 }} onClick={handleExitDemo} loading={demoExiting}>
+            <Button
+              variant="outline"
+              className="shrink-0"
+              style={{ height: 30 }}
+              onClick={handleExitDemo}
+              loading={demoExiting}
+            >
               {demoExiting ? "還原中…" : "結束示範"}
             </Button>
           </div>
@@ -416,7 +508,16 @@ export function AppShell() {
         // `lg:hidden` can actually win on desktop — an inline `display:flex`
         // would override it and leak the FAB onto the desktop layout.
         className="fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] flex items-center justify-center lg:hidden"
-        style={{ zIndex: 40, width: 52, height: 52, borderRadius: 999, background: "var(--ns-accent)", color: "var(--ns-accent-fg)", border: "none", boxShadow: "var(--ns-shadow-xl)" }}
+        style={{
+          zIndex: 40,
+          width: 52,
+          height: 52,
+          borderRadius: 999,
+          background: "var(--ns-accent)",
+          color: "var(--ns-accent-fg)",
+          border: "none",
+          boxShadow: "var(--ns-shadow-xl)",
+        }}
       >
         <Plus size={24} weight="bold" />
       </button>
@@ -444,7 +545,9 @@ export function AppShell() {
                     to={item.to}
                     onClick={() => setMoreOpen(false)}
                     className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm outline-none"
-                    activeProps={{ style: { color: "var(--ns-accent)", background: "var(--ns-accent-soft)" } }}
+                    activeProps={{
+                      style: { color: "var(--ns-accent)", background: "var(--ns-accent-soft)" },
+                    }}
                     inactiveProps={{ style: { color: "var(--ns-fg)" } }}
                   >
                     <item.icon size={20} weight="duotone" />
@@ -478,7 +581,13 @@ export function AppShell() {
           type="button"
           onClick={() => setMoreOpen(true)}
           className="flex flex-col items-center gap-1 px-1 py-2 !text-caption outline-none"
-          style={{ lineHeight: 1.4, background: "none", border: "none", cursor: "pointer", color: moreOpen ? "var(--ns-accent)" : "var(--ns-fg-muted)" }}
+          style={{
+            lineHeight: 1.4,
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: moreOpen ? "var(--ns-accent)" : "var(--ns-fg-muted)",
+          }}
           aria-label="更多"
           aria-expanded={moreOpen}
         >
@@ -549,25 +658,31 @@ function useAutoUpdateCheck() {
   const promptedVersionRef = useRef<string | null>(null);
   const lastCheckRef = useRef(0);
 
-  const runInstall = useCallback(async (version: string, download: () => Promise<void>) => {
-    const progressId = toast.info(`正在下載 v${version}…`, { durationMs: 0, description: "下載完成後將自動重新啟動。" });
-    try {
-      await download();
-      toast.dismiss(progressId);
-      const { relaunch } = await import("@tauri-apps/plugin-process");
-      toast.success("更新完成，正在重新啟動…", { durationMs: 0 });
-      await relaunch();
-    } catch (error) {
-      toast.dismiss(progressId);
-      const detail = error instanceof Error ? error.message : String(error);
-      toast.error("更新失敗", {
-        description: isCrossDeviceLinkUpdateError(detail)
-          ? UPDATE_RESTART_RETRY_MESSAGE
-          : "請稍後再試，或到「設定 → 應用程式更新」手動更新。",
-        detail,
+  const runInstall = useCallback(
+    async (version: string, download: () => Promise<void>) => {
+      const progressId = toast.info(`正在下載 v${version}…`, {
+        durationMs: 0,
+        description: "下載完成後將自動重新啟動。",
       });
-    }
-  }, [toast]);
+      try {
+        await download();
+        toast.dismiss(progressId);
+        const { relaunch } = await import("@tauri-apps/plugin-process");
+        toast.success("更新完成，正在重新啟動…", { durationMs: 0 });
+        await relaunch();
+      } catch (error) {
+        toast.dismiss(progressId);
+        const detail = error instanceof Error ? error.message : String(error);
+        toast.error("更新失敗", {
+          description: isCrossDeviceLinkUpdateError(detail)
+            ? UPDATE_RESTART_RETRY_MESSAGE
+            : "請稍後再試，或到「設定 → 應用程式更新」手動更新。",
+          detail,
+        });
+      }
+    },
+    [toast],
+  );
 
   const checkForUpdate = useCallback(async () => {
     if (!("__TAURI_INTERNALS__" in window)) return;
@@ -585,7 +700,10 @@ function useAutoUpdateCheck() {
         durationMs: 0,
         description: "更新後即可使用最新功能。",
         details: notes || undefined,
-        action: { label: "立即更新", onClick: () => void runInstall(update.version, () => update.downloadAndInstall()) },
+        action: {
+          label: "立即更新",
+          onClick: () => void runInstall(update.version, () => update.downloadAndInstall()),
+        },
       });
     } catch {
       // Offline / no release yet / dev build — stay silent; the manual checker
@@ -689,7 +807,11 @@ function useReminderNotifications() {
 function useQuickAddShortcut(toggle: () => void) {
   useEffect(() => {
     function handler(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && (event.key === "n" || event.key === "N")) {
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        !event.shiftKey &&
+        (event.key === "n" || event.key === "N")
+      ) {
         event.preventDefault();
         toggle();
       }
@@ -707,10 +829,7 @@ function useBlockBrowserBackOnBackspace() {
       if (!target) return;
       const tag = target.tagName;
       const isEditableField =
-        tag === "INPUT" ||
-        tag === "TEXTAREA" ||
-        tag === "SELECT" ||
-        target.isContentEditable;
+        tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
       if (isEditableField) return;
       event.preventDefault();
     }
@@ -754,7 +873,9 @@ function useMenuSettingsShortcut() {
       });
     });
 
-    return () => { unlistenFn?.(); };
+    return () => {
+      unlistenFn?.();
+    };
   }, [navigate]);
 }
 
@@ -804,9 +925,12 @@ function useAutoSync() {
       await announceBookMergeIfAny(toast);
     } catch (e) {
       // Silently skip "already running" — user already sees status from manual sync
-      const msg = e instanceof Error ? e.message
-        : typeof e === "string" ? e
-        : (e as { message?: string })?.message ?? JSON.stringify(e) ?? "同步失敗";
+      const msg =
+        e instanceof Error
+          ? e.message
+          : typeof e === "string"
+            ? e
+            : ((e as { message?: string })?.message ?? JSON.stringify(e) ?? "同步失敗");
       if (msg === "同步正在進行中，請稍候") return;
       console.error("[sync] auto-sync failed:", e);
       setError(msg);
@@ -827,7 +951,9 @@ function useAutoSync() {
     // They don't — pulls write through the repository directly, never through
     // useRepositoryMutation — so noteLocalChange() is only ever called for
     // genuine LOCAL writes.
-    setPushFlushHandler(() => { void triggerSync(); });
+    setPushFlushHandler(() => {
+      void triggerSync();
+    });
 
     import("@tauri-apps/api/event").then(({ listen }) => {
       listen("tauri://focus", () => {
@@ -899,9 +1025,7 @@ export function PageHeader({
         >
           {title}
         </h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 muted">
-          {description}
-        </p>
+        <p className="mt-2 max-w-3xl text-sm leading-6 muted">{description}</p>
         {meta ? <div className="mt-3 flex flex-wrap gap-2">{meta}</div> : null}
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}

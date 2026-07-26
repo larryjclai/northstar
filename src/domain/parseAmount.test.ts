@@ -23,8 +23,8 @@ describe("parseChineseNumber", () => {
   });
 
   it("parses colloquial abbreviated forms", () => {
-    expect(parseChineseNumber("一百二")).toBe(120);   // 120, not 102
-    expect(parseChineseNumber("兩千五")).toBe(2500);  // 2500, not 2005
+    expect(parseChineseNumber("一百二")).toBe(120); // 120, not 102
+    expect(parseChineseNumber("兩千五")).toBe(2500); // 2500, not 2005
     expect(parseChineseNumber("三千八")).toBe(3800);
   });
 

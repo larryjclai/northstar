@@ -2,7 +2,10 @@ import { expect, it } from "vitest";
 import type { AppSettings, CategoryGroup } from "../domain";
 import { describeEachRepo } from "./repositories.testHarness";
 
-function settingsWith(categories: CategoryGroup[], overrides: Partial<AppSettings> = {}): AppSettings {
+function settingsWith(
+  categories: CategoryGroup[],
+  overrides: Partial<AppSettings> = {},
+): AppSettings {
   return {
     primaryCurrency: "TWD",
     categories,
@@ -15,9 +18,7 @@ function settingsWith(categories: CategoryGroup[], overrides: Partial<AppSetting
 describeEachRepo("settings categories", (makeRepo) => {
   it("kind round-trips", async () => {
     const repo = await makeRepo();
-    await repo.updateAppSettings(
-      settingsWith([{ name: "薪資", children: [], kind: "income" }]),
-    );
+    await repo.updateAppSettings(settingsWith([{ name: "薪資", children: [], kind: "income" }]));
     const settings = await repo.getAppSettings();
     const category = settings.categories.find((c) => c.name === "薪資");
     expect(category?.kind).toBe("income");
@@ -26,9 +27,7 @@ describeEachRepo("settings categories", (makeRepo) => {
   it("rollover + rolloverStart round-trip", async () => {
     const repo = await makeRepo();
     await repo.updateAppSettings(
-      settingsWith([
-        { name: "居住", children: [], rollover: true, rolloverStart: "2026-07" },
-      ]),
+      settingsWith([{ name: "居住", children: [], rollover: true, rolloverStart: "2026-07" }]),
     );
     const settings = await repo.getAppSettings();
     const category = settings.categories.find((c) => c.name === "居住");
@@ -39,9 +38,7 @@ describeEachRepo("settings categories", (makeRepo) => {
   it("invalid kind is dropped, not stored", async () => {
     const repo = await makeRepo();
     await repo.updateAppSettings(
-      settingsWith([
-        { name: "雜項", children: [], kind: "banana" as never },
-      ]),
+      settingsWith([{ name: "雜項", children: [], kind: "banana" as never }]),
     );
     const settings = await repo.getAppSettings();
     const category = settings.categories.find((c) => c.name === "雜項");
@@ -50,9 +47,7 @@ describeEachRepo("settings categories", (makeRepo) => {
 
   it("absent fields stay absent", async () => {
     const repo = await makeRepo();
-    await repo.updateAppSettings(
-      settingsWith([{ name: "交通", children: [] }]),
-    );
+    await repo.updateAppSettings(settingsWith([{ name: "交通", children: [] }]));
     const settings = await repo.getAppSettings();
     const category = settings.categories.find((c) => c.name === "交通");
     expect(category?.kind).toBeUndefined();
