@@ -122,6 +122,20 @@ npm run build && node scripts/check-eager-bundle.mjs
 materially. Heavy, route-specific vendors belong behind `lazyRouteComponent`, not in
 the entry graph.
 
+### R6 — React Compiler is opt-in
+
+Components are compiled only when annotated `"use memo"`. `vite.config.ts` and
+`vitest.config.ts` must keep the same `compilationMode`; a mismatch means tests
+validate uncompiled code. Before annotating a component, run `npm run lint` and
+confirm it has no `react-hooks/react-compiler` violations (`react-hooks/refs`,
+`react-hooks/set-state-in-effect`, `react-hooks/purity`, `react-hooks/globals`,
+`react-hooks/preserve-manual-memoization`, etc. — see plans/266-react-compiler.md
+for the full rule set and the 40 findings recorded when they were first enabled).
+Do not switch to whole-app `compilationMode` without a separate, reviewed plan —
+this codebase's 40 outstanding Rules-of-React findings would block or degrade
+compiler optimization app-wide, and the bundle-size trial in plan 266 measured
+build-time cost only, not the render-time benefit the compiler is meant to buy.
+
 ---
 
 ## 3. Manual measurement pointer
