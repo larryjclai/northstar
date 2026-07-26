@@ -128,10 +128,17 @@ export function ModalShell({
   const [closing, setClosing] = useState(false);
   const closingRef = useRef(false);
   // Keep the latest close/flags reachable from the mount-only listener without re-binding.
+  // Written in an effect (not during render): a ref write during render is
+  // unsafe under concurrent rendering — React may render and discard the
+  // result, but the ref mutation would still have happened (plan 274,
+  // react-hooks/refs). Both refs are only ever read from the mount-only
+  // keydown listener and from `requestClose`, never during render.
   const closeRef = useRef(onClose);
-  closeRef.current = onClose;
   const disableEscapeRef = useRef(disableEscape);
-  disableEscapeRef.current = disableEscape;
+  useEffect(() => {
+    closeRef.current = onClose;
+    disableEscapeRef.current = disableEscape;
+  });
 
   // Bottom-sheet presentation is the MOBILE-layout affordance and must stay
   // mutually exclusive with the desktop sidebar (AppShell `aside.ns-sidebar`,
