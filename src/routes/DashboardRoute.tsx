@@ -50,6 +50,7 @@ import {
   type Account,
   type AppSettings,
   type DailyPrice,
+  type DailyPriceSeriesRow,
   type DailyFxRate,
   type FinancialGoal,
   type InvestmentRecord,
@@ -758,7 +759,7 @@ export function DashboardRoute() {
     let amount = 0;
     let matched = false;
     for (const asset of held) {
-      let closes: DailyPrice[] = [];
+      let closes: DailyPriceSeriesRow[] = [];
       for (const key of quoteLookupKeys(asset.ticker)) {
         const bucket = dailyPriceLookup.get(key);
         if (bucket?.length) { closes = bucket; break; }

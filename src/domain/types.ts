@@ -501,11 +501,26 @@ export interface DailyFxRate {
   updatedAt: string;
 }
 
-export interface DailyPrice {
+/**
+ * The four columns any *reader* of price history actually uses. The startup path
+ * loads only these — `source`/`updatedAt` are write-path metadata that no
+ * consumer reads, and shipping them cost ~690 ms and ~4.6 MB of IPC on every
+ * launch (plan 273; measurements in docs/daily-prices-startup-spike.md).
+ */
+export interface DailyPriceSeriesRow {
   ticker: string;
   date: string;
   close: number;
   currency: string;
+}
+
+/**
+ * A full stored row, including write-path provenance. Returned by
+ * `listDailyPrices()`, which feeds exportSnapshot() → importSnapshot() →
+ * saveDailyPrices(); those fields MUST survive that round trip or every
+ * backup/restore rewrites `source` to "manual" (plan 273).
+ */
+export interface DailyPrice extends DailyPriceSeriesRow {
   source: string;
   updatedAt: string;
 }

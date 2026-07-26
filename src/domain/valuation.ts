@@ -1,4 +1,4 @@
-import type { DailyPrice } from "./types";
+import type { DailyPriceSeriesRow } from "./types";
 import { quoteLookupKeys } from "./marketSymbols";
 
 /**
@@ -22,10 +22,10 @@ import { quoteLookupKeys } from "./marketSymbols";
 
 const QTY_EPS = 1e-9;
 
-export type DailyPriceLookup = Map<string, DailyPrice[]>;
+export type DailyPriceLookup = Map<string, DailyPriceSeriesRow[]>;
 
 /** Index daily closes by every alias of their ticker, sorted ascending by date. */
-export function buildDailyPriceLookup(rows: DailyPrice[]): DailyPriceLookup {
+export function buildDailyPriceLookup(rows: DailyPriceSeriesRow[]): DailyPriceLookup {
   const map: DailyPriceLookup = new Map();
   for (const row of rows) {
     for (const key of quoteLookupKeys(row.ticker)) {
@@ -43,11 +43,11 @@ export function findDailyPriceAtOrBefore(
   lookup: DailyPriceLookup,
   ticker: string,
   date: string,
-): DailyPrice | null {
+): DailyPriceSeriesRow | null {
   for (const key of quoteLookupKeys(ticker)) {
     const rows = lookup.get(key);
     if (!rows?.length) continue;
-    let match: DailyPrice | null = null;
+    let match: DailyPriceSeriesRow | null = null;
     for (const row of rows) {
       if (row.date > date) break;
       match = row;
