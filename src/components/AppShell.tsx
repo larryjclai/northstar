@@ -108,10 +108,14 @@ export function AppShell() {
   // that remount, and blur the content in on every toggle AFTER the first one
   // (never on initial app launch).
   const privacyScrollRef = useRef(0);
-  const hasToggledPrivacyRef = useRef(false);
+  // State, not a ref (plan 274, react-hooks/refs): this value is READ during
+  // render to decide the `data-privacy-anim` attribute below, so React needs
+  // to know the output depends on it. A ref read during render can paint a
+  // stale attribute on a re-render triggered by something else.
+  const [hasToggledPrivacy, setHasToggledPrivacy] = useState(false);
   const handleTogglePrivacy = useCallback(() => {
     privacyScrollRef.current = window.scrollY;
-    hasToggledPrivacyRef.current = true;
+    setHasToggledPrivacy(true);
     void haptic("selection");
     togglePrivacy();
   }, [togglePrivacy]);
@@ -461,7 +465,7 @@ export function AppShell() {
           it's a no-op there). Each route keeps its own top padding on top of it. */}
       <main
         key={privacyMode ? "privacy-on" : "privacy-off"}
-        data-privacy-anim={hasToggledPrivacyRef.current ? "" : undefined}
+        data-privacy-anim={hasToggledPrivacy ? "" : undefined}
         className="ns-app-main pb-20 lg:pb-0 min-w-0"
         // overflowX clip is a second line of defense (besides html/body): it
         // contains any route-level horizontal overflow here so a single wide
