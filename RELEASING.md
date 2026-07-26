@@ -170,7 +170,9 @@ Repository → Settings → Secrets and variables → Actions：
 | `TAURI_SIGNING_PRIVATE_KEY` | minisign 私鑰（`.key` 檔的完整內容） |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 建立私鑰時設定的密碼（若無則留空） |
 | `PRIVATE_ASSETS_KEY` | 解密 `private-assets.tar.gz.enc` 的通行片語（plan 249）；未設定時 CI 跳過私有資產、build 照常 |
-| `RELEASES_TOKEN` | **已淘汰**——曾用來把 release 推到 public `northstar-releases` mirror repo，mirror job 移除後已無 workflow 使用，應予刪除（operator 待辦，見 `plans/243-retire-releases-mirror-leftovers.md` Step 4） |
+
+> 曾存在的 `RELEASES_TOKEN`（public `northstar-releases` mirror 專用）在 mirror job 移除後已無 workflow 使用，
+> **repo secret 與對應 PAT 皆已於 2026-07-26 刪除／撤銷**（plan 243 Step 4 結案）。若在舊文件或討論串看到它，那是過時資訊。
 
 > **同步 endpoint 不在 secrets 裡**:它是 repository **variable** `NORTHSTAR_SYNC_WORKER_URL`
 > （Settings → Secrets and variables → Actions → **Variables** 分頁),見第 0 步。
