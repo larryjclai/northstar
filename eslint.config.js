@@ -14,13 +14,26 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.browser } },
     plugins: { "react-hooks": reactHooks, "react-refresh": reactRefresh },
     rules: {
-      ...reactHooks.configs.recommended.rules,
+      // eslint-plugin-react-hooks@7's `recommended.rules` now bundles the React
+      // Compiler diagnostic rules (react-hooks/refs, set-state-in-effect, purity,
+      // etc.) as errors. Enabling those is plans/266-react-compiler.md, not this
+      // upgrade (plans/264) — so pin the pre-v7 rule set explicitly instead of
+      // spreading `recommended.rules`, which would turn them on as a side effect.
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "@typescript-eslint/ban-ts-comment": "warn",
       "react-refresh/only-export-components": "warn",
       "prefer-const": "warn",
       "no-irregular-whitespace": "warn",
+      // ESLint 10 promoted these two to `error` in its recommended set. This repo's
+      // convention is `warn` for advisory rules (see the six above) and `error` only
+      // for correctness guards like no-restricted-syntax below. Keeping them visible
+      // as warnings rather than breaking CI — the 8 current findings are recorded in
+      // plans/README.md for a separate cleanup (plan 264).
+      "no-useless-assignment": "warn",
+      "preserve-caught-error": "warn",
     },
   },
   {
