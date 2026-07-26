@@ -1,5 +1,59 @@
 # Implementation Plans
 
+## 🔄 Reconciled 2026-07-26 @ `0aa7f972`
+
+278 份計畫全數盤點。**沒有 IN PROGRESS，沒有未處理的 TODO，沒有漂移的計畫。**
+259–275 這批在同一個 session 內完成，這次 reconcile 的價值在於**獨立複驗它們在當前 HEAD 上仍然成立**，
+而不是複述 session 記憶。
+
+### 現況（全部在 `0aa7f972` 實跑）
+
+| 檢查 | 結果 |
+|---|---|
+| `npm test` | 130 檔 / **1512 全過** |
+| `tsc --noEmit` / `lint` / `format:check` / `build` | 全部 exit 0 |
+| `check-eager-bundle.mjs` | exit 0；charts 不在 eager set；14 route chunks / 14 lazy routes |
+| `no-useless-assignment` / `preserve-caught-error` / `react-hooks/refs` / `purity` | **全部 0** |
+| 工作區 / 未推送 commit | 0 / 0 |
+
+### 一個「像回歸、其實不是」的發現
+
+259 的兩條驗收條件現在對不上：`migrations.ts` 的 `create index if not exists` 是 **16**（原訂 14），
+`repositories.ts` 是 **0**（原訂 2）。
+
+**不是回歸。** 268 把 imperative 的 index 語句從 `repositories.ts` 搬進 `migrations.ts` 的
+宣告式 `ADDITIVE_INDEXES` 陣列——那正是 268 的設計目的（讓 DDL 可被 fingerprint）。
+逐一比對 13 個索引名稱，**全部仍然存在**。
+
+已在 259 的計畫檔標註,並改成驗**性質**而非驗字串位置：
+
+```bash
+grep -ohE "idx_[a-z_]+" src/data/migrations.ts src/data/repositories.ts | sort -u
+```
+
+這是**同一個教訓的第三次**：269 修掉 R2 的 chunk 數量帶、275 發現 alias 從沒被執行過，
+現在是 259 的 grep 條件被 268 搬家搞失效。**斷言代理指標，代理就會漂走。**
+
+### ⚠️ 仍待 operator（跨 reconcile 未動，已第二次點名）
+
+**`RELEASES_TOKEN` 是孤兒 secret，建議撤銷。** 2026-07-25 那次 reconcile 已點名，今天複查：
+
+- `gh secret list` → **仍然存在**，建立於 2026-06-02（約兩個月）
+- `grep -rn "RELEASES_TOKEN" .github/` → **零命中**，沒有任何 workflow 還在用它
+
+也就是說這是一個**沒有任何用途、卻仍具備寫入權限的 PAT**躺在 repo secrets 裡。
+plan 243 Step 4 明訂為 operator-only（撤銷憑證不由 agent 代勞）。
+
+其餘既有 operator 項目維持原狀：238 的 5 個問題仍 gate 著 vault-key rotation；
+233/245/246/247 的手感驗收非阻塞。
+
+### 一個順帶的影響（不阻塞任何事）
+
+270 重排了 279 個 `src/` 檔案，所以**任何引用 `src/` 程式碼的舊計畫，其 excerpt 現在都與檔案不再逐字相符**
+（縮排／換行變了）。對已 DONE 的計畫無害——它們是記錄。但若日後要重跑某份舊計畫，
+drift check 會亮，需要先刷新 excerpt。目前沒有 TODO 的舊計畫，所以不擋任何事。
+
+
 ## ✅ 2026-07-26 收尾 — 259–273 全批完成 @ `0dee6867`
 
 `/improve` 效能+升級批次結束。**13 份計畫派工，11 份落地、1 份 REJECTED（被量測否決）、1 份部分完成（卡在上游相依）。**

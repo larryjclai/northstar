@@ -427,6 +427,18 @@ Machine-checkable. ALL must hold:
 - [ ] `npm run build` exits 0
 - [ ] `grep -c "create index if not exists" src/data/migrations.ts` returns 14
       (3 pre-existing + 11 new)
+
+> **⚠️ Reconciled 2026-07-26 — the two grep criteria below are STALE.**
+> Plan 268 moved the imperative index statements out of `repositories.ts` into
+> the declarative `ADDITIVE_INDEXES` array in `migrations.ts`, so the counts are
+> now **16 in `migrations.ts` and 0 in `repositories.ts`**. That is 268 working
+> as designed, not a regression — all 13 indexes from this plan are still
+> defined. Verify the **property**, not the string location:
+>
+> ```bash
+> grep -ohE "idx_[a-z_]+" src/data/migrations.ts src/data/repositories.ts | sort -u
+> ```
+> must contain all 13 names listed in Step 1 and Step 2. (Verified at `0aa7f972`.)
 - [ ] `grep -c "create index if not exists" src/data/repositories.ts` returns 2
       (the 2 new ones from Step 2). The two pre-existing statements are
       `create unique index if not exists` — the word `unique` breaks the
