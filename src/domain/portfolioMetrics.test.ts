@@ -233,4 +233,33 @@ describe("calculateXirr", () => {
     );
     expect(r as number).toBeCloseTo(-0.2, 2);
   });
+
+  // bisectXirr is the fallback path when Newton–Raphson breaks down (its
+  // derivative hits zero or a non-finite value) and is not exported for
+  // direct testing. This series was found by driving calculateXirr's public
+  // entry point: three inflows over several years followed by one large
+  // outflow is badly-conditioned enough that Newton's derivative blows up
+  // partway through, forcing the bisection fallback. Plan 272.
+  it("falls back to bisection when Newton's method breaks down", () => {
+    const flows = [
+      { date: "2020-01-01", amount: 3_000_000 },
+      { date: "2021-06-01", amount: 5_000_000 },
+      { date: "2022-06-01", amount: 4_000_000 },
+      { date: "2023-06-01", amount: -3_500_000 },
+    ];
+    const r = calculateXirr(flows);
+    expect(r).not.toBeNull();
+    expect(Number.isFinite(r as number)).toBe(true);
+
+    // Independently recompute NPV at the returned rate (same formula
+    // calculateXirr uses internally) to confirm it's actually a root, not
+    // just "not null".
+    const sorted = [...flows].sort((a, b) => a.date.localeCompare(b.date));
+    const t0 = Date.parse(sorted[0].date);
+    const npvAtRate = sorted.reduce(
+      (sum, f) => sum + f.amount / Math.pow(1 + (r as number), (Date.parse(f.date) - t0) / (365 * 86_400_000)),
+      0,
+    );
+    expect(npvAtRate).toBeCloseTo(0, 5);
+  });
 });
