@@ -123,6 +123,16 @@ workflow 使用。在「GitHub Secrets 設定」處改為一行說明：此 secr
 ### Step 4（**OPERATOR-ONLY — 執行者不要碰**）
 
 刪除 `RELEASES_TOKEN` secret，並在 GitHub 撤銷該 PAT：
+
+> **進度 2026-07-26**：**repo secret 已由 advisor 依 operator 明確指示刪除**
+> （`gh secret delete RELEASES_TOKEN`，已複驗 `gh secret list` 不再列出）。
+> 刪除前確認全 repo 零引用：`git grep -in RELEASES_TOKEN` 僅剩文件/計畫中描述其
+> 「已淘汰」的段落，mirror job 本身在 `cef86a32` 已移除。
+>
+> **⚠️ PAT 本身仍未撤銷 —— 這才是有安全意義的那一半。**
+> 刪掉 repo secret 只是移除「repo 裡存的那份副本」，token 在 GitHub 帳號上
+> 依然存在且仍具其原有 scope。任何持有該值的人仍可使用它。
+> 撤銷必須由 operator 在帳號設定頁執行（agent 無法、也不應代勞）。
 - Repo → Settings → Secrets and variables → Actions → 刪除 `RELEASES_TOKEN`
 - GitHub → Settings → Developer settings → Fine-grained personal access tokens
   → 撤銷對應的 token

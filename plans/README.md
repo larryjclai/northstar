@@ -42,7 +42,14 @@ grep -ohE "idx_[a-z_]+" src/data/migrations.ts src/data/repositories.ts | sort -
 - `grep -rn "RELEASES_TOKEN" .github/` → **零命中**，沒有任何 workflow 還在用它
 
 也就是說這是一個**沒有任何用途、卻仍具備寫入權限的 PAT**躺在 repo secrets 裡。
-plan 243 Step 4 明訂為 operator-only（撤銷憑證不由 agent 代勞）。
+
+**更新（同日，operator 明確指示後）**：repo secret **已刪除**
+（`gh secret delete RELEASES_TOKEN`；`gh secret list` 複驗不再列出）。
+刪除前全 repo 複查零引用。
+
+**⚠️ 但 PAT 本身仍然有效，尚未撤銷。** 刪 secret ≠ 撤 token —— 前者只移除 repo 裡的副本，
+後者才讓憑證失效。撤銷需 operator 在 GitHub 帳號設定頁操作，agent 無法代勞。
+在撤銷之前，任何持有該 token 值的人仍可使用它。
 
 其餘既有 operator 項目維持原狀：238 的 5 個問題仍 gate 著 vault-key rotation；
 233/245/246/247 的手感驗收非阻塞。
