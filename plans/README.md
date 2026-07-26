@@ -45,6 +45,27 @@ repo 已有正確慣例（`todayInTimezone(timezone)`，DashboardRoute / Investm
 它選擇用 `vi.mock` + `vi.stubGlobal` 繞過並寫進註解，**沒有為此擴大 scope 去改 `vitest.config.ts`**——判斷正確，
 但這是真正的測試基建缺口：**下一個想測路由元件的人會撞到同一堵牆**。真正的修法是把 `@` alias 加進 `vitest.config.ts`，值得單獨開一份小計畫。
 
+### 275 — vitest 的 `@` alias 缺口（274 帶出，已修）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 275 | 把 `@` alias 加進 `vitest.config.ts`（`vite.config.ts` 早就有，兩份 config 不會互相繼承）+ `setup.ts` 補 localStorage fallback | P2 | S | 274（已 merge） | **DONE** — reviewed+APPROVED，**已 merge**。`HoldingDetailRoute.test.ts` 的 **9 個 `vi.mock` 全部刪光**（0 剩），測試維持 130 檔 / 1512 全過。 |
+
+**這個缺口能存活這麼久，是因為它從來沒被執行過。** `grep -rl '@/' src/` 會撈到 `nlParser.test.ts`，
+但那個命中在**註解裡**——沒有任何測試曾經成功透過 alias 匯入。它不是壞掉，是沒被碰過。
+25 個檔案用這個 alias，全是 `coss/*`／`ui/*` 共用 UI 層，所以**任何路由元件測試都會撞牆**。
+
+**⚠️ 我的假設被探測推翻了。** 我看到 265 把 jsdom 升到 29、又驗到 `new JSDOM('', {url})` 有 localStorage，
+就推論「AGENTS.md 那條 gotcha 是舊時代遺留、274 執行者診斷錯了」。計畫因此把「先實測再決定」寫成 Step 1。
+
+實測結果：`typeof window.localStorage` = **`undefined`**，即使 `document.URL` 是 `http://localhost:3000/`。
+**274 的執行者是對的，AGENTS.md 那條 gotcha 一直都是對的，錯的是我。**
+真正原因執行者也查出來了：**Node 26 的實驗性全域 `localStorage`**（沒給 `--localstorage-file` 就不可用）
+**遮蔽了 jsdom 自己的實作**——所以單獨測 jsdom 會得到相反結論，必須在 vitest 環境裡測才準。
+
+setup.ts 的 fallback 有守衛（`typeof window.localStorage === "undefined"` 才裝），
+18 個用 `vi.stubGlobal` 做隔離的測試檔仍然優先，全部照常通過。
+
 ### 這批的方法論教訓
 
 **13 次派工裡，執行者 7 次正確地 STOP，而其中 6 次錯在計畫（我），不在執行。**
