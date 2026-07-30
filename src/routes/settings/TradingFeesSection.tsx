@@ -266,7 +266,7 @@ export function SettingsTradingFees({ form, submit }: Pick<SettingsTabProps, "fo
                   className="flex flex-col gap-3 p-3 rounded-md border"
                   style={{
                     borderColor: "var(--ns-border)",
-                    background: isEnabled ? "transparent" : "var(--ns-surface-hover)",
+                    background: isEnabled ? "transparent" : "var(--ns-bg-hover)",
                   }}
                 >
                   <div className="flex items-center justify-between gap-3">
