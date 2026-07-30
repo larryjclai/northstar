@@ -25,13 +25,16 @@ const THIS_FILE = path.resolve(import.meta.dirname, "designTokens.test.ts");
  * exist, which is drift worth noticing. Each entry is a pending design call:
  *
  * - `--ns-border-subtle` — falls back to `--ns-border`, visually identical today.
- * - `--ns-warn-soft`     — 7 ConnectSection banners. Five fall back to the neutral
- *   `--ns-bg-hover`, two to a hard-coded `#fef3c7`, so warning banners are
- *   inconsistent. `--ns-warning-soft` is the defined amber token they likely want.
+ *
+ * `--ns-warn-soft` used to live here. Two of its seven ConnectSection banners
+ * fell back to a hard-coded `#fef3c7`, which does not follow the theme: in dark
+ * mode that painted pale amber under `--ns-warn` text for a 1.53:1 contrast
+ * ratio — effectively illegible. All seven now use the defined
+ * `--ns-warning-soft` (7.96:1 dark, 3.17:1 light).
  *
  * Shrink this list; do not grow it.
  */
-const KNOWN_FALLBACK_ONLY_TOKENS = ["--ns-border-subtle", "--ns-warn-soft"];
+const KNOWN_FALLBACK_ONLY_TOKENS = ["--ns-border-subtle"];
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
