@@ -7,7 +7,7 @@
 >
 > **Drift check（第一件事）**：
 > ```bash
-> git diff --stat 27e3c8e1..HEAD -- src/routes/DashboardRoute.tsx src/styles/globals.css
+> git diff --stat b7bfd7a1..HEAD -- src/routes/DashboardRoute.tsx src/styles/globals.css
 > ```
 > 若有變動，先把「現況」的 excerpt 與實際程式碼逐字比對；對不上就是 STOP condition。
 > 以**內容**定位，不要只信行號（plan 270 用 Prettier 重排過整個 `src/`）。
@@ -15,11 +15,12 @@
 ## Status
 
 - **Priority**: P2 · **Effort**: M · **Risk**: LOW-MED（純呈現層；風險在「別動到財務數字」）
-- **Depends on**: 建議排在 **279 之後**（同檔不同區塊：279 動 `DashboardRoute.tsx:1258`
-  的頁面外框，本計畫動 `:1697-1741` 的 hero 卡內部。技術上可獨立執行，但先做 279
-  能避免兩份 worktree 對同一檔案的 merge 衝突，而且卡片變寬後這張圖才吃得到空間。）
+- **Depends on**: **279 —— 已 reviewed+APPROVED 並 merge @ `b7bfd7a1`（2026-07-30）**。
+  它動的是頁面外框（`DashboardRoute.tsx:1255` 一帶），本計畫動 `:1694-1738` 的 hero 卡內部；
+  相依已解除，而且卡片在寬螢幕上變寬了，這張圖現在吃得到空間。
 - **Category**: UI / data-viz
-- **Planned at**: commit `27e3c8e1`, 2026-07-30
+- **Planned at**: commit `27e3c8e1`, 2026-07-30 · **行號已於 `b7bfd7a1` 刷新**（plan 279 已 merge，
+  兩個 in-scope 檔案的行號整體位移；程式碼內容本身未變，excerpt 仍逐字相符）
 
 ## What and why
 
@@ -33,7 +34,7 @@ Operator 回報：**「總覽的趨勢圖現在有點雞肋，希望趨勢圖的
 而那個資訊 hero 數字旁邊的變動 Badge 早就講完了。所以它是純裝飾。
 
 同時，真正完整的那張圖（含 `XAxis` 標籤與 `Tooltip`）躺在 **預設隱藏**的「淨值趨勢」
-卡片裡（`DashboardRoute.tsx:1878-1957`，plan 164 Direction A 把它降級了）。也就是說
+卡片裡（`DashboardRoute.tsx:1875-1954`，plan 164 Direction A 把它降級了）。也就是說
 功能是有的，只是放在使用者預設看不到的地方。
 
 Operator 已拍板（2026-07-30）：**升級成 hero 卡內的主圖**，不新增卡片。落地後：
@@ -56,16 +57,16 @@ Operator 已拍板（2026-07-30）：**升級成 hero 卡內的主圖**，不新
    趨勢用每日收盤。**本計畫不准碰 `trend` / `reconciledTrend` / `rangeView` / `longView`
    任何一行**，只消費 `visibleTrend`。
 2. **淨值變動是「市場表現」數字，走 gain/loss 色軸（紅漲綠跌），不是 pos/neg 色軸。**
-   見 `DashboardRoute.tsx:1659-1660` 的註解與它下面那個 `<Badge variant={momChange >= 0 ?
+   見 `DashboardRoute.tsx:1656-1657` 的註解與它下面那個 `<Badge variant={momChange >= 0 ?
    "gain" : "loss"}>`。tooltip 裡的變化數字必須用 `.gain` / `.loss`，**不可**用 `.pos` / `.neg`。
 3. **隱私模式（隱藏金額 ⌘⇧H）必須遮住圖上的金額。** `formatMoney` / `formatNumber` /
    `formatCompactNumber`（`src/domain/currency.ts:191-234`）都會在遮罩開啟時回
    `＊＊＊＊＊＊`。tooltip 走這些 formatter 所以自動安全；**但 Y 軸刻度會變成一排
    `＊＊＊＊＊＊`，很醜也沒資訊**——遮罩開啟時要把 Y 軸整條隱藏（步驟 4）。
 
-## Current state（皆在 `27e3c8e1` 實際讀過）
+## Current state（excerpt 在 `27e3c8e1` 實際讀過；行號已在 `b7bfd7a1` 重新核對）
 
-### 要換掉的那段（`src/routes/DashboardRoute.tsx:1697-1741`）
+### 要換掉的那段（`src/routes/DashboardRoute.tsx:1694-1738`）
 
 ```tsx
             {/* Period control + long-view toggle above a small sparkline — only
@@ -116,8 +117,8 @@ Operator 已拍板（2026-07-30）：**升級成 hero 卡內的主圖**，不新
           </div>
 ```
 
-最後那個 `</div>` 是 hero header row（開在 `:1545`）的收尾。緊接在它之後是
-「No meaningful trend yet」提示（`:1744-1768`）與 `<PulseStrip cells={pulseCells} />`（`:1772`）。
+最後那個 `</div>` 是 hero header row（開在 `:1541`）的收尾。緊接在它之後是
+「No meaningful trend yet」提示（`:1741-1765`）與 `<PulseStrip cells={pulseCells} />`（`:1769`）。
 
 ### 資料形狀（不要重新推導，這裡是實測結果）
 
@@ -125,7 +126,7 @@ Operator 已拍板（2026-07-30）：**升級成 hero 卡內的主圖**，不新
 
 ```ts
 { date: string; value: number; iso: string }
-// date = formatDay(iso) → zh-TW「7/30」格式（DashboardRoute.tsx:3011-3015）
+// date = formatDay(iso) → zh-TW「7/30」格式（DashboardRoute.tsx:3008-3012）
 // iso  = "YYYY-MM-DD"
 // value = 該日淨值（primaryCurrency）
 ```
@@ -151,7 +152,7 @@ Operator 已拍板（2026-07-30）：**升級成 hero 卡內的主圖**，不新
 
 ### 慣例（照著做）
 
-- **這個 repo 的圖表模板就在 `src/routes/GoalsRoute.tsx:535-600`** —— `CartesianGrid`
+- **這個 repo 的圖表模板就在 `src/routes/GoalsRoute.tsx:532-597`** —— `CartesianGrid`
   `strokeDasharray="3 3" stroke="var(--ns-border)" vertical={false}`、軸用
   `tick={{ fill: "var(--ns-fg-muted)", fontSize: 11 }} tickLine={false} axisLine={false}`、
   `YAxis width={52} tickFormatter={(v) => formatCompactNumber(Number(v))}`、
@@ -186,7 +187,7 @@ Operator 已拍板（2026-07-30）：**升級成 hero 卡內的主圖**，不新
 
 - `src/routes/dashboardHeroTrend.ts`（新建）
 - `src/routes/dashboardHeroTrend.test.ts`（新建）
-- `src/routes/DashboardRoute.tsx`（只改 hero 卡的 `:1697-1741` 區塊、加 import、
+- `src/routes/DashboardRoute.tsx`（只改 hero 卡的 `:1694-1738` 區塊、加 import、
   在檔案下半部加一個 tooltip 元件）
 - `src/styles/globals.css`（新增 `.ns-hero-chart` 與 `.ns-chart-tip` 兩個 class）
 
@@ -195,7 +196,7 @@ Operator 已拍板（2026-07-30）：**升級成 hero 卡內的主圖**，不新
 - `trend` / `reconciledTrend` / `rangeView` / `longView` / `visibleTrend` /
   `momChange` / `momPct`（`DashboardRoute.tsx:598-714`）——**一行都不要改**。
   本計畫是呈現層，任何對這幾個 memo 的修改都會動到使用者看到的財務數字。
-- 降級的「淨值趨勢」卡片（`:1878-1957`）與 `DASHBOARD_CARDS`／`DIRECTION_A_HIDDEN_CARDS`
+- 降級的「淨值趨勢」卡片（`:1875-1954`）與 `DASHBOARD_CARDS`／`DIRECTION_A_HIDDEN_CARDS`
   清單。那張卡除了圖還裝著 `PortfolioStrip` 與 投資/現金/其他/負債 四張 KPI，
   動它得先幫那些內容找新家——不在本計畫內。它預設隱藏，重複不影響預設畫面。
 - `SegmentedControl` / `stripPeriod` / `longViewMode` 的行為與位置（只是不再被
@@ -311,7 +312,7 @@ npm test -- dashboardHeroTrend
 ### Step 3: 加兩個 CSS class
 
 在 `src/styles/globals.css` 的 dashboard 區塊附近（`.ns-dash-row1` / `.ns-dash-kpi-stack`
-那一帶，現況 `:890-905`）加：
+那一帶，現況 `:898-913`）加：
 
 ```css
 /* Hero net-worth chart (plan 280) — promoted from a 300×64 decorative
@@ -346,8 +347,8 @@ npm test -- dashboardHeroTrend
 ```
 
 陰影 token 已核對：這個檔案**只有** `--ns-shadow-1` / `--ns-shadow-2` 與它們的語意別名
-`--ns-shadow` / `--ns-shadow-strong`（`globals.css:143-144, 161-162`，深色主題在 `:199-218`
-與 `:255-256` 覆寫）。用 `var(--ns-shadow-strong)`，**不要**自己寫死 rgba，也不要用
+`--ns-shadow` / `--ns-shadow-strong`（`globals.css:151-152, 169-170`，深色主題在 `:207-226`
+與 `:263-264` 覆寫）。用 `var(--ns-shadow-strong)`，**不要**自己寫死 rgba，也不要用
 `--ns-shadow-lg` / `--ns-shadow-xl`（**那兩個不存在**——`AppShell.tsx:537` 引用了
 `--ns-shadow-xl`，是個既有的無效引用，不在本計畫範圍內，別順手修）。
 
@@ -388,7 +389,7 @@ grep -n "\-\-ns-shadow-strong:" src/styles/globals.css
   const heroTrend = useMemo(() => buildHeroTrendMeta(visibleTrend), [visibleTrend]);
 ```
 
-**(d) 把「現況」那整段（`:1697-1741`）換成**：控制項留在 header row 右側、圖搬到
+**(d) 把「現況」那整段（`:1694-1738`）換成**：控制項留在 header row 右側、圖搬到
 header row **之後**。也就是那段變成只剩控制項：
 
 ```tsx
@@ -520,8 +521,8 @@ npx tsc --noEmit
 
 ### Step 5: 加 `HeroTrendTooltip` 元件
 
-在 `DashboardRoute.tsx` 檔案下半部的區域元件旁（`PulseStrip` 在 `:2335`、
-`KpiCard` 在 `:2385`）新增一個 module-scope 函式元件：
+在 `DashboardRoute.tsx` 檔案下半部的區域元件旁（`PulseStrip` 在 `:2332`、
+`KpiCard` 在 `:2382`）新增一個 module-scope 函式元件：
 
 ```tsx
 /** Hover readout for the hero net-worth chart (plan 280): the day, that day's
@@ -618,7 +619,7 @@ npx playwright test
 - [ ] `grep -n "netWorthMini" src/routes/DashboardRoute.tsx` → 零命中（舊 sparkline 已移除）
 - [ ] `grep -c "width: 300\|height: 64" src/routes/DashboardRoute.tsx` → 零命中
 - [ ] `grep -n "ns-hero-chart" src/routes/DashboardRoute.tsx src/styles/globals.css` → 各 1+
-- [ ] `git diff 27e3c8e1..HEAD -- src/routes/DashboardRoute.tsx | grep -E "^[+-].*(reconciledTrend =|rangeView =|longView =|visibleTrend =|momChange =|momPct =)"`
+- [ ] `git diff b7bfd7a1..HEAD -- src/routes/DashboardRoute.tsx | grep -E "^[+-].*(reconciledTrend =|rangeView =|longView =|visibleTrend =|momChange =|momPct =)"`
       → **零輸出**（證明沒有動到任何財務數字的來源）
 - [ ] `grep -n "netWorthTrendFull" src/routes/DashboardRoute.tsx` → 仍存在 1 處（降級卡片未被誤改）
 - [ ] `npx tsc --noEmit` exit 0
@@ -647,7 +648,7 @@ npx playwright test
 
 ## Maintenance notes
 
-- **重複的那張圖**：降級的「淨值趨勢」卡片（`:1878-1957`，預設隱藏）畫的是同一條
+- **重複的那張圖**：降級的「淨值趨勢」卡片（`:1875-1954`，預設隱藏）畫的是同一條
   `visibleTrend`。使用者從「版面」把它打開就會在總覽看到兩張同樣的線。刻意不處理：
   那張卡還裝著 `PortfolioStrip` 與四張資產 KPI，要退場得先幫它們找新家。
   **下一份計畫的候選**：把那張卡拆成「資產組成」卡（保留 strip + KPI、去掉圖）。
