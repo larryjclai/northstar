@@ -251,10 +251,7 @@ export function GoalsRoute() {
   }
 
   return (
-    <div
-      className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]"
-      style={{ maxWidth: 1180, margin: "0 auto" }}
-    >
+    <div className="ns-page pt-6 pb-28 sm:pb-[120px]">
       <div
         className="flex justify-between gap-4"
         style={{ alignItems: "flex-end", marginBottom: 22, flexWrap: "wrap" }}

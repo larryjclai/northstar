@@ -150,10 +150,7 @@ export function AnnualReportRoute() {
 
   if (isInitialLoading) {
     return (
-      <div
-        className="grid gap-5"
-        style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}
-      >
+      <div className="ns-page grid gap-5 pt-6 pb-[120px]">
         <Skeleton className="h-[120px]" />
         <Skeleton className="h-[320px]" />
       </div>
@@ -181,10 +178,7 @@ export function AnnualReportRoute() {
   }
 
   return (
-    <div
-      className="ns-annual-report"
-      style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}
-    >
+    <div className="ns-annual-report ns-page pt-6 pb-[120px]">
       {/* Print-only report header — hidden on screen (ns-print-only), shown on
           the printed page so the PDF/paper carries the app name, the year span
           it covers, and when it was generated. */}

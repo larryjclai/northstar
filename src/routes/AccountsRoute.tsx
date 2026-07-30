@@ -483,10 +483,7 @@ export function AccountsRoute() {
   }
 
   return (
-    <div
-      className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]"
-      style={{ maxWidth: 1180, margin: "0 auto" }}
-    >
+    <div className="ns-page pt-6 pb-28 sm:pb-[120px]">
       {/* Header */}
       <div className="flex items-end justify-between flex-wrap gap-4" style={{ marginBottom: 22 }}>
         <div>

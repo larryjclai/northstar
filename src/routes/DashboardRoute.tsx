@@ -1256,10 +1256,7 @@ export function DashboardRoute() {
   }
 
   return (
-    <div
-      className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px]"
-      style={{ maxWidth: 1180, margin: "0 auto" }}
-    >
+    <div className="ns-page pt-6 pb-28 sm:pb-[120px]">
       {/* Render the wrapper only when a banner will actually show — an empty
           .ns-banner-collapse still carries its 14px margin (phantom gap). */}
       {dataHealthFingerprint !== dismissedBanners.dataHealth &&

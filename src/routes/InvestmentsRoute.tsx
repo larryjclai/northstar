@@ -514,10 +514,7 @@ export function InvestmentsRoute() {
 
   if (isInitialLoading) {
     return (
-      <div
-        className="grid gap-5 p-1"
-        style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}
-      >
+      <div className="ns-page grid gap-5 pt-6 pb-[120px]">
         <Skeleton className="h-[200px]" />
         <div
           className="grid gap-4"
@@ -553,10 +550,7 @@ export function InvestmentsRoute() {
   }
 
   return (
-    <div
-      className="ns-invest-page"
-      style={{ padding: "24px 32px 120px", maxWidth: 1180, margin: "0 auto" }}
-    >
+    <div className="ns-invest-page ns-page pt-6 pb-[120px]">
       {/* Header */}
       <div className="ns-invest-header flex items-end justify-between mb-0">
         <div>
