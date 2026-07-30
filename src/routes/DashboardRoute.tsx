@@ -4,9 +4,11 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Area,
   AreaChart,
+  CartesianGrid,
   Cell,
   Pie,
   PieChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -53,6 +55,7 @@ import {
   createFxConverter,
   formatMoney,
   formatCompactMoney,
+  formatCompactNumber,
   formatNumber,
   isNeutralLedgerRow,
   type AnalyticsPosition,
@@ -96,6 +99,7 @@ import { SquaresFour } from "@phosphor-icons/react";
 import { buildMonthlySummaryInput } from "../domain/monthlySummary";
 import { isAvailable as isFmAvailable, generateMonthlySummary } from "../lib/foundationModels";
 import { MarkdownText } from "../components/MarkdownText";
+import { buildHeroTrendMeta } from "./dashboardHeroTrend";
 
 const STRIP_PERIOD_LABELS: Record<StripPeriod, string> = {
   "1D": "近 1 日",
@@ -187,6 +191,7 @@ export function DashboardRoute() {
   const setNorthstarMetric = useUiPreferences((state) => state.setNorthstarMetric);
   const longViewMode = useUiPreferences((state) => state.longViewMode);
   const toggleLongViewMode = useUiPreferences((state) => state.toggleLongViewMode);
+  const privacyMode = useUiPreferences((state) => state.privacyMode);
   const milestoneReached = useUiPreferences((state) => state.milestoneReached);
   const setMilestoneReached = useUiPreferences((state) => state.setMilestoneReached);
   const activeBookId = useUiPreferences((state) => state.activeBookId);
@@ -712,6 +717,10 @@ export function DashboardRoute() {
   const visibleTrend = longView.points;
   const momChange = longView.change;
   const momPct = longView.pct;
+
+  // Chart geometry only — pure, tested in dashboardHeroTrend.test.ts. Does not
+  // touch any value: the series itself stays exactly as longView produced it.
+  const heroTrend = useMemo(() => buildHeroTrendMeta(visibleTrend), [visibleTrend]);
 
   const hasAnyData = accountRows.length > 0 || ledgerRows.length > 0 || assetRows.length > 0;
 
@@ -1691,52 +1700,115 @@ export function DashboardRoute() {
               ) : null}
             </div>
 
-            {/* Period control + long-view toggle above a small sparkline — only
-                for netWorth (drives the trend chart, still used by the demoted
-                淨值趨勢 card too). */}
+            {/* Period control + long-view toggle. The chart itself moved below
+                the header row (plan 280) so it can span the card's full width. */}
             {activeMetric.key === "netWorth" && reconciledTrend.length > 1 ? (
-              <div className="flex flex-col items-end gap-2" style={{ flexShrink: 0 }}>
-                <div className="flex items-center gap-2 flex-wrap justify-end">
-                  <div className="ns-hscroll" style={{ maxWidth: "100%" }}>
-                    <SegmentedControl
-                      value={stripPeriod}
-                      onChange={setStripPeriod}
-                      options={STRIP_PERIODS.map((v) => ({ value: v, label: v }))}
-                    />
-                  </div>
-                  <Button
-                    size="sm"
-                    variant={longViewMode ? "default" : "outline"}
-                    onClick={toggleLongViewMode}
-                    aria-pressed={longViewMode}
-                    title="長期視角：以移動平均淡化每日波動"
-                  >
-                    長期視角
-                  </Button>
+              <div
+                className="flex items-center gap-2 flex-wrap justify-end"
+                style={{ flexShrink: 0 }}
+              >
+                <div className="ns-hscroll" style={{ maxWidth: "100%" }}>
+                  <SegmentedControl
+                    value={stripPeriod}
+                    onChange={setStripPeriod}
+                    options={STRIP_PERIODS.map((v) => ({ value: v, label: v }))}
+                  />
                 </div>
-                <div style={{ width: 300, maxWidth: "100%", height: 64 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={visibleTrend}>
-                      <defs>
-                        <linearGradient id="netWorthMini" x1="0" x2="0" y1="0" y2="1">
-                          <stop offset="5%" stopColor="var(--ns-accent)" stopOpacity={0.35} />
-                          <stop offset="95%" stopColor="var(--ns-accent)" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <YAxis hide domain={["dataMin - 20000", "dataMax + 20000"]} />
-                      <Area
-                        type="monotone"
-                        dataKey="value"
-                        stroke="var(--ns-accent)"
-                        fill="url(#netWorthMini)"
-                        strokeWidth={2}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
+                <Button
+                  size="sm"
+                  variant={longViewMode ? "default" : "outline"}
+                  onClick={toggleLongViewMode}
+                  aria-pressed={longViewMode}
+                  title="長期視角：以移動平均淡化每日波動"
+                >
+                  長期視角
+                </Button>
               </div>
             ) : null}
           </div>
+
+          {/* ── Net-worth trend: the hero card's main chart (plan 280) ──
+              Was a 300×64 sparkline with no axes and no tooltip — seven period
+              buttons and no readable number. Now: labelled axes, hover readout,
+              and a dashed baseline at the selected window's starting value.
+              Draws `visibleTrend` untouched, so the last point still equals the
+              headline above it (plan-032 invariant). */}
+          {activeMetric.key === "netWorth" && heroTrend ? (
+            <div
+              className="ns-hero-chart"
+              role="img"
+              aria-label={`淨值趨勢 ${STRIP_PERIOD_LABELS[stripPeriod]}：${formatMoney(
+                heroTrend.startValue,
+                primaryCurrency,
+              )} 到 ${formatMoney(heroTrend.endValue, primaryCurrency)}`}
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={visibleTrend} margin={{ top: 10, right: 8, bottom: 0, left: 0 }}>
+                  <defs>
+                    <linearGradient id="netWorthHero" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="5%" stopColor="var(--ns-accent)" stopOpacity={0.28} />
+                      <stop offset="95%" stopColor="var(--ns-accent)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--ns-border)" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    ticks={heroTrend.ticks}
+                    tick={{ fill: "var(--ns-fg-muted)", fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={24}
+                  />
+                  <YAxis
+                    domain={heroTrend.yDomain}
+                    tick={{ fill: "var(--ns-fg-muted)", fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={52}
+                    tickFormatter={(v) => formatCompactNumber(Number(v))}
+                    // Privacy mode masks every amount to ＊＊＊＊＊＊; a whole
+                    // column of those is noise, so drop the axis instead.
+                    hide={privacyMode}
+                  />
+                  <Tooltip
+                    cursor={{ stroke: "var(--ns-border-strong)", strokeDasharray: "3 3" }}
+                    content={
+                      <HeroTrendTooltip
+                        currency={primaryCurrency}
+                        startValue={heroTrend.startValue}
+                      />
+                    }
+                  />
+                  <ReferenceLine
+                    y={heroTrend.startValue}
+                    stroke="var(--ns-border-strong)"
+                    strokeDasharray="4 4"
+                    label={{
+                      value: `起點 ${formatCompactMoney(heroTrend.startValue, primaryCurrency)}`,
+                      position: "insideTopLeft",
+                      fill: "var(--ns-fg-muted)",
+                      fontSize: 10,
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke="var(--ns-accent)"
+                    fill="url(#netWorthHero)"
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{
+                      r: 4,
+                      fill: "var(--ns-accent)",
+                      stroke: "var(--ns-bg-elev)",
+                      strokeWidth: 2,
+                    }}
+                    isAnimationActive={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : null}
 
           {/* No meaningful trend yet → a slim hint instead of the sparkline. */}
           {activeMetric.key === "netWorth" && reconciledTrend.length <= 1 ? (
@@ -2325,6 +2397,38 @@ function FxInline({
         </span>
       ))}
     </span>
+  );
+}
+
+/** Hover readout for the hero net-worth chart (plan 280): the day, that day's
+ *  net worth, and the change against the selected window's starting value.
+ *  The delta is a market-performance number, so it uses the gain/loss axis
+ *  (.gain/.loss → 紅漲綠跌), never .pos/.neg — same rule as the hero badge. */
+function HeroTrendTooltip({
+  active,
+  payload,
+  currency,
+  startValue,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: { iso?: string; value?: number } }>;
+  currency: string;
+  startValue: number;
+}) {
+  const point = active ? payload?.[0]?.payload : undefined;
+  if (!point || typeof point.value !== "number") return null;
+  const delta = point.value - startValue;
+  return (
+    <div className="ns-chart-tip">
+      <div className="text-caption muted mono">{point.iso ?? ""}</div>
+      <div className="num" style={{ fontWeight: 600 }}>
+        {formatMoney(point.value, currency)}
+      </div>
+      <div className={`text-caption num ${delta >= 0 ? "gain" : "loss"}`}>
+        {delta >= 0 ? "+" : "−"}
+        {formatNumber(Math.abs(delta))}
+      </div>
+    </div>
   );
 }
 
