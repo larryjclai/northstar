@@ -139,7 +139,7 @@ export function CategoryManagementDrawer({
         borderLeft: "1px solid var(--ns-border)",
         display: "flex",
         flexDirection: "column",
-        boxShadow: "var(--ns-shadow-xl)",
+        boxShadow: "var(--ns-shadow-strong)",
       }}
     >
       {(dismiss) => (

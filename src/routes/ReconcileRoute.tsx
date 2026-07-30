@@ -682,7 +682,7 @@ function PayCardModal({
         background: "var(--ns-bg-elev)",
         border: "1px solid var(--ns-border)",
         borderRadius: "var(--ns-r-lg)",
-        boxShadow: "var(--ns-shadow-xl)",
+        boxShadow: "var(--ns-shadow-strong)",
       }}
     >
       {(dismiss) => (
@@ -831,7 +831,7 @@ function DeferPostingModal({
         background: "var(--ns-bg-elev)",
         border: "1px solid var(--ns-border)",
         borderRadius: "var(--ns-r-lg)",
-        boxShadow: "var(--ns-shadow-xl)",
+        boxShadow: "var(--ns-shadow-strong)",
       }}
     >
       {(dismiss) => (

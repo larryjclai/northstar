@@ -437,7 +437,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
       >
         {/* Confirm card (shown after parsing) */}
         {confirm ? (
-          <Card className="p-4" style={{ boxShadow: "var(--ns-shadow-xl)" }}>
+          <Card className="p-4" style={{ boxShadow: "var(--ns-shadow-strong)" }}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium" style={{ color: "var(--ns-fg-muted)" }}>
@@ -789,7 +789,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                     background: active ? "var(--ns-accent)" : "var(--ns-bg-card)",
                     color: active ? "var(--ns-accent-fg)" : "var(--ns-fg-muted)",
                     border: active ? "1px solid var(--ns-accent)" : "1px solid var(--ns-border)",
-                    boxShadow: active ? "var(--ns-shadow-sm)" : "none",
+                    boxShadow: active ? "var(--ns-shadow)" : "none",
                   }}
                 >
                   {label}
@@ -888,7 +888,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
             border: "1px solid var(--ns-border)",
             borderRadius: 999,
             padding: "6px 6px 6px 18px",
-            boxShadow: "var(--ns-shadow-xl)",
+            boxShadow: "var(--ns-shadow-strong)",
           }}
         >
           <Plus
@@ -1056,7 +1056,7 @@ function PreviewChips({
         background: "var(--ns-bg-card)",
         borderRadius: 12,
         border: "1px solid var(--ns-border)",
-        boxShadow: "var(--ns-shadow-sm)",
+        boxShadow: "var(--ns-shadow)",
       }}
     >
       {chips.map((chip) => (
