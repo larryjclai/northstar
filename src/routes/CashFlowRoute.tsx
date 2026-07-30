@@ -1875,7 +1875,7 @@ export function CashFlowRoute() {
 
   if (isInitialLoading) {
     return (
-      <div className="grid gap-5 p-1 max-w-[1180px] mx-auto">
+      <div className="ns-page grid gap-5 py-1">
         <Skeleton className="h-[200px]" />
         <div
           className="grid gap-4"
@@ -1911,7 +1911,7 @@ export function CashFlowRoute() {
   }
 
   return (
-    <div className="px-4 pt-6 pb-28 sm:px-8 sm:pb-[120px] max-w-[1180px] mx-auto">
+    <div className="ns-page pt-6 pb-28 sm:pb-[120px]">
       {/* Header */}
       <div className="flex items-end justify-between gap-4 mb-[22px] flex-wrap">
         <div>

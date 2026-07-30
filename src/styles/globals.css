@@ -28,6 +28,14 @@
   --ns-s-4: 16px;  --ns-s-5: 20px; --ns-s-6: 24px;  --ns-s-7: 32px;
   --ns-s-8: 40px;  --ns-s-9: 56px; --ns-s-10: 80px;
 
+  /* Page shell width contract (plan 279) — consumed by .ns-page below.
+     1180 used to be hard-coded in 9 places; it only ever bound above ~1420px
+     viewport (240px sidebar + 1180), which is exactly where operators reported
+     dead gutters. 1920 is the readability ceiling: a 27" (2560) display now
+     fills edge to edge, 4K/5K stops before a table row spans 2500px. */
+  --ns-page-max: 1920px;
+  --ns-page-gutter: 32px;
+
   /* Radii */
   --ns-r-xs: 6px; --ns-r-sm: 10px; --ns-r-md: 14px;
   --ns-r-lg: 18px; --ns-r-xl: 24px; --ns-r-full: 999px;
@@ -946,11 +954,30 @@ textarea:focus-visible {
 .num  { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; }
 .mono { font-family: var(--ns-font-mono); font-variant-numeric: tabular-nums lining-nums; letter-spacing: -0.01em; }
 
+/* ── Page shell: the single width + gutter contract for top-level routes ──
+   Every capped route wraps its content in .ns-page. Vertical padding stays
+   with each route (they differ); only the horizontal gutter and the width
+   ceiling live here. */
+.ns-page {
+  width: 100%;
+  max-width: var(--ns-page-max);
+  margin-inline: auto;
+  padding-inline: var(--ns-page-gutter);
+}
+/* Phones: match the 16px the routes previously got from Tailwind `px-4`. */
+@media (max-width: 639px) {
+  :root { --ns-page-gutter: 16px; }
+}
+/* Wide desktop: a little more breathing room now that content reaches 1920. */
+@media (min-width: 1600px) {
+  :root { --ns-page-gutter: 48px; }
+}
+
 /* ── Detail pages: cash-flow category / merchant ── */
 .ns-detail-page {
-  max-width: 1180px;
+  max-width: var(--ns-page-max);
   margin: 0 auto;
-  padding: 24px 32px 120px;
+  padding: 24px var(--ns-page-gutter) 120px;
 }
 .ns-detail-header {
   display: flex;
