@@ -777,11 +777,14 @@ export function InvestmentsAnalyticsTab({
         style={{ position: "absolute", width: 1, height: 1 }}
       />
       <nav
-        className="ns-scroll-edge sticky top-0 z-20 flex items-center gap-1 -mb-2 overflow-x-auto"
+        className="ns-scroll-edge sticky z-20 flex items-center gap-1 -mb-2 overflow-x-auto"
         data-stuck={navStuck}
         style={{
           padding: "8px 0",
           background: "var(--ns-bg)",
+          // plan 284: clear the notch / macOS strip / demo banner, and (once
+          // Phase B lands) the condensed page chrome above.
+          top: "calc(var(--ns-sticky-top) + var(--ns-demo-banner-h) + var(--ns-page-chrome-h))",
         }}
       >
         {sections.map((s) => {

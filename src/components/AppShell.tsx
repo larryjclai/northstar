@@ -148,6 +148,22 @@ export function AppShell() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+  // The banner wraps at narrow widths, so its height can't be a constant —
+  // every sticky element below it offsets by this measured value.
+  const bannerRef = useRef<HTMLDivElement>(null);
+  const [bannerHeight, setBannerHeight] = useState(0);
+  useEffect(() => {
+    const el = bannerRef.current;
+    if (!el) {
+      setBannerHeight(0);
+      return;
+    }
+    const measure = () => setBannerHeight(el.offsetHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [demoActive]);
   const shellQueryClient = useQueryClient();
 
   async function handleExitDemo() {
@@ -176,6 +192,8 @@ export function AppShell() {
       style={{
         gridTemplateColumns: collapsed ? "64px 1fr" : "240px 1fr",
         transition: "grid-template-columns var(--ns-dur) var(--ns-ease)",
+        // Consumed by the sticky contract — see globals.css.
+        ["--ns-demo-banner-h" as string]: `${bannerHeight}px`,
       }}
     >
       {/* macOS overlay title bar: full-width draggable strip; hidden on non-macOS via CSS. */}
@@ -490,12 +508,13 @@ export function AppShell() {
       >
         {demoActive ? (
           <div
+            ref={bannerRef}
             className="ns-scroll-edge flex items-center gap-3 text-body py-2 px-4 accent"
             data-stuck={bannerStuck}
             style={{
               background: "var(--ns-accent-soft)",
               position: "sticky",
-              top: 0,
+              top: "var(--ns-sticky-top)",
               zIndex: 30,
             }}
           >
