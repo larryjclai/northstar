@@ -82,6 +82,48 @@ Cargo.lock 會記錄 optional 相依的解析結果，Dependabot 讀鎖檔、看
 （縮排／換行變了）。對已 DONE 的計畫無害——它們是記錄。但若日後要重跑某份舊計畫，
 drift check 會亮，需要先刷新 excerpt。目前沒有 TODO 的舊計畫，所以不擋任何事。
 
+## 🧹 2026-07-31 收尾 — 死 token 併入、260 保存分支退場、分支/worktree 清理 @ `d7e652d6`
+
+### `fix/ai-dead-shadow-token` — reviewed+APPROVED，**已 merge**（`d7e652d6`）
+
+從本批的順手發現長成一份完整修正。**advisor 複驗要點**：
+
+- 它比原始任務**多做了兩件事**（a11y 修正 + 新增測試檔），advisor 逐項查證後判定**都成立**：
+  - `--ns-warn-soft` 在 main **確實未定義**（`grep -- "--ns-warn-soft:"` 零命中），
+    而 `--ns-warning-soft` **是有定義的真 token**（3 處，含深色主題）。分支是把死引用改成活的，
+    **不是**反過來引入新的死 token —— 這是我一開始最擔心的失敗模式，實際查證後排除。
+  - ConnectSection 七個警告面板原本落在 fallback 上，其中兩個是寫死的 `#fef3c7`；
+    深色模式下等於淺琥珀底 + `--ns-warn` 文字，**對比 1.53:1**（實質不可讀）。改後 7.96:1。
+- 新增的 `src/styles/designTokens.test.ts` 是**真測試**：走訪原始碼樹、收集已定義 token 與所有
+  `var(--ns-*)` 引用，對「無 fallback 且指向未定義 token」的引用 fail。而且它自帶**反空轉 canary**
+  （檔案 > 100、定義 > 50、引用 > 100），避免 refactor 後掃不到東西還綠燈。
+- **在 merge 結果上驗收，而非只驗分支**：tsc/lint(0 errors)/format/build 全 0、
+  **132 檔 / 1530 測試**、playwright 6/6、死引用殘留 **0**。
+  順帶交叉驗證：279/280/281 新增的 `--ns-page-max` / `--ns-page-gutter` / `--ns-shadow-strong`
+  全部通過這支新 guard test。
+
+### `wip/ai-plan260-blocked` — **判定不可 merge**，已標籤保存後刪除
+
+operator 要求「兩支都併進去」，但這支經查**不能併**，advisor 沒有照做，改為回報後保存刪除：
+
+- 它自己的 commit message 就寫著 BLOCKED，且會讓 `repositories.creditGroup.test.ts` **倒 2 個測試**。
+- index 早已記錄 260 **SUPERSEDED by 268**：前提是錯的 —— 那三個 backfill/heal 函式是**持續性
+  資料自癒**，gate 掉會讓同步進來的髒資料**永遠不被修**。對理財 App 是資料完整性問題，不是風格議題。
+- advisor 實地複核 268 的重寫**確實在 main**（`repositories.ts:3348 runSchemaDdl`），
+  且 260 當初弄倒的那支測試在 main 上 **20/20 全過**。
+- 刪除前先打標籤 **`archive/plan260-blocked-2026-07-31`**（指向 `fe24855e`），
+  隨時可用 `git checkout -b <name> archive/plan260-blocked-2026-07-31` 復原。
+
+### 清理結果
+
+- **刪除 worktree 3 個**（advisor 自己派工建立的 agent worktree）。
+- **刪除分支 7 條**：3 條已合併的計畫分支（279/280/281）+ 3 條 harness 自動建立的
+  `worktree-agent-*` + 1 條 `wip/ai-plan260-blocked`（已標籤）。
+- **刻意保留**：`fix/ai-dead-shadow-token` 分支與 `jolly-elion-abcc46` worktree ——
+  該 worktree 裡**還有另一個 Claude session 活著**（`lsof` 查到 pid 34960 的 cwd 在其中），
+  在別人腳下砍目錄會弄壞那個 session。等該 session 關閉後可自行刪除。
+- **未動**：`archive/*`、`backup/*`、`claude/jolly-elion-abcc46` —— 都是 operator 自己的長期分支。
+
 ## 279–280 — 桌機寬度 + 總覽趨勢圖（`/improve plan` @ `27e3c8e1`, 2026-07-30）
 
 Operator 兩項回報，兩份計畫。**都是呈現層，零財務計算變更。**
