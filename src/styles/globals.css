@@ -691,6 +691,34 @@ html[data-native-glass][data-theme="dark"] .ns-sidebar {
   border-bottom-color: var(--ns-border);
 }
 
+/* ── Top-edge contract (plan 284) ──────────────────────────────────────────
+   Where the topmost pinned element may sit. Three things already occupy the
+   viewport's top edge and every sticky element must clear all of them:
+     1. iOS notch / Dynamic Island  → env(safe-area-inset-top). The
+        `padding-top` on .ns-app-main does NOT help: sticky offsets resolve
+        against the viewport, not against an ancestor's padding.
+     2. macOS overlay title bar     → the 28px fixed .ns-titlebar-drag strip.
+        NOT --ns-titlebar-inset (40px) — that sizes sidebar padding, not the
+        strip, and using it here overshoots by 12px.
+     3. the demo-mode banner        → measured at runtime by AppShell into
+        --ns-demo-banner-h, because it wraps at narrow widths (47px at 390px
+        and at 1440px today, but that is data, not a constant).
+
+   Anything pinned below the page chrome adds --ns-page-chrome-h on top.
+
+   Both -h vars are overwritten at runtime by inline styles, but MUST still be
+   declared here: src/styles/designTokens.test.ts counts a token as "defined"
+   only from a CSS declaration or a plain quoted key in a TSX style object
+   (`collectDefinedTokens`, designTokens.test.ts:49-58) — a computed key like
+   `["--ns-x" as string]:` does not match, so without these lines every var()
+   below reads as a reference to an undefined token and that suite fails. */
+html { --ns-sticky-top: env(safe-area-inset-top, 0px); }
+html[data-native-glass] { --ns-sticky-top: calc(28px + env(safe-area-inset-top, 0px)); }
+.ns-app-shell {
+  --ns-demo-banner-h: 0px;
+  --ns-page-chrome-h: 0px;
+}
+
 /* Native apps cut between views; honor the OS "reduce motion" setting. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
