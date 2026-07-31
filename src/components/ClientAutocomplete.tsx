@@ -3,7 +3,7 @@ import type { Client } from "../domain/types";
 
 /**
  * 客戶 autocomplete for the 開發票 flow (plan 191 step 2/5) — mirrors
- * `MerchantAutocomplete` (`QuickAdd.tsx`): a plain text input with a
+ * `SuggestInput` (`QuickAdd.tsx`): a plain text input with a
  * lightweight filtered dropdown, free text still allowed. Selecting an
  * existing client hands back the full `Client` record so the caller can reuse
  * its 統編/收款期限 the same way merchant selection reuses a learned category

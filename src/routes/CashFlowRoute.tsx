@@ -33,7 +33,7 @@ import {
   YAxis,
 } from "recharts";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
-import { MerchantAutocomplete } from "../components/MerchantAutocomplete";
+import { SuggestInput } from "../components/SuggestInput";
 import { groupByDay, groupByMonth } from "./cashFlowGrouping";
 import { CategoriesTab } from "./CategoriesTab";
 import { MerchantsTab } from "./MerchantsTab";
@@ -66,6 +66,7 @@ import { useToast } from "../components/Toast";
 import { activeFilterChips } from "./activeFilterChips";
 import type { ClientDraft, InvoiceDraft, LedgerDraft, TransferDraft } from "../data/repositories";
 import {
+  buildLedgerLabelStats,
   buildLedgerSuggestions,
   buildMerchantCategoryMap,
   buildOutstandingSettlements,
@@ -470,6 +471,11 @@ export function CashFlowRoute() {
   const merchantPool = useMemo(
     () => uniqueClean([...merchants, ...ledgerRows.map((row) => row.merchant)]),
     [merchants, ledgerRows],
+  );
+  // 名稱 autocomplete 的來源：純粹來自帳目歷史（沒有對應的 settings 陣列 —— 計畫 282 決定 A）。
+  const namePool = useMemo(
+    () => buildLedgerLabelStats(ledgerRows, "name").map((s) => s.value),
+    [ledgerRows],
   );
   // Each merchant's most-used (category, subcategory) from expense history, so
   // picking a merchant can auto-fill its usual category.
@@ -2747,6 +2753,7 @@ export function CashFlowRoute() {
         setDueDate={setDueDate}
         categories={categories}
         merchantPool={merchantPool}
+        namePool={namePool}
         categorySuggestions={categorySuggestions}
         categoryForMerchant={categoryForMerchant}
         accountRows={accountRows}
@@ -3677,6 +3684,7 @@ function EntryDrawer({
   setDueDate,
   categories,
   merchantPool,
+  namePool,
   categorySuggestions,
   categoryForMerchant,
   accountRows,
@@ -3727,6 +3735,7 @@ function EntryDrawer({
   setDueDate: (value: string) => void;
   categories: Array<{ name: string; children: string[]; color?: string; iconName?: string }>;
   merchantPool: string[];
+  namePool: string[];
   categorySuggestions: { merchants: string[]; accountIds: string[] };
   categoryForMerchant: (merchant: string) => { category: string; subcategory: string } | null;
   accountRows: Array<
@@ -4679,17 +4688,18 @@ function EntryDrawer({
               <div>
                 <div className="grid grid-cols-2 gap-3.5">
                   <DrawerField label="名稱">
-                    <input
-                      className="ns-input"
+                    <SuggestInput
                       value={ledgerForm.name}
-                      onChange={(e) => setLedgerForm({ ...ledgerForm, name: e.target.value })}
+                      options={namePool}
+                      onChange={(next) => setLedgerForm({ ...ledgerForm, name: next })}
                       placeholder={type === "expense" ? "計程車" : "月薪"}
+                      ariaLabel="名稱建議"
                     />
                   </DrawerField>
                   <DrawerField label="商家 / 來源">
-                    <MerchantAutocomplete
+                    <SuggestInput
                       value={ledgerForm.merchant}
-                      merchants={merchantPool}
+                      options={merchantPool}
                       onChange={(next) => {
                         const patch = { ...ledgerForm, merchant: next };
                         // Reverse path: typing a merchant auto-fills its usual category,
@@ -4704,6 +4714,7 @@ function EntryDrawer({
                         setLedgerForm(patch);
                       }}
                       placeholder={type === "expense" ? "UBER" : "公司"}
+                      ariaLabel="商家建議"
                     />
                   </DrawerField>
                 </div>

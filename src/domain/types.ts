@@ -67,7 +67,7 @@ export interface Book extends SyncFields {
  * 客戶主檔 (Client master) — plan 190 §"客戶主檔". First-class record, one per
  * business counterparty a company book issues invoices to. Auto-filled via
  * the existing merchant-autocomplete pattern (see `chooseMerchant` /
- * `MerchantAutocomplete` in `QuickAdd.tsx`) — plan 191's UI concern, not this
+ * `SuggestInput` in `QuickAdd.tsx`) — plan 191's UI concern, not this
  * plan's.
  */
 export interface Client extends SyncFields {

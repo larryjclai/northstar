@@ -23,6 +23,7 @@ export * from "./groupClassifier";
 export * from "./categoryKeywords";
 export * from "./categoryKind";
 export * from "./merchantCategory";
+export * from "./ledgerLabels";
 export * from "./bulkCategorize";
 export * from "./parseAmount";
 export * from "./parseDate";

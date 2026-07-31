@@ -55,8 +55,14 @@ import {
 import { getFinanceRepository, type RepositorySnapshot } from "../../data/repositories";
 import { enterDemoMode, exitDemoMode, clearAllData } from "../../data/demoData";
 import { useDemoMode } from "../../state/demoMode";
-import { COMMON_TIMEZONES, isValidTimezone } from "../../domain";
-import type { AppSettings, CategoryGroup, DailyFxRate, ExchangeRate } from "../../domain";
+import { buildMerchantMasterList, COMMON_TIMEZONES, isValidTimezone } from "../../domain";
+import type {
+  AppSettings,
+  CategoryGroup,
+  DailyFxRate,
+  ExchangeRate,
+  LedgerTransaction,
+} from "../../domain";
 import type { SyncConflictRecord } from "../../domain/sync";
 import { useRefreshFxRates } from "../../features/market-data/useMarketRefresh";
 import {
@@ -113,8 +119,12 @@ export function SettingsMerchants({
   setForm,
   submit,
   t,
+  ledgerRows,
   renameMerchant,
-}: SettingsTabProps & { renameMerchant: (oldName: string, newName: string) => Promise<unknown> }) {
+}: SettingsTabProps & {
+  ledgerRows: LedgerTransaction[];
+  renameMerchant: (oldName: string, newName: string) => Promise<number>;
+}) {
   const toast = useToast();
   const [search, setSearch] = useState("");
   const [editingMerchant, setEditingMerchant] = useState<string | null>(null);
@@ -125,9 +135,18 @@ export function SettingsMerchants({
   // Enter/Escape already resolved the edit (otherwise every save runs twice).
   const skipBlurRef = useRef(false);
 
-  const filtered = form.merchants.filter((m: string) =>
-    m.toLowerCase().includes(search.toLowerCase()),
+  // Plan 282: the master list is the union of settings.merchants (curated
+  // seeds, may be unused) and every merchant actually seen in ledger history
+  // (may not be in settings.merchants) — mirrors CashFlowRoute's merchantPool
+  // so the settings list and the entry form's dropdown never disagree.
+  const master = useMemo(
+    () => buildMerchantMasterList(ledgerRows, form.merchants),
+    [ledgerRows, form.merchants],
   );
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return q ? master.filter((m) => m.value.toLowerCase().includes(q)) : master;
+  }, [master, search]);
 
   function addMerchant() {
     const next = newMerchant.trim();
@@ -166,15 +185,18 @@ export function SettingsMerchants({
     skipBlurRef.current = true;
     setEditingMerchant(null);
     if (!next || next === oldName) return;
-    if (form.merchants.includes(next)) {
-      toast.error("商家已存在");
-      return;
-    }
-    await renameMerchant(oldName, next);
+    // Renaming onto an existing merchant is a deliberate merge (plan 282
+    // decision B) — cleaning up near-duplicate merchant names is the main use
+    // case, so this no longer blocks like `addMerchant` does.
+    const n = await renameMerchant(oldName, next);
     // The settings query is seeded into local `form` only once, so mirror the
     // rename into `form` here — otherwise the list keeps showing the old name.
-    setForm({ ...form, merchants: form.merchants.map((m: string) => (m === oldName ? next : m)) });
-    toast.success("已更新商家");
+    // Dedupe in case `next` already existed in form.merchants (merge).
+    setForm({
+      ...form,
+      merchants: [...new Set(form.merchants.map((m: string) => (m === oldName ? next : m)))],
+    });
+    toast.success(`已更新 ${n} 筆`);
   }
 
   return (
@@ -192,7 +214,7 @@ export function SettingsMerchants({
             className="text-xs"
             style={{ marginBottom: 4, color: "var(--ns-fg-muted)", fontWeight: 500 }}
           >
-            Auto-categorisation · {form.merchants.length} merchants
+            Auto-categorisation · {master.length} merchants
           </div>
           <h2
             style={{
@@ -236,7 +258,7 @@ export function SettingsMerchants({
             padding: "10px 20px",
             borderBottom: "1px solid var(--ns-border)",
             display: "grid",
-            gridTemplateColumns: "1fr 80px",
+            gridTemplateColumns: "1fr 72px 80px",
             fontSize: 10.5,
             color: "var(--ns-fg-dim)",
             fontFamily: "var(--ns-font-mono)",
@@ -245,13 +267,14 @@ export function SettingsMerchants({
           }}
         >
           <span>{t("settings.merchantName")}</span>
+          <span>{t("settings.usageCount")}</span>
           <span />
         </div>
         {adding && (
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 80px",
+              gridTemplateColumns: "1fr 72px 80px",
               alignItems: "center",
               padding: "13px 20px",
               borderTop: "1px solid var(--ns-border)",
@@ -274,6 +297,7 @@ export function SettingsMerchants({
               }}
               onBlur={addMerchant}
             />
+            <span />
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <Button variant="ghost" size="icon-sm" aria-label="新增商家" onClick={addMerchant}>
                 <CheckCircle size={16} />
@@ -281,18 +305,18 @@ export function SettingsMerchants({
             </div>
           </div>
         )}
-        {filtered.map((m: string, i: number) => (
+        {filtered.map((m, i) => (
           <div
-            key={m}
+            key={m.value}
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 80px",
+              gridTemplateColumns: "1fr 72px 80px",
               alignItems: "center",
               padding: "13px 20px",
               borderTop: i ? "1px solid var(--ns-border)" : "none",
             }}
           >
-            {editingMerchant === m ? (
+            {editingMerchant === m.value ? (
               <input
                 autoFocus
                 className="ns-input"
@@ -300,7 +324,7 @@ export function SettingsMerchants({
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") saveEdit(m);
+                  if (e.key === "Enter") saveEdit(m.value);
                   if (e.key === "Escape") cancelEdit();
                 }}
                 onBlur={() => {
@@ -308,33 +332,36 @@ export function SettingsMerchants({
                     skipBlurRef.current = false;
                     return;
                   }
-                  saveEdit(m);
+                  saveEdit(m.value);
                 }}
               />
             ) : (
-              <div style={{ fontSize: 14, fontWeight: 500 }}>{m}</div>
+              <div style={{ fontSize: 14, fontWeight: 500 }}>{m.value}</div>
             )}
+            <span className="text-xs muted">{m.count > 0 ? `${m.count} 筆` : "未使用"}</span>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
-              {editingMerchant !== m && (
+              {editingMerchant !== m.value && (
                 <Button
                   variant="ghost"
                   size="icon-sm"
                   aria-label="編輯"
                   style={{ color: "var(--ns-fg-muted)" }}
-                  onClick={() => startEdit(m)}
+                  onClick={() => startEdit(m.value)}
                 >
                   <PencilSimple size={14} />
                 </Button>
               )}
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="刪除"
-                style={{ color: "var(--ns-neg)" }}
-                onClick={() => deleteMerchant(m)}
-              >
-                <Trash size={14} />
-              </Button>
+              {form.merchants.includes(m.value) && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="刪除"
+                  style={{ color: "var(--ns-neg)" }}
+                  onClick={() => deleteMerchant(m.value)}
+                >
+                  <Trash size={14} />
+                </Button>
+              )}
             </div>
           </div>
         ))}

@@ -1,22 +1,26 @@
 import { useMemo, useState } from "react";
 
-// ── 商家 autocomplete (plan 180) ─────────────────────────────────────────────
-// Free-text input with a lightweight filtered dropdown of known merchants.
-// Deliberately not the Popover+Command combobox (AccountFilter): that pattern
-// wraps a button trigger, but this field must stay a plain text input.
+// ── Free-text autocomplete (plan 180, generalized in plan 282) ─────────────
+// Free-text input with a lightweight filtered dropdown of known suggestions
+// (merchants, transaction names, …). Deliberately not the Popover+Command
+// combobox (AccountFilter): that pattern wraps a button trigger, but this
+// field must stay a plain text input.
 
-export function MerchantAutocomplete({
+export function SuggestInput({
   value,
-  merchants,
+  options,
   onChange,
   placeholder = "選填",
+  ariaLabel = "建議",
 }: {
   value: string;
-  /** Known merchant names, ranked by history frequency (unfiltered — the component filters). */
-  merchants: string[];
+  /** Known suggestion values, ranked by history frequency (unfiltered — the component filters). */
+  options: string[];
   /** Called for both typing and selecting an entry. */
   onChange: (v: string) => void;
   placeholder?: string;
+  /** aria-label for the suggestion dropdown's listbox. */
+  ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
@@ -26,15 +30,15 @@ export function MerchantAutocomplete({
     // Substring filter (case-insensitive; CJK needs no tokenization). Hide the
     // exact current value — the dropdown would only repeat what's typed.
     const pool = q
-      ? merchants.filter((m) => m.toLowerCase().includes(q) && m.toLowerCase() !== q)
-      : merchants;
+      ? options.filter((m) => m.toLowerCase().includes(q) && m.toLowerCase() !== q)
+      : options;
     return pool.slice(0, 8);
-  }, [value, merchants]);
+  }, [value, options]);
 
   const visible = open && matches.length > 0;
 
-  function select(merchant: string) {
-    onChange(merchant);
+  function select(option: string) {
+    onChange(option);
     setOpen(false);
   }
 
@@ -77,7 +81,7 @@ export function MerchantAutocomplete({
       {visible ? (
         <div
           role="listbox"
-          aria-label="商家建議"
+          aria-label={ariaLabel}
           style={{
             position: "absolute",
             top: "calc(100% + 4px)",
@@ -93,9 +97,9 @@ export function MerchantAutocomplete({
             boxShadow: "var(--ns-shadow-strong)",
           }}
         >
-          {matches.map((merchant, i) => (
+          {matches.map((option, i) => (
             <button
-              key={merchant}
+              key={option}
               type="button"
               role="option"
               aria-selected={i === highlight}
@@ -104,7 +108,7 @@ export function MerchantAutocomplete({
               // dropdown before the selection lands.
               onMouseDown={(e) => {
                 e.preventDefault();
-                select(merchant);
+                select(option);
               }}
               onMouseEnter={() => setHighlight(i)}
               style={{
@@ -120,7 +124,7 @@ export function MerchantAutocomplete({
                 color: "var(--ns-fg)",
               }}
             >
-              {merchant}
+              {option}
             </button>
           ))}
         </div>

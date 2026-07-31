@@ -5,16 +5,20 @@ import {
   Gear,
   Tag,
   Percent,
+  PencilSimple,
 } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { useSearch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useFinanceData, useRepositoryMutation } from "../data/hooks";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useFinanceData, useRepository, useRepositoryMutation, queryKeys } from "../data/hooks";
+import { noteLocalChange } from "../features/connect/sync/pushScheduler";
 import { Button } from "../components/coss/button";
 import { Skeleton } from "../components/coss/skeleton";
 import type { AppSettings } from "../domain";
 import { SettingsCategories } from "./settings/CategoriesSection";
 import { SettingsMerchants } from "./settings/MerchantsSection";
+import { SettingsNames } from "./settings/NamesSection";
 import { SettingsFX } from "./settings/FxSection";
 import { SettingsExport } from "./settings/ExportSection";
 import { SettingsGeneral } from "./settings/GeneralSection";
@@ -32,7 +36,8 @@ const emptySettings: AppSettings = {
 // ./settings/*Section.tsx (split 2026-06-10; this file was 2,300+ lines).
 export function SettingsRoute() {
   const { t } = useTranslation();
-  const { settings, dailyFxRates, isInitialLoading, isError, error, refetchAll } = useFinanceData();
+  const { settings, dailyFxRates, ledger, isInitialLoading, isError, error, refetchAll } =
+    useFinanceData();
   const [form, setForm] = useState(emptySettings);
   const seededRef = useRef(false);
   const updateSettings = useRepositoryMutation(
@@ -44,11 +49,36 @@ export function SettingsRoute() {
       repository.renameCategory(input.oldName, input.newName),
     ["settings", "ledger"],
   );
-  const renameMerchantMutation = useRepositoryMutation(
-    (repository, input: { oldName: string; newName: string }) =>
-      repository.renameMerchant(input.oldName, input.newName),
-    ["settings", "ledger"],
-  );
+  // renameMerchant / renameLedgerName now return the changed-row count (plan
+  // 282) so the settings UI can toast "已更新 N 筆". `useRepositoryMutation`'s
+  // action is typed `Promise<void>`, so these two use `useMutation` directly
+  // (same shape: invalidate + noteLocalChange for the sync push scheduler)
+  // instead of widening that shared helper for two call sites.
+  const repository = useRepository();
+  const queryClient = useQueryClient();
+  const renameMerchantMutation = useMutation({
+    mutationFn: async (input: { oldName: string; newName: string }) => {
+      if (!repository.data) throw new Error("Repository is not ready.");
+      return repository.data.renameMerchant(input.oldName, input.newName);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.ledger }),
+      ]);
+      noteLocalChange();
+    },
+  });
+  const renameLedgerNameMutation = useMutation({
+    mutationFn: async (input: { oldName: string; newName: string }) => {
+      if (!repository.data) throw new Error("Repository is not ready.");
+      return repository.data.renameLedgerName(input.oldName, input.newName);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.ledger });
+      noteLocalChange();
+    },
+  });
 
   useEffect(() => {
     if (!settings.data) return;
@@ -60,7 +90,7 @@ export function SettingsRoute() {
   // Deep-link support: `/settings?tab=<id>` opens directly on a known tab
   // (e.g. investment accounts → 交易成本). Unknown ids fall back to categories.
   const search = useSearch({ from: "/settings" });
-  const TAB_IDS = ["categories", "merchants", "fx", "export", "tradingFees", "general"];
+  const TAB_IDS = ["categories", "merchants", "names", "fx", "export", "tradingFees", "general"];
   const [tab, setTab] = useState(
     search.tab && TAB_IDS.includes(search.tab) ? search.tab : "categories",
   );
@@ -68,6 +98,7 @@ export function SettingsRoute() {
   const tabs = [
     { id: "categories", label: t("settings.categories"), icon: <Tag size={14} /> },
     { id: "merchants", label: t("settings.merchants"), icon: <Bank size={14} /> },
+    { id: "names", label: t("settings.names"), icon: <PencilSimple size={14} /> },
     { id: "fx", label: t("settings.fx"), icon: <CurrencyCircleDollar size={14} /> },
     { id: "export", label: t("settings.export"), icon: <DownloadSimple size={14} /> },
     { id: "tradingFees", label: "交易成本", icon: <Percent size={14} /> },
@@ -162,8 +193,18 @@ export function SettingsRoute() {
             setForm={setForm}
             submit={submit}
             t={t}
+            ledgerRows={ledger.data ?? []}
             renameMerchant={(o: string, n: string) =>
               renameMerchantMutation.mutateAsync({ oldName: o, newName: n })
+            }
+          />
+        )}
+        {tab === "names" && (
+          <SettingsNames
+            ledgerRows={ledger.data ?? []}
+            t={t}
+            renameName={(o: string, n: string) =>
+              renameLedgerNameMutation.mutateAsync({ oldName: o, newName: n })
             }
           />
         )}

@@ -507,7 +507,21 @@ export interface FinanceRepository {
     date: string,
     note: string,
   ): Promise<void>;
-  renameMerchant(oldName: string, newName: string): Promise<void>;
+  /**
+   * Rename a merchant everywhere it is referenced: every active ledger row AND
+   * every recurring rule (rules are templates for future rows — leaving them
+   * stale makes the old name reappear next cycle). Renaming onto an existing
+   * merchant merges the two. Returns how many ledger rows changed.
+   */
+  renameMerchant(oldName: string, newName: string): Promise<number>;
+  /**
+   * Rename a transaction display name (`LedgerTransaction.name`) across every
+   * active ledger row. Renaming onto an existing name merges them. Recurring
+   * rules have no `name` column — their generated rows derive the name from the
+   * rule's merchant/category — so nothing to cascade there. Returns how many
+   * ledger rows changed.
+   */
+  renameLedgerName(oldName: string, newName: string): Promise<number>;
   renameCategory(oldName: string, newName: string): Promise<void>;
   renameSubcategory(category: string, oldSub: string, newSub: string): Promise<void>;
   exportSnapshot(): Promise<RepositorySnapshot>;
@@ -2526,17 +2540,39 @@ class BrowserFinanceRepository implements FinanceRepository {
   async renameMerchant(oldName: string, newName: string) {
     const trimmed = newName.trim();
     if (!trimmed) throw new Error("新商家名稱不能為空。");
-    this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) =>
-      row.merchant === oldName ? bump({ ...row, merchant: trimmed }) : row,
+    let changed = 0;
+    this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) => {
+      if (row.deletedAt !== null || row.merchant !== oldName) return row;
+      changed++;
+      return bump({ ...row, merchant: trimmed });
+    });
+    this.data.recurringTransactions = this.data.recurringTransactions.map((row) =>
+      row.deletedAt === null && row.merchant === oldName
+        ? bump({ ...row, merchant: trimmed })
+        : row,
     );
     const current = this.data.settings;
     if (current.merchants.includes(oldName)) {
       this.data.settings = {
         ...current,
-        merchants: current.merchants.map((m) => (m === oldName ? trimmed : m)),
+        merchants: [...new Set(current.merchants.map((m) => (m === oldName ? trimmed : m)))],
       };
     }
     await this.persist();
+    return changed;
+  }
+
+  async renameLedgerName(oldName: string, newName: string) {
+    const trimmed = newName.trim();
+    if (!trimmed) throw new Error("新名稱不能為空。");
+    let changed = 0;
+    this.data.ledgerTransactions = this.data.ledgerTransactions.map((row) => {
+      if (row.deletedAt !== null || row.name !== oldName) return row;
+      changed++;
+      return bump({ ...row, name: trimmed });
+    });
+    await this.persist();
+    return changed;
   }
 
   async renameCategory(oldName: string, newName: string) {
@@ -5176,8 +5212,12 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   override async renameMerchant(oldName: string, newName: string) {
     const trimmed = newName.trim();
     if (!trimmed) throw new Error("新商家名稱不能為空。");
-    await this.db.execute(
+    const result = await this.db.execute(
       `update ledger_transactions set merchant = $1, updated_at = $2, revision = revision + 1 where merchant = $3 and deleted_at is null`,
+      [trimmed, nowIso(), oldName],
+    );
+    await this.db.execute(
+      `update recurring_transactions set merchant = $1, updated_at = $2, revision = revision + 1 where merchant = $3 and deleted_at is null`,
       [trimmed, nowIso(), oldName],
     );
     const settingsRows = await this.db.select<Array<{ value: string }>>(
@@ -5185,13 +5225,24 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
     );
     if (settingsRows[0]) {
       const merchants: string[] = JSON.parse(settingsRows[0].value);
-      const updated = merchants.map((m) => (m === oldName ? trimmed : m));
+      const updated = [...new Set(merchants.map((m) => (m === oldName ? trimmed : m)))];
       await this.db.execute(
         `insert into app_settings (key, value, updated_at) values ('merchants',$1,$2) on conflict(key) do update set value=excluded.value, updated_at=excluded.updated_at`,
         [JSON.stringify(updated), nowIso()],
       );
       await this.bumpSqliteSettingsRevision();
     }
+    return result.rowsAffected;
+  }
+
+  override async renameLedgerName(oldName: string, newName: string) {
+    const trimmed = newName.trim();
+    if (!trimmed) throw new Error("新名稱不能為空。");
+    const result = await this.db.execute(
+      `update ledger_transactions set name = $1, updated_at = $2, revision = revision + 1 where name = $3 and deleted_at is null`,
+      [trimmed, nowIso(), oldName],
+    );
+    return result.rowsAffected;
   }
 
   override async renameCategory(oldName: string, newName: string) {

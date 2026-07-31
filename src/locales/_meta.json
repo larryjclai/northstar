@@ -1378,5 +1378,55 @@
       "v": "Category",
       "t": "2026-07-03T00:26:33.166Z"
     }
+  },
+  "settings.names": {
+    "zh-TW": {
+      "v": "名稱",
+      "t": "2026-07-31T13:22:39.811Z"
+    },
+    "en": {
+      "v": "Names",
+      "t": "2026-07-31T13:22:39.811Z"
+    }
+  },
+  "settings.namesDesc": {
+    "zh-TW": {
+      "v": "這裡列出你記過的所有交易名稱。改名會同步更新所有使用該名稱的交易。",
+      "t": "2026-07-31T13:22:39.811Z"
+    },
+    "en": {
+      "v": "Every transaction name you have used. Renaming updates every transaction that uses it.",
+      "t": "2026-07-31T13:22:39.811Z"
+    }
+  },
+  "settings.nameLabel": {
+    "zh-TW": {
+      "v": "名稱",
+      "t": "2026-07-31T13:22:39.811Z"
+    },
+    "en": {
+      "v": "Name",
+      "t": "2026-07-31T13:22:39.811Z"
+    }
+  },
+  "settings.usageCount": {
+    "zh-TW": {
+      "v": "使用次數",
+      "t": "2026-07-31T13:22:39.811Z"
+    },
+    "en": {
+      "v": "Uses",
+      "t": "2026-07-31T13:22:39.811Z"
+    }
+  },
+  "settings.lastUsed": {
+    "zh-TW": {
+      "v": "最後使用",
+      "t": "2026-07-31T13:22:39.811Z"
+    },
+    "en": {
+      "v": "Last used",
+      "t": "2026-07-31T13:22:39.811Z"
+    }
   }
 }
