@@ -89,7 +89,7 @@ Operator 兩項回報，兩份計畫。**都是呈現層，零財務計算變更
 | Plan | Title                                                                                                                                                                              | Priority | Effort | Depends on          | Status |
 | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------ | ------------------- | ------ |
 | 279  | 全站頁面寬度契約：抽出 `--ns-page-max: 1920px` + `.ns-page`，取代 9 處寫死的 `maxWidth: 1180`。桌機大螢幕不再留死白（2560 螢幕單邊死白 570px → 0）                                  | P2       | S      | —                   | **DONE — reviewed+APPROVED**（未 merge，等 operator）：分支 `fix/ai-page-width` @ `3cdcbb21`，8 檔 / +74 −32。advisor 在 worktree 獨立複驗全部閘門（tsc 0、lint 0 errors／799 既有 warnings、format:check 乾淨、**1512/1512 與 baseline 完全相同**、build 0、playwright 6/6）。**另外自己量了計畫沒要求的東西**：7 種視窗 × 6 條路由的實際 shell 寬度 —— 375→375(gutter 16)、1024→784、1440→1200、1512→1272、1920→1680(gutter 48)、2560→**1920 封頂**（主欄 2320，即單邊 200px 留白）、3840→1920 天花板守住；**每一格 `scrollWidth === clientWidth`，零橫向溢出**（計畫的 STOP 條件之一，執行者沒驗）。列印覆蓋鏈也實測：`.ns-annual-report.ns-page` 在 screen 是 `max-width: 1920px`，`emulateMedia("print")` 後變 `none` / `padding-left: 0`（另一條執行者沒驗的 STOP 條件）。範圍乾淨：out-of-scope 那 5 個路由零命中 |
-| 280  | 總覽 hero 的淨值趨勢從 300×64 裝飾用 sparkline 升級為卡片主圖：X/Y 軸標籤、hover 十字 + tooltip（日期／淨值／相對區間起點的變化）、區間起點 dashed 基準線。順手修掉固定 ±20000 的 Y domain | P2       | M      | 建議排在 279 之後（同檔不同區塊） | TODO   |
+| 280  | 總覽 hero 的淨值趨勢從 300×64 裝飾用 sparkline 升級為卡片主圖：X/Y 軸標籤、hover 十字 + tooltip（日期／淨值／相對區間起點的變化）、區間起點 dashed 基準線。順手修掉固定 ±20000 的 Y domain | P2       | M      | 279（已 merge @ `b7bfd7a1`） | **DONE — reviewed+APPROVED**（未 merge，等 operator）：分支 `feat/ai-hero-trend-chart` @ `36e6d4bf`，4 檔 / +356 −41（新增 `dashboardHeroTrend.ts` + 9 個測試）。閘門全綠：tsc 0、lint 0 errors／799 既有 warnings、format 乾淨、**131 檔 / 1521 測試**（baseline 1512 + 9）、build 0、playwright 6/6。**最關鍵的一條實測成立**：`git diff` 對 `reconciledTrend`/`rangeView`/`longView`/`visibleTrend`/`momChange`/`momPct` 零命中 —— 財務數字來源一行都沒動。**advisor 用 Playwright 真實滑鼠事件獨立複驗**（執行者受 browser pane 限制只能用 click-drag）：X 軸 6 個日期刻度（6/29…7/30，maxTicks=6 均勻分布含頭尾）、Y 軸 4 個 compact 金額刻度、grid、`起點 TWD −7.41萬` 基準線 label、hover 出現十字 + active dot + 三行 tooltip、tooltip 變化數字 class 為 `text-caption num gain`（**走 gain/loss 色軸，無 pos/neg**）。**plan-032 invariant 實測**：hover 最右端點的 tooltip 金額 `617161` 與 hero headline `617161` **完全相同**。隱私模式（⌘⇧H）：Y 軸元素整條消失、基準線 label 消失、圖內 4 位以上數字掃描為 **0**。高度 240/190/160 對應 1440/900/390，三種寬度皆零橫向溢出 |
 
 **Operator 已拍板的兩個決策**（2026-07-30，寫在這裡以免日後重審）：
 
@@ -121,6 +121,37 @@ Operator 兩項回報，兩份計畫。**都是呈現層，零財務計算變更
 
 **同一個教訓的第四次**（269 chunk 數量帶、275 alias 從沒執行、259 被 268 搬家搞失效）：
 **斷言代理指標，代理就會漂走。** 判準要斷言性質（「魔術數字用法為 0」），不要斷言字串出現次數。
+
+### 280 派工的環境教訓：worktree 不是從當前 main 切出來的
+
+第一次派 280 空跑了。**harness 建立的 worktree 基準 commit 是 session 起始的 `27e3c8e1`，不是當前 `main`**，
+所以 advisor 讓執行者「從 worktree 讀已 commit 的計畫」時，那個 commit 裡還沒有 279/280 的計畫檔。
+執行者在第一道 gate 就停住、零檔案變更、worktree 乾淨 —— **正確行為**。
+
+更嚴重的是它避開的第二個後果：那個 worktree **不含 279 的變更**，若硬做下去，280 剛刷新過的
+行號會全部差 3 行，drift check 還會把 279 的變更倒過來顯示成漂移。
+
+修法（第二次派工用的，之後照抄）：強制前置步驟
+`git checkout -b <plan-branch> main` → `git log --oneline -3` 必須看到預期的 main HEAD，
+看不到就 STOP。這同時解決「基準 commit」與「建立計畫指定分支」兩件事。
+
+## 281 — hero 圖 Y 軸整數級距（operator 2026-07-31 指定）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+| ---- | ----- | -------- | ------ | ---------- | ------ |
+| 281  | hero 趨勢圖 Y 軸從 `1.95萬 / 26.95萬` 改成整數級距（`20萬 / 40萬`）：`buildHeroTrendMeta` 加 nice-step 計算與 `yTicks`，domain snap 到刻度邊界 | P3 | S | 280（已 merge @ `adfd17db`） | TODO |
+
+**這份計畫的核心是一條守門測試**：起點 13,000,000、波動 ±10 萬時，Y 軸**不准**一路抓到 0 ——
+那會把線壓成畫面中央一條水平直線，等於把 280 剛救回來的可讀性又打回去，而且更糟
+（使用者會以為淨值一整個月沒動）。級距只從「已 padding 的資料範圍」外擴 snap，永不強迫包含 0。
+
+### 280 落地後唯一的視覺 nit（已由 281 承接）
+
+Y 軸刻度是**非整數**：`1.95萬 / 26.95萬 / 51.95萬 / 72.77萬`。成因是 domain 用
+`[min − pad, max + pad]` 的精確值，Recharts 再等分切刻度。舊版 Y 軸是 `hide` 的所以沒人看見。
+理想是 `0 / 20萬 / 40萬 / 60萬 / 80萬` 這種「nice number」。
+**這不是計畫的缺陷**（280 明文指定了這套 domain 數學，執行者照做），是升級後才浮現的可讀性議題。
+修法是在 `buildHeroTrendMeta` 加一層 nice-number 取整並回傳明確 `ticks` 給 YAxis —— 值得單獨開一份小計畫。
 
 **順手記下、不在這兩份計畫內的**：`AppShell.tsx:537` 的 mobile Quick-Add FAB 引用
 `var(--ns-shadow-xl)`，但 `globals.css` 只定義 `--ns-shadow-1/2` 與別名 `--ns-shadow`/
