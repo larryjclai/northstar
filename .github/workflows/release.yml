@@ -47,8 +47,11 @@ jobs:
   # version has no CHANGELOG section).
   notes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # creates the one draft release the whole matrix uploads into
     outputs:
       body: ${{ steps.extract.outputs.body }}
+      release_id: ${{ steps.release.outputs.release_id }}
     steps:
       # Read CHANGELOG.md as it was AT THE TAG, not at the default branch —
       # otherwise a manual dispatch of an old tag would splice in notes main has
@@ -66,6 +69,69 @@ jobs:
             node scripts/changelog-notes.mjs "$VERSION" || true
             echo "__NOTES_EOF__"
           } >> "$GITHUB_OUTPUT"
+
+      # Create the single draft release the whole matrix uploads into, and hand
+      # its id to every build job.
+      #
+      # ⚠ Why this job owns release creation (v0.2.0-beta.2, 2026-07-31):
+      # previously each of the four matrix jobs passed `tagName` to
+      # tauri-action, so each one looked the release up by tag and created it
+      # if absent. GitHub does NOT bind a DRAFT release to its tag — a draft is
+      # addressable only by id — so that lookup can miss a draft another job
+      # just created, and the jobs raced into TWO releases sharing the tag
+      # `v0.2.0-beta.2`: one holding macOS x86_64 + Linux, the other holding
+      # macOS aarch64 + Windows. Every job reported success. The publish step
+      # flipped one of them live, so `releases/latest` served a latest.json
+      # with no `darwin-aarch64` key at all and every Apple Silicon updater
+      # got "None of the fallback platforms were found" — on the project's
+      # primary platform, with a fully green CI run.
+      #
+      # tauri-action merges latest.json with whatever is already attached to
+      # the release, so pinning all four jobs to one id makes the merge
+      # converge on one complete file instead of two half-files.
+      - id: release
+        name: Create (or reuse) the draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+          BODY: ${{ steps.extract.outputs.body }}
+        run: |
+          set -euo pipefail
+          # Re-runs (workflow_dispatch on a tag already built) must reuse the
+          # existing release rather than add a second one.
+          existing=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+            --jq "[.[] | select(.tag_name == \"$TAG\")] | .[0].id // empty")
+          if [ -n "$existing" ]; then
+            echo "Reusing existing release $existing for $TAG"
+            echo "release_id=$existing" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          {
+            printf '%s\n' "$BODY"
+            cat <<'INSTALL_TABLE'
+
+          ## 安裝方式
+
+          | 平台 | 檔案 |
+          |------|------|
+          | macOS (Apple Silicon) | `Northstar_*_aarch64.dmg` |
+          | macOS (Intel) | `Northstar_*_x64.dmg` |
+          | Windows | `Northstar_*_x64-setup.exe` 或 `.msi` |
+          | Linux (Debian/Ubuntu) | `northstar_*_amd64.deb` |
+          | Linux (通用) | `northstar_*_amd64.AppImage` |
+
+          **macOS 首次開啟提示**：若出現「無法驗證開發者」，請右鍵點擊 app → 選擇「開啟」即可。
+          INSTALL_TABLE
+          } > release-body.md
+          release_id=$(gh api -X POST "repos/${GITHUB_REPOSITORY}/releases" \
+            -f tag_name="$TAG" \
+            -f name="Northstar $TAG" \
+            -F draft=true \
+            -F prerelease=false \
+            -f body="$(cat release-body.md)" \
+            --jq .id)
+          echo "Created draft release $release_id for $TAG"
+          echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
 
   publish-tauri:
     needs: notes
@@ -178,63 +244,91 @@ jobs:
           # leave this unset, which disables sync instead of hardcoding a relay.
           VITE_NORTHSTAR_SYNC_WORKER_URL: ${{ vars.NORTHSTAR_SYNC_WORKER_URL }}
         with:
-          tagName: ${{ inputs.tag || github.ref_name }}
-          releaseName: Northstar ${{ inputs.tag || github.ref_name }}
-          releaseBody: |
-            ${{ needs.notes.outputs.body }}
-
-            ## 安裝方式
-
-            | 平台 | 檔案 |
-            |------|------|
-            | macOS (Apple Silicon) | `Northstar_*_aarch64.dmg` |
-            | macOS (Intel) | `Northstar_*_x64.dmg` |
-            | Windows | `Northstar_*_x64-setup.exe` 或 `.msi` |
-            | Linux (Debian/Ubuntu) | `northstar_*_amd64.deb` |
-            | Linux (通用) | `northstar_*_amd64.AppImage` |
-
-            **macOS 首次開啟提示**：若出現「無法驗證開發者」，請右鍵點擊 app → 選擇「開啟」即可。
-          # Draft until EVERY platform has uploaded. tauri-action publishes
-          # latest.json incrementally per platform job; with draft=false that
-          # meant `releases/latest` could serve a latest.json containing only
-          # the first-finished platform for hours (free macOS runners queue
-          # long), and every mac user checking updates hit "None of the
-          # fallback platforms darwin-aarch64 were found" (v0.1.0-alpha.54,
-          # 2026-07-11). While the draft builds, `releases/latest` keeps
-          # resolving to the PREVIOUS release, so updaters just say
-          # "up to date". The `publish` job below flips the draft live once
-          # the whole matrix succeeds.
-          releaseDraft: true
-          # The repo is public, so release assets download anonymously and the
-          # in-app updater can fetch them directly from this repo. tauri-action
-          # generates latest.json with same-repo URLs; once the publish job
-          # marks the release published (and not prerelease), GitHub points
-          # `releases/latest/download/latest.json` at it.
-          prerelease: false
+          # Upload into the ONE release the `notes` job created. Passing
+          # `releaseId` (instead of `tagName` + release metadata) is what stops
+          # the jobs from each creating their own same-tag draft — see the long
+          # note on the `release` step above. tauri-action ignores the
+          # tagName/releaseName/releaseBody/releaseDraft/prerelease inputs when
+          # releaseId is set: those only ever described a release to CREATE,
+          # and creation now happens exactly once, before the matrix starts.
+          #
+          # The release stays a draft until EVERY platform has uploaded, which
+          # is what keeps `releases/latest` resolving to the PREVIOUS release
+          # while the build runs, so updaters just say "up to date" instead of
+          # fetching a half-written latest.json (v0.1.0-alpha.54, 2026-07-11).
+          # The `publish` job flips it live — but only after verifying all four
+          # platforms are actually present.
+          releaseId: ${{ needs.notes.outputs.release_id }}
           args: ${{ matrix.args }}
 
   # Flip the draft release live only after ALL platform builds uploaded their
   # artifacts + updater entries — this is what guarantees existing installs
   # never see a partial latest.json.
   publish:
-    needs: publish-tauri
+    needs: [notes, publish-tauri]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: write
     steps:
-      - name: Publish the completed draft release
+      # Publishing is gated on the artifacts that are actually attached, not on
+      # the matrix reporting success. In v0.2.0-beta.2 all four build jobs went
+      # green while half the artifacts landed on a second, orphaned draft — a
+      # release cannot be trusted just because CI is.
+      #
+      # The previous version of this step looked the draft up by tag with
+      # `... | head -1`, which is precisely what let that through: with two
+      # same-tag drafts it silently picked one and published it incomplete.
+      # It now addresses the release by the id `notes` created, and refuses to
+      # publish anything missing a platform.
+      - name: Verify all four platforms, then publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag || github.ref_name }}
+          RELEASE_ID: ${{ needs.notes.outputs.release_id }}
         run: |
           set -euo pipefail
-          release_id=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
-            --jq ".[] | select(.tag_name == \"$TAG\" and .draft == true) | .id" | head -1)
-          if [ -z "$release_id" ]; then
-            echo "No draft release found for $TAG — nothing to publish (already live?)"
-            exit 0
+
+          # 1. No second release may share this tag. If one exists, the race
+          #    this workflow was fixed for has recurred in some new form —
+          #    stop rather than publish half a release.
+          others=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+            --jq "[.[] | select(.tag_name == \"$TAG\" and .id != ${RELEASE_ID}) | .id] | join(\" \")")
+          if [ -n "$others" ]; then
+            echo "::error::Another release already carries tag $TAG (ids: $others)."
+            echo "::error::Expected exactly one (id $RELEASE_ID). Refusing to publish a split release."
+            exit 1
           fi
-          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/$release_id" \
+
+          # 2. Every installer must be attached.
+          assets=$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets" --paginate --jq '.[].name')
+          echo "Attached assets:"; echo "$assets" | sed 's/^/  /'
+          missing=""
+          for pattern in '_aarch64\.dmg$' '_x64\.dmg$' 'x64-setup\.exe$' '_amd64\.deb$' '_amd64\.AppImage$' '^latest\.json$'; do
+            echo "$assets" | grep -qE "$pattern" || missing="$missing $pattern"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Release $TAG is missing artifacts matching:$missing"
+            exit 1
+          fi
+
+          # 3. The updater feed must name every platform. This is the check that
+          #    would have caught beta.2: the file existed and was valid JSON, it
+          #    just had no darwin-aarch64 key, so Apple Silicon updaters failed.
+          asset_id=$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets" --paginate \
+            --jq '.[] | select(.name == "latest.json") | .id')
+          gh api -H "Accept: application/octet-stream" \
+            "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" > latest.json
+          echo "latest.json platforms:"
+          jq -r '.platforms | keys[]' latest.json | sed 's/^/  /'
+          for platform in darwin-aarch64 darwin-x86_64 linux-x86_64 windows-x86_64; do
+            jq -e --arg p "$platform" '.platforms | has($p)' latest.json >/dev/null \
+              || { echo "::error::latest.json has no \"$platform\" entry — updaters on that platform would fail."; exit 1; }
+          done
+          jq -e --arg v "${TAG#v}" '.version == $v' latest.json >/dev/null \
+            || { echo "::error::latest.json version does not match $TAG."; exit 1; }
+
+          # 4. Only now make it the release users resolve to.
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" \
             -F draft=false -F make_latest=true >/dev/null
-          echo "Published release $TAG (id $release_id)"
+          echo "Published release $TAG (id $RELEASE_ID) with all four platforms verified."
