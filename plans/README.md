@@ -139,7 +139,22 @@ Operator 兩項回報，兩份計畫。**都是呈現層，零財務計算變更
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 | ---- | ----- | -------- | ------ | ---------- | ------ |
-| 281  | hero 趨勢圖 Y 軸從 `1.95萬 / 26.95萬` 改成整數級距（`20萬 / 40萬`）：`buildHeroTrendMeta` 加 nice-step 計算與 `yTicks`，domain snap 到刻度邊界 | P3 | S | 280（已 merge @ `adfd17db`） | TODO |
+| 281  | hero 趨勢圖 Y 軸從 `1.95萬 / 26.95萬` 改成整數級距（`20萬 / 40萬`）：`buildHeroTrendMeta` 加 nice-step 計算與 `yTicks`，domain snap 到刻度邊界 | P3 | S | 280（已 merge @ `adfd17db`） | **DONE — reviewed+APPROVED**（未 merge，等 operator）：分支 `fix/ai-nice-y-ticks` @ `dc9b88b8`，3 檔 / +133 −11。閘門全綠：tsc 0、lint 0 errors／799 既有 warnings、format 乾淨、**1527 測試**（1521 + 6 新）、build 0、playwright 6/6。`DashboardRoute.tsx` 只多**一行** `ticks={heroTrend.yTicks}`（實測 diff = 3 行含 context，符合「≤6」判準）；財務 memo 鏈 grep 零命中。**守門測試的門檻沒被動過**（`lo > 12_000_000`、`hi − lo < range × 4` 原封不動）。瀏覽器實測（示範資料）：刻度 `−25萬 / 0 / 25萬 / 50萬 / 75萬`，線仍佔繪圖區高度 **61%**（改前 64%）—— 有整齊、沒壓平。⚠️ **執行者兩次被基礎設施中斷**（第一次 API 連線中斷、第二次 stream watchdog stall），Step 4/5 與 commit 由 advisor 接手完成：**程式碼全部是執行者寫的，advisor 只做驗證與 commit**，未改動任何一行實作 |
+
+### ⚠️ 281 帶出的驗證陷阱：Playwright 會重用別的 checkout 起的 dev server
+
+複驗 281 時，advisor 的第一次瀏覽器量測顯示刻度**完全沒變**（仍是 `1.95萬 / 26.95萬`）。
+差一點就據此判定「修法無效」。實際原因是 `playwright.config.ts` 的
+`reuseExistingServer: !process.env.CI` —— 127.0.0.1:5173 上還活著一個**主 checkout**
+起的 dev server（`lsof` 查 pid 的 cwd 確認），於是 worktree 裡跑的 e2e 量到的是 **main 的程式碼**。
+
+**教訓：在 worktree 裡跑 e2e 之前，先確認 5173 是誰的。** 正確做法是自己在 worktree 內起一個
+獨立 port（`npm run dev -- --port 5175 --strictPort`）、用 `lsof -a -p <pid> -d cwd` 驗證它的
+cwd 真的是該 worktree，再讓 probe 走絕對網址。換 port 之後同一支 probe 立刻顯示
+`−25萬 / 0 / 25萬 / 50萬 / 75萬`。
+
+同一批的 280 複驗**不受影響**：那次的 probe 找到了 `.ns-hero-chart` / `.ns-chart-tip` /
+`起點 …` 基準線 —— 這些元素在 280 之前的程式碼裡**根本不存在**，所以它量到的必然是 280 的樹。
 
 **這份計畫的核心是一條守門測試**：起點 13,000,000、波動 ±10 萬時，Y 軸**不准**一路抓到 0 ——
 那會把線壓成畫面中央一條水平直線，等於把 280 剛救回來的可讀性又打回去，而且更糟
