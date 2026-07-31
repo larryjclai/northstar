@@ -910,6 +910,36 @@ textarea:focus-visible {
   min-width: 0;
 }
 
+/* Hero net-worth chart (plan 280) — promoted from a 300×64 decorative
+   sparkline to the hero card's main chart. Tall enough to read a trend,
+   short enough that the pulse strip stays visible on a laptop. Width queries
+   only — WKWebView misreports `pointer: coarse` (plans 244/245). */
+.ns-hero-chart {
+  width: 100%;
+  height: 240px;
+  margin: 6px 0 16px;
+}
+@media (max-width: 1023px) {
+  .ns-hero-chart { height: 190px; }
+}
+@media (max-width: 639px) {
+  .ns-hero-chart { height: 160px; margin: 2px 0 12px; }
+}
+
+/* Custom chart tooltip body — same surface as the recharts `contentStyle`
+   used elsewhere (see GoalsRoute), extracted so a multi-line tooltip can be
+   rendered as real markup instead of a formatter string. */
+.ns-chart-tip {
+  background: var(--ns-bg-elev);
+  border: 1px solid var(--ns-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-shadow: var(--ns-shadow-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 /* ── Analytics / Category responsive grids ─────────────────────────────────
    Inline grids that missed the auto-fit pattern; collapsed via @media query
    matching the existing 640px mobile convention. */
