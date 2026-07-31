@@ -22,7 +22,7 @@ function Tooltip({ text }: { text: string }) {
         whiteSpace: "nowrap",
         pointerEvents: "none",
         zIndex: 5,
-        boxShadow: "var(--ns-shadow-md)",
+        boxShadow: "var(--ns-shadow-strong)",
       }}
     >
       {text}

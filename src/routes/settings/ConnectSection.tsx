@@ -969,7 +969,7 @@ export function ConnectStatus() {
             style={{
               padding: "10px 12px",
               borderRadius: "var(--ns-r-sm)",
-              background: "var(--ns-warn-soft, var(--ns-bg-hover))",
+              background: "var(--ns-warning-soft)",
               color: "var(--ns-warn, #b45309)",
             }}
           >
@@ -1086,7 +1086,7 @@ export function ConnectStatus() {
               variant="outline"
               className="rounded-full text-micro"
               style={{
-                background: "var(--ns-warn-soft, var(--ns-bg-hover))",
+                background: "var(--ns-warning-soft)",
                 color: "var(--ns-warn, #b45309)",
               }}
             >
@@ -1106,7 +1106,7 @@ export function ConnectStatus() {
               variant="outline"
               className="rounded-full text-micro"
               style={{
-                background: "var(--ns-warn-soft, var(--ns-bg-hover))",
+                background: "var(--ns-warning-soft)",
                 color: "var(--ns-warn, #b45309)",
               }}
             >
@@ -1161,7 +1161,7 @@ export function ConnectStatus() {
           style={{
             padding: "10px 12px",
             borderRadius: "var(--ns-r-sm)",
-            background: "var(--ns-warn-soft, var(--ns-bg-hover))",
+            background: "var(--ns-warning-soft)",
             color: "var(--ns-warn, #b45309)",
           }}
         >
@@ -1642,7 +1642,7 @@ export function ConnectStatus() {
                 variant="outline"
                 className="rounded-full text-micro"
                 style={{
-                  background: "var(--ns-warn-soft, #fef3c7)",
+                  background: "var(--ns-warning-soft)",
                   color: "var(--ns-warn, #b45309)",
                 }}
               >
@@ -1661,7 +1661,7 @@ export function ConnectStatus() {
                 variant="outline"
                 className="rounded-full text-micro"
                 style={{
-                  background: "var(--ns-warn-soft, #fef3c7)",
+                  background: "var(--ns-warning-soft)",
                   color: "var(--ns-warn, #b45309)",
                 }}
               >
@@ -1693,7 +1693,7 @@ export function ConnectStatus() {
             style={{
               padding: "10px 12px",
               borderRadius: "var(--ns-r-sm)",
-              background: "var(--ns-warn-soft, var(--ns-bg-hover))",
+              background: "var(--ns-warning-soft)",
               color: "var(--ns-warn, #b45309)",
             }}
           >

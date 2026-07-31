@@ -1281,7 +1281,7 @@ export function DashboardRoute() {
                 padding: "10px 14px",
                 borderRadius: "var(--ns-r-md)",
                 background:
-                  dataHealthReport.errorCount > 0 ? "var(--ns-neg-soft)" : "var(--ns-warn-soft)",
+                  dataHealthReport.errorCount > 0 ? "var(--ns-neg-soft)" : "var(--ns-warning-soft)",
                 border: "1px solid var(--ns-border)",
               }}
             >

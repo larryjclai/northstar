@@ -534,7 +534,7 @@ export function AppShell() {
           background: "var(--ns-accent)",
           color: "var(--ns-accent-fg)",
           border: "none",
-          boxShadow: "var(--ns-shadow-xl)",
+          boxShadow: "var(--ns-shadow-strong)",
         }}
       >
         <Plus size={24} weight="bold" />
