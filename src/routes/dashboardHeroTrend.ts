@@ -7,8 +7,12 @@ export interface HeroTrendPoint {
 }
 
 export interface HeroTrendMeta {
-  /** [min, max] with proportional headroom so the line never touches the frame. */
+  /** [min, max] with proportional headroom, snapped outward to the nearest
+   *  yTicks boundary so the outermost ticks are never clipped. */
   yDomain: [number, number];
+  /** Y-axis tick values, on a nice step; yDomain is snapped to match them so
+   *  the outermost ticks are never clipped. Pass straight to <YAxis ticks>. */
+  yTicks: number[];
   /** First point's value = the baseline the hero delta is measured from. */
   startValue: number;
   /** Last point's value — equals the hero headline number (plan-032 invariant). */
@@ -17,6 +21,20 @@ export interface HeroTrendMeta {
   change: number;
   /** X-axis ticks: a de-duplicated subset of point.date, first and last always in. */
   ticks: string[];
+}
+
+/**
+ * The "nice" step for an axis: 1, 2, 2.5 or 5 × a power of ten — the sequence
+ * that reads cleanly once formatCompactNumber turns it into 萬/億 (20萬, 50萬,
+ * 1億). Derived from the span the data actually occupies, never from zero.
+ */
+function niceStep(span: number, targetTicks: number): number {
+  const raw = span / Math.max(1, targetTicks - 1);
+  const magnitude = 10 ** Math.floor(Math.log10(raw));
+  const normalized = raw / magnitude;
+  const factor =
+    normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10;
+  return factor * magnitude;
 }
 
 /**
@@ -34,7 +52,7 @@ export interface HeroTrendMeta {
  */
 export function buildHeroTrendMeta(
   points: HeroTrendPoint[],
-  options?: { maxTicks?: number },
+  options?: { maxTicks?: number; yTickCount?: number },
 ): HeroTrendMeta | null {
   if (points.length < 2) return null;
 
@@ -43,7 +61,18 @@ export function buildHeroTrendMeta(
   const max = Math.max(...values);
   const range = max - min;
   const pad = range > 0 ? range * 0.15 : Math.max(Math.abs(max) * 0.02, 1);
-  const yDomain: [number, number] = [min - pad, max + pad];
+  const paddedMin = min - pad;
+  const paddedMax = max + pad;
+  const step = niceStep(paddedMax - paddedMin, options?.yTickCount ?? 5);
+  const niceMin = Math.floor(paddedMin / step) * step;
+  const niceMax = Math.ceil(paddedMax / step) * step;
+  const yDomain: [number, number] = [niceMin, niceMax];
+
+  const yTicks: number[] = [];
+  for (let v = niceMin; v <= niceMax + step / 2; v += step) {
+    // Kill float dust (0.1 + 0.2 style) so ticks land on exact multiples.
+    yTicks.push(Math.round(v / step) * step);
+  }
 
   const startValue = points[0].value;
   const endValue = points[points.length - 1].value;
@@ -68,5 +97,5 @@ export function buildHeroTrendMeta(
     if (!ticks.includes(t)) ticks.push(t);
   }
 
-  return { yDomain, startValue, endValue, change, ticks };
+  return { yDomain, yTicks, startValue, endValue, change, ticks };
 }

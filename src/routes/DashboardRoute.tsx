@@ -1761,6 +1761,7 @@ export function DashboardRoute() {
                   />
                   <YAxis
                     domain={heroTrend.yDomain}
+                    ticks={heroTrend.yTicks}
                     tick={{ fill: "var(--ns-fg-muted)", fontSize: 11 }}
                     tickLine={false}
                     axisLine={false}
