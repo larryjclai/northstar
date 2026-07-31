@@ -120,6 +120,23 @@ git push && git push --tags
 （macOS arm64／Intel、Linux、Windows），全部上傳完成後才把 draft release 翻成正式版。
 到這一步就沒事了，直接跳到第 5 步驗收。
 
+> **一個 tag 只會有一個 release（2026-07-31 起）。** `notes` job 先建立唯一那個 draft
+> release，再把它的 id 交給四個 build job（tauri-action 的 `releaseId`）。
+> 在此之前四個 job 各自拿 `tagName` 去「查不到就建立」——而 GitHub **不會**把 draft
+> release 綁到 tag 上（draft 只能用 id 定位），所以查詢會漏掉兄弟 job 剛建好的 draft，
+> 進而分裂成兩個同 tag 的 release。`v0.2.0-beta.2` 就是這樣出事的：macOS x86_64 + Linux
+> 進了 A，**macOS aarch64 + Windows 進了 B**，publish 步驟用 `head -1` 挑中 A 發布，
+> 於是 `latest.json` 完全沒有 `darwin-aarch64` 這個鍵，全部 Apple Silicon 使用者
+> （專案主力平台）按更新都得到 "None of the fallback platforms were found"，
+> 而 **CI 四個 job 全綠**。
+>
+> **`publish` job 現在不信任 CI 綠燈**，翻正式版之前會硬性檢查三件事，任一不過就讓
+> release 失敗而不是發出去：
+> 1. 沒有第二個 release 共用這個 tag
+> 2. 五個安裝檔 + `latest.json` 都掛上去了
+> 3. `latest.json` 裡 `darwin-aarch64` / `darwin-x86_64` / `linux-x86_64` /
+>    `windows-x86_64` 四個鍵齊全，且 `version` 與 tag 相符
+
 > 建置期間 release 維持 draft，`releases/latest` 仍指向前一版，所以 updater 只會回報
 > 「已是最新」，不會拿到只有部分平台的 `latest.json`（v0.1.0-alpha.54 的教訓）。
 

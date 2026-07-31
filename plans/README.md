@@ -82,6 +82,56 @@ Cargo.lock 會記錄 optional 相依的解析結果，Dependabot 讀鎖檔、看
 （縮排／換行變了）。對已 DONE 的計畫無害——它們是記錄。但若日後要重跑某份舊計畫，
 drift check 會亮，需要先刷新 excerpt。目前沒有 TODO 的舊計畫，所以不擋任何事。
 
+## 🚨 2026-07-31 事故 — `v0.2.0-beta.2` 少了 Apple Silicon 與 Windows 產物（CI 全綠）
+
+**症狀**：operator 在 app 內按「檢查更新」得到
+`None of the fallback platforms ["darwin-aarch64-app", "darwin-aarch64"] were found`。
+
+**根因**：同一個 tag 產生了**兩個 release**。四個 build job 各自把 `tagName` 交給
+tauri-action，而它是「用 tag 查詢，查不到就建立」——但 **GitHub 不會把 draft release
+綁到 tag 上**（draft 只能用 id 定位），所以查詢漏掉兄弟 job 剛建好的 draft，分裂成：
+
+| release | 內容 |
+| --- | --- |
+| `363049988`（**已發布**） | macOS x86_64 + Linux；`latest.json` 只有 5 個 platform 鍵 |
+| `363050034`（**孤兒 draft**） | **macOS aarch64 + Windows**；`latest.json` 另外 4 個鍵 |
+
+`publish` job 用 `... | head -1` 找 draft，挑中一個就發布，**另一個連同它的產物永遠沒人看到**。
+四個 job 全部回報 success。
+
+**這是「驗收要掃 binary、不能只看 CI 綠燈」的第二次實例**（第一次是 release CI env）。
+advisor 在發版時只確認了 workflow `completed/success` 就回報完成，**沒有比對產物清單** ——
+這是流程缺口，已寫進 workflow 讓機器來擋。
+
+### 根治（先做）— `fix/ai-release-race`，已 merge @ `ae800509`
+
+1. **一個 tag 只建一個 release**：`notes` job 建立（或重用）唯一的 draft 並輸出 id，
+   四個 build job 改用 tauri-action 的 `releaseId` 上傳。tauri-action 會把 `latest.json`
+   與 release 上既有的合併，所以四個 job 現在收斂到**一份完整檔案**而不是兩份半套。
+2. **`publish` 不再信任 CI 綠燈**：改用 id 定位，並在翻正式版前驗三件事（無第二個同 tag
+   release／五個安裝檔齊全／`latest.json` 四個平台鍵齊全且版本相符），任一不過就 fail。
+
+**這個 guard 是實測過的**，不是寫完就算：拿真實 release 跑驗證腳本 ——
+`v0.2.0-beta.1`（已知正常）exit 0；分裂的 `v0.2.0-beta.2` exit 1（擋在第 1 關）；
+把第 1 關繞過後，第 2 關**獨立**抓到缺少 `_aarch64.dmg` 與 `x64-setup.exe`。兩層各自都能攔。
+
+### 止血（後做）
+
+把孤兒 draft 的 5 個產物搬到已發布的 release、合併兩份 `latest.json`（9 個 platform 鍵，
+與 beta.1 的已知正常集合完全一致）、刪除孤兒 draft。
+
+⚠️ **過程中踩到同一個坑的縮影**：第一次用 `gh release upload v0.2.0-beta.2 …` 上傳，
+**東西又跑進 draft** —— 因為 `gh` 也是用 tag 定位，而當時兩個 release 共用該 tag。
+改用 `releases/<id>/assets` 端點明確指定 id 才成功。**tag 在這種狀態下是不明確的定址方式**，
+這正是 workflow 改用 id 的理由。
+
+驗收（全部實跑）：live release 13 個產物（與 beta.1 相同）、
+`releases/latest/download/latest.json` 回傳 9 個 platform 鍵含 `darwin-aarch64`、
+aarch64 的 `.dmg` 與 `.app.tar.gz` 匿名下載皆 HTTP 200 且大小正確、該 tag 只剩一個 release。
+
+> 備註：換掉 `latest.json` 後約一分鐘內，`releases/latest/download/` 這條路徑仍短暫回傳舊內容
+> （blob storage 最終一致性，redirect 本身是 `no-cache`）。稍等即恢復，不需要額外處理。
+
 ## 🧹 2026-07-31 收尾 — 死 token 併入、260 保存分支退場、分支/worktree 清理 @ `d7e652d6`
 
 ### `fix/ai-dead-shadow-token` — reviewed+APPROVED，**已 merge**（`d7e652d6`）
@@ -209,6 +259,137 @@ Y 軸刻度是**非整數**：`1.95萬 / 26.95萬 / 51.95萬 / 72.77萬`。成�
 理想是 `0 / 20萬 / 40萬 / 60萬 / 80萬` 這種「nice number」。
 **這不是計畫的缺陷**（280 明文指定了這套 domain 數學，執行者照做），是升級後才浮現的可讀性議題。
 修法是在 `buildHeroTrendMeta` 加一層 nice-number 取整並回傳明確 `ticks` 給 YAxis —— 值得單獨開一份小計畫。
+
+## 282–283 — operator 的兩個 UX 需求（`/improve plan` 2026-07-31 @ `f62b3c0b`）
+
+兩份都是 `plan <description>` 模式：operator 直接指定要什麼，advisor 只做「查證現況 + 寫規格」，
+**沒有跑全面 audit**（correctness / security / perf / deps 這批這次完全沒看）。
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+| ---- | ----- | -------- | ------ | ---------- | ------ |
+| 282  | 「名稱」與「商家」比照「分類」：設定裡有完整可搜尋的主檔清單、改名連動所有交易、名稱補上 autocomplete。新增 `renameLedgerName` repository 方法與 `ledgerLabels.ts` 純函式；`renameMerchant` 補上漏掉的週期規則 cascade | P2 | M | — | **IN PROGRESS** — 2026-07-31 派工 sonnet 執行者，worktree 分支 `feat/ai-label-master-list`，計畫 SHA 已刷新為 `3f69a867`（六個 in-scope 檔案零漂移）。⚠️ 與 284 **共用 `src/routes/CashFlowRoute.tsx`**（282 動 ~470 / ~2749 / ~3679 / ~4681；284 動 ~1912-2075 / ~2535），兩邊已指示把改動限制在各自行段以利日後合併 |
+| 283  | ~~記帳 / 投資的頁首 + 分頁列改成 sticky~~ | P3 | M | 279 | **⛔ SUPERSEDED by 284** — 不要派工 |
+| 284  | **取代 283。** Phase A：抽出 `--ns-sticky-top` 頂端邊緣契約，**並修好一個已在線上的 bug**（投資→分析的區塊導覽列在示範模式下被橫幅 100% 蓋住、完全不可點）。Phase B：頁首改成**凝縮式**而非整塊釘住 —— 桌機 132px → ~52px、手機 236px → ~90px，且不需要斷點分岔 | P2 | M | 279（已 merge） | **IN PROGRESS** — 2026-07-31 派工 sonnet 執行者，worktree 分支 `feat/ai-top-edge-contract`，計畫 SHA 已刷新為 `3f69a867`（`main` 在 session 中前進了一個 version-bump commit；五個 in-scope 檔案零漂移） |
+
+### 282 查證出來的三個具體缺口（不是「從零做功能」）
+
+1. **設定的商家清單看不到打字打出來的商家。** `settings/MerchantsSection.tsx:128-130` 只過濾
+   `form.merchants`（預設就 6 個 seed），但 `CashFlowRoute.tsx:470-473` 的表單下拉早就是
+   `settings.merchants ∪ 帳目歷史` 的聯集。**同一份資料，兩個地方不同意**——operator 說的
+   「在設定中有一個完整的商家列表可以讓我搜尋到這個商家」缺的就是這個聯集。
+2. **`renameMerchant` 漏掉 `recurring_transactions`。** 週期規則是未來交易的模板
+   （`repositories.ts:4971-4976` 用 `name: recurring.merchant || recurring.category`），
+   所以改名後**下個月跑出來的那筆會叫回舊名**。這正好違反 operator 要的「所有有連動紀錄的都一起變」。
+3. **名稱完全沒有主檔**：兩處表單（`QuickAdd.tsx:592-599`、`CashFlowRoute.tsx:4681-4688`）都是裸 input。
+
+### 282 的兩個設計決定（寫進計畫，執行者不得自行更改）
+
+- **名稱不新增 `AppSettings.names`。** 商家有 `settings.merchants` 是歷史包袱（它同時餵自動分類
+  的 seed）；名稱不需要 —— 「預先建一個交易名稱」沒有意義，而多一個持久化陣列就多一份要同步、
+  要合併、會與歷史值不一致的狀態（`AppSettings` 參與 E2E 同步）。operator 要的兩件事
+  （改名連動 + autocomplete）**都只需要歷史值**。所以名稱分頁是「衍生清單 + 改名」，沒有新增/刪除。
+- **改名到已存在的值 = 合併，不擋。** 商家分頁現在會 `toast.error("商家已存在")` 硬擋，
+  但合併正是清資料的主要用途（「小半天」+「小半天咖啡」→ 統一）。rename 的 SQL 本來就是
+  「所有等於 old 的改成 new」，合併是天然行為，只要 UI 別擋。**新增**時的重複檢查保留。
+
+### 283 的四個既有互動（這件事沒有看起來單純）
+
+1. 示範模式橫幅已經佔了 `top: 0` 且 `z-index: 30`（`AppShell.tsx:491-501`），而且它**會換行**，
+   高度不是常數 → 必須 runtime 量測成 `--ns-demo-banner-h`。
+2. macOS 有一條 `position: fixed` 的 28px 拖曳條（`globals.css:647`）蓋在最上緣。
+   **順帶發現：現在的示範橫幅就有鑽到它底下的既有 bug**，283 一併修（堆疊要對就必須同基準）。
+   注意 `--ns-titlebar-inset` 是 **40px**，那是 sidebar 內距，**不是**遮擋高度，兩者不可互換。
+3. iOS 瀏海：`main` 的 `paddingTop: env(safe-area-inset-top)` 對 sticky **無效**——
+   sticky 偏移相對 viewport，`top: 0` 就是貼在動態島底下。
+4. **三個既有 sticky 會被新頁首蓋住**：`InvestmentsAnalyticsTab.tsx:780`（同一條路由上的區塊導覽列，
+   `sticky top-0 z-20`）、`CashFlowRoute.tsx:2535`（`lg:top-5`）、`InvestmentsRoute.tsx:916`（`lg:top-4`）。
+
+### 283 的產品決定：手機只釘分頁列 —— **已被 284 推翻**
+
+283 原本的判斷是「`<1024px` 頁首會 `flex-wrap`，釘住等於吃掉太多視窗，所以手機只釘分頁列」。
+方向對，但**用斷點分岔迴避了問題本身**。284 實測後改成凝縮式頁首，一個行為涵蓋所有寬度。
+唯一原封不動保留的是那條紅線：斷點**只能用 `min/max-width`**，**不准用 `pointer: coarse`**
+（Tauri WKWebView 在桌機也回報 coarse，plans 244/245 踩過兩次）。
+
+## 284 — `/impeccable` 重新調查 283 的產出（2026-07-31 @ `f62b3c0b`）
+
+Operator 看完 283 後指定「用 `/impeccable` 更好的調查再給我新的計劃建議」。
+在**真實 dev server 上量測**（不是讀程式碼推論）之後，283 的核心假設被推翻，並且挖出一個線上 bug。
+
+### 🐞 找到一個已經在線上的 bug（與 operator 的需求無關，是量測過程的副產品）
+
+`/investments` → 分析，示範模式，1440×900，`scrollY = 420`，用 `getBoundingClientRect()`
+加 `document.elementFromPoint()` 實測：
+
+```
+分析區塊導覽列 : top 0 → bottom 46   z-index 20   （報酬/貢獻/風險/股利/集中度）
+示範模式橫幅   : top 0 → bottom 47   z-index 30
+垂直重疊       : 46px  ← 導覽列高度的 100%
+elementFromPoint(導覽列中心) → SPAN.flex-1 min-w-0 muted truncate
+nav.contains(hit) → false      banner.contains(hit) → true
+```
+
+**兩者都釘在 `top: 0`**，橫幅 z 較高 → 導覽列被完全蓋住、**點不到**。而它是一個
+**4,294px 高**分頁的主要導覽。截圖上看得見文字互疊。
+
+這證明了一件事：**app 沒有「誰擁有畫面頂端」的規則，而 283 是在這之上再疊一層 sticky。**
+284 把「建立契約 + 修好這個 bug」抽成獨立可出貨的 Phase A。
+
+### 📐 量測數據（示範資料，2026-07-31 dev server）—— 這推翻了 283
+
+| 量測項 | 1440×900 | 1024×768 | 390×780 |
+| --- | --- | --- | --- |
+| 記帳 頁首列 | 64px | 64px | **168px（換行成 3 列）** |
+| 記帳 chrome 合計（頁首+分頁） | 132px（**14.7%**） | 132px（**17.2%**） | **236px（30.3%）** |
+| 投資 chrome 合計 | 130px（14.4%） | — | 180px（**23.1%**） |
+| 示範橫幅 / 手機 dock / 手機 FAB | 47px / — / — | 47px | 47px / 57.5px / 52px |
+
+390×780 上，283 的方案讓可讀內容只剩 **439px = 56% 的螢幕**（236 chrome + 47 橫幅 + 57.5 dock）。
+而且 `記一筆` 在那個 3 列換行的版面裡**孤懸在第 3 列右側**，左邊一整片空白 ——
+這是一個**獨立於 sticky 議題的既有版面缺陷**。
+
+### 💡 284 的設計主張：凝縮，不是凍結
+
+> 頂端固定的東西，應該只保留「捲動中仍然需要」的部分，而不是把靜止狀態的版面整塊搬上去。
+
+捲動時 eyebrow 消失、h1 降到 `--ns-t-title-3`、分頁列與動作併成一列：
+
+- 桌機 **132px → 約 52px（−61%）**；手機 **236px → 約 90px**
+- **不需要斷點分岔**（283 需要），這是它比 283 好的主要理由
+- 順帶修掉手機頁首 3 列換行的既有缺陷
+- 是原生平台的標準模式（iOS large title → inline title），符合 Operate mode 的
+  "earned familiarity" 原則
+
+**約束（已量測）**：1440 內容欄 1136px、凝縮列需 ~800px → 寬鬆；
+**1024 內容欄只有 720px**，800 > 720 → 該寬度分頁列**必須**沿用既有的 `overflow-x: auto` 橫向捲動，
+**不准換行**（換行就白做）。這條寫成了 284 的 STOP condition 之一。
+
+### 🔒 284 用測試釘住「凝縮高度 ≤ 56px」
+
+e2e 直接斷言凝縮後的 chrome 高度上限。理由寫在計畫的 maintenance note 裡：
+**擋住「一次加一個按鈕，一年後回到 132px」**。
+
+### 這次沒審的範圍
+
+`/impeccable` 的機械掃描（`detect.mjs --scope layout`）對五個目標檔回傳 `[]`，
+但那只證明沒有可機械偵測的版面問題 —— 上面那個 100% 遮擋的 bug **它抓不到**，
+是靠命中測試找出來的。correctness / security / perf / deps 這批這次完全沒看。
+
+### 這兩份計畫刻意排除的範圍
+
+- 282 不碰 `MerchantsTab.tsx` / `MerchantDetailRoute.tsx`（那是分析分頁，不是主檔管理）、
+  不碰 `userLexicon.ts` / `nlParser.ts` / `quickAddCorrections.ts`（NLP 學習層會自然 rebuild）、
+  **不碰 `migrations.ts`**（設計上不需要任何 schema 變更；若執行者推導出需要 → STOP）。
+- 283 只動記帳與投資兩條路由，**不全站套用** sticky；不碰 `.ns-detail-page` 那套版面契約。
+
+### 一個寫計畫時才查出來的陷阱（已寫進 283）
+
+`src/styles/designTokens.test.ts` 的 `collectDefinedTokens` 認得兩種定義形狀：CSS 宣告
+`--ns-x:`，以及 TSX style object 裡的**純引號 key** `"--ns-x":`。283 要用的
+`["--ns-demo-banner-h" as string]:` 這種 computed key **不符合它的 regex**，
+所以新 token 一律要在 `globals.css` 也宣告一次，否則整個 suite 會判定成「引用了未定義 token」而轉紅。
+計畫已明文禁止用「把 token 加進 `KNOWN_FALLBACK_ONLY_TOKENS`」的方式繞過
+（那份清單的註解寫著 "Shrink this list; do not grow it"）。
 
 **順手記下、不在這兩份計畫內的**：`AppShell.tsx:537` 的 mobile Quick-Add FAB 引用
 `var(--ns-shadow-xl)`，但 `globals.css` 只定義 `--ns-shadow-1/2` 與別名 `--ns-shadow`/
