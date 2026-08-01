@@ -5,6 +5,7 @@ import { Card } from "./coss/card";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFinanceData, useRepositoryMutation } from "../data/hooks";
 import {
+  buildLedgerLabelStats,
   buildLedgerSuggestions,
   buildMerchantCategoryMap,
   buildUserLexicon,
@@ -28,7 +29,7 @@ import { haptic } from "../lib/haptics";
 import { useUiPreferences } from "../state/uiPreferences";
 import { useToast } from "./Toast";
 import { AccountFilter } from "./AccountFilter";
-import { MerchantAutocomplete } from "./MerchantAutocomplete";
+import { SuggestInput } from "./SuggestInput";
 import { Glyph } from "../lib/icons";
 import { readableTextColor } from "../lib/color";
 
@@ -255,6 +256,14 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
   const merchantOptions = useMemo(
     () => (lexicon ? lexicon.merchants.map((m) => m.name) : [...merchantCat.keys()]),
     [lexicon, merchantCat],
+  );
+
+  // 名稱 autocomplete (plan 282): only from ledger history, deliberately not
+  // via the lexicon — lexicon.merchants mixes in settings.merchants seeds,
+  // names have no such seed layer.
+  const nameOptions = useMemo(
+    () => buildLedgerLabelStats(ledgerRows, "name").map((s) => s.value),
+    [ledgerRows],
   );
 
   if (!open) return null;
@@ -590,11 +599,12 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                       })()}
                     </Field>
                     <Field label="名稱">
-                      <input
-                        className="ns-input"
+                      <SuggestInput
                         value={confirm.name}
-                        onChange={(e) => setConfirm({ ...confirm, name: e.target.value })}
+                        options={nameOptions}
+                        onChange={(next) => setConfirm({ ...confirm, name: next })}
                         placeholder="交易名稱"
+                        ariaLabel="名稱建議"
                       />
                     </Field>
                     <Field label="商家">
@@ -602,10 +612,11 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                       ranked by history frequency; free text stays allowed.
                       Selecting reuses chooseMerchant so the merchant's learned
                       category auto-applies (plan 180). */}
-                      <MerchantAutocomplete
+                      <SuggestInput
                         value={confirm.merchant}
-                        merchants={merchantOptions}
+                        options={merchantOptions}
                         onChange={chooseMerchant}
+                        ariaLabel="商家建議"
                       />
                     </Field>
                     <Field label="帳戶">
