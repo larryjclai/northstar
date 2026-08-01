@@ -152,7 +152,18 @@ async function scrollAndAwaitChrome(
 }
 
 test.describe("sticky page chrome — 記帳 / 投資 (plan 284 Phase B)", () => {
-  test.describe.configure({ mode: "serial" });
+  // The default 30s Playwright timeout has no headroom here: setup per test
+  // is genuinely ~15s of real work — demo-mode seeding (a fixed 7s wait),
+  // widening the date range, importing a 60-row CSV, and expanding two
+  // month headers — before the scroll/measurement assertions even start.
+  // That fits inside 30s on a fast dev machine, which is why this passed
+  // locally many times, but CI's runner is roughly 2-3x slower and one of
+  // these tests (/cash-flow desktop 1440×900) timed out mid-setup on CI
+  // (see PR #24, failure at expandCashFlowMonths). This raises the ceiling
+  // to give the real setup cost room to complete on a slow runner — it is
+  // not a workaround for a hang, and the assertions below are unchanged.
+  // Do not "tidy" this back down to the default.
+  test.describe.configure({ mode: "serial", timeout: 90_000 });
 
   test.beforeEach(async ({ page }) => {
     await dismissOnboarding(page);
