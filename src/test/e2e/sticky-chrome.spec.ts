@@ -152,137 +152,167 @@ async function scrollAndAwaitChrome(
 }
 
 test.describe("sticky page chrome — 記帳 / 投資 (plan 284 Phase B)", () => {
-  test.describe.configure({ mode: "serial" });
+  // The default 30s Playwright timeout has no headroom here: setup per test
+  // is genuinely ~15s of real work — demo-mode seeding (a fixed 7s wait),
+  // widening the date range, importing a 60-row CSV, and expanding two
+  // month headers — before the scroll/measurement assertions even start.
+  // That fits inside 30s on a fast dev machine, which is why this passed
+  // locally many times, but CI's runner is roughly 2-3x slower and one of
+  // these tests (/cash-flow desktop 1440×900) timed out mid-setup on CI
+  // (see PR #24, failure at expandCashFlowMonths). This raises the ceiling
+  // to give the real setup cost room to complete on a slow runner — it is
+  // not a workaround for a hang, and the assertions below are unchanged.
+  // Do not "tidy" this back down to the default.
+  test.describe.configure({ mode: "serial", timeout: 90_000 });
 
   test.beforeEach(async ({ page }) => {
     await dismissOnboarding(page);
   });
 
-  test("/cash-flow: desktop 1440×900 condenses on scroll and stays ≤56px", async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await enterDemoMode(page);
-    await page.goto("/cash-flow");
-    await page.waitForLoadState("networkidle");
-    await assertServingThisWorktree(page);
-    await prepareTallCashFlowPage(page);
+  // These three tests assert desktop (mouse) chrome behaviour and must run
+  // with the project's mobile device emulation (isMobile/hasTouch) cleared —
+  // `page.setViewportSize` only resizes the viewport, it does not clear
+  // those flags, which left the "mobile" project running these under iPhone
+  // 15 touch emulation and intermittently timing out on the month-header
+  // click. `test.use` at describe level is the correct override (see
+  // page-width.spec.ts).
+  test.describe("desktop 1440×900", () => {
+    test.use({ viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false });
 
-    const chrome = page.locator(".ns-page-chrome");
-    await expect(chrome).toBeVisible();
+    test("/cash-flow: desktop 1440×900 condenses on scroll and stays ≤56px", async ({ page }) => {
+      await enterDemoMode(page);
+      await page.goto("/cash-flow");
+      await page.waitForLoadState("networkidle");
+      await assertServingThisWorktree(page);
+      await prepareTallCashFlowPage(page);
 
-    await assertTallEnoughToScroll(page);
+      const chrome = page.locator(".ns-page-chrome");
+      await expect(chrome).toBeVisible();
 
-    // The setup above (opening the date popover, importing a CSV, expanding
-    // month headers) leaves the page scrolled to wherever the last clicked
-    // element happened to be — capture the genuine at-rest baseline only
-    // after explicitly returning to the top, or restBox measures a page
-    // that's already partway condensed.
-    await scrollAndAwaitChrome(page, chrome, 0, "false");
-    const restBox = await chrome.boundingBox();
-    expect(restBox).not.toBeNull();
+      await assertTallEnoughToScroll(page);
 
-    await scrollAndAwaitChrome(page, chrome, 1200, "true");
+      // The setup above (opening the date popover, importing a CSV, expanding
+      // month headers) leaves the page scrolled to wherever the last clicked
+      // element happened to be — capture the genuine at-rest baseline only
+      // after explicitly returning to the top, or restBox measures a page
+      // that's already partway condensed.
+      await scrollAndAwaitChrome(page, chrome, 0, "false");
+      const restBox = await chrome.boundingBox();
+      expect(restBox).not.toBeNull();
 
-    const condensedBox = await chrome.boundingBox();
-    expect(condensedBox).not.toBeNull();
-    // Pinned directly below the top edge — in demo mode that's the demo
-    // banner's measured height (--ns-demo-banner-h), not 0.
-    const demoBannerH = await expectedStickyTop(page);
-    expect(condensedBox!.y).toBeGreaterThanOrEqual(demoBannerH - 1);
-    expect(condensedBox!.y).toBeLessThanOrEqual(demoBannerH + 4);
-    // The machine-checkable proof that condensing actually engaged.
-    expect(condensedBox!.height).toBeLessThan(restBox!.height);
-    // The core value proposition of this plan over the rejected pin-as-is
-    // alternative — must be enforced by a test, or someone adds one button
-    // at a time and it silently regresses to ~132px.
-    expect(condensedBox!.height).toBeLessThanOrEqual(56);
+      await scrollAndAwaitChrome(page, chrome, 1200, "true");
+
+      const condensedBox = await chrome.boundingBox();
+      expect(condensedBox).not.toBeNull();
+      // Pinned directly below the top edge — in demo mode that's the demo
+      // banner's measured height (--ns-demo-banner-h), not 0.
+      const demoBannerH = await expectedStickyTop(page);
+      expect(condensedBox!.y).toBeGreaterThanOrEqual(demoBannerH - 1);
+      expect(condensedBox!.y).toBeLessThanOrEqual(demoBannerH + 4);
+      // The machine-checkable proof that condensing actually engaged.
+      expect(condensedBox!.height).toBeLessThan(restBox!.height);
+      // The core value proposition of this plan over the rejected pin-as-is
+      // alternative — must be enforced by a test, or someone adds one button
+      // at a time and it silently regresses to ~132px.
+      expect(condensedBox!.height).toBeLessThanOrEqual(56);
+    });
+
+    test("/investments: desktop 1440×900 condenses on scroll and stays ≤56px", async ({ page }) => {
+      await enterDemoMode(page);
+      await page.goto("/investments");
+      await page.waitForLoadState("networkidle");
+      await assertServingThisWorktree(page);
+      await switchToInvestmentsAnalyticsTab(page);
+
+      const chrome = page.locator(".ns-page-chrome");
+      await expect(chrome).toBeVisible();
+
+      await assertTallEnoughToScroll(page);
+
+      await scrollAndAwaitChrome(page, chrome, 0, "false");
+      const restBox = await chrome.boundingBox();
+      expect(restBox).not.toBeNull();
+
+      await scrollAndAwaitChrome(page, chrome, 1200, "true");
+
+      const condensedBox = await chrome.boundingBox();
+      expect(condensedBox).not.toBeNull();
+      const demoBannerH = await expectedStickyTop(page);
+      expect(condensedBox!.y).toBeGreaterThanOrEqual(demoBannerH - 1);
+      expect(condensedBox!.y).toBeLessThanOrEqual(demoBannerH + 4);
+      expect(condensedBox!.height).toBeLessThan(restBox!.height);
+      expect(condensedBox!.height).toBeLessThanOrEqual(56);
+    });
   });
 
-  test("/investments: desktop 1440×900 condenses on scroll and stays ≤56px", async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await enterDemoMode(page);
-    await page.goto("/investments");
-    await page.waitForLoadState("networkidle");
-    await assertServingThisWorktree(page);
-    await switchToInvestmentsAnalyticsTab(page);
+  test.describe("desktop 1024×768", () => {
+    test.use({ viewport: { width: 1024, height: 768 }, isMobile: false, hasTouch: false });
 
-    const chrome = page.locator(".ns-page-chrome");
-    await expect(chrome).toBeVisible();
+    test("記帳: desktop 1024×768 condensed row does not wrap; tabs scroll horizontally", async ({
+      page,
+    }) => {
+      await enterDemoMode(page);
+      await page.goto("/cash-flow");
+      await page.waitForLoadState("networkidle");
+      await assertServingThisWorktree(page);
+      await prepareTallCashFlowPage(page);
 
-    await assertTallEnoughToScroll(page);
+      const chrome = page.locator(".ns-page-chrome");
+      await expect(chrome).toBeVisible();
 
-    await scrollAndAwaitChrome(page, chrome, 0, "false");
-    const restBox = await chrome.boundingBox();
-    expect(restBox).not.toBeNull();
+      await assertTallEnoughToScroll(page);
 
-    await scrollAndAwaitChrome(page, chrome, 1200, "true");
+      await scrollAndAwaitChrome(page, chrome, 1200, "true");
 
-    const condensedBox = await chrome.boundingBox();
-    expect(condensedBox).not.toBeNull();
-    const demoBannerH = await expectedStickyTop(page);
-    expect(condensedBox!.y).toBeGreaterThanOrEqual(demoBannerH - 1);
-    expect(condensedBox!.y).toBeLessThanOrEqual(demoBannerH + 4);
-    expect(condensedBox!.height).toBeLessThan(restBox!.height);
-    expect(condensedBox!.height).toBeLessThanOrEqual(56);
+      const condensedBox = await chrome.boundingBox();
+      expect(condensedBox).not.toBeNull();
+      expect(condensedBox!.height).toBeLessThanOrEqual(56);
+
+      // No wrap: the tabs row must stay a single line — its own height must be
+      // small (one row of buttons), not stacked into two.
+      const tabsRow = page.locator(".ns-page-chrome-tabs-row");
+      const tabsBox = await tabsRow.boundingBox();
+      expect(tabsBox).not.toBeNull();
+      expect(tabsBox!.height).toBeLessThanOrEqual(48);
+
+      // Tabs scroll horizontally instead of wrapping: the row's scrollable
+      // content is wider than its visible box.
+      const [scrollWidth, clientWidth] = await tabsRow.evaluate((el) => [
+        el.scrollWidth,
+        el.clientWidth,
+      ]);
+      expect(scrollWidth).toBeGreaterThan(clientWidth);
+    });
   });
 
-  test("記帳: phone 390×780 condensed chrome stays ≤100px", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 780 });
-    await enterDemoMode(page);
-    await page.goto("/cash-flow");
-    await page.waitForLoadState("networkidle");
-    await assertServingThisWorktree(page);
-    await prepareTallCashFlowPage(page);
+  // The phone test genuinely wants touch emulation — pin it explicitly
+  // instead of relying on whichever project happens to run it, so it
+  // actually exercises touch rather than accidentally running as desktop
+  // under the `chromium` project.
+  test.describe("phone 390×780", () => {
+    test.use({ viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true });
 
-    const chrome = page.locator(".ns-page-chrome");
-    await expect(chrome).toBeVisible();
+    test("記帳: phone 390×780 condensed chrome stays ≤100px", async ({ page }) => {
+      await enterDemoMode(page);
+      await page.goto("/cash-flow");
+      await page.waitForLoadState("networkidle");
+      await assertServingThisWorktree(page);
+      await prepareTallCashFlowPage(page);
 
-    await assertTallEnoughToScroll(page);
+      const chrome = page.locator(".ns-page-chrome");
+      await expect(chrome).toBeVisible();
 
-    await scrollAndAwaitChrome(page, chrome, 1200, "true");
+      await assertTallEnoughToScroll(page);
 
-    const condensedBox = await chrome.boundingBox();
-    expect(condensedBox).not.toBeNull();
-    expect(condensedBox!.height).toBeLessThanOrEqual(100);
+      await scrollAndAwaitChrome(page, chrome, 1200, "true");
 
-    // Tabs must still be tappable while condensed.
-    const overviewTab = page.getByRole("button", { name: "交易" });
-    await expect(overviewTab).toBeVisible();
-  });
+      const condensedBox = await chrome.boundingBox();
+      expect(condensedBox).not.toBeNull();
+      expect(condensedBox!.height).toBeLessThanOrEqual(100);
 
-  test("記帳: desktop 1024×768 condensed row does not wrap; tabs scroll horizontally", async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1024, height: 768 });
-    await enterDemoMode(page);
-    await page.goto("/cash-flow");
-    await page.waitForLoadState("networkidle");
-    await assertServingThisWorktree(page);
-    await prepareTallCashFlowPage(page);
-
-    const chrome = page.locator(".ns-page-chrome");
-    await expect(chrome).toBeVisible();
-
-    await assertTallEnoughToScroll(page);
-
-    await scrollAndAwaitChrome(page, chrome, 1200, "true");
-
-    const condensedBox = await chrome.boundingBox();
-    expect(condensedBox).not.toBeNull();
-    expect(condensedBox!.height).toBeLessThanOrEqual(56);
-
-    // No wrap: the tabs row must stay a single line — its own height must be
-    // small (one row of buttons), not stacked into two.
-    const tabsRow = page.locator(".ns-page-chrome-tabs-row");
-    const tabsBox = await tabsRow.boundingBox();
-    expect(tabsBox).not.toBeNull();
-    expect(tabsBox!.height).toBeLessThanOrEqual(48);
-
-    // Tabs scroll horizontally instead of wrapping: the row's scrollable
-    // content is wider than its visible box.
-    const [scrollWidth, clientWidth] = await tabsRow.evaluate((el) => [
-      el.scrollWidth,
-      el.clientWidth,
-    ]);
-    expect(scrollWidth).toBeGreaterThan(clientWidth);
+      // Tabs must still be tappable while condensed.
+      const overviewTab = page.getByRole("button", { name: "交易" });
+      await expect(overviewTab).toBeVisible();
+    });
   });
 });
