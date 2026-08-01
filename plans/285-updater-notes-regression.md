@@ -2,14 +2,14 @@
 
 > **Executor instructions**: 在 git worktree 的分支 `fix/ai-updater-notes` 上工作。
 > **第一件事**：`pwd` 確認在 worktree；接著 `git checkout -b fix/ai-updater-notes main`，
-> 然後 `git log --oneline -1` 的 SHA 必須是 `3d792dba`。對不上就 STOP 回報。
+> 然後 `git log --oneline -1` 的 SHA 必須是 `44d7c384`。對不上就 STOP 回報。
 > **不要**動 `plans/`（advisor 維護）。遇到 STOP condition 就停下來回報，**不要自行發揮**。
 >
 > **這份計畫只改一個檔案：`.github/workflows/release.yml`。** 其他任何檔案都不在範圍內。
 >
 > **Drift check**：
 > ```bash
-> git diff --stat 3d792dba..HEAD -- .github/workflows/release.yml
+> git diff --stat 44d7c384..HEAD -- .github/workflows/release.yml
 > ```
 > 空輸出才往下走。
 
@@ -19,7 +19,7 @@
   （改的是發版流程 —— 錯了要等下一次發版才會知道）
 - **Depends on**: 無
 - **Category**: release engineering / regression
-- **Planned at**: commit `3d792dba`, 2026-08-01
+- **Planned at**: commit `44d7c384`, 2026-08-01
 - **Requested by**: operator, 2026-08-01
 
 ## 問題：app 內按「更新」看不到任何更新說明
@@ -250,7 +250,7 @@ console.log('signatures untouched:', JSON.stringify(a.platforms) === JSON.string
 
 ```bash
 # 1. 只動了一個檔案
-git diff --name-only 3d792dba..HEAD          # 期望只有 .github/workflows/release.yml
+git diff --name-only 44d7c384..HEAD          # 期望只有 .github/workflows/release.yml
 
 # 2. YAML 合法
 python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml')); print('OK')"
@@ -264,7 +264,7 @@ grep -n "uploads.github.com" .github/workflows/release.yml   # 必須含 ${RELEA
 grep -c "gh release upload" .github/workflows/release.yml    # 期望 0
 
 # 5. 沒有動到不該動的
-git diff 3d792dba..HEAD -- scripts/ CHANGELOG.md src-tauri/   # 期望空輸出
+git diff 44d7c384..HEAD -- scripts/ CHANGELOG.md src-tauri/   # 期望空輸出
 ```
 
 ## 這份計畫**無法**在合併前完整驗證 —— 這點要誠實面對

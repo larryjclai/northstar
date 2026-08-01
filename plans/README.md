@@ -324,7 +324,7 @@ Y 軸刻度是**非整數**：`1.95萬 / 26.95萬 / 51.95萬 / 72.77萬`。成�
 **這不是計畫的缺陷**（280 明文指定了這套 domain 數學，執行者照做），是升級後才浮現的可讀性議題。
 修法是在 `buildHeroTrendMeta` 加一層 nice-number 取整並回傳明確 `ticks` 給 YAxis —— 值得單獨開一份小計畫。
 
-## 285 — in-app updater 的「更新內容」空白（`/improve plan` 2026-08-01 @ `3d792dba`）
+## 285 — in-app updater 的「更新內容」空白（`/improve plan` 2026-08-01 @ `44d7c384`）
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 | ---- | ----- | -------- | ------ | ---------- | ------ |
