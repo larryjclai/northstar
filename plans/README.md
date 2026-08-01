@@ -324,6 +324,45 @@ Y 軸刻度是**非整數**：`1.95萬 / 26.95萬 / 51.95萬 / 72.77萬`。成�
 **這不是計畫的缺陷**（280 明文指定了這套 domain 數學，執行者照做），是升級後才浮現的可讀性議題。
 修法是在 `buildHeroTrendMeta` 加一層 nice-number 取整並回傳明確 `ticks` 給 YAxis —— 值得單獨開一份小計畫。
 
+## 285 — in-app updater 的「更新內容」空白（`/improve plan` 2026-08-01 @ `44d7c384`）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+| ---- | ----- | -------- | ------ | ---------- | ------ |
+| 285  | 修好 `latest.json.notes`：`8c091a94` 改用 `releaseId` 之後 tauri-action 忽略 `releaseBody`，導致 updater 對話框沒有任何更新說明。在 `publish` job 已下載並驗證 `latest.json` 的地方補上 notes 再重新上傳 | P2 | S | — | TODO |
+
+### 這是 beta.2 修復自己造成的迴歸，發 beta.3 才現形
+
+實測三個版本**已發布**的 `latest.json`：
+
+| 版本 | `notes` | workflow |
+| --- | --- | --- |
+| `v0.2.0-beta.1` | 1423 字 | 舊版 |
+| `v0.2.0-beta.2` | 1332 字 | 舊版（tag 指在 `3f69a867`，早於重構） |
+| **`v0.2.0-beta.3`** | **0 字** | **新版（`8c091a94` 之後）** |
+
+根因寫在 workflow 自己的註解裡（`release.yml:250-252`）：
+`releaseId` 一設，**tauri-action 就忽略 `releaseBody`** —— 而 `latest.json.notes` 正是從那裡填的。
+`8c091a94` 修掉了 Apple Silicon 完全無法更新的事故，是對的改動，但順手弄丟了更新說明，
+而且**要等下一次發版才會現形**。
+
+GitHub Release 頁面不受影響（beta.3 有 1492 字），四個平台鍵也齊全 —— 更新功能本身正常，
+**只有 app 內的更新說明是空白的**。
+
+### 計畫裡的一個設計決定
+
+`latest.json.notes` **只放 CHANGELOG 段落，不含安裝表格**（beta.1/beta.2 是含的）。
+看那個對話框的人已經裝好了、正在原地更新，「macOS (Apple Silicon) → `*_aarch64.dmg`」
+對他沒有意義。安裝表格留在 GitHub Release 頁面，那裡才是給要下載的人看的。
+
+### 這份計畫最重要的一條驗收不是 CI 綠燈
+
+`latest.json` 裡有**每個平台的簽章**。修補 notes 的 jq 若不小心動到 `platforms`，
+更新會直接驗章失敗 —— 比空白 notes 嚴重得多。所以 Step 2 要求用**真實的 beta.3 檔案**
+在本地演練，並斷言 `signatures untouched === true`。
+
+Workflow 的改動無法在合併前完整驗證（只有真的發版才知道），計畫已明文寫出這個限制，
+並給了下次發版後必跑的驗收指令。**把那條指令寫進 `RELEASING.md` 是另一件事，不在 285 範圍內。**
+
 ## 282–283 — operator 的兩個 UX 需求（`/improve plan` 2026-07-31 @ `f62b3c0b`）
 
 兩份都是 `plan <description>` 模式：operator 直接指定要什麼，advisor 只做「查證現況 + 寫規格」，
