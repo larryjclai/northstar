@@ -267,9 +267,94 @@ Y 軸刻度是**非整數**：`1.95萬 / 26.95萬 / 51.95萬 / 72.77萬`。成�
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 | ---- | ----- | -------- | ------ | ---------- | ------ |
-| 282  | 「名稱」與「商家」比照「分類」：設定裡有完整可搜尋的主檔清單、改名連動所有交易、名稱補上 autocomplete。新增 `renameLedgerName` repository 方法與 `ledgerLabels.ts` 純函式；`renameMerchant` 補上漏掉的週期規則 cascade | P2 | M | — | **IN PROGRESS** — 2026-07-31 派工 sonnet 執行者，worktree 分支 `feat/ai-label-master-list`，計畫 SHA 已刷新為 `3f69a867`（六個 in-scope 檔案零漂移）。⚠️ 與 284 **共用 `src/routes/CashFlowRoute.tsx`**（282 動 ~470 / ~2749 / ~3679 / ~4681；284 動 ~1912-2075 / ~2535），兩邊已指示把改動限制在各自行段以利日後合併 |
+| 282  | 「名稱」與「商家」比照「分類」：設定裡有完整可搜尋的主檔清單、改名連動所有交易、名稱補上 autocomplete。新增 `renameLedgerName` repository 方法與 `ledgerLabels.ts` 純函式；`renameMerchant` 補上漏掉的週期規則 cascade | P2 | M | — | **DONE — reviewed+APPROVED**（未 merge，等 operator）：分支 `feat/ai-label-master-list` @ `418c0713`，17 檔 / +946 −79（含 5 個新檔）。advisor 獨立複驗：tsc 0、**1564 測試全過**（baseline 1530 + 34 新：8 `ledgerLabels` + 26 rename）、build 0、e2e 6/6、scope 與計畫清單逐檔相符、`migrations.ts` 零改動、i18n 純新增（`copy.csv` 零刪除行）。**瀏覽器獨立複驗**（advisor 自寫 probe + 服務內容指紋斷言）：商家聯集清單 **31 個**（seed 只有 6 個 → 聯集生效）、30 列有使用次數；名稱分頁 `共 37 個名稱（顯示 37）`。**對當前 `main`（已含 284A）實測 `git merge-tree` 零衝突**。⚠️ 兩個文件級瑕疵見下 |
 | 283  | ~~記帳 / 投資的頁首 + 分頁列改成 sticky~~ | P3 | M | 279 | **⛔ SUPERSEDED by 284** — 不要派工 |
-| 284  | **取代 283。** Phase A：抽出 `--ns-sticky-top` 頂端邊緣契約，**並修好一個已在線上的 bug**（投資→分析的區塊導覽列在示範模式下被橫幅 100% 蓋住、完全不可點）。Phase B：頁首改成**凝縮式**而非整塊釘住 —— 桌機 132px → ~52px、手機 236px → ~90px，且不需要斷點分岔 | P2 | M | 279（已 merge） | **IN PROGRESS** — 2026-07-31 派工 sonnet 執行者，worktree 分支 `feat/ai-top-edge-contract`，計畫 SHA 已刷新為 `3f69a867`（`main` 在 session 中前進了一個 version-bump commit；五個 in-scope 檔案零漂移） |
+| 284A | **取代 283。** Phase A：抽出 `--ns-sticky-top` 頂端邊緣契約，**並修好一個已在線上的 bug**（投資→分析的區塊導覽列在示範模式下被橫幅 100% 蓋住、完全不可點） | P2 | S | 279（已 merge） | **DONE — reviewed+APPROVED+MERGED**（operator 2026-07-31 指示合併，merge commit `3aed0fc4`，尚未 push；revert 點 `00ec7688`）。合併後在 `main` 上重跑全套：tsc 0、lint 0 errors、1530 測試全過、build 0、e2e 6/6。原分支 `feat/ai-top-edge-contract` @ `abf1fa31`，3 檔 / +52 −2。advisor 在 worktree 獨立複驗全部閘門（tsc 0、lint 0 errors／799 既有 warnings、format 無變更、**132 檔 / 1530 測試與 baseline 完全相同**、build 0、真 e2e 6/6、impeccable detector `[]`）。**bug 修復由 advisor 自己寫的 probe 獨立複驗**，不是採信執行者回報：`navComputedTop: "47px"`、`overlap: 0`、`hitIsInsideNav: true`、hit 元素為 `NAV.ns-scroll-edge`（修前 advisor 自量的 baseline 是 overlap 46 / `hitIsInsideNav: false` / hit 為橫幅的 `SPAN.flex-1`）。**另外驗了計畫沒要求的非示範模式路徑**：`--ns-demo-banner-h` 與 `--ns-page-chrome-h` 都收斂回 `0px`、橫幅不存在 —— 若這條沒收斂，一般使用者的所有固定元素都會下移 47px |
+| 284B | Phase B：頁首改成**凝縮式**而非整塊釘住 —— 桌機 132px → ~52px、手機 236px → ~90px，不需要斷點分岔；含 e2e 釘住「凝縮高度 ≤ 56px」 | P3 | M | **284A** | TODO — 執行者依計畫明文授權「只做 Phase A 就回報」而**刻意未開始**（非 STOP、非失敗）。派工前請先讀下方的 worktree dev-server 陷阱 |
+
+### ⚠️ 282 複驗留下的兩個文件級瑕疵（不影響行為，**尚未修**）
+
+實作正確、測試有實質斷言（不是空測試），但 `src/data/repositories.rename.test.ts` 裡有兩處
+**錯誤的文字**會誤導後人。原執行者的 transcript 已無法 resume，所以沒有派回去修：
+
+1. **soft-delete 測試的註解陳述了一件假的事。** 註解說「兩種 repo 實作的所有讀取路徑
+   （`listLedgerTransactions` **與 `exportSnapshot`**）都排除 soft-deleted 列，所以只能斷言
+   `changed === 0`」。**對 memory repo 是假的** —— `BrowserFinanceRepository.exportSnapshot()`
+   （`repositories.ts:2709-2715`）回傳的是**未過濾**的 `this.data.ledgerTransactions`，
+   tombstone 全在裡面（否則同步永遠傳不出刪除）。所以其實**有**更強的斷言可用：
+
+   ```ts
+   const snap = await repo.exportSnapshot();
+   expect(snap.ledgerTransactions.find((r) => r.id === "l1")?.merchant).toBe("小半天");
+   ```
+
+   現有的 `expect(changed).toBe(0)` **本身是有效的**（守衛拿掉就會轉紅），問題只在那個假的理由 ——
+   它會讓下一個人相信「tombstone 在測試裡讀不到」。
+
+2. **一個測試標題與它自己的斷言矛盾。** `renameLedgerName` 最後一案標題是
+   `"merging onto an existing name combines rows: returned count = both groups"`，
+   但斷言是 `expect(changed).toBe(1)`。**斷言才是對的，標題是錯的** ——
+   而且錯誤源頭是**計畫本身**：282 的 Step 2d 第 10 案寫了「回傳筆數 = 兩群相加」，
+   那是 advisor 寫錯了。只有**真的被改到**的列才該計數（`l2` 早就是目標名稱，沒被 UPDATE），
+   這樣「已更新 N 筆」toast 報的才是真實變更數而不是群組大小。
+
+**建議**：下次動這個檔案時順手修掉這兩段文字，或開一份 XS 計畫。**不要**因為註解錯就把斷言放寬。
+
+### 執行者回報中一處不精確的說法（advisor 已追出真相）
+
+執行者說 lint warning 799 → 801 的 +2 來自「照計畫指定的 `visibleCount` effect 模式」。
+實際逐條 diff（`eslint -f json` 比對 main 與 worktree）是 **+3 −1**：
+
+| 變化 | 位置 | 判定 |
+| --- | --- | --- |
+| +1 `react-hooks/set-state-in-effect` | `NamesSection.tsx:45` | 計畫指定的 `visibleCount` 重置 effect —— 執行者說對的那一條 |
+| +1 `react-hooks/exhaustive-deps` | `CashFlowRoute.tsx:381` 群 | 新的 `namePool` memo 加入既有的 `ledgerRows` 警告叢集（該檔原本已有 ~10 條同型） |
+| +1 `react-hooks/exhaustive-deps` | `QuickAdd.tsx:119` 群 | 新的 `nameOptions` memo，同上 |
+| −1 `@typescript-eslint/no-unused-vars` | `MerchantsSection.tsx` | 順手清掉的未用變數 |
+
+**結論仍然是良性的**（三條新增全都是計畫自身指令的結構性後果，型態與既有的十幾條完全相同），
+但「原因」與執行者說的不同。**教訓：warning 總數的差值不等於原因，要逐條 diff 才知道發生什麼事。**
+
+### ⚠️ 284A 的複驗結論：修好了，但**沒有回歸測試**
+
+這是 advisor review 唯一的保留意見。284A 修的是一個**只有渲染才看得見**的 bug
+（sticky 元素互相遮擋），修法正確且已實測，但**沒有任何自動化測試會在它復發時失敗**——
+計畫把 e2e 排在 Step 4（Phase B），Phase A 單獨出貨就把測試一起留在後面了。
+
+具體風險：任何人日後在 `AppShell` 的橫幅或 `InvestmentsAnalyticsTab` 的導覽列上改 `top`，
+或新增第三個頂端固定元素，都能無聲地把這個 100% 遮擋帶回來，而全套閘門會是綠的。
+
+**建議**：284B 的 e2e 檔（`sticky-chrome.spec.ts`）裡**先加一條純 Phase A 的回歸測試**
+（示範模式 + `/investments` 分析 + `elementFromPoint` 命中測試），不要等凝縮頁首做完。
+若 284B 遲遲不派工，這條測試值得單獨開一份 S 級計畫先補上。
+
+### 📌 派工 284B 之前必讀：worktree 裡的瀏覽器量測會量到主 checkout
+
+284A 的執行者在這上面花掉可觀時間，advisor 複驗時也獨立確認了：
+
+- `preview_start`（`.claude/launch.json` 的 `northstar-dev`）實測會綁到**主 checkout** 的
+  dev server，`name` / port / `--root` 覆寫都被忽略。5173 上是一個 cwd 為 `/` 的常駐
+  Claude 程序（`lsof -a -p <pid> -d cwd` 可查），`preview_start` 回報 `reused: false`
+  但實際附著上去。**不要 kill 它** —— 那是 harness 自己的。
+- `playwright.config.ts` 的 `reuseExistingServer: !process.env.CI` 會讓 worktree 裡跑的
+  e2e 同樣量到別人的樹。這已經是**第二次**（plan 281 的複驗踩過同一個坑）。
+
+**唯一可靠做法**：臨時 config（`reuseExistingServer: false` +
+`npm run dev -- --port 5199 --strictPort`），並在測試裡**斷言服務內容的指紋**：
+
+```ts
+const css = await page.evaluate(async () => (await fetch("/src/styles/globals.css")).text());
+expect(css, "server is NOT serving the worktree build").toContain("--ns-sticky-top");
+```
+
+advisor 的複驗就是這樣跑的，驗完刪掉臨時檔。
+
+### 本 session 期間 `main` 前進了兩次（都不影響這兩份計畫）
+
+`f62b3c0b` → `3f69a867`（version bump）→ `00ec7688`（release CI 修復 + RELEASING.md +
+plans/README.md）。後三個 commit 只動 `.github/workflows/release.yml`、`RELEASING.md`、
+`plans/README.md` —— **`src/` 零命中**，所以 282 / 284A 兩條以 `3f69a867` 為基準的分支
+都沒有被追上。兩份計畫的 in-scope 檔案在整個 session 中漂移為零。
 
 ### 282 查證出來的三個具體缺口（不是「從零做功能」）
 
