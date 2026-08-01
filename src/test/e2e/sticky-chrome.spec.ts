@@ -283,6 +283,6 @@ test.describe("sticky page chrome — 記帳 / 投資 (plan 284 Phase B)", () =>
       el.scrollWidth,
       el.clientWidth,
     ]);
-    expect(scrollWidth).toBeGreaterThanOrEqual(clientWidth);
+    expect(scrollWidth).toBeGreaterThan(clientWidth);
   });
 });
