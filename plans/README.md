@@ -324,11 +324,50 @@ Y 軸刻度是**非整數**：`1.95萬 / 26.95萬 / 51.95萬 / 72.77萬`。成�
 **這不是計畫的缺陷**（280 明文指定了這套 domain 數學，執行者照做），是升級後才浮現的可讀性議題。
 修法是在 `buildHeroTrendMeta` 加一層 nice-number 取整並回傳明確 `ticks` 給 YAxis —— 值得單獨開一份小計畫。
 
+## 286 — e2e 改用 fixture 播種（`/improve plan` 2026-08-01 @ `4736832d`）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+| ---- | ----- | -------- | ------ | ---------- | ------ |
+| 286  | `sticky-chrome.spec.ts` 的 setup 從「點 UI 造資料」（進示範模式等 7 秒 → 拓寬日期 → CSV 匯入 60 列 → 展開月份，約 15 秒）改成用 `addInitScript` 直接寫 localStorage 播種 | P3 | M | — | TODO |
+
+### 可行性已查證，不是紙上談兵
+
+| 事實 | 出處 |
+| --- | --- |
+| 瀏覽器 repo **IDB 優先、找不到退回 localStorage** | `repositories.ts:3102-3118` |
+| localStorage key | `northstar.browserRepository.v1`（`repositories.ts:994`） |
+| 只給部分欄位就夠 —— `normalizeStoredData` 每個欄位都 `?? []` | `repositories.ts:7518-7527` |
+| **不用提供 books** —— 載入時自動建「個人帳」並掛上帳戶 | `repositories.ts:1034/1040/1124-1143` |
+
+### 關鍵設計：交易要集中在「最近 3 天」
+
+`CashFlowRoute.tsx:1706-1720` 的 `defaultVisibleCount` **只渲染最近 3 個不同日期的列**。
+所以「本月灑 60 筆分散 30 天」只會渲染 3 天份、頁面還是不夠高；
+**60 筆集中在最近 3 天**才會全部渲染。
+
+這一條讓 setup 從四步變零步：資料就在本月 → 不用拓寬日期；本月是短區間（<92 天，
+`CashFlowRoute.tsx:235`）→ 走日分組不折疊 → 不用展開月份。
+
+### 投資那個 case 要拆開看
+
+分析分頁有 gating：`positions.length > 0 && hasHistory`，而 `hasHistory` 需要
+**≥ 30 天**的報酬觀測值（`MIN_ANALYTICS_DAYS = 30`，`portfolioAnalytics.ts:51`）。
+計畫的建議是拆成兩件事：**chrome 凝縮**改用持倉分頁（無 gating，便宜），
+**分析導覽列緊貼 chrome 下緣**那條保留在分析分頁（那是 284A 的回歸守門，價值高）。
+若播 30 天價格讓 fixture 複雜到失控 → STOP 回報，退路要 advisor 決定。
+
+### 計畫刻意不讓執行者碰 timeout
+
+284B 的 `timeout: 90_000` 留著不動，降 timeout 是**另一個 commit**，
+由 advisor 推上去看 CI 決定。理由寫進計畫了：**本機變快不是 CI 會綠的證據** ——
+那正是 284B 犯過的錯。臨時 config 也明文要求「除 port 與 `reuseExistingServer`
+外必須與 `playwright.config.ts` 逐項相同」，且**不准帶 `timeout`**。
+
 ## 285 — in-app updater 的「更新內容」空白（`/improve plan` 2026-08-01 @ `44d7c384`）
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 | ---- | ----- | -------- | ------ | ---------- | ------ |
-| 285  | 修好 `latest.json.notes`：`8c091a94` 改用 `releaseId` 之後 tauri-action 忽略 `releaseBody`，導致 updater 對話框沒有任何更新說明。在 `publish` job 已下載並驗證 `latest.json` 的地方補上 notes 再重新上傳 | P2 | S | — | TODO |
+| 285  | 修好 `latest.json.notes`：`8c091a94` 改用 `releaseId` 之後 tauri-action 忽略 `releaseBody`，導致 updater 對話框沒有任何更新說明。在 `publish` job 已下載並驗證 `latest.json` 的地方補上 notes 再重新上傳 | P2 | S | — | **DONE — reviewed+APPROVED+MERGED**（PR #26 → `e190c2fc`）：advisor 獨立重跑演練，`signatures untouched` / `version preserved` / `pub_date preserved` / `key set identical` 全 true，notes 0 → 1157 字且不含安裝表格。執行者另加了 step 3c（重新抓下已上傳的 asset 再驗一次），計畫沒要求但正確。**實戰驗證要等下次發版** |
 
 ### 這是 beta.2 修復自己造成的迴歸，發 beta.3 才現形
 
