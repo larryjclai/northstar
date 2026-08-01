@@ -17,6 +17,11 @@ target/
 src-tauri/target/
 src-tauri/gen/schemas/
 
+# The Tauri updater manifest. It's published as a release asset, not stored in
+# the repo — release.yml's post-publish verification step downloads it into
+# the checkout root, which is how a stray copy ends up here.
+/latest.json
+
 # ─── Tests ─────────────────────────────────────────────
 test-results/
 playwright-report/
