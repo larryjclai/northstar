@@ -267,12 +267,38 @@ Y 軸刻度是**非整數**：`1.95萬 / 26.95萬 / 51.95萬 / 72.77萬`。成�
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 | ---- | ----- | -------- | ------ | ---------- | ------ |
-| 282  | 「名稱」與「商家」比照「分類」：設定裡有完整可搜尋的主檔清單、改名連動所有交易、名稱補上 autocomplete。新增 `renameLedgerName` repository 方法與 `ledgerLabels.ts` 純函式；`renameMerchant` 補上漏掉的週期規則 cascade | P2 | M | — | **DONE — reviewed+APPROVED**（未 merge，等 operator）：分支 `feat/ai-label-master-list` @ `418c0713`，17 檔 / +946 −79（含 5 個新檔）。advisor 獨立複驗：tsc 0、**1564 測試全過**（baseline 1530 + 34 新：8 `ledgerLabels` + 26 rename）、build 0、e2e 6/6、scope 與計畫清單逐檔相符、`migrations.ts` 零改動、i18n 純新增（`copy.csv` 零刪除行）。**瀏覽器獨立複驗**（advisor 自寫 probe + 服務內容指紋斷言）：商家聯集清單 **31 個**（seed 只有 6 個 → 聯集生效）、30 列有使用次數；名稱分頁 `共 37 個名稱（顯示 37）`。**對當前 `main`（已含 284A）實測 `git merge-tree` 零衝突**。⚠️ 兩個文件級瑕疵見下 |
+| 282  | 「名稱」與「商家」比照「分類」：設定裡有完整可搜尋的主檔清單、改名連動所有交易、名稱補上 autocomplete。新增 `renameLedgerName` repository 方法與 `ledgerLabels.ts` 純函式；`renameMerchant` 補上漏掉的週期規則 cascade | P2 | M | — | **DONE — reviewed+APPROVED+MERGED**（operator 2026-07-31 指示合併，merge commit `79a145aa`，尚未 push；revert 點 `d72169b9`）。合併後在 `main` 上重跑全套：tsc 0、**1564 測試全過**、build 0、e2e 6/6、lint 0 errors / 801 warnings。分支 `feat/ai-label-master-list` @ `418c0713` + 文件修復 `1293c488`（`fix/ai-282-test-docs`），17 檔 / +955 −79（含 5 個新檔）。advisor 獨立複驗：tsc 0、**1564 測試全過**（baseline 1530 + 34 新：8 `ledgerLabels` + 26 rename）、build 0、e2e 6/6、scope 與計畫清單逐檔相符、`migrations.ts` 零改動、i18n 純新增（`copy.csv` 零刪除行）。**瀏覽器獨立複驗**（advisor 自寫 probe + 服務內容指紋斷言）：商家聯集清單 **31 個**（seed 只有 6 個 → 聯集生效）、30 列有使用次數；名稱分頁 `共 37 個名稱（顯示 37）`。**對當前 `main`（已含 284A）實測 `git merge-tree` 零衝突**。⚠️ 兩個文件級瑕疵見下 |
 | 283  | ~~記帳 / 投資的頁首 + 分頁列改成 sticky~~ | P3 | M | 279 | **⛔ SUPERSEDED by 284** — 不要派工 |
 | 284A | **取代 283。** Phase A：抽出 `--ns-sticky-top` 頂端邊緣契約，**並修好一個已在線上的 bug**（投資→分析的區塊導覽列在示範模式下被橫幅 100% 蓋住、完全不可點） | P2 | S | 279（已 merge） | **DONE — reviewed+APPROVED+MERGED**（operator 2026-07-31 指示合併，merge commit `3aed0fc4`，尚未 push；revert 點 `00ec7688`）。合併後在 `main` 上重跑全套：tsc 0、lint 0 errors、1530 測試全過、build 0、e2e 6/6。原分支 `feat/ai-top-edge-contract` @ `abf1fa31`，3 檔 / +52 −2。advisor 在 worktree 獨立複驗全部閘門（tsc 0、lint 0 errors／799 既有 warnings、format 無變更、**132 檔 / 1530 測試與 baseline 完全相同**、build 0、真 e2e 6/6、impeccable detector `[]`）。**bug 修復由 advisor 自己寫的 probe 獨立複驗**，不是採信執行者回報：`navComputedTop: "47px"`、`overlap: 0`、`hitIsInsideNav: true`、hit 元素為 `NAV.ns-scroll-edge`（修前 advisor 自量的 baseline 是 overlap 46 / `hitIsInsideNav: false` / hit 為橫幅的 `SPAN.flex-1`）。**另外驗了計畫沒要求的非示範模式路徑**：`--ns-demo-banner-h` 與 `--ns-page-chrome-h` 都收斂回 `0px`、橫幅不存在 —— 若這條沒收斂，一般使用者的所有固定元素都會下移 47px |
-| 284B | Phase B：頁首改成**凝縮式**而非整塊釘住 —— 桌機 132px → ~52px、手機 236px → ~90px，不需要斷點分岔；含 e2e 釘住「凝縮高度 ≤ 56px」 | P3 | M | **284A** | TODO — 執行者依計畫明文授權「只做 Phase A 就回報」而**刻意未開始**（非 STOP、非失敗）。派工前請先讀下方的 worktree dev-server 陷阱 |
+| 284B | Phase B：頁首改成**凝縮式**而非整塊釘住 —— 桌機 132px → ~52px、手機 236px → ~90px，不需要斷點分岔；含 e2e 釘住「凝縮高度 ≤ 56px」 | P3 | M | **284A**（已 merge @ `3aed0fc4`） | **IN PROGRESS** — 2026-07-31 派工，分支 `feat/ai-condensing-chrome`，基準 `d72169b9`（含 Phase A）。**operator 已確認痛點是「人在長列表深處，想新增一筆或切分頁」** → Phase B 正對症；資訊架構那條路（交易列表被 ~970px 圖表擋住）暫不處理。派工 prompt 已內含 worktree dev-server 陷阱的完整解法 |
 
-### ⚠️ 282 複驗留下的兩個文件級瑕疵（不影響行為，**尚未修**）
+### ✅ 282 的兩個文件級瑕疵已修（`1293c488`，隨 282 一起 merge）
+
+原執行者的 transcript 已無法 resume，所以另派了一個執行者在 `fix/ai-282-test-docs`
+（從 `feat/ai-label-master-list` 長出的新分支，因為原分支還被 worktree 佔用）補了一個 commit。
+一檔 / +16 −7，26 個測試數不變。**修出來的東西比原本要求的更準確** —— advisor 派工前先查證，
+發現原註解是「對 sqlite 對、對 memory 錯」，最終註解直接寫出這個不對稱並附行號供查證：
+
+```
+// `changed === 0` proves the WHERE `deleted_at is null` guard excluded
+// this row — implementation-independent, so it regresses in either repo
+// if the guard is dropped. We can't also assert "row unchanged" once for
+// both: BrowserFinanceRepository.exportSnapshot() returns tombstones
+// unfiltered (repositories.ts:2709-2715), but TauriSqlFinanceRepository's
+// exportSnapshot() delegates to listLedgerTransactions(), which excludes
+// them (repositories.ts:4054).
+```
+
+標題也改成 `counts only the rows that actually changed`。執行者另主動回報
+`renameMerchant` 的合併測試標題本來就沒有「相加」暗示，不需要動 —— 查證後屬實。
+
+**順帶記下這個實作不對稱本身**（不是 bug，但值得知道）：memory 的 `exportSnapshot()`
+保留 tombstone（同步必須靠它傳播刪除），sqlite 的則透過 `listLedgerTransactions()` 濾掉。
+兩者的快照內容因此不同。
+
+<details><summary>原始瑕疵記錄（已修，保留供對照）</summary>
+
+### ⚠️ 282 複驗留下的兩個文件級瑕疵
 
 實作正確、測試有實質斷言（不是空測試），但 `src/data/repositories.rename.test.ts` 裡有兩處
 **錯誤的文字**會誤導後人。原執行者的 transcript 已無法 resume，所以沒有派回去修：
@@ -299,6 +325,8 @@ Y 軸刻度是**非整數**：`1.95萬 / 26.95萬 / 51.95萬 / 72.77萬`。成�
    這樣「已更新 N 筆」toast 報的才是真實變更數而不是群組大小。
 
 **建議**：下次動這個檔案時順手修掉這兩段文字，或開一份 XS 計畫。**不要**因為註解錯就把斷言放寬。
+
+</details>
 
 ### 執行者回報中一處不精確的說法（advisor 已追出真相）
 
