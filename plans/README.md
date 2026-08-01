@@ -1,5 +1,69 @@
 # Implementation Plans
 
+## 🔄 Reconciled 2026-07-31 @ `36c3d9e9`
+
+284 份計畫盤點完畢。**沒有 BLOCKED，沒有停在半路的 IN PROGRESS。**
+本次 session 產出並合併了 282 / 284A / 284B ＋ 兩份 chore，全部已在 `main` 上獨立複驗。
+
+### 三個「索引說 TODO、實際早就做完」的條目（已更正）
+
+上一次 reconcile（2026-07-26）宣稱「沒有未處理的 TODO」，但 270 / 272 / 273 的狀態欄仍寫著
+TODO。這次不靠讀表格判斷，**直接在 HEAD 上驗實質**：
+
+| 計畫 | 驗法 | 結果 |
+| --- | --- | --- |
+| 270 Prettier 去留 | `npm run format:check` | **All matched files use Prettier code style!** 且 `format:check` 已在 `ci.yml:24`、`.git-blame-ignore-revs` 存在 → **分支 A 全數落地** |
+| 272 ESLint 10 清理 | 四條目標規則計數 | `no-useless-assignment` / `preserve-caught-error` / `react-hooks/refs` / `react-hooks/purity` **全部 0** |
+| 273 窄化 daily-price 讀取 | `grep listDailyPriceSeries` | `repositories.ts` 4 處、`hooks.ts` 1 處 → 已實作 |
+
+**三筆都是索引沒跟上，不是工作沒做。** 狀態欄已更正。教訓與 259 那次相同：
+**索引是代理指標，會漂；驗實質才算數。**
+
+### 本 session 的成果（全部已 merge 並在 `main` 複驗）
+
+| 計畫 | merge | 複驗 |
+| --- | --- | --- |
+| 284A 頂端邊緣契約 + 分析導覽列 bug | `3aed0fc4` | advisor 自寫 probe：`overlap 0` / `hitIsInsideNav true` / `navComputedTop 47px` |
+| 282 名稱・商家主檔 | `79a145aa` | 商家聯集 31 個（seed 僅 6）、名稱分頁 37 筆、26 個 rename 測試 |
+| 284B 凝縮式頁首 | `67d014dc` | 1440 **55px**／390 **98px**／1024 不換行；e2e 14/14 |
+| chore latest.json ignore | `27feffb9` | `git check-ignore` 對真實檔案命中 |
+| chore 死碼 + 斷言 | `36c3d9e9` | −293 行；lint 801 → **799** |
+
+`main` 上最終閘門：tsc 0、lint **0 errors / 799 warnings**、**134 檔 / 1564 測試**、
+build 0、e2e 14/14、`format:check` 乾淨。
+
+### 這次 reconcile 差點誤判的一件事
+
+284 的 done criteria 有一條 `grep -c "pointer: *coarse" globals.css # 期望 0`，實跑得到 **1**。
+乍看像違反了 plans 244/245 的紅線。**實際去看那一行**：它在 plan 280 的註解裡，內容是
+「Width queries only — WKWebView misreports `pointer: coarse`」——**一句警告不要用它的註解**。
+全 repo 沒有任何 `@media (pointer: coarse)` 規則；TS 側三處命中也全是註解或
+「斷言不信任 coarse」的測試（`ModalShell.test.tsx:266`）。
+
+**教訓：done criteria 寫 `grep -c` 就是在賭「字串出現」等於「行為存在」，註解會讓它誤報。**
+下次這類紅線應該寫成 `grep -n "@media[^{]*pointer"` 這種只命中真實規則的形式。
+
+### 仍待 operator（跨多次 reconcile 未動，非阻擋）
+
+`## Manual / operator-only verification outstanding` 整段維持原狀 —— 那些是需要真裝置 /
+真眼睛的驗收（182 分帳 live pass、179 nudge 視覺、173 列印預覽、156–163 動效 device QA、
+131/132 雙機配對、macOS GUI、390px live QA…）。
+
+⚠️ **其中 180 那條的範圍因為 282 而擴大了**：它原本是「商家 autocomplete 的鍵盤操作 +
+Escape 只關下拉不關 QuickAdd」，而 282 把該元件改名為 `SuggestInput` 並**多接了一個名稱欄位**。
+下次做那項 live pass 時，兩個欄位都要驗。
+
+### 環境／衛生
+
+- 六條 session 分支（`feat/ai-top-edge-contract`、`feat/ai-label-master-list`、
+  `fix/ai-282-test-docs`、`chore/ai-ignore-updater-manifest`、`feat/ai-condensing-chrome`、
+  `chore/ai-284b-review-followups`）**全部已 merge 進 `main`**，可安全刪除。
+- **6 個 executor worktree 仍註冊在 `git worktree list`**（`.claude/worktrees/agent-*`）。
+  它們被 `.gitignore` 排除，但仍佔磁碟且會出現在 `git worktree list`，建議
+  `git worktree prune` 前先確認沒有未合併內容。
+- `main` 領先 `origin/main` **4 個 commit**（284B commit + 3 個 merge）尚未 push。
+- 上一次 push（`0b17900c`）的 CI 與 CodeQL **都是 success**。
+
 ## 🔄 Reconciled 2026-07-26 @ `0aa7f972`
 
 278 份計畫全數盤點。**沒有 IN PROGRESS，沒有未處理的 TODO，沒有漂移的計畫。**
@@ -270,7 +334,86 @@ Y 軸刻度是**非整數**：`1.95萬 / 26.95萬 / 51.95萬 / 72.77萬`。成�
 | 282  | 「名稱」與「商家」比照「分類」：設定裡有完整可搜尋的主檔清單、改名連動所有交易、名稱補上 autocomplete。新增 `renameLedgerName` repository 方法與 `ledgerLabels.ts` 純函式；`renameMerchant` 補上漏掉的週期規則 cascade | P2 | M | — | **DONE — reviewed+APPROVED+MERGED**（operator 2026-07-31 指示合併，merge commit `79a145aa`，尚未 push；revert 點 `d72169b9`）。合併後在 `main` 上重跑全套：tsc 0、**1564 測試全過**、build 0、e2e 6/6、lint 0 errors / 801 warnings。分支 `feat/ai-label-master-list` @ `418c0713` + 文件修復 `1293c488`（`fix/ai-282-test-docs`），17 檔 / +955 −79（含 5 個新檔）。advisor 獨立複驗：tsc 0、**1564 測試全過**（baseline 1530 + 34 新：8 `ledgerLabels` + 26 rename）、build 0、e2e 6/6、scope 與計畫清單逐檔相符、`migrations.ts` 零改動、i18n 純新增（`copy.csv` 零刪除行）。**瀏覽器獨立複驗**（advisor 自寫 probe + 服務內容指紋斷言）：商家聯集清單 **31 個**（seed 只有 6 個 → 聯集生效）、30 列有使用次數；名稱分頁 `共 37 個名稱（顯示 37）`。**對當前 `main`（已含 284A）實測 `git merge-tree` 零衝突**。⚠️ 兩個文件級瑕疵見下 |
 | 283  | ~~記帳 / 投資的頁首 + 分頁列改成 sticky~~ | P3 | M | 279 | **⛔ SUPERSEDED by 284** — 不要派工 |
 | 284A | **取代 283。** Phase A：抽出 `--ns-sticky-top` 頂端邊緣契約，**並修好一個已在線上的 bug**（投資→分析的區塊導覽列在示範模式下被橫幅 100% 蓋住、完全不可點） | P2 | S | 279（已 merge） | **DONE — reviewed+APPROVED+MERGED**（operator 2026-07-31 指示合併，merge commit `3aed0fc4`，尚未 push；revert 點 `00ec7688`）。合併後在 `main` 上重跑全套：tsc 0、lint 0 errors、1530 測試全過、build 0、e2e 6/6。原分支 `feat/ai-top-edge-contract` @ `abf1fa31`，3 檔 / +52 −2。advisor 在 worktree 獨立複驗全部閘門（tsc 0、lint 0 errors／799 既有 warnings、format 無變更、**132 檔 / 1530 測試與 baseline 完全相同**、build 0、真 e2e 6/6、impeccable detector `[]`）。**bug 修復由 advisor 自己寫的 probe 獨立複驗**，不是採信執行者回報：`navComputedTop: "47px"`、`overlap: 0`、`hitIsInsideNav: true`、hit 元素為 `NAV.ns-scroll-edge`（修前 advisor 自量的 baseline 是 overlap 46 / `hitIsInsideNav: false` / hit 為橫幅的 `SPAN.flex-1`）。**另外驗了計畫沒要求的非示範模式路徑**：`--ns-demo-banner-h` 與 `--ns-page-chrome-h` 都收斂回 `0px`、橫幅不存在 —— 若這條沒收斂，一般使用者的所有固定元素都會下移 47px |
-| 284B | Phase B：頁首改成**凝縮式**而非整塊釘住 —— 桌機 132px → ~52px、手機 236px → ~90px，不需要斷點分岔；含 e2e 釘住「凝縮高度 ≤ 56px」 | P3 | M | **284A**（已 merge @ `3aed0fc4`） | **IN PROGRESS** — 2026-07-31 派工，分支 `feat/ai-condensing-chrome`，基準 `d72169b9`（含 Phase A）。**operator 已確認痛點是「人在長列表深處，想新增一筆或切分頁」** → Phase B 正對症；資訊架構那條路（交易列表被 ~970px 圖表擋住）暫不處理。派工 prompt 已內含 worktree dev-server 陷阱的完整解法 |
+| 284B | Phase B：頁首改成**凝縮式**而非整塊釘住 —— 桌機 132px → ~52px、手機 236px → ~90px，不需要斷點分岔；含 e2e 釘住「凝縮高度 ≤ 56px」 | P3 | M | **284A**（已 merge @ `3aed0fc4`） | **DONE — reviewed+APPROVED**（未 merge，等 operator）：分支 `feat/ai-condensing-chrome` @ `a5acb120`，5 檔 / +739 −236。advisor 獨立複驗全部閘門：tsc 0、lint **799 warnings（與 baseline 完全相同，零 delta）**、**1530 測試與 baseline 完全相同**（本計畫不改邏輯）、build 0、detector `[]`、**e2e 14/14**（既有 6 + 新增 8）。實測數字：1440 凝縮 **55px**（≤56 ✓，靜止 157px）、390 凝縮 **98px**（≤100 ✓，靜止 236px）、1024 凝縮 55px 且分頁列 **不換行**、投資→分析導覽列緊貼 chrome 下緣 **gap = 0**。對當前 `main`（已含 282）實測 `git merge-tree` **零衝突**。<br>⚠️ 一項 STOP 條件實測**沒有完全成立**，但責任在計畫本身 —— 見下方「1px」段。第一輪執行者曾被 stream watchdog 中斷（基礎設施問題），work 完整留在 worktree 但未 commit；advisor 檢視後喚醒同一個執行者自己收尾，**沒有由 advisor 代寫任何實作**。**operator 已確認痛點是「人在長列表深處，想新增一筆或切分頁」** → Phase B 正對症；資訊架構那條路（交易列表被 ~970px 圖表擋住）暫不處理。派工 prompt 已內含 worktree dev-server 陷阱的完整解法 |
+
+### ⚠️ 284B 的「靜止態逐像素不變」沒有完全成立 —— 而錯在計畫
+
+計畫把「at-rest 逐像素不變」列為 STOP 條件。執行者沒有做這項比對（它的理由是
+`.agentrules` 禁止 stash，改用結構性論證代替）。**advisor 自己補測了**，方法是在同一個 worktree
+裡 `git checkout` 基準 commit 與 Phase B commit 各量一次（全部已 commit，不需要 stash，
+也不碰 stash），同一台 server、同一個 viewport：
+
+| 量測項 | 基準 `d72169b9` | Phase B `a5acb120` |
+| --- | --- | --- |
+| h1 位置 / 尺寸 / 字級 | `{x:272,y:46,w:56,h:42}` / 28px | **完全相同** |
+| eyebrow | `{x:272,y:24,w:56,h:16}` | **完全相同** |
+| 分頁按鈕（交易 / 週期規則） | `y:110`，`x:272` / `x:488` | **完全相同** |
+| `.ns-page` 寬度 | 1200 | **完全相同** |
+| **第一張內容卡片 y** | **180** | **181** |
+| document height | 1240 | 1241 |
+
+**chrome 本身逐像素不變，但它下方的內容整體下移 1px。**
+
+追到原因（不是推論，是量的）：chrome 掛著 `.ns-scroll-edge`，而該 class 的定義是
+`border-bottom: 1px solid transparent`。實測 `offsetHeight 157 / clientHeight 156`、
+`borderBottomWidth: "1px"`、`borderBottomColor: "rgba(0, 0, 0, 0)"`。
+
+**這是計畫自己造成的矛盾**：計畫同時要求 (a)「用既有的 `.ns-scroll-edge` + `data-stuck`，
+不要自己寫 box-shadow」與 (b)「靜止態逐像素不變」。`.ns-scroll-edge` 在靜止態就帶著一條
+1px 透明邊框，兩條要求**不可能同時成立**。執行者照 (a) 做了，1px 是那個指令的必然代價。
+
+**判定：不阻擋。** 那條邊框全透明、視覺上零差異，位移 1px 且僅影響下方內容的起始位置。
+真要消掉，得讓 chrome 不用 `.ns-scroll-edge`（違反 (a)）或改用 `box-shadow` 表達那條 hairline
+（同樣違反 (a)）。**寫計畫時要記得：任何「用既有 border 型 class」的指令都與「逐像素不變」互斥。**
+
+### 284B 執行者抓到的兩個真 bug（一個是計畫的錯）
+
+1. **計畫給的 `useStickyChrome` 根本不會生效** —— 規格寫 `useRef` + `useEffect(fn, [])`，
+   但兩條路由都在 chrome 之前有 `isInitialLoading` / `isError` 的提前 return，所以那唯一一次
+   effect 執行時 `.current === null`，observer 永遠掛不上，**凝縮會靜默地永遠不作用**。
+   執行者改成 state-backed callback ref 並實測驗證（加 log 確認原版永遠 `el=null`、改後正常觸發，
+   log 已在 commit 前移除）。**這是 advisor 規格的錯，不是執行者的。**
+2. **`ResizeObserver` 預設觀察 content-box，量不到凝縮時的 padding 變化** ——
+   `--ns-page-chrome-h` 會少 8px，把投資→分析的區塊導覽列往上拉進 chrome 裡（真實可見的重疊，
+   已用截圖 + `elementFromPoint` 確認）。改成 `{ box: "border-box" }`。**計畫完全沒提到這件事**，
+   是執行者實測後自己找出來的。
+
+### ✅ 兩個順帶發現已處理（`6645e52b`，merge `36c3d9e9`）
+
+operator 2026-07-31 要求一併解決。一個執行者、一個分支、一個 commit，2 檔 / +1 −294。
+
+- **死碼刪除比預期多**：除了點名的 `AccountsTab` / `AccountList`，`AccountDetail`、
+  `AllocationCard`、`AccountAggregate` 介面都是**只透過它們才碰得到**的，一起消失；
+  連 `Bank` icon import 也跟著清掉。共 **293 行**。執行者依指示先做 repo-wide grep 查證才刪，
+  advisor 複驗刪除後五個名稱在 `src/` 的命中數**全部為 0**。
+- **斷言改成 `toBeGreaterThan`** —— 依指示**先量再改**：1024×768 實測
+  `scrollWidth 320 / clientWidth 266`，溢出是真的，所以嚴格比較成立。
+  `height <= 48` 那條原封不動。
+- **lint warnings 801 → 799**，回到最乾淨的 baseline。合併後在 `main` 複驗：
+  tsc 0、134 檔 / 1564 測試、build 0、e2e 14/14。
+
+**⚠️ 執行者另外查到一個它沒動的死碼**：`InvestmentsRoute.tsx` 的 `PerformanceTab`
+（現行 `main` 第 1127 行）同樣從未被渲染 —— advisor 複驗：全 `src/` 只有定義那一處命中。
+它**在這次改動之前就已經是死的**，執行者判斷超出範圍而未動，判斷正確。值得單獨清理。
+
+<details><summary>原始發現記錄（已處理，保留供對照）</summary>
+
+### 順帶查證到的既有死碼（不在本次範圍，未動）
+
+`InvestmentsRoute.tsx` 的 `AccountsTab`（第 844 行）與 `AccountList`（第 922 行）**從未被渲染** ——
+實際渲染的分頁只有 portfolio / transactions / recurring / analytics，沒有 `tab === "accounts"`
+也沒有 `<AccountsTab` 的使用處。計畫 Step B3 要求修的 `lg:top-4` 側欄就在這段死碼裡，
+執行者照字面改了（無害），但實際 UI 上沒有東西可驗。**值得單獨開一份清理計畫。**
+
+</details>
+
+### 一個測試斷言偏弱（已修，見上）
+
+`sticky-chrome.spec.ts` 的 1024 案例用
+`expect(scrollWidth).toBeGreaterThanOrEqual(clientWidth)` 宣稱「分頁列橫向捲動而非換行」——
+但 `>=` 在**沒有溢出時也成立**（兩者相等），所以那一行證明不了捲動。
+**不換行這件事其實是由它上一行的 `tabsBox.height <= 48` 保證的**，契約沒有漏，
+只是這行讀起來像在驗一件它沒驗到的事。下次動這個檔案時改成 `>` 或直接刪掉。
 
 ### ✅ 282 的兩個文件級瑕疵已修（`1293c488`，隨 282 一起 merge）
 
@@ -2005,7 +2148,7 @@ Operator ask：「改善程式速度，順便規劃 tauri 之類的版本升級�
 | Plan | Title                                                                                                                                                                                                                                                                                                               | Priority | Effort | Depends on                                                        | Status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 269  | 修正 **R2** 守則：改成斷言「每條 lazy route 都有自己的 chunk」，拿掉 45–60 的總數帶                                                                                                                                                                                                                                 | P3       | S      | —                                                                 | **DONE** — reviewed+APPROVED，分支 `docs/ai-fix-r2-guardrail` @ `7fbecf1b`，**尚未 merge**。新判準從 `router.tsx` 的 `lazyRouteComponent(` 數量推導（正則帶括號，正確排除 import 那行：15 個提及 → **14** 個呼叫），與建出的 `*Route*.js` 比對，且用 `<` 不是 `!==`——route chunk 被切更細是合法的，這個檢查只抓崩潰。反向驗證有做：暫時加第 15 個宣告 → script exit 1 並印出 `FAIL: 15 lazy routes declared but only 14 route chunks built`，還原後 `git status` 乾淨。Reviewer 複驗：script exit 0 報 `14 route chunks for 14 lazy routes`、`npm test` 1505 全過、scope 只 2 檔。⚠️ 執行者抓到**我的計畫自相矛盾**：Step 1 的目標內容刻意保留「45–60」當歷史說明，但我的驗收條件寫 `grep -c "45–60" → 0`。它選擇忠於逐字目標內容並回報矛盾，而不是偷偷改寫散文去騙過 grep——判斷正確。條件已改成 `grep -c "45–60 range" → 0`（斷言消失即可，歷史說明要留）。 |
-| 270  | **決定 Prettier 的去留**：`npm run format:check` 在 main 上失敗，**277 / 360 個檔案（77%）**，而且完全沒有強制力——沒有 husky／lint-staged／git hook，`ci.yml` 也沒跑它。分支 A 採用（跑一次 `--write` + `.git-blame-ignore-revs` + 加進 CI，**建議**）／分支 B 移除。**Step 0 需要 operator 決定,不准執行者自己選** | P3       | S–M    | ⏳ 需等 259–268 整批 merge 完（277 檔重排會跟每一條未合分支衝突） | TODO — 等 operator 選 A 或 B                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 270  | **決定 Prettier 的去留**：`npm run format:check` 在 main 上失敗，**277 / 360 個檔案（77%）**，而且完全沒有強制力——沒有 husky／lint-staged／git hook，`ci.yml` 也沒跑它。分支 A 採用（跑一次 `--write` + `.git-blame-ignore-revs` + 加進 CI，**建議**）／分支 B 移除。**Step 0 需要 operator 決定,不准執行者自己選** | P3       | S–M    | ⏳ 需等 259–268 整批 merge 完（277 檔重排會跟每一條未合分支衝突） | **DONE**（2026-07-31 reconcile 實質複驗）：`format:check` 全綠、已在 `ci.yml:24`、`.git-blame-ignore-revs` 存在 → 分支 A 已全數落地                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 ## 271 — daily_prices 啟動成本 spike（261 否決後的後續，2026-07-25 @ `4473222a`）
 
