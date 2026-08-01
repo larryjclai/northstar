@@ -286,6 +286,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag || github.ref_name }}
           RELEASE_ID: ${{ needs.notes.outputs.release_id }}
+          NOTES_BODY: ${{ needs.notes.outputs.body }}
         run: |
           set -euo pipefail
 
@@ -327,6 +328,54 @@ jobs:
           done
           jq -e --arg v "${TAG#v}" '.version == $v' latest.json >/dev/null \
             || { echo "::error::latest.json version does not match $TAG."; exit 1; }
+
+          # 3b. Restore the updater's release notes.
+          #
+          # tauri-action fills latest.json's `notes` from its `releaseBody`
+          # input, and that input is IGNORED when `releaseId` is set (see the
+          # note on the publish-tauri step). Since v0.2.0-beta.3 — the first
+          # release built after that change — every published latest.json has
+          # carried an empty `notes`, so the in-app updater dialog showed no
+          # "更新內容" at all. The GitHub Release body was unaffected, which is
+          # why it went unnoticed until someone opened the updater.
+          #
+          # Patch it here rather than in publish-tauri: this is where the file
+          # is already downloaded and verified, and it is still a draft, so no
+          # updater can observe the intermediate state.
+          #
+          # The install table deliberately does NOT go in: the reader of this
+          # text is already installed and updating in place. It stays in the
+          # GitHub Release body, which is where people who need to download go.
+          printf '%s' "$NOTES_BODY" > updater-notes.md
+          if [ -s updater-notes.md ]; then
+            jq --rawfile notes updater-notes.md '.notes = $notes' latest.json > latest.patched.json
+            mv latest.patched.json latest.json
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}"
+            gh api --method POST \
+              -H "Content-Type: application/json" \
+              "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=latest.json" \
+              --input latest.json >/dev/null
+            echo "Patched latest.json notes ($(wc -c < updater-notes.md) bytes)."
+
+            # 3c. Re-fetch what was just uploaded and re-verify it: the asset
+            # id changed (delete + upload, not an in-place edit), and a
+            # mangled re-upload here would break every updater on every
+            # platform, which is a far worse failure than the empty notes
+            # this step exists to fix. Still a draft, so still safe to catch.
+            new_asset_id=$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets" --paginate \
+              --jq '.[] | select(.name == "latest.json") | .id')
+            gh api -H "Accept: application/octet-stream" \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${new_asset_id}" > latest.reuploaded.json
+            jq -e '.notes | length > 0' latest.reuploaded.json >/dev/null \
+              || { echo "::error::Re-uploaded latest.json has empty notes — upload was corrupted."; exit 1; }
+            for platform in darwin-aarch64 darwin-x86_64 linux-x86_64 windows-x86_64; do
+              jq -e --arg p "$platform" '.platforms | has($p)' latest.reuploaded.json >/dev/null \
+                || { echo "::error::Re-uploaded latest.json lost the \"$platform\" entry — upload was corrupted."; exit 1; }
+            done
+            echo "Verified re-uploaded latest.json: notes present, all four platforms intact."
+          else
+            echo "::warning::No CHANGELOG section for ${TAG#v} — latest.json notes left empty."
+          fi
 
           # 4. Only now make it the release users resolve to.
           gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" \
