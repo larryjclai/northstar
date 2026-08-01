@@ -161,11 +161,27 @@ partial `latest.json` 問題。只有在 CI 不可用（Actions 掛掉、或只�
 
 1. 確認該 tag 的 artifacts 都已上傳（`.dmg`、`.msi`、`.exe`、`.deb`、`.AppImage`、各 `.sig`、`latest.json`）
 2. 確認它被標為 **Latest**（updater 靠 `releases/latest` 解析）
-3. 驗證 updater feed：
+3. 驗證 updater feed——**版本、平台、notes 三件事都要查，只查 `.version` 不夠**：
    ```bash
-   curl -sL https://github.com/larryjclai/northstar/releases/latest/download/latest.json | jq .version
+   curl -sL https://github.com/larryjclai/northstar/releases/latest/download/latest.json \
+     | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);
+         console.log('version  :', j.version);
+         console.log('platforms:', Object.keys(j.platforms).length, Object.keys(j.platforms).join(', '));
+         console.log('notes    :', (j.notes||'').length, 'chars');})"
    ```
-   應印出剛發布的版本號。
+   預期輸出：
+   - `version` 是剛發布的版本號（不含開頭的 `v`）
+   - `platforms` 有 **9** 個鍵，且 `darwin-aarch64`、`darwin-x86_64`、`linux-x86_64`、
+     `windows-x86_64` 都在其中
+   - `notes` 超過 **1000** 字元（該版 CHANGELOG 段落）
+
+   `v0.2.0-beta.2` 用只查 `.version` 的檢查通過了，但 `latest.json` 沒有
+   `darwin-aarch64` 這個鍵，CI 四個 job 全綠也沒攔下來。`v0.2.0-beta.3` 版本號同樣過關，
+   四個平台也都在，但 `notes` 是空字串，in-app updater 對話框因此完全沒顯示更新內容。
+   PR #26 修好了 `release.yml` 產生 `notes` 的邏輯，但截至目前還沒有被真正的一次
+   release 驗證過——下一次發版就是它的第一次實戰測試，所以這項檢查要留在
+   checklist 裡，不能只放在誰的記憶裡。**若下次驗收時 `notes` 讀到 0，代表 PR #26
+   的修法沒生效，要回頭查 `release.yml`，而不是放寬這項檢查。**
 
 > in-app updater 不需要手動 Publish——release 一建立就生效。
 
