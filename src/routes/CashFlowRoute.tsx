@@ -32,6 +32,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useStickyChrome } from "../hooks/useStickyChrome";
 import { TransactionDetailPanel } from "../components/TransactionDetailPanel";
 import { SuggestInput } from "../components/SuggestInput";
 import { groupByDay, groupByMonth } from "./cashFlowGrouping";
@@ -1769,6 +1770,13 @@ export function CashFlowRoute() {
 
   const periodLabel = dateRange.label;
 
+  const {
+    sentinelRef: chromeSentinelRef,
+    chromeRef,
+    condensed: chromeCondensed,
+    height: chromeHeight,
+  } = useStickyChrome();
+
   // 篩選 popover (plan 168): account/category filters moved out of the
   // header into one popover, mirrored as removable chips under the tab bar.
   // `filterChips` is the single source for the chip list and the count
@@ -1917,153 +1925,170 @@ export function CashFlowRoute() {
   }
 
   return (
-    <div className="ns-page pt-6 pb-28 sm:pb-[120px]">
-      {/* Header */}
-      <div className="flex items-end justify-between gap-4 mb-[22px] flex-wrap">
-        <div>
-          <div className="text-xs ns-field-label">{periodLabel}</div>
-          <h1
-            className="text-[28px] m-0 font-semibold"
-            style={{ fontFamily: "var(--ns-font-display)", letterSpacing: -0.02 }}
-          >
-            記帳
-          </h1>
-        </div>
-        <div className="flex gap-2 flex-wrap justify-end">
-          <input
-            ref={csvInputRef}
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            onChange={handleCsv}
-          />
-          <LedgerDateControl value={dateScope} onChange={setDateScope} />
-
-          <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
-            <PopoverTrigger
-              render={
-                <Button variant="outline" size="lg" className="whitespace-nowrap">
-                  <Funnel size={14} />
-                  篩選
-                  {activeFilterCount > 0 ? (
-                    <span
-                      className="inline-flex items-center justify-center rounded-full text-white text-[10px] font-semibold leading-none"
-                      style={{
-                        background: "var(--ns-accent)",
-                        minWidth: 16,
-                        height: 16,
-                        padding: "0 4px",
-                      }}
-                    >
-                      {activeFilterCount}
-                    </span>
-                  ) : null}
-                </Button>
-              }
-            />
-            <PopoverContent align="end" className="p-3" style={{ width: 260 }}>
-              <div className="flex flex-col gap-3">
-                <div>
-                  <div className="text-xs ns-field-label mb-1.5">帳戶</div>
-                  <AccountFilter
-                    accounts={bookAccounts}
-                    value={selectedAccount}
-                    onChange={setSelectedAccount}
-                    className="text-body"
-                    style={{ minWidth: "100%", maxWidth: "none" }}
-                  />
-                </div>
-                <div>
-                  <div className="text-xs ns-field-label mb-1.5">分類</div>
-                  <CategoryFilter
-                    categories={allCategories}
-                    value={selectedCategory}
-                    onChange={setSelectedCategory}
-                    style={{ minWidth: "100%", maxWidth: "none" }}
-                  />
-                </div>
-                <div
-                  className="flex items-center justify-between pt-2"
-                  style={{ borderTop: "1px solid var(--ns-border)" }}
-                >
-                  <button
-                    type="button"
-                    className="text-xs muted cursor-pointer"
-                    onClick={clearAllFilters}
-                    disabled={activeFilterCount === 0}
-                  >
-                    清除全部
-                  </button>
-                  <Button size="sm" onClick={() => setFilterPopoverOpen(false)}>
-                    完成
-                  </Button>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-
-          {/* 開發票 / 客戶管理 (plan 191): only surfaced while viewing a 公司帳
-              (docs/ledger-books-plan.md §3) — hidden in 總帳 and personal books. */}
-          {isActiveCompanyBook && (
-            <>
-              <Button
-                variant="outline"
-                size="lg"
-                className="whitespace-nowrap"
-                onClick={() => setClientManagerOpen(true)}
-              >
-                <Users size={14} weight="bold" />
-                客戶
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className="whitespace-nowrap"
-                onClick={openInvoiceCreate}
-              >
-                <Receipt size={14} weight="bold" />
-                開發票
-              </Button>
-            </>
-          )}
-
-          <Button size="lg" className="whitespace-nowrap" onClick={() => openCreate("expense")}>
-            <Plus size={14} weight="bold" />
-            記一筆
-          </Button>
-        </div>
-      </div>
-
+    <div
+      className="ns-page pt-6 pb-28 sm:pb-[120px]"
+      style={{ ["--ns-page-chrome-h" as string]: `${chromeHeight}px` }}
+    >
       <div
-        className="flex mb-6 overflow-x-auto"
-        style={{ borderBottom: "1px solid var(--ns-border)" }}
+        ref={chromeSentinelRef}
+        aria-hidden="true"
+        style={{ position: "absolute", width: 1, height: 1 }}
+      />
+      <div
+        ref={chromeRef}
+        className="ns-page-chrome ns-scroll-edge"
+        data-condensed={chromeCondensed}
+        data-stuck={chromeCondensed}
       >
-        {[
-          { id: "overview", label: "交易" },
-          { id: "categories", label: "分類" },
-          { id: "merchants", label: "商家" },
-          { id: "recurring", label: "週期規則" },
-        ].map((t) => (
-          <button
-            key={t.id}
-            className="text-sm whitespace-nowrap cursor-pointer"
-            onClick={() => setActiveTab(t.id as any)}
-            style={{
-              padding: "10px 20px",
-              background: "none",
-              border: "none",
-              fontFamily: "inherit",
-              fontWeight: activeTab === t.id ? 600 : 400,
-              color: activeTab === t.id ? "var(--ns-fg)" : "var(--ns-fg-muted)",
-              borderBottom:
-                activeTab === t.id ? "2px solid var(--ns-accent)" : "2px solid transparent",
-              marginBottom: -1,
-              transition: "color 0.12s",
-            }}
+        <div className="ns-page-chrome-row">
+          {/* Header */}
+          <div className="ns-page-chrome-header-row flex items-end justify-between gap-4 mb-[22px] flex-wrap">
+            <div>
+              <div className="text-xs ns-field-label ns-page-chrome-eyebrow">{periodLabel}</div>
+              <h1
+                className="text-[28px] m-0 font-semibold ns-page-chrome-title"
+                style={{ fontFamily: "var(--ns-font-display)", letterSpacing: -0.02 }}
+              >
+                記帳
+              </h1>
+            </div>
+            <div className="ns-page-chrome-actions flex gap-2 flex-wrap justify-end">
+              <input
+                ref={csvInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={handleCsv}
+              />
+              <LedgerDateControl value={dateScope} onChange={setDateScope} />
+
+              <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
+                <PopoverTrigger
+                  render={
+                    <Button variant="outline" size="lg" className="whitespace-nowrap">
+                      <Funnel size={14} />
+                      篩選
+                      {activeFilterCount > 0 ? (
+                        <span
+                          className="inline-flex items-center justify-center rounded-full text-white text-[10px] font-semibold leading-none"
+                          style={{
+                            background: "var(--ns-accent)",
+                            minWidth: 16,
+                            height: 16,
+                            padding: "0 4px",
+                          }}
+                        >
+                          {activeFilterCount}
+                        </span>
+                      ) : null}
+                    </Button>
+                  }
+                />
+                <PopoverContent align="end" className="p-3" style={{ width: 260 }}>
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <div className="text-xs ns-field-label mb-1.5">帳戶</div>
+                      <AccountFilter
+                        accounts={bookAccounts}
+                        value={selectedAccount}
+                        onChange={setSelectedAccount}
+                        className="text-body"
+                        style={{ minWidth: "100%", maxWidth: "none" }}
+                      />
+                    </div>
+                    <div>
+                      <div className="text-xs ns-field-label mb-1.5">分類</div>
+                      <CategoryFilter
+                        categories={allCategories}
+                        value={selectedCategory}
+                        onChange={setSelectedCategory}
+                        style={{ minWidth: "100%", maxWidth: "none" }}
+                      />
+                    </div>
+                    <div
+                      className="flex items-center justify-between pt-2"
+                      style={{ borderTop: "1px solid var(--ns-border)" }}
+                    >
+                      <button
+                        type="button"
+                        className="text-xs muted cursor-pointer"
+                        onClick={clearAllFilters}
+                        disabled={activeFilterCount === 0}
+                      >
+                        清除全部
+                      </button>
+                      <Button size="sm" onClick={() => setFilterPopoverOpen(false)}>
+                        完成
+                      </Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              {/* 開發票 / 客戶管理 (plan 191): only surfaced while viewing a 公司帳
+              (docs/ledger-books-plan.md §3) — hidden in 總帳 and personal books. */}
+              {isActiveCompanyBook && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="whitespace-nowrap"
+                    onClick={() => setClientManagerOpen(true)}
+                  >
+                    <Users size={14} weight="bold" />
+                    客戶
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="whitespace-nowrap"
+                    onClick={openInvoiceCreate}
+                  >
+                    <Receipt size={14} weight="bold" />
+                    開發票
+                  </Button>
+                </>
+              )}
+
+              <Button size="lg" className="whitespace-nowrap" onClick={() => openCreate("expense")}>
+                <Plus size={14} weight="bold" />
+                記一筆
+              </Button>
+            </div>
+          </div>
+
+          <div
+            className="ns-page-chrome-tabs-row flex mb-6 overflow-x-auto"
+            style={{ borderBottom: "1px solid var(--ns-border)" }}
           >
-            {t.label}
-          </button>
-        ))}
+            {[
+              { id: "overview", label: "交易" },
+              { id: "categories", label: "分類" },
+              { id: "merchants", label: "商家" },
+              { id: "recurring", label: "週期規則" },
+            ].map((t) => (
+              <button
+                key={t.id}
+                className="text-sm whitespace-nowrap cursor-pointer"
+                onClick={() => setActiveTab(t.id as any)}
+                style={{
+                  padding: "10px 20px",
+                  background: "none",
+                  border: "none",
+                  fontFamily: "inherit",
+                  fontWeight: activeTab === t.id ? 600 : 400,
+                  color: activeTab === t.id ? "var(--ns-fg)" : "var(--ns-fg-muted)",
+                  borderBottom:
+                    activeTab === t.id ? "2px solid var(--ns-accent)" : "2px solid transparent",
+                  marginBottom: -1,
+                  transition: "color 0.12s",
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {activeFilterCount > 0 ? (
@@ -2538,7 +2563,12 @@ export function CashFlowRoute() {
             </Card>
 
             {/* Right column: 固定收支 (30 天) + 未結清 — sticky on desktop. */}
-            <div className="flex flex-col gap-5 lg:sticky lg:top-5 self-start">
+            <div
+              className="flex flex-col gap-5 lg:sticky self-start"
+              style={{
+                top: `calc(var(--ns-sticky-top) + var(--ns-demo-banner-h) + ${chromeHeight}px + 20px)`,
+              }}
+            >
               <UpcomingPayments
                 recurringRows={recurringRows}
                 accountName={accountName}

@@ -719,6 +719,92 @@ html[data-native-glass] { --ns-sticky-top: calc(28px + env(safe-area-inset-top, 
   --ns-page-chrome-h: 0px;
 }
 
+/* The pinned page chrome. Bleeds into the page gutter so content scrolling
+   underneath is covered edge to edge — a gutter-width strip of moving content
+   beside an opaque bar reads as a rendering bug. */
+.ns-page-chrome {
+  position: sticky;
+  top: calc(var(--ns-sticky-top) + var(--ns-demo-banner-h));
+  z-index: 25;
+  background: var(--ns-bg);
+  margin-inline: calc(var(--ns-page-gutter) * -1);
+  padding-inline: var(--ns-page-gutter);
+  transition:
+    padding-block var(--ns-dur) var(--ns-ease),
+    background-color var(--ns-dur) var(--ns-ease);
+}
+/* Condensed: the eyebrow and the display-size h1 give way to a single inline
+   title, and the tab strip moves onto the same row as the actions. Measured
+   cost drops from 132px to ~52px on desktop; on a 390px phone the header stops
+   wrapping to three rows (168px) and settles at two (~90px). */
+.ns-page-chrome[data-condensed="true"] .ns-page-chrome-eyebrow { display: none; }
+.ns-page-chrome[data-condensed="true"] .ns-page-chrome-title {
+  font-size: var(--ns-t-title-3);
+  line-height: 1.2;
+}
+/* The header row and the tab strip each carry their own margin at rest
+   (header: 22px bottom on 記帳 / 0 on 投資; tabs: 24px bottom on 記帳, 20px top
+   + 22px bottom on 投資) to stack as two visually distinct rows. Condensed,
+   that margin is dead weight: zero it on both regardless of width so the
+   mobile two-row layout also shrinks (236px → within the 100px budget), even
+   though only ≥1024 actually merges them onto one physical row below. Margins
+   don't collapse between flex items, so 投資's tabs-row top margin has to be
+   zeroed explicitly too or it inflates the merged row's height on top of the
+   tallest child instead of disappearing into it. */
+.ns-page-chrome[data-condensed="true"] .ns-page-chrome-header-row {
+  margin-block: 0;
+}
+.ns-page-chrome[data-condensed="true"] .ns-page-chrome-tabs-row {
+  margin-block: 0;
+}
+/* Below 1024 the header row (title + action buttons) doesn't get merged onto
+   the tabs' row (not enough width for either, let alone both — see the
+   ≥1024 block), but at rest it's still free to `flex-wrap` onto up to three
+   lines (168px on a 390px phone). Condensed, force it to one line and let it
+   scroll horizontally instead — the same overflow-x:auto pattern the tabs
+   row already uses — so title+actions collapses to its natural ~40px button
+   height instead of the height of however many lines "本月/篩選/記一筆" wrap
+   onto. Reachable via scroll, not truncated or hidden — the "don't touch
+   button behavior" rule stays intact. */
+.ns-page-chrome[data-condensed="true"] .ns-page-chrome-header-row {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+/* The action-button cluster inside the header row has its own flex-wrap at
+   rest (so it can drop to a second line before the whole header does). Same
+   fix, same reason: nowrap once condensed, so the header row's horizontal
+   scroll is the only overflow mechanism instead of two independent ones. */
+.ns-page-chrome[data-condensed="true"] .ns-page-chrome-actions {
+  flex-wrap: nowrap;
+}
+.ns-page-chrome[data-condensed="true"] {
+  padding-block: 4px;
+}
+@media (min-width: 1024px) {
+  .ns-page-chrome[data-condensed="true"] .ns-page-chrome-row {
+    display: flex;
+    align-items: center;
+    gap: var(--ns-s-4);
+  }
+  /* Header cluster (title + action buttons) keeps its natural width — it must
+     not shrink or the buttons truncate. */
+  .ns-page-chrome[data-condensed="true"] .ns-page-chrome-header-row {
+    flex: 0 0 auto;
+  }
+  /* The tab strip keeps its own overflow-x:auto: at 1024 the content column is
+     720px and the condensed row wants ~800px, so the tabs must scroll rather
+     than wrap. Wrapping here would defeat the whole point — giving it the
+     remaining flex space (instead of its natural content width) is what
+     turns "not enough room" into "scrolls" instead of "wraps" or "overflows". */
+  .ns-page-chrome[data-condensed="true"] .ns-page-chrome-tabs-row {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ns-page-chrome { transition: none; }
+}
+
 /* Native apps cut between views; honor the OS "reduce motion" setting. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -2180,6 +2266,7 @@ textarea:focus-visible {
 
   /* Collapse the shell grid and drop every piece of app chrome. */
   .ns-app-shell { display: block !important; }
+  .ns-page-chrome { position: static !important; }
   .ns-sidebar,
   .ns-mobile-dock,
   .ns-titlebar-drag,
