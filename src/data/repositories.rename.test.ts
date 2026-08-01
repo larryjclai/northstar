@@ -176,10 +176,13 @@ describeEachRepo("renameMerchant", (makeRepo) => {
       ],
     });
     const changed = await repo.renameMerchant("小半天", "小半天咖啡");
-    // Both repo implementations exclude soft-deleted rows from every read path
-    // (listLedgerTransactions AND exportSnapshot), so the update's WHERE
-    // `deleted_at is null` clause not matching this row is exactly what a
-    // `changed` count of 0 proves — there is no other row left to inspect.
+    // `changed === 0` proves the WHERE `deleted_at is null` guard excluded
+    // this row — implementation-independent, so it regresses in either repo
+    // if the guard is dropped. We can't also assert "row unchanged" once for
+    // both: BrowserFinanceRepository.exportSnapshot() returns tombstones
+    // unfiltered (repositories.ts:2709-2715), but TauriSqlFinanceRepository's
+    // exportSnapshot() delegates to listLedgerTransactions(), which excludes
+    // them (repositories.ts:4054).
     expect(changed).toBe(0);
   });
 
@@ -227,8 +230,12 @@ describeEachRepo("renameLedgerName", (makeRepo) => {
       ],
     });
     const changed = await repo.renameLedgerName("小半天", "小半天咖啡");
-    // See the equivalent renameMerchant test above for why `changed === 0` is
-    // the only assertion available on both repo implementations here.
+    // `changed === 0` is the implementation-independent proof that the WHERE
+    // `deleted_at is null` guard excluded this row. See the renameMerchant
+    // test above for why a "row unchanged" assertion can't be written once
+    // for both repos: BrowserFinanceRepository.exportSnapshot() keeps
+    // tombstones (repositories.ts:2709-2715) but TauriSqlFinanceRepository's
+    // drops them via listLedgerTransactions() (repositories.ts:4054).
     expect(changed).toBe(0);
   });
 
@@ -255,7 +262,7 @@ describeEachRepo("renameLedgerName", (makeRepo) => {
     expect(settings.merchants).toEqual(["小半天"]);
   });
 
-  it("merging onto an existing name combines rows: returned count = both groups", async () => {
+  it("merging onto an existing name counts only the rows that actually changed", async () => {
     const repo = await makeRepo({
       accounts: [account],
       ledgerTransactions: [
@@ -264,6 +271,8 @@ describeEachRepo("renameLedgerName", (makeRepo) => {
       ],
     });
     const changed = await repo.renameLedgerName("小半天", "小半天咖啡");
+    // l2 already carries the target name, so it's never written — `changed`
+    // reflects rows actually updated (1), not the combined group size (2).
     expect(changed).toBe(1);
     const rows = await repo.listLedgerTransactions();
     expect(rows.every((r) => r.name === "小半天咖啡")).toBe(true);
