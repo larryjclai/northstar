@@ -1773,7 +1773,7 @@ export function CashFlowRoute() {
   const {
     sentinelRef: chromeSentinelRef,
     chromeRef,
-    condensed: chromeCondensed,
+    stuck: chromeStuck,
     height: chromeHeight,
   } = useStickyChrome();
 
@@ -1929,138 +1929,23 @@ export function CashFlowRoute() {
       className="ns-page pt-6 pb-28 sm:pb-[120px]"
       style={{ ["--ns-page-chrome-h" as string]: `${chromeHeight}px` }}
     >
-      <div
-        ref={chromeSentinelRef}
-        aria-hidden="true"
-        style={{ position: "absolute", width: 1, height: 1 }}
-      />
-      <div
-        ref={chromeRef}
-        className="ns-page-chrome ns-scroll-edge"
-        data-condensed={chromeCondensed}
-        data-stuck={chromeCondensed}
-      >
-        <div className="ns-page-chrome-row">
-          {/* Header */}
-          <div className="ns-page-chrome-header-row flex items-end justify-between gap-4 mb-[22px] flex-wrap">
-            <div>
-              <div className="text-xs ns-field-label ns-page-chrome-eyebrow">{periodLabel}</div>
-              <h1
-                className="text-[28px] m-0 font-semibold ns-page-chrome-title"
-                style={{ fontFamily: "var(--ns-font-display)", letterSpacing: -0.02 }}
-              >
-                記帳
-              </h1>
-            </div>
-            <div className="ns-page-chrome-actions flex gap-2 flex-wrap justify-end">
-              <input
-                ref={csvInputRef}
-                type="file"
-                accept=".csv,text/csv"
-                className="hidden"
-                onChange={handleCsv}
-              />
-              <LedgerDateControl value={dateScope} onChange={setDateScope} />
-
-              <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
-                <PopoverTrigger
-                  render={
-                    <Button variant="outline" size="lg" className="whitespace-nowrap">
-                      <Funnel size={14} />
-                      篩選
-                      {activeFilterCount > 0 ? (
-                        <span
-                          className="inline-flex items-center justify-center rounded-full text-white text-[10px] font-semibold leading-none"
-                          style={{
-                            background: "var(--ns-accent)",
-                            minWidth: 16,
-                            height: 16,
-                            padding: "0 4px",
-                          }}
-                        >
-                          {activeFilterCount}
-                        </span>
-                      ) : null}
-                    </Button>
-                  }
-                />
-                <PopoverContent align="end" className="p-3" style={{ width: 260 }}>
-                  <div className="flex flex-col gap-3">
-                    <div>
-                      <div className="text-xs ns-field-label mb-1.5">帳戶</div>
-                      <AccountFilter
-                        accounts={bookAccounts}
-                        value={selectedAccount}
-                        onChange={setSelectedAccount}
-                        className="text-body"
-                        style={{ minWidth: "100%", maxWidth: "none" }}
-                      />
-                    </div>
-                    <div>
-                      <div className="text-xs ns-field-label mb-1.5">分類</div>
-                      <CategoryFilter
-                        categories={allCategories}
-                        value={selectedCategory}
-                        onChange={setSelectedCategory}
-                        style={{ minWidth: "100%", maxWidth: "none" }}
-                      />
-                    </div>
-                    <div
-                      className="flex items-center justify-between pt-2"
-                      style={{ borderTop: "1px solid var(--ns-border)" }}
-                    >
-                      <button
-                        type="button"
-                        className="text-xs muted cursor-pointer"
-                        onClick={clearAllFilters}
-                        disabled={activeFilterCount === 0}
-                      >
-                        清除全部
-                      </button>
-                      <Button size="sm" onClick={() => setFilterPopoverOpen(false)}>
-                        完成
-                      </Button>
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
-
-              {/* 開發票 / 客戶管理 (plan 191): only surfaced while viewing a 公司帳
-              (docs/ledger-books-plan.md §3) — hidden in 總帳 and personal books. */}
-              {isActiveCompanyBook && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="whitespace-nowrap"
-                    onClick={() => setClientManagerOpen(true)}
-                  >
-                    <Users size={14} weight="bold" />
-                    客戶
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="whitespace-nowrap"
-                    onClick={openInvoiceCreate}
-                  >
-                    <Receipt size={14} weight="bold" />
-                    開發票
-                  </Button>
-                </>
-              )}
-
-              <Button size="lg" className="whitespace-nowrap" onClick={() => openCreate("expense")}>
-                <Plus size={14} weight="bold" />
-                記一筆
-              </Button>
-            </div>
-          </div>
-
-          <div
-            className="ns-page-chrome-tabs-row flex mb-6 overflow-x-auto"
-            style={{ borderBottom: "1px solid var(--ns-border)" }}
-          >
+      {/* Static header — scrolls away. While the toolbar below is pinned,
+          page identity comes from the sidebar / mobile dock's active state. */}
+      <div className="mb-[22px]">
+        <div className="text-xs ns-field-label">{periodLabel}</div>
+        <h1
+          className="text-[28px] m-0 font-semibold"
+          style={{ fontFamily: "var(--ns-font-display)", letterSpacing: -0.02 }}
+        >
+          記帳
+        </h1>
+      </div>
+      <div ref={chromeSentinelRef} aria-hidden="true" className="ns-page-chrome-sentinel" />
+      {/* Pinned toolbar — the same single row (tabs left, actions right) at
+          rest and while stuck; nothing morphs on scroll. */}
+      <div ref={chromeRef} className="ns-page-chrome ns-scroll-edge mb-6" data-stuck={chromeStuck}>
+        <div className="ns-page-toolbar">
+          <div className="ns-page-toolbar-tabs ns-page-tabs flex">
             {[
               { id: "overview", label: "交易" },
               { id: "categories", label: "分類" },
@@ -2087,6 +1972,109 @@ export function CashFlowRoute() {
                 {t.label}
               </button>
             ))}
+          </div>
+          <div className="ns-page-toolbar-actions">
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={handleCsv}
+            />
+            <LedgerDateControl value={dateScope} onChange={setDateScope} />
+
+            <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
+              <PopoverTrigger
+                render={
+                  <Button variant="outline" size="lg" className="whitespace-nowrap">
+                    <Funnel size={14} />
+                    篩選
+                    {activeFilterCount > 0 ? (
+                      <span
+                        className="inline-flex items-center justify-center rounded-full text-white text-[10px] font-semibold leading-none"
+                        style={{
+                          background: "var(--ns-accent)",
+                          minWidth: 16,
+                          height: 16,
+                          padding: "0 4px",
+                        }}
+                      >
+                        {activeFilterCount}
+                      </span>
+                    ) : null}
+                  </Button>
+                }
+              />
+              <PopoverContent align="end" className="p-3" style={{ width: 260 }}>
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <div className="text-xs ns-field-label mb-1.5">帳戶</div>
+                    <AccountFilter
+                      accounts={bookAccounts}
+                      value={selectedAccount}
+                      onChange={setSelectedAccount}
+                      className="text-body"
+                      style={{ minWidth: "100%", maxWidth: "none" }}
+                    />
+                  </div>
+                  <div>
+                    <div className="text-xs ns-field-label mb-1.5">分類</div>
+                    <CategoryFilter
+                      categories={allCategories}
+                      value={selectedCategory}
+                      onChange={setSelectedCategory}
+                      style={{ minWidth: "100%", maxWidth: "none" }}
+                    />
+                  </div>
+                  <div
+                    className="flex items-center justify-between pt-2"
+                    style={{ borderTop: "1px solid var(--ns-border)" }}
+                  >
+                    <button
+                      type="button"
+                      className="text-xs muted cursor-pointer"
+                      onClick={clearAllFilters}
+                      disabled={activeFilterCount === 0}
+                    >
+                      清除全部
+                    </button>
+                    <Button size="sm" onClick={() => setFilterPopoverOpen(false)}>
+                      完成
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {/* 開發票 / 客戶管理 (plan 191): only surfaced while viewing a 公司帳
+              (docs/ledger-books-plan.md §3) — hidden in 總帳 and personal books. */}
+            {isActiveCompanyBook && (
+              <>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="whitespace-nowrap"
+                  onClick={() => setClientManagerOpen(true)}
+                >
+                  <Users size={14} weight="bold" />
+                  客戶
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="whitespace-nowrap"
+                  onClick={openInvoiceCreate}
+                >
+                  <Receipt size={14} weight="bold" />
+                  開發票
+                </Button>
+              </>
+            )}
+
+            <Button size="lg" className="whitespace-nowrap" onClick={() => openCreate("expense")}>
+              <Plus size={14} weight="bold" />
+              記一筆
+            </Button>
           </div>
         </div>
       </div>
