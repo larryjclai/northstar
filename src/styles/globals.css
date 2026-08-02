@@ -1024,6 +1024,17 @@ textarea:focus-visible {
   min-width: 0;
 }
 
+/* Hero delta group — the change badge and its 期間 label are one unit, so a
+   longer badge (the `+123 · 1.96%` variant) can't push the label alone onto a
+   second line while the shorter `+123` variant keeps it inline. */
+.ns-hero-delta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
 /* Hero net-worth chart (plan 280) — promoted from a 300×64 decorative
    sparkline to the hero card's main chart. Tall enough to read a trend,
    short enough that the pulse strip stays visible on a laptop. Width queries

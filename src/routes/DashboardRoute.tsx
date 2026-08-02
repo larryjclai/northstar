@@ -1661,7 +1661,9 @@ export function DashboardRoute() {
                 </span>
                 {/* MoM trend badge — only for netWorth (has a history series) */}
                 {activeMetric.key === "netWorth" && reconciledTrend.length >= 2 ? (
-                  <>
+                  /* Badge + 期間 label wrap as one unit — otherwise a longer badge
+                     (the ` · x.xx%` variant) pushes the label alone onto a second line. */
+                  <span className="ns-hero-delta">
                     {/* 淨值變動 is a market-performance number (§2.4 gain/loss axis):
                         it must agree with 投資今日/今日漲跌 under 紅漲綠跌, not with toasts. */}
                     <Badge
@@ -1676,7 +1678,7 @@ export function DashboardRoute() {
                       </span>
                     </Badge>
                     <span className="muted text-xs">{STRIP_PERIOD_LABELS[stripPeriod]}</span>
-                  </>
+                  </span>
                 ) : null}
               </div>
 
