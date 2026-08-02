@@ -1,5 +1,14 @@
 # Implementation Plans
 
+> **📌 2026-08-02 狀態更新：284B 的「凝縮式」行為已被取代（PR #29）。**
+> Operator 實際使用後認定捲動兩態變形（eyebrow 消失、h1 縮小、列合併＋200ms 過渡）
+> 「滑一滑視覺一直改變」不可接受。改為**靜態單列 toolbar**：大標題（eyebrow + h1）
+> 移出 chrome 自然捲走，chrome 只剩「分頁左＋動作右」一列，釘住前後**形狀不變**。
+> 284B 的預算與寬度契約**仍然成立**（桌機 ≤56px、手機 ≤100px、1024 分頁橫向捲動不換行，
+> e2e 續守，並新增「pinned 高度 == 靜止高度」的 no-morph 不變量）；284A 頂端邊緣契約
+> **不受影響**，且 sentinel 補上了 `--ns-sticky-top + --ns-demo-banner-h` 位移
+> （hairline 不再晚 ~47px 出現）。詳見 `284-*.md` 檔首註記。
+
 ## 🔄 Reconciled 2026-07-31 @ `36c3d9e9`
 
 284 份計畫盤點完畢。**沒有 BLOCKED，沒有停在半路的 IN PROGRESS。**

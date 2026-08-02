@@ -1,9 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// Plan 284 Phase B: the condensing page chrome on 記帳 (/cash-flow) and 投資
-// (/investments). Both must condense to a short pinned bar on scroll instead
-// of pinning the full-height header, and must never wrap at the tightest
-// desktop width (1024).
+// The pinned page toolbar on 記帳 (/cash-flow) and 投資 (/investments).
+// Plan 284's condensing morph was replaced (operator request, 2026-08-02) by
+// a static single-row toolbar: the display header scrolls away, and the
+// toolbar (tabs + actions) pins WITHOUT changing shape. These tests assert
+// the pinned bar's position/budget, that its height is scroll-independent,
+// and that it never wraps at the tightest desktop width (1024).
 
 async function dismissOnboarding(page: Page) {
   await page.addInitScript(() => {
@@ -92,7 +94,7 @@ async function prepareTallCashFlowPage(page: Page) {
 // renders the full risk/benchmark/allocation-drift/rolling-volatility charts
 // and is comfortably tall — switch to it instead of seeding fake investment
 // records, and it happens to double as a check that the analytics section
-// nav (Phase A) still sits directly below the condensed chrome.
+// nav (Phase A) still sits directly below the pinned toolbar.
 async function switchToInvestmentsAnalyticsTab(page: Page) {
   await page.getByRole("button", { name: "分析", exact: true }).click();
   // Backfill/history chart rendering settles asynchronously.
@@ -102,7 +104,7 @@ async function switchToInvestmentsAnalyticsTab(page: Page) {
 // The top-edge contract (Phase A, globals.css): `--ns-sticky-top` accounts for
 // the safe-area/titlebar inset (0 in a browser) and `--ns-demo-banner-h`
 // accounts for the demo-mode banner, measured at runtime by AppShell. The
-// condensed chrome must pin exactly at their sum, not at the viewport edge.
+// pinned toolbar must sit exactly at their sum, not at the viewport edge.
 async function expectedStickyTop(page: Page) {
   return page.evaluate(() => {
     const shell = document.querySelector(".ns-app-shell");
@@ -116,13 +118,13 @@ async function expectedStickyTop(page: Page) {
 
 async function assertTallEnoughToScroll(page: Page) {
   // STOP condition guard (plan 284 Phase B Step B4): if the seeded/expanded
-  // page still isn't tall enough to actually scroll 1200px, the condensing
+  // page still isn't tall enough to actually scroll 1200px, the pinned-bar
   // assertions below would be meaningless rather than a real regression
   // guard. Fail loudly instead of silently shrinking the scroll distance.
   const scrollHeight = await page.evaluate(() => document.body.scrollHeight);
   expect(
     scrollHeight,
-    "seeded page is too short to prove condensing via scroll — see STOP condition in plan 284 Phase B Step B4",
+    "seeded page is too short to prove pinning via scroll — see STOP condition in plan 284 Phase B Step B4",
   ).toBeGreaterThan(1500);
 }
 
@@ -143,12 +145,11 @@ async function scrollAndAwaitChrome(
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(200);
   await page.evaluate((y) => window.scrollTo(0, y), y);
-  await expect(chrome).toHaveAttribute("data-condensed", expected);
-  // `data-condensed` flips the instant the observer fires, but the CSS
-  // padding-block/background transition it drives (globals.css `--ns-dur`,
-  // 200ms) is still animating at that exact moment — measuring immediately
-  // catches an in-flight height, not the settled one. Wait it out.
-  await page.waitForTimeout(300);
+  // data-stuck drives only the .ns-scroll-edge hairline — the toolbar's
+  // layout is scroll-independent, so no transition-settling wait is needed
+  // beyond the observer flip itself.
+  await expect(chrome).toHaveAttribute("data-stuck", expected);
+  await page.waitForTimeout(100);
 }
 
 test.describe("sticky page chrome — 記帳 / 投資 (plan 284 Phase B)", () => {
@@ -179,7 +180,9 @@ test.describe("sticky page chrome — 記帳 / 投資 (plan 284 Phase B)", () =>
   test.describe("desktop 1440×900", () => {
     test.use({ viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false });
 
-    test("/cash-flow: desktop 1440×900 condenses on scroll and stays ≤56px", async ({ page }) => {
+    test("/cash-flow: desktop 1440×900 toolbar pins without changing shape, ≤56px", async ({
+      page,
+    }) => {
       await enterDemoMode(page);
       await page.goto("/cash-flow");
       await page.waitForLoadState("networkidle");
@@ -194,30 +197,38 @@ test.describe("sticky page chrome — 記帳 / 投資 (plan 284 Phase B)", () =>
       // The setup above (opening the date popover, importing a CSV, expanding
       // month headers) leaves the page scrolled to wherever the last clicked
       // element happened to be — capture the genuine at-rest baseline only
-      // after explicitly returning to the top, or restBox measures a page
-      // that's already partway condensed.
+      // after explicitly returning to the top.
       await scrollAndAwaitChrome(page, chrome, 0, "false");
       const restBox = await chrome.boundingBox();
       expect(restBox).not.toBeNull();
 
       await scrollAndAwaitChrome(page, chrome, 1200, "true");
 
-      const condensedBox = await chrome.boundingBox();
-      expect(condensedBox).not.toBeNull();
+      const pinnedBox = await chrome.boundingBox();
+      expect(pinnedBox).not.toBeNull();
       // Pinned directly below the top edge — in demo mode that's the demo
       // banner's measured height (--ns-demo-banner-h), not 0.
       const demoBannerH = await expectedStickyTop(page);
-      expect(condensedBox!.y).toBeGreaterThanOrEqual(demoBannerH - 1);
-      expect(condensedBox!.y).toBeLessThanOrEqual(demoBannerH + 4);
-      // The machine-checkable proof that condensing actually engaged.
-      expect(condensedBox!.height).toBeLessThan(restBox!.height);
-      // The core value proposition of this plan over the rejected pin-as-is
-      // alternative — must be enforced by a test, or someone adds one button
-      // at a time and it silently regresses to ~132px.
-      expect(condensedBox!.height).toBeLessThanOrEqual(56);
+      expect(pinnedBox!.y).toBeGreaterThanOrEqual(demoBannerH - 1);
+      expect(pinnedBox!.y).toBeLessThanOrEqual(demoBannerH + 4);
+      // The chrome must NOT morph: the whole point of replacing plan 284's
+      // condensing layout is that the toolbar is the same shape at rest and
+      // pinned (operator request, 2026-08-02). Any height delta means a
+      // scroll-triggered layout change crept back in.
+      expect(Math.abs(pinnedBox!.height - restBox!.height)).toBeLessThanOrEqual(1);
+      // The pinned-cost budget from plan 284 still holds — one row of chrome,
+      // or someone adds one button at a time and it regresses to ~132px.
+      expect(pinnedBox!.height).toBeLessThanOrEqual(56);
+      // The display header lives outside the chrome and scrolls away.
+      const title = page.getByRole("heading", { name: "記帳", exact: true });
+      const titleBox = await title.boundingBox();
+      expect(titleBox).not.toBeNull();
+      expect(titleBox!.y + titleBox!.height).toBeLessThan(0);
     });
 
-    test("/investments: desktop 1440×900 condenses on scroll and stays ≤56px", async ({ page }) => {
+    test("/investments: desktop 1440×900 toolbar pins without changing shape, ≤56px", async ({
+      page,
+    }) => {
       await enterDemoMode(page);
       await page.goto("/investments");
       await page.waitForLoadState("networkidle");
@@ -235,20 +246,24 @@ test.describe("sticky page chrome — 記帳 / 投資 (plan 284 Phase B)", () =>
 
       await scrollAndAwaitChrome(page, chrome, 1200, "true");
 
-      const condensedBox = await chrome.boundingBox();
-      expect(condensedBox).not.toBeNull();
+      const pinnedBox = await chrome.boundingBox();
+      expect(pinnedBox).not.toBeNull();
       const demoBannerH = await expectedStickyTop(page);
-      expect(condensedBox!.y).toBeGreaterThanOrEqual(demoBannerH - 1);
-      expect(condensedBox!.y).toBeLessThanOrEqual(demoBannerH + 4);
-      expect(condensedBox!.height).toBeLessThan(restBox!.height);
-      expect(condensedBox!.height).toBeLessThanOrEqual(56);
+      expect(pinnedBox!.y).toBeGreaterThanOrEqual(demoBannerH - 1);
+      expect(pinnedBox!.y).toBeLessThanOrEqual(demoBannerH + 4);
+      expect(Math.abs(pinnedBox!.height - restBox!.height)).toBeLessThanOrEqual(1);
+      expect(pinnedBox!.height).toBeLessThanOrEqual(56);
+      const title = page.getByRole("heading", { name: "投資", exact: true });
+      const titleBox = await title.boundingBox();
+      expect(titleBox).not.toBeNull();
+      expect(titleBox!.y + titleBox!.height).toBeLessThan(0);
     });
   });
 
   test.describe("desktop 1024×768", () => {
     test.use({ viewport: { width: 1024, height: 768 }, isMobile: false, hasTouch: false });
 
-    test("記帳: desktop 1024×768 condensed row does not wrap; tabs scroll horizontally", async ({
+    test("記帳: desktop 1024×768 toolbar stays one row; tabs scroll horizontally", async ({
       page,
     }) => {
       await enterDemoMode(page);
@@ -264,19 +279,20 @@ test.describe("sticky page chrome — 記帳 / 投資 (plan 284 Phase B)", () =>
 
       await scrollAndAwaitChrome(page, chrome, 1200, "true");
 
-      const condensedBox = await chrome.boundingBox();
-      expect(condensedBox).not.toBeNull();
-      expect(condensedBox!.height).toBeLessThanOrEqual(56);
+      const pinnedBox = await chrome.boundingBox();
+      expect(pinnedBox).not.toBeNull();
+      expect(pinnedBox!.height).toBeLessThanOrEqual(56);
 
-      // No wrap: the tabs row must stay a single line — its own height must be
-      // small (one row of buttons), not stacked into two.
-      const tabsRow = page.locator(".ns-page-chrome-tabs-row");
+      // No wrap: the tab strip must stay a single line — its own height must
+      // be small (one row of buttons), not stacked into two.
+      const tabsRow = page.locator(".ns-page-toolbar-tabs");
       const tabsBox = await tabsRow.boundingBox();
       expect(tabsBox).not.toBeNull();
       expect(tabsBox!.height).toBeLessThanOrEqual(48);
 
       // Tabs scroll horizontally instead of wrapping: the row's scrollable
-      // content is wider than its visible box.
+      // content is wider than its visible box. (At 1024 the content column is
+      // 720px and tabs + actions want ~800px — plan 284's width contract.)
       const [scrollWidth, clientWidth] = await tabsRow.evaluate((el) => [
         el.scrollWidth,
         el.clientWidth,
@@ -292,7 +308,7 @@ test.describe("sticky page chrome — 記帳 / 投資 (plan 284 Phase B)", () =>
   test.describe("phone 390×780", () => {
     test.use({ viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true });
 
-    test("記帳: phone 390×780 condensed chrome stays ≤100px", async ({ page }) => {
+    test("記帳: phone 390×780 pinned chrome stays ≤100px", async ({ page }) => {
       await enterDemoMode(page);
       await page.goto("/cash-flow");
       await page.waitForLoadState("networkidle");
@@ -306,11 +322,13 @@ test.describe("sticky page chrome — 記帳 / 投資 (plan 284 Phase B)", () =>
 
       await scrollAndAwaitChrome(page, chrome, 1200, "true");
 
-      const condensedBox = await chrome.boundingBox();
-      expect(condensedBox).not.toBeNull();
-      expect(condensedBox!.height).toBeLessThanOrEqual(100);
+      // Below 1024 the toolbar wraps into two rows (actions above, tabs
+      // below) — that two-row bar must stay inside plan 284's phone budget.
+      const pinnedBox = await chrome.boundingBox();
+      expect(pinnedBox).not.toBeNull();
+      expect(pinnedBox!.height).toBeLessThanOrEqual(100);
 
-      // Tabs must still be tappable while condensed.
+      // Tabs must still be tappable while pinned.
       const overviewTab = page.getByRole("button", { name: "交易" });
       await expect(overviewTab).toBeVisible();
     });

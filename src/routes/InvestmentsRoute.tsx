@@ -316,7 +316,7 @@ export function InvestmentsRoute() {
   const {
     sentinelRef: chromeSentinelRef,
     chromeRef,
-    condensed: chromeCondensed,
+    stuck: chromeStuck,
     height: chromeHeight,
   } = useStickyChrome();
 
@@ -560,93 +560,33 @@ export function InvestmentsRoute() {
       className="ns-invest-page ns-page pt-6 pb-[120px]"
       style={{ ["--ns-page-chrome-h" as string]: `${chromeHeight}px` }}
     >
-      <div
-        ref={chromeSentinelRef}
-        aria-hidden="true"
-        style={{ position: "absolute", width: 1, height: 1 }}
-      />
+      {/* Static header — scrolls away. While the toolbar below is pinned,
+          page identity comes from the sidebar / mobile dock's active state. */}
+      <div className="mb-5">
+        <div className="text-xs ns-field-label">投資組合</div>
+        <h1
+          className="text-[28px]"
+          style={{
+            fontFamily: "var(--ns-font-display)",
+            margin: 0,
+            letterSpacing: -0.02,
+            fontWeight: 600,
+          }}
+        >
+          投資
+        </h1>
+      </div>
+      <div ref={chromeSentinelRef} aria-hidden="true" className="ns-page-chrome-sentinel" />
+      {/* Pinned toolbar — the same single row (tabs left, actions right) at
+          rest and while stuck; nothing morphs on scroll. */}
       <div
         ref={chromeRef}
-        className="ns-page-chrome ns-scroll-edge"
-        data-condensed={chromeCondensed}
-        data-stuck={chromeCondensed}
+        className="ns-page-chrome ns-scroll-edge mb-[22px]"
+        data-stuck={chromeStuck}
       >
-        <div className="ns-page-chrome-row">
-          {/* Header */}
-          <div className="ns-page-chrome-header-row ns-invest-header flex items-end justify-between mb-0">
-            <div>
-              <div className="text-xs ns-field-label ns-page-chrome-eyebrow">投資組合</div>
-              <h1
-                className="text-[28px] ns-page-chrome-title"
-                style={{
-                  fontFamily: "var(--ns-font-display)",
-                  margin: 0,
-                  letterSpacing: -0.02,
-                  fontWeight: 600,
-                }}
-              >
-                投資
-              </h1>
-            </div>
-            <div className="ns-page-chrome-actions ns-invest-header-actions flex gap-2">
-              {/* Entry point restored — it was lost in the holdings→portfolio tab
-              rename, leaving backfillClassifications unreachable. Demoted into
-              a ⋯ overflow menu (plan 165) since it's an infrequent action. */}
-              {tab === "portfolio" ? (
-                <Popover>
-                  <PopoverTrigger
-                    render={<Button variant="outline" size="icon" />}
-                    aria-label="更多操作"
-                    title="更多操作"
-                  >
-                    <DotsThree size={18} weight="bold" />
-                  </PopoverTrigger>
-                  <PopoverContent align="end" style={{ width: 200 }}>
-                    <button
-                      type="button"
-                      onClick={backfillClassifications}
-                      disabled={backfillAssetProfiles.isPending}
-                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none transition hover:bg-black/5 dark:hover:bg-white/5"
-                      style={backfillArmed ? { color: "var(--ns-warn)" } : undefined}
-                    >
-                      <ArrowsClockwise size={14} />
-                      {backfillAssetProfiles.isPending
-                        ? "回補中"
-                        : backfillArmed
-                          ? "再按一次確認"
-                          : "回補分類"}
-                    </button>
-                  </PopoverContent>
-                </Popover>
-              ) : null}
-              <Button
-                variant="outline"
-                onClick={refreshLatestQuotes}
-                loading={refreshQuotes.isPending}
-              >
-                <ArrowsClockwise size={14} />
-                {refreshQuotes.isPending ? "更新中" : "更新報價"}
-              </Button>
-              <Button onClick={() => setAddOpen(true)}>
-                <Plus size={14} weight="bold" />
-                新增交易
-              </Button>
-            </div>
-          </div>
-
-          {statusMessage ? (
-            <div className="mt-4">
-              <StatusText>{statusMessage}</StatusText>
-            </div>
-          ) : null}
-
+        <div className="ns-page-toolbar">
           {/* Page-level tabs: 持倉 | 交易紀錄 | 定期定額 | 分析. */}
-          <div
-            className="ns-page-chrome-tabs-row ns-page-tabs mt-5 mb-[22px] flex"
-            style={{
-              borderBottom: "1px solid var(--ns-border)",
-            }}
-          >
+          <div className="ns-page-toolbar-tabs ns-page-tabs flex">
             {[
               { id: "portfolio", label: "持倉", active: tab === "portfolio" },
               { id: "transactions", label: "交易紀錄", active: tab === "transactions" },
@@ -674,8 +614,58 @@ export function InvestmentsRoute() {
               </button>
             ))}
           </div>
+          <div className="ns-page-toolbar-actions">
+            {/* Entry point restored — it was lost in the holdings→portfolio tab
+              rename, leaving backfillClassifications unreachable. Demoted into
+              a ⋯ overflow menu (plan 165) since it's an infrequent action. */}
+            {tab === "portfolio" ? (
+              <Popover>
+                <PopoverTrigger
+                  render={<Button variant="outline" size="icon" />}
+                  aria-label="更多操作"
+                  title="更多操作"
+                >
+                  <DotsThree size={18} weight="bold" />
+                </PopoverTrigger>
+                <PopoverContent align="end" style={{ width: 200 }}>
+                  <button
+                    type="button"
+                    onClick={backfillClassifications}
+                    disabled={backfillAssetProfiles.isPending}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none transition hover:bg-black/5 dark:hover:bg-white/5"
+                    style={backfillArmed ? { color: "var(--ns-warn)" } : undefined}
+                  >
+                    <ArrowsClockwise size={14} />
+                    {backfillAssetProfiles.isPending
+                      ? "回補中"
+                      : backfillArmed
+                        ? "再按一次確認"
+                        : "回補分類"}
+                  </button>
+                </PopoverContent>
+              </Popover>
+            ) : null}
+            <Button
+              variant="outline"
+              onClick={refreshLatestQuotes}
+              loading={refreshQuotes.isPending}
+            >
+              <ArrowsClockwise size={14} />
+              {refreshQuotes.isPending ? "更新中" : "更新報價"}
+            </Button>
+            <Button onClick={() => setAddOpen(true)}>
+              <Plus size={14} weight="bold" />
+              新增交易
+            </Button>
+          </div>
         </div>
       </div>
+
+      {statusMessage ? (
+        <div className="mb-4">
+          <StatusText>{statusMessage}</StatusText>
+        </div>
+      ) : null}
 
       {tab === "portfolio" ? (
         <>
