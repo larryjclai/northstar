@@ -3896,6 +3896,16 @@ function EntryDrawer({
   const panelRef = useRef<HTMLDivElement>(null);
   const [closing, setClosing] = useState(false);
   const closingRef = useRef(false);
+  // Latest onClose behind a ref (same as ModalShell's closeRef): `onClose` is
+  // CashFlowRoute's `closeDrawer`, recreated every parent render. Putting the
+  // raw prop in the close effect's deps re-ran it after the parent unmounted the panel
+  // (open=false, closing still true, panelRef null) → onClose() → parent
+  // setState → new onClose identity → effect again… a nested-update loop that
+  // production React throws as error #185 on every animated dismiss.
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  });
   const requestClose = useCallback(() => {
     if (closingRef.current) return;
     const panel = panelRef.current;
@@ -3904,33 +3914,34 @@ function EntryDrawer({
     const dur = panel ? parseFloat(getComputedStyle(panel).transitionDuration || "0") : 0;
     if (!panel || !dur) {
       closingRef.current = true;
-      onClose();
+      closeRef.current();
       return;
     }
     closingRef.current = true;
     setClosing(true);
-  }, [onClose]);
+  }, []);
 
-  // Reopening the drawer must clear any stale closing state from a previous close.
+  // Unlike ModalShell (unmounted while closed), this drawer stays mounted with
+  // `open` false — so the closing flag must be cleared on BOTH edges: on
+  // reopen (stale flag would skip the next close) and on close (a lingering
+  // `closing=true` while unmounted is the state the #185 loop lived in).
   useEffect(() => {
-    if (open) {
-      closingRef.current = false;
-      setClosing(false);
-    }
+    closingRef.current = false;
+    setClosing(false);
   }, [open]);
 
   useEffect(() => {
     if (!closing) return;
     const panel = panelRef.current;
     if (!panel) {
-      onClose();
+      closeRef.current();
       return;
     }
     let done = false;
     function finish() {
       if (done) return;
       done = true;
-      onClose();
+      closeRef.current();
     }
     function onTransitionEnd(event: TransitionEvent) {
       if (event.target !== panel) return;
@@ -3942,7 +3953,7 @@ function EntryDrawer({
       panel.removeEventListener("transitionend", onTransitionEnd);
       window.clearTimeout(timeout);
     };
-  }, [closing, onClose]);
+  }, [closing]);
 
   useEffect(() => {
     if (!open) return;
