@@ -1853,7 +1853,8 @@ export function CashFlowRoute() {
     [bookInvoices, bookLedgerRows, todayIso],
   );
   const bookHasVat = useMemo(
-    () => bookLedgerRows.some((r) => r.taxAmount != null && r.taxAmount > 0 && r.deletedAt === null),
+    () =>
+      bookLedgerRows.some((r) => r.taxAmount != null && r.taxAmount > 0 && r.deletedAt === null),
     [bookLedgerRows],
   );
 
@@ -2676,7 +2677,8 @@ export function CashFlowRoute() {
                     {formatNumber(periodVat.inputTax)}
                   </div>
                   <div className="muted text-caption mt-1">
-                    依開立日/交易日計算，含尚未收款的發票 — 應納(退)稅額 = 銷項 − 進項稅額，負值為留抵。
+                    依開立日/交易日計算，含尚未收款的發票 — 應納(退)稅額 = 銷項 −
+                    進項稅額，負值為留抵。
                   </div>
                 </Card>
               )}
