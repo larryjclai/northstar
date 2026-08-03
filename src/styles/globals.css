@@ -729,80 +729,77 @@ html[data-native-glass] { --ns-sticky-top: calc(28px + env(safe-area-inset-top, 
   background: var(--ns-bg);
   margin-inline: calc(var(--ns-page-gutter) * -1);
   padding-inline: var(--ns-page-gutter);
-  transition:
-    padding-block var(--ns-dur) var(--ns-ease),
-    background-color var(--ns-dur) var(--ns-ease);
 }
-/* Condensed: the eyebrow and the display-size h1 give way to a single inline
-   title, and the tab strip moves onto the same row as the actions. Measured
-   cost drops from 132px to ~52px on desktop; on a 390px phone the header stops
-   wrapping to three rows (168px) and settles at two (~90px). */
-.ns-page-chrome[data-condensed="true"] .ns-page-chrome-eyebrow { display: none; }
-.ns-page-chrome[data-condensed="true"] .ns-page-chrome-title {
-  font-size: var(--ns-t-title-3);
-  line-height: 1.2;
+/* The chrome's pin sentinel: a 1px out-of-flow marker whose exit from the
+   viewport marks the scroll position where the chrome pins. The chrome pins
+   when its top reaches --ns-sticky-top (+ demo banner), not the viewport
+   edge, so the sentinel must sit exactly that offset ABOVE the chrome's
+   natural top — unshifted, data-stuck (the hairline) engaged late by the
+   banner height while content was already sliding under the bar. */
+.ns-page-chrome-sentinel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin-top: calc(-1 * (var(--ns-sticky-top) + var(--ns-demo-banner-h)));
 }
-/* The header row and the tab strip each carry their own margin at rest
-   (header: 22px bottom on 記帳 / 0 on 投資; tabs: 24px bottom on 記帳, 20px top
-   + 22px bottom on 投資) to stack as two visually distinct rows. Condensed,
-   that margin is dead weight: zero it on both regardless of width so the
-   mobile two-row layout also shrinks (236px → within the 100px budget), even
-   though only ≥1024 actually merges them onto one physical row below. Margins
-   don't collapse between flex items, so 投資's tabs-row top margin has to be
-   zeroed explicitly too or it inflates the merged row's height on top of the
-   tallest child instead of disappearing into it. */
-.ns-page-chrome[data-condensed="true"] .ns-page-chrome-header-row {
-  margin-block: 0;
+/* The pinned chrome is ONLY this toolbar — one shape at every scroll
+   position. Plan 284's original two-state morph (eyebrow display:none,
+   h1 font-size drop, margins zeroed, all behind a 200ms transition) re-ran
+   the whole deformation every time the sentinel crossed the threshold, so
+   ordinary scrolling kept re-triggering a layout animation. Replaced
+   (operator request, 2026-08-02) by a static layout: the eyebrow + display
+   h1 sit OUTSIDE the chrome as ordinary content and scroll away; the toolbar
+   (tabs left, actions right) is the same single row at rest and pinned.
+   Page identity while pinned is carried by the sidebar / mobile dock's
+   active state.
+
+   Width contract (measured in plan 284, unchanged): at 1024 the content
+   column is 720px and the row wants ~800px → the tab strip must scroll
+   horizontally (flex: 1 1 0 + min-width: 0 + .ns-page-tabs overflow-x),
+   never wrap. Below 1024 the single row can't fit at all: the toolbar wraps
+   into two rows — actions above, tabs below — so the tab strip stays seated
+   on its own bottom hairline. `align-items: stretch` (the flex default) on
+   the ≥1024 row keeps both children's bottom hairlines at the same y, so
+   they read as one continuous rule with the active tab's 2px underline
+   overlapping it exactly as before. */
+.ns-page-toolbar {
+  display: flex;
+  flex-wrap: wrap;
 }
-.ns-page-chrome[data-condensed="true"] .ns-page-chrome-tabs-row {
-  margin-block: 0;
+.ns-page-toolbar-tabs {
+  order: 2;
+  flex: 1 1 100%;
+  border-bottom: 1px solid var(--ns-border);
 }
-/* Below 1024 the header row (title + action buttons) doesn't get merged onto
-   the tabs' row (not enough width for either, let alone both — see the
-   ≥1024 block), but at rest it's still free to `flex-wrap` onto up to three
-   lines (168px on a 390px phone). Condensed, force it to one line and let it
-   scroll horizontally instead — the same overflow-x:auto pattern the tabs
-   row already uses — so title+actions collapses to its natural ~40px button
-   height instead of the height of however many lines "本月/篩選/記一筆" wrap
-   onto. Reachable via scroll, not truncated or hidden — the "don't touch
-   button behavior" rule stays intact. */
-.ns-page-chrome[data-condensed="true"] .ns-page-chrome-header-row {
+.ns-page-toolbar-actions {
+  order: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* One scrollable line (the same overflow-x:auto pattern as the tabs), not
+     a multi-line wrap — the pinned bar's height must not depend on how many
+     lines 本月/篩選/記一筆 happen to wrap onto. */
   flex-wrap: nowrap;
   overflow-x: auto;
-}
-/* The action-button cluster inside the header row has its own flex-wrap at
-   rest (so it can drop to a second line before the whole header does). Same
-   fix, same reason: nowrap once condensed, so the header row's horizontal
-   scroll is the only overflow mechanism instead of two independent ones. */
-.ns-page-chrome[data-condensed="true"] .ns-page-chrome-actions {
-  flex-wrap: nowrap;
-}
-.ns-page-chrome[data-condensed="true"] {
-  padding-block: 4px;
+  max-width: 100%;
+  padding-bottom: 10px;
 }
 @media (min-width: 1024px) {
-  .ns-page-chrome[data-condensed="true"] .ns-page-chrome-row {
-    display: flex;
-    align-items: center;
-    gap: var(--ns-s-4);
+  .ns-page-toolbar {
+    flex-wrap: nowrap;
   }
-  /* Header cluster (title + action buttons) keeps its natural width — it must
-     not shrink or the buttons truncate. */
-  .ns-page-chrome[data-condensed="true"] .ns-page-chrome-header-row {
-    flex: 0 0 auto;
-  }
-  /* The tab strip keeps its own overflow-x:auto: at 1024 the content column is
-     720px and the condensed row wants ~800px, so the tabs must scroll rather
-     than wrap. Wrapping here would defeat the whole point — giving it the
-     remaining flex space (instead of its natural content width) is what
-     turns "not enough room" into "scrolls" instead of "wraps" or "overflows". */
-  .ns-page-chrome[data-condensed="true"] .ns-page-chrome-tabs-row {
+  .ns-page-toolbar-tabs {
+    order: 1;
     flex: 1 1 0;
     min-width: 0;
   }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ns-page-chrome { transition: none; }
+  .ns-page-toolbar-actions {
+    order: 2;
+    flex: 0 0 auto;
+    border-bottom: 1px solid var(--ns-border);
+    padding-bottom: 0;
+    padding-left: var(--ns-s-4);
+  }
 }
 
 /* Native apps cut between views; honor the OS "reduce motion" setting. */
@@ -1022,6 +1019,17 @@ textarea:focus-visible {
 .ns-dash-activity-card {
   height: 100%;
   min-width: 0;
+}
+
+/* Hero delta group — the change badge and its 期間 label are one unit, so a
+   longer badge (the `+123 · 1.96%` variant) can't push the label alone onto a
+   second line while the shorter `+123` variant keeps it inline. */
+.ns-hero-delta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 /* Hero net-worth chart (plan 280) — promoted from a 300×64 decorative
@@ -1519,22 +1527,8 @@ textarea:focus-visible {
   width: 100%;
   overflow-x: clip;
 }
-.ns-invest-header,
-.ns-invest-header-actions,
 .ns-page-tabs {
   min-width: 0;
-}
-.ns-invest-header {
-  flex-wrap: wrap;
-  gap: 14px;
-}
-.ns-invest-header-actions {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  max-width: 100%;
-  margin-left: auto;
-}
-.ns-page-tabs {
   overflow-x: auto;
   /* Setting overflow-x alone makes the UA compute overflow-y:auto, which then
      shows a spurious vertical scrollbar from a 1px sub-pixel overflow (the
@@ -1897,17 +1891,6 @@ textarea:focus-visible {
   }
   .ns-invest-page {
     padding: 18px 16px 110px !important;
-  }
-  .ns-invest-header {
-    align-items: flex-start !important;
-    flex-direction: column;
-    gap: 14px;
-  }
-  .ns-invest-header-actions {
-    width: 100%;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    margin-left: 0;
   }
   .ns-detail-page {
     padding: 18px 16px 110px;

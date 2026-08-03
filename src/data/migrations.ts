@@ -474,6 +474,9 @@ export const ADDITIVE_COLUMNS: ReadonlyArray<
   // it runs before those columns exist (plan 259).
   ["sync_outbox", "updated_at", "text"],
   ["sync_outbox", "deleted_at", "text"],
+  // 營業稅額 (plan 286): 公司帳交易列內含的營業稅，正數、幣別同 currency。
+  // null = 未填。未稅額 derive-on-read（|amount| − tax_amount），不另存欄位。
+  ["ledger_transactions", "tax_amount", "real"],
 ] as const;
 
 /** Indexes that cannot live in a migration because their column is added above. */
