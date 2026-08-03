@@ -92,6 +92,8 @@ export interface LedgerDraft {
   currency: string;
   originalAmount?: number | null;
   originalCurrency?: string | null;
+  /** 營業稅額 (plan 286) — 內含於 |amount| 的稅額，正數。null/undefined = 未填。 */
+  taxAmount?: number | null;
   category: string;
   subcategory: string;
   merchant: string;
