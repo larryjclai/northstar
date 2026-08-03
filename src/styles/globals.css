@@ -1521,6 +1521,23 @@ textarea:focus-visible {
   background: var(--ns-bg-hover);
 }
 
+/* ── FIRE calculator (plan 291) ──────────────────────────────────────────
+   桌機 = 固定側欄 + 結果區雙欄、各自捲動；手機（<1024）
+   = 整頁單欄自然捲動。結果區寬度歸零的根因是 340px shrink-0 側欄 +
+   overflow-hidden 頁根，收合時兩者都要解除。 */
+.ns-fire-page { padding: 32px 40px 100px; min-height: 100vh; height: 100vh; }
+.ns-fire-body { display: flex; flex: 1; gap: 24px; min-height: 0; }
+.ns-fire-sidebar { display: flex; flex-direction: column; flex-shrink: 0; gap: 16px; overflow-y: auto; padding-right: 8px; width: 340px; }
+.ns-fire-main { flex: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0; overflow-y: auto; }
+.ns-fire-cards { display: flex; gap: 16px; }
+@media (max-width: 1023px) {
+  .ns-fire-page { height: auto; min-height: 100dvh; overflow: visible; padding: 24px var(--ns-page-gutter, 16px) 100px; }
+  .ns-fire-body { flex-direction: column; }
+  .ns-fire-sidebar { width: 100%; overflow-y: visible; padding-right: 0; }
+  .ns-fire-main { overflow-y: visible; }
+  .ns-fire-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); }
+}
+
 /* ── Investment transactions ── */
 .ns-invest-page {
   min-width: 0;
