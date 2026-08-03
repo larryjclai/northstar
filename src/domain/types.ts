@@ -226,6 +226,9 @@ export interface LedgerTransaction extends SyncFields {
    *  statement than their purchase `date`. Null = posts on `date`. The account
    *  balance is unaffected; only statement bucketing uses this. */
   postDate?: string | null;
+  /** 營業稅額 (plan 286) — 內含於 |amount| 的稅額，正數。Optional（比照
+   *  recurringOccurrenceKey 等 additive 欄位慣例）；undefined/null = 未填。 */
+  taxAmount?: number | null;
 }
 
 export interface PortfolioAsset extends SyncFields {

@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   agingBuckets,
   bimonthly401Summary,
+  bimonthlyVatSummary,
+  currentPeriodVat,
   daysSalesOutstanding,
   outstandingSalesTax,
 } from "./invoiceReporting";
+import type { VatLedgerRowLike } from "./invoiceReporting";
 import type { Invoice } from "./types";
 
 const TODAY = "2026-07-14"; // Tuesday, bimonthly period 7-8月 (docs/ledger-books-plan.md §3)
@@ -27,6 +30,21 @@ function invoice(overrides: Partial<Invoice> & Pick<Invoice, "id">): Invoice {
     deletedAt: null,
     revision: 1,
   } as unknown as Invoice;
+  return { ...base, ...overrides };
+}
+
+function ledgerRow(
+  overrides: Partial<VatLedgerRowLike> & Pick<VatLedgerRowLike, "id">,
+): VatLedgerRowLike {
+  const base: VatLedgerRowLike = {
+    id: overrides.id,
+    date: "2026-07-01",
+    entryType: "expense",
+    amount: -1_000,
+    taxAmount: null,
+    counterAccountId: null,
+    deletedAt: null,
+  };
   return { ...base, ...overrides };
 }
 
@@ -208,5 +226,169 @@ describe("bimonthly401Summary", () => {
       "9-10月",
       "11-12月",
     ]);
+  });
+});
+
+describe("bimonthlyVatSummary", () => {
+  it("sums 進項稅額 (input tax) from expense rows into their own periods", () => {
+    const rows = bimonthlyVatSummary(
+      [],
+      [
+        ledgerRow({
+          id: "e1",
+          date: "2026-01-15",
+          entryType: "expense",
+          amount: -10_500,
+          taxAmount: 500,
+        }),
+        ledgerRow({
+          id: "e2",
+          date: "2026-03-15",
+          entryType: "expense",
+          amount: -10_500,
+          taxAmount: 500,
+        }),
+      ],
+      2026,
+    );
+    expect(rows.find((r) => r.period === "1-2月")!.inputTax).toBe(500);
+    expect(rows.find((r) => r.period === "3-4月")!.inputTax).toBe(500);
+  });
+
+  it("does not double-count output tax between an invoice and its linked income row (core invariant)", () => {
+    const rows = bimonthlyVatSummary(
+      [
+        invoice({
+          id: "inv1",
+          issueDate: "2026-07-05",
+          taxAmount: 5_000,
+          linkedLedgerTransactionId: "L1",
+        }),
+      ],
+      [
+        ledgerRow({
+          id: "L1",
+          date: "2026-07-05",
+          entryType: "income",
+          amount: 105_000,
+          taxAmount: 5_000,
+        }),
+      ],
+      2026,
+    );
+    const julyAug = rows.find((r) => r.period === "7-8月")!;
+    expect(julyAug.outputTax).toBe(5_000);
+  });
+
+  it("counts an unlinked income row's tax as output tax and taxable sales", () => {
+    const rows = bimonthlyVatSummary(
+      [],
+      [
+        ledgerRow({
+          id: "inc1",
+          date: "2026-07-05",
+          entryType: "income",
+          amount: 10_500,
+          taxAmount: 500,
+        }),
+      ],
+      2026,
+    );
+    const julyAug = rows.find((r) => r.period === "7-8月")!;
+    expect(julyAug.outputTax).toBe(500);
+    expect(julyAug.taxableSales).toBe(10_000);
+  });
+
+  it("excludes transfer rows, 代墊 pass-through rows, deleted rows, and rows with no tax amount", () => {
+    const rows = bimonthlyVatSummary(
+      [],
+      [
+        ledgerRow({
+          id: "t1",
+          date: "2026-07-05",
+          entryType: "transfer",
+          amount: -1_000,
+          taxAmount: 500,
+        }),
+        ledgerRow({
+          id: "p1",
+          date: "2026-07-05",
+          entryType: "expense",
+          amount: -1_000,
+          taxAmount: 500,
+          counterAccountId: "acct-x",
+        }),
+        ledgerRow({
+          id: "d1",
+          date: "2026-07-05",
+          entryType: "expense",
+          amount: -1_000,
+          taxAmount: 500,
+          deletedAt: "2026-07-06T00:00:00.000Z",
+        }),
+        ledgerRow({
+          id: "n1",
+          date: "2026-07-05",
+          entryType: "expense",
+          amount: -1_000,
+          taxAmount: null,
+        }),
+      ],
+      2026,
+    );
+    for (const row of rows) {
+      expect(row.inputTax).toBe(0);
+      expect(row.outputTax).toBe(0);
+    }
+  });
+
+  it("returns a negative netTax (留抵/退稅) when input tax exceeds output tax", () => {
+    const rows = bimonthlyVatSummary(
+      [invoice({ id: "inv1", issueDate: "2026-07-05", taxAmount: 1_000 })],
+      [
+        ledgerRow({
+          id: "e1",
+          date: "2026-07-05",
+          entryType: "expense",
+          amount: -21_000,
+          taxAmount: 3_000,
+        }),
+      ],
+      2026,
+    );
+    const julyAug = rows.find((r) => r.period === "7-8月")!;
+    expect(julyAug.netTax).toBe(1_000 - 3_000);
+    expect(julyAug.netTax).toBeLessThan(0);
+  });
+});
+
+describe("currentPeriodVat", () => {
+  it("only counts invoices and ledger rows from the bimonthly period todayIso falls in", () => {
+    const result = currentPeriodVat(
+      [
+        invoice({ id: "inv1", issueDate: "2026-03-10", taxAmount: 1_000 }), // 3-4月
+        invoice({ id: "inv2", issueDate: "2026-07-10", taxAmount: 2_000 }), // 7-8月, excluded
+      ],
+      [
+        ledgerRow({
+          id: "e1",
+          date: "2026-03-15",
+          entryType: "expense",
+          amount: -10_500,
+          taxAmount: 500,
+        }), // 3-4月
+        ledgerRow({
+          id: "e2",
+          date: "2026-07-15",
+          entryType: "expense",
+          amount: -10_500,
+          taxAmount: 900,
+        }), // excluded
+      ],
+      "2026-03-20", // falls in 3-4月
+    );
+    expect(result.outputTax).toBe(1_000);
+    expect(result.inputTax).toBe(500);
+    expect(result.netTax).toBe(500);
   });
 });
