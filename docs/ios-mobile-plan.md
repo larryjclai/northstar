@@ -107,6 +107,31 @@ App 圖示、LaunchScreen、狀態列樣式、鍵盤遮擋輸入框、捲動慣�
 
 ## 排錯
 
+**`ld: symbol(s) not found for architecture arm64`（Swift 原生橋接）**
+`gen/apple/northstar.xcodeproj` 是 XcodeGen 依 `project.yml` 生成後 **commit 進 repo 的產物**，
+之後不會自動重生。所以新增到 `Sources/` 的 Swift 檔（例如 `@_cdecl` 橋接）**不會自己進 Xcode
+target**——`project.yml` 雖然寫 `sources: - path: Sources`（重生時會收），但沒人重生。
+`FoundationModels.swift` 就是這樣加了兩次、從沒接線，iOS build 壞了一個多月（PR #34 修）。
+
+新增 Swift 檔時，要嘛重跑 XcodeGen，要嘛手動補 `project.pbxproj` 四處：
+`PBXFileReference`、`PBXBuildFile`、group 的 `children`、`PBXSourcesBuildPhase` 的 `files`。
+
+兩個連帶陷阱：
+- `[lib] crate-type` 含 `cdylib`，而 cdylib 必須在連結當下解析所有符號、等不到 Xcode 的最終
+  app link → `build.rs` 對 iOS 加 `-Wl,-undefined,dynamic_lookup`（Xcode 真正吃的是 staticlib，
+  那顆 cdylib 是用不到的副產物）。
+- iOS 26+ 才有的框架（FoundationModels）在 deployment target 14.0 下必須 weak-link，否則舊系統
+  開不起來。設定寫在 `project.yml` 的 `settings.base`（`OTHER_LDFLAGS` / `OTHER_SWIFT_FLAGS`），
+  重生 Xcode 專案時才不會掉。
+
+**回歸防護**：`ci.yml` 的 `ios` job 每個 PR 跑 `tauri ios build --target aarch64-sim --debug`。
+模擬器 target 走同一條 xcodebuild 連結路徑，但不需簽證/Apple 帳號。當初就是因為所有 CI job 都在
+Linux、沒有任何一個碰 Xcode，這個 bug 才會躲一個多月。
+
+**`failed to rename app ... Directory not empty (os error 66)`**
+`gen/apple/build/` 有上次的殘留產物（該目錄已 gitignore，CI 從乾淨狀態開始不會遇到）。
+`rm -rf src-tauri/gen/apple/build` 後重跑。
+
 **`failed to run 'cargo metadata' ... No such file or directory`**
 cargo 不在 PATH，或 rustup proxy（`~/.cargo/bin/rustup`）遺失導致 cargo/rustc 等 shim 連結斷掉。
 先確認 `cargo --version`；若失敗但 `~/.rustup/toolchains/` 仍在，補回 proxy 即可（不會重抓 toolchain）：

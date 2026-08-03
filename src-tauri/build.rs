@@ -13,6 +13,16 @@ fn main() {
         link_foundation_models_swift();
     }
 
+    // On iOS the Swift symbols above stay undefined until Xcode links the app
+    // target, which is fine for the `staticlib` Xcode actually consumes. But
+    // `cargo build --lib` also builds the `cdylib` from [lib] crate-type, and a
+    // cdylib must resolve every symbol at link time → `ld: symbol(s) not found`.
+    // Defer resolution so the (unused) cdylib links; the real app link in Xcode
+    // still resolves them for real.
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("ios") {
+        println!("cargo:rustc-link-arg=-Wl,-undefined,dynamic_lookup");
+    }
+
     tauri_build::build()
 }
 
