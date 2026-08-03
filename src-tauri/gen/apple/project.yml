@@ -68,6 +68,13 @@ targets:
         LIBRARY_SEARCH_PATHS[arch=arm64]: $(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)
         ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: true
         EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
+        # Sources/northstar/FoundationModels.swift needs the FoundationModels
+        # framework, which only exists on iOS 26+ while deploymentTarget is 14.0.
+        # Link it weakly (and suppress Swift's hard autolink hint) so the app
+        # still launches on older systems and falls back to Tier 0 parsing.
+        # Keep in sync with the same treatment src-tauri/build.rs gives macOS.
+        OTHER_SWIFT_FLAGS: $(inherited) -Xfrontend -disable-autolink-framework -Xfrontend FoundationModels
+        OTHER_LDFLAGS: $(inherited) -weak_framework FoundationModels
       groups: [app]
     dependencies:
       - framework: libapp.a
