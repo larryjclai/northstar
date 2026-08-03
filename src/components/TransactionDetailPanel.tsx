@@ -148,6 +148,7 @@ export function TransactionDetailPanel({
   return (
     <ModalShell
       variant="sheet"
+      mobilePresentation="bottom-sheet"
       title="交易詳情"
       onClose={onClose}
       style={{ zIndex: 998 }}
