@@ -180,3 +180,114 @@ export function bimonthly401Summary(invoices: Invoice[], year: number): Bimonthl
 
   return BIMONTHLY_PERIOD_LABELS.map((period) => ({ period, ...totals.get(period)! }));
 }
+
+/**
+ * 報表端需要的最小 ledger 列形狀 (plan 286) — 進項稅額 (expenses' input VAT) 及
+ * 未連結發票的收入列銷項稅額。`taxAmount` is optional/nullable to stay
+ * structurally assignable from `LedgerTransaction` (an additive field, see
+ * `LedgerTransaction.taxAmount`).
+ */
+export interface VatLedgerRowLike {
+  id: string;
+  date: string;
+  entryType: "income" | "expense" | "transfer";
+  amount: number;
+  taxAmount?: number | null;
+  counterAccountId: string | null;
+  deletedAt: string | null;
+}
+
+export interface BimonthlyVatRow {
+  period: string;
+  /** 未稅銷售額 — invoices' taxExclusiveAmount + unlinked income rows' (|amount| − taxAmount). */
+  taxableSales: number;
+  /** 銷項稅額 — invoices' taxAmount (by issueDate) + unlinked income rows' taxAmount (by date). */
+  outputTax: number;
+  /** 進項稅額 — expense rows' taxAmount, summed. */
+  inputTax: number;
+  /** 應納(退)稅額 = outputTax − inputTax. Negative = 留抵/退稅. */
+  netTax: number;
+}
+
+/**
+ * Ledger rows eligible to contribute VAT: not deleted, not a transfer, not a
+ * 代墊 pass-through leg (`counterAccountId` null — those net zero and aren't
+ * the company's own income/expense), and actually have a positive tax amount
+ * filled in. See design decision D4 in plan 286.
+ */
+function eligibleVatRows(ledgerRows: VatLedgerRowLike[]): VatLedgerRowLike[] {
+  return ledgerRows.filter(
+    (row) =>
+      row.deletedAt === null &&
+      row.entryType !== "transfer" &&
+      row.counterAccountId === null &&
+      (row.taxAmount ?? 0) > 0,
+  );
+}
+
+/**
+ * 雙月 401 彙總，含進項稅額與應納(退)稅額 (plan 286) — supersedes
+ * `bimonthly401Summary` for books that also track 進項稅額 on expense rows.
+ * 銷項 = invoices ∪ (未連結發票的收入列，避免與已連結發票的收入列重複計算，
+ * see D2). 進項 = expense rows' taxAmount. Always returns all six periods in
+ * calendar order (zero-filled), matching `bimonthly401Summary`'s contract.
+ */
+export function bimonthlyVatSummary(
+  invoices: Invoice[],
+  ledgerRows: VatLedgerRowLike[],
+  year: number,
+): BimonthlyVatRow[] {
+  const totals = new Map<string, { taxableSales: number; outputTax: number; inputTax: number }>();
+  for (const label of BIMONTHLY_PERIOD_LABELS)
+    totals.set(label, { taxableSales: 0, outputTax: 0, inputTax: 0 });
+
+  for (const invoice of invoices) {
+    const issued = periodOf(invoice.issueDate);
+    if (issued.year !== year) continue;
+    const row = totals.get(issued.period)!;
+    row.taxableSales += invoice.taxExclusiveAmount;
+    row.outputTax += invoice.taxAmount;
+  }
+
+  // Invoices only ever link back to income rows (an invoice records a sale),
+  // so this set is only ever consulted for entryType === "income" below.
+  const linkedLedgerIds = new Set(
+    invoices
+      .map((invoice) => invoice.linkedLedgerTransactionId)
+      .filter((id): id is string => id !== null),
+  );
+
+  for (const row of eligibleVatRows(ledgerRows)) {
+    const period = periodOf(row.date);
+    if (period.year !== year) continue;
+    const bucket = totals.get(period.period)!;
+    const taxAmount = row.taxAmount ?? 0;
+    if (row.entryType === "expense") {
+      bucket.inputTax += taxAmount;
+    } else if (row.entryType === "income" && !linkedLedgerIds.has(row.id)) {
+      bucket.outputTax += taxAmount;
+      bucket.taxableSales += Math.abs(row.amount) - taxAmount;
+    }
+  }
+
+  return BIMONTHLY_PERIOD_LABELS.map((period) => {
+    const t = totals.get(period)!;
+    return { period, ...t, netTax: t.outputTax - t.inputTax };
+  });
+}
+
+/**
+ * 本期（今日所在雙月期別）應納(退)稅額 = 銷項 − 進項 (plan 286). Derived from
+ * `bimonthlyVatSummary` for the year `todayIso` falls in, so the two never
+ * drift apart on period-boundary math.
+ */
+export function currentPeriodVat(
+  invoices: Invoice[],
+  ledgerRows: VatLedgerRowLike[],
+  todayIso: string,
+): { outputTax: number; inputTax: number; netTax: number } {
+  const current = periodOf(todayIso);
+  const summary = bimonthlyVatSummary(invoices, ledgerRows, current.year);
+  const row = summary.find((r) => r.period === current.period)!;
+  return { outputTax: row.outputTax, inputTax: row.inputTax, netTax: row.netTax };
+}

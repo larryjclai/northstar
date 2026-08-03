@@ -1,5 +1,14 @@
 # Implementation Plans
 
+> **📌 2026-08-02 狀態更新：284B 的「凝縮式」行為已被取代（PR #29）。**
+> Operator 實際使用後認定捲動兩態變形（eyebrow 消失、h1 縮小、列合併＋200ms 過渡）
+> 「滑一滑視覺一直改變」不可接受。改為**靜態單列 toolbar**：大標題（eyebrow + h1）
+> 移出 chrome 自然捲走，chrome 只剩「分頁左＋動作右」一列，釘住前後**形狀不變**。
+> 284B 的預算與寬度契約**仍然成立**（桌機 ≤56px、手機 ≤100px、1024 分頁橫向捲動不換行，
+> e2e 續守，並新增「pinned 高度 == 靜止高度」的 no-morph 不變量）；284A 頂端邊緣契約
+> **不受影響**，且 sentinel 補上了 `--ns-sticky-top + --ns-demo-banner-h` 位移
+> （hairline 不再晚 ~47px 出現）。詳見 `284-*.md` 檔首註記。
+
 ## 🔄 Reconciled 2026-07-31 @ `36c3d9e9`
 
 284 份計畫盤點完畢。**沒有 BLOCKED，沒有停在半路的 IN PROGRESS。**
@@ -324,11 +333,50 @@ Y 軸刻度是**非整數**：`1.95萬 / 26.95萬 / 51.95萬 / 72.77萬`。成�
 **這不是計畫的缺陷**（280 明文指定了這套 domain 數學，執行者照做），是升級後才浮現的可讀性議題。
 修法是在 `buildHeroTrendMeta` 加一層 nice-number 取整並回傳明確 `ticks` 給 YAxis —— 值得單獨開一份小計畫。
 
+## 286 — e2e 改用 fixture 播種（`/improve plan` 2026-08-01 @ `4736832d`）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+| ---- | ----- | -------- | ------ | ---------- | ------ |
+| 286  | `sticky-chrome.spec.ts` 的 setup 從「點 UI 造資料」（進示範模式等 7 秒 → 拓寬日期 → CSV 匯入 60 列 → 展開月份，約 15 秒）改成用 `addInitScript` 直接寫 localStorage 播種 | P3 | M | — | TODO |
+
+### 可行性已查證，不是紙上談兵
+
+| 事實 | 出處 |
+| --- | --- |
+| 瀏覽器 repo **IDB 優先、找不到退回 localStorage** | `repositories.ts:3102-3118` |
+| localStorage key | `northstar.browserRepository.v1`（`repositories.ts:994`） |
+| 只給部分欄位就夠 —— `normalizeStoredData` 每個欄位都 `?? []` | `repositories.ts:7518-7527` |
+| **不用提供 books** —— 載入時自動建「個人帳」並掛上帳戶 | `repositories.ts:1034/1040/1124-1143` |
+
+### 關鍵設計：交易要集中在「最近 3 天」
+
+`CashFlowRoute.tsx:1706-1720` 的 `defaultVisibleCount` **只渲染最近 3 個不同日期的列**。
+所以「本月灑 60 筆分散 30 天」只會渲染 3 天份、頁面還是不夠高；
+**60 筆集中在最近 3 天**才會全部渲染。
+
+這一條讓 setup 從四步變零步：資料就在本月 → 不用拓寬日期；本月是短區間（<92 天，
+`CashFlowRoute.tsx:235`）→ 走日分組不折疊 → 不用展開月份。
+
+### 投資那個 case 要拆開看
+
+分析分頁有 gating：`positions.length > 0 && hasHistory`，而 `hasHistory` 需要
+**≥ 30 天**的報酬觀測值（`MIN_ANALYTICS_DAYS = 30`，`portfolioAnalytics.ts:51`）。
+計畫的建議是拆成兩件事：**chrome 凝縮**改用持倉分頁（無 gating，便宜），
+**分析導覽列緊貼 chrome 下緣**那條保留在分析分頁（那是 284A 的回歸守門，價值高）。
+若播 30 天價格讓 fixture 複雜到失控 → STOP 回報，退路要 advisor 決定。
+
+### 計畫刻意不讓執行者碰 timeout
+
+284B 的 `timeout: 90_000` 留著不動，降 timeout 是**另一個 commit**，
+由 advisor 推上去看 CI 決定。理由寫進計畫了：**本機變快不是 CI 會綠的證據** ——
+那正是 284B 犯過的錯。臨時 config 也明文要求「除 port 與 `reuseExistingServer`
+外必須與 `playwright.config.ts` 逐項相同」，且**不准帶 `timeout`**。
+
 ## 285 — in-app updater 的「更新內容」空白（`/improve plan` 2026-08-01 @ `44d7c384`）
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 | ---- | ----- | -------- | ------ | ---------- | ------ |
-| 285  | 修好 `latest.json.notes`：`8c091a94` 改用 `releaseId` 之後 tauri-action 忽略 `releaseBody`，導致 updater 對話框沒有任何更新說明。在 `publish` job 已下載並驗證 `latest.json` 的地方補上 notes 再重新上傳 | P2 | S | — | TODO |
+| 285  | 修好 `latest.json.notes`：`8c091a94` 改用 `releaseId` 之後 tauri-action 忽略 `releaseBody`，導致 updater 對話框沒有任何更新說明。在 `publish` job 已下載並驗證 `latest.json` 的地方補上 notes 再重新上傳 | P2 | S | — | **DONE — reviewed+APPROVED+MERGED**（PR #26 → `e190c2fc`）：advisor 獨立重跑演練，`signatures untouched` / `version preserved` / `pub_date preserved` / `key set identical` 全 true，notes 0 → 1157 字且不含安裝表格。執行者另加了 step 3c（重新抓下已上傳的 asset 再驗一次），計畫沒要求但正確。**實戰驗證要等下次發版** |
 
 ### 這是 beta.2 修復自己造成的迴歸，發 beta.3 才現形
 
@@ -362,6 +410,27 @@ GitHub Release 頁面不受影響（beta.3 有 1492 字），四個平台鍵也�
 
 Workflow 的改動無法在合併前完整驗證（只有真的發版才知道），計畫已明文寫出這個限制，
 並給了下次發版後必跑的驗收指令。**把那條指令寫進 `RELEASING.md` 是另一件事，不在 285 範圍內。**
+
+## 286 — 公司帳交易的營業稅欄位（`/improve plan` 2026-08-03 @ `d161afd3`）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+| ---- | ----- | -------- | ------ | ---------- | ------ |
+| 286  | 公司帳交易列加 nullable `tax_amount`（additive column）：支出可填進項稅額、非開發票收入可填銷項稅額（`computeSalesTax` 5% 自動帶入、可修正）；401 報表補上 進項稅額 與 應納(退)稅額 = 銷項 − 進項，本期應繳卡片改顯示淨額 | P2 | M | — | **DONE — reviewed+APPROVED+MERGED**（operator 2026-08-03 指示合併，PR #32，merge commit `029f80ab`）：分支 `feat/ai-company-vat-field` @ `edb7548a`（worktree，5 commits + 1 prettier style commit，基於 `d161afd3`），6 檔 / +422 −31。⚠️ CI 教訓：executor 與 advisor 的本機閘門都漏了 `npm run format:check`（CI 的 `checks` job 會跑）——之後計畫的 Commands 表要列入。advisor 獨立複驗：build 0、**1570 測試全過**（baseline 1564 + 6 新）、lint 0 errors／799 既有 warnings、`git status` 乾淨、scope 恰好 = 計畫 6 檔、migrations diff **純新增 3 行**（additive-only ✓）、核心去重不變量測試實斷 `outputTax = 5000 not 10000`。**修訂 1 輪**：原計畫把 `taxAmount` 規格成必填，實測會炸 `transferBuilder.ts` + 16 個測試 fixture（executor 正確 STOP）；改為 optional（`taxAmount?: number | null`，符合 `legKind?`/`postDate?` 等 additive 欄位慣例）後零 out-of-scope 改動。executor 另回報一個已知邊角：先填稅額再切到 ar/ap 送出會沿用 stale 值（v1 ar/ap 本來就 out of scope，D3 語意一致，不算 bug） |
+
+### 現況查證的關鍵事實（寫進計畫，不要重查）
+
+銷項側 plan 190/191 **已經做完**（`invoices` 表有 `tax_exclusive_amount`/`tax_amount`、
+`computeSalesTax` 內含稅公式、401 雙月彙總卡片）。缺口正是 `docs/ledger-books-plan.md:420`
+明文 deferred 的「進項稅額 (expenses' input VAT)」—— `ledger_transactions` 完全沒有稅額欄位。
+
+### 三個設計決定（已定案）
+
+1. **單一 nullable `tax_amount` 欄位**（正數、同列幣別），未稅額 derive-on-read —— 不學
+   `invoices` 存兩欄，少一個 drift 源；additive-only ✓。
+2. **開發票流程不 dual-write**：報表用 `linkedLedgerTransactionId` 去重（發票 ∪ 未連結
+   收入列），所以**不需要 backfill 舊資料**。
+3. **UI gating 只管顯示、不管送出**：submit payload 永遠帶 `taxAmount` —— 否則從總帳檢視
+   編輯公司帳交易（欄位隱藏）會默默洗掉已填稅額。這是計畫裡最重要的資料流陷阱。
 
 ## 282–283 — operator 的兩個 UX 需求（`/improve plan` 2026-07-31 @ `f62b3c0b`）
 
