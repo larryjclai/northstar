@@ -372,6 +372,27 @@ GitHub Release 頁面不受影響（beta.3 有 1492 字），四個平台鍵也�
 Workflow 的改動無法在合併前完整驗證（只有真的發版才知道），計畫已明文寫出這個限制，
 並給了下次發版後必跑的驗收指令。**把那條指令寫進 `RELEASING.md` 是另一件事，不在 285 範圍內。**
 
+## 286 — 公司帳交易的營業稅欄位（`/improve plan` 2026-08-03 @ `d161afd3`）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+| ---- | ----- | -------- | ------ | ---------- | ------ |
+| 286  | 公司帳交易列加 nullable `tax_amount`（additive column）：支出可填進項稅額、非開發票收入可填銷項稅額（`computeSalesTax` 5% 自動帶入、可修正）；401 報表補上 進項稅額 與 應納(退)稅額 = 銷項 − 進項，本期應繳卡片改顯示淨額 | P2 | M | — | **DONE — reviewed+APPROVED**（未 merge，等 operator）：分支 `feat/ai-company-vat-field` @ `69df7290`（worktree，5 commits，基於 `d161afd3`），6 檔 / +420 −31。advisor 獨立複驗：build 0、**1570 測試全過**（baseline 1564 + 6 新）、lint 0 errors／799 既有 warnings、`git status` 乾淨、scope 恰好 = 計畫 6 檔、migrations diff **純新增 3 行**（additive-only ✓）、核心去重不變量測試實斷 `outputTax = 5000 not 10000`。**修訂 1 輪**：原計畫把 `taxAmount` 規格成必填，實測會炸 `transferBuilder.ts` + 16 個測試 fixture（executor 正確 STOP）；改為 optional（`taxAmount?: number | null`，符合 `legKind?`/`postDate?` 等 additive 欄位慣例）後零 out-of-scope 改動。executor 另回報一個已知邊角：先填稅額再切到 ar/ap 送出會沿用 stale 值（v1 ar/ap 本來就 out of scope，D3 語意一致，不算 bug） |
+
+### 現況查證的關鍵事實（寫進計畫，不要重查）
+
+銷項側 plan 190/191 **已經做完**（`invoices` 表有 `tax_exclusive_amount`/`tax_amount`、
+`computeSalesTax` 內含稅公式、401 雙月彙總卡片）。缺口正是 `docs/ledger-books-plan.md:420`
+明文 deferred 的「進項稅額 (expenses' input VAT)」—— `ledger_transactions` 完全沒有稅額欄位。
+
+### 三個設計決定（已定案）
+
+1. **單一 nullable `tax_amount` 欄位**（正數、同列幣別），未稅額 derive-on-read —— 不學
+   `invoices` 存兩欄，少一個 drift 源；additive-only ✓。
+2. **開發票流程不 dual-write**：報表用 `linkedLedgerTransactionId` 去重（發票 ∪ 未連結
+   收入列），所以**不需要 backfill 舊資料**。
+3. **UI gating 只管顯示、不管送出**：submit payload 永遠帶 `taxAmount` —— 否則從總帳檢視
+   編輯公司帳交易（欄位隱藏）會默默洗掉已填稅額。這是計畫裡最重要的資料流陷阱。
+
 ## 282–283 — operator 的兩個 UX 需求（`/improve plan` 2026-07-31 @ `f62b3c0b`）
 
 兩份都是 `plan <description>` 模式：operator 直接指定要什麼，advisor 只做「查證現況 + 寫規格」，
