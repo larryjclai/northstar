@@ -91,9 +91,9 @@ import { buildInvoiceDrafts, defaultInvoiceDueDate } from "../domain/invoiceEntr
 import { computeSalesTax } from "../domain/salesTax";
 import {
   agingBuckets,
-  bimonthly401Summary,
+  bimonthlyVatSummary,
+  currentPeriodVat,
   daysSalesOutstanding,
-  outstandingSalesTax,
 } from "../domain/invoiceReporting";
 import {
   nextInvoiceNumber,
@@ -1840,14 +1840,21 @@ export function CashFlowRoute() {
     () => daysSalesOutstanding(bookInvoices, { todayIso }),
     [bookInvoices, todayIso],
   );
-  const currentPeriodSalesTax = useMemo(
-    () => outstandingSalesTax(bookInvoices, todayIso),
-    [bookInvoices, todayIso],
-  );
   const currentFilingYear = useMemo(() => Number(todayIso.slice(0, 4)), [todayIso]);
-  const invoice401Summary = useMemo(
-    () => bimonthly401Summary(bookInvoices, currentFilingYear),
-    [bookInvoices, currentFilingYear],
+  // 進項稅額 aware 401 彙總 + 本期應納(退)稅額 (plan 286) — supersede the
+  // invoices-only outstandingSalesTax/bimonthly401Summary now that ledger
+  // rows can also carry a taxAmount (支出 = 進項, 未連結發票的收入 = 銷項).
+  const vatSummary = useMemo(
+    () => bimonthlyVatSummary(bookInvoices, bookLedgerRows, currentFilingYear),
+    [bookInvoices, bookLedgerRows, currentFilingYear],
+  );
+  const periodVat = useMemo(
+    () => currentPeriodVat(bookInvoices, bookLedgerRows, todayIso),
+    [bookInvoices, bookLedgerRows, todayIso],
+  );
+  const bookHasVat = useMemo(
+    () => bookLedgerRows.some((r) => r.taxAmount != null && r.taxAmount > 0 && r.deletedAt === null),
+    [bookLedgerRows],
   );
 
   // Render one day-group (header + its rows) — shared by the flat short-range
@@ -2650,17 +2657,26 @@ export function CashFlowRoute() {
                 </Card>
               ) : null}
 
-              {/* 發票報表 (plan 193): 帳齡/DSO、本期應繳營業稅、401 雙月彙總 — company
-              book only (docs/ledger-books-plan.md §3), and only once there's
-              at least one invoice to report on. */}
-              {isActiveCompanyBook && bookInvoices.length > 0 && (
+              {/* 發票報表 (plan 193/286): 帳齡/DSO、本期應納(退)稅額、401 雙月彙總 —
+              company book only (docs/ledger-books-plan.md §3), shown once there's
+              at least one invoice OR a ledger row with a filled tax amount to
+              report on (a 公司帳 that only tracks 進項稅額 on expenses, with no
+              invoices yet, should still see its 401 numbers). */}
+              {isActiveCompanyBook && (bookInvoices.length > 0 || bookHasVat) && (
                 <Card style={{ padding: "var(--ns-pad-card)" }}>
                   <div className="text-sm font-semibold mb-2.5">本期應繳營業稅</div>
-                  <div className="num text-lg" style={{ color: "var(--ns-neg)" }}>
-                    {primaryCurrency} {formatNumber(currentPeriodSalesTax)}
+                  <div
+                    className="num text-lg"
+                    style={{ color: periodVat.netTax < 0 ? "var(--ns-pos)" : "var(--ns-neg)" }}
+                  >
+                    {primaryCurrency} {formatNumber(periodVat.netTax)}
                   </div>
-                  <div className="muted text-caption mt-1.5">
-                    依開立日計算，含尚未收款的發票 — 銷項稅額於開立當期即應繳納，非收款當期。
+                  <div className="muted text-caption num mt-1.5">
+                    銷項稅額 {formatNumber(periodVat.outputTax)} · 進項稅額{" "}
+                    {formatNumber(periodVat.inputTax)}
+                  </div>
+                  <div className="muted text-caption mt-1">
+                    依開立日/交易日計算，含尚未收款的發票 — 應納(退)稅額 = 銷項 − 進項稅額，負值為留抵。
                   </div>
                 </Card>
               )}
@@ -2687,7 +2703,7 @@ export function CashFlowRoute() {
                 </Card>
               )}
 
-              {isActiveCompanyBook && bookInvoices.length > 0 && (
+              {isActiveCompanyBook && (bookInvoices.length > 0 || bookHasVat) && (
                 <Card style={{ padding: "var(--ns-pad-card)" }}>
                   <div className="text-sm font-semibold mb-2.5">
                     {currentFilingYear} 年度 401 雙月彙總
@@ -2699,14 +2715,18 @@ export function CashFlowRoute() {
                           <th>期間</th>
                           <th className="text-right">未稅銷售額</th>
                           <th className="text-right">銷項稅額</th>
+                          <th className="text-right">進項稅額</th>
+                          <th className="text-right">應納(退)稅額</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {invoice401Summary.map((row) => (
+                        {vatSummary.map((row) => (
                           <tr key={row.period}>
                             <td>{row.period}</td>
                             <td className="num text-right">{formatNumber(row.taxableSales)}</td>
-                            <td className="num text-right">{formatNumber(row.salesTax)}</td>
+                            <td className="num text-right">{formatNumber(row.outputTax)}</td>
+                            <td className="num text-right">{formatNumber(row.inputTax)}</td>
+                            <td className="num text-right">{formatNumber(row.netTax)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -2714,20 +2734,24 @@ export function CashFlowRoute() {
                         <tr>
                           <td>合計</td>
                           <td className="num text-right">
-                            {formatNumber(
-                              invoice401Summary.reduce((sum, r) => sum + r.taxableSales, 0),
-                            )}
+                            {formatNumber(vatSummary.reduce((sum, r) => sum + r.taxableSales, 0))}
                           </td>
                           <td className="num text-right">
-                            {formatNumber(
-                              invoice401Summary.reduce((sum, r) => sum + r.salesTax, 0),
-                            )}
+                            {formatNumber(vatSummary.reduce((sum, r) => sum + r.outputTax, 0))}
+                          </td>
+                          <td className="num text-right">
+                            {formatNumber(vatSummary.reduce((sum, r) => sum + r.inputTax, 0))}
+                          </td>
+                          <td className="num text-right">
+                            {formatNumber(vatSummary.reduce((sum, r) => sum + r.netTax, 0))}
                           </td>
                         </tr>
                       </tfoot>
                     </table>
                   </div>
-                  <div className="muted text-caption mt-1.5">供 401 申報參考。</div>
+                  <div className="muted text-caption mt-1.5">
+                    供 401 申報參考；進項稅額以已填稅額的支出為準。
+                  </div>
                 </Card>
               )}
             </div>
