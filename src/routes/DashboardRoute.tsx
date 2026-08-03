@@ -1813,6 +1813,15 @@ export function DashboardRoute() {
             </div>
           ) : null}
 
+          {/* While 長期視角 is on, say what it does right under the chart —
+              the button's hover `title` never surfaces on touch, and a
+              slightly smoother line alone doesn't explain the mode. */}
+          {activeMetric.key === "netWorth" && heroTrend && longViewMode ? (
+            <div className="muted text-caption mt-1">
+              長期視角：以 {LONG_VIEW_WINDOW} 日移動平均淡化每日波動、聚焦長期趨勢。僅影響顯示，最新端點仍為即時淨值。
+            </div>
+          ) : null}
+
           {/* No meaningful trend yet → a slim hint instead of the sparkline. */}
           {activeMetric.key === "netWorth" && reconciledTrend.length <= 1 ? (
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
