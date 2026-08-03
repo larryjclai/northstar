@@ -1818,7 +1818,8 @@ export function DashboardRoute() {
               slightly smoother line alone doesn't explain the mode. */}
           {activeMetric.key === "netWorth" && heroTrend && longViewMode ? (
             <div className="muted text-caption mt-1">
-              長期視角：以 {LONG_VIEW_WINDOW} 日移動平均淡化每日波動、聚焦長期趨勢。僅影響顯示，最新端點仍為即時淨值。
+              長期視角：以 {LONG_VIEW_WINDOW}{" "}
+              日移動平均淡化每日波動、聚焦長期趨勢。僅影響顯示，最新端點仍為即時淨值。
             </div>
           ) : null}
 
