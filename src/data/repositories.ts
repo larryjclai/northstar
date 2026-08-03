@@ -92,6 +92,8 @@ export interface LedgerDraft {
   currency: string;
   originalAmount?: number | null;
   originalCurrency?: string | null;
+  /** 營業稅額 (plan 286) — 內含於 |amount| 的稅額，正數。null/undefined = 未填。 */
+  taxAmount?: number | null;
   category: string;
   subcategory: string;
   merchant: string;
@@ -4097,7 +4099,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       installment_group_id as installmentGroupId, installment_index as installmentIndex, installment_total as installmentTotal,
       refund_of_ledger_id as refundOfLedgerId,
       is_reviewed as isReviewed, receipt_attachment_id as receiptAttachmentId, recurring_rule_id as recurringRuleId,
-      recurring_occurrence_key as recurringOccurrenceKey, post_date as postDate
+      recurring_occurrence_key as recurringOccurrenceKey, post_date as postDate, tax_amount as taxAmount
       from ledger_transactions where deleted_at is null order by date desc, created_at desc`)
     ).map((row) => ({
       ...row,
@@ -4166,7 +4168,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
       if (plan.kind === "create" && !groupId) groupId = createId("group");
 
       await this.db.execute(
-        `update ledger_transactions set revision = revision + 1, updated_at = $1, account_id = $2, date = $3, name = $4, amount = $5, currency = $6, original_amount = $7, original_currency = $8, category = $9, subcategory = $10, merchant = $11, entry_type = $12, settlement_status = $13, note = $14, group_id = $15, counter_account_id = $17, post_date = $18 where id = $16`,
+        `update ledger_transactions set revision = revision + 1, updated_at = $1, account_id = $2, date = $3, name = $4, amount = $5, currency = $6, original_amount = $7, original_currency = $8, category = $9, subcategory = $10, merchant = $11, entry_type = $12, settlement_status = $13, note = $14, group_id = $15, counter_account_id = $17, post_date = $18, tax_amount = $19 where id = $16`,
         [
           nowIso(),
           input.accountId,
@@ -4186,6 +4188,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
           id,
           input.counterAccountId ?? null,
           input.postDate ?? null,
+          input.taxAmount ?? null,
         ],
       );
 
@@ -6586,8 +6589,8 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
   private async insertLedgerRow(row: LedgerTransaction) {
     const now = nowIso();
     await this.db.execute(
-      `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, counter_account_id, date, name, amount, currency, original_amount, original_currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id, recurring_rule_id, recurring_occurrence_key, installment_group_id, installment_index, installment_total, refund_of_ledger_id, post_date, leg_kind)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32)`,
+      `insert into ledger_transactions (id, space_id, revision, created_at, updated_at, deleted_at, account_id, counter_account_id, date, name, amount, currency, original_amount, original_currency, category, subcategory, merchant, entry_type, settlement_status, note, linked_investment_record_id, group_id, is_reviewed, receipt_attachment_id, recurring_rule_id, recurring_occurrence_key, installment_group_id, installment_index, installment_total, refund_of_ledger_id, post_date, leg_kind, tax_amount)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33)`,
       [
         row.id,
         row.spaceId ?? personalSpace,
@@ -6621,6 +6624,7 @@ class TauriSqlFinanceRepository extends BrowserFinanceRepository {
         row.refundOfLedgerId ?? null,
         row.postDate ?? null,
         row.legKind ?? null,
+        row.taxAmount ?? null,
       ],
     );
   }
@@ -8008,6 +8012,7 @@ function createLedgerRow(
     recurringRuleId: input.recurringRuleId ?? null,
     recurringOccurrenceKey: input.recurringOccurrenceKey ?? null,
     postDate: input.postDate ?? null,
+    taxAmount: input.taxAmount ?? null,
   };
 }
 
