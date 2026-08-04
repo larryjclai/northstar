@@ -99,14 +99,29 @@ test.describe("1280×800 — desktop layout unchanged", () => {
 
     const numberInputs = page.locator(".ns-form-row-3 input");
     await expect(numberInputs).toHaveCount(3);
-    const boxes = await Promise.all([0, 1, 2].map((i) => numberInputs.nth(i).boundingBox()));
-    for (const box of boxes) expect(box).not.toBeNull();
-    // Same row: all three inputs share (approximately) the same top offset.
-    const tops = boxes.map((b) => b!.y);
-    expect(Math.max(...tops) - Math.min(...tops)).toBeLessThan(2);
-    // Side by side: each input starts to the right of the previous one's end.
-    expect(boxes[1]!.x).toBeGreaterThanOrEqual(boxes[0]!.x + boxes[0]!.width);
-    expect(boxes[2]!.x).toBeGreaterThanOrEqual(boxes[1]!.x + boxes[1]!.width);
+    // Measure all three in ONE evaluate. Three separate boundingBox() calls are
+    // three browser round-trips, and the drawer enters on `transform:
+    // translateX(28px) → 0` over 220ms (globals.css `[data-motion="drawer"]`) —
+    // so each call can land on a different animation frame. The residual
+    // translate differs between frames but is identical for all elements within
+    // one frame, which is exactly what these relative assertions need. This
+    // failed once in CI at 959.93 vs an expected ≥ 962 — a ~2px frame-to-frame
+    // translate delta, on a tree whose previous run was green.
+    await expect(async () => {
+      const boxes = await numberInputs.evaluateAll((els) =>
+        els.map((el) => {
+          const r = el.getBoundingClientRect();
+          return { x: r.x, y: r.y, width: r.width };
+        }),
+      );
+      expect(boxes).toHaveLength(3);
+      // Same row: all three inputs share (approximately) the same top offset.
+      const tops = boxes.map((b) => b.y);
+      expect(Math.max(...tops) - Math.min(...tops)).toBeLessThan(2);
+      // Side by side: each input starts to the right of the previous one's end.
+      expect(boxes[1].x).toBeGreaterThanOrEqual(boxes[0].x + boxes[0].width);
+      expect(boxes[2].x).toBeGreaterThanOrEqual(boxes[1].x + boxes[1].width);
+    }).toPass();
   });
 
   test("編輯持倉 stays a center modal (not a bottom sheet)", async ({ page }) => {
