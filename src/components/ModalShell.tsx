@@ -347,25 +347,42 @@ export function ModalShell({
           // draft called stopPropagation() here and the nested-interception
           // test below failed because SuggestInput's handler never fired.)
           // So: don't touch propagation here. Let the native bubble continue
-          // so React's synthetic dispatch happens, then defer one microtask —
-          // by the time it runs, the entire synchronous dispatch (including
-          // any nested component's `event.preventDefault()`, which reflects
-          // onto this same native event) has completed, so
-          // `event.defaultPrevented` tells us whether a nested component
-          // already consumed this Escape. If so, back off and let that
-          // component's own effect (e.g. closing its dropdown) stand.
-          // queueMicrotask (not setTimeout) keeps the deferral imperceptible
-          // — it runs before the next paint, not after a timer tick.
+          // so React's synthetic dispatch happens, then defer the
+          // `defaultPrevented` check to a MACROTASK (`setTimeout(0)`), not a
+          // microtask.
           //
-          // Window-listener overlays (e.g. QuickAdd, which is not wrapped in
-          // a ModalShell) are unaffected: SuggestInput's own
-          // `event.stopPropagation()` already shields them, and that call
-          // happens synchronously during React's dispatch — well before the
-          // native event would otherwise reach `window`.
-          queueMicrotask(() => {
+          // This is NOT interchangeable with `queueMicrotask` — an earlier
+          // draft used one and it is wrong in a real browser (confirmed with
+          // Playwright/Chromium; jsdom cannot catch this — see below). Per
+          // the HTML event-loop spec, whenever a dispatched event's listener
+          // invocation returns AND the JS call stack has emptied, the UA
+          // performs a microtask checkpoint before continuing to the next
+          // listener in the same dispatch. Since this panel listener sits
+          // BELOW the React-root listener on the bubble path (see above), it
+          // runs, returns, and empties the stack FIRST — triggering a
+          // checkpoint that drains any queued microtask (including one
+          // queued right here) BEFORE the React-root listener — and thus
+          // SuggestInput's `preventDefault()` — ever runs. A microtask
+          // deferral here fires too early and always sees
+          // `defaultPrevented === false`, closing the dialog out from under
+          // the nested consumer on the very first Escape.
+          // `setTimeout(0)` schedules a macrotask instead, which the event
+          // loop only runs after the ENTIRE dispatch — every listener on
+          // every node in the path, and every microtask checkpoint in
+          // between — has finished. By then `event.defaultPrevented`
+          // reflects the true final state.
+          //
+          // jsdom does NOT implement per-listener microtask checkpoints (it
+          // drains microtasks only after the whole synchronous dispatch
+          // completes, same as a macrotask would see) — this divergence is
+          // exactly why ModalShell.test.tsx could not catch the microtask
+          // version's bug. Do not "optimize" this back to `queueMicrotask`
+          // on the strength of jsdom tests passing; the authoritative check
+          // is a real-browser (Playwright) regression test.
+          window.setTimeout(() => {
             if (event.defaultPrevented) return;
             requestClose();
-          });
+          }, 0);
         }
         return;
       }

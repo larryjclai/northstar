@@ -4,13 +4,22 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ModalShell } from "./ModalShell";
 import { SuggestInput } from "./SuggestInput";
 
-// Flushes the queueMicrotask deferral ModalShell's Escape handler uses (plan
-// 305) — its native panel listener checks `event.defaultPrevented` one
-// microtask after the synchronous dispatch (which is when React's synthetic
-// handlers, e.g. a nested SuggestInput's preventDefault, actually run).
-async function flushEscapeMicrotask() {
-  await Promise.resolve();
-  await Promise.resolve();
+// Flushes the `setTimeout(0)` deferral ModalShell's Escape handler uses
+// (plan 305 follow-up) — its native panel listener checks
+// `event.defaultPrevented` on a MACROTASK, not a microtask, after the
+// synchronous native dispatch. A microtask deferral looks correct here
+// (jsdom drains microtasks only after the whole dispatch completes,
+// matching what a macrotask would see) but is wrong in a real browser: per
+// the HTML spec, a microtask checkpoint runs after this panel listener
+// itself returns and the stack empties — BEFORE the React-root listener
+// (and thus a nested SuggestInput's `preventDefault()`) ever runs — so a
+// microtask-deferred check always sees `defaultPrevented === false` and
+// closes the dialog on the first Escape. jsdom cannot reproduce that
+// per-listener checkpoint ordering, so this suite can only assert the
+// final behavior once the real macrotask has run; it is not a substitute
+// for the real-browser (Playwright) regression test landing with plan 301.
+function flushEscapeMacrotask(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 afterEach(() => {
@@ -122,7 +131,7 @@ describe("ModalShell", () => {
       </ModalShell>,
     );
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
-    await flushEscapeMicrotask();
+    await flushEscapeMacrotask();
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
@@ -269,7 +278,7 @@ describe("ModalShell", () => {
     const dialog = screen.getByRole("dialog");
     fireEvent.keyDown(dialog, { key: "Escape" });
     fireEvent.keyDown(dialog, { key: "Escape" });
-    await flushEscapeMicrotask();
+    await flushEscapeMacrotask();
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
@@ -291,14 +300,14 @@ describe("ModalShell", () => {
       expect(screen.getByRole("listbox")).toBeInTheDocument();
 
       fireEvent.keyDown(input, { key: "Escape" });
-      await flushEscapeMicrotask();
+      await flushEscapeMacrotask();
       // The dropdown consumed the Escape (preventDefault) — the dialog must
       // not have closed.
       expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
       expect(onClose).not.toHaveBeenCalled();
 
       fireEvent.keyDown(input, { key: "Escape" });
-      await flushEscapeMicrotask();
+      await flushEscapeMacrotask();
       expect(onClose).toHaveBeenCalledTimes(1);
     });
   });
