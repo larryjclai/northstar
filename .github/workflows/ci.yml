@@ -68,6 +68,38 @@ jobs:
       - run: npm ci
       - run: npm run check:tauri
 
+  # Builds the iOS app. This gate was missing when the Apple Foundation Models
+  # Swift bridge landed: lib.rs declared five `@_cdecl` symbols whose Swift file
+  # was never wired into the Xcode target, so `tauri ios build` failed to link
+  # from 2026-06-28 until PR #34 — over a month — while every job above stayed
+  # green, because they all run on Linux and never touch Xcode.
+  #
+  # Simulator target on purpose: it links the same libapp.a through the same
+  # xcodebuild phase (so it catches that whole class of breakage) without needing
+  # a signing certificate or an Apple account on the runner.
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios-sim
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci
+      # `prebuild` (inject-private-assets.mjs) no-ops without private-assets/,
+      # so this needs no secrets — same as the `build` job above.
+      - name: Build iOS app (simulator, unsigned)
+        run: npm run tauri ios build -- --target aarch64-sim --debug
+
   # Typechecks the sync worker (its own package.json / tsconfig, compiles standalone).
   worker:
     runs-on: ubuntu-latest

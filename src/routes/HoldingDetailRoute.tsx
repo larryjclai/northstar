@@ -328,7 +328,7 @@ export function HoldingDetailRoute() {
 
   if (!asset) {
     return (
-      <div style={{ padding: "24px 32px 100px" }}>
+      <div style={{ padding: "24px var(--ns-page-gutter, 32px) 100px" }}>
         <Button variant="ghost" onClick={() => navigate({ to: "/investments" })}>
           返回投資
         </Button>
@@ -388,7 +388,10 @@ export function HoldingDetailRoute() {
     : null;
 
   return (
-    <div className="h-full overflow-auto" style={{ padding: "24px 32px 100px" }}>
+    <div
+      className="h-full overflow-auto"
+      style={{ padding: "24px var(--ns-page-gutter, 32px) 100px" }}
+    >
       {/* Breadcrumb */}
       <div
         className="text-body flex items-center gap-2"
@@ -554,54 +557,60 @@ export function HoldingDetailRoute() {
               >
                 價格紀錄 · {manualHistoryRows.length}
               </div>
-              <div className="grid" style={{ gap: 2 }}>
-                {manualHistoryRows.map((snap) => (
-                  <div
-                    key={snap.id}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "110px 1fr 1.2fr auto",
-                      gap: 12,
-                      alignItems: "center",
-                      padding: "8px 0",
-                    }}
-                  >
-                    <span className="mono muted text-xs">{snap.date}</span>
-                    <span className="mono text-body font-medium text-right">
-                      {formatPrice(snap.price)} {asset.currency}
-                    </span>
-                    <span className="muted text-xs truncate" title={snap.note}>
-                      {snap.note || "—"}
-                    </span>
-                    {confirmDeleteId === snap.id ? (
-                      <span className="flex gap-1.5" style={{ justifySelf: "end" }}>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => deleteManualSnapshot(snap.id)}
-                          disabled={deleteManualPrice.isPending}
-                        >
-                          確定刪除
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>
-                          取消
-                        </Button>
+              <div className="ns-hscroll">
+                <div className="grid" style={{ gap: 2, minWidth: 360 }}>
+                  {manualHistoryRows.map((snap) => (
+                    <div
+                      key={snap.id}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "110px 1fr 1.2fr auto",
+                        gap: 12,
+                        alignItems: "center",
+                        padding: "8px 0",
+                      }}
+                    >
+                      <span className="mono muted text-xs">{snap.date}</span>
+                      <span className="mono text-body font-medium text-right">
+                        {formatPrice(snap.price)} {asset.currency}
                       </span>
-                    ) : (
-                      <Button
-                        variant="destructive-outline"
-                        size="sm"
-                        onClick={() => {
-                          setConfirmDeleteId(snap.id);
-                          setPriceMessage("");
-                        }}
-                        style={{ justifySelf: "end" }}
-                      >
-                        刪除
-                      </Button>
-                    )}
-                  </div>
-                ))}
+                      <span className="muted text-xs truncate" title={snap.note}>
+                        {snap.note || "—"}
+                      </span>
+                      {confirmDeleteId === snap.id ? (
+                        <span className="flex gap-1.5" style={{ justifySelf: "end" }}>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => deleteManualSnapshot(snap.id)}
+                            disabled={deleteManualPrice.isPending}
+                          >
+                            確定刪除
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setConfirmDeleteId(null)}
+                          >
+                            取消
+                          </Button>
+                        </span>
+                      ) : (
+                        <Button
+                          variant="destructive-outline"
+                          size="sm"
+                          onClick={() => {
+                            setConfirmDeleteId(snap.id);
+                            setPriceMessage("");
+                          }}
+                          style={{ justifySelf: "end" }}
+                        >
+                          刪除
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           ) : null}
@@ -622,11 +631,11 @@ export function HoldingDetailRoute() {
             borderColor: `color-mix(in srgb, var(--ns-${dayPos ? "gain" : "loss"}) 32%, var(--ns-border))`,
           }}
         >
-          <div className="grid grid-cols-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3">
             <div
+              className="ns-holding-daychange-cell"
               style={{
                 padding: "16px 20px",
-                borderRight: "1px solid var(--ns-border)",
                 background: `color-mix(in srgb, var(--ns-${dayPos ? "gain" : "loss"}) 8%, transparent)`,
               }}
             >
@@ -644,7 +653,7 @@ export function HoldingDetailRoute() {
                 {dayPos ? "▲" : "▼"} {formatPrice(Math.abs(dayChange.changeAbs))}
               </div>
             </div>
-            <div style={{ padding: "16px 20px", borderRight: "1px solid var(--ns-border)" }}>
+            <div className="ns-holding-daychange-cell" style={{ padding: "16px 20px" }}>
               <div className="muted text-caption mb-1">現價</div>
               <div className="num text-base font-medium">
                 {formatPrice(marketPrice)}{" "}
@@ -907,55 +916,59 @@ export function HoldingDetailRoute() {
           <span className="muted mono text-caption">FIFO 批次成本，僅供稅務參考</span>
         </div>
         {lots.length > 0 ? (
-          <>
-            <div
-              className="text-caption"
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 0.7fr 0.9fr 0.9fr 1.1fr 1fr",
-                padding: "10px 22px",
-                borderBottom: "1px solid var(--ns-border)",
-                color: "var(--ns-fg-dim)",
-                fontFamily: "var(--ns-font-mono)",
-                letterSpacing: 0.06,
-                textTransform: "uppercase",
-              }}
-            >
-              <span>Date</span>
-              <span className="text-right">Qty</span>
-              <span className="text-right">Cost</span>
-              <span className="text-right">Last</span>
-              <span className="text-right">P/L</span>
-              <span className="text-right">P/L %</span>
-            </div>
-            {lots.map((l) => (
+          <div className="ns-hscroll">
+            <div style={{ minWidth: 480 }}>
               <div
-                key={l.id}
+                className="text-caption"
                 style={{
                   display: "grid",
                   gridTemplateColumns: "1fr 0.7fr 0.9fr 0.9fr 1.1fr 1fr",
-                  padding: "14px 22px",
-                  borderTop: "1px solid var(--ns-border)",
-                  alignItems: "center",
+                  padding: "10px 22px",
+                  borderBottom: "1px solid var(--ns-border)",
+                  color: "var(--ns-fg-dim)",
+                  fontFamily: "var(--ns-font-mono)",
+                  letterSpacing: 0.06,
+                  textTransform: "uppercase",
                 }}
               >
-                <span className="mono muted text-body">{l.date}</span>
-                <span className="num text-body text-right">{formatQuantity(l.qty)}</span>
-                <span className="num muted text-body text-right">{formatPrice(l.cost)}</span>
-                <span className="num text-body text-right">{formatPrice(l.last)}</span>
-                <span
-                  className={"num text-sm text-right font-medium " + (l.pl >= 0 ? "gain" : "loss")}
-                >
-                  {l.pl >= 0 ? "+" : ""}
-                  {formatNumber(l.pl)}
-                </span>
-                <span className={"num text-sm text-right " + (l.pct >= 0 ? "gain" : "loss")}>
-                  {l.pct >= 0 ? "+" : ""}
-                  {l.pct.toFixed(2)}%
-                </span>
+                <span>Date</span>
+                <span className="text-right">Qty</span>
+                <span className="text-right">Cost</span>
+                <span className="text-right">Last</span>
+                <span className="text-right">P/L</span>
+                <span className="text-right">P/L %</span>
               </div>
-            ))}
-          </>
+              {lots.map((l) => (
+                <div
+                  key={l.id}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 0.7fr 0.9fr 0.9fr 1.1fr 1fr",
+                    padding: "14px 22px",
+                    borderTop: "1px solid var(--ns-border)",
+                    alignItems: "center",
+                  }}
+                >
+                  <span className="mono muted text-body">{l.date}</span>
+                  <span className="num text-body text-right">{formatQuantity(l.qty)}</span>
+                  <span className="num muted text-body text-right">{formatPrice(l.cost)}</span>
+                  <span className="num text-body text-right">{formatPrice(l.last)}</span>
+                  <span
+                    className={
+                      "num text-sm text-right font-medium " + (l.pl >= 0 ? "gain" : "loss")
+                    }
+                  >
+                    {l.pl >= 0 ? "+" : ""}
+                    {formatNumber(l.pl)}
+                  </span>
+                  <span className={"num text-sm text-right " + (l.pct >= 0 ? "gain" : "loss")}>
+                    {l.pct >= 0 ? "+" : ""}
+                    {l.pct.toFixed(2)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         ) : (
           <div className="muted text-body text-center" style={{ padding: "28px 22px" }}>
             目前無未平倉部位
@@ -981,55 +994,63 @@ export function HoldingDetailRoute() {
           </Button>
         </div>
         {txns.length > 0 ? (
-          txns.map((tx, i) => {
-            const opening = isImportOpeningLot(tx);
-            const net = opening
-              ? 0
-              : calculateInvestmentCashDelta({
-                  action: tx.action,
-                  price: tx.price,
-                  quantity: tx.quantity,
-                  fee: tx.fee,
-                });
-            return (
-              <div
-                key={tx.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "100px 80px 0.7fr 0.9fr 0.9fr 1fr 1fr",
-                  gap: 0,
-                  padding: "13px 22px",
-                  borderTop: i ? "1px solid var(--ns-border)" : "none",
-                  alignItems: "center",
-                }}
-              >
-                <span className="mono muted text-xs">{tx.date}</span>
-                <Badge
-                  variant={
-                    tx.action === "buy" ? "success" : tx.action === "sell" ? "error" : "secondary"
-                  }
-                  className="rounded-full uppercase"
-                  style={{ justifySelf: "start" }}
-                >
-                  {tx.action}
-                </Badge>
-                <span className="num text-body text-right">{formatQuantity(tx.quantity)}</span>
-                <span className="num text-body text-right">{formatPrice(tx.price)}</span>
-                <span className="num muted text-xs text-right">fee {tx.fee || "–"}</span>
-                <span
-                  className={
-                    "num text-sm text-right font-medium " +
-                    (net > 0 ? "pos" : net < 0 ? "" : "muted")
-                  }
-                >
-                  {opening ? "—" : `${net >= 0 ? "+" : "−"}${formatNumber(Math.abs(net))}`}
-                </span>
-                <span className="muted text-xs text-right">
-                  {accountRows.find((a) => a.id === tx.linkedAccountId)?.name || "–"}
-                </span>
-              </div>
-            );
-          })
+          <div className="ns-hscroll">
+            <div style={{ minWidth: 480 }}>
+              {txns.map((tx, i) => {
+                const opening = isImportOpeningLot(tx);
+                const net = opening
+                  ? 0
+                  : calculateInvestmentCashDelta({
+                      action: tx.action,
+                      price: tx.price,
+                      quantity: tx.quantity,
+                      fee: tx.fee,
+                    });
+                return (
+                  <div
+                    key={tx.id}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "100px 80px 0.7fr 0.9fr 0.9fr 1fr 1fr",
+                      gap: 0,
+                      padding: "13px 22px",
+                      borderTop: i ? "1px solid var(--ns-border)" : "none",
+                      alignItems: "center",
+                    }}
+                  >
+                    <span className="mono muted text-xs">{tx.date}</span>
+                    <Badge
+                      variant={
+                        tx.action === "buy"
+                          ? "success"
+                          : tx.action === "sell"
+                            ? "error"
+                            : "secondary"
+                      }
+                      className="rounded-full uppercase"
+                      style={{ justifySelf: "start" }}
+                    >
+                      {tx.action}
+                    </Badge>
+                    <span className="num text-body text-right">{formatQuantity(tx.quantity)}</span>
+                    <span className="num text-body text-right">{formatPrice(tx.price)}</span>
+                    <span className="num muted text-xs text-right">fee {tx.fee || "–"}</span>
+                    <span
+                      className={
+                        "num text-sm text-right font-medium " +
+                        (net > 0 ? "pos" : net < 0 ? "" : "muted")
+                      }
+                    >
+                      {opening ? "—" : `${net >= 0 ? "+" : "−"}${formatNumber(Math.abs(net))}`}
+                    </span>
+                    <span className="muted text-xs text-right">
+                      {accountRows.find((a) => a.id === tx.linkedAccountId)?.name || "–"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         ) : (
           <div className="muted text-body text-center" style={{ padding: "28px 22px" }}>
             尚無交易紀錄

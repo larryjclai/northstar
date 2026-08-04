@@ -308,7 +308,13 @@ export function ReconcileRoute() {
     .reduce((s, r) => s + Math.abs(r.amount), 0);
 
   return (
-    <div style={{ height: "100%", overflow: "auto", padding: "24px 32px 100px" }}>
+    <div
+      style={{
+        height: "100%",
+        overflow: "auto",
+        padding: "24px var(--ns-page-gutter, 32px) 100px",
+      }}
+    >
       {/* Breadcrumb */}
       <div
         className="text-body flex items-center gap-2"
@@ -361,7 +367,7 @@ export function ReconcileRoute() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(160px, 100%), 1fr))",
           gap: 14,
           marginBottom: 20,
         }}
