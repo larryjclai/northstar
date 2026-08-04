@@ -70,8 +70,14 @@ export function SuggestInput({
             e.preventDefault();
             select(matches[Math.min(highlight, matches.length - 1)]);
           } else if (e.key === "Escape") {
-            // Close only the dropdown — QuickAdd's overlay listens for Escape
-            // on window, so keep the event from reaching it.
+            // Close only the dropdown, not the host overlay. `preventDefault()`
+            // is the contract both kinds of host honor: a window-listener
+            // overlay (QuickAdd) never sees this Escape because
+            // `stopPropagation()` keeps it from reaching `window`; a
+            // ModalShell host (plan 305) defers its own Escape-close check by
+            // one microtask specifically so it can read `defaultPrevented`
+            // and back off when a nested field — like this one — already
+            // consumed the key.
             e.preventDefault();
             e.stopPropagation();
             setOpen(false);

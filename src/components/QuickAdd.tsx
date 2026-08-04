@@ -24,6 +24,7 @@ import {
 } from "../domain";
 import { orchestrate, type ParseSource } from "../domain/nlParser";
 import { ALL_BOOKS, bookAccountIdSet, scopeRows } from "../domain/bookScope";
+import { escapeTargetInsideDialog } from "../lib/escapeOwnership";
 import { createOnDeviceParser } from "../lib/foundationModels";
 import { haptic } from "../lib/haptics";
 import { useUiPreferences } from "../state/uiPreferences";
@@ -213,7 +214,12 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      // QuickAdd hosts no ModalShell today, but the stacking contract must
+      // stay uniform with EntryDrawer's (plan 305/301): a stacked ModalShell
+      // dialog's focus trap keeps focus inside it, so an Escape meant for
+      // that dialog still targets it — ignore it here so this window
+      // listener doesn't also close QuickAdd underneath.
+      if (e.key === "Escape" && !escapeTargetInsideDialog(e)) onClose();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
