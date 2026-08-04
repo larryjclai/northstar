@@ -227,7 +227,7 @@ function ToastViewport({
   return (
     <div
       data-testid="toast-viewport"
-      className="pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex flex-col items-center gap-2 px-4 sm:bottom-6 sm:right-6 sm:left-auto sm:items-end sm:px-0"
+      className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top,0px)+8px)] z-[60] flex flex-col items-center gap-2 px-4 lg:top-auto lg:bottom-6 lg:right-6 lg:left-auto lg:items-end lg:px-0"
       onPointerEnter={onPauseAll}
       onPointerLeave={onResumeAll}
     >
