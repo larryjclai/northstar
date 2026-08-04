@@ -1979,12 +1979,13 @@ function AddDeviceDialog({
   return (
     <ModalShell
       variant="center"
+      mobilePresentation="bottom-sheet"
       title={mode === "show" ? "加入現有裝置" : "新增裝置"}
       onClose={onClose}
       style={{ zIndex: 200 }}
     >
       {(dismiss) => (
-        <Card style={{ width: 480, padding: 0, overflow: "hidden" }}>
+        <Card style={{ width: "min(480px, 100%)", padding: 0, overflow: "hidden" }}>
           {/* Header */}
           <div className="flex items-center justify-between" style={{ padding: "18px 22px 0" }}>
             <h3
