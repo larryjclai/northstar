@@ -702,7 +702,7 @@ export function InvestmentEntryDrawer({
                 </div>
 
                 {/* Date + account */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div className="ns-form-row-2">
                   <div>
                     <label className="text-xs ns-field-label block">日期</label>
                     <input
@@ -830,7 +830,7 @@ export function InvestmentEntryDrawer({
                             未修改時自動帶入 股數 × 價格。
                           </div>
                         </div>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                        <div className="ns-form-row-2">
                           <div>
                             <label className="text-xs ns-field-label block">再投入股數</label>
                             <NumberField
@@ -882,7 +882,7 @@ export function InvestmentEntryDrawer({
                         </div>
                       </div>
                     ) : (
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      <div className="ns-form-row-2">
                         <div>
                           <label className="text-xs ns-field-label block">股利金額（總額）</label>
                           <NumberField
@@ -908,7 +908,7 @@ export function InvestmentEntryDrawer({
                     )}
                   </div>
                 ) : side === "reduction" ? (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <div className="ns-form-row-2">
                     <div>
                       <label className="text-xs ns-field-label block">被註銷股數</label>
                       <NumberField
@@ -966,13 +966,7 @@ export function InvestmentEntryDrawer({
                         </ToggleGroup>
                       </div>
                     )}
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                        gap: 12,
-                      }}
-                    >
+                    <div className="ns-form-row-3">
                       <div>
                         <label className="text-xs ns-field-label block">股數</label>
                         <NumberField
