@@ -82,3 +82,9 @@ npm run tauri        # tauri CLI (dev/build the desktop/mobile app)
 - **樣式撰寫優先序**：(1) COSS 元件；(2) `ns-*` utility class 與 Tailwind utilities；(3) inline
   `style={{}}` **僅限動態值**（來自 props/state/計算）。靜態樣式不要寫 inline——用既有 class 或抽新的
   `ns-*` class。重複 3 次以上的靜態 inline 模式應抽成共用 class（例：`.ns-field-label`）。
+- **Overlay two-phase close（先播退場動畫再 unmount）必用 ModalShell 的 closeRef 模式**：
+  回呼 prop 收進 ref、close effect deps 只留 `[closing]`；元件若關閉後仍 mounted（`open` prop
+  自 gate），`closing` 旗標要在 `open` 兩向翻轉都重置。把父層每次 render 重建的 `onClose` 放進
+  close effect deps，曾在 production 炸 React #185（記帳整頁換成錯誤畫面）。此類迴圈依賴真實
+  CSS transition，jsdom duration=0 走同步分支**測不到，回歸測試必須寫 e2e**。詳見
+  [plans/304](plans/304-entry-drawer-close-loop-postmortem.md)。

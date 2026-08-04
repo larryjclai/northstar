@@ -255,10 +255,7 @@ export function FIRECalculatorRoute() {
   }
 
   return (
-    <div
-      className="flex flex-col overflow-hidden"
-      style={{ padding: "32px 40px 100px", minHeight: "100vh", height: "100vh" }}
-    >
+    <div className="ns-fire-page flex flex-col overflow-hidden">
       <div className="flex items-end justify-between shrink-0" style={{ marginBottom: 32 }}>
         <div>
           <Button
@@ -294,9 +291,9 @@ export function FIRECalculatorRoute() {
         </div>
       </div>
 
-      <div className="flex flex-1" style={{ gap: 24, minHeight: 0 }}>
+      <div className="ns-fire-body">
         {/* Left Sidebar: Sliders */}
-        <div className="flex flex-col shrink-0 gap-4 overflow-y-auto pr-2" style={{ width: 340 }}>
+        <div className="ns-fire-sidebar">
           <SliderSection title="個人設定">
             <SliderRow
               label="目前年齡"
@@ -399,9 +396,9 @@ export function FIRECalculatorRoute() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto">
+        <div className="ns-fire-main">
           {/* Top 4 Cards */}
-          <div className="flex gap-4">
+          <div className="ns-fire-cards">
             <MetricCard
               title="FIRE 目標"
               value={formatCompactMoney(fireTarget, "TWD")}
@@ -715,7 +712,10 @@ function RetirementIncomeSection({
               </div>
               <div
                 className="gap-2"
-                style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr" }}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))",
+                }}
               >
                 <div>
                   <label
