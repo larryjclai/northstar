@@ -272,6 +272,8 @@ export interface ValuePoint {
 export interface AnalyticsPosition {
   assetId: string;
   ticker: string;
+  /** Display-name fallback for no-ticker (custom) assets; optional. */
+  name?: string;
   quantity: number;
   currency: string;
   /** Fallback cost per share for legacy/manual positions without records. */

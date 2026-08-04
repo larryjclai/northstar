@@ -633,6 +633,7 @@ export function InvestmentEntryDrawer({
                 onSubmit={submitSnapshot}
                 submitLabel={createHolding.isPending ? "儲存中…" : "儲存持倉"}
                 accounts={accounts}
+                hideTicker={isCustom}
               />
               {message ? (
                 <div className="mt-3">

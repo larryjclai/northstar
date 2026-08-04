@@ -61,8 +61,10 @@ export function computeHoldingDays(holdingSince: string | null, todayIso: string
 }
 
 export function HoldingDetailRoute() {
-  const params = useParams({ strict: false }) as any;
-  const ticker = params.ticker || "";
+  // Serves two routes: /holdings/$ticker (regular holdings) and
+  // /holdings/id/$assetId (custom assets, whose ticker is "" and therefore
+  // can't form a matchable ticker path — see router.tsx / holdingDetailLink).
+  const params = useParams({ strict: false }) as { ticker?: string; assetId?: string };
   const navigate = useNavigate();
 
   const {
@@ -116,10 +118,17 @@ export function HoldingDetailRoute() {
   const accountRows = accounts.data ?? [];
   const manualSnapshotRows = manualPriceSnapshots.data ?? [];
 
-  const asset = useMemo(
-    () => assetRows.find((a) => a.ticker.toUpperCase() === ticker.toUpperCase()),
-    [assetRows, ticker],
-  );
+  const asset = useMemo(() => {
+    if (params.assetId) return assetRows.find((a) => a.id === params.assetId);
+    const wanted = (params.ticker ?? "").trim().toUpperCase();
+    // Guard the empty string: custom assets all share ticker "", so an empty
+    // param must not "match" an arbitrary one of them.
+    if (!wanted) return undefined;
+    return assetRows.find((a) => a.ticker.toUpperCase() === wanted);
+  }, [assetRows, params.assetId, params.ticker]);
+  // Market-data lookups (quote / daily closes) key on the ticker; for custom
+  // assets this is "" and simply matches nothing, as intended.
+  const ticker = asset?.ticker ?? params.ticker ?? "";
   const quote = useMemo(
     () => quoteRows.find((q) => q.symbol.toUpperCase() === ticker.toUpperCase()),
     [quoteRows, ticker],
@@ -399,7 +408,7 @@ export function HoldingDetailRoute() {
         </span>
         <CaretRight size={13} />
         <span className="mono font-medium" style={{ color: "var(--ns-fg)" }}>
-          {asset.ticker}
+          {asset.ticker || resolveAssetName(asset, nameLocale)}
         </span>
       </div>
 
@@ -417,7 +426,8 @@ export function HoldingDetailRoute() {
                 textTransform: "uppercase",
               }}
             >
-              {asset.assetType || "資產"} · {asset.ticker}
+              {asset.assetType || "資產"}
+              {asset.ticker ? ` · ${asset.ticker}` : ""}
             </div>
             <h1
               className="text-[24px]"
