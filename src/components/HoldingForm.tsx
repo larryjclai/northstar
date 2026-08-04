@@ -34,6 +34,7 @@ export function HoldingForm({
   submitLabel = "新增持倉",
   accounts = [],
   classificationOnly = false,
+  hideTicker = false,
   onTickerSelected,
 }: {
   value: PortfolioAssetDraft;
@@ -42,6 +43,9 @@ export function HoldingForm({
   submitLabel?: string;
   accounts?: Account[];
   classificationOnly?: boolean;
+  /** Custom (no-quote) assets have no ticker — hide the field so a typed
+   *  ticker isn't silently discarded on save (it's always stored as ""). */
+  hideTicker?: boolean;
   onTickerSelected?: (value: PortfolioAssetDraft) => void;
 }) {
   const eligibleAccounts = accounts.filter(
@@ -53,28 +57,34 @@ export function HoldingForm({
 
   return (
     <div className="grid gap-3">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
-        <Field label="Ticker">
-          {classificationOnly ? (
-            <TextInput value={value.ticker} disabled />
-          ) : (
-            <TickerSearchField
-              value={value.ticker}
-              onChange={(ticker) => onChange({ ...value, ticker })}
-              onSelect={(result) => {
-                const next = {
-                  ...value,
-                  ticker: result.symbol.toUpperCase(),
-                  name: result.name || result.symbol,
-                  currency: selectedAccount?.currency ?? value.currency,
-                  assetType: result.assetType ?? value.assetType ?? null,
-                };
-                onChange(next);
-                onTickerSelected?.(next);
-              }}
-            />
-          )}
-        </Field>
+      <div
+        className={
+          hideTicker ? "grid grid-cols-1 gap-3" : "grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]"
+        }
+      >
+        {!hideTicker ? (
+          <Field label="Ticker">
+            {classificationOnly ? (
+              <TextInput value={value.ticker} disabled />
+            ) : (
+              <TickerSearchField
+                value={value.ticker}
+                onChange={(ticker) => onChange({ ...value, ticker })}
+                onSelect={(result) => {
+                  const next = {
+                    ...value,
+                    ticker: result.symbol.toUpperCase(),
+                    name: result.name || result.symbol,
+                    currency: selectedAccount?.currency ?? value.currency,
+                    assetType: result.assetType ?? value.assetType ?? null,
+                  };
+                  onChange(next);
+                  onTickerSelected?.(next);
+                }}
+              />
+            )}
+          </Field>
+        ) : null}
         <Field label="幣別">
           <TextInput
             value={selectedAccount?.currency ?? value.currency}

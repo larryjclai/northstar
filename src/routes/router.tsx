@@ -70,6 +70,15 @@ const holdingDetailRoute = createRoute({
   component: HoldingDetailRoute,
 });
 
+// Custom (manually-priced) assets have no ticker, and `/holdings/$ticker` with
+// an empty param resolves to `/holdings/` which matches nothing. They reach the
+// same detail page through this id-based variant — see holdingDetailLink().
+const holdingDetailByIdRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/holdings/id/$assetId",
+  component: HoldingDetailRoute,
+});
+
 const transactionsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/transactions",
@@ -163,6 +172,7 @@ const routeTree = rootRoute.addChildren([
   fireCalculatorRoute,
   annualReportRoute,
   holdingDetailRoute,
+  holdingDetailByIdRoute,
   transactionsRoute,
   cashFlowRoute,
   categoriesRoute,

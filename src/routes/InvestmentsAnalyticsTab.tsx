@@ -19,6 +19,7 @@ import { EmptyState } from "../components/EmptyState";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { TickerSearchField } from "../components/TickerSearchField";
 import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover";
+import { holdingDetailLink } from "./holdingLink";
 import { useUiPreferences, type NameLocalePreference } from "../state/uiPreferences";
 import {
   annualizedVolatilityPct,
@@ -2326,7 +2327,7 @@ function AnAllocBars({
 
 // ── Treemap heat helpers ───────────────────────────────────────────────────────
 
-type HeatItem = { sym: string; value: number; ret: number | null };
+type HeatItem = { sym: string; assetId: string; name?: string; value: number; ret: number | null };
 type LayoutCell = HeatItem & { _a: number; x: number; y: number; w: number; h: number };
 
 /** Diverging green↔red heat color for treemap/calendar cells. */
@@ -2420,7 +2421,7 @@ function buildHoldingHeat(
   const startIso = oneYearBack.toISOString().slice(0, 10);
 
   return positions
-    .map((pos) => {
+    .map((pos): HeatItem | null => {
       const value = latestPositionValue(pos, dailyPrices, manualSnapshots, toPrimary, end);
       if (value <= 0) return null;
 
@@ -2447,7 +2448,7 @@ function buildHoldingHeat(
         }
       }
 
-      return { sym: pos.ticker, value, ret };
+      return { sym: pos.ticker, assetId: pos.assetId, name: pos.name, value, ret };
     })
     .filter((d): d is HeatItem => d !== null)
     .sort((a, b) => b.value - a.value);
@@ -2490,7 +2491,7 @@ function NSTreemap({
             key={`${c.sym}-${i}`}
             onMouseEnter={() => setHover(i)}
             onMouseLeave={() => setHover(null)}
-            onClick={() => void navigate({ to: "/holdings/$ticker", params: { ticker: c.sym } })}
+            onClick={() => void navigate(holdingDetailLink({ ticker: c.sym, assetId: c.assetId }))}
             style={{
               position: "absolute",
               left: `${(c.x / W) * 100}%`,
@@ -2541,7 +2542,7 @@ function NSTreemap({
                       textOverflow: "ellipsis",
                     }}
                   >
-                    {c.sym}
+                    {c.sym || c.name || "自訂資產"}
                   </span>
                   {big && (
                     <span
