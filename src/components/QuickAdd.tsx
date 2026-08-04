@@ -32,6 +32,7 @@ import { AccountFilter } from "./AccountFilter";
 import { SuggestInput } from "./SuggestInput";
 import { Glyph } from "../lib/icons";
 import { readableTextColor } from "../lib/color";
+import { useKeyboardInset } from "../hooks/useKeyboardInset";
 
 // §6.4 example chips shown on empty input — one 投資 example, the rest 記帳.
 const QUICK_ADD_EXAMPLES: { text: string; mode: "ledger" | "investment" }[] = [
@@ -172,6 +173,9 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
   const inputRef = useRef<HTMLInputElement>(null);
   // Stable on-device parser handle — created once for the lifetime of the component.
   const onDeviceParser = useMemo(() => createOnDeviceParser(), []);
+  // iOS WKWebView doesn't shrink the layout viewport for the software keyboard —
+  // shift the panel up by the covered height so the input bar stays visible.
+  const keyboardInset = useKeyboardInset();
 
   const createLedger = useRepositoryMutation(
     (repository, input: import("../data/repositories").LedgerDraft) =>
@@ -442,11 +446,20 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
       <div
         onClick={(e) => e.stopPropagation()}
         className="animate-[ns-drawer-in_140ms_var(--ns-ease-out-strong)] flex flex-col gap-2.5"
-        style={{ position: "relative", width: "min(620px, 94vw)", marginBottom: 28 }}
+        style={{
+          position: "relative",
+          width: "min(620px, 94vw)",
+          marginBottom: "calc(28px + env(safe-area-inset-bottom, 0px))",
+          maxHeight: `calc(100dvh - 24px - env(safe-area-inset-top, 0px) - ${keyboardInset}px)`,
+          transform: keyboardInset ? `translateY(-${keyboardInset}px)` : undefined,
+        }}
       >
         {/* Confirm card (shown after parsing) */}
         {confirm ? (
-          <Card className="p-4" style={{ boxShadow: "var(--ns-shadow-strong)" }}>
+          <Card
+            className="p-4"
+            style={{ boxShadow: "var(--ns-shadow-strong)", overflowY: "auto", minHeight: 0 }}
+          >
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium" style={{ color: "var(--ns-fg-muted)" }}>
@@ -495,10 +508,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                   confirm.category,
                 );
                 return (
-                  <div
-                    className="gap-2.5"
-                    style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}
-                  >
+                  <div className="ns-quickadd-grid gap-2.5">
                     <Field label="金額">
                       <input
                         className="ns-input"
@@ -708,7 +718,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                 );
               })()
             ) : (
-              <div className="gap-2.5" style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+              <div className="ns-quickadd-grid gap-2.5">
                 <Field label="代號">
                   <input
                     className="ns-input"
