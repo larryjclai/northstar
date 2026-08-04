@@ -74,6 +74,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { HoldingEditModal } from "./HoldingEditModal";
 import { InvestmentEntryDrawer } from "./InvestmentsAddSheet";
+import { holdingDetailLink } from "./holdingLink";
 import { InvestmentsAnalyticsTab } from "./InvestmentsAnalyticsTab";
 import { RecurringInvestmentsTab } from "./RecurringInvestmentsTab";
 import { TransactionsRoute } from "./TransactionsRoute";
@@ -274,6 +275,7 @@ export function InvestmentsRoute() {
         .map((a) => ({
           assetId: a.id,
           ticker: a.ticker,
+          name: a.name,
           quantity: a.totalQuantity,
           currency: a.currency,
           averageCost: a.averageCost,
@@ -1519,9 +1521,7 @@ function HoldingsTab({
               <button
                 type="button"
                 key={`m-${position.assetId}-${position.accountId ?? "none"}`}
-                onClick={() =>
-                  navigate({ to: "/holdings/$ticker", params: { ticker: position.ticker } })
-                }
+                onClick={() => navigate(holdingDetailLink(position))}
                 className="flex items-center gap-3 rounded-xl border p-3 text-left outline-none transition active:opacity-90"
                 style={{ borderColor: "var(--ns-border)", background: "var(--ns-surface)" }}
               >
@@ -1790,9 +1790,7 @@ function HoldingsTab({
                         asset?.holdingSource === "transactions" ? "編輯分類資料" : "編輯持倉"
                       }
                       onAddTransaction={onAddTransaction}
-                      onViewDetail={() =>
-                        navigate({ to: "/holdings/$ticker", params: { ticker: position.ticker } })
-                      }
+                      onViewDetail={() => navigate(holdingDetailLink(position))}
                     />
                   ) : null}
                 </Fragment>

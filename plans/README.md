@@ -9,6 +9,77 @@
 > **不受影響**，且 sentinel 補上了 `--ns-sticky-top + --ns-demo-banner-h` 位移
 > （hairline 不再晚 ~47px 出現）。詳見 `284-*.md` 檔首註記。
 
+## 287–303 — 手機版全面補課（`/improve` 2026-08-03 @ `5140008b`）
+
+Operator 以 iPhone 16 實機截圖回報「手機版大跑版」，並指示全 app 盤點 + 三波計畫全寫。
+Advisor 親讀確認所有 HIGH 發現（subagent 只當 leads）；策略定調為**補接既有手機模式**
+（`.ns-hscroll`／`.ns-sheet-bottom`／auto-fit grid／`--ns-page-gutter`），不是重新設計。
+FAB 處理方案 operator 已選定：只在總覽＋記帳顯示（plan 290）。
+
+### Wave 1 — 手機上功能不能用（先派）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 287 | 配對 dialog（Card `width:480` 兩側裁 ~44px）與交易詳情 drawer（`width:460` 超左緣）接 bottom-sheet + 寬度上限 | P1 | S | — | REVISE 第 1 輪（分支 fix/ai-mobile-overlay-width @ 1b11aa4b）：原始碼改動極簡正確、spec 品質高（指紋+防 vacuous 斷言），但配對測試依賴 VITE_NORTHSTAR_SYNC_WORKER_URL——CI（ci.yml:105）沒有此變數，advisor 以嚴格 parity config 實跑 4 個配對測試全掛。已退回：改 runtime 探測 self-skip，雙環境重驗 |
+| 288 | 分析分頁：九段期間切換器包 `.ns-hscroll`（「自訂」手機點不到）＋ SectionHeader flex-wrap（tag 被裁） | P1 | S | — | IN PROGRESS（executor @ 4834b205，分支 fix/ai-analytics-mobile-overflow） |
+| 289 | iOS 狀態列遮罩 `.ns-statusbar-scrim`（捲動內容與時鐘/電量重疊；靜態、桌機高度 0） | P2 | S | — | TODO |
+| 290 | 快速記帳 FAB route-scope 到 `/` 與 `/cash-flow…`（operator 決策；不再蓋住回補歷史/採用遠端） | P1 | S | — | TODO |
+| 291 | FIRE 計算機：340px shrink-0 側欄 + overflow-hidden 100vh → 手機結果區寬度 0；改 `.ns-fire-*` 單欄堆疊 | P1 | M | — | **DONE — reviewed+APPROVED**（PR #35，分支 fix/ai-fire-mobile-collapse @ bf3e5e7b，基於 4834b205）。advisor 獨立複驗：build 0、lint 0 errors/799 warnings、format 乾淨、1570 測試全過、隔離 port e2e 18/18（新 fire-mobile 4 + 既有無回歸）、scope 恰 3 檔、桌機 340px 側欄行為不變。執行者亮點：自行驗證 Tailwind v4 layer 順序（unlayered globals.css 蓋過 utilities）；自行抓到瀏覽器 tab 串到 4288 的量測污染並改用 tabId 釘住 |
+| 292 | QuickAdd 確認卡：`1fr 1fr` 收單欄、maxHeight+捲動、safe-area、新 `useKeyboardInset` 鍵盤避讓 | P1 | M | — | TODO |
+| 293 | 記帳 drawer footer 加 `env(safe-area-inset-bottom)`（儲存鈕在手勢帶）＋ Toast 移到 dock 上方（現蓋住整條導覽且吃點擊） | P1 | S | — | TODO |
+| 294 | DatePicker 顯示 `yyyy-MM` 但送出 `yyyy-MM-dd`（唯一使用點：手動價格快照）＋ 清 CashFlowRoute 死 import | P2 | S | — | TODO |
+
+### Wave 2 — 嚴重跑版
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 295 | 記帳月份收合列：三組 nowrap 金額超寬被 clip（淨額看不到）→ 手機兩行 | P2 | S | — | TODO |
+| 296 | 持倉明細：三張固定欄表格包 `.ns-hscroll`（現在整頁橫捲）＋ 今日三格收合 ＋ gutter 接契約 | P2 | M | — | TODO |
+| 297 | 摘要網格/設定表批次：對帳三欄、分類分頁三欄（照抄 MerchantsTab auto-fit）、名稱/商家表 override（比照 CategoriesSection）、同步衝突列兩行化 | P2 | M | — | TODO |
+| 298 | 投資輸入表單：三欄數字列（80px 擠壓）與五處 `"1fr 1fr"` 收 `.ns-form-row-*`；HoldingEditModal 接 bottom-sheet、`70dvh`、刪除鈕換 COSS | P2 | M | 294 先行避衝突 | TODO |
+| 299 | Overlay 邊角批次：`PANEL_POSITION_KEYS` 補 `maxWidth`（分類管理 sheet 在 Plus/Max 上 400px 靠左）、onboarding 5 欄 chips、匯入精靈對應列 min-width、記帳 datetime 列收合、Goals/Categories 32px 內距 | P3 | M | 298（`.ns-form-row-2`） | TODO |
+
+### Wave 3 — 系統性
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 300 | COSS 44pt hit-area 從 `pointer-coarse:` 換自訂 `touch:` variant（`max-width:1023px`）——repo 紅線：WKWebView 誤報 coarse；桌機現在長隱形 44px `::after` 攔截鄰格點擊 | P2 | M | 建議 Wave1/2 後 | TODO |
+| 301 | QuickAdd 遷移 ModalShell（DESIGN.md §6.4 documented-but-undelivered；補 scroll lock/focus trap/aria/拖曳關閉） | P3 | M | 292 | TODO |
+| 302 | 非 COSS 小點擊目標批次（chips 20-36px → `.ns-chip` ::after 擴 44px）＋ 下拉寬度 `min(320px, calc(100vw-32px))`、CommandList `50dvh` clamp | P3 | M | 292；與 300 互補 | TODO |
+| 303 | ModalShell 視口一次取樣改 `useSyncExternalStore`（iPad 轉向 sheet/sidebar 重疊）＋ 查證雙月曆高度、onboarding `100vh` | P3 | S–M | 287/298/299 後效益大 | TODO |
+
+**建議派工順序**：Wave 1 內 287→288→290→293→294（全 S，可同天）→ 291→292（M）。
+Wave 2 任意順序（298 等 294）。Wave 3 收尾。每份計畫自帶 drift check 與 STOP 條件。
+
+### 全 app 手機版面盤點結果（2026-08-03 @ `5140008b`，3 個唯讀 subagent + advisor 逐項複核）
+
+**待 operator 選擇後另立計畫**（advisor 已親讀確認 = ✅；subagent 驗證方向正確 = ◐；需實測 = ？）：
+
+完全不能用級（Wave 1 候選）：
+- ✅ FIRE 計算機：`FIRECalculatorRoute.tsx:297-299` sidebar `shrink-0 width:340` + root `overflow-hidden height:100vh`（`:258-260`）→ 手機上整個結果區（指標卡/圖表）寬度 0，完全看不到
+- ✅ QuickAdd 確認卡：`QuickAdd.tsx:500`/`:711` `1fr 1fr` 不收合 → 分類 chips 一欄一顆、右欄被 clip 不可及；`:426-446` 無 maxHeight/捲動 → 卡片過高時頂部（金額欄）不可及；`:445` `marginBottom:28` 無 safe-area + 無 `visualViewport` 鍵盤避讓 → iOS 鍵盤蓋住輸入列與送出鈕
+- ✅ 記帳新增/編輯 drawer footer：`CashFlowRoute.tsx:5242-5244` 無 `env(safe-area-inset-bottom)` → 「儲存交易」下半截落在 home indicator 手勢帶
+- ✅ Toast：`Toast.tsx:230` `bottom-4 z-[60]` 手機無 dock 位移 → 每次存檔的 toast 蓋住整條底部導覽且吃掉點擊
+- ✅ DatePicker 顯示 bug：`ui/date-picker.tsx:35` 顯示 `yyyy-MM` 但 `:43` 送出 `yyyy-MM-dd`（唯一使用點 HoldingEditModal:350 手動價格快照）；CashFlowRoute:61 是死 import 可順清
+
+嚴重 degraded 級（Wave 2 候選）：
+- ✅ 記帳月份收合列 `CashFlowRoute.tsx:2528-2548`（三組金額 nowrap 超寬被 clip，淨額看不到）
+- ✅ HoldingDetail 三張固定欄表格 `:915`/`:999`/`:563` 無 hscroll → 整頁橫捲
+- ✅ Reconcile 三欄摘要 `:361-367`、✅ CategoriesTab 三欄摘要 `:143`（`MerchantsTab:130` 的 auto-fit 是正確範本）
+- ✅ 設定名稱/商家表 `NamesSection.tsx:131`、`MerchantsSection.tsx:261`（CategoriesSection 有 mobile override、這兩個漏了）
+- ✅ 分類管理 sheet：`ModalShell.tsx:18` `PANEL_POSITION_KEYS` 不含 `maxWidth` → `CategoryManagementDrawer.tsx:137` `maxWidth:400` 在 >400px 手機上變 400px 靠左貼齊
+- ◐ HoldingDetail 今日三格 `:625`、◐ 同步衝突列標題被壓縮 `ConnectSection.tsx:1268`、◐ FIRE 其他收入 3 欄輸入 `:716`、◐ 投資新增表單數字欄 80px 擠壓 `InvestmentsAddSheet.tsx:968-973` + 四處 `"1fr 1fr"`、◐ HoldingEditModal 無 bottom-sheet + `70vh` + 24px 刪除鈕、◐ onboarding 5 欄 chips `OnboardingOverlay.tsx:321`、◐ 匯入精靈對應列 `InvestmentImportWizard.tsx:497`、◐ datetime-local 半欄被裁（`DateTimeField.tsx` 已寫好但零使用）
+- ✅ 頁面 gutter 硬編碼 32-40px：FIRE/Reconcile/HoldingDetail/Goals/Categories 未用 `--ns-page-gutter`（手機損失 10-13% 內容寬）
+
+系統性／基礎設施級（Wave 3 候選）：
+- ◐ COSS 44pt 機制全押在 `pointer-coarse:` Tailwind variant（button/toggle/badge/select）——repo 自己文件說 WKWebView 誤報該 query（plans 244/245 紅線），應換 `max-width:1023px` variant
+- ◐ QuickAdd 是最後一個手刻 overlay（無 scroll lock/focus trap/aria），DESIGN.md §6.4 說必須用 ModalShell——documented-but-undelivered
+- ◐ 非 Button 點擊目標 20-36px 一批（QuickAdd chips、SuggestInput 選項、AccountFilter 36px trigger）
+- ◐ ModalShell 手機判斷只在 mount 取樣一次（`:153-158`），iPad 轉向不重估
+- ？ 雙月曆 popover 高度（`LedgerDateControl.tsx:133`）、？ onboarding `100vh` vs `dvh`（`OnboardingOverlay.tsx:153`）
+
+**已查證為乾淨、下次不必重掃**：InvestmentsRoute 持倉表有 mobile 卡片列（`:1511` + `hidden sm:block`）；RecurringRulesTab/CategoriesTab/MerchantsTab 表格都有 `hidden sm:contents` 閘門；AnnualReport 表在 `overflowX:auto` 內；AccountsRoute 摘要用 auto-fit + `.ns-holdings-summary` override；CategoryDetail/MerchantDetail 的 `.ns-detail-*` 有 mobile override；Dashboard 各 row auto-fit；`.ns-page-toolbar` 正確換行；全 repo 無 `(pointer: coarse)` **規則**（僅註解與負向斷言測試）；PopoverContent 固定寬全部 ≤300px 可容納；匯入精靈預覽表有 hscroll（擠但不破）；帳戶精靈 stepper 390px 剛好放得下（≤360px 才裁）。
+
 ## 🔄 Reconciled 2026-07-31 @ `36c3d9e9`
 
 284 份計畫盤點完畢。**沒有 BLOCKED，沒有停在半路的 IN PROGRESS。**
