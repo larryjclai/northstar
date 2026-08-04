@@ -14,8 +14,22 @@ export type ModalShellVariant = "center" | "sheet" | "drawer";
 export type ModalShellMotion = "drawer" | "center" | "none";
 export type ModalShellMobilePresentation = "bottom-sheet" | "none";
 
-/** Positional keys a call site's `panelStyle` may set — overridden in bottom-sheet mode. */
-const PANEL_POSITION_KEYS = ["position", "top", "right", "bottom", "left", "width"] as const;
+/**
+ * Positional keys a call site's `panelStyle` may set — overridden in bottom-sheet mode.
+ * `maxWidth`/`minWidth` are included because in sheet mode horizontal geometry is
+ * entirely owned by `.ns-sheet-bottom` — a call site's `maxWidth` (sized for a
+ * right-docked desktop drawer) would over-constrain the sheet and leave a scrim gap.
+ */
+const PANEL_POSITION_KEYS = [
+  "position",
+  "top",
+  "right",
+  "bottom",
+  "left",
+  "width",
+  "maxWidth",
+  "minWidth",
+] as const;
 
 /**
  * Rubber-band resistance for drag-past-bounds (iOS-style). `c` controls how much
