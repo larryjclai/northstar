@@ -335,8 +335,37 @@ export function ModalShell({
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         if (!disableEscapeRef.current) {
-          event.stopPropagation();
-          requestClose();
+          // This native listener is bound to the panel node. On the native
+          // bubble path it sits BELOW (closer to the target than) the single
+          // native listener React 17+ delegates all synthetic dispatch
+          // through, which is attached at the app's root container — an
+          // ancestor of `panel`. Calling `stopPropagation()` here
+          // synchronously would therefore stop the native event before it
+          // ever reaches that root listener, meaning React's own onKeyDown
+          // handlers (e.g. a nested SuggestInput's) would never run at all —
+          // not just "run later." (plan 305 — proved empirically: an earlier
+          // draft called stopPropagation() here and the nested-interception
+          // test below failed because SuggestInput's handler never fired.)
+          // So: don't touch propagation here. Let the native bubble continue
+          // so React's synthetic dispatch happens, then defer one microtask —
+          // by the time it runs, the entire synchronous dispatch (including
+          // any nested component's `event.preventDefault()`, which reflects
+          // onto this same native event) has completed, so
+          // `event.defaultPrevented` tells us whether a nested component
+          // already consumed this Escape. If so, back off and let that
+          // component's own effect (e.g. closing its dropdown) stand.
+          // queueMicrotask (not setTimeout) keeps the deferral imperceptible
+          // — it runs before the next paint, not after a timer tick.
+          //
+          // Window-listener overlays (e.g. QuickAdd, which is not wrapped in
+          // a ModalShell) are unaffected: SuggestInput's own
+          // `event.stopPropagation()` already shields them, and that call
+          // happens synchronously during React's dispatch — well before the
+          // native event would otherwise reach `window`.
+          queueMicrotask(() => {
+            if (event.defaultPrevented) return;
+            requestClose();
+          });
         }
         return;
       }

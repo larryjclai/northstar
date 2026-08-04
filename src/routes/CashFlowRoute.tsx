@@ -52,6 +52,7 @@ import { Button } from "../components/coss/button";
 import { Card } from "../components/coss/card";
 import { Skeleton } from "../components/coss/skeleton";
 import { Glyph } from "../lib/icons";
+import { escapeTargetInsideDialog } from "../lib/escapeOwnership";
 import { readableTextColor } from "../lib/color";
 import { lockViewportScroll } from "../lib/scrollLock";
 import { SegmentedControl } from "../components/SegmentedControl";
@@ -3957,7 +3958,14 @@ function EntryDrawer({
   useEffect(() => {
     if (!open) return;
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") requestClose();
+      // A ModalShell (e.g. RecurringScopeModal) can be stacked on top of
+      // this hand-rolled drawer — its focus trap keeps focus inside the
+      // dialog, so an Escape meant for it still targets that dialog. Since
+      // ModalShell no longer stops propagation synchronously (plan 305),
+      // this window listener would otherwise also see — and act on — that
+      // same Escape, closing the drawer underneath and losing the in-
+      // progress edit. Ignore it; the stacked dialog owns it.
+      if (event.key === "Escape" && !escapeTargetInsideDialog(event)) requestClose();
     }
     const releaseScrollLock = lockViewportScroll();
     window.addEventListener("keydown", onKeyDown);

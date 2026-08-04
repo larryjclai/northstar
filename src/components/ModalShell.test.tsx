@@ -2,6 +2,16 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ModalShell } from "./ModalShell";
+import { SuggestInput } from "./SuggestInput";
+
+// Flushes the queueMicrotask deferral ModalShell's Escape handler uses (plan
+// 305) — its native panel listener checks `event.defaultPrevented` one
+// microtask after the synchronous dispatch (which is when React's synthetic
+// handlers, e.g. a nested SuggestInput's preventDefault, actually run).
+async function flushEscapeMicrotask() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
 
 afterEach(() => {
   // Guard against a leaked scroll-lock between tests.
@@ -104,7 +114,7 @@ describe("ModalShell", () => {
     expect(dialog).not.toHaveAttribute("aria-label");
   });
 
-  it("closes on Escape", () => {
+  it("closes on Escape", async () => {
     const onClose = vi.fn();
     render(
       <ModalShell title="t" onClose={onClose}>
@@ -112,6 +122,7 @@ describe("ModalShell", () => {
       </ModalShell>,
     );
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    await flushEscapeMicrotask();
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
@@ -248,7 +259,7 @@ describe("ModalShell", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("double-dismiss guard: two rapid Escape presses call onClose exactly once", () => {
+  it("double-dismiss guard: two rapid Escape presses call onClose exactly once", async () => {
     const onClose = vi.fn();
     render(
       <ModalShell title="t" onClose={onClose}>
@@ -258,7 +269,38 @@ describe("ModalShell", () => {
     const dialog = screen.getByRole("dialog");
     fireEvent.keyDown(dialog, { key: "Escape" });
     fireEvent.keyDown(dialog, { key: "Escape" });
+    await flushEscapeMicrotask();
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  describe("nested Escape interception (plan 305)", () => {
+    it("first Escape closes a nested SuggestInput's dropdown, not the dialog; a second Escape closes the dialog", async () => {
+      const onClose = vi.fn();
+      render(
+        <ModalShell title="t" onClose={onClose}>
+          <SuggestInput
+            value=""
+            options={["肯德基", "麥當勞"]}
+            onChange={() => {}}
+            ariaLabel="merchant"
+          />
+        </ModalShell>,
+      );
+      const input = screen.getByRole("combobox");
+      fireEvent.focus(input);
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+
+      fireEvent.keyDown(input, { key: "Escape" });
+      await flushEscapeMicrotask();
+      // The dropdown consumed the Escape (preventDefault) — the dialog must
+      // not have closed.
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+
+      fireEvent.keyDown(input, { key: "Escape" });
+      await flushEscapeMicrotask();
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('motion="none" renders no data-motion attribute', () => {
