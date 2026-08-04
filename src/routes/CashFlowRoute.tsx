@@ -4699,7 +4699,7 @@ function EntryDrawer({
 
               {/* 2 · Account + date, with a suggested account from history */}
               <div>
-                <div className="grid grid-cols-2 gap-3.5">
+                <div className="ns-form-row-2">
                   <DrawerField label={type === "expense" ? "支出帳戶" : "收入帳戶"} required>
                     <AccountFilter
                       accounts={entryPickerAccounts}
