@@ -32,7 +32,7 @@ export function DatePicker({
             )}
           >
             <CalendarBlank className="mr-2 h-4 w-4" />
-            {date ? format(date, "yyyy-MM") : <span>選擇月份</span>}
+            {date ? format(date, "yyyy-MM-dd") : <span>選擇日期</span>}
           </button>
         }
       />

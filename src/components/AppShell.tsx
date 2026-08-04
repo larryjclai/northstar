@@ -14,7 +14,7 @@ import {
   Target,
   TrendUp,
 } from "@phosphor-icons/react";
-import { Link, Outlet, useNavigate } from "@tanstack/react-router";
+import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { Button } from "./coss/button";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -165,6 +165,10 @@ export function AppShell() {
     return () => observer.disconnect();
   }, [demoActive]);
   const shellQueryClient = useQueryClient();
+  const { pathname } = useLocation();
+  // FAB 的功能是快速「記帳」，只在記帳語境（總覽、記帳）顯示，
+  // 避免在投資/設定頁蓋住可點擊內容（operator 決策 2026-08-03）。
+  const showQuickAddFab = pathname === "/" || pathname.startsWith("/cash-flow");
 
   async function handleExitDemo() {
     setDemoExiting(true);
@@ -492,6 +496,9 @@ export function AppShell() {
         </div>
       </aside>
 
+      {/* iOS status-bar scrim — see globals.css .ns-statusbar-scrim */}
+      <div className="ns-statusbar-scrim" aria-hidden="true" />
+
       {/* ── Main content ── */}
       {/* pt safe-area clears the notch / Dynamic Island on iOS (0 on desktop, so
           it's a no-op there). Each route keeps its own top padding on top of it. */}
@@ -537,27 +544,29 @@ export function AppShell() {
       </main>
 
       {/* ── Mobile Quick Add FAB ── */}
-      <button
-        type="button"
-        onClick={() => setQuickAddOpen(true)}
-        aria-label="快速記帳"
-        // `flex` lives in className (not inline style) so the responsive
-        // `lg:hidden` can actually win on desktop — an inline `display:flex`
-        // would override it and leak the FAB onto the desktop layout.
-        className="fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] flex items-center justify-center lg:hidden"
-        style={{
-          zIndex: 40,
-          width: 52,
-          height: 52,
-          borderRadius: 999,
-          background: "var(--ns-accent)",
-          color: "var(--ns-accent-fg)",
-          border: "none",
-          boxShadow: "var(--ns-shadow-strong)",
-        }}
-      >
-        <Plus size={24} weight="bold" />
-      </button>
+      {showQuickAddFab ? (
+        <button
+          type="button"
+          onClick={() => setQuickAddOpen(true)}
+          aria-label="快速記帳"
+          // `flex` lives in className (not inline style) so the responsive
+          // `lg:hidden` can actually win on desktop — an inline `display:flex`
+          // would override it and leak the FAB onto the desktop layout.
+          className="fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] flex items-center justify-center lg:hidden"
+          style={{
+            zIndex: 40,
+            width: 52,
+            height: 52,
+            borderRadius: 999,
+            background: "var(--ns-accent)",
+            color: "var(--ns-accent-fg)",
+            border: "none",
+            boxShadow: "var(--ns-shadow-strong)",
+          }}
+        >
+          <Plus size={24} weight="bold" />
+        </button>
+      ) : null}
 
       {/* ── Mobile "更多" overflow sheet ── */}
       {moreOpen ? (
