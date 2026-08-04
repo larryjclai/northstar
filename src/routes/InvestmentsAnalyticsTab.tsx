@@ -758,7 +758,17 @@ export function InvestmentsAnalyticsTab({
   })();
 
   return (
-    <div className="grid gap-5">
+    // grid-cols-[minmax(0,1fr)] (plan 288): a bare `grid` gives its single
+    // implicit column an "auto" min-size, so ANY descendant's unshrinkable
+    // content (anywhere in any row) widens the whole column and every
+    // sibling row along with it — including the period control below, which
+    // otherwise can't shrink enough for its own `.ns-hscroll` to ever need to
+    // scroll. Clamping the track's minimum to 0 makes each row respect the
+    // page's actual width instead of borrowing space from an unrelated
+    // overflow elsewhere on the tab. Same fix applied to each section's own
+    // nested `grid gap-5` below, for the same reason at the SectionHeader
+    // level (its ScopeTag tag).
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
       {/* ── Sticky in-page section nav (anchors, intentionally NOT styled like the
             page-level tabs so it doesn't read as a third tab layer) ──────────── */}
       {/* Sentinel (plan 278): observed by IntersectionObserver above to detect
@@ -819,13 +829,23 @@ export function InvestmentsAnalyticsTab({
       {/* ── Page-global period control — drives 01 報酬, 02 貢獻, and 03 風險
             (unless the window is too short, in which case 03 labels itself and
             falls back to its own near-1Y rolling view) ─────────────────────── */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <SegmentedControl
-            value={selection}
-            onChange={handleSelectionChange}
-            options={periodOptions}
-          />
+      {/* minWidth: 0 on this row and its inner wrapper (plan 288): flex items
+          default to an "auto" min-width (their content's min-content size),
+          so without this override neither div can shrink below the
+          SegmentedControl's full unwrapped width — which defeats the
+          `.ns-hscroll` below before it ever gets a chance to scroll instead
+          of overflow. `.ns-hscroll` itself doesn't need the same override;
+          its own `overflow-x: auto` already gives it an automatic min-width
+          of 0. */}
+      <div className="flex items-center justify-between flex-wrap gap-3" style={{ minWidth: 0 }}>
+        <div className="flex items-center gap-2 flex-wrap" style={{ minWidth: 0 }}>
+          <div className="ns-hscroll" style={{ maxWidth: "100%" }}>
+            <SegmentedControl
+              value={selection}
+              onChange={handleSelectionChange}
+              options={periodOptions}
+            />
+          </div>
           {customRange && (
             <div className="flex items-center gap-1.5">
               <input
@@ -873,7 +893,7 @@ export function InvestmentsAnalyticsTab({
       </div>
 
       {/* ═══ 01 · 報酬 RETURNS ═══════════════════════════════════════════════ */}
-      <section id="an-returns" className="grid gap-5 scroll-mt-16">
+      <section id="an-returns" className="grid grid-cols-[minmax(0,1fr)] gap-5 scroll-mt-16">
         <SectionHeader
           no="01"
           title="報酬"
@@ -1258,7 +1278,7 @@ export function InvestmentsAnalyticsTab({
           contribution over [activeStart, end] on the fixed-basket valuation, so
           "上漲/下跌最多" follows the global period control. */}
       {attribution.items.length > 0 && (
-        <section id="an-contrib" className="grid gap-5 scroll-mt-16">
+        <section id="an-contrib" className="grid grid-cols-[minmax(0,1fr)] gap-5 scroll-mt-16">
           <SectionHeader
             no="02"
             title="貢獻"
@@ -1415,7 +1435,7 @@ export function InvestmentsAnalyticsTab({
       )}
 
       {/* ═══ 03 · 風險 RISK ══════════════════════════════════════════════════ */}
-      <section id="an-risk" className="grid gap-5 scroll-mt-16">
+      <section id="an-risk" className="grid grid-cols-[minmax(0,1fr)] gap-5 scroll-mt-16">
         <SectionHeader
           no="03"
           title="風險"
@@ -1500,7 +1520,7 @@ export function InvestmentsAnalyticsTab({
 
       {/* ═══ 04 · 股利 INCOME ════════════════════════════════════════════════ */}
       {dividends.total > 0 && (
-        <section id="an-income" className="grid gap-5 scroll-mt-16">
+        <section id="an-income" className="grid grid-cols-[minmax(0,1fr)] gap-5 scroll-mt-16">
           <SectionHeader
             no="04"
             title="股利"
@@ -1649,7 +1669,7 @@ export function InvestmentsAnalyticsTab({
       )}
 
       {/* ═══ 05 · 集中度 CONCENTRATION ═══════════════════════════════════════ */}
-      <section id="an-concentration" className="grid gap-5 scroll-mt-16">
+      <section id="an-concentration" className="grid grid-cols-[minmax(0,1fr)] gap-5 scroll-mt-16">
         <SectionHeader
           no="05"
           title="集中度"
@@ -2148,7 +2168,16 @@ function SectionHeader({
   tag: ReactNode;
 }) {
   return (
-    <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 14 }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "baseline",
+        gap: 12,
+        rowGap: 4,
+        marginBottom: 14,
+        flexWrap: "wrap",
+      }}
+    >
       <span
         className="mono"
         style={{ fontSize: 11, color: "var(--ns-accent)", letterSpacing: "0.1em" }}
@@ -2158,7 +2187,7 @@ function SectionHeader({
       <span style={{ fontFamily: "var(--ns-font-display)", fontSize: 18, fontWeight: 600 }}>
         {title}
       </span>
-      <span className="dim" style={{ fontSize: 12 }}>
+      <span className="dim" style={{ fontSize: 12, minWidth: 0 }}>
         {question}
       </span>
       {tag}
