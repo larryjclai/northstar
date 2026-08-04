@@ -21,6 +21,22 @@ async function assertServingThisWorktree(page: Page) {
   expect(css, "server is NOT serving this worktree").toContain("ns-page-chrome");
 }
 
+// Post-goto readiness (2026-08-04 flake 修正): these used to be
+// `waitForLoadState("networkidle")`, which is the wrong signal under parallel
+// workers — five of them share one Vite dev server, so this page's network
+// rarely goes quiet on time, and "quiet network" was only ever a proxy for
+// "the route mounted and its data query resolved". Wait for the exact toolbar
+// control the setup helpers below click first instead (web-first, per-element).
+async function awaitCashFlowToolbarReady(page: Page) {
+  await expect(page.getByRole("button", { name: /^本月/ })).toBeVisible({ timeout: 15_000 });
+}
+
+async function awaitInvestmentsToolbarReady(page: Page) {
+  await expect(page.getByRole("button", { name: "分析", exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
+}
+
 // Loads demo data so the ledger/holdings lists are long enough to scroll.
 // Demo seeding stashes any existing data and takes a few seconds to populate.
 async function enterDemoMode(page: Page) {
@@ -78,6 +94,13 @@ async function seedExtraCashFlowTransactions(page: Page, count: number) {
 // render into the DOM and contribute scrollable height.
 async function expandCashFlowMonths(page: Page, n: number) {
   const monthHeaders = page.locator(".ns-cf-month-header");
+  // The list refreshes asynchronously after the CSV import above — wait for
+  // the month-collapsed view to actually materialize before counting, or a
+  // slow refetch makes count() return 0 and this silently expands nothing
+  // (then assertTallEnoughToScroll fails on a too-short page). This is the
+  // data-settled guard the old post-goto `networkidle` wait was standing in
+  // for, expressed as a web-first assertion on the element we actually need.
+  await expect(monthHeaders.first()).toBeVisible({ timeout: 15_000 });
   const total = await monthHeaders.count();
   for (let i = 0; i < Math.min(n, total); i++) {
     await monthHeaders.nth(i).click();
@@ -185,7 +208,7 @@ test.describe("sticky page chrome — 記帳 / 投資 (plan 284 Phase B)", () =>
     }) => {
       await enterDemoMode(page);
       await page.goto("/cash-flow");
-      await page.waitForLoadState("networkidle");
+      await awaitCashFlowToolbarReady(page);
       await assertServingThisWorktree(page);
       await prepareTallCashFlowPage(page);
 
@@ -231,7 +254,7 @@ test.describe("sticky page chrome — 記帳 / 投資 (plan 284 Phase B)", () =>
     }) => {
       await enterDemoMode(page);
       await page.goto("/investments");
-      await page.waitForLoadState("networkidle");
+      await awaitInvestmentsToolbarReady(page);
       await assertServingThisWorktree(page);
       await switchToInvestmentsAnalyticsTab(page);
 
@@ -268,7 +291,7 @@ test.describe("sticky page chrome — 記帳 / 投資 (plan 284 Phase B)", () =>
     }) => {
       await enterDemoMode(page);
       await page.goto("/cash-flow");
-      await page.waitForLoadState("networkidle");
+      await awaitCashFlowToolbarReady(page);
       await assertServingThisWorktree(page);
       await prepareTallCashFlowPage(page);
 
@@ -311,7 +334,7 @@ test.describe("sticky page chrome — 記帳 / 投資 (plan 284 Phase B)", () =>
     test("記帳: phone 390×780 pinned chrome stays ≤100px", async ({ page }) => {
       await enterDemoMode(page);
       await page.goto("/cash-flow");
-      await page.waitForLoadState("networkidle");
+      await awaitCashFlowToolbarReady(page);
       await assertServingThisWorktree(page);
       await prepareTallCashFlowPage(page);
 

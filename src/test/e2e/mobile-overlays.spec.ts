@@ -42,25 +42,44 @@ async function enterDemoMode(page: Page) {
   await page.waitForTimeout(7_000);
 }
 
-// ModalShell's enter motion (`.ns-overlay-panel[data-motion]`) transitions
-// transform/opacity over ~260ms; the center variant's scale-in also nudges
-// bounding-box width mid-transition. Bounding boxes must be measured after
-// that settles, or these tests flake against the animation frame rather than
-// the resting layout.
-const MOTION_SETTLE_MS = 400;
+// A bounding box is only meaningful once the resting layout exists, and two
+// separate things can make an early read lie — both of which only bit under
+// parallel CI workers:
+//
+//   1. ModalShell's enter motion (`.ns-overlay-panel[data-motion]`) interpolates
+//      transform/opacity over ~260ms, and the center variant's scale-in nudges
+//      the box width mid-transition.
+//   2. The Vite dev server injects CSS through JS. Under a cold-start storm the
+//      panel can mount a frame before its stylesheet lands, so an unstyled
+//      `.ns-sheet-bottom` misses `max-height: min(92dvh, 100%)` and measures its
+//      full content height instead (observed in CI: 1566px against an 844px
+//      viewport). `toHaveClass(/ns-sheet-bottom/)` passes here — the class is on
+//      the element; it's the rule that hasn't applied.
+//
+// A fixed delay only ever covered (1). No constant covers (2): under load the
+// injection can land past any value we'd pick, and padding the delay slows every
+// run to chase the worst case. Polling until the assertion actually holds covers
+// both and costs nothing once the layout has settled.
+const SETTLE_TIMEOUT_MS = 10_000;
+
+/** Retry `assertion` until it holds against a settled layout (see above). */
+async function expectOnSettledLayout(assertion: () => Promise<void>) {
+  await expect(assertion).toPass({ timeout: SETTLE_TIMEOUT_MS });
+}
 
 // Asserts a locator's rendered box is fully inside the current viewport
 // (left/top >= 0, right/bottom <= viewport dimensions).
 async function assertWithinViewport(page: Page, locator: ReturnType<Page["locator"]>) {
-  await page.waitForTimeout(MOTION_SETTLE_MS);
-  const box = await locator.boundingBox();
-  expect(box, "target element has no bounding box (not visible?)").not.toBeNull();
   const viewport = page.viewportSize();
   expect(viewport, "page has no viewport size").not.toBeNull();
-  expect(box!.x).toBeGreaterThanOrEqual(0);
-  expect(box!.y).toBeGreaterThanOrEqual(0);
-  expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.width + 0.5);
-  expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height + 0.5);
+  await expectOnSettledLayout(async () => {
+    const box = await locator.boundingBox();
+    expect(box, "target element has no bounding box (not visible?)").not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.y).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.width + 0.5);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height + 0.5);
+  });
 }
 
 test.describe("mobile overlays fit viewport width (plan 287)", () => {
@@ -110,8 +129,11 @@ test.describe("mobile overlays fit viewport width (plan 287)", () => {
 
     test("交易詳情 drawer renders as a bottom sheet within viewport width", async ({ page }) => {
       await enterDemoMode(page);
+      // No `networkidle` wait: against the Vite dev server it is unreliable in
+      // both directions (the HMR socket and on-demand transform requests keep
+      // traffic trickling under parallel load). The web-first row assertion
+      // below is the real readiness signal.
       await page.goto("/cash-flow");
-      await page.waitForLoadState("networkidle");
       await assertServingThisWorktree(page);
 
       const firstRow = page.locator(".ns-cf-row").first();
@@ -149,17 +171,21 @@ test.describe("mobile overlays fit viewport width (plan 287)", () => {
       const className = await dialog.getAttribute("class");
       expect(className ?? "").not.toContain("ns-sheet-bottom");
 
-      await page.waitForTimeout(MOTION_SETTLE_MS);
       const card = dialog.locator(":scope > div").first();
-      const box = await card.boundingBox();
-      expect(box).not.toBeNull();
-      expect(box!.width).toBeCloseTo(480, 0);
+      await expectOnSettledLayout(async () => {
+        const box = await card.boundingBox();
+        expect(box).not.toBeNull();
+        expect(box!.width).toBeCloseTo(480, 0);
+      });
     });
 
     test("交易詳情 drawer stays a right-docked 460px panel on desktop", async ({ page }) => {
       await enterDemoMode(page);
+      // No `networkidle` wait: against the Vite dev server it is unreliable in
+      // both directions (the HMR socket and on-demand transform requests keep
+      // traffic trickling under parallel load). The web-first row assertion
+      // below is the real readiness signal.
       await page.goto("/cash-flow");
-      await page.waitForLoadState("networkidle");
       await assertServingThisWorktree(page);
 
       const firstRow = page.locator(".ns-cf-row").first();
@@ -171,13 +197,14 @@ test.describe("mobile overlays fit viewport width (plan 287)", () => {
       const className = await dialog.getAttribute("class");
       expect(className ?? "").not.toContain("ns-sheet-bottom");
 
-      await page.waitForTimeout(MOTION_SETTLE_MS);
-      const box = await dialog.boundingBox();
       const viewport = page.viewportSize();
-      expect(box).not.toBeNull();
       expect(viewport).not.toBeNull();
-      expect(box!.width).toBeCloseTo(460, 0);
-      expect(box!.x + box!.width).toBeCloseTo(viewport!.width, 0);
+      await expectOnSettledLayout(async () => {
+        const box = await dialog.boundingBox();
+        expect(box).not.toBeNull();
+        expect(box!.width).toBeCloseTo(460, 0);
+        expect(box!.x + box!.width).toBeCloseTo(viewport!.width, 0);
+      });
     });
   });
 });

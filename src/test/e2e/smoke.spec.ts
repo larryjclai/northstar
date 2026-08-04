@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+// This spec is intentionally all web-first waits (no networkidle). Its
+// historical parallel-run flakes (goto timing out / interrupted at suite
+// start) came from every worker's first navigation hitting Vite's cold
+// on-demand transforms at once — that storm is now absorbed by the warmup
+// readiness gate (warmup.setup.ts + `dependencies` in playwright.config.ts)
+// before any test project starts.
 test("first-run trust and entry surfaces stay usable", async ({ page }) => {
   const consoleErrors: string[] = [];
   page.on("console", (message) => {
