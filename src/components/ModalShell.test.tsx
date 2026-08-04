@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ModalShell } from "./ModalShell";
@@ -45,6 +45,40 @@ function stubMatchMediaByQuery(map: Record<string, boolean>) {
       dispatchEvent: vi.fn(),
     })),
   );
+}
+
+// Mutable variant (plan 303): returns a controller that lets a test flip
+// `matches` and fire the MediaQueryList `change` event `useSyncExternalStore`
+// subscribes to, so the mobile/desktop presentation swap mid-session is
+// exercisable without a real browser viewport.
+function stubMutableMatchMedia(initialMatches: boolean) {
+  let matches = initialMatches;
+  const listeners = new Set<(event: { matches: boolean }) => void>();
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockImplementation((query: string) => ({
+      get matches() {
+        return matches;
+      },
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: (event: string, listener: (event: { matches: boolean }) => void) => {
+        if (event === "change") listeners.add(listener);
+      },
+      removeEventListener: (event: string, listener: (event: { matches: boolean }) => void) => {
+        if (event === "change") listeners.delete(listener);
+      },
+      dispatchEvent: vi.fn(),
+    })),
+  );
+  return {
+    set(next: boolean) {
+      matches = next;
+      for (const listener of listeners) listener({ matches: next });
+    },
+  };
 }
 
 describe("ModalShell", () => {
@@ -354,6 +388,68 @@ describe("ModalShell", () => {
       const dialog = screen.getByRole("dialog");
       expect(dialog).not.toHaveClass("ns-sheet-bottom");
       expect(dialog.querySelector(".ns-sheet-grab")).toBeNull();
+    });
+  });
+
+  describe("viewport change while open (plan 303)", () => {
+    it("re-evaluates the mobile/desktop presentation on a matchMedia change event, and clears an in-flight drag transform", () => {
+      const mql = stubMutableMatchMedia(true); // starts narrow (mobile)
+      render(
+        <ModalShell
+          title="t"
+          onClose={() => {}}
+          variant="drawer"
+          mobilePresentation="bottom-sheet"
+          panelStyle={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 420 }}
+        >
+          <button>ok</button>
+        </ModalShell>,
+      );
+      const dialog = screen.getByRole("dialog");
+      expect(dialog).toHaveClass("ns-sheet-bottom");
+      expect(dialog).toHaveAttribute("data-motion", "sheet-bottom");
+
+      // Simulate a drag-in-progress transform left on the panel node.
+      dialog.style.transform = "translateY(120px)";
+
+      // Cross the 1024px boundary while the sheet is open (e.g. iPad rotation,
+      // desktop window resize) — the matchMedia `change` event fires.
+      act(() => {
+        mql.set(false);
+      });
+
+      expect(dialog).not.toHaveClass("ns-sheet-bottom");
+      expect(dialog).toHaveAttribute("data-motion", "drawer");
+      // panelStyle positioning is restored now that sheet mode is inactive.
+      expect(dialog.style.position).toBe("absolute");
+      expect(dialog.style.width).toBe("420px");
+      // The stale drag transform is cleared, not left over from sheet mode.
+      expect(dialog.style.transform).toBe("");
+    });
+
+    it("re-activates the sheet when the viewport narrows back below 1024px", () => {
+      const mql = stubMutableMatchMedia(false); // starts wide (desktop)
+      render(
+        <ModalShell
+          title="t"
+          onClose={() => {}}
+          variant="drawer"
+          mobilePresentation="bottom-sheet"
+          panelStyle={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 420 }}
+        >
+          <button>ok</button>
+        </ModalShell>,
+      );
+      const dialog = screen.getByRole("dialog");
+      expect(dialog).not.toHaveClass("ns-sheet-bottom");
+
+      act(() => {
+        mql.set(true);
+      });
+
+      expect(dialog).toHaveClass("ns-sheet-bottom");
+      expect(dialog).toHaveAttribute("data-motion", "sheet-bottom");
+      expect(dialog.querySelector(".ns-sheet-grab")).not.toBeNull();
     });
   });
 });
