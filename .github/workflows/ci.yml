@@ -53,14 +53,24 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+      # Retried for the same reason as the e2e job's install step: a slow or
+      # flapping azure.archive.ubuntu.com mirror is transient, and one bad
+      # fetch should not fail the whole gate.
       - name: Install Linux system dependencies
+        timeout-minutes: 8
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
+          for attempt in 1 2 3; do
+            if sudo apt-get update && sudo apt-get install -y \
+              libwebkit2gtk-4.1-dev \
+              libappindicator3-dev \
+              librsvg2-dev \
+              patchelf; then
+              exit 0
+            fi
+            echo "::warning::apt-get failed (attempt $attempt/3); retrying in 15s"
+            sleep 15
+          done
+          exit 1
       - uses: actions/setup-node@v7
         with:
           node-version: lts/*
@@ -123,9 +133,16 @@ jobs:
   # playwright.config.ts runs the single smoke spec under two projects — chromium
   # and a mobile (WebKit) device — so both browsers are installed. The dev server
   # is launched by the config's `webServer` (npm run dev).
+  #
+  # Budget note (measured 2026-08-04 over 6 healthy runs): the test step is very
+  # stable at 517–540s, while browser setup ranged 42–89s. On 2026-08-04 a slow
+  # apt mirror stretched the combined `install --with-deps` step to 14m51s, which
+  # ate the entire 15-minute job budget and cancelled the run before a single
+  # test executed. The setup work below is therefore split, capped, and retried
+  # so a slow mirror can no longer starve the tests.
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -133,5 +150,50 @@ jobs:
           node-version: lts/*
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium webkit
+
+      - name: Resolve Playwright version
+        id: pw
+        run: |
+          echo "version=$(node -p "require('playwright-core/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # Browser binaries are content-addressed by Playwright version, so the
+      # version alone is a sound key. The browser list is in the key too, so
+      # adding a project/browser later can't silently restore a stale cache.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium-webkit
+
+      # apt system libs land in /usr and are NOT covered by the cache above, so
+      # this runs every time — and it is the step that actually flaked. Its own
+      # timeout means a stalled mirror fails here, fast and legibly, instead of
+      # silently consuming the test step's budget.
+      - name: Install Playwright system dependencies
+        timeout-minutes: 8
+        run: |
+          for attempt in 1 2 3; do
+            if npx playwright install-deps chromium webkit; then
+              exit 0
+            fi
+            echo "::warning::playwright install-deps failed (attempt $attempt/3); retrying in 15s"
+            sleep 15
+          done
+          exit 1
+
+      # Run unconditionally rather than gating on a cache hit: it is a fast
+      # no-op when the cache restored intact, and it still self-heals a partial
+      # or stale restore instead of failing later inside the test run.
+      - name: Install Playwright browsers
+        timeout-minutes: 8
+        run: |
+          for attempt in 1 2 3; do
+            if npx playwright install chromium webkit; then
+              exit 0
+            fi
+            echo "::warning::playwright install failed (attempt $attempt/3); retrying in 15s"
+            sleep 15
+          done
+          exit 1
+
       - run: npm run test:e2e
