@@ -5,6 +5,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* 44pt hit-area 的觸發條件。不用 (pointer: coarse)：WKWebView 誤報（plans 244/245），
+   repo 的手機判斷一律走視窗寬度，與 ModalShell 的 1023px 閘一致。 */
+@custom-variant touch (@media (max-width: 1023px));
+
 /* ═══════════════════════════════════════════════════════════
    Northstar Design System — CSS Tokens & Utility Classes
    ═══════════════════════════════════════════════════════════ */
