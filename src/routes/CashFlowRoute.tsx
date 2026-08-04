@@ -58,7 +58,6 @@ import { SegmentedControl } from "../components/SegmentedControl";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFinanceData, useRepository, useRepositoryMutation } from "../data/hooks";
-import { DatePicker } from "../components/ui/date-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { ClientAutocomplete } from "../components/ClientAutocomplete";
@@ -5252,7 +5251,10 @@ function EntryDrawer({
         {/* Footer */}
         <div
           className="flex gap-2"
-          style={{ padding: "14px 24px", borderTop: "1px solid var(--ns-border)" }}
+          style={{
+            padding: "14px 24px calc(14px + env(safe-area-inset-bottom, 0px))",
+            borderTop: "1px solid var(--ns-border)",
+          }}
         >
           <Button
             variant="outline"

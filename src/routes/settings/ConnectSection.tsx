@@ -1264,7 +1264,7 @@ export function ConnectStatus() {
                   className="rounded-md border p-2.5 text-xs"
                   style={{ borderColor: "var(--ns-border)", background: "var(--ns-bg-card)" }}
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="ns-conflict-row flex flex-wrap items-center justify-between gap-2">
                     <span className="flex items-center gap-2 min-w-0">
                       <Badge variant="outline" className="rounded-full text-micro shrink-0">
                         {summary.entityLabel}
@@ -1979,12 +1979,13 @@ function AddDeviceDialog({
   return (
     <ModalShell
       variant="center"
+      mobilePresentation="bottom-sheet"
       title={mode === "show" ? "加入現有裝置" : "新增裝置"}
       onClose={onClose}
       style={{ zIndex: 200 }}
     >
       {(dismiss) => (
-        <Card style={{ width: 480, padding: 0, overflow: "hidden" }}>
+        <Card style={{ width: "min(480px, 100%)", padding: 0, overflow: "hidden" }}>
           {/* Header */}
           <div className="flex items-center justify-between" style={{ padding: "18px 22px 0" }}>
             <h3
