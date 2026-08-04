@@ -5,6 +5,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* 44pt hit-area 的觸發條件。不用 (pointer: coarse)：WKWebView 誤報（plans 244/245），
+   repo 的手機判斷一律走視窗寬度，與 ModalShell 的 1023px 閘一致。 */
+@custom-variant touch (@media (max-width: 1023px));
+
 /* ═══════════════════════════════════════════════════════════
    Northstar Design System — CSS Tokens & Utility Classes
    ═══════════════════════════════════════════════════════════ */
@@ -2226,6 +2230,16 @@ textarea:focus-visible {
   z-index: 2;
 }
 .ns-cf-month-header:hover { background: var(--ns-bg-hover); }
+
+/* Mobile: amounts cluster (收入/支出/淨) can outgrow the header's width when
+   whitespace-nowrap keeps all three groups on one line — wrap onto a second
+   row instead of letting AppShell's overflowX:clip cut the 淨 figure off
+   (plan 295). Each amount span keeps whitespace-nowrap individually so a
+   single group never breaks mid-figure. */
+@media (max-width: 1023px) {
+  .ns-cf-month-header { flex-wrap: wrap; row-gap: 4px; padding: 12px 16px; }
+  .ns-cf-month-amounts { flex-wrap: wrap; row-gap: 2px; }
+}
 
 /* ── 多類別拆分 (plan 182) ──
    Drawer leg-editor card: one bordered row per category leg. Kept flex-based
