@@ -497,9 +497,15 @@ export function InvestmentImportWizard({ open, onClose, accounts, onImport }: Pr
                           <div
                             key={value}
                             className="items-center"
-                            style={{ display: "grid", gridTemplateColumns: "1fr 200px", gap: 10 }}
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "minmax(0, 1fr) minmax(140px, 200px)",
+                              gap: 10,
+                            }}
                           >
-                            <span className="mono text-body">{value}</span>
+                            <span className="mono text-body truncate" title={value}>
+                              {value}
+                            </span>
                             <AppSelect
                               value={cur ?? ""}
                               onChange={(action) =>
