@@ -2382,3 +2382,25 @@ textarea:focus-visible {
    min-content 撐爆軌道。 */
 .ns-quickadd-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 @media (max-width: 1023px) { .ns-quickadd-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* 手刻 pill/chip 的觸控擴張：視覺尺寸不變，手機版面下用透明 ::after 把
+   命中區撐到 ≥44px（同 COSS button 的手法，見 coss/button.tsx 的
+   touch:after:min-h-11 touch:after:min-w-11）。 */
+.ns-chip { position: relative; }
+@media (max-width: 1023px) {
+  .ns-chip::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+  }
+}
+
+/* SuggestInput / command 選項在手機版面下加大命中區（20–28px → ~40px）。 */
+.ns-suggest-option { padding: 6px 8px; }
+@media (max-width: 1023px) {
+  .ns-suggest-option { padding: 12px 10px; }
+}

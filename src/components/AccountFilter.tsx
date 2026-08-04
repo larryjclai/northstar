@@ -152,7 +152,7 @@ export function AccountFilter({
               gap: 8,
               minWidth: 140,
               maxWidth: 220,
-              height: 36,
+              height: 40,
               boxSizing: "border-box",
               padding: "0 10px",
               cursor: "pointer",
@@ -180,9 +180,9 @@ export function AccountFilter({
       />
       <PopoverContent
         align="start"
-        className={`w-64 p-0 ${contentClassName ?? ""}`}
+        className={`p-0 ${contentClassName ?? ""}`}
         positionerClassName={positionerClassName}
-        style={{ width: 256 }}
+        style={{ width: "min(320px, calc(100vw - 32px))" }}
       >
         <Command>
           <CommandInput placeholder="搜尋帳戶…" />

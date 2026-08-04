@@ -532,7 +532,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                     <Field label="分類">
                       {/* Two-level picker: category chips (icon glyph + name, contrast-aware
                       when active) then its subcategories below (B11 + B14). */}
-                      <div className="flex" style={{ flexWrap: "wrap", gap: 5 }}>
+                      <div className="flex" style={{ flexWrap: "wrap", gap: 8 }}>
                         {pickerCategories.map((category) => {
                           const active = confirm.category === category.name;
                           const color = category.color || "var(--ns-accent)";
@@ -547,7 +547,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                                   subcategory: "",
                                 })
                               }
-                              className="text-xs items-center gap-1"
+                              className="text-xs items-center gap-1 ns-chip"
                               style={{
                                 padding: "4px 10px",
                                 borderRadius: 999,
@@ -575,7 +575,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                             className="flex pl-2"
                             style={{
                               flexWrap: "wrap",
-                              gap: 5,
+                              gap: 8,
                               marginTop: 7,
                               borderLeft: "2px solid var(--ns-border)",
                             }}
@@ -589,7 +589,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                                   onClick={() =>
                                     setConfirm({ ...confirm, subcategory: active ? "" : s })
                                   }
-                                  className="text-caption"
+                                  className="text-caption ns-chip"
                                   style={{
                                     padding: "3px 9px",
                                     borderRadius: 999,
@@ -788,7 +788,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
             correctly instead of guessing (investment input rarely starts with
             a 買/賣 verb). Hidden once a confirm card is open. */}
         {!confirm ? (
-          <div className="flex gap-1.5" style={{ justifyContent: "center" }}>
+          <div className="flex gap-2" style={{ justifyContent: "center" }}>
             {(
               [
                 ["ledger", "記帳"],
@@ -801,7 +801,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                   key={value}
                   type="button"
                   onClick={() => setMode(value)}
-                  className="text-xs"
+                  className="text-xs ns-chip"
                   style={{
                     padding: "5px 16px",
                     borderRadius: 999,
@@ -873,7 +873,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
             (記帳 / 投資) that fill the input box so first-time users see the
             expected shape. Hidden once the user types or a confirm card opens. */}
         {!confirm && !text.trim() ? (
-          <div className="flex" style={{ flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
+          <div className="flex" style={{ flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
             {QUICK_ADD_EXAMPLES.map((ex) => (
               <button
                 key={ex.text}
@@ -883,7 +883,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
                   setText(ex.text);
                   setTimeout(() => inputRef.current?.focus(), 0);
                 }}
-                className="text-micro"
+                className="text-micro ns-chip"
                 title="填入範例"
                 style={{
                   padding: "4px 12px",
@@ -1070,7 +1070,7 @@ function PreviewChips({
 
   return (
     <div
-      className="flex items-center gap-1.5"
+      className="flex items-center gap-2"
       style={{
         flexWrap: "wrap",
         padding: "6px 14px",
@@ -1103,7 +1103,7 @@ function PreviewChips({
         <button
           type="button"
           onClick={() => onClearCategoryGuess()}
-          className="text-micro items-center"
+          className="text-micro items-center ns-chip"
           title="分類為系統猜測，點擊清除後可在確認畫面自行選擇"
           style={{
             display: "inline-flex",
@@ -1132,7 +1132,7 @@ function PreviewChips({
             key={accountId}
             type="button"
             onClick={() => onSelectAccount(accountId)}
-            className="text-micro items-center"
+            className="text-micro items-center ns-chip"
             title="選擇帳戶"
             style={{
               display: "inline-flex",
