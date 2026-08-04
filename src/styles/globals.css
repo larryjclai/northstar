@@ -1154,6 +1154,13 @@ textarea:focus-visible {
   :root { --ns-page-gutter: 48px; }
 }
 
+/* Card inner-content inset — Goals/Categories cards hard-coded 32px, which
+   ate 32px/side of already-scarce width on phones. */
+:root { --ns-card-inset: 32px; }
+@media (max-width: 639px) {
+  :root { --ns-card-inset: 20px; }
+}
+
 /* ── Detail pages: cash-flow category / merchant ── */
 .ns-detail-page {
   max-width: var(--ns-page-max);

@@ -648,14 +648,20 @@ export function GoalsRoute() {
 
         {/* Goals list */}
         <Card style={{ padding: "24px 0", overflow: "hidden" }}>
-          <div className="flex justify-between items-center mb-5" style={{ padding: "0 32px" }}>
+          <div
+            className="flex justify-between items-center mb-5"
+            style={{ padding: "0 var(--ns-card-inset, 32px)" }}
+          >
             <h2 className="text-lg font-medium" style={{ margin: 0 }}>
               {goals.length} 個進行中目標
             </h2>
           </div>
 
           {goals.length === 0 ? (
-            <div className="muted text-body" style={{ padding: "8px 32px 8px" }}>
+            <div
+              className="muted text-body"
+              style={{ padding: "8px var(--ns-card-inset, 32px) 8px" }}
+            >
               還沒有目標。到{" "}
               <Link to="/goals/fire" style={{ color: "var(--ns-accent)" }}>
                 FIRE 計算機
