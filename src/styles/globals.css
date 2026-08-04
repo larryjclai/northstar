@@ -730,6 +730,22 @@ html[data-native-glass] { --ns-sticky-top: calc(28px + env(safe-area-inset-top, 
   margin-inline: calc(var(--ns-page-gutter) * -1);
   padding-inline: var(--ns-page-gutter);
 }
+
+/* ── Status-bar scrim ─────────────────────────────────────────────────────
+   iOS：內容捲動時會滑進狀態列（時鐘／電量）底下，疊字不可讀。這條固定遮罩
+   蓋住 safe-area 頂端高度，讓內容從它底下通過。靜態、不隨捲動變形（no-morph
+   決策）。桌機與 Android 無 top inset → 高度 0，自然不渲染任何可見物。
+   z-index 45：高於 page chrome(25)／demo banner(30)／FAB(40)，低於 modals。 */
+.ns-statusbar-scrim {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top, 0px);
+  background: var(--ns-bg);
+  z-index: 45;
+  pointer-events: none;
+}
 /* The chrome's pin sentinel: a 1px out-of-flow marker whose exit from the
    viewport marks the scroll position where the chrome pins. The chrome pins
    when its top reaches --ns-sticky-top (+ demo banner), not the viewport

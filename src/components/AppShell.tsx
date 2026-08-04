@@ -492,6 +492,9 @@ export function AppShell() {
         </div>
       </aside>
 
+      {/* iOS status-bar scrim — see globals.css .ns-statusbar-scrim */}
+      <div className="ns-statusbar-scrim" aria-hidden="true" />
+
       {/* ── Main content ── */}
       {/* pt safe-area clears the notch / Dynamic Island on iOS (0 on desktop, so
           it's a no-op there). Each route keeps its own top padding on top of it. */}
