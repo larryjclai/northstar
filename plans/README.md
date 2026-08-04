@@ -2339,3 +2339,14 @@ R2 那條帶當初是為了抓「splitting 崩掉變成 1–2 個 chunk」而寫
 correctness/bugs、security、test coverage、tech debt/architecture、DX、docs、direction
 七類這次**完全沒看**——operator 的要求限縮在效能與升級。`src-tauri/` 的 Rust 程式碼除了
 `Cargo.toml` 的 profile 之外沒有審。`worker/` 完全沒碰。
+
+## 304 — Postmortem：EntryDrawer 動畫關閉炸 React #185（已修復）
+
+記帳抽屜用 Escape／取消／遮罩關閉時，production 直接 #185 整頁換錯誤畫面（beta.4 實災，
+operator 回報）。根因＝不穩定 `onClose` 進 close effect deps ＋ `closing` 旗標關閉後不重置
+＋ `closeDrawer` 內 `setShareDrafts([])` 保證 re-render，三者組成巢狀更新迴圈。修復走
+ModalShell closeRef 模式（PR #36 @ `45cbd198`）；紅綠對照 e2e 在
+`src/test/e2e/entry-drawer-close.spec.ts`（jsdom transition=0 測不到此類迴圈，只能 e2e）。
+防再犯規則已入 AGENTS.md Gotchas；完整記錄見
+[304-entry-drawer-close-loop-postmortem.md](304-entry-drawer-close-loop-postmortem.md)。
+（本節放檔尾是為了避開 287–303 尚未推送的檔頭改動，之後整理時可上移。）
