@@ -95,9 +95,9 @@ export function AppSelect({
       />
       <PopoverContent
         align="start"
-        className={`w-64 p-0 ${contentClassName ?? ""}`}
+        className={`p-0 ${contentClassName ?? ""}`}
         positionerClassName={positionerClassName}
-        style={{ width: 256 }}
+        style={{ width: "min(320px, calc(100vw - 32px))" }}
       >
         <Command>
           {searchable ? <CommandInput placeholder={searchPlaceholder} /> : null}

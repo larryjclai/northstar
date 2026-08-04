@@ -43,7 +43,7 @@ export function SuggestInput({
   }
 
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", minWidth: "min(240px, 90vw)" }}>
       <input
         className="ns-input"
         value={value}
@@ -103,7 +103,7 @@ export function SuggestInput({
               type="button"
               role="option"
               aria-selected={i === highlight}
-              className="text-xs"
+              className="text-xs ns-suggest-option"
               // onMouseDown (not onClick) so the input's blur doesn't close the
               // dropdown before the selection lands.
               onMouseDown={(e) => {
@@ -116,7 +116,6 @@ export function SuggestInput({
                 width: "100%",
                 textAlign: "left",
                 cursor: "pointer",
-                padding: "6px 8px",
                 borderRadius: "var(--ns-r-xs)",
                 border: "none",
                 fontFamily: "inherit",
