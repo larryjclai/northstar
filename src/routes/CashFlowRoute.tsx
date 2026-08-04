@@ -58,7 +58,6 @@ import { SegmentedControl } from "../components/SegmentedControl";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFinanceData, useRepository, useRepositoryMutation } from "../data/hooks";
-import { DatePicker } from "../components/ui/date-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { ClientAutocomplete } from "../components/ClientAutocomplete";

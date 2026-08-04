@@ -254,6 +254,7 @@ export function SettingsMerchants({
 
       <Card style={{ padding: 0 }}>
         <div
+          className="ns-settings-merchants-head"
           style={{
             padding: "10px 20px",
             borderBottom: "1px solid var(--ns-border)",
@@ -272,6 +273,7 @@ export function SettingsMerchants({
         </div>
         {adding && (
           <div
+            className="ns-settings-merchants-row"
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 72px 80px",
@@ -308,6 +310,7 @@ export function SettingsMerchants({
         {filtered.map((m, i) => (
           <div
             key={m.value}
+            className="ns-settings-merchants-row"
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 72px 80px",
