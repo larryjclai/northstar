@@ -79,25 +79,35 @@ test.describe("Onboarding step-1 CSV field chips (plan 299 / step 2)", () => {
 
     const chips = page.getByTestId("onboarding-csv-chips");
     await expect(chips).toBeVisible();
-    const overflow = await chips.evaluate((el) => el.scrollWidth - el.clientWidth);
-    expect(overflow).toBeLessThanOrEqual(0);
 
     // Each chip's rendered box must stay within the grid container's bounds
     // (ellipsis-clipped text is fine and expected; a chip visually bleeding
     // past its own box into the neighbor's is the regression).
-    const containerBox = await chips.evaluate((el) => {
-      const r = el.getBoundingClientRect();
-      return { left: r.left, right: r.right };
-    });
-    const chipBoxes = await chips.evaluate((el) =>
-      Array.from(el.children).map((child) => {
-        const r = child.getBoundingClientRect();
-        return { left: r.left, right: r.right };
-      }),
-    );
-    for (const box of chipBoxes) {
-      expect(box.left).toBeGreaterThanOrEqual(containerBox.left - 1);
-      expect(box.right).toBeLessThanOrEqual(containerBox.right + 1);
-    }
+    //
+    // Container and chip rects are read in ONE evaluate so both come from the
+    // same layout pass. Reading them separately let a reflow land between the
+    // two calls — a late web font is enough — and the resulting coordinates
+    // disagreed by a fraction of a pixel (CI: chip.left 54.83 vs
+    // container.left 56.02, breaching the 1px tolerance) while nothing had
+    // actually overflowed. Retried until settled for the same reason.
+    await expect(async () => {
+      const { container, items, overflow } = await chips.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return {
+          container: { left: r.left, right: r.right },
+          items: Array.from(el.children).map((child) => {
+            const box = child.getBoundingClientRect();
+            return { left: box.left, right: box.right };
+          }),
+          overflow: el.scrollWidth - el.clientWidth,
+        };
+      });
+      expect(overflow).toBeLessThanOrEqual(0);
+      expect(items.length).toBeGreaterThan(0);
+      for (const box of items) {
+        expect(box.left).toBeGreaterThanOrEqual(container.left - 1);
+        expect(box.right).toBeLessThanOrEqual(container.right + 1);
+      }
+    }).toPass({ timeout: 10_000 });
   });
 });
