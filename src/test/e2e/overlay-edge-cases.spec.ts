@@ -102,7 +102,11 @@ test.describe("Onboarding step-1 CSV field chips (plan 299 / step 2)", () => {
           overflow: el.scrollWidth - el.clientWidth,
         };
       });
-      expect(overflow).toBeLessThanOrEqual(0);
+      // scrollWidth/clientWidth are integer-rounded, so a sub-pixel layout
+      // difference (~0.4px on some environments) can round up to overflow=1
+      // with nothing actually overflowing — allow 1px, same as the rect
+      // checks below.
+      expect(overflow).toBeLessThanOrEqual(1);
       expect(items.length).toBeGreaterThan(0);
       for (const box of items) {
         expect(box.left).toBeGreaterThanOrEqual(container.left - 1);
