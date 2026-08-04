@@ -24,7 +24,6 @@ import {
 } from "../domain";
 import { orchestrate, type ParseSource } from "../domain/nlParser";
 import { ALL_BOOKS, bookAccountIdSet, scopeRows } from "../domain/bookScope";
-import { escapeTargetInsideDialog } from "../lib/escapeOwnership";
 import { createOnDeviceParser } from "../lib/foundationModels";
 import { haptic } from "../lib/haptics";
 import { useUiPreferences } from "../state/uiPreferences";
@@ -34,6 +33,7 @@ import { SuggestInput } from "./SuggestInput";
 import { Glyph } from "../lib/icons";
 import { readableTextColor } from "../lib/color";
 import { useKeyboardInset } from "../hooks/useKeyboardInset";
+import { ModalShell } from "./ModalShell";
 
 // §6.4 example chips shown on empty input — one 投資 example, the rest 記帳.
 const QUICK_ADD_EXAMPLES: { text: string; mode: "ledger" | "investment" }[] = [
@@ -211,19 +211,7 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
     }
   }, [open, onDeviceParser]);
 
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      // QuickAdd hosts no ModalShell today, but the stacking contract must
-      // stay uniform with EntryDrawer's (plan 305/301): a stacked ModalShell
-      // dialog's focus trap keeps focus inside it, so an Escape meant for
-      // that dialog still targets it — ignore it here so this window
-      // listener doesn't also close QuickAdd underneath.
-      if (e.key === "Escape" && !escapeTargetInsideDialog(e)) onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  // Escape-to-close and body scroll-lock are provided by <ModalShell> below.
 
   // Debounced real-time preview (P5): parse 150 ms after the user stops typing.
   // Cleared when the confirm card is open or the input is empty.
@@ -433,29 +421,26 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
   }
 
   return (
-    <div
-      className="ns-quickadd-overlay flex"
-      style={{
-        position: "fixed",
-        top: 0,
-        right: 0,
-        bottom: 0,
-        left: overlayLeft,
-        zIndex: 80,
-        alignItems: "flex-end",
-        justifyContent: "center",
-      }}
-      onClick={onClose}
-    >
+    <>
+      {/* Scrim covers only the content area, leaving the sidebar untouched on
+          desktop (mirrors CashFlowRoute's EntryDrawer .ns-entry-scrim pattern);
+          full-width below the lg breakpoint. */}
       <style>{`@media (max-width:1023.98px){.ns-quickadd-overlay{left:0 !important;}}`}</style>
-      <div style={{ position: "absolute", inset: 0, background: "var(--ns-scrim)" }} />
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="animate-[ns-drawer-in_140ms_var(--ns-ease-out-strong)] flex flex-col gap-2.5"
-        style={{
-          position: "relative",
+      <ModalShell
+        variant="sheet"
+        mobilePresentation="bottom-sheet"
+        title="快速記帳"
+        onClose={onClose}
+        className="ns-quickadd-overlay"
+        style={{ zIndex: 80, left: overlayLeft }}
+        panelClassName="flex flex-col gap-2.5"
+        panelStyle={{
+          position: "fixed",
+          left: overlayLeft,
+          right: 0,
+          bottom: `calc(28px + env(safe-area-inset-bottom, 0px))`,
+          margin: "0 auto",
           width: "min(620px, 94vw)",
-          marginBottom: "calc(28px + env(safe-area-inset-bottom, 0px))",
           maxHeight: `calc(100dvh - 24px - env(safe-area-inset-top, 0px) - ${keyboardInset}px)`,
           transform: keyboardInset ? `translateY(-${keyboardInset}px)` : undefined,
         }}
@@ -956,8 +941,8 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
             解析 <ArrowRight size={13} weight="bold" />
           </Button>
         </div>
-      </div>
-    </div>
+      </ModalShell>
+    </>
   );
 }
 
