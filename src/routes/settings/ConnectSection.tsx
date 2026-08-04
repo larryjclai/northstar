@@ -1264,7 +1264,7 @@ export function ConnectStatus() {
                   className="rounded-md border p-2.5 text-xs"
                   style={{ borderColor: "var(--ns-border)", background: "var(--ns-bg-card)" }}
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="ns-conflict-row flex flex-wrap items-center justify-between gap-2">
                     <span className="flex items-center gap-2 min-w-0">
                       <Badge variant="outline" className="rounded-full text-micro shrink-0">
                         {summary.entityLabel}
