@@ -3,6 +3,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -162,13 +163,25 @@ export function ModalShell({
   // Gate strictly on the viewport width that HIDES the sidebar. We must NOT use
   // `(pointer: coarse)`: the macOS/Tauri WKWebView reports coarse on the desktop
   // build (min window width 1024 → sidebar always shown), which is exactly the
-  // overlap we are fixing. Evaluated once per mount; guard `matchMedia` presence
-  // so jsdom (most ModalShell.test.tsx cases) falls through to `false`, not throws.
-  const [isMobileViewport] = useState(
+  // overlap we are fixing. Subscribed via `useSyncExternalStore` (not a one-shot
+  // `useState`) so a modal left open across a viewport change (iPad rotation,
+  // desktop window drag) re-evaluates instead of getting stuck in its mount-time
+  // presentation — guard `matchMedia` presence so jsdom (most ModalShell.test.tsx
+  // cases) falls through to `false`, not throws.
+  const isMobileViewport = useSyncExternalStore(
+    (onChange) => {
+      if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+        return () => {};
+      }
+      const mql = window.matchMedia("(max-width: 1023px)");
+      mql.addEventListener("change", onChange);
+      return () => mql.removeEventListener("change", onChange);
+    },
     () =>
       typeof window !== "undefined" &&
       typeof window.matchMedia === "function" &&
       window.matchMedia("(max-width: 1023px)").matches,
+    () => false,
   );
   const sheetActive = mobilePresentation === "bottom-sheet" && isMobileViewport;
 
@@ -270,6 +283,19 @@ export function ModalShell({
     },
     [settleDrag],
   );
+
+  // `sheetActive` can now flip mid-session (viewport crossing 1024px while the
+  // modal is open). If a drag-to-dismiss gesture was in progress when the
+  // presentation changed, clear it — otherwise a stale in-flight `transform`
+  // survives the presentation swap on the panel node.
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    dragRef.current.active = false;
+    dragRef.current.pointerId = null;
+    panel.style.transition = "";
+    panel.style.transform = "";
+  }, [sheetActive]);
 
   useEffect(() => {
     if (!closing) return;
