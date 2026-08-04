@@ -20,33 +20,39 @@ FAB 處理方案 operator 已選定：只在總覽＋記帳顯示（plan 290）�
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 287 | 配對 dialog（Card `width:480` 兩側裁 ~44px）與交易詳情 drawer（`width:460` 超左緣）接 bottom-sheet + 寬度上限 | P1 | S | — | REVISE 第 1 輪（分支 fix/ai-mobile-overlay-width @ 1b11aa4b）：原始碼改動極簡正確、spec 品質高（指紋+防 vacuous 斷言），但配對測試依賴 VITE_NORTHSTAR_SYNC_WORKER_URL——CI（ci.yml:105）沒有此變數，advisor 以嚴格 parity config 實跑 4 個配對測試全掛。已退回：改 runtime 探測 self-skip，雙環境重驗 |
-| 288 | 分析分頁：九段期間切換器包 `.ns-hscroll`（「自訂」手機點不到）＋ SectionHeader flex-wrap（tag 被裁） | P1 | S | — | IN PROGRESS（executor @ 4834b205，分支 fix/ai-analytics-mobile-overflow） |
-| 289 | iOS 狀態列遮罩 `.ns-statusbar-scrim`（捲動內容與時鐘/電量重疊；靜態、桌機高度 0） | P2 | S | — | TODO |
-| 290 | 快速記帳 FAB route-scope 到 `/` 與 `/cash-flow…`（operator 決策；不再蓋住回補歷史/採用遠端） | P1 | S | — | TODO |
+| 287 | 配對 dialog（Card `width:480` 兩側裁 ~44px）與交易詳情 drawer（`width:460` 超左緣）接 bottom-sheet + 寬度上限 | P1 | S | — | **DONE — reviewed+APPROVED**（PR #37，分支 fix/ai-mobile-overlay-width @ c6a4a54f）。1 輪 REVISE：初版配對測試依賴 VITE_NORTHSTAR_SYNC_WORKER_URL（CI 沒有）→ advisor parity 實跑 4 掛 → 改 runtime 探測 self-skip。終驗（advisor）：parity e2e 4 skipped/18 passed、env-injected 22/22、vitest 1570、merge-tree 對含 #36 的 main 零衝突。教訓再確認：executor 臨時 config 偷加 env var 會遮蔽 CI 失敗 |
+| 288 | 分析分頁：九段期間切換器包 `.ns-hscroll`（「自訂」手機點不到）＋ SectionHeader flex-wrap（tag 被裁） | P1 | S | — | **DONE — reviewed+APPROVED**（PR #40，分支 fix/ai-analytics-mobile-overflow @ 7dc34b01）。executor 死於基礎設施中斷（token 過期）但工作已完整 commit；advisor 全套重驗：gate 全綠、parity e2e 20/20。含一項 documented deviation 判 APPROVE：根 grid 與五個 section 補 `grid-cols-[minmax(0,1fr)]`——否則隱式欄位 auto min-size 讓 hscroll 永不觸發，附註解 |
+| 289 | iOS 狀態列遮罩 `.ns-statusbar-scrim`（捲動內容與時鐘/電量重疊；靜態、桌機高度 0） | P2 | S | — | **DONE — reviewed+APPROVED**（PR #41，分支 fix/ai-statusbar-scrim @ bff339db）。兩次基礎設施中斷後由同一 executor 續完，全 gate 本 session 重跑；advisor 重驗 e2e 20/20、scope 恰 3 檔。⚠️ 真機驗收待 operator（瀏覽器 env()=0 驗不到實際遮罩） |
+| 290 | 快速記帳 FAB route-scope 到 `/` 與 `/cash-flow…`（operator 決策；不再蓋住回補歷史/採用遠端） | P1 | S | — | **DONE — reviewed+APPROVED**（PR #38，分支 fix/ai-scope-quickadd-fab @ 201ecf84，基於 54e2c934）。advisor 重驗：build 0、lint 0/799、vitest 1570、parity e2e 26/26（新 fab-scope 12 案例；hidden-on-investments 斷言本身即最強指紋）。記帳子路徑已確認全在 /cash-flow 前綴 |
 | 291 | FIRE 計算機：340px shrink-0 側欄 + overflow-hidden 100vh → 手機結果區寬度 0；改 `.ns-fire-*` 單欄堆疊 | P1 | M | — | **DONE — reviewed+APPROVED**（PR #35，分支 fix/ai-fire-mobile-collapse @ bf3e5e7b，基於 4834b205）。advisor 獨立複驗：build 0、lint 0 errors/799 warnings、format 乾淨、1570 測試全過、隔離 port e2e 18/18（新 fire-mobile 4 + 既有無回歸）、scope 恰 3 檔、桌機 340px 側欄行為不變。執行者亮點：自行驗證 Tailwind v4 layer 順序（unlayered globals.css 蓋過 utilities）；自行抓到瀏覽器 tab 串到 4288 的量測污染並改用 tabId 釘住 |
-| 292 | QuickAdd 確認卡：`1fr 1fr` 收單欄、maxHeight+捲動、safe-area、新 `useKeyboardInset` 鍵盤避讓 | P1 | M | — | TODO |
-| 293 | 記帳 drawer footer 加 `env(safe-area-inset-bottom)`（儲存鈕在手勢帶）＋ Toast 移到 dock 上方（現蓋住整條導覽且吃點擊） | P1 | S | — | TODO |
-| 294 | DatePicker 顯示 `yyyy-MM` 但送出 `yyyy-MM-dd`（唯一使用點：手動價格快照）＋ 清 CashFlowRoute 死 import | P2 | S | — | TODO |
+| 292 | QuickAdd 確認卡：`1fr 1fr` 收單欄、maxHeight+捲動、safe-area、新 `useKeyboardInset` 鍵盤避讓 | P1 | M | — | **DONE — reviewed+APPROVED**（PR #42，分支 fix/ai-quickadd-mobile @ fed176a1，基於 45cbd198）。executor 歷經 token 過期＋session 限額兩次中斷，工作零遺失、終輪全 gate 重跑；advisor 重驗：build 0、lint 0/799、vitest 1575（+5 hook 測試）、parity e2e 20/20、e2e 路由 /cash-flow 與 PR #38 相容。⚠️ 鍵盤 translateY 與 transform 下 popover 定位待 operator 真機驗證 |
+| 293 | 記帳 drawer footer 加 `env(safe-area-inset-bottom)`（儲存鈕在手勢帶）＋ Toast 手機改頂部 banner（operator 2026-08-04 依「iOS 原生設計語言」判準選定方案 B；原「dock 上方」方案經實測與 FAB 完全重疊而 STOP） | P1 | S | — | **DONE — reviewed+APPROVED**（PR #46，分支 fix/ai-bottom-safearea @ 99c4d23e）。方案 B（頂部 banner）落地；advisor 重驗 gate 全綠、新 spec 單檔 4/4、全套 22/22（一輪 chromium smoke 併發速度 flake，單獨跑雙過，依教條交 CI）。已知後續：toast 動畫仍由下滑入（globals.css out of scope），留美術跟進 |
+| 294 | DatePicker 顯示 `yyyy-MM` 但送出 `yyyy-MM-dd`（唯一使用點：手動價格快照）＋ 清 CashFlowRoute 死 import | P2 | S | — | **DONE — reviewed+APPROVED**（PR #43，分支 fix/ai-datepicker-display @ ebad7f53）。兩行 diff；advisor 重驗 gate 全綠、lint warnings 799→798（死 import 移除）。executor 功能實測：demo 建手動持倉選日期、顯示隨選取更新；並查明 call site `w-full` 覆蓋內部 `w-[140px]` 無截斷。executor 也踩到 preview_start 綁主 checkout 的陷阱，自行改用 worktree 內起 vite + 指紋確認 |
 
 ### Wave 2 — 嚴重跑版
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 295 | 記帳月份收合列：三組 nowrap 金額超寬被 clip（淨額看不到）→ 手機兩行 | P2 | S | — | TODO |
-| 296 | 持倉明細：三張固定欄表格包 `.ns-hscroll`（現在整頁橫捲）＋ 今日三格收合 ＋ gutter 接契約 | P2 | M | — | TODO |
-| 297 | 摘要網格/設定表批次：對帳三欄、分類分頁三欄（照抄 MerchantsTab auto-fit）、名稱/商家表 override（比照 CategoriesSection）、同步衝突列兩行化 | P2 | M | — | TODO |
-| 298 | 投資輸入表單：三欄數字列（80px 擠壓）與五處 `"1fr 1fr"` 收 `.ns-form-row-*`；HoldingEditModal 接 bottom-sheet、`70dvh`、刪除鈕換 COSS | P2 | M | 294 先行避衝突 | TODO |
-| 299 | Overlay 邊角批次：`PANEL_POSITION_KEYS` 補 `maxWidth`（分類管理 sheet 在 Plus/Max 上 400px 靠左）、onboarding 5 欄 chips、匯入精靈對應列 min-width、記帳 datetime 列收合、Goals/Categories 32px 內距 | P3 | M | 298（`.ns-form-row-2`） | TODO |
+| 295 | 記帳月份收合列：三組 nowrap 金額超寬被 clip（淨額看不到）→ 手機兩行 | P2 | S | — | **DONE — MERGED**（PR #45 @ a4eecf62）。一輪 CI-驅動 REVISE：72px 高度斷言在 ubuntu 字型下爆掉（計畫預告的 >72px 情境）→ 改 284B 的 100px 既有預算＋「淨含於標頭內」functional invariant；修訂後 CI 全綠。教訓：pixel budget 斷言要對 CI 字型免疫 |
+| 296 | 持倉明細：三張固定欄表格包 `.ns-hscroll`（現在整頁橫捲）＋ 今日三格收合 ＋ gutter 接契約 | P2 | M | — | **DONE — reviewed+APPROVED**（PR #47，分支 fix/ai-holding-detail-mobile @ 8ef97a77，一輪 REVISE）。初版 spec 測試間狀態依賴（雙重導航 race）→ 改 self-contained beforeEach + readiness gate；終驗單檔 6/6、全套 24/24（--retries=0）。順帶：確認自訂資產 ticker:"" 既有 bug（chip 追蹤）；證明 smoke.spec 併發 flake 為既有問題（chip task_0fee5d5e） |
+| 297 | 摘要網格/設定表批次：對帳三欄、分類分頁三欄（照抄 MerchantsTab auto-fit）、名稱/商家表 override（比照 CategoriesSection）、同步衝突列兩行化 | P2 | M | — | **DONE — reviewed+APPROVED**（PR #44，分支 fix/ai-mobile-grid-batch，4 commits 65e27471…5dd8b074）。advisor 重驗：gate 全綠、parity e2e 28/28（10 新測試；對帳頁靠 demo 信用卡帳戶拿到真覆蓋）。⚠️ 衝突列兩行化僅靜態驗證（e2e 造不出同步衝突）——operator 遇真衝突時順眼確認 |
+| 298 | 投資輸入表單：三欄數字列（80px 擠壓）與五處 `"1fr 1fr"` 收 `.ns-form-row-*`；HoldingEditModal 接 bottom-sheet、`70dvh`、刪除鈕換 COSS | P2 | M | 294 先行避衝突 | **DONE — reviewed+APPROVED**（PR #49，分支 fix/ai-invest-forms-mobile @ cc9ad9a3）。advisor 重驗：gate 全綠、單檔 8/8、全套 26/26（--retries=0）；財務邏輯零改動經逐讀確認；第五個 "1fr 1fr"（部位影響預覽，非表單列）依計畫跳過並記錄 |
+| 299 | Overlay 邊角批次：`PANEL_POSITION_KEYS` 補 `maxWidth`（分類管理 sheet 在 Plus/Max 上 400px 靠左）、onboarding 5 欄 chips、匯入精靈對應列 min-width、記帳 datetime 列收合、Goals/Categories 32px 內距 | P3 | M | 298（`.ns-form-row-2`） | **DONE — MERGED**（PR #52，6 commits）。rebase 去重 `.ns-form-row-2`（錨定 grep 證明單一定義）；advisor 重驗 gate 全綠、e2e 單檔 4/4；executor 對 grep 判準的字串誤差提出正確反駁（base rule + media override 同屬單一定義） |
+
+### 追加計畫（Wave 3 執行中產生）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 305 | ModalShell Escape 事件排序：panel native listener 先於 React synthetic → 巢狀 SuggestInput 的 Esc 攔截失效（301 的 BLOCK 根因，附 executor probe 實證與兩個設計候選） | P3（擋 301） | S–M | — | TODO |
 
 ### Wave 3 — 系統性
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 300 | COSS 44pt hit-area 從 `pointer-coarse:` 換自訂 `touch:` variant（`max-width:1023px`）——repo 紅線：WKWebView 誤報 coarse；桌機現在長隱形 44px `::after` 攔截鄰格點擊 | P2 | M | 建議 Wave1/2 後 | TODO |
-| 301 | QuickAdd 遷移 ModalShell（DESIGN.md §6.4 documented-but-undelivered；補 scroll lock/focus trap/aria/拖曳關閉） | P3 | M | 292 | TODO |
-| 302 | 非 COSS 小點擊目標批次（chips 20-36px → `.ns-chip` ::after 擴 44px）＋ 下拉寬度 `min(320px, calc(100vw-32px))`、CommandList `50dvh` clamp | P3 | M | 292；與 300 互補 | TODO |
-| 303 | ModalShell 視口一次取樣改 `useSyncExternalStore`（iPad 轉向 sheet/sidebar 重疊）＋ 查證雙月曆高度、onboarding `100vh` | P3 | S–M | 287/298/299 後效益大 | TODO |
+| 300 | COSS 44pt hit-area 從 `pointer-coarse:` 換自訂 `touch:` variant（`max-width:1023px`）——repo 紅線：WKWebView 誤報 coarse；桌機現在長隱形 44px `::after` 攔截鄰格點擊 | P2 | M | 建議 Wave1/2 後 | **DONE — MERGED**（PR #50 @ ae76787c）。advisor 重驗：純機械替換（逐檔 diff 驗證）、單檔 4/4、全套 22/22；桌機隱形 ::after 實測消失。殘餘 pointer-coarse 僅 ModalCloseButton.tsx:7 歷史註解 |
+| 301 | QuickAdd 遷移 ModalShell（DESIGN.md §6.4 documented-but-undelivered；補 scroll lock/focus trap/aria/拖曳關閉） | P3 | M | 292 | **BLOCKED — ModalShell 設計缺陷，需新計畫 305**：executor 以 vitest probe 證實——ModalShell 的 Escape 綁在 panel DOM 節點（native bubble），先於 React root 的 synthetic dispatch 觸發並 stopPropagation，SuggestInput 的 Esc 攔截（synthetic）永遠收不到 → 遷移後 Esc 直接關整個 overlay 丟失輸入。手刻版監聽 window（在 React dispatch 之後）所以沒事；SuggestInput.tsx 的註解就記著這個假設。桌機定位方案已解（variant="sheet" 自定位，pixel parity 已驗）。QuickAdd.tsx 的遷移改動留在 worktree agent-a8126d6cf207b0652 未 commit。修法候選（305 決策）：panel 改 React onKeyDown 會讓 portal popover 事件經 React 樹冒泡回 trap（正是當初避開的）；可行方向是 SuggestInput 改綁 native keydown（target 先於 panel bubble）或 ModalShell 檢查 event 來源。 |
+| 302 | 非 COSS 小點擊目標批次（chips 20-36px → `.ns-chip` ::after 擴 44px）＋ 下拉寬度 `min(320px, calc(100vw-32px))`、CommandList `50dvh` clamp | P3 | M | 292；與 300 互補 | **DONE — MERGED**（PR #54 @ b60076f6）。advisor 重驗：gate 全綠（vitest 1578）、單檔 e2e 4/4、8 個 AccountFilter call site 逐讀確認 trigger 40px 無桌機斷行。executor 順帶揪出 299 spec 的 0.4px 次像素環境敏感斷言（chip task_8202b129 修容差） |
+| 303 | ModalShell 視口一次取樣改 `useSyncExternalStore`（iPad 轉向 sheet/sidebar 重疊）＋ 查證雙月曆高度、onboarding `100vh` | P3 | S–M | 287/298/299 後效益大 | **DONE — PR #55 待 CI**（分支 fix/ai-modalshell-viewport @ 8dee2292）。主修（useSyncExternalStore 訂閱）+ 查證 A 屬實已修（雙月曆 666px 溢出 → 70dvh clamp，實測數據在案）+ 查證 B 確認 299 已處理。advisor 重驗 vitest 1580 全過；本機全套 e2e 首輪 89/1（已 chip 的次像素）、次輪負載 flake，依教條以 PR CI 為準，e2e 綠自動併。附帶發現：browser-pane resize_window 不派發原生 resize/matchMedia change 事件（executor 計數器實證）——之後的視口行為驗證要用 jsdom 真事件或真手動 |
 
 **建議派工順序**：Wave 1 內 287→288→290→293→294（全 S，可同天）→ 291→292（M）。
 Wave 2 任意順序（298 等 294）。Wave 3 收尾。每份計畫自帶 drift check 與 STOP 條件。
@@ -2410,14 +2416,3 @@ R2 那條帶當初是為了抓「splitting 崩掉變成 1–2 個 chunk」而寫
 correctness/bugs、security、test coverage、tech debt/architecture、DX、docs、direction
 七類這次**完全沒看**——operator 的要求限縮在效能與升級。`src-tauri/` 的 Rust 程式碼除了
 `Cargo.toml` 的 profile 之外沒有審。`worker/` 完全沒碰。
-
-## 304 — Postmortem：EntryDrawer 動畫關閉炸 React #185（已修復）
-
-記帳抽屜用 Escape／取消／遮罩關閉時，production 直接 #185 整頁換錯誤畫面（beta.4 實災，
-operator 回報）。根因＝不穩定 `onClose` 進 close effect deps ＋ `closing` 旗標關閉後不重置
-＋ `closeDrawer` 內 `setShareDrafts([])` 保證 re-render，三者組成巢狀更新迴圈。修復走
-ModalShell closeRef 模式（PR #36 @ `45cbd198`）；紅綠對照 e2e 在
-`src/test/e2e/entry-drawer-close.spec.ts`（jsdom transition=0 測不到此類迴圈，只能 e2e）。
-防再犯規則已入 AGENTS.md Gotchas；完整記錄見
-[304-entry-drawer-close-loop-postmortem.md](304-entry-drawer-close-loop-postmortem.md)。
-（本節放檔尾是為了避開 287–303 尚未推送的檔頭改動，之後整理時可上移。）

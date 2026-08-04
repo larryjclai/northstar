@@ -13,6 +13,7 @@ import {
   Tag,
 } from "@phosphor-icons/react";
 import { useFinanceData } from "../data/hooks";
+import { holdingDetailLink } from "../routes/holdingLink";
 import {
   Command,
   CommandDialog,
@@ -22,6 +23,48 @@ import {
   CommandItem,
   CommandList,
 } from "./ui/command";
+
+export interface HoldingSearchEntry {
+  key: string;
+  ticker: string;
+  assetId: string;
+  name: string;
+}
+
+/**
+ * Search index for the 持倉 group: ticker-bearing assets dedupe to one entry
+ * per ticker (a ticker held in two books is still one detail page), while
+ * custom (no-ticker) assets get one entry each, found by their name — they
+ * used to be skipped entirely and were unreachable from ⌘K. Exported for
+ * testing.
+ */
+export function buildHoldingSearchEntries(
+  assetRows: Array<{ id: string; ticker: string; name: string }>,
+): HoldingSearchEntry[] {
+  const byTicker = new Map<string, HoldingSearchEntry>();
+  const custom: HoldingSearchEntry[] = [];
+  for (const asset of assetRows) {
+    const ticker = asset.ticker.trim();
+    if (ticker) {
+      if (!byTicker.has(ticker)) {
+        byTicker.set(ticker, {
+          key: `ticker:${ticker}`,
+          ticker,
+          assetId: asset.id,
+          name: asset.name || ticker,
+        });
+      }
+    } else {
+      custom.push({
+        key: `asset:${asset.id}`,
+        ticker: "",
+        assetId: asset.id,
+        name: asset.name || "自訂資產",
+      });
+    }
+  }
+  return [...byTicker.values(), ...custom];
+}
 
 const navItems = [
   { to: "/", label: "總覽 (Dashboard)", icon: House },
@@ -52,17 +95,7 @@ export function GlobalSearch({
   );
   const categories = settings.data?.categories ?? [];
 
-  // Group assets by ticker
-  const tickers = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const asset of assetRows) {
-      if (!asset.ticker) continue;
-      if (!map.has(asset.ticker)) {
-        map.set(asset.ticker, asset.name || asset.ticker);
-      }
-    }
-    return Array.from(map.entries()).map(([ticker, name]) => ({ ticker, name }));
-  }, [assetRows]);
+  const holdings = useMemo(() => buildHoldingSearchEntries(assetRows), [assetRows]);
 
   // Format recent transactions
   const txns = useMemo(() => {
@@ -89,6 +122,7 @@ export function GlobalSearch({
           label: `${r.date} · ${actionLabel} ${name} ${r.quantity ? `(${r.quantity})` : ""}`,
           assetName: name,
           ticker,
+          assetId: asset?.id ?? null,
         };
       });
   }, [recordRows, assetRows]);
@@ -210,20 +244,19 @@ export function GlobalSearch({
             </CommandGroup>
           )}
 
-          {tickers.length > 0 && (
+          {holdings.length > 0 && (
             <CommandGroup heading="持倉 (Holdings)">
-              {tickers.map((t) => (
+              {holdings.map((t) => (
                 <CommandItem
-                  key={t.ticker}
-                  onSelect={() =>
-                    runCommand(() =>
-                      navigate({ to: "/holdings/$ticker", params: { ticker: t.ticker } }),
-                    )
-                  }
+                  key={t.key}
+                  value={`持倉 ${t.ticker} ${t.name}`}
+                  onSelect={() => runCommand(() => navigate(holdingDetailLink(t)))}
                 >
                   <ChartLineUp size={16} weight="duotone" className="mr-2" />
-                  <span>{t.ticker}</span>
-                  <span className="ml-2 text-muted-foreground text-xs">{t.name}</span>
+                  <span>{t.ticker || t.name}</span>
+                  <span className="ml-2 text-muted-foreground text-xs">
+                    {t.ticker ? t.name : "自訂資產"}
+                  </span>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -237,8 +270,8 @@ export function GlobalSearch({
                   value={`交易 ${t.label}`}
                   onSelect={() =>
                     runCommand(() =>
-                      t.ticker
-                        ? navigate({ to: "/holdings/$ticker", params: { ticker: t.ticker } })
+                      t.assetId
+                        ? navigate(holdingDetailLink({ ticker: t.ticker, assetId: t.assetId }))
                         : navigate({ to: "/investments" }),
                     )
                   }
