@@ -934,6 +934,11 @@ textarea:focus-visible {
   .ns-settings-content { overflow: visible; padding: 20px 16px 100px; }
   .ns-settings-category-head, .ns-settings-category-row { grid-template-columns: minmax(0, 1fr) 72px 64px !important; padding-left: 14px !important; padding-right: 12px !important; gap: 6px; }
   .ns-settings-category-budget, .ns-settings-category-usage { display: none !important; }
+  .ns-settings-names-head, .ns-settings-names-row { grid-template-columns: minmax(0, 1fr) 56px 40px !important; gap: 6px; }
+  .ns-settings-names-lastused { display: none !important; }
+  .ns-settings-merchants-head, .ns-settings-merchants-row { grid-template-columns: minmax(0, 1fr) 56px 64px !important; gap: 6px; }
+  .ns-conflict-row > span:first-child { flex: 1 1 100%; }
+  .ns-conflict-row > span:last-child { flex: 0 0 auto; margin-left: auto; }
   .ns-holdings-summary { display: flex !important; flex-direction: row; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
   .ns-holdings-summary-col { flex: 0 0 min(60vw, 220px); scroll-snap-align: start; }
   .ns-date-scope {
@@ -2125,6 +2130,20 @@ textarea:focus-visible {
   -webkit-mask-image: linear-gradient(to right, black calc(100% - 16px), transparent);
 }
 .ns-hscroll--nofade { mask-image: none; -webkit-mask-image: none; }
+
+/* ── HoldingDetailRoute 今日三格 (plan 296) — stacked on mobile (grid-cols-1),
+   3-across from Tailwind's sm breakpoint (640px, matches the `sm:grid-cols-3`
+   class on the parent grid). Divider flips from a vertical rule to a
+   horizontal one so it still reads as a separator once stacked. */
+.ns-holding-daychange-cell {
+  border-bottom: 1px solid var(--ns-border);
+}
+@media (min-width: 640px) {
+  .ns-holding-daychange-cell {
+    border-bottom: none;
+    border-right: 1px solid var(--ns-border);
+  }
+}
 
 /* ── CashFlowRoute 近期動態 list (plan 169, overlay actions: plan 183) ──
    Row actions (edit/duplicate/delete/settle) overlay the row's right side on
