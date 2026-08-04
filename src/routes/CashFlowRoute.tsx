@@ -5251,7 +5251,10 @@ function EntryDrawer({
         {/* Footer */}
         <div
           className="flex gap-2"
-          style={{ padding: "14px 24px", borderTop: "1px solid var(--ns-border)" }}
+          style={{
+            padding: "14px 24px calc(14px + env(safe-area-inset-bottom, 0px))",
+            borderTop: "1px solid var(--ns-border)",
+          }}
         >
           <Button
             variant="outline"
