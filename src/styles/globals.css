@@ -2296,3 +2296,8 @@ textarea:focus-visible {
   /* Sensible paper margins. */
   @page { margin: 14mm; }
 }
+
+/* QuickAdd 確認卡欄位：桌機雙欄、手機單欄。minmax(0,1fr) 防止輸入框的
+   min-content 撐爆軌道。 */
+.ns-quickadd-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 1023px) { .ns-quickadd-grid { grid-template-columns: minmax(0, 1fr); } }
