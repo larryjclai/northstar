@@ -43,16 +43,16 @@ FAB 處理方案 operator 已選定：只在總覽＋記帳顯示（plan 290）�
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 305 | ModalShell Escape 事件排序：panel native listener 先於 React synthetic → 巢狀 SuggestInput 的 Esc 攔截失效（301 的 BLOCK 根因，附 executor probe 實證與兩個設計候選） | P3（擋 301） | S–M | — | TODO |
+| 305 | ModalShell Escape 事件排序（301 的 BLOCK 根因） | P3（擋 301） | S–M | — | **DONE — MERGED**（PR #59 主修 + PR #60 macrotask 追修）。方案 A 落地：延後檢查 defaultPrevented + `[role="dialog"]` 疊層守衛（escapeOwnership.ts，防 RecurringScopeModal-over-EntryDrawer 連鎖關閉——advisor 複審追出的真回歸）。追修教訓：**jsdom 不實作 per-listener microtask checkpoint，Escape/事件時序類機制的權威驗證必須是真瀏覽器**——已寫進代碼註解與測試註記 |
 
 ### Wave 3 — 系統性
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
 | 300 | COSS 44pt hit-area 從 `pointer-coarse:` 換自訂 `touch:` variant（`max-width:1023px`）——repo 紅線：WKWebView 誤報 coarse；桌機現在長隱形 44px `::after` 攔截鄰格點擊 | P2 | M | 建議 Wave1/2 後 | **DONE — MERGED**（PR #50 @ ae76787c）。advisor 重驗：純機械替換（逐檔 diff 驗證）、單檔 4/4、全套 22/22；桌機隱形 ::after 實測消失。殘餘 pointer-coarse 僅 ModalCloseButton.tsx:7 歷史註解 |
-| 301 | QuickAdd 遷移 ModalShell（DESIGN.md §6.4 documented-but-undelivered；補 scroll lock/focus trap/aria/拖曳關閉） | P3 | M | 292 | **BLOCKED — ModalShell 設計缺陷，需新計畫 305**：executor 以 vitest probe 證實——ModalShell 的 Escape 綁在 panel DOM 節點（native bubble），先於 React root 的 synthetic dispatch 觸發並 stopPropagation，SuggestInput 的 Esc 攔截（synthetic）永遠收不到 → 遷移後 Esc 直接關整個 overlay 丟失輸入。手刻版監聽 window（在 React dispatch 之後）所以沒事；SuggestInput.tsx 的註解就記著這個假設。桌機定位方案已解（variant="sheet" 自定位，pixel parity 已驗）。QuickAdd.tsx 的遷移改動留在 worktree agent-a8126d6cf207b0652 未 commit。修法候選（305 決策）：panel 改 React onKeyDown 會讓 portal popover 事件經 React 樹冒泡回 trap（正是當初避開的）；可行方向是 SuggestInput 改綁 native keydown（target 先於 panel bubble）或 ModalShell 檢查 event 來源。 |
+| 301 | QuickAdd 遷移 ModalShell（DESIGN.md §6.4 最後一個手刻 overlay） | P3 | M | 292→305→#60 | **DONE — MERGED**（PR #61 @ ad950f5f）。歷經兩輪真 STOP：①panel native listener 先於 React dispatch（→plan 305/PR #59）；②queueMicrotask 因 HTML 規範 per-listener microtask checkpoint 在真瀏覽器仍搶跑、jsdom 測不出（executor 4/4 Chromium 實證 →macrotask 追修 PR #60）。終態：variant="sheet" 自定位（桌機 pixel parity 驗證）、巢狀 SuggestInput Escape 疊層固化為永久真瀏覽器 e2e、vitest 1592 全過 |
 | 302 | 非 COSS 小點擊目標批次（chips 20-36px → `.ns-chip` ::after 擴 44px）＋ 下拉寬度 `min(320px, calc(100vw-32px))`、CommandList `50dvh` clamp | P3 | M | 292；與 300 互補 | **DONE — MERGED**（PR #54 @ b60076f6）。advisor 重驗：gate 全綠（vitest 1578）、單檔 e2e 4/4、8 個 AccountFilter call site 逐讀確認 trigger 40px 無桌機斷行。executor 順帶揪出 299 spec 的 0.4px 次像素環境敏感斷言（chip task_8202b129 修容差） |
-| 303 | ModalShell 視口一次取樣改 `useSyncExternalStore`（iPad 轉向 sheet/sidebar 重疊）＋ 查證雙月曆高度、onboarding `100vh` | P3 | S–M | 287/298/299 後效益大 | **DONE — PR #55 待 CI**（分支 fix/ai-modalshell-viewport @ 8dee2292）。主修（useSyncExternalStore 訂閱）+ 查證 A 屬實已修（雙月曆 666px 溢出 → 70dvh clamp，實測數據在案）+ 查證 B 確認 299 已處理。advisor 重驗 vitest 1580 全過；本機全套 e2e 首輪 89/1（已 chip 的次像素）、次輪負載 flake，依教條以 PR CI 為準，e2e 綠自動併。附帶發現：browser-pane resize_window 不派發原生 resize/matchMedia change 事件（executor 計數器實證）——之後的視口行為驗證要用 jsdom 真事件或真手動 |
+| 303 | ModalShell 視口一次取樣改 `useSyncExternalStore`（iPad 轉向 sheet/sidebar 重疊）＋ 查證雙月曆高度、onboarding `100vh` | P3 | S–M | 287/298/299 後效益大 | **DONE — MERGED**（PR #55 @ 8dee2292）。主修（useSyncExternalStore 訂閱）+ 查證 A 屬實已修（雙月曆 666px 溢出 → 70dvh clamp，實測數據在案）+ 查證 B 確認 299 已處理。advisor 重驗 vitest 1580 全過；本機全套 e2e 首輪 89/1（已 chip 的次像素）、次輪負載 flake，依教條以 PR CI 為準，e2e 綠自動併。附帶發現：browser-pane resize_window 不派發原生 resize/matchMedia change 事件（executor 計數器實證）——之後的視口行為驗證要用 jsdom 真事件或真手動 |
 
 **建議派工順序**：Wave 1 內 287→288→290→293→294（全 S，可同天）→ 291→292（M）。
 Wave 2 任意順序（298 等 294）。Wave 3 收尾。每份計畫自帶 drift check 與 STOP 條件。
@@ -2416,3 +2416,20 @@ R2 那條帶當初是為了抓「splitting 崩掉變成 1–2 個 chunk」而寫
 correctness/bugs、security、test coverage、tech debt/architecture、DX、docs、direction
 七類這次**完全沒看**——operator 的要求限縮在效能與升級。`src-tauri/` 的 Rust 程式碼除了
 `Cargo.toml` 的 profile 之外沒有審。`worker/` 完全沒碰。
+
+
+### 🔄 Reconcile 收官 2026-08-04（本次 /improve 全程終驗）
+
+**19 份計畫（287–303、305 含追修）全部 DONE 且 MERGED**，0 BLOCKED、0 TODO 殘留。
+32 項 done-criteria 於 origin/main 逐一 grep/行為抽查全 PASS（含驗證 queueMicrotask 殘留命中
+均為「勿優化回去」警告註解——沿用本 repo「grep 會被註解騙」的既有教訓做正向確認）。
+
+- **產出**：20 個 PR（#35–#61 區間內 19 個計畫 PR + #57 帳同步），全部經 advisor 獨立複審
+  （重跑 gate、單檔+全套隔離 e2e、逐 diff 讀）後才併；REVISE 5 輪（287 CI-env、296 測試隔離、
+  295 CI 字型、305 疊層回歸、305 macrotask）各自轉化為永久測試或代碼註解。
+- **新增測試資產**：12 個 mobile e2e spec、hook/helper 單元測試、ModalShell 巢狀攔截案例。
+- **跨 session 協作**：#48（自訂資產路由）與 #51（smoke 併發 flake）由 chip sessions 產出並落地。
+- **留給 operator 的真機驗收**：狀態列遮罩（#41）、快速記帳鍵盤避讓與 transform 下 popover
+  定位（#42/#61）、同步衝突列兩行版面（#44，遇真衝突時）、Toast 頂部 banner 手感（#46）。
+- **記錄在案的後續**（不阻擋）：toast 動畫仍由下滑入（globals.css 美術跟進）；`DateTimeField`
+  已寫好未啟用；overlay-edge-cases 次像素容差 chip（task_8202b129）處理中。
