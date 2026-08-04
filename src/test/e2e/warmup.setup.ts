@@ -49,6 +49,15 @@ const ROUTES: Array<{ path: string; ready: (page: Page) => Promise<void> }> = [
     ready: (page) =>
       expect(page.getByText("一般與備份", { exact: true })).toBeVisible({ timeout: 30_000 }),
   },
+  {
+    // Holding detail is its own lazy chunk and is reached only from within the
+    // 投資 list, so visiting /investments does not transform it. Added when
+    // custom-asset specs (PR #48) became the first tests to navigate here.
+    // Any id works: with no seeded data the route renders its not-found branch,
+    // which still costs the full chunk transform — exactly what needs warming.
+    path: "/holdings/id/warmup",
+    ready: (page) => expect(page.getByText("找不到此持倉")).toBeVisible({ timeout: 30_000 }),
+  },
 ];
 
 test("warm the dev server across all tested routes", async ({ page }) => {
