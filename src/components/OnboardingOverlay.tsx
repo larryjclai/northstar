@@ -319,6 +319,7 @@ export function OnboardingOverlay() {
                     })}
                   </div>
                   <div
+                    data-testid="onboarding-csv-chips"
                     style={{
                       display: "grid",
                       gridTemplateColumns: "repeat(auto-fit, minmax(64px, 1fr))",
