@@ -177,6 +177,7 @@ export function HoldingEditModal({
   return (
     <ModalShell
       variant="center"
+      mobilePresentation="bottom-sheet"
       title="編輯持倉"
       onClose={onClose}
       panelClassName="w-full max-w-2xl rounded-lg border shadow-xl"
@@ -191,7 +192,7 @@ export function HoldingEditModal({
             <h2 className="text-lg font-semibold">編輯持倉</h2>
             <ModalCloseButton onClick={dismiss} />
           </header>
-          <div className="max-h-[70vh] overflow-y-auto px-5 pb-5 pt-4">
+          <div className="max-h-[70dvh] overflow-y-auto px-5 pb-5 pt-4">
             <HoldingForm
               value={editForm}
               onChange={setEditForm}
@@ -332,15 +333,16 @@ export function HoldingEditModal({
                                 </span>
                               ) : null}
                             </div>
-                            <button
-                              type="button"
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="ml-3"
                               onClick={() => void deleteSnapshot.mutateAsync(snap.id)}
                               disabled={deleteSnapshot.isPending}
-                              className="ml-3 grid size-6 place-items-center rounded outline-none transition hover:opacity-70"
                               aria-label="刪除快照"
                             >
                               <X size={14} />
-                            </button>
+                            </Button>
                           </div>
                         ))}
                       </div>

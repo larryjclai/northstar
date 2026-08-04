@@ -12,6 +12,7 @@
 		48B694A781C86D0F93313E36 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9B164B2D293643E56D938725 /* WebKit.framework */; };
 		4DB4A2420E5A4CE9CAD7DDA0 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A95CE949D50A729234FFE3F3 /* CoreGraphics.framework */; };
 		5A5DF87497E756AF08686E61 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 47F07A2FD8C05CB4638069C2 /* main.mm */; };
+		A1F0C3D24E7B5891AC02D611 /* FoundationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E4D9106C3A2F58BD41E092 /* FoundationModels.swift */; };
 		7412E374C758958626FA4620 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F064E0BC2E0E389F92A366D6 /* Metal.framework */; };
 		80127C997A9AE29CC840CCE3 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5CF7462AF1DC435200982803 /* UIKit.framework */; };
 		81AACFA28BB3839321AF30D0 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FD44E769D4D89431E7698E21 /* LaunchScreen.storyboard */; };
@@ -28,6 +29,7 @@
 		3A3744B6755825A38B556B0E /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 		46E9789DEEAAC3EA8032F370 /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
 		47F07A2FD8C05CB4638069C2 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		B7E4D9106C3A2F58BD41E092 /* FoundationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationModels.swift; sourceTree = "<group>"; };
 		5CEA899723715FBEE9CD63A2 /* Northstar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Northstar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5CF7462AF1DC435200982803 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
 		6B401543C30FCD8344F50CB4 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
@@ -65,6 +67,7 @@
 			isa = PBXGroup;
 			children = (
 				47F07A2FD8C05CB4638069C2 /* main.mm */,
+				B7E4D9106C3A2F58BD41E092 /* FoundationModels.swift */,
 				364A1C0DF92F18ECEA8CB02B /* bindings */,
 			);
 			path = northstar;
@@ -244,6 +247,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5A5DF87497E756AF08686E61 /* main.mm in Sources */,
+				A1F0C3D24E7B5891AC02D611 /* FoundationModels.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -284,6 +288,12 @@
 					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
 					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-weak_framework",
+					"FoundationModels",
+				);
+				OTHER_SWIFT_FLAGS = "$(inherited) -Xfrontend -disable-autolink-framework -Xfrontend FoundationModels";
 				PRODUCT_BUNDLE_IDENTIFIER = app.northstar.finance;
 				PRODUCT_NAME = "Northstar";
 				SDKROOT = iphoneos;
@@ -326,6 +336,12 @@
 					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)",
 					"$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-weak_framework",
+					"FoundationModels",
+				);
+				OTHER_SWIFT_FLAGS = "$(inherited) -Xfrontend -disable-autolink-framework -Xfrontend FoundationModels";
 				PRODUCT_BUNDLE_IDENTIFIER = app.northstar.finance;
 				PRODUCT_NAME = "Northstar";
 				SDKROOT = iphoneos;

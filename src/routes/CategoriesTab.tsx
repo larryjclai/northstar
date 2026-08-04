@@ -140,7 +140,10 @@ export function CategoriesTab({
   return (
     <div className="flex flex-col gap-6">
       {/* Top Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
+      <div
+        className="grid gap-5"
+        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))" }}
+      >
         <Card className="py-5 px-6">
           <div className="text-xs muted font-medium mb-2">最大支出</div>
           <div className="text-lg font-medium">
