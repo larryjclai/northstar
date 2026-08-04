@@ -93,7 +93,13 @@ export function DateRangePicker({
           </button>
         }
       />
-      <PopoverContent className="w-auto p-0" align={align}>
+      <PopoverContent
+        // Same overflow guard as LedgerDateControl (plan 303): a 2-month
+        // range calendar can exceed a short mobile viewport with no
+        // built-in scroll otherwise.
+        className="w-auto p-0 max-h-[70dvh] overflow-y-auto"
+        align={align}
+      >
         <Calendar
           mode="range"
           numberOfMonths={2}

@@ -132,7 +132,14 @@ export function LedgerDateControl({
         </PopoverTrigger>
         <PopoverContent
           align="center"
-          className={cn("p-3", value.preset === "custom" ? "w-auto" : "w-72")}
+          className={cn(
+            "p-3",
+            // Custom range renders a 2-month calendar (~600px+ stacked below
+            // 768px) that can exceed a short mobile viewport — the popup has
+            // no built-in scroll, so cap it and let the overflow scroll
+            // in-place instead of forcing a whole-page scroll (plan 303).
+            value.preset === "custom" ? "w-auto max-h-[70dvh] overflow-y-auto" : "w-72",
+          )}
         >
           <div className="mb-3">
             <div className="text-xs ns-field-label mb-1.5">快速預設</div>
