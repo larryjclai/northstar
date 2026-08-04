@@ -887,6 +887,14 @@ textarea:focus-visible {
    { marginBottom: 6, color: var(--ns-fg-muted), fontWeight: 500 } inline 模式。 */
 .ns-field-label { margin-bottom: 6px; color: var(--ns-fg-muted); font-weight: 500; }
 
+/* 表單欄位列：桌機並排、手機自動收欄。minmax 下限 = 一個可讀的數字輸入寬。 */
+.ns-form-row-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.ns-form-row-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1023px) {
+  .ns-form-row-2 { grid-template-columns: minmax(0, 1fr); }
+  .ns-form-row-3 { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+}
+
 /* Centered modal scrim + panel: repeated ≥3x (CashFlowRoute settle/recurring-
    scope/installment-delete choosers) as identical inline style objects.
    Scrim uses the app-wide --ns-scrim token (plan 107) so these modals match
