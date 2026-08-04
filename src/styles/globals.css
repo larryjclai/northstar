@@ -2123,6 +2123,20 @@ textarea:focus-visible {
 }
 .ns-hscroll--nofade { mask-image: none; -webkit-mask-image: none; }
 
+/* ── HoldingDetailRoute 今日三格 (plan 296) — stacked on mobile (grid-cols-1),
+   3-across from Tailwind's sm breakpoint (640px, matches the `sm:grid-cols-3`
+   class on the parent grid). Divider flips from a vertical rule to a
+   horizontal one so it still reads as a separator once stacked. */
+.ns-holding-daychange-cell {
+  border-bottom: 1px solid var(--ns-border);
+}
+@media (min-width: 640px) {
+  .ns-holding-daychange-cell {
+    border-bottom: none;
+    border-right: 1px solid var(--ns-border);
+  }
+}
+
 /* ── CashFlowRoute 近期動態 list (plan 169, overlay actions: plan 183) ──
    Row actions (edit/duplicate/delete/settle) overlay the row's right side on
    hover/focus (Gmail-style) so the amount column keeps one right edge
