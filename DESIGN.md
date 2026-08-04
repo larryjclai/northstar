@@ -327,8 +327,9 @@ Props：
 **Legacy pattern（遷移中）**：舊有 modal 仍是手刻 fixed overlay（`fixed inset-0 z-50 flex
 items-end justify-center p-4 sm:items-center` + `stopPropagation` 面板），無 `role`/焦點管理。
 逐檔遷移到 `ModalShell`；已遷移：`HoldingEditModal`、`TransactionDetailPanel`、
-`AccountsRoute`（調整餘額）、`CategoryManagementDrawer`。手機窄幅時 `items-end` 自然形成
-bottom sheet。
+`AccountsRoute`（調整餘額）、`CategoryManagementDrawer`、`QuickAdd`（plan 301——最後一個手刻
+overlay 歸隊，桌機以 `variant="sheet"` 自帶定位維持貼底置中，手機用
+`mobilePresentation="bottom-sheet"`）。手機窄幅時 `items-end` 自然形成 bottom sheet。
 
 ---
 
