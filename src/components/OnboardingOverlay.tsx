@@ -150,7 +150,7 @@ export function OnboardingOverlay() {
         className="relative grid w-full grid-cols-1 overflow-hidden p-0 ns-onboarding-card sm:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]"
         style={{
           maxWidth: 980,
-          maxHeight: "min(760px, calc(100vh - 24px))",
+          maxHeight: "min(760px, calc(100dvh - 24px))",
           boxShadow: "var(--ns-shadow-2)",
         }}
       >
@@ -319,16 +319,17 @@ export function OnboardingOverlay() {
                     })}
                   </div>
                   <div
+                    data-testid="onboarding-csv-chips"
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(64px, 1fr))",
                       gap: 8,
                     }}
                   >
                     {["Date", "Account", "Name", "Amount", "Category"].map((label) => (
                       <div
                         key={label}
-                        className="mono text-caption rounded-md px-2 py-2"
+                        className="mono text-caption rounded-md px-2 py-2 truncate"
                         style={{ background: "var(--ns-bg-hover)", color: "var(--ns-fg-muted)" }}
                       >
                         {label}

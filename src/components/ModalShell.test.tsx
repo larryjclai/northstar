@@ -246,7 +246,15 @@ describe("ModalShell", () => {
           onClose={() => {}}
           variant="drawer"
           mobilePresentation="bottom-sheet"
-          panelStyle={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 420 }}
+          panelStyle={{
+            position: "absolute",
+            right: 0,
+            top: 0,
+            bottom: 0,
+            width: 420,
+            maxWidth: 400,
+            minWidth: 200,
+          }}
         >
           <button>ok</button>
         </ModalShell>,
@@ -259,6 +267,10 @@ describe("ModalShell", () => {
       // Positional panelStyle keys are overridden, not merged onto the panel.
       expect(dialog.style.position).not.toBe("absolute");
       expect(dialog.style.width).toBe("");
+      // maxWidth/minWidth are also stripped — sheet-mode horizontal geometry is
+      // owned entirely by .ns-sheet-bottom (plan 299).
+      expect(dialog.style.maxWidth).toBe("");
+      expect(dialog.style.minWidth).toBe("");
     });
 
     it("does NOT use the sheet on a coarse-pointer DESKTOP viewport — sidebar overlap guard (plan 244)", () => {
@@ -309,7 +321,15 @@ describe("ModalShell", () => {
           onClose={() => {}}
           variant="drawer"
           mobilePresentation="bottom-sheet"
-          panelStyle={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 420 }}
+          panelStyle={{
+            position: "absolute",
+            right: 0,
+            top: 0,
+            bottom: 0,
+            width: 420,
+            maxWidth: 400,
+            minWidth: 200,
+          }}
         >
           <button>ok</button>
         </ModalShell>,
@@ -319,6 +339,8 @@ describe("ModalShell", () => {
       expect(dialog).toHaveAttribute("data-motion", "drawer");
       expect(dialog.style.position).toBe("absolute");
       expect(dialog.style.width).toBe("420px");
+      expect(dialog.style.maxWidth).toBe("400px");
+      expect(dialog.style.minWidth).toBe("200px");
       expect(dialog.querySelector(".ns-sheet-grab")).toBeNull();
     });
 

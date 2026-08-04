@@ -660,7 +660,11 @@ function AnnualGrid({
   return (
     <div
       className="ns-surface"
-      style={{ margin: "0 32px 16px", padding: "16px 20px", borderRadius: "var(--ns-r-sm)" }}
+      style={{
+        margin: "0 var(--ns-card-inset, 32px) 16px",
+        padding: "16px 20px",
+        borderRadius: "var(--ns-r-sm)",
+      }}
     >
       <div
         className="text-caption muted flex justify-between mb-3"
