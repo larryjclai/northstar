@@ -2534,14 +2534,14 @@ export function CashFlowRoute() {
                             </span>
                             <span className="muted text-xs whitespace-nowrap">{m.count} 筆</span>
                           </span>
-                          <span className="flex items-center gap-3 text-caption mono whitespace-nowrap">
-                            <span style={{ color: "var(--ns-pos)" }}>
+                          <span className="ns-cf-month-amounts flex items-center gap-3 text-caption mono">
+                            <span className="whitespace-nowrap" style={{ color: "var(--ns-pos)" }}>
                               收入 +{primaryCurrency} {formatNumber(m.income)}
                             </span>
-                            <span style={{ color: "var(--ns-neg)" }}>
+                            <span className="whitespace-nowrap" style={{ color: "var(--ns-neg)" }}>
                               支出 −{primaryCurrency} {formatNumber(m.expense)}
                             </span>
-                            <span className={m.net >= 0 ? "pos" : "neg"}>
+                            <span className={"whitespace-nowrap " + (m.net >= 0 ? "pos" : "neg")}>
                               淨 {m.net >= 0 ? "+" : "−"}
                               {primaryCurrency} {formatNumber(Math.abs(m.net))}
                             </span>
