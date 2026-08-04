@@ -734,6 +734,22 @@ html[data-native-glass] { --ns-sticky-top: calc(28px + env(safe-area-inset-top, 
   margin-inline: calc(var(--ns-page-gutter) * -1);
   padding-inline: var(--ns-page-gutter);
 }
+
+/* ── Status-bar scrim ─────────────────────────────────────────────────────
+   iOS：內容捲動時會滑進狀態列（時鐘／電量）底下，疊字不可讀。這條固定遮罩
+   蓋住 safe-area 頂端高度，讓內容從它底下通過。靜態、不隨捲動變形（no-morph
+   決策）。桌機與 Android 無 top inset → 高度 0，自然不渲染任何可見物。
+   z-index 45：高於 page chrome(25)／demo banner(30)／FAB(40)，低於 modals。 */
+.ns-statusbar-scrim {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top, 0px);
+  background: var(--ns-bg);
+  z-index: 45;
+  pointer-events: none;
+}
 /* The chrome's pin sentinel: a 1px out-of-flow marker whose exit from the
    viewport marks the scroll position where the chrome pins. The chrome pins
    when its top reaches --ns-sticky-top (+ demo banner), not the viewport
@@ -891,6 +907,14 @@ textarea:focus-visible {
    { marginBottom: 6, color: var(--ns-fg-muted), fontWeight: 500 } inline 模式。 */
 .ns-field-label { margin-bottom: 6px; color: var(--ns-fg-muted); font-weight: 500; }
 
+/* 表單欄位列：桌機並排、手機自動收欄。minmax 下限 = 一個可讀的數字輸入寬。 */
+.ns-form-row-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.ns-form-row-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1023px) {
+  .ns-form-row-2 { grid-template-columns: minmax(0, 1fr); }
+  .ns-form-row-3 { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+}
+
 /* Centered modal scrim + panel: repeated ≥3x (CashFlowRoute settle/recurring-
    scope/installment-delete choosers) as identical inline style objects.
    Scrim uses the app-wide --ns-scrim token (plan 107) so these modals match
@@ -930,6 +954,11 @@ textarea:focus-visible {
   .ns-settings-content { overflow: visible; padding: 20px 16px 100px; }
   .ns-settings-category-head, .ns-settings-category-row { grid-template-columns: minmax(0, 1fr) 72px 64px !important; padding-left: 14px !important; padding-right: 12px !important; gap: 6px; }
   .ns-settings-category-budget, .ns-settings-category-usage { display: none !important; }
+  .ns-settings-names-head, .ns-settings-names-row { grid-template-columns: minmax(0, 1fr) 56px 40px !important; gap: 6px; }
+  .ns-settings-names-lastused { display: none !important; }
+  .ns-settings-merchants-head, .ns-settings-merchants-row { grid-template-columns: minmax(0, 1fr) 56px 64px !important; gap: 6px; }
+  .ns-conflict-row > span:first-child { flex: 1 1 100%; }
+  .ns-conflict-row > span:last-child { flex: 0 0 auto; margin-left: auto; }
   .ns-holdings-summary { display: flex !important; flex-direction: row; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
   .ns-holdings-summary-col { flex: 0 0 min(60vw, 220px); scroll-snap-align: start; }
   .ns-date-scope {
@@ -1523,6 +1552,23 @@ textarea:focus-visible {
 }
 .ns-ledger-date-ctl__trigger:hover {
   background: var(--ns-bg-hover);
+}
+
+/* ── FIRE calculator (plan 291) ──────────────────────────────────────────
+   桌機 = 固定側欄 + 結果區雙欄、各自捲動；手機（<1024）
+   = 整頁單欄自然捲動。結果區寬度歸零的根因是 340px shrink-0 側欄 +
+   overflow-hidden 頁根，收合時兩者都要解除。 */
+.ns-fire-page { padding: 32px 40px 100px; min-height: 100vh; height: 100vh; }
+.ns-fire-body { display: flex; flex: 1; gap: 24px; min-height: 0; }
+.ns-fire-sidebar { display: flex; flex-direction: column; flex-shrink: 0; gap: 16px; overflow-y: auto; padding-right: 8px; width: 340px; }
+.ns-fire-main { flex: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0; overflow-y: auto; }
+.ns-fire-cards { display: flex; gap: 16px; }
+@media (max-width: 1023px) {
+  .ns-fire-page { height: auto; min-height: 100dvh; overflow: visible; padding: 24px var(--ns-page-gutter, 16px) 100px; }
+  .ns-fire-body { flex-direction: column; }
+  .ns-fire-sidebar { width: 100%; overflow-y: visible; padding-right: 0; }
+  .ns-fire-main { overflow-y: visible; }
+  .ns-fire-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); }
 }
 
 /* ── Investment transactions ── */
@@ -2122,6 +2168,20 @@ textarea:focus-visible {
 }
 .ns-hscroll--nofade { mask-image: none; -webkit-mask-image: none; }
 
+/* ── HoldingDetailRoute 今日三格 (plan 296) — stacked on mobile (grid-cols-1),
+   3-across from Tailwind's sm breakpoint (640px, matches the `sm:grid-cols-3`
+   class on the parent grid). Divider flips from a vertical rule to a
+   horizontal one so it still reads as a separator once stacked. */
+.ns-holding-daychange-cell {
+  border-bottom: 1px solid var(--ns-border);
+}
+@media (min-width: 640px) {
+  .ns-holding-daychange-cell {
+    border-bottom: none;
+    border-right: 1px solid var(--ns-border);
+  }
+}
+
 /* ── CashFlowRoute 近期動態 list (plan 169, overlay actions: plan 183) ──
    Row actions (edit/duplicate/delete/settle) overlay the row's right side on
    hover/focus (Gmail-style) so the amount column keeps one right edge
@@ -2170,6 +2230,16 @@ textarea:focus-visible {
   z-index: 2;
 }
 .ns-cf-month-header:hover { background: var(--ns-bg-hover); }
+
+/* Mobile: amounts cluster (收入/支出/淨) can outgrow the header's width when
+   whitespace-nowrap keeps all three groups on one line — wrap onto a second
+   row instead of letting AppShell's overflowX:clip cut the 淨 figure off
+   (plan 295). Each amount span keeps whitespace-nowrap individually so a
+   single group never breaks mid-figure. */
+@media (max-width: 1023px) {
+  .ns-cf-month-header { flex-wrap: wrap; row-gap: 4px; padding: 12px 16px; }
+  .ns-cf-month-amounts { flex-wrap: wrap; row-gap: 2px; }
+}
 
 /* ── 多類別拆分 (plan 182) ──
    Drawer leg-editor card: one bordered row per category leg. Kept flex-based
@@ -2300,3 +2370,8 @@ textarea:focus-visible {
   /* Sensible paper margins. */
   @page { margin: 14mm; }
 }
+
+/* QuickAdd 確認卡欄位：桌機雙欄、手機單欄。minmax(0,1fr) 防止輸入框的
+   min-content 撐爆軌道。 */
+.ns-quickadd-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 1023px) { .ns-quickadd-grid { grid-template-columns: minmax(0, 1fr); } }

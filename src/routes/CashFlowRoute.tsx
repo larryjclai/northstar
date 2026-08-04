@@ -58,7 +58,6 @@ import { SegmentedControl } from "../components/SegmentedControl";
 import { downloadCsv, exportLedgerCsv, parseLedgerCsv, type ImportPreview } from "../data/csv";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFinanceData, useRepository, useRepositoryMutation } from "../data/hooks";
-import { DatePicker } from "../components/ui/date-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { CategoryManagementDrawer } from "../components/CategoryManagementDrawer";
 import { ClientAutocomplete } from "../components/ClientAutocomplete";
@@ -2534,14 +2533,14 @@ export function CashFlowRoute() {
                             </span>
                             <span className="muted text-xs whitespace-nowrap">{m.count} 筆</span>
                           </span>
-                          <span className="flex items-center gap-3 text-caption mono whitespace-nowrap">
-                            <span style={{ color: "var(--ns-pos)" }}>
+                          <span className="ns-cf-month-amounts flex items-center gap-3 text-caption mono">
+                            <span className="whitespace-nowrap" style={{ color: "var(--ns-pos)" }}>
                               收入 +{primaryCurrency} {formatNumber(m.income)}
                             </span>
-                            <span style={{ color: "var(--ns-neg)" }}>
+                            <span className="whitespace-nowrap" style={{ color: "var(--ns-neg)" }}>
                               支出 −{primaryCurrency} {formatNumber(m.expense)}
                             </span>
-                            <span className={m.net >= 0 ? "pos" : "neg"}>
+                            <span className={"whitespace-nowrap " + (m.net >= 0 ? "pos" : "neg")}>
                               淨 {m.net >= 0 ? "+" : "−"}
                               {primaryCurrency} {formatNumber(Math.abs(m.net))}
                             </span>
@@ -5252,7 +5251,10 @@ function EntryDrawer({
         {/* Footer */}
         <div
           className="flex gap-2"
-          style={{ padding: "14px 24px", borderTop: "1px solid var(--ns-border)" }}
+          style={{
+            padding: "14px 24px calc(14px + env(safe-area-inset-bottom, 0px))",
+            borderTop: "1px solid var(--ns-border)",
+          }}
         >
           <Button
             variant="outline"

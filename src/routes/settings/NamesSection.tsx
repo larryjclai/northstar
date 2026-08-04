@@ -124,6 +124,7 @@ export function SettingsNames({
           </div>
           <Card style={{ padding: 0 }}>
             <div
+              className="ns-settings-names-head"
               style={{
                 padding: "10px 20px",
                 borderBottom: "1px solid var(--ns-border)",
@@ -138,12 +139,13 @@ export function SettingsNames({
             >
               <span>{t("settings.nameLabel")}</span>
               <span>{t("settings.usageCount")}</span>
-              <span>{t("settings.lastUsed")}</span>
+              <span className="ns-settings-names-lastused">{t("settings.lastUsed")}</span>
               <span />
             </div>
             {visible.map((n, i) => (
               <div
                 key={n.value}
+                className="ns-settings-names-row"
                 style={{
                   display: "grid",
                   gridTemplateColumns: "1fr 72px 100px 40px",
@@ -175,7 +177,9 @@ export function SettingsNames({
                   <div style={{ fontSize: 14, fontWeight: 500 }}>{n.value}</div>
                 )}
                 <span className="text-xs muted">{n.count} 筆</span>
-                <span className="text-xs muted">{n.lastUsed.slice(0, 10)}</span>
+                <span className="text-xs muted ns-settings-names-lastused">
+                  {n.lastUsed.slice(0, 10)}
+                </span>
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
                   {editingName !== n.value && (
                     <Button
