@@ -140,3 +140,20 @@ test("custom asset is reachable from the 持倉 list and records manual prices",
   // Rendered by the 手動價格 indicator and the history row.
   await expect(page.getByText("12,000,000.00 TWD").first()).toBeVisible();
 });
+
+test("custom asset is findable via ⌘K global search", async ({ page }) => {
+  // Regression: GlobalSearch used to skip no-ticker assets entirely, so custom
+  // assets could never be found (or navigated to) from the command palette.
+  await seedInvestmentAccount(page);
+  await stubMarketData(page);
+  await createCustomAsset(page);
+
+  await page.keyboard.press("Control+K");
+  const palette = page.getByRole("dialog", { name: "Command Palette" });
+  await expect(palette).toBeVisible();
+  await palette.getByRole("combobox").fill(ASSET_NAME);
+  await palette.getByRole("option", { name: new RegExp(ASSET_NAME) }).click();
+
+  await expect(page).toHaveURL(/\/holdings\/id\/asset_/);
+  await expect(page.getByRole("heading", { name: ASSET_NAME })).toBeVisible();
+});
