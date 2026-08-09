@@ -12,11 +12,11 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.18.4",
+    "@cloudflare/vitest-pool-workers": "^0.20.3",
     "@cloudflare/workers-types": "^4.20250525.0",
     "typescript": "^5.7.3",
     "vitest": "^4.1.9",
-    "wrangler": "^4.95.0"
+    "wrangler": "^4.120.0"
   },
   "overrides": {
     "sharp": "^0.35.0"
