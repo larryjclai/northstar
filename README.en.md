@@ -4,7 +4,7 @@
 
 [![Release](https://img.shields.io/github/v/release/larryjclai/northstar?include_prereleases&label=release)](https://github.com/larryjclai/northstar/releases/latest)
 [![CI](https://github.com/larryjclai/northstar/actions/workflows/ci.yml/badge.svg)](https://github.com/larryjclai/northstar/actions/workflows/ci.yml)
-[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Downloads](https://img.shields.io/github/downloads/larryjclai/northstar/total)](https://github.com/larryjclai/northstar/releases)
 ![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
@@ -104,12 +104,12 @@ I also warmly welcome you to share your experience directly — your feedback wi
 
 ## License & contribution status
 
-**Copyright © 2026 賴瑞晟 LAI Jui Cheng.** Northstar's **source code** is licensed under the **[GNU GPL v3.0 (or later)](LICENSE)**. GPLv3 covers only the code in this repo, and does **not** cover:
+**Copyright © 2026 賴瑞晟 LAI Jui Cheng.** Northstar's **source code** is licensed under the **[MIT License](LICENSE)**. The MIT License covers only the code in this repo, and does **not** cover:
 
 - **Bank / brand logos** (third-party trademarks) — stored in the gitignored `private-assets/`, **not** included in the public repo; the app builds fine without them.
-- **Bundled fonts** (Space Grotesk, IBM Plex Sans / Mono / Sans TC) — licensed under **SIL OFL-1.1**, compatible with GPLv3 but a separate license. See [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md) for details.
+- **Bundled fonts** (Space Grotesk, IBM Plex Sans / Mono / Sans TC) — licensed separately under **SIL OFL-1.1**. See [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md) for details.
 
-> ⚠️ Northstar does not constitute investment / financial advice. As stated in the GPLv3 terms, this software is provided "as is", without any warranty.
+> ⚠️ Northstar does not constitute investment / financial advice. As stated in the MIT License terms, this software is provided "as is", without any warranty.
 
 **Submitting a PR requires signing the CLA**: all pull requests must first sign the [Contributor License Agreement (CLA.md)](CLA.md) — a one-time step, guided by a bot's comment on the PR. See [CONTRIBUTING.md](CONTRIBUTING.md) for details. To report a security issue, please see [SECURITY.md](SECURITY.md); do not post full vulnerability details, tokens, personal financial data, or unredacted screenshots in a public issue.
 

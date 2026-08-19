@@ -1,6 +1,6 @@
 # Release Process
 
-> **注意（2026-06）**：repo 已轉為 **public（GPLv3）**，release 直接發布在
+> **注意（2026-08）**：repo 為 **public（MIT License）**，release 直接發布在
 > `larryjclai/northstar`，`release.yml` 的 `mirror-to-public` job 已移除
 >（`243`，2026-07-20，已完成整併：`tauri.conf.json` 的 fallback endpoint 與本文件
 > 過期段落一併清掉）。

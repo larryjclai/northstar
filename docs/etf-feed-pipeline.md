@@ -146,7 +146,7 @@ holds only `cla.yml` + `release.yml`).
 2. **Separate Python cron → static JSON on a CDN (RECOMMENDED).** yfinance is Python (native
    fit, the tested path incl. Taiwan ETFs). Output is one small static file. Served as a plain
    public CDN asset, the client GET is **indistinguishable from fetching any public file** — no
-   per-user logging, no auth. Now that the repo is **public (GPLv3)**, **GitHub Actions is free
+   per-user logging, no auth. Now that the repo is **public (MIT)**, **GitHub Actions is free
    and unlimited**, so a **scheduled GH Action** (`cron: weekly`) can `pip install yfinance`,
    run the spike-derived script, map through 070, and **commit/publish the feed** — to GitHub
    Pages, an `etf-feed` branch, or push to Cloudflare R2/Pages. Zero new always-on server; the

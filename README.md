@@ -4,7 +4,7 @@
 
 [![Release](https://img.shields.io/github/v/release/larryjclai/northstar?include_prereleases&label=release)](https://github.com/larryjclai/northstar/releases/latest)
 [![CI](https://github.com/larryjclai/northstar/actions/workflows/ci.yml/badge.svg)](https://github.com/larryjclai/northstar/actions/workflows/ci.yml)
-[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Downloads](https://img.shields.io/github/downloads/larryjclai/northstar/total)](https://github.com/larryjclai/northstar/releases)
 ![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
@@ -112,12 +112,12 @@ Northstar 尚未經過 Apple 公證（需付費的 Apple Developer 帳號），�
 
 ## 授權與貢獻狀態
 
-**Copyright © 2026 賴瑞晟 LAI Jui Cheng.** Northstar 的**原始碼**採 **[GNU GPL v3.0（或更新版本）](LICENSE)**。GPLv3 僅涵蓋本 repo 的程式碼，不涵蓋：
+**Copyright © 2026 賴瑞晟 LAI Jui Cheng.** Northstar 的**原始碼**採 **[MIT License](LICENSE)**。MIT License 僅涵蓋本 repo 的程式碼，不涵蓋：
 
 - **銀行 / 品牌 logo**（第三方商標）——存放於 gitignore 的 `private-assets/`，**不**包含在公開 repo 內；沒有它們也能正常建置。
-- **內建字型**（Space Grotesk、IBM Plex Sans / Mono / Sans TC）——採 **SIL OFL-1.1**，與 GPLv3 相容但屬獨立授權。細節見 [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md)。
+- **內建字型**（Space Grotesk、IBM Plex Sans / Mono / Sans TC）——採 **SIL OFL-1.1**，屬獨立授權。細節見 [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md)。
 
-> ⚠️ Northstar 不構成投資 / 理財建議。如 GPLv3 條款所載，本軟體「按現狀」提供、不附任何擔保。
+> ⚠️ Northstar 不構成投資 / 理財建議。如 MIT License 條款所載，本軟體「按現狀」提供、不附任何擔保。
 
 **送 PR 須簽署 CLA**：所有 pull request 都需先簽署[貢獻者授權協議（CLA.md）](CLA.md)——一次性，由機器人在 PR 留言引導。詳見 [CONTRIBUTING.md](CONTRIBUTING.md)。若要回報資安問題，請看 [SECURITY.md](SECURITY.md)，不要在公開 issue 內貼完整漏洞細節、token、個人財務資料或未遮蔽截圖。
 
