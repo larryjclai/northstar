@@ -1,4 +1,8 @@
-# Open-Source Readiness Report — Plan 072 (GPL-3.0-or-later + CLA)
+# Open-Source Readiness Report — Plan 072 (GPL-3.0-or-later + CLA, superseded)
+
+> **Historical record:** This report captures the repository's original GPLv3 licensing
+> decision. As of 2026-08-19, Northstar is licensed under the **MIT License**; see the root
+> [`LICENSE`](../LICENSE) file for the current terms.
 
 > **License decision (operator):** the project is released under **GPL-3.0-or-later** (NOT AGPL),
 > with a **Contributor License Agreement (CLA)** required for external PRs and enforced by a

@@ -55,11 +55,11 @@ Agreement for that Contribution or Work terminate as of the date such litigation
 ## 4. Right to Relicense (Outbound Licensing)
 
 You acknowledge and agree that the Project Owner may license the Project — including Your
-Contributions — under the **GNU General Public License v3.0 (or any later version)** and/or
+Contributions — under the **MIT License** and/or
 under **other license terms**, including commercial, proprietary, or dual-license terms, and
 may **relicense** the combined Work in the future at the Project Owner's sole discretion. In
 particular, You agree the Project Owner may distribute Your Contributions under terms other
-than GPLv3 (for example, to enable distribution through application stores or a commercial
+than MIT (for example, to enable distribution through application stores or a commercial
 edition). This grant is made to preserve the Project Owner's flexibility and does **not**
 require the Project Owner to do so. (Adapted from the Harmony "broad outbound" relicensing
 option.)

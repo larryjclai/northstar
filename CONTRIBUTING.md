@@ -9,8 +9,8 @@ Thanks for considering a contribution. Northstar is currently an early public be
 - By participating you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 - Agents and contributors should also read [AGENTS.md](AGENTS.md) — it is the single source of truth for the project's conventions, invariants, and Git workflow, and is intentionally not duplicated here.
 - Do not include personal finance data, real account numbers, API keys, signing keys, screenshots with private information, or production secrets in issues, commits, tests, or pull requests. Northstar is software, not financial advice.
-- The project source code is licensed under the **GNU General Public License v3.0 (or later)** — see [LICENSE](LICENSE). Bundled fonts (OFL-1.1) and excluded bank/brand logos are licensed separately — see [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
-- **All pull requests require signing the Contributor License Agreement (CLA).** This is a **one-time** step: the first time you open a PR, a bot comments asking you to sign; reply with the phrase it gives you and you're set for all future PRs. See [CLA.md](CLA.md) for the full text — it keeps the public source under GPLv3 while letting the maintainer preserve future licensing options (e.g. an App-Store build). PRs cannot be merged until the CLA is signed.
+- The project source code is licensed under the **MIT License** — see [LICENSE](LICENSE). Bundled fonts (OFL-1.1) and excluded bank/brand logos are licensed separately — see [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
+- **All pull requests require signing the Contributor License Agreement (CLA).** This is a **one-time** step: the first time you open a PR, a bot comments asking you to sign; reply with the phrase it gives you and you're set for all future PRs. See [CLA.md](CLA.md) for the full text — it permits the maintainer to distribute contributions under MIT and preserve future licensing options. PRs cannot be merged until the CLA is signed.
 
 ## Issues
 
